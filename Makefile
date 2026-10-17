@@ -28,9 +28,13 @@ lint: ## biome, tsc, ruff, mypy; CI runs the same
 	$(UV) run ruff format --check research
 	$(UV) run mypy
 
-lint-docs: ## log entry frontmatter, em dashes in prose, CLAUDE.md equals AGENTS.md
+lint-docs: ## log entries, em dashes, CLAUDE.md equals AGENTS.md; PR=<dir> checks a PR instead
+ifdef PR
+	@node scripts/check-pr.ts $(PR)
+else
 	node scripts/check-prose.ts
 	node scripts/check-log.ts
+endif
 
 test-e2e: ## stub: layer 6, compose, doctor, CLI smoke, MCP handshakes
 	@echo "test-e2e: not implemented yet (layer 6 lands with the surfaces cards)"; exit 2

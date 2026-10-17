@@ -36,4 +36,4 @@ function main(): number {
   return problems.length === 0 ? 0 : 1;
 }
 
-if (import.meta.main) process.exit(main());
+if (import.meta.main) process.exitCode = main();

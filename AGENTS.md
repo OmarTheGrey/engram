@@ -49,6 +49,7 @@ make api                       regenerate OpenAPI and the clients after any rout
 make bench BENCH=gatemem       run one benchmark on its fixture subset through the pi runner
 make lint                      biome, tsc, ruff, mypy; CI runs the same
 make lint-docs                 log entry frontmatter, em dashes in prose, CLAUDE.md equals AGENTS.md
+make lint-docs PR=<dir>        the PR gate on a PR directory (body.md, files.txt); fixtures in fixtures/ci/
 engram doctor                  db, adapters, provider keys via pi-ai, benchmark pins
 make test-e2e                  compose, doctor, CLI smoke, MCP handshakes
 make test-repro                every research script regenerates its result; hashes match MANIFEST.md
