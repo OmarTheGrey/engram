@@ -186,7 +186,7 @@ ADR 0001 is accepted. Everything below it is proposed, distilled from the readin
 
 ## 0019 Monorepo tooling
 
-**Recommended.** pnpm workspaces; TypeScript 5.x; Node 24 (type stripping for scripts, `node:sqlite`); tsdown for published packages; biome for lint and format; vitest and fast-check; `@modelcontextprotocol/sdk` for the MCP server; uv for `research/` with ruff, mypy, pytest, hypothesis; one Makefile over both. CI on GitHub Actions with a service container for each real store. Exact pins for every pi package and benchmark.
+**Recommended.** pnpm workspaces; TypeScript 7 (amended 2026-10-17 by the lead: 5.x was outdated, 7.0 is the native compiler); Node 24 (type stripping for scripts, `node:sqlite`); tsdown for published packages; biome for lint and format; vitest and fast-check; `@modelcontextprotocol/sdk` for the MCP server; uv for `research/` with ruff, mypy, pytest, hypothesis; one Makefile over both. CI on GitHub Actions with a service container for each real store. Exact pins for every pi package and benchmark.
 
 **Unblocks.** E0.1.
 
