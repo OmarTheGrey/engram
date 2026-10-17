@@ -81,7 +81,7 @@ export async function hostUserBash(session: AgentSession, command: string) {
   return session.executeBash(command, undefined, { operations: handled?.operations });
 }
 
-/** Session JSONL with ids, timestamps, durations and the temporary cwd made stable. */
+/** Session JSONL with ids, timestamps, durations, usage and the temporary cwd made stable. */
 export function normalizedJsonl(sessionManager: SessionManager, cwd: string): string {
   const header = sessionManager.getHeader();
   const entries = sessionManager.getEntries();
@@ -90,6 +90,8 @@ export function normalizedJsonl(sessionManager: SessionManager, cwd: string): st
     ids.set(e.id, `e${String(i + 1).padStart(2, "0")}`);
   });
   const stable = (value: unknown, key?: string): unknown => {
+    // The scripted model estimates usage from prompt length, which includes the path.
+    if (key === "usage") return "{usage}";
     if (Array.isArray(value)) return value.map((v) => stable(v));
     if (value && typeof value === "object") {
       return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, stable(v, k)]));
