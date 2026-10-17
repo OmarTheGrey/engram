@@ -48,9 +48,14 @@ api: ## stub: regenerate OpenAPI and the clients (S0.7)
 bench: ## stub: run one benchmark on its fixture subset: make bench BENCH=<name>
 	@echo "bench: not implemented yet (benchmark cards B1 to B9)"; exit 2
 
-fixtures: ## stub: regenerate golden files; refuses without MSG
+fixtures: ## regenerate golden files; refuses without MSG=<reason>, which goes in the commit message
 	@[ -n "$(MSG)" ] || { echo "fixtures: refusing without MSG=<reason>"; exit 2; }
-	@echo "fixtures: no generators registered yet"; exit 2
+	$(UV) run python research/scripts/consolidate_log.py --root fixtures/log/repo --out fixtures/log/expected
+	@git status --short fixtures
+	@echo "fixtures regenerated; commit them on their own with the reason: $(MSG)"
 
-thesis: ## stub: consolidate docs/log into research/thesis/drafts (S0.4)
-	@echo "thesis: not implemented yet (step-0 task S0.4)"; exit 2
+ROOT ?= .
+OUT ?= $(ROOT)/research/thesis/drafts
+
+thesis: ## consolidate docs/log into research/thesis/drafts; ROOT= and OUT= to run on a fixture log
+	$(UV) run python research/scripts/consolidate_log.py --root "$(ROOT)" --out "$(OUT)"

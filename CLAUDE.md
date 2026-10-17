@@ -54,7 +54,7 @@ engram doctor                  db, adapters, provider keys via pi-ai, benchmark 
 make test-e2e                  compose, doctor, CLI smoke, MCP handshakes
 make test-repro                every research script regenerates its result; hashes match MANIFEST.md
 make fixtures                  regenerate golden files; refuses without a message
-make thesis                    consolidate docs/log into research/thesis/drafts/
+make thesis                    consolidate docs/log into research/thesis/drafts/ (ROOT=, OUT= to run on fixtures/log/repo)
 pi                             work in this repo with the project extension loaded
 ```
 
