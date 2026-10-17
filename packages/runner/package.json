@@ -1,0 +1,15 @@
+{
+  "name": "@engram/runner",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@earendil-works/pi-ai": "1.3.0"
+  }
+}

@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Operating manual for anyone, human or agent, working in this repository. CLAUDE.md is a symlink to this file, and pi loads it as a context file. Read it in full before touching anything.
+Operating manual for anyone, human or agent, working in this repository. CLAUDE.md is an exact copy of this file (symlinks are unreliable on Windows; `make lint-docs` fails if the two differ), and pi loads AGENTS.md as a context file. Read it in full before touching anything.
 
 ## What this is
 
@@ -13,7 +13,7 @@ This is a graduation project at Egypt University of Informatics with a thesis at
 ## Where things live
 
 ```
-AGENTS.md                 this file; CLAUDE.md -> AGENTS.md; pi reads it as a context file
+AGENTS.md                 this file; CLAUDE.md is a checked copy; pi reads it as a context file
 README.md                 what the project is and how to get in
 Makefile                  every command the team and CI use; wraps pnpm and uv
 pnpm-workspace.yaml       TypeScript workspace: everything that runs inside or beside pi
@@ -44,14 +44,17 @@ fixtures/                 sessions, stores, faults, cassettes; regenerated only 
 ```
 pnpm install && uv sync        once, after clone
 make test                      vitest (core, adapters, conformance on fakes, replay-from-events) and pytest (research)
+make test-one T=<path>         one test file, with its seed printed
 make api                       regenerate OpenAPI and the clients after any route change
 make bench BENCH=gatemem       run one benchmark on its fixture subset through the pi runner
 make lint                      biome, tsc, ruff, mypy; CI runs the same
+make lint-docs                 log entry frontmatter, em dashes in prose, CLAUDE.md equals AGENTS.md
+make lint-docs PR=<dir>        the PR gate on a PR directory (body.md, files.txt); fixtures in fixtures/ci/
 engram doctor                  db, adapters, provider keys via pi-ai, benchmark pins
 make test-e2e                  compose, doctor, CLI smoke, MCP handshakes
 make test-repro                every research script regenerates its result; hashes match MANIFEST.md
 make fixtures                  regenerate golden files; refuses without a message
-make thesis                    consolidate docs/log into research/thesis/drafts/
+make thesis                    consolidate docs/log into research/thesis/drafts/ (ROOT=, OUT= to run on fixtures/log/repo)
 pi                             work in this repo with the project extension loaded
 ```
 
@@ -68,7 +71,7 @@ If a command you need is not here, add it to the Makefile and to this list in th
 7. Every model call in a run is cached, keyed on (benchmark item, condition, preset, store, model, seed). A re-run with the same config makes zero new calls.
 8. Benchmarks are pinned in `packages/bench/PINS.md`. Never update a pin mid-experiment. Updating a pin is its own PR with the diff in results explained.
 9. No result is real unless `research/scripts/<name>.py` regenerates it from `research/configs/` into `research/results/`. Numbers typed by hand into a document do not exist.
-10. One task card per PR. Title is the card id and its goal. Diff under 400 changed lines. If the card needs more, split the card first.
+10. One task card per PR. Title is the card id and its goal.
 11. A new dependency is one line in `docs/deps.md` with the reason and the license, in the same PR that adds it. Pi packages are pinned to exact versions.
 12. Dogfood content (the team's own sessions and memories) never leaves the member's machine. Only aggregate counts are committed.
 13. Written content in this repository uses no em dashes. Commas, periods, or a restructured sentence.

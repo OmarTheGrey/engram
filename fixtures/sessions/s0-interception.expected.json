@@ -1,0 +1,59 @@
+{
+  "description": "Step-0 task S0.5. One pi SDK session with an in-memory session manager, a scripted model and the Engram extension with the S0.5 stub gate. events lists the data of every custom entry with customType engram.event, in session order.",
+  "events": [
+    {
+      "op": "write",
+      "source": "tool_call",
+      "tool": "memory_write",
+      "tool_call_id": "call-1",
+      "scope": "org",
+      "decision": "deny",
+      "reason": "org scope is not writable from an agent session",
+      "policy_id": "stub.org-write-denied"
+    },
+    {
+      "op": "write",
+      "source": "tool_call",
+      "tool": "memory_write",
+      "tool_call_id": "call-2",
+      "scope": "team",
+      "decision": "allow",
+      "reason": "the stub gate allows writes outside org",
+      "policy_id": "stub.allow"
+    },
+    {
+      "op": "read",
+      "source": "tool_call",
+      "tool": "memory_read",
+      "tool_call_id": "call-3",
+      "decision": "allow",
+      "reason": "the stub gate allows reads",
+      "policy_id": "stub.allow"
+    },
+    {
+      "op": "bash",
+      "source": "tool_call",
+      "tool": "bash",
+      "tool_call_id": "call-4",
+      "command": "mem0 add 'deploys happen on Tuesdays'",
+      "decision": "deny",
+      "reason": "mem0 is a memory store command; use the Engram memory tools",
+      "policy_id": "engram.no-bypass"
+    },
+    {
+      "op": "bash",
+      "source": "user_bash",
+      "command": "mem0 list",
+      "decision": "deny",
+      "reason": "mem0 is a memory store command; use the Engram memory tools",
+      "policy_id": "engram.no-bypass"
+    }
+  ],
+  "blocked_tool_calls": ["call-1", "call-4"],
+  "model_saw_tagged": {
+    "model_call": 4,
+    "tool_call_id": "call-3",
+    "text": "<engram:memory policy_id=\"stub.allow\">\nteam: deploys happen on Tuesdays\n</engram:memory>"
+  },
+  "user_bash": { "command": "mem0 list", "exitCode": 126 }
+}

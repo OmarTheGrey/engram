@@ -2,6 +2,8 @@
 
 Everyone reads the first tier in full. Each track reads its own tier in full and skims the other. Optional papers are abstract plus a skim. One note per paper under `docs/readings/<arxiv-id>.md` using the template at the end.
 
+The literature review is in `litreview/`: one sourced note per paper (index in `litreview/README.md`, format in `litreview/TEMPLATE.md`) and the frontier summary as of 2026-10-17 in `litreview/sota-2026.md`.
+
 
 ## Everyone, in full
 

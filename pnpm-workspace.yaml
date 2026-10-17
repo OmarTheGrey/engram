@@ -1,0 +1,7 @@
+packages:
+  - packages/*
+
+# Install scripts of transitive dependencies of pi-ai's Google provider; Engram does not need them.
+allowBuilds:
+  "@google/genai": false
+  protobufjs: false
