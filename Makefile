@@ -51,6 +51,7 @@ bench: ## stub: run one benchmark on its fixture subset: make bench BENCH=<name>
 fixtures: ## regenerate golden files; refuses without MSG=<reason>, which goes in the commit message
 	@[ -n "$(MSG)" ] || { echo "fixtures: refusing without MSG=<reason>"; exit 2; }
 	$(UV) run python research/scripts/consolidate_log.py --root fixtures/log/repo --out fixtures/log/expected
+	ENGRAM_UPDATE_FIXTURES=1 $(PNPM) --filter pi-extension exec vitest run test/interception.test.ts
 	@git status --short fixtures
 	@echo "fixtures regenerated; commit them on their own with the reason: $(MSG)"
 

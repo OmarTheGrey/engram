@@ -14,3 +14,6 @@ One line per dependency: name, version, reason, licence. Added in the same PR as
 | ruff | 0.17.1 (uv.lock) | Python lint and format | MIT |
 | mypy | 2.4.0 (uv.lock) | Python type checking | MIT |
 | uv_build | >=0.10,<0.11 | build backend for the research package | MIT OR Apache-2.0 |
+| @earendil-works/pi-coding-agent | 1.3.0 | the harness the plane runs in (ADR 0001); pi-extension only | MIT |
+| @earendil-works/pi-ai | 1.3.0 | model access and the faux provider behind the scripted model; pi-extension and runner only | MIT |
+| typebox | 1.3.27 | tool parameter schemas for pi tools, the version pi itself uses | MIT |
