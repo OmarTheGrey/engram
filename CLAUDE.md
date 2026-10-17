@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Operating manual for anyone, human or agent, working in this repository. CLAUDE.md is a symlink to this file, and pi loads it as a context file. Read it in full before touching anything.
+Operating manual for anyone, human or agent, working in this repository. CLAUDE.md is an exact copy of this file (symlinks are unreliable on Windows; `make lint-docs` fails if the two differ), and pi loads AGENTS.md as a context file. Read it in full before touching anything.
 
 ## What this is
 
@@ -13,7 +13,7 @@ This is a graduation project at Egypt University of Informatics with a thesis at
 ## Where things live
 
 ```
-AGENTS.md                 this file; CLAUDE.md -> AGENTS.md; pi reads it as a context file
+AGENTS.md                 this file; CLAUDE.md is a checked copy; pi reads it as a context file
 README.md                 what the project is and how to get in
 Makefile                  every command the team and CI use; wraps pnpm and uv
 pnpm-workspace.yaml       TypeScript workspace: everything that runs inside or beside pi
@@ -48,6 +48,7 @@ make test-one T=<path>         one test file, with its seed printed
 make api                       regenerate OpenAPI and the clients after any route change
 make bench BENCH=gatemem       run one benchmark on its fixture subset through the pi runner
 make lint                      biome, tsc, ruff, mypy; CI runs the same
+make lint-docs                 log entry frontmatter, em dashes in prose, CLAUDE.md equals AGENTS.md
 engram doctor                  db, adapters, provider keys via pi-ai, benchmark pins
 make test-e2e                  compose, doctor, CLI smoke, MCP handshakes
 make test-repro                every research script regenerates its result; hashes match MANIFEST.md

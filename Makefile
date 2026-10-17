@@ -8,7 +8,7 @@ SHELL := bash
 PNPM ?= pnpm
 UV ?= uv
 
-.PHONY: help test test-one test-e2e test-repro lint api bench fixtures thesis
+.PHONY: help test test-one test-e2e test-repro lint lint-docs api bench fixtures thesis
 
 help: ## list targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | sed -E 's/:.*## /\t/' | expand -t 16
@@ -27,6 +27,10 @@ lint: ## biome, tsc, ruff, mypy; CI runs the same
 	$(UV) run ruff check research
 	$(UV) run ruff format --check research
 	$(UV) run mypy
+
+lint-docs: ## log entry frontmatter, em dashes in prose, CLAUDE.md equals AGENTS.md
+	node scripts/check-prose.ts
+	node scripts/check-log.ts
 
 test-e2e: ## stub: layer 6, compose, doctor, CLI smoke, MCP handshakes
 	@echo "test-e2e: not implemented yet (layer 6 lands with the surfaces cards)"; exit 2
