@@ -10,7 +10,7 @@ Goal: {goal}
 Files you may create or touch: {files}
 Acceptance: run `{acceptance}`; it must pass. Do not weaken it.
 Then write docs/log/{date}-{slug}.md as the documentation convention requires, type {type}.
-Start by proposing a plan. Keep the diff under 400 lines. No em dashes in any prose.
+Start by proposing a plan. No em dashes in any prose.
 ```
 
 Rules a session must keep:

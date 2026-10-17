@@ -71,7 +71,7 @@ If a command you need is not here, add it to the Makefile and to this list in th
 7. Every model call in a run is cached, keyed on (benchmark item, condition, preset, store, model, seed). A re-run with the same config makes zero new calls.
 8. Benchmarks are pinned in `packages/bench/PINS.md`. Never update a pin mid-experiment. Updating a pin is its own PR with the diff in results explained.
 9. No result is real unless `research/scripts/<name>.py` regenerates it from `research/configs/` into `research/results/`. Numbers typed by hand into a document do not exist.
-10. One task card per PR. Title is the card id and its goal. Diff under 400 changed lines. If the card needs more, split the card first.
+10. One task card per PR. Title is the card id and its goal.
 11. A new dependency is one line in `docs/deps.md` with the reason and the license, in the same PR that adds it. Pi packages are pinned to exact versions.
 12. Dogfood content (the team's own sessions and memories) never leaves the member's machine. Only aggregate counts are committed.
 13. Written content in this repository uses no em dashes. Commas, periods, or a restructured sentence.
