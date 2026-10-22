@@ -13,7 +13,7 @@ export interface Statement {
 export interface Db {
   exec(sql: string): void;
   prepare(sql: string): Statement;
-  /** Runs `fn` atomically; nested calls become savepoints. Rolls back if `fn` throws. */
+  /** Runs `fn` atomically; nested calls become savepoints. Rolls back if `fn` throws. `fn` must be synchronous. */
   transaction<T>(fn: () => T): T;
   close(): void;
 }

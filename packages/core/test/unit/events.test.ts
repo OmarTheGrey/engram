@@ -71,6 +71,17 @@ describe("appendEvent", () => {
     expect(currentItems(db)).toEqual([ITEM]);
   });
 
+  test("rejects an allowed write that carries no item, which replay could not reproduce", () => {
+    expect(() => appendEvent(db, { ...write(1), item: null })).toThrow(/carries no item/);
+    expect(currentItems(db)).toEqual([]);
+  });
+
+  test("rejects an event whose item_id differs from the item it carries", () => {
+    expect(() =>
+      appendEvent(db, { ...write(1), item_id: "01920000-0000-7000-8000-000000000099" }),
+    ).toThrow(/item_id/);
+  });
+
   test("leaves the projection alone for a denied write", () => {
     appendEvent(db, { ...write(1), decision: "deny", item: null });
     expect(currentItems(db)).toEqual([]);

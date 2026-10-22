@@ -3,7 +3,7 @@
 // with the same config makes zero new calls, and with ENGRAM_OFFLINE=1 a miss
 // is an error, so CI and replay never reach the network. A file cache is the
 // cassette set under fixtures/cassettes/.
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   canonicalJson,
@@ -76,6 +76,8 @@ export function cacheKey(context: CallContext, request: ModelRequest): string {
 
 export function cached(inner: ModelCall, options: CachedOptions): ModelCall {
   const offline = options.offline ?? process.env.ENGRAM_OFFLINE === "1";
+  /** Calls in flight by key, so concurrent identical calls reach the model once. */
+  const pending = new Map<string, Promise<ModelResponse>>();
   return async (request) => {
     const key = cacheKey(options.context, request);
     const hit = options.cache.get(key);
@@ -84,8 +86,16 @@ export function cached(inner: ModelCall, options: CachedOptions): ModelCall {
       response = hit.response;
     } else {
       if (offline) throw new OfflineMissError(key, options.context);
-      response = await inner(request);
-      options.cache.set({ key, context: options.context, request, response });
+      let flight = pending.get(key);
+      if (!flight) {
+        flight = inner(request).then((r) => {
+          options.cache.set({ key, context: options.context, request, response: r });
+          return r;
+        });
+        pending.set(key, flight);
+        void flight.finally(() => pending.delete(key)).catch(() => {});
+      }
+      response = await flight;
     }
     options.onUsage?.({ key, model: request.model, hit: hit !== undefined, ...response.usage });
     return response;
@@ -102,20 +112,35 @@ export function memoryCache(): CacheStore {
   };
 }
 
-/** One JSON file per entry, named by key: the cassette format. */
+/**
+ * One JSON file per entry, named by key: the cassette format. Only a missing
+ * file is a miss; a file that does not parse is an error, so a damaged
+ * cassette is never silently paid for again. Writes go to a temporary file
+ * and are renamed into place.
+ */
 export function fileCache(dir: string): CacheStore {
   mkdirSync(dir, { recursive: true });
   const path = (key: string) => join(dir, `${key}.json`);
   return {
     get(key) {
+      let text: string;
       try {
-        return JSON.parse(readFileSync(path(key), "utf8")) as CacheEntry;
-      } catch {
-        return undefined;
+        text = readFileSync(path(key), "utf8");
+      } catch (e) {
+        if ((e as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+        throw e;
+      }
+      try {
+        return JSON.parse(text) as CacheEntry;
+      } catch (e) {
+        throw new Error(`corrupt cassette ${path(key)}: ${(e as Error).message}`);
       }
     },
     set(entry) {
-      writeFileSync(path(entry.key), `${JSON.stringify(entry, null, 2)}\n`);
+      const target = path(entry.key);
+      const temporary = `${target}.${process.pid}.tmp`;
+      writeFileSync(temporary, `${JSON.stringify(entry, null, 2)}\n`);
+      renameSync(temporary, target);
     },
   };
 }

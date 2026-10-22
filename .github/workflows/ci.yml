@@ -26,16 +26,3 @@ jobs:
       - run: make thesis
       - run: make test
 
-  invariants:
-    name: "invariants (red by design until E2.1, issue #1)"
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    steps:
-      - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 24
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: make test-invariants

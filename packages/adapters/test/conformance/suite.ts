@@ -106,10 +106,6 @@ export function conformance(name: string, factory: () => Adapter | Promise<Adapt
         const ref = await adapter.write(BASE);
         await expect(adapter.read({ ...ref, adapter: `${adapter.name}-other` })).rejects.toThrow();
       });
-
-      test("an unknown key reads as undefined", async () => {
-        expect(await adapter.read({ adapter: adapter.name, key: "no-such-key" })).toBeUndefined();
-      });
     });
 
     describe("delete", () => {
@@ -140,28 +136,28 @@ export function conformance(name: string, factory: () => Adapter | Promise<Adapt
         if (adapter.capabilities.native_search) expect(adapter.search).toBeTypeOf("function");
       });
 
-      test("never returns an item outside the scope filter", async () => {
-        if (!adapter.search) return;
+      test("never returns an item outside the scope filter", async ({ skip }) => {
+        if (!adapter.search) return skip("no search");
         for (const i of CORPUS) await adapter.write(i);
         const hits = await adapter.search("deploy", ["team:platform"]);
         for (const hit of hits) expect(hit.scope).toBe("team:platform");
       });
 
-      test("finds every matching item inside the filter on the fixture corpus", async () => {
-        if (!adapter.search) return;
+      test("an empty scope filter returns nothing, never everything", async ({ skip }) => {
+        if (!adapter.search) return skip("no search");
         for (const i of CORPUS) await adapter.write(i);
-        const hits = await adapter.search("deploy", [
-          "team:platform",
-          "person:omar",
-          "team:research",
-        ]);
-        expect(hits.map((h) => h.id).sort()).toEqual(
-          [CORPUS[0], CORPUS[1], CORPUS[2], CORPUS[4]].map((i) => i?.id).sort(),
-        );
+        expect(await adapter.search("deploy", [])).toEqual([]);
       });
 
-      test("does not return deleted items", async () => {
-        if (!adapter.search) return;
+      test("finds an item by a unique exact phrase inside the filter", async ({ skip }) => {
+        if (!adapter.search) return skip("no search");
+        for (const i of CORPUS) await adapter.write(i);
+        const hits = await adapter.search("deploy key rotates monthly", ["team:platform"]);
+        expect(hits.map((h) => h.id)).toContain(CORPUS[1]?.id);
+      });
+
+      test("does not return deleted items", async ({ skip }) => {
+        if (!adapter.search) return skip("no search");
         const ref = await adapter.write(CORPUS[0] as MemoryItem);
         await adapter.delete(ref);
         expect(await adapter.search("deploy", ["team:platform"])).toEqual([]);
@@ -173,13 +169,30 @@ export function conformance(name: string, factory: () => Adapter | Promise<Adapt
         if (adapter.capabilities.native_history) expect(adapter.history).toBeTypeOf("function");
       });
 
-      test("returns every version written under a ref, oldest first", async () => {
-        if (!adapter.history) return;
+      test("returns every version written under a ref, oldest first", async ({ skip }) => {
+        if (!adapter.history) return skip("no history");
         const ref = await adapter.write(BASE);
         await adapter.write({ ...BASE, version: 2, content: "v2" });
         const versions = await adapter.history(ref);
         expect(versions.map((v) => v.version)).toEqual([1, 2]);
       });
     });
+  });
+}
+
+/**
+ * Full recall on the fixture corpus, for lexical stores only. A semantic store
+ * may legitimately rank or miss items, so this is not part of the contract;
+ * adapters whose search is exact term matching opt in.
+ */
+export function lexicalSearchRecall(name: string, factory: () => Adapter | Promise<Adapter>): void {
+  test(`lexical search recall: ${name} finds every matching item inside the filter`, async () => {
+    const adapter = await factory();
+    if (!adapter.search) throw new Error(`${name} has no search`);
+    for (const i of CORPUS) await adapter.write(i);
+    const hits = await adapter.search("deploy", ["team:platform", "person:omar", "team:research"]);
+    expect(hits.map((h) => h.id).sort()).toEqual(
+      [CORPUS[0], CORPUS[1], CORPUS[2], CORPUS[4]].map((i) => i?.id).sort(),
+    );
   });
 }

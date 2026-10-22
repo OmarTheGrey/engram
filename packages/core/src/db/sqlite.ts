@@ -20,6 +20,10 @@ export function openSqlite(path: string): Db {
       db.exec(`SAVEPOINT ${name}`);
       try {
         const result = fn();
+        if (result instanceof Promise) {
+          void result.catch(() => {});
+          throw new Error("Db.transaction takes a synchronous body; await outside the transaction");
+        }
         db.exec(`RELEASE ${name}`);
         return result;
       } catch (e) {

@@ -41,7 +41,13 @@
                   "@earendil-works/pi-ai": "AGENTS.md rule 4: packages/core and packages/adapters never import pi; inject a ModelCall instead.",
                   "@earendil-works/pi-coding-agent": "AGENTS.md rule 4: packages/core and packages/adapters never import pi; inject a ModelCall instead.",
                   "@earendil-works/pi-durable": "AGENTS.md rule 4: packages/core and packages/adapters never import pi; inject a ModelCall instead."
-                }
+                },
+                "patterns": [
+                  {
+                    "group": ["@earendil-works/pi-*/**"],
+                    "message": "AGENTS.md rule 4: packages/core and packages/adapters never import pi; inject a ModelCall instead."
+                  }
+                ]
               }
             }
           }

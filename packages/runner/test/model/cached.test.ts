@@ -1,11 +1,17 @@
 // Acceptance for step-0 task S0.10 (ADR 0017): a second identical call makes
 // zero underlying calls, offline mode refuses a miss, and usage is recorded.
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, readdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ModelCall, ModelRequest } from "@engram/core";
 import { describe, expect, test } from "vitest";
-import { cached, fileCache, memoryCache, OfflineMissError } from "../../src/model/cached.ts";
+import {
+  cached,
+  cacheKey,
+  fileCache,
+  memoryCache,
+  OfflineMissError,
+} from "../../src/model/cached.ts";
 
 const request: ModelRequest = {
   model: "scripted/scripted-1",
@@ -101,5 +107,29 @@ describe("cached", () => {
     const inner = counting();
     await cached(inner, { cache: fileCache(dir), context, offline: true })(request);
     expect(inner.calls).toBe(0);
+  });
+
+  test("concurrent identical calls reach the model once", async () => {
+    const inner = counting();
+    const call = cached(inner, { cache: memoryCache(), context, offline: false });
+    const [a, b] = await Promise.all([call(request), call(request)]);
+    expect(inner.calls).toBe(1);
+    expect(b).toEqual(a);
+  });
+
+  test("a corrupt cassette is an error, not a miss that silently pays again", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "engram-cassettes-"));
+    writeFileSync(join(dir, `${cacheKey(context, request)}.json`), "{ truncated");
+    const inner = counting();
+    await expect(
+      cached(inner, { cache: fileCache(dir), context, offline: false })(request),
+    ).rejects.toThrow(/corrupt cassette/);
+    expect(inner.calls).toBe(0);
+  });
+
+  test("a file cache leaves only complete cassettes behind", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "engram-cassettes-"));
+    await cached(counting(), { cache: fileCache(dir), context, offline: false })(request);
+    expect(readdirSync(dir)).toEqual([`${cacheKey(context, request)}.json`]);
   });
 });

@@ -36,13 +36,13 @@ Consolidated from docs/log by research/scripts/consolidate_log.py. Edit the entr
 
 **2026-10-22, S0.8, change.** Step-0 task S0.8 added the `Db` interface (exec, prepare, transaction with savepoints) over `node:sqlite`, a forward-only migration runner, the append-only event log (`appendEvent` with a dense seq, queries by item, actor and scope) and an item projection with `rebuild()`. ADR 0003: the event log is the source of truth and store state is a projection that must be rebuildable. 9 unit tests and a fast-check property over 500 random event sequences (seeded from the test name): the rebuilt projection equals the incremental one. Replaying events in reverse breaks it after 6 runs with a shrunk two-write counterexample and the seed printed, so the test can fail. Core never reads the clock; callers supply event ids and timestamps. Node prints an ExperimentalWarning for `node:sqlite`.[^53][^54][^55][^56]
 
-**2026-10-22, S0.9, change, H1.** Step-0 task S0.9 added the invariants file: fast-check generators for policies, scopes, grants, items and actors, and the four invariants of the testing convention asserted against the `Plane` interface, whose only implementation is a stub that admits everything. The invariants are the promises H1 rests on; they must exist, and fail, before the policy engine is written. 1,000 cases per invariant. Invariants 1 and 2 fail with a readable counterexample and a printed seed (a read returning an org item to a person with no membership or grant; an episodic user-sourced item landing where policy forbids it); invariants 3 and 4 pass. Generators are checked to produce only schema-valid values. The file runs in its own CI job with continue-on-error and is excluded from `make test` until E2.1 (issue #1). Its read and write oracles are a design commitment for ADR 0006.[^57][^58][^59][^60][^61]
+**2026-10-22, change.** Fixes for the eight important findings of the final step-0 review: allowed changing events must carry their item under the same id; `Db.transaction` refuses an async body; the Adapter contract moved to core and the Plane is asynchronous; the conformance suite tests an empty scope filter, skips missing optional methods visibly and moves full recall to an opt-in lexical suite; the cassette cache treats only a missing file as a miss, writes atomically and deduplicates calls in flight; pi subpath imports are rejected; ADRs 0002 to 0023 are marked pending the lead's review. Each would have cascaded into the E2 and A cards or misattributed decisions in the thesis. Every fix has a test that failed first; `make test` passes. Seventeen minor findings are deferred and listed in the step-0 report.[^57][^58][^59][^60][^61][^62]
 
 ## Research
 
-**2026-10-17, S0.4, change.** Step-0 task S0.4 added `research/scripts/consolidate_log.py`: it validates every docs/log entry (the same rules as `scripts/check-log.ts`, plus measurement hashes against `research/results/MANIFEST.md`) and writes the seven chapter drafts, `timeline.md`, `results-index.md` and `decisions.md`. The thesis is assembled from the log, so consolidation must be deterministic and refuse invalid entries. On the ten-entry fixture under `fixtures/log/repo`, `make thesis` output is byte-identical to `fixtures/log/expected`; 9 pytest cases pass, including a tampered results hash and a measurement without a config. `limitations.md` holds both the failure list and the limitations chapter, because the convention names that file twice. Superseded entries are left out of all drafts. `make fixtures MSG=...` regenerates the goldens.[^62][^63][^64][^65]
+**2026-10-17, S0.4, change.** Step-0 task S0.4 added `research/scripts/consolidate_log.py`: it validates every docs/log entry (the same rules as `scripts/check-log.ts`, plus measurement hashes against `research/results/MANIFEST.md`) and writes the seven chapter drafts, `timeline.md`, `results-index.md` and `decisions.md`. The thesis is assembled from the log, so consolidation must be deterministic and refuse invalid entries. On the ten-entry fixture under `fixtures/log/repo`, `make thesis` output is byte-identical to `fixtures/log/expected`; 9 pytest cases pass, including a tampered results hash and a measurement without a config. `limitations.md` holds both the failure list and the limitations chapter, because the convention names that file twice. Superseded entries are left out of all drafts. `make fixtures MSG=...` regenerates the goldens.[^63][^64][^65][^66]
 
-**2026-10-22, S0.12, failure.** The tag `prereg-v0` was first created and pushed on commit 7515b0d, the S0.11 typing fix, instead of the pre-registration commit. The commit was chained behind `make lint`, which failed on a line-length error in `research/tests/test_prereg.py`, so no commit was made; the tag command ran on its own line and tagged the previous commit. Minutes later the remote tag was deleted and `prereg-v0` recreated on e57ac82, the pre-registration commit, and pushed; `git rev-parse prereg-v0^{}` gives e57ac82. No one had fetched the wrong tag. A tag is created only in the same chain as the commit it marks, after the commit succeeds.[^66][^67]
+**2026-10-22, S0.12, failure.** The tag `prereg-v0` was first created and pushed on commit 7515b0d, the S0.11 typing fix, instead of the pre-registration commit. The commit was chained behind `make lint`, which failed on a line-length error in `research/tests/test_prereg.py`, so no commit was made; the tag command ran on its own line and tagged the previous commit. Minutes later the remote tag was deleted and `prereg-v0` recreated on e57ac82, the pre-registration commit, and pushed; `git rev-parse prereg-v0^{}` gives e57ac82. No one had fetched the wrong tag. A tag is created only in the same chain as the commit it marks, after the commit succeeds.[^67][^68]
 
 [^1]: `AGENTS.md`
 [^2]: `docs/decisions/0001-pi-as-base.md`
@@ -100,14 +100,15 @@ Consolidated from docs/log by research/scripts/consolidate_log.py. Edit the entr
 [^54]: `packages/core/src/db/sqlite.ts`
 [^55]: `packages/core/test/replay/rebuild.test.ts`
 [^56]: `pnpm --filter core test`
-[^57]: `packages/core/test/property/invariants.test.ts`
-[^58]: `packages/core/src/plane.ts`
-[^59]: `packages/core/test/generators.ts`
-[^60]: `make test-invariants`
-[^61]: <https://github.com/OmarTheGrey/engram/issues/1>
-[^62]: `research/scripts/consolidate_log.py`
-[^63]: `research/tests/test_consolidate.py`
-[^64]: `fixtures/log/expected/limitations.md`
-[^65]: `make thesis ROOT=fixtures/log/repo OUT=<tmp>`
-[^66]: `docs/research/preregistration.md`
-[^67]: `git rev-parse prereg-v0^{}`
+[^57]: `packages/core/src/events.ts`
+[^58]: `packages/core/src/adapter.ts`
+[^59]: `packages/adapters/test/conformance/suite.ts`
+[^60]: `packages/runner/src/model/cached.ts`
+[^61]: `biome.json`
+[^62]: `docs/tasks/step-0.md`
+[^63]: `research/scripts/consolidate_log.py`
+[^64]: `research/tests/test_consolidate.py`
+[^65]: `fixtures/log/expected/limitations.md`
+[^66]: `make thesis ROOT=fixtures/log/repo OUT=<tmp>`
+[^67]: `docs/research/preregistration.md`
+[^68]: `git rev-parse prereg-v0^{}`

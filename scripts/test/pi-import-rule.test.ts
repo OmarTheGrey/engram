@@ -34,13 +34,16 @@ const PI_IMPORTS = [
   'import { getModel } from "@earendil-works/pi-ai";\nexport const m = getModel;\n',
   'import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";\nexport type A = ExtensionAPI;\n',
   'import { Harness } from "@earendil-works/pi-durable";\nexport const h = Harness;\n',
+  'import { getModels } from "@earendil-works/pi-ai/compat";\nexport const c = getModels;\n',
 ];
 
 test.each(["core", "adapters"])(
   "rejects every pi import in packages/%s",
   (pkg) => {
     const run = lint(pkg, PI_IMPORTS);
-    expect(run.output.match(/lint\/style\/noRestrictedImports/g) ?? []).toHaveLength(3);
+    expect(run.output.match(/lint\/style\/noRestrictedImports/g) ?? []).toHaveLength(
+      PI_IMPORTS.length,
+    );
     expect(run.status, run.output).not.toBe(0);
   },
   SPAWN_TIMEOUT,

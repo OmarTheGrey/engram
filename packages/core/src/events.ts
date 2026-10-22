@@ -30,8 +30,27 @@ function project(db: Db, event: MemoryEvent): void {
   }
 }
 
+/**
+ * Rules the JSON Schema cannot express: an allowed change to an item must
+ * carry the item it produces, under the same id, or replay could not
+ * reproduce it.
+ */
+function checkConsistency(input: EventInput): void {
+  if (input.item && input.item.id !== input.item_id) {
+    throw new Error(
+      `event ${input.id}: item_id ${input.item_id} differs from item.id ${input.item.id}`,
+    );
+  }
+  if (input.decision === "allow" && CHANGES_ITEM.has(input.op) && !input.item) {
+    throw new Error(
+      `event ${input.id}: an allowed ${input.op} carries no item, so replay cannot reproduce it`,
+    );
+  }
+}
+
 /** Validates the event, assigns the next dense seq, stores it and updates the projection. */
 export function appendEvent(db: Db, input: EventInput): MemoryEvent {
+  checkConsistency(input);
   return db.transaction(() => {
     const next = db.prepare("SELECT coalesce(max(seq) + 1, 0) AS seq FROM events").get();
     const event = MemoryEventSchema.parse({ ...input, seq: Number(next?.seq ?? 0) });

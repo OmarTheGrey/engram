@@ -105,7 +105,7 @@ Log type: decision, one per ADR.
 
 ## Exit criterion for step 0
 
-`make test`, `make lint`, `make lint-docs`, `make api-check` and `make thesis` all run in CI; the interception fixture exists; PINS.md is complete; the invariants file is the only red test; every ADR is decided. Then E0.1 is already done by S0.1 and work starts at E0.2.
+`make test`, `make lint`, `make lint-docs`, `make api-check` and `make thesis` all run in CI; the interception fixture exists; PINS.md is complete; invariants 1 and 2 are the only red properties, held as expected failures; every ADR is decided. Then E0.1 is already done by S0.1 and work starts at E0.2.
 
 ## Outcome, 2026-10-22
 
@@ -119,10 +119,10 @@ Log type: decision, one per ADR.
 | S0.6 | done except one item | `packages/bench/PINS.md`; MPBench has no release and the request to its authors is drafted, not sent |
 | S0.7 | done | `packages/core/src/schema.ts`, `make api-check` |
 | S0.8 | done | `packages/core/src/events.ts`, replay property over 500 sequences |
-| S0.9 | done, red by design | `packages/core/test/property/invariants.test.ts`, issue #1 |
+| S0.9 | done, red by design | `packages/core/test/property/invariants.test.ts`: invariants 1 and 2 run in `make test` as expected failures until E2.2 and E2.3, issue #1 |
 | S0.10 | done | `packages/runner/src/model/`, the pi-import lint rule |
 | S0.11 | done | `packages/adapters`, conformance suite on the fake |
 | S0.12 | done | `docs/research/preregistration.md`, tag `prereg-v0`; hypotheses reconstructed, thresholds proposed, models pending |
 | S0.13 | done except one item | ADRs 0002 to 0023 decided except 0020 (licence, the owner's call); cards for every roadmap item and PX1 to PX3, RN1 to RN2 |
 
-Exit criterion: `make test`, `make lint`, `make lint-docs`, `make api-check` and `make thesis` run in CI; the interception fixture exists; PINS.md is complete except MPBench's contact date; the invariants file is the only red test; every ADR is decided except 0020. Open for the lead: send the MPBench request, decide ADR 0020, confirm pre-registration v0 into v1, and review the S0.13 decisions.
+Exit criterion: `make test`, `make lint`, `make lint-docs`, `make api-check` and `make thesis` run in CI; the interception fixture exists; PINS.md is complete except MPBench's contact date; invariants 1 and 2 are the only red properties, held as expected failures; every ADR is decided except 0020. Open for the lead: send the MPBench request, decide ADR 0020, confirm pre-registration v0 into v1, and review the S0.13 decisions.

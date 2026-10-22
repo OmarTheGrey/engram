@@ -40,6 +40,9 @@ importers:
         specifier: 4.6.7
         version: 4.6.7
     devDependencies:
+      '@engram/adapters':
+        specifier: workspace:*
+        version: link:../adapters
       ajv:
         specifier: 8.20.0
         version: 8.20.0

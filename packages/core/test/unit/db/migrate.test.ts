@@ -33,3 +33,12 @@ test("a transaction rolls back when its body throws", () => {
   ).toThrow("boom");
   expect(db.prepare("SELECT count(*) AS n FROM t").get()).toEqual({ n: 0 });
 });
+
+test("a transaction refuses an async body, which would commit before its awaited work", () => {
+  const db = openSqlite(":memory:");
+  db.exec("CREATE TABLE t(a)");
+  expect(() =>
+    db.transaction(() => Promise.resolve(db.prepare("INSERT INTO t VALUES (1)").run())),
+  ).toThrow(/synchronous/);
+  expect(db.prepare("SELECT count(*) AS n FROM t").get()).toEqual({ n: 0 });
+});
