@@ -213,3 +213,4 @@ export type Grant = z.infer<typeof Grant>;
 export type Explanation = z.infer<typeof Explanation>;
 export type LintFinding = z.infer<typeof LintFinding>;
 export type Provenance = z.infer<typeof Provenance>;
+export type ScopeLevel = z.infer<typeof ScopeLevel>;

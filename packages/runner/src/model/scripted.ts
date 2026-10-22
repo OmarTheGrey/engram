@@ -10,6 +10,7 @@ import {
   type ToolCall,
   type TranscriptContext,
 } from "@earendil-works/pi-ai";
+import { type ModelCall, requestHash } from "@engram/core";
 
 export type ScriptStep =
   | { toolCall: { id: string; name: string; arguments: ToolCall["arguments"] } }
@@ -56,3 +57,21 @@ export function scriptedPiModel(
 }
 
 export type ScriptedPiModel = ReturnType<typeof scriptedPiModel>;
+
+/**
+ * A ModelCall that answers from a table keyed on `requestHash(request)` and
+ * throws on any request the table does not hold, naming its hash so the test
+ * author can add it.
+ */
+export function scriptedModelCall(table: Readonly<Record<string, string>>): ModelCall {
+  return async (request) => {
+    const hash = requestHash(request);
+    const text = table[hash];
+    if (text === undefined) {
+      throw new Error(
+        `scripted model has no answer for request ${hash} (model ${request.model}, seed ${request.seed}); add it to the table`,
+      );
+    }
+    return { text, usage: { input_tokens: 0, output_tokens: 0, cost_usd: 0 } };
+  };
+}

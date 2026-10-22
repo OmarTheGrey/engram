@@ -1,10 +1,52 @@
 {
   "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
-  "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
   "files": {
     "includes": ["**", "!sdk", "!packages/ui/src/api", "!fixtures", "!packages/*/src/vendor"]
   },
-  "formatter": { "enabled": true, "indentStyle": "space", "indentWidth": 2, "lineWidth": 100 },
-  "linter": { "enabled": true, "rules": { "preset": "recommended" } },
-  "assist": { "enabled": true, "actions": { "source": { "organizeImports": "on" } } }
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 100
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "preset": "recommended"
+    }
+  },
+  "assist": {
+    "enabled": true,
+    "actions": {
+      "source": {
+        "organizeImports": "on"
+      }
+    }
+  },
+  "overrides": [
+    {
+      "includes": ["packages/core/**", "packages/adapters/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "@earendil-works/pi-ai": "AGENTS.md rule 4: packages/core and packages/adapters never import pi; inject a ModelCall instead.",
+                  "@earendil-works/pi-coding-agent": "AGENTS.md rule 4: packages/core and packages/adapters never import pi; inject a ModelCall instead.",
+                  "@earendil-works/pi-durable": "AGENTS.md rule 4: packages/core and packages/adapters never import pi; inject a ModelCall instead."
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

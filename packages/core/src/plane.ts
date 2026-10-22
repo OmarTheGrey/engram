@@ -8,9 +8,7 @@
 // policy engine lands (card E2.1, issue #1). Do not use it anywhere else.
 import type { Db } from "./db/db.ts";
 import { allEvents, appendEvent, currentItems } from "./events.ts";
-import type { Explanation, MemoryEvent, MemoryItem, Policy } from "./schema.ts";
-
-export type ScopeLevel = "person" | "role" | "team" | "org";
+import type { Explanation, MemoryEvent, MemoryItem, Policy, ScopeLevel } from "./schema.ts";
 
 /** Who is asking, and in which capacity. */
 export interface Actor {
