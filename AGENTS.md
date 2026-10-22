@@ -47,7 +47,8 @@ fixtures/                 sessions, stores, faults, cassettes; regenerated only 
 pnpm install && uv sync        once, after clone
 make test                      vitest (core, adapters, conformance on fakes, replay-from-events) and pytest (research)
 make test-one T=<path>         one test file, with its seed printed
-make api                       regenerate OpenAPI and the clients after any route change
+make api                       regenerate sdk/schema (JSON Schema) and research/engram_types (Python) from the Zod schema; later also OpenAPI and the clients
+make api-check                 make api, then fail if the generated files differ from what is committed
 make bench BENCH=gatemem       run one benchmark on its fixture subset through the pi runner
 make lint                      biome, tsc, ruff, mypy; CI runs the same
 make lint-docs                 log entry frontmatter, em dashes in prose, CLAUDE.md equals AGENTS.md

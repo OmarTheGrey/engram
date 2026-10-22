@@ -1,0 +1,69 @@
+{
+  "id": "knowledge",
+  "version": 1,
+  "write": [
+    {
+      "scope": "org",
+      "allowed_sources": [
+        "user",
+        "document",
+        "import"
+      ],
+      "confidence_floor": 0.7,
+      "forbidden_classes": [
+        "episodic"
+      ],
+      "requires_review": true
+    }
+  ],
+  "read": {
+    "matrix": [
+      {
+        "reader": "person",
+        "may_read": [
+          "person",
+          "role",
+          "team",
+          "org"
+        ]
+      },
+      {
+        "reader": "team",
+        "may_read": [
+          "team",
+          "org"
+        ]
+      }
+    ],
+    "honour_grants": true
+  },
+  "retention": [
+    {
+      "scope": "team",
+      "class": "episodic",
+      "ttl": 7776000,
+      "budget": 5000,
+      "eviction": "recency"
+    }
+  ],
+  "promotion": {
+    "episodic_to_semantic": {
+      "confirmations": 3,
+      "or_review": true
+    },
+    "procedural": {
+      "replay_k": 4,
+      "replay_n": 5
+    }
+  },
+  "lints": {
+    "enabled": [
+      "expired-validity",
+      "duplicate"
+    ],
+    "thresholds": {
+      "near-duplicate": 0.85
+    }
+  },
+  "schema_version": 0
+}

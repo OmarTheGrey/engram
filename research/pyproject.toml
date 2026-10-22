@@ -3,10 +3,18 @@ name = "engram-research"
 version = "0.0.0"
 description = "Engram research code: configs, scripts, results, analysis, thesis."
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "typing-extensions>=4.12",
+]
 
 [dependency-groups]
-dev = ["pytest", "hypothesis", "ruff", "mypy"]
+dev = [
+    "pytest",
+    "hypothesis",
+    "ruff",
+    "mypy",
+    "datamodel-code-generator==0.86.0",
+]
 
 [build-system]
 requires = ["uv_build>=0.10,<0.11"]

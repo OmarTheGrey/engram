@@ -22,4 +22,5 @@ jobs:
       - run: uv sync --frozen
       - run: make lint
       - run: make lint-docs
+      - run: make api-check
       - run: make test

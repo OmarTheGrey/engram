@@ -1,0 +1,12 @@
+{
+  "id": "01920000-0000-7000-8000-0000000000f1",
+  "lint_id": "expired-validity",
+  "item_id": "01920000-0000-7000-8000-000000000001",
+  "tier": "deterministic",
+  "severity": "fatal",
+  "message": "valid_to 2026-10-01 is before the read time",
+  "evidence": [
+    "valid_to=2026-10-01T00:00:00Z"
+  ],
+  "schema_version": 0
+}

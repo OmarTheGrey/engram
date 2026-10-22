@@ -1,0 +1,35 @@
+{
+  "id": "01920000-0000-7000-8000-000000000002",
+  "class": "procedural",
+  "scope": "org",
+  "owner": "person:omar",
+  "content": {
+    "body": "x"
+  },
+  "provenance": {
+    "kind": "user",
+    "ref": "pi-session/2026-10-22/entry-e04",
+    "hash": "sha256:abababababababababababababababababababababababababababababababab",
+    "actor": "person:omar",
+    "session_entry_id": "e04"
+  },
+  "confidence": 0.9,
+  "valid_from": "2026-10-22T09:00:00Z",
+  "valid_to": null,
+  "ttl": 2592000,
+  "grants": [
+    {
+      "to": "agent:claude-code/*",
+      "class": "semantic",
+      "mode": "read",
+      "expires": "2026-12-31T00:00:00Z"
+    }
+  ],
+  "version": 2,
+  "lineage": [
+    "01920000-0000-7000-8000-000000000001"
+  ],
+  "status": "candidate",
+  "store_ref": null,
+  "schema_version": 0
+}

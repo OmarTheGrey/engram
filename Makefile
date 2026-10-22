@@ -8,7 +8,7 @@ SHELL := bash
 PNPM ?= pnpm
 UV ?= uv
 
-.PHONY: help test test-one test-e2e test-repro lint lint-docs api bench fixtures thesis
+.PHONY: help test test-one test-e2e test-repro lint lint-docs api api-check bench fixtures thesis
 
 help: ## list targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | sed -E 's/:.*## /\t/' | expand -t 16
@@ -42,8 +42,14 @@ test-e2e: ## stub: layer 6, compose, doctor, CLI smoke, MCP handshakes
 test-repro: ## stub: layer 8, every research script regenerates its result
 	@echo "test-repro: not implemented yet (layer 8 lands with the first research script)"; exit 2
 
-api: ## stub: regenerate OpenAPI and the clients (S0.7)
-	@echo "api: not implemented yet (step-0 task S0.7)"; exit 2
+api: ## regenerate sdk/schema (JSON Schema) and research/engram_types (Python) from packages/core/src/schema.ts
+	node packages/core/scripts/export-schema.ts sdk/schema
+	rm -rf research/engram_types
+	$(UV) run datamodel-codegen --input sdk/schema --input-file-type jsonschema 	  --output research/engram_types --output-model-type typing.TypedDict 	  --target-python-version 3.12 --use-standard-collections --use-union-operator 	  --use-title-as-name --disable-timestamp --formatters ruff-format
+
+api-check: api ## fail if generated contracts differ from what is committed
+	@git diff --exit-code -- sdk research/engram_types
+	@[ -z "$$(git status --porcelain -- sdk research/engram_types)" ] || { git status --short -- sdk research/engram_types; echo "api-check: untracked generated files"; exit 1; }
 
 bench: ## stub: run one benchmark on its fixture subset: make bench BENCH=<name>
 	@echo "bench: not implemented yet (benchmark cards B1 to B9)"; exit 2

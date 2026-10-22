@@ -1,0 +1,20 @@
+{
+  "id": "01920000-0000-7000-8000-0000000000e1",
+  "seq": 7,
+  "ts": "2026-10-22T09:00:00Z",
+  "op": "lint",
+  "item_id": "01920000-0000-7000-8000-000000000001",
+  "actor": "agent:pi",
+  "scope_from": null,
+  "scope_to": "team:platform",
+  "decision": "ask",
+  "reason": "validity window has closed",
+  "policy_id": "lint/expired-validity",
+  "item": null,
+  "schema_version": 0,
+  "usage": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cost_usd": 0
+  }
+}

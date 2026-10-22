@@ -1,0 +1,20 @@
+{
+  "item_id": "01920000-0000-7000-8000-000000000001",
+  "rank": 0,
+  "score": {
+    "total": 0.82,
+    "components": {
+      "relevance": 0.7,
+      "recency": 0.1,
+      "importance": 0.02
+    }
+  },
+  "policy_id": "knowledge/read/team",
+  "grants_used": [],
+  "validity": {
+    "at": "2026-10-22T09:00:00Z",
+    "valid_from": "2026-10-22T09:00:00Z",
+    "valid_to": null
+  },
+  "schema_version": 0
+}

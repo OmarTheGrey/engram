@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "LintFinding.json",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+    },
+    "lint_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "item_id": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+    },
+    "tier": {
+      "type": "string",
+      "enum": [
+        "deterministic",
+        "model",
+        "procedural"
+      ]
+    },
+    "severity": {
+      "type": "string",
+      "enum": [
+        "info",
+        "warn",
+        "error"
+      ]
+    },
+    "message": {
+      "type": "string",
+      "minLength": 1
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "schema_version": {
+      "type": "number",
+      "const": 0
+    }
+  },
+  "required": [
+    "id",
+    "lint_id",
+    "item_id",
+    "tier",
+    "severity",
+    "message",
+    "evidence",
+    "schema_version"
+  ],
+  "additionalProperties": false
+}
