@@ -169,12 +169,19 @@ export function conformance(name: string, factory: () => Adapter | Promise<Adapt
         if (adapter.capabilities.native_history) expect(adapter.history).toBeTypeOf("function");
       });
 
-      test("returns every version written under a ref, oldest first", async ({ skip }) => {
+      test("returns every distinct version written under a ref, oldest first", async ({ skip }) => {
         if (!adapter.history) return skip("no history");
         const ref = await adapter.write(BASE);
         await adapter.write({ ...BASE, version: 2, content: "v2" });
         const versions = await adapter.history(ref);
         expect(versions.map((v) => v.version)).toEqual([1, 2]);
+      });
+
+      test("rewriting identical content adds no version", async ({ skip }) => {
+        if (!adapter.history) return skip("no history");
+        const ref = await adapter.write(BASE);
+        await adapter.write(BASE);
+        expect(await adapter.history(ref)).toHaveLength(1);
       });
     });
   });

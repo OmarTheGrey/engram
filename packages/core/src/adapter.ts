@@ -33,7 +33,7 @@ export interface Adapter {
   list(scope: string): Promise<MemoryItem[]>;
   /** Items matching `query`, never outside `scopeFilter`. */
   search?(query: string, scopeFilter: readonly string[]): Promise<MemoryItem[]>;
-  /** Every version written under `ref`, oldest first. */
+  /** Every distinct version written under `ref`, oldest first; rewriting identical content adds none. */
   history?(ref: StoreRef): Promise<MemoryItem[]>;
 }
 

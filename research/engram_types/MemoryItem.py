@@ -2,9 +2,10 @@
 #   filename:  MemoryItem.json
 
 from __future__ import annotations
-from typing import Any, Literal, NotRequired
+from typing import Literal, NotRequired
 from typing_extensions import TypedDict
-from . import Grant
+from .Grant import Grant
+from .JsonValue import JsonValue
 
 
 class Provenance(TypedDict, closed=True):
@@ -13,6 +14,7 @@ class Provenance(TypedDict, closed=True):
     hash: str
     actor: str
     session_entry_id: NotRequired[str]
+    model: NotRequired[str]
 
 
 class StoreRef(TypedDict, closed=True):
@@ -36,7 +38,7 @@ ProceduralItem = TypedDict(
         "valid_from": str,
         "valid_to": str | None,
         "ttl": int | None,
-        "grants": list[Grant.Model],
+        "grants": list[Grant],
         "version": int,
         "lineage": list[str],
         "status": Literal["candidate", "active", "retired"],
@@ -60,17 +62,17 @@ KnowledgeItem = TypedDict(
         "valid_from": str,
         "valid_to": str | None,
         "ttl": int | None,
-        "grants": list[Grant.Model],
+        "grants": list[Grant],
         "version": int,
         "lineage": list[str],
         "status": Literal["candidate", "active", "retired"],
         "store_ref": StoreRef | None,
         "schema_version": Literal[0],
         "class": Literal["episodic", "semantic"],
-        "content": str | dict[str, Any],
+        "content": str | dict[str, JsonValue],
     },
     closed=True,
 )
 
 
-type Model = ProceduralItem | KnowledgeItem
+type MemoryItem = ProceduralItem | KnowledgeItem

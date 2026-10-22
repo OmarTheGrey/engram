@@ -20,6 +20,8 @@ export const Scope = z.string().regex(/^(?:(?:person|role|team):[A-Za-z0-9._\-/]
 export const Principal = z.string().min(1);
 export const Status = z.enum(["candidate", "active", "retired"]);
 export const ProvenanceKind = z.enum(["user", "document", "tool", "model", "import", "compaction"]);
+/** Any JSON value; structured content is limited to it so storage never changes it. */
+export const JsonValue = z.json();
 /** Retention hint in seconds. */
 export const Ttl = z.int().positive();
 
@@ -30,6 +32,8 @@ export const Provenance = z.strictObject({
   hash: z.string().regex(/^sha256:[0-9a-f]{64}$/),
   actor: Principal,
   session_entry_id: z.string().min(1).optional(),
+  /** The model that wrote the content, `provider/model-id`, when `kind` is model or compaction. */
+  model: z.string().min(1).optional(),
 });
 
 export const Grant = z.strictObject({
@@ -76,7 +80,7 @@ export const MemoryItem = z.discriminatedUnion("class", [
     .strictObject({
       ...itemFields,
       class: z.enum(["episodic", "semantic"]),
-      content: z.union([z.string(), z.record(z.string(), z.unknown())]),
+      content: z.union([z.string(), z.record(z.string(), JsonValue)]),
     })
     .meta({ title: "KnowledgeItem" }),
 ]);
@@ -198,12 +202,19 @@ export const CONTRACTS = {
   LintFinding,
 } as const;
 
-/** JSON Schema for each contract, keyed by file name; nested contracts are `$ref`s. */
+/** Definitions shared by several contracts, exported beside them. */
+export const SHARED = { JsonValue } as const;
+
+/** JSON Schema for each contract and shared definition, keyed by file name; nested ones are `$ref`s. */
 export function contractJsonSchemas(): Record<string, unknown> {
   const registry = z.registry<{ id: string }>();
-  for (const [id, schema] of Object.entries(CONTRACTS)) registry.add(schema, { id });
+  for (const [id, schema] of Object.entries({ ...CONTRACTS, ...SHARED }))
+    registry.add(schema, { id });
   const { schemas } = z.toJSONSchema(registry, { uri: (id) => `${id}.json` });
-  return Object.fromEntries(Object.entries(schemas).map(([id, s]) => [`${id}.json`, s]));
+  // The title names the generated Python type after its contract.
+  return Object.fromEntries(
+    Object.entries(schemas).map(([id, s]) => [`${id}.json`, { title: id, ...s }]),
+  );
 }
 
 export type MemoryItem = z.infer<typeof MemoryItem>;

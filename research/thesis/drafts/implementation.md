@@ -24,25 +24,33 @@ Consolidated from docs/log by research/scripts/consolidate_log.py. Edit the entr
 
 **2026-10-17, S0.5, finding.** Step-0 task S0.5 pinned pi 1.3.0 and proved the interception points in a pi SDK session with a scripted model: tool_call blocks an org-scoped memory_write, context tags memory, every decision is an `engram.event` custom entry, and store commands are blocked in user_bash and in the model's bash tool. ADR 0001 rests on these events behaving as documented. tool_call, context and appendEntry behaved as documented; 15 tests pass. Three differences: `createAgentSession` has no `extensionFactories` option (it moved to `DefaultResourceLoader`); `session.executeBash` never emits user_bash, only the interactive and RPC hosts do; user_bash has no block result, so blocking returns a replacement result. The runner must emit user_bash itself. The context tag is request-local; the session keeps untagged results.[^31][^32][^33][^34]
 
-**2026-10-22, S0.10, failure.** The test proving the pi-import lint rule timed out in the full suite although it passed alone. It spawned Biome three times per package; under a parallel `make test` each spawn took about two seconds, past Vitest's 5-second default. Two earlier designs also failed: Biome 2.5 in stdin mode exits 1 for a clean file without `--write` and prints no diagnostics with it, and probe files under `.gitignore` are skipped unless `--vcs-use-ignore-file=false` is passed. One Biome run per package over three probe files, counting three diagnostics, with a 30-second timeout; two full runs passed 114 of 114. Tests that spawn tools set an explicit timeout.[^35][^36]
+**2026-10-22, change.** A file-backed event log now runs in WAL mode with a five-second busy timeout, and the outermost transaction begins IMMEDIATE. The final step-0 review found that two processes appending to one log would get "database is locked" at once, because the sequence read ran inside a deferred savepoint with no timeout. Tests show the pragmas are set on a file database, and that two connections appending in turn to one file keep a dense sequence 0 to 3. The 500-sequence replay property still passes. Several runner processes can share one log file; nested transactions remain savepoints.[^35][^36]
 
-**2026-10-22, S0.10, change.** Step-0 task S0.10 added the model call layer: `ModelCall` and `requestHash` in core; a scripted `ModelCall` keyed on the request hash that fails loudly on a miss; `cached()` with the ADR 0017 key, usage capture and an `ENGRAM_OFFLINE=1` refusal; a pi-ai backed `ModelCall` in the runner; and a Biome rule rejecting pi imports in core and adapters. AGENTS.md rules 4, 6 and 7: the plane never calls a model, and every call is seeded and cached. 13 runner tests: a second identical call makes zero underlying calls, offline mode throws on a miss and answers a hit, usage is recorded for hits and misses, and file cassettes survive a new process. Three tests show the import rule fires in core and adapters, not in the runner. `ModelCall` is a type in core, so lints and the distiller receive it without importing the runner.[^37][^38][^39][^40][^41]
+**2026-10-22, change, H4.** The Adapter contract now says `history` returns every distinct version under a ref, and the conformance suite checks that rewriting identical content adds no version. The final step-0 review found the fake skipped identical rewrites while the contract said every version written. A store that treats an identical rewrite as a no-op, as Mem0 does with NOOP, could not meet the stricter wording. The fake passes; a fake that records every write fails the new case. Real adapters are held to distinct versions only.[^37][^38]
 
-**2026-10-22, S0.11, change, H4.** Step-0 task S0.11 added the `Adapter` contract (read, write, delete, list, optional search and history, capability flags), a complete in-memory fake, and the conformance suite as an exported `conformance(name, factory)` that adapters A1 to A3 call from their own tests. ADR 0013 and H4: every store is held to one contract, first on a fake, then in CI service containers. 32 cases pass on the fake with and without its optional methods: round trip, idempotent write, store_ref opacity (serialisable, foreign refs refused), delete visibility, scope-exact list, search never crossing the scope filter, recall on a five-item corpus, and history in order. Mutations that ignore the scope filter or skip deletion fail it. Refs are keyed by item id in the fake; real adapters may key differently because the plane never builds a ref.[^42][^43][^44][^45]
+**2026-10-22, S0.10, failure.** The test proving the pi-import lint rule timed out in the full suite although it passed alone. It spawned Biome three times per package; under a parallel `make test` each spawn took about two seconds, past Vitest's 5-second default. Two earlier designs also failed: Biome 2.5 in stdin mode exits 1 for a clean file without `--write` and prints no diagnostics with it, and probe files under `.gitignore` are skipped unless `--vcs-use-ignore-file=false` is passed. One Biome run per package over three probe files, counting three diagnostics, with a 30-second timeout; two full runs passed 114 of 114. Tests that spawn tools set an explicit timeout.[^39][^40]
 
-**2026-10-22, S0.11, failure.** The S0.11 commit was made and pushed while `make lint` failed on a TypeScript error in the conformance suite. The command chain ran lint, tests and the commit in sequence without stopping on the lint exit code; the tests passed, so the commit went through. The base fixture was typed as the whole MemoryItem union, so spreading it with new string content did not type-check. Commit 7515b0d typed it as a knowledge item; `make lint` passed afterwards. Commits are chained on `make lint && make test`, so a failing gate stops the commit; CI would also have caught it.[^46][^47]
+**2026-10-22, S0.10, change.** Step-0 task S0.10 added the model call layer: `ModelCall` and `requestHash` in core; a scripted `ModelCall` keyed on the request hash that fails loudly on a miss; `cached()` with the ADR 0017 key, usage capture and an `ENGRAM_OFFLINE=1` refusal; a pi-ai backed `ModelCall` in the runner; and a Biome rule rejecting pi imports in core and adapters. AGENTS.md rules 4, 6 and 7: the plane never calls a model, and every call is seeded and cached. 13 runner tests: a second identical call makes zero underlying calls, offline mode throws on a miss and answers a hit, usage is recorded for hits and misses, and file cassettes survive a new process. Three tests show the import rule fires in core and adapters, not in the runner. `ModelCall` is a type in core, so lints and the distiller receive it without importing the runner.[^41][^42][^43][^44][^45]
 
-**2026-10-22, S0.7, change.** Step-0 task S0.7 added schema v0 in Zod 4 for MemoryItem, MemoryEvent, Policy, Grant, Explanation and LintFinding, following `docs/architecture.md`; `make api` exports JSON Schema to `sdk/schema/` and generates Python TypedDicts in `research/engram_types/`, and `make api-check` fails on a dirty tree. ADR 0002: one source for the contract, every other shape generated. 30 tests: each of 28 fixtures is accepted or rejected identically by Zod and by the generated JSON Schema. Two `make api` runs produce byte-identical output. A fixture caught that procedural content without a tool list passed as a generic payload, so MemoryItem is now a union on `class`. Scope is a `level:id` string and ttl is in seconds; S0.13 records both in ADR 0002.[^48][^49][^50][^51][^52]
+**2026-10-22, S0.11, change, H4.** Step-0 task S0.11 added the `Adapter` contract (read, write, delete, list, optional search and history, capability flags), a complete in-memory fake, and the conformance suite as an exported `conformance(name, factory)` that adapters A1 to A3 call from their own tests. ADR 0013 and H4: every store is held to one contract, first on a fake, then in CI service containers. 32 cases pass on the fake with and without its optional methods: round trip, idempotent write, store_ref opacity (serialisable, foreign refs refused), delete visibility, scope-exact list, search never crossing the scope filter, recall on a five-item corpus, and history in order. Mutations that ignore the scope filter or skip deletion fail it. Refs are keyed by item id in the fake; real adapters may key differently because the plane never builds a ref.[^46][^47][^48][^49]
 
-**2026-10-22, S0.8, change.** Step-0 task S0.8 added the `Db` interface (exec, prepare, transaction with savepoints) over `node:sqlite`, a forward-only migration runner, the append-only event log (`appendEvent` with a dense seq, queries by item, actor and scope) and an item projection with `rebuild()`. ADR 0003: the event log is the source of truth and store state is a projection that must be rebuildable. 9 unit tests and a fast-check property over 500 random event sequences (seeded from the test name): the rebuilt projection equals the incremental one. Replaying events in reverse breaks it after 6 runs with a shrunk two-write counterexample and the seed printed, so the test can fail. Core never reads the clock; callers supply event ids and timestamps. Node prints an ExperimentalWarning for `node:sqlite`.[^53][^54][^55][^56]
+**2026-10-22, S0.11, failure.** The S0.11 commit was made and pushed while `make lint` failed on a TypeScript error in the conformance suite. The command chain ran lint, tests and the commit in sequence without stopping on the lint exit code; the tests passed, so the commit went through. The base fixture was typed as the whole MemoryItem union, so spreading it with new string content did not type-check. Commit 7515b0d typed it as a knowledge item; `make lint` passed afterwards. Commits are chained on `make lint && make test`, so a failing gate stops the commit; CI would also have caught it.[^50][^51]
 
-**2026-10-22, change.** Fixes for the eight important findings of the final step-0 review: allowed changing events must carry their item under the same id; `Db.transaction` refuses an async body; the Adapter contract moved to core and the Plane is asynchronous; the conformance suite tests an empty scope filter, skips missing optional methods visibly and moves full recall to an opt-in lexical suite; the cassette cache treats only a missing file as a miss, writes atomically and deduplicates calls in flight; pi subpath imports are rejected; ADRs 0002 to 0023 are marked pending the lead's review. Each would have cascaded into the E2 and A cards or misattributed decisions in the thesis. Every fix has a test that failed first; `make test` passes. Seventeen minor findings are deferred and listed in the step-0 report.[^57][^58][^59][^60][^61][^62]
+**2026-10-22, S0.7, change.** Step-0 task S0.7 added schema v0 in Zod 4 for MemoryItem, MemoryEvent, Policy, Grant, Explanation and LintFinding, following `docs/architecture.md`; `make api` exports JSON Schema to `sdk/schema/` and generates Python TypedDicts in `research/engram_types/`, and `make api-check` fails on a dirty tree. ADR 0002: one source for the contract, every other shape generated. 30 tests: each of 28 fixtures is accepted or rejected identically by Zod and by the generated JSON Schema. Two `make api` runs produce byte-identical output. A fixture caught that procedural content without a tool list passed as a generic payload, so MemoryItem is now a union on `class`. Scope is a `level:id` string and ttl is in seconds; S0.13 records both in ADR 0002.[^52][^53][^54][^55][^56]
+
+**2026-10-22, S0.8, change.** Step-0 task S0.8 added the `Db` interface (exec, prepare, transaction with savepoints) over `node:sqlite`, a forward-only migration runner, the append-only event log (`appendEvent` with a dense seq, queries by item, actor and scope) and an item projection with `rebuild()`. ADR 0003: the event log is the source of truth and store state is a projection that must be rebuildable. 9 unit tests and a fast-check property over 500 random event sequences (seeded from the test name): the rebuilt projection equals the incremental one. Replaying events in reverse breaks it after 6 runs with a shrunk two-write counterexample and the seed printed, so the test can fail. Core never reads the clock; callers supply event ids and timestamps. Node prints an ExperimentalWarning for `node:sqlite`.[^57][^58][^59][^60]
+
+**2026-10-22, change.** Schema v0 changed in three ways from the final step-0 review: structured content must be JSON (a shared `JsonValue` definition exported beside the contracts), `Provenance` gains the optional `model` that ADR 0004 lists, and every exported schema carries a title so the generated Python types are named after their contracts. A Date or NaN in content changed on storage; ADR 0004's accepted option named a field the schema lacked; two generated types were called `Model`. New tests failed first and pass: content values JSON cannot carry are rejected, a model-written fixture validates in Zod and JSON Schema, and each Python module defines its contract's name. `schema_version` stays 0: v0 was never released or persisted, so no migration exists to write. The next change after a release bumps it.[^61][^62][^63][^64][^65][^66]
+
+**2026-10-22, change.** Fixes for the eight important findings of the final step-0 review: allowed changing events must carry their item under the same id; `Db.transaction` refuses an async body; the Adapter contract moved to core and the Plane is asynchronous; the conformance suite tests an empty scope filter, skips missing optional methods visibly and moves full recall to an opt-in lexical suite; the cassette cache treats only a missing file as a miss, writes atomically and deduplicates calls in flight; pi subpath imports are rejected; ADRs 0002 to 0023 are marked pending the lead's review. Each would have cascaded into the E2 and A cards or misattributed decisions in the thesis. Every fix has a test that failed first; `make test` passes. Seventeen minor findings are deferred and listed in the step-0 report.[^67][^68][^69][^70][^71][^72]
 
 ## Research
 
-**2026-10-17, S0.4, change.** Step-0 task S0.4 added `research/scripts/consolidate_log.py`: it validates every docs/log entry (the same rules as `scripts/check-log.ts`, plus measurement hashes against `research/results/MANIFEST.md`) and writes the seven chapter drafts, `timeline.md`, `results-index.md` and `decisions.md`. The thesis is assembled from the log, so consolidation must be deterministic and refuse invalid entries. On the ten-entry fixture under `fixtures/log/repo`, `make thesis` output is byte-identical to `fixtures/log/expected`; 9 pytest cases pass, including a tampered results hash and a measurement without a config. `limitations.md` holds both the failure list and the limitations chapter, because the convention names that file twice. Superseded entries are left out of all drafts. `make fixtures MSG=...` regenerates the goldens.[^63][^64][^65][^66]
+**2026-10-17, S0.4, change.** Step-0 task S0.4 added `research/scripts/consolidate_log.py`: it validates every docs/log entry (the same rules as `scripts/check-log.ts`, plus measurement hashes against `research/results/MANIFEST.md`) and writes the seven chapter drafts, `timeline.md`, `results-index.md` and `decisions.md`. The thesis is assembled from the log, so consolidation must be deterministic and refuse invalid entries. On the ten-entry fixture under `fixtures/log/repo`, `make thesis` output is byte-identical to `fixtures/log/expected`; 9 pytest cases pass, including a tampered results hash and a measurement without a config. `limitations.md` holds both the failure list and the limitations chapter, because the convention names that file twice. Superseded entries are left out of all drafts. `make fixtures MSG=...` regenerates the goldens.[^73][^74][^75][^76]
 
-**2026-10-22, S0.12, failure.** The tag `prereg-v0` was first created and pushed on commit 7515b0d, the S0.11 typing fix, instead of the pre-registration commit. The commit was chained behind `make lint`, which failed on a line-length error in `research/tests/test_prereg.py`, so no commit was made; the tag command ran on its own line and tagged the previous commit. Minutes later the remote tag was deleted and `prereg-v0` recreated on e57ac82, the pre-registration commit, and pushed; `git rev-parse prereg-v0^{}` gives e57ac82. No one had fetched the wrong tag. A tag is created only in the same chain as the commit it marks, after the commit succeeds.[^67][^68]
+**2026-10-22, change, H2.** Three minor review findings in the model call layer: a cache hit now records zero tokens and zero cost with the cassette's usage under `cached`; `ENGRAM_OFFLINE` is read on every call; earlier assistant turns reach pi-ai as typed assistant messages instead of a cast. Summing the cost ledger counted every rerun as a paid call, which would inflate the governance tax (H2); an offline flag set after the wrapper was built was ignored; the cast hid missing fields. Three new tests failed first and pass; the runner has 18 passing tests. Cost tables sum `cost_usd` directly; the cached usage stays available for audit.[^77][^78][^79]
+
+**2026-10-22, S0.12, failure.** The tag `prereg-v0` was first created and pushed on commit 7515b0d, the S0.11 typing fix, instead of the pre-registration commit. The commit was chained behind `make lint`, which failed on a line-length error in `research/tests/test_prereg.py`, so no commit was made; the tag command ran on its own line and tagged the previous commit. Minutes later the remote tag was deleted and `prereg-v0` recreated on e57ac82, the pre-registration commit, and pushed; `git rev-parse prereg-v0^{}` gives e57ac82. No one had fetched the wrong tag. A tag is created only in the same chain as the commit it marks, after the commit succeeds.[^80][^81]
 
 [^1]: `AGENTS.md`
 [^2]: `docs/decisions/0001-pi-as-base.md`
@@ -78,37 +86,50 @@ Consolidated from docs/log by research/scripts/consolidate_log.py. Edit the entr
 [^32]: `fixtures/sessions/s0-interception.expected.json`
 [^33]: `packages/pi-extension/test/interception.test.ts`
 [^34]: `pnpm --filter pi-extension test`
-[^35]: `scripts/test/pi-import-rule.test.ts`
-[^36]: `make test`
-[^37]: `packages/core/src/model.ts`
-[^38]: `packages/runner/src/model/cached.ts`
-[^39]: `packages/runner/test/model/cached.test.ts`
-[^40]: `scripts/test/pi-import-rule.test.ts`
-[^41]: `pnpm --filter runner test`
-[^42]: `packages/adapters/src/contract.ts`
-[^43]: `packages/adapters/src/fake/index.ts`
-[^44]: `packages/adapters/test/conformance/suite.ts`
-[^45]: `pnpm --filter adapters test`
-[^46]: `packages/adapters/test/conformance/suite.ts`
-[^47]: `git show 7515b0d`
-[^48]: `packages/core/src/schema.ts`
-[^49]: `sdk/schema/MemoryItem.json`
-[^50]: `research/engram_types/MemoryItem.py`
-[^51]: `packages/core/test/unit/schema.test.ts`
-[^52]: `make api-check`
-[^53]: `packages/core/src/events.ts`
-[^54]: `packages/core/src/db/sqlite.ts`
-[^55]: `packages/core/test/replay/rebuild.test.ts`
-[^56]: `pnpm --filter core test`
+[^35]: `packages/core/src/db/sqlite.ts`
+[^36]: `packages/core/test/unit/db/migrate.test.ts`
+[^37]: `packages/core/src/adapter.ts`
+[^38]: `packages/adapters/test/conformance/suite.ts`
+[^39]: `scripts/test/pi-import-rule.test.ts`
+[^40]: `make test`
+[^41]: `packages/core/src/model.ts`
+[^42]: `packages/runner/src/model/cached.ts`
+[^43]: `packages/runner/test/model/cached.test.ts`
+[^44]: `scripts/test/pi-import-rule.test.ts`
+[^45]: `pnpm --filter runner test`
+[^46]: `packages/adapters/src/contract.ts`
+[^47]: `packages/adapters/src/fake/index.ts`
+[^48]: `packages/adapters/test/conformance/suite.ts`
+[^49]: `pnpm --filter adapters test`
+[^50]: `packages/adapters/test/conformance/suite.ts`
+[^51]: `git show 7515b0d`
+[^52]: `packages/core/src/schema.ts`
+[^53]: `sdk/schema/MemoryItem.json`
+[^54]: `research/engram_types/MemoryItem.py`
+[^55]: `packages/core/test/unit/schema.test.ts`
+[^56]: `make api-check`
 [^57]: `packages/core/src/events.ts`
-[^58]: `packages/core/src/adapter.ts`
-[^59]: `packages/adapters/test/conformance/suite.ts`
-[^60]: `packages/runner/src/model/cached.ts`
-[^61]: `biome.json`
-[^62]: `docs/tasks/step-0.md`
-[^63]: `research/scripts/consolidate_log.py`
-[^64]: `research/tests/test_consolidate.py`
-[^65]: `fixtures/log/expected/limitations.md`
-[^66]: `make thesis ROOT=fixtures/log/repo OUT=<tmp>`
-[^67]: `docs/research/preregistration.md`
-[^68]: `git rev-parse prereg-v0^{}`
+[^58]: `packages/core/src/db/sqlite.ts`
+[^59]: `packages/core/test/replay/rebuild.test.ts`
+[^60]: `pnpm --filter core test`
+[^61]: `packages/core/src/schema.ts`
+[^62]: `sdk/schema/JsonValue.json`
+[^63]: `fixtures/schema/MemoryItem/valid/model-written.json`
+[^64]: `packages/core/test/unit/schema-content.test.ts`
+[^65]: `research/tests/test_engram_types.py`
+[^66]: `make api-check`
+[^67]: `packages/core/src/events.ts`
+[^68]: `packages/core/src/adapter.ts`
+[^69]: `packages/adapters/test/conformance/suite.ts`
+[^70]: `packages/runner/src/model/cached.ts`
+[^71]: `biome.json`
+[^72]: `docs/tasks/step-0.md`
+[^73]: `research/scripts/consolidate_log.py`
+[^74]: `research/tests/test_consolidate.py`
+[^75]: `fixtures/log/expected/limitations.md`
+[^76]: `make thesis ROOT=fixtures/log/repo OUT=<tmp>`
+[^77]: `packages/runner/src/model/cached.ts`
+[^78]: `packages/runner/src/model/pi.ts`
+[^79]: `packages/runner/test/model/cached.test.ts`
+[^80]: `docs/research/preregistration.md`
+[^81]: `git rev-parse prereg-v0^{}`

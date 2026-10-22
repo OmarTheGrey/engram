@@ -6,8 +6,8 @@ from typing import Literal, NotRequired
 from typing_extensions import TypedDict
 
 
-Model = TypedDict(
-    "Model",
+Grant = TypedDict(
+    "Grant",
     {
         "to": str,
         "class": NotRequired[Literal["episodic", "semantic", "procedural"]],

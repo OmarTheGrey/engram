@@ -2,7 +2,7 @@
 // the runner pass a Models collection. pi-ai exposes no sampling seed, so the
 // seed only separates cache entries (one sample per seed), which is what
 // ADR 0016 and ADR 0017 need.
-import type { Api, AssistantMessage, Context, Model } from "@earendil-works/pi-ai";
+import type { Api, AssistantMessage, Context, Model, Usage } from "@earendil-works/pi-ai";
 import type { ModelCall } from "@engram/core";
 
 export interface CompletesSimple {
@@ -14,14 +14,15 @@ export function piModelCall(
   resolve: (name: string) => Model<Api>,
 ): ModelCall {
   return async (request) => {
-    const messages = request.messages.map((m) =>
+    const model = resolve(request.model);
+    const messages: Context["messages"] = request.messages.map((m) =>
       m.role === "user"
-        ? { role: "user" as const, content: m.content, timestamp: 0 }
-        : ({ role: "assistant", content: [{ type: "text", text: m.content }] } as never),
+        ? { role: "user", content: m.content, timestamp: 0 }
+        : priorAssistantTurn(model, m.content),
     );
     const context: Context =
       request.system === undefined ? { messages } : { systemPrompt: request.system, messages };
-    const reply = await models.completeSimple(resolve(request.model), context, {
+    const reply = await models.completeSimple(model, context, {
       ...(request.temperature === undefined ? {} : { temperature: request.temperature }),
       ...(request.maxTokens === undefined ? {} : { maxTokens: request.maxTokens }),
     });
@@ -36,5 +37,28 @@ export function piModelCall(
         cost_usd: reply.usage.cost.total,
       },
     };
+  };
+}
+
+const NO_USAGE: Usage = {
+  input: 0,
+  output: 0,
+  cacheRead: 0,
+  cacheWrite: 0,
+  totalTokens: 0,
+  cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+};
+
+/** An earlier assistant turn replayed into the context: it cost nothing now. */
+function priorAssistantTurn(model: Model<Api>, text: string): AssistantMessage {
+  return {
+    role: "assistant",
+    content: [{ type: "text", text }],
+    api: model.api,
+    provider: model.provider,
+    model: model.id,
+    usage: NO_USAGE,
+    stopReason: "stop",
+    timestamp: 0,
   };
 }

@@ -17,7 +17,7 @@ class Validity(TypedDict, closed=True):
     valid_to: str | None
 
 
-class Model(TypedDict, closed=True):
+class Explanation(TypedDict, closed=True):
     item_id: str
     rank: int
     score: Score

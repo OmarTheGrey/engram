@@ -57,7 +57,7 @@ class Lints(TypedDict, closed=True):
     thresholds: dict[str, float]
 
 
-class Model(TypedDict, closed=True):
+class Policy(TypedDict, closed=True):
     id: str
     version: int
     write: list[WriteItem]

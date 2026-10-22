@@ -6,7 +6,7 @@ from typing import Literal
 from typing_extensions import TypedDict
 
 
-class Model(TypedDict, closed=True):
+class LintFinding(TypedDict, closed=True):
     id: str
     lint_id: str
     item_id: str

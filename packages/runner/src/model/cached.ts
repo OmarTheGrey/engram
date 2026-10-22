@@ -10,6 +10,7 @@ import {
   type ModelCall,
   type ModelRequest,
   type ModelResponse,
+  type ModelUsage,
   requestHash,
   sha256,
 } from "@engram/core";
@@ -34,6 +35,11 @@ export interface CacheStore {
   set(entry: CacheEntry): void;
 }
 
+/**
+ * Usage of one call, for the cost ledger. A hit spends nothing, so its tokens
+ * and cost are zero and the usage recorded when the cassette was made is in
+ * `cached`; summing the ledger therefore counts each paid call once.
+ */
 export interface UsageRecord {
   key: string;
   model: string;
@@ -41,12 +47,13 @@ export interface UsageRecord {
   input_tokens: number;
   output_tokens: number;
   cost_usd: number;
+  cached?: ModelUsage;
 }
 
 export interface CachedOptions {
   cache: CacheStore;
   context: CallContext;
-  /** Refuse misses. Defaults to ENGRAM_OFFLINE=1. */
+  /** Refuse misses. When unset, ENGRAM_OFFLINE=1 is checked on every call. */
   offline?: boolean;
   /** Called once per call with its usage, for the cost ledger. */
   onUsage?: (usage: UsageRecord) => void;
@@ -75,7 +82,7 @@ export function cacheKey(context: CallContext, request: ModelRequest): string {
 }
 
 export function cached(inner: ModelCall, options: CachedOptions): ModelCall {
-  const offline = options.offline ?? process.env.ENGRAM_OFFLINE === "1";
+  const offline = () => options.offline ?? process.env.ENGRAM_OFFLINE === "1";
   /** Calls in flight by key, so concurrent identical calls reach the model once. */
   const pending = new Map<string, Promise<ModelResponse>>();
   return async (request) => {
@@ -85,7 +92,7 @@ export function cached(inner: ModelCall, options: CachedOptions): ModelCall {
     if (hit) {
       response = hit.response;
     } else {
-      if (offline) throw new OfflineMissError(key, options.context);
+      if (offline()) throw new OfflineMissError(key, options.context);
       let flight = pending.get(key);
       if (!flight) {
         flight = inner(request).then((r) => {
@@ -97,7 +104,19 @@ export function cached(inner: ModelCall, options: CachedOptions): ModelCall {
       }
       response = await flight;
     }
-    options.onUsage?.({ key, model: request.model, hit: hit !== undefined, ...response.usage });
+    const base = { key, model: request.model };
+    options.onUsage?.(
+      hit
+        ? {
+            ...base,
+            hit: true,
+            input_tokens: 0,
+            output_tokens: 0,
+            cost_usd: 0,
+            cached: response.usage,
+          }
+        : { ...base, hit: false, ...response.usage },
+    );
     return response;
   };
 }
