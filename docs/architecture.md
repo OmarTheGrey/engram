@@ -1,6 +1,6 @@
 # Engram architecture
 
-> **Status: living document, subject to change.** This describes the architecture as decided on 2026-10-22. Any part of it will change if the team decides to, or finds a better approach. Changes land as ADRs under `docs/decisions/` with a log entry, and this file is updated in the same PR as the code that changes the thing it describes. The ADRs numbered 0002 to 0023 are still proposed; where this file assumes one of them, it says so.
+> **Status: living document, subject to change.** This describes the architecture as decided on 2026-10-22. Any part of it will change if the team decides to, or finds a better approach. Changes land as ADRs under `docs/decisions/` with a log entry, and this file is updated in the same PR as the code that changes the thing it describes. ADRs 0002 to 0023 (except 0020, the licence) were drafted as accepted in step 0 and are pending the lead's review; where this file assumes one of them, it says so.
 
 ## One paragraph
 

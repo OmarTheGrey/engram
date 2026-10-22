@@ -96,7 +96,7 @@ def test_hypotheses_name_only_registered_benchmarks() -> None:
         assert unknown == set(), f"{name} names unregistered benchmarks {unknown}"
 
 
-def test_models_and_seeds_are_fixed() -> None:
+def test_three_model_slots_and_three_seeds_are_declared() -> None:
     top = sections(prereg(), "##")
     assert len(table_first_column(top["Models"])) == 3
     seeds = re.findall(r"\b\d+\b", fields(top["Seeds"])["Seeds"])
@@ -122,3 +122,16 @@ def test_results_globs_do_not_overlap() -> None:
     for i, a in enumerate(stems):
         for b in stems[i + 1 :]:
             assert not (a.startswith(b) or b.startswith(a)), f"{a} and {b} overlap"
+
+
+def latest_version() -> str:
+    rows = table_first_column(sections(prereg(), "##")["Versions"])
+    return rows[-1]
+
+
+def test_models_are_concrete_from_v1() -> None:
+    """Placeholders are allowed only in v0.x; the deposited v1 names every model."""
+    if latest_version().startswith("v0"):
+        return
+    models = sections(prereg(), "##")["Models"]
+    assert "to be fixed" not in models, f"{latest_version()} still has placeholder models"

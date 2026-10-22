@@ -1,6 +1,6 @@
 # Pre-registration
 
-Version v0, dated 2026-10-22, tagged `prereg-v0`. Every version is dated and kept. The version that precedes the first real run is tagged `prereg-vN` and deposited externally (OSF or Zenodo, ADR 0023); changes after that are amendments with reasons, never edits. `research/tests/test_prereg.py` checks that this file is complete.
+Version v0.1, dated 2026-10-22; v0 is tagged `prereg-v0`. Every version is dated and kept. The version that precedes the first real run is tagged `prereg-vN` and deposited externally (OSF or Zenodo, ADR 0023); changes after that are amendments with reasons, never edits. `research/tests/test_prereg.py` checks that this file is complete.
 
 **Status of v0.** Drafted during step 0 from the roadmap (`docs/roadmap.md`: Gate C, cards X1 to X13), the proposed ADRs (0006, 0015, 0016, 0017, 0022) and the literature review (`docs/readings/litreview/`). The proposal that holds the original hypothesis wording was not in the repository, so the statements below are reconstructions. Values marked "proposed" are design choices made in this draft. The lead confirms or amends every hypothesis, threshold and model before `prereg-v1`, and nothing runs before that.
 
@@ -59,7 +59,7 @@ Every model call takes its seed from the experiment config and is cached on (ben
 
 - Unit of analysis: the benchmark item, paired across conditions on the same item, model and seed.
 - Interval: paired bootstrap of the mean difference, 10,000 resamples, BCa, 95 percent (Efron and Tibshirani 1993).
-- Multiplicity: Holm across the five primary tests, one per hypothesis, at family-wise alpha 0.05 (Holm 1979).
+- Multiplicity: each hypothesis has one primary test, whose one-sided bootstrap p-value is the share of resamples at or below zero. Holm adjusts the five p-values at family-wise alpha 0.05 (Holm 1979); a hypothesis is supported when its Holm-adjusted p-value is below 0.05. Intervals are reported unadjusted at 95 percent beside the adjusted decision.
 - Seeds: results are averaged over the three seeds within an item before resampling; the seed spread is reported.
 - The analysis code is tested on synthetic data with a planted effect and a planted null before it sees real data (`research/tests/test_analysis.py`).
 
@@ -71,9 +71,9 @@ Every model call takes its seed from the experiment config and is cached on (ben
 - **Conditions:** C2, C3, C4, C5
 - **Benchmarks:** GateMem, MPBench
 - **Metric:** violation rate: on GateMem the share of access and forgetting checkpoints that leak a target or take the wrong action (A and F, Sec. 3.2 of the paper); on MPBench the attack success rate. GateMem MGS is reported as secondary.
-- **Test:** one-sided paired bootstrap of the difference C4 minus C5 (the stronger instruction condition), per benchmark; the primary test is GateMem on M1, Holm-adjusted.
+- **Test:** one-sided paired bootstrap of the difference C4 minus C5 (the stronger instruction condition), per benchmark; the primary test is GateMem on M1, decided by its Holm-adjusted p-value.
 - **Stopping rule:** fixed sample: every access and forgetting checkpoint, three seeds, run once to completion; no interim analysis except the single Gate C read-out of the full sample.
-- **Analysis:** supported if the Holm-adjusted interval for C4 minus C5 lies above zero on GateMem and the MPBench interval does not contradict it; otherwise the Gate C pivot applies (characterise where boundary enforcement fails). Per-attack-family breakdowns are exploratory.
+- **Analysis:** supported if the Holm-adjusted p-value for C4 minus C5 on GateMem is below 0.05 and the MPBench interval does not contradict it; otherwise the Gate C pivot applies (characterise where boundary enforcement fails). Per-attack-family breakdowns are exploratory.
 - **Results:** research/results/h1-*
 
 ### H2. The governance tax has a knee
@@ -105,7 +105,7 @@ Every model call takes its seed from the experiment config and is cached on (ben
 - **Benchmarks:** GateMem, MemoryAgentBench
 - **Metric:** violation rate per store (files, Mem0, Letta) and per model (M1 to M3); utility gap between stores.
 - **Test:** two one-sided tests of equivalence of C5 violation rates across stores and across models (proposed margin: 2 percentage points); paired bootstrap of C7 minus C5.
-- **Stopping rule:** fixed subsets per model as in the Models section; a store that fails the conformance suite is excluded and the exclusion is reported (roadmap Gate B response).
+- **Stopping rule:** fixed subsets per model as in the Models section; a store that fails the conformance suite is excluded and the exclusion is reported (roadmap Gate B response). Power: about 100 items per model is likely too few for a 2-point equivalence margin; the sample needed is computed from the pilot variance before `prereg-v1`, and the margin or the subset is amended then.
 - **Analysis:** supported if every pairwise equivalence holds within the margin; the C7 minus C5 difference is reported as a limitation whatever its sign.
 - **Results:** research/results/h4-*
 
@@ -130,3 +130,4 @@ Every model call takes its seed from the experiment config and is cached on (ben
 | version | date | change |
 |---|---|---|
 | v0 | 2026-10-22 | first complete draft; hypotheses reconstructed, thresholds proposed, models pending |
+| v0.1 | 2026-10-22 | review fixes: Holm adjusts p-values, not intervals; H4 power caveat; models must be concrete from v1 |

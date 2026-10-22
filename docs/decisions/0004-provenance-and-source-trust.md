@@ -16,6 +16,7 @@ Amendments made when deciding:
 
 - From the literature review (`docs/readings/litreview/sota-2026.md`; 2606.24322 Origin-Bound Authority): provenance is set by the system at write time and never claimed by the model.
 - An item derived from others inherits the least trusted provenance of its inputs, so `compaction` provenance is a trust ceiling.
+- The optional `model` field of option (a) is in the schema since the review fixes of 2026-10-22: it names the model that wrote `model` or `compaction` content.
 
 ## Alternatives considered
 
