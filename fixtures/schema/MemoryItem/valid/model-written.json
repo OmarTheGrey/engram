@@ -1,0 +1,35 @@
+{
+  "id": "01920000-0000-7000-8000-000000000003",
+  "class": "semantic",
+  "scope": "person:omar",
+  "owner": "person:omar",
+  "content": "Deploys happen on Tuesdays.",
+  "provenance": {
+    "kind": "model",
+    "ref": "pi-session/2026-10-22/entry-e04",
+    "hash": "sha256:abababababababababababababababababababababababababababababababab",
+    "actor": "agent:pi",
+    "session_entry_id": "e04",
+    "model": "scripted/scripted-1"
+  },
+  "confidence": 0.4,
+  "valid_from": "2026-10-22T09:00:00Z",
+  "valid_to": null,
+  "ttl": null,
+  "grants": [
+    {
+      "to": "agent:claude-code/*",
+      "class": "semantic",
+      "mode": "read",
+      "expires": "2026-12-31T00:00:00Z"
+    }
+  ],
+  "version": 1,
+  "lineage": [],
+  "status": "active",
+  "store_ref": {
+    "adapter": "files",
+    "key": "team/platform/deploys.md"
+  },
+  "schema_version": 0
+}

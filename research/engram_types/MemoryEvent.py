@@ -4,7 +4,7 @@
 from __future__ import annotations
 from typing_extensions import TypedDict
 from typing import Literal, NotRequired
-from . import MemoryItem
+from .MemoryItem import MemoryItem
 
 
 class Usage(TypedDict, closed=True):
@@ -13,7 +13,7 @@ class Usage(TypedDict, closed=True):
     cost_usd: float
 
 
-class Model(TypedDict, closed=True):
+class MemoryEvent(TypedDict, closed=True):
     id: str
     seq: int
     ts: str
@@ -27,6 +27,6 @@ class Model(TypedDict, closed=True):
     decision: Literal["allow", "deny", "ask"]
     reason: str
     policy_id: str
-    item: NotRequired[MemoryItem.Model | None]
+    item: NotRequired[MemoryItem | None]
     usage: NotRequired[Usage]
     schema_version: Literal[0]

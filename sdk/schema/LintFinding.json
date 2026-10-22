@@ -1,4 +1,5 @@
 {
+  "title": "LintFinding",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "LintFinding.json",
   "type": "object",

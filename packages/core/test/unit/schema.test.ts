@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { Ajv2020 } from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
 import { describe, expect, test } from "vitest";
-import { CONTRACTS, SCHEMA_VERSION } from "../../src/schema.ts";
+import { CONTRACTS, SCHEMA_VERSION, SHARED } from "../../src/schema.ts";
 
 const ROOT = new URL("../../../../", import.meta.url).pathname.replace(/^\/(\w:)/, "$1");
 const SDK = join(ROOT, "sdk", "schema");
@@ -22,11 +22,9 @@ for (const file of readdirSync(SDK).filter((f) => f.endsWith(".json"))) {
 const read = (path: string) => JSON.parse(readFileSync(path, "utf8"));
 const list = (dir: string) => readdirSync(dir).filter((f) => f.endsWith(".json"));
 
-test("sdk/schema holds exactly one generated file per contract", () => {
+test("sdk/schema holds exactly one generated file per contract and shared definition", () => {
   expect(list(SDK).sort()).toEqual(
-    Object.keys(CONTRACTS)
-      .map((n) => `${n}.json`)
-      .sort(),
+    [...Object.keys(CONTRACTS), ...Object.keys(SHARED)].map((n) => `${n}.json`).sort(),
   );
 });
 

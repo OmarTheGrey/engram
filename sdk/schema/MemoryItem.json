@@ -1,4 +1,5 @@
 {
+  "title": "MemoryItem",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "MemoryItem.json",
   "oneOf": [
@@ -45,6 +46,10 @@
               "minLength": 1
             },
             "session_entry_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "model": {
               "type": "string",
               "minLength": 1
             }
@@ -239,6 +244,10 @@
             "session_entry_id": {
               "type": "string",
               "minLength": 1
+            },
+            "model": {
+              "type": "string",
+              "minLength": 1
             }
           },
           "required": [
@@ -356,7 +365,9 @@
               "propertyNames": {
                 "type": "string"
               },
-              "additionalProperties": {}
+              "additionalProperties": {
+                "$ref": "JsonValue.json"
+              }
             }
           ]
         }
