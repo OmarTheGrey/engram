@@ -46,6 +46,7 @@ api: ## regenerate sdk/schema (JSON Schema) and research/engram_types (Python) f
 	node packages/core/scripts/export-schema.ts sdk/schema
 	rm -rf research/engram_types
 	$(UV) run datamodel-codegen --input sdk/schema --input-file-type jsonschema 	  --output research/engram_types --output-model-type typing.TypedDict 	  --target-python-version 3.12 --use-standard-collections --use-union-operator 	  --use-title-as-name --disable-timestamp --formatters ruff-format
+	find research/engram_types -name '*.py' -exec sed -i 's/$$//' {} +
 
 api-check: api ## fail if generated contracts differ from what is committed
 	@git diff --exit-code -- sdk research/engram_types
