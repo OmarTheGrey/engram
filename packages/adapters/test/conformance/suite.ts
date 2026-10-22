@@ -12,7 +12,7 @@ import type { MemoryItem } from "@engram/core";
 import { beforeEach, describe, expect, test } from "vitest";
 import type { Adapter } from "../../src/contract.ts";
 
-const BASE: MemoryItem = {
+const BASE: Extract<MemoryItem, { class: "episodic" | "semantic" }> = {
   id: "01920000-0000-7000-8000-000000000001",
   class: "semantic",
   scope: "team:platform",
