@@ -31,6 +31,8 @@ packages/runner/          experiment runner: pi SDK sessions, seeded, cached; Pi
 research/                 Python: configs/, scripts/, results/, analysis, stats, figures, thesis
 sdk/                      generated clients; do not edit by hand
 docs/                     architecture, decisions, tasks, research, readings, deps, glossary
+docs/architecture.md      the architecture: layers, memory model, write and read paths, interfaces (living document)
+docs/roadmap.md           phases, gates, week plan and the task cards; cards are expanded into docs/tasks/
 docs/conventions/         documentation.md (the log, thesis consolidation), testing.md (layers, fakes, fixtures)
 docs/log/                 one typed, dated entry per step; consolidated into thesis drafts by `make thesis`
 fixtures/                 sessions, stores, faults, cassettes; regenerated only by `make fixtures`
@@ -82,7 +84,7 @@ If a command you need is not here, add it to the Makefile and to this list in th
 
 Cards live in `docs/tasks/<id>.md`. Each has a goal, the files you may touch, what it depends on, an acceptance command, and what is out of scope.
 
-1. Read the card and AGENTS.md. Read `docs/architecture.md` if the card touches `packages/core`, `packages/adapters` or `packages/pi-extension`.
+1. Read the card and AGENTS.md. Read `docs/architecture.md` if the card touches `packages/core`, `packages/adapters` or `packages/pi-extension`. `docs/roadmap.md` places the card in its phase and gate.
 2. Check that every card in `depends on` is merged. If not, stop and say so.
 3. Propose a plan in the PR description before writing code. Keep it to the files the card names.
 4. Write the test or fixture that the acceptance command runs first, if the card does not already ship it.
