@@ -2,33 +2,33 @@
 
 One file per decision, `NNNN-<slug>.md`, format: context, decision, alternatives, consequences, sources. Status is one of proposed, accepted, superseded. A proposed ADR is a question with a recommended answer; accepting it is a `decision` log entry plus a status change in the same PR.
 
-ADR 0001 is accepted. Everything below it is proposed, distilled from the readings in `docs/readings/`, the gap analysis in the proposal, and checks run on 2026-10-17. Each proposal names the papers or facts that force it, the options, the recommended pick, and what it unblocks. Accept, amend or reject them in step 0 (see `docs/tasks/step-0.md`).
+ADRs 0001 to 0023 except 0020 are decided (step-0 task S0.13, 2026-10-22); each accepted ADR has its own file, which is authoritative. 0020 (licence) is the owner's decision and stays proposed. The proposals below are kept as the record of what was decided from; they were distilled from the readings in `docs/readings/`, the gap analysis in the proposal, and checks run on 2026-10-17. Each proposal names the papers or facts that force it, the options, the recommended pick, and what it unblocks. They were accepted, amended or rejected in step 0 (see `docs/tasks/step-0.md`).
 
 | # | Title | Status |
 |---|---|---|
 | 0001 | pi is the base building block of the control plane | accepted |
-| 0002 | Memory item schema, versioning and generated contracts | proposed |
-| 0003 | Event log as source of truth; store state as projection; SQLite via node:sqlite | proposed |
-| 0004 | Provenance model and source trust | proposed |
-| 0005 | Validity is bi-temporal; updates supersede, never overwrite | proposed |
-| 0006 | Scope, owner and grants; policy as typed objects, not a policy language | proposed |
-| 0007 | Write gate rules and source isolation | proposed |
-| 0008 | Lints: deterministic first, model-based second, both as events | proposed |
-| 0009 | Retrieval explanations carry score components, rank and policy decision | proposed |
-| 0010 | Retention never deletes; eviction retires; long-horizon arm is mandatory | proposed |
-| 0011 | One lifecycle for every class: candidate, active, retired; replay admission for procedures | proposed |
-| 0012 | Induction method: Agent Workflow Memory over pi session trees, reimplemented in TypeScript | proposed |
-| 0013 | Adapter contract with capability flags; conformance suite on a fake first | proposed |
-| 0014 | No-bypass: store commands blocked in bash; MCP store tools wrapped | proposed |
-| 0015 | Evaluation protocol: six benchmarks, seven conditions, vendored judges, label audit | proposed |
-| 0016 | Statistics: paired bootstrap, Holm, three models from three providers, stopping rules | proposed |
-| 0017 | Every model call is cached, metered and seeded; cassettes are the cache | proposed |
-| 0018 | Duplicate and near-duplicate detection without embeddings by default | proposed |
-| 0019 | Monorepo tooling | proposed |
+| 0002 | Memory item schema, versioning and generated contracts | accepted with amendments |
+| 0003 | Event log as source of truth; store state as projection; SQLite via node:sqlite | accepted with amendments |
+| 0004 | Provenance model and source trust | accepted with amendments |
+| 0005 | Validity is bi-temporal; updates supersede, never overwrite | accepted with amendments |
+| 0006 | Scope, owner and grants; policy as typed objects, not a policy language | accepted with amendments |
+| 0007 | Write gate rules and source isolation | accepted |
+| 0008 | Lints: deterministic first, model-based second, both as events | accepted |
+| 0009 | Retrieval explanations carry score components, rank and policy decision | accepted with amendments |
+| 0010 | Retention never deletes; eviction retires; long-horizon arm is mandatory | accepted |
+| 0011 | One lifecycle for every class: candidate, active, retired; replay admission for procedures | accepted with amendments |
+| 0012 | Induction method: Agent Workflow Memory over pi session trees, reimplemented in TypeScript | accepted |
+| 0013 | Adapter contract with capability flags; conformance suite on a fake first | accepted with amendments |
+| 0014 | No-bypass: store commands blocked in bash; MCP store tools wrapped | accepted with amendments |
+| 0015 | Evaluation protocol: six benchmarks, seven conditions, vendored judges, label audit | accepted with amendments |
+| 0016 | Statistics: paired bootstrap, Holm, three models from three providers, stopping rules | accepted with amendments |
+| 0017 | Every model call is cached, metered and seeded; cassettes are the cache | accepted with amendments |
+| 0018 | Duplicate and near-duplicate detection without embeddings by default | accepted |
+| 0019 | Monorepo tooling | accepted with amendments |
 | 0020 | Licence | proposed, owner decides |
-| 0021 | Twin: person and role scopes, consent grants, handover; offboarding deferred | proposed |
-| 0022 | Other harnesses through MCP; interception limits stated | proposed |
-| 0023 | Pre-registration lives in the repo, tagged, and is mirrored externally | proposed |
+| 0021 | Twin: person and role scopes, consent grants, handover; offboarding deferred | accepted |
+| 0022 | Other harnesses through MCP; interception limits stated | accepted with amendments |
+| 0023 | Pre-registration lives in the repo, tagged, and is mirrored externally | accepted with amendments |
 
 ---
 

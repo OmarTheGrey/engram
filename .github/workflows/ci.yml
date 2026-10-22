@@ -23,6 +23,7 @@ jobs:
       - run: make lint
       - run: make lint-docs
       - run: make api-check
+      - run: make thesis
       - run: make test
 
   invariants:
