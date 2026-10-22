@@ -20,9 +20,13 @@ Consolidated from docs/log by research/scripts/consolidate_log.py. Edit the entr
 
 **2026-10-17, S0.3, failure.** On Windows, the check scripts crashed with a libuv assertion (`!(handle->flags & UV_HANDLE_CLOSING)`, `src\win\async.c`) when they called `process.exit(1)` straight after writing problems to stderr. `process.exit` tears the process down while the stderr pipe write is still pending; the scripts ran under make, whose stderr is a pipe. The gate still failed, but with exit code 127 and a crash message instead of exit code 1. Setting `process.exitCode` and returning lets the write finish; the same run now exits 1 with only the problem line. Scripts in this repository set `process.exitCode` and never call `process.exit` after writing output.[^27][^28]
 
+**2026-10-17, S0.5, failure.** The S0.5 session fixture recorded on Windows failed on Linux CI. Three values were not stable: the faux provider's default API id embeds a timestamp and a random suffix; the system prompt carries the temporary working directory with forward slashes; and the faux provider estimates token usage from prompt length, which depends on that path. The first two were caught locally across repeated runs; usage was caught by CI, where input token counts differed by seven per call. The scripted model now takes a fixed API id, and the normalizer replaces both path spellings and the usage object. Session fixtures are accepted only after a green run on both Windows and Linux.[^29][^30]
+
+**2026-10-17, S0.5, finding.** Step-0 task S0.5 pinned pi 1.3.0 and proved the interception points in a pi SDK session with a scripted model: tool_call blocks an org-scoped memory_write, context tags memory, every decision is an `engram.event` custom entry, and store commands are blocked in user_bash and in the model's bash tool. ADR 0001 rests on these events behaving as documented. tool_call, context and appendEntry behaved as documented; 15 tests pass. Three differences: `createAgentSession` has no `extensionFactories` option (it moved to `DefaultResourceLoader`); `session.executeBash` never emits user_bash, only the interactive and RPC hosts do; user_bash has no block result, so blocking returns a replacement result. The runner must emit user_bash itself. The context tag is request-local; the session keeps untagged results.[^31][^32][^33][^34]
+
 ## Research
 
-**2026-10-17, S0.4, change.** Step-0 task S0.4 added `research/scripts/consolidate_log.py`: it validates every docs/log entry (the same rules as `scripts/check-log.ts`, plus measurement hashes against `research/results/MANIFEST.md`) and writes the seven chapter drafts, `timeline.md`, `results-index.md` and `decisions.md`. The thesis is assembled from the log, so consolidation must be deterministic and refuse invalid entries. On the ten-entry fixture under `fixtures/log/repo`, `make thesis` output is byte-identical to `fixtures/log/expected`; 9 pytest cases pass, including a tampered results hash and a measurement without a config. `limitations.md` holds both the failure list and the limitations chapter, because the convention names that file twice. Superseded entries are left out of all drafts. `make fixtures MSG=...` regenerates the goldens.[^29][^30][^31][^32]
+**2026-10-17, S0.4, change.** Step-0 task S0.4 added `research/scripts/consolidate_log.py`: it validates every docs/log entry (the same rules as `scripts/check-log.ts`, plus measurement hashes against `research/results/MANIFEST.md`) and writes the seven chapter drafts, `timeline.md`, `results-index.md` and `decisions.md`. The thesis is assembled from the log, so consolidation must be deterministic and refuse invalid entries. On the ten-entry fixture under `fixtures/log/repo`, `make thesis` output is byte-identical to `fixtures/log/expected`; 9 pytest cases pass, including a tampered results hash and a measurement without a config. `limitations.md` holds both the failure list and the limitations chapter, because the convention names that file twice. Superseded entries are left out of all drafts. `make fixtures MSG=...` regenerates the goldens.[^35][^36][^37][^38]
 
 [^1]: `AGENTS.md`
 [^2]: `docs/decisions/0001-pi-as-base.md`
@@ -52,7 +56,13 @@ Consolidated from docs/log by research/scripts/consolidate_log.py. Edit the entr
 [^26]: `make lint-docs PR=fixtures/ci/pr-no-log`
 [^27]: `scripts/check-pr.ts`
 [^28]: `make lint-docs PR=fixtures/ci/pr-no-log`
-[^29]: `research/scripts/consolidate_log.py`
-[^30]: `research/tests/test_consolidate.py`
-[^31]: `fixtures/log/expected/limitations.md`
-[^32]: `make thesis ROOT=fixtures/log/repo OUT=<tmp>`
+[^29]: `packages/pi-extension/test/harness.ts`
+[^30]: `pnpm --filter pi-extension test`
+[^31]: `fixtures/sessions/s0-interception.jsonl`
+[^32]: `fixtures/sessions/s0-interception.expected.json`
+[^33]: `packages/pi-extension/test/interception.test.ts`
+[^34]: `pnpm --filter pi-extension test`
+[^35]: `research/scripts/consolidate_log.py`
+[^36]: `research/tests/test_consolidate.py`
+[^37]: `fixtures/log/expected/limitations.md`
+[^38]: `make thesis ROOT=fixtures/log/repo OUT=<tmp>`
