@@ -2,7 +2,7 @@
 // with its Zod schema (checked in test/unit/generators.test.ts). Ids and
 // timestamps are generated, never read from the clock.
 import fc from "fast-check";
-import type { MemoryEvent, MemoryItem } from "../src/schema.ts";
+import type { MemoryEvent, MemoryItem, Policy } from "../src/schema.ts";
 
 export const SCOPE_LEVELS = ["person", "role", "team", "org"] as const;
 export const CLASSES = ["episodic", "semantic", "procedural"] as const;
@@ -128,3 +128,71 @@ export function seedFor(name: string): number {
   for (const c of name) h = Math.imul(h ^ c.charCodeAt(0), 16777619);
   return h >>> 0;
 }
+
+export interface Actor {
+  id: string;
+  /** The level the actor reads as (the calling context). */
+  level: (typeof SCOPE_LEVELS)[number];
+  /** Scopes the actor belongs to. */
+  memberships: string[];
+}
+
+export const arbActor: fc.Arbitrary<Actor> = fc
+  .record({
+    id: arbPrincipal,
+    level: fc.constantFrom(...SCOPE_LEVELS),
+    memberships: fc.uniqueArray(arbScope, { maxLength: 4 }),
+  })
+  .map((a) => a);
+
+export const arbGrant = fc.record(
+  {
+    to: fc.oneof(arbPrincipal, fc.constant("agent:*"), fc.constant("person:*")),
+    class: fc.constantFrom(...CLASSES),
+    mode: fc.constantFrom("read", "read_write"),
+    expires: arbTimestamp,
+  },
+  { requiredKeys: ["to", "mode"] },
+);
+
+/** An item that may carry grants. */
+export const arbGrantedItem: fc.Arbitrary<MemoryItem> = fc
+  .tuple(arbItem(), fc.array(arbGrant, { maxLength: 2 }))
+  .map(([item, grants]) => ({ ...item, grants }));
+
+const arbProvenanceKinds = fc.uniqueArray(
+  fc.constantFrom("user", "document", "tool", "model", "import", "compaction"),
+  { maxLength: 6 },
+);
+
+export const arbPolicy: fc.Arbitrary<Policy> = fc.record({
+  id: fc.constantFrom("generated-a", "generated-b"),
+  version: fc.constant(1),
+  write: fc.uniqueArray(
+    fc.record({
+      scope: fc.constantFrom(...SCOPE_LEVELS),
+      allowed_sources: arbProvenanceKinds,
+      confidence_floor: fc.double({ min: 0, max: 1, noNaN: true }),
+      forbidden_classes: fc.uniqueArray(fc.constantFrom(...CLASSES), { maxLength: 3 }),
+      requires_review: fc.boolean(),
+    }),
+    { selector: (r) => r.scope, maxLength: 4 },
+  ),
+  read: fc.record({
+    matrix: fc.uniqueArray(
+      fc.record({
+        reader: fc.constantFrom(...SCOPE_LEVELS),
+        may_read: fc.uniqueArray(fc.constantFrom(...SCOPE_LEVELS), { maxLength: 4 }),
+      }),
+      { selector: (r) => r.reader, maxLength: 4 },
+    ),
+    honour_grants: fc.boolean(),
+  }),
+  retention: fc.constant([]),
+  promotion: fc.constant({
+    episodic_to_semantic: { confirmations: 3, or_review: true },
+    procedural: { replay_k: 4, replay_n: 5 },
+  }),
+  lints: fc.constant({ enabled: [], thresholds: {} }),
+  schema_version: fc.constant(0 as const),
+});

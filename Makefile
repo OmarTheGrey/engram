@@ -8,7 +8,7 @@ SHELL := bash
 PNPM ?= pnpm
 UV ?= uv
 
-.PHONY: help test test-one test-e2e test-repro lint lint-docs api api-check bench fixtures thesis
+.PHONY: help test test-invariants test-one test-e2e test-repro lint lint-docs api api-check bench fixtures thesis
 
 help: ## list targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | sed -E 's/:.*## /\t/' | expand -t 16
@@ -16,6 +16,9 @@ help: ## list targets
 test: ## layers 1 to 5 and 7 (vitest) and research tests (pytest)
 	$(PNPM) exec vitest run
 	$(UV) run pytest research || [ $$? -eq 5 ]
+
+test-invariants: ## the invariants file alone; red until E2.1 (issue #1)
+	ENGRAM_INVARIANTS=1 $(PNPM) --filter core exec vitest run test/property/invariants.test.ts
 
 test-one: ## one test file with its seed printed: make test-one T=<path>
 	@[ -n "$(T)" ] || { echo "usage: make test-one T=<path>"; exit 2; }
