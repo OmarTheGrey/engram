@@ -85,7 +85,7 @@ describe("cached", () => {
     expect(inner.calls).toBe(0);
   });
 
-  test("records usage and cost per call, with hits counted apart from misses", async () => {
+  test("a miss records the call's usage; a hit records zero new usage and keeps the cached usage apart", async () => {
     const usage: unknown[] = [];
     const call = cached(counting(), {
       cache: memoryCache(),
@@ -97,8 +97,29 @@ describe("cached", () => {
     await call(request);
     expect(usage).toEqual([
       expect.objectContaining({ hit: false, input_tokens: 12, output_tokens: 3, cost_usd: 0.0002 }),
-      expect.objectContaining({ hit: true, input_tokens: 12, output_tokens: 3, cost_usd: 0.0002 }),
+      expect.objectContaining({
+        hit: true,
+        input_tokens: 0,
+        output_tokens: 0,
+        cost_usd: 0,
+        cached: { input_tokens: 12, output_tokens: 3, cost_usd: 0.0002 },
+      }),
     ]);
+  });
+
+  test("ENGRAM_OFFLINE is read on every call, not when the wrapper is built", async () => {
+    const before = process.env.ENGRAM_OFFLINE;
+    delete process.env.ENGRAM_OFFLINE;
+    const inner = counting();
+    const call = cached(inner, { cache: memoryCache(), context });
+    process.env.ENGRAM_OFFLINE = "1";
+    try {
+      await expect(call(request)).rejects.toBeInstanceOf(OfflineMissError);
+      expect(inner.calls).toBe(0);
+    } finally {
+      if (before === undefined) delete process.env.ENGRAM_OFFLINE;
+      else process.env.ENGRAM_OFFLINE = before;
+    }
   });
 
   test("a file cache survives a new process: entries are cassettes on disk", async () => {

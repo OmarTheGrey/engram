@@ -32,3 +32,29 @@ test("throws when pi-ai reports an error", async () => {
     call({ model: "scripted/scripted-1", messages: [{ role: "user", content: "x" }], seed: 1 }),
   ).rejects.toThrow();
 });
+
+test("passes earlier assistant turns as well-formed assistant messages", async () => {
+  const scripted = scriptedPiModel([{ text: "Wednesday" }]);
+  const models = createModels();
+  models.setProvider(scripted.provider);
+  const call = piModelCall(models, () => scripted.model);
+
+  await call({
+    model: "scripted/scripted-1",
+    messages: [
+      { role: "user", content: "When do deploys happen?" },
+      { role: "assistant", content: "Tuesday." },
+      { role: "user", content: "And now?" },
+    ],
+    seed: 1,
+  });
+
+  const sent = scripted.seen[0]?.messages ?? [];
+  const assistant = sent.find((m) => m.role === "assistant");
+  expect(assistant).toMatchObject({
+    role: "assistant",
+    content: [{ type: "text", text: "Tuesday." }],
+    stopReason: "stop",
+  });
+  expect(assistant && "usage" in assistant).toBe(true);
+});
