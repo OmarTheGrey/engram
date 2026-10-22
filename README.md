@@ -39,7 +39,7 @@ Pre-week-zero. The repository holds the body of knowledge (`docs/`) and the conv
 | `packages/cli`, `server`, `ui` | surfaces; call core, hold no policy logic |
 | `research/` | Python: configs, scripts, results, analysis, thesis |
 | `sdk/` | generated clients; do not edit |
-| `docs/` | architecture, decisions, tasks, research, readings, deps, glossary |
+| `docs/` | architecture (`docs/architecture.md`), roadmap (`docs/roadmap.md`), decisions, tasks, research, readings, deps, glossary |
 
 ## Team
 

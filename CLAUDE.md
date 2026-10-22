@@ -31,6 +31,8 @@ packages/runner/          experiment runner: pi SDK sessions, seeded, cached; Pi
 research/                 Python: configs/, scripts/, results/, analysis, stats, figures, thesis
 sdk/                      generated clients; do not edit by hand
 docs/                     architecture, decisions, tasks, research, readings, deps, glossary
+docs/architecture.md      the architecture: layers, memory model, write and read paths, interfaces (living document)
+docs/roadmap.md           phases, gates, week plan and the task cards; cards are expanded into docs/tasks/
 docs/conventions/         documentation.md (the log, thesis consolidation), testing.md (layers, fakes, fixtures)
 docs/log/                 one typed, dated entry per step; consolidated into thesis drafts by `make thesis`
 fixtures/                 sessions, stores, faults, cassettes; regenerated only by `make fixtures`
@@ -45,7 +47,9 @@ fixtures/                 sessions, stores, faults, cassettes; regenerated only 
 pnpm install && uv sync        once, after clone
 make test                      vitest (core, adapters, conformance on fakes, replay-from-events) and pytest (research)
 make test-one T=<path>         one test file, with its seed printed
-make api                       regenerate OpenAPI and the clients after any route change
+make test-invariants           the invariants asserted directly, with counterexample and seed; 1 and 2 fail until E2.2 and E2.3 (issue #1)
+make api                       regenerate sdk/schema (JSON Schema) and research/engram_types (Python) from the Zod schema; later also OpenAPI and the clients
+make api-check                 make api, then fail if the generated files differ from what is committed
 make bench BENCH=gatemem       run one benchmark on its fixture subset through the pi runner
 make lint                      biome, tsc, ruff, mypy; CI runs the same
 make lint-docs                 log entry frontmatter, em dashes in prose, CLAUDE.md equals AGENTS.md
@@ -82,7 +86,7 @@ If a command you need is not here, add it to the Makefile and to this list in th
 
 Cards live in `docs/tasks/<id>.md`. Each has a goal, the files you may touch, what it depends on, an acceptance command, and what is out of scope.
 
-1. Read the card and AGENTS.md. Read `docs/architecture.md` if the card touches `packages/core`, `packages/adapters` or `packages/pi-extension`.
+1. Read the card and AGENTS.md. Read `docs/architecture.md` if the card touches `packages/core`, `packages/adapters` or `packages/pi-extension`. `docs/roadmap.md` places the card in its phase and gate.
 2. Check that every card in `depends on` is merged. If not, stop and say so.
 3. Propose a plan in the PR description before writing code. Keep it to the files the card names.
 4. Write the test or fixture that the acceptance command runs first, if the card does not already ship it.
