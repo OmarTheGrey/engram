@@ -23,7 +23,7 @@ Consolidated from docs/log by research/scripts/consolidate_log.py. Edit the entr
 | 0017 | Every model call is cached, metered and seeded; cassettes are the cache | accepted with amendments, pending lead review, 2026-10-22 | docs/log/2026-10-22-s0-13-adr-0017.md |
 | 0018 | Duplicate and near-duplicate detection without embeddings by default | accepted, pending lead review, 2026-10-22 | docs/log/2026-10-22-s0-13-adr-0018.md |
 | 0019 | Monorepo tooling | accepted with amendments, pending lead review, 2026-10-22 | docs/log/2026-10-22-s0-13-adr-0019.md |
-| 0020 | Licence | proposed, owner decides | none |
+| 0020 | Licence | accepted, 2026-10-22 | docs/log/2026-10-22-adr-0020-apache.md |
 | 0021 | Twin: person and role scopes, consent grants, handover; offboarding deferred | accepted, pending lead review, 2026-10-22 | docs/log/2026-10-22-s0-13-adr-0021.md |
 | 0022 | Other harnesses through MCP; interception limits stated | accepted with amendments, pending lead review, 2026-10-22 | docs/log/2026-10-22-s0-13-adr-0022.md |
 | 0023 | Pre-registration lives in the repo, tagged, and is mirrored externally | accepted with amendments, pending lead review, 2026-10-22 | docs/log/2026-10-22-s0-13-adr-0023.md |

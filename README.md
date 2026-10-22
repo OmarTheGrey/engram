@@ -47,4 +47,4 @@ Four members, two tracks. Platform track owns adapters, surfaces, profiles and d
 
 ## Licence
 
-To be decided before the first external release. See `docs/decisions/`.
+Apache License 2.0 (`LICENSE`, ADR 0020).

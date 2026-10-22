@@ -1,5 +1,7 @@
 # Pre-registration
 
+**Backlogged by the lead on 2026-10-22** (`docs/tasks/backlog.md`): v0.1 stands as written, and no work on v1 happens until the item leaves the backlog.
+
 Version v0.1, dated 2026-10-22; v0 is tagged `prereg-v0`. Every version is dated and kept. The version that precedes the first real run is tagged `prereg-vN` and deposited externally (OSF or Zenodo, ADR 0023); changes after that are amendments with reasons, never edits. `research/tests/test_prereg.py` checks that this file is complete.
 
 **Status of v0.** Drafted during step 0 from the roadmap (`docs/roadmap.md`: Gate C, cards X1 to X13), the proposed ADRs (0006, 0015, 0016, 0017, 0022) and the literature review (`docs/readings/litreview/`). The proposal that holds the original hypothesis wording was not in the repository, so the statements below are reconstructions. Values marked "proposed" are design choices made in this draft. The lead confirms or amends every hypothesis, threshold and model before `prereg-v1`, and nothing runs before that.

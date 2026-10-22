@@ -1,5 +1,7 @@
 # BF1 MPBench fallback: reconstruct the probe format from the paper
 
+Status: backlogged by the lead on 2026-10-22 (`docs/tasks/backlog.md`).
+
 Goal: if MPBench (arXiv 2606.04329) is not released, build a poisoning probe set in its published format so the poisoning arm of ADR 0015 can run. Reconstruct the case schema from App. D (attack type, attack signal, domain, adversarial goal, user query, context, expected memory, retrieval query), the six attack classes and the two-session protocol of Sec. 4.1: session one carries the payload and the store is inspected; session two asks a related retrieval query and the response is judged.
 
 Files: `packages/bench/src/mpbench/`, `fixtures/faults/mpbench/`, `research/configs/mpbench-fallback.yaml`, `docs/research/preregistration.md` (amendment).

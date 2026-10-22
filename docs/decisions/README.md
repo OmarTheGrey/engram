@@ -2,7 +2,7 @@
 
 One file per decision, `NNNN-<slug>.md`, format: context, decision, alternatives, consequences, sources. Status is one of proposed, accepted, superseded. A proposed ADR is a question with a recommended answer; accepting it is a `decision` log entry plus a status change in the same PR.
 
-ADR 0001 is accepted. ADRs 0002 to 0023 except 0020 were drafted as accepted in step-0 task S0.13 (2026-10-22) and are pending the lead's review; each has its own file, which is authoritative once reviewed. 0020 (licence) is the owner's decision and stays proposed. The proposals below are kept as the record of what was decided from; they were distilled from the readings in `docs/readings/`, the gap analysis in the proposal, and checks run on 2026-10-17. Each proposal names the papers or facts that force it, the options, the recommended pick, and what it unblocks. They were accepted, amended or rejected in step 0 (see `docs/tasks/step-0.md`).
+ADRs 0001 and 0020 are accepted by the lead. ADRs 0002 to 0023 (except 0020) were drafted as accepted in step-0 task S0.13 (2026-10-22) and are pending a review and flesh-out session with the team (`docs/tasks/backlog.md`); each has its own file, which is authoritative once reviewed. The proposals below are kept as the record of what was decided from; they were distilled from the readings in `docs/readings/`, the gap analysis in the proposal, and checks run on 2026-10-17. Each proposal names the papers or facts that force it, the options, the recommended pick, and what it unblocks. They were accepted, amended or rejected in step 0 (see `docs/tasks/step-0.md`).
 
 | # | Title | Status |
 |---|---|---|
@@ -25,7 +25,7 @@ ADR 0001 is accepted. ADRs 0002 to 0023 except 0020 were drafted as accepted in 
 | 0017 | Every model call is cached, metered and seeded; cassettes are the cache | accepted with amendments, pending lead review |
 | 0018 | Duplicate and near-duplicate detection without embeddings by default | accepted, pending lead review |
 | 0019 | Monorepo tooling | accepted with amendments, pending lead review |
-| 0020 | Licence | proposed, owner decides |
+| 0020 | Licence | accepted |
 | 0021 | Twin: person and role scopes, consent grants, handover; offboarding deferred | accepted, pending lead review |
 | 0022 | Other harnesses through MCP; interception limits stated | accepted with amendments, pending lead review |
 | 0023 | Pre-registration lives in the repo, tagged, and is mirrored externally | accepted with amendments, pending lead review |

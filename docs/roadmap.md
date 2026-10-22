@@ -166,7 +166,7 @@ R: X13 reproduction script on a fresh clone from committed caches. P: release pa
 
 W23
 
-Writing: limitations, conclusion, roadmap appendix. P: public repository under MIT, docs site. Friday: full draft to supervisor.
+Writing: limitations, conclusion, roadmap appendix. P: public repository under Apache-2.0 (ADR 0020), docs site. Friday: full draft to supervisor.
 
 W24
 

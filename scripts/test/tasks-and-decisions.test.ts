@@ -1,12 +1,12 @@
 // Acceptance for step-0 task S0.13: every roadmap card and every card added by
 // ADR 0001 has a file under docs/tasks/, and every ADR in the index is decided
-// with a `decision` log entry that cites it. ADR 0020 (licence) is the owner's
-// decision and stays open until the owner makes it.
+// with a `decision` log entry that cites it. OWNER_DECIDES lists any ADR left
+// for the owner to decide; it is empty since ADR 0020 was decided.
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { describe, expect, test } from "vitest";
 import { parseFrontmatter } from "../lib/frontmatter.ts";
 
-const OWNER_DECIDES = new Set(["0020"]);
+const OWNER_DECIDES = new Set<string>();
 const ADDED_BY_ADR_0001 = ["PX1", "PX2", "PX3", "RN1", "RN2"];
 
 const roadmap = readFileSync("docs/roadmap.md", "utf8");
