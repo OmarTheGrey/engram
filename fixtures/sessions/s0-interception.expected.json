@@ -1,59 +1,129 @@
 {
-  "description": "Step-0 task S0.5. One pi SDK session with an in-memory session manager, a scripted model and the Engram extension with the S0.5 stub gate. events lists the data of every custom entry with customType engram.event, in session order.",
+  "description": "Step-0 task S0.5 on the real Plane (card PX1). One pi SDK session with an in-memory session manager, a scripted model, the fake store, the medium preset and actor person:omar. events lists the data of every custom entry with customType engram.event, in session order; each equals the MemoryEvent in the Engram log.",
   "events": [
     {
-      "op": "write",
-      "source": "tool_call",
-      "tool": "memory_write",
-      "tool_call_id": "call-1",
-      "scope": "org",
-      "decision": "deny",
-      "reason": "org scope is not writable from an agent session",
-      "policy_id": "stub.org-write-denied"
-    },
-    {
-      "op": "write",
-      "source": "tool_call",
-      "tool": "memory_write",
-      "tool_call_id": "call-2",
-      "scope": "team",
-      "decision": "allow",
-      "reason": "the stub gate allows writes outside org",
-      "policy_id": "stub.allow"
-    },
-    {
+      "id": "01920000-0000-7000-8000-000000000001",
+      "seq": 0,
+      "ts": "2026-10-25T12:00:00.000Z",
       "op": "read",
-      "source": "tool_call",
-      "tool": "memory_read",
-      "tool_call_id": "call-3",
+      "item_id": null,
+      "actor": "person:omar",
+      "scope_from": null,
+      "scope_to": null,
       "decision": "allow",
-      "reason": "the stub gate allows reads",
-      "policy_id": "stub.allow"
+      "reason": "returned 0 of 0 candidates; 0 filtered (0 by scope or grant, 0 outside the validity window); 0 not active",
+      "policy_id": "preset.medium/read/person",
+      "schema_version": 0
     },
     {
-      "op": "bash",
-      "source": "tool_call",
-      "tool": "bash",
-      "tool_call_id": "call-4",
-      "command": "mem0 add 'deploys happen on Tuesdays'",
+      "id": "01920000-0000-7000-8000-000000000003",
+      "seq": 1,
+      "ts": "2026-10-25T12:00:00.000Z",
+      "op": "write",
+      "item_id": "01920000-0000-7000-8000-000000000002",
+      "actor": "person:omar",
+      "scope_from": null,
+      "scope_to": "org",
       "decision": "deny",
-      "reason": "mem0 is a memory store command; use the Engram memory tools",
-      "policy_id": "engram.no-bypass"
+      "reason": "source model is not allowed in org scope",
+      "policy_id": "preset.medium/write/org",
+      "schema_version": 0
     },
     {
-      "op": "bash",
-      "source": "user_bash",
-      "command": "mem0 list",
+      "id": "01920000-0000-7000-8000-000000000005",
+      "seq": 2,
+      "ts": "2026-10-25T12:00:00.000Z",
+      "op": "write",
+      "item_id": "01920000-0000-7000-8000-000000000004",
+      "actor": "person:omar",
+      "scope_from": null,
+      "scope_to": "person:omar",
+      "decision": "allow",
+      "reason": "semantic item from source model passes the person write rule",
+      "policy_id": "preset.medium/write/person",
+      "item": {
+        "id": "01920000-0000-7000-8000-000000000004",
+        "scope": "person:omar",
+        "owner": "person:omar",
+        "provenance": {
+          "kind": "model",
+          "ref": "pi:tool_call/call-2",
+          "hash": "sha256:fee7376bfcde92d46afd2dce7f523c32735a118bffd209f451b562d0871d3c31",
+          "actor": "person:omar",
+          "model": "scripted/scripted-1"
+        },
+        "confidence": 0.5,
+        "valid_from": "2026-10-25T12:00:00.000Z",
+        "valid_to": null,
+        "ttl": null,
+        "grants": [],
+        "version": 1,
+        "lineage": [],
+        "status": "active",
+        "store_ref": {
+          "adapter": "fake",
+          "key": "01920000-0000-7000-8000-000000000004"
+        },
+        "schema_version": 0,
+        "class": "semantic",
+        "content": "deploys happen on Tuesdays"
+      },
+      "schema_version": 0
+    },
+    {
+      "id": "01920000-0000-7000-8000-000000000006",
+      "seq": 3,
+      "ts": "2026-10-25T12:00:00.000Z",
+      "op": "read",
+      "item_id": null,
+      "actor": "person:omar",
+      "scope_from": null,
+      "scope_to": null,
+      "decision": "allow",
+      "reason": "returned 1 of 1 candidates; 0 filtered (0 by scope or grant, 0 outside the validity window); 0 not active",
+      "policy_id": "preset.medium/read/person",
+      "schema_version": 0
+    },
+    {
+      "id": "01920000-0000-7000-8000-000000000007",
+      "seq": 4,
+      "ts": "2026-10-25T12:00:00.000Z",
+      "op": "bypass_blocked",
+      "item_id": null,
+      "actor": "person:omar",
+      "scope_from": null,
+      "scope_to": null,
       "decision": "deny",
       "reason": "mem0 is a memory store command; use the Engram memory tools",
-      "policy_id": "engram.no-bypass"
+      "policy_id": "engram/bypass/store-command",
+      "schema_version": 0
+    },
+    {
+      "id": "01920000-0000-7000-8000-000000000008",
+      "seq": 5,
+      "ts": "2026-10-25T12:00:00.000Z",
+      "op": "bypass_blocked",
+      "item_id": null,
+      "actor": "person:omar",
+      "scope_from": null,
+      "scope_to": null,
+      "decision": "deny",
+      "reason": "mem0 is a memory store command; use the Engram memory tools",
+      "policy_id": "engram/bypass/store-command",
+      "schema_version": 0
     }
   ],
-  "blocked_tool_calls": ["call-1", "call-4"],
+  "blocked_tool_calls": [
+    "call-1",
+    "call-4"
+  ],
   "model_saw_tagged": {
     "model_call": 4,
     "tool_call_id": "call-3",
-    "text": "<engram:memory policy_id=\"stub.allow\">\nteam: deploys happen on Tuesdays\n</engram:memory>"
+    "text": "<engram:memory read_id=\"01920000-0000-7000-8000-000000000006\" policy_id=\"preset.medium/read/person\" filtered=\"0\">\n<engram:item item_id=\"01920000-0000-7000-8000-000000000004\" scope=\"person:omar\" rank=\"1\" score=\"2.500\" policy_id=\"preset.medium/read/person\">\ndeploys happen on Tuesdays\n</engram:item>\n</engram:memory>"
   },
-  "user_bash": { "command": "mem0 list", "exitCode": 126 }
+  "user_bash": {
+    "command": "mem0 list",
+    "exitCode": 126
+  }
 }
