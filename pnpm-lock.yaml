@@ -44,7 +44,14 @@ importers:
 
   packages/bench: {}
 
-  packages/cli: {}
+  packages/cli:
+    dependencies:
+      '@engram/adapters':
+        specifier: workspace:*
+        version: link:../adapters
+      '@engram/core':
+        specifier: workspace:*
+        version: link:../core
 
   packages/core:
     dependencies:

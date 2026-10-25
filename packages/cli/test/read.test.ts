@@ -1,0 +1,92 @@
+// `engram read` over the synthetic Claude Code memory folder: the Gate A
+// demo (card A3's acceptance) on a fixture, through Plane.read.
+import { join } from "node:path";
+import { describe, expect, it } from "vitest";
+import { cli, FIXTURE, FIXTURE_FILES, NOW, readArgs, tempDir } from "./helpers.ts";
+
+const itemLines = (out: string) => out.match(/^\d+\. /gm) ?? [];
+
+describe("engram read", () => {
+  it("lists every memory in the folder to its owner, each with its explanation", async () => {
+    const db = join(await tempDir(), "engram.db");
+    const { code, out, err } = await cli(readArgs(db));
+    expect(err).toBe("");
+    expect(code).toBe(0);
+    expect(out).toContain("4 items returned, 0 filtered");
+    expect(itemLines(out)).toEqual(["1. ", "2. ", "3. ", "4. "]);
+    expect(out.match(/admitted by preset\.medium\/read\/person/g)).toHaveLength(4);
+    expect(out.match(/score 1\.0505 = confidence 0\.5000 \+ recency 0\.5505/g)).toHaveLength(4);
+    for (const file of FIXTURE_FILES) expect(out).toContain(`/${file}`);
+    expect(out).toContain(`at ${NOW} as person:dana (person)`);
+  });
+
+  it("imports the folder's memories through the write gate, once", async () => {
+    const db = join(await tempDir(), "engram.db");
+    const first = await cli(readArgs(db));
+    expect(first.out).toContain(
+      "imported 4 of 4 memories: 4 allowed, 0 denied, 0 already in the log",
+    );
+    const second = await cli(readArgs(db));
+    expect(second.out).toContain(
+      "imported 0 of 4 memories: 0 allowed, 0 denied, 4 already in the log",
+    );
+    expect(second.out).toContain("4 items returned, 0 filtered");
+  });
+
+  it("returns nothing to another person and reports every memory as filtered", async () => {
+    const db = join(await tempDir(), "engram.db");
+    const { code, out } = await cli(readArgs(db, FIXTURE, "--as", "person:eve"));
+    expect(code).toBe(0);
+    expect(out).toContain("0 items returned, 4 filtered");
+    expect(itemLines(out)).toEqual([]);
+  });
+
+  it("narrows to the memories the query text matches, with a relevance component", async () => {
+    const db = join(await tempDir(), "engram.db");
+    const { out } = await cli(readArgs(db, FIXTURE, "release freeze"));
+    expect(out).toContain("1 item returned, 0 filtered");
+    expect(out).toContain("/project_release_freeze.md");
+    expect(out).toMatch(/score 2\.0505 = relevance 1\.0000 \+ confidence 0\.5000/);
+  });
+
+  it("filters memories that are not yet valid at the read time", async () => {
+    const db = join(await tempDir(), "engram.db");
+    const { out } = await cli(readArgs(db, FIXTURE, "--at", "2026-09-01T00:00:00Z"));
+    expect(out).toContain("0 items returned, 4 filtered");
+  });
+
+  it("prints machine-readable output with --json", async () => {
+    const db = join(await tempDir(), "engram.db");
+    const { code, out } = await cli(readArgs(db, FIXTURE, "--json"));
+    expect(code).toBe(0);
+    const parsed = JSON.parse(out);
+    expect(parsed.filtered).toBe(0);
+    expect(parsed.items).toHaveLength(4);
+    expect(parsed.items.map((i: { explanation: { rank: number } }) => i.explanation.rank)).toEqual([
+      1, 2, 3, 4,
+    ]);
+    expect(parsed.items[0].item.provenance.kind).toBe("import");
+    expect(parsed.items[0].explanation.policy_id).toBe("preset.medium/read/person");
+    expect(parsed.read_id).toMatch(/^[0-9a-f-]{36}$/);
+    expect(parsed.imported).toEqual({ listed: 4, allowed: 4, denied: 0, unchanged: 0 });
+  });
+
+  it("reads under another preset by name", async () => {
+    const db = join(await tempDir(), "engram.db");
+    const { out } = await cli(readArgs(db, FIXTURE, "--policy", "strict"));
+    expect(out).toContain("under preset.strict");
+    expect(out.match(/admitted by preset\.strict\/read\/person/g)).toHaveLength(4);
+  });
+
+  it("refuses a read without a store root", async () => {
+    const { code, err } = await cli(["read", "--owner", "dana"]);
+    expect(code).toBe(2);
+    expect(err).toContain("--root");
+  });
+
+  it("refuses a store the CLI cannot open yet", async () => {
+    const { code, err } = await cli(["read", "--store", "letta", "--root", FIXTURE]);
+    expect(code).toBe(2);
+    expect(err).toContain("letta");
+  });
+});

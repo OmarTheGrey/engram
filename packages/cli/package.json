@@ -3,10 +3,17 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "bin": {
+    "engram": "./src/main.ts"
+  },
   "exports": {
     ".": "./src/index.ts"
   },
   "scripts": {
     "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@engram/adapters": "workspace:*",
+    "@engram/core": "workspace:*"
   }
 }

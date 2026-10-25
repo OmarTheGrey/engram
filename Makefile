@@ -8,7 +8,7 @@ SHELL := bash
 PNPM ?= pnpm
 UV ?= uv
 
-.PHONY: help test test-invariants test-one test-e2e test-repro lint lint-docs api api-check bench fixtures thesis
+.PHONY: help test test-invariants test-one test-e2e test-repro lint lint-docs api api-check bench fixtures thesis engram
 
 help: ## list targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | sed -E 's/:.*## /\t/' | expand -t 16
@@ -70,3 +70,6 @@ OUT ?= $(ROOT)/research/thesis/drafts
 
 thesis: ## consolidate docs/log into research/thesis/drafts; ROOT= and OUT= to run on a fixture log
 	$(UV) run python research/scripts/consolidate_log.py --root "$(ROOT)" --out "$(OUT)"
+
+engram: ## run the engram CLI: make engram ARGS="read --root <folder> --owner <id>"
+	@node packages/cli/src/main.ts $(ARGS)
