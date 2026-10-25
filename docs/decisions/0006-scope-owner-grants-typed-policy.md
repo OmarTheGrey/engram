@@ -21,6 +21,9 @@ Amendments made when deciding:
 Amendments made in the review fix pass, 2026-10-25:
 
 - D3, complete policies: a loaded policy has exactly one write rule and one read matrix row for each scope level (person, role, team, org). `parsePolicy` (`packages/core/src/policy/load.ts`) rejects a policy missing any, reported at the line of the `write` or `read.matrix` key and naming the missing levels; a second rule for one level was already rejected. The evaluator still default-denies a missing level, for policies built in code.
+- Decision D4 (finding R5-5, PR #5): who may write. The actor must be a member of the item's scope (`actor.memberships` includes `item.scope`), and on a rewrite of an existing item id also of the scope the item has now; otherwise the write is denied with `engram/write/membership`. Grants are read permissions on existing items and never authorise a write, whatever their `mode`. Rewriting an item id requires the same `owner` and a `version` not lower than the projected one, otherwise `engram/write/version`. The invariants' write oracle forbids a write by a non-member of the item's scope and a write carrying a grant the gate refuses.
+- Decision D6 (finding R5-9, PR #5): default denies have their own ids. No write rule for the item's scope level is `engram/write/default-deny`; no read matrix row for the actor's level is `engram/read/default-deny`, for the item decisions and for the read event.
+- Not decided by D4, chosen by the fixer: membership in the current scope is also required on a rewrite, so a member of one scope cannot move another scope's item id into it; and the owner is compared as written, not against the actor's id, so a caller may still name another owner on a new item.
 
 ## Alternatives considered
 
