@@ -48,6 +48,14 @@ export function itemByStoreRef(db: Db, ref: StoreRef): MemoryItem | undefined {
   return active.find((h) => !superseded.has(h.id)) ?? holders[0];
 }
 
+/** Every item holding `ref`, whatever its status, latest first. */
+export function itemsByStoreRef(db: Db, ref: StoreRef): MemoryItem[] {
+  return db
+    .prepare("SELECT body FROM items WHERE store_adapter = ? AND store_key = ? ORDER BY seq DESC")
+    .all(ref.adapter, ref.key)
+    .flatMap((r) => parse(r) ?? []);
+}
+
 export interface LineageWalk {
   /** Every reachable ancestor, nearest first, each once, in its current projected state. */
   ancestors: MemoryItem[];

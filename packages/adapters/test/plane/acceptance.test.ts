@@ -121,9 +121,11 @@ describe("acceptance (card E2.2): a cross-scope read is denied on every store", 
       await plane.write(other, item(2, { scope: "team:payments" }), AT);
       const result = await plane.read(platform, { at: AT });
       expect(result.items.map((i) => i.id)).toEqual([id(1)]);
-      expect(result.filtered).toBe(1);
-      expect(result.event.reason).toMatch(/1 filtered \(1 by scope or grant/);
-      expect(await plane.explain(result.event.id)).toEqual(result.explanations);
+      // Decision D5: the reader-facing count leaves out what the reader cannot
+      // reach; the read event, the audit record, counts it.
+      expect(result.filtered).toBe(0);
+      expect(result.event.reason).toMatch(/1 projected item outside the reader's reach/);
+      expect(await plane.explain(platform, result.event.id)).toEqual(result.explanations);
       logs[name] = plane.events();
     }, 30_000);
   }
@@ -131,6 +133,43 @@ describe("acceptance (card E2.2): a cross-scope read is denied on every store", 
   test("the events are identical on every store apart from the store_ref", () => {
     const [first, ...rest] = ADAPTERS.map((a) => logs[a.name]?.map(storeNeutral));
     expect(first).toHaveLength(3);
+    for (const events of rest) expect(events).toEqual(first);
+  });
+});
+
+describe("a text read on every store reaches the adapter and stays in the reader's scopes (finding R5-10)", () => {
+  const logs: Record<string, MemoryEvent[]> = {};
+
+  for (const { name, factory } of ADAPTERS) {
+    test(`on ${name}: the store is searched in readable scopes only`, async () => {
+      const searches: (readonly string[])[] = [];
+      const { plane } = await planeOn(async () => {
+        const inner = await factory();
+        const search = inner.search?.bind(inner);
+        if (!search) return inner;
+        return Object.assign(Object.create(inner) as typeof inner, {
+          search: async (query: string, scopes: readonly string[]) => {
+            searches.push([...scopes]);
+            return search(query, scopes);
+          },
+        });
+      });
+      await plane.write(writer, item(1, { content: "deploys run on fridays" }), AT);
+      await plane.write(writer, item(3, { content: "lunch at noon" }), AT);
+      const other: Actor = { id: "person:ali", level: "team", memberships: ["team:payments"] };
+      await plane.write(other, item(2, { scope: "team:payments", content: "deploys go" }), AT);
+      const result = await plane.read(platform, { text: "deploys", at: AT });
+      expect(result.items.map((i) => i.id)).toEqual([id(1)]);
+      expect(result.explanations[0]?.score.components.relevance).toBe(1);
+      expect(result.filtered).toBe(0);
+      if (name !== "fake without search or history") expect(searches).toEqual([["team:platform"]]);
+      logs[name] = plane.events();
+    }, 30_000);
+  }
+
+  test("the events are identical on every store apart from the store_ref", () => {
+    const [first, ...rest] = ADAPTERS.map((a) => logs[a.name]?.map(storeNeutral));
+    expect(first).toHaveLength(4);
     for (const events of rest) expect(events).toEqual(first);
   });
 });

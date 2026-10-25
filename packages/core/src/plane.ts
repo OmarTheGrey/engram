@@ -6,30 +6,17 @@
 // the read filter and explanations (card E2.2, plane/read.ts), both deciding
 // through the pure evaluator in policy/evaluate.ts. Methods whose cards have
 // not landed reject with NotImplementedYet, naming the card that implements them.
+import type { Actor } from "./actor.ts";
 import type { Adapter } from "./adapter.ts";
 import type { Db } from "./db/db.ts";
 import type { DistillMethod, Session } from "./distill.ts";
 import { allEvents } from "./events.ts";
 import { filteredRead, storedExplanations } from "./plane/read.ts";
 import { gatedWrite } from "./plane/write.ts";
-import type {
-  Explanation,
-  LintFinding,
-  MemoryEvent,
-  MemoryItem,
-  Policy,
-  ScopeLevel,
-} from "./schema.ts";
+import type { Explanation, LintFinding, MemoryEvent, MemoryItem, Policy } from "./schema.ts";
 import type { SimReport, Workload } from "./simulate.ts";
 
-/** Who is asking, and in which capacity. */
-export interface Actor {
-  id: string;
-  /** The level the actor reads as: the calling context. */
-  level: ScopeLevel;
-  /** Scopes the actor belongs to, such as `person:omar` or `team:platform`. */
-  memberships: string[];
-}
+export { type Actor, ActorShape, ExplainDeniedError, InvalidCallError } from "./actor.ts";
 
 export interface ReadQuery {
   text?: string;
@@ -43,10 +30,20 @@ export interface WriteResult {
   event: MemoryEvent;
 }
 
+/**
+ * What a read returns. `items`, `explanations` and `filtered` reveal nothing
+ * about items the reader cannot reach (decision D5) and may be shown to the
+ * model. `event` is the audit record: its reason also counts the items out of
+ * the reader's reach, so a harness keeps it from the model.
+ */
 export interface ReadResult {
   items: MemoryItem[];
   explanations: Explanation[];
-  /** How many candidate items the filter removed. */
+  /**
+   * How many reachable candidates the filter removed: in a readable scope or
+   * reached through a grant naming the reader, but not active, outside the
+   * validity window, or with no grant whose class and expiry admit it.
+   */
   filtered: number;
   event: MemoryEvent;
 }
@@ -73,8 +70,11 @@ export interface Plane {
   simulate(workload: Workload, policy: Policy): Promise<SimReport>;
   /** Candidate procedural items induced from sessions. */
   distill(sessions: Session[], method: DistillMethod): Promise<MemoryItem[]>;
-  /** The explanations recorded for a read. */
-  explain(readId: ReadId): Promise<Explanation[]>;
+  /**
+   * The explanations recorded for a read, for the actor who made it only;
+   * another actor is refused with ExplainDeniedError (decision D5).
+   */
+  explain(actor: Actor, readId: ReadId): Promise<Explanation[]>;
   /** The event log, in sequence order. */
   events(): MemoryEvent[];
 }
@@ -106,7 +106,7 @@ export function createPlane(deps: PlaneDeps): Plane {
   return {
     write: (actor, item, at) => gatedWrite(deps, actor, item, at),
     read: (actor, query) => filteredRead(deps, actor, query),
-    explain: async (readId) => storedExplanations(deps, readId),
+    explain: async (actor, readId) => storedExplanations(deps, actor, readId),
     promote: async () => {
       throw new NotImplementedYet("promote", "E2.5");
     },

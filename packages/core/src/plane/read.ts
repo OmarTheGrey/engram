@@ -1,15 +1,31 @@
 // The read path (card E2.2, docs/architecture.md "Read path", ADR 0009). The
-// plane owns the metadata: candidates are the projected items, narrowed by the
+// plane owns the metadata: candidates are the projected items the reader can
+// reach (a readable scope, or a grant whose `to` matches it), narrowed by the
 // adapter's search when there is query text (or by term matching in the plane
 // when the store has no search). Each candidate goes through the read filter
 // (status, scope and matrix or grants, validity window at the query time); the
 // admitted ones are ranked by named score components and explained; one read
 // event is appended and the explanations are stored under its id, in the same
-// transaction, so `explain(readId)` returns exactly what the read returned.
+// transaction, so `explain(actor, readId)` returns exactly what the read
+// returned, to that reader only.
+//
+// What a read reveals (decision D5): the items, explanations, scores, ranks
+// and `filtered` count depend only on what the reader can reach. The store is
+// searched in the reachable scopes only, relevance ranks among admitted items
+// only, and items out of reach are never candidates. The read event, the
+// audit record a harness keeps from the model, also counts them.
+import { type Actor, ExplainDeniedError } from "../actor.ts";
 import { appendEvent, currentItems } from "../events.ts";
-import type { Actor, PlaneDeps, ReadQuery, ReadResult } from "../plane.ts";
-import { evaluateRead, type ReadCheck } from "../policy/evaluate.ts";
+import type { PlaneDeps, ReadQuery, ReadResult } from "../plane.ts";
+import {
+  evaluateRead,
+  type ReadCheck,
+  reachable,
+  readableScope,
+  readRuleId,
+} from "../policy/evaluate.ts";
 import type { Explanation, MemoryItem } from "../schema.ts";
+import { checkCall } from "./write.ts";
 
 const DAY_MS = 86_400_000;
 /** Recency halves after this many days. */
@@ -19,34 +35,32 @@ const contentText = (item: MemoryItem) =>
   (typeof item.content === "string" ? item.content : JSON.stringify(item.content)).toLowerCase();
 
 /**
- * Relevance in (0, 1] for each item the query matches, by id; undefined when
- * the query has no terms. With store search, relevance falls with the store's
- * rank (1 for the first hit); without it, it is the share of query terms the
- * content contains.
+ * The candidates matching the query text, in match order, with the share of
+ * query terms each contains when the plane matched them itself; undefined
+ * when the query has no terms. With store search the store orders the hits
+ * and is asked only about `scopes`; without it, the plane matches terms.
  */
-async function relevance(
+async function matching(
   { adapter }: PlaneDeps,
-  projected: MemoryItem[],
+  reach: MemoryItem[],
+  scopes: string[],
   text: string | undefined,
-): Promise<Map<string, number> | undefined> {
+): Promise<{ order: string[]; share?: Map<string, number> } | undefined> {
   const query = text ?? "";
   const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
   if (terms.length === 0) return undefined;
-  const scores = new Map<string, number>();
   if (adapter.search) {
-    const scopes = [...new Set(projected.map((i) => i.scope))].sort();
-    const hits = [...new Set((await adapter.search(query, scopes)).map((i) => i.id))];
-    hits.forEach((hit, rank) => {
-      scores.set(hit, 1 - rank / hits.length);
-    });
-    return scores;
+    if (scopes.length === 0) return { order: [] };
+    const hits = await adapter.search(query, scopes);
+    return { order: [...new Set(hits.map((i) => i.id))] };
   }
-  for (const item of projected) {
+  const share = new Map<string, number>();
+  for (const item of reach) {
     const body = contentText(item);
     const matched = terms.filter((t) => body.includes(t)).length;
-    if (matched > 0) scores.set(item.id, matched / terms.length);
+    if (matched > 0) share.set(item.id, matched / terms.length);
   }
-  return scores;
+  return { order: [...share.keys()], share };
 }
 
 function components(item: MemoryItem, at: string, rel: number | undefined) {
@@ -64,10 +78,22 @@ export async function filteredRead(
   query: ReadQuery,
 ): Promise<ReadResult> {
   const { db, policy, newId } = deps;
+  checkCall(actor, query?.at, "read");
   const { at } = query;
   const projected = currentItems(db);
-  const rel = await relevance(deps, projected, query.text);
-  const candidates = rel ? projected.filter((i) => rel.has(i.id)) : projected;
+  const reach = projected.filter((i) => reachable(policy, actor, i));
+  const outOfReach = projected.length - reach.length;
+  // Readable scopes the actor belongs to, and the scopes of items a grant may
+  // admit it to; the store is never asked about any other scope.
+  const scopes = [
+    ...new Set([
+      ...actor.memberships.filter((s) => readableScope(policy, actor, s)),
+      ...reach.map((i) => i.scope),
+    ]),
+  ].sort();
+  const match = await matching(deps, reach, scopes, query.text);
+  const hitRank = new Map(match?.order.map((id, r) => [id, r]));
+  const candidates = match ? reach.filter((i) => hitRank.has(i.id)) : reach;
 
   const counts: Record<ReadCheck, number> = {
     scope: 0,
@@ -76,13 +102,24 @@ export async function filteredRead(
     "not-active": 0,
     "outside-validity": 0,
   };
-  const admitted = candidates.flatMap((item) => {
+  const passed = candidates.flatMap((item) => {
     const decision = evaluateRead(policy, actor, item, at);
     counts[decision.check]++;
-    if (!decision.admitted) return [];
-    const parts = components(item, at, rel?.get(item.id));
+    return decision.admitted ? [{ item, decision }] : [];
+  });
+  // Relevance from the store's order ranks among the admitted hits only, so
+  // hits the reader may not see cannot lower it (finding R5-1).
+  const byHit = [...passed].sort(
+    (a, b) => (hitRank.get(a.item.id) ?? 0) - (hitRank.get(b.item.id) ?? 0),
+  );
+  const relevance = new Map<string, number>();
+  byHit.forEach(({ item }, r) => {
+    relevance.set(item.id, match?.share?.get(item.id) ?? 1 - r / byHit.length);
+  });
+  const admitted = passed.map(({ item, decision }) => {
+    const parts = components(item, at, match ? relevance.get(item.id) : undefined);
     const total = Object.values(parts).reduce((a, b) => a + b, 0);
-    return [{ item, decision, parts, total }];
+    return { item, decision, parts, total };
   });
   // Candidates arrive ordered by id and the sort is stable, so ties keep id order.
   admitted.sort((a, b) => b.total - a.total);
@@ -96,14 +133,15 @@ export async function filteredRead(
     validity: { at, valid_from: item.valid_from, valid_to: item.valid_to },
     schema_version: 0 as const,
   }));
-  // The policy filter's removals; items that are not active are not live memory
-  // and are reported apart.
-  const filtered = counts.excluded + counts["outside-validity"];
-  const live = candidates.length - counts["not-active"];
+  // Reachable candidates the filter removed: outside the validity window, not
+  // active, or reached through a grant whose class or expiry fails.
+  const filtered = counts.excluded + counts["outside-validity"] + counts["not-active"];
   const reason =
-    `returned ${admitted.length} of ${live} candidates; ${filtered} filtered ` +
-    `(${counts.excluded} by scope or grant, ${counts["outside-validity"]} outside the validity window); ` +
-    `${counts["not-active"]} not active`;
+    `returned ${admitted.length} of ${candidates.length} candidates; ${filtered} filtered ` +
+    `(${counts["outside-validity"]} outside the validity window, ${counts["not-active"]} not active, ` +
+    `${counts.excluded} by a grant's class or expiry); ` +
+    `${outOfReach} projected ${outOfReach === 1 ? "item" : "items"} outside the reader's reach ` +
+    "were not candidates";
 
   const event = db.transaction(() => {
     const appended = appendEvent(db, {
@@ -116,7 +154,7 @@ export async function filteredRead(
       scope_to: null,
       decision: "allow",
       reason,
-      policy_id: `${policy.id}/read/${actor.level}`,
+      policy_id: readRuleId(policy, actor),
       schema_version: 0 as const,
     });
     const insert = db.prepare(
@@ -128,11 +166,16 @@ export async function filteredRead(
   return { items: admitted.map((a) => a.item), explanations, filtered, event };
 }
 
-/** The explanations stored for the read event `readId`, in rank order. */
-export function storedExplanations(deps: PlaneDeps, readId: string): Explanation[] {
+/**
+ * The explanations stored for the read event `readId`, in rank order, for
+ * the actor who made that read only (decision D5); another actor is refused
+ * with ExplainDeniedError.
+ */
+export function storedExplanations(deps: PlaneDeps, actor: Actor, readId: string): Explanation[] {
   const { db } = deps;
-  const row = db.prepare("SELECT op FROM events WHERE id = ?").get(readId);
+  const row = db.prepare("SELECT op, actor FROM events WHERE id = ?").get(readId);
   if (row?.op !== "read") throw new Error(`explain: ${readId} names no read event`);
+  if (row.actor !== actor?.id) throw new ExplainDeniedError(readId);
   return db
     .prepare("SELECT body FROM explanations WHERE read_id = ? ORDER BY rank")
     .all(readId)

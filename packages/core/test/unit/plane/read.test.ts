@@ -2,12 +2,18 @@
 // E2.2): candidates, the scope, matrix and grant filter, the validity window,
 // ranking with named components, one explanation per item, one read event.
 import { describe, expect, test } from "vitest";
-import type { Actor } from "../../../src/plane.ts";
-import { READ_STATUS_ID } from "../../../src/policy/evaluate.ts";
+import { type Actor, ExplainDeniedError } from "../../../src/plane.ts";
+import { READ_DEFAULT_DENY_ID, READ_STATUS_ID } from "../../../src/policy/evaluate.ts";
 import type { MemoryItem } from "../../../src/schema.ts";
-import { AT, fresh, id, item } from "./helpers.ts";
+import { AT, fresh, id, item, testPolicy } from "./helpers.ts";
 
-const writer: Actor = { id: "person:omar", level: "person", memberships: [] };
+const LATER = "2027-01-01T00:00:00Z";
+
+const writer: Actor = {
+  id: "person:omar",
+  level: "person",
+  memberships: ["team:platform", "team:payments", "person:omar", "org"],
+};
 const platform: Actor = { id: "person:sara", level: "team", memberships: ["team:platform"] };
 
 async function seeded(items: MemoryItem[], options = {}) {
@@ -20,6 +26,9 @@ async function seeded(items: MemoryItem[], options = {}) {
 }
 
 describe("acceptance (card E2.2)", () => {
+  // Decision D5 changed what this acceptance test checks: the reader-facing
+  // `filtered` no longer counts items in scopes the reader cannot reach (it
+  // would reveal them); the read event, the audit record, still counts them.
   test("a cross-scope read is denied and the explanation lists the filtered-out count", async () => {
     const { plane } = await seeded([
       item(1, { scope: "team:platform" }),
@@ -28,9 +37,9 @@ describe("acceptance (card E2.2)", () => {
     ]);
     const result = await plane.read(platform, { at: AT });
     expect(result.items.map((i) => i.id)).toEqual([id(1)]);
-    expect(result.filtered).toBe(2);
-    expect(result.event.reason).toMatch(/2 filtered/);
-    const explained = await plane.explain(result.event.id);
+    expect(result.filtered).toBe(0);
+    expect(result.event.reason).toMatch(/2 projected items outside the reader's reach/);
+    const explained = await plane.explain(platform, result.event.id);
     expect(explained).toEqual(result.explanations);
     expect(explained.map((e) => e.item_id)).toEqual([id(1)]);
   });
@@ -73,7 +82,7 @@ describe("Plane.read", () => {
   test("admits an item through a grant, naming the grant and the grant rule", async () => {
     const granted = item(1, {
       scope: "person:omar",
-      grants: [{ to: "person:sara", mode: "read", class: "semantic" }],
+      grants: [{ to: "person:sara", mode: "read", class: "semantic", expires: LATER }],
     });
     const { plane } = await seeded([granted]);
     const { items, explanations, filtered } = await plane.read(platform, { at: AT });
@@ -88,7 +97,9 @@ describe("Plane.read", () => {
   test("does not admit through an expired grant, and counts the item as filtered", async () => {
     const granted = item(1, {
       scope: "person:omar",
-      grants: [{ to: "person:sara", mode: "read", expires: "2026-10-25T11:59:59Z" }],
+      grants: [
+        { to: "person:sara", mode: "read", class: "semantic", expires: "2026-10-25T11:59:59Z" },
+      ],
     });
     const { plane } = await seeded([granted]);
     const result = await plane.read(platform, { at: AT });
@@ -114,11 +125,11 @@ describe("Plane.read", () => {
     expect(later.items.map((i) => i.id)).toEqual([id(2)]);
   });
 
-  test("never returns a candidate or retired item, and does not count it as filtered", async () => {
+  test("never returns a candidate or retired item, and counts it as filtered (decision D5)", async () => {
     const { plane } = await seeded([item(1), item(2, { status: "candidate" })]);
     const result = await plane.read(platform, { at: AT });
     expect(result.items.map((i) => i.id)).toEqual([id(1)]);
-    expect(result.filtered).toBe(0);
+    expect(result.filtered).toBe(1);
     expect(result.event.reason).toMatch(/1 not active/);
     expect(READ_STATUS_ID).toBe("engram/read/status");
   });
@@ -154,7 +165,7 @@ describe("Plane.read", () => {
     ]);
     const result = await plane.read(platform, { text: "deploys", at: AT });
     expect(result.items.map((i) => i.id)).toEqual([id(1)]);
-    expect(result.filtered).toBe(1);
+    expect(result.filtered).toBe(0);
     expect(result.explanations[0]?.score.components).toHaveProperty("relevance");
   });
 
@@ -192,19 +203,112 @@ describe("Plane.explain", () => {
     const { plane } = await seeded([item(1, { confidence: 0.6 }), item(2)]);
     const first = await plane.read(platform, { at: AT });
     await plane.read(writer, { at: AT });
-    expect(await plane.explain(first.event.id)).toEqual(first.explanations);
+    expect(await plane.explain(platform, first.event.id)).toEqual(first.explanations);
   });
 
   test("returns no explanations for a read that returned nothing", async () => {
     const { plane } = await seeded([item(1, { scope: "team:payments" })]);
     const { event } = await plane.read(platform, { at: AT });
-    expect(await plane.explain(event.id)).toEqual([]);
+    expect(await plane.explain(platform, event.id)).toEqual([]);
   });
 
   test("rejects an id that names no read event", async () => {
     const { plane } = await seeded([item(1)]);
     const write = plane.events()[0];
-    await expect(plane.explain(id(123))).rejects.toThrow(/no read event/);
-    await expect(plane.explain(write?.id ?? "")).rejects.toThrow(/no read event/);
+    await expect(plane.explain(platform, id(123))).rejects.toThrow(/no read event/);
+    await expect(plane.explain(platform, write?.id ?? "")).rejects.toThrow(/no read event/);
+  });
+
+  test("refuses another actor's read, revealing none of its explanations (finding R5-12)", async () => {
+    const { plane } = await seeded([item(1)]);
+    const { event } = await plane.read(platform, { at: AT });
+    const ali: Actor = { id: "person:ali", level: "team", memberships: ["team:platform"] };
+    const before = plane.events().length;
+    await expect(plane.explain(ali, event.id)).rejects.toThrow(ExplainDeniedError);
+    await expect(plane.explain(ali, event.id)).rejects.toThrow(/made by another actor/);
+    expect(plane.events()).toHaveLength(before);
+  });
+});
+
+describe("Plane.read reveals nothing about items the reader cannot reach (decision D5)", () => {
+  const hidden = (n: number, content: string) =>
+    item(n, { scope: "team:payments", content, confidence: 0.99 });
+
+  test("searches only the scopes the reader can read, plus granted items' scopes (finding R5-1)", async () => {
+    const { plane, adapter } = await seeded([
+      item(1, { content: "deploys" }),
+      item(2, { scope: "team:payments", content: "deploys" }),
+      item(3, {
+        scope: "person:omar",
+        content: "deploys",
+        grants: [{ to: "person:sara", mode: "read", class: "semantic", expires: LATER }],
+      }),
+    ]);
+    await plane.read(platform, { text: "deploys", at: AT });
+    expect(adapter.searches).toEqual([["person:omar", "team:platform"]]);
+  });
+
+  test("relevance ranks among admitted items only: hidden hits do not lower it", async () => {
+    const visible = [item(1, { content: "deploys run on fridays" })];
+    const alone = await seeded(visible);
+    const crowded = await seeded([
+      hidden(2, "deploys deploys"),
+      hidden(3, "deploys twice"),
+      ...visible,
+    ]);
+    const a = await alone.plane.read(platform, { text: "deploys", at: AT });
+    const b = await crowded.plane.read(platform, { text: "deploys", at: AT });
+    expect(a.explanations[0]?.score.components.relevance).toBe(1);
+    expect(b.explanations).toEqual(a.explanations);
+    expect(b.filtered).toBe(a.filtered);
+  });
+
+  test("hidden items in a granted item's scope do not change ranks or scores", async () => {
+    const granted = item(1, {
+      scope: "person:omar",
+      content: "deploys need approvals",
+      grants: [{ to: "person:sara", mode: "read", class: "semantic", expires: LATER }],
+    });
+    const privateOne = item(2, { scope: "person:omar", content: "deploys secret" });
+    const alone = await seeded([granted]);
+    const crowded = await seeded([privateOne, granted]);
+    const a = await alone.plane.read(platform, { text: "deploys", at: AT });
+    const b = await crowded.plane.read(platform, { text: "deploys", at: AT });
+    expect(b.items.map((i) => i.id)).toEqual([id(1)]);
+    expect(b.explanations).toEqual(a.explanations);
+    expect(b.filtered).toBe(0);
+  });
+
+  test("filtered counts items the reader could reach but that fail validity, status or a grant's terms", async () => {
+    const { plane } = await seeded([
+      item(1, { valid_from: "2026-11-01T00:00:00Z" }),
+      item(2, { status: "candidate" }),
+      item(3, {
+        scope: "person:omar",
+        grants: [{ to: "person:sara", mode: "read", class: "procedural", expires: LATER }],
+      }),
+      hidden(4, "anything"),
+      item(5, { scope: "person:omar" }),
+    ]);
+    const result = await plane.read(platform, { at: AT });
+    expect(result.items).toEqual([]);
+    expect(result.filtered).toBe(3);
+    expect(result.event.reason).toMatch(/2 projected items outside the reader's reach/);
+  });
+
+  test("the read event, the audit record, keeps the full counts", async () => {
+    const { plane } = await seeded([item(1), hidden(2, "x"), hidden(3, "y")]);
+    const { event } = await plane.read(platform, { at: AT });
+    expect(event.reason).toMatch(/returned 1 of 1 candidates; 0 filtered/);
+    expect(event.reason).toMatch(/2 projected items outside the reader's reach/);
+  });
+
+  test("a reader level with no matrix row reads under the default-deny id", async () => {
+    const { plane } = await seeded([item(1)]);
+    const orgReader: Actor = { id: "person:sara", level: "org", memberships: ["team:platform"] };
+    const { items, event } = await plane.read(orgReader, { at: AT });
+    expect(items).toEqual([]);
+    expect(event.policy_id).toBe(READ_DEFAULT_DENY_ID);
+    expect(testPolicy().read.matrix.some((r) => r.reader === "org")).toBe(false);
   });
 });

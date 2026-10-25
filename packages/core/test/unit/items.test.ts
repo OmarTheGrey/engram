@@ -6,7 +6,7 @@ import type { Db } from "../../src/db/db.ts";
 import { MIGRATIONS, migrate } from "../../src/db/migrate.ts";
 import { openSqlite } from "../../src/db/sqlite.ts";
 import { allEvents, appendEvent, rebuild } from "../../src/events.ts";
-import { itemById, itemByStoreRef, lineage } from "../../src/items.ts";
+import { itemById, itemByStoreRef, itemsByStoreRef, lineage } from "../../src/items.ts";
 import { createPlane } from "../../src/plane.ts";
 import { loadPreset } from "../../src/policy/load.ts";
 import type { MemoryItem } from "../../src/schema.ts";
@@ -111,6 +111,19 @@ describe("item lookup", () => {
     );
     expect(stored?.store_ref).not.toBeNull();
     expect(itemByStoreRef(db, stored?.store_ref ?? { adapter: "", key: "" })).toEqual(stored);
+  });
+
+  test("itemsByStoreRef lists every holder of a ref, latest first, retired ones too", () => {
+    const K = { adapter: "fake", key: "shared" };
+    put(db, item(1, { store_ref: K }));
+    put(db, item(2, { store_ref: K, version: 2, lineage: [id(1)] }));
+    retire(db, id(1));
+    put(db, item(3));
+    expect(itemsByStoreRef(db, K).map((i) => [i.id, i.status])).toEqual([
+      [id(1), "retired"],
+      [id(2), "active"],
+    ]);
+    expect(itemsByStoreRef(db, { adapter: "fake", key: "none" })).toEqual([]);
   });
 
   test("a retired item is still found by its store_ref, with status retired", () => {
@@ -281,7 +294,13 @@ describe("item lookup", () => {
         .prepare("INSERT INTO items (id, status, body) VALUES (?, ?, ?)")
         .run(it.id, it.status, JSON.stringify(it));
     });
-    expect(migrate(fresh)).toEqual([2]);
+    // Only migration 2 is under test; later migrations apply after it.
+    expect(
+      migrate(
+        fresh,
+        MIGRATIONS.filter((m) => m.id <= 2),
+      ),
+    ).toEqual([2]);
     expect(itemByStoreRef(fresh, K1)?.id).toBe(id(1));
     const index = fresh.prepare("PRAGMA index_list(items)").all();
     expect(index.find((i) => i.name === "items_store_ref")?.unique).toBe(0);

@@ -1,7 +1,7 @@
 // Shared fixtures for the Plane integration tests: a fresh in-memory log over
 // the fake adapter, deterministic ids, and an item builder.
 import { createFakeAdapter, type FakeAdapterOptions } from "@engram/adapters";
-import type { Adapter } from "../../../src/adapter.ts";
+import type { Adapter, StoreRef } from "../../../src/adapter.ts";
 import { migrate } from "../../../src/db/migrate.ts";
 import { openSqlite } from "../../../src/db/sqlite.ts";
 import { createPlane } from "../../../src/plane.ts";
@@ -67,13 +67,34 @@ export function testPolicy(over: Partial<Policy> = {}): Policy {
   };
 }
 
-/** An adapter that counts the writes it receives; a fake around a fake, not a mock. */
-export function counting(adapter: Adapter): Adapter & { writes: number } {
-  const wrapped = Object.assign(Object.create(adapter) as Adapter, { writes: 0 });
+/** What a store write does instead of storing, for fault injection. */
+export type WriteFault = (item: MemoryItem, store: Adapter) => Promise<StoreRef>;
+
+/**
+ * An adapter that counts the writes it receives and records the scope filter
+ * of every search; a fake around a fake, not a mock. Setting `fault` makes
+ * later writes run it instead (a fault-injecting store).
+ */
+export function counting(adapter: Adapter): Adapter & {
+  writes: number;
+  searches: (readonly string[])[];
+  fault: WriteFault | null;
+} {
+  const wrapped = Object.assign(Object.create(adapter) as Adapter, {
+    writes: 0,
+    searches: [] as (readonly string[])[],
+    fault: null as WriteFault | null,
+  });
   wrapped.write = async (it) => {
     wrapped.writes++;
-    return adapter.write(it);
+    return wrapped.fault ? wrapped.fault(it, adapter) : adapter.write(it);
   };
+  const search = adapter.search?.bind(adapter);
+  if (search)
+    wrapped.search = async (query, scopes) => {
+      wrapped.searches.push([...scopes]);
+      return search(query, scopes);
+    };
   return wrapped;
 }
 
