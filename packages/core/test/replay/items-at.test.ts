@@ -201,6 +201,35 @@ describe("itemsAt", () => {
     db.close();
   });
 
+  test("the fixture workload matches a hand-written oracle where the projection rule decides", () => {
+    // Replay and the projection share applyEvent, so their equality cannot
+    // catch a wrong rule (review finding R2-1). These states are written by hand.
+    const db = openSqlite(":memory:");
+    migrate(db);
+    appendObserving(db, WORKLOAD);
+    const promoted = item(2, { class: "semantic", scope: "team:platform" });
+    const corrected = item(4, {
+      version: 2,
+      lineage: [id(1)],
+      content: "observation 1, corrected",
+    });
+    // seq 2: the denied write of item 3 adds nothing.
+    expect(itemsAt(db, 2)).toEqual([item(1), item(2)]);
+    // seq 5: the allowed retirement of item 1 keeps it, retired.
+    expect(itemsAt(db, 5)).toEqual([{ ...item(1), status: "retired" }, item(2), corrected]);
+    // seq 7: the denied eviction leaves item 4 active.
+    expect(itemsAt(db, 7)).toEqual([{ ...item(1), status: "retired" }, promoted, corrected]);
+    // seq 9: retiring the unknown item 9 creates nothing; seq 10 (ask gate) changes nothing.
+    expect(itemsAt(db, 10)).toEqual(itemsAt(db, 7));
+    // seq 12: the allowed eviction retires item 4.
+    expect(itemsAt(db, 12)).toEqual([
+      { ...item(1), status: "retired" },
+      promoted,
+      { ...corrected, status: "retired" },
+    ]);
+    db.close();
+  });
+
   test("rebuilds from the event log alone, without the item projection", () => {
     const db = openSqlite(":memory:");
     migrate(db);
