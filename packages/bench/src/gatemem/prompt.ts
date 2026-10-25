@@ -1,3 +1,7 @@
+// Derived from GateMem (MIT, Copyright (c) 2026 Renz), as is the verbatim
+// vendor/query_prompt.txt; the licence text is in
+// fixtures/bench/gatemem/UPSTREAM-LICENSE.
+//
 // The query prompt of GateMem's shared agent base (BaseMemoryAgent._run_llm
 // in bench/agents/base.py at a983828): the vendored template
 // (vendor/query_prompt.txt, verbatim) split into system and user parts and

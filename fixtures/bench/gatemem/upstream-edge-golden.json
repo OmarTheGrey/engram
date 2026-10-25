@@ -1,0 +1,333 @@
+{
+  "source": "packages/bench/scripts/upstream-edge-golden.py",
+  "upstream_commit": "a983828b3bb7565e16e25ac8cdc2fc1982633b0b",
+  "python": "3.14.3",
+  "parse": [
+    {
+      "raw": "{\"action\":\"answer\",\"answer\":\"x\",\"answer_structured\":{\"dose_mg\":2.0,\"count\":2,\"ratio\":0.5}}",
+      "action": "answer",
+      "answer": "x",
+      "used_record_ids": [],
+      "flattened": "x\n{\"count\": 2, \"dose_mg\": 2.0, \"ratio\": 0.5}"
+    },
+    {
+      "raw": "{\"action\":\"answer\",\"answer\":\"x\",\"answer_structured\":{\"big\":1e16,\"small\":1e-05,\"tiny\":1.5e-7,\"mid\":123456.789}}",
+      "action": "answer",
+      "answer": "x",
+      "used_record_ids": [],
+      "flattened": "x\n{\"big\": 1e+16, \"mid\": 123456.789, \"small\": 1e-05, \"tiny\": 1.5e-07}"
+    },
+    {
+      "raw": "{\"action\":\"answer\",\"answer\":\"x\",\"answer_structured\":{\"e\":1E2,\"neg\":-0.0,\"zero\":0,\"negzero\":-0,\"inf\":1e400}}",
+      "action": "answer",
+      "answer": "x",
+      "used_record_ids": [],
+      "flattened": "x\n{\"e\": 100.0, \"inf\": Infinity, \"neg\": -0.0, \"negzero\": 0, \"zero\": 0}"
+    },
+    {
+      "raw": "{\"action\":\"answer\",\"answer\":\"x\",\"answer_structured\":{\"n\":12345678901234567890,\"f\":0.1,\"g\":100.0,\"h\":1e15,\"k\":12345678901234567.0}}",
+      "action": "answer",
+      "answer": "x",
+      "used_record_ids": [],
+      "flattened": "x\n{\"f\": 0.1, \"g\": 100.0, \"h\": 1000000000000000.0, \"k\": 1.2345678901234568e+16, \"n\": 12345678901234567890}"
+    },
+    {
+      "raw": "{\"action\":\"answer\",\"answer\":\"x\",\"answer_structured\":{\"z\":1,\"a\":{\"y\":[1,2.5,\"s\"],\"b\":null,\"c\":true}}}",
+      "action": "answer",
+      "answer": "x",
+      "used_record_ids": [],
+      "flattened": "x\n{\"a\": {\"b\": null, \"c\": true, \"y\": [1, 2.5, \"s\"]}, \"z\": 1}"
+    },
+    {
+      "raw": "{\"action\":\"answer\",\"answer\":\"x\",\"answer_structured\":{\"2\":\"two\",\"10\":\"ten\",\"b\":\"bee\",\"1\":\"one\"}}",
+      "action": "answer",
+      "answer": "x",
+      "used_record_ids": [],
+      "flattened": "x\n{\"1\": \"one\", \"10\": \"ten\", \"2\": \"two\", \"b\": \"bee\"}"
+    },
+    {
+      "raw": "{\"action\":\"answer\",\"answer\":\"x\",\"answer_structured\":{\"\\u00e9\":\"caf\\u00e9\",\"\\ud83d\\ude00\":\"smile\",\"\\uff21\":\"wide\",\"Z\":\"z\"}}",
+      "action": "answer",
+      "answer": "x",
+      "used_record_ids": [],
+      "flattened": "x\n{\"Z\": \"z\", \"\u00e9\": \"caf\u00e9\", \"\uff21\": \"wide\", \"\ud83d\ude00\": \"smile\"}"
+    },
+    {
+      "raw": "{\"action\":\"answer\",\"answer\":\"x\",\"answer_structured\":{\"ctl\":\"a\\u0001b\\u007fc\\u2028d\",\"q\":\"say \\\"hi\\\" \\\\ / done\"}}",
+      "action": "answer",
+      "answer": "x",
+      "used_record_ids": [],
+      "flattened": "x\n{\"ctl\": \"a\\u0001b\u007fc\u2028d\", \"q\": \"say \\\"hi\\\" \\\\ / done\"}"
+    },
+    {
+      "raw": "{\"action\":\"answer\",\"answer\":{\"b\":1,\"a\":2.0,\"s\":\"it's\"},\"answer_structured\":{}}",
+      "action": "answer",
+      "answer": "{'b': 1, 'a': 2.0, 's': \"it's\"}",
+      "used_record_ids": [],
+      "flattened": "{'b': 1, 'a': 2.0, 's': \"it's\"}\n{}"
+    },
+    {
+      "raw": "{\"action\":\"answer\",\"answer\":[1,2.0,\"x\",null,true,{\"k\":\"v\"}],\"answer_structured\":{}}",
+      "action": "answer",
+      "answer": "[1, 2.0, 'x', None, True, {'k': 'v'}]",
+      "used_record_ids": [],
+      "flattened": "[1, 2.0, 'x', None, True, {'k': 'v'}]\n{}"
+    },
+    {
+      "raw": "{\"action\":\"answer\",\"answer\":\"x\",\"answer_structured\":{},\"used_record_ids\":[1,2.0,\"r3\",null,false,1e20]}",
+      "action": "answer",
+      "answer": "x",
+      "used_record_ids": [
+        "1",
+        "2.0",
+        "r3",
+        "None",
+        "False",
+        "1e+20"
+      ],
+      "flattened": "x\n{}"
+    },
+    {
+      "raw": "{\"action\":\"answer\",\"answer\":3.50,\"answer_structured\":\"{\\\"price\\\": 3.50}\"}",
+      "action": "answer",
+      "answer": "3.5",
+      "used_record_ids": [],
+      "flattened": "3.5\n{\"price\": 3.5}"
+    },
+    {
+      "raw": "{\"action\":\"answer\",\"answer\":\"x\",\"answer_structured\":{\"nan\":NaN,\"pinf\":Infinity,\"ninf\":-Infinity}}",
+      "action": "answer",
+      "answer": "x",
+      "used_record_ids": [],
+      "flattened": "x\n{\"nan\": NaN, \"ninf\": -Infinity, \"pinf\": Infinity}"
+    },
+    {
+      "raw": "{\"action\":\"answer\",\"answer\":\"x\",\"answer_structured\":{\"k\":1,\"k\":2.0}}",
+      "action": "answer",
+      "answer": "x",
+      "used_record_ids": [],
+      "flattened": "x\n{\"k\": 2.0}"
+    },
+    {
+      "raw": "{\"action\":\"answer\",\"answer\":{\"q\":\"say \\\"hi\\\"\",\"n\":\"line\\nbreak\\ttab\",\"u\":\"caf\\u00e9\\u0085\\u00a0\"},\"answer_structured\":{}}",
+      "action": "answer",
+      "answer": "{'q': 'say \"hi\"', 'n': 'line\\nbreak\\ttab', 'u': 'caf\u00e9\\x85\\xa0'}",
+      "used_record_ids": [],
+      "flattened": "{'q': 'say \"hi\"', 'n': 'line\\nbreak\\ttab', 'u': 'caf\u00e9\\x85\\xa0'}\n{}"
+    },
+    {
+      "raw": "{\"action\":\"answer\",\"answer\":\"\\u00a0padded\\u00a0\",\"answer_structured\":{\"s\":\"\\u001c\"}}",
+      "action": "answer",
+      "answer": "\u00a0padded\u00a0",
+      "used_record_ids": [],
+      "flattened": "\u00a0padded\u00a0\n{\"s\": \"\\u001c\"}"
+    }
+  ],
+  "patterns": [
+    {
+      "text": "r\u00e9sum\u00e9 sent",
+      "pattern": "sum",
+      "hits": false
+    },
+    {
+      "text": "caf\u00e9 open",
+      "pattern": "caf",
+      "hits": false
+    },
+    {
+      "text": "the caf\u00e9 is open",
+      "pattern": "caf\\w",
+      "hits": true
+    },
+    {
+      "text": "na\u00efve plan",
+      "pattern": "\\bna\\w+ve\\b",
+      "hits": true
+    },
+    {
+      "text": "x\u00e9y",
+      "pattern": "x\\Wy",
+      "hits": false
+    },
+    {
+      "text": "dose\u00a0two mg",
+      "pattern": "dose\\stwo",
+      "hits": true
+    },
+    {
+      "text": "dose\u00a0two mg",
+      "pattern": "dose two",
+      "hits": true
+    },
+    {
+      "text": "dose\u001ctwo",
+      "pattern": "dose\\stwo",
+      "hits": true
+    },
+    {
+      "text": "dose\u001ctwo",
+      "pattern": "dose two",
+      "hits": true
+    },
+    {
+      "text": "dose\ufefftwo",
+      "pattern": "dose\\stwo",
+      "hits": false
+    },
+    {
+      "text": "room \u0663\u0664",
+      "pattern": "room \\d+",
+      "hits": true
+    },
+    {
+      "text": "room 34",
+      "pattern": "room \\d+",
+      "hits": true
+    },
+    {
+      "text": "id A-17 ok",
+      "pattern": "(?P<tag>[A-Z])-(?P=tag)?17",
+      "hits": true
+    },
+    {
+      "text": "ends here\n",
+      "pattern": "here$",
+      "hits": false
+    },
+    {
+      "text": "ends here\n",
+      "pattern": "here\\Z",
+      "hits": false
+    },
+    {
+      "text": "ends here",
+      "pattern": "here\\Z",
+      "hits": true
+    },
+    {
+      "text": "ends here\n",
+      "pattern": "(here)$",
+      "hits": true
+    },
+    {
+      "text": "here\nthere",
+      "pattern": "(here)$",
+      "hits": true
+    },
+    {
+      "text": "a\rb",
+      "pattern": "(a.b)",
+      "hits": true
+    },
+    {
+      "text": "a\rb",
+      "pattern": "a.b",
+      "hits": false
+    },
+    {
+      "text": "a\u2028b",
+      "pattern": "a.b",
+      "hits": false
+    },
+    {
+      "text": "Visa 4111",
+      "pattern": "(?i)visa \\d{4}",
+      "hits": true
+    },
+    {
+      "text": "count {3}",
+      "pattern": "count {3}",
+      "hits": false
+    },
+    {
+      "text": "count {x}",
+      "pattern": "count {x}",
+      "hits": true
+    },
+    {
+      "text": "a,b",
+      "pattern": "a\\,b",
+      "hits": true
+    },
+    {
+      "text": "a-b",
+      "pattern": "a\\-b",
+      "hits": true
+    },
+    {
+      "text": "STRASSE",
+      "pattern": "stra\u00dfe",
+      "hits": false
+    },
+    {
+      "text": "\u017fecret code",
+      "pattern": "secret",
+      "hits": true
+    },
+    {
+      "text": "\u212aey 9",
+      "pattern": "key \\d",
+      "hits": true
+    },
+    {
+      "text": "x]y",
+      "pattern": "x]y",
+      "hits": true
+    },
+    {
+      "text": "tab\there",
+      "pattern": "tab\\there",
+      "hits": true
+    },
+    {
+      "text": "a1b",
+      "pattern": "a[\\d]b",
+      "hits": true
+    },
+    {
+      "text": "a b",
+      "pattern": "a[\\s]b",
+      "hits": true
+    },
+    {
+      "text": "a\u00a0b",
+      "pattern": "a[\\s]b",
+      "hits": true
+    },
+    {
+      "text": "\u00e9t\u00e9",
+      "pattern": "^\\w+$",
+      "hits": true
+    },
+    {
+      "text": "paren (x",
+      "pattern": "paren (x",
+      "hits": true
+    },
+    {
+      "text": "phone 555-0100",
+      "pattern": "555-0100",
+      "hits": true
+    },
+    {
+      "text": "Phone 555 0100",
+      "pattern": "phone\\s+555",
+      "hits": true
+    },
+    {
+      "text": "phone 555/0100 ext.12:30",
+      "pattern": "555/0100 ext.12:30",
+      "hits": true
+    },
+    {
+      "text": "call dr. lee",
+      "pattern": "dr. lee",
+      "hits": true
+    },
+    {
+      "text": "CALL Dr.  Lee",
+      "pattern": "dr. lee",
+      "hits": true
+    }
+  ]
+}

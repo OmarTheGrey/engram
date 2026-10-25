@@ -6,13 +6,14 @@
 //   node packages/bench/scripts/run-gatemem.ts --config fixtures/bench/gatemem/run-config.json --out .engram/bench/gatemem
 //
 // Only `scripted/...` models are wired: no live model is called while the
-// pre-registration is backlogged (docs/tasks/backlog.md). With ENGRAM_OFFLINE=1
-// a cassette miss is an error.
+// pre-registration is backlogged (docs/tasks/backlog.md). `make bench` sets ENGRAM_OFFLINE=1,
+// so a cassette miss is an error; run directly without it, a miss is recorded
+// under <out>/cassettes and the committed cassettes are never written.
 import { createHash } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
-import { fileCache, memoryCache } from "@engram/runner";
+import { type CacheStore, fileCache, memoryCache } from "@engram/runner";
 import { readRunConfig, readScript, runGateMem, scriptedByItem } from "../src/gatemem/run.ts";
 
 async function main(): Promise<number> {
@@ -30,9 +31,18 @@ async function main(): Promise<number> {
     );
     return 2;
   }
+  // The committed cassettes are read, never written (finding R6-5): a call
+  // they miss, made when ENGRAM_OFFLINE is unset, is recorded under --out,
+  // to be reviewed and copied into the fixture deliberately.
+  const recorded = fileCache(join(values.out, "cassettes"));
+  const committed = config.cassettes ? fileCache(config.cassettes) : memoryCache();
+  const cache: CacheStore = {
+    get: (key) => committed.get(key) ?? recorded.get(key),
+    set: (entry) => recorded.set(entry),
+  };
   const result = await runGateMem(config, {
     model: scriptedByItem(readScript(config.script)),
-    cache: config.cassettes ? fileCache(config.cassettes) : memoryCache(),
+    cache,
   });
   mkdirSync(values.out, { recursive: true });
   const jsonl = (rows: readonly unknown[]) => rows.map((r) => `${JSON.stringify(r)}\n`).join("");

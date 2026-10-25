@@ -1,3 +1,6 @@
+// Derived from GateMem (MIT, Copyright (c) 2026 Renz); the licence text is in
+// fixtures/bench/gatemem/UPSTREAM-LICENSE.
+//
 // GateMem file formats at the pinned commit a983828 (packages/bench/PINS.md).
 // Episodes and checkpoints are one JSON object per line in
 // bench/data/<domain>/{episodes,checkpoints}.jsonl. The checkpoint schema is

@@ -11,7 +11,9 @@ Twenty GateMem checkpoints and the four episodes they belong to, vendored from t
 ## Licences and attribution
 
 - Code: MIT, Copyright (c) 2026 Renz. The licence text is in `UPSTREAM-LICENSE`, copied from the upstream `LICENSE`. The port in `packages/bench/src/gatemem/` (agents, prompt, parsing, scoring) and the verbatim files in `packages/bench/src/gatemem/vendor/` derive from it.
-- Data: CC-BY-4.0, as stated by the upstream `CITATION.cff` (`license: CC-BY-4.0`) and recorded for the Hugging Face dataset card (`Ray368/GateMem`) in `packages/bench/PINS.md`. The episodes and checkpoints here are an unmodified subset.
+- Data: Creative Commons Attribution 4.0 International (CC BY 4.0, https://creativecommons.org/licenses/by/4.0/), as stated by the upstream `CITATION.cff` (`license: CC-BY-4.0`) and recorded for the Hugging Face dataset card (`Ray368/GateMem`) in `packages/bench/PINS.md`. The episodes and checkpoints here are an unmodified subset: whole lines selected, none changed.
+- Every ported source file in `packages/bench/src/gatemem/` names the MIT notice and this folder's `UPSTREAM-LICENSE` in its header (`licence.test.ts` checks it).
+- `upstream-edge-golden.json`: what upstream's own `generate_llm_output`, `flatten_output_text` and `pattern_hits` return on crafted inputs (floats, exponents, str() of dicts, key order, non-ASCII text against `\w`, `\s`, `\d`, `\b` and `$`), written by `packages/bench/scripts/upstream-edge-golden.py`; `edge.test.ts` holds the port to it. Its inputs are written for the test, not taken from the dataset.
 - Attribution: Zhe Ren, Yibo Yang, Yimeng Chen, Zijun Zhao, Benshuo Fu, Zhihao Shu, Bingjie Zhang, Yangyang Xu, Dandan Guo, Shuicheng Yan. "GateMem: Benchmarking Memory Governance in Multi-Principal Shared-Memory Agents", arXiv 2606.18829, 2026. The data is synthetic and holds no real person's records (upstream `DATASET_CARD.md`).
 
 ## Selection rule

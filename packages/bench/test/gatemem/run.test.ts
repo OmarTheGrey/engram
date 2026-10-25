@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readdirSync, readFileSync } from "node:fs";
+import { cpSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -96,5 +96,35 @@ describe("make bench BENCH=gatemem", () => {
     const summary = JSON.parse(readFileSync(join(out, "summary.json"), "utf8"));
     expect(summary.n_checkpoints).toBe(20);
     expect(summary.judge).toBe("not run");
+  }, 60_000);
+
+  test("online, a missing cassette is recorded under --out, never into the committed ones (R6-5)", () => {
+    const work = mkdtempSync(join(tmpdir(), "gatemem-online-"));
+    const committed = join(work, "cassettes");
+    cpSync(config.cassettes as string, committed, { recursive: true });
+    const [dropped] = readdirSync(committed).sort();
+    rmSync(join(committed, dropped as string));
+    const before = readdirSync(committed).sort();
+    const configPath = join(work, "run-config.json");
+    writeFileSync(
+      configPath,
+      JSON.stringify({
+        ...JSON.parse(readFileSync(CONFIG, "utf8")),
+        data: config.data,
+        script: config.script,
+        cassettes: committed,
+      }),
+    );
+    const out = join(work, "out");
+    const root = fileURLToPath(new URL("../../../../", import.meta.url));
+    const { ENGRAM_OFFLINE: _offline, ...env } = process.env;
+    const stdout = execFileSync(
+      process.execPath,
+      ["packages/bench/scripts/run-gatemem.ts", "--config", configPath, "--out", out],
+      { cwd: root, env, encoding: "utf8" },
+    );
+    expect(stdout).toContain("model calls: 1 new, 19 from cassettes");
+    expect(readdirSync(committed).sort()).toEqual(before);
+    expect(readdirSync(join(out, "cassettes"))).toEqual([dropped]);
   }, 60_000);
 });

@@ -1,24 +1,36 @@
+// Derived from GateMem (MIT, Copyright (c) 2026 Renz); the licence text is in
+// fixtures/bench/gatemem/UPSTREAM-LICENSE.
+//
 // Turning the answer model's raw text into an agent output: the real-provider
 // path of generate_llm_output in GateMem bench/agents/utils_llm.py at a983828.
 // Upstream's offline stub path is not ported: it answers from the hidden
 // expected_action, which no agent here may see.
 //
+// JSON is parsed as Python's json.loads parses it (py.ts, finding R6-1): a
+// float stays a float, so 2.0 flattens to "2.0" as upstream's does, key order
+// and integers beyond 2^53 survive, and NaN and Infinity are accepted. str()
+// and strip() are Python's too.
+//
 // One upstream fallback is not ported: when the text is not JSON, upstream
 // tries Python's ast.literal_eval (single quotes, None, True). Here such text
 // falls through to the action inference from plain text, as any other non-JSON
 // response does.
+import { isPyDict, PY_SPACE, parsePyJson, pyRegex, pyStr, pyStrip } from "./py.ts";
 import type { Action, AgentOutput } from "./schema.ts";
 
 const ACTIONS: ReadonlySet<string> = new Set(["answer", "refuse", "answer_redacted", "no_memory"]);
 
+const FENCE_OPEN = /^```[a-zA-Z0-9_-]*\n/;
+const FENCE_CLOSE = new RegExp(`\\n\`\`\`[${PY_SPACE}]*(?=\\n?(?![\\s\\S]))`, "u");
+
 /** _strip_code_fences */
 export function stripCodeFences(s: string): string {
-  let out = s.trim();
+  let out = pyStrip(s);
   if (out.startsWith("```")) {
-    out = out.replace(/^```[a-zA-Z0-9_-]*\n/, "");
-    out = out.replace(/\n```\s*$/, "");
+    out = out.replace(FENCE_OPEN, "");
+    out = out.replace(FENCE_CLOSE, "");
   }
-  return out.trim();
+  return pyStrip(out);
 }
 
 /** _extract_json_object: from the first `{` to the last `}`. */
@@ -30,30 +42,30 @@ export function extractJsonObject(s: string): string | undefined {
   return t.slice(start, end + 1);
 }
 
-const isRecord = (v: unknown): v is Record<string, unknown> =>
-  typeof v === "object" && v !== null && !Array.isArray(v);
-
 /** _parse_llm_json, without the literal_eval fallback. */
 export function parseLlmJson(s: string): Record<string, unknown> | undefined {
   const js = extractJsonObject(s);
   if (js === undefined) return undefined;
   try {
-    const v: unknown = JSON.parse(js);
-    return isRecord(v) ? v : undefined;
+    const v = parsePyJson(js);
+    return isPyDict(v) ? v : undefined;
   } catch {
     return undefined;
   }
 }
 
+/** The explicit marker upstream looks for, compiled from its own Python pattern. */
+const EXPLICIT_ACTION = pyRegex(
+  `(?i)(?:^|[\\s"'\\{,])action(?:"|')?\\s*[:=]\\s*(?:"|')?(answer_redacted|no_memory|refuse|answer)(?:"|')?`,
+  false,
+);
+
 /** _infer_action_from_text: conservative, and never from hidden labels. */
 export function inferActionFromText(raw: string): Action {
-  const text = raw.trim();
+  const text = pyStrip(raw);
   if (!text) return "answer";
   const lowered = text.toLowerCase();
-  const explicit =
-    /(?:^|[\s"'{,])action(?:"|')?\s*[:=]\s*(?:"|')?(answer_redacted|no_memory|refuse|answer)(?:"|')?/i.exec(
-      text,
-    );
+  const explicit = EXPLICIT_ACTION.exec(text);
   if (explicit?.[1]) return explicit[1].toLowerCase() as Action;
   const any = (needles: string[]) => needles.some((n) => lowered.includes(n));
   if (
@@ -93,17 +105,9 @@ export function inferActionFromText(raw: string): Action {
   return "answer";
 }
 
-/** Python str() for the JSON values a model can return. */
-function pyStr(v: unknown): string {
-  if (v === null || v === undefined) return "None";
-  if (typeof v === "boolean") return v ? "True" : "False";
-  if (typeof v === "string") return v;
-  return typeof v === "object" ? JSON.stringify(v) : String(v);
-}
-
 /** _coerce_answer_structured */
 function coerceStructured(v: unknown): Record<string, unknown> {
-  if (isRecord(v)) return v;
+  if (isPyDict(v)) return v;
   if (typeof v === "string") return parseLlmJson(v) ?? {};
   return {};
 }
@@ -112,17 +116,19 @@ function coerceStructured(v: unknown): Record<string, unknown> {
 export function parseModelOutput(raw: string): AgentOutput {
   const parsed = parseLlmJson(raw) ?? {
     action: inferActionFromText(raw),
-    answer: raw.trim(),
+    answer: pyStrip(raw),
     answer_structured: {},
     used_record_ids: [],
   };
-  const actionRaw = pyStr(parsed.action ?? "answer").trim();
+  const get = (key: string, fallback: unknown) =>
+    Object.hasOwn(parsed, key) ? parsed[key] : fallback;
+  const actionRaw = pyStrip(pyStr(get("action", "answer")));
   const action = (ACTIONS.has(actionRaw) ? actionRaw : "answer") as Action;
-  const used = Array.isArray(parsed.used_record_ids) ? parsed.used_record_ids.map(pyStr) : [];
+  const used = get("used_record_ids", undefined);
   return {
     action,
-    answer: "answer" in parsed ? pyStr(parsed.answer) : "",
-    answer_structured: coerceStructured(parsed.answer_structured),
-    used_record_ids: used,
+    answer: pyStr(get("answer", "")),
+    answer_structured: coerceStructured(get("answer_structured", undefined)),
+    used_record_ids: Array.isArray(used) ? used.map(pyStr) : [],
   };
 }

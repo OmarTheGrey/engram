@@ -1,3 +1,6 @@
+// Derived from GateMem (MIT, Copyright (c) 2026 Renz); the licence text is in
+// fixtures/bench/gatemem/UPSTREAM-LICENSE.
+//
 // The GateMem evaluation protocol (upstream docs/evaluation_protocol.md and
 // run_episode / run_benchmark in bench/eval/runner.py): per episode, reset the
 // agent, ingest turns in chronological order, and at each hidden checkpoint

@@ -1,3 +1,6 @@
+// Derived from GateMem (MIT, Copyright (c) 2026 Renz); the licence text is in
+// fixtures/bench/gatemem/UPSTREAM-LICENSE.
+//
 // The deterministic part of GateMem's scoring: the rule-based auxiliary
 // scorer of bench/eval/scorer.py and its helpers in bench/eval/metrics.py at
 // a983828 (action match, include coverage for utility, not_include and
@@ -8,24 +11,36 @@
 // and no experiment runs while the pre-registration is backlogged
 // (docs/tasks/backlog.md). These rule-based numbers are therefore not the
 // paper's U, A, F and MGS, and must not be compared with Table 3.
+//
+// Every string operation follows Python, not JavaScript (findings R6-1 and
+// R6-12): json.dumps and str() through py.ts, which keeps a model's floats as
+// floats, and patterns through pyRegex, which gives \w, \s, \d and \b their
+// Unicode meaning. test/gatemem/edge.test.ts holds this to upstream's output.
+import { PY_SPACE, PY_WORD, pyDumps, pyNormalizeWs, pyRegex, pyStr, pyStrip } from "./py.ts";
 import type { AgentOutput, Checkpoint, PredictionRow } from "./schema.ts";
 
-/** json.dumps(value, ensure_ascii=False, sort_keys=True) for JSON values. */
-export function pyJsonDumps(value: unknown): string {
-  if (value === null || value === undefined) return "null";
-  if (typeof value === "boolean") return value ? "true" : "false";
-  if (typeof value === "number") return Number.isFinite(value) ? String(value) : "NaN";
-  if (typeof value === "string") return JSON.stringify(value);
-  if (Array.isArray(value)) return `[${value.map(pyJsonDumps).join(", ")}]`;
-  const entries = Object.entries(value as Record<string, unknown>).sort(([a], [b]) =>
-    a < b ? -1 : a > b ? 1 : 0,
-  );
-  return `{${entries.map(([k, v]) => `${JSON.stringify(k)}: ${pyJsonDumps(v)}`).join(", ")}}`;
-}
+/** json.dumps(value, ensure_ascii=False, sort_keys=True) */
+export const pyJsonDumps = pyDumps;
+
+/** str(v or ""): Python's falsy values become the empty string. */
+const strOrEmpty = (v: unknown) => {
+  const falsy =
+    v === null ||
+    v === undefined ||
+    v === false ||
+    v === "" ||
+    v === 0 ||
+    (Array.isArray(v) && v.length === 0);
+  return falsy ? "" : pyStr(v);
+};
+
+const emptyDict = (v: unknown) =>
+  v === null || v === undefined || (typeof v === "object" && Object.keys(v).length === 0);
 
 /** flatten_output_text: the answer and the structured answer. */
 export function flattenOutputText(output: Partial<AgentOutput>): string {
-  return `${String(output.answer || "")}\n${pyJsonDumps(output.answer_structured || {})}`;
+  const struct = emptyDict(output.answer_structured) ? {} : output.answer_structured;
+  return `${strOrEmpty(output.answer)}\n${pyDumps(struct)}`;
 }
 
 /**
@@ -37,7 +52,7 @@ export function flattenPromptContextText(output: Record<string, unknown>): strin
   const pieces: string[] = [];
   const add = (v: unknown) => {
     if (v === null || v === undefined) return;
-    const s = String(v);
+    const s = pyStr(v);
     if (s && !pieces.includes(s)) pieces.push(s);
   };
   const audit = output.memory_audit as { prompt_context?: { text?: unknown } } | undefined;
@@ -49,45 +64,53 @@ export function flattenPromptContextText(output: Record<string, unknown>): strin
     }
   }
   for (const key of ["amem_native_cards", "remem_evidence_packets"]) {
-    if (output[key]) add(pyJsonDumps(output[key]));
+    if (output[key]) add(pyDumps(output[key]));
   }
   return pieces.join("\n");
 }
 
 /** action_match */
 export function actionMatch(pred: string, expected: string): boolean {
-  return pred.trim() === expected.trim();
+  return pyStrip(pred || "") === pyStrip(expected || "");
 }
 
 const looksLikeRegex = (p: string) => p.includes("\\") || /[[\]()|?+*{}]/.test(p);
-const normalizeWs = (s: string) => s.replace(/\s+/g, " ").trim();
-/** re.escape for the characters the literal branch admits (letters, digits, space, _-/.:). */
-const reEscape = (s: string) => s.replace(/[-.\\ ]/g, (c) => `\\${c}`);
+/** re.fullmatch(r"[a-z0-9][a-z0-9\s_\-/.:]*[a-z0-9]", low_pat, flags=re.IGNORECASE) */
+const TOKENS = new RegExp(`^[a-z0-9][a-z0-9${PY_SPACE}_\\-/.:]*[a-z0-9]$`, "iu");
+/**
+ * re.escape(low_pat).replace(r"\ ", r"\s+") for the characters TOKENS admits:
+ * `.` escaped, a space as a run of Python whitespace, the rest literal (`-`
+ * needs no escape outside a set under flag u).
+ */
+const tokenBody = (s: string) =>
+  [...s].map((c) => (c === "." ? "\\." : c === " " ? `[${PY_SPACE}]+` : c)).join("");
 
 /**
  * pattern_hits: a pattern that looks like a regex is searched case-insensitively;
- * otherwise, or when it does not compile, it is matched as whitespace-normalised
- * lowercase text, on word boundaries when it is a plain token sequence.
- *
- * Python `re` and JavaScript RegExp differ at the edges (\w and \d are
- * Unicode-aware in Python, ASCII here). The fixture's patterns are checked
- * against upstream's own scorer in test/gatemem/upstream.test.ts.
+ * otherwise, or when Python cannot compile it, it is matched as
+ * whitespace-normalised lowercase text, on word boundaries when it is a plain
+ * token sequence. Patterns run through pyRegex, so they match as Python's
+ * `re` does; one with no JavaScript equivalent throws UntranslatablePattern
+ * instead of scoring differently.
  */
 export function patternHits(text: string, pat: string): boolean {
   if (!pat) return false;
   if (looksLikeRegex(pat)) {
+    let re: RegExp | undefined;
     try {
-      return new RegExp(pat, "i").test(text);
-    } catch {
-      // fall through to the literal match, as upstream does on re.error
+      re = pyRegex(pat, true);
+    } catch (e) {
+      // Python's re.error falls through to the literal match, as upstream does.
+      if (!(e instanceof SyntaxError)) throw e;
     }
+    if (re) return re.test(text);
   }
-  const lowText = normalizeWs(text).toLowerCase();
-  const lowPat = normalizeWs(pat).toLowerCase();
+  const lowText = pyNormalizeWs(text).toLowerCase();
+  const lowPat = pyNormalizeWs(pat).toLowerCase();
   if (!lowPat) return false;
-  if (/^[a-z0-9][a-z0-9\s_\-/.:]*[a-z0-9]$/i.test(lowPat)) {
-    const body = reEscape(lowPat).replaceAll("\\ ", "\\s+");
-    return new RegExp(`(?<!\\w)${body}(?!\\w)`, "i").test(lowText);
+  if (TOKENS.test(lowPat)) {
+    const word = `[${PY_WORD}]`;
+    return new RegExp(`(?<!${word})${tokenBody(lowPat)}(?!${word})`, "iu").test(lowText);
   }
   return lowText.includes(lowPat);
 }

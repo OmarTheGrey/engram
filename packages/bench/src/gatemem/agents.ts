@@ -1,3 +1,6 @@
+// Derived from GateMem (MIT, Copyright (c) 2026 Renz); the licence text is in
+// fixtures/bench/gatemem/UPSTREAM-LICENSE.
+//
 // GateMem's reference agents, ported from bench/agents/ at a983828.
 //
 // LongContextAgent (bench/agents/long_context.py, with the shared prompt and
