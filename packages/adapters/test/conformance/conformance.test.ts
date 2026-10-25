@@ -1,9 +1,9 @@
-// Acceptance for cards S0.11, A1 and A4: every adapter in the registry passes
+// Acceptance for cards S0.11, A1, A3 and A4: every adapter in the registry passes
 // the whole conformance suite on the fixture corpus, the fake with and without
-// its optional methods, and open-source Mem0 in-process. No adapter reaches
+// its optional methods, open-source Mem0 in-process, and the files adapter. No adapter reaches
 // the network: fetch is replaced by a recorder that refuses every call.
 import { afterAll, beforeAll, expect, test } from "vitest";
-import { ADAPTERS } from "./registry.ts";
+import { ADAPTERS, cleanupAdapters } from "./registry.ts";
 import { conformance, lexicalSearchRecall } from "./suite.ts";
 
 const fetchCalls: string[] = [];
@@ -16,6 +16,7 @@ beforeAll(() => {
 });
 afterAll(() => {
   globalThis.fetch = realFetch;
+  cleanupAdapters();
 });
 
 for (const { name, factory, lexical } of ADAPTERS) {

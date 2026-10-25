@@ -8,7 +8,7 @@ pillar: plane
 hypothesis: none
 evidence:
   - packages/adapters/src/files/index.ts
-  - packages/adapters/test/conformance/files.test.ts
+  - packages/adapters/test/conformance/registry.ts
   - packages/adapters/test/files/index.test.ts
   - fixtures/stores/claude-code-memory/MEMORY.md
   - "pnpm exec vitest run packages/adapters/test"

@@ -4,9 +4,13 @@
 // store (AGENTS.md, "What not to do"). `lexical` opts an adapter whose search
 // is exact term matching into full recall on the corpus; a semantic store may
 // rank or miss items, so it runs the main suite only.
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { Adapter } from "../../src/contract.ts";
 import { createHashingEmbedder } from "../../src/fake/embedder.ts";
 import { createFakeAdapter } from "../../src/fake/index.ts";
+import { createFilesAdapter } from "../../src/files/index.ts";
 import { createMem0Adapter } from "../../src/mem0/index.ts";
 
 export interface RegisteredAdapter {
@@ -14,6 +18,19 @@ export interface RegisteredAdapter {
   /** A fresh, empty store for each test. */
   factory: () => Adapter | Promise<Adapter>;
   lexical: boolean;
+}
+
+const tempDirs: string[] = [];
+/** A fresh temporary folder, removed by `cleanupAdapters`. */
+function freshDir(prefix: string): string {
+  const dir = mkdtempSync(join(tmpdir(), prefix));
+  tempDirs.push(dir);
+  return dir;
+}
+
+/** Removes every temporary folder the registered factories created. */
+export function cleanupAdapters(): void {
+  for (const dir of tempDirs.splice(0)) rmSync(dir, { recursive: true, force: true });
 }
 
 export const ADAPTERS: RegisteredAdapter[] = [
@@ -30,5 +47,13 @@ export const ADAPTERS: RegisteredAdapter[] = [
     name: "mem0",
     factory: () => createMem0Adapter({ embedder: createHashingEmbedder(), dbPath: ":memory:" }),
     lexical: false,
+  },
+  {
+    // A folder of Markdown in the Claude Code memory layout (card A3); its
+    // search is exact term matching, so it opts into full recall.
+    name: "files",
+    factory: () =>
+      createFilesAdapter({ root: freshDir("engram-files-conformance-"), owner: "omar" }),
+    lexical: true,
   },
 ];
