@@ -125,12 +125,63 @@ describe("item lookup", () => {
     expect(itemByStoreRef(db, { adapter: "fake", key: "moved" })?.id).toBe(id(1));
   });
 
-  test("a second item under a store_ref already held is refused and leaves the log unchanged", () => {
+  // Decision D1 of the review fix pass: a new version is a new item id under
+  // the same ref (Adapter.history), and a retired item keeps its ref, so a ref
+  // may have several holders. itemByStoreRef returns the latest active holder
+  // (highest seq among items not retired), else the latest holder.
+  const K1 = { adapter: "fake", key: "k1" };
+
+  test("several versions of an item live under one store_ref; the latest active one is returned", () => {
     put(db, item(1));
-    const before = allEvents(db);
-    expect(() => put(db, item(2, { store_ref: { adapter: "fake", key: "k1" } }))).toThrow();
-    expect(allEvents(db)).toEqual(before);
-    expect(itemById(db, id(2))).toBeUndefined();
+    put(db, item(2, { version: 2, lineage: [id(1)], store_ref: K1 }));
+    put(db, item(3, { version: 3, lineage: [id(2), id(1)], store_ref: K1 }));
+    expect(allEvents(db)).toHaveLength(3);
+    expect(itemByStoreRef(db, K1)?.id).toBe(id(3));
+    expect([1, 2, 3].map((n) => itemById(db, id(n))?.store_ref)).toEqual([K1, K1, K1]);
+  });
+
+  test("an active holder is preferred over a retired holder written later", () => {
+    put(db, item(1));
+    put(db, item(2, { version: 2, lineage: [id(1)], store_ref: K1 }));
+    retire(db, id(2));
+    expect(itemByStoreRef(db, K1)?.id).toBe(id(1));
+  });
+
+  test("a candidate holder counts as not retired", () => {
+    put(db, item(1));
+    put(db, item(2, { version: 2, lineage: [id(1)], store_ref: K1, status: "candidate" }));
+    expect(itemByStoreRef(db, K1)?.id).toBe(id(2));
+  });
+
+  test("a retired holder keeps its ref, and a new item may take the ref", () => {
+    put(db, item(1));
+    retire(db, id(1));
+    put(db, item(2, { store_ref: K1 }));
+    expect(itemByStoreRef(db, K1)?.id).toBe(id(2));
+    expect(itemById(db, id(1))?.store_ref).toEqual(K1);
+  });
+
+  test("when every holder is retired, the latest holder is returned", () => {
+    put(db, item(1));
+    put(db, item(2, { version: 2, lineage: [id(1)], store_ref: K1 }));
+    retire(db, id(2));
+    retire(db, id(1));
+    expect(itemByStoreRef(db, K1)?.id).toBe(id(1));
+  });
+
+  test("rewriting an item id in place makes it the latest holder again", () => {
+    put(db, item(1));
+    put(db, item(2, { version: 2, lineage: [id(1)], store_ref: K1 }));
+    put(db, item(1, { content: "fact 1, corrected" }), "update");
+    expect(itemByStoreRef(db, K1)?.content).toBe("fact 1, corrected");
+  });
+
+  test("the holder chosen under a shared ref survives a rebuild from the log", () => {
+    put(db, item(1));
+    put(db, item(2, { version: 2, lineage: [id(1)], store_ref: K1 }));
+    retire(db, id(2));
+    rebuild(db);
+    expect(itemByStoreRef(db, K1)?.id).toBe(id(1));
   });
 
   test("lookup by store_ref survives a rebuild from the log", () => {
@@ -151,6 +202,32 @@ describe("item lookup", () => {
       .run(it.id, it.status, JSON.stringify(it));
     expect(migrate(fresh)).toEqual([2]);
     expect(itemByStoreRef(fresh, { adapter: "fake", key: "k1" })).toEqual(it);
+    fresh.close();
+  });
+
+  test("migration 2 accepts two items projected under one ref and orders them by their events", () => {
+    const fresh = openSqlite(":memory:");
+    migrate(
+      fresh,
+      MIGRATIONS.filter((m) => m.id === 1),
+    );
+    const v1 = item(1);
+    const v2 = item(2, { version: 2, lineage: [id(1)], store_ref: K1 });
+    // The newer version was written first in the log, so seq, not id, must decide.
+    [v2, v1].forEach((it, s) => {
+      fresh
+        .prepare(
+          "INSERT INTO events (seq, id, op, item_id, actor, decision, body) VALUES (?, ?, 'write', ?, 'agent:pi', 'allow', '{}')",
+        )
+        .run(s, id(9000 + s), it.id);
+      fresh
+        .prepare("INSERT INTO items (id, status, body) VALUES (?, ?, ?)")
+        .run(it.id, it.status, JSON.stringify(it));
+    });
+    expect(migrate(fresh)).toEqual([2]);
+    expect(itemByStoreRef(fresh, K1)?.id).toBe(id(1));
+    const index = fresh.prepare("PRAGMA index_list(items)").all();
+    expect(index.find((i) => i.name === "items_store_ref")?.unique).toBe(0);
     fresh.close();
   });
 });

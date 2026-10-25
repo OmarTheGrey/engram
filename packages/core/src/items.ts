@@ -1,8 +1,12 @@
 // The item metadata store (card E1.2): the plane-owned view of each item,
-// read from the projection that events.ts maintains. It is keyed by id and by
-// store_ref (unique per adapter and key, migration 2), and versions are linked
-// by lineage: each version lists the ids of the versions it supersedes,
-// nearest first. Nothing here writes; every change is an event.
+// read from the projection that events.ts maintains. It is keyed by id and
+// indexed by store_ref (migration 2), and versions are linked by lineage: each
+// version is a new item id listing the ids of the versions it supersedes,
+// nearest first. Several versions may live under one store_ref and a retired
+// item keeps its ref, so a ref can have several holders (decision D1 of the
+// review fix pass). Rewriting an item id is an in-place update of that
+// version; the write gate (card E2.3) requires its version not to decrease.
+// Nothing here writes; every change is an event.
 import type { StoreRef } from "./adapter.ts";
 import type { Db, Row } from "./db/db.ts";
 import type { MemoryItem } from "./schema.ts";
@@ -14,11 +18,19 @@ export function itemById(db: Db, id: string): MemoryItem | undefined {
   return parse(db.prepare("SELECT body FROM items WHERE id = ?").get(id));
 }
 
-/** The item whose bytes live at `ref`, whatever its status. */
+/**
+ * The item holding `ref`: the latest active holder (highest seq among the
+ * holders not retired, an item's seq being that of the event that last
+ * changed it), else the latest holder whatever its status, else undefined.
+ * Rewriting an item id in place makes it the latest holder again.
+ */
 export function itemByStoreRef(db: Db, ref: StoreRef): MemoryItem | undefined {
   return parse(
     db
-      .prepare("SELECT body FROM items WHERE store_adapter = ? AND store_key = ?")
+      .prepare(
+        `SELECT body FROM items WHERE store_adapter = ? AND store_key = ?
+         ORDER BY status = 'retired', seq DESC LIMIT 1`,
+      )
       .get(ref.adapter, ref.key),
   );
 }

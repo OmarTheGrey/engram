@@ -39,15 +39,16 @@ function project(db: Db, event: MemoryEvent): void {
   const after = applyEvent(before, event);
   if (!after || after === before) return;
   db.prepare(
-    `INSERT INTO items (id, status, body, store_adapter, store_key) VALUES (?, ?, ?, ?, ?)
+    `INSERT INTO items (id, status, body, store_adapter, store_key, seq) VALUES (?, ?, ?, ?, ?, ?)
      ON CONFLICT (id) DO UPDATE SET status = excluded.status, body = excluded.body,
-       store_adapter = excluded.store_adapter, store_key = excluded.store_key`,
+       store_adapter = excluded.store_adapter, store_key = excluded.store_key, seq = excluded.seq`,
   ).run(
     after.id,
     after.status,
     JSON.stringify(after),
     after.store_ref?.adapter ?? null,
     after.store_ref?.key ?? null,
+    event.seq,
   );
 }
 

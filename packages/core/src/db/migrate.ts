@@ -33,15 +33,22 @@ export const MIGRATIONS: readonly Migration[] = [
   {
     id: 2,
     name: "items keyed by store_ref",
-    // Two items under one ref would make the ref ambiguous, so the pair is
-    // unique; SQLite lets any number of rows hold a null ref (not yet stored).
+    // Several items may hold one ref: each version of an item is its own id
+    // under the ref (Adapter.history), and a retired item keeps its ref, so
+    // the index is not unique (decision D1 of the review fix pass). `seq` is
+    // the seq of the event that last changed the item; itemByStoreRef uses it
+    // to pick the latest holder. Rows with a null ref are items not yet stored.
     up: `
       ALTER TABLE items ADD COLUMN store_adapter TEXT;
       ALTER TABLE items ADD COLUMN store_key TEXT;
+      ALTER TABLE items ADD COLUMN seq INTEGER;
       UPDATE items SET
         store_adapter = json_extract(body, '$.store_ref.adapter'),
-        store_key = json_extract(body, '$.store_ref.key');
-      CREATE UNIQUE INDEX items_store_ref ON items (store_adapter, store_key);
+        store_key = json_extract(body, '$.store_ref.key'),
+        seq = (SELECT max(e.seq) FROM events e WHERE e.item_id = items.id
+               AND e.decision = 'allow'
+               AND e.op IN ('write', 'update', 'promote', 'retire', 'evict'));
+      CREATE INDEX items_store_ref ON items (store_adapter, store_key, seq);
     `,
   },
 ];
