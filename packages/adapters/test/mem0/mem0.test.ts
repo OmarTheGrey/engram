@@ -44,7 +44,13 @@ let mem0Dir: string;
 const fetchCalls: string[] = [];
 const realFetch = globalThis.fetch;
 
-beforeAll(() => {
+// Loading `mem0ai/oss` costs 2 to 6 s on a loaded machine and happens once per
+// file, on the first Mem0 instance; every later instance takes about 0.1 s
+// (docs/log/2026-10-25-a1-mem0-test-timeout.md). The hook pays it, under the
+// fetch stub and MEM0_DIR like the tests, so no test's 5 s budget includes it.
+const MODULE_LOAD_TIMEOUT_MS = 60_000;
+
+beforeAll(async () => {
   dir = mkdtempSync(join(tmpdir(), "engram-mem0-"));
   mem0Dir = join(dir, "mem0-home");
   // Where Mem0 would write its config and telemetry id; it must stay empty.
@@ -53,7 +59,8 @@ beforeAll(() => {
     fetchCalls.push(String(input instanceof Request ? input.url : input));
     throw new Error("mem0 test: network access refused");
   }) as typeof fetch;
-});
+  await createMem0Memory({ embedder: createHashingEmbedder() });
+}, MODULE_LOAD_TIMEOUT_MS);
 
 afterAll(() => {
   globalThis.fetch = realFetch;
