@@ -17,6 +17,11 @@ Amendments made when deciding:
 - Built in S0.8: a Db interface over node:sqlite with savepoint transactions, an `events` table with a dense `seq`, and an item projection updated in the append transaction; `rebuild()` equals the incremental projection over 500 seeded random event sequences.
 - Event ids are UUIDv7 supplied by the caller: core reads no clock and draws no randomness.
 
+Amendments made in the review fix pass, 2026-10-25 (PR #6, findings R6-8 and R6-9; pending the lead's review like the rest of this ADR):
+
+- Decision D9: the CLI's default event log is per user, `<home>/.engram/engram.db`, not `.engram/engram.db` under the working directory, so dogfood content never lands inside a repository by default (AGENTS.md rule 12). The home folder comes from the CLI's Io (injected in tests); `--db` still overrides, and `engram doctor` never creates a log.
+- The CLI takes every id it injects into the Plane from its Io (`newId`), so a run with a fixed Io is reproducible.
+
 ## Alternatives considered
 
 Storage: (a) `node:sqlite` (unflagged since Node 22.13 and 23.4, release candidate as of 25.7, no native build, prepared statements, extension loading opt-in, transactions via `exec`); (b) `better-sqlite3` (mature, native build); (c) libsql. Identity: UUIDv7 or ULID.

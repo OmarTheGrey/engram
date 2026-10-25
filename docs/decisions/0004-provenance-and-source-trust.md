@@ -21,6 +21,10 @@ Amendments made when deciding:
 Amendments made in the review fix pass, 2026-10-25 (PR #5, findings R5-1 to R5-14; pending the lead's review like the rest of this ADR):
 
 - Decision D4 (finding R5-6): the plane, not the caller, sets provenance. `Actor` (packages/core/src/actor.ts) has an optional `source`, a provenance kind set by the harness: the pi extension sets `model` for agent tool calls, the CLI `user` for `engram write`, adoption `import`. When it is present, `Plane.write` overwrites `item.provenance.kind` with it and `item.provenance.actor` with the actor's id before the gate runs, and the event's item carries the overwritten provenance. When it is absent, the caller's provenance stands and the event's reason records "provenance as claimed by the caller". Callers that have not set `source` yet (the harnesses on later branches) keep the old behaviour, so the claim above holds only once each harness sets it.
+
+Amendments made in the review fix pass, 2026-10-25 (PR #6, finding R6-2; pending the lead's review like the rest of this ADR):
+
+- Decision D8: adoption sets `source: import` itself and runs as the store's owner, so an adopted item's provenance is kind `import` with actor `person:<owner>`; the store's own record of who wrote it (for a Claude Code memory file, `agent:claude-code`) is replaced, and `provenance.ref` still names the file. The CLI sets `source: user` for `engram write`, which no longer takes a `--source` flag.
 - Decision D4 (finding R5-7): an item whose provenance kind is model or compaction carries no grants; the write gate denies one that does (`engram/write/grant`).
 
 ## Alternatives considered
