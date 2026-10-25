@@ -27,3 +27,9 @@ One line per dependency: name, version, reason, licence. Added in the same PR as
 | better-sqlite3 | 12.11.1 | the SQLite binding of Mem0's local vector store; a native build allowed in pnpm-workspace.yaml (prebuilt binary, else node-gyp) | MIT |
 | compromise | 14.19.0 (pnpm-lock.yaml) | peer of mem0ai, installed by pnpm; entity extraction in Mem0 search scoring | MIT |
 | @cloudflare/workers-types | 4.20260702.1 (pnpm-lock.yaml) | peer of mem0ai, installed by pnpm; type definitions only, unused at runtime | MIT OR Apache-2.0 |
+| openai | 4.104.0 (pnpm-lock.yaml) | dependency of mem0ai, installed by pnpm; Mem0's OpenAI provider client, never constructed by the Mem0 adapter (its embedder is injected and its model slot refuses) | Apache-2.0 |
+| axios | 1.20.0 (pnpm-lock.yaml) | dependency of mem0ai, installed by pnpm; HTTP client inside Mem0, not imported by Engram code | MIT |
+| zod | 3.25.76 (pnpm-lock.yaml) | dependency of mem0ai, installed by pnpm; Mem0's config validation, a second major version beside core's zod 4.6.7, not imported by Engram code | MIT |
+| uuid | 11.1.1 (pnpm-lock.yaml) | dependency of mem0ai, installed by pnpm; Mem0's memory ids | MIT |
+
+Install size of the Mem0 adapter: mem0ai, better-sqlite3, compromise, @cloudflare/workers-types, openai 4, axios, zod 3 and uuid together take about 45 MB of `node_modules/.pnpm` (measured with `du -shc` over their folders on 2026-10-25, before their own dependencies). Only packages/adapters depends on them.
