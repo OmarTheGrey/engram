@@ -101,7 +101,7 @@ Adapter
   capabilities: { native_validity, native_history, native_search, native_graph }
 
 Plane
-  write(actor, itemIn, at) -> WriteResult    policy, provenance, event, then adapter; at is the injected time
+  write(actor, itemIn, at) -> WriteResult    policy and provenance, then the adapter, then the event carrying store_ref; at is the injected time
   read(actor, query) -> ReadResult           adapter search, filter, explanation, event
   promote(actor, itemId, toScope, at) -> GateResult
   lint(scope) -> Finding[]
