@@ -22,7 +22,7 @@ One line per dependency: name, version, reason, licence. Added in the same PR as
 | ajv-formats | 3.0.1 | dev: date-time and uuid formats for ajv | MIT |
 | datamodel-code-generator | 0.86.0 | dev: generates research/engram_types from sdk/schema | MIT |
 | typing-extensions | >=4.12 (uv.lock) | runtime import of the generated research/engram_types | PSF-2.0 |
-| yaml | 2.9.1 | parses policy files in packages/core with node ranges, so a rejected policy names its line (card E2.1) | ISC |
+| yaml | 2.9.1 | parses policy files in packages/core with node ranges, so a rejected policy names its line (card E2.1), and the YAML frontmatter of Claude Code memory files in the files adapter (card A3) | ISC |
 | mem0ai | 3.3.1 | open-source Mem0 (`mem0ai/oss`) behind the Mem0 adapter, card A1 (ADR 0013); packages/adapters only | Apache-2.0 |
 | better-sqlite3 | 12.11.1 | the SQLite binding of Mem0's local vector store; a native build allowed in pnpm-workspace.yaml (prebuilt binary, else node-gyp) | MIT |
 | compromise | 14.19.0 (pnpm-lock.yaml) | peer of mem0ai, installed by pnpm; entity extraction in Mem0 search scoring | MIT |
