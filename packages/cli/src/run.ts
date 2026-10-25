@@ -10,8 +10,12 @@ export interface Io {
   out(text: string): void;
   err(text: string): void;
   cwd: string;
+  /** The user's home folder; the default event log lives under it (decision D9). */
+  home: string;
   /** The current time, ISO 8601 UTC. The CLI is a surface, so it may read the clock; core never does. */
   now(): string;
+  /** A fresh UUIDv7 for every id the CLI injects into the Plane; a counter in tests. */
+  newId(): string;
 }
 
 export const HELP = `engram: the Engram control plane from the command line
@@ -28,15 +32,15 @@ commands:
   promote           not implemented yet (card E2.5)
   serve             not implemented yet (card E8.1)
 
-store options (read, write, doctor):
+store options (read, write):
   --store <name>              the store adapter; only files for now (default files)
   --root <folder>             the store folder, such as a Claude Code memory folder
-  --owner <id>                the person whose folder it is; imported memories get scope person:<id>
+  --owner <id>                the person whose folder it is; its memories are adopted as person:<id>
   --import-valid-from <iso>   valid_from for imported memories (default each file's mtime)
   --policy <preset|path>      strict, medium, permissive or a policy YAML file (default medium)
-  --db <path>                 the event log (default .engram/engram.db; :memory: for none)
+  --db <path>                 the event log (default <home>/.engram/engram.db; :memory: for none)
 
-actor options (read, write):
+actor options (read, write, explain):
   --as <principal>            who acts (default person:<owner>)
   --level <level>             person, role, team or org (default the actor's own level)
   --member <scope>            a scope the actor belongs to; repeatable (default the actor's scope)
@@ -45,8 +49,17 @@ actor options (read, write):
 write options:
   --content <text>            the item's content
   --file <item.json>          a JSON item; the flags and defaults fill the fields it leaves out
-  --id <uuidv7>  --scope <scope>  --class <episodic|semantic>  --source <kind>
+  --id <uuidv7>  --scope <scope>  --class <episodic|semantic>
   --confidence <0..1>  --valid-from <iso>  --valid-to <iso>
+  the plane records a write as source user by the acting principal, whatever the item claims
+
+explain options:
+  --db <path>  --policy <preset|path>  and --as or --owner: only the reader may explain a read
+
+doctor options:
+  --db <path>                 the event log to check (default as above); doctor never creates one
+  --policy <preset|path>      the policy to load and validate
+  --root <folder>             a store folder to check is readable
 
 output:
   --json                      machine-readable output

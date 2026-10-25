@@ -1,8 +1,19 @@
 // `engram read` over the synthetic Claude Code memory folder: the Gate A
 // demo (card A3's acceptance) on a fixture, through Plane.read.
+import { existsSync } from "node:fs";
+import { rm } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { cli, FIXTURE, FIXTURE_FILES, NOW, readArgs, tempDir } from "./helpers.ts";
+import {
+  cli,
+  FIXTURE,
+  FIXTURE_FILES,
+  fixtureCopy,
+  logEvents,
+  NOW,
+  readArgs,
+  tempDir,
+} from "./helpers.ts";
 
 const itemLines = (out: string) => out.match(/^\d+\. /gm) ?? [];
 
@@ -33,12 +44,64 @@ describe("engram read", () => {
     expect(second.out).toContain("4 items returned, 0 filtered");
   });
 
-  it("returns nothing to another person and reports every memory as filtered", async () => {
+  it("returns nothing to another person and reveals no count of what it cannot reach", async () => {
     const db = join(await tempDir(), "engram.db");
     const { code, out } = await cli(readArgs(db, FIXTURE, "--as", "person:eve"));
     expect(code).toBe(0);
-    expect(out).toContain("0 items returned, 4 filtered");
+    expect(out).toContain("0 items returned, 0 filtered");
     expect(itemLines(out)).toEqual([]);
+  });
+
+  it("adopts the folder as its owner, whoever reads (decision D8)", async () => {
+    const db = join(await tempDir(), "engram.db");
+    await cli(readArgs(db, FIXTURE, "--as", "person:eve"));
+    const events = logEvents(db);
+    const writes = events.filter((e) => e.op === "write");
+    expect(writes).toHaveLength(4);
+    for (const e of writes) {
+      expect(e.actor).toBe("person:dana");
+      expect(e.decision).toBe("allow");
+      expect(e.reason).toMatch(/^adopted from store files: /);
+      expect(e.item?.provenance).toMatchObject({ kind: "import", actor: "person:dana" });
+    }
+    expect(events.filter((e) => e.op === "read").map((e) => e.actor)).toEqual(["person:eve"]);
+  });
+
+  it("stops returning a memory once its file is deleted, and says it retired it", async () => {
+    const root = await fixtureCopy();
+    const db = join(await tempDir(), "engram.db");
+    await cli(readArgs(db, root));
+    await rm(join(root, "reference_runbook.md"));
+
+    const { out } = await cli(readArgs(db, root));
+
+    expect(out).toContain("imported 0 of 3 memories: 0 allowed, 0 denied, 3 already in the log");
+    expect(out).toMatch(
+      /^ {2}retired [0-9a-f-]{36}: adopted from store files: item .* is no longer/m,
+    );
+    // The retired item is still in the owner's reach, so it counts as filtered (not active).
+    expect(out).toContain("3 items returned, 1 filtered");
+    expect(out).not.toContain("/reference_runbook.md");
+  });
+
+  it("keeps the log under the home folder by default, not the working directory (D9)", async () => {
+    const cwd = await tempDir();
+    const home = await tempDir();
+    const args = readArgs("unused", FIXTURE).slice(0, -2);
+    const { code, out } = await cli(args, { cwd, home });
+    expect(code).toBe(0);
+    const expected = join(home, ".engram", "engram.db");
+    expect(existsSync(expected)).toBe(true);
+    expect(existsSync(join(cwd, ".engram"))).toBe(false);
+    expect(out).toContain(`log ${expected}`);
+  });
+
+  it("takes every id from its Io, so a run is reproducible", async () => {
+    const db = join(await tempDir(), "engram.db");
+    const { out } = await cli(readArgs(db, FIXTURE, "--json"));
+    const ids = logEvents(db).map((e) => e.id);
+    expect(ids.every((i) => i.startsWith("01930000-0000-7000-8000-"))).toBe(true);
+    expect(JSON.parse(out).read_id).toBe(ids.at(-1));
   });
 
   it("narrows to the memories the query text matches, with a relevance component", async () => {
@@ -68,7 +131,13 @@ describe("engram read", () => {
     expect(parsed.items[0].item.provenance.kind).toBe("import");
     expect(parsed.items[0].explanation.policy_id).toBe("preset.medium/read/person");
     expect(parsed.read_id).toMatch(/^[0-9a-f-]{36}$/);
-    expect(parsed.imported).toEqual({ listed: 4, allowed: 4, denied: 0, unchanged: 0 });
+    expect(parsed.imported).toEqual({
+      listed: 4,
+      allowed: 4,
+      denied: 0,
+      unchanged: 0,
+      retired: 0,
+    });
   });
 
   it("reads under another preset by name", async () => {

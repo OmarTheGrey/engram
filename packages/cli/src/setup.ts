@@ -2,7 +2,7 @@
 // policy, the actor and the store. No policy decision is made here (AGENTS.md
 // rule 1); the Plane makes them all.
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import {
   type Actor,
   type Adapter,
@@ -23,9 +23,19 @@ import {
 /** Bad input: printed with the command name, exit code 2. */
 export class UsageError extends Error {}
 
-/** The event log when --db is not given: under the working directory, in the gitignored .engram/. */
-export const DEFAULT_DB = ".engram/engram.db";
+/**
+ * The event log when --db is not given: per user, under the home folder, so
+ * dogfood content never lands inside a repository by default (AGENTS.md
+ * rule 12, decision D9). `home` comes from the Io, injected in tests.
+ */
+export const defaultDb = (home: string) => join(home, ".engram", "engram.db");
 export const MEMORY_DB = ":memory:";
+
+/** Where the log for `spec` lives: :memory:, the path resolved against `cwd`, or the per-user default. */
+export function logPath(spec: string | undefined, cwd: string, home: string): string {
+  if (spec === MEMORY_DB) return MEMORY_DB;
+  return spec === undefined ? defaultDb(home) : resolve(cwd, spec);
+}
 
 export interface Log {
   db: Db;
@@ -36,8 +46,13 @@ export interface Log {
 }
 
 /** Opens and migrates the log; `mustExist` refuses to create one. */
-export function openLog(spec: string | undefined, cwd: string, mustExist = false): Log {
-  const path = spec === MEMORY_DB ? MEMORY_DB : resolve(cwd, spec ?? DEFAULT_DB);
+export function openLog(
+  spec: string | undefined,
+  cwd: string,
+  home: string,
+  mustExist = false,
+): Log {
+  const path = logPath(spec, cwd, home);
   if (path !== MEMORY_DB) {
     if (mustExist && !existsSync(path)) throw new Error(`no event log at ${path}`);
     mkdirSync(dirname(path), { recursive: true });
@@ -75,6 +90,15 @@ export function checkTime(flag: string, value: string | undefined): string | und
   return value;
 }
 
+/** A number flag such as --confidence: any finite decimal; its range is the schema's to judge. */
+export function checkNumber(flag: string, value: string | undefined): number | undefined {
+  if (value === undefined) return undefined;
+  const n = Number(value);
+  if (value.trim() === "" || !Number.isFinite(n))
+    throw new UsageError(`${flag} ${JSON.stringify(value)} is not a number`);
+  return n;
+}
+
 export interface ActorFlags {
   as?: string;
   level?: string;
@@ -84,9 +108,14 @@ export interface ActorFlags {
 /**
  * The actor: `--as`, else `person:<owner>`. Its level and membership default
  * to its own scope when its id is one (`person:omar` reads as person, member
- * of `person:omar`); otherwise level person and no membership.
+ * of `person:omar`); otherwise level person and no membership. `source` is
+ * the provenance kind the plane records for what it writes (decision D4).
  */
-export function buildActor(flags: ActorFlags, owner: string | undefined): Actor {
+export function buildActor(
+  flags: ActorFlags,
+  owner: string | undefined,
+  source?: Actor["source"],
+): Actor {
   const id = flags.as ?? (owner === undefined ? undefined : `person:${owner}`);
   if (id === undefined) throw new UsageError("give --as <principal> or --owner <id>");
   const ownScope = Scope.safeParse(id).success ? id : undefined;
@@ -100,7 +129,17 @@ export function buildActor(flags: ActorFlags, owner: string | undefined): Actor 
   for (const m of flags.member ?? [])
     if (!Scope.safeParse(m).success) throw new UsageError(`--member ${m} is not a scope`);
   const memberships = flags.member ?? (ownScope ? [ownScope] : []);
-  return { id, level, memberships };
+  return source ? { id, level, memberships, source } : { id, level, memberships };
+}
+
+/**
+ * Who adopts a store's own memories: its owner, with source import, whoever
+ * reads (decision D8). Adoption records what the owner's store holds; the
+ * reader's capacity governs only what the read returns.
+ */
+export function storeOwner(owner: string): Actor {
+  const id = `person:${owner}`;
+  return { id, level: "person", memberships: [id], source: "import" };
 }
 
 /** An adapter for commands that never touch a store (explain): any call is a bug. */

@@ -15,11 +15,15 @@ process.emitWarning = ((warning: string | Error, ...rest: unknown[]) => {
   (emitWarning as (...a: unknown[]) => void)(warning, ...rest);
 }) as typeof process.emitWarning;
 
+const { homedir } = await import("node:os");
 const { run } = await import("./run.ts");
+const { uuidv7 } = await import("./uuid.ts");
 
 process.exitCode = await run(process.argv.slice(2), {
   out: (text) => process.stdout.write(text),
   err: (text) => process.stderr.write(text),
   cwd: process.cwd(),
+  home: homedir(),
   now: () => new Date().toISOString(),
+  newId: () => uuidv7(),
 });

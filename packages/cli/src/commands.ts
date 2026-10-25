@@ -1,8 +1,11 @@
 // The commands that call the Plane: read, write, explain, doctor. Each builds
 // the log, policy, actor and store, makes its Plane call, and prints the
 // result. The Plane makes every decision; nothing here is a policy `if`.
+// Every id comes from the Io (`io.newId`), so a run with a fixed Io is
+// reproducible.
 import { createHash } from "node:crypto";
-import { accessSync, constants, readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { access, constants, stat } from "node:fs/promises";
 import { resolve } from "node:path";
 import { type ParseArgsConfig, parseArgs } from "node:util";
 import {
@@ -18,16 +21,18 @@ import type { Io } from "./run.ts";
 import {
   type ActorFlags,
   buildActor,
+  checkNumber,
   checkTime,
   type Log,
   loadPolicy,
+  logPath,
   MEMORY_DB,
   NO_STORE,
   openLog,
+  storeOwner,
   UsageError,
 } from "./setup.ts";
 import { openStore, type Store } from "./store.ts";
-import { uuidv7 } from "./uuid.ts";
 
 type Options = NonNullable<ParseArgsConfig["options"]>;
 
@@ -54,7 +59,6 @@ const WRITE_OPTIONS = {
   id: { type: "string" },
   scope: { type: "string" },
   class: { type: "string" },
-  source: { type: "string" },
   confidence: { type: "string" },
   "valid-from": { type: "string" },
   "valid-to": { type: "string" },
@@ -67,8 +71,6 @@ function parse<O extends Options>(args: string[], options: O, positionals: boole
     throw new UsageError((e as Error).message);
   }
 }
-
-const newId = () => uuidv7();
 
 interface Session {
   log: Log;
@@ -89,6 +91,7 @@ function openSession(
     policy?: string;
     db?: string;
   },
+  makeActor: () => Actor,
 ): Session {
   const policy = loadPolicy(flags.policy, io.cwd);
   const store = openStore(
@@ -100,9 +103,9 @@ function openSession(
     },
     (p) => resolve(io.cwd, p),
   );
-  const actor = buildActor(flags, flags.owner);
-  const log = openLog(flags.db, io.cwd);
-  const deps: PlaneDeps = { db: log.db, adapter: store.adapter, policy, newId };
+  const actor = makeActor();
+  const log = openLog(flags.db, io.cwd, io.home);
+  const deps: PlaneDeps = { db: log.db, adapter: store.adapter, policy, newId: io.newId };
   return {
     log,
     store,
@@ -123,17 +126,24 @@ const logHint = (log: Log, readId?: string) =>
 export async function readCommand(args: string[], io: Io): Promise<number> {
   const { values, positionals } = parse(args, { ...STORE_OPTIONS, ...ACTOR_OPTIONS }, true);
   const at = checkTime("--at", values.at) ?? io.now();
-  const s = openSession(io, values);
+  const s = openSession(io, values, () => buildActor(values, values.owner));
   const { actor } = s;
   try {
-    const imported = await adoptStoreItems(s.deps, actor, s.store.scope, at);
+    // The folder's own memories are adopted as its owner (decision D8);
+    // openStore has required --owner.
+    const imported = await adoptStoreItems(
+      s.deps,
+      storeOwner(values.owner as string),
+      s.store.scope,
+      at,
+    );
     const text = positionals.join(" ") || undefined;
     const result = await s.plane.read(actor, { text, at });
     const readId = result.event.id;
     const rows = result.items.map((item, i) => ({ item, explanation: result.explanations[i] }));
 
     if (values.json) {
-      const { denials: _d, ...counts } = imported;
+      const { denials: _d, retirements: _r, ...counts } = imported;
       io.out(
         `${JSON.stringify(
           {
@@ -144,6 +154,7 @@ export async function readCommand(args: string[], io: Io): Promise<number> {
             store: { name: s.store.name, root: s.store.root },
             imported: counts,
             denials: imported.denials,
+            retirements: imported.retirements,
             returned: result.items.length,
             filtered: result.filtered,
             reason: result.event.reason,
@@ -163,6 +174,7 @@ export async function readCommand(args: string[], io: Io): Promise<number> {
       `imported ${imported.allowed + imported.denied} of ${plural(imported.listed, "memory", "memories")}: ` +
         `${imported.allowed} allowed, ${imported.denied} denied, ${imported.unchanged} already in the log`,
       ...imported.denials.map((d) => `  denied ${d.item_id}: ${d.reason} (${d.policy_id})`),
+      ...imported.retirements.map((r) => `  retired ${r.item_id}: ${r.reason}`),
       `${plural(result.items.length, "item")} returned, ${result.filtered} filtered`,
       `  ${result.event.reason}`,
     ];
@@ -189,6 +201,9 @@ const sha256 = (text: string) => `sha256:${createHash("sha256").update(text).dig
 export async function writeCommand(args: string[], io: Io): Promise<number> {
   const { values } = parse(args, { ...STORE_OPTIONS, ...ACTOR_OPTIONS, ...WRITE_OPTIONS }, false);
   const at = checkTime("--at", values.at) ?? io.now();
+  const confidence = checkNumber("--confidence", values.confidence);
+  const validFrom = checkTime("--valid-from", values["valid-from"]);
+  const validTo = checkTime("--valid-to", values["valid-to"]);
   let base: Record<string, unknown> = {};
   if (values.file !== undefined) {
     try {
@@ -199,7 +214,9 @@ export async function writeCommand(args: string[], io: Io): Promise<number> {
   }
   const content = values.content ?? base.content;
   if (content === undefined) throw new UsageError("give the item with --content or --file");
-  const actor = buildActor(values, values.owner);
+  // A person at the CLI writes as source user; the plane sets the item's
+  // provenance kind and actor from this (decision D4).
+  const actor = buildActor(values, values.owner, "user");
   const contentText = typeof content === "string" ? content : JSON.stringify(content);
   const provenance = {
     kind: "user",
@@ -207,7 +224,6 @@ export async function writeCommand(args: string[], io: Io): Promise<number> {
     hash: sha256(contentText),
     actor: actor.id,
     ...(base.provenance as object | undefined),
-    ...(values.source !== undefined ? { kind: values.source } : {}),
   };
   // Assembled as given; Plane.write validates it and denies under the schema rule if it is wrong.
   const item = {
@@ -217,21 +233,20 @@ export async function writeCommand(args: string[], io: Io): Promise<number> {
     lineage: [],
     status: "active",
     ...base,
-    id: values.id ?? base.id ?? newId(),
+    id: values.id ?? base.id ?? io.newId(),
     class: values.class ?? base.class ?? "semantic",
     scope: values.scope ?? base.scope ?? (values.owner ? `person:${values.owner}` : actor.id),
     owner: base.owner ?? actor.id,
     content,
     provenance,
-    confidence:
-      values.confidence !== undefined ? Number(values.confidence) : (base.confidence ?? 0.9),
-    valid_from: values["valid-from"] ?? base.valid_from ?? at,
-    valid_to: values["valid-to"] ?? base.valid_to ?? null,
+    confidence: confidence ?? base.confidence ?? 0.9,
+    valid_from: validFrom ?? base.valid_from ?? at,
+    valid_to: validTo ?? base.valid_to ?? null,
     store_ref: null,
     schema_version: 0,
   } as unknown as MemoryItem;
 
-  const s = openSession(io, values);
+  const s = openSession(io, values, () => actor);
   try {
     const { item: stored, event } = await s.plane.write(actor, item, at);
     if (values.json) io.out(`${JSON.stringify({ event, item: stored }, null, 2)}\n`);
@@ -245,17 +260,27 @@ export async function writeCommand(args: string[], io: Io): Promise<number> {
 export async function explainCommand(args: string[], io: Io): Promise<number> {
   const { values, positionals } = parse(
     args,
-    { db: STORE_OPTIONS.db, policy: STORE_OPTIONS.policy, json: STORE_OPTIONS.json },
+    {
+      db: STORE_OPTIONS.db,
+      policy: STORE_OPTIONS.policy,
+      json: STORE_OPTIONS.json,
+      owner: STORE_OPTIONS.owner,
+      as: ACTOR_OPTIONS.as,
+      level: ACTOR_OPTIONS.level,
+      member: ACTOR_OPTIONS.member,
+    },
     true,
   );
   const [readId, ...rest] = positionals;
   if (readId === undefined || rest.length > 0)
     throw new UsageError("give exactly one read id: engram explain <readId>");
-  const log = openLog(values.db, io.cwd, true);
+  // Only the actor who made the read may explain it (decision D5).
+  const actor = buildActor(values, values.owner);
+  const log = openLog(values.db, io.cwd, io.home, true);
   try {
     const policy = loadPolicy(values.policy, io.cwd);
-    const plane = createPlane({ db: log.db, adapter: NO_STORE, policy, newId });
-    const explanations = await plane.explain(readId);
+    const plane = createPlane({ db: log.db, adapter: NO_STORE, policy, newId: io.newId });
+    const explanations = await plane.explain(actor, readId);
     if (values.json) {
       io.out(`${JSON.stringify(explanations, null, 2)}\n`);
       return 0;
@@ -291,44 +316,47 @@ export async function doctorCommand(args: string[], io: Io): Promise<number> {
     false,
   );
   const checks: Check[] = [];
-  const check = (name: string, fn: () => [Status, string]) => {
+  const check = async (name: string, fn: () => [Status, string] | Promise<[Status, string]>) => {
     try {
-      const [status, detail] = fn();
+      const [status, detail] = await fn();
       checks.push({ status, name, detail });
     } catch (e) {
       checks.push({ status: "fail", name, detail: firstLines(e) });
     }
   };
 
-  check("db", () => {
-    const log = openLog(values.db, io.cwd);
+  await check("db", () => {
+    // Doctor never creates a log: a missing one is reported, not made.
+    const path = logPath(values.db, io.cwd, io.home);
+    if (path !== MEMORY_DB && !existsSync(path))
+      return ["ok", `${path}: no log yet; the first read or write creates it`];
+    const log = openLog(values.db, io.cwd, io.home, true);
     log.db.close();
     const state =
       log.applied.length > 0 ? `migrations ${log.applied.join(", ")} applied` : "up to date";
     return ["ok", `${log.path}: opens; ${state}`];
   });
-  check("policy", () => {
+  await check("policy", () => {
     const p = loadPolicy(values.policy, io.cwd);
     return ["ok", `${p.id} v${p.version} loads and validates`];
   });
-  check("store", () => {
+  await check("store", async () => {
     if (values.root === undefined) return ["skip", "no --root given"];
+    // The folder itself only: its memories are listed by the adapter, through
+    // the plane, when engram read adopts them.
     const root = resolve(io.cwd, values.root);
-    if (!statSync(root).isDirectory()) return ["fail", `${root} is not a folder`];
-    accessSync(root, constants.R_OK);
-    const files = readdirSync(root).filter(
-      (f) => f.toLowerCase().endsWith(".md") && f.toLowerCase() !== "memory.md",
-    );
-    return ["ok", `${root} is readable; ${plural(files.length, "memory file")}`];
+    if (!(await stat(root)).isDirectory()) return ["fail", `${root} is not a folder`];
+    await access(root, constants.R_OK);
+    return ["ok", `${root} is a readable folder`];
   });
-  check("adapter files", () => ["ok", "opens a Claude Code memory folder (card A3)"]);
-  check("adapter mem0", () => [
+  await check("adapter files", () => ["ok", "opens a Claude Code memory folder (card A3)"]);
+  await check("adapter mem0", () => [
     "skip",
     "built (card A1); the CLI does not open it yet, it needs an embedding model wired at the surface",
   ]);
-  check("adapter letta", () => ["skip", "not implemented yet (card A2)"]);
-  check("provider keys", () => ["skip", "not checked yet (card E0.4)"]);
-  check("benchmark pins", () => ["skip", "not checked yet (card B1)"]);
+  await check("adapter letta", () => ["skip", "not implemented yet (card A2)"]);
+  await check("provider keys", () => ["skip", "not checked yet (card E0.4)"]);
+  await check("benchmark pins", () => ["skip", "not checked; no card checks them yet"]);
 
   const failed = checks.filter((c) => c.status === "fail").length;
   if (values.json) io.out(`${JSON.stringify({ checks, failed }, null, 2)}\n`);

@@ -1,10 +1,13 @@
 // Shared fixtures for the CLI tests: the synthetic Claude Code memory folder,
 // temp folders cleaned after each file, and `cli`, which runs one command in
-// process with captured output and a fixed clock.
+// process with captured output, a fixed clock, a temporary home and ids
+// from a counter.
+import { mkdtempSync } from "node:fs";
 import { cp, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { allEvents, type MemoryEvent, openSqlite } from "@engram/core";
 import { afterAll } from "vitest";
 import { run } from "../src/run.ts";
 
@@ -23,7 +26,9 @@ export const NOW = "2026-10-25T12:00:00.000Z";
 /** valid_from for the imported fixture files, so recency is fixed. */
 export const VALID_FROM = "2026-10-01T00:00:00.000Z";
 
-const dirs: string[] = [];
+/** The home every in-process command sees unless the test passes one: never the real one. */
+export const HOME = mkdtempSync(join(tmpdir(), "engram-cli-home-"));
+const dirs: string[] = [HOME];
 export async function tempDir(): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), "engram-cli-"));
   dirs.push(dir);
@@ -44,7 +49,14 @@ export interface CliResult {
   err: string;
 }
 
-export async function cli(args: string[], cwd = tmpdir()): Promise<CliResult> {
+let idCount = 0;
+/** The ids `cli` injects: a counter, so a run is reproducible; never repeats within a test file. */
+export const testId = (n: number) => `01930000-0000-7000-8000-${String(n).padStart(12, "0")}`;
+
+export async function cli(
+  args: string[],
+  { cwd = tmpdir(), home = HOME }: { cwd?: string; home?: string } = {},
+): Promise<CliResult> {
   let out = "";
   let err = "";
   const code = await run(args, {
@@ -55,7 +67,9 @@ export async function cli(args: string[], cwd = tmpdir()): Promise<CliResult> {
       err += s;
     },
     cwd,
+    home,
     now: () => NOW,
+    newId: () => testId(++idCount),
   });
   return { code, out, err };
 }
@@ -75,3 +89,13 @@ export const readArgs = (db: string, root = FIXTURE, ...more: string[]) => [
   "--db",
   db,
 ];
+
+/** The events in the log at `db`, read after the command closed it. */
+export function logEvents(db: string): MemoryEvent[] {
+  const log = openSqlite(db);
+  try {
+    return allEvents(log);
+  } finally {
+    log.close();
+  }
+}

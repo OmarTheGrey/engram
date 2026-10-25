@@ -54,8 +54,8 @@ make bench BENCH=gatemem       run one benchmark on its fixture subset: scripted
 make lint                      biome, tsc, ruff, mypy; CI runs the same
 make lint-docs                 log entry frontmatter, em dashes in prose, CLAUDE.md equals AGENTS.md
 make lint-docs PR=<dir>        the PR gate on a PR directory (body.md, files.txt); fixtures in fixtures/ci/
-engram doctor                  db, policy, store root, adapters; provider keys and pins not checked yet (E0.4, B1)
-engram read --root <dir> --owner <id>   a memory folder through the plane, every item explained; engram --help lists the rest
+engram doctor                  db (never created by doctor), policy, store root, adapters; provider keys (E0.4) and benchmark pins not checked yet
+engram read --root <dir> --owner <id>   a memory folder through the plane, adopted as its owner, every item explained; the log defaults to <home>/.engram/engram.db; engram --help lists the rest
 make engram ARGS="<command> ..."   run the engram CLI from the repo (node packages/cli/src/main.ts)
 make test-e2e                  compose, doctor, CLI smoke, MCP handshakes
 make test-repro                every research script regenerates its result; hashes match MANIFEST.md
