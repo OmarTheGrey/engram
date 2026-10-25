@@ -95,6 +95,57 @@ describe("parsePolicy positions", () => {
   });
 });
 
+// Documents whose YAML nodes and JSON values differ in shape: an explicit key
+// with no value, a null key, and YAML 1.1 tags whose values are objects
+// (Buffer, Date) although their nodes are scalars. The problem must still name
+// the nearest line; a tagged scalar starts at its value, after the tag.
+describe("parsePolicy positions when the YAML node and the value differ in shape", () => {
+  test("an explicit key with no value is reported at the key", () => {
+    const text = VALID.replace("version: 1", "? version");
+    const [p] = problemsOf(text);
+    expect(p).toMatchObject({ path: ["version"], line: lineOf(text, "? version"), col: 3 });
+  });
+
+  test("a null threshold key is reported at the thresholds mapping", () => {
+    const text = VALID.replace("  thresholds: {}", "  thresholds:\n    ~: 1");
+    const [p, ...rest] = problemsOf(text);
+    expect(rest).toEqual([]);
+    expect(p).toMatchObject({
+      path: ["lints", "thresholds"],
+      message: expect.stringMatching(/^unknown threshold key ""/),
+      line: lineOf(text, "~: 1"),
+      col: 5,
+    });
+  });
+
+  test("a binary scalar where a mapping belongs is reported at the scalar, field by field", () => {
+    const text = `%YAML 1.1\n---\n${VALID.replace(
+      "lints:\n  enabled: [expired-validity]\n  thresholds: {}\n",
+      "lints: !!binary aGk=\n",
+    )}`;
+    const lints = problemsOf(text).filter((p) => p.path[0] === "lints");
+    // The bytes of "hi" are the indexed keys "0" and "1" of a Buffer.
+    expect(lints.map((p) => p.message)).toEqual(
+      expect.arrayContaining(['unknown field "0"', 'unknown field "1"']),
+    );
+    for (const p of lints) expect(p).toMatchObject({ line: lineOf(text, "lints:"), col: 17 });
+  });
+
+  test("a timestamp scalar where a mapping belongs reports its missing fields at the scalar", () => {
+    const text = `%YAML 1.1\n---\n${VALID.replace(
+      "promotion:\n  episodic_to_semantic:\n    confirmations: 3\n    or_review: true\n  procedural:\n    replay_k: 4\n    replay_n: 5\n",
+      "promotion: !!timestamp 2001-01-01\n",
+    )}`;
+    const promotion = problemsOf(text).filter((p) => p.path[0] === "promotion");
+    expect(promotion.map((p) => p.message).sort()).toEqual([
+      'missing required field "episodic_to_semantic"',
+      'missing required field "procedural"',
+    ]);
+    for (const p of promotion)
+      expect(p).toMatchObject({ line: lineOf(text, "promotion:"), col: 24 });
+  });
+});
+
 describe("problems come out in document order, whatever order they are found in", () => {
   test("schema problems: the schema checks version before schema_version", () => {
     const text = `schema_version: 1\n${VALID.replace("version: 1", "version: 0").replace("schema_version: 0\n", "")}`;

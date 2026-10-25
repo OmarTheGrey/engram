@@ -68,7 +68,8 @@ export function parsePolicy(text: string, source: string): Policy {
   } catch (e) {
     // The yaml package throws a plain ReferenceError when aliases expand past
     // its limit (a resource exhaustion guard); report it like any other fault.
-    const message = `the document cannot be read: ${e instanceof Error ? e.message : String(e)}`;
+    // Everything toJS throws is an Error (yaml 2.9.1), so `message` is there.
+    const message = `the document cannot be read: ${(e as Error).message}`;
     throw new PolicyError(source, [{ message, path: [], ...at(firstAliasOffset(doc)) }]);
   }
   const parsed = Policy.safeParse(js);
