@@ -101,9 +101,9 @@ Adapter
   capabilities: { native_validity, native_history, native_search, native_graph }
 
 Plane
-  write(actor, itemIn) -> WriteResult        policy, provenance, event, then adapter
+  write(actor, itemIn, at) -> WriteResult    policy, provenance, event, then adapter; at is the injected time
   read(actor, query) -> ReadResult           adapter search, filter, explanation, event
-  promote(actor, itemId, toScope) -> GateResult
+  promote(actor, itemId, toScope, at) -> GateResult
   lint(scope) -> Finding[]
   simulate(workload, policy) -> SimReport    replays a recorded workload or a pi session under a policy; zero model calls
   distill(sessions, method) -> MemoryItem[]  candidate procedural items
