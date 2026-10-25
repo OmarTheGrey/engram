@@ -11,7 +11,7 @@ import type { ExtensionAPI, ExtensionFactory } from "@earendil-works/pi-coding-a
 import {
   type Actor,
   type Adapter,
-  appendEvent,
+  BYPASS_ID,
   createPlane,
   type Db,
   type MemoryEvent,
@@ -33,8 +33,8 @@ import {
 } from "./tag.ts";
 
 export const ENGRAM_EVENT = "engram.event";
-/** The rule id of a blocked store command (ADR 0014). */
-export const NO_BYPASS_ID = "engram/bypass/store-command";
+/** The rule id of a blocked store command (ADR 0014); the Plane's. */
+export const NO_BYPASS_ID = BYPASS_ID;
 
 export interface EngramExtensionOptions {
   /** The Engram log, migrated. */
@@ -122,22 +122,10 @@ export function createEngramExtension(options: EngramExtensionOptions): Extensio
     };
 
     /** Records a blocked store command as a bypass_blocked event; undefined when none is named. */
-    const noBypass = (command: string): MemoryEvent | undefined => {
+    const noBypass = async (command: string): Promise<MemoryEvent | undefined> => {
       const store = blockedStoreCommand(command, storeCommands);
       if (store === undefined) return undefined;
-      const event = appendEvent(db, {
-        id: newId(),
-        ts: now(),
-        op: "bypass_blocked",
-        item_id: null,
-        actor: actor.id,
-        scope_from: null,
-        scope_to: null,
-        decision: "deny",
-        reason: `${store} is a memory store command; use the Engram memory tools`,
-        policy_id: NO_BYPASS_ID,
-        schema_version: 0,
-      });
+      const event = await plane.recordBypass(actor, { command, store }, now());
       mirror(event);
       return event;
     };
@@ -246,7 +234,7 @@ export function createEngramExtension(options: EngramExtensionOptions): Extensio
       }
       if (event.toolName === "bash") {
         const command = String((event.input as Record<string, unknown>).command ?? "");
-        const blocked = noBypass(command);
+        const blocked = await noBypass(command);
         if (blocked === undefined) return undefined;
         return { block: true, reason: `engram: ${blocked.reason} (${blocked.policy_id})` };
       }
@@ -270,7 +258,7 @@ export function createEngramExtension(options: EngramExtensionOptions): Extensio
     pi.on("context", async (event) => ({ messages: tagMemoryResults(event.messages) }));
 
     pi.on("user_bash", async (event) => {
-      const blocked = noBypass(event.command);
+      const blocked = await noBypass(event.command);
       if (blocked === undefined) return undefined;
       const output = `engram: ${blocked.reason} (${blocked.policy_id})\n`;
       return { result: { output, exitCode: 126, cancelled: false, truncated: false } };
