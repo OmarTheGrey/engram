@@ -13,6 +13,8 @@ import {
   SessionManager,
   SettingsManager,
 } from "@earendil-works/pi-coding-agent";
+import { createFakeAdapter } from "@engram/adapters";
+import { type Actor, migrate, openSqlite } from "@engram/core";
 import { type ScriptStep, scriptedPiModel } from "@engram/runner";
 
 export interface HarnessRun {
@@ -60,6 +62,36 @@ export async function startSession(
     tools,
   });
   return { session, sessionManager, scripted, cwd };
+}
+
+/** The fixed time every decision in a harness run is made at. */
+export const AT = "2026-10-25T12:00:00.000Z";
+
+/** Deterministic UUIDv7 ids: `id(n)` is the n-th id an id source hands out. */
+export const id = (n: number) => `01920000-0000-7000-8000-${String(n).padStart(12, "0")}`;
+
+/** The agent session acts for omar, in his person context, as a member of team:platform. */
+export const OMAR: Actor = {
+  id: "person:omar",
+  level: "person",
+  memberships: ["person:omar", "team:platform"],
+};
+
+/** A migrated in-memory Engram log, the fake store and an id source shared by every plane over them. */
+export function freshLog() {
+  const db = openSqlite(":memory:");
+  migrate(db);
+  const adapter = createFakeAdapter();
+  let n = 0;
+  const newId = () => id(++n);
+  return { db, adapter, newId };
+}
+
+/** The engram.event custom entries of a session, in order. */
+export function sessionEvents(sessionManager: SessionManager): unknown[] {
+  return sessionManager
+    .getEntries()
+    .flatMap((e) => (e.type === "custom" && e.customType === "engram.event" ? [e.data] : []));
 }
 
 /**

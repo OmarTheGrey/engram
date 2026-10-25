@@ -1,50 +1,174 @@
-// The Engram pi extension. Writes are gated in tool_call, memory is tagged in
-// context, store CLIs are blocked in user_bash and in the model's bash tool,
-// and every decision is mirrored into the session as a custom entry
-// (customType "engram.event", AGENTS.md rule 3). The memory tools are stubs
-// backed by an in-memory list until the adapters land.
+// The Engram pi extension (card PX1, ADR 0001). It maps pi events and tool
+// calls to Plane calls and Plane results to pi results; every decision comes
+// from the Plane (AGENTS.md rule 1). The write gate runs in tool_call, the
+// read filter in memory_read and before_agent_start (governed recall), the
+// memory tag in context, and store commands are blocked in user_bash and in
+// the model's bash tool (ADR 0014). Every MemoryEvent is appended to the
+// Engram log by the Plane and mirrored into the session as a custom entry
+// (customType "engram.event", AGENTS.md rule 3) carrying the same event.
+import { createHash } from "node:crypto";
 import type { ExtensionAPI, ExtensionFactory } from "@earendil-works/pi-coding-agent";
+import {
+  type Actor,
+  type Adapter,
+  appendEvent,
+  createPlane,
+  type Db,
+  type MemoryEvent,
+  type MemoryItem,
+  NotImplementedYet,
+  type Policy,
+  type ReadResult,
+  type WriteResult,
+} from "@engram/core";
 import { Type } from "typebox";
-import { blockedStoreCommand } from "./bash.ts";
-import type { Decision, Gate } from "./gate.ts";
-import { tagMemoryResults } from "./tag.ts";
+import { blockedStoreCommand, STORE_COMMANDS } from "./bash.ts";
+import { systemClock, uuidv7 } from "./ids.ts";
+import {
+  RECALL_MESSAGE,
+  type RecallDetails,
+  recallDetails,
+  renderRecall,
+  tagMemoryResults,
+} from "./tag.ts";
 
 export const ENGRAM_EVENT = "engram.event";
+/** The rule id of a blocked store command (ADR 0014). */
+export const NO_BYPASS_ID = "engram/bypass/store-command";
 
 export interface EngramExtensionOptions {
-  gate: Gate;
-  storeCommands: readonly string[];
+  /** The Engram log, migrated. */
+  db: Db;
+  /** The store the plane governs. */
+  adapter: Adapter;
+  policy: Policy;
+  /** Who this session acts as. */
+  actor: Actor;
+  /** UUIDv7 source for event and item ids; defaults to a random one. */
+  newId?: () => string;
+  /** ISO 8601 UTC time of each decision; defaults to the wall clock. */
+  now?: () => string;
+  /** Store CLIs blocked in bash; defaults to STORE_COMMANDS. */
+  storeCommands?: readonly string[];
+  /** Inject governed recall for each prompt in before_agent_start. Default true. */
+  recall?: boolean;
 }
 
-const MEMORY_OPS: Record<string, "write" | "read"> = { memory_write: "write", memory_read: "read" };
+/** What a memory_write result carries in its details. */
+export interface WriteDetails {
+  event_id: string;
+  item_id: string | null;
+  status: MemoryItem["status"] | null;
+  policy_id: string;
+}
+
+const sha256 = (s: string) => `sha256:${createHash("sha256").update(s).digest("hex")}`;
+
+/** The memory_write arguments as a MemoryItem. Nothing is checked here: the Plane validates. */
+function itemFromCall(
+  input: Record<string, unknown>,
+  ids: { item: string; toolCallId: string },
+  actor: Actor,
+  at: string,
+  model: string | undefined,
+): MemoryItem {
+  return {
+    id: ids.item,
+    class: input.class ?? "semantic",
+    scope: input.scope,
+    owner: actor.id,
+    content: input.content,
+    // The content comes from the model through a tool call: its kind is set by
+    // the harness, never by the caller (docs/architecture.md, "Write path").
+    provenance: {
+      kind: "model",
+      ref: `pi:tool_call/${ids.toolCallId}`,
+      hash: sha256(JSON.stringify(input)),
+      actor: actor.id,
+      ...(model ? { model } : {}),
+    },
+    confidence: input.confidence ?? 0.5,
+    valid_from: at,
+    valid_to: null,
+    ttl: null,
+    grants: [],
+    version: 1,
+    lineage: [],
+    status: "active",
+    store_ref: null,
+    schema_version: 0,
+  } as unknown as MemoryItem;
+}
 
 export function createEngramExtension(options: EngramExtensionOptions): ExtensionFactory {
-  return (pi: ExtensionAPI) => {
-    const decisions = new Map<string, Decision>();
-    const items: { scope: string; content: string }[] = [];
-    const record = (data: Record<string, unknown>) => pi.appendEntry(ENGRAM_EVENT, data);
-    const policyOf = (toolCallId: string) => ({ policy_id: decisions.get(toolCallId)?.policy_id });
+  const newId = options.newId ?? (() => uuidv7());
+  const now = options.now ?? systemClock;
+  const storeCommands = options.storeCommands ?? STORE_COMMANDS;
+  const { actor, db } = options;
+  const plane = createPlane({ db, adapter: options.adapter, policy: options.policy, newId });
 
-    const noBypass = (command: string): Decision | undefined => {
-      const store = blockedStoreCommand(command, options.storeCommands);
-      if (store === undefined) return undefined;
+  return (pi: ExtensionAPI) => {
+    const writes = new Map<string, WriteResult>();
+    const mirror = (event: MemoryEvent) => pi.appendEntry(ENGRAM_EVENT, event);
+
+    const read = async (text: string): Promise<{ result: ReadResult; details: RecallDetails }> => {
+      const result = await plane.read(actor, { text, at: now() });
+      mirror(result.event);
+      const { event, filtered, items, explanations } = result;
       return {
+        result,
+        details: recallDetails(event.id, event.policy_id, filtered, items, explanations),
+      };
+    };
+
+    /** Records a blocked store command as a bypass_blocked event; undefined when none is named. */
+    const noBypass = (command: string): MemoryEvent | undefined => {
+      const store = blockedStoreCommand(command, storeCommands);
+      if (store === undefined) return undefined;
+      const event = appendEvent(db, {
+        id: newId(),
+        ts: now(),
+        op: "bypass_blocked",
+        item_id: null,
+        actor: actor.id,
+        scope_from: null,
+        scope_to: null,
         decision: "deny",
         reason: `${store} is a memory store command; use the Engram memory tools`,
-        policy_id: "engram.no-bypass",
-      };
+        policy_id: NO_BYPASS_ID,
+        schema_version: 0,
+      });
+      mirror(event);
+      return event;
     };
 
     pi.registerTool({
       name: "memory_write",
       label: "Memory write",
-      description: "Write one item to governed memory in the given scope.",
-      parameters: Type.Object({ scope: Type.String(), content: Type.String() }),
-      async execute(toolCallId, params) {
-        items.push(params);
+      description:
+        "Write one item to governed memory in a scope such as person:<id>, team:<id> or org. The policy decides whether it lands.",
+      parameters: Type.Object({
+        scope: Type.String(),
+        content: Type.String(),
+        class: Type.Optional(Type.Union([Type.Literal("semantic"), Type.Literal("episodic")])),
+        confidence: Type.Optional(Type.Number({ minimum: 0, maximum: 1 })),
+      }),
+      async execute(toolCallId) {
+        // The gate ran in tool_call; a blocked call never executes, so this
+        // reports the write the Plane already made, without writing twice.
+        const done = writes.get(toolCallId);
+        writes.delete(toolCallId);
+        if (!done?.item) throw new Error(`engram: no gated write for tool call ${toolCallId}`);
+        const { item, event } = done;
+        const details: WriteDetails = {
+          event_id: event.id,
+          item_id: item.id,
+          status: item.status,
+          policy_id: event.policy_id,
+        };
         return {
-          content: [{ type: "text", text: `stored in ${params.scope}` }],
-          details: policyOf(toolCallId),
+          content: [{ type: "text", text: `stored ${item.id} in ${item.scope} as ${item.status}` }],
+          details,
         };
       },
     });
@@ -52,55 +176,103 @@ export function createEngramExtension(options: EngramExtensionOptions): Extensio
     pi.registerTool({
       name: "memory_read",
       label: "Memory read",
-      description: "Read governed memory items matching a query.",
+      description: "Read the governed memory items this session may see that match a query.",
       parameters: Type.Object({ query: Type.String() }),
-      async execute(toolCallId, params) {
-        const query = params.query.toLowerCase();
-        const hits = items.filter((i) => i.content.toLowerCase().includes(query));
-        const text = hits.map((i) => `${i.scope}: ${i.content}`).join("\n") || "no memories";
-        return { content: [{ type: "text", text }], details: policyOf(toolCallId) };
+      async execute(_toolCallId, params) {
+        const { details } = await read(params.query);
+        return { content: [{ type: "text", text: renderRecall(details) }], details };
       },
     });
 
-    pi.on("tool_call", async (event) => {
-      const op = MEMORY_OPS[event.toolName];
-      if (op !== undefined) {
-        const input = event.input as Record<string, unknown>;
-        const d = options.gate({ op, tool: event.toolName, input });
-        decisions.set(event.toolCallId, d);
-        const scope = typeof input.scope === "string" ? { scope: input.scope } : {};
-        const base = {
-          op,
-          source: "tool_call",
-          tool: event.toolName,
-          tool_call_id: event.toolCallId,
+    pi.registerTool({
+      name: "memory_explain",
+      label: "Memory explain",
+      description:
+        "Explain why a read returned what it did: score components, rank, admitting rule, grants, validity.",
+      parameters: Type.Object({ read_id: Type.String() }),
+      async execute(_toolCallId, params) {
+        const explanations = await plane.explain(params.read_id);
+        return {
+          content: [{ type: "text", text: JSON.stringify(explanations, null, 2) }],
+          details: { read_id: params.read_id, explanations },
         };
-        record({ ...base, ...scope, ...d });
-        return d.decision === "deny" ? { block: true, reason: `engram: ${d.reason}` } : undefined;
+      },
+    });
+
+    pi.registerTool({
+      name: "memory_simulate",
+      label: "Memory simulate",
+      description:
+        "Replay this session's memory events under the current policy and report which decisions would change.",
+      parameters: Type.Object({}),
+      async execute() {
+        try {
+          const report = await plane.simulate(
+            { id: "session", events: plane.events() },
+            options.policy,
+          );
+          return {
+            content: [{ type: "text", text: JSON.stringify(report, null, 2) }],
+            details: report,
+          };
+        } catch (e) {
+          if (e instanceof NotImplementedYet) {
+            throw new Error(`memory_simulate: not implemented yet (card ${e.card})`);
+          }
+          throw e;
+        }
+      },
+    });
+
+    pi.on("tool_call", async (event, ctx) => {
+      if (event.toolName === "memory_write") {
+        const model = ctx.model ? `${ctx.model.provider}/${ctx.model.id}` : undefined;
+        const at = now();
+        const item = itemFromCall(
+          event.input as Record<string, unknown>,
+          { item: newId(), toolCallId: event.toolCallId },
+          actor,
+          at,
+          model,
+        );
+        const result = await plane.write(actor, item, at);
+        mirror(result.event);
+        if (result.item === null) {
+          const { reason, policy_id } = result.event;
+          return { block: true, reason: `engram: ${reason} (${policy_id})` };
+        }
+        writes.set(event.toolCallId, result);
+        return undefined;
       }
       if (event.toolName === "bash") {
         const command = String((event.input as Record<string, unknown>).command ?? "");
-        const d = noBypass(command);
-        if (d === undefined) return undefined;
-        const base = {
-          op: "bash",
-          source: "tool_call",
-          tool: "bash",
-          tool_call_id: event.toolCallId,
-        };
-        record({ ...base, command, ...d });
-        return { block: true, reason: `engram: ${d.reason}` };
+        const blocked = noBypass(command);
+        if (blocked === undefined) return undefined;
+        return { block: true, reason: `engram: ${blocked.reason} (${blocked.policy_id})` };
       }
       return undefined;
+    });
+
+    pi.on("before_agent_start", async (event) => {
+      if (options.recall === false || event.messageType !== "user") return undefined;
+      const { details } = await read(event.prompt);
+      if (details.items.length === 0) return undefined;
+      return {
+        message: {
+          customType: RECALL_MESSAGE,
+          content: renderRecall(details),
+          display: false,
+          details,
+        },
+      };
     });
 
     pi.on("context", async (event) => ({ messages: tagMemoryResults(event.messages) }));
 
     pi.on("user_bash", async (event) => {
-      const d = noBypass(event.command);
-      if (d === undefined) return undefined;
-      record({ op: "bash", source: "user_bash", command: event.command, ...d });
-      const output = `engram: ${d.reason}\n`;
+      const blocked = noBypass(event.command);
+      if (blocked === undefined) return undefined;
+      const output = `engram: ${blocked.reason} (${blocked.policy_id})\n`;
       return { result: { output, exitCode: 126, cancelled: false, truncated: false } };
     });
   };
