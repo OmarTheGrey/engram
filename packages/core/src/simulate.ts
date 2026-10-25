@@ -20,13 +20,21 @@ export interface SimDecision {
   item_id: string | null;
   recorded: Decision;
   simulated: Decision;
-  /** Why the candidate policy decided as it did, and which rule decided. */
+  /** Why the candidate policy decided as it did. */
   reason: string;
+  /**
+   * The id of the rule that decided, in the format of MemoryEvent.policy_id:
+   * a rule of the candidate policy (such as `<policy id>/write/<level>` or
+   * `<policy id>/read/<level>`) or a plane rule (such as
+   * `engram/write/membership`). It is never the policy's own id; that is
+   * SimReport.policy_id.
+   */
   policy_id: string;
 }
 
 export interface SimReport {
   workload_id: string;
+  /** The id of the candidate policy the workload was replayed under. */
   policy_id: string;
   policy_version: number;
   decisions: SimDecision[];

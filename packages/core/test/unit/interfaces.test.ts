@@ -136,6 +136,24 @@ describe("fakes", () => {
     expect(report.totals).toEqual({ allow: 0, deny: 2, ask: 0 });
   });
 
+  test("a fake simulator decision names the deciding rule of the candidate policy, not the policy", async () => {
+    // Review finding R2-6: SimDecision.policy_id is the id of the deciding
+    // rule, in the format of MemoryEvent.policy_id; SimReport.policy_id and
+    // policy_version name the candidate policy.
+    const workload = { id: "w1", events: [event(0, "allow"), event(1, "deny")] };
+    const scripted = await createFakeSimulator({ decide: () => "deny" }).simulate(workload, POLICY);
+    expect(scripted.decisions.map((d) => d.policy_id)).toEqual(["test/scripted", "test/scripted"]);
+    const ruled = await createFakeSimulator({
+      decide: (e) => ({ decision: "ask", policy_id: `test/write/person#${e.seq}`, reason: "r" }),
+    }).simulate(workload, POLICY);
+    expect(ruled.decisions.map((d) => [d.simulated, d.policy_id, d.reason])).toEqual([
+      ["ask", "test/write/person#0", "r"],
+      ["ask", "test/write/person#1", "r"],
+    ]);
+    const kept = await createFakeSimulator().simulate(workload, POLICY);
+    expect(kept.decisions.map((d) => d.policy_id)).toEqual(workload.events.map((e) => e.policy_id));
+  });
+
   test("the fake distiller answers from its table and fails loudly on an unknown key", async () => {
     const distiller: Distiller = createFakeDistiller({ [distillKey([SESSION], AWM)]: [SKILL] });
     expect(await distiller.distill([SESSION], AWM)).toEqual([SKILL]);
