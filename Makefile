@@ -8,7 +8,7 @@ SHELL := bash
 PNPM ?= pnpm
 UV ?= uv
 
-.PHONY: help test test-invariants test-one test-e2e test-repro lint lint-docs api api-check bench fixtures thesis engram
+.PHONY: help test test-invariants test-one test-e2e test-repro lint lint-docs api api-check bench run fixtures thesis engram
 
 help: ## list targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | sed -E 's/:.*## /\t/' | expand -t 16
@@ -63,6 +63,12 @@ ifeq ($(BENCH),gatemem)
 else
 	@echo "bench: BENCH=$(BENCH) has no runner; only gatemem exists (card B1), the others land with cards B2 to B9"; exit 2
 endif
+
+RUN_OUT ?= .engram/runs/$(basename $(notdir $(CONFIG)))
+
+run: ## run a runner config as pi SDK sessions, every call through its cassettes: make run CONFIG=research/configs/rn1-gatemem-probe.json
+	@[ -n "$(CONFIG)" ] || { echo "usage: make run CONFIG=<runner config>"; exit 2; }
+	node packages/runner/scripts/run.ts --config "$(CONFIG)" --out "$(RUN_OUT)"
 
 fixtures: ## regenerate golden files; refuses without MSG=<reason>, which goes in the commit message
 	@[ -n "$(MSG)" ] || { echo "fixtures: refusing without MSG=<reason>"; exit 2; }

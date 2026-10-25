@@ -11,6 +11,12 @@
   },
   "dependencies": {
     "@earendil-works/pi-ai": "1.3.0",
-    "@engram/core": "workspace:*"
+    "@earendil-works/pi-coding-agent": "1.3.0",
+    "@engram/adapters": "workspace:*",
+    "@engram/bench": "workspace:*",
+    "@engram/core": "workspace:*",
+    "@engram/pi-extension": "workspace:*",
+    "typebox": "1.3.27",
+    "zod": "4.6.7"
   }
 }
