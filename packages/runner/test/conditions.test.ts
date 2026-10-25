@@ -1,6 +1,7 @@
 // Each condition builds the session it should (card RN1): the Engram
 // extension is loaded only for C5, the policy text is in the system prompt
-// only for C3, and every condition offers the same two memory tools.
+// only for C3, and every condition offers the same two memory tools, with the
+// same descriptions, parameters and result wording (decision D13).
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -66,6 +67,50 @@ describe("condition sessions", () => {
       session.dispose();
     },
   );
+
+  test("C2, C3 and C5 declare byte-identical tools to the model (decision D13)", async () => {
+    const declared: string[] = [];
+    for (const condition of ["C2", "C3", "C5"] as const) {
+      const { session, scripted } = await build(condition, [{ text: "ok" }]);
+      await session.prompt("hello");
+      const system = scripted.seen[0]?.messages.find((m) => m.role === "system");
+      declared.push(JSON.stringify((system as { toolsAdded?: unknown }).toolsAdded));
+      session.dispose();
+    }
+    expect(
+      JSON.parse(declared[0] as string)
+        .map((t: { name: string }) => t.name)
+        .sort(),
+    ).toEqual(["memory_read", "memory_write"]);
+    expect(declared[1]).toBe(declared[0]);
+    expect(declared[2]).toBe(declared[0]);
+  });
+
+  test("an allowed write reads the same in every condition (decision D13)", async () => {
+    const texts: string[] = [];
+    for (const condition of ["C2", "C3", "C5"] as const) {
+      const { session } = await build(condition, [
+        {
+          toolCall: {
+            id: "w1",
+            name: "memory_write",
+            arguments: { scope: SAM.id, content: "I handle the invoices" },
+          },
+        },
+        { text: "done" },
+      ]);
+      await session.prompt("remember this");
+      const result = session.messages.find((m) => m.role === "toolResult");
+      const first = result && "content" in result ? result.content[0] : undefined;
+      texts.push(first && "text" in first ? first.text.replace(/\S+(?= in )/, "<id>") : "");
+      session.dispose();
+    }
+    expect(texts).toEqual([
+      `stored <id> in ${SAM.id} as active`,
+      `stored <id> in ${SAM.id} as active`,
+      `stored <id> in ${SAM.id} as active`,
+    ]);
+  });
 
   test("C3's policy text is the preset as written and the requester's memberships", () => {
     const text = policyInstruction("medium", SAM);

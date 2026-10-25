@@ -66,14 +66,21 @@ endif
 
 RUN_OUT ?= .engram/runs/$(basename $(notdir $(CONFIG)))
 
-run: ## run a runner config as pi SDK sessions, every call through its cassettes: make run CONFIG=research/configs/rn1-gatemem-probe.json
+run: ## replay a runner config as pi SDK sessions from its cassettes; a miss is an error: make run CONFIG=research/configs/rn1-gatemem-probe.json
 	@[ -n "$(CONFIG)" ] || { echo "usage: make run CONFIG=<runner config>"; exit 2; }
 	node packages/runner/scripts/run.ts --config "$(CONFIG)" --out "$(RUN_OUT)"
 
-fixtures: ## regenerate golden files; refuses without MSG=<reason>, which goes in the commit message
+# Runner configs whose cassettes are fixtures, recorded from their scripted model by `make fixtures`.
+RUNNER_FIXTURES := rn1-gatemem-probe
+
+fixtures: ## regenerate golden files and scripted cassettes; refuses without MSG=<reason>, which goes in the commit message
 	@[ -n "$(MSG)" ] || { echo "fixtures: refusing without MSG=<reason>"; exit 2; }
 	$(UV) run python research/scripts/consolidate_log.py --root fixtures/log/repo --out fixtures/log/expected
 	ENGRAM_UPDATE_FIXTURES=1 $(PNPM) --filter pi-extension exec vitest run test/interception.test.ts
+	for name in $(RUNNER_FIXTURES); do \
+	  rm -rf "fixtures/cassettes/$$name"; \
+	  env -u ENGRAM_OFFLINE node packages/runner/scripts/run.ts --config "research/configs/$$name.json" --out ".engram/runs/$$name" --record; \
+	done
 	@git status --short fixtures
 	@echo "fixtures regenerated; commit them on their own with the reason: $(MSG)"
 

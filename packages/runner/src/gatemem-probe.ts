@@ -135,8 +135,6 @@ export interface ProbeResult {
   tool_calls: { name: string; arguments: unknown }[];
   output: gatemem.AgentOutput;
   score: gatemem.Score;
-  /** Model calls answered by the answer source (new) and from the cache. */
-  calls: { new: number; cached: number };
   /** The engram.event entries of the session, in order (C5 only). */
   decisions: Decision[];
 }
@@ -277,7 +275,6 @@ export async function runProbe(spec: ProbeSpec): Promise<ProbeResult> {
   migrate(db);
   await ingest(spec.condition, episode, turns, { store, db, policy: spec.policy, newId });
 
-  const usage: UsageRecord[] = [];
   const cwd = mkdtempSync(join(tmpdir(), "engram-rn1-"));
   const cassette = cassettePiModel({
     model: spec.model,
@@ -287,10 +284,7 @@ export async function runProbe(spec: ProbeSpec): Promise<ProbeResult> {
     context: probeContext(spec),
     answers: spec.answers(),
     ...(spec.offline === undefined ? {} : { offline: spec.offline }),
-    onUsage: (u) => {
-      usage.push(u);
-      spec.onUsage?.(u);
-    },
+    ...(spec.onUsage === undefined ? {} : { onUsage: spec.onUsage }),
   });
   const { system, user } = gatemem.renderQueryPrompt(episode, view, MEMORY_BLOCK);
   const { session, sessionManager } = await conditionSession({
@@ -319,10 +313,6 @@ export async function runProbe(spec: ProbeSpec): Promise<ProbeResult> {
       tool_calls: toolCalls,
       output,
       score: gatemem.scoreOne(checkpoint, output),
-      calls: {
-        new: usage.filter((u) => !u.hit).length,
-        cached: usage.filter((u) => u.hit).length,
-      },
       decisions: sessionDecisions(sessionManager),
     };
   } finally {

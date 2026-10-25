@@ -7,8 +7,9 @@
 // The session is the golden fixture fixtures/sessions/s0-interception.jsonl,
 // and its decisions and events are fixtures/sessions/s0-interception.expected.json.
 // ENGRAM_UPDATE_FIXTURES=1 (set by `make fixtures`) rewrites both; otherwise
-// the run must reproduce them exactly.
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+// the run must reproduce them exactly, and a missing file fails the test
+// rather than being created (finding R7-12).
+import { readFileSync, writeFileSync } from "node:fs";
 import type { ToolCall } from "@earendil-works/pi-ai";
 import { allEvents, loadPreset } from "@engram/core";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
@@ -120,13 +121,13 @@ describe("S0.5 interception on the Plane, through a pi SDK session", () => {
 
   test("the decisions and events match the committed expected file", () => {
     const json = `${JSON.stringify(observed(), null, 2)}\n`;
-    if (UPDATE || !existsSync(EXPECTED)) writeFileSync(EXPECTED, json);
+    if (UPDATE) writeFileSync(EXPECTED, json);
     expect(json).toBe(readFileSync(EXPECTED, "utf8"));
   });
 
   test("the session matches the committed fixture", () => {
     const jsonl = normalizedJsonl(run.sessionManager, run.cwd);
-    if (UPDATE || !existsSync(FIXTURE)) writeFileSync(FIXTURE, jsonl);
+    if (UPDATE) writeFileSync(FIXTURE, jsonl);
     expect(jsonl).toBe(readFileSync(FIXTURE, "utf8"));
   });
 });

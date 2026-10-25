@@ -6,14 +6,7 @@
 // with its explanation; memory_explain answers for a read id; store commands
 // are blocked as bypass_blocked events in the bash tool and in user_bash.
 import type { ToolCall } from "@earendil-works/pi-ai";
-import {
-  type Actor,
-  allEvents,
-  createPlane,
-  loadPreset,
-  type MemoryEvent,
-  type MemoryItem,
-} from "@engram/core";
+import { allEvents, createPlane, loadPreset, type MemoryEvent } from "@engram/core";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import {
   createEngramExtension,
@@ -27,46 +20,18 @@ import {
   type HarnessRun,
   hostUserBash,
   id,
+  LEAD,
   OMAR,
   sessionEvents,
   startSession,
+  teamFact,
 } from "./harness.ts";
 
 const policy = loadPreset("medium");
 const TOOLS = ["memory_write", "memory_read", "memory_explain", "memory_simulate", "bash"];
-const LEAD: Actor = {
-  id: "person:lead",
-  level: "team",
-  memberships: ["team:platform", "team:payroll"],
-};
 
 const call = (callId: string, name: string, args: ToolCall["arguments"]) => ({
   toolCall: { id: callId, name, arguments: args },
-});
-
-/** A user-sourced team fact, written before the session by the team lead. */
-const teamFact = (itemId: string, scope: string, content: string): MemoryItem => ({
-  id: itemId,
-  class: "semantic",
-  scope,
-  owner: LEAD.id,
-  content,
-  provenance: {
-    kind: "user",
-    ref: "wiki/deploys",
-    hash: `sha256:${"0".repeat(64)}`,
-    actor: LEAD.id,
-  },
-  confidence: 0.9,
-  valid_from: "2026-10-01T00:00:00.000Z",
-  valid_to: null,
-  ttl: null,
-  grants: [],
-  version: 1,
-  lineage: [],
-  status: "active",
-  store_ref: null,
-  schema_version: 0,
 });
 
 /** A log and store holding two team facts: one omar may read, one he may not. */
@@ -88,9 +53,11 @@ async function seeded() {
 }
 
 // Ids are handed out in order: items 1 and 3 and events 2 and 4 are the seed;
-// the session's recall read is event 5; call-1 is item 6 and event 7; call-2
-// is item 8 and event 9; call-3's read is event 10.
-const READ_ID = id(10);
+// the session's recall read is event 5; call-1 is item 6 (checked and denied
+// in tool_call) and event 7; call-2 is checked as item 8 in tool_call and
+// committed in execute as item 9 with event 10 (decision D12); call-3's read
+// is event 11.
+const READ_ID = id(11);
 
 const SCRIPT = [
   call("call-1", "memory_write", { scope: "org", content: "deploy keys rotate monthly" }),
@@ -154,7 +121,8 @@ describe("PX1: the Engram extension on the Plane in a pi SDK session", () => {
       item_id: id(6),
       actor: OMAR.id,
       scope_to: "org",
-      reason: "source model is not allowed in org scope",
+      reason:
+        "source model is not allowed in org scope; provenance set by the plane: source model, actor person:omar",
       policy_id: "preset.medium/write/org",
       ts: AT,
     });
@@ -173,8 +141,8 @@ describe("PX1: the Engram extension on the Plane in a pi SDK session", () => {
 
   test("an allowed write lands in the store with its event in both logs", async () => {
     const allowed = logEvent((e) => e.op === "write" && e.decision === "allow");
-    expect(allowed).toMatchObject({ item_id: id(8), policy_id: "preset.medium/write/person" });
-    const stored = await log.adapter.read({ adapter: "fake", key: id(8) });
+    expect(allowed).toMatchObject({ item_id: id(9), policy_id: "preset.medium/write/person" });
+    const stored = await log.adapter.read({ adapter: "fake", key: id(9) });
     expect(stored).toMatchObject({
       scope: "person:omar",
       content: "omar deploys from the release branch",
@@ -182,7 +150,7 @@ describe("PX1: the Engram extension on the Plane in a pi SDK session", () => {
     });
     expect(allowed.item).toEqual(stored);
     expect(toolResult("call-2").isError).toBe(false);
-    expect(resultText("call-2")).toBe(`stored ${id(8)} in person:omar as active`);
+    expect(resultText("call-2")).toBe(`stored ${id(9)} in person:omar as active`);
   });
 
   test("every event in the Engram log is mirrored into the session, in order, and nothing else", () => {
@@ -201,7 +169,8 @@ describe("PX1: the Engram extension on the Plane in a pi SDK session", () => {
     const details = detailsOf("call-3");
     expect(details.read_id).toBe(READ_ID);
     expect(details.items.map((i) => i.scope).sort()).toEqual(["person:omar", "team:platform"]);
-    expect(details.filtered).toBe(1);
+    // The payroll fact is out of omar's reach, so it is not even counted (decision D5).
+    expect(details.filtered).toBe(0);
     expect(details.explanations.map((e) => e.item_id)).toEqual(details.items.map((i) => i.item_id));
     expect(details.items.map((i) => i.policy_id)).toEqual([
       "preset.medium/read/person",
@@ -266,7 +235,7 @@ describe("PX1: governed recall in before_agent_start", () => {
     expect(message).toBeDefined();
     const details = (message as { details: RecallDetails }).details;
     expect(details.items.map((i) => i.scope)).toEqual(["team:platform"]);
-    expect(details.filtered).toBe(1);
+    expect(details.filtered).toBe(0);
     expect(details.explanations).toHaveLength(1);
     const [read] = allEvents(recallLog.db).slice(2);
     expect(read).toMatchObject({ op: "read", id: details.read_id });

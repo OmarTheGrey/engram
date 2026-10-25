@@ -4,6 +4,9 @@
 //
 // Results are deterministic: rows are in config order, ids come from a
 // counter, times from the benchmark, and nothing records a wall-clock time.
+// What the cache did is not a result: results.jsonl and summary.json are the
+// same whether a run recorded its calls or replayed them, and the call counts
+// and the usage ledger go to usage.json (finding R7-10).
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Api, Model } from "@earendil-works/pi-ai";
@@ -34,7 +37,9 @@ export interface RunnerResult {
   rows: ProbeResult[];
   /** Per condition, the rule-based summary of its rows (card B1's aggregate). */
   summary: Record<string, ReturnType<typeof gatemem.aggregate>>;
+  /** Model calls answered by the answer source (new) and from the cache; written to usage.json only. */
   calls: { new: number; cached: number };
+  /** The cost ledger, one record per call (ADR 0017); written to usage.json only. */
   usage: UsageRecord[];
 }
 
@@ -126,16 +131,18 @@ export async function runConfig(
   };
 }
 
-/** results.jsonl (one row per item, condition and seed) and summary.json, byte-stable. */
+/**
+ * results.jsonl (one row per item, condition and seed) and summary.json,
+ * byte-stable between a recording run and a replay; usage.json, the call
+ * counts and the cost ledger, which differ between them.
+ */
 export function writeRunnerResult(result: RunnerResult, out: string): void {
   mkdirSync(out, { recursive: true });
   writeFileSync(
     join(out, "results.jsonl"),
     result.rows.map((r) => `${JSON.stringify(r)}\n`).join(""),
   );
-  const { config, summary, calls } = result;
-  writeFileSync(
-    join(out, "summary.json"),
-    `${JSON.stringify({ config, calls, summary }, null, 2)}\n`,
-  );
+  const { config, summary, calls, usage } = result;
+  writeFileSync(join(out, "summary.json"), `${JSON.stringify({ config, summary }, null, 2)}\n`);
+  writeFileSync(join(out, "usage.json"), `${JSON.stringify({ config, calls, usage }, null, 2)}\n`);
 }

@@ -11,7 +11,7 @@
       "scope_from": null,
       "scope_to": null,
       "decision": "allow",
-      "reason": "returned 0 of 0 candidates; 0 filtered (0 by scope or grant, 0 outside the validity window); 0 not active",
+      "reason": "returned 0 of 0 candidates; 0 filtered (0 outside the validity window, 0 not active, 0 by a grant's class or expiry); 0 projected items outside the reader's reach were not candidates",
       "policy_id": "preset.medium/read/person",
       "schema_version": 0
     },
@@ -25,24 +25,24 @@
       "scope_from": null,
       "scope_to": "org",
       "decision": "deny",
-      "reason": "source model is not allowed in org scope",
+      "reason": "source model is not allowed in org scope; provenance set by the plane: source model, actor person:omar",
       "policy_id": "preset.medium/write/org",
       "schema_version": 0
     },
     {
-      "id": "01920000-0000-7000-8000-000000000005",
+      "id": "01920000-0000-7000-8000-000000000006",
       "seq": 2,
       "ts": "2026-10-25T12:00:00.000Z",
       "op": "write",
-      "item_id": "01920000-0000-7000-8000-000000000004",
+      "item_id": "01920000-0000-7000-8000-000000000005",
       "actor": "person:omar",
       "scope_from": null,
       "scope_to": "person:omar",
       "decision": "allow",
-      "reason": "semantic item from source model passes the person write rule",
+      "reason": "semantic item from source model passes the person write rule; provenance set by the plane: source model, actor person:omar",
       "policy_id": "preset.medium/write/person",
       "item": {
-        "id": "01920000-0000-7000-8000-000000000004",
+        "id": "01920000-0000-7000-8000-000000000005",
         "scope": "person:omar",
         "owner": "person:omar",
         "provenance": {
@@ -62,7 +62,7 @@
         "status": "active",
         "store_ref": {
           "adapter": "fake",
-          "key": "01920000-0000-7000-8000-000000000004"
+          "key": "01920000-0000-7000-8000-000000000005"
         },
         "schema_version": 0,
         "class": "semantic",
@@ -71,7 +71,7 @@
       "schema_version": 0
     },
     {
-      "id": "01920000-0000-7000-8000-000000000006",
+      "id": "01920000-0000-7000-8000-000000000007",
       "seq": 3,
       "ts": "2026-10-25T12:00:00.000Z",
       "op": "read",
@@ -80,12 +80,12 @@
       "scope_from": null,
       "scope_to": null,
       "decision": "allow",
-      "reason": "returned 1 of 1 candidates; 0 filtered (0 by scope or grant, 0 outside the validity window); 0 not active",
+      "reason": "returned 1 of 1 candidates; 0 filtered (0 outside the validity window, 0 not active, 0 by a grant's class or expiry); 0 projected items outside the reader's reach were not candidates",
       "policy_id": "preset.medium/read/person",
       "schema_version": 0
     },
     {
-      "id": "01920000-0000-7000-8000-000000000007",
+      "id": "01920000-0000-7000-8000-000000000008",
       "seq": 4,
       "ts": "2026-10-25T12:00:00.000Z",
       "op": "bypass_blocked",
@@ -94,12 +94,12 @@
       "scope_from": null,
       "scope_to": null,
       "decision": "deny",
-      "reason": "mem0 is a memory store command; use the Engram memory tools",
+      "reason": "mem0 is a memory store command; use the Engram memory tools; attempted: mem0 add 'deploys happen on Tuesdays'",
       "policy_id": "engram/bypass/store-command",
       "schema_version": 0
     },
     {
-      "id": "01920000-0000-7000-8000-000000000008",
+      "id": "01920000-0000-7000-8000-000000000009",
       "seq": 5,
       "ts": "2026-10-25T12:00:00.000Z",
       "op": "bypass_blocked",
@@ -108,7 +108,7 @@
       "scope_from": null,
       "scope_to": null,
       "decision": "deny",
-      "reason": "mem0 is a memory store command; use the Engram memory tools",
+      "reason": "mem0 is a memory store command; use the Engram memory tools; attempted: mem0 list",
       "policy_id": "engram/bypass/store-command",
       "schema_version": 0
     }
@@ -120,7 +120,7 @@
   "model_saw_tagged": {
     "model_call": 4,
     "tool_call_id": "call-3",
-    "text": "<engram:memory read_id=\"01920000-0000-7000-8000-000000000006\" policy_id=\"preset.medium/read/person\" filtered=\"0\">\n<engram:item item_id=\"01920000-0000-7000-8000-000000000004\" scope=\"person:omar\" rank=\"1\" score=\"2.500\" policy_id=\"preset.medium/read/person\">\ndeploys happen on Tuesdays\n</engram:item>\n</engram:memory>"
+    "text": "<engram:memory read_id=\"01920000-0000-7000-8000-000000000007\" policy_id=\"preset.medium/read/person\" filtered=\"0\">\n<engram:item item_id=\"01920000-0000-7000-8000-000000000005\" scope=\"person:omar\" rank=\"1\" score=\"2.500\" policy_id=\"preset.medium/read/person\">\ndeploys happen on Tuesdays\n</engram:item>\n</engram:memory>"
   },
   "user_bash": {
     "command": "mem0 list",

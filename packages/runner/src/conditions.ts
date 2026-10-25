@@ -5,11 +5,16 @@
 // - C3 instruction: the same tools, and the policy as text in the system prompt.
 // - C5 enforced: the Engram extension on the real Plane, at the config's preset.
 //
-// Every condition gets the same benchmark prompt, the same model, the same
-// two tool names (memory_write, memory_read) and the same store contents.
-// C5's governed recall in before_agent_start is turned off, so memory reaches
-// the model only through memory_read in every condition and retrieval is not
-// a difference between them.
+// Every condition gets the same benchmark prompt, the same model and the
+// same store contents, and declares the same two tools (memory_write,
+// memory_read) with the same descriptions and parameters, and the same
+// write-result wording, from one definition in @engram/pi-extension
+// (decision D13). Only C3's system prompt adds the policy text, and only C5
+// routes through the Plane; what C5 adds is the mechanism: the Plane's reason
+// when it denies, and the memory tag on what it admits (ADR 0009). C5's
+// governed recall in before_agent_start is turned off, so memory reaches the
+// model only through memory_read in every condition and retrieval is not a
+// difference between them.
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -32,8 +37,12 @@ import {
   type PresetName,
   presetUrl,
 } from "@engram/core";
-import { createEngramExtension } from "@engram/pi-extension";
-import { Type } from "typebox";
+import {
+  createEngramExtension,
+  MEMORY_READ,
+  MEMORY_WRITE,
+  writeResultText,
+} from "@engram/pi-extension";
 import type { Condition } from "./config.ts";
 
 /** The tools every condition's agent may call. */
@@ -67,16 +76,7 @@ export function ungovernedMemoryTools(options: {
   const { store, actor, newId, now } = options;
   return (pi) => {
     pi.registerTool({
-      name: "memory_write",
-      label: "Memory write",
-      description:
-        "Write one item to shared memory in a scope such as person:<id>, team:<id> or org.",
-      parameters: Type.Object({
-        scope: Type.String(),
-        content: Type.String(),
-        class: Type.Optional(Type.Union([Type.Literal("semantic"), Type.Literal("episodic")])),
-        confidence: Type.Optional(Type.Number({ minimum: 0, maximum: 1 })),
-      }),
+      ...MEMORY_WRITE,
       async execute(toolCallId, params) {
         const at = now();
         const item = {
@@ -105,17 +105,14 @@ export function ungovernedMemoryTools(options: {
         await store.adapter.write(item);
         store.scopes.add(item.scope);
         return {
-          content: [{ type: "text", text: `stored ${item.id} in ${item.scope}` }],
+          content: [{ type: "text", text: writeResultText(item) }],
           details: { item_id: item.id },
         };
       },
     });
 
     pi.registerTool({
-      name: "memory_read",
-      label: "Memory read",
-      description: "Read the shared memory items that match a query.",
-      parameters: Type.Object({ query: Type.String() }),
+      ...MEMORY_READ,
       async execute(_toolCallId, params) {
         const scopes = [...store.scopes].sort();
         const items = await search(store.adapter, params.query, scopes);

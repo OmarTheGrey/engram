@@ -2,11 +2,14 @@
 // probe under C2, C3 and C5 as pi SDK sessions, and a rerun with the same
 // config makes zero new model calls. The committed cassettes answer the same
 // run offline from a fresh clone.
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, test } from "vitest";
 import { readRunnerConfig } from "../src/config.ts";
 import { probeContext } from "../src/gatemem-probe.ts";
 import { cacheKey, memoryCache } from "../src/model/cached.ts";
-import { runConfig } from "../src/run.ts";
+import { runConfig, writeRunnerResult } from "../src/run.ts";
 import { EXAMPLE } from "./paths.ts";
 
 const config = readRunnerConfig(EXAMPLE);
@@ -22,8 +25,27 @@ describe("runner on one GateMem probe", () => {
     // Two calls per session: the memory_read tool call, then the answer.
     expect(first.calls).toEqual({ new: 6, cached: 0 });
     expect(again.calls).toEqual({ new: 0, cached: 6 });
-    const strip = (rows: typeof first.rows) => rows.map(({ calls: _calls, ...rest }) => rest);
-    expect(strip(again.rows)).toEqual(strip(first.rows));
+    expect(again.rows).toEqual(first.rows);
+  }, 60_000);
+
+  test("a recording run and a replay write byte-identical results; call counts go to usage.json (R7-10)", async () => {
+    const cache = memoryCache();
+    const recording = await runConfig(config, { cache, offline: false });
+    const replay = await runConfig(config, { cache, offline: true });
+    const out = mkdtempSync(join(tmpdir(), "engram-rn1-out-"));
+    try {
+      writeRunnerResult(recording, join(out, "recording"));
+      writeRunnerResult(replay, join(out, "replay"));
+      const read = (run: string, file: string) => readFileSync(join(out, run, file), "utf8");
+      for (const file of ["results.jsonl", "summary.json"]) {
+        expect(read("replay", file), file).toBe(read("recording", file));
+        expect(read("replay", file)).not.toContain('"calls"');
+      }
+      expect(JSON.parse(read("recording", "usage.json")).calls).toEqual({ new: 6, cached: 0 });
+      expect(JSON.parse(read("replay", "usage.json")).calls).toEqual({ new: 0, cached: 6 });
+    } finally {
+      rmSync(out, { recursive: true, force: true });
+    }
   }, 60_000);
 
   test("the condition decides what reaches the model; the scorer sees it", async () => {

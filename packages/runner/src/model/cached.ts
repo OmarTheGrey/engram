@@ -64,7 +64,7 @@ export class OfflineMissError extends Error {
 
   constructor(key: string, context: CallContext) {
     super(
-      `ENGRAM_OFFLINE=1 and no cassette for key ${key} (item ${context.item}, condition ${context.condition}, preset ${context.preset}, store ${context.store}); record it online first`,
+      `offline (ENGRAM_OFFLINE=1, or a replay) and no cassette for key ${key} (item ${context.item}, condition ${context.condition}, preset ${context.preset}, store ${context.store}); record it first (make fixtures for a scripted model)`,
     );
     this.key = key;
   }
