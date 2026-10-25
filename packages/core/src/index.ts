@@ -9,5 +9,6 @@ export * from "./items.ts";
 export * from "./lint.ts";
 export * from "./model.ts";
 export * from "./plane.ts";
+export * from "./replay.ts";
 export * from "./schema.ts";
 export * from "./simulate.ts";
