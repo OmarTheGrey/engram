@@ -10,20 +10,25 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { installNetworkGuard, type NetworkGuard } from "./network-guard.ts";
-import { ADAPTERS, cleanupAdapters } from "./registry.ts";
+import { ADAPTERS, cleanupAdapters, setupAdapters } from "./registry.ts";
 import { conformance, lexicalSearchRecall } from "./suite.ts";
 
 let guard: NetworkGuard;
 let scratch: string;
 let mem0Home: string;
 const savedMem0Dir = process.env.MEM0_DIR;
-beforeAll(() => {
+// Adapter setup loads modules once (registry.ts); 60 s covers mem0ai/oss at
+// ten times its 6 s worst measured load.
+const SETUP_TIMEOUT_MS = 60_000;
+beforeAll(async () => {
   guard = installNetworkGuard();
   scratch = mkdtempSync(join(tmpdir(), "engram-conformance-"));
   // Where Mem0 would write its config, telemetry id and notice state.
   mem0Home = join(scratch, "mem0-home");
   process.env.MEM0_DIR = mem0Home;
-});
+  // After the guard and MEM0_DIR, so the two checks at the end cover setup too.
+  await setupAdapters();
+}, SETUP_TIMEOUT_MS);
 afterAll(() => {
   guard.restore();
   if (savedMem0Dir === undefined) delete process.env.MEM0_DIR;

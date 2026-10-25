@@ -18,6 +18,17 @@ export interface RegisteredAdapter {
   /** A fresh, empty store for each test. */
   factory: () => Adapter | Promise<Adapter>;
   lexical: boolean;
+  /**
+   * One-time work before the suite runs on this adapter, such as loading a
+   * large module, so that no case's budget pays it. conformance.test.ts runs
+   * it once, after it installs the network guard and redirects MEM0_DIR.
+   */
+  setup?: () => Promise<void>;
+}
+
+/** Runs every registered adapter's `setup`, one after another. */
+export async function setupAdapters(): Promise<void> {
+  for (const { setup } of ADAPTERS) await setup?.();
 }
 
 const tempDirs: string[] = [];
@@ -50,6 +61,13 @@ export const ADAPTERS: RegisteredAdapter[] = [
     name: "mem0",
     factory: () => createMem0Adapter({ embedder: createHashingEmbedder(), dbPath: ":memory:" }),
     lexical: false,
+    // The first Mem0 instance in a process loads `mem0ai/oss`, about 3 s in a
+    // full run and up to 6 s on a loaded machine; later instances take
+    // milliseconds (docs/log/2026-10-25-a1-mem0-conformance-warm-load.md). One
+    // throwaway instance pays it here.
+    setup: async () => {
+      await createMem0Adapter({ embedder: createHashingEmbedder(), dbPath: ":memory:" });
+    },
   },
   {
     // A folder of Markdown in the Claude Code memory layout (card A3); its
