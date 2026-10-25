@@ -146,6 +146,103 @@ describe("parsePolicy positions when the YAML node and the value differ in shape
   });
 });
 
+// YAML 1.1 faults the yaml package finds only while it builds the value: a
+// merge source that is not a mapping, and a duplicate key in an ordered map.
+// Each is reported at the node at fault, as written. VALID's promotion block
+// is lines 26 to 32 and its thresholds line 35; the two-line 1.1 header moves
+// them down by two. An alias on VALID's line 9, before every fault, makes sure the
+// position is the fault's own and not the first alias in the document.
+const YAML_11 = `%YAML 1.1\n---\n${VALID.replace(
+  "    confidence_floor: 0.5\n",
+  "    confidence_floor: &f 0.5\n",
+).replace(
+  "{ scope: role, allowed_sources: [user], confidence_floor: 0.5",
+  "{ scope: role, allowed_sources: [user], confidence_floor: *f",
+)}`;
+
+describe("parsePolicy positions for faults found while building the value", () => {
+  const onlyProblem = (text: string) => {
+    const [p, ...rest] = problemsOf(text);
+    expect(rest).toEqual([]);
+    return p;
+  };
+
+  test("a scalar merge source is reported at the scalar", () => {
+    const text = YAML_11.replace("promotion:\n", "promotion:\n  <<: 1\n");
+    expect(onlyProblem(text)).toEqual({
+      message: "the document cannot be read: Merge sources must be maps or map aliases",
+      path: [],
+      line: 29,
+      col: 7,
+    });
+  });
+
+  test("a scalar in a sequence of merge sources is reported at that item", () => {
+    const text = YAML_11.replace(
+      "  episodic_to_semantic:\n",
+      "  episodic_to_semantic: &e2s\n",
+    ).replace("  procedural:\n", "  procedural:\n    <<: [*e2s, 3]\n");
+    expect(onlyProblem(text)).toMatchObject({
+      message: expect.stringMatching(/Merge sources must be maps/),
+      line: 33,
+      col: 16,
+    });
+  });
+
+  test("a merge source that is an alias of a scalar is reported at the alias", () => {
+    const text = YAML_11.replace("id: test-policy", "id: &s test-policy").replace(
+      "promotion:\n",
+      "promotion:\n  <<: *s\n",
+    );
+    expect(onlyProblem(text)).toMatchObject({
+      message: expect.stringMatching(/Merge sources must be maps/),
+      line: 29,
+      col: 7,
+    });
+  });
+
+  test("an ordered map key repeated through an alias is reported at the repeat", () => {
+    const text = YAML_11.replace(
+      "  thresholds: {}",
+      "  thresholds: !!omap\n    - &k near-duplicate: 0.85\n    - *k : 0.9",
+    );
+    expect(onlyProblem(text)).toEqual({
+      message: "the document cannot be read: Ordered maps must not include duplicate keys",
+      path: [],
+      line: 39,
+      col: 7,
+    });
+  });
+
+  test("an ordered map key written twice is reported at the second key", () => {
+    const text = YAML_11.replace(
+      "  thresholds: {}",
+      "  thresholds: !!omap\n    - near-duplicate: 0.85\n    - near-duplicate: 0.9",
+    );
+    expect(onlyProblem(text)).toEqual({
+      message: "Ordered maps must not include duplicate keys: near-duplicate",
+      path: [],
+      line: 39,
+      col: 7,
+    });
+  });
+
+  test("an ordered map collection key repeated through an alias is reported at the repeat", () => {
+    const text = YAML_11.replace(
+      "  enabled: [expired-validity]",
+      "  enabled: &k [expired-validity]",
+    ).replace(
+      "  thresholds: {}",
+      "  thresholds: !!omap\n    - ? *k\n      : 1\n    - ? *k\n      : 2",
+    );
+    expect(onlyProblem(text)).toMatchObject({
+      message: expect.stringMatching(/Ordered maps must not include duplicate keys$/),
+      line: 40,
+      col: 9,
+    });
+  });
+});
+
 describe("problems come out in document order, whatever order they are found in", () => {
   test("schema problems: the schema checks version before schema_version", () => {
     const text = `schema_version: 1\n${VALID.replace("version: 1", "version: 0").replace("schema_version: 0\n", "")}`;

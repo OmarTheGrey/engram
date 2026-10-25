@@ -56,7 +56,8 @@ export function parsePolicy(text: string, source: string): Policy {
   const syntax = [...doc.errors, ...doc.warnings].map((e) => ({
     message: e.message,
     path: [],
-    ...at(e.pos[0]),
+    // yaml places a repeated ordered map key at the map; point at the repeat.
+    ...at(e.message.startsWith(OMAP_DUPLICATE) ? omapDuplicateOffset(doc) : e.pos[0]),
   }));
   if (syntax.length > 0) throw new PolicyError(source, sorted(syntax));
 
@@ -66,11 +67,15 @@ export function parsePolicy(text: string, source: string): Policy {
   try {
     js = doc.toJS();
   } catch (e) {
-    // The yaml package throws a plain ReferenceError when aliases expand past
-    // its limit (a resource exhaustion guard); report it like any other fault.
-    // Everything toJS throws is an Error (yaml 2.9.1), so `message` is there.
-    const message = `the document cannot be read: ${(e as Error).message}`;
-    throw new PolicyError(source, [{ message, path: [], ...at(firstAliasOffset(doc)) }]);
+    // The yaml package finds some faults only while it builds the value and
+    // throws: a ReferenceError when aliases expand past its limit (a resource
+    // exhaustion guard), and, under YAML 1.1, a merge source that is not a
+    // mapping or an ordered map key repeated through an alias. Report each
+    // like any other fault, at its node. Everything toJS throws is an Error
+    // (yaml 2.9.1), so `message` is there.
+    const raw = (e as Error).message;
+    const message = `the document cannot be read: ${raw}`;
+    throw new PolicyError(source, [{ message, path: [], ...at(buildFaultOffset(doc, raw)) }]);
   }
   const parsed = Policy.safeParse(js);
   if (!parsed.success) throw fail(parsed.error.issues.flatMap((issue) => schemaProblems(issue)));
@@ -242,7 +247,12 @@ function child(doc: Document, node: unknown, seg: string | number): unknown {
   } else if (isSeq(node) && typeof seg === "number") {
     next = node.items[seg];
   }
-  return isAlias(next) ? next.resolve(doc) : next;
+  return resolved(doc, next);
+}
+
+/** The node an alias points at; any other node as it is. */
+function resolved(doc: Document, node: unknown): unknown {
+  return isAlias(node) ? node.resolve(doc) : node;
 }
 
 function pairFor(node: unknown, key: string): Pair | undefined {
@@ -256,6 +266,60 @@ function pairFor(node: unknown, key: string): Pair | undefined {
  */
 function keyText(key: unknown): string {
   return isScalar(key) ? String(key.value) : new Document(key).toString().trim();
+}
+
+const MERGE_FAULT = "Merge sources must be maps or map aliases";
+const OMAP_DUPLICATE = "Ordered maps must not include duplicate keys";
+const OMAP_TAG = "tag:yaml.org,2002:omap";
+
+/** Where the node at fault is for an error the yaml package throws from toJS. */
+function buildFaultOffset(doc: Document, message: string): number {
+  if (message.startsWith(MERGE_FAULT)) return badMergeSourceOffset(doc);
+  if (message.startsWith(OMAP_DUPLICATE)) return omapDuplicateOffset(doc);
+  return firstAliasOffset(doc);
+}
+
+/**
+ * The first merge source (`<<: x`, or an item of `<<: [x, y]`) that is not a
+ * mapping or an alias of one, as written. A YAML 1.1 merge key is a scalar
+ * whose value is a symbol; under YAML 1.2 `<<` is an ordinary key.
+ */
+function badMergeSourceOffset(doc: Document): number {
+  const sources: unknown[] = [];
+  visit(doc, {
+    Pair(_, pair) {
+      if (isScalar(pair.key) && typeof pair.key.value === "symbol") {
+        const value = resolved(doc, pair.value);
+        sources.push(...(isSeq(value) ? value.items : [pair.value]));
+      }
+    },
+  });
+  return offsetOf(sources.find((s) => !isMap(resolved(doc, s))));
+}
+
+/**
+ * The first key of an ordered map (`!!omap`) that repeats an earlier key of
+ * the same map, as written. Keys compare as the yaml package compares them: a
+ * scalar by its value, a collection reached through an alias by identity.
+ */
+function omapDuplicateOffset(doc: Document): number {
+  let offset = 0;
+  visit(doc, {
+    Seq(_, seq) {
+      if (seq.tag !== OMAP_TAG) return;
+      const seen: unknown[] = [];
+      for (const { key } of seq.items as Pair[]) {
+        const node = resolved(doc, key);
+        const id = isScalar(node) ? node.value : node;
+        if (seen.includes(id)) {
+          offset = offsetOf(key);
+          return visit.BREAK;
+        }
+        seen.push(id);
+      }
+    },
+  });
+  return offset;
 }
 
 /** Where the first alias is, or the start of the document if it has none. */
