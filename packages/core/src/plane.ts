@@ -10,7 +10,7 @@ import type { Actor } from "./actor.ts";
 import type { Adapter } from "./adapter.ts";
 import type { Db } from "./db/db.ts";
 import type { DistillMethod, Session } from "./distill.ts";
-import { allEvents } from "./events.ts";
+import { allEvents, appendEvent } from "./events.ts";
 
 export { ADOPT_RETRACT_ID, type AdoptReport, adoptStoreItems } from "./plane/adopt.ts";
 
@@ -51,6 +51,15 @@ export interface ReadResult {
   event: MemoryEvent;
 }
 
+/** A store command a surface refused to run, and the store it names (ADR 0014). */
+export interface Bypass {
+  command: string;
+  store: string;
+}
+
+/** The rule id of a blocked store command (ADR 0014). */
+export const BYPASS_ID = "engram/bypass/store-command";
+
 /** The id of the `read` event a ReadResult carries; explain looks the read up by it. */
 export type ReadId = string;
 
@@ -73,6 +82,11 @@ export interface Plane {
   simulate(workload: Workload, policy: Policy): Promise<SimReport>;
   /** Candidate procedural items induced from sessions. */
   distill(sessions: Session[], method: DistillMethod): Promise<MemoryItem[]>;
+  /**
+   * Records a store command a surface blocked (ADR 0014) as one
+   * `bypass_blocked` deny event; nothing reaches the store.
+   */
+  recordBypass(actor: Actor, bypass: Bypass, at: string): Promise<MemoryEvent>;
   /**
    * The explanations recorded for a read, for the actor who made it only;
    * another actor is refused with ExplainDeniedError (decision D5).
@@ -110,6 +124,20 @@ export function createPlane(deps: PlaneDeps): Plane {
     write: (actor, item, at) => gatedWrite(deps, actor, item, at),
     read: (actor, query) => filteredRead(deps, actor, query),
     explain: async (actor, readId) => storedExplanations(deps, actor, readId),
+    recordBypass: async (actor, bypass, at) =>
+      appendEvent(deps.db, {
+        id: deps.newId(),
+        ts: at,
+        op: "bypass_blocked",
+        item_id: null,
+        actor: actor.id,
+        scope_from: null,
+        scope_to: null,
+        decision: "deny",
+        reason: `${bypass.store} is a memory store command; use the Engram memory tools`,
+        policy_id: BYPASS_ID,
+        schema_version: 0,
+      }),
     promote: async () => {
       throw new NotImplementedYet("promote", "E2.5");
     },
