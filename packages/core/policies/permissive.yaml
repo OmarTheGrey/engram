@@ -6,9 +6,20 @@
 # leave person scope (ADR 0004, 0007), and team and org contexts never read
 # person scope except through a grant (ADR 0021). Any other context may read
 # any level it is a member of. Retention retires, never deletes (ADR 0010),
-# with large budgets. Promotion needs fewer confirmations and a looser replay
-# record (ADR 0011). Only the lints that keep the record sound are on:
-# validity, provenance and procedure drift.
+# with large budgets, and covers every class at every scope; episodic records
+# carry a budget wherever they are admitted. Promotion follows the mechanism
+# of ADR 0011 with fewer confirmations and a looser replay record.
+#
+# Lints: lints.enabled lists the lints a lint-running condition (C6) uses; it
+# does not turn lints on. C5 runs the write gate and the read filter only,
+# whatever this list says. Only the lints that keep the record sound are
+# listed: validity and provenance. replay-drift and environment-changed are
+# procedural lifecycle triggers (ADR 0011), not lints; lints.thresholds sets
+# the drift trigger's success floor and minimum trials.
+#
+# Numbers: the confidence floors, ttls, budgets, confirmation counts, replay
+# k of n and thresholds are proposed values chosen for this preset, not taken
+# from ADR 0011 or any other source; they are reviewed before any run.
 id: preset.permissive
 version: 1
 write:
@@ -54,13 +65,53 @@ retention:
     ttl: null
     budget: 10000
     eviction: utility
+  - scope: person
+    class: procedural
+    ttl: null
+    budget: 1000
+    eviction: utility
+  - scope: role
+    class: episodic
+    ttl: null
+    budget: 20000
+    eviction: recency
+  - scope: role
+    class: semantic
+    ttl: null
+    budget: 10000
+    eviction: utility
+  - scope: role
+    class: procedural
+    ttl: null
+    budget: 1000
+    eviction: utility
+  - scope: team
+    class: episodic
+    ttl: null
+    budget: 50000
+    eviction: recency
   - scope: team
     class: semantic
     ttl: null
     budget: 50000
     eviction: utility
+  - scope: team
+    class: procedural
+    ttl: null
+    budget: 2000
+    eviction: utility
+  - scope: org
+    class: episodic
+    ttl: null
+    budget: 100000
+    eviction: recency
   - scope: org
     class: semantic
+    ttl: null
+    budget: null
+    eviction: manual
+  - scope: org
+    class: procedural
     ttl: null
     budget: null
     eviction: manual
@@ -75,8 +126,6 @@ lints:
   enabled:
     - expired-validity
     - missing-provenance
-    - replay-drift
-    - environment-changed
   thresholds:
     near-duplicate: 0.9
     replay-drift.success-floor: 0.6

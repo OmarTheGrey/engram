@@ -15,9 +15,11 @@ import {
   type Node,
   type Pair,
   parseDocument,
+  visit,
 } from "yaml";
 import type { z } from "zod";
-import { Policy } from "../schema.ts";
+import { LIFECYCLE_TRIGGERS, LINT_IDS, LINT_THRESHOLD_KEYS } from "../lint.ts";
+import { Policy, ScopeLevel } from "../schema.ts";
 
 export type PolicyPath = (string | number)[];
 
@@ -59,11 +61,17 @@ export function parsePolicy(text: string, source: string): Policy {
   if (syntax.length > 0) throw new PolicyError(source, sorted(syntax));
 
   const fail = (problems: Located[]) =>
-    new PolicyError(
-      source,
-      sorted(problems.map(({ path, message, key }) => locate(doc, at, path, message, key))),
-    );
-  const parsed = Policy.safeParse(doc.toJS());
+    new PolicyError(source, sorted(problems.map((p) => locate(doc, at, p))));
+  let js: unknown;
+  try {
+    js = doc.toJS();
+  } catch (e) {
+    // The yaml package throws a plain ReferenceError when aliases expand past
+    // its limit (a resource exhaustion guard); report it like any other fault.
+    const message = `the document cannot be read: ${e instanceof Error ? e.message : String(e)}`;
+    throw new PolicyError(source, [{ message, path: [], ...at(firstAliasOffset(doc)) }]);
+  }
+  const parsed = Policy.safeParse(js);
   if (!parsed.success) throw fail(parsed.error.issues.flatMap((issue) => schemaProblems(issue)));
   const semantic = semanticProblems(parsed.data);
   if (semantic.length > 0) throw fail(semantic);
@@ -91,6 +99,8 @@ interface Located {
   message: string;
   /** Point at this key of the mapping at `path` rather than at the mapping. */
   key?: string;
+  /** Point at the key that holds the node at `path` rather than at the node. */
+  atKey?: boolean;
 }
 
 function schemaProblems(issue: z.core.$ZodIssue): Located[] {
@@ -101,12 +111,30 @@ function schemaProblems(issue: z.core.$ZodIssue): Located[] {
 }
 
 /**
- * Checks the schema cannot express: the evaluator looks a rule up by scope
+ * Checks the schema cannot express. The evaluator looks a rule up by scope
  * level (and class, for retention), so two rules for the same key would make
- * the decision depend on their order.
+ * the decision depend on their order. A policy must also cover every level
+ * (D3, ADR 0006 amendment): the evaluator default-denies a missing level, but
+ * a loaded policy with a gap is a mistake to report, not a rule to apply. Lint
+ * ids and threshold keys come from the registry in lint.ts (D2, ADR 0008).
  */
 function semanticProblems(policy: Policy): Located[] {
   const out: Located[] = [];
+  const complete = (present: string[], path: PolicyPath, what: string) => {
+    const missing = ScopeLevel.options.filter((level) => !present.includes(level));
+    if (missing.length > 0)
+      out.push({ path, atKey: true, message: `no ${what} for ${missing.join(", ")}` });
+  };
+  complete(
+    policy.write.map((r) => r.scope),
+    ["write"],
+    "write rule",
+  );
+  complete(
+    policy.read.matrix.map((r) => r.reader),
+    ["read", "matrix"],
+    "read matrix row",
+  );
   const unique = <T>(
     rows: T[],
     key: (r: T) => string,
@@ -138,6 +166,34 @@ function semanticProblems(policy: Policy): Located[] {
     (i) => ["retention", i, "scope"],
     "retention rule",
   );
+  const seenLints = new Set<string>();
+  policy.lints.enabled.forEach((id, i) => {
+    const path = ["lints", "enabled", i];
+    if (seenLints.has(id)) out.push({ path, message: `a second entry for lint id ${id}` });
+    else if ((LIFECYCLE_TRIGGERS as readonly string[]).includes(id))
+      out.push({
+        path,
+        message: `"${id}" is a procedural lifecycle trigger (ADR 0011), not a lint; set its thresholds under lints.thresholds`,
+      });
+    else if ((LINT_THRESHOLD_KEYS as readonly string[]).includes(id))
+      out.push({
+        path,
+        message: `"${id}" is a threshold key, not a lint id; set it under lints.thresholds`,
+      });
+    else if (!(LINT_IDS as readonly string[]).includes(id))
+      out.push({
+        path,
+        message: `unknown lint id "${id}"; expected one of ${LINT_IDS.join(", ")}`,
+      });
+    seenLints.add(id);
+  });
+  for (const key of Object.keys(policy.lints.thresholds))
+    if (!(LINT_THRESHOLD_KEYS as readonly string[]).includes(key))
+      out.push({
+        path: ["lints", "thresholds"],
+        key,
+        message: `unknown threshold key "${key}"; expected one of ${LINT_THRESHOLD_KEYS.join(", ")}`,
+      });
   const { replay_k, replay_n } = policy.promotion.procedural;
   if (replay_k > replay_n)
     out.push({
@@ -151,13 +207,13 @@ function semanticProblems(policy: Policy): Located[] {
 function locate(
   doc: Document,
   at: (offset: number) => { line: number; col: number },
-  path: PolicyPath,
-  message: string,
-  key?: string,
+  { path, message, key: ownKey, atKey }: Located,
 ): PolicyProblem {
+  const walk = atKey ? path.slice(0, -1) : path;
+  const key = atKey ? String(path[path.length - 1]) : ownKey;
   let node: unknown = doc.contents;
   let missing: string | number | undefined;
-  for (const seg of path) {
+  for (const seg of walk) {
     const next = child(doc, node, seg);
     if (next === undefined) {
       missing = seg;
@@ -171,7 +227,7 @@ function locate(
   }
   const where = at(offsetOf(node));
   const text =
-    missing !== undefined && path[path.length - 1] === missing
+    missing !== undefined && walk.length === path.length && path[path.length - 1] === missing
       ? `missing required field "${missing}"`
       : message;
   return { message: text, path, ...where };
@@ -199,6 +255,18 @@ function pairFor(node: unknown, key: string): Pair | undefined {
  */
 function keyText(key: unknown): string {
   return isScalar(key) ? String(key.value) : new Document(key).toString().trim();
+}
+
+/** Where the first alias is, or the start of the document if it has none. */
+function firstAliasOffset(doc: Document): number {
+  let offset = 0;
+  visit(doc, {
+    Alias(_, node) {
+      offset = offsetOf(node);
+      return visit.BREAK;
+    },
+  });
+  return offset;
 }
 
 function offsetOf(node: unknown): number {

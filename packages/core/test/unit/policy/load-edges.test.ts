@@ -46,6 +46,45 @@ describe("parsePolicy positions", () => {
     ]);
   });
 
+  test("a second document is reported at its document marker", () => {
+    const text = `${VALID}---\n${VALID}`;
+    const [p, ...rest] = problemsOf(text);
+    expect(rest).toEqual([]);
+    expect(p).toMatchObject({ path: [], line: lineOf(text, "---"), col: 1 });
+    expect(p?.message).toMatch(/multiple documents/);
+  });
+
+  test("an unterminated quote is reported where the parser notices it, the end of input", () => {
+    // A known limit (docs/log/2026-10-25-e2-1-unterminated-quote-line.md): yaml
+    // finds a missing closing quote only at the end, so the line is the last
+    // one, after the final newline; the message names the missing quote.
+    const text = VALID.replace("id: test-policy", 'id: "test-policy');
+    const [p] = problemsOf(text);
+    expect(p).toMatchObject({ path: [], line: text.split("\n").length, col: 1 });
+    expect(p?.message).toMatch(/Missing closing "quote/);
+  });
+
+  test("an unresolved tag is reported as a problem at its line, not dropped", () => {
+    const text = VALID.replace("version: 1", "version: !foo 1");
+    const problems = problemsOf(text);
+    expect(problems).toEqual([
+      expect.objectContaining({ path: [], line: 2, col: 10, message: "Unresolved tag: !foo" }),
+    ]);
+  });
+
+  test("too many aliases is a PolicyError at the first alias, not a raw ReferenceError", () => {
+    let laughs = "a0: &a0 [lol, lol, lol, lol, lol, lol, lol, lol, lol, lol]\n";
+    for (let i = 1; i < 6; i++)
+      laughs += `a${i}: &a${i} [${Array(10)
+        .fill(`*a${i - 1}`)
+        .join(", ")}]\n`;
+    const text = `${VALID}${laughs}`;
+    const [p, ...rest] = problemsOf(text);
+    expect(rest).toEqual([]);
+    expect(p).toMatchObject({ path: [], line: lineOf(text, "a1: &a1"), col: 10 });
+    expect(p?.message).toMatch(/alias/i);
+  });
+
   test("an unknown complex key is reported on its own line", () => {
     const text = `${VALID}? [a, b]\n: 1\n`;
     const [p] = problemsOf(text);
@@ -53,5 +92,24 @@ describe("parsePolicy positions", () => {
       message: expect.stringMatching(/unknown field/),
       line: lineOf(text, "? [a, b]"),
     });
+  });
+});
+
+describe("problems come out in document order, whatever order they are found in", () => {
+  test("schema problems: the schema checks version before schema_version", () => {
+    const text = `schema_version: 1\n${VALID.replace("version: 1", "version: 0").replace("schema_version: 0\n", "")}`;
+    expect(problemsOf(text).map((p) => p.path.join("."))).toEqual(["schema_version", "version"]);
+  });
+
+  test("checks after the schema: replay_k is checked after the write rules", () => {
+    const lines = VALID.split("\n");
+    const promotion = lines.splice(25, 7); // lines 26 to 32, the promotion block
+    lines.splice(2, 0, ...promotion); // now right after version
+    lines.splice(15, 0, lines[15] ?? ""); // repeat the role write rule
+    const text = lines.join("\n").replace("replay_k: 4", "replay_k: 6");
+    expect(problemsOf(text).map((p) => p.path.join("."))).toEqual([
+      "promotion.procedural.replay_k",
+      "write.2.scope",
+    ]);
   });
 });

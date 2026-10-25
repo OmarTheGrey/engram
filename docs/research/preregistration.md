@@ -2,7 +2,7 @@
 
 **Backlogged by the lead on 2026-10-22** (`docs/tasks/backlog.md`): v0.1 stands as written, and no work on v1 happens until the item leaves the backlog.
 
-Version v0.1, dated 2026-10-22; v0 is tagged `prereg-v0`. Every version is dated and kept. The version that precedes the first real run is tagged `prereg-vN` and deposited externally (OSF or Zenodo, ADR 0023); changes after that are amendments with reasons, never edits. `research/tests/test_prereg.py` checks that this file is complete.
+Version v0.2, dated 2026-10-25 (a wording fix to v0.1, see Versions); v0 is tagged `prereg-v0`. Every version is dated and kept. The version that precedes the first real run is tagged `prereg-vN` and deposited externally (OSF or Zenodo, ADR 0023); changes after that are amendments with reasons, never edits. `research/tests/test_prereg.py` checks that this file is complete.
 
 **Status of v0.** Drafted during step 0 from the roadmap (`docs/roadmap.md`: Gate C, cards X1 to X13), the proposed ADRs (0006, 0015, 0016, 0017, 0022) and the literature review (`docs/readings/litreview/`). The proposal that holds the original hypothesis wording was not in the repository, so the statements below are reconstructions. Values marked "proposed" are design choices made in this draft. The lead confirms or amends every hypothesis, threshold and model before `prereg-v1`, and nothing runs before that.
 
@@ -20,8 +20,8 @@ Each condition fixes how memory reaches the agent. The store, model, preset and 
 | C2 | ungoverned | the store directly | none |
 | C3 | instruction | the store directly | the policy as text in the system prompt |
 | C4 | instruction with metadata | the store directly, retrieval carries requester and policy metadata (GateMem's RAG-Policy) | the model decides from the metadata |
-| C5 | enforced | the Engram plane: write gate and read filter, preset medium unless the hypothesis sweeps presets | deterministic, before the model call |
-| C6 | enforced with lints | as C5, plus deterministic lints (and model-based lints where stated) | deterministic gate; lints retire flagged items |
+| C5 | enforced | the Engram plane: write gate and read filter only, preset medium unless the hypothesis sweeps presets; no lints run, whatever the preset's `lints.enabled` lists | deterministic, before the model call |
+| C6 | enforced with lints | as C5, plus the lints the preset's `lints.enabled` lists: deterministic lints, and model-based lints where stated | deterministic gate; lints retire flagged items |
 | C7 | governed tools without read filtering | the Engram tools over MCP: write gate, no `context` filter | the harness-agnostic path of ADR 0022 |
 
 ## Benchmarks
@@ -133,3 +133,4 @@ Every model call takes its seed from the experiment config and is cached on (ben
 |---|---|---|
 | v0 | 2026-10-22 | first complete draft; hypotheses reconstructed, thresholds proposed, models pending |
 | v0.1 | 2026-10-22 | review fixes: Holm adjusts p-values, not intervals; H4 power caveat; models must be concrete from v1 |
+| v0.2 | 2026-10-25 | wording fix to C5 and C6: the condition, not the preset, decides whether lints run; a preset's `lints.enabled` is the list C6 runs |

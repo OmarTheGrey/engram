@@ -3,6 +3,7 @@
 // (test/property/oracle.ts), the same reading of a policy the invariants use.
 import { readFileSync } from "node:fs";
 import { describe, expect, test } from "vitest";
+import { LINT_IDS, LINT_THRESHOLD_KEYS } from "../../../src/lint.ts";
 import type { Actor } from "../../../src/plane.ts";
 import { loadPreset, PRESETS, type PresetName, presetUrl } from "../../../src/policy/load.ts";
 import type { MemoryItem, Policy, ScopeLevel } from "../../../src/schema.ts";
@@ -106,8 +107,52 @@ describe.each(PRESETS)("preset %s", (name: PresetName) => {
     expect(
       readable(policy, outsider, item("person", "user", "semantic"), "2026-10-25T00:00:00Z"),
     ).toBe(false);
-    expect(mayRead(policy, "team")).not.toContain("person");
-    expect(mayRead(policy, "org")).not.toContain("person");
+    // The person themself, acting in a team or org context, is a member of
+    // their person scope, and still may not read it from that context.
+    for (const level of ["team", "org"] as const) {
+      const context: Actor = {
+        id: "person:omar",
+        level,
+        memberships: ["person:omar", SCOPE_OF.team, SCOPE_OF.org],
+      };
+      expect(
+        readable(policy, context, item("person", "user", "semantic"), "2026-10-25T00:00:00Z"),
+        `${level} context`,
+      ).toBe(false);
+      expect(
+        readable(policy, context, item(level, "user", "semantic"), "2026-10-25T00:00:00Z"),
+        `${level} context reading its own level`,
+      ).toBe(true);
+    }
+  });
+
+  test("declares retention for every class it admits at every level, episodic with a budget (ADR 0010)", () => {
+    for (const level of LEVELS)
+      for (const cls of CLASSES) {
+        if (ruleFor(policy, level)?.forbidden_classes.includes(cls)) continue;
+        const rule = policy.retention.find((r) => r.scope === level && r.class === cls);
+        expect(rule, `${level} ${cls}`).toBeDefined();
+        if (cls === "episodic") expect(rule?.budget, `${level} ${cls} budget`).not.toBeNull();
+      }
+  });
+
+  test("uses only registered lint ids and threshold keys (D2, ADR 0008)", () => {
+    for (const id of policy.lints.enabled) expect(LINT_IDS).toContain(id);
+    for (const key of Object.keys(policy.lints.thresholds))
+      expect(LINT_THRESHOLD_KEYS).toContain(key);
+  });
+
+  test("its comment says what the lint list is for and where its numbers come from (D2)", () => {
+    const header = readFileSync(presetUrl(name), "utf8")
+      .split("\n")
+      .filter((l) => l.startsWith("#"))
+      .map((l) => l.replace(/^#\s?/, ""))
+      .join(" ");
+    expect(header).toMatch(/lint-running condition \(C6\)/);
+    expect(header).toMatch(/does not turn lints on/);
+    expect(header).toMatch(/C5 runs the write gate and the read filter only/);
+    expect(header).toMatch(/proposed values/);
+    expect(header).not.toMatch(/promoted through review/);
   });
 
   test("declares retention for person-scope episodic memory (ADR 0010)", () => {

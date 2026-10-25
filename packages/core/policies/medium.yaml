@@ -1,17 +1,29 @@
-# Preset: medium. The default enforced condition (C5) and H2's primary point.
+# Preset: medium. The default preset of the enforced condition (C5) and H2's
+# primary point.
 #
 # Stance: a person's own scope takes everything the harness produces,
 # compaction included, at a low confidence floor. Model-written and
 # compaction content does not leave person scope (ADR 0004, 0007); to share
-# it, a person restates it as user content or it is promoted through review.
-# Shared scopes take user, document, tool and import sources, with no
-# episodic records; only org requires review. Reads follow the hierarchy
-# downwards, and a role context may also read its holder's person scope;
-# team and org contexts never read person scope except through a grant
-# (ADR 0021). Retention retires, never deletes (ADR 0010). Promotion and
-# replay admission use the thresholds of ADR 0011. Deterministic and
-# procedural lints are on; the model-based ones are off to keep the
-# condition free of extra model calls.
+# it, a person restates it as user content. No preset yet encodes a review
+# path that would carry model content out of person scope. Shared scopes take
+# user, document, tool and import sources, with no episodic records; only org
+# requires review. Reads follow the hierarchy downwards, and a role context
+# may also read its holder's person scope; team and org contexts never read
+# person scope except through a grant (ADR 0021). Retention retires, never
+# deletes (ADR 0010), and covers every class each scope admits. Promotion
+# follows the mechanism of ADR 0011.
+#
+# Lints: lints.enabled lists the lints a lint-running condition (C6) uses; it
+# does not turn lints on. C5 runs the write gate and the read filter only,
+# whatever this list says. The deterministic lints are listed; the
+# model-based ones are not, to keep C6 on this preset free of extra model
+# calls. replay-drift and environment-changed are procedural lifecycle
+# triggers (ADR 0011), not lints; lints.thresholds sets the drift trigger's
+# success floor and minimum trials.
+#
+# Numbers: the confidence floors, ttls, budgets, confirmation counts, replay
+# k of n and thresholds are proposed values chosen for this preset, not taken
+# from ADR 0011 or any other source; they are reviewed before any run.
 id: preset.medium
 version: 1
 write:
@@ -57,13 +69,38 @@ retention:
     ttl: null
     budget: 2000
     eviction: utility
+  - scope: person
+    class: procedural
+    ttl: null
+    budget: 200
+    eviction: utility
+  - scope: role
+    class: semantic
+    ttl: null
+    budget: 2000
+    eviction: utility
+  - scope: role
+    class: procedural
+    ttl: null
+    budget: 200
+    eviction: utility
   - scope: team
     class: semantic
     ttl: null
     budget: 10000
     eviction: utility
+  - scope: team
+    class: procedural
+    ttl: null
+    budget: 500
+    eviction: utility
   - scope: org
     class: semantic
+    ttl: null
+    budget: null
+    eviction: manual
+  - scope: org
+    class: procedural
     ttl: null
     budget: null
     eviction: manual
@@ -82,8 +119,6 @@ lints:
     - missing-provenance
     - orphan
     - duplicate
-    - replay-drift
-    - environment-changed
   thresholds:
     near-duplicate: 0.85
     replay-drift.success-floor: 0.7
