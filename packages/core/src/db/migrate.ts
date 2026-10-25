@@ -30,6 +30,20 @@ export const MIGRATIONS: readonly Migration[] = [
       CREATE TABLE items (id TEXT PRIMARY KEY, status TEXT NOT NULL, body TEXT NOT NULL);
     `,
   },
+  {
+    id: 2,
+    name: "items keyed by store_ref",
+    // Two items under one ref would make the ref ambiguous, so the pair is
+    // unique; SQLite lets any number of rows hold a null ref (not yet stored).
+    up: `
+      ALTER TABLE items ADD COLUMN store_adapter TEXT;
+      ALTER TABLE items ADD COLUMN store_key TEXT;
+      UPDATE items SET
+        store_adapter = json_extract(body, '$.store_ref.adapter'),
+        store_key = json_extract(body, '$.store_ref.key');
+      CREATE UNIQUE INDEX items_store_ref ON items (store_adapter, store_key);
+    `,
+  },
 ];
 
 /** Applies pending migrations in id order; returns the ids it applied. */

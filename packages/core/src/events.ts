@@ -1,8 +1,8 @@
 // The append-only event log is the source of truth; the items table is a
 // projection of it (ADR 0003). appendEvent updates the projection in the same
 // transaction; rebuild() recomputes it from the log alone, and the replay test
-// requires the two to agree. Nothing here reads the clock: callers supply ids
-// and timestamps.
+// requires the two to agree; both go through applyEvent, the one projection
+// rule. Nothing here reads the clock: callers supply ids and timestamps.
 import type { Db, Row } from "./db/db.ts";
 import { type MemoryEvent, MemoryEvent as MemoryEventSchema, type MemoryItem } from "./schema.ts";
 
@@ -11,23 +11,44 @@ export type EventInput = Omit<MemoryEvent, "seq">;
 const CHANGES_ITEM = new Set(["write", "update", "promote"]);
 const RETIRES_ITEM = new Set(["retire", "evict"]);
 
+/**
+ * The projection rule, as a pure function: the state of the event's item
+ * after the event, given its state before (undefined when the item is
+ * unknown). The stored projection and replay (itemsAt in replay.ts) both
+ * apply exactly this, so they cannot drift apart.
+ */
+export function applyEvent(
+  before: MemoryItem | undefined,
+  event: MemoryEvent,
+): MemoryItem | undefined {
+  if (event.decision !== "allow") return before;
+  if (CHANGES_ITEM.has(event.op) && event.item) return event.item;
+  if (RETIRES_ITEM.has(event.op) && before) return { ...before, status: "retired" };
+  return before;
+}
+
+function storedItem(db: Db, id: string): MemoryItem | undefined {
+  const row = db.prepare("SELECT body FROM items WHERE id = ?").get(id);
+  return row ? (JSON.parse(String(row.body)) as MemoryItem) : undefined;
+}
+
 function project(db: Db, event: MemoryEvent): void {
-  if (event.decision !== "allow") return;
-  if (CHANGES_ITEM.has(event.op) && event.item) {
-    db.prepare(
-      "INSERT INTO items (id, status, body) VALUES (?, ?, ?) ON CONFLICT (id) DO UPDATE SET status = excluded.status, body = excluded.body",
-    ).run(event.item.id, event.item.status, JSON.stringify(event.item));
-    return;
-  }
-  if (RETIRES_ITEM.has(event.op) && event.item_id) {
-    const row = db.prepare("SELECT body FROM items WHERE id = ?").get(event.item_id);
-    if (!row) return;
-    const retired = { ...(JSON.parse(String(row.body)) as MemoryItem), status: "retired" as const };
-    db.prepare("UPDATE items SET status = 'retired', body = ? WHERE id = ?").run(
-      JSON.stringify(retired),
-      event.item_id,
-    );
-  }
+  // checkConsistency guarantees an event carrying an item names it in item_id.
+  if (!event.item_id) return;
+  const before = storedItem(db, event.item_id);
+  const after = applyEvent(before, event);
+  if (!after || after === before) return;
+  db.prepare(
+    `INSERT INTO items (id, status, body, store_adapter, store_key) VALUES (?, ?, ?, ?, ?)
+     ON CONFLICT (id) DO UPDATE SET status = excluded.status, body = excluded.body,
+       store_adapter = excluded.store_adapter, store_key = excluded.store_key`,
+  ).run(
+    after.id,
+    after.status,
+    JSON.stringify(after),
+    after.store_ref?.adapter ?? null,
+    after.store_ref?.key ?? null,
+  );
 }
 
 /**
