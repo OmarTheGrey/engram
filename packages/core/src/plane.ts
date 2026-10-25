@@ -11,6 +11,9 @@ import type { Adapter } from "./adapter.ts";
 import type { Db } from "./db/db.ts";
 import type { DistillMethod, Session } from "./distill.ts";
 import { allEvents } from "./events.ts";
+
+export { type AdoptReport, adoptStoreItems } from "./plane/adopt.ts";
+
 import { filteredRead, storedExplanations } from "./plane/read.ts";
 import { gatedWrite } from "./plane/write.ts";
 import type { Explanation, LintFinding, MemoryEvent, MemoryItem, Policy } from "./schema.ts";

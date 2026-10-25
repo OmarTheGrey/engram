@@ -6,7 +6,9 @@
 // stored item. A denial appends one event with its reason and policy_id and
 // never reaches the adapter. A store failure after an allow appends one deny
 // event naming it and rethrows, so a store write never happens without an
-// event (decision D6).
+// event (decision D6). With `existing`, an allowed item is recorded at that
+// store_ref instead of being written: adoption of what the store already
+// holds (plane/adopt.ts).
 import { z } from "zod";
 import { type Actor, ActorShape, InvalidCallError } from "../actor.ts";
 import type { StoreRef } from "../adapter.ts";
@@ -92,6 +94,7 @@ async function decideAndWrite(
   actor: Actor,
   input: MemoryItem,
   at: string,
+  existing?: StoreRef,
 ): Promise<WriteResult> {
   const { db, adapter, policy, newId } = deps;
   checkCall(actor, at, "write");
@@ -147,7 +150,7 @@ async function decideAndWrite(
       reason: `the gate allowed the write (${decision.policy_id}) but the store failed: ${problem}; ${provenanceNote}`,
     });
   try {
-    const store_ref = await adapter.write(toStore);
+    const store_ref = existing ?? (await adapter.write(toStore));
     const problem = refProblem(deps, item, store_ref);
     if (problem) throw new Error(problem);
     const stored: MemoryItem = { ...toStore, store_ref };
