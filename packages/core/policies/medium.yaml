@@ -1,0 +1,91 @@
+# Preset: medium. The default enforced condition (C5) and H2's primary point.
+#
+# Stance: a person's own scope takes everything the harness produces,
+# compaction included, at a low confidence floor. Model-written and
+# compaction content does not leave person scope (ADR 0004, 0007); to share
+# it, a person restates it as user content or it is promoted through review.
+# Shared scopes take user, document, tool and import sources, with no
+# episodic records; only org requires review. Reads follow the hierarchy
+# downwards, and a role context may also read its holder's person scope;
+# team and org contexts never read person scope except through a grant
+# (ADR 0021). Retention retires, never deletes (ADR 0010). Promotion and
+# replay admission use the thresholds of ADR 0011. Deterministic and
+# procedural lints are on; the model-based ones are off to keep the
+# condition free of extra model calls.
+id: preset.medium
+version: 1
+write:
+  - scope: person
+    allowed_sources: [user, document, tool, import, model, compaction]
+    confidence_floor: 0.3
+    forbidden_classes: []
+    requires_review: false
+  - scope: role
+    allowed_sources: [user, document, tool, import]
+    confidence_floor: 0.5
+    forbidden_classes: [episodic]
+    requires_review: false
+  - scope: team
+    allowed_sources: [user, document, tool, import]
+    confidence_floor: 0.6
+    forbidden_classes: [episodic]
+    requires_review: false
+  - scope: org
+    allowed_sources: [user, document, tool, import]
+    confidence_floor: 0.8
+    forbidden_classes: [episodic]
+    requires_review: true
+read:
+  matrix:
+    - reader: person
+      may_read: [person, role, team, org]
+    - reader: role
+      may_read: [person, role, team, org]
+    - reader: team
+      may_read: [role, team, org]
+    - reader: org
+      may_read: [team, org]
+  honour_grants: true
+retention:
+  - scope: person
+    class: episodic
+    ttl: 7776000 # 90 days
+    budget: 5000
+    eviction: recency
+  - scope: person
+    class: semantic
+    ttl: null
+    budget: 2000
+    eviction: utility
+  - scope: team
+    class: semantic
+    ttl: null
+    budget: 10000
+    eviction: utility
+  - scope: org
+    class: semantic
+    ttl: null
+    budget: null
+    eviction: manual
+promotion:
+  episodic_to_semantic:
+    confirmations: 3
+    or_review: true
+  procedural:
+    replay_k: 4
+    replay_n: 5
+lints:
+  enabled:
+    - expired-validity
+    - source-changed
+    - scope-class-mismatch
+    - missing-provenance
+    - orphan
+    - duplicate
+    - replay-drift
+    - environment-changed
+  thresholds:
+    near-duplicate: 0.85
+    replay-drift.success-floor: 0.7
+    replay-drift.min-trials: 10
+schema_version: 0

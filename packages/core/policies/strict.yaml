@@ -1,0 +1,91 @@
+# Preset: strict. The governed end of the strictness sweep (X5, H2).
+#
+# Stance: only first-hand sources travel beyond a person. Model-written and
+# compaction content is untrusted (ADR 0004, 0007): model content stays in
+# person scope, compaction is refused everywhere, and nothing derived from a
+# tool or an import reaches org. Episodic records never leave person scope.
+# Every shared scope requires review, and confidence floors rise with reach.
+# Reads follow the hierarchy downwards only: a context reads its own level
+# and the levels above it, never person scope except as that person. Grants
+# are honoured, since they are explicit consent (ADR 0021). Retention retires,
+# never deletes (ADR 0010). Promotion needs more confirmations and a clean
+# replay record (ADR 0011). Every lint is on, the model-based ones included.
+id: preset.strict
+version: 1
+write:
+  - scope: person
+    allowed_sources: [user, document, tool, import, model]
+    confidence_floor: 0.5
+    forbidden_classes: []
+    requires_review: false
+  - scope: role
+    allowed_sources: [user, document, tool]
+    confidence_floor: 0.7
+    forbidden_classes: [episodic]
+    requires_review: true
+  - scope: team
+    allowed_sources: [user, document, tool]
+    confidence_floor: 0.8
+    forbidden_classes: [episodic]
+    requires_review: true
+  - scope: org
+    allowed_sources: [user, document]
+    confidence_floor: 0.9
+    forbidden_classes: [episodic, procedural]
+    requires_review: true
+read:
+  matrix:
+    - reader: person
+      may_read: [person, role, team, org]
+    - reader: role
+      may_read: [role, team, org]
+    - reader: team
+      may_read: [team, org]
+    - reader: org
+      may_read: [org]
+  honour_grants: true
+retention:
+  - scope: person
+    class: episodic
+    ttl: 2592000 # 30 days
+    budget: 1000
+    eviction: recency
+  - scope: person
+    class: semantic
+    ttl: null
+    budget: 500
+    eviction: utility
+  - scope: team
+    class: semantic
+    ttl: null
+    budget: 2000
+    eviction: utility
+  - scope: org
+    class: semantic
+    ttl: null
+    budget: null
+    eviction: manual
+promotion:
+  episodic_to_semantic:
+    confirmations: 5
+    or_review: true
+  procedural:
+    replay_k: 5
+    replay_n: 5
+lints:
+  enabled:
+    - expired-validity
+    - source-changed
+    - scope-class-mismatch
+    - missing-provenance
+    - orphan
+    - duplicate
+    - contradiction
+    - unsupported-claim
+    - replay-drift
+    - environment-changed
+  thresholds:
+    near-duplicate: 0.8
+    replay-drift.success-floor: 0.8
+    replay-drift.min-trials: 10
+schema_version: 0
