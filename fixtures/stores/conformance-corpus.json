@@ -1,5 +1,5 @@
 {
-  "description": "Synthetic corpus for the Adapter conformance suite (packages/adapters/test/conformance/suite.ts, card A4). No real person's memory; every item is invented. Edit only together with the suite.",
+  "description": "Synthetic corpus for the Adapter conformance suite (packages/adapters/test/conformance/suite.ts, card A4). No real person's memory; every item is invented. Each item is a patch over the base; `label` names it in test output and `content_repeat` builds a long content string; both are removed before the item is parsed. Edit only together with the suite.",
   "base": {
     "id": "01920000-0000-7000-8000-000000000001",
     "class": "semantic",
@@ -10,13 +10,22 @@
       "kind": "user",
       "ref": "doc/1",
       "hash": "sha256:abababababababababababababababababababababababababababababababab",
-      "actor": "person:omar"
+      "actor": "person:omar",
+      "session_entry_id": "entry-0001"
     },
     "confidence": 0.9,
     "valid_from": "2026-10-22T09:00:00Z",
-    "valid_to": null,
-    "ttl": null,
-    "grants": [],
+    "valid_to": "2027-01-01T00:00:00Z",
+    "ttl": 7776000,
+    "grants": [
+      {
+        "to": "agent:claude-code/*",
+        "class": "semantic",
+        "mode": "read",
+        "expires": "2026-12-31T00:00:00Z"
+      },
+      { "to": "person:dana", "class": "semantic", "mode": "read_write", "expires": "2026-11-30T12:00:00Z" }
+    ],
     "version": 1,
     "lineage": [],
     "status": "active",
@@ -25,36 +34,103 @@
   },
   "items": [
     {
-      "id": "01920000-0000-7000-8000-000000000001",
-      "scope": "team:platform",
-      "content": "Deploys happen on Tuesdays."
+      "label": "the base item, with grants, a closed validity window, a ttl and a session entry",
+      "id": "01920000-0000-7000-8000-000000000001"
     },
     {
+      "label": "a second version with lineage",
       "id": "01920000-0000-7000-8000-000000000002",
-      "scope": "team:platform",
-      "content": "The deploy key rotates monthly."
+      "content": "The deploy key rotates monthly.",
+      "version": 2,
+      "lineage": ["01920000-0000-7000-8000-0000000000f2"],
+      "valid_to": null,
+      "ttl": null
     },
     {
+      "label": "a model-written item naming its model",
       "id": "01920000-0000-7000-8000-000000000003",
       "scope": "person:omar",
-      "content": "Omar prefers deploy notes in Arabic."
+      "content": "Omar prefers deploy notes in Arabic.",
+      "provenance": {
+        "kind": "model",
+        "ref": "session/7#entry-0042",
+        "hash": "sha256:cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+        "actor": "agent:pi",
+        "session_entry_id": "entry-0042",
+        "model": "anthropic/claude-opus-4"
+      },
+      "confidence": 0.6,
+      "grants": []
     },
     {
+      "label": "an org item with a nanosecond valid_from and a candidate status",
       "id": "01920000-0000-7000-8000-000000000004",
       "scope": "org",
-      "content": "The office closes at six."
+      "content": "The office closes at six.",
+      "valid_from": "2026-10-22T09:00:00.123456789Z",
+      "status": "candidate",
+      "grants": []
     },
     {
+      "label": "a procedure",
       "id": "01920000-0000-7000-8000-000000000005",
       "scope": "team:research",
       "class": "procedural",
-      "content": { "body": "Run the deploy checklist.", "tools": ["bash"] }
+      "content": { "body": "Run the deploy checklist.\n\n1. Freeze.\n2. Ship.", "tools": ["bash", "read"] },
+      "grants": [{ "to": "agent:pi/*", "class": "procedural", "mode": "read", "expires": "2026-12-01T00:00:00Z" }]
+    },
+    {
+      "label": "an item in a sibling scope whose name extends team:platform",
+      "id": "01920000-0000-7000-8000-000000000006",
+      "scope": "team:platform-x",
+      "content": "Platform-x deploys are frozen until Friday."
+    },
+    {
+      "label": "semantic JSON content",
+      "id": "01920000-0000-7000-8000-000000000007",
+      "content": {
+        "service": "billing",
+        "windows": ["tue", "thu"],
+        "owner": { "team": "platform", "oncall": null },
+        "retries": 3,
+        "ratio": 0.25,
+        "enabled": true,
+        "note": "naïve café"
+      }
+    },
+    {
+      "label": "Unicode, CRLF line ends and a frontmatter delimiter line",
+      "id": "01920000-0000-7000-8000-000000000008",
+      "scope": "team:research",
+      "content": "Café vs café, Straße, مرحبا, 你好, 🚀\r\n---\r\nname: not frontmatter\r\n---\r\ntrailing spaces  \r\n"
+    },
+    {
+      "label": "content longer than 100,000 characters",
+      "id": "01920000-0000-7000-8000-000000000009",
+      "scope": "team:research",
+      "content_repeat": { "text": "Archived incident note, kept for audits. ", "times": 2500 }
+    },
+    {
+      "label": "empty content",
+      "id": "01920000-0000-7000-8000-00000000000a",
+      "scope": "team:research",
+      "content": ""
+    },
+    {
+      "label": "a lone surrogate",
+      "id": "01920000-0000-7000-8000-00000000000b",
+      "scope": "team:research",
+      "content": "A lone surrogate \ud800 survives, and a pair 🚀 too."
     }
   ],
   "cases": {
     "list_scope": {
       "scope": "team:platform",
-      "expected_ids": ["01920000-0000-7000-8000-000000000001", "01920000-0000-7000-8000-000000000002"]
+      "expected_ids": [
+        "01920000-0000-7000-8000-000000000001",
+        "01920000-0000-7000-8000-000000000002",
+        "01920000-0000-7000-8000-000000000007"
+      ]
     },
     "scope_filter": {
       "query": "deploy",

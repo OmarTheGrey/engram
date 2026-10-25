@@ -2,13 +2,18 @@
 // runs offline and writes nothing outside its own vector store, its file store
 // survives a new adapter instance, and its namespace keeps two adapters on one
 // file apart. The contract itself is in ../conformance/.
-import { mkdtempSync, readdirSync, rmSync } from "node:fs";
+import { execFile } from "node:child_process";
+import { mkdirSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
 import { MemoryItem } from "@engram/core";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import { createHashingEmbedder } from "../../src/fake/embedder.ts";
-import { createMem0Adapter } from "../../src/mem0/index.ts";
+import { createMem0Adapter, createMem0Memory } from "../../src/mem0/index.ts";
+
+const run = promisify(execFile);
 
 const ITEM = MemoryItem.parse({
   id: "01920000-0000-7000-8000-0000000000a1",
@@ -97,5 +102,47 @@ describe("mem0 adapter", () => {
     expect(await b.search?.("staging cluster restarts", [ITEM.scope])).toEqual([]);
     await b.delete(ref);
     expect(await a.read(ref)).toEqual({ ...ITEM, store_ref: ref });
+  });
+});
+
+describe("mem0 adapter, review fixes", () => {
+  test.each(["mem0-first", "adapters-first"])(
+    "telemetry stays off and Mem0's home stays untouched when %s is imported first",
+    async (order) => {
+      const home = join(dir, `mem0-home-${order}`);
+      const child = fileURLToPath(new URL("./import-order.child.ts", import.meta.url));
+      const { stdout } = await run(process.execPath, [child, order], {
+        cwd: fileURLToPath(new URL("../..", import.meta.url)),
+        env: { ...process.env, MEM0_DIR: home, MEM0_TELEMETRY: "" },
+      });
+      expect(JSON.parse(stdout)).toEqual({ calls: [], mem0DirCreated: false });
+    },
+    30_000,
+  );
+
+  test("Mem0's model slot refuses with Engram's own error when Mem0 tries to infer", async () => {
+    const memory = await createMem0Memory({ embedder: createHashingEmbedder() });
+    await expect(
+      memory.add("Dana moved to the platform team.", { userId: "engram", infer: true }),
+    ).rejects.toThrow("Engram never asks Mem0 to call a model");
+  });
+
+  test("a file vector store keeps its entity index beside it, as <name>_entities.db", async () => {
+    const sub = join(dir, "entities");
+    mkdirSync(sub);
+    const adapter = await createMem0Adapter({
+      embedder: createHashingEmbedder(),
+      dbPath: join(sub, "vectors.db"),
+    });
+    const ref = await adapter.write(ITEM);
+    await adapter.search?.("staging cluster restarts", [ITEM.scope]);
+    await adapter.delete(ref);
+    expect(readdirSync(sub).sort()).toEqual(["vectors.db", "vectors_entities.db"]);
+  });
+
+  test("a dbPath that is neither :memory: nor a .db file is refused", async () => {
+    await expect(
+      createMem0Adapter({ embedder: createHashingEmbedder(), dbPath: join(dir, "vectors.sqlite") }),
+    ).rejects.toThrow(/dbPath/);
   });
 });

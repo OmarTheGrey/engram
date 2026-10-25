@@ -42,8 +42,11 @@ export const ADAPTERS: RegisteredAdapter[] = [
   },
   {
     // Open-source Mem0 in-process: its own SQLite vector store in memory,
-    // `infer: false`, and the hashing fake as its embedding model, so no test
-    // reaches the network (CI sets ENGRAM_OFFLINE=1).
+    // `infer: false`, the hashing fake as its embedding model, a model slot
+    // that refuses every call, and telemetry off, so nothing needs the
+    // network. conformance.test.ts also refuses fetch, sockets and DNS for
+    // the whole run (network-guard.ts); ENGRAM_OFFLINE, set in CI, governs
+    // the runner's model cache, not adapters.
     name: "mem0",
     factory: () => createMem0Adapter({ embedder: createHashingEmbedder(), dbPath: ":memory:" }),
     lexical: false,
