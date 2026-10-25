@@ -1,0 +1,44 @@
+# GateMem fixture subset (card B1)
+
+Twenty GateMem checkpoints and the four episodes they belong to, vendored from the pinned upstream commit for the layer-7 benchmark fixture (`docs/conventions/testing.md`). The tests in `packages/bench/test/gatemem/` and `make bench BENCH=gatemem` run on these files and never reach the network.
+
+## Source
+
+- Repository: https://github.com/rzhub/GateMem, commit `a983828b3bb7565e16e25ac8cdc2fc1982633b0b` (the pin in `packages/bench/PINS.md`).
+- Files read: `bench/data/<domain>/episodes.jsonl` and `bench/data/<domain>/checkpoints.jsonl` for the four domains, fetched at that commit from `raw.githubusercontent.com` on 2026-10-25. All 39 files fetched matched the git blob ids in the commit's tree (`gh api repos/rzhub/GateMem/git/trees/<commit>?recursive=1`).
+- `manifest.json` holds the sha256 of every upstream file the vendoring or the port read (`upstream_sha256`), and the sha256 of every vendored line (`selection`). Each vendored line is byte-identical to an upstream line; `load.test.ts` checks the hashes.
+
+## Licences and attribution
+
+- Code: MIT, Copyright (c) 2026 Renz. The licence text is in `UPSTREAM-LICENSE`, copied from the upstream `LICENSE`. The port in `packages/bench/src/gatemem/` (agents, prompt, parsing, scoring) and the verbatim files in `packages/bench/src/gatemem/vendor/` derive from it.
+- Data: CC-BY-4.0, as stated by the upstream `CITATION.cff` (`license: CC-BY-4.0`) and recorded for the Hugging Face dataset card (`Ray368/GateMem`) in `packages/bench/PINS.md`. The episodes and checkpoints here are an unmodified subset.
+- Attribution: Zhe Ren, Yibo Yang, Yimeng Chen, Zijun Zhao, Benshuo Fu, Zhihao Shu, Bingjie Zhang, Yangyang Xu, Dandan Guo, Shuicheng Yan. "GateMem: Benchmarking Memory Governance in Multi-Principal Shared-Memory Agents", arXiv 2606.18829, 2026. The data is synthetic and holds no real person's records (upstream `DATASET_CARD.md`).
+
+## Selection rule
+
+`packages/bench/scripts/vendor-gatemem.ts`, seed 20261025, deterministic (rerunning it on the same upstream files gives the same bytes):
+
+1. Per domain, in alphabetical order (education, household, medical, office), sort the episode ids and draw one with a seeded PRNG (mulberry32).
+2. Group that episode's checkpoints by `query_type`, sort each group by `checkpoint_id` and shuffle it with the same PRNG.
+3. Take 2 utility, 2 privacy and 2 safety checkpoints, minus one from the type at position (domain index mod 3), so 5 per domain. The privacy picks prefer one expected `refuse` and one expected `answer_redacted` when the episode has both.
+
+Result: 6 utility, 7 privacy (access control), 7 safety (active forgetting); expected actions answer 6, answer_redacted 4, refuse 3, no_memory 7. Rerun with:
+
+```
+node packages/bench/scripts/vendor-gatemem.ts --upstream <dir with the upstream files at the commit> --out fixtures/bench/gatemem
+```
+
+## Other files
+
+- `script.json`: the scripted answer model's raw text per checkpoint, written by the same script. Rule: the expected action with a neutral sentence, except four planted cases named under `planted` (a leak that quotes a literal leak pattern, a refusal, a fenced JSON answer, a plain-text answer that is not JSON). The script uses the hidden labels; the agent never sees them.
+- `run-config.json`: the run config for `make bench BENCH=gatemem` (model `scripted/scripted-1`, seed 1, temperature 0.2 and max tokens 4096 as in upstream `configs/runs/paper_main.yaml`, max turns 300 as `run_eval.py` sets for Long-Context).
+- `cassettes/`: the cached responses of the scripted model, one file per call in the `fileCache` format of `@engram/runner`, keyed on (item, condition, preset, store, model, seed, prompt hash). With them a run makes zero model calls, and with `ENGRAM_OFFLINE=1` a missing one is an error.
+- `upstream-golden.json`: prompt hashes, parsed outputs and rule-based scores produced by GateMem's own Python code (`LongContextAgent`, `run_episode`, `score_one`, `aggregate`) on this subset with the same scripted responses; written by `packages/bench/scripts/upstream-golden.py`. `upstream.test.ts` holds the port to it.
+
+## Upstream layout and fields found at the commit
+
+The dataset is `bench/data/{education,household,medical,office}/{episodes,checkpoints}.jsonl`: 91 episodes (30, 23, 21, 17) and 2,218 checkpoints (540, 552, 579, 547), 186 to 260 turns per episode, 18 to 35 checkpoints per episode.
+
+Episode line: `episode_id`, `domain`, `entities` (`principals`: `principal_id`, `role`, `display_name`; `relationships`: objects with `type` and string-valued fields such as `clinician_id`, `patient_id`, `scope`, `access_level`; absent on 6 episodes), `turns`. Turn: `turn_id`, `speaker` (`principal_id`, `role`), `text`, and on most turns `timestamp` and `turn_kind` (dialogue, note_update, portal_message, handoff_summary, scheduling_note, callback_log, lab_result, medication_update). No turn has `record_refs` or `memory_ops`, although the upstream `Turn` dataclass declares them.
+
+Checkpoint line: shown to the agent are `checkpoint_id`, `episode_id`, `as_of_turn_id`, `asker` (`principal_id`, `role`) and `query_text`. Hidden, for scoring only: `query_type` (utility, privacy, safety; the paper's Utility, Access Control, Active Forgetting), `expected_action` (answer, answer_redacted, refuse, no_memory), `judge_spec` (`expected_action`, `notes`, and when present `include`, `not_include`, and on 23 office checkpoints `attack_type`), `leak_targets` (absent on 188 checkpoints) and `attack_type` (on 1,490). The upstream `Checkpoint` dataclass also declares the legacy hidden fields `gold_answer_structured`, `gold_refusal_category` and `policy_snapshot`; none occurs in the data. The strict loader in `packages/bench/src/gatemem/schema.ts` parses all 2,218 checkpoints.

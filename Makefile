@@ -55,8 +55,14 @@ api-check: api ## fail if generated contracts differ from what is committed
 	@git diff --exit-code -- sdk research/engram_types
 	@[ -z "$$(git status --porcelain -- sdk research/engram_types)" ] || { git status --short -- sdk research/engram_types; echo "api-check: untracked generated files"; exit 1; }
 
-bench: ## stub: run one benchmark on its fixture subset: make bench BENCH=<name>
-	@echo "bench: not implemented yet (benchmark cards B1 to B9)"; exit 2
+BENCH_OUT ?= .engram/bench/$(BENCH)
+
+bench: ## run one benchmark on its fixture subset with the scripted model: make bench BENCH=gatemem
+ifeq ($(BENCH),gatemem)
+	node packages/bench/scripts/run-gatemem.ts --config fixtures/bench/gatemem/run-config.json --out "$(BENCH_OUT)"
+else
+	@echo "bench: BENCH=$(BENCH) has no runner; only gatemem exists (card B1), the others land with cards B2 to B9"; exit 2
+endif
 
 fixtures: ## regenerate golden files; refuses without MSG=<reason>, which goes in the commit message
 	@[ -n "$(MSG)" ] || { echo "fixtures: refusing without MSG=<reason>"; exit 2; }

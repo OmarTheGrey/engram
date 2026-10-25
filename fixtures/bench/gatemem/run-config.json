@@ -1,0 +1,16 @@
+{
+  "benchmark": "gatemem",
+  "data": ".",
+  "agent": "long_context",
+  "model": "scripted/scripted-1",
+  "seed": 1,
+  "temperature": 0.2,
+  "max_tokens": 4096,
+  "max_turns": 300,
+  "condition": "reference-long-context",
+  "preset": "none",
+  "store": "none",
+  "script": "script.json",
+  "cassettes": "cassettes",
+  "gate_by_action": false
+}
