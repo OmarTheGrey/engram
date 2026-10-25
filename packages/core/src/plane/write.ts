@@ -16,7 +16,7 @@ import { type Actor, ActorShape, InvalidCallError } from "../actor.ts";
 import type { StoreRef } from "../adapter.ts";
 import { appendEvent } from "../events.ts";
 import { itemById, itemsByStoreRef } from "../items.ts";
-import type { PlaneDeps, WriteResult } from "../plane.ts";
+import type { PlaneDeps, WriteCheckResult, WriteResult } from "../plane.ts";
 import { evaluateWrite, SCHEMA_ID, STORE_FAILURE_ID } from "../policy/evaluate.ts";
 import { Id, MemoryItem, Scope, Timestamp } from "../schema.ts";
 
@@ -106,6 +106,60 @@ export interface Adoption {
   suffix: string;
 }
 
+/** What the gate decides about a write, before anything is committed. */
+type Decided =
+  | { kind: "schema"; item_id: string | null; scope_to: string | null; reason: string }
+  | {
+      kind: "evaluated";
+      item: MemoryItem;
+      decision: ReturnType<typeof evaluateWrite>;
+      provenanceNote: string;
+    };
+
+/**
+ * The gate's decision on a write, pure: the call is checked (throwing
+ * InvalidCallError), the item validated, its provenance set and the policy
+ * evaluated against the projected item of the same id. Nothing is written
+ * and no event appended; `gatedWrite` commits this decision and
+ * `checkWrite` only reports it (decision D12).
+ */
+function decideWrite(deps: PlaneDeps, actor: Actor, input: MemoryItem, at: string): Decided {
+  checkCall(actor, at, "write");
+  const parsed = MemoryItem.safeParse(input);
+  if (!parsed.success) {
+    const problems = parsed.error.issues
+      .map((i) => `${i.path.join(".") || "item"}: ${i.message}`)
+      .join("; ");
+    return {
+      kind: "schema",
+      item_id: validOrNull(input, "id", Id),
+      scope_to: validOrNull(input, "scope", Scope),
+      reason: `the item fails the schema: ${problems}`,
+    };
+  }
+  const [item, provenanceNote] = withPlaneProvenance(actor, parsed.data);
+  const decision = evaluateWrite(deps.policy, actor, item, itemById(deps.db, item.id));
+  return { kind: "evaluated", item, decision, provenanceNote };
+}
+
+/** The decision, reason and rule a write would get now, without committing it (decision D12). */
+export function checkWrite(
+  deps: PlaneDeps,
+  actor: Actor,
+  input: MemoryItem,
+  at: string,
+): WriteCheckResult {
+  const decided = decideWrite(deps, actor, input, at);
+  if (decided.kind === "schema")
+    return { decision: "deny", reason: decided.reason, policy_id: SCHEMA_ID };
+  const { decision, provenanceNote } = decided;
+  return {
+    decision: decision.decision,
+    reason: `${decision.reason}; ${provenanceNote}`,
+    policy_id: decision.policy_id,
+  };
+}
+
 async function decideAndWrite(
   deps: PlaneDeps,
   actor: Actor,
@@ -113,8 +167,8 @@ async function decideAndWrite(
   at: string,
   adoption?: Adoption,
 ): Promise<WriteResult> {
-  const { db, adapter, policy, newId } = deps;
-  checkCall(actor, at, "write");
+  const { db, adapter, newId } = deps;
+  const decided = decideWrite(deps, actor, input, at);
   const mark = (reason: string) =>
     adoption ? `${adoption.prefix}${reason}${adoption.suffix}` : reason;
   const base = {
@@ -125,25 +179,20 @@ async function decideAndWrite(
     schema_version: 0 as const,
   };
 
-  const parsed = MemoryItem.safeParse(input);
-  if (!parsed.success) {
-    const problems = parsed.error.issues
-      .map((i) => `${i.path.join(".") || "item"}: ${i.message}`)
-      .join("; ");
+  if (decided.kind === "schema") {
     const event = appendEvent(db, {
       ...base,
       id: newId(),
-      item_id: validOrNull(input, "id", Id),
-      scope_to: validOrNull(input, "scope", Scope),
+      item_id: decided.item_id,
+      scope_to: decided.scope_to,
       decision: "deny",
-      reason: mark(`the item fails the schema: ${problems}`),
+      reason: mark(decided.reason),
       policy_id: SCHEMA_ID,
     });
     return { item: null, event };
   }
 
-  const [item, provenanceNote] = withPlaneProvenance(actor, parsed.data);
-  const decision = evaluateWrite(policy, actor, item, itemById(db, item.id));
+  const { item, decision, provenanceNote } = decided;
   const common = {
     ...base,
     item_id: item.id,
