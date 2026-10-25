@@ -6,9 +6,11 @@
 // stored item. A denial appends one event with its reason and policy_id and
 // never reaches the adapter. A store failure after an allow appends one deny
 // event naming it and rethrows, so a store write never happens without an
-// event (decision D6). With `existing`, an allowed item is recorded at that
-// store_ref instead of being written: adoption of what the store already
-// holds (plane/adopt.ts).
+// event (decision D6). With `adoption`, an allowed item is recorded at the
+// store_ref the store already holds it under instead of being written, and
+// every event's reason is marked as an adoption from that store (plane/adopt.ts,
+// decision D8); that ref goes through the same checks as one the adapter
+// returns, and a ref that cannot be recorded leaves the store-failure event.
 import { z } from "zod";
 import { type Actor, ActorShape, InvalidCallError } from "../actor.ts";
 import type { StoreRef } from "../adapter.ts";
@@ -47,7 +49,7 @@ export function checkCall(actor: unknown, at: unknown, method: string): void {
  * a harness-set source, its kind and the writing actor replace what the
  * caller claimed; without one, the caller's provenance stands.
  */
-function withPlaneProvenance(actor: Actor, item: MemoryItem): [MemoryItem, string] {
+export function withPlaneProvenance(actor: Actor, item: MemoryItem): [MemoryItem, string] {
   if (!actor.source) return [item, "provenance as claimed by the caller"];
   const provenance = { ...item.provenance, kind: actor.source, actor: actor.id };
   return [
@@ -89,15 +91,27 @@ function refProblem(deps: PlaneDeps, item: MemoryItem, ref: StoreRef): string | 
     : null;
 }
 
+/** What adoption (plane/adopt.ts) adds to a gated write. */
+export interface Adoption {
+  /** The ref the store already holds the item under; it is recorded, never written. */
+  ref: StoreRef;
+  /** Prefixed to every event's reason, such as `adopted from store files: `. */
+  prefix: string;
+  /** Appended to every event's reason, such as the item's hash. */
+  suffix: string;
+}
+
 async function decideAndWrite(
   deps: PlaneDeps,
   actor: Actor,
   input: MemoryItem,
   at: string,
-  existing?: StoreRef,
+  adoption?: Adoption,
 ): Promise<WriteResult> {
   const { db, adapter, policy, newId } = deps;
   checkCall(actor, at, "write");
+  const mark = (reason: string) =>
+    adoption ? `${adoption.prefix}${reason}${adoption.suffix}` : reason;
   const base = {
     ts: at,
     op: "write" as const,
@@ -117,7 +131,7 @@ async function decideAndWrite(
       item_id: validOrNull(input, "id", Id),
       scope_to: validOrNull(input, "scope", Scope),
       decision: "deny",
-      reason: `the item fails the schema: ${problems}`,
+      reason: mark(`the item fails the schema: ${problems}`),
       policy_id: SCHEMA_ID,
     });
     return { item: null, event };
@@ -130,7 +144,7 @@ async function decideAndWrite(
     item_id: item.id,
     scope_to: item.scope,
     decision: decision.decision,
-    reason: `${decision.reason}; ${provenanceNote}`,
+    reason: mark(`${decision.reason}; ${provenanceNote}`),
     policy_id: decision.policy_id,
   };
   // The evaluator gives a status exactly when it allows.
@@ -147,10 +161,12 @@ async function decideAndWrite(
       id: newId(),
       decision: "deny",
       policy_id: STORE_FAILURE_ID,
-      reason: `the gate allowed the write (${decision.policy_id}) but the store failed: ${problem}; ${provenanceNote}`,
+      reason: mark(
+        `the gate allowed the write (${decision.policy_id}) but ${adoption ? "the store's ref cannot be recorded" : "the store failed"}: ${problem}; ${provenanceNote}`,
+      ),
     });
   try {
-    const store_ref = existing ?? (await adapter.write(toStore));
+    const store_ref = adoption ? adoption.ref : await adapter.write(toStore);
     const problem = refProblem(deps, item, store_ref);
     if (problem) throw new Error(problem);
     const stored: MemoryItem = { ...toStore, store_ref };
