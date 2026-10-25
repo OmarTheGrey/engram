@@ -1,60 +1,42 @@
-// The Adapter conformance suite (ADR 0013, testing layer 4). Every adapter
-// calls `conformance(name, factory)` from its own test file; the contract is
-// the same for every store, and a failing case is never marked
-// adapter-specific (AGENTS.md, "What not to do").
-//
-//   import { conformance } from "../conformance/suite.ts";
-//   conformance("mem0", () => createMem0Adapter(config));
+// The Adapter conformance suite (ADR 0013, testing layer 4). Every adapter is
+// one entry in `registry.ts`, and `conformance.test.ts` runs
+// `conformance(name, factory)` over each entry; the contract is the same for
+// every store, and a failing case is never marked adapter-specific (AGENTS.md,
+// "What not to do"). The corpus is the committed fixture
+// fixtures/stores/conformance-corpus.json.
 //
 // Optional methods (search, history) are tested when the adapter has them; a
 // capability flag that claims native search or history requires the method.
-import type { MemoryItem } from "@engram/core";
+import { readFileSync } from "node:fs";
+import { MemoryItem } from "@engram/core";
 import { beforeEach, describe, expect, test } from "vitest";
 import type { Adapter } from "../../src/contract.ts";
 
-const BASE: Extract<MemoryItem, { class: "episodic" | "semantic" }> = {
-  id: "01920000-0000-7000-8000-000000000001",
-  class: "semantic",
-  scope: "team:platform",
-  owner: "person:omar",
-  content: "Deploys happen on Tuesdays.",
-  provenance: {
-    kind: "user",
-    ref: "doc/1",
-    hash: `sha256:${"ab".repeat(32)}`,
-    actor: "person:omar",
-  },
-  confidence: 0.9,
-  valid_from: "2026-10-22T09:00:00Z",
-  valid_to: null,
-  ttl: null,
-  grants: [],
-  version: 1,
-  lineage: [],
-  status: "active",
-  store_ref: null,
-  schema_version: 0,
-};
+/**
+ * The fixture corpus (fixtures/stores/conformance-corpus.json): a base item,
+ * the items written for scope filtering and recall (each a patch over the
+ * base), and the search cases with their expected ids. Synthetic content only.
+ */
+interface Corpus {
+  base: unknown;
+  items: Record<string, unknown>[];
+  cases: {
+    list_scope: { scope: string; expected_ids: string[] };
+    scope_filter: { query: string; scopes: string[] };
+    unique_phrase: { query: string; scopes: string[]; expected_id: string };
+    lexical_recall: { query: string; scopes: string[]; expected_ids: string[] };
+  };
+}
 
-const item = (n: number, patch: Partial<MemoryItem> = {}): MemoryItem =>
-  ({
-    ...BASE,
-    id: `01920000-0000-7000-8000-${String(n).padStart(12, "0")}`,
-    ...patch,
-  }) as MemoryItem;
+const CORPUS_PATH = new URL("../../../../fixtures/stores/conformance-corpus.json", import.meta.url);
+const RAW = JSON.parse(readFileSync(CORPUS_PATH, "utf8")) as Corpus;
 
-/** A small corpus for scope filtering and recall. */
-const CORPUS: MemoryItem[] = [
-  item(1, { scope: "team:platform", content: "Deploys happen on Tuesdays." }),
-  item(2, { scope: "team:platform", content: "The deploy key rotates monthly." }),
-  item(3, { scope: "person:omar", content: "Omar prefers deploy notes in Arabic." }),
-  item(4, { scope: "org", content: "The office closes at six." }),
-  item(5, {
-    scope: "team:research",
-    class: "procedural",
-    content: { body: "Run the deploy checklist.", tools: ["bash"] },
-  }),
-];
+/** Every fixture item is parsed by the core schema, so the corpus cannot drift from it. */
+const BASE = MemoryItem.parse(RAW.base) as Extract<MemoryItem, { class: "episodic" | "semantic" }>;
+const CORPUS: MemoryItem[] = RAW.items.map((patch) =>
+  MemoryItem.parse({ ...(RAW.base as object), ...patch }),
+);
+const CASES = RAW.cases;
 
 export function conformance(name: string, factory: () => Adapter | Promise<Adapter>): void {
   describe(`adapter conformance: ${name}`, () => {
@@ -126,8 +108,8 @@ export function conformance(name: string, factory: () => Adapter | Promise<Adapt
     describe("list", () => {
       test("returns exactly the items in one scope", async () => {
         for (const i of CORPUS) await adapter.write(i);
-        const ids = (await adapter.list("team:platform")).map((i) => i.id).sort();
-        expect(ids).toEqual([CORPUS[0]?.id, CORPUS[1]?.id].sort());
+        const ids = (await adapter.list(CASES.list_scope.scope)).map((i) => i.id).sort();
+        expect(ids).toEqual([...CASES.list_scope.expected_ids].sort());
       });
     });
 
@@ -139,28 +121,32 @@ export function conformance(name: string, factory: () => Adapter | Promise<Adapt
       test("never returns an item outside the scope filter", async ({ skip }) => {
         if (!adapter.search) return skip("no search");
         for (const i of CORPUS) await adapter.write(i);
-        const hits = await adapter.search("deploy", ["team:platform"]);
-        for (const hit of hits) expect(hit.scope).toBe("team:platform");
+        const { query, scopes } = CASES.scope_filter;
+        const hits = await adapter.search(query, scopes);
+        for (const hit of hits) expect(scopes).toContain(hit.scope);
       });
 
       test("an empty scope filter returns nothing, never everything", async ({ skip }) => {
         if (!adapter.search) return skip("no search");
         for (const i of CORPUS) await adapter.write(i);
-        expect(await adapter.search("deploy", [])).toEqual([]);
+        expect(await adapter.search(CASES.scope_filter.query, [])).toEqual([]);
       });
 
       test("finds an item by a unique exact phrase inside the filter", async ({ skip }) => {
         if (!adapter.search) return skip("no search");
         for (const i of CORPUS) await adapter.write(i);
-        const hits = await adapter.search("deploy key rotates monthly", ["team:platform"]);
-        expect(hits.map((h) => h.id)).toContain(CORPUS[1]?.id);
+        const { query, scopes, expected_id } = CASES.unique_phrase;
+        const hits = await adapter.search(query, scopes);
+        expect(hits.map((h) => h.id)).toContain(expected_id);
       });
 
       test("does not return deleted items", async ({ skip }) => {
         if (!adapter.search) return skip("no search");
         const ref = await adapter.write(CORPUS[0] as MemoryItem);
         await adapter.delete(ref);
-        expect(await adapter.search("deploy", ["team:platform"])).toEqual([]);
+        expect(await adapter.search(CASES.scope_filter.query, CASES.scope_filter.scopes)).toEqual(
+          [],
+        );
       });
     });
 
@@ -197,9 +183,8 @@ export function lexicalSearchRecall(name: string, factory: () => Adapter | Promi
     const adapter = await factory();
     if (!adapter.search) throw new Error(`${name} has no search`);
     for (const i of CORPUS) await adapter.write(i);
-    const hits = await adapter.search("deploy", ["team:platform", "person:omar", "team:research"]);
-    expect(hits.map((h) => h.id).sort()).toEqual(
-      [CORPUS[0], CORPUS[1], CORPUS[2], CORPUS[4]].map((i) => i?.id).sort(),
-    );
+    const { query, scopes, expected_ids } = CASES.lexical_recall;
+    const hits = await adapter.search(query, scopes);
+    expect(hits.map((h) => h.id).sort()).toEqual([...expected_ids].sort());
   });
 }

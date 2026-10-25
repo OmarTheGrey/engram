@@ -1,0 +1,79 @@
+{
+  "description": "Synthetic corpus for the Adapter conformance suite (packages/adapters/test/conformance/suite.ts, card A4). No real person's memory; every item is invented. Edit only together with the suite.",
+  "base": {
+    "id": "01920000-0000-7000-8000-000000000001",
+    "class": "semantic",
+    "scope": "team:platform",
+    "owner": "person:omar",
+    "content": "Deploys happen on Tuesdays.",
+    "provenance": {
+      "kind": "user",
+      "ref": "doc/1",
+      "hash": "sha256:abababababababababababababababababababababababababababababababab",
+      "actor": "person:omar"
+    },
+    "confidence": 0.9,
+    "valid_from": "2026-10-22T09:00:00Z",
+    "valid_to": null,
+    "ttl": null,
+    "grants": [],
+    "version": 1,
+    "lineage": [],
+    "status": "active",
+    "store_ref": null,
+    "schema_version": 0
+  },
+  "items": [
+    {
+      "id": "01920000-0000-7000-8000-000000000001",
+      "scope": "team:platform",
+      "content": "Deploys happen on Tuesdays."
+    },
+    {
+      "id": "01920000-0000-7000-8000-000000000002",
+      "scope": "team:platform",
+      "content": "The deploy key rotates monthly."
+    },
+    {
+      "id": "01920000-0000-7000-8000-000000000003",
+      "scope": "person:omar",
+      "content": "Omar prefers deploy notes in Arabic."
+    },
+    {
+      "id": "01920000-0000-7000-8000-000000000004",
+      "scope": "org",
+      "content": "The office closes at six."
+    },
+    {
+      "id": "01920000-0000-7000-8000-000000000005",
+      "scope": "team:research",
+      "class": "procedural",
+      "content": { "body": "Run the deploy checklist.", "tools": ["bash"] }
+    }
+  ],
+  "cases": {
+    "list_scope": {
+      "scope": "team:platform",
+      "expected_ids": ["01920000-0000-7000-8000-000000000001", "01920000-0000-7000-8000-000000000002"]
+    },
+    "scope_filter": {
+      "query": "deploy",
+      "scopes": ["team:platform"]
+    },
+    "unique_phrase": {
+      "query": "deploy key rotates monthly",
+      "scopes": ["team:platform"],
+      "expected_id": "01920000-0000-7000-8000-000000000002"
+    },
+    "lexical_recall": {
+      "query": "deploy",
+      "scopes": ["team:platform", "person:omar", "team:research"],
+      "expected_ids": [
+        "01920000-0000-7000-8000-000000000001",
+        "01920000-0000-7000-8000-000000000002",
+        "01920000-0000-7000-8000-000000000003",
+        "01920000-0000-7000-8000-000000000005"
+      ]
+    }
+  }
+}
