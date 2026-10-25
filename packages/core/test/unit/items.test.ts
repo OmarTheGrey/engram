@@ -7,8 +7,9 @@ import { MIGRATIONS, migrate } from "../../src/db/migrate.ts";
 import { openSqlite } from "../../src/db/sqlite.ts";
 import { allEvents, appendEvent, rebuild } from "../../src/events.ts";
 import { itemById, itemByStoreRef, lineage } from "../../src/items.ts";
-import { createStubPlane } from "../../src/plane.ts";
-import type { MemoryItem, Policy } from "../../src/schema.ts";
+import { createPlane } from "../../src/plane.ts";
+import { loadPreset } from "../../src/policy/load.ts";
+import type { MemoryItem } from "../../src/schema.ts";
 
 const id = (n: number) => `01920000-0000-7000-8000-${String(n).padStart(12, "0")}`;
 
@@ -96,10 +97,10 @@ describe("item lookup", () => {
 
   test("an item written through the plane is found by the store_ref the adapter returned", async () => {
     let n = 0;
-    const plane = createStubPlane({
+    const plane = createPlane({
       db,
       adapter: createFakeAdapter(),
-      policy: {} as Policy,
+      policy: loadPreset("medium"),
       newId: () => id(5000 + ++n),
     });
     const actor = { id: "agent:pi", level: "team" as const, memberships: ["team:platform"] };
@@ -250,7 +251,12 @@ describe("item lookup", () => {
     fresh
       .prepare("INSERT INTO items (id, status, body) VALUES (?, ?, ?)")
       .run(it.id, it.status, JSON.stringify(it));
-    expect(migrate(fresh)).toEqual([2]);
+    expect(
+      migrate(
+        fresh,
+        MIGRATIONS.filter((m) => m.id <= 2),
+      ),
+    ).toEqual([2]);
     expect(itemByStoreRef(fresh, { adapter: "fake", key: "k1" })).toEqual(it);
     fresh.close();
   });

@@ -17,7 +17,7 @@ test: ## layers 1 to 5 and 7 (vitest) and research tests (pytest)
 	$(PNPM) exec vitest run
 	$(UV) run pytest research || [ $$? -eq 5 ]
 
-test-invariants: ## assert the invariants directly; 1 and 2 fail until E2.2 and E2.3 (issue #1)
+test-invariants: ## the four invariants against the real Plane, with counterexample and seed (issue #1)
 	ENGRAM_INVARIANTS=1 $(PNPM) --filter core exec vitest run test/property/invariants.test.ts
 
 test-one: ## one test file with its seed printed: make test-one T=<path>

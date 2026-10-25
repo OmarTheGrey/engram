@@ -47,7 +47,7 @@ fixtures/                 sessions, stores, faults, cassettes; regenerated only 
 pnpm install && uv sync        once, after clone
 make test                      vitest (core, adapters, conformance on fakes, replay-from-events) and pytest (research)
 make test-one T=<path>         one test file, with its seed printed
-make test-invariants           the invariants asserted directly, with counterexample and seed; 1 and 2 fail until E2.2 and E2.3 (issue #1)
+make test-invariants           the four invariants against the real Plane, with counterexample and seed; all pass since E2.2 and E2.3 (issue #1)
 make api                       regenerate sdk/schema (JSON Schema) and research/engram_types (Python) from the Zod schema; later also OpenAPI and the clients
 make api-check                 make api, then fail if the generated files differ from what is committed
 make bench BENCH=gatemem       run one benchmark on its fixture subset through the pi runner

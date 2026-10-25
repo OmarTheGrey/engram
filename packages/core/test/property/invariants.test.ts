@@ -2,26 +2,33 @@
 // Owned by the lead: changing this file needs a second reviewer and a
 // `decision` log entry. It never has a skip.
 //
-// Invariants 1 and 2 are RED BY DESIGN until cards E2.2 (read filter) and E2.3
-// (write gate) land: the only Plane is a stub that admits everything. In
-// `make test` they run as expected failures that must fail with their own
-// counterexample message, so the day the real Plane lands they flip loudly.
-// `make test-invariants` (ENGRAM_INVARIANTS=1) asserts them directly and
-// prints the counterexample and the seed. Tracked in
-// https://github.com/OmarTheGrey/engram/issues/1.
+// All four run against the real Plane (createPlane), with the read filter of
+// card E2.2 and the write gate of card E2.3, under random policies. Invariants
+// 1 and 2 were red by design against a stub that admitted everything until
+// those cards landed (issue #1); they are now asserted directly, in `make test`
+// and in `make test-invariants` alike. A failure prints the counterexample and
+// the seed. Each invariant runs RUNS cases.
+//
+// Invariant 1 stores its items under ADMIT_ALL and reads them under the random
+// policy. The read filter decides item by item, so a store holding every item
+// a random write policy would admit, and more, can only find more
+// counterexamples; with the random policy on both sides almost no write lands
+// and the reads come back empty. For the same reason half the readers are also
+// made members of some of the items' scopes. A guard fails the test unless the
+// run admitted at least one item by scope and one by grant, so the property
+// cannot pass vacuously.
 import { createFakeAdapter } from "@engram/adapters";
 import fc from "fast-check";
 import { describe, expect, test } from "vitest";
 import { migrate } from "../../src/db/migrate.ts";
 import { openSqlite } from "../../src/db/sqlite.ts";
 import { currentItems, rebuild } from "../../src/events.ts";
-import { createStubPlane, type Plane } from "../../src/plane.ts";
+import { createPlane, type Plane } from "../../src/plane.ts";
 import type { Policy } from "../../src/schema.ts";
 import { arbActor, arbGrantedItem, arbPolicy, arbTimestamp, seedFor } from "../generators.ts";
 import { readable, writeForbidden } from "./oracle.ts";
 
-const RUNS = 300;
-const DIRECT = process.env.ENGRAM_INVARIANTS === "1";
+const RUNS = 1000;
 
 function freshPlane(policy: Policy) {
   const db = openSqlite(":memory:");
@@ -29,50 +36,65 @@ function freshPlane(policy: Policy) {
   const adapter = createFakeAdapter();
   let n = 0;
   const newId = () => `01920000-0000-7000-8000-${String(++n).padStart(12, "0")}`;
-  const plane: Plane = createStubPlane({ db, adapter, policy, newId });
-  return { db, adapter, plane };
+  const plane: Plane = createPlane({ db, adapter, policy, newId });
+  /** A plane over the same log and store that writes under `other`. */
+  const under = (other: Policy): Plane => createPlane({ db, adapter, policy: other, newId });
+  return { db, adapter, plane, under };
 }
+
+/** Every class from every source at every level, no floor, no review. */
+const ADMIT_ALL: Policy = {
+  id: "admit-all",
+  version: 1,
+  write: (["person", "role", "team", "org"] as const).map((scope) => ({
+    scope,
+    allowed_sources: ["user", "document", "tool", "model", "import", "compaction"],
+    confidence_floor: 0,
+    forbidden_classes: [],
+    requires_review: false,
+  })),
+  read: { matrix: [], honour_grants: false },
+  retention: [],
+  promotion: {
+    episodic_to_semantic: { confirmations: 1, or_review: true },
+    procedural: { replay_k: 1, replay_n: 1 },
+  },
+  lints: { enabled: [], thresholds: {} },
+  schema_version: 0,
+};
 
 const uniqueItems = fc.uniqueArray(arbGrantedItem, { selector: (i) => i.id, maxLength: 6 });
 
 /**
- * An invariant the stub is known to break. Under `make test` it must fail with
- * `expected`; under `make test-invariants` it is asserted directly.
+ * Items and a reader who is, in half the cases, also a member of some of the
+ * items' scopes, so that reads by scope are exercised as well as reads by grant.
  */
-function redUntilPlane(name: string, card: string, expected: RegExp, run: () => Promise<void>) {
-  if (DIRECT) {
-    test(name, run, 120_000);
-  } else {
-    test(`${name} [expected to fail until ${card}, issue #1]`, async () => {
-      const error = await run().then(
-        () => undefined,
-        (e: unknown) => e,
-      );
-      expect(
-        error,
-        `${name} now holds: the stub was replaced, so remove redUntilPlane`,
-      ).toBeInstanceOf(Error);
-      // fast-check puts the failing assertion in `cause`.
-      const { message, cause } = error as Error;
-      expect(`${message}\n${String(cause)}`).toMatch(expected);
-    }, 120_000);
-  }
-}
+const itemsAndReader = uniqueItems.chain((items) => {
+  const scopes = [...new Set(items.map((i) => i.scope))];
+  const insider = fc.tuple(arbActor, fc.subarray(scopes)).map(([actor, extra]) => ({
+    ...actor,
+    memberships: [...new Set([...actor.memberships, ...extra])],
+  }));
+  return fc.tuple(fc.constant(items), fc.oneof(arbActor, insider));
+});
 
 describe("invariants", () => {
   const I1 = "invariant 1: no read returns an item the actor's scope and grants exclude";
-  redUntilPlane(I1, "E2.2", /with no admitting grant/, () =>
-    fc.assert(
+  test(I1, async () => {
+    const admittedBy = { scope: 0, grant: 0 };
+    await fc.assert(
       fc.asyncProperty(
         arbPolicy,
         arbActor,
-        arbActor,
-        uniqueItems,
+        itemsAndReader,
         arbTimestamp,
-        async (policy, writer, reader, items, at) => {
-          const { plane } = freshPlane(policy);
-          for (const item of items) await plane.write(writer, item, at);
-          for (const item of (await plane.read(reader, { at })).items) {
+        async (policy, writer, [items, reader], at) => {
+          const { plane, under } = freshPlane(policy);
+          const store = under(ADMIT_ALL);
+          for (const item of items) await store.write(writer, item, at);
+          const { items: read, explanations } = await plane.read(reader, { at });
+          for (const e of explanations) admittedBy[e.grants_used.length > 0 ? "grant" : "scope"]++;
+          for (const item of read) {
             expect(
               readable(policy, reader, item, at),
               `read returned ${item.id} (scope ${item.scope}) to ${reader.id} reading as ${reader.level}, member of [${reader.memberships.join(", ")}], with no admitting grant`,
@@ -81,12 +103,16 @@ describe("invariants", () => {
         },
       ),
       { numRuns: RUNS, seed: seedFor(I1) },
-    ),
-  );
+    );
+    expect(
+      admittedBy.scope > 0 && admittedBy.grant > 0,
+      `reads admitted ${admittedBy.scope} items by scope and ${admittedBy.grant} by grant; invariant 1 needs both exercised`,
+    ).toBe(true);
+  }, 120_000);
 
   const I2 = "invariant 2: no write lands in a scope whose policy forbids its class or source";
-  redUntilPlane(I2, "E2.3", /which policy .* forbids/, () =>
-    fc.assert(
+  test(I2, async () => {
+    await fc.assert(
       fc.asyncProperty(
         arbPolicy,
         arbActor,
@@ -106,8 +132,8 @@ describe("invariants", () => {
         },
       ),
       { numRuns: RUNS, seed: seedFor(I2) },
-    ),
-  );
+    );
+  }, 120_000);
 
   const I3 =
     "invariant 3: every read or write appends exactly one event, and a denial carries a reason and a policy id";

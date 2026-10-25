@@ -8,6 +8,7 @@ One line per dependency: name, version, reason, licence. Added in the same PR as
 | @biomejs/biome | 2.5.15 | lint and format for TypeScript and JSON | MIT OR Apache-2.0 |
 | vitest | 5.0.5 | test runner for layers 1 to 5 and 7 | MIT |
 | fast-check | 4.10.2 | property tests (layer 2, the invariants file) | MIT |
+| @vitest/coverage-v8 | 5.0.5 | coverage report per package (testing convention: 100 percent branches on `policy/`); matches vitest | MIT |
 | @types/node | 24.19.2 | Node 24 type definitions | MIT |
 | pytest | 9.1.1 (uv.lock) | research tests (layer 8) | MIT |
 | hypothesis | 6.170.1 (uv.lock) | property tests for research code | MPL-2.0 |
