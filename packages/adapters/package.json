@@ -10,6 +10,8 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "@engram/core": "workspace:*"
+    "@engram/core": "workspace:*",
+    "better-sqlite3": "12.11.1",
+    "mem0ai": "3.3.1"
   }
 }

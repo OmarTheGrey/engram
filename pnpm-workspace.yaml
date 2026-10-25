@@ -1,7 +1,10 @@
 packages:
   - packages/*
 
-# Install scripts of transitive dependencies of pi-ai's Google provider; Engram does not need them.
 allowBuilds:
+  # Install scripts of transitive dependencies of pi-ai's Google provider; Engram does not need them.
   "@google/genai": false
   protobufjs: false
+  # Native SQLite binding behind mem0ai's local vector store (packages/adapters, card A1).
+  # Its install script fetches a prebuilt binary, or compiles one with node-gyp.
+  better-sqlite3: true

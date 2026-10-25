@@ -5,7 +5,9 @@
 // is exact term matching into full recall on the corpus; a semantic store may
 // rank or miss items, so it runs the main suite only.
 import type { Adapter } from "../../src/contract.ts";
+import { createHashingEmbedder } from "../../src/fake/embedder.ts";
 import { createFakeAdapter } from "../../src/fake/index.ts";
+import { createMem0Adapter } from "../../src/mem0/index.ts";
 
 export interface RegisteredAdapter {
   name: string;
@@ -19,6 +21,14 @@ export const ADAPTERS: RegisteredAdapter[] = [
   {
     name: "fake without search or history",
     factory: () => createFakeAdapter({ search: false, history: false }),
+    lexical: false,
+  },
+  {
+    // Open-source Mem0 in-process: its own SQLite vector store in memory,
+    // `infer: false`, and the hashing fake as its embedding model, so no test
+    // reaches the network (CI sets ENGRAM_OFFLINE=1).
+    name: "mem0",
+    factory: () => createMem0Adapter({ embedder: createHashingEmbedder(), dbPath: ":memory:" }),
     lexical: false,
   },
 ];
