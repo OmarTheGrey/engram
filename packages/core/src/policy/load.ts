@@ -5,7 +5,7 @@
 // files under packages/core/policies/, never a memory store.
 import { readFileSync } from "node:fs";
 import {
-  type Document,
+  Document,
   isAlias,
   isMap,
   isPair,
@@ -190,9 +190,15 @@ function child(doc: Document, node: unknown, seg: string | number): unknown {
 
 function pairFor(node: unknown, key: string): Pair | undefined {
   if (!isMap(node)) return undefined;
-  return node.items.find(
-    (p) => isPair(p) && String(isScalar(p.key) ? p.key.value : p.key) === key,
-  ) as Pair | undefined;
+  return node.items.find((p) => isPair(p) && keyText(p.key) === key) as Pair | undefined;
+}
+
+/**
+ * A key as the schema sees it: a scalar's value, or a complex key (`? [a, b]`)
+ * as its YAML flow text, which is how the yaml package names it in toJS.
+ */
+function keyText(key: unknown): string {
+  return isScalar(key) ? String(key.value) : new Document(key).toString().trim();
 }
 
 function offsetOf(node: unknown): number {
