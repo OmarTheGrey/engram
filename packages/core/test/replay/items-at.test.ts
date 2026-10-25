@@ -7,9 +7,10 @@ import type { Db } from "../../src/db/db.ts";
 import { migrate } from "../../src/db/migrate.ts";
 import { openSqlite } from "../../src/db/sqlite.ts";
 import { appendEvent, currentItems, type EventInput } from "../../src/events.ts";
+import { itemByStoreRef } from "../../src/items.ts";
 import { itemsAt } from "../../src/replay.ts";
 import type { MemoryItem } from "../../src/schema.ts";
-import { arbEventInput, arbId, seedFor } from "../generators.ts";
+import { arbEventInput, arbId, STORE_REFS, seedFor } from "../generators.ts";
 
 const id = (n: number) => `01920000-0000-7000-8000-${String(n).padStart(12, "0")}`;
 
@@ -273,5 +274,46 @@ describe("itemsAt", () => {
       }),
       { numRuns: 300, seed: seedFor(NAME) },
     );
+  });
+
+  const REF_NAME =
+    "itemByStoreRef returns the latest active holder of each shared ref, for any event sequence";
+  test(REF_NAME, () => {
+    const sequences = fc
+      .uniqueArray(arbId, { minLength: 2, maxLength: 4 })
+      .chain((ids) => fc.array(arbEventInput(ids), { minLength: 1, maxLength: 25 }));
+    let shared = 0;
+    fc.assert(
+      fc.property(sequences, (events) => {
+        const db = openSqlite(":memory:");
+        migrate(db);
+        // The oracle, written from decision D1 without the projection: an
+        // item's seq is that of the last allowed event that changed it.
+        const lastSeq = new Map<string, number>();
+        events.forEach((e, seq) => {
+          appendEvent(db, { ...e, id: `${e.id.slice(0, 24)}${String(seq).padStart(12, "0")}` });
+          if (e.decision === "allow" && e.item_id) {
+            const changes = ["write", "update", "promote"].includes(e.op) && e.item;
+            const retires = ["retire", "evict"].includes(e.op) && lastSeq.has(e.item_id);
+            if (changes || retires) lastSeq.set(e.item_id, seq);
+          }
+          const now = itemsAt(db, seq);
+          for (const ref of STORE_REFS) {
+            const holders = now
+              .filter((i) => i.store_ref?.adapter === ref.adapter && i.store_ref.key === ref.key)
+              .sort((a, b) => (lastSeq.get(b.id) ?? -1) - (lastSeq.get(a.id) ?? -1));
+            if (holders.length > 1) shared++;
+            const expected = holders.find((i) => i.status !== "retired") ?? holders[0];
+            expect(itemByStoreRef(db, ref), `seq ${seq} ref ${ref.adapter}/${ref.key}`).toEqual(
+              expected,
+            );
+          }
+        });
+        db.close();
+      }),
+      { numRuns: 200, seed: seedFor(REF_NAME) },
+    );
+    // The generator must actually put several items under one ref.
+    expect(shared).toBeGreaterThan(20);
   });
 });
