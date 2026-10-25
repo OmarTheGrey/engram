@@ -51,7 +51,7 @@ make test-invariants           the four invariants against the real Plane, with 
 make api                       regenerate sdk/schema (JSON Schema) and research/engram_types (Python) from the Zod schema; later also OpenAPI and the clients
 make api-check                 make api, then fail if the generated files differ from what is committed
 make bench BENCH=gatemem       run one benchmark on its fixture subset offline: scripted model, committed cassettes (a miss is an error, never recorded into them), output in .engram/bench/<name>; gatemem only so far
-make run CONFIG=<file>         run a runner config: each (item, condition, seed) a pi SDK session, every model call through its cassettes; output in .engram/runs/<name>
+make run CONFIG=<file>         replay a runner config: each (item, condition, seed) a pi SDK session, every model call from its cassettes, a miss an error; output in .engram/runs/<name>
 make lint                      biome, tsc, ruff, mypy; CI runs the same
 make lint-docs                 log entry frontmatter, em dashes in prose, CLAUDE.md equals AGENTS.md
 make lint-docs PR=<dir>        the PR gate on a PR directory (body.md, files.txt); fixtures in fixtures/ci/
@@ -60,7 +60,7 @@ engram read --root <dir> --owner <id>   a memory folder through the plane, adopt
 make engram ARGS="<command> ..."   run the engram CLI from the repo (node packages/cli/src/main.ts)
 make test-e2e                  compose, doctor, CLI smoke, MCP handshakes
 make test-repro                every research script regenerates its result; hashes match MANIFEST.md
-make fixtures                  regenerate golden files; refuses without a message
+make fixtures                  regenerate golden files and record scripted cassettes afresh; refuses without a message
 make thesis                    consolidate docs/log into research/thesis/drafts/ (ROOT=, OUT= to run on fixtures/log/repo)
 pi                             work in this repo with the project extension loaded
 ```
@@ -75,7 +75,7 @@ If a command you need is not here, add it to the Makefile and to this list in th
 4. The plane never calls a model. Model-based lints and the distiller receive a `ModelCall` function injected at the boundary; inside pi it is built on pi-ai through the session's model runtime. `packages/core` has no import from pi-ai.
 5. Schema changes are one PR: edit `packages/core/src/schema.ts`, bump `schema_version`, add a migration, run `make api`, update fixtures. Nothing else goes in that PR.
 6. Every sampled model call takes a seed from the experiment config. No unseeded randomness anywhere under `packages/bench`, `packages/runner` or `research/`.
-7. Every model call in a run is cached, keyed on (benchmark item, condition, preset, store, model, seed). A re-run with the same config makes zero new calls.
+7. Every model call in a run is cached, keyed on (benchmark item, condition, preset, store, model, seed, prompt hash). A re-run with the same config makes zero new calls.
 8. Benchmarks are pinned in `packages/bench/PINS.md`. Never update a pin mid-experiment. Updating a pin is its own PR with the diff in results explained.
 9. No result is real unless `research/scripts/<name>.py` regenerates it from `research/configs/` into `research/results/`. Numbers typed by hand into a document do not exist.
 10. One task card per PR. Title is the card id and its goal.
