@@ -121,6 +121,60 @@
       "id": "01920000-0000-7000-8000-00000000000b",
       "scope": "team:research",
       "content": "A lone surrogate \ud800 survives, and a pair 🚀 too."
+    },
+    {
+      "label": "confidence 0",
+      "id": "01920000-0000-7000-8000-00000000000c",
+      "scope": "team:research",
+      "content": "The old wiki page on rollbacks is unverified.",
+      "confidence": 0,
+      "grants": []
+    },
+    {
+      "label": "confidence 1",
+      "id": "01920000-0000-7000-8000-00000000000d",
+      "scope": "team:research",
+      "content": "The release branch is called main.",
+      "confidence": 1,
+      "grants": []
+    },
+    {
+      "label": "a fourth version with a three-entry lineage in no sorted order",
+      "id": "01920000-0000-7000-8000-00000000000e",
+      "scope": "team:research",
+      "content": "Incident reviews happen within two days.",
+      "version": 4,
+      "lineage": [
+        "01920000-0000-7000-8000-0000000000f9",
+        "01920000-0000-7000-8000-0000000000f3",
+        "01920000-0000-7000-8000-0000000000f6"
+      ],
+      "grants": []
+    },
+    {
+      "label": "content with leading and trailing whitespace",
+      "id": "01920000-0000-7000-8000-00000000000f",
+      "scope": "team:research",
+      "content": "\n  \tIndented note after a blank line.  \n\t\n",
+      "grants": []
+    },
+    {
+      "label": "a role-scoped item",
+      "id": "01920000-0000-7000-8000-000000000010",
+      "scope": "role:oncall",
+      "content": "The on-call engineer owns the pager rotation.",
+      "grants": []
+    },
+    {
+      "label": "a retired episodic item",
+      "id": "01920000-0000-7000-8000-000000000011",
+      "class": "episodic",
+      "scope": "team:research",
+      "content": "The pager fired twice during the night shift on 21 October.",
+      "status": "retired",
+      "valid_to": null,
+      "ttl": null,
+      "grants": []
     }
   ],
   "cases": {
@@ -141,6 +195,18 @@
       "scopes": ["team:platform"],
       "expected_id": "01920000-0000-7000-8000-000000000002"
     },
+    "non_active": [
+      {
+        "query": "office closes at six",
+        "scopes": ["org"],
+        "expected_id": "01920000-0000-7000-8000-000000000004"
+      },
+      {
+        "query": "pager fired twice during the night shift",
+        "scopes": ["team:research"],
+        "expected_id": "01920000-0000-7000-8000-000000000011"
+      }
+    ],
     "lexical_recall": {
       "query": "deploy",
       "scopes": ["team:platform", "person:omar", "team:research"],

@@ -6,7 +6,7 @@
 // fixtures/stores/conformance-corpus.json.
 //
 // The cases are plain data (`CASES`), so `meta.test.ts` can run them on
-// deliberately broken adapters and require each to fail at least one.
+// deliberately broken adapters and require each to fail the cases it names.
 //
 // Every item an adapter returns, from read, list, search or history, is
 // compared whole with what was written (plus the store_ref the write
@@ -32,6 +32,7 @@ interface Corpus {
     list_scope: { scope: string; expected_ids: string[] };
     scope_filter: { query: string; scopes: string[] };
     unique_phrase: { query: string; scopes: string[]; expected_id: string };
+    non_active: { query: string; scopes: string[]; expected_id: string }[];
     lexical_recall: { query: string; scopes: string[]; expected_ids: string[] };
   };
 }
@@ -306,6 +307,22 @@ export const CASES: ConformanceCase[] = [
       const hits = (await adapter.search?.(query, scopes)) ?? [];
       expect(hits.map((h) => h.id)).toContain(expected_id);
       expectWritten(hits, written);
+    },
+  },
+  {
+    // Search is the store's recall; status is the plane's read filter, so a
+    // store that drops candidate or retired items hides them from the plane.
+    group: "search (when supported)",
+    name: "finds a candidate and a retired item, whatever their status",
+    needs: "search",
+    async run(adapter) {
+      const written = await writeCorpus(adapter);
+      for (const { query, scopes, expected_id } of CASES_DATA.non_active) {
+        expect(written.get(expected_id)?.status).not.toBe("active");
+        const hits = (await adapter.search?.(query, scopes)) ?? [];
+        expect(hits.map((h) => h.id)).toContain(expected_id);
+        expectWritten(hits, written);
+      }
     },
   },
   {
