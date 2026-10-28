@@ -22,6 +22,7 @@ Amendments made when deciding:
 Amendments made in the review fix pass, 2026-10-25:
 
 - Decision D1 (review finding R2-2 on PR #2): `store_ref` does not identify an item. Several versions of an item, each a new item id whose `lineage` names the version it supersedes, may live under one store_ref (Adapter.history), and a retired item keeps its ref. Migration 2's index on (store_adapter, store_key) is therefore not unique; it was edited in place because PR #2 was unmerged and nothing had been persisted. `itemByStoreRef` returns the latest active holder of the ref (highest seq among items not retired), else the latest holder, else nothing. The schema itself is unchanged.
+- Refinement of D1 in review round 2, 2026-10-28 (finding N1): the latest active holder is the newest version, not the most recently touched item. Among the holders not retired, a holder is superseded when another of them names it in its `lineage`, followed through every projected item; `itemByStoreRef` returns the holder no active holder supersedes, the highest seq breaking ties, and falls back to the highest seq among the active holders when a lineage cycle leaves none. Updating a superseded version in place (for example setting its `valid_to`, ADR 0005 option (a)) no longer makes it the holder. A retired holder's lineage supersedes nothing, and with no active holder the latest holder by seq is returned, as before.
 
 ## Alternatives considered
 

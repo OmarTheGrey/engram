@@ -127,8 +127,10 @@ describe("item lookup", () => {
 
   // Decision D1 of the review fix pass: a new version is a new item id under
   // the same ref (Adapter.history), and a retired item keeps its ref, so a ref
-  // may have several holders. itemByStoreRef returns the latest active holder
-  // (highest seq among items not retired), else the latest holder.
+  // may have several holders. itemByStoreRef returns the newest active
+  // version: an active holder that no other active holder's lineage
+  // supersedes, the highest seq breaking ties (review round 2, finding N1);
+  // else the latest holder.
   const K1 = { adapter: "fake", key: "k1" };
 
   test("several versions of an item live under one store_ref; the latest active one is returned", () => {
@@ -169,11 +171,59 @@ describe("item lookup", () => {
     expect(itemByStoreRef(db, K1)?.id).toBe(id(1));
   });
 
-  test("rewriting an item id in place makes it the latest holder again", () => {
+  test("updating a superseded version in place does not make it the holder (N1)", () => {
     put(db, item(1));
     put(db, item(2, { version: 2, lineage: [id(1)], store_ref: K1 }));
-    put(db, item(1, { content: "fact 1, corrected" }), "update");
-    expect(itemByStoreRef(db, K1)?.content).toBe("fact 1, corrected");
+    put(db, item(1, { valid_to: "2026-10-26T09:00:00Z" }), "update");
+    expect(itemById(db, id(1))?.valid_to).toBe("2026-10-26T09:00:00Z");
+    expect(itemByStoreRef(db, K1)?.id).toBe(id(2));
+  });
+
+  test("rewriting the newest version in place keeps it the holder, with its new content", () => {
+    put(db, item(1));
+    put(db, item(2, { version: 2, lineage: [id(1)], store_ref: K1 }));
+    put(
+      db,
+      item(2, { version: 2, lineage: [id(1)], store_ref: K1, content: "fact 2, corrected" }),
+      "update",
+    );
+    expect(itemByStoreRef(db, K1)?.content).toBe("fact 2, corrected");
+  });
+
+  test("supersession follows lineage through a version that names only its parent", () => {
+    put(db, item(1));
+    put(db, item(2, { version: 2, lineage: [id(1)], store_ref: K1 }));
+    put(db, item(3, { version: 3, lineage: [id(2)], store_ref: K1 }));
+    retire(db, id(2));
+    put(db, item(1, { content: "fact 1, touched" }), "update");
+    expect(itemByStoreRef(db, K1)?.id).toBe(id(3));
+  });
+
+  test("a retired version's lineage supersedes nothing", () => {
+    put(db, item(1));
+    put(db, item(4, { store_ref: K1 }));
+    put(db, item(2, { version: 2, lineage: [id(1)], store_ref: K1 }));
+    retire(db, id(2));
+    put(db, item(1, { content: "fact 1, touched" }), "update");
+    // Item 1 is superseded only by a retired version, so it competes with the
+    // unrelated item 4 on seq, and wins.
+    expect(itemByStoreRef(db, K1)?.id).toBe(id(1));
+  });
+
+  test("between active holders that do not supersede each other, the highest seq wins", () => {
+    put(db, item(2, { store_ref: K1 }));
+    put(db, item(1));
+    expect(itemByStoreRef(db, K1)?.id).toBe(id(1));
+    put(db, item(2, { store_ref: K1, content: "fact 2, touched" }), "update");
+    expect(itemByStoreRef(db, K1)?.id).toBe(id(2));
+  });
+
+  test("a lineage cycle among active holders falls back to the highest seq", () => {
+    put(db, item(1, { lineage: [id(2)] }));
+    put(db, item(2, { lineage: [id(1)], store_ref: K1 }));
+    expect(itemByStoreRef(db, K1)?.id).toBe(id(2));
+    put(db, item(1, { lineage: [id(2)], content: "fact 1, touched" }), "update");
+    expect(itemByStoreRef(db, K1)?.id).toBe(id(1));
   });
 
   test("the holder chosen under a shared ref survives a rebuild from the log", () => {
@@ -212,8 +262,9 @@ describe("item lookup", () => {
       MIGRATIONS.filter((m) => m.id === 1),
     );
     const v1 = item(1);
-    const v2 = item(2, { version: 2, lineage: [id(1)], store_ref: K1 });
-    // The newer version was written first in the log, so seq, not id, must decide.
+    const v2 = item(2, { store_ref: K1 });
+    // Neither supersedes the other and item 2 was written first in the log,
+    // so seq, not id, must decide.
     [v2, v1].forEach((it, s) => {
       fresh
         .prepare(
@@ -228,6 +279,55 @@ describe("item lookup", () => {
     expect(itemByStoreRef(fresh, K1)?.id).toBe(id(1));
     const index = fresh.prepare("PRAGMA index_list(items)").all();
     expect(index.find((i) => i.name === "items_store_ref")?.unique).toBe(0);
+    fresh.close();
+  });
+
+  // Review round 2, finding N3: the backfill must take, for each item, the seq
+  // of its last allowed event that changed it, over a history of several
+  // events, so that taking the first event, counting denials or counting
+  // reads each gives a different answer.
+  test("migration 2 backfills seq from each item's last allowed changing event", () => {
+    const fresh = openSqlite(":memory:");
+    migrate(
+      fresh,
+      MIGRATIONS.filter((m) => m.id === 1),
+    );
+    const a = item(1, { store_ref: K1 });
+    const b = item(2, { store_ref: K1 });
+    const c = item(3, { store_ref: K1, status: "retired" });
+    const history: [string, string, "allow" | "deny"][] = [
+      ["write", a.id, "allow"], // 0
+      ["write", b.id, "allow"], // 1
+      ["write", c.id, "allow"], // 2
+      ["update", a.id, "allow"], // 3: a's last allowed change
+      ["retire", c.id, "allow"], // 4: c's last allowed change
+      ["update", b.id, "deny"], // 5: a denial after b's last allow
+      ["read", b.id, "allow"], // 6: an allowed read changes nothing
+      ["update", c.id, "deny"], // 7
+    ];
+    history.forEach(([op, itemId, decision], s) => {
+      fresh
+        .prepare(
+          "INSERT INTO events (seq, id, op, item_id, actor, decision, body) VALUES (?, ?, ?, ?, 'agent:pi', ?, '{}')",
+        )
+        .run(s, id(9000 + s), op, itemId, decision);
+    });
+    for (const it of [a, b, c]) {
+      fresh
+        .prepare("INSERT INTO items (id, status, body) VALUES (?, ?, ?)")
+        .run(it.id, it.status, JSON.stringify(it));
+    }
+    expect(migrate(fresh)).toEqual([2]);
+    const seqs = Object.fromEntries(
+      fresh
+        .prepare("SELECT id, seq FROM items ORDER BY id")
+        .all()
+        .map((r) => [r.id, r.seq]),
+    );
+    expect(seqs).toEqual({ [a.id]: 3, [b.id]: 1, [c.id]: 4 });
+    // a, the active holder last changed, holds the ref: with the first event
+    // instead of the last, or with b's denial or read counted, b would.
+    expect(itemByStoreRef(fresh, K1)?.id).toBe(a.id);
     fresh.close();
   });
 });

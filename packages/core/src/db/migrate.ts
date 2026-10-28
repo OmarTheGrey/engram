@@ -37,7 +37,8 @@ export const MIGRATIONS: readonly Migration[] = [
     // under the ref (Adapter.history), and a retired item keeps its ref, so
     // the index is not unique (decision D1 of the review fix pass). `seq` is
     // the seq of the event that last changed the item; itemByStoreRef uses it
-    // to pick the latest holder. Rows with a null ref are items not yet stored.
+    // to break ties between holders that lineage does not order. Rows with a
+    // null ref are items not yet stored.
     up: `
       ALTER TABLE items ADD COLUMN store_adapter TEXT;
       ALTER TABLE items ADD COLUMN store_key TEXT;

@@ -19,6 +19,7 @@ Amendments made when deciding:
 Amendments made in the review fix pass, 2026-10-25:
 
 - Decision D1 (review finding R2-2 on PR #2): a new version is a new item id whose `lineage` names the version it supersedes, and the versions may share one store_ref, so the store_ref index of migration 2 is not unique (edited in place, nothing had been persisted). A retired version keeps its ref. Looking an item up by ref returns the latest active holder, else the latest holder. Rewriting the same item id is an in-place update of that one version (a projection upsert), not a new version; it must carry a version number not lower than the current one, which the write gate enforces from card E2.3 (PR #5, decision D4). This narrows the title's "never overwrite" to: a change of content that should keep history is a new version.
+- Refinement of D1 in review round 2, 2026-10-28 (finding N1, recorded in ADR 0002): looking an item up by ref returns the newest active version, the active holder no other active holder's lineage supersedes, so setting `valid_to` on a superseded version in place does not make it the holder again.
 
 ## Alternatives considered
 

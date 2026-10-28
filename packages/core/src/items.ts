@@ -19,20 +19,33 @@ export function itemById(db: Db, id: string): MemoryItem | undefined {
 }
 
 /**
- * The item holding `ref`: the latest active holder (highest seq among the
- * holders not retired, an item's seq being that of the event that last
- * changed it), else the latest holder whatever its status, else undefined.
- * Rewriting an item id in place makes it the latest holder again.
+ * The item holding `ref`: the newest active version, else the latest holder
+ * whatever its status, else undefined. Among the holders not retired, a
+ * holder is superseded when another of them names it in its lineage,
+ * followed through every projected item (so a version naming only its parent
+ * still supersedes the root); the newest version is the holder nobody active
+ * supersedes, the highest seq (that of the event that last changed an item)
+ * breaking ties. If a lineage cycle leaves no such holder, the highest seq
+ * among the active holders decides. Updating a superseded version in place
+ * does not make it the holder again (review round 2, finding N1, refining
+ * decision D1). A retired holder's lineage supersedes nothing.
  */
 export function itemByStoreRef(db: Db, ref: StoreRef): MemoryItem | undefined {
-  return parse(
-    db
-      .prepare(
-        `SELECT body FROM items WHERE store_adapter = ? AND store_key = ?
-         ORDER BY status = 'retired', seq DESC LIMIT 1`,
-      )
-      .get(ref.adapter, ref.key),
-  );
+  const holders = db
+    .prepare(
+      `SELECT body FROM items WHERE store_adapter = ? AND store_key = ?
+       ORDER BY status = 'retired', seq DESC`,
+    )
+    .all(ref.adapter, ref.key)
+    .map((row) => parse(row) as MemoryItem);
+  const active = holders.filter((h) => h.status !== "retired");
+  const superseded = new Set<string>();
+  for (const holder of active) {
+    const walk = lineage(db, holder.id);
+    for (const ancestor of walk.ancestors) superseded.add(ancestor.id);
+    for (const id of walk.missing) superseded.add(id);
+  }
+  return active.find((h) => !superseded.has(h.id)) ?? holders[0];
 }
 
 export interface LineageWalk {

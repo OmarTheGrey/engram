@@ -277,18 +277,43 @@ describe("itemsAt", () => {
   });
 
   const REF_NAME =
-    "itemByStoreRef returns the latest active holder of each shared ref, for any event sequence";
+    "itemByStoreRef returns the newest active version of each shared ref, for any event sequence";
   test(REF_NAME, () => {
-    const sequences = fc
-      .uniqueArray(arbId, { minLength: 2, maxLength: 4 })
-      .chain((ids) => fc.array(arbEventInput(ids), { minLength: 1, maxLength: 25 }));
+    // Each produced item names some of the ids before its own in the pool as
+    // the versions it supersedes (acyclic, so the newest version is defined;
+    // the cycle fallback has its own unit test), and seq and lineage then
+    // often disagree on which holder is latest. Every produced item is stored,
+    // under one of the pooled refs, and events producing an item are drawn
+    // three times as often, so that refs are shared often.
+    const sequences = fc.uniqueArray(arbId, { minLength: 2, maxLength: 4 }).chain((ids) =>
+      fc.array(
+        fc
+          .tuple(
+            fc.oneof(
+              { arbitrary: arbEventInput(ids), weight: 1 },
+              { arbitrary: arbEventInput(ids).filter((e) => e.item != null), weight: 3 },
+            ),
+            fc.subarray(ids),
+            fc.constantFrom(...STORE_REFS),
+          )
+          .map(([e, picked, ref]) => {
+            if (!e.item) return e;
+            const older = picked.filter((o) => ids.indexOf(o) < ids.indexOf(e.item_id ?? ""));
+            return { ...e, item: { ...e.item, lineage: older, store_ref: { ...ref } } };
+          }),
+        { minLength: 1, maxLength: 25 },
+      ),
+    );
     let shared = 0;
+    let lineageDecided = 0;
     fc.assert(
       fc.property(sequences, (events) => {
         const db = openSqlite(":memory:");
         migrate(db);
-        // The oracle, written from decision D1 without the projection: an
-        // item's seq is that of the last allowed event that changed it.
+        // The oracle, written from decision D1 and its round 2 refinement
+        // without the projection: an item's seq is that of the last allowed
+        // event that changed it; a holder is superseded when an active
+        // holder's lineage, followed through every projected item, names it.
         const lastSeq = new Map<string, number>();
         events.forEach((e, seq) => {
           appendEvent(db, { ...e, id: `${e.id.slice(0, 24)}${String(seq).padStart(12, "0")}` });
@@ -298,12 +323,30 @@ describe("itemsAt", () => {
             if (changes || retires) lastSeq.set(e.item_id, seq);
           }
           const now = itemsAt(db, seq);
+          const byId = new Map(now.map((i) => [i.id, i]));
+          const ancestors = (start: MemoryItem) => {
+            const seen = new Set<string>([start.id]);
+            const out = new Set<string>();
+            const queue = [...start.lineage];
+            while (queue.length > 0) {
+              const next = queue.shift() as string;
+              if (seen.has(next)) continue;
+              seen.add(next);
+              out.add(next);
+              queue.push(...(byId.get(next)?.lineage ?? []));
+            }
+            return out;
+          };
           for (const ref of STORE_REFS) {
             const holders = now
               .filter((i) => i.store_ref?.adapter === ref.adapter && i.store_ref.key === ref.key)
               .sort((a, b) => (lastSeq.get(b.id) ?? -1) - (lastSeq.get(a.id) ?? -1));
             if (holders.length > 1) shared++;
-            const expected = holders.find((i) => i.status !== "retired") ?? holders[0];
+            const active = holders.filter((i) => i.status !== "retired");
+            const superseded = new Set(active.flatMap((i) => [...ancestors(i)]));
+            const newest = active.filter((i) => !superseded.has(i.id));
+            const expected = newest[0] ?? active[0] ?? holders[0];
+            if (expected !== undefined && expected !== (active[0] ?? holders[0])) lineageDecided++;
             expect(itemByStoreRef(db, ref), `seq ${seq} ref ${ref.adapter}/${ref.key}`).toEqual(
               expected,
             );
@@ -313,7 +356,9 @@ describe("itemsAt", () => {
       }),
       { numRuns: 200, seed: seedFor(REF_NAME) },
     );
-    // The generator must actually put several items under one ref.
+    // The generator must actually put several items under one ref, and
+    // lineage must overrule seq often enough to test the refinement.
     expect(shared).toBeGreaterThan(20);
+    expect(lineageDecided).toBeGreaterThan(20);
   });
 });
