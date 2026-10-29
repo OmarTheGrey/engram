@@ -37,7 +37,8 @@ async function launch(): Promise<{ browser: Browser } | { skip: string }> {
 
 const launched = await launch();
 const skip = "skip" in launched ? launched.skip : undefined;
-if (skip) console.warn(`[e2e] inspector skipped: ${skip}`);
+// Written to stderr directly: vitest drops console output of a file whose tests all skip.
+if (skip) process.stderr.write(`[e2e] inspector skipped: ${skip}\n`);
 
 describe.skipIf(skip !== undefined)("the inspector on the fixture workspace", () => {
   const browser = (launched as { browser: Browser }).browser;
