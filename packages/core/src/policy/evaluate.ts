@@ -128,8 +128,8 @@ export function evaluateWrite(
   policy: Policy,
   actor: Actor,
   item: MemoryItem,
-  existing?: MemoryItem,
-  retired: ReadonlyMap<string, string> = new Map(),
+  existing: MemoryItem | undefined,
+  retired: ReadonlyMap<string, string>,
 ): WriteDecision {
   const level = scopeLevel(item.scope);
   const policy_id = `${policy.id}/write/${level}`;

@@ -64,6 +64,7 @@ describe("adopting a Claude Code memory folder", () => {
       retired: 0,
       denials: [],
       retirements: [],
+      evictions: [],
     });
 
     const { items, filtered } = await createPlane(deps).read(dana, { at: AT });

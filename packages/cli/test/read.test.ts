@@ -220,6 +220,29 @@ describe("engram read", () => {
     expect(retires.every((e) => e.actor === "person:dana" && e.decision === "allow")).toBe(true);
   });
 
+  it("prints the evictions adoption causes (review finding P4-10)", async () => {
+    const dir = await tempDir();
+    const db = join(dir, "engram.db");
+    const medium = loadPreset("medium");
+    const policy = join(dir, "one-slot.yaml");
+    await writeFile(
+      policy,
+      JSON.stringify({
+        ...medium,
+        retention: medium.retention.map((r) =>
+          r.scope === "person" ? { ...r, budget: 1, eviction: "recency" } : r,
+        ),
+      }),
+    );
+    const { out } = await cli(readArgs(db, FIXTURE, "--policy", policy));
+    expect(out).toMatch(/^ {2}evicted \S+ during adoption: /m);
+    const json = JSON.parse(
+      (await cli(readArgs(join(dir, "b.db"), FIXTURE, "--policy", policy, "--json"))).out,
+    );
+    expect(json.evictions.length).toBeGreaterThan(0);
+    expect(json.evictions.every((e: { op: string }) => e.op === "evict")).toBe(true);
+  });
+
   it("refuses a read without a store root", async () => {
     const { code, err } = await cli(["read", "--owner", "dana"]);
     expect(code).toBe(2);

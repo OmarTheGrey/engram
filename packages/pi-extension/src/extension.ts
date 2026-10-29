@@ -254,11 +254,19 @@ export function createEngramExtension(options: EngramExtensionOptions): Extensio
             at,
             modelOf(ctx),
           );
-          const { item: stored, event } = await planeCall(() => plane.write(agent, item, at));
+          const written = await planeCall(() => plane.write(agent, item, at));
+          const { event } = written;
+          let stored = written.item;
           // Retention after an allowed write (ADR 0025): the write already ran
           // the budget check of its class; the sweep also retires what has
-          // expired in the scope. Every retirement is mirrored as an event.
-          if (stored) await planeCall(() => plane.retain(actor, stored.scope, at));
+          // expired in the scope. Every retirement is mirrored as an event,
+          // and the result reports the item as the sweep left it (P4-1).
+          if (stored) {
+            const { scope } = stored;
+            const swept = await planeCall(() => plane.retain(actor, scope, at));
+            if ([...swept.expired, ...swept.evicted].includes(stored.id))
+              stored = { ...stored, status: "retired" };
+          }
           const details: WriteDetails = {
             event_id: event.id,
             item_id: stored?.id ?? null,

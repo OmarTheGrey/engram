@@ -141,7 +141,7 @@ export async function readCommand(args: string[], io: Io): Promise<number> {
     const rows = result.items.map((item, i) => ({ item, explanation: result.explanations[i] }));
 
     if (values.json) {
-      const { denials: _d, retirements: _r, ...counts } = imported;
+      const { denials: _d, retirements: _r, evictions: _e, ...counts } = imported;
       io.out(
         `${JSON.stringify(
           {
@@ -164,6 +164,13 @@ export async function readCommand(args: string[], io: Io): Promise<number> {
             imported: counts,
             denials: imported.denials,
             retirements: imported.retirements,
+            evictions: imported.evictions.map((e) => ({
+              op: e.op,
+              decision: e.decision,
+              item_id: e.item_id,
+              reason: e.reason,
+              policy_id: e.policy_id,
+            })),
             returned: result.items.length,
             filtered: result.filtered,
             reason: result.event.reason,
@@ -188,6 +195,10 @@ export async function readCommand(args: string[], io: Io): Promise<number> {
         `${imported.allowed} allowed, ${imported.denied} denied, ${imported.unchanged} already in the log`,
       ...imported.denials.map((d) => `  denied ${d.item_id}: ${d.reason} (${d.policy_id})`),
       ...imported.retirements.map((r) => `  retired ${r.item_id}: ${r.reason}`),
+      ...imported.evictions.map(
+        (e) =>
+          `  ${e.decision === "ask" ? "asked" : "evicted"} ${e.item_id ?? "(no item)"} during adoption: ${e.reason} (${e.policy_id})`,
+      ),
       `${plural(result.items.length, "item")} returned, ${result.filtered} filtered`,
       `  ${result.event.reason}`,
     ];

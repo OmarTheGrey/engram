@@ -9,6 +9,7 @@ import {
   pastTtl,
   patternCovers,
   readable,
+  sameContent,
   writeForbidden,
 } from "../property/oracle.ts";
 
@@ -173,5 +174,24 @@ describe("budgetVictims", () => {
     expect(budgetVictims("utility", 1, its, changed, reads)).toEqual(["id-2", "id-3"]);
     expect(budgetVictims("manual", 1, its, changed, reads)).toBe("ask");
     expect(budgetVictims("manual", 3, its, changed, reads)).toEqual([]);
+  });
+
+  test("never picks the protected item, the write that just landed", () => {
+    expect(budgetVictims("recency", 2, its, changed, reads, "id-1")).toEqual(["id-2"]);
+    expect(budgetVictims("utility", 2, its, changed, reads, "id-2")).toEqual(["id-3"]);
+  });
+});
+
+describe("sameContent", () => {
+  test("reads text as words, ignoring case, spacing and invisible format characters", () => {
+    expect(sameContent("Omar​  likes TEA\n", "omar likes tea")).toBe(true);
+    expect(sameContent("tea­", "tea")).toBe(true);
+    expect(sameContent("omar likes tea", "omar likes coffee")).toBe(false);
+  });
+
+  test("objects key by key, arrays in order, and never equal text", () => {
+    expect(sameContent({ b: "X", a: [1, "y"] }, { a: [1, "Y"], b: "x" })).toBe(true);
+    expect(sameContent({ a: [1, 2] }, { a: [2, 1] })).toBe(false);
+    expect(sameContent('{"a":1}', { a: 1 })).toBe(false);
   });
 });

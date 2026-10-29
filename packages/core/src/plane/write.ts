@@ -45,14 +45,24 @@ const validOrNull = (value: unknown, key: string, schema: typeof Id | typeof Sco
 /**
  * The normalised content hash of every retired item in `scope`, mapped to
  * that item's id (the lowest id when several share it): what the
- * retired-content rule compares a write against (ADR 0025).
+ * retired-content rule compares a write against (ADR 0025). Only an item an
+ * allowed retire or evict event retired counts: one written with status
+ * `retired` was retired by nobody, and counting it would let any member
+ * plant a block on content (review finding P4-3; ADR 0010: items are
+ * retired by event).
  */
 export function retiredContent(db: Db, scope: string): Map<string, string> {
   const out = new Map<string, string>();
   const rows = db.prepare("SELECT body FROM items WHERE status = 'retired' ORDER BY id").all();
+  const lastChange = db.prepare(
+    `SELECT op FROM events WHERE item_id = ? AND decision = 'allow'
+     AND op IN ('write', 'update', 'promote', 'retire', 'evict') ORDER BY seq DESC LIMIT 1`,
+  );
   for (const row of rows) {
     const it = JSON.parse(String(row.body)) as MemoryItem;
     if (it.scope !== scope) continue;
+    const op = lastChange.get(it.id)?.op;
+    if (op !== "retire" && op !== "evict") continue;
     const hash = contentHash(it.content);
     if (!out.has(hash)) out.set(hash, it.id);
   }
@@ -253,8 +263,10 @@ async function decideAndWrite(
     throw e;
   }
   // Still in this write's queue slot: no other write lands in between.
-  const retention = enforceBudget(deps, actor, stored.scope, stored.class, at);
-  return { item: stored, event, retention };
+  // The item just written is never its own victim (review finding P4-1);
+  // the result is the item as it stands after the slot all the same.
+  const retention = enforceBudget(deps, actor, stored.scope, stored.class, at, stored.id);
+  return { item: itemById(db, stored.id) ?? stored, event, retention };
 }
 
 /**

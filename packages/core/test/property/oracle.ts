@@ -15,10 +15,9 @@
 // Retention (card E2.4, ADR 0025) adds three readings: an item past its ttl
 // is not readable (`pastTtl`, judged as a duration rather than by adding the
 // ttl as the evaluator does), a model, compaction or tool write may not
-// restate retired content in its scope (compared through core's one content
-// hash helper, like time through its one timestamp helper), and which items
+// restate content an event retired in its scope (compared by the oracle's own
+// normal form, `sameContent`, not core's hash: finding P4-9), and which items
 // a budget overage evicts (`budgetVictims`).
-import { contentHash } from "../../src/content-hash.ts";
 import type { Actor } from "../../src/plane.ts";
 import type { Grant, MemoryItem, Policy } from "../../src/schema.ts";
 import { compareTimestamps } from "../../src/time.ts";
@@ -106,14 +105,14 @@ export const effectiveKind = (actor: Actor, item: MemoryItem) =>
  * 0007): ADR 0004 lets it leave only through a gate pass, a promotion, which
  * no write is, and no policy field lifts the rule, so no policy allows it.
  * A model, compaction or tool write may not restate the content of an item
- * retired in the same scope (ADR 0025); `projected` is the projection the
- * write meets, and only its retired items count.
+ * that an allowed retire or evict event retired in the same scope (ADR 0025,
+ * review finding P4-3); `retiredByEvent` lists those items.
  */
 export function writeForbidden(
   policy: Policy,
   actor: Actor,
   item: MemoryItem,
-  projected: readonly MemoryItem[] = [],
+  retiredByEvent: readonly MemoryItem[] = [],
 ): boolean {
   if (!actor.memberships.some((m) => m === item.scope)) return true;
   const kind = effectiveKind(actor, item);
@@ -121,11 +120,9 @@ export function writeForbidden(
   const relearns = untrusted || kind === "tool";
   if (
     relearns &&
-    projected.some(
+    retiredByEvent.some(
       (p) =>
-        p.status === "retired" &&
-        p.scope === item.scope &&
-        contentHash(p.content) === contentHash(item.content),
+        p.status === "retired" && p.scope === item.scope && sameContent(p.content, item.content),
     )
   )
     return true;
@@ -138,13 +135,53 @@ export function writeForbidden(
 }
 
 /**
+ * Do two contents read the same? Written apart from core's content-hash.ts:
+ * text code point by code point, dropping format characters (category Cf)
+ * and U+180E after NFKC, lower case, words joined by one space; objects key
+ * by key in sorted order, arrays in order, every string read as text; and
+ * text never equals an object.
+ */
+export function sameContent(a: unknown, b: unknown): boolean {
+  const text = (s: string) =>
+    [...s.normalize("NFKC")]
+      .filter((ch) => ch !== "\u180E" && !/^\p{Cf}$/u.test(ch))
+      .join("")
+      .toLowerCase()
+      .split(/\s+/)
+      .filter((w) => w !== "")
+      .join(" ");
+  if (typeof a === "string" || typeof b === "string")
+    return typeof a === "string" && typeof b === "string" && text(a) === text(b);
+  if (Array.isArray(a) || Array.isArray(b))
+    return (
+      Array.isArray(a) &&
+      Array.isArray(b) &&
+      a.length === b.length &&
+      a.every((x, i) => sameContent(x, b[i]))
+    );
+  if (a && b && typeof a === "object" && typeof b === "object") {
+    const ka = Object.keys(a).sort();
+    const kb = Object.keys(b).sort();
+    return (
+      ka.join("\u0000") === kb.join("\u0000") &&
+      ka.every((k) =>
+        sameContent((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k]),
+      )
+    );
+  }
+  return a === b;
+}
+
+/**
  * Invariant 5: what a budget check must do to `active`, the active items of
  * one scope and class: nothing at or under `budget`; over it, `ask` for a
  * manual rule, else the ids to evict, worst first, chosen one at a time:
  * for recency the item changed least recently (`lastChanged`, the seq of
  * its last changing event, -1 when unknown), for utility the item fewest
  * reads returned (`reads`), then the least recently changed; the lower id
- * breaks what is left.
+ * breaks what is left. `protect`, the item a write just landed, counts but
+ * is never chosen (review finding P4-1). The caller leaves items past their
+ * ttl out of `active` (P4-2).
  */
 export function budgetVictims(
   eviction: Policy["retention"][number]["eviction"],
@@ -152,6 +189,7 @@ export function budgetVictims(
   active: readonly MemoryItem[],
   lastChanged: ReadonlyMap<string, number>,
   reads: ReadonlyMap<string, number>,
+  protect?: string,
 ): string[] | "ask" {
   if (active.length <= budget) return [];
   if (eviction === "manual") return "ask";
@@ -165,9 +203,11 @@ export function budgetVictims(
       if ((ka[k] as number) !== (kb[k] as number)) return (ka[k] as number) < (kb[k] as number);
     return a.id < b.id;
   };
-  const left = [...active];
+  // The item a write just landed is never its own check's victim (P4-1).
+  const left = active.filter((i) => i.id !== protect);
+  let over = active.length - budget;
   const victims: string[] = [];
-  while (left.length > budget) {
+  while (over-- > 0) {
     let pick = 0;
     for (let j = 1; j < left.length; j++)
       if (worse(left[j] as MemoryItem, left[pick] as MemoryItem)) pick = j;

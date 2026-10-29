@@ -9,6 +9,7 @@
 //   <policy id>/retention/<level>/<class>   the policy's retention rule for that level and class
 //   engram/retention/item-ttl               the item's own ttl, when tighter than the rule's
 //   engram/retention/membership             the sweep's actor is not a member of the scope
+import type { Actor } from "../actor.ts";
 import type { MemoryItem, Policy, ScopeLevel } from "../schema.ts";
 import { addSeconds, compareTimestamps } from "../time.ts";
 
@@ -95,21 +96,49 @@ export function isExpired(policy: Policy, item: MemoryItem, at: string): boolean
   return expiry !== null && compareTimestamps(expiry.at, at) <= 0;
 }
 
+/**
+ * May `actor`'s sweep retire items of `scope` by ttl? Ttl retirement reads
+ * the caller's clock and nothing reinstates it yet (ADR 0025, decision 6), so
+ * one actor with a skewed clock must not retire what others share (review
+ * finding P4-6). In the actor's own person scope its own clock decides; in
+ * any other scope only a user-sourced actor, a person's explicit act,
+ * retires by ttl. Reads exclude expired items whoever sweeps.
+ */
+export function mayRetireByTtl(actor: Pick<Actor, "id" | "source">, scope: string): boolean {
+  return scope === actor.id || actor.source === "user";
+}
+
 const byId = (a: MemoryItem, b: MemoryItem) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 
 export interface RetentionOptions {
-  /** Retire expired items first. Default true; the write path's budget check leaves it out. */
+  /**
+   * Retire expired items first. Default true. Without it (the write path's
+   * budget check, and a sweep of a shared scope by an actor who is not
+   * user-sourced) expired items are not retired, but they still hold no
+   * budget slot: a read already excludes them (review finding P4-2).
+   */
   expiry?: boolean;
+  /**
+   * An item never chosen as a victim: the write that just landed, so a full
+   * utility scope does not evict every new write (review finding P4-1). It
+   * still counts toward the budget.
+   */
+  protect?: string;
+  /**
+   * Reasons name no item id, seq, read count or item count: the actor cannot
+   * read the scope (review finding P4-4, as finding N3 for write denials).
+   */
+  redact?: boolean;
 }
 
 /**
  * The retirements a sweep of `scope` makes at `at`, in order, class by class:
  * first every active or candidate item past its ttl (op `retire`), then, if
- * the active items left exceed the rule's budget, the overage (op `evict`)
- * in the rule's order. `recency` evicts the items whose last change is
- * oldest; `utility` the items fewest reads returned, ties broken by recency;
- * `manual` evicts nothing and asks once, naming the overage. Ties left fall
- * to the item id. Items outside `scope` are ignored.
+ * the active items not past their ttl exceed the rule's budget, the overage
+ * (op `evict`) in the rule's order. `recency` evicts the items whose last
+ * change is oldest; `utility` the items fewest reads returned, ties broken by
+ * recency; `manual` evicts nothing and asks once, naming the overage. Ties
+ * left fall to the item id. Items outside `scope` are ignored.
  */
 export function evaluateRetention(
   policy: Policy,
@@ -121,42 +150,47 @@ export function evaluateRetention(
 ): Retirement[] {
   const out: Retirement[] = [];
   const level = levelOf(scope);
+  const redact = options.redact === true;
   const changed = (i: MemoryItem) => usage.lastChanged.get(i.id) ?? -1;
   const reads = (i: MemoryItem) => usage.reads.get(i.id) ?? 0;
   for (const cls of CLASS_ORDER) {
     const own = items.filter((i) => i.scope === scope && i.class === cls).sort(byId);
-    let active = own.filter((i) => i.status === "active");
+    // Items past their ttl hold no slot, retired here or not (P4-2).
+    const active = own.filter((i) => i.status === "active" && !isExpired(policy, i, at));
     if (options.expiry !== false) {
-      const expired = new Set<string>();
       for (const item of own) {
         if (item.status === "retired") continue;
         const expiry = itemExpiry(policy, item);
         if (expiry === null || compareTimestamps(expiry.at, at) > 0) continue;
-        expired.add(item.id);
+        const source =
+          expiry.policy_id === ITEM_TTL_ID ? "the item's own ttl" : "the retention rule";
         out.push({
           op: "retire",
           decision: "allow",
           item_id: item.id,
           class: cls,
-          reason: `item ${item.id} expired at ${expiry.at} (valid_from ${item.valid_from} plus ttl ${expiry.ttl}s, from ${expiry.policy_id === ITEM_TTL_ID ? "the item's own ttl" : "the retention rule"}); retired, kept in the log and the store`,
+          reason: redact
+            ? `an item in ${scope} passed its ttl (from ${source}); retired, kept in the log and the store`
+            : `item ${item.id} expired at ${expiry.at} (valid_from ${item.valid_from} plus ttl ${expiry.ttl}s, from ${source}); retired, kept in the log and the store`,
           policy_id: expiry.policy_id,
         });
       }
-      active = active.filter((i) => !expired.has(i.id));
     }
 
     const rule = retentionRule(policy, scope, cls);
     if (!rule || rule.budget === null || active.length <= rule.budget) continue;
     const over = active.length - rule.budget;
     const policy_id = retentionRuleId(policy, level, cls);
-    const held = `scope ${scope} holds ${active.length} active ${cls} items, budget ${rule.budget}`;
+    const held = redact
+      ? `scope ${scope} is over its ${cls} budget`
+      : `scope ${scope} holds ${active.length} active ${cls} items, budget ${rule.budget}`;
     if (rule.eviction === "manual") {
       out.push({
         op: "evict",
         decision: "ask",
         item_id: null,
         class: cls,
-        reason: `${held}: ${over} over; eviction is manual, so nothing is evicted and a person decides`,
+        reason: `${held}${redact ? "" : `: ${over} over`}; eviction is manual, so nothing is evicted and a person decides`,
         policy_id,
       });
       continue;
@@ -166,7 +200,8 @@ export function evaluateRetention(
       rule.eviction === "recency"
         ? byRecency
         : (a: MemoryItem, b: MemoryItem) => reads(a) - reads(b) || byRecency(a, b);
-    for (const victim of [...active].sort(order).slice(0, over)) {
+    const candidates = active.filter((i) => i.id !== options.protect);
+    for (const victim of candidates.sort(order).slice(0, over)) {
       const why =
         rule.eviction === "recency"
           ? `evicted the oldest by last change (seq ${changed(victim)})`
@@ -176,7 +211,9 @@ export function evaluateRetention(
         decision: "allow",
         item_id: victim.id,
         class: cls,
-        reason: `${held}; ${why}: item ${victim.id}; retired, kept in the log and the store`,
+        reason: redact
+          ? `${held}; an item was evicted by ${rule.eviction}; retired, kept in the log and the store`
+          : `${held}; ${why}: item ${victim.id}; retired, kept in the log and the store`,
         policy_id,
       });
     }

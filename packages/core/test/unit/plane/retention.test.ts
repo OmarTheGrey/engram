@@ -235,8 +235,8 @@ describe("Plane.retain", () => {
 
   test("runs in the write queue: a retain called during a write sees that write", async () => {
     const { plane, adapter } = fresh(policy([budget(1, "recency")]));
-    // Item 1 is past its own ttl: a sweep that ran before the write would
-    // retire it, and the write would then find nothing over budget.
+    // Item 1 is past its own ttl, so it holds no budget slot (P4-2): the
+    // queue shows in the order of the write and the sweep's retirement.
     await plane.write(user, mine(1, { ttl: 60 }), AT);
     // A slow store: the second write is still in the store when retain is called.
     let release = () => {};
@@ -251,11 +251,12 @@ describe("Plane.retain", () => {
     const retaining = plane.retain(omar, "person:omar", AT);
     release();
     const [written, report] = await Promise.all([writing, retaining]);
-    // The write's own budget check evicted item 1; retain, queued after it, finds nothing.
-    expect(written.retention.map((e) => e.item_id)).toEqual([id(1)]);
-    expect(report.events).toEqual([]);
+    // Retain, queued after the write, sweeps after it: a sweep outside the
+    // queue would retire item 1 before the slow write lands.
+    expect(written.retention).toEqual([]);
+    expect(report.expired).toEqual([id(1)]);
     const ops = plane.events().map((e) => e.op);
-    expect(ops.slice(-2)).toEqual(["write", "evict"]);
+    expect(ops.slice(-2)).toEqual(["write", "retire"]);
   });
 });
 

@@ -22,6 +22,15 @@ describe("normaliseContent", () => {
     expect(normaliseContent({ a: [1, 2] })).not.toBe(normaliseContent({ a: [2, 1] }));
   });
 
+  test("format characters that render as nothing are dropped (finding P4-7)", () => {
+    const plain = normaliseContent("omar likes tea");
+    expect(normaliseContent("omar​ likes tea")).toBe(plain);
+    expect(normaliseContent("omar li­kes tea")).toBe(plain);
+    expect(normaliseContent("omar likes᠎ tea")).toBe(plain);
+    expect(normaliseContent("﻿omar likes⁠ tea")).toBe(plain);
+    expect(normaliseContent({ t: "te​a" })).toBe(normaliseContent({ t: "tea" }));
+  });
+
   test("text never collides with structured content that prints the same", () => {
     expect(normaliseContent('{"a":1}')).not.toBe(normaliseContent({ a: 1 }));
   });

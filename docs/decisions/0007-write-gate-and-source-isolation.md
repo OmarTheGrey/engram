@@ -42,6 +42,8 @@ Amendments made when implementing card E2.4, 2026-10-29 (ADR 0025; pending the l
 - The write queue of finding N2 is its own module, `inWriteQueue(db, task)` in packages/core/src/plane/queue.ts, shared by every Plane call that changes items: `Plane.write` and `Plane.retain` now, `Plane.promote` (card E2.5) next. After a landing write, its budget check (ADR 0025) runs in the same queue slot, so no other write or sweep interleaves between the write and its evictions.
 - The gate gains a check after the confidence floor: a `model`, `compaction` or `tool` write whose normalised content hash equals that of an item retired in its scope is denied with `engram/write/retired-content` (ADR 0025, decision 5). `Plane.checkWrite` gives the same decision.
 
+- Review fix pass of PR 4 (findings P4-3 and P4-8, and the review's note on adoption): a call to `inWriteQueue` from inside a task on the same db rejects with `NestedWriteQueueError` instead of waiting for itself and stalling the log's queue; inside a task the in-slot primitives are `enforceBudget` and `appendEvent`. Adoption's retractions are appended inside the write queue, reading the projection again there. The retired-content check counts only items an allowed retire or evict event retired, never one written with status `retired`.
+
 ## Alternatives considered
 
 (a) Deterministic rules only: source kind, scope, class, provenance presence, hash, size, and a per-scope budget. (b) Add a model-based classifier at write time.
