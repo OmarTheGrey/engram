@@ -32,31 +32,24 @@
 //   and delete holds the lock file `.engram.lock` in the root, and temporary
 //   files have unique names.
 //
-// The lock file holds its holder's pid, host name, a per-instance token and
-// the wall-clock time it was taken (JSON). The adapter has no injected clock;
-// that time is a fact of store I/O, read by other writers, never a policy
-// input. A waiting writer breaks the lock when it is stale: its host is this
-// machine and its pid is not alive (a crashed writer), or it is older than
-// LOCK_STALE_MS. A lock with no readable holder (a writer that stopped between
-// creating and filling it) is judged by its file time. Otherwise the writer
-// waits up to `lockWaitMs` (ten seconds by default) by the wall clock, then
-// refuses, naming the holder. Breaking is serialised through a second file,
-// `.engram.lock.break`, so two waiters never remove each other's fresh lock;
-// a holder removes the lock only while it still holds its own token. Tests
-// replace the clock and add pause points through `lockSeams` (test seams
-// only; the defaults are the wall clock and no-ops).
+// The lock (pid, host, token and time of its holder; stale when its pid is
+// dead on this machine or it is older than LOCK_STALE_MS) is shared with the
+// Letta adapter and documented in ../lock.ts.
 //
 // Engram's own index lines separate the link from the hook with " - "
 // (repository content avoids the em dash). Lines Claude Code wrote, which
 // may use an em dash, are left exactly as they are.
-import { createHash, randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 import type { Dirent } from "node:fs";
-import { lstat, mkdir, open, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
-import { hostname } from "node:os";
+import { lstat, mkdir, open, readdir, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { type MemoryItem, MemoryItem as MemoryItemSchema, Scope } from "@engram/core";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import { type Adapter, ForeignRefError, type StoreRef } from "../contract.ts";
+import { atomicWrite, isMissing, isRecord } from "../fs-safe.ts";
+import { createStoreLock, LOCK_STALE_MS, LOCK_WAIT_MS, type LockSeams } from "../lock.ts";
+
+export { LOCK_STALE_MS };
 
 export interface FilesAdapterOptions {
   /** The memory folder, for example `~/.claude/projects/<project>/memory`. */
@@ -81,14 +74,7 @@ export interface FilesAdapterOptions {
 }
 
 /** See `FilesAdapterOptions.lockSeams`. */
-export interface FilesLockSeams {
-  /** Milliseconds since the epoch for lock times and ages. Default `Date.now`. */
-  now?: () => number;
-  /** Called after a waiter judged the lock text stale and before it tries to break it. */
-  beforeBreak?: (lockText: string) => Promise<void>;
-  /** Called once this instance holds the lock, before the write or delete runs. */
-  afterAcquire?: () => Promise<void>;
-}
+export type FilesLockSeams = LockSeams;
 
 /** A folder entry that list or search skipped, and why. */
 export interface FileDiagnostic {
@@ -123,29 +109,12 @@ export class ReadOnlyItemError extends Error {
 
 const INDEX = "MEMORY.md";
 const LOCK = ".engram.lock";
-const LOCK_BREAK = ".engram.lock.break";
-/** Default wait for a live lock, by the wall clock. */
-const LOCK_WAIT_MS = 10_000;
-/**
- * A lock older than this is stale whoever holds it. A live holder keeps the
- * lock for one write or delete: a directory listing, a read of one item file
- * and of MEMORY.md, and two atomic writes whose renames retry at most five
- * times over 300 ms. That takes milliseconds on a local disk and well under a
- * second on a slow share, so a minute leaves two orders of magnitude for a
- * live writer, while a writer that crashed on another machine (whose pid this
- * machine cannot check) blocks the folder for one minute at most.
- */
-export const LOCK_STALE_MS = 60_000;
-const BUSY = ["EEXIST", "EPERM", "EACCES", "EBUSY"];
 const NOT_REGULAR =
   "is not a regular file inside the root; symlinks, directories and devices are never followed";
 const HARD_LINKED =
   "is a hard link (the file has more than one name, maybe outside the root) and is never read or replaced";
 const CLAUDE_TYPES = ["user", "feedback", "project", "reference"] as const;
 type ContentFormat = "text" | "json" | "skill";
-
-/** Unique within the process; the pid separates processes. */
-let tempCounter = 0;
 
 /**
  * The id of an imported file: a UUIDv7 derived from the file key alone, so it
@@ -191,9 +160,6 @@ function splitFrontmatter(text: string): { front: string | undefined; body: stri
     body: text.slice(end.index + end[0].length),
   };
 }
-
-const isRecord = (v: unknown): v is Record<string, unknown> =>
-  typeof v === "object" && v !== null && !Array.isArray(v);
 
 const textOf = (content: MemoryItem["content"]) =>
   typeof content === "string"
@@ -258,60 +224,11 @@ function serialise(item: MemoryItem): string {
   return `---\n${front}---\n${body}`;
 }
 
-const codeOf = (e: unknown) => (e as NodeJS.ErrnoException).code;
-const isMissing = (e: unknown) => codeOf(e) === "ENOENT";
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-/** Temp file with a unique name, then rename, retried briefly on the transient locks Windows scanners take. */
-async function atomicWrite(path: string, dir: string, base: string, data: string | Buffer) {
-  const tmp = join(dir, `.${base}.${process.pid}.${++tempCounter}.engram-tmp`);
-  await writeFile(tmp, data);
-  for (let attempt = 0; ; attempt++) {
-    try {
-      await rename(tmp, path);
-      return;
-    } catch (e) {
-      const code = codeOf(e);
-      if (attempt >= 5 || !(code === "EPERM" || code === "EACCES" || code === "EBUSY")) {
-        await rm(tmp, { force: true });
-        throw e;
-      }
-      await sleep(20 * (attempt + 1));
-    }
-  }
-}
-
 interface Loaded {
   item: MemoryItem;
   engram: boolean;
   /** The file's bytes, to restore them if a later step of a write or delete fails. */
   bytes: Buffer;
-}
-
-/** What a lock file says about its holder. */
-interface LockHolder {
-  pid: number;
-  host: string;
-  token: string;
-  started: string;
-}
-
-const isLockHolder = (v: unknown): v is LockHolder =>
-  isRecord(v) &&
-  Number.isInteger(v.pid) &&
-  typeof v.host === "string" &&
-  typeof v.token === "string" &&
-  typeof v.started === "string" &&
-  !Number.isNaN(Date.parse(v.started));
-
-/** Whether a process with this pid runs on this machine (EPERM: it runs, as another user). */
-function isAlive(pid: number): boolean {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (e) {
-    return codeOf(e) === "EPERM";
-  }
 }
 
 export function createFilesAdapter(options: FilesAdapterOptions): FilesAdapter {
@@ -336,142 +253,18 @@ export function createFilesAdapter(options: FilesAdapterOptions): FilesAdapter {
     return run;
   };
 
-  // The folder lock (see the header). The token names this instance's locks.
-  const lockWaitMs = options.lockWaitMs ?? LOCK_WAIT_MS;
-  const now = options.lockSeams?.now ?? Date.now;
-  const beforeBreak = options.lockSeams?.beforeBreak ?? (async () => undefined);
-  const afterAcquire = options.lockSeams?.afterAcquire ?? (async () => undefined);
-  const token = `${process.pid}-${randomUUID()}`;
-  const host = hostname();
-  const lockPath = join(root, LOCK);
-  const breakPath = join(root, LOCK_BREAK);
-
-  /** The lock file's text, or undefined when it is gone or briefly unreadable. */
-  async function readLock(): Promise<string | undefined> {
-    try {
-      return await readFile(lockPath, "utf8");
-    } catch (e) {
-      if (isMissing(e) || BUSY.includes(codeOf(e) ?? "")) return undefined;
-      throw e;
-    }
-  }
-
-  /** Whether the lock whose text is `text` is stale, and who holds it, for the refusal. */
-  async function judgeLock(text: string): Promise<{ stale: boolean; holder: string }> {
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(text);
-    } catch {
-      parsed = undefined;
-    }
-    if (isLockHolder(parsed)) {
-      const age = now() - Date.parse(parsed.started);
-      const stale =
-        parsed.token === token ||
-        age > LOCK_STALE_MS ||
-        (parsed.host === host && !isAlive(parsed.pid));
-      return {
-        stale,
-        holder: `pid ${parsed.pid} on ${parsed.host} since ${parsed.started}`,
-      };
-    }
-    // No readable holder: a writer between creating and filling the lock, or one that stopped there.
-    try {
-      const age = now() - (await lstat(lockPath)).mtimeMs;
-      return { stale: age > LOCK_STALE_MS, holder: "a writer that has not recorded itself" };
-    } catch (e) {
-      if (isMissing(e)) return { stale: false, holder: "nobody" };
-      throw e;
-    }
-  }
-
-  /**
-   * Removes the stale lock whose text was `text`, unless another writer has
-   * replaced it meanwhile. Only one waiter breaks at a time (the break file);
-   * a break file left by a crashed waiter is removed once it is stale.
-   */
-  async function breakLock(text: string): Promise<boolean> {
-    try {
-      await (await open(breakPath, "wx")).close();
-    } catch (e) {
-      if (!BUSY.includes(codeOf(e) ?? "")) throw e;
-      const info = await lstat(breakPath).catch(() => undefined);
-      if (info && now() - info.mtimeMs > LOCK_STALE_MS) await rm(breakPath, { force: true });
-      return false;
-    }
-    try {
-      if ((await readLock()) !== text) return false;
-      await rm(lockPath, { force: true });
-      return true;
-    } finally {
-      await rm(breakPath, { force: true, maxRetries: 10, retryDelay: 10 });
-    }
-  }
-
-  /** Creates the lock with this writer's record; false when another writer holds it. */
-  async function tryLock(): Promise<boolean> {
-    let handle: Awaited<ReturnType<typeof open>>;
-    try {
-      handle = await open(lockPath, "wx");
-    } catch (e) {
-      // EEXIST: another writer holds it. EPERM, EACCES, EBUSY: on Windows, a
-      // lock being deleted by its holder.
-      if (BUSY.includes(codeOf(e) ?? "")) return false;
-      throw e;
-    }
-    const holder: LockHolder = {
-      pid: process.pid,
-      host,
-      token,
-      started: new Date(now()).toISOString(),
-    };
-    try {
-      await handle.writeFile(JSON.stringify(holder), "utf8");
-    } catch (e) {
-      await handle.close();
-      await rm(lockPath, { force: true });
-      throw e;
-    }
-    await handle.close();
-    return true;
-  }
-
-  async function locked<T>(fn: () => Promise<T>): Promise<T> {
+  // The folder lock (../lock.ts).
+  const lock = createStoreLock({
+    path: join(root, LOCK),
+    waitMs: options.lockWaitMs ?? LOCK_WAIT_MS,
+    label: "files adapter",
+    guards: "folder",
+    seams: options.lockSeams,
+  });
+  const locked = async <T>(fn: () => Promise<T>): Promise<T> => {
     await mkdir(root, { recursive: true });
-    const deadline = now() + lockWaitMs;
-    for (let attempt = 0; !(await tryLock()); attempt++) {
-      const text = await readLock();
-      const judged = text === undefined ? undefined : await judgeLock(text);
-      if (text !== undefined && judged?.stale) {
-        await beforeBreak(text);
-        if (await breakLock(text)) continue;
-      }
-      if (now() >= deadline) {
-        throw new Error(
-          `files adapter: ${lockPath} is held by ${judged?.holder ?? "another writer"}; another Engram writer is using this folder (a lock older than ${LOCK_STALE_MS / 1000} s, or one from a pid no longer running on this machine, is broken automatically)`,
-        );
-      }
-      await sleep(Math.min(2 + attempt, 25));
-    }
-    try {
-      await afterAcquire();
-      return await fn();
-    } finally {
-      // Never remove a lock another writer took after breaking ours as stale.
-      if (holderToken(await readLock()) === token) {
-        await rm(lockPath, { force: true, maxRetries: 10, retryDelay: 10 });
-      }
-    }
-  }
-
-  function holderToken(text: string | undefined): string | undefined {
-    try {
-      const parsed: unknown = text === undefined ? undefined : JSON.parse(text);
-      return isLockHolder(parsed) ? parsed.token : undefined;
-    } catch {
-      return undefined;
-    }
-  }
+    return lock(fn);
+  };
 
   const keyOf = (ref: StoreRef) => {
     if (ref.adapter !== name) throw new ForeignRefError(name, ref);

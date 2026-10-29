@@ -15,4 +15,13 @@ export {
   ReadOnlyItemError,
   UnsafeKeyError,
 } from "./files/index.ts";
+export {
+  createLettaAdapter,
+  GitMissingError,
+  gitVersion,
+  type LettaAdapter,
+  type LettaAdapterOptions,
+  NotMemfsRepositoryError,
+  UnsafeLettaPathError,
+} from "./letta/index.ts";
 export { createMem0Adapter, type Mem0AdapterOptions } from "./mem0/index.ts";

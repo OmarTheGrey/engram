@@ -4,13 +4,14 @@
 // store (AGENTS.md, "What not to do"). `lexical` opts an adapter whose search
 // is exact term matching into full recall on the corpus; a semantic store may
 // rank or miss items, so it runs the main suite only.
-import { mkdtempSync, rmSync } from "node:fs";
+import { cpSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Adapter } from "../../src/contract.ts";
 import { createHashingEmbedder } from "../../src/fake/embedder.ts";
 import { createFakeAdapter } from "../../src/fake/index.ts";
 import { createFilesAdapter } from "../../src/files/index.ts";
+import { createLettaAdapter } from "../../src/letta/index.ts";
 import { createMem0Adapter } from "../../src/mem0/index.ts";
 
 export interface RegisteredAdapter {
@@ -44,6 +45,24 @@ export function cleanupAdapters(): void {
   for (const dir of tempDirs.splice(0)) rmSync(dir, { recursive: true, force: true });
 }
 
+let lettaTemplate: Promise<string> | undefined;
+/**
+ * A fresh MemFS repository: a copy of one template the Letta adapter
+ * initialised (its init and setup commit) once per process, so each case
+ * pays a folder copy and the adapter's open (two git calls), not an init.
+ */
+export async function freshLettaRepo(): Promise<string> {
+  lettaTemplate ??= (async () => {
+    const dir = freshDir("engram-letta-template-");
+    await createLettaAdapter({ root: dir });
+    return dir;
+  })();
+  const template = await lettaTemplate;
+  const dir = freshDir("engram-letta-conformance-");
+  cpSync(template, dir, { recursive: true });
+  return dir;
+}
+
 export const ADAPTERS: RegisteredAdapter[] = [
   { name: "fake", factory: () => createFakeAdapter(), lexical: true },
   {
@@ -75,6 +94,14 @@ export const ADAPTERS: RegisteredAdapter[] = [
     name: "files",
     factory: () =>
       createFilesAdapter({ root: freshDir("engram-files-conformance-"), owner: "omar" }),
+    lexical: true,
+  },
+  {
+    // A MemFS repository on local disk (card A2, ADR 0028), one commit per
+    // write; its search is exact term matching over engram/, so it opts
+    // into full recall.
+    name: "letta",
+    factory: async () => createLettaAdapter({ root: await freshLettaRepo() }),
     lexical: true,
   },
 ];
