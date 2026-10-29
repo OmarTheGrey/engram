@@ -18,20 +18,31 @@ afterAll(() => {
   for (const dir of dirs) rmSync(dir, { recursive: true, force: true });
 });
 
-/** A copy of a harness fixture in a temporary folder, with its own home. */
+/**
+ * A copy of a harness fixture in a temporary folder, with a home of its own
+ * outside it (the log is the per-user default, decision D9), and the
+ * project directory Claude Code exports to hooks.
+ */
 function project(name: string) {
   const dir = mkdtempSync(join(tmpdir(), `engram-e2e-${name}-`));
-  dirs.push(dir);
+  const home = mkdtempSync(join(tmpdir(), `engram-e2e-${name}-home-`));
+  dirs.push(dir, home);
   cpSync(join(REPO, "fixtures/harness", name), dir, { recursive: true });
   const env: Record<string, string> = {
     ...(process.env as Record<string, string>),
-    HOME: dir,
-    USERPROFILE: dir,
+    HOME: home,
+    USERPROFILE: home,
+    CLAUDE_PROJECT_DIR: dir,
   };
   delete env.ENGRAM_DB_URL;
   delete env.ENGRAM_SERVER_URL;
-  return { dir, env };
+  return { dir, home, env, log: join(home, ".engram", "engram.db") };
 }
+
+/** Claude Code's path placeholder, as it substitutes it in exec form (a literal, not a template). */
+const PROJECT_DIR = ["$", "{CLAUDE_PROJECT_DIR}"].join("");
+const placeholders = (args: string[], dir: string) =>
+  args.map((a) => a.replaceAll(PROJECT_DIR, dir));
 
 /** `engram ...` as the harness names it, run through node and the CLI's entry script. */
 function launch(command: string, args: string[]): [string, string[]] {
@@ -64,7 +75,7 @@ const harnesses = [
 
 describe.each(harnesses)("the MCP handshake from the $name fixture", ({ name, server }) => {
   it("initializes, lists the four tools, writes, reads, and explains the read", async () => {
-    const { dir, env } = project(name);
+    const { dir, env, log } = project(name);
     const config = server(dir);
     const [command, args] = launch(config.command, config.args);
     const content = `The ${name} release freeze starts on Friday.`;
@@ -81,20 +92,20 @@ describe.each(harnesses)("the MCP handshake from the $name fixture", ({ name, se
     expect(h.explanations[0]).toMatchObject({ rank: 1 });
     // The write landed in the project's memory folder, beside the adopted file.
     expect(readdirSync(join(dir, "memory")).length).toBeGreaterThan(1);
-    expect(existsSync(join(dir, ".engram/engram.db"))).toBe(true);
+    // The log is outside the project, in the home (decision D9, review finding R3-2).
+    expect(existsSync(log)).toBe(true);
+    expect(existsSync(join(dir, ".engram"))).toBe(false);
   });
 });
 
 describe("the claude-code fixture's PreToolUse hook", () => {
-  it("denies a store command and a read inside memory/, and lets other calls go on", () => {
+  it("denies a store command, a read inside memory/ and edits of its own config, and lets other calls go on", () => {
     const { dir, env } = project("claude-code");
     const settings = JSON.parse(readFileSync(join(dir, ".claude/settings.json"), "utf8"));
     const hook = settings.hooks.PreToolUse[0];
-    expect(hook.matcher.split("|")).toEqual(
-      expect.arrayContaining(["Bash", "Read", "Write", "Edit"]),
-    );
-    const [word, ...rest] = (hook.hooks[0].command as string).split(" ");
-    const [command, args] = launch(word as string, rest);
+    // Every tool reaches the hook (PowerShell included, review finding R3-1); core decides.
+    expect(hook.matcher).toBe("*");
+    const [command, args] = launch(hook.hooks[0].command, placeholders(hook.hooks[0].args, dir));
     const run = (input: object) =>
       spawnSync(command, args, {
         cwd: dir,
@@ -120,6 +131,22 @@ describe("the claude-code fixture's PreToolUse hook", () => {
     expect(JSON.parse(file.stdout).hookSpecificOutput.permissionDecisionReason).toContain(
       "engram/bypass/store-path",
     );
+    const powershell = run({
+      hook_event_name: "PreToolUse",
+      tool_name: "PowerShell",
+      tool_input: { command: "Remove-Item memory -Recurse" },
+      cwd: dir,
+    });
+    expect(JSON.parse(powershell.stdout).hookSpecificOutput.permissionDecision).toBe("deny");
+    for (const file_path of [join(dir, ".mcp.json"), join(dir, ".claude", "settings.json")]) {
+      const edit = run({
+        hook_event_name: "PreToolUse",
+        tool_name: "Edit",
+        tool_input: { file_path, old_string: "dana", new_string: "boss" },
+        cwd: dir,
+      });
+      expect(JSON.parse(edit.stdout).hookSpecificOutput.permissionDecision).toBe("deny");
+    }
     const free = run({
       hook_event_name: "PreToolUse",
       tool_name: "Bash",

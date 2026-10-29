@@ -30,7 +30,7 @@ const RECURSIVE = new Set(["grep", "find"]);
 const OPTIONAL_PATH = new Set(["grep", "find", "ls"]);
 /** Argument names that hold a path, in any tool, at any depth. */
 const PATH_KEY =
-  /^(path|paths|file|files|file_?path|file_?paths|filepath|filename|dir|dirs|directory|directories|folder|cwd|root|target|target_?file|src|source_?path|dest|destination|out_?file|out_?dir|output_?path|input_?path)$/i;
+  /^(path|paths|file|files|file_?path|file_?paths|filepath|filename|dir|dirs|directory|directories|folder|cwd|root|target|target_?file|src|source_?path|dest|destination|out_?file|out_?dir|output_?path|input_?path|notebook_?path)$/i;
 /** A string that is a path on its own, whatever key holds it. */
 const PATH_LIKE = /^(\/|~(\/|\\|$)|\.\.?(\/|\\)|[A-Za-z]:[\\/]|\\\\|file:\/\/)/;
 /** Unicode spaces pi's tools read as plain spaces. */
@@ -75,6 +75,20 @@ export function shellDrivePath(path: string): string | undefined {
   return `${(m[1] as string).toUpperCase()}:\\${(m[2] ?? "").replaceAll("/", "\\")}`;
 }
 
+/**
+ * A Windows path through the machine's own admin share or a device prefix
+ * (`\\localhost\C$\x`, `\\127.0.0.1\C$\x`, `\\?\C:\x`, `\\.\C:\x`) as the
+ * drive path it names, else undefined (review finding R3-7). Another host's
+ * share is another machine, and is not mapped.
+ */
+export function uncDrivePath(path: string): string | undefined {
+  const m = /^[\\/]{2}(?:localhost|127\.0\.0\.1|\?|\.)[\\/]([a-zA-Z])[$:](?:[\\/](.*))?$/i.exec(
+    path,
+  );
+  if (!m) return undefined;
+  return `${(m[1] as string).toUpperCase()}:\\${(m[2] ?? "").replace(/\//g, "\\")}`;
+}
+
 /** `path` as the absolute, real path a tool would reach. */
 function canonical(path: string): string {
   let head = resolve(path);
@@ -117,6 +131,8 @@ function resolveToolPath(path: string, cwd: string): string[] {
     out.add(resolve(cwd, p));
     const drive = process.platform === "win32" ? shellDrivePath(p) : undefined;
     if (drive !== undefined) out.add(resolve(drive));
+    const unc = process.platform === "win32" ? uncDrivePath(p) : undefined;
+    if (unc !== undefined) out.add(resolve(unc));
   }
   return [...out];
 }

@@ -115,8 +115,9 @@ Plane
   distill(sessions, method) -> MemoryItem[]  candidate procedural items
   explain(actor, readId) -> Explanation[]    to the actor who made the read only
 
-visibleEvents(actor, events) -> MemoryEvent[]   pure, in core: events in the actor's member scopes and events it made;
-                                                an event naming no scope (a read, a bypass) only its maker sees
+visibleEvents(actor, events, view) -> MemoryEvent[]   pure, in core: events in the actor's member scopes and events it
+                                                made; an event naming no scope (a read, a bypass) only its maker sees;
+                                                an event's item only if the read filter would return it now
 
 Surfaces
   pi extension   tools memory_write, memory_read, memory_explain, memory_simulate; commands /engram explain | lint | simulate | policy

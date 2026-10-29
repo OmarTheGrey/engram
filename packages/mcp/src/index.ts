@@ -4,7 +4,10 @@ export {
   claudeCodeHook,
   type HookDeny,
   type HookOptions,
+  type HookScope,
   hookBypass,
+  hookDeny,
+  isHookInput,
   type PreToolUseInput,
 } from "./hook.ts";
 export { createMcpServer, type McpOptions, SERVER_INFO, toolList } from "./server.ts";

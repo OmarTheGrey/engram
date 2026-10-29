@@ -14,6 +14,14 @@ const cwd = mkdtempSync(join(tmpdir(), "engram-hook-"));
 const root = join(cwd, "memory");
 mkdirSync(root);
 const CLAUDE = { id: "agent:claude-code", level: "person" as const, memberships: [] };
+const LOG = join(cwd, ".engram", "engram.db");
+const PROTECT = [
+  LOG,
+  join(cwd, ".mcp.json"),
+  join(cwd, ".claude", "settings.json"),
+  join(cwd, ".claude", "settings.local.json"),
+];
+const SCOPE = { roots: [root], protect: PROTECT, cwd };
 
 const call = (tool_name: string, tool_input: Record<string, unknown>) => ({
   hook_event_name: "PreToolUse",
@@ -22,46 +30,104 @@ const call = (tool_name: string, tool_input: Record<string, unknown>) => ({
   cwd,
 });
 
+/** A Windows admin-share spelling of a path on this machine (R3-7). */
+const unc = (path: string) => `\\\\localhost\\${path[0]}$${path.slice(2)}`;
+
+const BLOCKED: [string, Record<string, unknown>, string, string | undefined][] = [
+  ["Bash", { command: "mem0 add 'x'" }, "mem0", undefined],
+  ["Bash", { command: "npx letta memory list" }, "letta", undefined],
+  ["Bash", { command: "node packages//cli/src/main.ts write --as person:x" }, "engram", undefined],
+  ["Bash", { command: "cat memory/notes.md" }, "files", "path"],
+  // R3-1: the shell check runs for PowerShell and for any case of the name.
+  ["PowerShell", { command: "mem0 add x" }, "mem0", undefined],
+  ["PowerShell", { command: "Get-Content memory\\a.md" }, "files", "path"],
+  ["bash", { command: "letta list" }, "letta", undefined],
+  ["POWERSHELL", { command: "Remove-Item -Recurse memory" }, "files", "path"],
+  ["Read", { file_path: join(root, "a.md") }, "files", "path"],
+  ["Write", { file_path: join(root, "b.md"), content: "x" }, "files", "path"],
+  ["Edit", { file_path: "./memory/a.md", old_string: "a", new_string: "b" }, "files", "path"],
+  ["Glob", { pattern: "**/*.md", path: cwd }, "files", "path"],
+  ["Grep", { pattern: "freeze" }, "files", "path"],
+  // R3-7: NotebookEdit's path key, a bare root name, a glob that expands to the root.
+  ["NotebookEdit", { notebook_path: "memory/n.ipynb", new_source: "x" }, "files", "path"],
+  ["Bash", { command: "cd memory && cat a.md" }, "files", "path"],
+  ["Bash", { command: "cat memor*/a.md" }, "files", "path"],
+  ["Bash", { command: "cat mem?ry/a.md" }, "files", "path"],
+  // R3-2: the session's own governing files.
+  [
+    "Edit",
+    { file_path: join(cwd, ".mcp.json"), old_string: "a", new_string: "b" },
+    "engram",
+    "path",
+  ],
+  [
+    "Edit",
+    { file_path: ".claude/settings.json", old_string: "a", new_string: "b" },
+    "engram",
+    "path",
+  ],
+  [
+    "Write",
+    { file_path: join(cwd, ".claude", "settings.local.json"), content: "{}" },
+    "engram",
+    "path",
+  ],
+  ["Bash", { command: `rm ${LOG}` }, "engram", "path"],
+  ["Bash", { command: "rm .engram/engram.db" }, "engram", "path"],
+  ["Bash", { command: "cat .claude/settings*.json" }, "engram", "path"],
+];
+if (process.platform === "win32")
+  BLOCKED.push(
+    ["Read", { file_path: unc(join(root, "a.md")) }, "files", "path"],
+    ["Bash", { command: `type ${unc(join(root, "a.md"))}` }, "files", "path"],
+  );
+
 describe("which calls the hook blocks", () => {
-  it.each([
-    ["Bash", { command: "mem0 add 'x'" }, "mem0", undefined],
-    ["Bash", { command: "npx letta memory list" }, "letta", undefined],
-    [
-      "Bash",
-      { command: "node packages//cli/src/main.ts write --as person:x" },
-      "engram",
-      undefined,
-    ],
-    ["Bash", { command: "cat memory/notes.md" }, "files", "path"],
-    ["Read", { file_path: join(root, "a.md") }, "files", "path"],
-    ["Write", { file_path: join(root, "b.md"), content: "x" }, "files", "path"],
-    ["Edit", { file_path: "./memory/a.md", old_string: "a", new_string: "b" }, "files", "path"],
-    ["Glob", { pattern: "**/*.md", path: cwd }, "files", "path"],
-    ["Grep", { pattern: "freeze" }, "files", "path"],
-  ])("%s %j is a bypass of %s", (tool, input, store, route) => {
-    const found = hookBypass(call(tool, input), [root], cwd);
+  it.each(BLOCKED)("%s %j is a bypass of %s", (tool, input, store, route) => {
+    const found = hookBypass(call(tool, input), SCOPE);
     expect(found?.store).toBe(store);
     expect(found?.route).toBe(route);
   });
 
   it.each([
     ["Bash", { command: "npm test" }],
+    ["PowerShell", { command: "Get-ChildItem src" }],
     ["Read", { file_path: join(cwd, "README.md") }],
     ["Write", { file_path: join(cwd, "src.ts"), content: "see memory/notes.md" }],
+    ["Bash", { command: "ls *.ts" }],
     ["mcp__engram__memory_write", { scope: "person:dana", content: "./memory/x" }],
   ])("%s %j goes on", (tool, input) => {
-    expect(hookBypass(call(tool, input), [root], cwd)).toBeUndefined();
+    expect(hookBypass(call(tool, input), SCOPE)).toBeUndefined();
   });
 });
 
 describe("claudeCodeHook", () => {
+  it.each([
+    null,
+    [],
+    "Bash",
+    42,
+    { tool_name: 7 },
+    { tool_name: "Bash", tool_input: null },
+    { tool_name: "Bash", tool_input: [] },
+  ])("denies input that is not a PreToolUse object: %j (R3-6)", async (input) => {
+    const ws = await testWorkspace();
+    const answer = await claudeCodeHook(input, {
+      ...SCOPE,
+      client: ws.client,
+      actor: CLAUDE,
+      now: () => NOW,
+    });
+    expect(answer?.hookSpecificOutput.permissionDecision).toBe("deny");
+  });
+
   it("records a block as one bypass_blocked event and answers deny with its reason", async () => {
     const ws = await testWorkspace();
     const before = ws.workspace.plane.events().length;
     const answer = await claudeCodeHook(call("Bash", { command: "mem0 delete --all" }), {
       client: ws.client,
       actor: CLAUDE,
-      roots: [root],
+      ...SCOPE,
       cwd,
       now: () => NOW,
     });
@@ -88,7 +154,7 @@ describe("claudeCodeHook", () => {
     const answer = await claudeCodeHook(call("Bash", { command: "git status" }), {
       client: ws.client,
       actor: CLAUDE,
-      roots: [root],
+      ...SCOPE,
       cwd,
       now: () => NOW,
     });
@@ -105,7 +171,7 @@ describe("claudeCodeHook", () => {
     const answer = await claudeCodeHook(call("Read", { file_path: join(root, "a.md") }), {
       client: broken,
       actor: CLAUDE,
-      roots: [root],
+      ...SCOPE,
       cwd,
       now: () => NOW,
     });

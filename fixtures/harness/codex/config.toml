@@ -1,5 +1,7 @@
 # Codex reaches Engram through MCP only (ADR 0022): no hook, so store
-# commands are not blocked on this path, which condition C7 states.
+# commands are not blocked on this path, which condition C7 states. The log is
+# the per-user default, <home>/.engram/engram.db (decision D9), outside the
+# project the model edits.
 [mcp_servers.engram]
 command = "engram"
-args = ["mcp", "--as", "person:dana", "--member", "person:dana", "--root", "memory", "--owner", "dana", "--import-valid-from", "2026-10-01T00:00:00.000Z", "--db", ".engram/engram.db"]
+args = ["mcp", "--as", "person:dana", "--member", "person:dana", "--root", "memory", "--owner", "dana", "--import-valid-from", "2026-10-01T00:00:00.000Z"]

@@ -7,12 +7,21 @@
 // that is not loopback before binding.
 import type { AddressInfo } from "node:net";
 import type { Readable, Writable } from "node:stream";
-import { isLoopbackHost, LOOPBACK_HOSTS, loopbackGuard, UsageError } from "@engram/server";
+import {
+  isLoopbackAddress,
+  isLoopbackHost,
+  LOOPBACK_HOSTS,
+  loopbackGuard,
+  MAX_BODY_BYTES,
+  notLoopbackBound,
+  UsageError,
+} from "@engram/server";
 import { serve } from "@hono/node-server";
 import type { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { Hono } from "hono";
+import { bodyLimit } from "hono/body-limit";
 
 /** The path the streamable HTTP endpoint answers on. */
 export const MCP_PATH = "/mcp";
@@ -43,6 +52,23 @@ export async function serveStdio(
 export function mcpHttpApp(makeServer: () => Server, port: number): Hono {
   const app = new Hono();
   app.use("*", loopbackGuard(port));
+  // The same cap as the HTTP API's (review finding R3-12).
+  app.use(
+    "*",
+    bodyLimit({
+      maxSize: MAX_BODY_BYTES,
+      onError: () =>
+        Response.json(
+          {
+            error: {
+              code: "payload_too_large",
+              message: `request bodies are limited to ${MAX_BODY_BYTES} bytes`,
+            },
+          },
+          { status: 413 },
+        ),
+    }),
+  );
   app.all(MCP_PATH, async (c) => {
     const transport = new WebStandardStreamableHTTPServerTransport({
       sessionIdGenerator: undefined,
@@ -81,6 +107,11 @@ export function serveHttp(
         port: options.port,
       },
       (info: AddressInfo) => {
+        if (!isLoopbackAddress(info.address)) {
+          server.close();
+          reject(notLoopbackBound(info.address));
+          return;
+        }
         app = mcpHttpApp(makeServer, info.port);
         const name = host.includes(":") ? `[${host}]` : host;
         resolveListening({

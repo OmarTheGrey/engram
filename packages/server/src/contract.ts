@@ -125,6 +125,7 @@ export const EventsRequest = z.strictObject({
   after: z.int().nonnegative().optional().meta({
     description: "Only events with a seq above this one.",
   }),
+  at,
 });
 export const EventsResponse = z.strictObject({ events: z.array(MemoryEvent) });
 

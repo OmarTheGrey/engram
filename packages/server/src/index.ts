@@ -13,11 +13,13 @@ export {
 } from "./app.ts";
 export * as contract from "./contract.ts";
 export {
+  isLoopbackAddress,
   isLoopbackHost,
   type Listening,
   type ListenOptions,
   LOOPBACK_HOSTS,
   listen,
+  notLoopbackBound,
 } from "./listen.ts";
 export { openApiDocument } from "./openapi.ts";
 export { API_PREFIX, type Method, ROUTES, type Route, type RouteContext } from "./routes.ts";

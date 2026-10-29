@@ -56,10 +56,59 @@ describe("engram hook claude-code", () => {
     expect(outside.out).toBe("");
   });
 
-  it("denies input it cannot read", async () => {
-    const r = await cli(["hook", "claude-code", "--db", ":memory:"], { stdin: stdin("{nope") });
+  it.each([
+    ["garbage", "{nope"],
+    ["null", "null"],
+    ["an array", "[]"],
+    ["a string", '"Bash"'],
+    ["a tool_input that is not an object", '{"tool_name":"Bash","tool_input":null}'],
+  ])("denies input that is %s, with exit 0 (R3-6)", async (_what, text) => {
+    const r = await cli(["hook", "claude-code", "--db", ":memory:"], { stdin: stdin(text) });
     expect(r.code).toBe(0);
     expect(JSON.parse(r.out).hookSpecificOutput.permissionDecision).toBe("deny");
+  });
+
+  it("denies edits of .mcp.json, .claude/settings.json and the log, and rm of the log (R3-2)", async () => {
+    const dir = await tempDir();
+    const home = await tempDir();
+    const log = join(home, ".engram", "engram.db");
+    const run = (tool_name: string, tool_input: Record<string, unknown>) =>
+      cli(["hook", "claude-code", "--root", "memory"], {
+        cwd: dir,
+        home,
+        stdin: stdin({ tool_name, tool_input, cwd: dir }),
+      });
+    const cases: [string, Record<string, unknown>][] = [
+      ["Edit", { file_path: join(dir, ".mcp.json"), old_string: "a", new_string: "b" }],
+      ["Edit", { file_path: ".claude/settings.json", old_string: "a", new_string: "b" }],
+      ["Write", { file_path: log, content: "" }],
+      ["Bash", { command: `rm ${log}` }],
+      ["Bash", { command: `rm ${log}-wal` }],
+    ];
+    for (const [tool, input] of cases) {
+      const r = await run(tool, input);
+      expect(r.code).toBe(0);
+      expect(JSON.parse(r.out).hookSpecificOutput.permissionDecisionReason).toContain(
+        "store engram",
+      );
+    }
+    expect(logEvents(log).filter((e) => e.op === "bypass_blocked")).toHaveLength(cases.length);
+  });
+
+  it("resolves --root and --db against $CLAUDE_PROJECT_DIR, not its own cwd (R3-10)", async () => {
+    const project = await tempDir();
+    await mkdir(join(project, "memory"));
+    const elsewhere = await tempDir();
+    const r = await cli(["hook", "claude-code", "--root", "memory", "--db", "log.db"], {
+      cwd: elsewhere,
+      env: { CLAUDE_PROJECT_DIR: project },
+      stdin: stdin({
+        tool_name: "Read",
+        tool_input: { file_path: join(project, "memory", "a.md") },
+      }),
+    });
+    expect(JSON.parse(r.out).hookSpecificOutput.permissionDecisionReason).toContain("store files");
+    expect(logEvents(join(project, "log.db"))).toHaveLength(1);
   });
 
   it("still denies a bypass when the log cannot be opened, and lets other calls go on", async () => {

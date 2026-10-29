@@ -111,7 +111,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** The events the actor may see: those in its member scopes and those it made (visibleEvents). */
+        /** The events the actor may see: those in its member scopes and those it made, each item shown only if the read filter would return it (visibleEvents). */
         post: operations["events"];
         delete?: never;
         options?: never;
@@ -556,6 +556,11 @@ export interface components {
             actor: components["schemas"]["Actor"];
             /** @description Only events with a seq above this one. */
             after?: number;
+            /**
+             * Format: date-time
+             * @description The time of the call, UTC ISO 8601; the server's clock when absent.
+             */
+            at?: string;
         };
         EventsResponse: {
             events: components["schemas"]["MemoryEvent"][];

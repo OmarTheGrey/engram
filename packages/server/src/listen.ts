@@ -13,6 +13,22 @@ export const LOOPBACK_HOSTS = ["127.0.0.1", "::1", "localhost"] as const;
 export const isLoopbackHost = (host: string) =>
   (LOOPBACK_HOSTS as readonly string[]).includes(host.toLowerCase());
 
+/**
+ * Whether an address a socket is bound to is loopback: 127.0.0.0/8, ::1, or
+ * 127.0.0.0/8 mapped into IPv6. Checked after binding (review finding R3-11),
+ * since `localhost` is resolved by the system and could name another address.
+ */
+export const isLoopbackAddress = (address: string) =>
+  /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(address) ||
+  address === "::1" ||
+  /^::ffff:127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/i.test(address);
+
+/** The UsageError for a socket bound to an address that is not loopback. */
+export const notLoopbackBound = (address: string) =>
+  new UsageError(
+    `the server was bound to ${address}, which is not a loopback address; it was closed (ADR 0027)`,
+  );
+
 export interface ListenOptions extends Omit<AppOptions, "port"> {
   /** Default 127.0.0.1. */
   host?: string;
@@ -47,6 +63,11 @@ export function listen(workspace: Workspace, options: ListenOptions): Promise<Li
         port: requested,
       },
       (info: AddressInfo) => {
+        if (!isLoopbackAddress(info.address)) {
+          server.close();
+          reject(notLoopbackBound(info.address));
+          return;
+        }
         app = createApp(workspace, { ...options, port: info.port });
         const name = host.includes(":") ? `[${host}]` : host;
         resolveListening({

@@ -11,6 +11,7 @@ import {
   STORE_COMMANDS,
   shellBypass,
   toolBypass,
+  uncDrivePath,
 } from "../../src/no-bypass.ts";
 
 describe("the Engram CLI's folder under other spellings (review finding P5-20)", () => {
@@ -56,6 +57,38 @@ describe("shellBypass and toolBypass", () => {
       route: "path",
     });
   });
+
+  it.each([
+    "cd memory && cat a.md",
+    "cat memor*/a.md",
+    "cat mem[o]ry/a.md",
+    "tar czf x.tgz memory",
+  ])("names the root's store for %s, a bare or globbed word reaching it (R3-7)", (command) => {
+    expect(shellBypass(command, check)?.route).toBe("path");
+  });
+
+  it.each(["echo hello", "ls *.ts", "cat src/memory.ts"])("leaves %s alone", (command) => {
+    expect(shellBypass(command, check)).toBeUndefined();
+  });
+
+  it("reads NotebookEdit's notebook_path as a path (R3-7)", () => {
+    expect(toolBypass("NotebookEdit", { notebook_path: "memory/n.ipynb" }, check)?.route).toBe(
+      "path",
+    );
+  });
+
+  it.runIf(process.platform === "win32")(
+    "reads this machine's admin share as its drive (R3-7)",
+    () => {
+      const share = (p: string) => `\\\\localhost\\${p[0]}$${p.slice(2)}`;
+      expect(uncDrivePath(share("C:\\x\\y"))).toBe("C:\\x\\y");
+      expect(uncDrivePath("\\\\fileserver\\C$\\x")).toBeUndefined();
+      expect(toolBypass("Read", { file_path: share(join(root, "a.md")) }, check)?.route).toBe(
+        "path",
+      );
+      expect(shellBypass(`type ${share(join(root, "a.md"))}`, check)?.route).toBe("path");
+    },
+  );
 
   it("names a file tool on a path inside a root, and leaves other paths alone", () => {
     expect(toolBypass("Write", { file_path: join(root, "x.md"), content: "x" }, check)).toEqual({

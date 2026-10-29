@@ -15,6 +15,7 @@ import {
   MEMORY_SIMULATE,
   MEMORY_WRITE,
 } from "@engram/pi-extension/tools";
+import { MAX_BODY_BYTES } from "@engram/server";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
@@ -102,6 +103,18 @@ describe("over the in-memory transport", () => {
     expect(written?.item?.provenance).toMatchObject({ kind: "model", actor: "person:dana" });
   });
 
+  it("labels a write model even when the launch actor carries source user (R3-5)", async () => {
+    const ws = await testWorkspace();
+    const client = await inMemory(ws, { ...DANA, source: "user" });
+    const result = await client.callTool({
+      name: "memory_write",
+      arguments: { scope: "person:dana", content: "Launched as a user." },
+    });
+    expect(result.isError).toBeFalsy();
+    const written = ws.workspace.plane.events().at(-1);
+    expect(written?.item?.provenance).toMatchObject({ kind: "model", actor: "person:dana" });
+  });
+
   it("returns a denied write as a tool error with the plane's reason", async () => {
     const client = await inMemory(await testWorkspace());
     const result = await client.callTool({
@@ -171,6 +184,19 @@ describe("over streamable HTTP", () => {
       headers: { ...headers, origin: `http://127.0.0.1:${server.port}` },
     });
     expect(own.status).toBe(200);
+  });
+
+  it("refuses a body over the API's 1 MiB cap (R3-12)", async () => {
+    if (server === undefined) throw new Error("the first test starts the server");
+    const big = await fetch(server.url, {
+      method: "POST",
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "x".repeat(MAX_BODY_BYTES) }),
+      headers: {
+        "content-type": "application/json",
+        accept: "application/json, text/event-stream",
+      },
+    });
+    expect(big.status).toBe(413);
   });
 
   it("refuses to listen on a host that is not loopback", async () => {

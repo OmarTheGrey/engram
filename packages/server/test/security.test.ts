@@ -6,7 +6,7 @@
 import { request as httpRequest } from "node:http";
 import { afterAll, describe, expect, it } from "vitest";
 import { MAX_BODY_BYTES } from "../src/app.ts";
-import { isLoopbackHost, type Listening, listen } from "../src/listen.ts";
+import { isLoopbackAddress, isLoopbackHost, type Listening, listen } from "../src/listen.ts";
 import { BASE, dana, NOW, PORT, testWorkspace } from "./helpers.ts";
 
 const json = (body: unknown, headers: Record<string, string> = {}) => ({
@@ -141,6 +141,13 @@ describe("the loopback listener", () => {
       "127.0.0.1.nip.io",
     ])
       expect(isLoopbackHost(host)).toBe(false);
+  });
+
+  it("checks the bound address: 127.0.0.0/8, ::1 and mapped 127 are loopback (R3-11)", () => {
+    for (const a of ["127.0.0.1", "127.1.2.3", "::1", "::ffff:127.0.0.1"])
+      expect(isLoopbackAddress(a)).toBe(true);
+    for (const a of ["0.0.0.0", "::", "192.168.1.10", "10.0.0.1", "::ffff:10.0.0.1", "1270.0.0.1"])
+      expect(isLoopbackAddress(a)).toBe(false);
   });
 
   it("refuses to listen on any other host", () => {

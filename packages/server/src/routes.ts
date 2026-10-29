@@ -9,7 +9,7 @@
 // and ask are 200 with their event. Errors are thrown and mapped in app.ts;
 // lint, simulate and distill throw core's NotImplementedYet until their
 // cards land, which app.ts answers with 501 naming the card.
-import { adoptStoreItems, type MemoryItem, visibleEvents } from "@engram/core";
+import { adoptStoreItems, currentItems, type MemoryItem, visibleEvents } from "@engram/core";
 import type { z } from "zod";
 import * as C from "./contract.ts";
 import { storeOwner, type Workspace } from "./workspace.ts";
@@ -92,7 +92,14 @@ export const ROUTES: readonly Route[] = [
       const at = body.at ?? now();
       const sync = await syncStore(workspace, at);
       const result = await workspace.plane.read(body.actor, { text: body.text, at });
-      return { ...result, sync, policy: policyLabel(workspace) };
+      // The sync report is the owner's own sweep and adoption (item ids,
+      // reasons, a content hash); only the owner gets it back (finding R3-3).
+      const owner = workspace.store === null ? null : storeOwner(workspace.store.owner).id;
+      return {
+        ...result,
+        sync: body.actor.id === owner ? sync : null,
+        policy: policyLabel(workspace),
+      };
     },
   }),
   route<z.infer<typeof C.ExplainRequest>>({
@@ -137,14 +144,20 @@ export const ROUTES: readonly Route[] = [
     method: "post",
     path: "/events",
     summary:
-      "The events the actor may see: those in its member scopes and those it made (visibleEvents).",
+      "The events the actor may see: those in its member scopes and those it made, each item shown only if the read filter would return it (visibleEvents).",
     request: C.EventsRequest,
     response: C.EventsResponse,
     errors: [400],
-    handler: async ({ workspace, body }) => {
+    handler: async ({ workspace, body, now }) => {
       const after = body.after ?? -1;
       const events = workspace.plane.events().filter((e) => e.seq > after);
-      return { events: visibleEvents(body.actor, events) };
+      const items = new Map(currentItems(workspace.deps.db).map((i) => [i.id, i]));
+      const view = {
+        policy: workspace.policy,
+        at: body.at ?? now(),
+        current: (id: string) => items.get(id),
+      };
+      return { events: visibleEvents(body.actor, events, view) };
     },
   }),
   route({

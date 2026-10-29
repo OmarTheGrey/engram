@@ -68,13 +68,31 @@ describe("the routes, through the generated client, on the fake store", () => {
     expect(body.sync).toBeNull();
   });
 
-  it("read: a workspace with a store sweeps and adopts as its owner first", async () => {
+  it("read: a workspace with a store sweeps and adopts as its owner first, and tells only the owner", async () => {
     const { client } = testWorkspace({ store: true });
-    const { data } = await client.POST("/api/v1/read", { body: { actor: eve } });
+    const { data } = await client.POST("/api/v1/read", { body: { actor: dana } });
     const body = C.ReadResponse.parse(data);
     expect(body.sync?.store.scope).toBe("person:dana");
     expect(body.sync?.retention.decision).toBe("allow");
     expect(body.sync?.adoption.listed).toBe(0);
+    // Review finding R3-3: another reader learns nothing of the owner's adoption.
+    const other = await client.POST("/api/v1/read", { body: { actor: eve } });
+    expect(C.ReadResponse.parse(other.data).sync).toBeNull();
+  });
+
+  it("events: an item in a scope the read matrix keeps from the viewer is withheld (R3-4)", async () => {
+    const { client } = testWorkspace();
+    await client.POST("/api/v1/items", {
+      body: { actor: { ...dana, source: "user" }, item: itemFor(1) },
+    });
+    // A team-level member of person:dana: the medium preset's team row reads no person scope.
+    const team = { id: "team:ops", level: "team" as const, memberships: ["person:dana"] };
+    const { data } = await client.POST("/api/v1/events", { body: { actor: team } });
+    const [write] = C.EventsResponse.parse(data).events;
+    expect(write).toMatchObject({ op: "write", scope_to: "person:dana" });
+    expect(write?.item).toBeUndefined();
+    const own = await client.POST("/api/v1/events", { body: { actor: dana } });
+    expect(C.EventsResponse.parse(own.data).events[0]?.item?.content).toBe("fact 1");
   });
 
   it("explain: the reader gets the explanations its read recorded", async () => {
