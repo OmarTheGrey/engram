@@ -5,11 +5,12 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { cp, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { createFakeAdapter } from "@engram/adapters";
+import { createFakeAdapter, createLettaAdapter } from "@engram/adapters";
 import type { Adapter } from "@engram/core";
 import { describe, expect, it } from "vitest";
 import {
   BENCH_FIXTURES,
+  checkLettaAdapter,
   checkMem0Adapter,
   DEPS,
   PINS,
@@ -66,7 +67,9 @@ describe("engram doctor on this checkout", () => {
     expect(out).toMatch(/^ok\s+store\s+.*is a readable folder/m);
     expect(out).toMatch(/^ok\s+adapter files\s+.*4 memories listed through the plane, 4 admitted/m);
     expect(out).toMatch(/^ok\s+adapter mem0\s+in-memory Mem0 with the hashing embedder/m);
-    expect(out).toMatch(/^skip\s+adapter letta\s+not implemented yet \(card A2\)/m);
+    expect(out).toMatch(
+      /^ok\s+adapter letta\s+git version .*a MemFS repository in a temporary folder: a write and a read round-trip through the plane, one commit, and a delete, offline/m,
+    );
     expect(out).toMatch(/^ok\s+provider keys\s+none of \d+ key variables for \d+ providers/m);
     expect(out).toMatch(/^ok\s+benchmark pins\s+.*6 benchmarks, 5 pinned; .*gatemem 24 lines/m);
     expect(out).toMatch(/^ok\s+pi pin\s+pi-ai 1\.3\.0, pi-coding-agent 1\.3\.0/m);
@@ -204,6 +207,47 @@ describe("engram doctor, each check red", () => {
       () => Promise.resolve(createFakeAdapter({ name: "mem0" })),
     );
     expect(status).toBe("ok");
+  });
+
+  it("adapter letta: fails when git is not on the path", async () => {
+    const saved = process.env.PATH;
+    process.env.PATH = "";
+    try {
+      let n = 0;
+      const [status, detail] = await checkLettaAdapter(NOW, () => testId(960 + ++n));
+      expect(status).toBe("fail");
+      expect(detail).toContain("git executable is not on the path");
+    } finally {
+      process.env.PATH = saved;
+    }
+  });
+
+  it("adapter letta: fails when the repository keeps an item it was asked to delete", async () => {
+    let n = 0;
+    const [status, detail] = await checkLettaAdapter(
+      NOW,
+      () => testId(970 + ++n),
+      async (root) => {
+        const letta = await createLettaAdapter({ root });
+        return Object.assign(Object.create(letta) as Adapter, { delete: async () => undefined });
+      },
+    );
+    expect(status).toBe("fail");
+    expect(detail).toContain("deleted but a read still returns it");
+  });
+
+  it("adapter letta: fails when a write leaves no commit behind", async () => {
+    let n = 0;
+    const [status, detail] = await checkLettaAdapter(
+      NOW,
+      () => testId(980 + ++n),
+      async (root) => {
+        const letta = await createLettaAdapter({ root });
+        return Object.assign(Object.create(letta) as Adapter, { history: async () => [] });
+      },
+    );
+    expect(status).toBe("fail");
+    expect(detail).toContain("0 versions in git");
   });
 
   it("provider keys: names a set key and its provider, never its value", async () => {

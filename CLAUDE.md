@@ -59,7 +59,7 @@ make run CONFIG=<file> MODEL=<provider/model> REPLAY=1  replay that live run's c
 make lint                      biome, tsc, ruff, mypy; CI runs the same
 make lint-docs                 log entry frontmatter, em dashes in prose, CLAUDE.md equals AGENTS.md
 make lint-docs PR=<dir>        the PR gate on a PR directory (body.md, files.txt); fixtures in fixtures/ci/
-engram doctor                  log and its backend (never created by doctor), policy, store root, files and Mem0 adapters through the plane, provider keys by name only, benchmark pins and fixture hashes, the pi pin against docs/deps.md, Node 24 or later
+engram doctor                  log and its backend (never created by doctor), policy, store root, files and Mem0 adapters through the plane, the Letta adapter (git on the path, a write, read and delete in a temporary MemFS repository), provider keys by name only, benchmark pins and fixture hashes, the pi pin against docs/deps.md, Node 24 or later
 engram read --root <dir> --owner <id>   a memory folder through the plane, adopted as its owner, every item explained; the log is --db, else ENGRAM_DB_URL, else <home>/.engram/engram.db; engram --help lists the rest
 engram write | read | promote | explain | retain | lint | simulate   each one call of the generated client: in process over the workspace its flags name, or to the server --server <url> (or ENGRAM_SERVER_URL) names
 engram retain --scope <scope>  sweep one scope's retention as a user-sourced member: expired items retired, budgets enforced
