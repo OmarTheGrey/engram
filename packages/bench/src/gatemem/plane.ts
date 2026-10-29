@@ -20,7 +20,7 @@
 //
 // - A field whose value is a principal id of the episode names a party.
 // - A field ending in `_id` whose value is not a principal names a group
-///   (project, program, household, case, course, building). One person id is
+//   (project, program, household, case, course, building). One person id is
 //   read this way: `guest_id` `guest_noah_kim`, a guest the episode does not
 //   list as a principal; its relationship is restricted, so it maps to nothing.
 // - `expires`, when it parses as a time, is the relationship's end.

@@ -19,7 +19,7 @@
 //   default is `.engram/runs/<config>-live/<provider>/<model>/cassettes`.
 // - A replay (review R5-5) reads the same directory with every miss an error,
 //   is allowed offline, and refuses a directory that does not exist.
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import { createModels } from "@earendil-works/pi-ai";
 import { builtinProviders } from "@earendil-works/pi-ai/providers/all";
@@ -108,7 +108,9 @@ export function liveConfig(config: RunnerConfig, request: LiveRunRequest): Runne
  */
 export function replayConfig(config: RunnerConfig, request: LiveRunRequest): RunnerConfig {
   const cassettes = liveCassettes(config, request);
-  if (!existsSync(cassettes)) {
+  // A live run that died before its first call leaves an empty folder (liveOptions
+  // creates it), so a folder with no cassette file counts as nothing recorded.
+  if (!existsSync(cassettes) || !readdirSync(cassettes).some((f) => f.endsWith(".json"))) {
     throw new LiveRunRefused(`no recorded cassettes at ${cassettes} to replay`);
   }
   return { ...config, model: request.model, cassettes };

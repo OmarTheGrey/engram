@@ -198,6 +198,16 @@ describe("the replay of a live run (R5-5)", () => {
     ).toThrow(/no recorded cassettes/);
   });
 
+  test("refuses the empty folder a live run that made no call leaves behind", () => {
+    const cassettes = join(fresh(), "cassettes");
+    const config = liveConfig(b3, { model: FAUX_MODEL, repo: REPO, cassettes, env: {} });
+    liveOptions(config, fauxLive().models, {});
+    expect(existsSync(cassettes)).toBe(true);
+    expect(() => replayConfig(b3, { model: FAUX_MODEL, repo: REPO, cassettes })).toThrow(
+      /no recorded cassettes/,
+    );
+  });
+
   test("the command replays under ENGRAM_OFFLINE=1", async () => {
     const cassettes = join(fresh(), "cassettes");
     const recorded = liveConfig(b3, { model: FAUX_MODEL, repo: REPO, cassettes, env: {} });
