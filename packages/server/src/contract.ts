@@ -92,6 +92,9 @@ export const ReadResponse = z.strictObject({
   filtered: z.int().nonnegative(),
   event: MemoryEvent,
   sync: StoreSync.nullable(),
+  policy: z
+    .string()
+    .meta({ description: "The policy the read was decided under: <id> v<version>." }),
 });
 
 export const ExplainRequest = z.strictObject({ actor: Actor });

@@ -481,6 +481,8 @@ export interface components {
             filtered: number;
             event: components["schemas"]["MemoryEvent"];
             sync: components["schemas"]["StoreSync"] | null;
+            /** @description The policy the read was decided under: <id> v<version>. */
+            policy: string;
         };
         /** @description What the workspace did before the read, as the store's owner: its retention sweep, then the adoption of the store's own memories (ADR 0025, decision D8). */
         StoreSync: {

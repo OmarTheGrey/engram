@@ -2394,6 +2394,10 @@
                 "type": "null"
               }
             ]
+          },
+          "policy": {
+            "type": "string",
+            "description": "The policy the read was decided under: <id> v<version>."
           }
         },
         "required": [
@@ -2401,7 +2405,8 @@
           "explanations",
           "filtered",
           "event",
-          "sync"
+          "sync",
+          "policy"
         ],
         "additionalProperties": false
       },

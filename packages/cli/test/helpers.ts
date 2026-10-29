@@ -9,7 +9,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { allEvents, type MemoryEvent, openSqlite } from "@engram/core";
 import { afterAll } from "vitest";
-import { run } from "../src/run.ts";
+import { type Io, run } from "../src/run.ts";
 
 /** The repository checkout the tests run in. */
 export const REPO = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
@@ -63,6 +63,12 @@ export interface CliOptions {
   nodeVersion?: string;
   /** The checkout doctor reads pins from; the real one unless the test gives one. */
   repo?: string;
+  /** Wraps every client call's fetch (counting tests). */
+  transport?: Io["transport"];
+  /** Stops serve and mcp. */
+  stop?: AbortSignal;
+  /** The hook's JSON. */
+  stdin?: NodeJS.ReadableStream;
 }
 
 export async function cli(
@@ -73,6 +79,9 @@ export async function cli(
     env = {},
     nodeVersion = process.versions.node,
     repo = REPO,
+    transport,
+    stop,
+    stdin,
   }: CliOptions = {},
 ): Promise<CliResult> {
   let out = "";
@@ -91,6 +100,9 @@ export async function cli(
     env,
     nodeVersion,
     repo,
+    ...(transport ? { transport } : {}),
+    ...(stop ? { stop } : {}),
+    ...(stdin ? { stdin } : {}),
   });
   return { code, out, err };
 }

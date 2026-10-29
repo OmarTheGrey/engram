@@ -611,11 +611,9 @@ export interface LocalWorkspace extends Workspace {
  */
 export function openWorkspace(options: WorkspaceOptions): LocalWorkspace {
   const policy = loadPolicy(options.policy, options.cwd);
+  // --owner alone names an actor (explain, retain); a store needs --root or --store.
   const wantsStore =
-    options.requireStore === true ||
-    options.store !== undefined ||
-    options.root !== undefined ||
-    options.owner !== undefined;
+    options.requireStore === true || options.store !== undefined || options.root !== undefined;
   const store = wantsStore ? openStore(options, (p) => resolve(options.cwd, p)) : null;
   const target = dbTarget(options.db, options);
   let log: Log | undefined;

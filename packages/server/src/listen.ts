@@ -52,7 +52,12 @@ export function listen(workspace: Workspace, options: ListenOptions): Promise<Li
         resolveListening({
           url: `http://${name}:${info.port}`,
           port: info.port,
-          close: () => new Promise((done, fail) => server.close((e) => (e ? fail(e) : done()))),
+          close: () =>
+            new Promise((done, fail) => {
+              server.close((e) => (e ? fail(e) : done()));
+              // Keep-alive connections would hold close open until they time out.
+              (server as { closeAllConnections?: () => void }).closeAllConnections?.();
+            }),
         });
       },
     );

@@ -42,6 +42,8 @@ export const API_PREFIX = "/api/v1";
 
 const route = <Req>(r: Route<Req>): Route => r as unknown as Route;
 
+const policyLabel = (w: Workspace) => `${w.policy.id} v${w.policy.version}`;
+
 /** The store owner's sweep and adoption before a read, as `engram read` has always run them. */
 async function syncStore(workspace: Workspace, at: string) {
   const { store } = workspace;
@@ -90,7 +92,7 @@ export const ROUTES: readonly Route[] = [
       const at = body.at ?? now();
       const sync = await syncStore(workspace, at);
       const result = await workspace.plane.read(body.actor, { text: body.text, at });
-      return { ...result, sync };
+      return { ...result, sync, policy: policyLabel(workspace) };
     },
   }),
   route<z.infer<typeof C.ExplainRequest>>({
@@ -152,10 +154,7 @@ export const ROUTES: readonly Route[] = [
     summary: "The policy the workspace decides with.",
     response: C.PolicyResponse,
     errors: [],
-    handler: async ({ workspace }) => ({
-      policy: workspace.policy,
-      label: `${workspace.policy.id} v${workspace.policy.version}`,
-    }),
+    handler: async ({ workspace }) => ({ policy: workspace.policy, label: policyLabel(workspace) }),
   }),
   route<z.infer<typeof C.LintRequest>>({
     id: "lint",
