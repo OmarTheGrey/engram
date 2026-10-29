@@ -2,7 +2,15 @@
 export * from "./adapter.ts";
 export * from "./content-hash.ts";
 export * from "./db/db.ts";
-export { MIGRATIONS, type Migration, migrate } from "./db/migrate.ts";
+export { MIGRATIONS, type Migration, migrate, migrationText } from "./db/migrate.ts";
+export {
+  isServerTimeout,
+  openPostgres,
+  POSTGRES_CONNECT_TIMEOUT_MS,
+  POSTGRES_TIMEOUT_MS,
+  type PostgresOptions,
+  rewritePlaceholders,
+} from "./db/postgres.ts";
 export { openSqlite } from "./db/sqlite.ts";
 export * from "./distill.ts";
 export * from "./events.ts";

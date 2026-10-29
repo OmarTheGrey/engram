@@ -34,7 +34,7 @@ export function itemByStoreRef(db: Db, ref: StoreRef): MemoryItem | undefined {
   const holders = db
     .prepare(
       `SELECT body FROM items WHERE store_adapter = ? AND store_key = ?
-       ORDER BY status = 'retired', seq DESC`,
+       ORDER BY status = 'retired', seq DESC NULLS LAST`,
     )
     .all(ref.adapter, ref.key)
     .map((row) => parse(row) as MemoryItem);
@@ -48,10 +48,12 @@ export function itemByStoreRef(db: Db, ref: StoreRef): MemoryItem | undefined {
   return active.find((h) => !superseded.has(h.id)) ?? holders[0];
 }
 
-/** Every item holding `ref`, whatever its status, latest first. */
+/** Every item holding `ref`, whatever its status, latest first; a holder with no seq last, on both backends. */
 export function itemsByStoreRef(db: Db, ref: StoreRef): MemoryItem[] {
   return db
-    .prepare("SELECT body FROM items WHERE store_adapter = ? AND store_key = ? ORDER BY seq DESC")
+    .prepare(
+      "SELECT body FROM items WHERE store_adapter = ? AND store_key = ? ORDER BY seq DESC NULLS LAST",
+    )
     .all(ref.adapter, ref.key)
     .flatMap((r) => parse(r) ?? []);
 }

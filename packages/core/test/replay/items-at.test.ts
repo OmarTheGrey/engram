@@ -5,11 +5,11 @@ import fc from "fast-check";
 import { describe, expect, test } from "vitest";
 import type { Db } from "../../src/db/db.ts";
 import { migrate } from "../../src/db/migrate.ts";
-import { openSqlite } from "../../src/db/sqlite.ts";
 import { appendEvent, currentItems, type EventInput } from "../../src/events.ts";
 import { itemByStoreRef } from "../../src/items.ts";
 import { itemsAt } from "../../src/replay.ts";
 import type { MemoryItem } from "../../src/schema.ts";
+import { forEachBackend } from "../db/backends.ts";
 import { arbEventInput, arbId, STORE_REFS, seedFor } from "../generators.ts";
 
 const id = (n: number) => `01920000-0000-7000-8000-${String(n).padStart(12, "0")}`;
@@ -188,177 +188,201 @@ function appendObserving(db: Db, events: EventInput[]): MemoryItem[][] {
   });
 }
 
-describe("itemsAt", () => {
-  test("the fixture workload: rebuilt set equals live set at every seq", () => {
-    const db = openSqlite(":memory:");
-    migrate(db);
-    const live = appendObserving(db, WORKLOAD);
-    expect(itemsAt(db, -1)).toEqual([]);
-    live.forEach((set, seq) => {
-      expect(itemsAt(db, seq), `seq ${seq}`).toEqual(set);
-    });
-    // The fixture exercises every change: the final set differs from every earlier one.
-    expect(new Set(live.map((s) => JSON.stringify(s))).size).toBeGreaterThan(5);
-    db.close();
-  });
-
-  test("the fixture workload matches a hand-written oracle where the projection rule decides", () => {
-    // Replay and the projection share applyEvent, so their equality cannot
-    // catch a wrong rule (review finding R2-1). These states are written by hand.
-    const db = openSqlite(":memory:");
-    migrate(db);
-    appendObserving(db, WORKLOAD);
-    const promoted = item(2, { class: "semantic", scope: "team:platform" });
-    const corrected = item(4, {
-      version: 2,
-      lineage: [id(1)],
-      content: "observation 1, corrected",
-    });
-    // seq 2: the denied write of item 3 adds nothing.
-    expect(itemsAt(db, 2)).toEqual([item(1), item(2)]);
-    // seq 5: the allowed retirement of item 1 keeps it, retired.
-    expect(itemsAt(db, 5)).toEqual([{ ...item(1), status: "retired" }, item(2), corrected]);
-    // seq 7: the denied eviction leaves item 4 active.
-    expect(itemsAt(db, 7)).toEqual([{ ...item(1), status: "retired" }, promoted, corrected]);
-    // seq 9: retiring the unknown item 9 creates nothing; seq 10 (ask gate) changes nothing.
-    expect(itemsAt(db, 10)).toEqual(itemsAt(db, 7));
-    // seq 12: the allowed eviction retires item 4.
-    expect(itemsAt(db, 12)).toEqual([
-      { ...item(1), status: "retired" },
-      promoted,
-      { ...corrected, status: "retired" },
-    ]);
-    db.close();
-  });
-
-  test("rebuilds from the event log alone, without the item projection", () => {
-    const db = openSqlite(":memory:");
-    migrate(db);
-    const live = appendObserving(db, WORKLOAD);
-    db.exec("DELETE FROM items");
-    live.forEach((set, seq) => {
-      expect(itemsAt(db, seq), `seq ${seq}`).toEqual(set);
-    });
-    db.close();
-  });
-
-  test("a seq past the end of the log is the current set", () => {
-    const db = openSqlite(":memory:");
-    migrate(db);
-    const live = appendObserving(db, WORKLOAD);
-    expect(itemsAt(db, WORKLOAD.length + 10)).toEqual(live.at(-1));
-    db.close();
-  });
-
-  const NAME =
-    "rebuilt-at-seq equals the incremental state after each append, for any event sequence";
-  test(NAME, () => {
-    const sequences = fc
-      .uniqueArray(arbId, { minLength: 1, maxLength: 4 })
-      .chain((ids) => fc.array(arbEventInput(ids), { maxLength: 25 }));
-    fc.assert(
-      fc.property(sequences, (events) => {
-        const db = openSqlite(":memory:");
+forEachBackend((backend) => {
+  describe("itemsAt", () => {
+    test("the fixture workload: rebuilt set equals live set at every seq", () => {
+      const db = backend.open();
+      try {
         migrate(db);
-        const live = appendObserving(
-          db,
-          events.map((e, i) => ({
-            ...e,
-            id: `${e.id.slice(0, 24)}${String(i).padStart(12, "0")}`,
-          })),
-        );
+        const live = appendObserving(db, WORKLOAD);
+        expect(itemsAt(db, -1)).toEqual([]);
         live.forEach((set, seq) => {
           expect(itemsAt(db, seq), `seq ${seq}`).toEqual(set);
         });
+        // The fixture exercises every change: the final set differs from every earlier one.
+        expect(new Set(live.map((s) => JSON.stringify(s))).size).toBeGreaterThan(5);
+      } finally {
         db.close();
-      }),
-      { numRuns: 300, seed: seedFor(NAME) },
-    );
-  });
+      }
+    });
 
-  const REF_NAME =
-    "itemByStoreRef returns the newest active version of each shared ref, for any event sequence";
-  test(REF_NAME, () => {
-    // Each produced item names some of the ids before its own in the pool as
-    // the versions it supersedes (acyclic, so the newest version is defined;
-    // the cycle fallback has its own unit test), and seq and lineage then
-    // often disagree on which holder is latest. Every produced item is stored,
-    // under one of the pooled refs, and events producing an item are drawn
-    // three times as often, so that refs are shared often.
-    const sequences = fc.uniqueArray(arbId, { minLength: 2, maxLength: 4 }).chain((ids) =>
-      fc.array(
-        fc
-          .tuple(
-            fc.oneof(
-              { arbitrary: arbEventInput(ids), weight: 1 },
-              { arbitrary: arbEventInput(ids).filter((e) => e.item != null), weight: 3 },
-            ),
-            fc.subarray(ids),
-            fc.constantFrom(...STORE_REFS),
-          )
-          .map(([e, picked, ref]) => {
-            if (!e.item) return e;
-            const older = picked.filter((o) => ids.indexOf(o) < ids.indexOf(e.item_id ?? ""));
-            return { ...e, item: { ...e.item, lineage: older, store_ref: { ...ref } } };
-          }),
-        { minLength: 1, maxLength: 25 },
-      ),
-    );
-    let shared = 0;
-    let lineageDecided = 0;
-    fc.assert(
-      fc.property(sequences, (events) => {
-        const db = openSqlite(":memory:");
+    test("the fixture workload matches a hand-written oracle where the projection rule decides", () => {
+      // Replay and the projection share applyEvent, so their equality cannot
+      // catch a wrong rule (review finding R2-1). These states are written by hand.
+      const db = backend.open();
+      try {
         migrate(db);
-        // The oracle, written from decision D1 and its round 2 refinement
-        // without the projection: an item's seq is that of the last allowed
-        // event that changed it; a holder is superseded when an active
-        // holder's lineage, followed through every projected item, names it.
-        const lastSeq = new Map<string, number>();
-        events.forEach((e, seq) => {
-          appendEvent(db, { ...e, id: `${e.id.slice(0, 24)}${String(seq).padStart(12, "0")}` });
-          if (e.decision === "allow" && e.item_id) {
-            const changes = ["write", "update", "promote"].includes(e.op) && e.item;
-            const retires = ["retire", "evict"].includes(e.op) && lastSeq.has(e.item_id);
-            if (changes || retires) lastSeq.set(e.item_id, seq);
-          }
-          const now = itemsAt(db, seq);
-          const byId = new Map(now.map((i) => [i.id, i]));
-          const ancestors = (start: MemoryItem) => {
-            const seen = new Set<string>([start.id]);
-            const out = new Set<string>();
-            const queue = [...start.lineage];
-            while (queue.length > 0) {
-              const next = queue.shift() as string;
-              if (seen.has(next)) continue;
-              seen.add(next);
-              out.add(next);
-              queue.push(...(byId.get(next)?.lineage ?? []));
-            }
-            return out;
-          };
-          for (const ref of STORE_REFS) {
-            const holders = now
-              .filter((i) => i.store_ref?.adapter === ref.adapter && i.store_ref.key === ref.key)
-              .sort((a, b) => (lastSeq.get(b.id) ?? -1) - (lastSeq.get(a.id) ?? -1));
-            if (holders.length > 1) shared++;
-            const active = holders.filter((i) => i.status !== "retired");
-            const superseded = new Set(active.flatMap((i) => [...ancestors(i)]));
-            const newest = active.filter((i) => !superseded.has(i.id));
-            const expected = newest[0] ?? active[0] ?? holders[0];
-            if (expected !== undefined && expected !== (active[0] ?? holders[0])) lineageDecided++;
-            expect(itemByStoreRef(db, ref), `seq ${seq} ref ${ref.adapter}/${ref.key}`).toEqual(
-              expected,
-            );
-          }
+        appendObserving(db, WORKLOAD);
+        const promoted = item(2, { class: "semantic", scope: "team:platform" });
+        const corrected = item(4, {
+          version: 2,
+          lineage: [id(1)],
+          content: "observation 1, corrected",
         });
+        // seq 2: the denied write of item 3 adds nothing.
+        expect(itemsAt(db, 2)).toEqual([item(1), item(2)]);
+        // seq 5: the allowed retirement of item 1 keeps it, retired.
+        expect(itemsAt(db, 5)).toEqual([{ ...item(1), status: "retired" }, item(2), corrected]);
+        // seq 7: the denied eviction leaves item 4 active.
+        expect(itemsAt(db, 7)).toEqual([{ ...item(1), status: "retired" }, promoted, corrected]);
+        // seq 9: retiring the unknown item 9 creates nothing; seq 10 (ask gate) changes nothing.
+        expect(itemsAt(db, 10)).toEqual(itemsAt(db, 7));
+        // seq 12: the allowed eviction retires item 4.
+        expect(itemsAt(db, 12)).toEqual([
+          { ...item(1), status: "retired" },
+          promoted,
+          { ...corrected, status: "retired" },
+        ]);
+      } finally {
         db.close();
-      }),
-      { numRuns: 200, seed: seedFor(REF_NAME) },
-    );
-    // The generator must actually put several items under one ref, and
-    // lineage must overrule seq often enough to test the refinement.
-    expect(shared).toBeGreaterThan(20);
-    expect(lineageDecided).toBeGreaterThan(20);
+      }
+    });
+
+    test("rebuilds from the event log alone, without the item projection", () => {
+      const db = backend.open();
+      try {
+        migrate(db);
+        const live = appendObserving(db, WORKLOAD);
+        db.exec("DELETE FROM items");
+        live.forEach((set, seq) => {
+          expect(itemsAt(db, seq), `seq ${seq}`).toEqual(set);
+        });
+      } finally {
+        db.close();
+      }
+    });
+
+    test("a seq past the end of the log is the current set", () => {
+      const db = backend.open();
+      try {
+        migrate(db);
+        const live = appendObserving(db, WORKLOAD);
+        expect(itemsAt(db, WORKLOAD.length + 10)).toEqual(live.at(-1));
+      } finally {
+        db.close();
+      }
+    });
+
+    const NAME =
+      "rebuilt-at-seq equals the incremental state after each append, for any event sequence";
+    test(NAME, () => {
+      const sequences = fc
+        .uniqueArray(arbId, { minLength: 1, maxLength: 4 })
+        .chain((ids) => fc.array(arbEventInput(ids), { maxLength: 25 }));
+      fc.assert(
+        fc.property(sequences, (events) => {
+          const db = backend.open();
+          try {
+            migrate(db);
+            const live = appendObserving(
+              db,
+              events.map((e, i) => ({
+                ...e,
+                id: `${e.id.slice(0, 24)}${String(i).padStart(12, "0")}`,
+              })),
+            );
+            live.forEach((set, seq) => {
+              expect(itemsAt(db, seq), `seq ${seq}`).toEqual(set);
+            });
+          } finally {
+            db.close();
+          }
+        }),
+        { numRuns: backend.runs(300), seed: seedFor(NAME) },
+      );
+    });
+
+    const REF_NAME =
+      "itemByStoreRef returns the newest active version of each shared ref, for any event sequence";
+    test(REF_NAME, () => {
+      // Each produced item names some of the ids before its own in the pool as
+      // the versions it supersedes (acyclic, so the newest version is defined;
+      // the cycle fallback has its own unit test), and seq and lineage then
+      // often disagree on which holder is latest. Every produced item is stored,
+      // under one of the pooled refs, and events producing an item are drawn
+      // three times as often, so that refs are shared often.
+      const sequences = fc.uniqueArray(arbId, { minLength: 2, maxLength: 4 }).chain((ids) =>
+        fc.array(
+          fc
+            .tuple(
+              fc.oneof(
+                { arbitrary: arbEventInput(ids), weight: 1 },
+                { arbitrary: arbEventInput(ids).filter((e) => e.item != null), weight: 3 },
+              ),
+              fc.subarray(ids),
+              fc.constantFrom(...STORE_REFS),
+            )
+            .map(([e, picked, ref]) => {
+              if (!e.item) return e;
+              const older = picked.filter((o) => ids.indexOf(o) < ids.indexOf(e.item_id ?? ""));
+              return { ...e, item: { ...e.item, lineage: older, store_ref: { ...ref } } };
+            }),
+          { minLength: 1, maxLength: 25 },
+        ),
+      );
+      let shared = 0;
+      let lineageDecided = 0;
+      fc.assert(
+        fc.property(sequences, (events) => {
+          const db = backend.open();
+          try {
+            migrate(db);
+            // The oracle, written from decision D1 and its round 2 refinement
+            // without the projection: an item's seq is that of the last allowed
+            // event that changed it; a holder is superseded when an active
+            // holder's lineage, followed through every projected item, names it.
+            const lastSeq = new Map<string, number>();
+            events.forEach((e, seq) => {
+              appendEvent(db, { ...e, id: `${e.id.slice(0, 24)}${String(seq).padStart(12, "0")}` });
+              if (e.decision === "allow" && e.item_id) {
+                const changes = ["write", "update", "promote"].includes(e.op) && e.item;
+                const retires = ["retire", "evict"].includes(e.op) && lastSeq.has(e.item_id);
+                if (changes || retires) lastSeq.set(e.item_id, seq);
+              }
+              const now = itemsAt(db, seq);
+              const byId = new Map(now.map((i) => [i.id, i]));
+              const ancestors = (start: MemoryItem) => {
+                const seen = new Set<string>([start.id]);
+                const out = new Set<string>();
+                const queue = [...start.lineage];
+                while (queue.length > 0) {
+                  const next = queue.shift() as string;
+                  if (seen.has(next)) continue;
+                  seen.add(next);
+                  out.add(next);
+                  queue.push(...(byId.get(next)?.lineage ?? []));
+                }
+                return out;
+              };
+              for (const ref of STORE_REFS) {
+                const holders = now
+                  .filter(
+                    (i) => i.store_ref?.adapter === ref.adapter && i.store_ref.key === ref.key,
+                  )
+                  .sort((a, b) => (lastSeq.get(b.id) ?? -1) - (lastSeq.get(a.id) ?? -1));
+                if (holders.length > 1) shared++;
+                const active = holders.filter((i) => i.status !== "retired");
+                const superseded = new Set(active.flatMap((i) => [...ancestors(i)]));
+                const newest = active.filter((i) => !superseded.has(i.id));
+                const expected = newest[0] ?? active[0] ?? holders[0];
+                if (expected !== undefined && expected !== (active[0] ?? holders[0]))
+                  lineageDecided++;
+                expect(itemByStoreRef(db, ref), `seq ${seq} ref ${ref.adapter}/${ref.key}`).toEqual(
+                  expected,
+                );
+              }
+            });
+          } finally {
+            db.close();
+          }
+        }),
+        { numRuns: backend.runs(200), seed: seedFor(REF_NAME) },
+      );
+      // The generator must actually put several items under one ref, and
+      // lineage must overrule seq often enough to test the refinement: in more
+      // than one run in ten (20 of SQLite's 200; Postgres runs fewer).
+      expect(shared).toBeGreaterThan(backend.runs(200) / 10);
+      expect(lineageDecided).toBeGreaterThan(backend.runs(200) / 10);
+    });
   });
 });
