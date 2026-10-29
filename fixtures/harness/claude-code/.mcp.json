@@ -1,0 +1,22 @@
+{
+  "mcpServers": {
+    "engram": {
+      "command": "engram",
+      "args": [
+        "mcp",
+        "--as",
+        "person:dana",
+        "--member",
+        "person:dana",
+        "--root",
+        "memory",
+        "--owner",
+        "dana",
+        "--import-valid-from",
+        "2026-10-01T00:00:00.000Z",
+        "--db",
+        ".engram/engram.db"
+      ]
+    }
+  }
+}

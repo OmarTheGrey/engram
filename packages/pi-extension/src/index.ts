@@ -28,4 +28,11 @@ export {
   type Withheld,
   withoutMemory,
 } from "./tag.ts";
-export { MEMORY_READ, MEMORY_WRITE, writeResultText } from "./tools.ts";
+export {
+  MEMORY_EXPLAIN,
+  MEMORY_READ,
+  MEMORY_SIMULATE,
+  MEMORY_WRITE,
+  notImplementedText,
+  writeResultText,
+} from "./tools.ts";

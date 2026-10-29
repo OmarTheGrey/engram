@@ -17,6 +17,7 @@ export * from "./events.ts";
 export * from "./items.ts";
 export * from "./lint.ts";
 export * from "./model.ts";
+export * from "./no-bypass.ts";
 export * from "./plane.ts";
 export * from "./policy/evaluate.ts";
 export * from "./policy/load.ts";

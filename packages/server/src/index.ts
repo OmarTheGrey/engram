@@ -8,6 +8,7 @@ export {
   DEFAULT_PORT,
   honoPath,
   LOOPBACK_NAMES,
+  loopbackGuard,
   MAX_BODY_BYTES,
 } from "./app.ts";
 export * as contract from "./contract.ts";

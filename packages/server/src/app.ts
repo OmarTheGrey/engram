@@ -27,7 +27,7 @@ import {
   NotImplementedYet,
   UnknownReadError,
 } from "@engram/core";
-import { Hono } from "hono";
+import { Hono, type MiddlewareHandler } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import type { z } from "zod";
 import type { ErrorResponse } from "./contract.ts";
@@ -82,12 +82,19 @@ const mediaType = (header: string | undefined) => header?.split(";")[0]?.trim().
 /** Hono's path syntax for an OpenAPI path: `{readId}` becomes `:readId`. */
 export const honoPath = (path: string) => `${API_PREFIX}${path.replace(/\{(\w+)\}/g, ":$1")}`;
 
-export function createApp(workspace: Workspace, options: AppOptions): Hono {
-  const app = new Hono();
-  const hosts = new Set(allowedHosts(options.port));
-  const origins = new Set([...hosts].map((h) => `http://${h}`));
+/** Methods whose body a browser could send cross-site without a preflight. */
+const WITH_BODY = new Set(["POST", "PUT", "PATCH"]);
 
-  app.use("*", async (c, next) => {
+/**
+ * The loopback rules of ADR 0027 decision 4 as one middleware: the Host is a
+ * loopback name with `port`, a present Origin is the server's own, and a
+ * request with a body says application/json. The MCP server's streamable
+ * HTTP transport (packages/mcp) runs behind the same middleware.
+ */
+export function loopbackGuard(port: number): MiddlewareHandler {
+  const hosts = new Set(allowedHosts(port));
+  const origins = new Set([...hosts].map((h) => `http://${h}`));
+  return async (c, next) => {
     // Under @hono/node-server the URL is built from the Host header; in
     // process it is the client's base URL. Either way both must be loopback.
     const header = c.req.header("host");
@@ -97,12 +104,18 @@ export function createApp(workspace: Workspace, options: AppOptions): Hono {
     const origin = c.req.header("origin");
     if (origin !== undefined && !origins.has(origin.toLowerCase()))
       return failure(403, "forbidden_origin", "cross-origin requests are refused");
-    if (c.req.method !== "GET" && c.req.method !== "HEAD") {
-      if (mediaType(c.req.header("content-type")) !== "application/json")
-        return failure(415, "unsupported_media_type", "request bodies must be application/json");
-    }
+    if (
+      WITH_BODY.has(c.req.method) &&
+      mediaType(c.req.header("content-type")) !== "application/json"
+    )
+      return failure(415, "unsupported_media_type", "request bodies must be application/json");
     await next();
-  });
+  };
+}
+
+export function createApp(workspace: Workspace, options: AppOptions): Hono {
+  const app = new Hono();
+  app.use("*", loopbackGuard(options.port));
   app.use(
     "*",
     bodyLimit({

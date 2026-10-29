@@ -15,6 +15,7 @@
   "dependencies": {
     "@engram/adapters": "workspace:*",
     "@engram/core": "workspace:*",
+    "@engram/mcp": "workspace:*",
     "@engram/sdk": "workspace:*",
     "@engram/server": "workspace:*"
   }

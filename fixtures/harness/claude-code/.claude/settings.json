@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|Read|Write|Edit|MultiEdit|NotebookEdit|Glob|Grep|LS",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "engram hook claude-code --root memory --db .engram/engram.db"
+          }
+        ]
+      }
+    ]
+  }
+}
