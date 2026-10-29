@@ -13,6 +13,13 @@ export interface ModelRequest {
   seed: number;
   temperature?: number;
   maxTokens?: number;
+  /**
+   * Ask for structured output matching this JSON Schema (OpenAI's strict
+   * `json_schema` response format), as an upstream judge does. Part of the
+   * request hash when set; absent, the hash is what it was before the field
+   * existed. An implementation that cannot honour it must refuse the request.
+   */
+  responseSchema?: { name: string; schema: Record<string, unknown> };
 }
 
 export interface ModelUsage {

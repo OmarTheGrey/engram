@@ -57,9 +57,15 @@ api-check: api ## fail if generated contracts differ from what is committed
 
 BENCH_OUT ?= .engram/bench/$(BENCH)
 
-bench: ## run one benchmark on its fixture subset with the scripted model, offline: make bench BENCH=gatemem
+GATEMEM_DATA ?= .engram/upstream/gatemem/bench/data
+
+bench: ## run one benchmark on its fixture subset with the scripted model, offline: make bench BENCH=gatemem; DRY=1 counts the live run's calls and keys on the full set
 ifeq ($(BENCH),gatemem)
+ifeq ($(DRY),1)
+	node packages/bench/scripts/dry-run-gatemem.ts --config fixtures/bench/gatemem/run-config.json --data "$(GATEMEM_DATA)" --fetch --out "$(BENCH_OUT)-dry" $(if $(MODEL),--model "$(MODEL)") $(if $(SEED),--seed "$(SEED)")
+else
 	ENGRAM_OFFLINE=1 node packages/bench/scripts/run-gatemem.ts --config fixtures/bench/gatemem/run-config.json --out "$(BENCH_OUT)"
+endif
 else
 	@echo "bench: BENCH=$(BENCH) has no runner; only gatemem exists (card B1), the others land with cards B2 to B9"; exit 2
 endif

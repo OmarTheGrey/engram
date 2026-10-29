@@ -7,10 +7,11 @@
 // leak_targets pattern checks on the answer and on the prompt context).
 //
 // The paper's primary metrics come from an LLM judge (GPT-4o,
-// bench/prompts/judge_prompt.txt). It is not run here: it is a paid model call
-// and no experiment runs while the pre-registration is backlogged
-// (docs/tasks/backlog.md). These rule-based numbers are therefore not the
-// paper's U, A, F and MGS, and must not be compared with Table 3.
+// bench/prompts/judge_prompt.txt), ported in judge.ts. With GPT-4o it is a
+// paid model call and no experiment runs while the pre-registration is
+// backlogged (docs/tasks/backlog.md); the fixture runs it with a scripted
+// judge only. These rule-based numbers are therefore not the paper's U, A, F
+// and MGS, and must not be compared with Table 3.
 //
 // Every string operation follows Python, not JavaScript (findings R6-1 and
 // R6-12): json.dumps and str() through py.ts, which keeps a model's floats as
@@ -257,7 +258,8 @@ export function aggregate(scores: readonly Score[]) {
 
 export type Summary = ReturnType<typeof aggregate> & {
   gated_by_action: boolean;
-  judge: "not run";
+  /** "run" when the LLM judge ran too; its scores are in judge_summary.json. */
+  judge: "not run" | "run";
 };
 
 /**

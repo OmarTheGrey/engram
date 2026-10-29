@@ -41,6 +41,10 @@ Amendments made in the second review round, 2026-10-29 (PR #7, verifier report d
 - Defect 5: pi's `summarizeForBugReport` sends the session's messages to the model with no `context` event and no hook. The session now keeps no memory text: a memory_read result and a recall message are stored with a placeholder naming the read and its counts, the admitted items stay in the details (which pi never sends to a model) and in the extension's record, and the `context` handler still shows the model the tagged items. Limit: another extension can still write memory text into the session's messages itself, for example by rewriting a result in its tool_result handler.
 - Defect 6: the branch-summary handler is tested in a real session (`navigateTree` with a summary): the summariser receives the notice in place of the recall, and a forged tag in a user message or another extension's custom message arrives defused.
 
+Amendment made in PR 6 (Gate A), 2026-10-29, with ADR 0015's (pending the lead's review like the rest of this ADR):
+
+- The memory tag the model receives carries the read id, the read rule, the filtered count and, per item, its id, scope, rank and admitting rule; it no longer carries the score total. The explanation itself (score components, rank, rule, grants, validity) is unchanged and still reaches the model through `memory_explain`; the tag's shape is shared with the ungoverned conditions, which have no score (ADR 0015).
+
 ## Alternatives considered
 
 No alternatives were recorded beyond the recommendation.

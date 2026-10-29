@@ -51,6 +51,7 @@ make test-invariants           the four invariants against the real Plane, with 
 make api                       regenerate sdk/schema (JSON Schema) and research/engram_types (Python) from the Zod schema; later also OpenAPI and the clients
 make api-check                 make api, then fail if the generated files differ from what is committed
 make bench BENCH=gatemem       run one benchmark on its fixture subset offline: scripted model, committed cassettes (a miss is an error, never recorded into them), output in .engram/bench/<name>; gatemem only so far
+make bench BENCH=gatemem DRY=1 the live GateMem run counted on the full checkpoint set, no model called: its calls, cache keys and prompt size (fetches the pinned data once into .engram/upstream; MODEL=, SEED= set the keys' model and seed)
 make run CONFIG=<file>         replay a runner config: each (item, condition, seed) a pi SDK session, every model call from its cassettes, a miss an error; output in .engram/runs/<name>
 make lint                      biome, tsc, ruff, mypy; CI runs the same
 make lint-docs                 log entry frontmatter, em dashes in prose, CLAUDE.md equals AGENTS.md
