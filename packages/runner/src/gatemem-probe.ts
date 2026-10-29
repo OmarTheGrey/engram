@@ -41,8 +41,13 @@ export const sequentialIds = () => {
   return () => `01920000-0000-7000-8000-${String(++n).padStart(12, "0")}`;
 };
 
-/** GateMem turn times as UTC instants (card B3 moved this to @engram/bench). */
-export const turnTime = gatemem.turnTime;
+/**
+ * GateMem turn times as UTC instants (card B3 moved this to @engram/bench).
+ * A call, not an alias: @engram/bench imports this package, so `gatemem` is
+ * not yet bound while this module first loads.
+ */
+export const turnTime = (turn: gatemem.Turn, index: number): string =>
+  gatemem.turnTime(turn, index);
 
 /** A plain person actor (RN1's placeholder actor; the probe uses the B3 mapping's). */
 export const personOf = (principalId: string): Actor => ({
