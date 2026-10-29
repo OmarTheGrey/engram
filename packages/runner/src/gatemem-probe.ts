@@ -20,6 +20,7 @@ import {
   type Adapter,
   createPlane,
   type MemoryEvent,
+  type MemoryItem,
   migrate,
   openSqlite,
   type Plane,
@@ -40,14 +41,6 @@ export const sequentialIds = () => {
   let n = 0;
   return () => `01920000-0000-7000-8000-${String(++n).padStart(12, "0")}`;
 };
-
-/**
- * GateMem turn times as UTC instants (card B3 moved this to @engram/bench).
- * A call, not an alias: @engram/bench imports this package, so `gatemem` is
- * not yet bound while this module first loads.
- */
-export const turnTime = (turn: gatemem.Turn, index: number): string =>
-  gatemem.turnTime(turn, index);
 
 /** A plain person actor (RN1's placeholder actor; the probe uses the B3 mapping's). */
 export const personOf = (principalId: string): Actor => ({
@@ -204,9 +197,29 @@ function sessionOutput(session: AgentSession): {
 }
 
 /**
+ * C5's ingestion did not land every item as C2 and C3's did: a write was not
+ * allowed, or it evicted an earlier one. The conditions would then hold
+ * different store contents (ADR 0015, decision D13), so the probe fails
+ * rather than score a C5 that saw less (review R5-7).
+ */
+export class IngestionDivergedError extends Error {
+  constructor(item: MemoryItem, event: MemoryEvent, evicted: number) {
+    super(
+      `C5 ingestion diverged from C2 and C3 at item ${item.id} (${item.provenance.ref}): ${
+        evicted > 0
+          ? `the write evicted ${evicted} earlier item(s)`
+          : `write ${event.decision} by ${event.policy_id}: ${event.reason}`
+      }; the conditions would not hold the same store contents (decision D13)`,
+    );
+    this.name = "IngestionDivergedError";
+  }
+}
+
+/**
  * The checkpoint's turns into the store: through the Plane under C5, each as
  * its speaker's write at the turn's time; straight to the store under C2 and
- * C3, the same items, so every condition holds the same contents.
+ * C3, the same items, so every condition holds the same contents. Under C5
+ * a write the plane does not allow, or one that evicts, is an error.
  */
 async function ingest(
   writes: readonly gatemem.TurnWrite[],
@@ -215,7 +228,10 @@ async function ingest(
 ): Promise<void> {
   for (const { actor, item } of writes) {
     if (plane) {
-      await plane.write(actor, item, item.valid_from);
+      const result = await plane.write(actor, item, item.valid_from);
+      if (result.event.decision !== "allow" || result.retention.length > 0) {
+        throw new IngestionDivergedError(item, result.event, result.retention.length);
+      }
     } else {
       // Ungoverned ingestion: straight to the store, as C2 and C3 read it.
       await store.adapter.write(item);
@@ -240,18 +256,43 @@ const logged = (e: MemoryEvent): LoggedEvent => ({
   reason: e.reason,
 });
 
+/** What a probe hands the plane and the model, all of it from stripped fields. */
+export interface ProbeInputs {
+  checkpoint: gatemem.Checkpoint;
+  mapped: gatemem.CheckpointMapping;
+  /** The benchmark's system and user prompts, the same in every condition. */
+  system: string;
+  user: string;
+}
+
+/**
+ * The checkpoint's mapping and prompts. Card B3's mapping strips the hidden
+ * fields first; turns reach the session only up to the as-of turn, as in
+ * GateMem's harness. `newId` hands out the turn items' ids.
+ */
+export function probeInputs(
+  domain: gatemem.Domain,
+  checkpointId: string,
+  newId: () => string,
+): ProbeInputs {
+  const checkpoint = domain.checkpoints.find((c) => c.checkpoint_id === checkpointId);
+  if (!checkpoint) throw new Error(`no GateMem checkpoint ${checkpointId} in ${domain.domain}`);
+  const full = domain.episodes.find((e) => e.episode_id === checkpoint.episode_id);
+  if (!full) throw new Error(`no episode ${checkpoint.episode_id} for ${checkpointId}`);
+  const mapped = gatemem.mapCheckpoint(full, checkpoint, newId);
+  const { system, user } = gatemem.renderQueryPrompt(
+    mapped.episode,
+    mapped.checkpoint,
+    MEMORY_BLOCK,
+  );
+  return { checkpoint, mapped, system, user };
+}
+
 /** Run one checkpoint under one condition, store and seed. */
 export async function runProbe(spec: ProbeSpec): Promise<ProbeResult> {
-  const checkpoint = spec.domain.checkpoints.find((c) => c.checkpoint_id === spec.checkpointId);
-  if (!checkpoint)
-    throw new Error(`no GateMem checkpoint ${spec.checkpointId} in ${spec.domain.domain}`);
-  const full = spec.domain.episodes.find((e) => e.episode_id === checkpoint.episode_id);
-  if (!full) throw new Error(`no episode ${checkpoint.episode_id} for ${spec.checkpointId}`);
   const newId = sequentialIds();
-  // Card B3's mapping strips the hidden fields first; turns reach the session
-  // only up to the as-of turn, as in GateMem's harness.
-  const mapped = gatemem.mapCheckpoint(full, checkpoint, newId);
-  const { episode, checkpoint: view, at } = mapped;
+  const { checkpoint, mapped, system, user } = probeInputs(spec.domain, spec.checkpointId, newId);
+  const { at } = mapped;
 
   const adapter: Adapter = await openStore(spec.store);
   const store: UngovernedStore = { adapter, scopes: new Set() };
@@ -272,7 +313,6 @@ export async function runProbe(spec: ProbeSpec): Promise<ProbeResult> {
     ...(spec.offline === undefined ? {} : { offline: spec.offline }),
     ...(spec.onUsage === undefined ? {} : { onUsage: spec.onUsage }),
   });
-  const { system, user } = gatemem.renderQueryPrompt(episode, view, MEMORY_BLOCK);
   const { session, sessionManager } = await conditionSession({
     condition: spec.condition,
     cwd,

@@ -4,11 +4,25 @@
 // write and read events. A cross-principal read the mapping forbids is
 // denied with the same events on every store.
 import { gatemem } from "@engram/bench";
-import { createPlane, loadPreset, type MemoryEvent, migrate, openSqlite } from "@engram/core";
+import {
+  createPlane,
+  loadPreset,
+  type MemoryEvent,
+  migrate,
+  openSqlite,
+  type Policy,
+} from "@engram/core";
 import { describe, expect, test } from "vitest";
 import { readRunnerConfig, STORES } from "../src/config.ts";
-import { sequentialIds } from "../src/gatemem-probe.ts";
+import {
+  IngestionDivergedError,
+  probeInputs,
+  readProbeScript,
+  runProbe,
+  sequentialIds,
+} from "../src/gatemem-probe.ts";
 import { memoryCache } from "../src/model/cached.ts";
+import { scriptedAnswers } from "../src/model/cassette.ts";
 import { runConfig } from "../src/run.ts";
 import { openStore } from "../src/stores.ts";
 import { B3 } from "./paths.ts";
@@ -50,11 +64,9 @@ describe("acceptance (card B3): GateMem probes through the plane on every store"
   }, 60_000);
 });
 
-/** An event without its item (whose store_ref names the store). */
-const storeNeutral = (e: MemoryEvent) => {
-  const { item: _item, ...rest } = e;
-  return rest;
-};
+/** An event with the store's own part, the store_ref of the item it carries, masked (R5-6). */
+const storeNeutral = (e: MemoryEvent) =>
+  e.item ? { ...e, item: { ...e.item, store_ref: { adapter: "<store>", key: "<key>" } } } : e;
 
 describe("a cross-principal read the mapping forbids is denied the same way on every store", () => {
   const domains = gatemem.loadDataset(config.data);
@@ -114,4 +126,102 @@ describe("a cross-principal read the mapping forbids is denied the same way on e
     expect(first?.length).toBeGreaterThan(1);
     for (const events of rest) expect(events).toEqual(first);
   });
+});
+
+const officeDomain = () =>
+  gatemem.loadDataset(config.data).find((d) => d.domain === "office") as gatemem.Domain;
+const scriptFor = (id: string) => readProbeScript(config.script as string).steps[id] ?? [];
+const scripted = (id: string) => () =>
+  scriptedAnswers(scriptFor(id), { provider: "scripted", model: "scripted-1" });
+
+describe("C5 ingestion cannot diverge from C2 and C3 (R5-7)", () => {
+  const office = officeDomain();
+  const id = config.items[1] as string;
+  // The strict preset, made stricter: no episodic item in person scope, so
+  // every turn write is denied. C2 and C3 would still hold every turn.
+  const strict = loadPreset("strict");
+  const noEpisodic: Policy = {
+    ...strict,
+    write: strict.write.map((r) =>
+      r.scope === "person" ? { ...r, forbidden_classes: ["episodic"] } : r,
+    ),
+  };
+
+  test("a C5 ingestion write the policy denies fails the probe, naming the turn and the rule", async () => {
+    const run = runProbe({
+      domain: office,
+      checkpointId: id,
+      condition: "C5",
+      seed: 1,
+      model: "scripted/scripted-1",
+      preset: "strict",
+      policy: noEpisodic,
+      store: "fake",
+      cache: memoryCache(),
+      answers: scripted(id),
+      offline: false,
+    });
+    await expect(run).rejects.toThrow(IngestionDivergedError);
+    await expect(run).rejects.toThrow(
+      /write deny by preset\.strict\/write\/person: episodic items are forbidden in person scope/,
+    );
+  }, 60_000);
+});
+
+describe("the probe's prompts and writes read no hidden field (R5-10)", () => {
+  const office = officeDomain();
+  const id = config.items[1] as string;
+  /** The office domain with every hidden field of the probe's checkpoint changed. */
+  const relabelled = (): gatemem.Domain => ({
+    ...office,
+    checkpoints: office.checkpoints.map((c) =>
+      c.checkpoint_id === id
+        ? {
+            ...c,
+            query_type: c.query_type === "privacy" ? "utility" : "privacy",
+            expected_action: c.expected_action === "refuse" ? "answer" : "refuse",
+            judge_spec: { expected_action: "answer", include: ["planted"], notes: "planted" },
+            leak_targets: ["planted leak target"],
+            attack_type: "planted",
+          }
+        : c,
+    ),
+  });
+
+  test("probeInputs gives the same system and user prompts, asker and writes", () => {
+    const base = probeInputs(office, id, sequentialIds());
+    const other = probeInputs(relabelled(), id, sequentialIds());
+    expect(other.checkpoint.leak_targets).toEqual(["planted leak target"]);
+    expect(other.system).toBe(base.system);
+    expect(other.user).toBe(base.user);
+    expect(other.mapped).toEqual(base.mapped);
+    expect(`${other.system}${other.user}`).not.toContain("planted");
+  });
+
+  test("runProbe on the relabelled checkpoint replays the original's calls with no new call", async () => {
+    const cache = memoryCache();
+    const spec = {
+      checkpointId: id,
+      condition: "C5" as const,
+      seed: 1,
+      model: "scripted/scripted-1",
+      preset: "medium" as const,
+      policy: loadPreset("medium"),
+      store: "fake" as const,
+      cache,
+      answers: scripted(id),
+    };
+    const base = await runProbe({ ...spec, domain: office, offline: false });
+    const hits: boolean[] = [];
+    const other = await runProbe({
+      ...spec,
+      domain: relabelled(),
+      offline: true,
+      onUsage: (u) => hits.push(u.hit),
+    });
+    expect(hits).toEqual([true, true]);
+    expect(other.events).toEqual(base.events);
+    expect(other.tool_calls).toEqual(base.tool_calls);
+    expect(other.output).toEqual(base.output);
+  }, 60_000);
 });

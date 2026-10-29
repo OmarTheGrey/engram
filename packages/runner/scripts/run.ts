@@ -13,7 +13,9 @@
 // With --live --model <provider/model-id> (`make run ... MODEL= LIVE=1`,
 // card B3, Gate B exception (c)), the probes run on that model through
 // pi-ai's built-in providers and record into a new cassette directory outside
-// the committed fixtures (src/live.ts); refused under ENGRAM_OFFLINE=1. No
+// the committed fixtures (src/live.ts); refused under ENGRAM_OFFLINE=1. With
+// --replay --model <provider/model-id> (`REPLAY=1`), the same directory is
+// replayed, offline allowed, every miss an error. No
 // live run happens while the pre-registration is backlogged
 // (docs/tasks/backlog.md): it is the lead's step once the primary model is
 // named and its key supplied.
@@ -21,7 +23,14 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { configStores, readRunnerConfig } from "../src/config.ts";
-import { builtinLiveModels, LiveRunRefused, liveConfig, liveOptions } from "../src/live.ts";
+import {
+  builtinLiveModels,
+  LiveRunRefused,
+  liveConfig,
+  liveOptions,
+  replayConfig,
+  replayOptions,
+} from "../src/live.ts";
 import { runConfig, writeRunnerResult } from "../src/run.ts";
 
 const REPO = fileURLToPath(new URL("../../../", import.meta.url));
@@ -33,25 +42,30 @@ async function main(): Promise<number> {
       out: { type: "string" },
       record: { type: "boolean", default: false },
       live: { type: "boolean", default: false },
+      replay: { type: "boolean", default: false },
       model: { type: "string" },
       cassettes: { type: "string" },
     },
   });
   if (!values.config || !values.out) {
     console.error(
-      "usage: run.ts --config <runner-config.json> --out <dir> [--record | --live --model <provider/model-id> [--cassettes <dir>]]",
+      "usage: run.ts --config <runner-config.json> --out <dir> [--record | (--live | --replay) --model <provider/model-id> [--cassettes <dir>]]",
     );
     return 2;
   }
   let config = readRunnerConfig(values.config);
   const record = values.record === true;
   const live = values.live === true;
-  if (record && live) {
-    console.error("run.ts: --record and --live are exclusive");
+  const replay = values.replay === true;
+  if ([record, live, replay].filter(Boolean).length > 1) {
+    console.error("run.ts: --record, --live and --replay are exclusive");
     return 2;
   }
-  if (live !== (values.model !== undefined) || (!live && values.cassettes !== undefined)) {
-    console.error("run.ts: --model and --cassettes go with --live, and --live needs --model");
+  const named = live || replay;
+  if (named !== (values.model !== undefined) || (!named && values.cassettes !== undefined)) {
+    console.error(
+      "run.ts: --model and --cassettes go with --live or --replay, and both need --model",
+    );
     return 2;
   }
   if (record && process.env.ENGRAM_OFFLINE === "1") {
@@ -59,13 +73,20 @@ async function main(): Promise<number> {
     return 2;
   }
   let options: Parameters<typeof runConfig>[1] = { offline: !record };
-  if (live) {
+  if (named) {
+    const request = {
+      model: values.model as string,
+      repo: REPO,
+      ...(values.cassettes === undefined ? {} : { cassettes: resolve(values.cassettes) }),
+    };
     try {
-      config = liveConfig(config, {
-        model: values.model as string,
-        repo: REPO,
-        ...(values.cassettes === undefined ? {} : { cassettes: resolve(values.cassettes) }),
-      });
+      if (live) {
+        config = liveConfig(config, request);
+        options = liveOptions(config, builtinLiveModels());
+      } else {
+        config = replayConfig(config, request);
+        options = replayOptions(config);
+      }
     } catch (e) {
       if (e instanceof LiveRunRefused) {
         console.error(e.message);
@@ -73,18 +94,17 @@ async function main(): Promise<number> {
       }
       throw e;
     }
-    options = liveOptions(config, builtinLiveModels());
   }
   const result = await runConfig(config, options);
   writeRunnerResult(result, values.out);
   const lines = [
     `${config.name}: ${result.rows.length} sessions (${config.items.length} items x ${config.conditions.join(", ")} x stores ${configStores(config).join(", ")} x seeds ${config.seeds.join(", ")}), model ${config.model}, preset ${config.preset}`,
-    `model calls: ${result.calls.new} new, ${result.calls.cached} from cassettes${live ? ` (recorded into ${config.cassettes})` : ""}`,
+    `model calls: ${result.calls.new} new, ${result.calls.cached} from cassettes${live ? ` (recorded into ${config.cassettes})` : replay ? ` (replayed from ${config.cassettes})` : ""}`,
     ...result.rows.map(
       (r) =>
         `  ${r.condition} ${r.store} seed ${r.seed} ${r.checkpoint_id}: action ${r.output.action} (correct ${r.score.action_correct}), answer leak ${r.score.privacy_leak ?? r.score.deletion_leak}, context leak ${r.score.privacy_context_leak ?? r.score.deletion_context_leak}, ${r.decisions.length} session decisions, plane log ${eventCounts(r.events)}`,
     ),
-    live
+    named
       ? "live run on a named model; a pipeline config's numbers are still not results"
       : "pipeline config: scripted model, rule-based scorer only; these are not results",
     `written to ${values.out}`,

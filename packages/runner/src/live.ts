@@ -1,18 +1,25 @@
 // The live half of Gate B criterion 4, exception (c) (card B3, plan decision
 // 1): the same probes on a named model, recorded into a new cassette
-// directory outside the committed fixtures. Nothing here runs until the
-// pre-registration names the primary model and the lead supplies its key;
-// no test reaches a provider (pi-ai's faux provider stands in for one).
+// directory outside the committed fixtures, and replayed from it offline.
+// Nothing here runs live until the pre-registration names the primary model
+// and the lead supplies its key; no test reaches a provider (pi-ai's faux
+// provider stands in for one).
 //
 //   make run CONFIG=research/configs/b3-gatemem-plane.json MODEL=<provider/model> LIVE=1
+//   make run CONFIG=research/configs/b3-gatemem-plane.json MODEL=<provider/model> REPLAY=1
 //
 // Guards, each refused before any session starts:
-// - ENGRAM_OFFLINE=1 refuses: offline means no model is reached.
+// - Recording refuses under ENGRAM_OFFLINE=1: offline means no model is
+//   reached. `liveOptions` refuses it again, so a caller that skips
+//   `liveConfig` still cannot record offline (review R5-3).
 // - A scripted model refuses: a script is recorded by `make fixtures` only.
-// - The cassette directory must lie outside every committed fixture
-//   (`fixtures/` of the repository, and the config's own cassettes); the
-//   default is `.engram/runs/<config>-live/<provider>/<model>/cassettes`, which
-//   .gitignore keeps out of the repository. A rerun replays what it recorded.
+// - The cassette directory must be under the repository's `.engram/` (which
+//   .gitignore keeps out of the repository) or outside the repository, and
+//   never overlap `fixtures/` or the config's own cassettes (review R5-4). The
+//   default is `.engram/runs/<config>-live/<provider>/<model>/cassettes`.
+// - A replay (review R5-5) reads the same directory with every miss an error,
+//   is allowed offline, and refuses a directory that does not exist.
+import { existsSync } from "node:fs";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import { createModels } from "@earendil-works/pi-ai";
 import { builtinProviders } from "@earendil-works/pi-ai/providers/all";
@@ -30,9 +37,9 @@ export class LiveRunRefused extends Error {
 export interface LiveRunRequest {
   /** `provider/model-id`, the model the probes run on. */
   model: string;
-  /** The repository root: its `fixtures/` folder is never written. */
+  /** The repository root: only its `.engram/` folder may be written. */
   repo: string;
-  /** Where the new cassettes go; default under `<repo>/.engram/runs/`. */
+  /** The cassette directory; default under `<repo>/.engram/runs/`. */
   cassettes?: string;
   env?: NodeJS.ProcessEnv;
 }
@@ -45,15 +52,10 @@ const within = (parent: string, child: string) => {
   return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
 };
 
-/**
- * The config a live run uses: the request's model and a cassette directory
- * outside the committed fixtures. Throws LiveRunRefused on any guard.
- */
-export function liveConfig(config: RunnerConfig, request: LiveRunRequest): RunnerConfig {
-  const env = request.env ?? process.env;
-  if (env.ENGRAM_OFFLINE === "1") {
-    throw new LiveRunRefused("ENGRAM_OFFLINE=1 is set, and a live run reaches a model");
-  }
+const offline = (env: NodeJS.ProcessEnv) => env.ENGRAM_OFFLINE === "1";
+
+/** The named model's live cassette directory, checked against the rules above. */
+function liveCassettes(config: RunnerConfig, request: LiveRunRequest): string {
   const [provider = "", ...rest] = request.model.split("/");
   const id = rest.join("/");
   if (!provider || !id) throw new LiveRunRefused(`model ${request.model} is not provider/model-id`);
@@ -77,6 +79,38 @@ export function liveConfig(config: RunnerConfig, request: LiveRunRequest): Runne
       );
     }
   }
+  const scratch = join(request.repo, ".engram");
+  if (
+    within(request.repo, cassettes) &&
+    !(within(scratch, cassettes) && cassettes !== resolve(scratch))
+  ) {
+    throw new LiveRunRefused(
+      `cassette directory ${cassettes} is inside the repository but not under ${resolve(scratch)}; live cassettes go under .engram/ or outside the repository`,
+    );
+  }
+  return cassettes;
+}
+
+/**
+ * The config a live run records with: the request's model and its live
+ * cassette directory. Throws LiveRunRefused on any guard.
+ */
+export function liveConfig(config: RunnerConfig, request: LiveRunRequest): RunnerConfig {
+  if (offline(request.env ?? process.env)) {
+    throw new LiveRunRefused("ENGRAM_OFFLINE=1 is set, and a live run reaches a model");
+  }
+  return { ...config, model: request.model, cassettes: liveCassettes(config, request) };
+}
+
+/**
+ * The config that replays a live run's cassettes: the same model and
+ * directory, allowed offline; the directory must exist.
+ */
+export function replayConfig(config: RunnerConfig, request: LiveRunRequest): RunnerConfig {
+  const cassettes = liveCassettes(config, request);
+  if (!existsSync(cassettes)) {
+    throw new LiveRunRefused(`no recorded cassettes at ${cassettes} to replay`);
+  }
   return { ...config, model: request.model, cassettes };
 }
 
@@ -87,7 +121,23 @@ export function builtinLiveModels(): LiveModels {
   return models;
 }
 
-/** The runner options of a live run: record misses from `live` into the config's cassettes. */
-export function liveOptions(config: RunnerConfig, live: LiveModels): RunnerOptions {
+/**
+ * The runner options of a live run: record misses from `live` into the
+ * config's cassettes. Refuses under ENGRAM_OFFLINE=1, a second defence after
+ * `liveConfig`.
+ */
+export function liveOptions(
+  config: RunnerConfig,
+  live: LiveModels,
+  env: NodeJS.ProcessEnv = process.env,
+): RunnerOptions {
+  if (offline(env)) {
+    throw new LiveRunRefused("ENGRAM_OFFLINE=1 is set, and a live run reaches a model");
+  }
   return { cache: fileCache(config.cassettes), offline: false, live };
+}
+
+/** The runner options of a replay: the config's cassettes only, every miss an error. */
+export function replayOptions(config: RunnerConfig): RunnerOptions {
+  return { cache: fileCache(config.cassettes), offline: true };
 }

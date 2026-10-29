@@ -15,19 +15,21 @@
 // every hidden field and checks that nothing in the mapping moves.
 //
 // The rule is structural and the same for every relationship type (there are
-// about 120 at the pin, none documented): what a relationship says is read
-// from the shape of its fields, never from its `type` name.
+// 90 at the pin, none documented): what a relationship says is read from the
+// shape of its fields, never from its `type` name.
 //
 // - A field whose value is a principal id of the episode names a party.
 // - A field ending in `_id` whose value is not a principal names a group
-//   (project, program, household, case, course, building).
+///   (project, program, household, case, course, building). One person id is
+//   read this way: `guest_id` `guest_noah_kim`, a guest the episode does not
+//   list as a principal; its relationship is restricted, so it maps to nothing.
 // - `expires`, when it parses as a time, is the relationship's end.
 // - Any other field (access_scope, scope, access_level, service_scope) is a
 //   free-text restriction such as "scheduling_only" or "rides and check-in
 //   only until revoked". Engram's grants narrow by class, mode and expiry,
 //   never by topic, so no membership or grant expresses it without loss: a
 //   restricted relationship maps to nothing, and its parties read each other
-//   only through another relationship. ADR 0030 states this as a limit.
+//   only through another relationship. Restrictions err towards denial.
 //
 // An unrestricted relationship makes every party a member of each group it
 // names (`team:<group kind>/<value>`), and every party relates to every
@@ -39,6 +41,13 @@
 // an unrestricted relationship, or a party to one naming a group the speaker
 // is a party to. The agent principal's turns are model content, which carries
 // no grants (ADR 0004), so they stay with the agent.
+//
+// Symmetry and per-speaker granularity err towards access (review R5-2): both
+// parties of a relationship read each other; a grant covers every turn of its
+// speaker, whatever the turn is about; and a group shares each member's turns
+// with every other member, about any group the speaker is in. So an advisor's
+// turns about advisee B reach advisee A, who is also advised by them. ADR 0030
+// states each of these as a limit.
 import { createHash } from "node:crypto";
 import type { Actor, MemoryItem } from "@engram/core";
 import type { Checkpoint, Episode, Turn } from "./schema.ts";
