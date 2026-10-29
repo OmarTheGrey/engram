@@ -67,7 +67,8 @@ engram serve [--host 127.0.0.1] [--port 7313] [--as <id> --member <scope>]   the
 engram mcp --as <id> --member <scope>   the MCP server over stdio for Claude Code and Codex, every call as that actor with source model; --http <port> serves streamable HTTP on loopback
 engram hook claude-code --root <dir>   a Claude Code PreToolUse hook: denies a Bash command naming a store and a file tool inside a store root, recording each block
 make engram ARGS="<command> ..."   run the engram CLI from the repo (node packages/cli/src/main.ts)
-make test-e2e                  layer 6: engram doctor, then a CLI smoke (write, read, explain) on a temp folder and on a Letta MemFS repository, on SQLite and on embedded Postgres; the MCP handshake from the Claude Code and Codex fixtures in fixtures/harness/ and the Claude Code hook; no Docker anywhere
+make test-e2e                  layer 6: engram doctor, then a CLI smoke (write, read, explain) on a temp folder and on a Letta MemFS repository, on SQLite and on embedded Postgres; the MCP handshake from the Claude Code and Codex fixtures in fixtures/harness/ and the Claude Code hook; then make ui and the inspector in Chromium (playwright) on fixtures/workspaces/inspector; no Docker anywhere
+make ui                        build the inspector (Vite and React) into packages/ui/dist, which engram serve serves at / beside /api/v1; Chromium for its e2e test: pnpm exec playwright install chromium
 make test-repro                every research script regenerates its result; hashes match MANIFEST.md
 make fixtures                  regenerate golden files and record scripted cassettes afresh; refuses without a message
 make thesis                    consolidate docs/log into research/thesis/drafts/ (ROOT=, OUT= to run on fixtures/log/repo)

@@ -4,6 +4,7 @@ import { migrate } from "../../src/db/migrate.ts";
 import {
   appendEvent,
   currentItems,
+  eventById,
   eventsByActor,
   eventsByItem,
   eventsByScope,
@@ -106,6 +107,9 @@ forEachBackend((backend) => {
       expect(eventsByActor(db, "person:sara").map((e) => e.seq)).toEqual([1]);
       expect(eventsByScope(db, "team:platform").map((e) => e.seq)).toEqual([0, 1]);
       expect(eventsByScope(db, "org").map((e) => e.seq)).toEqual([2]);
+      const second = eventsByActor(db, "person:sara")[0];
+      expect(second && eventById(db, second.id)).toEqual(second);
+      expect(eventById(db, "01920000-0000-7000-8000-999999999999")).toBeNull();
     });
   });
 });

@@ -39,6 +39,12 @@ export {
   MAX_ATTEMPT_LENGTH,
 } from "./plane/bypass.ts";
 export { inWriteQueue, NestedWriteQueueError } from "./plane/queue.ts";
+export {
+  formatReadReason,
+  parseReadReason,
+  ReadCounts,
+  readCounts,
+} from "./plane/read-reason.ts";
 export { enforceBudget, retentionUsage } from "./plane/retention.ts";
 export { retiredContent } from "./plane/write.ts";
 

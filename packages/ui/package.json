@@ -7,9 +7,20 @@
     ".": "./src/index.ts"
   },
   "scripts": {
+    "build": "vite build",
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "openapi-fetch": "0.17.0"
+    "openapi-fetch": "0.17.0",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "@engram/adapters": "workspace:*",
+    "@engram/core": "workspace:*",
+    "@engram/server": "workspace:*",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "vite": "8.3.4"
   }
 }

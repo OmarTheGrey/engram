@@ -2,7 +2,7 @@
 // adapter, through the generated client (card E8.3: a client call round-trips
 // against the server), each response checked against the route's response
 // schema; and every route is in the OpenAPI document.
-import type { MemoryEvent } from "@engram/core";
+import { appendEvent, type MemoryEvent, readCounts } from "@engram/core";
 import { describe, expect, it } from "vitest";
 import * as C from "../src/contract.ts";
 import { openApiDocument } from "../src/openapi.ts";
@@ -95,7 +95,7 @@ describe("the routes, through the generated client, on the fake store", () => {
     expect(C.EventsResponse.parse(own.data).events[0]?.item?.content).toBe("fact 1");
   });
 
-  it("explain: the reader gets the explanations its read recorded", async () => {
+  it("explain: the reader gets the explanations its read recorded and its counts", async () => {
     const { client } = testWorkspace();
     await client.POST("/api/v1/items", {
       body: { actor: { ...dana, source: "user" }, item: itemFor(1) },
@@ -112,6 +112,38 @@ describe("the routes, through the generated client, on the fake store", () => {
     expect(C.ExplainResponse.parse(data)).toEqual({
       read_id: read.event.id,
       explanations: read.explanations,
+      counts: readCounts(read.event),
+    });
+    expect(C.ExplainResponse.parse(data).counts?.filtered).toBe(read.filtered);
+  });
+
+  it("explain: a read event whose reason predates the ttl category has null counts", async () => {
+    const { client, db } = testWorkspace();
+    // The reason the read path wrote before card E2.4 added "past their ttl".
+    const old = appendEvent(db, {
+      id: id(777),
+      ts: NOW,
+      op: "read",
+      item_id: null,
+      actor: dana.id,
+      scope_from: null,
+      scope_to: null,
+      decision: "allow",
+      reason:
+        "returned 0 of 1 candidates; 1 filtered (1 outside the validity window, 0 not active, " +
+        "0 by a grant's class or expiry); 2 projected items outside the reader's reach were not candidates",
+      policy_id: "preset.medium/read/person",
+      schema_version: 0,
+    });
+    const { data, response } = await client.POST("/api/v1/explain/{readId}", {
+      params: { path: { readId: old.id } },
+      body: { actor: dana },
+    });
+    expect(response.status).toBe(200);
+    expect(C.ExplainResponse.parse(data)).toEqual({
+      read_id: old.id,
+      explanations: [],
+      counts: null,
     });
   });
 

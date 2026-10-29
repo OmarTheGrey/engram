@@ -26,6 +26,7 @@ export type RetentionReport = Schemas["RetentionReport"];
 export type AdoptReport = Schemas["AdoptReport"];
 export type ExplainRequest = Schemas["ExplainRequest"];
 export type ExplainResponse = Schemas["ExplainResponse"];
+export type ReadCounts = Schemas["ReadCounts"];
 export type PromoteRequest = Schemas["PromoteRequest"];
 export type GateResponse = Schemas["GateResponse"];
 export type RetainRequest = Schemas["RetainRequest"];

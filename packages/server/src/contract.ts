@@ -13,6 +13,7 @@ import {
   MemoryEvent,
   MemoryItem,
   Policy,
+  ReadCounts,
   SCHEMA_VERSION,
   Timestamp,
 } from "@engram/core";
@@ -101,6 +102,10 @@ export const ExplainRequest = z.strictObject({ actor: Actor });
 export const ExplainResponse = z.strictObject({
   read_id: z.string(),
   explanations: z.array(Explanation),
+  counts: ReadCounts.nullable().meta({
+    description:
+      "The counts the read event's reason records (core's readCounts, decision 5 of the Gate B plan); null for a read event written before that format. Audit data for the human inspector: out_of_reach counts items outside the reader's reach, which decision D5 keeps from the reader, so a surface that answers a model (the MCP tools, the pi extension) must not pass the counts on.",
+  }),
 });
 
 export const PromoteRequest = z.strictObject({
@@ -198,6 +203,7 @@ export const COMPONENTS = {
   AdoptReport,
   ExplainRequest,
   ExplainResponse,
+  ReadCounts,
   PromoteRequest,
   GateResponse,
   RetainRequest,

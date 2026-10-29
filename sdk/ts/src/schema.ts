@@ -60,7 +60,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** The explanations a read recorded, for the actor who made it only (decision D5). */
+        /** The explanations a read recorded and the counts its event's reason records, for the actor who made it only (decision D5). */
         post: operations["explain"];
         delete?: never;
         options?: never;
@@ -524,6 +524,19 @@ export interface components {
         ExplainResponse: {
             read_id: string;
             explanations: components["schemas"]["Explanation"][];
+            /** @description The counts the read event's reason records (core's readCounts, decision 5 of the Gate B plan); null for a read event written before that format. Audit data for the human inspector: out_of_reach counts items outside the reader's reach, which decision D5 keeps from the reader, so a surface that answers a model (the MCP tools, the pi extension) must not pass the counts on. */
+            counts: components["schemas"]["ReadCounts"] | null;
+        };
+        /** @description The counts a read event's reason records: returned of candidates, the filtered total and its categories, and the projected items outside the reader's reach (never candidates). */
+        ReadCounts: {
+            returned: number;
+            candidates: number;
+            filtered: number;
+            outside_validity: number;
+            not_active: number;
+            expired: number;
+            excluded: number;
+            out_of_reach: number;
         };
         PromoteRequest: {
             actor: components["schemas"]["Actor"];

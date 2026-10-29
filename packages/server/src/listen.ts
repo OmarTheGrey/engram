@@ -5,6 +5,7 @@
 import type { AddressInfo } from "node:net";
 import { serve } from "@hono/node-server";
 import { type AppOptions, createApp, DEFAULT_PORT } from "./app.ts";
+import { builtUi } from "./static.ts";
 import { UsageError, type Workspace } from "./workspace.ts";
 
 /** The hosts `engram serve --host` accepts: loopback only. */
@@ -68,7 +69,9 @@ export function listen(workspace: Workspace, options: ListenOptions): Promise<Li
           reject(notLoopbackBound(info.address));
           return;
         }
-        app = createApp(workspace, { ...options, port: info.port });
+        // The inspector `make ui` built, unless the caller names one or null.
+        const ui = options.ui === undefined ? builtUi() : options.ui;
+        app = createApp(workspace, { ...options, ui, port: info.port });
         const name = host.includes(":") ? `[${host}]` : host;
         resolveListening({
           url: `http://${name}:${info.port}`,

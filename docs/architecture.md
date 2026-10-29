@@ -131,7 +131,7 @@ Surfaces
                  into sdk/openapi.json, the client into sdk/ts and packages/ui/src/api
   CLI            engram write | read | promote | explain | retain | lint | simulate, each one client call, in
                  process over app.fetch or to --server; engram serve | mcp | hook claude-code | doctor
-  UI             inspector: lanes by scope, timeline, diff, explain, findings, review queue, live session via pi RPC
+  UI             inspector at / of engram serve, as one viewer: lanes by scope (a Plane.read), timeline (visibleEvents), explain with the read's counts (v0, E8.5 and E8.6); later diff, findings, review queue, live session via pi RPC
 ```
 
 ## Repository layout

@@ -1,0 +1,234 @@
+/* The inspector's styles: system fonts only, nothing loaded from elsewhere. */
+:root {
+  --bg: #ffffff;
+  --fg: #1d1f23;
+  --muted: #5c6370;
+  --line: #d8dbe0;
+  --panel: #f5f6f8;
+  --accent: #2557c7;
+  --allow: #1f7a3d;
+  --deny: #b42318;
+  --ask: #9a6700;
+  color-scheme: light dark;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 14px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #16181c;
+    --fg: #e4e6ea;
+    --muted: #9aa1ad;
+    --line: #2e323a;
+    --panel: #1e2126;
+    --accent: #7aa2f7;
+    --allow: #5cc285;
+    --deny: #f0776c;
+    --ask: #e0b252;
+  }
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+.app {
+  padding: 16px;
+}
+
+header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 12px;
+}
+
+h1 {
+  font-size: 18px;
+  margin: 0;
+}
+
+h2 {
+  font-size: 15px;
+  margin: 0 0 8px;
+}
+
+h3 {
+  font-size: 13px;
+  margin: 0 0 8px;
+}
+
+.viewer,
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 8px;
+}
+
+label {
+  display: flex;
+  flex-direction: column;
+  font-size: 12px;
+  color: var(--muted);
+  gap: 2px;
+}
+
+input,
+select,
+button {
+  font: inherit;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 4px 6px;
+}
+
+button {
+  cursor: pointer;
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+main {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
+  grid-template-areas: "lanes lanes" "timeline aside";
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.lanes {
+  grid-area: lanes;
+}
+
+.timeline {
+  grid-area: timeline;
+  overflow-x: auto;
+}
+
+aside {
+  grid-area: aside;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.explain {
+  overflow-x: auto;
+}
+
+.lane-row {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(220px, 1fr);
+  gap: 12px;
+  overflow-x: auto;
+}
+
+.lane {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px;
+}
+
+.card {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 8px;
+  margin-bottom: 8px;
+}
+
+.card p {
+  margin: 0 0 6px;
+}
+
+dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 2px 8px;
+  margin: 0;
+  font-size: 12px;
+}
+
+dt {
+  color: var(--muted);
+}
+
+dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 12px;
+  margin-top: 8px;
+}
+
+th,
+td {
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--line);
+  padding: 4px 6px;
+}
+
+tbody tr[data-testid="timeline-row"] {
+  cursor: pointer;
+}
+
+tbody tr.selected {
+  background: var(--panel);
+  outline: 1px solid var(--accent);
+}
+
+.reason {
+  max-width: 420px;
+}
+
+.decision.allow {
+  color: var(--allow);
+}
+
+.decision.deny {
+  color: var(--deny);
+}
+
+.decision.ask {
+  color: var(--ask);
+}
+
+.muted {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.error {
+  color: var(--deny);
+}
+
+.empty {
+  color: var(--muted);
+}
+
+code {
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: 11px;
+}
+
+@media (max-width: 800px) {
+  main {
+    grid-template-columns: 1fr;
+    grid-template-areas: "lanes" "timeline" "aside";
+  }
+}

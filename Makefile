@@ -8,7 +8,7 @@ SHELL := bash
 PNPM ?= pnpm
 UV ?= uv
 
-.PHONY: help test test-invariants test-one test-e2e test-repro lint lint-docs api api-check bench run fixtures thesis engram
+.PHONY: help test test-invariants test-one test-e2e test-repro lint lint-docs api api-check ui bench run fixtures thesis engram
 
 help: ## list targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | sed -E 's/:.*## /\t/' | expand -t 16
@@ -27,6 +27,7 @@ test-one: ## one test file with its seed printed: make test-one T=<path>
 lint: ## biome, tsc, ruff, mypy; CI runs the same
 	$(PNPM) exec biome check --error-on-warnings .
 	$(PNPM) exec tsc -p tsconfig.json
+	$(PNPM) exec tsc -p packages/ui/tsconfig.json
 	$(UV) run ruff check research
 	$(UV) run ruff format --check research
 	$(UV) run mypy
@@ -39,8 +40,11 @@ else
 	node scripts/check-log.ts
 endif
 
-test-e2e: ## layer 6: engram doctor and a CLI smoke (write, read, explain) on SQLite and embedded Postgres; no Docker
+test-e2e: ui ## layer 6: engram doctor and a CLI smoke on SQLite and embedded Postgres, the MCP handshakes and the hook, and the inspector in Chromium on a fixture workspace; no Docker
 	$(PNPM) exec vitest run --config test/e2e/vitest.config.ts
+
+ui: ## build the inspector (Vite and React) into packages/ui/dist, which engram serve serves at /
+	$(PNPM) --filter ui build
 
 test-repro: ## stub: layer 8, every research script regenerates its result
 	@echo "test-repro: not implemented yet (layer 8 lands with the first research script)"; exit 2
