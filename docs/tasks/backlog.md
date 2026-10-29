@@ -6,7 +6,22 @@ Work the lead has deliberately set aside. Nothing here blocks a card unless the 
 |---|---|---|---|
 | Pre-registration v1 | 2026-10-22 by the lead | confirm H1 to H5 (reconstructed, since the proposal was not in the repository), the proposed thresholds, three models from three providers and H4's sample size; then tag `prereg-v1` and deposit it externally (ADR 0023) | v0.2 (2026-10-25) in `docs/research/preregistration.md`, tag `prereg-v0`; card R1 |
 | MPBench | 2026-10-22 by the lead; the request leaves the backlog by plan decision 6 (2026-10-29) | the lead sends the request in `docs/research/mpbench-request.md` and records the date in `packages/bench/PINS.md`; the poisoning arm's benchmark is chosen and dated at Gate B (Gate A exception (b)) | no release (S0.6); MEM-INV-Bench released, checked and recorded as a candidate in `packages/bench/PINS.md`, not pinned (2026-10-29); cards B2 and BF1 |
-| ADR review and flesh-out session | 2026-10-22 by the lead | review ADRs 0002 to 0023 (except 0020) with the team: accept, amend or reject each and flesh out the drafts; confirm the `org`-membership read rule (ADR 0006, `packages/core/test/property/oracle.ts`) and whether schema v0 changes bump `schema_version` | drafted as "accepted, pending lead review" in S0.13 |
+| ADR review and flesh-out session | 2026-10-22 by the lead | review ADRs 0002 to 0026 (except 0020) with the team: accept, amend or reject each and flesh out the drafts; confirm the `org`-membership read rule (ADR 0006, `packages/core/test/property/oracle.ts`) and whether schema v0 changes bump `schema_version` | drafted as "accepted, pending lead review" in S0.13 |
+
+## Follow-ups from the Gate A plan (2026-10-29)
+
+Found by the reviews of PRs #10 to #15 and left open on purpose; none blocks Gate B.
+
+| item | what is left | where it is recorded |
+|---|---|---|
+| `engram retain` | a user-sourced sweep of shared scopes; until it exists, expired shared items stay active (but unreadable and outside budgets) | ADR 0025 amendments |
+| CLI identity | `--as` and `--member` are self-asserted; promotion's distinct-actor and reviewer rules hold only as far as the machine does | ADR 0026, `engram promote --help` |
+| Budget flooding | an untrusted member can flood a scope until a target item is evicted, after which models cannot restate it | ADR 0025 amendments |
+| Eviction event to non-readers | the event carries the evicted item's id to a writer who cannot read the scope (kept for replay and log-session equality) | ADR 0025 amendments |
+| Whitespace payloads in promotion | trailing space and tab patterns, and U+2800, survive the strict form (review P5-19) | `docs/log/2026-10-29-gate-a-plan-done.md` |
+| CLI path spellings in pi bash | `packages//cli`, `../cli/src/main.ts` and similar get past the text check (review P5-20) | ADR 0014 amendments |
+| Read events and utility | record the returned item ids on read events, so utility evictions replay from the log | the plan's "not now" list (next schema PR) |
+| Schema items | `derived_from`, procedural reliability, a lifecycle-trigger field, superseding-version id in explanations, `volatility` | the plan's "not now" list |
 
 The GateMem live run (card B1) waits on the pre-registration; its judge is ported and `make bench BENCH=gatemem DRY=1` counts its calls (Gate A exception (a)).
 

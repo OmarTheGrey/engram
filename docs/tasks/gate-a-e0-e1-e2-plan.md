@@ -1,6 +1,6 @@
 # Plan: finish Gate A and the remaining E0, E1 and E2 cards
 
-Status: proposed by the orchestrating session on 2026-10-29 and revised the same day with its decisions taken on the lead's instruction (`docs/log/2026-10-29-plan-decisions-taken.md`); every decision stays pending the lead's review, with the ADRs it drafted. Six PRs at most, this one included (its two parts are one PR in this count, as step 0 was). Each PR follows AGENTS.md and the two conventions; rule 10 (one card per PR) is set aside for them as it was for PRs #2 to #7 (`docs/log/2026-10-25-six-prs-for-the-next-cards.md`).
+Status: done 2026-10-29. PR 1 merged as #8 and #9, PR 2 as #10, PR 3 as #11, PR 4 as #12, PR 5 as #13, PR 6 as #15, plus a hotfix (#14) that made a failing core or cli test exit nonzero again; each PR had an independent review and a verification of its fixes before merge (`docs/log/2026-10-29-gate-a-plan-done.md`). Proposed by the orchestrating session on 2026-10-29 and revised the same day with its decisions taken on the lead's instruction (`docs/log/2026-10-29-plan-decisions-taken.md`); every decision stays pending the lead's review, with the ADRs it drafted. Six PRs at most, this one included (its two parts are one PR in this count, as step 0 was). Each PR follows AGENTS.md and the two conventions; rule 10 (one card per PR) is set aside for them as it was for PRs #2 to #7 (`docs/log/2026-10-25-six-prs-for-the-next-cards.md`).
 
 ## 1. Where the repository stands
 
