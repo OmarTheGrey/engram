@@ -7,7 +7,37 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import EmbeddedPostgres from "embedded-postgres";
+
+// embedded-postgres registers async-exit-hook when it is imported. The hook's
+// `beforeExit` (and `exit`, `message`) listeners call process.exit(0) on the
+// next tick, which overwrote vitest's exit code 1: from PR 2 until this fix a
+// failing core or cli test exited 0 (docs/log/2026-10-29-exit-code-0-on-failing-tests.md).
+// Our setup stops the server itself in its teardown, so those listeners are
+// removed. The signal listeners (SIGINT, SIGTERM, SIGHUP, SIGBREAK) stay: they
+// stop the server when a run is interrupted and exit 128 plus the signal,
+// never 0.
+const NEVER_EXIT_ZERO = ["beforeExit", "exit", "message"] as const;
+
+type EmbeddedPostgresClass = typeof import("embedded-postgres").default;
+let loaded: Promise<EmbeddedPostgresClass> | undefined;
+
+/** Imports embedded-postgres once, without the exit hooks that would hide a failing run. */
+export function loadEmbeddedPostgres(): Promise<EmbeddedPostgresClass> {
+  const emitter: NodeJS.EventEmitter = process;
+  loaded ??= (async () => {
+    const before = new Map(NEVER_EXIT_ZERO.map((e) => [e, new Set(emitter.listeners(e))]));
+    const { default: EmbeddedPostgres } = await import("embedded-postgres");
+    for (const event of NEVER_EXIT_ZERO) {
+      for (const listener of emitter.listeners(event)) {
+        if (!before.get(event)?.has(listener)) {
+          emitter.removeListener(event, listener as (...args: unknown[]) => void);
+        }
+      }
+    }
+    return EmbeddedPostgres;
+  })();
+  return loaded;
+}
 
 export interface EmbeddedPostgresServer {
   /** postgres://engram:engram@127.0.0.1:<port>/postgres */
@@ -37,6 +67,7 @@ export async function startEmbeddedPostgres(): Promise<EmbeddedPostgresServer> {
   const root = mkdtempSync(join(tmpdir(), "engram-pg-"));
   const port = await freePort();
   const output: string[] = [];
+  const EmbeddedPostgres = await loadEmbeddedPostgres();
   const pg = new EmbeddedPostgres({
     databaseDir: join(root, "data"),
     port,
