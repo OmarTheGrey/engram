@@ -70,7 +70,7 @@ make engram ARGS="<command> ..."   run the engram CLI from the repo (node packag
 make test-e2e                  layer 6: engram doctor, then a CLI smoke (write, read, explain) on a temp folder and on a Letta MemFS repository, on SQLite and on embedded Postgres; the MCP handshake from the Claude Code and Codex fixtures in fixtures/harness/ and the Claude Code hook; then make ui and the inspector in Chromium (playwright) on fixtures/workspaces/inspector; no Docker anywhere
 make ui                        build the inspector (Vite and React) into packages/ui/dist, which engram serve serves at / beside /api/v1; Chromium for its e2e test: pnpm exec playwright install chromium
 make test-repro                every research script regenerates its result; hashes match MANIFEST.md
-make fixtures                  regenerate golden files and record scripted cassettes afresh; refuses without a message
+make fixtures                  regenerate golden files and record scripted cassettes afresh; refuses without a message; clones MEM-INV-Bench at its pin into .engram/upstream when missing (network) and runs its own scorer for the goldens
 make thesis                    consolidate docs/log into research/thesis/drafts/ (ROOT=, OUT= to run on fixtures/log/repo)
 pi                             work in this repo with the project extension loaded
 ```

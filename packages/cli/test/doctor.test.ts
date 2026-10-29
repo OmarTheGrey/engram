@@ -335,6 +335,66 @@ describe("engram doctor, each check red", () => {
     );
   });
 
+  it("benchmark pins: a candidate's fixture is checked against the commit of its check, and is not a pin", async () => {
+    const { out } = await doctor({ repo: REPO });
+    expect(out).toMatch(
+      /^ok\s+benchmark pins\s+.*6 benchmarks, 5 pinned; .*mem-inv-bench \d+ lines at cf3c9a4 \(candidate, not registered\)/m,
+    );
+  });
+
+  it("benchmark pins: fails when a candidate fixture's line no longer matches its manifest hash", async () => {
+    const repo = await repoCopy();
+    await edit(
+      join(repo, BENCH_FIXTURES, "mem-inv-bench", "cases.jsonl"),
+      /"task": "/,
+      '"task": "x',
+    );
+    const { out } = await doctor({ repo });
+    expect(out).toMatch(
+      /^fail\s+benchmark pins\s+fixtures\/bench\/mem-inv-bench\/cases\.jsonl does not match/m,
+    );
+  });
+
+  it("benchmark pins: fails when the scripts or the goldens of the candidate fixture change", async () => {
+    for (const name of ["script.json", "probe-script.json", "upstream-golden.json"]) {
+      const repo = await repoCopy();
+      await edit(join(repo, BENCH_FIXTURES, "mem-inv-bench", name), /"/, '"x');
+      const { out } = await doctor({ repo });
+      expect(out, name).toMatch(
+        new RegExp(
+          `^fail\\s+benchmark pins\\s+fixtures/bench/mem-inv-bench/${name.replace(".", "\\.")} does not match`,
+          "m",
+        ),
+      );
+    }
+  });
+
+  it("benchmark pins: a manifest with both `files` and `selection` has both checked", async () => {
+    const repo = await repoCopy();
+    const manifest = join(repo, BENCH_FIXTURES, "gatemem", "manifest.json");
+    const value = JSON.parse(readFileSync(manifest, "utf8")) as Record<string, unknown>;
+    await writeFile(manifest, JSON.stringify({ ...value, files: {} }, null, 2));
+    const file = join(repo, BENCH_FIXTURES, "gatemem", "office", "checkpoints.jsonl");
+    await edit(file, /"query_text": ?"/, '"query_text":"edited ');
+    const { out } = await doctor({ repo });
+    expect(out).toMatch(
+      /^fail\s+benchmark pins\s+fixtures\/bench\/gatemem\/office\/checkpoints\.jsonl does not match/m,
+    );
+  });
+
+  it("benchmark pins: fails when the candidate's recorded commit moves away from the fixture's", async () => {
+    const repo = await repoCopy();
+    await edit(
+      join(repo, PINS),
+      "`cf3c9a4ca9f0478000d6aa26eb268b875232d34b`",
+      `\`${"b".repeat(40)}\``,
+    );
+    const { out } = await doctor({ repo });
+    expect(out).toMatch(
+      /^fail\s+benchmark pins\s+fixtures\/bench\/mem-inv-bench was vendored at cf3c9a4\S*, \S+ records for the candidate b{40}/m,
+    );
+  });
+
   it("pi pin: fails when docs/deps.md records another version", async () => {
     const repo = await repoCopy();
     await edit(

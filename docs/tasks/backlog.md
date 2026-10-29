@@ -37,3 +37,13 @@ Found by the review of card B3 (GateMem through the plane, ADR 0030); none block
 | GateMem deletion mechanism | under ADR 0030's mapping C5 enforces no deletion, so GateMem's active-forgetting checkpoints, half of H1's primary violation set, test nothing the plane does; choose a mechanism (model-driven ingestion with a retire tool, or a deletion lint over turns) or state F as out of scope for C5. Needs the lead's decision before the pre-registration leaves the backlog | ADR 0030 consequences; `docs/log/2026-10-29-b3-forgetting-not-enforced.md` |
 | GateMem reachable-leak share | a `research/scripts/` measurement, from a `research/configs/` config, of the share of access and forgetting checkpoints whose leak targets sit in turns the asker can reach under ADR 0030's mapping: an upper bound on what C5 can prevent. Not written yet | ADR 0030 consequences (review R5-2) |
 | `@engram/bench` and `@engram/runner` import each other | bench's judge imports the runner's model code and the runner imports bench; a top-level use of one in the other breaks at load. Move the shared model types and the cached model call into a package both import, or into core where they are types | `docs/log/2026-10-29-b3-failure-bench-runner-import-cycle.md` |
+
+## Follow-ups from the Gate B plan, other reviews (2026-10-29)
+
+| item | what is left | where it is recorded |
+|---|---|---|
+| An untrusted-external provenance kind | no kind ranks untrusted outsiders below `tool`, so a trusted tool echoing web text stays `tool` and MEM-INV-Bench's echo channel (L-b) is not closed by inheritance; a schema change for the next schema PR | ADR 0029 amendments, `docs/log/2026-10-29-b4-trust-order-echo-stays-tool.md` |
+| Action gating | the plane gates memory, not the consequential action MEM-INV-Bench scores; under `medium` every poisoned channel is admitted | `docs/log/2026-10-29-b4-plane-gates-memory-not-action.md` |
+| Authentication for the HTTP and MCP surfaces | both listen on loopback only and take a self-asserted actor; compose gains `server` and `ui` with it | ADR 0027 |
+| No-bypass false positives | the shell check refuses a bare store name, a double-quoted commit message naming it, and any command run from inside a store root | ADR 0014 amendments |
+| Letta writes from `-a` committers | a client committing with `git commit -a` or after `git add -A` can carry an Engram item, and git's own race can revert one | ADR 0028 |
