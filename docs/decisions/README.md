@@ -2,7 +2,7 @@
 
 One file per decision, `NNNN-<slug>.md`, format: context, decision, alternatives, consequences, sources. Status is one of proposed, accepted, superseded. A proposed ADR is a question with a recommended answer; accepting it is a `decision` log entry plus a status change in the same PR.
 
-ADRs 0001 and 0020 are accepted by the lead. ADRs 0002 to 0023 (except 0020) were drafted as accepted in step-0 task S0.13 (2026-10-22) and are pending a review and flesh-out session with the team (`docs/tasks/backlog.md`); each has its own file, which is authoritative once reviewed. ADRs 0024 to 0026 were drafted as accepted on 2026-10-29 by the orchestrating session on the lead's instruction (`docs/log/2026-10-29-plan-decisions-taken.md`) and join that review; they have files only, no proposal below. The proposals below are kept as the record of what was decided from; they were distilled from the readings in `docs/readings/`, the gap analysis in the proposal, and checks run on 2026-10-17. Each proposal names the papers or facts that force it, the options, the recommended pick, and what it unblocks. They were accepted, amended or rejected in step 0 (see `docs/tasks/step-0.md`).
+ADRs 0001 and 0020 are accepted by the lead. ADRs 0002 to 0023 (except 0020) were drafted as accepted in step-0 task S0.13 (2026-10-22) and are pending a review and flesh-out session with the team (`docs/tasks/backlog.md`); each has its own file, which is authoritative once reviewed. ADRs 0024 to 0026 were drafted as accepted on 2026-10-29 by the orchestrating session on the lead's instruction (`docs/log/2026-10-29-plan-decisions-taken.md`), and ADRs 0027 to 0029 the same day for the Gate B plan (`docs/tasks/gate-b-plan.md`); they join that review and have files only, no proposal below. The proposals below are kept as the record of what was decided from; they were distilled from the readings in `docs/readings/`, the gap analysis in the proposal, and checks run on 2026-10-17. Each proposal names the papers or facts that force it, the options, the recommended pick, and what it unblocks. They were accepted, amended or rejected in step 0 (see `docs/tasks/step-0.md`).
 
 | # | Title | Status |
 |---|---|---|
@@ -32,6 +32,9 @@ ADRs 0001 and 0020 are accepted by the lead. ADRs 0002 to 0023 (except 0020) wer
 | 0024 | Db backends: one synchronous contract, SQLite per user by default, Postgres on a worker thread | accepted, pending lead review |
 | 0025 | Retention semantics: expiry at read and by sweep, budgets enforced in the write queue, eviction order, retired content stays out | accepted, pending lead review |
 | 0026 | Promotion: confirmations are independent corroboration, reviewers are user-sourced members, a promotion is a write under the target's rule | accepted, pending lead review |
+| 0027 | One HTTP contract for every surface: a route table, generated OpenAPI and client, loopback only until authentication | accepted, pending lead review |
+| 0028 | The Letta adapter works over MemFS, Letta's git-backed context repository, on local disk | accepted, pending lead review |
+| 0029 | The poisoning arm runs on MEM-INV-Bench | accepted, pending lead review |
 
 ---
 

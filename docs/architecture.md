@@ -131,5 +131,5 @@ See `AGENTS.md` for the authoritative map. In short: `packages/core` (plane, no 
 
 - Calling context as a policy input: absent in v1, justified in ADR 0006's amendments (the harness enters through `actor.source` and memberships); a per-tool context is v2 with a policy language.
 - Whether the distiller stores strategies as well as procedures (ADR 0012 says procedures only in v1).
-- Postgres: the `Db` interface is designed for the swap; nothing is built for it yet.
+- Authentication for the HTTP and MCP surfaces: none in v0; both listen on loopback only and the actor is self-asserted (ADR 0027).
 - Cedar or another policy language: noted as v2 in ADR 0006.

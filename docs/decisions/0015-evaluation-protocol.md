@@ -28,6 +28,10 @@ Amendments made in PR 6 (Gate A), 2026-10-29, on the plan's decision to settle t
 - C3's policy text is the loaded Policy object, the one C5 enforces, rendered as JSON with its keys sorted at every depth (array order kept, since rule order is content), not the preset's YAML file. Found by PR 4: with the file's text, comments included, rewording a preset comment changed C3's prompt and so its cassette keys. Now only the policy's content enters the prompt; tests assert that a preset differing only in comments, or only in key order, gives a byte-identical C3 prompt and that a content change does not (`packages/runner/test/conditions.test.ts`). The units the YAML stated only in comments (ttl in seconds, confidence between 0 and 1, budget in active items, and that lints.enabled does not turn lints on) are one fixed legend line before the JSON (`POLICY_LEGEND`, review finding P6-8), constant text, so it never moves the keys. Cost if wrong: the model reads the policy as JSON rather than as the commented YAML, losing the comments' explanations of each preset's stance; if the lead wants them, they belong in a field of the policy, where they are content.
 - The RN1 probe's cassettes were re-recorded once for both changes (`make fixtures`), and the pi session fixture `fixtures/sessions/s0-interception.expected.json` changed by the dropped attribute only.
 
+Amendments made by the Gate B plan, 2026-10-29 (`docs/tasks/gate-b-plan.md`, decision 3; pending the lead's review like the rest of this ADR):
+
+- The poisoning arm runs on MEM-INV-Bench, chosen and dated 2026-10-29 (ADR 0029), since MPBench has no release; it is registered when the pre-registration leaves the backlog.
+
 ## Alternatives considered
 
 No alternatives were recorded beyond the recommendation.
