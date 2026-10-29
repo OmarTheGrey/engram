@@ -141,14 +141,6 @@ function sortedKeys(value: unknown): unknown {
 }
 
 /**
- * C3's instruction: the loaded policy, the one C5 enforces, rendered as JSON
- * with its keys sorted, and the scopes the requester belongs to, which C5
- * holds in the Actor. Only the policy's content enters the prompt: the YAML
- * file's comments and key order do not (ADR 0015, PR 6), so rewording a
- * preset comment changes neither C3's prompt nor its cassette keys. The
- * model is told to apply it; nothing checks that it does.
- */
-/**
  * The units the preset YAML states only in comments, as one fixed line, so
  * C3's model can apply the numbers (review finding P6-8). Constant text: it
  * never depends on a preset's comments.
@@ -156,6 +148,14 @@ function sortedKeys(value: unknown): unknown {
 export const POLICY_LEGEND =
   "Units: ttl is in seconds (null means no limit); confidence_floor and an item's confidence are between 0 and 1; budget is a number of active items per scope and class (null means no limit); lints.enabled lists the lints a lint-running condition uses and does not turn lints on.";
 
+/**
+ * C3's instruction: the loaded policy, the one C5 enforces, rendered as JSON
+ * with its keys sorted, and the scopes the requester belongs to, which C5
+ * holds in the Actor. Only the policy's content enters the prompt: the YAML
+ * file's comments and key order do not (ADR 0015, PR 6), so rewording a
+ * preset comment changes neither C3's prompt nor its cassette keys. The
+ * model is told to apply it; nothing checks that it does.
+ */
 export function policyInstruction(policy: Policy, preset: PresetName, actor: Actor): string {
   return [
     "<memory-policy>",

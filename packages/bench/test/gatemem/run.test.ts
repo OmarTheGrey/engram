@@ -312,6 +312,54 @@ describe("make fixtures records the GateMem cassettes (P6-3)", () => {
     }
   }, 60_000);
 
+  test("--record empties the folders first: a stale cassette goes, an altered one is rewritten (P6-10)", () => {
+    const work = mkdtempSync(join(tmpdir(), "gatemem-record-stale-"));
+    const judge = config.judge;
+    if (!judge?.cassettes) throw new Error("the fixture config names no judge cassettes");
+    const answers = join(work, "cassettes");
+    const judged = join(work, "judge-cassettes");
+    const committedAnswers = config.cassettes as string;
+    cpSync(committedAnswers, answers, { recursive: true });
+    cpSync(judge.cassettes, judged, { recursive: true });
+    const stale = `${"0".repeat(64)}.json`;
+    writeFileSync(join(answers, stale), "{}\n");
+    writeFileSync(join(judged, stale), "{}\n");
+    const [altered] = readdirSync(committedAnswers).sort();
+    if (!altered) throw new Error("no committed answer cassette");
+    const original = readFileSync(join(committedAnswers, altered), "utf8");
+    const entry = JSON.parse(original);
+    entry.response.text = "an altered response";
+    writeFileSync(join(answers, altered), `${JSON.stringify(entry, null, 2)}\n`);
+    const configPath = join(work, "run-config.json");
+    writeFileSync(
+      configPath,
+      JSON.stringify({
+        ...JSON.parse(readFileSync(CONFIG, "utf8")),
+        data: config.data,
+        script: config.script,
+        cassettes: answers,
+        judge: { ...judge, cassettes: judged },
+      }),
+    );
+    const root = fileURLToPath(new URL("../../../../", import.meta.url));
+    const { ENGRAM_OFFLINE: _offline, ...env } = process.env;
+    execFileSync(
+      process.execPath,
+      [
+        "packages/bench/scripts/run-gatemem.ts",
+        "--config",
+        configPath,
+        "--out",
+        join(work, "out"),
+        "--record",
+      ],
+      { cwd: root, env, encoding: "utf8" },
+    );
+    expect(readdirSync(answers)).not.toContain(stale);
+    expect(readdirSync(judged)).not.toContain(stale);
+    expect(readFileSync(join(answers, altered), "utf8")).toBe(original);
+  }, 60_000);
+
   test("--record refuses to run offline", () => {
     const root = fileURLToPath(new URL("../../../../", import.meta.url));
     const out = mkdtempSync(join(tmpdir(), "gatemem-record-offline-"));
