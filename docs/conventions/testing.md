@@ -13,7 +13,7 @@ Every change lands in the lowest layer that can catch its failure. A PR says whi
 | 3 replay | an event log replays to the same state; a state produces the same explanation; golden session fixtures replay through the plane to the same decisions | vitest | `packages/core/test/replay/`, fixtures in `fixtures/` | under 60 s |
 | 4 conformance | every adapter against the Adapter contract, first on the in-memory fake, then on the real store in a CI service container | vitest | `packages/adapters/test/conformance/` | under 5 min |
 | 5 harness | the pi extension inside a real pi SDK session with an in-memory session manager and a scripted model: writes are gated, reads are filtered, events are mirrored, bash bypasses are blocked | vitest | `packages/pi-extension/test/` | under 3 min |
-| 6 end to end | `docker compose up`, `engram doctor`, CLI smoke, MCP server handshake from a Claude Code and a Codex fixture | shell + vitest | `test/e2e/` | under 10 min, on main and nightly |
+| 6 end to end | `engram doctor`, CLI smoke, MCP server handshake from a Claude Code and a Codex fixture; no Docker (Postgres from the embedded-postgres package, card E1.1) | vitest (`make test-e2e`, its own config) | `test/e2e/` | under 10 min, on main and nightly |
 | 7 benchmark fixture | each benchmark runner on a fixed subset of about 20 items, scripted model, cached; asserts the pipeline, not the score | vitest | `packages/bench/test/` | under 5 min |
 | 8 reproducibility | every `research/scripts/<name>.py` regenerates its results file from its config and the hash matches `MANIFEST.md`; analysis on synthetic data with a known effect recovers it | pytest | `research/tests/` | under 10 min, nightly |
 

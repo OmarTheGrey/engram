@@ -1,0 +1,26 @@
+name: e2e
+
+# Layer 6 (docs/conventions/testing.md): on main and nightly, not on every PR.
+# No Docker: the smoke runs on SQLite; Postgres comes from embedded-postgres (card E1.1).
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 2 * * *"
+  workflow_dispatch:
+
+env:
+  ENGRAM_OFFLINE: "1"
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: make test-e2e

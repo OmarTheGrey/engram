@@ -16,6 +16,13 @@ Amendments made when deciding:
 
 - TypeScript 7, not 5.x, on the lead's instruction of 2026-10-17. Biome 2.5, Vitest 5, Node 24, pnpm 10 and uv are in use since S0.1; tsdown waits until a package is published.
 
+Amendments made by card E0.4, 2026-10-29 (PR 3 of the Gate A plan; pending the lead's review like the rest of this ADR):
+
+- No Docker, on the lead's instruction of 2026-10-29: no test, gate, Makefile target or CI job needs Docker, and `scripts/test/no-docker.test.ts` fails if one starts to. The development environment is Node 24, pnpm and uv on the member's machine with the per-user SQLite log (decision D9); `engram doctor` checks it. Postgres for tests comes from the `embedded-postgres` npm package (card E1.1, ADR 0024), not from a service container. The sentence above on "a service container for each real store" is superseded for Postgres; a real store that cannot run in-process is decided by its own card.
+- `docker-compose.yml` at the root is for deployment only and says so. What it holds: a `postgres` service (volume, healthcheck) from E0.4; the `server` service with card E8.1 and the `ui` service with card E8.5. `.env.example` names `ENGRAM_DB_URL` and every provider key variable `engram doctor` checks, with no values; `.env` is git-ignored.
+- Layer 6 (`make test-e2e`) is a vitest project of its own (`test/e2e/vitest.config.ts`), outside the root config so `make test` never runs it; CI runs it on main and nightly (`.github/workflows/e2e.yml`).
+- The provider key variable names reach the CLI as data, `packages/runner/src/model/provider-keys.json`, which `make api` generates from pi-ai's own `findEnvKeys` and `make api-check` and a runner test hold to the installed pi-ai. The CLI never imports pi-ai and gains no dependency on the runner (which would load pi-coding-agent and the extension on every command).
+
 ## Alternatives considered
 
 No alternatives were recorded beyond the recommendation.

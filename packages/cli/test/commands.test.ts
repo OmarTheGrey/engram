@@ -11,7 +11,7 @@ commands:
   read [query]      read through the plane and explain every returned item
   write             write one item through the plane's write gate
   explain <readId>  the explanations a read recorded
-  doctor            check the log, the policy, the store and the adapters
+  doctor            check the log, policy, store, adapters, provider keys, pins and Node
   lint              not implemented yet (card L1)
   simulate          not implemented yet (card E8.9)
   promote           not implemented yet (card E2.5)
@@ -23,7 +23,8 @@ store options (read, write):
   --owner <id>                the person whose folder it is; its memories are adopted as person:<id>
   --import-valid-from <iso>   valid_from for imported memories (default each file's mtime)
   --policy <preset|path>      strict, medium, permissive or a policy YAML file (default medium)
-  --db <path>                 the event log (default <home>/.engram/engram.db; :memory: for none)
+  --db <path|url>             the event log: a SQLite file, :memory: for none, or postgres://...
+                              (default $ENGRAM_DB_URL, else <home>/.engram/engram.db)
 
 actor options (read, write, explain):
   --as <principal>            who acts (default person:<owner>)
@@ -39,10 +40,10 @@ write options:
   the plane records a write as source user by the acting principal, whatever the item claims
 
 explain options:
-  --db <path>  --policy <preset|path>  and --as or --owner: only the reader may explain a read
+  --db <path|url>  --policy <preset|path>  and --as or --owner: only the reader may explain a read
 
 doctor options:
-  --db <path>                 the event log to check (default as above); doctor never creates one
+  --db <path|url>             the event log to check (default as above); doctor never creates one
   --policy <preset|path>      the policy to load and validate
   --root <folder>             a store folder to check is readable
 

@@ -1,11 +1,11 @@
-// The commands that call the Plane: read, write, explain, doctor. Each builds
+// The commands that call the Plane: read, write, explain (doctor is in
+// ./doctor.ts). Each builds
 // the log, policy, actor and store, makes its Plane call, and prints the
 // result. The Plane makes every decision; nothing here is a policy `if`.
 // Every id comes from the Io (`io.newId`), so a run with a fixed Io is
 // reproducible.
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync } from "node:fs";
-import { access, constants, stat } from "node:fs/promises";
+import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { type ParseArgsConfig, parseArgs } from "node:util";
 import {
@@ -23,9 +23,9 @@ import {
   buildActor,
   checkNumber,
   checkTime,
+  dbTarget,
   type Log,
   loadPolicy,
-  logPath,
   MEMORY_DB,
   NO_STORE,
   openLog,
@@ -36,7 +36,7 @@ import { openStore, type Store } from "./store.ts";
 
 type Options = NonNullable<ParseArgsConfig["options"]>;
 
-const STORE_OPTIONS = {
+export const STORE_OPTIONS = {
   store: { type: "string" },
   root: { type: "string" },
   owner: { type: "string" },
@@ -64,7 +64,7 @@ const WRITE_OPTIONS = {
   "valid-to": { type: "string" },
 } satisfies Options;
 
-function parse<O extends Options>(args: string[], options: O, positionals: boolean) {
+export function parse<O extends Options>(args: string[], options: O, positionals: boolean) {
   try {
     return parseArgs({ args, options, allowPositionals: positionals, strict: true });
   } catch (e) {
@@ -104,7 +104,7 @@ function openSession(
     (p) => resolve(io.cwd, p),
   );
   const actor = makeActor();
-  const log = openLog(flags.db, io.cwd, io.home);
+  const log = openLog(dbTarget(flags.db, io));
   const deps: PlaneDeps = { db: log.db, adapter: store.adapter, policy, newId: io.newId };
   return {
     log,
@@ -117,11 +117,11 @@ function openSession(
 }
 
 const logHint = (log: Log, readId?: string) =>
-  log.path === MEMORY_DB
+  log.target.backend === "sqlite" && log.target.path === MEMORY_DB
     ? "log in memory; pass --db <path> to keep it for engram explain"
     : readId
-      ? `log ${log.path}; engram explain ${readId} --db ${log.path}`
-      : `log ${log.path}`;
+      ? `log ${log.target.label}; engram explain ${readId} --db ${log.target.label}`
+      : `log ${log.target.label}`;
 
 export async function readCommand(args: string[], io: Io): Promise<number> {
   const { values, positionals } = parse(args, { ...STORE_OPTIONS, ...ACTOR_OPTIONS }, true);
@@ -159,7 +159,7 @@ export async function readCommand(args: string[], io: Io): Promise<number> {
             filtered: result.filtered,
             reason: result.event.reason,
             items: rows,
-            log: s.log.path,
+            log: s.log.target.label,
           },
           null,
           2,
@@ -276,7 +276,7 @@ export async function explainCommand(args: string[], io: Io): Promise<number> {
     throw new UsageError("give exactly one read id: engram explain <readId>");
   // Only the actor who made the read may explain it (decision D5).
   const actor = buildActor(values, values.owner);
-  const log = openLog(values.db, io.cwd, io.home, true);
+  const log = openLog(dbTarget(values.db, io), true);
   try {
     const policy = loadPolicy(values.policy, io.cwd);
     const plane = createPlane({ db: log.db, adapter: NO_STORE, policy, newId: io.newId });
@@ -293,79 +293,4 @@ export async function explainCommand(args: string[], io: Io): Promise<number> {
   } finally {
     log.db.close();
   }
-}
-
-type Status = "ok" | "fail" | "skip";
-interface Check {
-  status: Status;
-  name: string;
-  detail: string;
-}
-
-const firstLines = (e: unknown) => (e as Error).message.split("\n").join("; ");
-
-export async function doctorCommand(args: string[], io: Io): Promise<number> {
-  const { values } = parse(
-    args,
-    {
-      db: STORE_OPTIONS.db,
-      policy: STORE_OPTIONS.policy,
-      root: STORE_OPTIONS.root,
-      json: STORE_OPTIONS.json,
-    },
-    false,
-  );
-  const checks: Check[] = [];
-  const check = async (name: string, fn: () => [Status, string] | Promise<[Status, string]>) => {
-    try {
-      const [status, detail] = await fn();
-      checks.push({ status, name, detail });
-    } catch (e) {
-      checks.push({ status: "fail", name, detail: firstLines(e) });
-    }
-  };
-
-  await check("db", () => {
-    // Doctor never creates a log: a missing one is reported, not made.
-    const path = logPath(values.db, io.cwd, io.home);
-    if (path !== MEMORY_DB && !existsSync(path))
-      return ["ok", `${path}: no log yet; the first read or write creates it`];
-    const log = openLog(values.db, io.cwd, io.home, true);
-    log.db.close();
-    const state =
-      log.applied.length > 0 ? `migrations ${log.applied.join(", ")} applied` : "up to date";
-    return ["ok", `${log.path}: opens; ${state}`];
-  });
-  await check("policy", () => {
-    const p = loadPolicy(values.policy, io.cwd);
-    return ["ok", `${p.id} v${p.version} loads and validates`];
-  });
-  await check("store", async () => {
-    if (values.root === undefined) return ["skip", "no --root given"];
-    // The folder itself only: its memories are listed by the adapter, through
-    // the plane, when engram read adopts them.
-    const root = resolve(io.cwd, values.root);
-    if (!(await stat(root)).isDirectory()) return ["fail", `${root} is not a folder`];
-    await access(root, constants.R_OK);
-    return ["ok", `${root} is a readable folder`];
-  });
-  await check("adapter files", () => ["ok", "opens a Claude Code memory folder (card A3)"]);
-  await check("adapter mem0", () => [
-    "skip",
-    "built (card A1); the CLI does not open it yet, it needs an embedding model wired at the surface",
-  ]);
-  await check("adapter letta", () => ["skip", "not implemented yet (card A2)"]);
-  await check("provider keys", () => ["skip", "not checked yet (card E0.4)"]);
-  await check("benchmark pins", () => ["skip", "not checked; no card checks them yet"]);
-
-  const failed = checks.filter((c) => c.status === "fail").length;
-  if (values.json) io.out(`${JSON.stringify({ checks, failed }, null, 2)}\n`);
-  else {
-    const lines = checks.map((c) => `${c.status.padEnd(5)}${c.name.padEnd(16)}${c.detail}`);
-    lines.push(
-      failed === 0 ? "doctor: all checks passed" : `doctor: ${plural(failed, "check")} failed`,
-    );
-    io.out(`${lines.join("\n")}\n`);
-  }
-  return failed === 0 ? 0 : 1;
 }

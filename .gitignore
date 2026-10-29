@@ -12,3 +12,4 @@ __pycache__/
 .engram/
 packages/*/src/.lint-probe-*
 .claude/worktrees/
+.env

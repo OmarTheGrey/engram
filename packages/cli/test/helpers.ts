@@ -11,6 +11,8 @@ import { allEvents, type MemoryEvent, openSqlite } from "@engram/core";
 import { afterAll } from "vitest";
 import { run } from "../src/run.ts";
 
+/** The repository checkout the tests run in. */
+export const REPO = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 export const FIXTURE = resolve(
   dirname(fileURLToPath(import.meta.url)),
   "../../../fixtures/stores/claude-code-memory",
@@ -53,9 +55,25 @@ let idCount = 0;
 /** The ids `cli` injects: a counter, so a run is reproducible; never repeats within a test file. */
 export const testId = (n: number) => `01930000-0000-7000-8000-${String(n).padStart(12, "0")}`;
 
+export interface CliOptions {
+  cwd?: string;
+  home?: string;
+  /** The environment the command sees; empty unless the test gives one, never the real one. */
+  env?: Record<string, string | undefined>;
+  nodeVersion?: string;
+  /** The checkout doctor reads pins from; the real one unless the test gives one. */
+  repo?: string;
+}
+
 export async function cli(
   args: string[],
-  { cwd = tmpdir(), home = HOME }: { cwd?: string; home?: string } = {},
+  {
+    cwd = tmpdir(),
+    home = HOME,
+    env = {},
+    nodeVersion = process.versions.node,
+    repo = REPO,
+  }: CliOptions = {},
 ): Promise<CliResult> {
   let out = "";
   let err = "";
@@ -70,6 +88,9 @@ export async function cli(
     home,
     now: () => NOW,
     newId: () => testId(++idCount),
+    env,
+    nodeVersion,
+    repo,
   });
   return { code, out, err };
 }

@@ -3,7 +3,8 @@
 // a failed check or an error, 2 bad usage or a command whose card has not
 // landed. The CLI calls core and adapters directly; the generated client
 // (card E8.3) replaces that when it exists.
-import { doctorCommand, explainCommand, readCommand, writeCommand } from "./commands.ts";
+import { explainCommand, readCommand, writeCommand } from "./commands.ts";
+import { doctorCommand } from "./doctor.ts";
 import { UsageError } from "./setup.ts";
 
 export interface Io {
@@ -16,6 +17,15 @@ export interface Io {
   now(): string;
   /** A fresh UUIDv7 for every id the CLI injects into the Plane; a counter in tests. */
   newId(): string;
+  /**
+   * The environment: ENGRAM_DB_URL, and the provider key variables doctor
+   * checks by name only, never reading a value.
+   */
+  env: Readonly<Record<string, string | undefined>>;
+  /** The running Node version, as in process.versions.node. */
+  nodeVersion: string;
+  /** The repository checkout the CLI runs from, for doctor's pin checks; undefined outside one. */
+  repo: string | undefined;
 }
 
 export const HELP = `engram: the Engram control plane from the command line
@@ -26,7 +36,7 @@ commands:
   read [query]      read through the plane and explain every returned item
   write             write one item through the plane's write gate
   explain <readId>  the explanations a read recorded
-  doctor            check the log, the policy, the store and the adapters
+  doctor            check the log, policy, store, adapters, provider keys, pins and Node
   lint              not implemented yet (card L1)
   simulate          not implemented yet (card E8.9)
   promote           not implemented yet (card E2.5)
@@ -38,7 +48,8 @@ store options (read, write):
   --owner <id>                the person whose folder it is; its memories are adopted as person:<id>
   --import-valid-from <iso>   valid_from for imported memories (default each file's mtime)
   --policy <preset|path>      strict, medium, permissive or a policy YAML file (default medium)
-  --db <path>                 the event log (default <home>/.engram/engram.db; :memory: for none)
+  --db <path|url>             the event log: a SQLite file, :memory: for none, or postgres://...
+                              (default $ENGRAM_DB_URL, else <home>/.engram/engram.db)
 
 actor options (read, write, explain):
   --as <principal>            who acts (default person:<owner>)
@@ -54,10 +65,10 @@ write options:
   the plane records a write as source user by the acting principal, whatever the item claims
 
 explain options:
-  --db <path>  --policy <preset|path>  and --as or --owner: only the reader may explain a read
+  --db <path|url>  --policy <preset|path>  and --as or --owner: only the reader may explain a read
 
 doctor options:
-  --db <path>                 the event log to check (default as above); doctor never creates one
+  --db <path|url>             the event log to check (default as above); doctor never creates one
   --policy <preset|path>      the policy to load and validate
   --root <folder>             a store folder to check is readable
 

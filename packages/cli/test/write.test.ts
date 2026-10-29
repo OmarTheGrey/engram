@@ -183,6 +183,9 @@ describe("engram write", () => {
       home: HOME,
       now: () => NOW,
       newId: () => ids.shift() ?? "01990000-0000-7000-8000-00000000ffff",
+      env: {},
+      nodeVersion: process.versions.node,
+      repo: undefined,
     });
     expect(code).toBe(0);
     const parsed = JSON.parse(out);

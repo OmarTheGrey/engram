@@ -31,35 +31,87 @@ export class UsageError extends Error {}
 export const defaultDb = (home: string) => join(home, ".engram", "engram.db");
 export const MEMORY_DB = ":memory:";
 
-/** Where the log for `spec` lives: :memory:, the path resolved against `cwd`, or the per-user default. */
-export function logPath(spec: string | undefined, cwd: string, home: string): string {
-  if (spec === MEMORY_DB) return MEMORY_DB;
-  return spec === undefined ? defaultDb(home) : resolve(cwd, spec);
+/** The variable that names the event log when --db is not given (ADR 0024). */
+export const DB_URL_ENV = "ENGRAM_DB_URL";
+
+/**
+ * Where an event log lives: SQLite in memory, a SQLite file, or a Postgres
+ * database (ADR 0024). `label` is what the CLI prints: the path, or the URL
+ * with any password removed.
+ */
+export type DbTarget =
+  | { backend: "sqlite"; path: string; label: string }
+  | { backend: "postgres"; url: string; label: string };
+
+const POSTGRES_URL = /^postgres(?:ql)?:\/\//i;
+
+/** A Postgres URL with its password replaced, so no secret reaches the output. */
+export function redactUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    if (u.password !== "") u.password = "***";
+    return u.toString();
+  } catch {
+    return "postgres://<unparseable url>";
+  }
+}
+
+/**
+ * The log a command uses: `--db`, else `ENGRAM_DB_URL`, else the per-user
+ * default. Either names `:memory:`, a SQLite file path (resolved against
+ * `cwd`) or a `postgres://` URL.
+ */
+export function dbTarget(
+  spec: string | undefined,
+  where: { cwd: string; home: string; env: Readonly<Record<string, string | undefined>> },
+): DbTarget {
+  const given = spec ?? (where.env[DB_URL_ENV] || undefined);
+  if (given !== undefined && POSTGRES_URL.test(given))
+    return { backend: "postgres", url: given, label: redactUrl(given) };
+  const path =
+    given === MEMORY_DB
+      ? MEMORY_DB
+      : given === undefined
+        ? defaultDb(where.home)
+        : resolve(where.cwd, given);
+  return { backend: "sqlite", path, label: path };
+}
+
+/** A log backend this build cannot open yet. */
+export class BackendUnavailableError extends Error {}
+
+/**
+ * Opens the backend a target names, without migrating it. SQLite files are
+ * opened as they are; the caller decides whether one may be created.
+ */
+export function openDb(target: DbTarget): Db {
+  if (target.backend === "postgres")
+    throw new BackendUnavailableError(
+      `${target.label}: Postgres backend not available yet (card E1.1)`,
+    );
+  return openSqlite(target.path);
 }
 
 export interface Log {
   db: Db;
-  /** The resolved path, or :memory:. */
-  path: string;
+  target: DbTarget;
   /** The migrations this open applied; empty when the log was up to date. */
   applied: number[];
 }
 
-/** Opens and migrates the log; `mustExist` refuses to create one. */
-export function openLog(
-  spec: string | undefined,
-  cwd: string,
-  home: string,
-  mustExist = false,
-): Log {
-  const path = logPath(spec, cwd, home);
-  if (path !== MEMORY_DB) {
-    if (mustExist && !existsSync(path)) throw new Error(`no event log at ${path}`);
-    mkdirSync(dirname(path), { recursive: true });
+/** Whether a target's log exists; a Postgres database is never created by the CLI, so it counts as existing. */
+export const logExists = (target: DbTarget) =>
+  target.backend === "postgres" || target.path === MEMORY_DB || existsSync(target.path);
+
+/** Opens and migrates the log; `mustExist` refuses to create a SQLite file. */
+export function openLog(target: DbTarget, mustExist = false): Log {
+  if (target.backend === "sqlite" && target.path !== MEMORY_DB) {
+    if (mustExist && !existsSync(target.path)) throw new Error(`no event log at ${target.path}`);
+    mkdirSync(dirname(target.path), { recursive: true });
   }
-  const db = openSqlite(path);
+  const db = openDb(target);
   try {
-    return { db, path, applied: migrate(db) };
+    return { db, target, applied: migrate(db) };
   } catch (e) {
     db.close();
     throw e;
