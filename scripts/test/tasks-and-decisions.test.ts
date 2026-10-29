@@ -44,9 +44,10 @@ describe("task cards", () => {
 });
 
 describe("decisions", () => {
-  test("the index lists ADRs 0001 to 0023", () => {
+  test("the index lists ADRs 0001 to 0023 and every later one, consecutively", () => {
+    expect(adrs.length).toBeGreaterThanOrEqual(23);
     expect(adrs.map((a) => a.number)).toEqual(
-      Array.from({ length: 23 }, (_, i) => String(i + 1).padStart(4, "0")),
+      Array.from({ length: adrs.length }, (_, i) => String(i + 1).padStart(4, "0")),
     );
   });
 
