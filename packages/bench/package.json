@@ -8,5 +8,10 @@
   },
   "scripts": {
     "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@engram/core": "workspace:*",
+    "@engram/runner": "workspace:*",
+    "zod": "4.6.7"
   }
 }

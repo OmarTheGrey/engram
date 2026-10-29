@@ -182,6 +182,32 @@ describe("Claude Code memory files without Engram metadata", () => {
     expect(role?.valid_from).toBe("2026-09-15T12:30:00.000Z");
   });
 
+  test("reports valid_from as derived when it comes from the file's modification time", async () => {
+    const root = await fixtureCopy();
+    const adapter = createFilesAdapter({ root, owner: "dana" });
+    const engram = await adapter.write(item(1, { scope: "person:dana", owner: "person:dana" }));
+    const listed = await adapter.list("person:dana");
+    const role = listed.find((i) => i.store_ref?.key === "user_role.md") as MemoryItem;
+    const own = listed.find((i) => i.store_ref?.key === engram.key) as MemoryItem;
+    expect(adapter.derivedFields(role)).toEqual(["valid_from"]);
+    // A file Engram wrote stores its own valid_from in the frontmatter.
+    expect(adapter.derivedFields(own)).toEqual([]);
+    // Another adapter's item is not this store's to describe.
+    expect(adapter.derivedFields({ ...role, store_ref: { adapter: "fake", key: "x" } })).toEqual(
+      [],
+    );
+  });
+
+  test("reports nothing derived when valid_from for imports is given", async () => {
+    const adapter = createFilesAdapter({
+      root: FIXTURE,
+      owner: "dana",
+      importValidFrom: VALID_FROM,
+    });
+    const [first] = await adapter.list("person:dana");
+    expect(adapter.derivedFields(first as MemoryItem)).toEqual([]);
+  });
+
   test("an imported item is read-only: delete and a write under its id are refused", async () => {
     const root = await fixtureCopy();
     const adapter = createFilesAdapter({ root, owner: "dana", importValidFrom: VALID_FROM });

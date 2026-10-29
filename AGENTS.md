@@ -50,11 +50,13 @@ make test-one T=<path>         one test file, with its seed printed
 make test-invariants           the four invariants against the real Plane, with counterexample and seed; all pass since E2.2 and E2.3 (issue #1)
 make api                       regenerate sdk/schema (JSON Schema) and research/engram_types (Python) from the Zod schema; later also OpenAPI and the clients
 make api-check                 make api, then fail if the generated files differ from what is committed
-make bench BENCH=gatemem       run one benchmark on its fixture subset through the pi runner
+make bench BENCH=gatemem       run one benchmark on its fixture subset offline: scripted model, committed cassettes (a miss is an error, never recorded into them), output in .engram/bench/<name>; gatemem only so far
 make lint                      biome, tsc, ruff, mypy; CI runs the same
 make lint-docs                 log entry frontmatter, em dashes in prose, CLAUDE.md equals AGENTS.md
 make lint-docs PR=<dir>        the PR gate on a PR directory (body.md, files.txt); fixtures in fixtures/ci/
-engram doctor                  db, adapters, provider keys via pi-ai, benchmark pins
+engram doctor                  db (never created by doctor), policy, store root, adapters; provider keys (E0.4) and benchmark pins not checked yet
+engram read --root <dir> --owner <id>   a memory folder through the plane, adopted as its owner, every item explained; the log defaults to <home>/.engram/engram.db; engram --help lists the rest
+make engram ARGS="<command> ..."   run the engram CLI from the repo (node packages/cli/src/main.ts)
 make test-e2e                  compose, doctor, CLI smoke, MCP handshakes
 make test-repro                every research script regenerates its result; hashes match MANIFEST.md
 make fixtures                  regenerate golden files; refuses without a message

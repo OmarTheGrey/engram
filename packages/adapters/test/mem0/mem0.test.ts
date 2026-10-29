@@ -85,7 +85,8 @@ describe("mem0 adapter", () => {
     expect(fetchCalls).toEqual([]);
     expect(process.env.MEM0_TELEMETRY).toBe("false");
     expect(() => readdirSync(mem0Dir)).toThrow();
-  });
+    // The first adapter loads mem0ai, which takes over 5 s when the whole suite runs at once.
+  }, 30_000);
 
   test("a file vector store keeps items for a new adapter instance on the same file", async () => {
     const dbPath = join(dir, "vectors.db");

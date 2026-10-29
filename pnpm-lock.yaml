@@ -42,9 +42,26 @@ importers:
         specifier: 2.9.1
         version: 2.9.1
 
-  packages/bench: {}
+  packages/bench:
+    dependencies:
+      '@engram/core':
+        specifier: workspace:*
+        version: link:../core
+      '@engram/runner':
+        specifier: workspace:*
+        version: link:../runner
+      zod:
+        specifier: 4.6.7
+        version: 4.6.7
 
-  packages/cli: {}
+  packages/cli:
+    dependencies:
+      '@engram/adapters':
+        specifier: workspace:*
+        version: link:../adapters
+      '@engram/core':
+        specifier: workspace:*
+        version: link:../core
 
   packages/core:
     dependencies:

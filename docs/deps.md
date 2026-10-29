@@ -18,7 +18,7 @@ One line per dependency: name, version, reason, licence. Added in the same PR as
 | @earendil-works/pi-coding-agent | 1.3.0 | the harness the plane runs in (ADR 0001); pi-extension only | MIT |
 | @earendil-works/pi-ai | 1.3.0 | model access and the faux provider behind the scripted model; pi-extension and runner only | MIT |
 | typebox | 1.3.27 | tool parameter schemas for pi tools, the version pi itself uses | MIT |
-| zod | 4.6.7 | the schema in packages/core (ADR 0002) and its JSON Schema export | MIT |
+| zod | 4.6.7 | the schema in packages/core (ADR 0002) and its JSON Schema export; also the GateMem file loader and run config in packages/bench (card B1) | MIT |
 | ajv | 8.20.0 | dev: validates fixtures against the generated JSON Schema (draft 2020-12) | MIT |
 | ajv-formats | 3.0.1 | dev: date-time and uuid formats for ajv | MIT |
 | datamodel-code-generator | 0.86.0 | dev: generates research/engram_types from sdk/schema | MIT |

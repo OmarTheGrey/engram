@@ -8,7 +8,7 @@ SHELL := bash
 PNPM ?= pnpm
 UV ?= uv
 
-.PHONY: help test test-invariants test-one test-e2e test-repro lint lint-docs api api-check bench fixtures thesis
+.PHONY: help test test-invariants test-one test-e2e test-repro lint lint-docs api api-check bench fixtures thesis engram
 
 help: ## list targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | sed -E 's/:.*## /\t/' | expand -t 16
@@ -55,8 +55,14 @@ api-check: api ## fail if generated contracts differ from what is committed
 	@git diff --exit-code -- sdk research/engram_types
 	@[ -z "$$(git status --porcelain -- sdk research/engram_types)" ] || { git status --short -- sdk research/engram_types; echo "api-check: untracked generated files"; exit 1; }
 
-bench: ## stub: run one benchmark on its fixture subset: make bench BENCH=<name>
-	@echo "bench: not implemented yet (benchmark cards B1 to B9)"; exit 2
+BENCH_OUT ?= .engram/bench/$(BENCH)
+
+bench: ## run one benchmark on its fixture subset with the scripted model, offline: make bench BENCH=gatemem
+ifeq ($(BENCH),gatemem)
+	ENGRAM_OFFLINE=1 node packages/bench/scripts/run-gatemem.ts --config fixtures/bench/gatemem/run-config.json --out "$(BENCH_OUT)"
+else
+	@echo "bench: BENCH=$(BENCH) has no runner; only gatemem exists (card B1), the others land with cards B2 to B9"; exit 2
+endif
 
 fixtures: ## regenerate golden files; refuses without MSG=<reason>, which goes in the commit message
 	@[ -n "$(MSG)" ] || { echo "fixtures: refusing without MSG=<reason>"; exit 2; }
@@ -70,3 +76,6 @@ OUT ?= $(ROOT)/research/thesis/drafts
 
 thesis: ## consolidate docs/log into research/thesis/drafts; ROOT= and OUT= to run on a fixture log
 	$(UV) run python research/scripts/consolidate_log.py --root "$(ROOT)" --out "$(OUT)"
+
+engram: ## run the engram CLI: make engram ARGS="read --root <folder> --owner <id>"
+	@node packages/cli/src/main.ts $(ARGS)
