@@ -53,7 +53,8 @@ make api                       regenerate sdk/schema (JSON Schema) and research/
 make api-check                 make api, then fail if the generated files differ from what is committed
 make bench BENCH=gatemem       run one benchmark on its fixture subset offline: scripted model, committed cassettes (a miss is an error, never recorded into them), output in .engram/bench/<name>; gatemem only so far
 make bench BENCH=gatemem DRY=1 the live GateMem run counted on the full checkpoint set, no model called: its calls and prompt size (fetches the pinned data once into .engram/upstream); add MODEL=<provider/model-id> (and SEED=) to also list its cache keys for that model, never printed without it
-make run CONFIG=<file>         replay a runner config: each (item, condition, seed) a pi SDK session, every model call from its cassettes, a miss an error; output in .engram/runs/<name>
+make run CONFIG=<file>         replay a runner config: each (item, condition, store, seed) a pi SDK session, every model call from its cassettes, a miss an error; output in .engram/runs/<name>
+make run CONFIG=<file> MODEL=<provider/model> LIVE=1   the same config on a named model, recording into new cassettes under .engram/runs/<name>-live (Gate B exception (c)); refused under ENGRAM_OFFLINE=1 and never into fixtures/
 make lint                      biome, tsc, ruff, mypy; CI runs the same
 make lint-docs                 log entry frontmatter, em dashes in prose, CLAUDE.md equals AGENTS.md
 make lint-docs PR=<dir>        the PR gate on a PR directory (body.md, files.txt); fixtures in fixtures/ci/
