@@ -13,8 +13,11 @@
 // against $CLAUDE_PROJECT_DIR, else the input's `cwd`, else the hook's own
 // cwd, as Claude Code resolves the project. The protected files (R3-2) are
 // the log the hook writes to (with SQLite's -wal, -shm and -journal files),
-// and the project's `.mcp.json`, `.claude/settings.json` and
-// `.claude/settings.local.json`.
+// the project's `.mcp.json`, `.claude/settings.json` and
+// `.claude/settings.local.json`, and the user's `~/.claude/settings.json`,
+// `~/.claude/settings.local.json` and `~/.claude.json` (R3-14), together with
+// any folder holding one of them strictly inside the project or the home
+// folder (`rm -rf .claude`, `rm -rf ~/.engram`: R3-13).
 import { join, resolve } from "node:path";
 import {
   claudeCodeHook,
@@ -87,8 +90,12 @@ export async function hookCommand(args: string[], io: Io): Promise<number> {
       join(project, ".mcp.json"),
       join(project, ".claude", "settings.json"),
       join(project, ".claude", "settings.local.json"),
+      // User-level settings can switch every hook off (disableAllHooks, R3-14).
+      join(io.home, ".claude", "settings.json"),
+      join(io.home, ".claude", "settings.local.json"),
+      join(io.home, ".claude.json"),
     ];
-    const scope = { roots, protect, cwd: project };
+    const scope = { roots, protect, cwd: project, home: io.home, below: [project, io.home] };
     const actor = buildActor({ as: values.as ?? "agent:claude-code" }, undefined, "model");
 
     let conn: ReturnType<typeof connect>;

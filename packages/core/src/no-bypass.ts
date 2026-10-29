@@ -7,7 +7,7 @@
 // Plane.recordBypass. The text and path rules and their limits are in
 // no-bypass/shell.ts and no-bypass/paths.ts.
 import { resolve, sep } from "node:path";
-import { storeRootOf, toolPaths, uncDrivePath } from "./no-bypass/paths.ts";
+import { ancestorOfRoot, storeRootOf, toolPaths, uncDrivePath } from "./no-bypass/paths.ts";
 import { blockedStoreCommand, commandWords, STORE_COMMANDS } from "./no-bypass/shell.ts";
 import type { Bypass } from "./plane.ts";
 
@@ -23,6 +23,66 @@ export interface BypassCheck {
   stores?: readonly string[];
   /** The store a path inside a root is reported as reaching. */
   rootStore: string;
+  /** The folder `~` names; the process's home when absent. */
+  home?: string;
+  /**
+   * Also a hit: a word or path naming a folder that holds a root, strictly
+   * inside one of these folders (review finding R3-13). For protected files,
+   * whose folder would go with them (`rm -rf .claude`); absent for store roots.
+   */
+  ancestorsBelow?: readonly string[];
+}
+
+/** Whether `word` reaches a root: inside it, or an ancestor of it when the check asks. */
+function reaches(word: string | undefined, check: BypassCheck, recursive: boolean): boolean {
+  const base = { cwd: check.cwd, roots: check.roots, recursive, home: check.home };
+  if (storeRootOf(word, base) !== undefined) return true;
+  return (
+    check.ancestorsBelow !== undefined &&
+    ancestorOfRoot(word, { ...base, below: check.ancestorsBelow }) !== undefined
+  );
+}
+
+/**
+ * The words of a shell command for the path check (review finding R3-15):
+ * cut at unquoted whitespace first, so a quoted argument is one word after
+ * quote removal. A word that held quoted whitespace (a commit message, a
+ * `bash -c` script) contributes only its inner words that look like paths
+ * (a slash or backslash, or a leading `.` or `~`), so `git commit -m "fix
+ * memory leak"` names no root while `bash -c "cat memory/a.md"` still does.
+ * Any other word is cut at shell operators as commandWords cuts it, and every
+ * piece is checked.
+ */
+function pathCheckWords(command: string): string[] {
+  const tokens: { text: string; spaced: boolean }[] = [];
+  let text = "";
+  let spaced = false;
+  let quote: string | undefined;
+  const flush = () => {
+    if (text !== "") tokens.push({ text, spaced });
+    text = "";
+    spaced = false;
+  };
+  for (let i = 0; i < command.length; i++) {
+    const c = command[i] as string;
+    if (quote !== undefined) {
+      if (c === quote) quote = undefined;
+      else {
+        if (/\s/.test(c)) spaced = true;
+        text += c;
+      }
+    } else if (c === "'" || c === '"') quote = c;
+    else if (c === "\\" && quote === undefined && /\s/.test(command[i + 1] ?? "")) {
+      text += command[i + 1];
+      i++;
+    } else if (/\s/.test(c)) flush();
+    else text += c;
+  }
+  flush();
+  return tokens.flatMap(({ text: t, spaced: s }) => {
+    const words = commandWords(t).flatMap((w) => [w, ...w.split("=").slice(1)]);
+    return s ? words.filter((w) => /[\\/]|^~|^\./.test(w)) : words;
+  });
 }
 
 /** A glob segment (`*`, `?`, `[...]`) as a whole-segment pattern; undefined for a literal one. */
@@ -78,21 +138,23 @@ function globReachesRoot(word: string, cwd: string, roots: readonly string[]): b
  * those that look like paths, so `cd memory && cat a.md` is caught by its
  * bare `memory` (review finding R3-7); a word with glob characters is caught
  * when it could expand into a root; a machine's own admin share or device
- * path (`\\localhost\C$\...`) is read as its drive path. The cost: a bare
- * word that happens to name a root beside the cwd (`echo memory`) is refused.
+ * path (`\\localhost\C$\...`) is read as its drive path. A quoted argument is
+ * one word (pathCheckWords). The cost, erring towards blocking: a bare word
+ * that names a root beside the cwd (`echo memory`, `grep -rn memory src`) is
+ * refused; `ls *` and `rm -rf *` with a root in the cwd, and every command
+ * whose cwd is inside a root, are refused because they do reach the store.
  */
 export function shellBypass(command: string, check: BypassCheck): Bypass | undefined {
   const store = blockedStoreCommand(command, check.stores ?? STORE_COMMANDS);
   if (store !== undefined) return { command, store };
-  const root = { cwd: check.cwd, roots: check.roots, recursive: false };
   const path = { command, store: check.rootStore, route: "path" as const };
-  const words = commandWords(command).flatMap((w) => [w, ...w.split("=").slice(1)]);
+  const words = pathCheckWords(command);
   for (const unc of command.matchAll(
     /[\\/]{2}(?:localhost|127\.0\.0\.1|\?|\.)[\\/][a-zA-Z][$:][^\s'"|;&<>()]*/gi,
   ))
     if (uncDrivePath(unc[0]) !== undefined) words.push(unc[0]);
   for (const word of words) {
-    if (storeRootOf(word, root) !== undefined) return path;
+    if (reaches(word, check, false)) return path;
     if (globReachesRoot(word, check.cwd, check.roots)) return path;
   }
   return undefined;
@@ -109,7 +171,7 @@ export function toolBypass(
 ): Bypass | undefined {
   const { paths, recursive } = toolPaths(toolName, input);
   for (const path of paths) {
-    if (storeRootOf(path, { cwd: check.cwd, roots: check.roots, recursive }) !== undefined) {
+    if (reaches(path, check, recursive)) {
       const shown = path === undefined ? `${toolName} (no path, the cwd)` : `${toolName} ${path}`;
       return { command: shown, store: check.rootStore, route: "path" };
     }

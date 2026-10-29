@@ -33,6 +33,14 @@ export interface HookScope {
   /** Files that govern the session: the log, `.mcp.json`, `.claude/settings*.json`. */
   protect: readonly string[];
   cwd: string;
+  /** The folder `~` names in a tool call; the process's home when absent. */
+  home?: string;
+  /**
+   * The project folder and the home folder: a folder strictly inside one of
+   * them that holds a protected file is guarded too, since `rm -rf` or `mv`
+   * of it takes the file along (review finding R3-13).
+   */
+  below?: readonly string[];
 }
 
 export interface HookOptions extends HookScope {
@@ -93,12 +101,12 @@ export function hookBypass(input: PreToolUseInput, scope: HookScope): Bypass | u
   const args = input.tool_input ?? {};
   const cwd = input.cwd ?? scope.cwd;
   const lower = tool.toLowerCase();
-  const guarded: [readonly string[], string][] = [
-    [scope.roots, "files"],
-    [scope.protect, "engram"],
+  const home = scope.home === undefined ? {} : { home: scope.home };
+  const guarded = [
+    { cwd, roots: scope.roots, rootStore: "files", ...home },
+    { cwd, roots: scope.protect, rootStore: "engram", ...home, ancestorsBelow: scope.below ?? [] },
   ];
-  for (const [roots, rootStore] of guarded) {
-    const check = { cwd, roots, rootStore };
+  for (const check of guarded) {
     if (SHELLS.has(lower) && typeof args.command === "string") {
       const found = shellBypass(args.command, check);
       if (found !== undefined) return found;

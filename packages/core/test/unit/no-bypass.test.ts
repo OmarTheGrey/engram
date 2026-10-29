@@ -67,6 +67,38 @@ describe("shellBypass and toolBypass", () => {
     expect(shellBypass(command, check)?.route).toBe("path");
   });
 
+  it.each([
+    'git commit -m "fix memory leak"',
+    "git commit -m 'memory: tidy'",
+    'echo "the memory folder"',
+  ])("reads a quoted argument as one word: %s names no root (R3-15)", (command) => {
+    expect(shellBypass(command, check)).toBeUndefined();
+  });
+
+  it.each([
+    'cat "memory/a.md"',
+    "cat 'memory'/a.md",
+    'bash -c "cat memory/a.md"',
+    "ls *",
+    "rm -rf *",
+  ])("still blocks %s (R3-15)", (command) => {
+    expect(shellBypass(command, check)?.route).toBe("path");
+  });
+
+  it("refuses every command whose cwd is inside a root", () => {
+    expect(shellBypass("ls", { ...check, cwd: root })?.route).toBe("path");
+  });
+
+  it("reaches a folder holding a protected file only below the given folders (R3-13)", () => {
+    const protectedFile = join(cwd, ".claude", "settings.json");
+    const guard = { cwd, roots: [protectedFile], rootStore: "engram", ancestorsBelow: [cwd] };
+    expect(shellBypass("rm -rf .claude", guard)?.route).toBe("path");
+    expect(shellBypass("mv .claude x", guard)?.route).toBe("path");
+    expect(toolBypass("Bash", { path: join(cwd, ".claude") }, guard)?.route).toBe("path");
+    expect(shellBypass("ls", guard)).toBeUndefined();
+    expect(shellBypass("rm -rf .claude", { ...guard, ancestorsBelow: undefined })).toBeUndefined();
+  });
+
   it.each(["echo hello", "ls *.ts", "cat src/memory.ts"])("leaves %s alone", (command) => {
     expect(shellBypass(command, check)).toBeUndefined();
   });

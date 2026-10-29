@@ -95,6 +95,42 @@ describe("engram hook claude-code", () => {
     expect(logEvents(log).filter((e) => e.op === "bypass_blocked")).toHaveLength(cases.length);
   });
 
+  it("denies removing or moving a folder that holds a protected file, and the user's settings (R3-13, R3-14)", async () => {
+    const dir = await tempDir();
+    const home = await tempDir();
+    const run = (tool_name: string, tool_input: Record<string, unknown>) =>
+      cli(["hook", "claude-code", "--root", "memory"], {
+        cwd: dir,
+        home,
+        stdin: stdin({ tool_name, tool_input, cwd: dir }),
+      });
+    const denied: [string, Record<string, unknown>][] = [
+      ["Bash", { command: "rm -rf ~/.engram" }],
+      ["Bash", { command: `rm -rf ${join(home, ".engram")}` }],
+      ["Bash", { command: "rm -rf .claude" }],
+      ["Bash", { command: "mv .claude x" }],
+      ["PowerShell", { command: "Remove-Item -Recurse .claude" }],
+      ["Edit", { file_path: "~/.claude/settings.json", old_string: "a", new_string: "b" }],
+      ["Write", { file_path: join(home, ".claude", "settings.local.json"), content: "{}" }],
+      ["Bash", { command: "rm ~/.claude.json" }],
+      ["Bash", { command: "rm -rf ~/.claude" }],
+    ];
+    for (const [tool, input] of denied) {
+      const r = await run(tool, input);
+      expect([tool, input, r.code, r.out]).toEqual([
+        tool,
+        input,
+        0,
+        expect.stringContaining('"deny"'),
+      ]);
+    }
+    // The project and the home folders themselves are not hits, nor are unrelated folders.
+    for (const command of ["ls", "rm -rf build", "ls ~", "cat README.md"]) {
+      const r = await run("Bash", { command });
+      expect([command, r.out]).toEqual([command, ""]);
+    }
+  });
+
   it("resolves --root and --db against $CLAUDE_PROJECT_DIR, not its own cwd (R3-10)", async () => {
     const project = await tempDir();
     await mkdir(join(project, "memory"));

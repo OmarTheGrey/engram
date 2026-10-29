@@ -116,7 +116,7 @@ function within(child: string, parent: string): boolean {
 }
 
 /** Every absolute path a tool's path argument may reach: as pi's tools resolve it, and as written. */
-function resolveToolPath(path: string, cwd: string): string[] {
+function resolveToolPath(path: string, cwd: string, home: string = homedir()): string[] {
   const out = new Set<string>();
   for (const spaces of [path, path.replace(UNICODE_SPACES, " ")]) {
     let p = spaces.startsWith("@") ? spaces.slice(1) : spaces;
@@ -127,7 +127,7 @@ function resolveToolPath(path: string, cwd: string): string[] {
         // not a file URL pi could read either
       }
     }
-    if (p === "~" || p.startsWith("~/") || p.startsWith("~\\")) p = join(homedir(), p.slice(1));
+    if (p === "~" || p.startsWith("~/") || p.startsWith("~\\")) p = join(home, p.slice(1));
     out.add(resolve(cwd, p));
     const drive = process.platform === "win32" ? shellDrivePath(p) : undefined;
     if (drive !== undefined) out.add(resolve(drive));
@@ -142,11 +142,34 @@ export interface RootCheck {
   roots: readonly string[];
   /** The tool descends into directories: also blocked when a root is inside the path. */
   recursive: boolean;
+  /** The folder `~` names; the process's home when absent (the hook passes the CLI's). */
+  home?: string;
+}
+
+/**
+ * The root `path` is an ancestor of, if any (review finding R3-13): a folder
+ * holding a protected file, such as `~/.engram` for the log or `.claude` for
+ * the settings, which `rm -rf` or `mv` would remove with the file. Only a
+ * folder strictly inside one of `below` counts, so the project folder and the
+ * home folder themselves, and anything above them, are not hits.
+ */
+export function ancestorOfRoot(
+  path: string | undefined,
+  check: RootCheck & { below: readonly string[] },
+): string | undefined {
+  const targets = resolveToolPath(path ?? ".", check.cwd, check.home).map(canonical);
+  const stops = check.below.map(canonical);
+  return check.roots.find((root) => {
+    const r = canonical(root);
+    return targets.some(
+      (t) => t !== r && within(r, t) && stops.some((s) => t !== s && within(t, s)),
+    );
+  });
 }
 
 /** The store root `path` reaches, if any; an absent path is the cwd. */
 export function storeRootOf(path: string | undefined, check: RootCheck): string | undefined {
-  const targets = resolveToolPath(path ?? ".", check.cwd).map(canonical);
+  const targets = resolveToolPath(path ?? ".", check.cwd, check.home).map(canonical);
   return check.roots.find((root) => {
     const r = canonical(root);
     return targets.some((t) => within(t, r) || (check.recursive && within(r, t)));
