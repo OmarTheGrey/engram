@@ -36,6 +36,11 @@ Amendments made in card E2.5's verification, 2026-10-29 (review findings P5-2 an
 - The text check's limit is the one stated for the store names: it does not reach the CLI through a name assembled at run time, an alias or a script defined outside the command, a copy of the entry script elsewhere, a shell started from another program, or an installed binary under another name. The CLI's identity limit itself is a stated limit of ADR 0026, not something this check removes.
 
 
+Amendments made in PR 3 of the plan (card E8.4; branch gb-pr3-surfaces, 2026-10-29; pending the lead's review like the rest of this ADR):
+
+- The store-command check and the store-root check move from packages/pi-extension (bash.ts and paths.ts, now re-exports) to core (packages/core/src/no-bypass.ts, no-bypass/shell.ts, no-bypass/paths.ts), because they decide (AGENTS.md rule 1). `shellBypass` and `toolBypass` return the bypass a surface records; the pi extension and the Claude Code hook (`engram hook claude-code`, ADR 0022) both call them. The pi extension's tests pass unchanged.
+- Review finding P5-20 (backlog, "CLI path spellings in pi bash"): each word is also read as a normalised path, so `packages//cli`, `packages/./cli` and `packages/x/../cli` are blocked; `../cli` (the folder from a sibling package) and `cli/src/main.ts` under any prefix are blocked too. The cost: any other folder named `cli` reached as `../cli`, and any `cli/src/main.ts`, is refused. Still out of reach: a path a command computes at run time, and a pnpm filter by bare package name.
+
 No alternatives were recorded beyond the recommendation.
 
 ## Consequences

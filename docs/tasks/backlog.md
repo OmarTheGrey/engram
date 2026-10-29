@@ -14,12 +14,12 @@ Found by the reviews of PRs #10 to #15 and left open on purpose; none blocks Gat
 
 | item | what is left | where it is recorded |
 |---|---|---|
-| `engram retain` | a user-sourced sweep of shared scopes; until it exists, expired shared items stay active (but unreadable and outside budgets) | ADR 0025 amendments |
+| `engram retain` | done on branch gb-pr3-surfaces (plan PR 3): `engram retain --scope <scope>` sweeps one scope as a user-sourced member | ADR 0025 amendments; `docs/log/2026-10-29-e8-2-cli-on-the-client.md` |
 | CLI identity | `--as` and `--member` are self-asserted; promotion's distinct-actor and reviewer rules hold only as far as the machine does | ADR 0026, `engram promote --help` |
 | Budget flooding | an untrusted member can flood a scope until a target item is evicted, after which models cannot restate it | ADR 0025 amendments |
 | Eviction event to non-readers | the event carries the evicted item's id to a writer who cannot read the scope (kept for replay and log-session equality) | ADR 0025 amendments |
 | Whitespace payloads in promotion | trailing space and tab patterns, and U+2800, survive the strict form (review P5-19) | `docs/log/2026-10-29-gate-a-plan-done.md` |
-| CLI path spellings in pi bash | `packages//cli`, `../cli/src/main.ts` and similar get past the text check (review P5-20) | ADR 0014 amendments |
+| CLI path spellings in pi bash | done on branch gb-pr3-surfaces (plan PR 3): words are also read as normalised paths, and `../cli` and `cli/src/main.ts` are blocked; the check now lives in core | ADR 0014 amendments |
 | Read events and utility | record the returned item ids on read events, so utility evictions replay from the log | the plan's "not now" list (next schema PR) |
 | Schema items | `derived_from`, procedural reliability, a lifecycle-trigger field, superseding-version id in explanations, `volatility` | the plan's "not now" list |
 
