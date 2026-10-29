@@ -94,6 +94,38 @@ describe("shellBypass and toolBypass", () => {
     expect(shellBypass(command, check)?.route).toBe("path");
   });
 
+  it.each([
+    'sort -m "memory leak"',
+    'git commit -m "see memory/a.md"',
+    'git commit -m "$(cd memory; cat a.md)"',
+    'git commit -m "$(cd memory && cat a.md)"',
+    'git commit -m "`cd memory; cat a.md`"',
+    // A parameter expansion `$` + `{HOME}` in a message (joined so it is no template).
+    ['git commit -m "$', '{HOME} memory"'].join(""),
+    'git commit --message="$(cd memory)"',
+    'hg commit -m "$(cd memory; cat a.md)"',
+    'echo git -m "cd memory && cat a.md" | bash',
+    `bash -c 'eval "$3"' _ git -m "cd memory && cat a.md"`,
+    'xargs echo git -m "memory leak"',
+    "git show HEAD:memory/a.md",
+    "git show HEAD:./memory/a.md",
+    "git cat-file -p HEAD:memory/a.md",
+  ])("pins the message exemption's boundary: %s is blocked (R3-19 to R3-22)", (command) => {
+    expect(shellBypass(command, check)?.route).toBe("path");
+  });
+
+  it.each([
+    'git commit -m "fix memory leak"',
+    "git commit -m 'memory: tidy'",
+    "git commit -m '$(cd memory)'",
+    'env GIT_EDITOR=true git commit -m "memory leak"',
+    'sudo git commit -m "memory leak"',
+    'cd src && git commit -m "memory leak"',
+    `bash -c 'git commit -m "memory leak"'`,
+  ])("keeps the exemption for a VCS message in command position: %s passes", (command) => {
+    expect(shellBypass(command, check)).toBeUndefined();
+  });
+
   it("decodes a PowerShell encoded command and checks it as a nested command (R3-17)", () => {
     const encoded = Buffer.from("Set-Location memory; Get-Content a.md", "utf16le").toString(
       "base64",

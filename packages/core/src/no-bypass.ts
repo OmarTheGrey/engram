@@ -55,14 +55,23 @@ function reaches(word: string | undefined, check: BypassCheck, recursive: boolea
  * and a PowerShell encoded command are checked as nested commands.
  */
 function pathCheckWords(command: string, depth = 0): string[] {
-  const tokens: { text: string; spaced: boolean }[] = [];
+  // Each token keeps its text after quote removal, whether it held quoted
+  // whitespace, the part of it outside single quotes (where `$(`, backticks
+  // and `$name` still expand: R3-19), and whether it ends a list or pipeline
+  // segment (an unquoted `;`, `&` or `|` at its end).
+  const tokens: { text: string; spaced: boolean; live: string; ends: boolean }[] = [];
   let text = "";
+  let live = "";
   let spaced = false;
   let quote: string | undefined;
+  /** The last character of the token was outside quotes. */
+  let bare = false;
   const flush = () => {
-    if (text !== "") tokens.push({ text, spaced });
+    if (text !== "") tokens.push({ text, spaced, live, ends: bare && /[;&|]$/.test(text) });
     text = "";
+    live = "";
     spaced = false;
+    bare = false;
   };
   for (let i = 0; i < command.length; i++) {
     const c = command[i] as string;
@@ -71,50 +80,90 @@ function pathCheckWords(command: string, depth = 0): string[] {
       else {
         if (/\s/.test(c)) spaced = true;
         text += c;
+        if (quote === '"') live += c;
+        bare = false;
       }
     } else if (c === "'" || c === '"') quote = c;
-    else if (c === "\\" && quote === undefined && /\s/.test(command[i + 1] ?? "")) {
+    else if (c === "\\" && /\s/.test(command[i + 1] ?? "")) {
       text += command[i + 1];
+      bare = false;
       i++;
     } else if (/\s/.test(c)) flush();
-    else text += c;
+    else {
+      text += c;
+      live += c;
+      bare = true;
+    }
   }
   flush();
   // The script argument of a shell (`bash -c "..."`, `pwsh -Command "..."`,
-  // `cmd /c "..."`) is a nested command, checked in full, not as a quoted
-  // argument (ADR 0014 decision D10; the R3-15 regression).
-  // A PowerShell `-EncodedCommand` (UTF-16LE base64) is decoded and checked
-  // as a nested command too (R3-17).
+  // `cmd /c "..."`) is a nested command, checked in full (ADR 0014 decision
+  // D10); a PowerShell `-EncodedCommand` is decoded and checked the same way
+  // (R3-17). A message is exempt only in its own command: a nested script
+  // gets the exemption only where it is itself a VCS command (R3-20).
   let shell: "sh" | "pwsh" | "cmd" | undefined;
   let next: "script" | "encoded" | "message" | undefined;
   let vcs = false;
-  return tokens.flatMap(({ text: t, spaced: s }) => {
-    const words = () => commandWords(t).flatMap((w) => [w, ...w.split("=").slice(1)]);
+  /** The next token is in command position: first in its segment, or after a wrapper. */
+  let atCommand = true;
+  let wrapperArg = false;
+  return tokens.flatMap(({ text: t, spaced: s, live: l, ends }) => {
+    const words = () =>
+      commandWords(t).flatMap((w) => {
+        // `rev:path` (git show HEAD:memory/a.md) names a path after its first colon (R3-21).
+        const colon = w.indexOf(":");
+        return [w, ...w.split("=").slice(1), ...(colon > 0 ? [w.slice(colon + 1)] : [])];
+      });
     const pending = next;
     next = undefined;
+    const commandPosition = atCommand;
+    atCommand = false;
+    const finish = (out: string[]) => {
+      if (ends || /^(?:;|&&|\|\||\||&)$/.test(t)) {
+        shell = undefined;
+        vcs = false;
+        atCommand = true;
+      }
+      return out;
+    };
     if (pending === "script") {
       shell = undefined;
       // `bash -c -- "..."`: the end of options comes before the script.
       if (t === "--") next = "script";
-      return t === "--" ? [] : pathCheckWords(t, depth + 1);
+      return finish(t === "--" ? [] : pathCheckWords(t, depth + 1));
     }
     if (pending === "encoded") {
       shell = undefined;
       const decoded = decodePowerShell(t);
-      return decoded === undefined ? words() : [...words(), ...pathCheckWords(decoded, depth + 1)];
+      return finish(
+        decoded === undefined ? words() : [...words(), ...pathCheckWords(decoded, depth + 1)],
+      );
     }
-    // A commit or tag message (R3-16): the only quoted argument read as one
-    // word; its path-like words are still checked.
-    if (pending === "message" || (vcs && /^--message=/i.test(t)))
-      return words().filter((w) => /[\\/]|^~|^\./.test(w));
+    // A commit or tag message (R3-16): read as one word, its path-like words
+    // still checked, unless it can run something (R3-19): command or process
+    // substitution, a backtick, or a parameter expansion outside single quotes.
+    const message = pending === "message" || (vcs && /^--message=/i.test(t));
+    if (message && !EXPANDS.test(l)) return finish(words().filter((w) => /[\\/]|^~|^\./.test(w)));
+    if (message) return finish(words());
     const name = (t.split(/[\\/]/).pop() ?? "").toLowerCase().replace(/\.exe$/, "");
-    if (/^(?:;|&&|\|\||\||&)$/.test(t)) {
-      shell = undefined;
-      vcs = false;
-    } else if (SH_SHELLS.has(name) && !s) shell = "sh";
+    if (commandPosition && !s) {
+      if (wrapperArg) {
+        wrapperArg = false;
+        atCommand = true;
+      } else if (
+        WRAPPERS.has(name) ||
+        /^[A-Za-z_][A-Za-z0-9_]*=/.test(t) ||
+        (/^-/.test(t) && t !== "-")
+      ) {
+        // env NAME=value, sudo -u, timeout 5, nohup ...: the command follows.
+        atCommand = true;
+        wrapperArg = name === "timeout";
+      }
+    }
+    if (SH_SHELLS.has(name) && !s) shell = "sh";
     else if ((name === "pwsh" || name === "powershell") && !s) shell = "pwsh";
     else if (name === "cmd" && !s) shell = "cmd";
-    else if (VCS.has(name) && !s) vcs = true;
+    else if (VCS.has(name) && !s && commandPosition) vcs = true;
     else if (
       (shell === "sh" && /^-[a-z]*c$/i.test(t)) ||
       (shell === "pwsh" && /^-(?:c|command)$/i.test(t)) ||
@@ -125,10 +174,25 @@ function pathCheckWords(command: string, depth = 0): string[] {
       next = depth < MAX_NESTING ? "encoded" : undefined;
     else if (vcs && MESSAGE_FLAGS.has(t)) next = "message";
     // Every other word, quoted or not, is checked (R3-16: err towards blocking).
-    return words();
+    return finish(words());
   });
 }
 
+/** Text that runs or expands something when a shell reads it (outside single quotes). */
+const EXPANDS = /\$\(|`|<\(|>\(|\$[A-Za-z_{]/;
+/** Commands that run the command after them, so it is still in command position (R3-20). */
+const WRAPPERS = new Set([
+  "env",
+  "sudo",
+  "xargs",
+  "nohup",
+  "time",
+  "timeout",
+  "command",
+  "exec",
+  "nice",
+  "doas",
+]);
 /** Version-control tools whose `-m`/`--message` argument is a message, not a path. */
 const VCS = new Set(["git", "hg", "svn", "jj", "bzr"]);
 /** The message flags of their commit and tag commands. */
