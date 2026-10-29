@@ -277,3 +277,52 @@ describe("R2-11: an item file that was never committed", () => {
     expect(await status(root)).toEqual([]);
   });
 });
+
+describe("N3: a commit refused by the ref compare-and-swap is retried only while its paths are unchanged", () => {
+  const CAS = "fatal: cannot lock ref 'HEAD': is at 1111111 but expected 2222222";
+  const refusal = { code: 128, stdout: Buffer.alloc(0), stderr: CAS };
+
+  test("a refusal with nothing changed is retried, and the write lands in one commit", async () => {
+    const root = await freshLettaRepo();
+    let refusals = 2;
+    const adapter = await createLettaAdapter({
+      root,
+      gitRunner: (args, options) =>
+        args.includes("commit") && refusals-- > 0
+          ? Promise.resolve(refusal)
+          : runGit(args, options),
+    });
+    const before = await commits(root);
+    const ref = await adapter.write(item(12));
+    expect(refusals).toBeLessThan(0);
+    expect(await commits(root)).toHaveLength(before.length + 1);
+    expect(await inHead(root, ref.key)).toBe(true);
+    expect(await status(root)).toEqual([]);
+  });
+
+  test("a refusal after another commit changed one of its paths is not retried, and nothing is left", async () => {
+    const root = await freshLettaRepo();
+    let first = true;
+    const adapter = await createLettaAdapter({
+      root,
+      gitRunner: async (args, options) => {
+        if (!args.includes("commit") || !first) return runGit(args, options);
+        first = false;
+        // Another client commits a change to engram/MEMORY.md, then this commit's swap fails.
+        const theirs = join(await tempDir(), "index.md");
+        await writeFile(theirs, "# changed by another client\n");
+        const blob = (await gitOut(root, "hash-object", "-w", theirs)).trim();
+        await gitOut(root, "update-index", "--cacheinfo", `100644,${blob},engram/MEMORY.md`);
+        await gitOut(root, "commit", "--quiet", "-m", "another client", "--", "engram/MEMORY.md");
+        return refusal;
+      },
+    });
+    const before = await commits(root);
+    await expect(adapter.write(item(13))).rejects.toThrow("cannot lock ref");
+    const after = await commits(root);
+    expect(after).toHaveLength(before.length + 1);
+    expect((await gitOut(root, "log", "-1", "--format=%s")).trim()).toBe("another client");
+    expect(await inHead(root, `engram/${id(13)}.md`)).toBe(false);
+    expect(await readdir(join(root, "engram"))).not.toContain(`${id(13)}.md`);
+  });
+});

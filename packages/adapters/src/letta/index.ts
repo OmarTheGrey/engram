@@ -21,7 +21,8 @@
 //
 // Git. One commit per write and per delete, touching only the item file and
 // engram/MEMORY.md: a new file is marked with `git add --intent-to-add
-// --force` (an entry another client's `git commit` never commits), then
+// --force` (an entry a plain `git commit` by another client never commits;
+// another client's `git commit -a` or `git add -A` does take it), then
 // `git commit --only -- <the paths>` commits exactly those paths from the
 // working tree, so anything else the user staged stays staged and
 // uncommitted. Commits are made with the repository's own identity,
@@ -169,6 +170,8 @@ const HARD_LINKED =
 type ContentFormat = "text" | "json" | "skill";
 
 const canonical = (v: unknown): unknown => JSON.parse(JSON.stringify(v));
+const sameBytes = (a: Buffer | undefined, b: Buffer | undefined) =>
+  a === undefined || b === undefined ? a === b : a.equals(b);
 
 const textOf = (content: MemoryItem["content"]) =>
   typeof content === "string"
@@ -264,15 +267,20 @@ export async function createLettaAdapter(options: LettaAdapterOptions): Promise<
    * A git call that must succeed. While another git client holds the
    * repository's index.lock (its own add or commit), git refuses at once
    * before changing anything, so the call is retried for up to about two
-   * seconds; any other failure, or the lock outlasting that, rejects.
+   * seconds; so is any refusal `retryAlso` accepts (a commit's ref
+   * compare-and-swap, when nothing it commits has changed). Any other
+   * failure, or a refusal outlasting that, rejects.
    */
-  const g = async (args: string[], input?: string) => {
+  const g = async (
+    args: string[],
+    input?: string,
+    retryAlso?: (stderr: string) => Promise<boolean>,
+  ) => {
+    const retryable = async (r: GitResult) =>
+      r.code !== 0 &&
+      (r.stderr.includes("index.lock") || (retryAlso !== undefined && (await retryAlso(r.stderr))));
     let result = await gTry(args, input);
-    for (
-      let attempt = 1;
-      result.code !== 0 && result.stderr.includes("index.lock") && attempt <= 12;
-      attempt++
-    ) {
+    for (let attempt = 1; attempt <= 12 && (await retryable(result)); attempt++) {
       await sleep(Math.min(10 * 2 ** attempt, 300));
       result = await gTry(args, input);
     }
@@ -504,7 +512,21 @@ export async function createLettaAdapter(options: LettaAdapterOptions): Promise<
       for (const c of changes) await putFile(c, c.next);
       if (fresh.length > 0)
         await g(["add", "--intent-to-add", "--force", "--", ...fresh.map((c) => c.key)]);
-      await g(["commit", "--quiet", "-m", message, "--only", "--", ...paths.map((c) => c.key)]);
+      // `cannot lock ref 'HEAD'`: another commit moved HEAD between this
+      // commit reading it and updating it, and git changed nothing. Retried
+      // only while HEAD still holds, at every path this commit names, the
+      // bytes it held before; otherwise another commit changed them and
+      // this one would overwrite that change, so it is refused (N3).
+      const keys = changes.map((c) => c.key);
+      await g(
+        ["commit", "--quiet", "-m", message, "--only", "--", ...paths.map((c) => c.key)],
+        undefined,
+        async (stderr) => {
+          if (!stderr.includes("cannot lock ref")) return false;
+          const now = await headBlobs(keys);
+          return now.every((b, i) => sameBytes(b, head[i]));
+        },
+      );
       return true;
     } catch (e) {
       try {

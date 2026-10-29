@@ -87,9 +87,19 @@ test("two writer processes and a user committing in a loop: no user commit carri
       items.filter((f) => f.status !== "D"),
       subject,
     ).toEqual([]);
-    for (const f of items) reverted.add(f.path.slice("engram/".length, -".md".length));
     if (items.length === 0) expect(engram, subject).toEqual([]);
+    for (const f of items) {
+      // Git's race reverts exactly the commit it raced: the deleting commit's
+      // parent is the Engram commit that added this item, and nothing else.
+      const id = f.path.slice("engram/".length, -".md".length);
+      const parent = (await gitOut(root, "log", "-1", "--format=%s", `${sha}^`)).trim();
+      expect(parent, `${subject} deletes ${id}`).toMatch(new RegExp(`^engram: write ${id} `));
+      reverted.add(id);
+    }
   }
+  // The race is rare (about one run in fifteen, one commit each time); more
+  // than one reverted item in a run is a defect, not the race (N2).
+  expect(reverted.size, [...reverted].join(", ")).toBeLessThanOrEqual(1);
   expect(writes.sort()).toEqual([...resolved].sort());
   for (const id of resolved) {
     const inHead = (await runGit(["cat-file", "-e", `HEAD:engram/${id}.md`], { cwd: root })).code;
