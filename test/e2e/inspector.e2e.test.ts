@@ -88,7 +88,7 @@ describe.skipIf(skip !== undefined)("the inspector on the fixture workspace", ()
           .locator(`[data-testid="lane"][data-scope="${scope}"] [data-testid="lane-item"]`)
           .evaluateAll((items) => items.map((i) => i.getAttribute("data-id") ?? ""))
       ).sort();
-    expect(await shown("person:dana")).toEqual(ids([1, 9]));
+    expect(await shown("person:dana")).toEqual(ids([1, 9, 13]));
     expect(await shown("team:core")).toEqual(ids([2, 6]));
     // The lanes came from a read the viewer made: its event is in the log and on the timeline.
     const readId = await page.getByTestId("lanes-read").textContent();
@@ -97,11 +97,23 @@ describe.skipIf(skip !== undefined)("the inspector on the fixture workspace", ()
     expect(await page.locator(`[data-testid="timeline-row"][data-id="${readId}"]`).count()).toBe(1);
   });
 
+  it("shows a hostile item's content as text: no element, no script run", async () => {
+    const hostile = page.locator(`[data-testid="lane-item"][data-id="${ids([13])[0]}"]`);
+    expect(await hostile.textContent()).toContain(
+      '<img src=x onerror="window.__engramXss=1"><script>window.__engramXss=2</script>',
+    );
+    expect(await page.locator("img").count()).toBe(0);
+    expect(await page.locator("#root script").count()).toBe(0);
+    expect(await page.evaluate(() => (globalThis as { __engramXss?: number }).__engramXss)).toBe(
+      undefined,
+    );
+  });
+
   it("shows on the timeline the events visibleEvents gives the viewer", async () => {
     const log = fixture.workspace.plane.events();
     const visible = visibleEvents(fixture.viewer, log);
-    // The workload's twelve visible events and the lanes' read; the log holds more.
-    expect(visible).toHaveLength(13);
+    // The workload's thirteen visible events and the lanes' read; the log holds more.
+    expect(visible).toHaveLength(14);
     expect(log.length).toBeGreaterThan(visible.length);
     expect(await page.getByTestId("timeline-row").count()).toBe(visible.length);
     expect(
@@ -113,7 +125,7 @@ describe.skipIf(skip !== undefined)("the inspector on the fixture workspace", ()
     await page.getByTestId("filter-decision").selectOption("deny");
     expect(await page.getByTestId("timeline-row").count()).toBe(1);
     await page.getByTestId("filter-decision").selectOption("");
-    expect(await page.getByTestId("timeline-row").count()).toBe(13);
+    expect(await page.getByTestId("timeline-row").count()).toBe(14);
   });
 
   it("explains the viewer's read with the filtered count its event records", async () => {
@@ -163,6 +175,37 @@ describe.skipIf(skip !== undefined)("the inspector on the fixture workspace", ()
     );
     expect(await page.getByTestId("event-detail").textContent()).toContain("person:dana");
     expect(await page.getByTestId("explain-filtered").count()).toBe(0);
+  });
+
+  it("drops a selected event the new viewer may not see, and resets the filters", async () => {
+    const samsWrite = fixture.workspace.plane
+      .events()
+      .find((e) => e.op === "write" && e.item_id === ids([7])[0]);
+    if (!samsWrite) throw new Error("the workload has no write of item 7 by sam");
+    await page.getByTestId("filter-op").selectOption("write");
+    await page.locator(`[data-testid="timeline-row"][data-id="${samsWrite.id}"]`).click();
+    expect(await page.getByTestId("event-detail").textContent()).toContain(samsWrite.id);
+
+    const eve = { id: "person:eve", level: "person" as const, memberships: ["person:eve"] };
+    await page.getByTestId("viewer-id").fill(eve.id);
+    await page.getByTestId("viewer-memberships").fill(eve.memberships.join(", "));
+    await page.getByTestId("viewer-apply").click();
+    await expect.poll(() => page.getByTestId("viewer-current").textContent()).toContain(eve.id);
+    // Wait for eve's own lanes: their read id names a read eve made.
+    await expect
+      .poll(async () => {
+        const lanesRead = page.getByTestId("lanes-read");
+        if ((await lanesRead.count()) === 0) return null;
+        const readId = await lanesRead.textContent();
+        return fixture.workspace.plane.events().find((e) => e.id === readId)?.actor ?? null;
+      })
+      .toBe(eve.id);
+    // Eve may not see sam's write to his own scope: it is no longer on screen.
+    expect(await page.getByTestId("event-detail").count()).toBe(0);
+    expect(await page.getByTestId("filter-op").inputValue()).toBe("");
+    const visible = visibleEvents(eve, fixture.workspace.plane.events());
+    expect(visible.map((e) => e.id)).not.toContain(samsWrite.id);
+    expect(await page.getByTestId("timeline-row").count()).toBe(visible.length);
   });
 
   it("fetched nothing but its own server, with no error on the page", () => {

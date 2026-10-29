@@ -12,6 +12,7 @@
 import {
   adoptStoreItems,
   currentItems,
+  eventById,
   type MemoryItem,
   readCounts,
   visibleEvents,
@@ -121,7 +122,7 @@ export const ROUTES: readonly Route[] = [
       const readId = params.readId ?? "";
       // Plane.explain refuses an unknown read and another actor's read first.
       const explanations = await workspace.plane.explain(body.actor, readId);
-      const event = workspace.plane.events().find((e) => e.id === readId);
+      const event = eventById(workspace.deps.db, readId);
       return { read_id: readId, explanations, counts: event ? readCounts(event) : null };
     },
   }),

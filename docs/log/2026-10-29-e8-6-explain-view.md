@@ -20,6 +20,6 @@ supersedes: none
 
 **Why.** The card asks which items a read returned and which were filtered by which rule; decision 5 puts the parsing in core so no surface parses the reason by hand.
 
-**Result.** `formatReadReason` writes the reason, `parseReadReason` and `readCounts` read it back; a property test round-trips 1000 generated count sets. The explain route returns `counts` beside the explanations. In Chromium the fixture read shows four rows (rank, score components, admitting rule, grants used, validity) and 6 filtered (3, 2, 1 and 0 by category), equal to the event's counts and the read's `filtered`. A parser swapping two categories fails the property and e2e tests.
+**Result.** `formatReadReason` writes the reason, `parseReadReason` and `readCounts` read it back; a property test round-trips 1000 generated count sets. The explain route returns `counts` beside the explanations. In Chromium the fixture read shows five rows (rank, score components, admitting rule, grants used, validity) and 6 filtered (3, 2, 1 and 0 by category), equal to the event's counts and the read's `filtered`. A parser swapping two categories fails the property and e2e tests.
 
 **Consequence.** None for other cards; the reason's wording can change only with its parser.

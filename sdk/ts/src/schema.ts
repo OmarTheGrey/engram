@@ -524,7 +524,7 @@ export interface components {
         ExplainResponse: {
             read_id: string;
             explanations: components["schemas"]["Explanation"][];
-            /** @description The counts the read event's reason records (core's readCounts, decision 5 of the Gate B plan); null for a read event written before that format. */
+            /** @description The counts the read event's reason records (core's readCounts, decision 5 of the Gate B plan); null for a read event written before that format. Audit data for the human inspector: out_of_reach counts items outside the reader's reach, which decision D5 keeps from the reader, so a surface that answers a model (the MCP tools, the pi extension) must not pass the counts on. */
             counts: components["schemas"]["ReadCounts"] | null;
         };
         /** @description The counts a read event's reason records: returned of candidates, the filtered total and its categories, and the projected items outside the reader's reach (never candidates). */

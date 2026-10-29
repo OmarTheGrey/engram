@@ -9,7 +9,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import { createApp } from "../src/app.ts";
-import { builtUi, UI_CSP } from "../src/static.ts";
+import { builtUi, isApiPath, UI_CSP, uiFile } from "../src/static.ts";
 import { BASE, NOW, PORT, testWorkspace } from "./helpers.ts";
 
 const base = mkdtempSync(join(tmpdir(), "engram-ui-"));
@@ -20,12 +20,11 @@ writeFileSync(join(dist, "index.html"), "<!doctype html><title>Inspector</title>
 writeFileSync(join(dist, "assets", "app.js"), "console.log(1)");
 writeFileSync(join(dist, "assets", "app.css"), "body{}");
 writeFileSync(join(base, "secret.txt"), "SECRET");
-let linked = true;
-try {
-  symlinkSync(join(base, "secret.txt"), join(dist, "assets", "link.txt"));
-} catch {
-  linked = false; // Windows without the symlink privilege
-}
+mkdirSync(join(base, "outside"));
+writeFileSync(join(base, "outside", "secret.txt"), "SECRET");
+// A directory link out of dist: a junction on Windows, which needs no
+// privilege; the type is ignored elsewhere, where it is a plain symlink.
+symlinkSync(join(base, "outside"), join(dist, "assets", "linked"), "junction");
 
 function app(ui: string | null | undefined = dist) {
   const { workspace } = testWorkspace();
@@ -75,6 +74,8 @@ describe("the inspector's files", () => {
       `/${encodeURIComponent(join(base, "secret.txt"))}`,
       "/assets/app.js%00.html",
       "/%",
+      "/C:%2fsecret.txt",
+      "/assets/app.js:secret.txt",
     ];
     for (const path of spellings) {
       const r = await get(path);
@@ -82,16 +83,47 @@ describe("the inspector's files", () => {
     }
   });
 
-  it.skipIf(!linked)("does not follow a link out of its directory", async () => {
-    const r = await get("/assets/link.txt");
+  it("does not follow a link out of its directory", async () => {
+    const r = await get("/assets/linked/secret.txt");
     expect(r.status).toBe(404);
     expect(await r.text()).not.toContain("SECRET");
   });
 
-  it("keeps /api/v1 for the API: an unknown route is the API's 404, not the page", async () => {
-    const r = await get("/api/v1/nothing");
-    expect(r.status).toBe(404);
-    expect(((await r.json()) as { error: { code: string } }).error.code).toBe("not_found");
+  it("keeps the API's space for the API: any path whose first segment is api gets its JSON 404", async () => {
+    const paths = [
+      "/api",
+      "/api/",
+      "/api/v1/nothing",
+      "/api/v2/read",
+      "/api/v1x",
+      "/API/v1/read",
+      "/Api",
+      "/api%2fv1/nothing",
+      "/%61pi/v1/nothing",
+      "/api%5cv1",
+    ];
+    for (const path of paths) {
+      const r = await get(path);
+      expect(r.status, path).toBe(404);
+      expect(r.headers.get("content-type"), path).toMatch(/^application\/json/);
+      expect(((await r.json()) as { error: { code: string } }).error.code, path).toBe("not_found");
+    }
+    expect(isApiPath("/apis")).toBe(false);
+    expect(isApiPath("/rapid")).toBe(false);
+    expect((await get("/apis")).status).toBe(200);
+  });
+
+  it("refuses a segment with a colon, which names a drive or a stream on Windows", () => {
+    expect(uiFile(dist, "/assets/app.js")).not.toBeNull();
+    expect(uiFile(dist, "/assets/app.js:x")).toBeNull();
+    expect(uiFile(dist, "/C:/secret.txt")).toBeNull();
+    // On Windows `::$DATA` names a file's main stream, so this one exists there.
+    expect(uiFile(dist, "/assets/app.js::$DATA")).toBeNull();
+    // Elsewhere a colon is an ordinary character: a real file with one is still refused.
+    if (process.platform !== "win32") {
+      writeFileSync(join(dist, "assets", "a:b.txt"), "colon");
+      expect(uiFile(dist, "/assets/a:b.txt")).toBeNull();
+    }
   });
 
   it("serves files to GET only; the API's guards still run first", async () => {

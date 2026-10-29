@@ -34,7 +34,7 @@ describe("the inspector's calls on the fixture workspace", () => {
     const { client, viewer } = await inspectorWorkspace();
     const { lanes } = await inspect(client, viewer);
     expect(lanes.map((l) => [l.scope, l.items.map((i) => i.id).sort()])).toEqual([
-      ["person:dana", ids([1, 9])],
+      ["person:dana", ids([1, 9, 13])],
       ["team:core", ids([2, 6])],
     ]);
     // Out of the window, past their ttl, candidates, another person's, and the denied write.
@@ -48,7 +48,7 @@ describe("the inspector's calls on the fixture workspace", () => {
     const expected = visibleEvents(viewer, workspace.plane.events());
     expect(events).toEqual(expected);
     expect(events.length).toBeLessThan(workspace.plane.events().length);
-    expect(events.length).toBe(12);
+    expect(events.length).toBe(13);
   });
 
   it("explains the viewer's own read with the filtered count its event records", async () => {

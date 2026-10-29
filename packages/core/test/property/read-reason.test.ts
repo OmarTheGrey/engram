@@ -16,16 +16,20 @@ import { seedFor } from "../generators.ts";
 import { AT, fresh, id, item } from "../unit/plane/helpers.ts";
 
 const RUNS = 1000;
-const count = fc.nat({ max: 100_000 });
+// Any safe integer; a filtered category at most a quarter of the largest, so
+// the filtered total, their sum, is a safe integer too.
+const count = fc.maxSafeNat();
+const QUARTER = Math.floor(Number.MAX_SAFE_INTEGER / 4);
+const category = fc.nat({ max: QUARTER });
 
 const arbCounts: fc.Arbitrary<ReadCounts> = fc
   .record({
     returned: count,
     candidates: count,
-    outside_validity: count,
-    not_active: count,
-    expired: count,
-    excluded: count,
+    outside_validity: category,
+    not_active: category,
+    expired: category,
+    excluded: category,
     out_of_reach: count,
   })
   .map((c) => ({ ...c, filtered: c.outside_validity + c.not_active + c.expired + c.excluded }));
@@ -39,6 +43,31 @@ describe("the read reason", () => {
       }),
       { numRuns: RUNS, seed: seedFor(roundTrip) },
     );
+  });
+
+  test("round-trips all zeros and the largest counts", () => {
+    const zero = {
+      returned: 0,
+      candidates: 0,
+      filtered: 0,
+      outside_validity: 0,
+      not_active: 0,
+      expired: 0,
+      excluded: 0,
+      out_of_reach: 0,
+    };
+    const large = {
+      returned: Number.MAX_SAFE_INTEGER,
+      candidates: Number.MAX_SAFE_INTEGER,
+      filtered: 4 * QUARTER,
+      outside_validity: QUARTER,
+      not_active: QUARTER,
+      expired: QUARTER,
+      excluded: QUARTER,
+      out_of_reach: Number.MAX_SAFE_INTEGER,
+    };
+    for (const counts of [zero, large])
+      expect(parseReadReason(formatReadReason(counts))).toEqual(counts);
   });
 
   const distinct = "distinct counts give distinct reasons";

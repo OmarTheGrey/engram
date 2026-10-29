@@ -24,6 +24,6 @@ supersedes: none
 
 **Why.** Gate B's surfaces need a view of the plane as one actor (plan decision 5).
 
-**Result.** Lanes are one `Plane.read` as the viewer through the generated client; the timeline is what `visibleEvents` returns. On the fixture workspace (12 writes and reads), Chromium shows lanes `person:dana` and `team:core` with four items, and 13 timeline rows, equal to `visibleEvents` over the log. `make test-e2e`: 17 passed; `pnpm --filter ui test`: 23 passed; `packages/server/test/ui.test.ts`: 9 passed. Mutations caught: lanes from the projection, and a timeline ignoring `visibleEvents`.
+**Result.** Lanes are one `Plane.read` as the viewer through the generated client; the timeline is what `visibleEvents` returns. On the fixture workspace (13 writes and 3 reads), Chromium shows lanes `person:dana` and `team:core` with five items, and 14 timeline rows, equal to `visibleEvents` over the log. `make test-e2e`: 22 passed; `pnpm --filter ui test`: 27 passed; `packages/server/test/ui.test.ts`: 10 passed. Mutations caught: lanes from the projection, and a timeline ignoring `visibleEvents`.
 
 **Consequence.** E8.10 (diff view) builds on these lanes; snapshots wait for it.

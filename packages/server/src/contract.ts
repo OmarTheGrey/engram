@@ -104,7 +104,7 @@ export const ExplainResponse = z.strictObject({
   explanations: z.array(Explanation),
   counts: ReadCounts.nullable().meta({
     description:
-      "The counts the read event's reason records (core's readCounts, decision 5 of the Gate B plan); null for a read event written before that format.",
+      "The counts the read event's reason records (core's readCounts, decision 5 of the Gate B plan); null for a read event written before that format. Audit data for the human inspector: out_of_reach counts items outside the reader's reach, which decision D5 keeps from the reader, so a surface that answers a model (the MCP tools, the pi extension) must not pass the counts on.",
   }),
 });
 

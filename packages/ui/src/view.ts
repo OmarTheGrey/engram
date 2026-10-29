@@ -136,6 +136,21 @@ export function filterEvents(
   );
 }
 
+/**
+ * The selection after a change of viewer: kept when it is a read (another
+ * actor's read shows its event and who may explain it, decision 5) or one of
+ * the events the new viewer may see; otherwise nothing is selected, so an
+ * event the new viewer may not see never stays on screen.
+ */
+export function keepSelection(
+  selected: MemoryEvent | null,
+  visible: readonly MemoryEvent[],
+): MemoryEvent | null {
+  if (selected === null) return null;
+  if (selected.op === "read") return selected;
+  return visible.some((e) => e.id === selected.id) ? selected : null;
+}
+
 /** The scope column: the source and target scopes, or a dash for an event that names none. */
 export function scopeText(e: Pick<MemoryEvent, "scope_from" | "scope_to">): string {
   if (e.scope_from !== null && e.scope_to !== null && e.scope_from !== e.scope_to)
@@ -173,6 +188,7 @@ export const FILTER_CATEGORIES = [
 export interface ExplainRow {
   rank: number;
   itemId: string;
+  /** The item's text in the current lanes, not at the read's time; null when it is not in them. */
   content: string | null;
   total: number;
   components: [string, number][];

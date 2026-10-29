@@ -1,8 +1,8 @@
 // The inspector's files (card E8.5; plan docs/tasks/gate-b-plan.md, PR 4):
 // `engram serve` serves the built UI (packages/ui/dist, written by `make ui`)
 // at / beside the API. A path names a file inside that directory or nothing:
-// it is decoded once, and refused when it holds a backslash, a NUL, or a `.`
-// or `..` segment; the file it names must resolve, links followed, inside the
+// it is decoded once, and refused when it holds a backslash, a NUL, a `.` or
+// `..` segment, or a segment with a `:`; the file it names must resolve, links followed, inside the
 // directory. A page path (no file extension) that names no file gets
 // index.html, since the UI routes itself. Every response carries a
 // Content-Security-Policy that keeps the page to its own origin: it loads
@@ -54,6 +54,22 @@ const headers = (type: string, cache: string) => ({
   "cache-control": cache,
 });
 
+/**
+ * Whether `pathname` is in the API's space: its first segment, decoded once
+ * and compared without case, is `api` (so `/api`, `/API/v1/x`, `/api/v2/x`,
+ * `/api%2fv1/x`). Such a path is never answered with the inspector's page.
+ */
+export function isApiPath(pathname: string): boolean {
+  const first = pathname.split("/")[1] ?? "";
+  let decoded = first;
+  try {
+    decoded = decodeURIComponent(first);
+  } catch {
+    // An undecodable segment is compared as written.
+  }
+  return (decoded.split(/[/\\]/)[0] ?? "").toLowerCase() === "api";
+}
+
 /** The file under `root` that `pathname` names, or null; see the module comment. */
 export function uiFile(root: string, pathname: string): string | null {
   let decoded: string;
@@ -64,7 +80,8 @@ export function uiFile(root: string, pathname: string): string | null {
   }
   if (decoded.includes("\\") || decoded.includes("\0")) return null;
   const segments = decoded.split("/").filter((s) => s !== "");
-  if (segments.some((s) => s === "." || s === "..")) return null;
+  // A `:` would name a drive or an alternate data stream on Windows.
+  if (segments.some((s) => s === "." || s === ".." || s.includes(":"))) return null;
   let base: string;
   try {
     base = realpathSync(resolve(root));

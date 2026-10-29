@@ -11,6 +11,7 @@ import {
   FILTER_CATEGORIES,
   filterEvents,
   filterOptions,
+  keepSelection,
   NO_FILTER,
   otherReaderLine,
   parseMemberships,
@@ -195,6 +196,27 @@ describe("the timeline", () => {
     expect(detail.get("policy id")).toBe("p/write/person");
     expect(detail.get("reason")).toBe("ok");
     expect(detail.size).toBe(11);
+  });
+});
+
+describe("the selection after a change of viewer", () => {
+  const write = event(1, { scope_to: "person:dana" });
+  const read = event(2, { op: "read", scope_to: null });
+
+  it("drops an event the new viewer may not see", () => {
+    expect(keepSelection(write, [event(5)])).toBeNull();
+  });
+
+  it("keeps an event the new viewer may see", () => {
+    expect(keepSelection(write, [event(5), write])).toBe(write);
+  });
+
+  it("keeps a read, whose explain view then names its reader (decision 5)", () => {
+    expect(keepSelection(read, [])).toBe(read);
+  });
+
+  it("keeps nothing when nothing was selected", () => {
+    expect(keepSelection(null, [write])).toBeNull();
   });
 });
 

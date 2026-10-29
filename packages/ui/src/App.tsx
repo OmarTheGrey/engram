@@ -16,6 +16,7 @@ import {
   filterEvents,
   filterOptions,
   formatMemberships,
+  keepSelection,
   type Lane,
   LEVELS,
   NO_FILTER,
@@ -33,8 +34,9 @@ export function App({ client }: { client: EngramClient }) {
   const [inspection, setInspection] = useState<Inspection | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<TimelineFilter>(NO_FILTER);
-  // The selection survives a change of viewer: another actor's read then
-  // shows its event and who may explain it.
+  // On a change of viewer the selection stays only if it is a read (another
+  // actor's read then shows its event and who may explain it, decision 5) or
+  // the new viewer may see it (keepSelection); the filters reset.
   const [selected, setSelected] = useState<MemoryEvent | null>(null);
   const [explain, setExplain] = useState<ExplainView | null>(null);
 
@@ -60,8 +62,13 @@ export function App({ client }: { client: EngramClient }) {
     let live = true;
     setInspection(null);
     setError(null);
+    setFilter(NO_FILTER);
     inspect(client, viewer)
-      .then((i) => live && setInspection(i))
+      .then((i) => {
+        if (!live) return;
+        setSelected((s) => keepSelection(s, i.events));
+        setInspection(i);
+      })
       .catch((e) => live && setError(message(e)));
     return () => {
       live = false;
@@ -343,11 +350,15 @@ function Explain({ view }: { view: ExplainView }) {
           </p>
         </>
       )}
+      <p className="muted" data-testid="explain-content-note">
+        An item's text is what the lanes show now, not its text when the read was made; an item not
+        in the lanes shows its id only.
+      </p>
       <table>
         <thead>
           <tr>
             <th>rank</th>
-            <th>item</th>
+            <th>item (content now)</th>
             <th>score</th>
             <th>admitted by</th>
             <th>grants used</th>
