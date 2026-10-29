@@ -26,3 +26,4 @@ export * from "./replay.ts";
 export * from "./schema.ts";
 export * from "./simulate.ts";
 export * from "./time.ts";
+export * from "./visible.ts";

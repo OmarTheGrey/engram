@@ -58,6 +58,16 @@ export function checkCall(actor: unknown, at: unknown, method: string): void {
     );
 }
 
+/** `explain` called with an id that names no read event; a surface reports it as not found. */
+export class UnknownReadError extends Error {
+  readonly readId: string;
+  constructor(readId: string) {
+    super(`explain: ${readId} names no read event`);
+    this.name = "UnknownReadError";
+    this.readId = readId;
+  }
+}
+
 /** `explain` called by an actor other than the one who made the read (decision D5). */
 export class ExplainDeniedError extends Error {
   readonly readId: string;

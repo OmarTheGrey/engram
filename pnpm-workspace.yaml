@@ -1,5 +1,7 @@
 packages:
   - packages/*
+  # The generated TypeScript client (card E8.3); written by make api.
+  - sdk/ts
 
 allowBuilds:
   # Install scripts of transitive dependencies of pi-ai's Google provider; Engram does not need them.

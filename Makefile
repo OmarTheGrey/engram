@@ -45,8 +45,9 @@ test-e2e: ## layer 6: engram doctor and a CLI smoke (write, read, explain) on SQ
 test-repro: ## stub: layer 8, every research script regenerates its result
 	@echo "test-repro: not implemented yet (layer 8 lands with the first research script)"; exit 2
 
-api: ## regenerate sdk/schema and research/engram_types from packages/core/src/schema.ts, and the provider key names from pi-ai
+api: ## regenerate sdk/schema, sdk/openapi.json, the clients in sdk/ts and packages/ui/src/api, research/engram_types, and the provider key names from pi-ai
 	node packages/core/scripts/export-schema.ts sdk/schema
+	node packages/server/scripts/api.ts
 	rm -rf research/engram_types
 	$(UV) run datamodel-codegen --input sdk/schema --input-file-type jsonschema 	  --output research/engram_types --output-model-type typing.TypedDict 	  --target-python-version 3.12 --use-standard-collections --use-union-operator 	  --use-title-as-name --disable-timestamp --formatters ruff-format
 	find research/engram_types -name '*.py' -exec sed -i 's/\r$$//' {} +
@@ -55,7 +56,7 @@ api: ## regenerate sdk/schema and research/engram_types from packages/core/src/s
 
 # The provider key names engram doctor checks, generated from pi-ai by the runner (the CLI never imports pi-ai).
 PROVIDER_KEYS := packages/runner/src/model/provider-keys.json
-GENERATED := sdk research/engram_types $(PROVIDER_KEYS)
+GENERATED := sdk packages/ui/src/api research/engram_types $(PROVIDER_KEYS)
 
 api-check: api ## fail if generated contracts differ from what is committed
 	@git diff --exit-code -- $(GENERATED)

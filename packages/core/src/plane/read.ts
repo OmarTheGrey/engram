@@ -17,7 +17,7 @@
 // hidden items in a granted item's scope crowd it out). Relevance ranks among
 // admitted items only, and items out of reach are never candidates. The read
 // event, the audit record a harness keeps from the model, also counts them.
-import { type Actor, ExplainDeniedError } from "../actor.ts";
+import { type Actor, ExplainDeniedError, UnknownReadError } from "../actor.ts";
 import { appendEvent, currentItems } from "../events.ts";
 import type { PlaneDeps, ReadQuery, ReadResult } from "../plane.ts";
 import {
@@ -193,7 +193,7 @@ export async function filteredRead(
 export function storedExplanations(deps: PlaneDeps, actor: Actor, readId: string): Explanation[] {
   const { db } = deps;
   const row = db.prepare("SELECT op, actor FROM events WHERE id = ?").get(readId);
-  if (row?.op !== "read") throw new Error(`explain: ${readId} names no read event`);
+  if (row?.op !== "read") throw new UnknownReadError(readId);
   if (row.actor !== actor?.id) throw new ExplainDeniedError(readId);
   return db
     .prepare("SELECT body FROM explanations WHERE read_id = ? ORDER BY rank")

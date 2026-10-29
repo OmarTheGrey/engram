@@ -1,0 +1,2989 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Engram",
+    "version": "0.0.0+schema.0",
+    "description": "The Engram control plane over HTTP (ADR 0027): every route calls the Plane; no authentication in v0, so the server answers on loopback only."
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:7313"
+    }
+  ],
+  "paths": {
+    "/api/v1/items": {
+      "post": {
+        "operationId": "write",
+        "summary": "Write one item through the write gate; 200 with the decision's event.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WriteRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "the result; a policy decision of any kind is 200 with its event",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WriteResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "the request fails its schema, or the plane refused the call (InvalidCallError)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "the Host or Origin is not this loopback server's, or the actor may not explain this read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "no such route, or the read id names no read event",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "the body is over the size limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "the body is not application/json",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "an unexpected error; the body carries no internals",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "the workspace has no store",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/items/check": {
+      "post": {
+        "operationId": "checkWrite",
+        "summary": "The decision a write would get now, with nothing stored and no event (decision D12).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WriteRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "the result; a policy decision of any kind is 200 with its event",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "the request fails its schema, or the plane refused the call (InvalidCallError)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "the Host or Origin is not this loopback server's, or the actor may not explain this read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "no such route, or the read id names no read event",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "the body is over the size limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "the body is not application/json",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "an unexpected error; the body carries no internals",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/read": {
+      "post": {
+        "operationId": "read",
+        "summary": "Read through the plane as the actor: the store's owner sweeps and adopts first when the workspace has a store; every returned item is explained.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReadRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "the result; a policy decision of any kind is 200 with its event",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "the request fails its schema, or the plane refused the call (InvalidCallError)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "the Host or Origin is not this loopback server's, or the actor may not explain this read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "no such route, or the read id names no read event",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "the body is over the size limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "the body is not application/json",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "an unexpected error; the body carries no internals",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/explain/{readId}": {
+      "post": {
+        "operationId": "explain",
+        "summary": "The explanations a read recorded, for the actor who made it only (decision D5).",
+        "parameters": [
+          {
+            "name": "readId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExplainRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "the result; a policy decision of any kind is 200 with its event",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExplainResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "the request fails its schema, or the plane refused the call (InvalidCallError)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "the Host or Origin is not this loopback server's, or the actor may not explain this read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "no such route, or the read id names no read event",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "the body is over the size limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "the body is not application/json",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "an unexpected error; the body carries no internals",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/promote": {
+      "post": {
+        "operationId": "promote",
+        "summary": "Promote an item through the promotion gate (ADR 0026); 200 with the decision.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PromoteRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "the result; a policy decision of any kind is 200 with its event",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GateResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "the request fails its schema, or the plane refused the call (InvalidCallError)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "the Host or Origin is not this loopback server's, or the actor may not explain this read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "no such route, or the read id names no read event",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "the body is over the size limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "the body is not application/json",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "an unexpected error; the body carries no internals",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "the workspace has no store",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/retain": {
+      "post": {
+        "operationId": "retain",
+        "summary": "Sweep one scope's retention as a member of it (ADR 0025).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetainRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "the result; a policy decision of any kind is 200 with its event",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetentionReport"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "the request fails its schema, or the plane refused the call (InvalidCallError)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "the Host or Origin is not this loopback server's, or the actor may not explain this read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "no such route, or the read id names no read event",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "the body is over the size limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "the body is not application/json",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "an unexpected error; the body carries no internals",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/events": {
+      "post": {
+        "operationId": "events",
+        "summary": "The events the actor may see: those in its member scopes and those it made (visibleEvents).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EventsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "the result; a policy decision of any kind is 200 with its event",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "the request fails its schema, or the plane refused the call (InvalidCallError)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "the Host or Origin is not this loopback server's, or the actor may not explain this read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "no such route, or the read id names no read event",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "the body is over the size limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "the body is not application/json",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "an unexpected error; the body carries no internals",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/policy": {
+      "get": {
+        "operationId": "policy",
+        "summary": "The policy the workspace decides with.",
+        "responses": {
+          "200": {
+            "description": "the result; a policy decision of any kind is 200 with its event",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "the Host or Origin is not this loopback server's, or the actor may not explain this read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "no such route, or the read id names no read event",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "an unexpected error; the body carries no internals",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/lint": {
+      "post": {
+        "operationId": "lint",
+        "summary": "Run the enabled lints over one scope; 501 until card L1.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LintRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "the result; a policy decision of any kind is 200 with its event",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LintResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "the request fails its schema, or the plane refused the call (InvalidCallError)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "the Host or Origin is not this loopback server's, or the actor may not explain this read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "no such route, or the read id names no read event",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "the body is over the size limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "the body is not application/json",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "an unexpected error; the body carries no internals",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "the Plane method's card has not landed; the body names it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/simulate": {
+      "post": {
+        "operationId": "simulate",
+        "summary": "Replay a workload under a policy; 501 until card E8.9.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SimulateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "the result; a policy decision of any kind is 200 with its event",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenReport"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "the request fails its schema, or the plane refused the call (InvalidCallError)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "the Host or Origin is not this loopback server's, or the actor may not explain this read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "no such route, or the read id names no read event",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "the body is over the size limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "the body is not application/json",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "an unexpected error; the body carries no internals",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "the Plane method's card has not landed; the body names it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/distill": {
+      "post": {
+        "operationId": "distill",
+        "summary": "Candidate procedures from sessions; 501 until card D2.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DistillRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "the result; a policy decision of any kind is 200 with its event",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenReport"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "the request fails its schema, or the plane refused the call (InvalidCallError)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "the Host or Origin is not this loopback server's, or the actor may not explain this read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "no such route, or the read id names no read event",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "the body is over the size limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "the body is not application/json",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "an unexpected error; the body carries no internals",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "the Plane method's card has not landed; the body names it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/bypass": {
+      "post": {
+        "operationId": "bypass",
+        "summary": "Record a bypass a surface blocked (ADR 0014) as one bypass_blocked event; nothing reaches the store.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BypassRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "the result; a policy decision of any kind is 200 with its event",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "the request fails its schema, or the plane refused the call (InvalidCallError)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "the Host or Origin is not this loopback server's, or the actor may not explain this read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "no such route, or the read id names no read event",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "the body is over the size limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "the body is not application/json",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "an unexpected error; the body carries no internals",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/viewer": {
+      "get": {
+        "operationId": "viewer",
+        "summary": "The viewer `engram serve --as` named, or null.",
+        "responses": {
+          "200": {
+            "description": "the result; a policy decision of any kind is 200 with its event",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ViewerResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "the Host or Origin is not this loopback server's, or the actor may not explain this read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "no such route, or the read id names no read event",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "an unexpected error; the body carries no internals",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/health": {
+      "get": {
+        "operationId": "health",
+        "summary": "The server answers.",
+        "responses": {
+          "200": {
+            "description": "the result; a policy decision of any kind is 200 with its event",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "the Host or Origin is not this loopback server's, or the actor may not explain this read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "no such route, or the read id names no read event",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "an unexpected error; the body carries no internals",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "MemoryItem": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+              },
+              "scope": {
+                "type": "string",
+                "pattern": "^(?:(?:person|role|team):[A-Za-z0-9._\\-/]+|org)$"
+              },
+              "owner": {
+                "type": "string",
+                "minLength": 1
+              },
+              "provenance": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "user",
+                      "document",
+                      "tool",
+                      "model",
+                      "import",
+                      "compaction"
+                    ]
+                  },
+                  "ref": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "hash": {
+                    "type": "string",
+                    "pattern": "^sha256:[0-9a-f]{64}$"
+                  },
+                  "actor": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "session_entry_id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "model": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "kind",
+                  "ref",
+                  "hash",
+                  "actor"
+                ],
+                "additionalProperties": false
+              },
+              "confidence": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "valid_from": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              "valid_to": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "ttl": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "grants": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Grant"
+                }
+              },
+              "version": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              },
+              "lineage": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+                }
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "candidate",
+                  "active",
+                  "retired"
+                ]
+              },
+              "store_ref": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "adapter": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "key": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "required": [
+                      "adapter",
+                      "key"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "schema_version": {
+                "type": "number",
+                "const": 0
+              },
+              "class": {
+                "type": "string",
+                "const": "procedural"
+              },
+              "content": {
+                "type": "object",
+                "properties": {
+                  "body": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "tools": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  }
+                },
+                "required": [
+                  "body",
+                  "tools"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "id",
+              "scope",
+              "owner",
+              "provenance",
+              "confidence",
+              "valid_from",
+              "valid_to",
+              "ttl",
+              "grants",
+              "version",
+              "lineage",
+              "status",
+              "store_ref",
+              "schema_version",
+              "class",
+              "content"
+            ],
+            "additionalProperties": false,
+            "title": "ProceduralItem"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+              },
+              "scope": {
+                "type": "string",
+                "pattern": "^(?:(?:person|role|team):[A-Za-z0-9._\\-/]+|org)$"
+              },
+              "owner": {
+                "type": "string",
+                "minLength": 1
+              },
+              "provenance": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "user",
+                      "document",
+                      "tool",
+                      "model",
+                      "import",
+                      "compaction"
+                    ]
+                  },
+                  "ref": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "hash": {
+                    "type": "string",
+                    "pattern": "^sha256:[0-9a-f]{64}$"
+                  },
+                  "actor": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "session_entry_id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "model": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "kind",
+                  "ref",
+                  "hash",
+                  "actor"
+                ],
+                "additionalProperties": false
+              },
+              "confidence": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "valid_from": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              "valid_to": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "ttl": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "grants": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Grant"
+                }
+              },
+              "version": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              },
+              "lineage": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+                }
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "candidate",
+                  "active",
+                  "retired"
+                ]
+              },
+              "store_ref": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "adapter": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "key": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "required": [
+                      "adapter",
+                      "key"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "schema_version": {
+                "type": "number",
+                "const": 0
+              },
+              "class": {
+                "type": "string",
+                "enum": [
+                  "episodic",
+                  "semantic"
+                ]
+              },
+              "content": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/JsonValue"
+                    }
+                  }
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "scope",
+              "owner",
+              "provenance",
+              "confidence",
+              "valid_from",
+              "valid_to",
+              "ttl",
+              "grants",
+              "version",
+              "lineage",
+              "status",
+              "store_ref",
+              "schema_version",
+              "class",
+              "content"
+            ],
+            "additionalProperties": false,
+            "title": "KnowledgeItem"
+          }
+        ]
+      },
+      "MemoryEvent": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+          },
+          "seq": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "ts": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "op": {
+            "type": "string",
+            "enum": [
+              "write",
+              "read",
+              "update",
+              "evict",
+              "promote",
+              "retire",
+              "lint",
+              "gate",
+              "bypass_blocked"
+            ]
+          },
+          "item_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "actor": {
+            "type": "string",
+            "minLength": 1
+          },
+          "scope_from": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(?:(?:person|role|team):[A-Za-z0-9._\\-/]+|org)$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "scope_to": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(?:(?:person|role|team):[A-Za-z0-9._\\-/]+|org)$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "decision": {
+            "type": "string",
+            "enum": [
+              "allow",
+              "deny",
+              "ask"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          },
+          "policy_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "item": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MemoryItem"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "usage": {
+            "type": "object",
+            "properties": {
+              "input_tokens": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "output_tokens": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "cost_usd": {
+                "type": "number",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "input_tokens",
+              "output_tokens",
+              "cost_usd"
+            ],
+            "additionalProperties": false
+          },
+          "schema_version": {
+            "type": "number",
+            "const": 0
+          }
+        },
+        "required": [
+          "id",
+          "seq",
+          "ts",
+          "op",
+          "item_id",
+          "actor",
+          "scope_from",
+          "scope_to",
+          "decision",
+          "reason",
+          "policy_id",
+          "schema_version"
+        ],
+        "additionalProperties": false
+      },
+      "Policy": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "version": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "write": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "scope": {
+                  "type": "string",
+                  "enum": [
+                    "person",
+                    "role",
+                    "team",
+                    "org"
+                  ]
+                },
+                "allowed_sources": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "user",
+                      "document",
+                      "tool",
+                      "model",
+                      "import",
+                      "compaction"
+                    ]
+                  }
+                },
+                "confidence_floor": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "forbidden_classes": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "episodic",
+                      "semantic",
+                      "procedural"
+                    ]
+                  }
+                },
+                "requires_review": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "scope",
+                "allowed_sources",
+                "confidence_floor",
+                "forbidden_classes",
+                "requires_review"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "read": {
+            "type": "object",
+            "properties": {
+              "matrix": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "reader": {
+                      "type": "string",
+                      "enum": [
+                        "person",
+                        "role",
+                        "team",
+                        "org"
+                      ]
+                    },
+                    "may_read": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "person",
+                          "role",
+                          "team",
+                          "org"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "reader",
+                    "may_read"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "honour_grants": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "matrix",
+              "honour_grants"
+            ],
+            "additionalProperties": false
+          },
+          "retention": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "scope": {
+                  "type": "string",
+                  "enum": [
+                    "person",
+                    "role",
+                    "team",
+                    "org"
+                  ]
+                },
+                "class": {
+                  "type": "string",
+                  "enum": [
+                    "episodic",
+                    "semantic",
+                    "procedural"
+                  ]
+                },
+                "ttl": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "budget": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "eviction": {
+                  "type": "string",
+                  "enum": [
+                    "recency",
+                    "utility",
+                    "manual"
+                  ]
+                }
+              },
+              "required": [
+                "scope",
+                "class",
+                "ttl",
+                "budget",
+                "eviction"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "promotion": {
+            "type": "object",
+            "properties": {
+              "episodic_to_semantic": {
+                "type": "object",
+                "properties": {
+                  "confirmations": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "or_review": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "confirmations",
+                  "or_review"
+                ],
+                "additionalProperties": false
+              },
+              "procedural": {
+                "type": "object",
+                "properties": {
+                  "replay_k": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "replay_n": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "replay_k",
+                  "replay_n"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "episodic_to_semantic",
+              "procedural"
+            ],
+            "additionalProperties": false
+          },
+          "lints": {
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "thresholds": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "type": "number"
+                }
+              }
+            },
+            "required": [
+              "enabled",
+              "thresholds"
+            ],
+            "additionalProperties": false
+          },
+          "schema_version": {
+            "type": "number",
+            "const": 0
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "write",
+          "read",
+          "retention",
+          "promotion",
+          "lints",
+          "schema_version"
+        ],
+        "additionalProperties": false
+      },
+      "Grant": {
+        "type": "object",
+        "properties": {
+          "to": {
+            "type": "string",
+            "minLength": 1
+          },
+          "class": {
+            "type": "string",
+            "enum": [
+              "episodic",
+              "semantic",
+              "procedural"
+            ]
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "read",
+              "read_write"
+            ]
+          },
+          "expires": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          }
+        },
+        "required": [
+          "to",
+          "mode"
+        ],
+        "additionalProperties": false
+      },
+      "Explanation": {
+        "type": "object",
+        "properties": {
+          "item_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+          },
+          "rank": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "score": {
+            "type": "object",
+            "properties": {
+              "total": {
+                "type": "number"
+              },
+              "components": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "type": "number"
+                }
+              }
+            },
+            "required": [
+              "total",
+              "components"
+            ],
+            "additionalProperties": false
+          },
+          "policy_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "grants_used": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "validity": {
+            "type": "object",
+            "properties": {
+              "at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              "valid_from": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              "valid_to": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "at",
+              "valid_from",
+              "valid_to"
+            ],
+            "additionalProperties": false
+          },
+          "schema_version": {
+            "type": "number",
+            "const": 0
+          }
+        },
+        "required": [
+          "item_id",
+          "rank",
+          "score",
+          "policy_id",
+          "grants_used",
+          "validity",
+          "schema_version"
+        ],
+        "additionalProperties": false
+      },
+      "LintFinding": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+          },
+          "lint_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "item_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+          },
+          "tier": {
+            "type": "string",
+            "enum": [
+              "deterministic",
+              "model",
+              "procedural"
+            ]
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "info",
+              "warn",
+              "error"
+            ]
+          },
+          "message": {
+            "type": "string",
+            "minLength": 1
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "schema_version": {
+            "type": "number",
+            "const": 0
+          }
+        },
+        "required": [
+          "id",
+          "lint_id",
+          "item_id",
+          "tier",
+          "severity",
+          "message",
+          "evidence",
+          "schema_version"
+        ],
+        "additionalProperties": false
+      },
+      "JsonValue": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "number"
+          },
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "null"
+          },
+          {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/JsonValue"
+            }
+          },
+          {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            }
+          }
+        ]
+      },
+      "Actor": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "level": {
+            "type": "string",
+            "enum": [
+              "person",
+              "role",
+              "team",
+              "org"
+            ]
+          },
+          "memberships": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "user",
+              "document",
+              "tool",
+              "model",
+              "import",
+              "compaction"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "level",
+          "memberships"
+        ],
+        "additionalProperties": false,
+        "description": "Who acts, as the caller asserts it (no authentication in v0, ADR 0027): id, the level it reads as, its member scopes, and the provenance kind of what it writes."
+      },
+      "WriteRequest": {
+        "type": "object",
+        "properties": {
+          "actor": {
+            "$ref": "#/components/schemas/Actor"
+          },
+          "item": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "description": "A MemoryItem (#/components/schemas/MemoryItem) as the caller assembles it; the plane validates it and denies an invalid one with the event engram/write/schema."
+          },
+          "at": {
+            "description": "The time of the call, UTC ISO 8601; the server's clock when absent.",
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          }
+        },
+        "required": [
+          "actor",
+          "item"
+        ],
+        "additionalProperties": false
+      },
+      "WriteResponse": {
+        "type": "object",
+        "properties": {
+          "item": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MemoryItem"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "event": {
+            "$ref": "#/components/schemas/MemoryEvent"
+          },
+          "retention": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MemoryEvent"
+            }
+          }
+        },
+        "required": [
+          "item",
+          "event",
+          "retention"
+        ],
+        "additionalProperties": false
+      },
+      "CheckResponse": {
+        "type": "object",
+        "properties": {
+          "decision": {
+            "type": "string",
+            "enum": [
+              "allow",
+              "deny",
+              "ask"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "policy_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "decision",
+          "reason",
+          "policy_id"
+        ],
+        "additionalProperties": false
+      },
+      "ReadRequest": {
+        "type": "object",
+        "properties": {
+          "actor": {
+            "$ref": "#/components/schemas/Actor"
+          },
+          "text": {
+            "type": "string"
+          },
+          "at": {
+            "description": "The time of the call, UTC ISO 8601; the server's clock when absent.",
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          }
+        },
+        "required": [
+          "actor"
+        ],
+        "additionalProperties": false
+      },
+      "ReadResponse": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MemoryItem"
+            }
+          },
+          "explanations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Explanation"
+            }
+          },
+          "filtered": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "event": {
+            "$ref": "#/components/schemas/MemoryEvent"
+          },
+          "sync": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StoreSync"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "explanations",
+          "filtered",
+          "event",
+          "sync"
+        ],
+        "additionalProperties": false
+      },
+      "StoreSync": {
+        "type": "object",
+        "properties": {
+          "store": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "root": {
+                "type": "string"
+              },
+              "scope": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "name",
+              "root",
+              "scope"
+            ],
+            "additionalProperties": false
+          },
+          "retention": {
+            "$ref": "#/components/schemas/RetentionReport"
+          },
+          "adoption": {
+            "$ref": "#/components/schemas/AdoptReport"
+          }
+        },
+        "required": [
+          "store",
+          "retention",
+          "adoption"
+        ],
+        "additionalProperties": false,
+        "description": "What the workspace did before the read, as the store's owner: its retention sweep, then the adoption of the store's own memories (ADR 0025, decision D8)."
+      },
+      "RetentionReport": {
+        "type": "object",
+        "properties": {
+          "decision": {
+            "type": "string",
+            "enum": [
+              "allow",
+              "deny"
+            ]
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MemoryEvent"
+            }
+          },
+          "expired": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "evicted": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "decision",
+          "events",
+          "expired",
+          "evicted"
+        ],
+        "additionalProperties": false
+      },
+      "AdoptReport": {
+        "type": "object",
+        "properties": {
+          "listed": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "allowed": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "denied": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "unchanged": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "retired": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "denials": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "item_id": {
+                  "type": "string"
+                },
+                "reason": {
+                  "type": "string"
+                },
+                "policy_id": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "item_id",
+                "reason",
+                "policy_id"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "retirements": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "item_id": {
+                  "type": "string"
+                },
+                "reason": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "item_id",
+                "reason"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "evictions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MemoryEvent"
+            }
+          }
+        },
+        "required": [
+          "listed",
+          "allowed",
+          "denied",
+          "unchanged",
+          "retired",
+          "denials",
+          "retirements",
+          "evictions"
+        ],
+        "additionalProperties": false
+      },
+      "ExplainRequest": {
+        "type": "object",
+        "properties": {
+          "actor": {
+            "$ref": "#/components/schemas/Actor"
+          }
+        },
+        "required": [
+          "actor"
+        ],
+        "additionalProperties": false
+      },
+      "ExplainResponse": {
+        "type": "object",
+        "properties": {
+          "read_id": {
+            "type": "string"
+          },
+          "explanations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Explanation"
+            }
+          }
+        },
+        "required": [
+          "read_id",
+          "explanations"
+        ],
+        "additionalProperties": false
+      },
+      "PromoteRequest": {
+        "type": "object",
+        "properties": {
+          "actor": {
+            "$ref": "#/components/schemas/Actor"
+          },
+          "item_id": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          },
+          "review": {
+            "type": "boolean"
+          },
+          "at": {
+            "description": "The time of the call, UTC ISO 8601; the server's clock when absent.",
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          }
+        },
+        "required": [
+          "actor",
+          "item_id",
+          "to"
+        ],
+        "additionalProperties": false
+      },
+      "GateResponse": {
+        "type": "object",
+        "properties": {
+          "decision": {
+            "type": "string",
+            "enum": [
+              "allow",
+              "deny",
+              "ask"
+            ]
+          },
+          "item": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MemoryItem"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "event": {
+            "$ref": "#/components/schemas/MemoryEvent"
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MemoryEvent"
+            }
+          }
+        },
+        "required": [
+          "decision",
+          "item",
+          "event",
+          "events"
+        ],
+        "additionalProperties": false
+      },
+      "RetainRequest": {
+        "type": "object",
+        "properties": {
+          "actor": {
+            "$ref": "#/components/schemas/Actor"
+          },
+          "scope": {
+            "type": "string"
+          },
+          "at": {
+            "description": "The time of the call, UTC ISO 8601; the server's clock when absent.",
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          }
+        },
+        "required": [
+          "actor",
+          "scope"
+        ],
+        "additionalProperties": false
+      },
+      "EventsRequest": {
+        "type": "object",
+        "properties": {
+          "actor": {
+            "$ref": "#/components/schemas/Actor"
+          },
+          "after": {
+            "description": "Only events with a seq above this one.",
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "actor"
+        ],
+        "additionalProperties": false
+      },
+      "EventsResponse": {
+        "type": "object",
+        "properties": {
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MemoryEvent"
+            }
+          }
+        },
+        "required": [
+          "events"
+        ],
+        "additionalProperties": false
+      },
+      "PolicyResponse": {
+        "type": "object",
+        "properties": {
+          "policy": {
+            "$ref": "#/components/schemas/Policy"
+          },
+          "label": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "policy",
+          "label"
+        ],
+        "additionalProperties": false
+      },
+      "LintRequest": {
+        "type": "object",
+        "properties": {
+          "scope": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "scope"
+        ],
+        "additionalProperties": false
+      },
+      "LintResponse": {
+        "type": "object",
+        "properties": {
+          "findings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LintFinding"
+            }
+          }
+        },
+        "required": [
+          "findings"
+        ],
+        "additionalProperties": false
+      },
+      "SimulateRequest": {
+        "type": "object",
+        "properties": {
+          "workload": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "events": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/MemoryEvent"
+                }
+              }
+            },
+            "required": [
+              "id",
+              "events"
+            ],
+            "additionalProperties": false
+          },
+          "policy": {
+            "$ref": "#/components/schemas/Policy"
+          }
+        },
+        "required": [
+          "workload"
+        ],
+        "additionalProperties": false
+      },
+      "DistillRequest": {
+        "type": "object",
+        "properties": {
+          "sessions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {
+                "$ref": "#/components/schemas/JsonValue"
+              }
+            }
+          },
+          "method": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "const": "awm"
+              },
+              "model": {
+                "type": "string"
+              },
+              "seed": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "id",
+              "model",
+              "seed"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "sessions",
+          "method"
+        ],
+        "additionalProperties": false
+      },
+      "OpenReport": {
+        "type": "object",
+        "propertyNames": {
+          "type": "string"
+        },
+        "additionalProperties": {
+          "$ref": "#/components/schemas/JsonValue"
+        }
+      },
+      "BypassRequest": {
+        "type": "object",
+        "properties": {
+          "actor": {
+            "$ref": "#/components/schemas/Actor"
+          },
+          "bypass": {
+            "type": "object",
+            "properties": {
+              "command": {
+                "type": "string"
+              },
+              "store": {
+                "type": "string"
+              },
+              "route": {
+                "type": "string",
+                "enum": [
+                  "command",
+                  "path",
+                  "result"
+                ]
+              }
+            },
+            "required": [
+              "command",
+              "store"
+            ],
+            "additionalProperties": false
+          },
+          "at": {
+            "description": "The time of the call, UTC ISO 8601; the server's clock when absent.",
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          }
+        },
+        "required": [
+          "actor",
+          "bypass"
+        ],
+        "additionalProperties": false
+      },
+      "EventResponse": {
+        "type": "object",
+        "properties": {
+          "event": {
+            "$ref": "#/components/schemas/MemoryEvent"
+          }
+        },
+        "required": [
+          "event"
+        ],
+        "additionalProperties": false
+      },
+      "ViewerResponse": {
+        "type": "object",
+        "properties": {
+          "viewer": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Actor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "viewer"
+        ],
+        "additionalProperties": false
+      },
+      "HealthResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "ok"
+          },
+          "schema_version": {
+            "type": "number",
+            "const": 0
+          }
+        },
+        "required": [
+          "status",
+          "schema_version"
+        ],
+        "additionalProperties": false
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "bad_request",
+                  "invalid_call",
+                  "explain_denied",
+                  "not_found",
+                  "unsupported_media_type",
+                  "payload_too_large",
+                  "forbidden_host",
+                  "forbidden_origin",
+                  "not_implemented",
+                  "no_store",
+                  "internal"
+                ]
+              },
+              "message": {
+                "type": "string"
+              },
+              "card": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "additionalProperties": false
+      }
+    }
+  }
+}
