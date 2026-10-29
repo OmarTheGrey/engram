@@ -35,6 +35,26 @@ export interface ModelResponse {
 
 export type ModelCall = (request: ModelRequest) => Promise<ModelResponse>;
 
+/**
+ * A ModelCall's refusal of a request it cannot make as asked (such as
+ * structured output it has no way to request). Callers that retry on other
+ * errors must stop on this one: retrying a different request would change
+ * the protocol silently.
+ */
+export class UnsupportedRequestError extends Error {
+  readonly model: string;
+  readonly feature: string;
+
+  constructor(model: string, feature: string, detail = "") {
+    super(
+      `model call refused: ${model} was asked for ${feature}${detail ? ` (${detail})` : ""}, which this ModelCall cannot request`,
+    );
+    this.name = "UnsupportedRequestError";
+    this.model = model;
+    this.feature = feature;
+  }
+}
+
 /** JSON with object keys sorted at every depth, so equal values hash equally. */
 export function canonicalJson(value: unknown): string {
   return JSON.stringify(value, (_key, v) =>

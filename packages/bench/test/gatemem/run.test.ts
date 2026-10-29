@@ -224,10 +224,108 @@ describe("make bench BENCH=gatemem DRY=1", () => {
       { cwd: root, env: { ...process.env, ENGRAM_OFFLINE: "1" }, encoding: "utf8" },
     );
     expect(stdout).toContain("NOT the pinned full set (0 of 8 files match the manifest)");
-    expect(stdout).toContain("20 calls at 20 distinct cache keys");
+    expect(stdout).toContain("20 calls");
     expect(stdout).toContain("no model was called");
+    // Without MODEL= the keys would be the fixture's scripted model's, which no live run uses (P6-5).
+    expect(stdout).toContain("cache keys: not computed; name the live model with MODEL=");
+    expect(stdout).not.toContain("distinct cache keys");
     const report = JSON.parse(readFileSync(join(out, "dry-run.json"), "utf8"));
     expect(report.pinned_full_set).toBe(false);
+    expect(report.answer.keys).toBeUndefined();
+    expect(report.answer.unique_keys).toBeUndefined();
+    expect(report.model).toBeUndefined();
+  }, 60_000);
+
+  test("with --model the script prints and writes the keys for that model (P6-5)", () => {
+    const out = mkdtempSync(join(tmpdir(), "gatemem-dry-model-"));
+    const root = fileURLToPath(new URL("../../../../", import.meta.url));
+    const stdout = execFileSync(
+      process.execPath,
+      [
+        "packages/bench/scripts/dry-run-gatemem.ts",
+        "--config",
+        CONFIG,
+        "--data",
+        config.data,
+        "--out",
+        out,
+        "--model",
+        "openai/gpt-4o",
+      ],
+      { cwd: root, env: { ...process.env, ENGRAM_OFFLINE: "1" }, encoding: "utf8" },
+    );
+    expect(stdout).toContain(
+      "answer model openai/gpt-4o, seed 1: 20 calls at 20 distinct cache keys",
+    );
+    const report = JSON.parse(readFileSync(join(out, "dry-run.json"), "utf8"));
+    expect(report.model).toBe("openai/gpt-4o");
     expect(report.answer.keys).toHaveLength(20);
   }, 60_000);
+});
+
+describe("make fixtures records the GateMem cassettes (P6-3)", () => {
+  test("--record writes answer and judge cassettes into the config's folders, byte-identical to the committed ones", () => {
+    const work = mkdtempSync(join(tmpdir(), "gatemem-record-"));
+    const judge = config.judge;
+    if (!judge?.cassettes) throw new Error("the fixture config names no judge cassettes");
+    const answers = join(work, "cassettes");
+    const judged = join(work, "judge-cassettes");
+    const configPath = join(work, "run-config.json");
+    writeFileSync(
+      configPath,
+      JSON.stringify({
+        ...JSON.parse(readFileSync(CONFIG, "utf8")),
+        data: config.data,
+        script: config.script,
+        cassettes: answers,
+        judge: { ...judge, cassettes: judged },
+      }),
+    );
+    const root = fileURLToPath(new URL("../../../../", import.meta.url));
+    const { ENGRAM_OFFLINE: _offline, ...env } = process.env;
+    const stdout = execFileSync(
+      process.execPath,
+      [
+        "packages/bench/scripts/run-gatemem.ts",
+        "--config",
+        configPath,
+        "--out",
+        join(work, "out"),
+        "--record",
+      ],
+      { cwd: root, env, encoding: "utf8" },
+    );
+    expect(stdout).toContain("model calls: 20 new, 0 from cassettes");
+    expect(stdout).toContain("judge calls: 24 new, 0 from cassettes");
+    const pairs: [string, string][] = [
+      [answers, config.cassettes as string],
+      [judged, judge.cassettes],
+    ];
+    for (const [mine, committed] of pairs) {
+      const names = readdirSync(committed).sort();
+      expect(readdirSync(mine).sort()).toEqual(names);
+      for (const n of names) {
+        expect(readFileSync(join(mine, n), "utf8"), n).toBe(
+          readFileSync(join(committed, n), "utf8"),
+        );
+      }
+    }
+  }, 60_000);
+
+  test("--record refuses to run offline", () => {
+    const root = fileURLToPath(new URL("../../../../", import.meta.url));
+    const out = mkdtempSync(join(tmpdir(), "gatemem-record-offline-"));
+    expect(() =>
+      execFileSync(
+        process.execPath,
+        ["packages/bench/scripts/run-gatemem.ts", "--config", CONFIG, "--out", out, "--record"],
+        {
+          cwd: root,
+          env: { ...process.env, ENGRAM_OFFLINE: "1" },
+          encoding: "utf8",
+          stdio: "pipe",
+        },
+      ),
+    ).toThrow(/--record/);
+  });
 });

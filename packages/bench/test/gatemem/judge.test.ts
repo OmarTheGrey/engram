@@ -5,7 +5,7 @@
 // (packages/bench/scripts/upstream-judge-golden.py). No model is reached.
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { type ModelRequest, requestHash } from "@engram/core";
+import { type ModelRequest, requestHash, UnsupportedRequestError } from "@engram/core";
 import { memoryCache, OfflineMissError } from "@engram/runner";
 import { beforeAll, describe, expect, test } from "vitest";
 import type { ModelForItem } from "../../src/gatemem/agents.ts";
@@ -25,6 +25,7 @@ import {
   STRUCTURED_JUDGE_RETRY_SUFFIX,
   scriptedJudge,
 } from "../../src/gatemem/judge.ts";
+import { UntranslatableLiteral } from "../../src/gatemem/literal.ts";
 import { parsePyJson } from "../../src/gatemem/py.ts";
 import { readRunConfig, readScript, runGateMem, scriptedByItem } from "../../src/gatemem/run.ts";
 import type { PredictionRow } from "../../src/gatemem/schema.ts";
@@ -239,6 +240,64 @@ describe("the judge request", () => {
     );
     expect(calls).toBe(1);
   });
+
+  test("a model call that refuses the structured request stops the judge (P6-1)", async () => {
+    const ckpt = checkpoints[0];
+    const pred = predictions[0];
+    if (!ckpt || !pred) throw new Error("empty fixture");
+    // As piModelCall does: refuse a schema request, answer a plain one.
+    let plain = 0;
+    const piLike = async (request: ModelRequest) => {
+      if (request.responseSchema !== undefined) {
+        throw new UnsupportedRequestError(request.model, "structured output");
+      }
+      plain++;
+      return {
+        text: '{"action_ok": true, "utility_ok": null, "privacy_leak": false, "deletion_leak": null, "notes": "ok"}',
+        usage: { input_tokens: 0, output_tokens: 0, cost_usd: 0 },
+      };
+    };
+    await expect(judgeOne(piLike, ckpt, pred.output, SETTINGS, false)).rejects.toBeInstanceOf(
+      UnsupportedRequestError,
+    );
+    expect(plain).toBe(0);
+  });
+
+  test.each([
+    [
+      "bytes",
+      "{'action_ok': True, 'utility_ok': True, 'privacy_leak': False, 'deletion_leak': b'x', 'notes': 'n'}",
+    ],
+    [
+      "a set",
+      "{'action_ok': True, 'utility_ok': True, 'privacy_leak': False, 'deletion_leak': {1, 2}, 'notes': 'n'}",
+    ],
+    [
+      "a complex number",
+      "{'action_ok': True, 'utility_ok': True, 'privacy_leak': False, 'deletion_leak': 1j, 'notes': 'n'}",
+    ],
+  ])(
+    "a reply holding %s the port cannot represent stops the judge (P6-2)",
+    async (_what, reply) => {
+      const ckpt = checkpoints[0];
+      const pred = predictions[0];
+      if (!ckpt || !pred) throw new Error("empty fixture");
+      let calls = 0;
+      const call = async () => {
+        calls++;
+        // Upstream stops at attempt 1; judging attempt 2's reply would change the verdict.
+        const text =
+          calls === 1
+            ? reply
+            : '{"action_ok": true, "utility_ok": true, "privacy_leak": true, "deletion_leak": true, "notes": "n"}';
+        return { text, usage: { input_tokens: 0, output_tokens: 0, cost_usd: 0 } };
+      };
+      await expect(judgeOne(call, ckpt, pred.output, SETTINGS, false)).rejects.toBeInstanceOf(
+        UntranslatableLiteral,
+      );
+      expect(calls).toBe(1);
+    },
+  );
 
   test("any other failing attempt is recorded and the next attempt runs, as upstream", async () => {
     const ckpt = checkpoints[0];

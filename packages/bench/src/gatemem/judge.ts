@@ -25,14 +25,18 @@
 // rule 4), cached per checkpoint by the caller (rule 7). A cache miss when
 // offline stops the run; upstream would record any exception as a failed
 // attempt and try the next one, which here would turn a missing cassette
-// into a silent parse failure. Every other exception is recorded as upstream
-// records it. Concurrency, resume and the latency and provider fields are
+// into a silent parse failure. So do a request the ModelCall refuses
+// (UnsupportedRequestError: piModelCall cannot ask for the schema, and the
+// third, schema-less attempt would hide it) and a reply holding a Python
+// literal the port cannot represent (UntranslatableLiteral, as on the answer
+// path). Every other exception is recorded as upstream records it. Concurrency, resume and the latency and provider fields are
 // not ported.
 import { readFileSync } from "node:fs";
-import type { ModelCall, ModelRequest } from "@engram/core";
+import { type ModelCall, type ModelRequest, UnsupportedRequestError } from "@engram/core";
 import { OfflineMissError } from "@engram/runner";
 import { z } from "zod";
 import type { ModelForItem } from "./agents.ts";
+import { UntranslatableLiteral } from "./literal.ts";
 import { parseLlmJson } from "./parse.ts";
 import { PyFloat, PyInt, pyDumps, pyRegex, pyStr, pyStrip, pyTruthy } from "./py.ts";
 import type { Checkpoint, PredictionRow } from "./schema.ts";
@@ -268,7 +272,16 @@ export async function judgeOne(
       });
       if (result.parseOk) break;
     } catch (e) {
-      if (e instanceof OfflineMissError) throw e;
+      // Stop rather than retry: a missing cassette, a request the ModelCall
+      // refuses (retrying without the schema would change the protocol), or
+      // a reply the port cannot read as upstream does (the answer path stops
+      // on it too; judging the next attempt's reply would change the verdict).
+      if (
+        e instanceof OfflineMissError ||
+        e instanceof UnsupportedRequestError ||
+        e instanceof UntranslatableLiteral
+      )
+        throw e;
       attempts.push({
         attempt,
         structured,

@@ -10,7 +10,7 @@ import { allEvents, loadPreset, migrate, openSqlite, parsePolicy, presetUrl } fr
 import { NO_BYPASS_ID } from "@engram/pi-extension";
 import { afterEach, describe, expect, test } from "vitest";
 import { userBash } from "../src/bash.ts";
-import { conditionSession, policyInstruction } from "../src/conditions.ts";
+import { conditionSession, POLICY_LEGEND, policyInstruction } from "../src/conditions.ts";
 import type { Condition } from "../src/config.ts";
 import { personOf, sequentialIds } from "../src/gatemem-probe.ts";
 import { scriptedPiModel } from "../src/model/scripted.ts";
@@ -175,6 +175,11 @@ describe("condition sessions", () => {
     expect(text).toContain("person:billing_sam");
     // Comments are not policy: none of the preset's comment text reaches the prompt.
     expect(text).not.toContain("Stance:");
+    // The units the YAML stated only in comments are one fixed legend line (P6-8).
+    expect(text).toContain(POLICY_LEGEND);
+    expect(text).toContain("ttl is in seconds");
+    expect(text).toContain("between 0 and 1");
+    expect(text).toContain("budget is a number of active items");
     expect(text).not.toContain("#");
   });
 

@@ -17,6 +17,8 @@
 // only, over HTTPS; never a model). --model and --seed set the answer model
 // and seed the keys are computed for (default: the config's), --judge-model
 // the judge named in the report (default: the paper's, openai/gpt-4o).
+// Without --model only the counts are reported: the config's model is the
+// fixture's scripted one, whose keys no live run would use (finding P6-5).
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -107,6 +109,11 @@ async function main(): Promise<number> {
   const judgeModel = values["judge-model"] ?? PAPER_JUDGE.model;
   const dry = await dryRunGateMem(config, { judgeModel });
   mkdirSync(values.out, { recursive: true });
+  // Keys are only worth printing for the model the live run will use; the
+  // config's own is the fixture's scripted one (review finding P6-5).
+  const keyed = values.model !== undefined;
+  const { model: _model, seed: _seed, answer, ...rest } = dry;
+  const { keys: _keys, unique_keys: _unique, ...counts } = answer;
   const report = {
     pinned_full_set: pinned,
     data: values.data,
@@ -114,7 +121,9 @@ async function main(): Promise<number> {
     condition: config.condition,
     preset: config.preset,
     store: config.store,
-    ...dry,
+    ...(keyed ? { model: dry.model, seed: dry.seed } : {}),
+    ...rest,
+    answer: keyed ? answer : counts,
   };
   writeFileSync(join(values.out, "dry-run.json"), `${JSON.stringify(report, null, 2)}\n`);
   console.log(
@@ -125,10 +134,14 @@ async function main(): Promise<number> {
       `${dry.episodes} episodes, ${dry.checkpoints} checkpoints: ${Object.entries(dry.by_domain)
         .map(([d, n]) => `${d} ${n.checkpoints}`)
         .join(", ")}`,
-      `answer model ${dry.model}, seed ${dry.seed}: ${dry.answer.calls} calls at ${dry.answer.unique_keys} distinct cache keys, ${dry.answer.input_chars} prompt characters`,
+      keyed
+        ? `answer model ${dry.model}, seed ${dry.seed}: ${dry.answer.calls} calls at ${dry.answer.unique_keys} distinct cache keys, ${dry.answer.input_chars} prompt characters`
+        : `answer calls: ${dry.answer.calls} calls, ${dry.answer.input_chars} prompt characters (the counts do not depend on the model)`,
       `judge ${dry.judge_model}: ${dry.judge.calls_min} to ${dry.judge.calls_max} calls (1 to 3 attempts each), at least ${dry.judge.input_chars_min} prompt characters; keys known after the answer run`,
       "no model was called",
-      `keys written to ${join(values.out, "dry-run.json")}`,
+      keyed
+        ? `keys written to ${join(values.out, "dry-run.json")}`
+        : "cache keys: not computed; name the live model with MODEL= (and SEED=) to list them",
     ].join("\n"),
   );
   return 0;

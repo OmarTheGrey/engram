@@ -3,7 +3,7 @@
 // seed only separates cache entries (one sample per seed), which is what
 // ADR 0016 and ADR 0017 need.
 import type { Api, AssistantMessage, Context, Model, Usage } from "@earendil-works/pi-ai";
-import type { ModelCall } from "@engram/core";
+import { type ModelCall, UnsupportedRequestError } from "@engram/core";
 
 export interface CompletesSimple {
   completeSimple(model: Model<Api>, context: Context, options?: object): Promise<AssistantMessage>;
@@ -17,8 +17,10 @@ export function piModelCall(
     // pi-ai's completeSimple has no structured-output option; dropping the
     // schema would change the request a judge was ported with (PR 6).
     if (request.responseSchema !== undefined) {
-      throw new Error(
-        `model call refused: ${request.model} was asked for structured output (${request.responseSchema.name}), which piModelCall cannot request`,
+      throw new UnsupportedRequestError(
+        request.model,
+        "structured output",
+        request.responseSchema.name,
       );
     }
     const model = resolve(request.model);

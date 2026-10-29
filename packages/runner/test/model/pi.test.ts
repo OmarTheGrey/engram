@@ -1,5 +1,6 @@
 // The pi-ai backed ModelCall, driven by pi-ai's faux provider: no network.
 import { createModels } from "@earendil-works/pi-ai";
+import { UnsupportedRequestError } from "@engram/core";
 import { expect, test } from "vitest";
 import { piModelCall } from "../../src/model/pi.ts";
 import { scriptedPiModel } from "../../src/model/scripted.ts";
@@ -46,6 +47,14 @@ test("refuses a request for structured output it cannot make, before reaching th
       responseSchema: { name: "benchmark_judge", schema: { type: "object" } },
     }),
   ).rejects.toThrow(/structured output \(benchmark_judge\)/);
+  await expect(
+    call({
+      model: "scripted/scripted-1",
+      messages: [{ role: "user", content: "judge this" }],
+      seed: 1,
+      responseSchema: { name: "benchmark_judge", schema: { type: "object" } },
+    }),
+  ).rejects.toBeInstanceOf(UnsupportedRequestError);
   expect(scripted.seen).toHaveLength(0);
 });
 

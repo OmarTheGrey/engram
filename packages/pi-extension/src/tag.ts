@@ -192,7 +192,8 @@ const attr = (name: string, value: string | undefined) =>
  * the read's `filtered` count, and per item its id, scope, rank and escaped
  * content. A governed read adds the read id and the rules that admitted it;
  * those attributes are the only difference the conditions show the model.
- * Scores stay in the explanations (details, `memory_explain`), not the tag.
+ * Scores stay in the explanations (details, the log, `engram explain`, and
+ * `memory_explain` where it is offered), not the tag.
  */
 function tagRead(read: TaggedRead): string {
   const head = `<engram:memory${attr("read_id", read.read_id)}${attr("policy_id", read.policy_id)} filtered="${read.filtered}">`;

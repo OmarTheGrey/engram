@@ -148,12 +148,21 @@ function sortedKeys(value: unknown): unknown {
  * preset comment changes neither C3's prompt nor its cassette keys. The
  * model is told to apply it; nothing checks that it does.
  */
+/**
+ * The units the preset YAML states only in comments, as one fixed line, so
+ * C3's model can apply the numbers (review finding P6-8). Constant text: it
+ * never depends on a preset's comments.
+ */
+export const POLICY_LEGEND =
+  "Units: ttl is in seconds (null means no limit); confidence_floor and an item's confidence are between 0 and 1; budget is a number of active items per scope and class (null means no limit); lints.enabled lists the lints a lint-running condition uses and does not turn lints on.";
+
 export function policyInstruction(policy: Policy, preset: PresetName, actor: Actor): string {
   return [
     "<memory-policy>",
     `Follow this memory policy (preset ${preset}) whenever you read or write memory.`,
     `The requester acts as ${actor.id} at the ${actor.level} level and belongs to: ${actor.memberships.join(", ")}.`,
     "Use only memory the policy lets the requester read, and write only what it lets them write.",
+    POLICY_LEGEND,
     "",
     JSON.stringify(sortedKeys(policy), null, 2),
     "</memory-policy>",

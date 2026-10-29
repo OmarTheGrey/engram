@@ -43,7 +43,7 @@ Amendments made in the second review round, 2026-10-29 (PR #7, verifier report d
 
 Amendment made in PR 6 (Gate A), 2026-10-29, with ADR 0015's (pending the lead's review like the rest of this ADR):
 
-- The memory tag the model receives carries the read id, the read rule, the filtered count and, per item, its id, scope, rank and admitting rule; it no longer carries the score total. The explanation itself (score components, rank, rule, grants, validity) is unchanged and still reaches the model through `memory_explain`; the tag's shape is shared with the ungoverned conditions, which have no score (ADR 0015).
+- The memory tag the model receives carries the read id, the read rule, the filtered count and, per item, its id, scope, rank and admitting rule; it no longer carries the score total. The explanation itself (score components, rank, rule, grants, validity) is unchanged and is kept in the read's details, in the log and through `engram explain` (`Plane.explain`). In the product extension the model can also fetch it with `memory_explain`; in the runner's conditions, which offer only `memory_read` and `memory_write`, the model sees the rank and no score at all (review finding P6-4). The tag's shape is shared with the ungoverned conditions, which have no score (ADR 0015).
 
 ## Alternatives considered
 
