@@ -44,14 +44,15 @@ function reaches(word: string | undefined, check: BypassCheck, recursive: boolea
 }
 
 /**
- * The words of a shell command for the path check (review finding R3-15):
- * cut at unquoted whitespace first, so a quoted argument is one word after
- * quote removal. A word that held quoted whitespace (a commit message, a
- * `bash -c` script) contributes only its inner words that look like paths
- * (a slash or backslash, or a leading `.` or `~`), so `git commit -m "fix
- * memory leak"` names no root while `bash -c "cat memory/a.md"` still does.
- * Any other word is cut at shell operators as commandWords cuts it, and every
- * piece is checked.
+ * The words of a shell command for the path check. Cut at unquoted whitespace
+ * first; every piece of every token, quoted or not, is checked (review
+ * finding R3-16: a quoted string can be a script run by `eval`, `bash <<<`,
+ * a pipe into a shell, `iex`, `python -c` or `node -e`). The one exception is
+ * the message argument of a version-control tool's `-m`, `--message` or
+ * `--message=` (git, hg, svn, jj, bzr: commit, tag and the like), where only
+ * path-like words are checked (R3-15), so `git commit -m "fix memory leak"`
+ * passes. A shell's script argument (`bash -c`, `pwsh -Command`, `cmd /c`)
+ * and a PowerShell encoded command are checked as nested commands.
  */
 function pathCheckWords(command: string, depth = 0): string[] {
   const tokens: { text: string; spaced: boolean }[] = [];
@@ -82,28 +83,67 @@ function pathCheckWords(command: string, depth = 0): string[] {
   // The script argument of a shell (`bash -c "..."`, `pwsh -Command "..."`,
   // `cmd /c "..."`) is a nested command, checked in full, not as a quoted
   // argument (ADR 0014 decision D10; the R3-15 regression).
+  // A PowerShell `-EncodedCommand` (UTF-16LE base64) is decoded and checked
+  // as a nested command too (R3-17).
   let shell: "sh" | "pwsh" | "cmd" | undefined;
-  let nested = false;
+  let next: "script" | "encoded" | "message" | undefined;
+  let vcs = false;
   return tokens.flatMap(({ text: t, spaced: s }) => {
-    if (nested) {
-      nested = false;
+    const words = () => commandWords(t).flatMap((w) => [w, ...w.split("=").slice(1)]);
+    const pending = next;
+    next = undefined;
+    if (pending === "script") {
       shell = undefined;
-      return pathCheckWords(t, depth + 1);
+      // `bash -c -- "..."`: the end of options comes before the script.
+      if (t === "--") next = "script";
+      return t === "--" ? [] : pathCheckWords(t, depth + 1);
     }
+    if (pending === "encoded") {
+      shell = undefined;
+      const decoded = decodePowerShell(t);
+      return decoded === undefined ? words() : [...words(), ...pathCheckWords(decoded, depth + 1)];
+    }
+    // A commit or tag message (R3-16): the only quoted argument read as one
+    // word; its path-like words are still checked.
+    if (pending === "message" || (vcs && /^--message=/i.test(t)))
+      return words().filter((w) => /[\\/]|^~|^\./.test(w));
     const name = (t.split(/[\\/]/).pop() ?? "").toLowerCase().replace(/\.exe$/, "");
-    if (/^(?:;|&&|\|\||\||&)$/.test(t)) shell = undefined;
-    else if (SH_SHELLS.has(name)) shell = "sh";
-    else if (name === "pwsh" || name === "powershell") shell = "pwsh";
-    else if (name === "cmd") shell = "cmd";
+    if (/^(?:;|&&|\|\||\||&)$/.test(t)) {
+      shell = undefined;
+      vcs = false;
+    } else if (SH_SHELLS.has(name) && !s) shell = "sh";
+    else if ((name === "pwsh" || name === "powershell") && !s) shell = "pwsh";
+    else if (name === "cmd" && !s) shell = "cmd";
+    else if (VCS.has(name) && !s) vcs = true;
     else if (
       (shell === "sh" && /^-[a-z]*c$/i.test(t)) ||
       (shell === "pwsh" && /^-(?:c|command)$/i.test(t)) ||
       (shell === "cmd" && /^\/[ck]$/i.test(t))
     )
-      nested = depth < MAX_NESTING;
-    const words = commandWords(t).flatMap((w) => [w, ...w.split("=").slice(1)]);
-    return s ? words.filter((w) => /[\\/]|^~|^\./.test(w)) : words;
+      next = depth < MAX_NESTING ? "script" : undefined;
+    else if (shell === "pwsh" && isEncodedFlag(t))
+      next = depth < MAX_NESTING ? "encoded" : undefined;
+    else if (vcs && MESSAGE_FLAGS.has(t)) next = "message";
+    // Every other word, quoted or not, is checked (R3-16: err towards blocking).
+    return words();
   });
+}
+
+/** Version-control tools whose `-m`/`--message` argument is a message, not a path. */
+const VCS = new Set(["git", "hg", "svn", "jj", "bzr"]);
+/** The message flags of their commit and tag commands. */
+const MESSAGE_FLAGS = new Set(["-m", "--message"]);
+/** Whether a PowerShell argument is a prefix of `-EncodedCommand` (or its `-ec` alias). */
+function isEncodedFlag(token: string): boolean {
+  const flag = token.toLowerCase();
+  return flag === "-ec" || (flag.length >= 2 && "-encodedcommand".startsWith(flag) && flag !== "-");
+}
+
+/** A PowerShell encoded command (base64 of UTF-16LE) as text, or undefined. */
+export function decodePowerShell(encoded: string): string | undefined {
+  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(encoded)) return undefined;
+  const text = Buffer.from(encoded, "base64").toString("utf16le");
+  return text.length > 0 ? text : undefined;
 }
 
 /** Shells whose `-c` argument is a script. */
@@ -173,6 +213,13 @@ function globReachesRoot(word: string, cwd: string, roots: readonly string[]): b
 export function shellBypass(command: string, check: BypassCheck): Bypass | undefined {
   const store = blockedStoreCommand(command, check.stores ?? STORE_COMMANDS);
   if (store !== undefined) return { command, store };
+  // A store's CLI inside a PowerShell encoded command (R3-17).
+  for (const m of command.matchAll(/\s-(e|ec|en[a-z]*)\s+["']?([A-Za-z0-9+/]{8,}={0,2})/gi)) {
+    if (!isEncodedFlag(`-${m[1]}`)) continue;
+    const decoded = decodePowerShell(m[2] as string);
+    const inner = decoded && blockedStoreCommand(decoded, check.stores ?? STORE_COMMANDS);
+    if (inner) return { command, store: inner };
+  }
   const path = { command, store: check.rootStore, route: "path" as const };
   const words = pathCheckWords(command);
   for (const unc of command.matchAll(

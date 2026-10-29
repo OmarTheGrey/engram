@@ -69,10 +69,41 @@ describe("shellBypass and toolBypass", () => {
 
   it.each([
     'git commit -m "fix memory leak"',
+    'git commit --message "memory: tidy"',
     "git commit -m 'memory: tidy'",
-    'echo "the memory folder"',
-  ])("reads a quoted argument as one word: %s names no root (R3-15)", (command) => {
+    'git commit --message="drop the memory cache"',
+    'git tag -a v1 -m "memory release"',
+    'hg commit -m "memory leak"',
+  ])("reads a version-control message as one word: %s names no root (R3-15, R3-16)", (command) => {
     expect(shellBypass(command, check)).toBeUndefined();
+  });
+
+  it.each([
+    'eval "cd memory && cat a.md"',
+    'bash <<< "cd memory && cat a.md"',
+    'echo "cd memory && cat a.md" | bash',
+    'echo "cd memory && cat a.md" | sh',
+    'bash -c -- "cd memory && cat a.md"',
+    'iex "Set-Location memory; Get-Content a.md"',
+    'Invoke-Expression "Set-Location memory; Get-Content a.md"',
+    `python -c "import os; os.chdir('memory')"`,
+    `node -e "process.chdir('memory')"`,
+    'grep -rn "memory leak" src',
+    'git commit -m "x" && eval "cd memory"',
+  ])("checks every word of any other quoted argument: %s is blocked (R3-16)", (command) => {
+    expect(shellBypass(command, check)?.route).toBe("path");
+  });
+
+  it("decodes a PowerShell encoded command and checks it as a nested command (R3-17)", () => {
+    const encoded = Buffer.from("Set-Location memory; Get-Content a.md", "utf16le").toString(
+      "base64",
+    );
+    for (const flag of ["-EncodedCommand", "-enc", "-e", "-ec"])
+      expect(shellBypass(`pwsh ${flag} ${encoded}`, check)?.route).toBe("path");
+    const store = Buffer.from("mem0 add x", "utf16le").toString("base64");
+    expect(shellBypass(`powershell -enc ${store}`, check)?.store).toBe("mem0");
+    const harmless = Buffer.from("Get-Date", "utf16le").toString("base64");
+    expect(shellBypass(`pwsh -enc ${harmless}`, check)).toBeUndefined();
   });
 
   it.each([
@@ -98,12 +129,9 @@ describe("shellBypass and toolBypass", () => {
     expect(shellBypass(command, check)?.route).toBe("path");
   });
 
-  it.each(['git commit -m "fix memory leak"', 'bash -c "echo done"', 'node -c "memory test"'])(
-    "keeps a quoted argument that is no shell script as one word: %s",
-    (command) => {
-      expect(shellBypass(command, check)).toBeUndefined();
-    },
-  );
+  it("passes a shell script that names no root", () => {
+    expect(shellBypass('bash -c "echo done"', check)).toBeUndefined();
+  });
 
   it("refuses every command whose cwd is inside a root", () => {
     expect(shellBypass("ls", { ...check, cwd: root })?.route).toBe("path");
