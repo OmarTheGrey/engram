@@ -52,6 +52,9 @@ const BLOCKED: [string, Record<string, unknown>, string, string | undefined][] =
   ["NotebookEdit", { notebook_path: "memory/n.ipynb", new_source: "x" }, "files", "path"],
   ["Bash", { command: "cd memory && cat a.md" }, "files", "path"],
   ["Bash", { command: "cat memor*/a.md" }, "files", "path"],
+  // A shell's script argument is a nested command (D10), unlike a commit message.
+  ["Bash", { command: 'bash -c "cd memory && cat a.md"' }, "files", "path"],
+  ["PowerShell", { command: 'pwsh -Command "Get-Content memory/a.md"' }, "files", "path"],
   ["Bash", { command: "cat mem?ry/a.md" }, "files", "path"],
   // R3-2: the session's own governing files.
   [

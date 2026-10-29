@@ -53,7 +53,7 @@ function reaches(word: string | undefined, check: BypassCheck, recursive: boolea
  * Any other word is cut at shell operators as commandWords cuts it, and every
  * piece is checked.
  */
-function pathCheckWords(command: string): string[] {
+function pathCheckWords(command: string, depth = 0): string[] {
   const tokens: { text: string; spaced: boolean }[] = [];
   let text = "";
   let spaced = false;
@@ -79,11 +79,37 @@ function pathCheckWords(command: string): string[] {
     else text += c;
   }
   flush();
+  // The script argument of a shell (`bash -c "..."`, `pwsh -Command "..."`,
+  // `cmd /c "..."`) is a nested command, checked in full, not as a quoted
+  // argument (ADR 0014 decision D10; the R3-15 regression).
+  let shell: "sh" | "pwsh" | "cmd" | undefined;
+  let nested = false;
   return tokens.flatMap(({ text: t, spaced: s }) => {
+    if (nested) {
+      nested = false;
+      shell = undefined;
+      return pathCheckWords(t, depth + 1);
+    }
+    const name = (t.split(/[\\/]/).pop() ?? "").toLowerCase().replace(/\.exe$/, "");
+    if (/^(?:;|&&|\|\||\||&)$/.test(t)) shell = undefined;
+    else if (SH_SHELLS.has(name)) shell = "sh";
+    else if (name === "pwsh" || name === "powershell") shell = "pwsh";
+    else if (name === "cmd") shell = "cmd";
+    else if (
+      (shell === "sh" && /^-[a-z]*c$/i.test(t)) ||
+      (shell === "pwsh" && /^-(?:c|command)$/i.test(t)) ||
+      (shell === "cmd" && /^\/[ck]$/i.test(t))
+    )
+      nested = depth < MAX_NESTING;
     const words = commandWords(t).flatMap((w) => [w, ...w.split("=").slice(1)]);
     return s ? words.filter((w) => /[\\/]|^~|^\./.test(w)) : words;
   });
 }
+
+/** Shells whose `-c` argument is a script. */
+const SH_SHELLS = new Set(["sh", "bash", "zsh", "dash", "ksh", "ash", "fish"]);
+/** How deep `bash -c "bash -c ..."` is followed. */
+const MAX_NESTING = 8;
 
 /** A glob segment (`*`, `?`, `[...]`) as a whole-segment pattern; undefined for a literal one. */
 function segmentGlob(segment: string): RegExp | undefined {

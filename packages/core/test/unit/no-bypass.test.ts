@@ -85,6 +85,26 @@ describe("shellBypass and toolBypass", () => {
     expect(shellBypass(command, check)?.route).toBe("path");
   });
 
+  it.each([
+    'bash -c "cd memory && cat a.md"',
+    "sh -c 'cat memory/a.md'",
+    "bash -lc 'cd memory; ls'",
+    'zsh -c "cd memory"',
+    'pwsh -Command "Get-Content memory/a.md"',
+    'powershell -c "Set-Location memory"',
+    'cmd /c "cd memory && type a.md"',
+    `bash -c "sh -c 'cd memory'"`,
+  ])("checks a shell's script argument as a nested command: %s (D10)", (command) => {
+    expect(shellBypass(command, check)?.route).toBe("path");
+  });
+
+  it.each(['git commit -m "fix memory leak"', 'bash -c "echo done"', 'node -c "memory test"'])(
+    "keeps a quoted argument that is no shell script as one word: %s",
+    (command) => {
+      expect(shellBypass(command, check)).toBeUndefined();
+    },
+  );
+
   it("refuses every command whose cwd is inside a root", () => {
     expect(shellBypass("ls", { ...check, cwd: root })?.route).toBe("path");
   });
