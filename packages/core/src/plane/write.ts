@@ -66,7 +66,12 @@ const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
  * it: only the item itself and the versions its lineage reaches share a ref
  * (decision D1, finding R5-14).
  */
-function refProblem(deps: PlaneDeps, item: MemoryItem, ref: StoreRef): string | null {
+function refProblem(
+  deps: PlaneDeps,
+  item: MemoryItem,
+  ref: StoreRef,
+  adopted: boolean,
+): string | null {
   if (!StoreRefShape.safeParse(ref).success)
     return `the store returned a malformed ref ${JSON.stringify(ref)}`;
   if (ref.adapter !== deps.adapter.name)
@@ -81,14 +86,14 @@ function refProblem(deps: PlaneDeps, item: MemoryItem, ref: StoreRef): string | 
   const other = itemsByStoreRef(deps.db, ref).find((h) => !related.has(h.id));
   // The adapter contract gives two item ids two refs (the conformance suite's
   // "two item ids are two items under two refs"), so only a non-conforming
-  // store gets here, after it has written; the plane cannot undo that write
-  // and names what it left behind (finding N4).
-  return other
-    ? `the store returned ref ${ref.adapter}/${ref.key}, which item ${other.id} already holds; ` +
-        "two item ids get two refs under the adapter contract, so this store breaks it: " +
-        `the bytes it wrote for item ${item.id} at that ref are orphaned, never projected, ` +
-        `and may have replaced item ${other.id}'s record in the store`
-    : null;
+  // store gets here. After a write the plane cannot undo it and names what it
+  // left behind (finding N4); adoption wrote nothing.
+  if (!other) return null;
+  const held = `item ${other.id} already holds ref ${ref.adapter}/${ref.key}; two item ids get two refs under the adapter contract, so this store breaks it`;
+  return adopted
+    ? `the store lists item ${item.id} at a ref ${held}; nothing was written`
+    : `the store returned a ref ${held}: the bytes it wrote for item ${item.id} at that ref ` +
+        `are orphaned, never projected, and may have replaced item ${other.id}'s record in the store`;
 }
 
 /** What adoption (plane/adopt.ts) adds to a gated write. */
@@ -167,7 +172,7 @@ async function decideAndWrite(
     });
   try {
     const store_ref = adoption ? adoption.ref : await adapter.write(toStore);
-    const problem = refProblem(deps, item, store_ref);
+    const problem = refProblem(deps, item, store_ref, adoption !== undefined);
     if (problem) throw new Error(problem);
     const stored: MemoryItem = { ...toStore, store_ref };
     const event = appendEvent(db, { ...common, id: newId(), item: stored });

@@ -315,6 +315,10 @@ describe("adoptStoreItems", () => {
       decision: "deny",
       policy_id: "engram/write/store-failure",
     });
+    // Adoption writes nothing, so the reason must not claim the store wrote bytes.
+    const reason = allEvents(db).at(-1)?.reason ?? "";
+    expect(reason).toMatch(/nothing was written/);
+    expect(reason).not.toMatch(/orphaned|bytes it wrote/);
   });
 
   test("adopted items are readable through Plane.read like any other", async () => {
