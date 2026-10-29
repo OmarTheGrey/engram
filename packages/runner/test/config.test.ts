@@ -3,8 +3,8 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
-import { parseRunnerConfig, readRunnerConfig } from "../src/config.ts";
-import { EXAMPLE } from "./paths.ts";
+import { configStores, parseRunnerConfig, readRunnerConfig } from "../src/config.ts";
+import { B3, EXAMPLE } from "./paths.ts";
 
 const valid = {
   name: "t",
@@ -47,8 +47,20 @@ describe("runner config", () => {
     ["a model without a provider", { model: "scripted-1" }],
     ["an unknown field", { temperature: 0.2 }],
     ["a registered-experiment kind", { kind: "experiment" }],
+    ["an unknown store", { store: "redis" }],
+    ["an empty store list", { store: [] }],
+    ["a store twice", { store: ["fake", "fake"] }],
   ])("rejects %s", (_name, change) => {
     expect(() => parseRunnerConfig({ ...valid, ...change })).toThrow();
+  });
+
+  test("a config names one store or several (card B3)", () => {
+    expect(configStores(parseRunnerConfig(valid))).toEqual(["fake"]);
+    expect(configStores(parseRunnerConfig({ ...valid, store: ["mem0", "fake"] }))).toEqual([
+      "mem0",
+      "fake",
+    ]);
+    expect(configStores(readRunnerConfig(B3))).toEqual(["fake", "mem0"]);
   });
 
   test("a scripted model without a script is rejected", () => {
