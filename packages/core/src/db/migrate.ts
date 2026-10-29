@@ -52,6 +52,23 @@ export const MIGRATIONS: readonly Migration[] = [
       CREATE INDEX items_store_ref ON items (store_adapter, store_key, seq);
     `,
   },
+  {
+    id: 3,
+    name: "explanations keyed by read event",
+    // One row per item a read returned (card E2.2, ADR 0009), written in the
+    // transaction that appends the read event, so explain(readId) returns
+    // exactly what that read returned. Not a projection: the query text and
+    // the policy in force are not in the log, so rebuild() leaves it alone.
+    up: `
+      CREATE TABLE explanations (
+        read_id TEXT NOT NULL REFERENCES events (id),
+        rank INTEGER NOT NULL,
+        item_id TEXT NOT NULL,
+        body TEXT NOT NULL,
+        PRIMARY KEY (read_id, rank)
+      );
+    `,
+  },
 ];
 
 /** Applies pending migrations in id order; returns the ids it applied. */

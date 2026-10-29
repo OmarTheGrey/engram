@@ -72,13 +72,13 @@ Both are checked at the boundary, both are the basis of H1, and every denial is 
 
 1. An agent calls `memory_write` (a pi tool, an MCP tool, or the client).
 2. Inside pi, the extension's `tool_call` handler runs first and can block or mutate; elsewhere the server does the same.
-3. `Plane.write(actor, item_in)`: validate against the schema; attach provenance (kind from the harness, not from a judge; hash of the evidence); evaluate the write policy for the target scope; on allow, call the adapter, record `store_ref`, append the event; on deny, append the event with the reason and return it. Model-written and compaction-derived content is untrusted by default and cannot leave person scope without a gate pass (ADR 0004, 0007).
+3. `Plane.write(actor, item_in, at)`: refuse an invalid actor or time before touching the store or the log (no event could carry it); validate the item against the schema; set provenance from the actor's harness-set `source` (kind and actor overwritten; without a source the caller's provenance stands and the reason says so); evaluate the write gate: the actor is a member of the item's scope (and of its current scope on a rewrite), a rewrite keeps the owner and does not lower the version, every grant names a class, an expiry and a principal or a prefixed pattern (none on model or compaction content), then the rule for the target scope level; on allow, call the adapter, record `store_ref`, append the event; on deny, append the event with the reason and return it. A store failure after an allow appends a deny event (`engram/write/store-failure`) and rethrows, so the store is never written without an event. Writes over one log handle run one at a time, so each is decided against the projection the previous one left. A denial about an item id held in a scope the writer cannot read does not name that item's scope, owner or version. Model-written and compaction-derived content is untrusted by default and cannot leave person scope without a gate pass (ADR 0004, 0007; decisions D4 and D6 of the PR #5 review fix pass).
 4. Inside pi, the decision is mirrored as a `custom` entry (`customType: "engram.event"`) in the session.
 
 ## Read path
 
 1. An agent calls `memory_read`, or pi assembles context before a model call.
-2. `Plane.read(actor, query)`: adapter search; scope and grant filter; validity window at query time (or `valid_at`); ranking with named score components; an `explanation` per returned item (components, rank, admitting rule, grants used, validity window); append a read event.
+2. `Plane.read(actor, query)`: candidates are only the items the reader can reach (a readable scope, or a grant whose `to` matches it); the adapter is searched only in the readable scopes the reader is a member of, and an item reached only through a grant is matched by the plane over the projection, so hidden items never compete with it for a store's capped hit list; scope and grant filter; validity window at query time (or `valid_at`); ranking with named score components, relevance ranked among admitted items only; an `explanation` per returned item (components, rank, admitting rule, grants used, validity window); append a read event. What the reader gets (items, explanations, scores, `filtered`) reveals nothing about items out of its reach; the read event, the audit record kept from the model, counts them too (ADR 0009, decision D5).
 3. Inside pi, the `context` handler applies the same filter to injected memory and `before_agent_start` can inject governed recall with its explanation as a `custom_message` when policy allows.
 
 ## No-bypass
@@ -101,13 +101,13 @@ Adapter
   capabilities: { native_validity, native_history, native_search, native_graph }
 
 Plane
-  write(actor, itemIn, at) -> WriteResult    policy, provenance, event, then adapter; at is the injected time
-  read(actor, query) -> ReadResult           adapter search, filter, explanation, event
+  write(actor, itemIn, at) -> WriteResult    policy and provenance, then the adapter, then the event carrying store_ref; at is the injected time
+  read(actor, query) -> ReadResult           search in readable member scopes, match granted items, filter, explanation, event
   promote(actor, itemId, toScope, at) -> GateResult
   lint(scope) -> Finding[]
   simulate(workload, policy) -> SimReport    replays a recorded workload or a pi session under a policy; zero model calls
   distill(sessions, method) -> MemoryItem[]  candidate procedural items
-  explain(readId) -> Explanation[]
+  explain(actor, readId) -> Explanation[]    to the actor who made the read only
 
 Surfaces
   pi extension   tools memory_write, memory_read, memory_explain, memory_simulate; commands /engram explain | lint | simulate | policy

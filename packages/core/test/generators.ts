@@ -215,3 +215,64 @@ export const arbPolicy: fc.Arbitrary<Policy> = fc.record({
   lints: fc.constant({ enabled: [], thresholds: {} }),
   schema_version: fc.constant(0 as const),
 });
+
+/**
+ * Instants that collide on purpose: a few whole seconds, each with fractions a
+ * millisecond cannot tell apart (.0001, .0009), a nanosecond, and a half
+ * second. Drawn for read times, grant expiries and validity bounds, they make
+ * the boundaries `expires == at` and `valid_from == at` common rather than
+ * rare, and catch a comparison through Date.parse (review findings R5-8, R5-11).
+ */
+export const arbBoundaryTimestamp = fc
+  .tuple(
+    fc.constantFrom("2026-10-25T12:00:00", "2026-10-25T12:00:01", "2027-03-01T00:00:00"),
+    fc.constantFrom("", ".0001", ".0009", ".000000001", ".5"),
+  )
+  .map(([whole, fraction]) => `${whole}${fraction}Z`);
+
+/** A timestamp from the wide range or from the colliding pool. */
+export const arbInstant = fc.oneof(arbTimestamp, arbBoundaryTimestamp);
+
+/**
+ * A grant the write gate accepts (decision D4): to a principal or to a pattern
+ * with a non-empty prefix after the colon, with a class and an expiry.
+ */
+export const arbGatedGrant = fc.record({
+  to: fc.oneof(arbPrincipal, fc.constantFrom("agent:claude*", "person:o*", "person:s*")),
+  class: fc.constantFrom(...CLASSES),
+  mode: fc.constantFrom("read", "read_write"),
+  expires: arbInstant,
+});
+
+/**
+ * An item the write gate can admit apart from its policy: only trusted
+ * sources carry grants, and every grant is one the gate accepts. Its validity
+ * window starts at an instant from the colliding pool or the wide range.
+ */
+export const arbGatedItem: fc.Arbitrary<MemoryItem> = fc
+  .tuple(arbItem(), fc.array(arbGatedGrant, { maxLength: 2 }), arbInstant)
+  .map(([item, grants, valid_from]) => ({
+    ...item,
+    valid_from,
+    grants: ["model", "compaction"].includes(item.provenance.kind) ? [] : grants,
+  }));
+
+export type ProvenanceKindName = MemoryItem["provenance"]["kind"];
+
+/** A writing actor, sometimes carrying the source a harness would set (decision D4). */
+export const arbWriter: fc.Arbitrary<Actor & { source?: ProvenanceKindName }> = fc.record(
+  {
+    id: arbPrincipal,
+    level: fc.constantFrom(...SCOPE_LEVELS),
+    memberships: fc.uniqueArray(arbScope, { maxLength: 4 }),
+    source: fc.constantFrom<ProvenanceKindName>(
+      "user",
+      "document",
+      "tool",
+      "model",
+      "import",
+      "compaction",
+    ),
+  },
+  { requiredKeys: ["id", "level", "memberships"] },
+);

@@ -19,6 +19,13 @@ const SCOPE_OF: Record<ScopeLevel, string> = {
   org: "org",
 };
 
+/** A writer who belongs to every scope the tests write to, so only the policy decides. */
+const MEMBER: Actor = {
+  id: "person:omar",
+  level: "person",
+  memberships: Object.values(SCOPE_OF),
+};
+
 function item(
   level: ScopeLevel,
   kind: (typeof SOURCES)[number],
@@ -84,12 +91,12 @@ describe.each(PRESETS)("preset %s", (name: PresetName) => {
     for (const level of LEVELS.filter((l) => l !== "person"))
       for (const kind of ["model", "compaction"] as const)
         for (const cls of CLASSES)
-          expect(writeForbidden(policy, item(level, kind, cls))).toBe(true);
+          expect(writeForbidden(policy, MEMBER, item(level, kind, cls))).toBe(true);
   });
 
   test("admits a user-sourced semantic write in every scope", () => {
     for (const level of LEVELS)
-      expect(writeForbidden(policy, item(level, "user", "semantic"))).toBe(false);
+      expect(writeForbidden(policy, MEMBER, item(level, "user", "semantic"))).toBe(false);
   });
 
   test("lets a person read their own person scope and honours grants", () => {
@@ -186,7 +193,8 @@ describe.each(PAIRS)("strictness is ordered, %s", (_label, stricter, looser) => 
       for (const kind of SOURCES)
         for (const cls of CLASSES) {
           const it = item(level, kind, cls);
-          if (writeForbidden(looser, it)) expect(writeForbidden(stricter, it)).toBe(true);
+          if (writeForbidden(looser, MEMBER, it))
+            expect(writeForbidden(stricter, MEMBER, it)).toBe(true);
         }
   });
 
@@ -240,8 +248,8 @@ test("under strict a role context cannot read person scope, even its own person'
 
 test("the presets differ: strict forbids a write that permissive admits", () => {
   const it = item("team", "tool", "episodic");
-  expect(writeForbidden(strict, it)).toBe(true);
-  expect(writeForbidden(permissive, it)).toBe(false);
+  expect(writeForbidden(strict, MEMBER, it)).toBe(true);
+  expect(writeForbidden(permissive, MEMBER, it)).toBe(false);
 });
 
 test("loadPreset refuses a name that is not a bundled preset", () => {

@@ -2,12 +2,15 @@
 // tests would pass or fail on malformed input.
 import fc from "fast-check";
 import { expect, test } from "vitest";
-import { Grant, MemoryEvent, MemoryItem, Policy } from "../../src/schema.ts";
+import { Grant, MemoryEvent, MemoryItem, Policy, Timestamp } from "../../src/schema.ts";
 import {
   arbEventInput,
+  arbGatedGrant,
+  arbGatedItem,
   arbGrant,
   arbGrantedItem,
   arbId,
+  arbInstant,
   arbPolicy,
   seedFor,
 } from "../generators.ts";
@@ -24,6 +27,9 @@ const check = <T>(name: string, arb: fc.Arbitrary<T>, parse: (v: T) => unknown) 
 
 check("generated items parse as MemoryItem", arbGrantedItem, (v) => MemoryItem.parse(v));
 check("generated grants parse as Grant", arbGrant, (v) => Grant.parse(v));
+check("generated gated items parse as MemoryItem", arbGatedItem, (v) => MemoryItem.parse(v));
+check("generated gated grants parse as Grant", arbGatedGrant, (v) => Grant.parse(v));
+check("generated instants parse as Timestamp", arbInstant, (v) => Timestamp.parse(v));
 check("generated policies parse as Policy", arbPolicy, (v) => Policy.parse(v));
 check(
   "generated events parse as MemoryEvent",

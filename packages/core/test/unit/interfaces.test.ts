@@ -1,13 +1,13 @@
 // Acceptance for card E0.3: every fake instantiates and honours the interface
-// it fakes, and the stub plane declares every Plane method, rejecting the ones
-// no card has implemented yet with the card that will.
+// it fakes, and the plane declares every Plane method, rejecting the ones no
+// card has implemented yet with the card that will.
 import { createFakeAdapter } from "@engram/adapters";
 import { describe, expect, test } from "vitest";
 import { migrate } from "../../src/db/migrate.ts";
 import { openSqlite } from "../../src/db/sqlite.ts";
 import type { Distiller, DistillMethod, Session } from "../../src/distill.ts";
 import type { Linter } from "../../src/lint.ts";
-import { createStubPlane, NotImplementedYet, type Plane } from "../../src/plane.ts";
+import { createPlane, NotImplementedYet, type Plane } from "../../src/plane.ts";
 import type { LintFinding, MemoryEvent, MemoryItem, Policy } from "../../src/schema.ts";
 import type { Simulator, Workload } from "../../src/simulate.ts";
 import {
@@ -166,11 +166,11 @@ describe("fakes", () => {
     );
   });
 
-  test("the stub plane instantiates over the fake adapter and declares every Plane method", async () => {
+  test("the plane instantiates over the fake adapter and declares every Plane method", async () => {
     const db = openSqlite(":memory:");
     migrate(db);
     let n = 0;
-    const plane: Plane = createStubPlane({
+    const plane: Plane = createPlane({
       db,
       adapter: createFakeAdapter(),
       policy: POLICY,
@@ -183,7 +183,6 @@ describe("fakes", () => {
       ["lint", "L1", () => plane.lint("team:a")],
       ["simulate", "E8.9", () => plane.simulate({ id: "w", events: [] }, POLICY)],
       ["distill", "D2", () => plane.distill([SESSION], AWM)],
-      ["explain", "E2.2", () => plane.explain(id(1))],
     ];
     for (const [method, card, call] of pending) {
       const error = await call().then(

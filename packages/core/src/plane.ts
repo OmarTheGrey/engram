@@ -1,35 +1,22 @@
 // The Plane interface (docs/architecture.md, "Interfaces"). Every read and
 // write to a store crosses it (AGENTS.md rule 2). It is asynchronous because
-// adapters are. Every method is declared (card E0.3); each is implemented by
-// the card named in the stub below.
+// adapters are. Every method is declared (card E0.3).
 //
-// `createStubPlane` admits everything. It exists so the invariants file
-// (test/property/invariants.test.ts) has something to fail against until the
-// read filter and write gate land (cards E2.2 and E2.3, issue #1). Its other
-// methods reject with NotImplementedYet, naming the card that implements them.
-// Do not use it anywhere else.
+// `createPlane` is the real plane: the write gate (card E2.3, plane/write.ts),
+// the read filter and explanations (card E2.2, plane/read.ts), both deciding
+// through the pure evaluator in policy/evaluate.ts. Methods whose cards have
+// not landed reject with NotImplementedYet, naming the card that implements them.
+import type { Actor } from "./actor.ts";
 import type { Adapter } from "./adapter.ts";
 import type { Db } from "./db/db.ts";
 import type { DistillMethod, Session } from "./distill.ts";
-import { allEvents, appendEvent, currentItems } from "./events.ts";
-import type {
-  Explanation,
-  LintFinding,
-  MemoryEvent,
-  MemoryItem,
-  Policy,
-  ScopeLevel,
-} from "./schema.ts";
+import { allEvents } from "./events.ts";
+import { filteredRead, storedExplanations } from "./plane/read.ts";
+import { gatedWrite } from "./plane/write.ts";
+import type { Explanation, LintFinding, MemoryEvent, MemoryItem, Policy } from "./schema.ts";
 import type { SimReport, Workload } from "./simulate.ts";
 
-/** Who is asking, and in which capacity. */
-export interface Actor {
-  id: string;
-  /** The level the actor reads as: the calling context. */
-  level: ScopeLevel;
-  /** Scopes the actor belongs to, such as `person:omar` or `team:platform`. */
-  memberships: string[];
-}
+export { type Actor, ActorShape, ExplainDeniedError, InvalidCallError } from "./actor.ts";
 
 export interface ReadQuery {
   text?: string;
@@ -43,10 +30,20 @@ export interface WriteResult {
   event: MemoryEvent;
 }
 
+/**
+ * What a read returns. `items`, `explanations` and `filtered` reveal nothing
+ * about items the reader cannot reach (decision D5) and may be shown to the
+ * model. `event` is the audit record: its reason also counts the items out of
+ * the reader's reach, so a harness keeps it from the model.
+ */
 export interface ReadResult {
   items: MemoryItem[];
   explanations: Explanation[];
-  /** How many candidate items the filter removed. */
+  /**
+   * How many reachable candidates the filter removed: in a readable scope or
+   * reached through a grant naming the reader, but not active, outside the
+   * validity window, or with no grant whose class and expiry admit it.
+   */
   filtered: number;
   event: MemoryEvent;
 }
@@ -73,69 +70,43 @@ export interface Plane {
   simulate(workload: Workload, policy: Policy): Promise<SimReport>;
   /** Candidate procedural items induced from sessions. */
   distill(sessions: Session[], method: DistillMethod): Promise<MemoryItem[]>;
-  /** The explanations recorded for a read. */
-  explain(readId: ReadId): Promise<Explanation[]>;
+  /**
+   * The explanations recorded for a read, for the actor who made it only;
+   * another actor is refused with ExplainDeniedError (decision D5).
+   */
+  explain(actor: Actor, readId: ReadId): Promise<Explanation[]>;
   /** The event log, in sequence order. */
   events(): MemoryEvent[];
 }
 
-/** A Plane method the stub does not implement; `card` is the card that does. */
+/** A Plane method not implemented yet; `card` is the card that implements it. */
 export class NotImplementedYet extends Error {
   readonly method: string;
   readonly card: string;
   constructor(method: string, card: string) {
-    super(`Plane.${method} is not implemented by the stub plane; card ${card} implements it`);
+    super(`Plane.${method} is not implemented yet; card ${card} implements it`);
     this.name = "NotImplementedYet";
     this.method = method;
     this.card = card;
   }
 }
 
-export interface StubPlaneDeps {
+export interface PlaneDeps {
+  /** The plane's own log and projection, migrated. */
   db: Db;
+  /** The one store this plane governs. */
   adapter: Adapter;
+  /** The policy every decision is evaluated against. */
   policy: Policy;
   /** UUIDv7 generator for event ids, injected so core stays free of clocks and randomness. */
   newId: () => string;
 }
 
-export function createStubPlane({ db, adapter, newId }: StubPlaneDeps): Plane {
-  const STUB = { reason: "the stub plane admits everything", policy_id: "stub.admit-all" };
+export function createPlane(deps: PlaneDeps): Plane {
   return {
-    async write(actor, item, at) {
-      const store_ref = await adapter.write(item);
-      const stored = { ...item, store_ref };
-      const event = appendEvent(db, {
-        id: newId(),
-        ts: at,
-        op: "write",
-        item_id: item.id,
-        actor: actor.id,
-        scope_from: null,
-        scope_to: item.scope,
-        decision: "allow",
-        ...STUB,
-        item: stored,
-        schema_version: 0,
-      });
-      return { item: stored, event };
-    },
-    async read(actor, query) {
-      const items = currentItems(db);
-      const event = appendEvent(db, {
-        id: newId(),
-        ts: query.at,
-        op: "read",
-        item_id: null,
-        actor: actor.id,
-        scope_from: null,
-        scope_to: null,
-        decision: "allow",
-        ...STUB,
-        schema_version: 0,
-      });
-      return { items, explanations: [], filtered: 0, event };
-    },
+    write: (actor, item, at) => gatedWrite(deps, actor, item, at),
+    read: (actor, query) => filteredRead(deps, actor, query),
+    explain: async (actor, readId) => storedExplanations(deps, actor, readId),
     promote: async () => {
       throw new NotImplementedYet("promote", "E2.5");
     },
@@ -148,9 +119,6 @@ export function createStubPlane({ db, adapter, newId }: StubPlaneDeps): Plane {
     distill: async () => {
       throw new NotImplementedYet("distill", "D2");
     },
-    explain: async () => {
-      throw new NotImplementedYet("explain", "E2.2");
-    },
-    events: () => allEvents(db),
+    events: () => allEvents(deps.db),
   };
 }
