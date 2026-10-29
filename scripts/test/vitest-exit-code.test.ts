@@ -13,9 +13,14 @@ const root = fileURLToPath(new URL("../..", import.meta.url));
 const vitest = join(root, "node_modules", "vitest", "vitest.mjs");
 const config = join(root, "fixtures", "ci", "vitest-exit", "vitest.config.ts");
 
+/** The text without ANSI escape sequences (colour and style codes). */
+const ANSI = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*[A-Za-z]`, "g");
+const stripAnsi = (text: string) => text.replace(ANSI, "");
+
 /** Runs the fixture project on one file with the embedded Postgres started; resolves to its exit code. */
 function run(file: string): Promise<{ code: number; output: string }> {
-  const env = { ...process.env };
+  // Plain output: CI sets FORCE_COLOR, and colour codes would sit between the words.
+  const env: NodeJS.ProcessEnv = { ...process.env, NO_COLOR: "1", FORCE_COLOR: "0" };
   delete env.ENGRAM_PG;
   delete env.ENGRAM_PG_URL;
   return new Promise((resolve) => {
@@ -25,7 +30,7 @@ function run(file: string): Promise<{ code: number; output: string }> {
       { cwd: join(root, "fixtures", "ci", "vitest-exit"), env },
       (error, stdout, stderr) => {
         const code = error ? Number((error as { code?: unknown }).code ?? 1) : 0;
-        resolve({ code, output: `${stdout}${stderr}` });
+        resolve({ code, output: stripAnsi(`${stdout}${stderr}`) });
       },
     );
   });
