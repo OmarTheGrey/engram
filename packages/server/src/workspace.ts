@@ -528,6 +528,12 @@ export interface StoreFlags {
   root?: string;
   owner?: string;
   importValidFrom?: string;
+  /**
+   * The surface never writes the store (read, explain, retain): a Letta store
+   * then refuses a missing or empty --root instead of initialising a
+   * repository there, and makes no setup commit. Default false.
+   */
+  readOnlyStore?: boolean;
 }
 
 /** The stores a workspace opens. */
@@ -558,7 +564,7 @@ export function openStore(flags: StoreFlags, resolvePath: (p: string) => string)
       throw new UsageError("--import-valid-from applies to the files store only");
     let adapter: Adapter;
     try {
-      adapter = deferLettaAdapter({ root });
+      adapter = deferLettaAdapter({ root, create: flags.readOnlyStore !== true });
     } catch (e) {
       if (e instanceof NotMemfsRepositoryError) throw new UsageError(e.message);
       throw e;
@@ -632,11 +638,13 @@ export interface LocalWorkspace extends Workspace {
  */
 export function openWorkspace(options: WorkspaceOptions): LocalWorkspace {
   const policy = loadPolicy(options.policy, options.cwd);
+  // Every flag is checked before the store is built, so a usage error never
+  // follows a store touched on disk (review finding I-1).
+  const target = dbTarget(options.db, options);
   // --owner alone names an actor (explain, retain); a store needs --root or --store.
   const wantsStore =
     options.requireStore === true || options.store !== undefined || options.root !== undefined;
   const store = wantsStore ? openStore(options, (p) => resolve(options.cwd, p)) : null;
-  const target = dbTarget(options.db, options);
   let log: Log | undefined;
   const open = (mustExist = false) => {
     log ??= openLog(target, mustExist);

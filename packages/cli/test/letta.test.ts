@@ -3,6 +3,7 @@
 // one git commit per allowed write, none for a denied one; a folder the
 // adapter would refuse is a usage error before anything runs.
 import { spawnSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import { readdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -85,6 +86,46 @@ describe("engram with --store letta", () => {
     expect(err).toContain("neither a git repository's top level nor an empty folder");
     expect(await readdir(root)).toEqual(["notes.txt"]);
   });
+
+  it("a bad --db leaves a missing --root missing (review finding I-1)", async () => {
+    const root = join(await tempDir(), "memory");
+    const { code, err } = await cli([
+      "write",
+      ...store(root, "postgres://u:p@[bad/db"),
+      "--content",
+      "x",
+    ]);
+    expect(code).toBe(2);
+    expect(err).not.toBe("");
+    expect(existsSync(root)).toBe(false);
+  });
+
+  it("read and retain never create or initialise a folder; the error names it (M-1)", async () => {
+    const db = join(await tempDir(), "engram.db");
+    const missing = join(await tempDir(), "memory");
+    const read = await cli(["read", ...store(missing, db)]);
+    expect(read.code).toBe(2);
+    expect(read.err).toContain(missing);
+    expect(read.err).toContain("only a command that writes initialises a MemFS repository");
+    expect(existsSync(missing)).toBe(false);
+
+    const empty = await tempDir();
+    const retain = await cli(["retain", ...store(empty, db), "--scope", "person:dana"]);
+    expect(retain.code).toBe(2);
+    expect(retain.err).toContain(empty);
+    expect(await readdir(empty)).toEqual([]);
+  });
+
+  it("read on a repository a write made reads it without a new commit", async () => {
+    const root = join(await tempDir(), "memory");
+    const db = join(await tempDir(), "engram.db");
+    await cli(["write", ...store(root, db), "--id", ID, "--content", "Dana deploys on Tuesdays."]);
+    const before = log(root);
+    const read = await cli(["read", ...store(root, db)]);
+    expect(read.code).toBe(0);
+    expect(read.out).toContain("Dana deploys on Tuesdays.");
+    expect(log(root)).toEqual(before);
+  }, 60_000);
 
   it("needs --root and --owner", async () => {
     const db = join(await tempDir(), "engram.db");

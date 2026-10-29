@@ -81,6 +81,14 @@ export interface LettaAdapterOptions {
   root: string;
   /** Matches `StoreRef.adapter`. Default `letta`. */
   name?: string;
+  /**
+   * Whether opening may change the folder: create a missing folder, run
+   * `git init` in an empty one, and make the setup commit (engram/MEMORY.md
+   * and the root line). Default true. A surface that only reads (engram read,
+   * explain, retain) passes false: a missing or empty folder is then refused,
+   * and a repository without engram/ is read as holding no items.
+   */
+  create?: boolean;
   /** How long a write or delete waits for another writer's live lock, in ms. Default 10 000. */
   lockWaitMs?: number;
   /** Test seams for the lock, never set in production (../lock.ts). */
@@ -256,7 +264,8 @@ function serialise(item: MemoryItem, key: string, parse: (text: string) => Memor
 
 export async function createLettaAdapter(options: LettaAdapterOptions): Promise<LettaAdapter> {
   const name = options.name ?? "letta";
-  const { root, gitDir } = await openRepository(resolve(options.root));
+  const create = options.create ?? true;
+  const { root, gitDir } = await openWithRetry(resolve(options.root), create);
   const dir = join(root, DIR);
   const indexPath = join(dir, INDEX);
   const env = await identityFallback(root);
@@ -543,38 +552,39 @@ export async function createLettaAdapter(options: LettaAdapterOptions): Promise<
   }
 
   // The layout: engram/, its MEMORY.md and the root line, one setup commit when any is missing.
-  await exclusive(async () => {
-    const created = !(await checkDir());
-    if (created) await mkdir(dir);
-    try {
-      const index = await readRegular(indexPath, INDEX_KEY);
-      const rootIndexPath = join(root, INDEX);
-      const rootIndex = await readRegular(rootIndexPath, INDEX);
-      const rootText = rootIndex?.toString("utf8") ?? "";
-      const changes: Change[] = [];
-      if (index === undefined)
-        changes.push({
-          key: INDEX_KEY,
-          path: indexPath,
-          next: `${INDEX_HEAD.join("\n")}\n`,
-          previous: undefined,
-        });
-      if (!rootText.includes(ROOT_LINK)) {
-        const eol = rootText.includes("\r\n") ? "\r\n" : "\n";
-        const sep = rootText === "" || rootText.endsWith("\n") ? "" : eol;
-        changes.push({
-          key: INDEX,
-          path: rootIndexPath,
-          next: `${rootText}${sep}${ROOT_LINE}${eol}`,
-          previous: rootIndex,
-        });
+  if (create)
+    await exclusive(async () => {
+      const created = !(await checkDir());
+      if (created) await mkdir(dir);
+      try {
+        const index = await readRegular(indexPath, INDEX_KEY);
+        const rootIndexPath = join(root, INDEX);
+        const rootIndex = await readRegular(rootIndexPath, INDEX);
+        const rootText = rootIndex?.toString("utf8") ?? "";
+        const changes: Change[] = [];
+        if (index === undefined)
+          changes.push({
+            key: INDEX_KEY,
+            path: indexPath,
+            next: `${INDEX_HEAD.join("\n")}\n`,
+            previous: undefined,
+          });
+        if (!rootText.includes(ROOT_LINK)) {
+          const eol = rootText.includes("\r\n") ? "\r\n" : "\n";
+          const sep = rootText === "" || rootText.endsWith("\n") ? "" : eol;
+          changes.push({
+            key: INDEX,
+            path: rootIndexPath,
+            next: `${rootText}${sep}${ROOT_LINE}${eol}`,
+            previous: rootIndex,
+          });
+        }
+        if (changes.length > 0) await commitChanges(changes, "engram: list engram/ in MEMORY.md");
+      } catch (e) {
+        if (created) await rmdir(dir).catch(() => undefined);
+        throw e;
       }
-      if (changes.length > 0) await commitChanges(changes, "engram: list engram/ in MEMORY.md");
-    } catch (e) {
-      if (created) await rmdir(dir).catch(() => undefined);
-      throw e;
-    }
-  });
+    });
 
   const adapter: LettaAdapter = {
     name,
@@ -686,13 +696,45 @@ export async function createLettaAdapter(options: LettaAdapterOptions): Promise<
  * another repository's tree that is not its top level, and a non-empty folder
  * that is not a repository.
  */
-async function openRepository(root: string): Promise<{ root: string; gitDir: string }> {
+/**
+ * Opens the repository; when that fails while a `.git` has appeared in the
+ * folder (another process or instance initialising the same empty folder at
+ * the same moment), waits and opens it again, up to five times, as the
+ * repository the other one made.
+ */
+async function openWithRetry(
+  root: string,
+  create: boolean,
+): Promise<{ root: string; gitDir: string }> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await openRepository(root, create);
+    } catch (e) {
+      const raced = await lstat(join(root, ".git")).then(
+        () => true,
+        () => false,
+      );
+      if (!raced || attempt >= 5 || e instanceof NotMemfsRepositoryError) throw e;
+      await sleep(50 * (attempt + 1));
+    }
+  }
+}
+
+async function openRepository(
+  root: string,
+  create: boolean,
+): Promise<{ root: string; gitDir: string }> {
   let info: Stats | undefined;
   try {
     info = await lstat(root);
   } catch (e) {
     if (!isMissing(e)) throw e;
   }
+  if (info === undefined && !create)
+    throw new NotMemfsRepositoryError(
+      root,
+      "does not exist; only a command that writes initialises a MemFS repository there",
+    );
   if (info === undefined) await mkdir(root, { recursive: true });
   else if (!info.isDirectory())
     throw new NotMemfsRepositoryError(
@@ -709,18 +751,29 @@ async function openRepository(root: string): Promise<{ root: string; gitDir: str
       root,
       "is neither a git repository's top level nor an empty folder; the Letta adapter opens a MemFS repository or initialises one in an empty folder",
     );
+  } else if (!create) {
+    throw new NotMemfsRepositoryError(
+      root,
+      "is an empty folder; only a command that writes initialises a MemFS repository there",
+    );
   } else {
     // An empty folder inside another repository's tree is part of that
     // repository; initialising a nested one there is refused, not guessed.
+    // The folder's own repository, made by a concurrent opener since the
+    // listing above, is not another one.
     const outer = await runGit(["rev-parse", "--show-toplevel"], { cwd: root });
-    if (outer.code === 0) {
+    const own =
+      outer.code === 0 &&
+      (await realpath(outer.stdout.toString("utf8").trim()).catch(() => "")) ===
+        (await realpath(root));
+    if (outer.code === 0 && !own) {
       if (info === undefined) await rmdir(root).catch(() => undefined);
       throw new NotMemfsRepositoryError(
         root,
         `is an empty folder inside the repository at ${outer.stdout.toString("utf8").trim()}; the Letta adapter initialises a repository only outside any other`,
       );
     }
-    await git(["init", "--quiet"], { cwd: root });
+    if (!own) await git(["init", "--quiet"], { cwd: root });
   }
   const [bare, top, gitDir] = (
     await git(["rev-parse", "--is-bare-repository", "--show-toplevel", "--absolute-git-dir"], {

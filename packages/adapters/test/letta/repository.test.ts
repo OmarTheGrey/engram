@@ -3,6 +3,7 @@
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
+import { deferLettaAdapter } from "../../src/letta/deferred.ts";
 import { type GitOptions, runGit } from "../../src/letta/git.ts";
 import {
   createLettaAdapter,
@@ -324,5 +325,64 @@ describe("N3: a commit refused by the ref compare-and-swap is retried only while
     expect((await gitOut(root, "log", "-1", "--format=%s")).trim()).toBe("another client");
     expect(await inHead(root, `engram/${id(13)}.md`)).toBe(false);
     expect(await readdir(join(root, "engram"))).not.toContain(`${id(13)}.md`);
+  });
+});
+
+describe("M-2: concurrent first opens of one empty folder", () => {
+  test("four openers race to initialise it; every one opens and every write lands", async () => {
+    const root = join(await tempDir(), "memory");
+    const adapters = await Promise.all([1, 2, 3, 4].map(() => createLettaAdapter({ root })));
+    const refs = await Promise.all(
+      adapters.flatMap((a, k) => [0, 1, 2, 3, 4].map((n) => a.write(item(100 + k * 10 + n)))),
+    );
+    expect(refs).toHaveLength(20);
+    const log = await commits(root);
+    // One setup commit, then one per write.
+    expect(log).toHaveLength(1 + 20);
+    expect((await gitOut(root, "log", "--format=%s", "--grep=^engram: list")).trim()).toBe(
+      "engram: list engram/ in MEMORY.md",
+    );
+    expect(await status(root)).toEqual([]);
+  }, 120_000);
+});
+
+describe("I-1: the deferred adapter touches nothing before its first call", () => {
+  test("a missing folder stays missing until the first call creates the repository", async () => {
+    const root = join(await tempDir(), "memory");
+    const adapter = deferLettaAdapter({ root });
+    await new Promise((r) => setTimeout(r, 300));
+    await expect(readdir(root)).rejects.toThrow();
+    expect(await adapter.list("person:omar")).toEqual([]);
+    expect(await commits(root)).toHaveLength(1);
+  });
+});
+
+describe("M-1: create: false never creates, initialises or commits", () => {
+  test("a missing folder is refused, naming it, and is not created", async () => {
+    const root = join(await tempDir(), "memory");
+    await expect(createLettaAdapter({ root, create: false })).rejects.toThrow(
+      `${root} does not exist; only a command that writes initialises a MemFS repository there`,
+    );
+    await expect(readdir(root)).rejects.toThrow();
+  });
+
+  test("an empty folder is refused and stays empty", async () => {
+    const root = await tempDir();
+    await expect(createLettaAdapter({ root, create: false })).rejects.toThrow(
+      NotMemfsRepositoryError,
+    );
+    expect(await readdir(root)).toEqual([]);
+  });
+
+  test("a repository without engram/ is read as empty, with no setup commit", async () => {
+    const root = await tempDir();
+    await gitOut(root, "init", "--quiet");
+    await writeFile(join(root, "persona.md"), "me\n");
+    await gitOut(root, "add", "persona.md");
+    await gitOut(root, "commit", "--quiet", "-m", "letta");
+    const adapter = await createLettaAdapter({ root, create: false });
+    expect(await adapter.list("person:omar")).toEqual([]);
+    expect(await commits(root)).toHaveLength(1);
+    expect((await readdir(root)).sort()).toEqual([".git", "persona.md"]);
   });
 });

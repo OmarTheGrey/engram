@@ -65,15 +65,18 @@ interface WorkspaceFlags {
 }
 
 /** The in-process workspace's options from a command's flags. */
-const workspaceOf = (flags: WorkspaceFlags, requireStore: boolean) => () => ({
-  store: flags.store,
-  root: flags.root,
-  owner: flags.owner,
-  importValidFrom: checkTime("--import-valid-from", flags["import-valid-from"]),
-  policy: flags.policy,
-  db: flags.db,
-  requireStore,
-});
+const workspaceOf =
+  (flags: WorkspaceFlags, requireStore: boolean, readOnlyStore = false) =>
+  () => ({
+    store: flags.store,
+    root: flags.root,
+    owner: flags.owner,
+    importValidFrom: checkTime("--import-valid-from", flags["import-valid-from"]),
+    policy: flags.policy,
+    db: flags.db,
+    requireStore,
+    readOnlyStore,
+  });
 
 /**
  * Connects and builds the actor, in the order the commands have always
@@ -82,11 +85,12 @@ const workspaceOf = (flags: WorkspaceFlags, requireStore: boolean) => () => ({
 function session(
   io: Io,
   flags: WorkspaceFlags & { server?: string },
-  options: { requireStore: boolean; mustExist?: boolean },
+  options: { requireStore: boolean; mustExist?: boolean; readOnlyStore?: boolean },
   makeActor: () => Actor,
 ): { conn: Connection; actor: Actor } {
   let actor: Actor | undefined;
-  const conn = connect(io, flags, workspaceOf(flags, options.requireStore), (ws) => {
+  const ws = workspaceOf(flags, options.requireStore, options.readOnlyStore === true);
+  const conn = connect(io, flags, ws, (ws) => {
     actor = makeActor();
     ws.open(options.mustExist === true);
   });
@@ -144,7 +148,7 @@ export async function readCommand(args: string[], io: Io): Promise<number> {
     true,
   );
   const at = checkTime("--at", values.at) ?? io.now();
-  const { conn, actor } = session(io, values, { requireStore: true }, () =>
+  const { conn, actor } = session(io, values, { requireStore: true, readOnlyStore: true }, () =>
     buildActor(values, values.owner),
   );
   try {
@@ -397,7 +401,12 @@ export async function explainCommand(args: string[], io: Io): Promise<number> {
   // workspace needs no store: --owner here names the actor only.
   const actor = buildActor(values, values.owner);
   const flags = { db: values.db, policy: values.policy, server: values.server };
-  const { conn } = session(io, flags, { requireStore: false, mustExist: true }, () => actor);
+  const { conn } = session(
+    io,
+    flags,
+    { requireStore: false, mustExist: true, readOnlyStore: true },
+    () => actor,
+  );
   try {
     const answer = result(
       await conn.client.POST("/api/v1/explain/{readId}", {
@@ -435,7 +444,7 @@ export async function retainCommand(args: string[], io: Io): Promise<number> {
   if (values.scope === undefined) throw new UsageError("give the scope with --scope <scope>");
   const at = checkTime("--at", values.at) ?? io.now();
   const actor = buildActor(values, values.owner, "user");
-  const { conn } = session(io, values, { requireStore: false }, () => actor);
+  const { conn } = session(io, values, { requireStore: false, readOnlyStore: true }, () => actor);
   try {
     const answer = result(
       await conn.client.POST("/api/v1/retain", { body: { actor, scope: values.scope, at } }),
