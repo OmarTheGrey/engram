@@ -120,7 +120,7 @@
   "model_saw_tagged": {
     "model_call": 4,
     "tool_call_id": "call-3",
-    "text": "<engram:memory read_id=\"01920000-0000-7000-8000-000000000007\" policy_id=\"preset.medium/read/person\" filtered=\"0\">\n<engram:item item_id=\"01920000-0000-7000-8000-000000000005\" scope=\"person:omar\" rank=\"1\" score=\"2.500\" policy_id=\"preset.medium/read/person\">\ndeploys happen on Tuesdays\n</engram:item>\n</engram:memory>"
+    "text": "<engram:memory read_id=\"01920000-0000-7000-8000-000000000007\" policy_id=\"preset.medium/read/person\" filtered=\"0\">\n<engram:item item_id=\"01920000-0000-7000-8000-000000000005\" scope=\"person:omar\" rank=\"1\" policy_id=\"preset.medium/read/person\">\ndeploys happen on Tuesdays\n</engram:item>\n</engram:memory>"
   },
   "user_bash": {
     "command": "mem0 list",
