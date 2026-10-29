@@ -313,7 +313,8 @@ forEachBackend((backend) => {
               .prepare("PRAGMA index_list(items)")
               .all()
               .find((i) => i.name === "items_store_ref")?.unique;
-      expect(unique).toBeOneOf([0, false]);
+      // Postgres's boolean reads back as 0 or 1, as SQLite's flag does (ADR 0024).
+      expect(unique).toBe(0);
       fresh.close();
     });
 
@@ -369,6 +370,31 @@ forEachBackend((backend) => {
       // instead of the last, or with b's denial or read counted, b would.
       expect(itemByStoreRef(fresh, K1)?.id).toBe(a.id);
       fresh.close();
+    });
+  });
+
+  describe("holders with no seq", () => {
+    // Rows that migration 2 backfilled without an event have a null seq; both
+    // backends order them after every holder with a seq (NULLS LAST).
+    const NS = { adapter: "fake", key: "no-seq" };
+    const holder = (n: number, seq: number | null, status = "active") => {
+      const it = item(n, { store_ref: NS, status: status as MemoryItem["status"] });
+      db.prepare(
+        "INSERT INTO items (id, status, body, store_adapter, store_key, seq) VALUES (?, ?, ?, ?, ?, ?)",
+      ).run(it.id, it.status, JSON.stringify(it), NS.adapter, NS.key, seq);
+      return it;
+    };
+
+    test("itemsByStoreRef lists a holder with no seq last", () => {
+      holder(1, null);
+      holder(2, 3);
+      expect(itemsByStoreRef(db, NS).map((i) => i.id)).toEqual([id(2), id(1)]);
+    });
+
+    test("when every holder is retired, a holder with a seq is returned before one without", () => {
+      holder(1, null, "retired");
+      holder(2, 3, "retired");
+      expect(itemByStoreRef(db, NS)?.id).toBe(id(2));
     });
   });
 

@@ -23,7 +23,11 @@ export interface Db {
   close(): void;
 }
 
-/** A statement did not answer within the backend's timeout; the connection is closed. */
+/**
+ * A statement ran past the backend's timeout. On Postgres, a statement the
+ * server cancelled leaves the Db usable; when nothing answered at all, the Db
+ * is closed and the server session may outlive it (postgres.ts).
+ */
 export class DbTimeoutError extends Error {
   override readonly name = "DbTimeoutError";
 }

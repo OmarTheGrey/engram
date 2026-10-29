@@ -32,11 +32,10 @@ const item = (n: number): MemoryItem => ({
   schema_version: 0,
 });
 
-const db = openPostgres(url);
+const db = openPostgres(url, { schema });
 let appended = 0;
 let error: string | undefined;
 try {
-  db.exec(`SET search_path TO ${schema}`);
   db.prepare("INSERT INTO ready VALUES (?)").run(actor);
   while (Number(db.prepare("SELECT count(*) AS n FROM ready").get()?.n) < Number(writersArg)) {
     // Spin until every writer is connected, so the appends overlap.

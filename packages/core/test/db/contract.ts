@@ -2,7 +2,8 @@
 // synchronous Db interface must do, as a suite run through a backend factory.
 // contract.test.ts runs it on node:sqlite and on Postgres. Column types differ
 // by dialect only where SQL itself differs (BLOB and BYTEA, REAL and DOUBLE
-// PRECISION); everything a caller observes is the same.
+// PRECISION); what a caller observes is the same, except the differences the
+// "documented differences" block pins per dialect (ADR 0024 amendments).
 import { afterEach, describe, expect, test } from "vitest";
 import type { Db, Param } from "../../src/db/db.ts";
 import { MIGRATIONS, migrate } from "../../src/db/migrate.ts";
@@ -119,6 +120,55 @@ export function dbContract(backend: Backend): void {
       const db = fresh();
       expect(() => db.prepare("SELECT a FROM no_such_table").all()).toThrow();
       expect(db.prepare("SELECT 1 AS one").get()).toEqual({ one: 1 });
+    });
+
+    test("sum and avg read back as numbers", () => {
+      const db = fresh();
+      db.exec("CREATE TABLE t (b BIGINT, i INTEGER)");
+      db.prepare("INSERT INTO t VALUES (?, ?)").run(5, 1);
+      db.prepare("INSERT INTO t VALUES (?, ?)").run(6, 2);
+      expect(db.prepare("SELECT sum(b) AS s, avg(i) AS a FROM t").get()).toEqual({ s: 11, a: 1.5 });
+    });
+
+    test("a boolean expression reads back as 1 or 0", () => {
+      const db = fresh();
+      db.exec("CREATE TABLE t (b BIGINT)");
+      db.prepare("INSERT INTO t VALUES (?)").run(5);
+      expect(db.prepare("SELECT (b = 5) AS yes, (b = 6) AS no FROM t").get()).toEqual({
+        yes: 1,
+        no: 0,
+      });
+    });
+  });
+
+  describe("documented differences", () => {
+    test("an unquoted alias keeps its case on SQLite and is folded on Postgres; a quoted one keeps it on both", () => {
+      const db = fresh();
+      const row = db.prepare('SELECT 1 AS seqNum, 2 AS "seqNum2"').get();
+      expect(row).toEqual(
+        db.dialect === "postgres" ? { seqnum: 1, seqNum2: 2 } : { seqNum: 1, seqNum2: 2 },
+      );
+    });
+
+    test("a fraction bound to an INTEGER column: SQLite stores it, Postgres refuses it", () => {
+      const db = fresh();
+      db.exec("CREATE TABLE t (i INTEGER)");
+      const insert = () => db.prepare("INSERT INTO t VALUES (?)").run(0.5);
+      if (db.dialect === "postgres") expect(insert).toThrow(/integer/);
+      else {
+        insert();
+        expect(db.prepare("SELECT i FROM t").get()).toEqual({ i: 0.5 });
+      }
+    });
+
+    test("invalid SQL throws at prepare on SQLite and at the first run on Postgres", () => {
+      const db = fresh();
+      if (db.dialect === "postgres") {
+        const statement = db.prepare("SELEC nonsense");
+        expect(() => statement.all()).toThrow();
+      } else {
+        expect(() => db.prepare("SELEC nonsense")).toThrow();
+      }
     });
   });
 

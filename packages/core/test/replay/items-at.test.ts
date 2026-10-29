@@ -192,63 +192,75 @@ forEachBackend((backend) => {
   describe("itemsAt", () => {
     test("the fixture workload: rebuilt set equals live set at every seq", () => {
       const db = backend.open();
-      migrate(db);
-      const live = appendObserving(db, WORKLOAD);
-      expect(itemsAt(db, -1)).toEqual([]);
-      live.forEach((set, seq) => {
-        expect(itemsAt(db, seq), `seq ${seq}`).toEqual(set);
-      });
-      // The fixture exercises every change: the final set differs from every earlier one.
-      expect(new Set(live.map((s) => JSON.stringify(s))).size).toBeGreaterThan(5);
-      db.close();
+      try {
+        migrate(db);
+        const live = appendObserving(db, WORKLOAD);
+        expect(itemsAt(db, -1)).toEqual([]);
+        live.forEach((set, seq) => {
+          expect(itemsAt(db, seq), `seq ${seq}`).toEqual(set);
+        });
+        // The fixture exercises every change: the final set differs from every earlier one.
+        expect(new Set(live.map((s) => JSON.stringify(s))).size).toBeGreaterThan(5);
+      } finally {
+        db.close();
+      }
     });
 
     test("the fixture workload matches a hand-written oracle where the projection rule decides", () => {
       // Replay and the projection share applyEvent, so their equality cannot
       // catch a wrong rule (review finding R2-1). These states are written by hand.
       const db = backend.open();
-      migrate(db);
-      appendObserving(db, WORKLOAD);
-      const promoted = item(2, { class: "semantic", scope: "team:platform" });
-      const corrected = item(4, {
-        version: 2,
-        lineage: [id(1)],
-        content: "observation 1, corrected",
-      });
-      // seq 2: the denied write of item 3 adds nothing.
-      expect(itemsAt(db, 2)).toEqual([item(1), item(2)]);
-      // seq 5: the allowed retirement of item 1 keeps it, retired.
-      expect(itemsAt(db, 5)).toEqual([{ ...item(1), status: "retired" }, item(2), corrected]);
-      // seq 7: the denied eviction leaves item 4 active.
-      expect(itemsAt(db, 7)).toEqual([{ ...item(1), status: "retired" }, promoted, corrected]);
-      // seq 9: retiring the unknown item 9 creates nothing; seq 10 (ask gate) changes nothing.
-      expect(itemsAt(db, 10)).toEqual(itemsAt(db, 7));
-      // seq 12: the allowed eviction retires item 4.
-      expect(itemsAt(db, 12)).toEqual([
-        { ...item(1), status: "retired" },
-        promoted,
-        { ...corrected, status: "retired" },
-      ]);
-      db.close();
+      try {
+        migrate(db);
+        appendObserving(db, WORKLOAD);
+        const promoted = item(2, { class: "semantic", scope: "team:platform" });
+        const corrected = item(4, {
+          version: 2,
+          lineage: [id(1)],
+          content: "observation 1, corrected",
+        });
+        // seq 2: the denied write of item 3 adds nothing.
+        expect(itemsAt(db, 2)).toEqual([item(1), item(2)]);
+        // seq 5: the allowed retirement of item 1 keeps it, retired.
+        expect(itemsAt(db, 5)).toEqual([{ ...item(1), status: "retired" }, item(2), corrected]);
+        // seq 7: the denied eviction leaves item 4 active.
+        expect(itemsAt(db, 7)).toEqual([{ ...item(1), status: "retired" }, promoted, corrected]);
+        // seq 9: retiring the unknown item 9 creates nothing; seq 10 (ask gate) changes nothing.
+        expect(itemsAt(db, 10)).toEqual(itemsAt(db, 7));
+        // seq 12: the allowed eviction retires item 4.
+        expect(itemsAt(db, 12)).toEqual([
+          { ...item(1), status: "retired" },
+          promoted,
+          { ...corrected, status: "retired" },
+        ]);
+      } finally {
+        db.close();
+      }
     });
 
     test("rebuilds from the event log alone, without the item projection", () => {
       const db = backend.open();
-      migrate(db);
-      const live = appendObserving(db, WORKLOAD);
-      db.exec("DELETE FROM items");
-      live.forEach((set, seq) => {
-        expect(itemsAt(db, seq), `seq ${seq}`).toEqual(set);
-      });
-      db.close();
+      try {
+        migrate(db);
+        const live = appendObserving(db, WORKLOAD);
+        db.exec("DELETE FROM items");
+        live.forEach((set, seq) => {
+          expect(itemsAt(db, seq), `seq ${seq}`).toEqual(set);
+        });
+      } finally {
+        db.close();
+      }
     });
 
     test("a seq past the end of the log is the current set", () => {
       const db = backend.open();
-      migrate(db);
-      const live = appendObserving(db, WORKLOAD);
-      expect(itemsAt(db, WORKLOAD.length + 10)).toEqual(live.at(-1));
-      db.close();
+      try {
+        migrate(db);
+        const live = appendObserving(db, WORKLOAD);
+        expect(itemsAt(db, WORKLOAD.length + 10)).toEqual(live.at(-1));
+      } finally {
+        db.close();
+      }
     });
 
     const NAME =
@@ -260,18 +272,21 @@ forEachBackend((backend) => {
       fc.assert(
         fc.property(sequences, (events) => {
           const db = backend.open();
-          migrate(db);
-          const live = appendObserving(
-            db,
-            events.map((e, i) => ({
-              ...e,
-              id: `${e.id.slice(0, 24)}${String(i).padStart(12, "0")}`,
-            })),
-          );
-          live.forEach((set, seq) => {
-            expect(itemsAt(db, seq), `seq ${seq}`).toEqual(set);
-          });
-          db.close();
+          try {
+            migrate(db);
+            const live = appendObserving(
+              db,
+              events.map((e, i) => ({
+                ...e,
+                id: `${e.id.slice(0, 24)}${String(i).padStart(12, "0")}`,
+              })),
+            );
+            live.forEach((set, seq) => {
+              expect(itemsAt(db, seq), `seq ${seq}`).toEqual(set);
+            });
+          } finally {
+            db.close();
+          }
         }),
         { numRuns: backend.runs(300), seed: seedFor(NAME) },
       );
@@ -310,51 +325,56 @@ forEachBackend((backend) => {
       fc.assert(
         fc.property(sequences, (events) => {
           const db = backend.open();
-          migrate(db);
-          // The oracle, written from decision D1 and its round 2 refinement
-          // without the projection: an item's seq is that of the last allowed
-          // event that changed it; a holder is superseded when an active
-          // holder's lineage, followed through every projected item, names it.
-          const lastSeq = new Map<string, number>();
-          events.forEach((e, seq) => {
-            appendEvent(db, { ...e, id: `${e.id.slice(0, 24)}${String(seq).padStart(12, "0")}` });
-            if (e.decision === "allow" && e.item_id) {
-              const changes = ["write", "update", "promote"].includes(e.op) && e.item;
-              const retires = ["retire", "evict"].includes(e.op) && lastSeq.has(e.item_id);
-              if (changes || retires) lastSeq.set(e.item_id, seq);
-            }
-            const now = itemsAt(db, seq);
-            const byId = new Map(now.map((i) => [i.id, i]));
-            const ancestors = (start: MemoryItem) => {
-              const seen = new Set<string>([start.id]);
-              const out = new Set<string>();
-              const queue = [...start.lineage];
-              while (queue.length > 0) {
-                const next = queue.shift() as string;
-                if (seen.has(next)) continue;
-                seen.add(next);
-                out.add(next);
-                queue.push(...(byId.get(next)?.lineage ?? []));
+          try {
+            migrate(db);
+            // The oracle, written from decision D1 and its round 2 refinement
+            // without the projection: an item's seq is that of the last allowed
+            // event that changed it; a holder is superseded when an active
+            // holder's lineage, followed through every projected item, names it.
+            const lastSeq = new Map<string, number>();
+            events.forEach((e, seq) => {
+              appendEvent(db, { ...e, id: `${e.id.slice(0, 24)}${String(seq).padStart(12, "0")}` });
+              if (e.decision === "allow" && e.item_id) {
+                const changes = ["write", "update", "promote"].includes(e.op) && e.item;
+                const retires = ["retire", "evict"].includes(e.op) && lastSeq.has(e.item_id);
+                if (changes || retires) lastSeq.set(e.item_id, seq);
               }
-              return out;
-            };
-            for (const ref of STORE_REFS) {
-              const holders = now
-                .filter((i) => i.store_ref?.adapter === ref.adapter && i.store_ref.key === ref.key)
-                .sort((a, b) => (lastSeq.get(b.id) ?? -1) - (lastSeq.get(a.id) ?? -1));
-              if (holders.length > 1) shared++;
-              const active = holders.filter((i) => i.status !== "retired");
-              const superseded = new Set(active.flatMap((i) => [...ancestors(i)]));
-              const newest = active.filter((i) => !superseded.has(i.id));
-              const expected = newest[0] ?? active[0] ?? holders[0];
-              if (expected !== undefined && expected !== (active[0] ?? holders[0]))
-                lineageDecided++;
-              expect(itemByStoreRef(db, ref), `seq ${seq} ref ${ref.adapter}/${ref.key}`).toEqual(
-                expected,
-              );
-            }
-          });
-          db.close();
+              const now = itemsAt(db, seq);
+              const byId = new Map(now.map((i) => [i.id, i]));
+              const ancestors = (start: MemoryItem) => {
+                const seen = new Set<string>([start.id]);
+                const out = new Set<string>();
+                const queue = [...start.lineage];
+                while (queue.length > 0) {
+                  const next = queue.shift() as string;
+                  if (seen.has(next)) continue;
+                  seen.add(next);
+                  out.add(next);
+                  queue.push(...(byId.get(next)?.lineage ?? []));
+                }
+                return out;
+              };
+              for (const ref of STORE_REFS) {
+                const holders = now
+                  .filter(
+                    (i) => i.store_ref?.adapter === ref.adapter && i.store_ref.key === ref.key,
+                  )
+                  .sort((a, b) => (lastSeq.get(b.id) ?? -1) - (lastSeq.get(a.id) ?? -1));
+                if (holders.length > 1) shared++;
+                const active = holders.filter((i) => i.status !== "retired");
+                const superseded = new Set(active.flatMap((i) => [...ancestors(i)]));
+                const newest = active.filter((i) => !superseded.has(i.id));
+                const expected = newest[0] ?? active[0] ?? holders[0];
+                if (expected !== undefined && expected !== (active[0] ?? holders[0]))
+                  lineageDecided++;
+                expect(itemByStoreRef(db, ref), `seq ${seq} ref ${ref.adapter}/${ref.key}`).toEqual(
+                  expected,
+                );
+              }
+            });
+          } finally {
+            db.close();
+          }
         }),
         { numRuns: backend.runs(200), seed: seedFor(REF_NAME) },
       );

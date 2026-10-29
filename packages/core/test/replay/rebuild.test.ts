@@ -18,14 +18,17 @@ forEachBackend((backend) => {
     fc.assert(
       fc.property(sequences, (events) => {
         const db = backend.open();
-        migrate(db);
-        events.forEach((e, i) => {
-          appendEvent(db, { ...e, id: `${e.id.slice(0, 24)}${String(i).padStart(12, "0")}` });
-        });
-        const incremental = currentItems(db);
-        rebuild(db);
-        expect(currentItems(db)).toEqual(incremental);
-        db.close();
+        try {
+          migrate(db);
+          events.forEach((e, i) => {
+            appendEvent(db, { ...e, id: `${e.id.slice(0, 24)}${String(i).padStart(12, "0")}` });
+          });
+          const incremental = currentItems(db);
+          rebuild(db);
+          expect(currentItems(db)).toEqual(incremental);
+        } finally {
+          db.close();
+        }
       }),
       { numRuns: backend.runs(500), seed: seedFor(NAME) },
     );
