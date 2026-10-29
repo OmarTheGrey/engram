@@ -15,9 +15,15 @@ process.emitWarning = ((warning: string | Error, ...rest: unknown[]) => {
   (emitWarning as (...a: unknown[]) => void)(warning, ...rest);
 }) as typeof process.emitWarning;
 
+const { existsSync } = await import("node:fs");
 const { homedir } = await import("node:os");
+const { join } = await import("node:path");
+const { fileURLToPath } = await import("node:url");
 const { run } = await import("./run.ts");
 const { uuidv7 } = await import("./uuid.ts");
+
+// The checkout this file runs from, for doctor's pin checks: packages/cli/src is three levels down.
+const repo = fileURLToPath(new URL("../../..", import.meta.url));
 
 process.exitCode = await run(process.argv.slice(2), {
   out: (text) => process.stdout.write(text),
@@ -26,4 +32,7 @@ process.exitCode = await run(process.argv.slice(2), {
   home: homedir(),
   now: () => new Date().toISOString(),
   newId: () => uuidv7(),
+  env: process.env,
+  nodeVersion: process.versions.node,
+  repo: existsSync(join(repo, "pnpm-workspace.yaml")) ? repo : undefined,
 });
