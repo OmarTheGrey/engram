@@ -99,8 +99,8 @@ describe.skipIf(skip !== undefined)("the inspector on the fixture workspace", ()
   it("shows on the timeline the events visibleEvents gives the viewer", async () => {
     const log = fixture.workspace.plane.events();
     const visible = visibleEvents(fixture.viewer, log);
-    // The workload's nine visible events and the lanes' read; the log holds more.
-    expect(visible).toHaveLength(10);
+    // The workload's twelve visible events and the lanes' read; the log holds more.
+    expect(visible).toHaveLength(13);
     expect(log.length).toBeGreaterThan(visible.length);
     expect(await page.getByTestId("timeline-row").count()).toBe(visible.length);
     expect(
@@ -112,14 +112,21 @@ describe.skipIf(skip !== undefined)("the inspector on the fixture workspace", ()
     await page.getByTestId("filter-decision").selectOption("deny");
     expect(await page.getByTestId("timeline-row").count()).toBe(1);
     await page.getByTestId("filter-decision").selectOption("");
-    expect(await page.getByTestId("timeline-row").count()).toBe(10);
+    expect(await page.getByTestId("timeline-row").count()).toBe(13);
   });
 
   it("explains the viewer's read with the filtered count its event records", async () => {
     const read = fixture.reads.get("dana");
     if (!read) throw new Error("the workload has no read by dana");
     const counts = readCounts(read.event);
-    expect(counts?.filtered).toBe(3);
+    // Distinct counts per category, so a category shown under another's label fails.
+    expect(counts).toMatchObject({
+      filtered: 6,
+      outside_validity: 3,
+      not_active: 2,
+      expired: 1,
+      excluded: 0,
+    });
     await page.locator(`[data-testid="timeline-row"][data-id="${read.event.id}"]`).click();
     const filtered = page.getByTestId("explain-filtered");
     await filtered.waitFor();
@@ -127,7 +134,9 @@ describe.skipIf(skip !== undefined)("the inspector on the fixture workspace", ()
     expect(Number(await filtered.textContent())).toBe(read.filtered);
     const categories = await page
       .getByTestId("explain-category")
-      .evaluateAll((li) => li.map((l) => [l.dataset.key, Number.parseInt(l.textContent ?? "", 10)]));
+      .evaluateAll((li) =>
+        li.map((l) => [l.dataset.key, Number.parseInt(l.textContent ?? "", 10)]),
+      );
     expect(categories).toEqual([
       ["outside_validity", counts?.outside_validity],
       ["not_active", counts?.not_active],

@@ -32,6 +32,15 @@ Amendments made in PR 3 of the plan (cards E8.1, E8.3, E8.2, E8.4; branch gb-pr3
 - Review fix pass (findings R3-11 and R3-12): after binding, `listen` and the MCP server's HTTP transport check that the bound address is loopback (127.0.0.0/8, ::1, or mapped 127) and close the socket if it is not, since `localhost` is resolved by the system; the MCP HTTP endpoint has the same 1 MiB body cap as the API.
 - The viewer of `GET /viewer` is `engram serve --as` with `--member` and `--level`, built as the CLI builds actors, without a source.
 
+Amendments made by cards E8.5 and E8.6, 2026-10-29 (branch `gb-pr4-inspector`, PR 4 of the Gate B plan; pending the lead's review like the rest of this ADR):
+
+- The inspector's stack: Vite 8.3.4 (the version vitest already runs on) and React 19.2.9, with no `@vitejs/plugin-react` (Vite's own transform compiles TSX as `packages/ui/tsconfig.json` says, and a production build needs no fast refresh), no router, no state or CSS library, system fonts only. `make ui` builds it into `packages/ui/dist`. TypeScript 7 checks it under `make lint` through `packages/ui/tsconfig.json` (DOM library, `react-jsx`); the root tsconfig excludes `packages/ui`.
+- Serving: `createApp` takes a `ui` directory and serves it at `/` for GET and HEAD outside `/api/v1`, after the Host and Origin guards; `listen` passes the built `packages/ui/dist` when it holds an `index.html`, so `engram serve` serves the inspector with no flag. A path is decoded once and refused with a backslash, a NUL or a `.` or `..` segment, and the file must resolve, links followed, inside the directory; a path without an extension that names no file gets `index.html`. Every inspector response carries a same-origin Content-Security-Policy (`default-src 'self'`, `connect-src 'self'`), `nosniff` and `no-referrer`. With no build, `/` answers 404 naming `make ui`.
+- The counts: `formatReadReason`, `parseReadReason` and `readCounts` live in `packages/core/src/plane/read-reason.ts`; the explain route returns `counts` (the `ReadCounts` component) beside the explanations, null for a reason the plane did not write in that form.
+- Another actor's read: reads name no scope, so `visibleEvents` never lists another actor's read. The explain view meets one when the viewer changes while a read is selected; it shows the event and the line that only its reader may explain it, without calling explain, and a 403 renders the same line.
+- Each load of the lanes is one read as the viewer at the server's clock, so it appends a read event the timeline then shows (decision 5 accepts this: a read that left no event would bypass rule 2).
+- Layer 6 drives Chromium through the `playwright` library (1.64.1) from vitest; `pnpm exec playwright install chromium` provides the browser, and the e2e workflow installs it with its system libraries.
+
 ## Alternatives considered
 
 - `@hono/zod-openapi` or Fastify with a Zod type provider: a second schema layer pinned to its own Zod range; the table plus `z.toJSONSchema` is a few dozen lines over the contracts core already exports.

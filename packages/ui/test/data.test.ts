@@ -37,9 +37,9 @@ describe("the inspector's calls on the fixture workspace", () => {
       ["person:dana", ids([1, 9])],
       ["team:core", ids([2, 6])],
     ]);
-    // Out of the window, past their ttl, a candidate, another person's, and the denied write.
+    // Out of the window, past their ttl, candidates, another person's, and the denied write.
     const shown = new Set(lanes.flatMap((l) => l.items.map((i) => i.id)));
-    for (const hidden of ids([3, 4, 5, 7, 8])) expect(shown.has(hidden)).toBe(false);
+    for (const hidden of ids([3, 4, 5, 7, 8, 10, 11, 12])) expect(shown.has(hidden)).toBe(false);
   });
 
   it("shows the timeline core's visibleEvents gives the viewer, and no more", async () => {
@@ -48,7 +48,7 @@ describe("the inspector's calls on the fixture workspace", () => {
     const expected = visibleEvents(viewer, workspace.plane.events());
     expect(events).toEqual(expected);
     expect(events.length).toBeLessThan(workspace.plane.events().length);
-    expect(events.length).toBe(9);
+    expect(events.length).toBe(12);
   });
 
   it("explains the viewer's own read with the filtered count its event records", async () => {
@@ -59,7 +59,12 @@ describe("the inspector's calls on the fixture workspace", () => {
     if (view.kind !== "own") throw new Error(view.kind);
     expect(view.counts).toEqual(readCounts(read.event));
     expect(view.counts?.filtered).toBe(read.filtered);
-    expect(view.counts?.filtered).toBe(3);
+    expect(view.counts).toMatchObject({
+      filtered: 6,
+      outside_validity: 3,
+      not_active: 2,
+      expired: 1,
+    });
     expect(view.rows.map((r) => r.itemId)).toEqual(read.explanations.map((e) => e.item_id));
   });
 

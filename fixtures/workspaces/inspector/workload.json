@@ -68,6 +68,24 @@
         "grants": [{ "to": "person:eve", "mode": "read", "class": "semantic", "expires": "2026-12-31T00:00:00.000Z" }]
       }
     },
+    {
+      "op": "write",
+      "as": "dana",
+      "at": "2026-10-23T09:05:00.000Z",
+      "item": { "id": "01940000-0000-7000-8000-000000000010", "scope": "person:dana", "status": "candidate", "content": "Dana might take Friday off.", "valid_from": "2026-10-23T00:00:00.000Z" }
+    },
+    {
+      "op": "write",
+      "as": "dana",
+      "at": "2026-10-23T09:10:00.000Z",
+      "item": { "id": "01940000-0000-7000-8000-000000000011", "scope": "team:core", "content": "The new build server goes live in November.", "valid_from": "2026-11-15T00:00:00.000Z" }
+    },
+    {
+      "op": "write",
+      "as": "dana",
+      "at": "2026-10-23T09:15:00.000Z",
+      "item": { "id": "01940000-0000-7000-8000-000000000012", "scope": "team:core", "content": "The September sprint goal was the migration.", "valid_from": "2026-09-01T00:00:00.000Z", "valid_to": "2026-10-01T00:00:00.000Z" }
+    },
     { "op": "read", "as": "dana", "at": "2026-10-28T09:00:00.000Z" },
     { "op": "read", "as": "sam", "at": "2026-10-28T09:30:00.000Z" },
     { "op": "read", "as": "eve", "at": "2026-10-28T10:00:00.000Z" }
