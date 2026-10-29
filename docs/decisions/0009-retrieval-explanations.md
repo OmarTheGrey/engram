@@ -35,6 +35,12 @@ Amendments made in the review fix pass, 2026-10-25 (PR #7, findings R7-1 to R7-1
 - Limit: a `context` or later handler of another extension that runs after Engram's can still change what is sent; an extension is code in the same process and can reach the store itself. The extension's tag.ts header says so.
 - Finding R7-13: `memory_explain` is answered by `Plane.explain(actor, readId)`, which refuses another actor's read (decision D5); `memory_simulate` replays only the events this extension mirrored into the session.
 
+Amendments made in the second review round, 2026-10-29 (PR #7, verifier report defects 3, 5 and 6; pending the lead's review like the rest of this ADR):
+
+- Defect 3: in every message the extension did not rebuild (a file read, another tool's result, a user or assistant message, a bash execution, another extension's custom message, a summary), every tag opener (`<` or a lookalike, optional spaces, invisible characters and `/`, then `engram`) is defused to `&lt;`, in the `context` handler and in the messages compaction and branch summaries are made from. So the only Engram markup the model sees is what the extension rebuilt from its record. Chosen over a per-session secret nonce in the tag, which protects nothing unless the model checks it, while defusing depends neither on the model nor on any text the attacker controls. Thinking blocks (signed by the provider) and the system prompt are not defused.
+- Defect 5: pi's `summarizeForBugReport` sends the session's messages to the model with no `context` event and no hook. The session now keeps no memory text: a memory_read result and a recall message are stored with a placeholder naming the read and its counts, the admitted items stay in the details (which pi never sends to a model) and in the extension's record, and the `context` handler still shows the model the tagged items. Limit: another extension can still write memory text into the session's messages itself, for example by rewriting a result in its tool_result handler.
+- Defect 6: the branch-summary handler is tested in a real session (`navigateTree` with a summary): the summariser receives the notice in place of the recall, and a forged tag in a user message or another extension's custom message arrives defused.
+
 ## Alternatives considered
 
 No alternatives were recorded beyond the recommendation.
