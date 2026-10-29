@@ -32,6 +32,7 @@ import { bodyLimit } from "hono/body-limit";
 import type { z } from "zod";
 import type { ErrorResponse } from "./contract.ts";
 import { API_PREFIX, ROUTES, type Route } from "./routes.ts";
+import { uiResponse } from "./static.ts";
 import { NoStoreError, type Workspace } from "./workspace.ts";
 
 /** The largest request body accepted, in bytes. */
@@ -48,6 +49,11 @@ export interface AppOptions {
   now: () => string;
   /** Where a 500's error goes; the response never carries it. */
   onError?: (error: unknown) => void;
+  /**
+   * The built inspector's directory (packages/ui/dist, card E8.5), served at
+   * / beside the API; none when null or absent (static.ts).
+   */
+  ui?: string | null;
 }
 
 type ErrorBody = z.infer<typeof ErrorResponse>;
@@ -126,6 +132,18 @@ export function createApp(workspace: Workspace, options: AppOptions): Hono {
   );
 
   for (const r of ROUTES) register(app, r, workspace, options);
+
+  // The inspector's files, after the guards above and outside /api/v1 only.
+  const ui = options.ui ?? null;
+  app.on(["GET", "HEAD"], "*", (c, next) => {
+    const { pathname } = new URL(c.req.url);
+    if (pathname === API_PREFIX || pathname.startsWith(`${API_PREFIX}/`)) return next();
+    if (ui === null)
+      return pathname === "/"
+        ? failure(404, "not_found", "the inspector is not built; run make ui")
+        : next();
+    return uiResponse(ui, pathname, c.req.method === "HEAD") ?? next();
+  });
 
   app.notFound(() => failure(404, "not_found", "no such route"));
   app.onError((e) => mapError(e, options.onError));

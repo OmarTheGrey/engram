@@ -1,0 +1,55 @@
+# The inspector's fixture policy (cards E8.5 and E8.6). The medium preset's
+# write rules and read matrix, with retention reduced to the person-scope
+# episodic ttl the workload's expired item needs, and no lints. A test builds
+# the workspace from this file and workload.json at run time.
+id: fixture.inspector
+version: 1
+write:
+  - scope: person
+    allowed_sources: [user, document, tool, import, model, compaction]
+    confidence_floor: 0.3
+    forbidden_classes: []
+    requires_review: false
+  - scope: role
+    allowed_sources: [user, document, tool, import]
+    confidence_floor: 0.5
+    forbidden_classes: [episodic]
+    requires_review: false
+  - scope: team
+    allowed_sources: [user, document, tool, import]
+    confidence_floor: 0.6
+    forbidden_classes: [episodic]
+    requires_review: false
+  - scope: org
+    allowed_sources: [user, document, tool, import]
+    confidence_floor: 0.8
+    forbidden_classes: [episodic]
+    requires_review: true
+read:
+  matrix:
+    - reader: person
+      may_read: [person, role, team, org]
+    - reader: role
+      may_read: [person, role, team, org]
+    - reader: team
+      may_read: [role, team, org]
+    - reader: org
+      may_read: [team, org]
+  honour_grants: true
+retention:
+  - scope: person
+    class: episodic
+    ttl: 7776000 # 90 days
+    budget: null
+    eviction: manual
+promotion:
+  episodic_to_semantic:
+    confirmations: 3
+    or_review: true
+  procedural:
+    replay_k: 4
+    replay_n: 5
+lints:
+  enabled: []
+  thresholds: {}
+schema_version: 0
