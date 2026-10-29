@@ -26,7 +26,7 @@ export async function runMemInvMain(path: string, out: string, record: boolean):
         .filter((d) => d.op === "read")
         .map((d) => `    action-time read: ${d.decision} ${d.policy_id}: ${d.reason}`),
     ]),
-    "pipeline config: scripted model, rule-based scorer only; these are not results",
+    "pipeline config: scripted model, rule-based scorer only; these are not results. Each verdict is the scripted reply's and says nothing about the plane; the plane's part is the write and read decisions above",
     `written to ${out}`,
   ];
   console.log(lines.join("\n"));
