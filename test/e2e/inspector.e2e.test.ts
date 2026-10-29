@@ -20,7 +20,6 @@ import {
   listen,
   readCounts,
   UI_DIST,
-  visibleEvents,
 } from "../../packages/ui/test/workspace.ts";
 
 const ids = (n: number[]) => n.map((k) => `01940000-0000-7000-8000-${String(k).padStart(12, "0")}`);
@@ -111,7 +110,7 @@ describe.skipIf(skip !== undefined)("the inspector on the fixture workspace", ()
 
   it("shows on the timeline the events visibleEvents gives the viewer", async () => {
     const log = fixture.workspace.plane.events();
-    const visible = visibleEvents(fixture.viewer, log);
+    const visible = fixture.timelineOf(fixture.viewer);
     // The workload's thirteen visible events and the lanes' read; the log holds more.
     expect(visible).toHaveLength(14);
     expect(log.length).toBeGreaterThan(visible.length);
@@ -203,7 +202,7 @@ describe.skipIf(skip !== undefined)("the inspector on the fixture workspace", ()
     // Eve may not see sam's write to his own scope: it is no longer on screen.
     expect(await page.getByTestId("event-detail").count()).toBe(0);
     expect(await page.getByTestId("filter-op").inputValue()).toBe("");
-    const visible = visibleEvents(eve, fixture.workspace.plane.events());
+    const visible = fixture.timelineOf(eve);
     expect(visible.map((e) => e.id)).not.toContain(samsWrite.id);
     expect(await page.getByTestId("timeline-row").count()).toBe(visible.length);
   });

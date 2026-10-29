@@ -7,13 +7,13 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { createFakeAdapter } from "@engram/adapters";
-import { migrate, openSqlite, parsePolicy } from "@engram/core";
+import { currentItems, migrate, openSqlite, parsePolicy, visibleEvents } from "@engram/core";
 import { createApp, workspaceOf } from "@engram/server";
 import { type Actor, createEngramClient, type ReadResponse } from "../src/api/index.ts";
 
 // What the layer 6 test needs from core and the server, which the repository
 // root does not depend on.
-export { readCounts, visibleEvents } from "@engram/core";
+export { readCounts } from "@engram/core";
 export { builtUi, type Listening, listen, UI_DIST } from "@engram/server";
 
 export const FIXTURE_DIR = fileURLToPath(
@@ -102,5 +102,18 @@ export async function inspectorWorkspace() {
       reads.set(step.as, data);
     }
   }
-  return { workload: w, workspace, policy, viewer, app, client, reads, decisions };
+  /**
+   * The timeline core's visibleEvents gives `actor` over the log as it is now,
+   * at the server's clock: the events it may see, each item withheld unless
+   * the read filter would return it (what POST /events answers).
+   */
+  const timelineOf = (actor: Actor) => {
+    const items = new Map(currentItems(db).map((i) => [i.id, i]));
+    return visibleEvents(actor, workspace.plane.events(), {
+      policy,
+      at: w.now,
+      current: (id) => items.get(id),
+    });
+  };
+  return { workload: w, workspace, policy, viewer, app, client, reads, decisions, timelineOf };
 }

@@ -4,7 +4,7 @@
 // lanes hold nothing the plane's read did not return), the timeline is what
 // core's visibleEvents gives the viewer, and the explain view's filtered count
 // is the read event's.
-import { readCounts, visibleEvents } from "@engram/core";
+import { readCounts } from "@engram/core";
 import { describe, expect, it } from "vitest";
 import type { Actor } from "../src/api/index.ts";
 import { fetchExplain, fetchTimeline, fetchViewer, inspect } from "../src/data.ts";
@@ -43,9 +43,9 @@ describe("the inspector's calls on the fixture workspace", () => {
   });
 
   it("shows the timeline core's visibleEvents gives the viewer, and no more", async () => {
-    const { client, viewer, workspace } = await inspectorWorkspace();
+    const { client, viewer, workspace, timelineOf } = await inspectorWorkspace();
     const events = await fetchTimeline(client, viewer);
-    const expected = visibleEvents(viewer, workspace.plane.events());
+    const expected = timelineOf(viewer);
     expect(events).toEqual(expected);
     expect(events.length).toBeLessThan(workspace.plane.events().length);
     expect(events.length).toBe(13);
