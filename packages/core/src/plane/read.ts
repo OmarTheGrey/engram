@@ -3,7 +3,7 @@
 // reach (a readable scope, or a grant whose `to` matches it), narrowed by the
 // adapter's search when there is query text (or by term matching in the plane
 // when the store has no search). Each candidate goes through the read filter
-// (status, scope and matrix or grants, validity window at the query time); the
+// (status, ttl, scope and matrix or grants, validity window at the query time); the
 // admitted ones are ranked by named score components and explained; one read
 // event is appended and the explanations are stored under its id, in the same
 // transaction, so `explain(actor, readId)` returns exactly what the read
@@ -114,6 +114,7 @@ export async function filteredRead(
     grant: 0,
     excluded: 0,
     "not-active": 0,
+    expired: 0,
     "outside-validity": 0,
   };
   const passed = candidates.flatMap((item) => {
@@ -149,11 +150,14 @@ export async function filteredRead(
     schema_version: 0 as const,
   }));
   // Reachable candidates the filter removed: outside the validity window, not
-  // active, or reached through a grant whose class or expiry fails.
-  const filtered = counts.excluded + counts["outside-validity"] + counts["not-active"];
+  // active, past their ttl (a lifecycle exclusion before any sweep, ADR
+  // 0025), or reached through a grant whose class or expiry fails.
+  const filtered =
+    counts.excluded + counts["outside-validity"] + counts["not-active"] + counts.expired;
   const reason =
     `returned ${admitted.length} of ${candidates.length} candidates; ${filtered} filtered ` +
     `(${counts["outside-validity"]} outside the validity window, ${counts["not-active"]} not active, ` +
+    `${counts.expired} past their ttl, ` +
     `${counts.excluded} by a grant's class or expiry); ` +
     `${outOfReach} projected ${outOfReach === 1 ? "item" : "items"} outside the reader's reach ` +
     "were not candidates";

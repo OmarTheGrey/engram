@@ -27,6 +27,9 @@ CI runs layers 1 to 5 and 7 on every PR, 6 and 8 on main and nightly. A PR that 
 - `Plane.write(actor, item)` never lands an item in a scope whose policy forbids its class or its source.
 - Every denied read or write produced exactly one event with a reason and a policy id.
 - Replaying the events produced by any sequence of writes yields the same store state and the same read results.
+- After any write sequence no scope holds more active items of a class, not past their ttl, than its recency or utility budget; each write's and each sweep's retirements are exactly the oracle's (a manual rule asks once per overage state); every retire or evict event carries a reason and a policy id, and replay reproduces them (card E2.4, ADR 0025).
+
+Invariant 1's oracle also excludes an item past its ttl, and invariant 2's forbids a model, compaction or tool write restating content an allowed retire or evict event retired in its scope (ADR 0025).
 
 This file is owned by the lead. Changing it needs a second reviewer and a `decision` log entry. It never has a skip.
 

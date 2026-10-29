@@ -37,6 +37,15 @@ Amendments made in the review fix pass, 2026-10-25 (PR #7, findings R7-1 to R7-1
 - Decision D12 (findings R7-3, R7-4): in a pi session the gate decides in `tool_call` and commits in the tool's `execute`. `Plane.checkWrite(actor, item, at)` gives the decision `write` would give, computed by the same code, with no store write and no event; a deny is then committed in `tool_call` (one deny event) and blocks the call with the Plane's reason. An allowed write is committed by `Plane.write` in `execute`, from the arguments execute receives, so a call that a later handler blocks or that is aborted before it runs never reaches the store or the log as allowed. No pending state is kept between the two: each execute builds its own item, so two calls sharing a tool call id are two writes with their own results (D12 asked for pending state keyed by tool call id; with none, the case cannot cross).
 - Decision D4 as the extension applies it: the agent's writes carry the actor's source `model`, so the plane sets the provenance kind and actor.
 
+Amendments made when implementing card E2.4, 2026-10-29 (ADR 0025; pending the lead's review like the rest of this ADR):
+
+- The write queue of finding N2 is its own module, `inWriteQueue(db, task)` in packages/core/src/plane/queue.ts, shared by every Plane call that changes items: `Plane.write` and `Plane.retain` now, `Plane.promote` (card E2.5) next. After a landing write, its budget check (ADR 0025) runs in the same queue slot, so no other write or sweep interleaves between the write and its evictions.
+- The gate gains a check after the confidence floor: a `model`, `compaction` or `tool` write whose normalised content hash equals that of an item retired in its scope is denied with `engram/write/retired-content` (ADR 0025, decision 5). `Plane.checkWrite` gives the same decision.
+
+- Review fix pass of PR 4 (findings P4-3 and P4-8, and the review's note on adoption): a call to `inWriteQueue` from inside a task on the same db rejects with `NestedWriteQueueError` instead of waiting for itself and stalling the log's queue; inside a task the in-slot primitives are `enforceBudget` and `appendEvent`. Adoption's retractions are appended inside the write queue, reading the projection again there. The retired-content check counts only items an allowed retire or evict event retired, never one written with status `retired`.
+
+- Verification of PR 4 (findings P4-13 and P4-16): the nesting guard refuses a call only while the slot whose async context it was made from is still running, so a callback created in a slot that fires after it ended queues normally. The retired-content check also ignores retirements by the item's own ttl (`engram/retention/item-ttl`), which its writer chose (ADR 0025).
+
 ## Alternatives considered
 
 (a) Deterministic rules only: source kind, scope, class, provenance presence, hash, size, and a per-scope budget. (b) Add a model-based classifier at write time.
