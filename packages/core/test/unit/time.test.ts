@@ -1,7 +1,7 @@
 // Unit tests for the timestamp helper (decision D7): comparisons at full
 // precision, at the nanosecond boundaries Date.parse cannot see.
 import { describe, expect, test } from "vitest";
-import { compareTimestamps, normalTimestamp } from "../../src/time.ts";
+import { addSeconds, compareTimestamps, normalTimestamp } from "../../src/time.ts";
 
 const sign = (n: number) => Math.sign(n);
 
@@ -68,5 +68,20 @@ describe("normalTimestamp", () => {
     expect(normalTimestamp("2026-10-25T12:00:00.123456789Z")).toBe(
       "2026-10-25T12:00:00.123456789Z",
     );
+  });
+});
+
+describe("addSeconds", () => {
+  test("adds whole seconds and keeps the fraction exactly", () => {
+    expect(addSeconds("2026-10-25T11:00:00.000000001Z", 3600)).toBe(
+      "2026-10-25T12:00:00.000000001Z",
+    );
+    expect(addSeconds("2026-12-31T23:59:59Z", 1)).toBe("2027-01-01T00:00:00Z");
+  });
+
+  test("is null past the last four-digit-year second", () => {
+    expect(addSeconds("9999-12-31T23:59:58Z", 1)).toBe("9999-12-31T23:59:59Z");
+    expect(addSeconds("9999-12-31T23:59:59Z", 1)).toBeNull();
+    expect(addSeconds("2026-01-01T00:00:00Z", 2 ** 53)).toBeNull();
   });
 });

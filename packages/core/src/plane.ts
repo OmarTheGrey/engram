@@ -4,7 +4,8 @@
 //
 // `createPlane` is the real plane: the write gate (card E2.3, plane/write.ts),
 // the read filter and explanations (card E2.2, plane/read.ts), both deciding
-// through the pure evaluator in policy/evaluate.ts. Methods whose cards have
+// through the pure evaluator in policy/evaluate.ts, and retention (card E2.4,
+// plane/retention.ts) through policy/retention.ts. Methods whose cards have
 // not landed reject with NotImplementedYet, naming the card that implements them.
 import type { Actor } from "./actor.ts";
 import type { Adapter } from "./adapter.ts";
@@ -16,6 +17,7 @@ export { ADOPT_RETRACT_ID, type AdoptReport, adoptStoreItems } from "./plane/ado
 
 import { recordBypass } from "./plane/bypass.ts";
 import { filteredRead, storedExplanations } from "./plane/read.ts";
+import { retain } from "./plane/retention.ts";
 import { checkWrite, gatedWrite } from "./plane/write.ts";
 import type { Explanation, LintFinding, MemoryEvent, MemoryItem, Policy } from "./schema.ts";
 import type { SimReport, Workload } from "./simulate.ts";
@@ -28,6 +30,9 @@ export {
   bypassAttempt,
   MAX_ATTEMPT_LENGTH,
 } from "./plane/bypass.ts";
+export { inWriteQueue, NestedWriteQueueError } from "./plane/queue.ts";
+export { enforceBudget, retentionUsage } from "./plane/retention.ts";
+export { retiredContent } from "./plane/write.ts";
 
 export interface ReadQuery {
   text?: string;
@@ -39,6 +44,25 @@ export interface WriteResult {
   /** The item as stored, with its store_ref, or null when the write was denied. */
   item: MemoryItem | null;
   event: MemoryEvent;
+  /**
+   * The events the budget check appended after this write, in its queue
+   * slot (ADR 0025): an `evict` per item evicted, or one `evict` with
+   * decision `ask` for a manual rule's overage. Empty when the write was
+   * denied or nothing was over budget.
+   */
+  retention: MemoryEvent[];
+}
+
+/** What a retention sweep of one scope did (Plane.retain, ADR 0025). */
+export interface RetentionReport {
+  /** `deny` when the actor is not a member of the scope; nothing was evaluated. */
+  decision: "allow" | "deny";
+  /** Every event the sweep appended, in log order; empty when there was nothing to do. */
+  events: MemoryEvent[];
+  /** Items retired because their ttl ran out (op retire). */
+  expired: string[];
+  /** Items evicted over a budget (op evict, decision allow). */
+  evicted: string[];
 }
 
 /**
@@ -52,8 +76,9 @@ export interface ReadResult {
   explanations: Explanation[];
   /**
    * How many reachable candidates the filter removed: in a readable scope or
-   * reached through a grant naming the reader, but not active, outside the
-   * validity window, or with no grant whose class and expiry admit it.
+   * reached through a grant naming the reader, but not active, past its ttl
+   * (ADR 0025), outside the validity window, or with no grant whose class
+   * and expiry admit it.
    */
   filtered: number;
   event: MemoryEvent;
@@ -108,6 +133,14 @@ export interface Plane {
   read(actor: Actor, query: ReadQuery): Promise<ReadResult>;
   /** Moves an item to a wider scope (or a candidate to active) if the promotion policy allows. */
   promote(actor: Actor, itemId: string, toScope: string, at: string): Promise<GateResult>;
+  /**
+   * Sweeps one scope (ADR 0025): retires items past their ttl, then evicts
+   * any budget overage in the rule's order, each one event; items stay in
+   * the store. The actor must be a member of the scope, else one deny event
+   * (`engram/retention/membership`). Runs in the write queue, so it never
+   * interleaves with a write. Surfaces call it; nothing runs on a timer.
+   */
+  retain(actor: Actor, scope: string, at: string): Promise<RetentionReport>;
   /** Runs the enabled lints over one scope; every finding is also a `lint` event. */
   lint(scope: string): Promise<LintFinding[]>;
   /** Replays a recorded workload under a candidate policy; zero model calls, no store I/O. */
@@ -159,6 +192,7 @@ export function createPlane(deps: PlaneDeps): Plane {
     read: (actor, query) => filteredRead(deps, actor, query),
     explain: async (actor, readId) => storedExplanations(deps, actor, readId),
     recordBypass: async (actor, bypass, at) => recordBypass(deps, actor, bypass, at),
+    retain: async (actor, scope, at) => retain(deps, actor, scope, at),
     promote: async () => {
       throw new NotImplementedYet("promote", "E2.5");
     },

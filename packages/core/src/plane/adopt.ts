@@ -35,7 +35,8 @@ import type { Actor } from "../actor.ts";
 import { appendEvent, currentItems, eventsByItem } from "../events.ts";
 import { itemById } from "../items.ts";
 import type { PlaneDeps } from "../plane.ts";
-import type { MemoryItem } from "../schema.ts";
+import type { MemoryEvent, MemoryItem } from "../schema.ts";
+import { inWriteQueue } from "./queue.ts";
 import { gatedWrite, withPlaneProvenance } from "./write.ts";
 
 /** The policy_id of a retire adoption appends when the store no longer has what the plane holds. */
@@ -55,6 +56,11 @@ export interface AdoptReport {
   retired: number;
   denials: { item_id: string; reason: string; policy_id: string }[];
   retirements: { item_id: string; reason: string }[];
+  /**
+   * The events the budget checks of adopted writes appended (ADR 0025):
+   * evictions, or a manual rule's ask (review finding P4-10).
+   */
+  evictions: MemoryEvent[];
 }
 
 /** JSON with sorted keys, so equal items compare equal whatever their key order. */
@@ -100,7 +106,9 @@ export async function adoptStoreItems(
     retired: 0,
     denials: [],
     retirements: [],
+    evictions: [],
   };
+  /** Appends one retraction; called only from inside a write queue task. */
   const retire = (item: MemoryItem, why: string) => {
     const reason = `${prefix}${why}`;
     appendEvent(db, {
@@ -142,36 +150,44 @@ export async function adoptStoreItems(
       continue;
     }
 
-    const { event } = await gatedWrite(deps, adopter, item, at, {
+    const { event, retention } = await gatedWrite(deps, adopter, item, at, {
       ref: item.store_ref,
       prefix,
       suffix: note,
     });
+    report.evictions.push(...retention);
     if (event.decision === "allow") {
       report.allowed++;
       continue;
     }
     report.denied++;
     report.denials.push({ item_id: item.id, reason: event.reason, policy_id: event.policy_id });
-    if (known && known.status !== "retired")
-      retire(
-        known,
-        `the store's version of item ${known.id} was denied (${event.policy_id}); the plane retires the version it held, which the store no longer has`,
-      );
+    // In the write queue, like every change to items; the projection is
+    // read again there, so a write that landed meanwhile is respected.
+    await inWriteQueue(db, () => {
+      const held = itemById(db, item.id);
+      if (held && held.status !== "retired")
+        retire(
+          held,
+          `the store's version of item ${held.id} was denied (${event.policy_id}); the plane retires the version it held, which the store no longer has`,
+        );
+    });
   }
 
   const present = new Set(listed.map((i) => i.id));
   const unreadable = new Map((adapter.diagnostics?.() ?? []).map((d) => [d.key, d.reason]));
-  for (const held of currentItems(db)) {
-    if (held.scope !== scope || held.status === "retired" || present.has(held.id)) continue;
-    if (held.store_ref?.adapter !== adapter.name) continue;
-    const diagnostic = unreadable.get(held.store_ref.key);
-    retire(
-      held,
-      diagnostic === undefined
-        ? `item ${held.id} is no longer in store ${adapter.name} scope ${scope}; the plane retires its projected version`
-        : `store ${adapter.name} can no longer read item ${held.id} (${held.store_ref.key}): ${diagnostic}; the plane retires its projected version, which the store no longer holds in a readable form`,
-    );
-  }
+  await inWriteQueue(db, () => {
+    for (const held of currentItems(db)) {
+      if (held.scope !== scope || held.status === "retired" || present.has(held.id)) continue;
+      if (held.store_ref?.adapter !== adapter.name) continue;
+      const diagnostic = unreadable.get(held.store_ref.key);
+      retire(
+        held,
+        diagnostic === undefined
+          ? `item ${held.id} is no longer in store ${adapter.name} scope ${scope}; the plane retires its projected version`
+          : `store ${adapter.name} can no longer read item ${held.id} (${held.store_ref.key}): ${diagnostic}; the plane retires its projected version, which the store no longer holds in a readable form`,
+      );
+    }
+  });
   return report;
 }

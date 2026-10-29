@@ -5,7 +5,7 @@ import { describe, expect, test } from "vitest";
 import type { Actor } from "../../../src/plane.ts";
 import {
   evaluateRead,
-  evaluateWrite,
+  evaluateWrite as evaluateWriteWith,
   grantMatches,
   READ_DEFAULT_DENY_ID,
   READ_STATUS_ID,
@@ -21,6 +21,10 @@ import {
 import type { Grant, MemoryItem, Policy, Provenance } from "../../../src/schema.ts";
 
 const AT = "2026-10-25T12:00:00Z";
+
+/** The gate with no retired content in the scope (the retired-content rule has its own tests). */
+const evaluateWrite = (p: Policy, a: Actor, i: MemoryItem, existing?: MemoryItem) =>
+  evaluateWriteWith(p, a, i, existing, new Map());
 
 function item(over: Partial<MemoryItem> & { kind?: Provenance["kind"] } = {}): MemoryItem {
   const { kind = "user", ...rest } = over;

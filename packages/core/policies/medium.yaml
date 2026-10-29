@@ -21,6 +21,13 @@
 # triggers (ADR 0011), not lints; lints.thresholds sets the drift trigger's
 # success floor and minimum trials.
 #
+# Retention (ADR 0025): an item past its ttl (the tighter of the rule's and
+# its own) is excluded at read at once and retired by the next sweep
+# (Plane.retain, which the surfaces call); a budget bounds the active items of
+# a class in a scope, and the write that takes it over evicts in the rule's
+# order, recency or utility, while a manual rule evicts nothing and asks. The
+# ttl and budget numbers below are proposed values, not measured ones.
+#
 # Numbers: the confidence floors, ttls, budgets, confirmation counts, replay
 # k of n and thresholds are proposed values chosen for this preset, not taken
 # from ADR 0011 or any other source; they are reviewed before any run.
