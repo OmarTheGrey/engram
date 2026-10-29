@@ -3,14 +3,43 @@
 // proves the rule fires on the paths it must cover and nowhere else. Probe
 // files are written beside real sources (git-ignored) and removed afterwards.
 import { spawnSync } from "node:child_process";
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
+import { basename, isAbsolute, join } from "node:path";
 import { expect, test } from "vitest";
 
+// The test timeout and the child's own timeout. spawnSync blocks the worker,
+// so vitest cannot stop a test while Biome runs; the spawn timeout is what
+// ends a hung Biome, and the error it leaves fails the test rather than
+// passing as a non-zero lint status.
 const SPAWN_TIMEOUT = 30_000;
 
+// The native Biome binary, spawned without a shell or wrapper so that the
+// spawn timeout kills Biome itself. `pnpm exec biome` on Windows needs a
+// shell, and @biomejs/biome's bin/biome is a Node script that spawns this
+// binary in turn; a timeout would kill only the shell or the script. The
+// binary is the platform package bin/biome resolves (Biome 2.5.15): pnpm
+// installs only the one for this platform, glibc or musl on Linux.
+const fromBiome = createRequire(
+  createRequire(import.meta.url).resolve("@biomejs/biome/package.json"),
+);
+const BIOME = ((): string => {
+  const exe = process.platform === "win32" ? "biome.exe" : "biome";
+  const base = `@biomejs/cli-${process.platform}-${process.arch}`;
+  const found = [base, `${base}-musl`].flatMap((pkg) => {
+    try {
+      return [fromBiome.resolve(`${pkg}/${exe}`)];
+    } catch {
+      return [];
+    }
+  });
+  if (found[0] === undefined)
+    throw new Error(`no Biome binary installed for ${process.platform}-${process.arch}`);
+  return found[0];
+})();
+
 /** Lints each source as its own probe file in one Biome run. */
-function lint(pkg: string, sources: readonly string[]) {
+function lint(pkg: string, sources: readonly string[], timeout = SPAWN_TIMEOUT) {
   const dir = join("packages", pkg, "src");
   mkdirSync(dir, { recursive: true });
   const files = sources.map((source, i) => {
@@ -19,11 +48,11 @@ function lint(pkg: string, sources: readonly string[]) {
     return file;
   });
   try {
-    const run = spawnSync(
-      "pnpm",
-      ["exec", "biome", "lint", "--vcs-use-ignore-file=false", ...files],
-      { encoding: "utf8", shell: process.platform === "win32" },
-    );
+    const run = spawnSync(BIOME, ["lint", "--vcs-use-ignore-file=false", ...files], {
+      encoding: "utf8",
+      timeout,
+    });
+    if (run.error) throw run.error;
     return { status: run.status, output: run.stdout + run.stderr };
   } finally {
     for (const file of files) rmSync(file, { force: true });
@@ -45,6 +74,27 @@ test.each(["core", "adapters"])(
       PI_IMPORTS.length,
     );
     expect(run.status, run.output).not.toBe(0);
+  },
+  SPAWN_TIMEOUT,
+);
+
+test("spawns the native Biome binary itself, so the timeout kills Biome and not a wrapper", () => {
+  expect(basename(BIOME)).toMatch(/^biome(\.exe)?$/);
+  expect(isAbsolute(BIOME)).toBe(true);
+  expect(existsSync(BIOME)).toBe(true);
+});
+
+test(
+  "a Biome run that outlives its spawn timeout fails the test instead of passing as a lint failure",
+  () => {
+    let error: unknown;
+    try {
+      lint("core", PI_IMPORTS, 1);
+    } catch (e) {
+      error = e;
+    }
+    // The process the timeout killed is Biome itself, run without a shell.
+    expect(error).toMatchObject({ code: "ETIMEDOUT", path: BIOME });
   },
   SPAWN_TIMEOUT,
 );

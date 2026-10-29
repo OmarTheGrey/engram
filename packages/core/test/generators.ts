@@ -41,9 +41,28 @@ export const arbProvenance = fc.record({
   actor: arbPrincipal,
 });
 
-export function arbItem(id: fc.Arbitrary<string> = arbId): fc.Arbitrary<MemoryItem> {
+/**
+ * A small pool of store refs, so that generated items collide on a ref: two
+ * keys under one adapter and the same key under another (review finding R2-3).
+ */
+export const STORE_REFS = [
+  { adapter: "fake", key: "k1" },
+  { adapter: "fake", key: "k2" },
+  { adapter: "mem0", key: "k1" },
+] as const;
+
+export const arbStoreRef = fc.option(
+  fc.constantFrom(...STORE_REFS).map((r) => ({ ...r })),
+  { nil: null },
+);
+
+export function arbItem(
+  id: fc.Arbitrary<string> = arbId,
+  storeRef: fc.Arbitrary<MemoryItem["store_ref"]> = fc.constant(null),
+): fc.Arbitrary<MemoryItem> {
   return fc
     .record({
+      store_ref: storeRef,
       id,
       class: fc.constantFrom(...CLASSES),
       scope: arbScope,
@@ -62,7 +81,6 @@ export function arbItem(id: fc.Arbitrary<string> = arbId): fc.Arbitrary<MemoryIt
         ttl: null,
         grants: [],
         lineage: [],
-        store_ref: null,
         schema_version: 0 as const,
       };
       return r.class === "procedural"
@@ -76,7 +94,8 @@ export type EventInput = Omit<MemoryEvent, "seq">;
 
 /**
  * Events over a small pool of item ids so that writes, updates and retirements
- * collide. Allowed writes and updates carry the item they produce; denials,
+ * collide, and over the small pool of store refs so that several items hold
+ * one ref. Allowed writes and updates carry the item they produce; denials,
  * reads and lints carry none.
  */
 export function arbEventInput(itemIds: readonly string[]): fc.Arbitrary<EventInput> {
@@ -94,7 +113,7 @@ export function arbEventInput(itemIds: readonly string[]): fc.Arbitrary<EventInp
       ...common,
       op: fc.constantFrom("write", "update", "promote"),
       decision: fc.constantFrom("allow", "deny"),
-      item: itemId.chain((id) => arbItem(fc.constant(id))),
+      item: itemId.chain((id) => arbItem(fc.constant(id), arbStoreRef)),
     })
     .map(({ item, ...e }) => ({
       ...e,

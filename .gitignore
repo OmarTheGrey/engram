@@ -11,3 +11,4 @@ __pycache__/
 .superpowers/
 .engram/
 packages/*/src/.lint-probe-*
+.claude/worktrees/
