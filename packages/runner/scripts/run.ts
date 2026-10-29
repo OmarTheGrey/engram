@@ -31,7 +31,9 @@ import {
   replayConfig,
   replayOptions,
 } from "../src/live.ts";
+import { isMemInvConfig } from "../src/mem-inv-probe.ts";
 import { runConfig, writeRunnerResult } from "../src/run.ts";
+import { runMemInvMain } from "./run-mem-inv.ts";
 
 const REPO = fileURLToPath(new URL("../../../", import.meta.url));
 
@@ -52,6 +54,15 @@ async function main(): Promise<number> {
       "usage: run.ts --config <runner-config.json> --out <dir> [--record | (--live | --replay) --model <provider/model-id> [--cassettes <dir>]]",
     );
     return 2;
+  }
+  if (isMemInvConfig(values.config)) {
+    // Card B4: scripted replay and --record only; the live half of the
+    // poisoning arm waits for the pre-registration (ADR 0029).
+    if (values.live || values.replay || values.model !== undefined) {
+      console.error("run.ts: a mem-inv-bench config has no --live, --replay or --model yet");
+      return 2;
+    }
+    return runMemInvMain(values.config, values.out, values.record === true);
   }
   let config = readRunnerConfig(values.config);
   const record = values.record === true;

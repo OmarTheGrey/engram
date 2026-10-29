@@ -3,6 +3,7 @@ export { userBash } from "./bash.ts";
 export * from "./conditions.ts";
 export * from "./config.ts";
 export * from "./gatemem-probe.ts";
+export * from "./mem-inv-probe.ts";
 export * from "./model/cached.ts";
 export * from "./model/cassette.ts";
 export * from "./model/pi.ts";

@@ -382,8 +382,43 @@ export function parsePins(text: string): PinRow[] {
   return rows;
 }
 
+/**
+ * The candidates table of packages/bench/PINS.md (the first table under "##
+ * Candidates checked, not registered"): benchmarks checked for a release, with
+ * the commit of the check, but not pinned for an experiment. Only a row with a
+ * 40-hex commit is returned. A candidate's vendored fixture is checked against
+ * that commit; it never counts as a pin (card B4).
+ */
+export function parseCandidates(text: string): { benchmark: string; commit: string }[] {
+  const all = text.split(/\r?\n/);
+  const heading = all.findIndex((l) => /^##\s+Candidates checked, not registered/.test(l));
+  if (heading < 0) return [];
+  const rest = all.slice(heading + 1);
+  const start = rest.findIndex((l) => l.trim().startsWith("|"));
+  if (start < 0) return [];
+  const end = rest.findIndex((l, i) => i > start && !l.trim().startsWith("|"));
+  const lines = rest.slice(start, end < 0 ? rest.length : end);
+  const cells = (line: string) =>
+    line
+      .trim()
+      .replace(/^\||\|$/g, "")
+      .split("|")
+      .map((c) => c.trim());
+  const header = cells(lines[0] as string);
+  const [bi, ci] = [header.indexOf("benchmark"), header.indexOf("commit at the check")];
+  if (bi < 0 || ci < 0) return [];
+  return lines.slice(1).flatMap((line) => {
+    if (/^\|\s*-/.test(line.trim())) return [];
+    const row = cells(line);
+    const commit = /`([0-9a-f]{40})`/.exec(row[ci] ?? "")?.[1];
+    return commit === undefined ? [] : [{ benchmark: row[bi] as string, commit }];
+  });
+}
+
 interface Manifest {
   source?: { commit?: string };
+  /** Vendored files by path under the fixture directory, each with the sha256 of every line. */
+  files?: Record<string, string[]>;
   selection?: {
     domain: string;
     episode_line_sha256: string;
@@ -420,17 +455,39 @@ export function checkBenchmarkPins(repo: string | undefined): CheckResult {
   // Every vendored fixture carries its manifest; one without is unverifiable.
   const bare = fixtures.find((d) => !existsSync(join(fixturesDir, d, "manifest.json")));
   if (bare !== undefined) return ["fail", `fixtures/bench/${bare} has no manifest.json`];
+  const candidates = parseCandidates(readFileSync(pinsFile, "utf8"));
   const checked: string[] = [];
   for (const dir of fixtures) {
     const manifest = readJson(join(fixturesDir, dir, "manifest.json")) as Manifest;
-    const pin = rows.find((r) => key(r.benchmark) === key(dir));
-    if (pin?.commit === undefined)
+    const registered = rows.find((r) => key(r.benchmark) === key(dir))?.commit;
+    // A candidate's fixture is held to the commit of its check, not counted as a pin.
+    const candidate =
+      registered === undefined ? candidates.find((c) => key(c.benchmark) === key(dir)) : undefined;
+    const pin = { commit: registered ?? candidate?.commit };
+    if (pin.commit === undefined)
       return ["fail", `fixtures/bench/${dir} has a manifest but ${PINS} pins no commit for it`];
     if (manifest.source?.commit !== pin.commit)
       return [
         "fail",
-        `fixtures/bench/${dir} was vendored at ${manifest.source?.commit}, ${PINS} pins ${pin.commit}`,
+        `fixtures/bench/${dir} was vendored at ${manifest.source?.commit}, ${PINS} ${
+          candidate ? "records for the candidate" : "pins"
+        } ${pin.commit}`,
       ];
+    if (manifest.files) {
+      let lines = 0;
+      for (const [name, expected] of Object.entries(manifest.files)) {
+        const path = join(fixturesDir, dir, name);
+        const rel = `fixtures/bench/${dir}/${name}`;
+        if (!existsSync(path)) return ["fail", `${rel} is missing`];
+        if (lineHashes(path).join() !== expected.join())
+          return ["fail", `${rel} does not match the hashes in its manifest`];
+        lines += expected.length;
+      }
+      checked.push(
+        `${dir} ${lines} lines at ${pin.commit.slice(0, 7)}${candidate ? " (candidate, not registered)" : ""}`,
+      );
+      continue;
+    }
     if (!manifest.selection)
       return ["fail", `fixtures/bench/${dir}/manifest.json has no selection`];
     let lines = 0;
