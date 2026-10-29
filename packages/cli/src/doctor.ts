@@ -2,9 +2,11 @@
 // creates, migrates or otherwise changes a log (SQLite is opened read-only,
 // Postgres sees SELECTs only), never prints a provider key's value (only its
 // length is tested), and reaches no network beyond the Postgres server a
-// postgres:// target names. A target's URL is printed redacted: its userinfo,
-// every query value outside a short allow-list and its fragment become `***`,
-// and error messages are scrubbed of them (packages/cli/src/setup.ts).
+// postgres:// target names. A target's URL is printed only from the parts a
+// strict parse accepted (scheme, hosts, ports, database name, four allowed
+// query values); the userinfo, other query values and the fragment become
+// `***`, a URL that does not parse prints as `postgres://<hidden: unparseable>`,
+// and error messages are scrubbed of every secret (packages/cli/src/setup.ts).
 // The adapter checks run through a Plane on an in-memory log, so
 // no adapter is called directly (AGENTS.md rule 2) and nothing is recorded.
 //

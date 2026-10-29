@@ -8,7 +8,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { openPostgres } from "@engram/core";
 import { describe, expect, it } from "vitest";
-import { dbTarget, redactSecrets, redactUrl } from "../src/setup.ts";
+import { dbTarget, redactSecrets, redactUrl, UsageError } from "../src/setup.ts";
 import { cli, readArgs, tempDir } from "./helpers.ts";
 import { freshDatabase, postgresTarget } from "./postgres.ts";
 
@@ -17,24 +17,24 @@ const where = { cwd: "/work", home: "/home/dana", env: {} };
 describe("P3-16: the userinfo @ is found only in the authority; query values and fragments are masked", () => {
   const cases: [string, RegExp, string][] = [
     [
-      "postgres://127.0.0.1:1/db?password=s@cretQAT",
+      "postgres://127.0.0.1:1/db?password=s%40cretQAT",
       /cret|QAT/,
       "postgres://127.0.0.1:1/db?password=***",
     ],
     [
-      "postgres://u:pw@127.0.0.1:1/db?sslpassword=a@HIDDENSUFFIX",
+      "postgres://u:pw@127.0.0.1:1/db?sslpassword=a%40HIDDENSUFFIX",
       /HIDDEN|SUFFIX|:pw@/,
       "postgres://***@127.0.0.1:1/db?sslpassword=***",
     ],
     [
-      "postgres://u:pw@h:5432/db?sslmode=require&foo=FOOVALUE#frag@SECRETFRAG",
+      "postgres://u:pw@h:5432/db?sslmode=require&foo=FOOVALUE#fragSECRETFRAG",
       /SECRETFRAG|FOOVALUE|:pw@/,
       "postgres://***@h:5432/db?sslmode=require&foo=***#***",
     ],
     [
       "postgres://h/db?application_name=engram&connect_timeout=5&target_session_attrs=any&options=-c%20x&user_secret=Q1",
       /Q1/,
-      "postgres://h/db?application_name=engram&connect_timeout=5&target_session_attrs=any&options=-c%20x&user_secret=***",
+      "postgres://h/db?application_name=engram&connect_timeout=5&target_session_attrs=any&options=***&user_secret=***",
     ],
   ];
 
@@ -45,12 +45,42 @@ describe("P3-16: the userinfo @ is found only in the authority; query values and
     }
   });
 
+  it("P3-21: a bracketed IPv6 host is usage, asking for a hostname or an IPv4 address", async () => {
+    // postgres.js splits the host on ":" (src/index.js, `host.split(':')[0]`),
+    // so [::1] becomes "[" and the connection can never succeed.
+    for (const url of ["postgres://u:IPV6SECRET@[::1]:1/db", "postgres://[::1]/db"]) {
+      expect(() => dbTarget(url, where)).toThrow(/use a hostname or an IPv4 address/);
+      const r = await cli(["doctor", "--db", url]);
+      expect(r.code).toBe(2);
+      expect(r.out + r.err).not.toContain("IPV6SECRET");
+    }
+  });
+
   it("a path holding an @ (a password with a raw delimiter) is masked whole after the scheme", () => {
-    expect(redactUrl("postgres://u:5432/x@host/db")).toBe("postgres://***");
+    expect(redactUrl("postgres://u:5432/x@host/db")).toBe("postgres://<hidden: unparseable>");
+  });
+
+  /** A raw `@` after the authority makes a URL unparseable (P3-20): only the scheme is printed. */
+  const unparseable: [string, RegExp][] = [
+    ["postgres://127.0.0.1:1/db?password=s@cretQAT", /cret|QAT/],
+    ["postgres://u:pw@127.0.0.1:1/db?sslpassword=a@HIDDENSUFFIX", /HIDDEN|SUFFIX|:pw@/],
+    ["postgres://u:pw@h:5432/db?foo=FOOVALUE#frag@SECRETFRAG", /SECRETFRAG|FOOVALUE|:pw@/],
+  ];
+
+  it("a raw @ after the authority is unparseable usage and prints nothing after the scheme", () => {
+    for (const [url, secret] of unparseable) {
+      expect(redactUrl(url)).toBe("postgres://<hidden: unparseable>");
+      expect(() => dbTarget(url, where)).toThrow(UsageError);
+      try {
+        dbTarget(url, where);
+      } catch (e) {
+        expect((e as Error).message).not.toMatch(secret);
+      }
+    }
   });
 
   it("doctor and write print no part of the secret", async () => {
-    for (const [url, secret] of cases) {
+    for (const [url, secret] of [...cases, ...unparseable]) {
       const d = await cli(["doctor", "--db", url]);
       expect(d.out + d.err, url).not.toMatch(secret);
       const w = await cli([

@@ -53,19 +53,26 @@ export type DbTarget = (
 const SCHEME = /^([a-z][a-z0-9+.-]*):\/\//i;
 const POSTGRES_SCHEMES = new Set(["postgres", "postgresql"]);
 /**
- * Query parameters whose value is printed as given: connection settings that
- * carry no credential. Every other value (password, sslpassword, passfile,
- * tokens, keys, anything unknown) is printed as `***`.
+ * Query keys whose value is printed as given: connection settings that carry
+ * no credential. Every other value is printed as `***`. `options` is not here:
+ * it can carry `-c` settings.
  */
 const SHOWN_PARAMS = new Set([
   "sslmode",
   "application_name",
   "connect_timeout",
-  "options",
   "target_session_attrs",
 ]);
 /** Below this length a secret is scrubbed only as a whole token, so it cannot garble a message. */
 const SHORT_SECRET = 4;
+
+/** One host of the authority: a DNS name or an IPv4 address, with an optional port. */
+const HOST_PORT = /^([A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?)?(?::([0-9]{1,5}))?$/;
+/** A bracketed IPv6 host, which postgres.js cannot connect to (it splits the host on `:`). */
+const IPV6 = /^\[[0-9A-Fa-f:.]*\](?::[0-9]{1,5})?$/;
+/** A database name: letters, digits, `_`, `-`, `.`, `$` and percent-escapes. */
+const DB_NAME = /^(?:[A-Za-z0-9_.$-]|%[0-9A-Fa-f]{2})*$/;
+const QUERY_KEY = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 const safeDecode = (text: string) => {
   try {
@@ -75,87 +82,106 @@ const safeDecode = (text: string) => {
   }
 };
 
-interface UrlParts {
+/** A Postgres URL that parsed cleanly; only these parts are ever printed or scrubbed. */
+interface ParsedUrl {
   scheme: string;
-  /** The userinfo, found only inside the authority (before the first `/`, `?` or `#`). */
+  /** The raw userinfo, printed as `***` whenever present. */
   userinfo: string | undefined;
-  /** host[:port] */
-  host: string;
-  /** The path, from its `/`, without query or fragment. */
-  path: string;
-  query: { raw: string; name: string; value: string | undefined }[] | undefined;
+  /** host[:port] list, as written: the only part of the authority printed. */
+  hosts: string;
+  /** The database name, without its `/`. */
+  db: string | undefined;
+  query: { key: string; value: string }[] | undefined;
   fragment: string | undefined;
 }
 
+/** A URL refused as unparseable: nothing after the scheme is printed. */
+export class UnparseableUrl extends Error {}
+/** A URL whose host is a bracketed IPv6 address. */
+export class Ipv6Host extends Error {}
+
 /**
- * A URL cut into its parts by text, so it works on URLs no parser accepts.
- * The authority ends at the first `/`, `?` or `#` after `//`; the userinfo is
- * what precedes its last `@`. An `@` in the path, query or fragment is never
- * read as the end of a userinfo.
+ * Parses `scheme://[userinfo@]host[:port][,host[:port]...][/db][?query][#fragment]`
+ * by an allow-list: every part must match its pattern, or the URL is
+ * unparseable. The `@` that ends the userinfo must come before the first
+ * `/`, `?` or `#`, and no other `@` may appear anywhere, so a password
+ * holding a raw delimiter can never be read as a host, path or query.
  */
-function splitUrl(url: string): UrlParts | undefined {
+function parseUrl(url: string): ParsedUrl {
   const m = SCHEME.exec(url);
-  if (!m) return undefined;
+  if (!m) throw new UnparseableUrl();
   const after = url.slice(m[0].length);
-  const hashAt = after.indexOf("#");
-  const fragment = hashAt < 0 ? undefined : after.slice(hashAt + 1);
-  const beforeHash = hashAt < 0 ? after : after.slice(0, hashAt);
+  const at = after.indexOf("@");
+  if (at >= 0 && (after.indexOf("@", at + 1) >= 0 || /[/?#]/.test(after.slice(0, at))))
+    throw new UnparseableUrl();
+  const userinfo = at < 0 ? undefined : after.slice(0, at);
+  const rest = at < 0 ? after : after.slice(at + 1);
+  const hashAt = rest.indexOf("#");
+  const fragment = hashAt < 0 ? undefined : rest.slice(hashAt + 1);
+  const beforeHash = hashAt < 0 ? rest : rest.slice(0, hashAt);
   const qAt = beforeHash.indexOf("?");
   const queryText = qAt < 0 ? undefined : beforeHash.slice(qAt + 1);
   const beforeQuery = qAt < 0 ? beforeHash : beforeHash.slice(0, qAt);
   const slash = beforeQuery.indexOf("/");
-  const authority = slash < 0 ? beforeQuery : beforeQuery.slice(0, slash);
-  const path = slash < 0 ? "" : beforeQuery.slice(slash);
-  const at = authority.lastIndexOf("@");
-  const query = queryText?.split("&").map((raw) => {
-    const eq = raw.indexOf("=");
-    return {
-      raw,
-      name: eq < 0 ? raw : raw.slice(0, eq),
-      value: eq < 0 ? undefined : raw.slice(eq + 1),
-    };
+  const hosts = slash < 0 ? beforeQuery : beforeQuery.slice(0, slash);
+  const db = slash < 0 ? undefined : beforeQuery.slice(slash + 1);
+  for (const host of hosts.split(",")) {
+    if (IPV6.test(host)) throw new Ipv6Host();
+    if (!HOST_PORT.test(host)) throw new UnparseableUrl();
+  }
+  if (db !== undefined && !DB_NAME.test(db)) throw new UnparseableUrl();
+  const query = queryText?.split("&").map((pair) => {
+    const eq = pair.indexOf("=");
+    const key = eq < 0 ? pair : pair.slice(0, eq);
+    if (!QUERY_KEY.test(key)) throw new UnparseableUrl();
+    return { key, value: eq < 0 ? "" : pair.slice(eq + 1) };
   });
-  return {
-    scheme: m[0],
-    userinfo: at < 0 ? undefined : authority.slice(0, at),
-    host: at < 0 ? authority : authority.slice(at + 1),
-    path,
-    query,
-    fragment,
-  };
+  return { scheme: m[0], userinfo, hosts, db, query, fragment };
 }
 
-const shown = (name: string) => SHOWN_PARAMS.has(safeDecode(name).toLowerCase());
+const shown = (key: string) => SHOWN_PARAMS.has(key.toLowerCase());
+
+/** The label of a URL that did not parse: the scheme and nothing else. */
+const hiddenLabel = (url: string) => `${SCHEME.exec(url)?.[0] ?? ""}<hidden: unparseable>`;
 
 /**
- * A URL as the CLI prints it: the userinfo, every query value outside
- * SHOWN_PARAMS and the fragment replaced by `***`. A path holding an `@` (a
- * password with a raw `/`, `?` or `#` before its `@`) is not trusted to split
- * where the user meant, so everything after the scheme is masked.
+ * A URL as the CLI prints it, built only from the parts parseUrl accepted:
+ * scheme, hosts and ports, database name, and the values of the shown query
+ * keys. The userinfo, every other query value and the fragment print as
+ * `***`; a URL that does not parse prints as `<scheme>://<hidden: unparseable>`.
  */
 export function redactUrl(url: string): string {
-  const p = splitUrl(url);
-  if (!p) return url;
-  if (p.path.includes("@") || p.host.includes("@")) return `${p.scheme}***`;
+  let p: ParsedUrl;
+  try {
+    p = parseUrl(url);
+  } catch {
+    return hiddenLabel(url);
+  }
   const query =
     p.query === undefined
       ? ""
-      : `?${p.query
-          .map((q) => (q.value === undefined || shown(q.name) ? q.raw : `${q.name}=***`))
-          .join("&")}`;
-  return `${p.scheme}${p.userinfo === undefined ? "" : "***@"}${p.host}${p.path}${query}${
-    p.fragment === undefined ? "" : "#***"
-  }`;
+      : `?${p.query.map((q) => `${q.key}=${shown(q.key) ? q.value : "***"}`).join("&")}`;
+  return `${p.scheme}${p.userinfo === undefined ? "" : "***@"}${p.hosts}${
+    p.db === undefined ? "" : `/${p.db}`
+  }${query}${p.fragment === undefined ? "" : "#***"}`;
 }
 
-/** What redactUrl hides: the password, masked query values and the fragment, raw, decoded and encoded. */
+/**
+ * The strings to scrub from error text: the password, masked query values
+ * and the fragment, each raw, decoded and percent-encoded; for a URL that
+ * does not parse, everything after the scheme.
+ */
 function urlSecrets(url: string): string[] {
-  const p = splitUrl(url);
-  if (!p) return [];
-  const found: string[] = [];
-  if (p.userinfo?.includes(":")) found.push(p.userinfo.slice(p.userinfo.indexOf(":") + 1));
-  for (const q of p.query ?? []) if (q.value !== undefined && !shown(q.name)) found.push(q.value);
-  if (p.fragment !== undefined) found.push(p.fragment);
+  let found: string[];
+  try {
+    const p = parseUrl(url);
+    found = [];
+    if (p.userinfo?.includes(":")) found.push(p.userinfo.slice(p.userinfo.indexOf(":") + 1));
+    for (const q of p.query ?? []) if (!shown(q.key)) found.push(q.value);
+    if (p.fragment !== undefined) found.push(p.fragment);
+  } catch {
+    found = [url.slice(SCHEME.exec(url)?.[0].length ?? 0)];
+  }
   const all = new Set(found.flatMap((s) => [s, safeDecode(s), encodeURIComponent(safeDecode(s))]));
   return [...all].filter((s) => s !== "").sort((a, b) => b.length - a.length);
 }
@@ -163,8 +189,8 @@ function urlSecrets(url: string): string[] {
 const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /**
- * `text` with the URL, wherever it appears, replaced by its redacted form, and
- * every secret it holds by `***`: anywhere when the secret has at least
+ * `text` with the URL, wherever it appears, replaced by its label, and every
+ * secret it holds by `***`: anywhere when the secret has at least
  * SHORT_SECRET characters, otherwise only as a whole token, so a one-letter
  * password cannot turn "connect" into "conn***ct".
  */
@@ -217,9 +243,14 @@ export function dbTarget(
       );
     const label = redactUrl(given);
     try {
+      parseUrl(given);
       checkPostgresUrl(given);
-    } catch {
-      throw new UsageError(`${named} is not a valid Postgres URL: ${label}`);
+    } catch (e) {
+      if (e instanceof Ipv6Host)
+        throw new UsageError(
+          `${named}: a bracketed IPv6 host is not supported by the Postgres driver; use a hostname or an IPv4 address`,
+        );
+      throw new UsageError(`${named} is not a valid Postgres URL: ${hiddenLabel(given)}`);
     }
     return { backend: "postgres", url: given, label, source };
   }
