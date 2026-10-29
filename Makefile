@@ -90,12 +90,18 @@ run: ## replay a runner config as pi SDK sessions from its cassettes; a miss is 
 # Runner configs whose cassettes are fixtures, recorded from their scripted model by `make fixtures`.
 RUNNER_FIXTURES := rn1-gatemem-probe
 RUNNER_FIXTURES += b3-gatemem-plane
+RUNNER_FIXTURES += b4-mem-inv-probe
+
+# MEM-INV-Bench at its pinned commit (card B4); the vendoring clones it here when missing.
+MEM_INV_UPSTREAM ?= .engram/upstream/mem-inv-bench
 
 fixtures: ## regenerate golden files and scripted cassettes; refuses without MSG=<reason>, which goes in the commit message
 	@[ -n "$(MSG)" ] || { echo "fixtures: refusing without MSG=<reason>"; exit 2; }
 	$(UV) run python research/scripts/consolidate_log.py --root fixtures/log/repo --out fixtures/log/expected
 	ENGRAM_UPDATE_FIXTURES=1 $(PNPM) --filter pi-extension exec vitest run test/interception.test.ts test/retention.test.ts
 	env -u ENGRAM_OFFLINE node packages/bench/scripts/run-gatemem.ts --config fixtures/bench/gatemem/run-config.json --out .engram/bench/gatemem-record --record
+	$(UV) run python -I packages/bench/scripts/vendor-mem-inv-bench.py --upstream "$(MEM_INV_UPSTREAM)" --fetch --out fixtures/bench/mem-inv-bench
+	$(UV) run python -I packages/bench/scripts/upstream-mem-inv-golden.py --upstream "$(MEM_INV_UPSTREAM)" --fixtures fixtures/bench/mem-inv-bench --out fixtures/bench/mem-inv-bench/upstream-golden.json
 	for name in $(RUNNER_FIXTURES); do \
 	  rm -rf "fixtures/cassettes/$$name"; \
 	  env -u ENGRAM_OFFLINE node packages/runner/scripts/run.ts --config "research/configs/$$name.json" --out ".engram/runs/$$name" --record; \
