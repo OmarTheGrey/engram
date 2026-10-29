@@ -14,6 +14,7 @@ import {
   sessionPlaceholder,
   tagMemoryResults,
   tagRecall,
+  tagUngovernedRead,
   WITHHELD,
   withoutMemory,
 } from "../../src/tag.ts";
@@ -85,12 +86,44 @@ describe("renderRecall and tagRecall", () => {
     expect(tagRecall(details)).toBe(
       [
         '<engram:memory read_id="r1" policy_id="p/read/person" filtered="2">',
-        '<engram:item item_id="i1" scope="team:x" rank="1" score="1.500" policy_id="p/read/person">',
+        '<engram:item item_id="i1" scope="team:x" rank="1" policy_id="p/read/person">',
         "fact",
         "</engram:item>",
         "</engram:memory>",
       ].join("\n"),
     );
+  });
+
+  test("an ungoverned read (C2, C3) has the same shape without the read id and the rules (ADR 0015)", () => {
+    expect(
+      tagUngovernedRead([
+        { id: "i1", scope: "team:x", content: "fact" },
+        { id: "i2", scope: "org", content: 'a <b> & "c"' },
+      ]),
+    ).toBe(
+      [
+        '<engram:memory filtered="0">',
+        '<engram:item item_id="i1" scope="team:x" rank="1">',
+        "fact",
+        "</engram:item>",
+        '<engram:item item_id="i2" scope="org" rank="2">',
+        "a &lt;b&gt; &amp; &quot;c&quot;",
+        "</engram:item>",
+        "</engram:memory>",
+      ].join("\n"),
+    );
+    expect(tagUngovernedRead([])).toBe(
+      tagRecall({ ...details, filtered: 0, items: [] }).replace(
+        ' read_id="r1" policy_id="p/read/person"',
+        "",
+      ),
+    );
+  });
+
+  test("the governed tag minus its read id and rules is the ungoverned tag of the same items", () => {
+    const governed = tagRecall({ ...details, filtered: 0 });
+    const ungoverned = tagUngovernedRead([{ id: "i1", scope: "team:x", content: "fact" }]);
+    expect(governed.replaceAll(/ (?:read_id|policy_id)="[^"]*"/g, "")).toBe(ungoverned);
   });
 
   test("escape quotes and angle brackets in attributes", () => {

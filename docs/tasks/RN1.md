@@ -1,6 +1,6 @@
 # RN1 SDK experiment runner
 
-Status: done in PR #7 (merged 2026-10-29); the acceptance test is packages/runner/test/run.test.ts and the acceptance command is `ENGRAM_OFFLINE=1 make run CONFIG=research/configs/rn1-gatemem-probe.json`, run twice (it reports zero new model calls). Paths used: `packages/runner/src/`, `packages/runner/test/`, `packages/runner/scripts/run.ts`, `research/configs/rn1-gatemem-probe.json` (a pipeline config, not a registered experiment), `fixtures/bench/gatemem/rn1-probe-script.json`, `fixtures/cassettes/rn1-gatemem-probe/`.
+Status: done in PR #7 (merged 2026-10-29); the acceptance test is packages/runner/test/run.test.ts and the acceptance command is `ENGRAM_OFFLINE=1 make run CONFIG=research/configs/rn1-gatemem-probe.json`, run twice (it reports zero new model calls). Paths used: `packages/runner/src/`, `packages/runner/test/`, `packages/runner/scripts/run.ts`, `research/configs/rn1-gatemem-probe.json` (a pipeline config, not a registered experiment), `fixtures/bench/gatemem/rn1-probe-script.json`, `fixtures/cassettes/rn1-gatemem-probe/`. PR 6 (Gate A), done on branch pr-gate-a, awaiting review: C2 and C3 render reads in C5's memory-tag shape without the read id and rules, tested in `packages/runner/test/conditions.test.ts`, cassettes re-recorded once with `make fixtures`, ADR 0015 amended (`docs/log/2026-10-29-rn1-shared-memory-tag.md`); and C3 renders the loaded policy as sorted JSON without the YAML comments (`docs/log/2026-10-29-rn1-c3-policy-without-comments.md`).
 
 Added by ADR 0001.
 

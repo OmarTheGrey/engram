@@ -47,6 +47,9 @@ export const HASHED_FILES = [
   "bench/eval/metrics.py",
   "bench/eval/runner.py",
   "bench/eval/scorer.py",
+  "bench/eval/judge.py",
+  "bench/llm/router.py",
+  "bench/llm/providers/openai.py",
   "bench/prompts/query_prompt.txt",
   "bench/prompts/judge_prompt.txt",
   "bench/scripts/score_predictions.py",
@@ -56,6 +59,12 @@ export const HASHED_FILES = [
     `bench/data/${d}/episodes.jsonl`,
     `bench/data/${d}/checkpoints.jsonl`,
   ]),
+] as const;
+
+/** Upstream files the port carries verbatim: (path in this repository, upstream path). */
+export const VENDORED = [
+  ["packages/bench/src/gatemem/vendor/query_prompt.txt", "bench/prompts/query_prompt.txt"],
+  ["packages/bench/src/gatemem/vendor/judge_prompt.txt", "bench/prompts/judge_prompt.txt"],
 ] as const;
 
 const sha256 = (bytes: string | Buffer) => createHash("sha256").update(bytes).digest("hex");
@@ -229,6 +238,17 @@ function main(): number {
     rule: "packages/bench/scripts/vendor-gatemem.ts (header comment)",
     upstream_sha256: Object.fromEntries(
       HASHED_FILES.map((f) => [f, sha256(readFileSync(join(upstream, f)))]),
+    ),
+    // Upstream files copied verbatim into the port, with their hash and notice.
+    vendored: Object.fromEntries(
+      VENDORED.map(([to, from]) => [
+        to,
+        {
+          from,
+          sha256: sha256(readFileSync(join(upstream, from))),
+          licence: "MIT, Copyright (c) 2026 Renz; text in fixtures/bench/gatemem/UPSTREAM-LICENSE",
+        },
+      ]),
     ),
     selection: selection.map((s) => ({
       domain: s.domain,

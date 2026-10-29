@@ -15,10 +15,14 @@
 //   whitespace set (str.isspace).
 // - pyRegex: a Python `re` pattern as an equivalent JavaScript RegExp (flag
 //   u): \w, \d, \s and \b as Python's Unicode classes, $ also before a final
-//   newline, . excluding only \n, (?P<name>) groups, \A and \Z, scoped i and
-//   s flags, Python's literal braces, escapes and set syntax. A construct with
-//   no JavaScript equivalent (atomic groups, possessive quantifiers, verbose
-//   or multiline flags, \N{...}) throws UntranslatablePattern rather than
+//   newline, . excluding only \n, (?P<name>) groups, \A and \Z, scoped i, m
+//   and s flags, Python's literal braces, escapes and set syntax. Under
+//   MULTILINE (the judge's fallback parser, PR 6), ^ matches only at the
+//   start and after \n, and $ only before \n and at the end, as in Python;
+//   JavaScript's m flag would also break lines at \r, U+2028 and U+2029, so
+//   it is never set. A construct with no JavaScript equivalent (atomic
+//   groups, possessive quantifiers, the verbose flag, \N{...}) throws
+//   UntranslatablePattern rather than
 //   matching differently; a pattern Python itself rejects throws SyntaxError,
 //   as re.error.
 // - Case-insensitive matching (round 2, R6-12) is not JavaScript's i flag,
@@ -361,6 +365,20 @@ export function pyRepr(value: unknown): string {
     .join(", ")}}`;
 }
 
+/** bool(): what Python's `x or y` and `if x` test. */
+export function pyTruthy(value: unknown): boolean {
+  if (value === null || value === undefined || value === false) return false;
+  if (value === true) return true;
+  if (value instanceof PyInt) return !/^[-+]?0+$/.test(value.digits);
+  if (value instanceof PyFloat) return value.value !== 0;
+  if (typeof value === "number") return value !== 0;
+  if (typeof value === "string") return value.length > 0;
+  if (Array.isArray(value)) return value.length > 0;
+  if (value instanceof PyTuple) return value.items.length > 0;
+  if (isPyDict(value)) return keysOf(value).length > 0;
+  return true;
+}
+
 /** str() */
 export const pyStr = (value: unknown): string =>
   typeof value === "string" ? value : pyRepr(value);
@@ -520,36 +538,43 @@ type Esc = { lit: number } | { cat: string; outside: string } | { at: string } |
 interface Flags {
   icase: boolean;
   dotAll: boolean;
+  multiline: boolean;
 }
 
 /** Characters an unescaped Python pattern passes to JavaScript as they are. */
-const META = new Set("^|*+?");
+const META = new Set("|*+?");
 
 const compiled = new Map<string, RegExp>();
 
 /**
- * A Python `re` pattern, searched with re.IGNORECASE when `ignoreCase`, as a
- * JavaScript RegExp with the same matches. Throws SyntaxError where Python
- * raises re.error, UntranslatablePattern where JavaScript has no equivalent.
+ * A Python `re` pattern, searched with re.IGNORECASE when `ignoreCase` and
+ * re.MULTILINE when `multiline`, as a JavaScript RegExp with the same
+ * matches. Throws SyntaxError where Python raises re.error,
+ * UntranslatablePattern where JavaScript has no equivalent.
  */
-export function pyRegex(pattern: string, ignoreCase: boolean): RegExp {
-  const key = `${ignoreCase ? "i" : "-"}${pattern}`;
+export function pyRegex(pattern: string, ignoreCase: boolean, multiline = false): RegExp {
+  const key = `${ignoreCase ? "i" : "-"}${multiline ? "m" : "-"}${pattern}`;
   let re = compiled.get(key);
   if (!re) {
-    re = translate(pattern, ignoreCase);
+    re = translate(pattern, ignoreCase, multiline);
     compiled.set(key, re);
   }
   return re;
 }
 
-function translate(pattern: string, ignoreCase: boolean): RegExp {
+/** Python's ^ and $ under MULTILINE: a line ends at \n only. */
+const LINE_START = "(?:(?<![\\s\\S])|(?<=\\n))";
+const LINE_END = `(?=\\n|${END})`;
+
+function translate(pattern: string, ignoreCase: boolean, multiline: boolean): RegExp {
   let p = pattern;
-  let flags: Flags = { icase: ignoreCase, dotAll: false };
+  let flags: Flags = { icase: ignoreCase, dotAll: false, multiline };
   const global = /^\(\?([aiLmsux]+)\)/.exec(p);
   if (global) {
     for (const f of global[1] as string) {
       if (f === "i") flags.icase = true;
       else if (f === "s") flags.dotAll = true;
+      else if (f === "m") flags.multiline = true;
       else if (f !== "u") throw new UntranslatablePattern(pattern, `the global flag (?${f})`);
     }
     p = p.slice(global[0].length);
@@ -761,10 +786,12 @@ function translate(pattern: string, ignoreCase: boolean): RegExp {
           bad("bad inline flags: cannot turn off flag");
         if ([...on].some((f) => off.includes(f))) bad("bad inline flags: flag turned on and off");
         for (const f of on + off)
-          if (!"isu".includes(f))
+          if (!"imsu".includes(f))
             throw new UntranslatablePattern(pattern, `the scoped flag ${f} in ${scoped[0]}`);
         if (on.includes("i")) flags.icase = true;
         if (off.includes("i")) flags.icase = false;
+        if (on.includes("m")) flags.multiline = true;
+        if (off.includes("m")) flags.multiline = false;
         if (on.includes("s")) flags.dotAll = true;
         if (off.includes("s")) flags.dotAll = false;
         out += "(?:";
@@ -800,7 +827,10 @@ function translate(pattern: string, ignoreCase: boolean): RegExp {
       out += flags.dotAll ? "[\\s\\S]" : "[^\\n]";
       k++;
     } else if (c === "$") {
-      out += `(?=\\n?${END})`;
+      out += flags.multiline ? LINE_END : `(?=\\n?${END})`;
+      k++;
+    } else if (c === "^") {
+      out += flags.multiline ? LINE_START : "^";
       k++;
     } else if (META.has(c)) {
       out += c;

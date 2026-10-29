@@ -23,6 +23,7 @@ export {
   sessionPlaceholder,
   tagMemoryResults,
   tagRecall,
+  tagUngovernedRead,
   WITHHELD,
   type Withheld,
   withoutMemory,

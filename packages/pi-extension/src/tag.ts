@@ -166,14 +166,63 @@ const escapeMarkup = (s: string) =>
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;");
 
-/** The tagged text the model receives. */
-export function tagRecall(details: RecallDetails): string {
-  const head = `<engram:memory read_id="${escapeMarkup(details.read_id)}" policy_id="${escapeMarkup(details.policy_id)}" filtered="${details.filtered}">`;
-  const body = details.items.map(
+/** One item as the memory tag shows it. `policy_id`, the admitting rule, is C5's only. */
+interface TaggedItem {
+  item_id: string;
+  scope: string;
+  rank: number;
+  content: string;
+  policy_id?: string;
+}
+
+/** A read as the memory tag shows it. The read id and the read rule are C5's only. */
+interface TaggedRead {
+  read_id?: string;
+  policy_id?: string;
+  filtered: number;
+  items: readonly TaggedItem[];
+}
+
+/** ` name="value"`, escaped, or nothing when there is no value. */
+const attr = (name: string, value: string | undefined) =>
+  value === undefined ? "" : ` ${name}="${escapeMarkup(value)}"`;
+
+/**
+ * The memory tag, one shape in every condition (ADR 0015, amended in PR 6):
+ * the read's `filtered` count, and per item its id, scope, rank and escaped
+ * content. A governed read adds the read id and the rules that admitted it;
+ * those attributes are the only difference the conditions show the model.
+ * Scores stay in the explanations (details, the log, `engram explain`, and
+ * `memory_explain` where it is offered), not the tag.
+ */
+function tagRead(read: TaggedRead): string {
+  const head = `<engram:memory${attr("read_id", read.read_id)}${attr("policy_id", read.policy_id)} filtered="${read.filtered}">`;
+  const body = read.items.map(
     (i) =>
-      `<engram:item item_id="${escapeMarkup(i.item_id)}" scope="${escapeMarkup(i.scope)}" rank="${i.rank}" score="${i.score.toFixed(3)}" policy_id="${escapeMarkup(i.policy_id)}">\n${escapeMarkup(i.content)}\n</engram:item>`,
+      `<engram:item${attr("item_id", i.item_id)}${attr("scope", i.scope)} rank="${i.rank}"${attr("policy_id", i.policy_id)}>\n${escapeMarkup(i.content)}\n</engram:item>`,
   );
   return [head, ...(body.length > 0 ? body : ["no memories"]), "</engram:memory>"].join("\n");
+}
+
+/** The tagged text the model receives for a governed read (C5). */
+export const tagRecall = (details: RecallDetails): string => tagRead(details);
+
+/**
+ * The tagged text the model receives for an ungoverned read (C2, C3): the
+ * store's matches in its order, nothing filtered, no read id and no rules.
+ */
+export function tagUngovernedRead(
+  items: readonly { id: string; scope: string; content: string }[],
+): string {
+  return tagRead({
+    filtered: 0,
+    items: items.map((i, n) => ({
+      item_id: i.id,
+      scope: i.scope,
+      rank: n + 1,
+      content: i.content,
+    })),
+  });
 }
 
 /** What the model sees in place of a memory result the extension did not produce. */

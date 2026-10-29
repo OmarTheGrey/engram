@@ -2,15 +2,15 @@
 // extension is loaded only for C5, the policy text is in the system prompt
 // only for C3, and every condition offers the same two memory tools, with the
 // same descriptions, parameters and result wording (decision D13).
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createFakeAdapter } from "@engram/adapters";
-import { allEvents, loadPreset, migrate, openSqlite } from "@engram/core";
+import { allEvents, loadPreset, migrate, openSqlite, parsePolicy, presetUrl } from "@engram/core";
 import { NO_BYPASS_ID } from "@engram/pi-extension";
 import { afterEach, describe, expect, test } from "vitest";
 import { userBash } from "../src/bash.ts";
-import { conditionSession, policyInstruction } from "../src/conditions.ts";
+import { conditionSession, POLICY_LEGEND, policyInstruction } from "../src/conditions.ts";
 import type { Condition } from "../src/config.ts";
 import { personOf, sequentialIds } from "../src/gatemem-probe.ts";
 import { scriptedPiModel } from "../src/model/scripted.ts";
@@ -112,10 +112,103 @@ describe("condition sessions", () => {
     ]);
   });
 
-  test("C3's policy text is the preset as written and the requester's memberships", () => {
-    const text = policyInstruction("medium", SAM);
-    expect(text).toContain("id: preset.medium");
+  test("a read reaches the model in one tag shape; only C5's carries the read id and rules (ADR 0015)", async () => {
+    const shown: string[] = [];
+    for (const condition of ["C2", "C3", "C5"] as const) {
+      const { session, scripted } = await build(condition, [
+        {
+          toolCalls: [
+            {
+              id: "w1",
+              name: "memory_write",
+              arguments: { scope: SAM.id, content: "I handle the <invoices> & refunds" },
+            },
+            {
+              id: "w2",
+              name: "memory_write",
+              arguments: { scope: SAM.id, content: "the invoices are due on Fridays" },
+            },
+          ],
+        },
+        { toolCall: { id: "r1", name: "memory_read", arguments: { query: "invoices" } } },
+        { text: "done" },
+      ]);
+      await session.prompt("remember, then recall");
+      // What the model was sent for the read, after every handler ran.
+      const sent = scripted.seen[2]?.messages.find(
+        (m) => m.role === "toolResult" && m.toolCallId === "r1",
+      );
+      const first =
+        sent && "content" in sent && Array.isArray(sent.content) ? sent.content[0] : undefined;
+      shown.push(first && "text" in first ? first.text : "");
+      session.dispose();
+    }
+    // Item ids are minted from one sequence that C5's plane also draws event
+    // ids from, so the same item has another id there; ids are numbered by
+    // first appearance, which compares everything else byte for byte.
+    const numbered = (text: string) => {
+      const ids: string[] = [];
+      return text.replaceAll(/ item_id="([^"]*)"/g, (_m, id: string) => {
+        if (!ids.includes(id)) ids.push(id);
+        return ` item_id="#${ids.indexOf(id) + 1}"`;
+      });
+    };
+    const [c2, c3, c5] = (shown as [string, string, string]).map(numbered) as [
+      string,
+      string,
+      string,
+    ];
+    expect(c2).toMatch(
+      /^<engram:memory filtered="0">\n<engram:item item_id="[^"]+" scope="person:billing_sam" rank="1">\n/,
+    );
+    expect(c2.match(/<engram:item /g)).toHaveLength(2);
+    expect(c2).toContain("I handle the &lt;invoices&gt; &amp; refunds");
+    expect(c3).toBe(c2);
+    expect(c5).toMatch(/^<engram:memory read_id="[^"]+" policy_id="[^"]+" filtered="0">/);
+    expect(c5.match(/ policy_id="/g)).toHaveLength(3);
+    expect(c5.replaceAll(/ (?:read_id|policy_id)="[^"]*"/g, "")).toBe(c2);
+  });
+
+  test("C3's policy text is the loaded policy's content and the requester's memberships", () => {
+    const text = policyInstruction(loadPreset("medium"), "medium", SAM);
+    expect(text).toContain('"id": "preset.medium"');
     expect(text).toContain("person:billing_sam");
+    // Comments are not policy: none of the preset's comment text reaches the prompt.
+    expect(text).not.toContain("Stance:");
+    // The units the YAML stated only in comments are one fixed legend line (P6-8).
+    expect(text).toContain(POLICY_LEGEND);
+    expect(text).toContain("ttl is in seconds");
+    expect(text).toContain("between 0 and 1");
+    expect(text).toContain("budget is a number of active items");
+    expect(text).not.toContain("#");
+  });
+
+  test("a preset differing only in comments gives a byte-identical C3 prompt", () => {
+    const yaml = readFileSync(presetUrl("medium"), "utf8");
+    const recommented = yaml
+      .split("\n")
+      .map((line) => (line.trimStart().startsWith("#") ? "# a reworded comment" : line))
+      .join("\n")
+      .concat("\n# a comment added at the end\n");
+    expect(recommented).not.toBe(yaml);
+    const original = policyInstruction(parsePolicy(yaml, "medium.yaml"), "medium", SAM);
+    const edited = policyInstruction(parsePolicy(recommented, "edited.yaml"), "medium", SAM);
+    expect(edited).toBe(original);
+  });
+
+  test("C3's prompt orders keys stably, so key order in the file does not matter", () => {
+    const policy = loadPreset("medium");
+    const reordered = Object.fromEntries(Object.entries(policy).reverse()) as typeof policy;
+    expect(policyInstruction(reordered, "medium", SAM)).toBe(
+      policyInstruction(policy, "medium", SAM),
+    );
+  });
+
+  test("a change to the policy's content changes C3's prompt", () => {
+    const policy = loadPreset("medium");
+    expect(policyInstruction({ ...policy, version: policy.version + 1 }, "medium", SAM)).not.toBe(
+      policyInstruction(policy, "medium", SAM),
+    );
   });
 
   test("C2's memory_write lands wherever it asks: there is no gate", async () => {

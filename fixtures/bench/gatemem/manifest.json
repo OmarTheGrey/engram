@@ -19,6 +19,9 @@
     "bench/eval/metrics.py": "ad9180be5746a91f9f79e56de4b68a2405cf709ca7c04379c3e762c76648e439",
     "bench/eval/runner.py": "0fc6ea01e63f3a5c89f92b26f71ca82fc4b45ce6ef5c16fc647e6af4f3263f44",
     "bench/eval/scorer.py": "847a29c8b160b199f84763b137ec867af7d8ccfdb457c22fa01d6ed123e7304a",
+    "bench/eval/judge.py": "e7bb5117c499fd452019d6b26124d508d8c86279c8c8a3ba306830a6efc00de3",
+    "bench/llm/router.py": "727409404cc0a745a26f905b11fbfc6d0ddbdbb18c603ec70aededcdcb62067b",
+    "bench/llm/providers/openai.py": "9b8fd8b1956325b1a39d71140a43d3759c1a27cac127864ac9cf455a6f5b8894",
     "bench/prompts/query_prompt.txt": "8878ef50b1cc7b4480f3d0b7bc836c237c35e35cf9159451d47d26204c356165",
     "bench/prompts/judge_prompt.txt": "054f2db5de0f0537671ff4fbb3f88dd9e694ac8f7738d484648aca8d88ee111a",
     "bench/scripts/score_predictions.py": "3d546a21778202959a9df12bac44c196a7f20a248cf5a2cb34f0d9b9c2623d8a",
@@ -32,6 +35,18 @@
     "bench/data/medical/checkpoints.jsonl": "2447f5905081e6002f16ad14f7f7dc19e14b7181e5ac8ebd08144d68da6437a0",
     "bench/data/office/episodes.jsonl": "e15797cc0ab778067e0235377a09811c73182b5e1aa28e2221adc5ef9638a409",
     "bench/data/office/checkpoints.jsonl": "7186bc1dd66b493f994b802bad8817d7aa5e7a91f498d67f87410a98f8116d0c"
+  },
+  "vendored": {
+    "packages/bench/src/gatemem/vendor/query_prompt.txt": {
+      "from": "bench/prompts/query_prompt.txt",
+      "sha256": "8878ef50b1cc7b4480f3d0b7bc836c237c35e35cf9159451d47d26204c356165",
+      "licence": "MIT, Copyright (c) 2026 Renz; text in fixtures/bench/gatemem/UPSTREAM-LICENSE"
+    },
+    "packages/bench/src/gatemem/vendor/judge_prompt.txt": {
+      "from": "bench/prompts/judge_prompt.txt",
+      "sha256": "054f2db5de0f0537671ff4fbb3f88dd9e694ac8f7738d484648aca8d88ee111a",
+      "licence": "MIT, Copyright (c) 2026 Renz; text in fixtures/bench/gatemem/UPSTREAM-LICENSE"
+    }
   },
   "selection": [
     {

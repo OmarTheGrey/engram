@@ -13,6 +13,13 @@ export interface ModelRequest {
   seed: number;
   temperature?: number;
   maxTokens?: number;
+  /**
+   * Ask for structured output matching this JSON Schema (OpenAI's strict
+   * `json_schema` response format), as an upstream judge does. Part of the
+   * request hash when set; absent, the hash is what it was before the field
+   * existed. An implementation that cannot honour it must refuse the request.
+   */
+  responseSchema?: { name: string; schema: Record<string, unknown> };
 }
 
 export interface ModelUsage {
@@ -27,6 +34,26 @@ export interface ModelResponse {
 }
 
 export type ModelCall = (request: ModelRequest) => Promise<ModelResponse>;
+
+/**
+ * A ModelCall's refusal of a request it cannot make as asked (such as
+ * structured output it has no way to request). Callers that retry on other
+ * errors must stop on this one: retrying a different request would change
+ * the protocol silently.
+ */
+export class UnsupportedRequestError extends Error {
+  readonly model: string;
+  readonly feature: string;
+
+  constructor(model: string, feature: string, detail = "") {
+    super(
+      `model call refused: ${model} was asked for ${feature}${detail ? ` (${detail})` : ""}, which this ModelCall cannot request`,
+    );
+    this.name = "UnsupportedRequestError";
+    this.model = model;
+    this.feature = feature;
+  }
+}
 
 /** JSON with object keys sorted at every depth, so equal values hash equally. */
 export function canonicalJson(value: unknown): string {
