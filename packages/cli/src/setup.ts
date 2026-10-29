@@ -90,11 +90,18 @@ export function checkTime(flag: string, value: string | undefined): string | und
   return value;
 }
 
-/** A number flag such as --confidence: any finite decimal; its range is the schema's to judge. */
+/** A decimal number, optionally signed and with an exponent; never hex, binary, octal or `_`. */
+const DECIMAL = /^[+-]?(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?$/;
+
+/**
+ * A number flag such as --confidence: any finite decimal; its range is the
+ * schema's to judge. Number() alone would also read `0x10` as 16 and `0b1`
+ * as 1 (finding R6-6), so the text must be decimal first.
+ */
 export function checkNumber(flag: string, value: string | undefined): number | undefined {
   if (value === undefined) return undefined;
   const n = Number(value);
-  if (value.trim() === "" || !Number.isFinite(n))
+  if (!DECIMAL.test(value.trim()) || !Number.isFinite(n))
     throw new UsageError(`${flag} ${JSON.stringify(value)} is not a number`);
   return n;
 }

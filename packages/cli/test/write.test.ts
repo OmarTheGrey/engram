@@ -3,7 +3,8 @@
 import { readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { cli, FIXTURE_FILES, fixtureCopy, readArgs, tempDir } from "./helpers.ts";
+import { run } from "../src/run.ts";
+import { cli, FIXTURE_FILES, fixtureCopy, HOME, NOW, readArgs, tempDir } from "./helpers.ts";
 
 const writeArgs = (db: string, root: string, ...more: string[]) => [
   "write",
@@ -103,6 +104,13 @@ describe("engram write", () => {
   it.each([
     ["--confidence", ""],
     ["--confidence", "high"],
+    // Number() reads these as 16, 1, 8 and 16; a confidence is a decimal (finding R6-6).
+    ["--confidence", "0x10"],
+    ["--confidence", "0b1"],
+    ["--confidence", "0o10"],
+    ["--confidence", "1_6"],
+    ["--confidence", "Infinity"],
+    ["--confidence", "1e400"],
     ["--valid-from", "yesterday"],
     ["--valid-to", "2026-13-01"],
     ["--at", "now"],
@@ -142,6 +150,45 @@ describe("engram write", () => {
     const { code, out } = await cli(writeArgs(db, root, "--content", "x", "--confidence", "3"));
     expect(code).toBe(1);
     expect(out).toContain("policy engram/write/schema");
+  });
+
+  it.each([
+    ["0.7", 0.7],
+    [".5", 0.5],
+    ["1.", 1],
+    ["+0.5", 0.5],
+    ["5e-1", 0.5],
+    [" 0.5 ", 0.5],
+  ])("reads --confidence %j as the decimal %d", async (value, expected) => {
+    const root = await tempDir();
+    const db = join(await tempDir(), "engram.db");
+    const { out } = await cli([
+      ...writeArgs(db, root, "--content", "x", "--confidence", value),
+      "--json",
+    ]);
+    expect(JSON.parse(out).item.confidence).toBe(expected);
+  });
+
+  it("takes the new item's id and the event's id from the injected id source (R6-9)", async () => {
+    const root = await tempDir();
+    const db = join(await tempDir(), "engram.db");
+    const ids = ["01990000-0000-7000-8000-00000000aaaa", "01990000-0000-7000-8000-00000000bbbb"];
+    let out = "";
+    const code = await run([...writeArgs(db, root, "--content", "x"), "--json"], {
+      out: (s) => {
+        out += s;
+      },
+      err: () => undefined,
+      cwd: root,
+      home: HOME,
+      now: () => NOW,
+      newId: () => ids.shift() ?? "01990000-0000-7000-8000-00000000ffff",
+    });
+    expect(code).toBe(0);
+    const parsed = JSON.parse(out);
+    expect(parsed.item.id).toBe("01990000-0000-7000-8000-00000000aaaa");
+    expect(parsed.event.id).toBe("01990000-0000-7000-8000-00000000bbbb");
+    expect(await readdir(root)).toContain("01990000-0000-7000-8000-00000000aaaa.md");
   });
 
   it("refuses a write with no content", async () => {
