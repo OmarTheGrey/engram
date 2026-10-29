@@ -12,7 +12,7 @@
   "model": "scripted/scripted-1",
   "seeds": [1],
   "preset": "medium",
-  "store": ["fake", "mem0"],
+  "store": ["fake", "mem0", "letta"],
   "script": "../../fixtures/bench/gatemem/b3-plane-script.json",
   "cassettes": "../../fixtures/cassettes/b3-gatemem-plane"
 }

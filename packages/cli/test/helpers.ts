@@ -69,6 +69,8 @@ export interface CliOptions {
   stop?: AbortSignal;
   /** The hook's JSON. */
   stdin?: NodeJS.ReadableStream;
+  /** Doctor's store probes to use instead of the real ones (Io.doctorProbes). */
+  doctorProbes?: Io["doctorProbes"];
 }
 
 export async function cli(
@@ -82,6 +84,7 @@ export async function cli(
     transport,
     stop,
     stdin,
+    doctorProbes,
   }: CliOptions = {},
 ): Promise<CliResult> {
   let out = "";
@@ -103,6 +106,7 @@ export async function cli(
     ...(transport ? { transport } : {}),
     ...(stop ? { stop } : {}),
     ...(stdin ? { stdin } : {}),
+    ...(doctorProbes ? { doctorProbes } : {}),
   });
   return { code, out, err };
 }

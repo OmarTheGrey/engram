@@ -13,4 +13,4 @@ export {
   scriptedPiModel,
 } from "./model/scripted.ts";
 export * from "./run.ts";
-export { openStore, type StoreName } from "./stores.ts";
+export { closeStore, LETTA_STORE_PREFIX, openStore, type StoreName } from "./stores.ts";

@@ -8,7 +8,10 @@
 // `***`, a URL that does not parse prints as `postgres://<hidden: unparseable>`,
 // and error messages are scrubbed of every secret (packages/cli/src/setup.ts).
 // The adapter checks run through a Plane on an in-memory log, so
-// no adapter is called directly (AGENTS.md rule 2) and nothing is recorded.
+// no adapter is called directly (AGENTS.md rule 2) and nothing is recorded;
+// the exceptions are three calls the letta check makes on its probe in its
+// own temporary repository, `history`, `delete` and `read`, since the plane
+// has neither history nor delete (checkLettaAdapter).
 //
 // The checks that read the repository (provider key names, benchmark pins,
 // the pi pin) run only from a checkout (`io.repo`); elsewhere they are
@@ -17,9 +20,16 @@
 // from pi-ai: the CLI never imports pi-ai (AGENTS.md, what not to do).
 import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { access, constants, stat } from "node:fs/promises";
+import { access, constants, mkdtemp, rm, stat } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { createFilesAdapter, createHashingEmbedder, createMem0Adapter } from "@engram/adapters";
+import {
+  createFilesAdapter,
+  createHashingEmbedder,
+  createLettaAdapter,
+  createMem0Adapter,
+  gitVersion,
+} from "@engram/adapters";
 import {
   type Actor,
   type Adapter,
@@ -145,22 +155,20 @@ export async function checkFilesAdapter(
 export const openOfflineMem0 = () =>
   createMem0Adapter({ embedder: createHashingEmbedder(), dbPath: ":memory:" });
 
-/** One write and one read through the plane on an offline Mem0. */
-export async function checkMem0Adapter(
-  at: string,
-  newId: () => string,
-  open: () => Promise<Adapter> = openOfflineMem0,
-): Promise<CheckResult> {
-  const adapter = await open();
-  const actor: Actor = {
-    id: "person:doctor",
-    level: "person",
-    memberships: ["person:doctor"],
-    source: "user",
-  };
-  const content = "engram doctor probe";
-  const item = {
-    id: newId(),
+const PROBE_ACTOR: Actor = {
+  id: "person:doctor",
+  level: "person",
+  memberships: ["person:doctor"],
+  source: "user",
+};
+const PROBE_CONTENT = "engram doctor probe";
+
+/** The item the adapter probes write: user-sourced, in the doctor's own person scope. */
+function probeItem(id: string, at: string): MemoryItem {
+  const actor = PROBE_ACTOR;
+  const content = PROBE_CONTENT;
+  return {
+    id,
     class: "semantic",
     scope: actor.id,
     owner: actor.id,
@@ -182,19 +190,85 @@ export async function checkMem0Adapter(
     store_ref: null,
     schema_version: 0,
   } as unknown as MemoryItem;
+}
+
+/**
+ * The probe item written and read back through a plane over `adapter`;
+ * undefined when both worked, else the failure. On success `stored` holds
+ * the item as the plane recorded it, store_ref included.
+ */
+async function probeRoundTrip(
+  adapter: Adapter,
+  at: string,
+  newId: () => string,
+): Promise<{ failure?: string; stored?: MemoryItem }> {
+  const item = probeItem(newId(), at);
   return onScratchPlane(adapter, newId, async (deps) => {
     const plane = createPlane(deps);
-    const { event } = await plane.write(actor, item, at);
-    if (event.decision !== "allow")
-      return ["fail", `the probe write was not allowed: ${event.reason} (${event.policy_id})`];
-    const read = await plane.read(actor, { text: content, at });
+    const { event, item: stored } = await plane.write(PROBE_ACTOR, item, at);
+    if (event.decision !== "allow" || stored === null)
+      return { failure: `the probe write was not allowed: ${event.reason} (${event.policy_id})` };
+    const read = await plane.read(PROBE_ACTOR, { text: PROBE_CONTENT, at });
     if (!read.items.some((i) => i.id === item.id))
-      return ["fail", "the probe item was written but a read did not return it"];
+      return { failure: "the probe item was written but a read did not return it" };
+    return { stored };
+  });
+}
+
+/** One write and one read through the plane on an offline Mem0. */
+export async function checkMem0Adapter(
+  at: string,
+  newId: () => string,
+  open: () => Promise<Adapter> = openOfflineMem0,
+): Promise<CheckResult> {
+  const { failure } = await probeRoundTrip(await open(), at, newId);
+  if (failure !== undefined) return ["fail", failure];
+  return [
+    "ok",
+    "in-memory Mem0 with the hashing embedder: a write and a read round-trip through the plane, offline",
+  ];
+}
+
+/**
+ * `git` on the path, then a MemFS repository initialised in a temporary
+ * folder: the probe written and read through the plane (one commit), then
+ * deleted (a second commit) and gone, all offline. Three adapter calls are
+ * made outside a plane: `history` (one version in git), `delete`, and the
+ * `read` that finds the probe gone. The plane has no history and no delete
+ * (hard deletion waits for person-scope erasure), and the repository is
+ * doctor's own temporary folder, removed afterwards, never a governed store.
+ */
+export async function checkLettaAdapter(
+  at: string,
+  newId: () => string,
+  open: (root: string) => Promise<Adapter> = (root) => createLettaAdapter({ root }),
+): Promise<CheckResult> {
+  let version: string;
+  try {
+    version = await gitVersion();
+  } catch (e) {
+    return ["fail", oneLine(e)];
+  }
+  const root = await mkdtemp(join(tmpdir(), "engram-doctor-letta-"));
+  try {
+    const adapter = await open(root);
+    const { failure, stored } = await probeRoundTrip(adapter, at, newId);
+    if (failure !== undefined) return ["fail", failure];
+    const ref = stored?.store_ref;
+    if (!ref) return ["fail", "the probe write recorded no store_ref"];
+    const history = (await adapter.history?.(ref)) ?? [];
+    if (history.length !== 1)
+      return ["fail", `the probe write left ${history.length} versions in git, not 1`];
+    await adapter.delete(ref);
+    if ((await adapter.read(ref)) !== undefined)
+      return ["fail", "the probe item was deleted but a read still returns it"];
     return [
       "ok",
-      "in-memory Mem0 with the hashing embedder: a write and a read round-trip through the plane, offline",
+      `${version}; a MemFS repository in a temporary folder: a write and a read round-trip through the plane, one commit, and a delete, offline`,
     ];
-  });
+  } finally {
+    await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 20 });
+  }
 }
 
 const ProviderKeysError = (why: string) => new Error(`${PROVIDER_KEYS}: ${why}; run make api`);
@@ -490,8 +564,14 @@ export async function doctorCommand(args: string[], io: Io): Promise<number> {
     return ["ok", `${root} is a readable folder`];
   });
   await check("adapter files", () => checkFilesAdapter(root, at, io.newId));
-  await check("adapter mem0", () => checkMem0Adapter(at, io.newId));
-  await check("adapter letta", () => ["skip", "not implemented yet (card A2)"]);
+  await check(
+    "adapter mem0",
+    io.doctorProbes?.["adapter mem0"] ?? (() => checkMem0Adapter(at, io.newId)),
+  );
+  await check(
+    "adapter letta",
+    io.doctorProbes?.["adapter letta"] ?? (() => checkLettaAdapter(at, io.newId)),
+  );
   await check("provider keys", () => checkProviderKeys(io.repo, io.env));
   await check("benchmark pins", () => checkBenchmarkPins(io.repo));
   await check("pi pin", () => checkPiPin(io.repo));

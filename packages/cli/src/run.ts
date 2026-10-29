@@ -50,7 +50,18 @@ export interface Io {
   stdin?: NodeJS.ReadableStream;
   /** Standard output as a stream, for `engram mcp` over stdio. */
   stdout?: NodeJS.WritableStream;
+  /**
+   * Doctor's store probes by check name, in place of the real ones; unset
+   * outside tests (main.ts never sets it). A test about something else
+   * (redaction, say) passes cheap probes so it does not open Mem0 and a
+   * MemFS repository once per run (review finding R2-5).
+   */
+  doctorProbes?: Partial<Record<DoctorProbe, () => Promise<[Status, string]>>>;
 }
+
+/** The doctor checks that open a store and can be replaced through `Io.doctorProbes`. */
+export type DoctorProbe = "adapter mem0" | "adapter letta";
+type Status = "ok" | "fail" | "skip";
 
 export const HELP = `engram: the Engram control plane from the command line
 
@@ -75,8 +86,9 @@ over the workspace its flags name, or to a running server:
                               the server's own flags then name the log, policy and store
 
 store options (read, write, promote, retain, serve, mcp):
-  --store <name>              the store adapter; only files for now (default files)
-  --root <folder>             the store folder, such as a Claude Code memory folder
+  --store <name>              the store adapter: files or letta (default files)
+  --root <folder>             the store folder: a Claude Code memory folder (files),
+                              or a MemFS repository or an empty folder (letta)
   --owner <id>                the person whose folder it is; its memories are adopted as person:<id>
   --import-valid-from <iso>   valid_from for imported memories (default each file's mtime)
   --policy <preset|path>      strict, medium, permissive or a policy YAML file (default medium)

@@ -3,6 +3,9 @@
 // from the committed cassettes, and each probe's output holds the plane's
 // write and read events. A cross-principal read the mapping forbids is
 // denied with the same events on every store.
+import { readdirSync } from "node:fs";
+import { tmpdir } from "node:os";
+import type { Adapter } from "@engram/adapters";
 import { gatemem } from "@engram/bench";
 import {
   createPlane,
@@ -12,7 +15,7 @@ import {
   openSqlite,
   type Policy,
 } from "@engram/core";
-import { describe, expect, test } from "vitest";
+import { afterAll, describe, expect, test } from "vitest";
 import { readRunnerConfig, STORES } from "../src/config.ts";
 import {
   IngestionDivergedError,
@@ -24,25 +27,39 @@ import {
 import { memoryCache } from "../src/model/cached.ts";
 import { scriptedAnswers } from "../src/model/cassette.ts";
 import { runConfig } from "../src/run.ts";
-import { openStore } from "../src/stores.ts";
+import { closeStore, LETTA_STORE_PREFIX, openStore } from "../src/stores.ts";
 import { B3 } from "./paths.ts";
+
+/** The runner's Letta repositories now in the temporary folder. */
+const lettaFolders = () => readdirSync(tmpdir()).filter((f) => f.startsWith(LETTA_STORE_PREFIX));
 
 const config = readRunnerConfig(B3);
 
 describe("acceptance (card B3): GateMem probes through the plane on every store", () => {
   test("offline, the committed cassettes answer every call; each probe logs its writes and its read", async () => {
+    const before = lettaFolders();
     const first = await runConfig(config, { offline: true });
-    const again = await runConfig(config, { offline: true });
-    expect(first.calls).toEqual({ new: 0, cached: 12 });
+    // The second run, which shows a rerun gives the same rows with no new call,
+    // leaves Letta out: its rows come from the same cassettes and the same
+    // plane as fake's and Mem0's, and one Letta pass commits 474 turns, which
+    // takes minutes on Windows. The first run checks Letta's rows in full.
+    const inProcess = { ...config, store: ["fake", "mem0"] as ("fake" | "mem0")[] };
+    const again = await runConfig(inProcess, { offline: true });
+    expect(first.calls).toEqual({ new: 0, cached: 18 });
     expect(again.calls).toEqual({ new: 0, cached: 12 });
-    expect(again.rows).toEqual(first.rows);
+    expect(again.rows).toEqual(first.rows.filter((r) => r.store !== "letta"));
+    // Every session's Letta repository is removed when its probe ends.
+    expect(lettaFolders().filter((f) => !before.includes(f))).toEqual([]);
     expect(first.rows.map((r) => [r.checkpoint_id.slice(-7), r.store])).toEqual([
       ["ckpt_08", "fake"],
       ["ckpt_08", "mem0"],
+      ["ckpt_08", "letta"],
       ["ckpt_11", "fake"],
       ["ckpt_11", "mem0"],
+      ["ckpt_11", "letta"],
       ["ckpt_20", "fake"],
       ["ckpt_20", "mem0"],
+      ["ckpt_20", "letta"],
     ]);
     for (const r of first.rows) {
       const writes = r.events.filter((e) => e.op === "write");
@@ -52,8 +69,11 @@ describe("acceptance (card B3): GateMem probes through the plane on every store"
       expect(r.events.at(-1)).toMatchObject({ op: "read", decision: "allow" });
       expect(r.decisions.at(-1)).toMatchObject({ op: "read" });
     }
-    expect(Object.keys(first.summary)).toEqual(["C5@fake", "C5@mem0"]);
-  }, 120_000);
+    expect(Object.keys(first.summary)).toEqual(["C5@fake", "C5@mem0", "C5@letta"]);
+    // The Letta sessions commit every ingested turn (474 in one run): about
+    // three git processes each, tens of milliseconds apiece on Windows, a few on
+    // Linux. The bound covers the slow machine; CI takes far less.
+  }, 300_000);
 
   test("a different store is a different cache key", async () => {
     const cache = memoryCache();
@@ -77,6 +97,12 @@ describe("a cross-principal read the mapping forbids is denied the same way on e
   ) as gatemem.Checkpoint;
   const episode = office.episodes[0] as gatemem.Episode;
   const logs: Record<string, MemoryEvent[]> = {};
+  const opened: Adapter[] = [];
+  const before = lettaFolders();
+  afterAll(async () => {
+    for (const adapter of opened.splice(0)) await closeStore(adapter);
+    expect(lettaFolders().filter((f) => !before.includes(f))).toEqual([]);
+  });
 
   for (const store of STORES) {
     test(`on ${store}: the Monsoon members' turns stay out of reach; the Moonstone members' come through their grants`, async () => {
@@ -84,9 +110,11 @@ describe("a cross-principal read the mapping forbids is denied the same way on e
       const mapped = gatemem.mapCheckpoint(episode, checkpoint, newId);
       const db = openSqlite(":memory:");
       migrate(db);
+      const adapter = await openStore(store);
+      opened.push(adapter);
       const plane = createPlane({
         db,
-        adapter: await openStore(store),
+        adapter,
         policy: loadPreset("medium"),
         newId,
       });
@@ -118,7 +146,7 @@ describe("a cross-principal read the mapping forbids is denied the same way on e
       }
       logs[store] = plane.events();
       db.close();
-    }, 60_000);
+    }, 180_000);
   }
 
   test("the events, decisions and reasons are identical on every store apart from the store_ref", () => {

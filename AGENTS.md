@@ -59,15 +59,15 @@ make run CONFIG=<file> MODEL=<provider/model> REPLAY=1  replay that live run's c
 make lint                      biome, tsc, ruff, mypy; CI runs the same
 make lint-docs                 log entry frontmatter, em dashes in prose, CLAUDE.md equals AGENTS.md
 make lint-docs PR=<dir>        the PR gate on a PR directory (body.md, files.txt); fixtures in fixtures/ci/
-engram doctor                  log and its backend (never created by doctor), policy, store root, files and Mem0 adapters through the plane, provider keys by name only, benchmark pins and fixture hashes, the pi pin against docs/deps.md, Node 24 or later
-engram read --root <dir> --owner <id>   a memory folder through the plane, adopted as its owner, every item explained; the log is --db, else ENGRAM_DB_URL, else <home>/.engram/engram.db; engram --help lists the rest
+engram doctor                  log and its backend (never created by doctor), policy, store root, files and Mem0 adapters through the plane, the Letta adapter (git on the path, a write, read and delete in a temporary MemFS repository), provider keys by name only, benchmark pins and fixture hashes, the pi pin against docs/deps.md, Node 24 or later
+engram read --root <dir> --owner <id>   a memory folder through the plane, adopted as its owner, every item explained; --store letta takes a Letta MemFS repository (or an empty folder it initialises) as --root, every write one git commit; the log is --db, else ENGRAM_DB_URL, else <home>/.engram/engram.db; engram --help lists the rest
 engram write | read | promote | explain | retain | lint | simulate   each one call of the generated client: in process over the workspace its flags name, or to the server --server <url> (or ENGRAM_SERVER_URL) names
 engram retain --scope <scope>  sweep one scope's retention as a user-sourced member: expired items retired, budgets enforced
 engram serve [--host 127.0.0.1] [--port 7313] [--as <id> --member <scope>]   the HTTP API on loopback only (no authentication yet), over the workspace flags; --as names the inspector's viewer
 engram mcp --as <id> --member <scope>   the MCP server over stdio for Claude Code and Codex, every call as that actor with source model; --http <port> serves streamable HTTP on loopback
 engram hook claude-code --root <dir>   a Claude Code PreToolUse hook: denies a Bash command naming a store and a file tool inside a store root, recording each block
 make engram ARGS="<command> ..."   run the engram CLI from the repo (node packages/cli/src/main.ts)
-make test-e2e                  layer 6: engram doctor, then a CLI smoke (write, read, explain) on a temp folder, on SQLite and on embedded Postgres; the MCP handshake from the Claude Code and Codex fixtures in fixtures/harness/ and the Claude Code hook; then make ui and the inspector in Chromium (playwright) on fixtures/workspaces/inspector; no Docker anywhere
+make test-e2e                  layer 6: engram doctor, then a CLI smoke (write, read, explain) on a temp folder and on a Letta MemFS repository, on SQLite and on embedded Postgres; the MCP handshake from the Claude Code and Codex fixtures in fixtures/harness/ and the Claude Code hook; then make ui and the inspector in Chromium (playwright) on fixtures/workspaces/inspector; no Docker anywhere
 make ui                        build the inspector (Vite and React) into packages/ui/dist, which engram serve serves at / beside /api/v1; Chromium for its e2e test: pnpm exec playwright install chromium
 make test-repro                every research script regenerates its result; hashes match MANIFEST.md
 make fixtures                  regenerate golden files and record scripted cassettes afresh; refuses without a message
