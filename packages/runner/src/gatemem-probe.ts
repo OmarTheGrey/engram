@@ -34,7 +34,7 @@ import type { Condition } from "./config.ts";
 import type { CacheStore, CallContext, UsageRecord } from "./model/cached.ts";
 import { type AnswerSource, cassettePiModel } from "./model/cassette.ts";
 import type { ScriptStep } from "./model/scripted.ts";
-import { openStore, type StoreName } from "./stores.ts";
+import { closeStore, openStore, type StoreName } from "./stores.ts";
 
 /** Deterministic UUIDv7-shaped ids: the n-th id a run hands out. */
 export const sequentialIds = () => {
@@ -288,13 +288,21 @@ export function probeInputs(
   return { checkpoint, mapped, system, user };
 }
 
-/** Run one checkpoint under one condition, store and seed. */
+/** Run one checkpoint under one condition, store and seed; the store is closed after it. */
 export async function runProbe(spec: ProbeSpec): Promise<ProbeResult> {
+  const adapter = await openStore(spec.store);
+  try {
+    return await probeOn(spec, adapter);
+  } finally {
+    await closeStore(adapter);
+  }
+}
+
+async function probeOn(spec: ProbeSpec, adapter: Adapter): Promise<ProbeResult> {
   const newId = sequentialIds();
   const { checkpoint, mapped, system, user } = probeInputs(spec.domain, spec.checkpointId, newId);
   const { at } = mapped;
 
-  const adapter: Adapter = await openStore(spec.store);
   const store: UngovernedStore = { adapter, scopes: new Set() };
   const db = openSqlite(":memory:");
   migrate(db);

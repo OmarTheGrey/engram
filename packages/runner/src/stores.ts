@@ -5,8 +5,10 @@
 // its embedding model, a model slot that refuses every call, telemetry off.
 // Letta (card A2, ADR 0028) is a MemFS repository the adapter initialises in
 // a fresh temporary folder; git runs locally, never a network command. The
-// folders are removed when the process exits.
-import { mkdtempSync, rmSync } from "node:fs";
+// caller closes every store it opened (`closeStore`), which removes that
+// folder; a process exit hook would not run in a test worker.
+import { mkdtempSync } from "node:fs";
+import { rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -21,10 +23,11 @@ import {
 export const STORES = ["fake", "mem0", "letta"] as const;
 export type StoreName = (typeof STORES)[number];
 
-const lettaRoots: string[] = [];
-process.on("exit", () => {
-  for (const root of lettaRoots.splice(0)) rmSync(root, { recursive: true, force: true });
-});
+/** The temporary repository of each open Letta store. */
+const lettaRoots = new WeakMap<Adapter, string>();
+
+/** The prefix of the temporary folder of every Letta store the runner opens. */
+export const LETTA_STORE_PREFIX = "engram-runner-letta-";
 
 /** A fresh, empty store of the named kind, reaching no network. */
 export async function openStore(name: StoreName): Promise<Adapter> {
@@ -34,9 +37,23 @@ export async function openStore(name: StoreName): Promise<Adapter> {
     case "mem0":
       return createMem0Adapter({ embedder: createHashingEmbedder(), dbPath: ":memory:" });
     case "letta": {
-      const root = mkdtempSync(join(tmpdir(), "engram-runner-letta-"));
-      lettaRoots.push(root);
-      return createLettaAdapter({ root });
+      const root = mkdtempSync(join(tmpdir(), LETTA_STORE_PREFIX));
+      try {
+        const adapter = await createLettaAdapter({ root });
+        lettaRoots.set(adapter, root);
+        return adapter;
+      } catch (e) {
+        await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 20 });
+        throw e;
+      }
     }
   }
+}
+
+/** Releases what `openStore` made for this store: a Letta store's temporary repository. */
+export async function closeStore(adapter: Adapter): Promise<void> {
+  const root = lettaRoots.get(adapter);
+  if (root === undefined) return;
+  lettaRoots.delete(adapter);
+  await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 20 });
 }
