@@ -60,7 +60,12 @@ function reaches(word: string | undefined, check: BypassCheck, recursive: boolea
  * and its subcommand is a built-in that takes a message (VCS_MESSAGE_COMMANDS),
  * never an alias, which can evaluate its arguments.
  */
-function pathCheckWords(command: string, depth = 0): string[] {
+function pathCheckWords(command: string, depth = 0, quotedAbove = true): string[] {
+  // R3-26: single quotes do not stop an outer shell expanding first. A
+  // message is exempt only when every enclosing script argument was itself
+  // wholly single-quoted (`quotedAbove`), and never in a command holding a
+  // heredoc with an unquoted delimiter, whose body the shell expands.
+  const exemptable = quotedAbove && !UNQUOTED_HEREDOC.test(command);
   // Each token keeps its text after quote removal, whether it held quoted
   // whitespace, the quoting of each character (`s` single, `d` double, `u`
   // none), and whether it ends a list or pipeline segment (an unquoted `;`,
@@ -146,18 +151,21 @@ function pathCheckWords(command: string, depth = 0): string[] {
       shell = undefined;
       // `bash -c -- "..."`: the end of options comes before the script.
       if (t === "--") next = "script";
-      return finish(t === "--" ? [] : pathCheckWords(t, depth + 1));
+      return finish(t === "--" ? [] : pathCheckWords(t, depth + 1, exemptable && /^s+$/.test(m)));
     }
     if (pending === "encoded") {
       shell = undefined;
       const decoded = decodePowerShell(t);
       return finish(
-        decoded === undefined ? words() : [...words(), ...pathCheckWords(decoded, depth + 1)],
+        decoded === undefined
+          ? words()
+          : [...words(), ...pathCheckWords(decoded, depth + 1, false)],
       );
     }
     const pathLike = (out: string[]) => out.filter((w) => /[\\/]|^~|^\./.test(w));
-    if (pending === "message" && /^s+$/.test(m)) return finish(pathLike(words()));
-    if (messages && /^--message=/i.test(t) && /^u{10}s+$/.test(m)) return finish(pathLike(words()));
+    if (exemptable && pending === "message" && /^s+$/.test(m)) return finish(pathLike(words()));
+    if (exemptable && messages && /^--message=/i.test(t) && /^u{10}s+$/.test(m))
+      return finish(pathLike(words()));
     if (pending === "option-arg") return finish(words());
     const name = (t.split(/[\\/]/).pop() ?? "").toLowerCase().replace(/\.exe$/, "");
     if (tool !== undefined && !messages) {
@@ -206,6 +214,11 @@ function pathCheckWords(command: string, depth = 0): string[] {
   });
 }
 
+/**
+ * A heredoc whose delimiter is unquoted (`<<EOF`, `<<-EOF`, not `<<'EOF'`,
+ * `<<"EOF"`, `<<\EOF` or a here-string `<<<`): the shell expands its body.
+ */
+const UNQUOTED_HEREDOC = /(?<!<)<<-?[ \t]*(?![<'"\\])[A-Za-z0-9_]/;
 /** Commands that run the command after them, so it is still in command position (R3-20). */
 const WRAPPERS = new Set([
   "env",

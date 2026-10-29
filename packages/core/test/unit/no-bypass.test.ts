@@ -134,7 +134,15 @@ describe("shellBypass and toolBypass", () => {
     "git show :memory/a.md",
     "git show :0:memory/a.md",
     "git show stash@{0}:memory/a.md",
-  ])("pins the message exemption's boundary: %s is blocked (R3-19 to R3-22)", (command) => {
+    // R3-26: an outer shell expands the single-quoted message first.
+    `bash -c "git commit -m '$(cd memory; cat a.md)'"`,
+    "sh -c \"git commit -m '`cd memory; cat a.md`'\"",
+    "cat <<EOF\ngit commit -m '$(cd memory; cat a.md)'\nEOF",
+    "cat <<EOF | bash\ngit commit -m '$(cd memory; cat a.md)'\nEOF",
+    "bash <<-EOF\n\tgit commit -m 'memory leak'\nEOF",
+    // Inside a double-quoted script no message is exempt, the cost of the rule.
+    `bash -c "git commit -m 'memory leak'"`,
+  ])("pins the message exemption's boundary: %s is blocked (R3-19 to R3-26)", (command) => {
     expect(shellBypass(command, check)?.route).toBe("path");
   });
 
@@ -144,7 +152,9 @@ describe("shellBypass and toolBypass", () => {
     "sudo git commit -m 'memory leak'",
     "cd src && git commit -m 'memory leak'",
     "cd src\ngit commit -m 'memory leak'",
-    `bash -c "git commit -m 'memory leak'"`,
+    `bash -c 'git commit -m "x"'`,
+    `bash -c 'cd src && git commit --message=x'`,
+    "cat <<'EOF'\ngit commit -m 'memory leak'\nEOF",
   ])("keeps the exemption for a VCS message in command position: %s passes", (command) => {
     expect(shellBypass(command, check)).toBeUndefined();
   });
