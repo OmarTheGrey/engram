@@ -227,7 +227,9 @@ describe("evaluateWrite: who may write (decision D4)", () => {
     const existing = item({ scope: "team:payments" });
     const d = evaluateWrite(policy(), actor, item(), existing);
     expect(d).toMatchObject({ decision: "deny", check: "not-member" });
-    expect(d.reason).toMatch(/not a member of team:payments, where/);
+    // The writer cannot read team:payments, so the reason does not name it (finding N3).
+    expect(d.reason).toMatch(/the item id is held by an item you cannot access/);
+    expect(d.reason).not.toMatch(/team:payments/);
   });
 
   test("denies a rewrite with a lower version than the projected one", () => {

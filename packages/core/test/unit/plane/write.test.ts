@@ -293,6 +293,159 @@ describe("Plane.write: who may write (decision D4)", () => {
   });
 });
 
+/** A gate a test opens by hand: store writes wait on it, so two writes overlap for certain. */
+function gate() {
+  let open = () => {};
+  const opened = new Promise<void>((resolve) => {
+    open = resolve;
+  });
+  return { open, opened };
+}
+
+/** Lets every pending promise callback run. */
+const settle = () => new Promise<void>((resolve) => setImmediate(resolve));
+
+describe("Plane.write: concurrent writes (finding N2 of the second review)", () => {
+  const omar: Actor = { id: "person:omar", level: "person", memberships: ["person:omar"] };
+  const mal: Actor = { id: "person:mal", level: "person", memberships: ["person:mal"] };
+
+  test("two actors writing one new id at once: the second is judged against the first's item", async () => {
+    const { plane, adapter, db } = fresh();
+    const g = gate();
+    adapter.fault = async (it, store) => {
+      await g.opened;
+      return store.write(it);
+    };
+    const first = plane.write(omar, item(1, { scope: "person:omar" }), AT);
+    const second = plane.write(
+      mal,
+      item(1, { scope: "person:mal", owner: "person:mal", content: "mine now" }),
+      AT,
+    );
+    await settle();
+    g.open();
+    const [a, b] = await Promise.all([first, second]);
+    expect(a.event.decision).toBe("allow");
+    expect(b.event).toMatchObject({ decision: "deny", policy_id: WRITE_MEMBERSHIP_ID });
+    expect(adapter.writes).toBe(1);
+    expect(currentItems(db)).toMatchObject([
+      { id: id(1), scope: "person:omar", owner: "person:omar" },
+    ]);
+    expect((await adapter.list("person:mal")).map((i) => i.id)).toEqual([]);
+  });
+
+  test("concurrent rewrites at versions 5 and 3 never leave the item at version 3", async () => {
+    const { plane, adapter, db } = fresh();
+    await plane.write(writer, item(1), AT);
+    const g = gate();
+    adapter.fault = async (it, store) => {
+      await g.opened;
+      return store.write(it);
+    };
+    const five = plane.write(writer, item(1, { version: 5 }), AT);
+    const three = plane.write(writer, item(1, { version: 3 }), AT);
+    await settle();
+    g.open();
+    const [a, b] = await Promise.all([five, three]);
+    expect(a.event.decision).toBe("allow");
+    expect(b.event).toMatchObject({ decision: "deny", policy_id: WRITE_VERSION_ID });
+    expect(currentItems(db)[0]?.version).toBe(5);
+    expect((await adapter.list("team:platform"))[0]?.version).toBe(5);
+  });
+
+  test("a store failure does not stall the writes queued behind it", async () => {
+    const { plane, adapter } = fresh();
+    adapter.fault = async (it, store) => {
+      if (it.id === id(1)) throw new Error("store down");
+      return store.write(it);
+    };
+    const failing = plane.write(writer, item(1), AT);
+    const next = plane.write(writer, item(2), AT);
+    await expect(failing).rejects.toThrow(/store down/);
+    expect((await next).event.decision).toBe("allow");
+  });
+
+  test("a read during a pending write is not held up, and sees the item once it lands", async () => {
+    const { plane, adapter } = fresh();
+    const g = gate();
+    adapter.fault = async (it, store) => {
+      await g.opened;
+      return store.write(it);
+    };
+    const pending = plane.write(writer, item(1), AT);
+    await settle();
+    const during = await plane.read(writer, { at: AT });
+    expect(during.items).toEqual([]);
+    g.open();
+    await pending;
+    expect((await plane.read(writer, { at: AT })).items.map((i) => i.id)).toEqual([id(1)]);
+  });
+});
+
+describe("Plane.write: a denial reveals nothing about an item the writer cannot read (finding N3)", () => {
+  const mal: Actor = { id: "person:mal", level: "person", memberships: ["person:mal"] };
+
+  test("an id held in another scope is refused without naming its scope, owner or version", async () => {
+    const { plane } = fresh();
+    await plane.write(writer, item(1, { scope: "person:omar", version: 4 }), AT);
+    const { event } = await plane.write(
+      mal,
+      item(1, { scope: "person:mal", owner: "person:mal" }),
+      AT,
+    );
+    expect(event).toMatchObject({ decision: "deny", policy_id: WRITE_MEMBERSHIP_ID });
+    expect(event.reason).toMatch(/the item id is held by an item you cannot access/);
+    expect(event.reason).not.toMatch(/person:omar|version 4|\b4\b/);
+    expect(event.item).toBeUndefined();
+  });
+
+  test("a member who cannot read the item's scope gets the opaque reason on owner and version too", async () => {
+    const policy = testPolicy();
+    const noPerson = {
+      ...policy,
+      read: {
+        ...policy.read,
+        matrix: [{ reader: "team" as const, may_read: ["team" as const, "org" as const] }],
+      },
+    };
+    const { plane } = fresh(noPerson);
+    const owner: Actor = { id: "person:omar", level: "person", memberships: ["person:omar"] };
+    await plane.write(owner, item(1, { scope: "person:omar", version: 4 }), AT);
+    const blind: Actor = { id: "person:sara", level: "team", memberships: ["person:omar"] };
+    const lower = await plane.write(blind, item(1, { scope: "person:omar", version: 2 }), AT);
+    const other = await plane.write(
+      blind,
+      item(1, { scope: "person:omar", version: 5, owner: "person:sara" }),
+      AT,
+    );
+    for (const { event } of [lower, other]) {
+      expect(event).toMatchObject({ decision: "deny", policy_id: WRITE_VERSION_ID });
+      expect(event.reason).toMatch(/the item id is held by an item you cannot access/);
+      expect(event.reason).not.toMatch(/version 4|person:omar/);
+    }
+  });
+
+  test("a writer who can read the item still gets the detailed reason", async () => {
+    const { plane } = fresh();
+    await plane.write(writer, item(1, { version: 3 }), AT);
+    const { event } = await plane.write(writer, item(1, { version: 2 }), AT);
+    expect(event.reason).toMatch(/below the projected version 3/);
+  });
+});
+
+describe("Plane.write: a ref another item holds (finding N4)", () => {
+  test("the store-failure event names the orphaned bytes and the item whose record they may replace", async () => {
+    const { plane, adapter } = fresh();
+    await plane.write(writer, item(1), AT);
+    adapter.fault = async () => ({ adapter: "fake", key: id(1) });
+    await expect(plane.write(writer, item(2), AT)).rejects.toThrow(/already holds/);
+    const reason = plane.events()[1]?.reason ?? "";
+    expect(reason).toMatch(/orphaned/);
+    expect(reason).toMatch(new RegExp(`item ${id(2)}`));
+    expect(reason).toMatch(/contract/);
+  });
+});
+
 describe("Plane.write: the plane sets provenance (decision D4, finding R5-6)", () => {
   test("a harness-set source overrides the kind and actor the caller claims", async () => {
     const { plane } = fresh();

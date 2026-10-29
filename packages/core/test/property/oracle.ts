@@ -64,13 +64,18 @@ export const effectiveKind = (actor: Actor, item: MemoryItem) =>
  * Invariant 2: does the policy forbid `item`'s class or source in its scope,
  * or forbid `actor` from writing it there? A non-member of the item's scope
  * may not write it, and no write may carry a grant the gate refuses, nor any
- * grant on model or compaction content (decision D4).
+ * grant on model or compaction content (decision D4). Model and compaction
+ * content may not land outside person scope (source isolation, ADR 0004 and
+ * 0007): ADR 0004 lets it leave only through a gate pass, a promotion, which
+ * no write is, and no policy field lifts the rule, so no policy allows it.
  */
 export function writeForbidden(policy: Policy, actor: Actor, item: MemoryItem): boolean {
   if (!actor.memberships.some((m) => m === item.scope)) return true;
   const kind = effectiveKind(actor, item);
-  if (item.grants.length > 0 && (kind === "model" || kind === "compaction")) return true;
+  const untrusted = kind === "model" || kind === "compaction";
+  if (item.grants.length > 0 && untrusted) return true;
   if (!item.grants.every(grantAllowed)) return true;
+  if (untrusted && level(item.scope) !== "person") return true;
   const rule = policy.write.find((r) => r.scope === level(item.scope));
   if (!rule) return false;
   return rule.forbidden_classes.includes(item.class) || !rule.allowed_sources.includes(kind);

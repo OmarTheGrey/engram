@@ -129,22 +129,31 @@ export function evaluateWrite(
       WRITE_MEMBERSHIP_ID,
     );
   if (existing) {
+    // A writer who cannot read the projected item's scope learns only that its
+    // id is taken, never its scope, owner or version (finding N3): the reason
+    // is returned to the caller, and the pi extension shows it to the model.
+    // A non-member of that scope can never read it by scope.
+    const opaque = readableScope(policy, actor, existing.scope)
+      ? undefined
+      : `${actor.id} cannot write item ${item.id}: the item id is held by an item you cannot access`;
     if (!actor.memberships.includes(existing.scope))
       return deny(
         "not-member",
-        `${actor.id} is not a member of ${existing.scope}, where item ${item.id} lives now`,
+        `${actor.id} cannot write item ${item.id}: the item id is held by an item you cannot access`,
         WRITE_MEMBERSHIP_ID,
       );
     if (item.owner !== existing.owner)
       return deny(
         "version",
-        `a rewrite of ${item.id} changes its owner from ${existing.owner} to ${item.owner}`,
+        opaque ??
+          `a rewrite of ${item.id} changes its owner from ${existing.owner} to ${item.owner}`,
         WRITE_VERSION_ID,
       );
     if (item.version < existing.version)
       return deny(
         "version",
-        `a rewrite of ${item.id} at version ${item.version} is below the projected version ${existing.version}`,
+        opaque ??
+          `a rewrite of ${item.id} at version ${item.version} is below the projected version ${existing.version}`,
         WRITE_VERSION_ID,
       );
   }
@@ -220,9 +229,13 @@ export function readableScope(policy: Policy, actor: Actor, scope: string): bool
 
 /**
  * Could the actor reach `item` at all: through a readable scope, or through a
- * grant on it whose `to` matches the actor (live or not, of any class), when
- * the policy honours grants. What the actor cannot reach is never a candidate
- * of its reads, so its results reveal nothing about it (decision D5).
+ * grant on it whose `to` matches the actor, when the policy honours grants.
+ * What the actor cannot reach is never a candidate of its reads, so its
+ * results reveal nothing about it (decision D5). A matching grant that has
+ * expired or names another class still makes the item a candidate, which the
+ * read filter then removes and `filtered` counts, as D5 allows; it never
+ * widens what the store is searched for, since the store is searched only in
+ * the reader's readable member scopes (plane/read.ts, finding N1).
  */
 export function reachable(policy: Policy, actor: Actor, item: MemoryItem): boolean {
   return (

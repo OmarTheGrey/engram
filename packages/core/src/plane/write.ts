@@ -75,12 +75,19 @@ function refProblem(deps: PlaneDeps, item: MemoryItem, ref: StoreRef): string | 
     queue.push(...(itemById(deps.db, id)?.lineage ?? []));
   }
   const other = itemsByStoreRef(deps.db, ref).find((h) => !related.has(h.id));
+  // The adapter contract gives two item ids two refs (the conformance suite's
+  // "two item ids are two items under two refs"), so only a non-conforming
+  // store gets here, after it has written; the plane cannot undo that write
+  // and names what it left behind (finding N4).
   return other
-    ? `the store returned ref ${ref.adapter}/${ref.key}, which item ${other.id} already holds`
+    ? `the store returned ref ${ref.adapter}/${ref.key}, which item ${other.id} already holds; ` +
+        "two item ids get two refs under the adapter contract, so this store breaks it: " +
+        `the bytes it wrote for item ${item.id} at that ref are orphaned, never projected, ` +
+        `and may have replaced item ${other.id}'s record in the store`
     : null;
 }
 
-export async function gatedWrite(
+async function decideAndWrite(
   deps: PlaneDeps,
   actor: Actor,
   input: MemoryItem,
@@ -150,4 +157,28 @@ export async function gatedWrite(
     failed(errorText(e));
     throw e;
   }
+}
+
+/** The tail of each log's write queue, keyed by its db handle (finding N2). */
+const queues = new WeakMap<object, Promise<unknown>>();
+
+/**
+ * Plane.write. Writes over one db handle run one at a time, in call order:
+ * each decides against the projection the previous one left, so two
+ * concurrent writes of one id cannot both pass the membership, owner and
+ * version checks against a projection that no longer holds by the time they
+ * land (finding N2 of the second review). A write that fails does not stall
+ * the queue. Reads are not queued: a read takes the projection once,
+ * synchronously, and sees each write either wholly or not at all. Writers in
+ * another process sharing the same log file are not serialised by this
+ * (ADR 0007's amendments).
+ */
+export function gatedWrite(...args: Parameters<typeof decideAndWrite>): Promise<WriteResult> {
+  const { db } = args[0];
+  const run = (queues.get(db) ?? Promise.resolve()).then(() => decideAndWrite(...args));
+  queues.set(
+    db,
+    run.catch(() => undefined),
+  );
+  return run;
 }

@@ -24,8 +24,15 @@
 //
 // Invariant 2's oracle also forbids a write by a non-member of the item's
 // scope and a write carrying a grant the gate refuses (decision D4 of the
-// review fix pass); writers sometimes carry a harness-set source, which the
-// oracle judges instead of the item's claimed provenance.
+// review fix pass), and model or compaction content outside person scope
+// (source isolation, ADR 0004 and 0007; round 2 of the fix pass); writers
+// sometimes carry a harness-set source, which the oracle judges instead of
+// the item's claimed provenance. Besides random writes, it generates writes
+// the policy's rule admits that are forbidden only by a grant without a
+// class, a grant without an expiry, or source isolation, and its guard
+// requires each, so a gate that drops any of those checks fails it.
+// Invariant 1 ignores validity and status on purpose: it is a soundness
+// check, and a filter that admits fewer items cannot break it.
 import { createFakeAdapter } from "@engram/adapters";
 import fc from "fast-check";
 import { describe, expect, test } from "vitest";
@@ -37,6 +44,7 @@ import type { MemoryItem, Policy } from "../../src/schema.ts";
 import { compareTimestamps } from "../../src/time.ts";
 import {
   arbActor,
+  arbGatedGrant,
   arbGatedItem,
   arbGrantedItem,
   arbInstant,
@@ -165,6 +173,92 @@ const onAGrant = (items: MemoryItem[], reader: Actor) => {
   });
 };
 
+const levelOf = (scope: string) =>
+  (scope === "org" ? "org" : scope.split(":")[0]) as Policy["write"][number]["scope"];
+
+/** The policy's write rule for the item's level admits its class, effective source and confidence. */
+function admittedByRule(policy: Policy, actor: Actor, item: MemoryItem) {
+  const rule = policy.write.find((r) => r.scope === levelOf(item.scope));
+  const kind = actor.source ?? item.provenance.kind;
+  return (
+    rule !== undefined &&
+    !rule.forbidden_classes.includes(item.class) &&
+    rule.allowed_sources.includes(kind) &&
+    item.confidence >= rule.confidence_floor
+  );
+}
+
+/** `policy` with its rule for `scope`'s level replaced by one admitting `kinds` at any confidence. */
+const admitting = (policy: Policy, scope: string, kinds: MemoryItem["provenance"]["kind"][]) => {
+  const level = levelOf(scope);
+  const rule = {
+    scope: level,
+    allowed_sources: kinds,
+    confidence_floor: 0,
+    forbidden_classes: [],
+    requires_review: false,
+  };
+  return { ...policy, write: [...policy.write.filter((r) => r.scope !== level), rule] };
+};
+
+type WriteCase = readonly [Policy, readonly [MemoryItem[], Actor]];
+
+/**
+ * A write forbidden only by a grant without a class or without an expiry
+ * (follow-up I-3 of the second review): a member writes a trusted source the
+ * policy's rule admits, carrying one otherwise acceptable grant with one term
+ * dropped. A gate that stopped requiring either term would let it land.
+ */
+const grantTermsOnly: fc.Arbitrary<WriteCase> = fc
+  .tuple(
+    arbPolicy,
+    arbGrantedItem,
+    arbWriter,
+    arbGatedGrant,
+    fc.constantFrom("class", "expires"),
+    fc.constantFrom<MemoryItem["provenance"]["kind"]>("user", "document", "tool", "import"),
+  )
+  .map(([policy, item, writer, grant, drop, kind]) => {
+    const faulty =
+      drop === "class"
+        ? { to: grant.to, mode: grant.mode, expires: grant.expires }
+        : { to: grant.to, mode: grant.mode, class: grant.class };
+    const written = {
+      ...item,
+      provenance: { ...item.provenance, kind },
+      grants: [faulty],
+    } as MemoryItem;
+    const actor = {
+      ...writer,
+      source: kind,
+      memberships: [...new Set([...writer.memberships, item.scope])],
+    };
+    return [admitting(policy, item.scope, [kind]), [[written], actor]] as const;
+  });
+
+/**
+ * A write forbidden only by source isolation (follow-up I-1): a member's
+ * model or compaction content, without grants, into a role, team or org
+ * scope whose rule admits that source.
+ */
+const isolationOnly: fc.Arbitrary<WriteCase> = fc
+  .tuple(
+    arbPolicy,
+    arbGrantedItem,
+    arbWriter,
+    fc.constantFrom<MemoryItem["provenance"]["kind"]>("model", "compaction"),
+    fc.constantFrom("role:a", "team:b", "org"),
+  )
+  .map(([policy, item, writer, kind, scope]) => {
+    const written = { ...item, scope, grants: [] } as MemoryItem;
+    const actor = {
+      ...writer,
+      source: kind,
+      memberships: [...new Set([...writer.memberships, scope])],
+    };
+    return [admitting(policy, scope, [kind]), [[written], actor]] as const;
+  });
+
 const contentOf = (i: MemoryItem) =>
   (typeof i.content === "string" ? i.content : JSON.stringify(i.content)).toLowerCase();
 
@@ -234,20 +328,53 @@ describe("invariants", () => {
 
   const I2 = "invariant 2: no write lands in a scope whose policy forbids its class or source";
   test(I2, async () => {
-    const seen = { landed: 0, forbidden: 0 };
+    const seen = { landed: 0, forbidden: 0, noClass: 0, noExpiry: 0, isolation: 0 };
     await fc.assert(
       fc.asyncProperty(
-        arbPolicy,
-        itemsAnd(
-          arbGrantedItem.map((i) => [i]),
-          arbWriter,
+        fc.oneof(
+          {
+            arbitrary: fc.tuple(
+              arbPolicy,
+              itemsAnd(
+                arbGrantedItem.map((i) => [i]),
+                arbWriter,
+              ),
+            ),
+            weight: 3,
+          },
+          { arbitrary: grantTermsOnly, weight: 1 },
+          { arbitrary: isolationOnly, weight: 1 },
         ),
         arbTimestamp,
-        async (policy, [[item], actor], at) => {
+        async ([policy, [[item], actor]], at) => {
           if (!item) return;
           const { db, adapter, plane } = freshPlane(policy);
           const { item: stored } = await plane.write(actor, item, at);
           if (stored) seen.landed++;
+          // Writes forbidden by exactly one condition a mutant could drop: a
+          // grant's missing class or expiry, or source isolation; each would
+          // land if the policy's rule were all the gate checked.
+          const repaired = {
+            ...item,
+            grants: item.grants.map((g) => ({
+              ...g,
+              class: g.class ?? item.class,
+              expires: g.expires ?? "2099-01-01T00:00:00Z",
+            })),
+          };
+          const otherwiseLands = admittedByRule(policy, actor, item);
+          if (otherwiseLands && writeForbidden(policy, actor, item)) {
+            if (!writeForbidden(policy, actor, repaired)) {
+              if (item.grants.some((g) => g.class === undefined)) seen.noClass++;
+              if (item.grants.some((g) => g.expires === undefined)) seen.noExpiry++;
+            }
+            if (
+              item.grants.length === 0 &&
+              ["model", "compaction"].includes(actor.source ?? item.provenance.kind) &&
+              actor.memberships.includes(item.scope)
+            )
+              seen.isolation++;
+          }
           if (writeForbidden(policy, actor, item)) {
             seen.forbidden++;
             const inStore = (await adapter.list(item.scope)).map((i) => i.id);
@@ -262,8 +389,12 @@ describe("invariants", () => {
       { numRuns: RUNS, seed: seedFor(I2) },
     );
     expect(
-      seen.landed > 0 && seen.forbidden > 0,
-      `invariant 2 needs writes that land and writes it forbids; it saw ${JSON.stringify(seen)}`,
+      seen.landed > 0 &&
+        seen.forbidden > 0 &&
+        seen.noClass > RUNS / 50 &&
+        seen.noExpiry > RUNS / 50 &&
+        seen.isolation > RUNS / 50,
+      `invariant 2 needs writes that land, writes it forbids, and writes the policy's rule admits that are forbidden only by a grant without a class, a grant without an expiry, or source isolation; it saw ${JSON.stringify(seen)}`,
     ).toBe(true);
   }, 120_000);
 

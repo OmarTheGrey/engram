@@ -234,7 +234,7 @@ describe("Plane.read reveals nothing about items the reader cannot reach (decisi
   const hidden = (n: number, content: string) =>
     item(n, { scope: "team:payments", content, confidence: 0.99 });
 
-  test("searches only the scopes the reader can read, plus granted items' scopes (finding R5-1)", async () => {
+  test("searches the store only in the reader's readable scopes; granted items are matched by the plane (R5-1, N1)", async () => {
     const { plane, adapter } = await seeded([
       item(1, { content: "deploys" }),
       item(2, { scope: "team:payments", content: "deploys" }),
@@ -244,8 +244,28 @@ describe("Plane.read reveals nothing about items the reader cannot reach (decisi
         grants: [{ to: "person:sara", mode: "read", class: "semantic", expires: LATER }],
       }),
     ]);
-    await plane.read(platform, { text: "deploys", at: AT });
-    expect(adapter.searches).toEqual([["person:omar", "team:platform"]]);
+    const { items } = await plane.read(platform, { text: "deploys", at: AT });
+    expect(adapter.searches).toEqual([["team:platform"]]);
+    expect(items.map((i) => i.id).sort()).toEqual([id(1), id(3)]);
+  });
+
+  test("a grant expired or of another class reaches no item through the plane's matching (D5, N5)", async () => {
+    const { plane, adapter } = await seeded([
+      item(1, {
+        scope: "person:omar",
+        content: "deploys",
+        grants: [{ to: "person:sara", mode: "read", class: "semantic", expires: AT }],
+      }),
+      item(2, {
+        scope: "person:omar",
+        content: "deploys",
+        grants: [{ to: "person:sara", mode: "read", class: "procedural", expires: LATER }],
+      }),
+    ]);
+    const result = await plane.read(platform, { text: "deploys", at: AT });
+    expect(adapter.searches).toEqual([["team:platform"]]);
+    expect(result.items).toEqual([]);
+    expect(result.filtered).toBe(2);
   });
 
   test("relevance ranks among admitted items only: hidden hits do not lower it", async () => {

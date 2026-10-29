@@ -11,9 +11,12 @@
 //
 // What a read reveals (decision D5): the items, explanations, scores, ranks
 // and `filtered` count depend only on what the reader can reach. The store is
-// searched in the reachable scopes only, relevance ranks among admitted items
-// only, and items out of reach are never candidates. The read event, the
-// audit record a harness keeps from the model, also counts them.
+// searched only in the scopes the reader is a member of and may read; items
+// reached only through a grant are matched by the plane over the projection
+// (finding N1 of the second review: a store that caps its hits would let
+// hidden items in a granted item's scope crowd it out). Relevance ranks among
+// admitted items only, and items out of reach are never candidates. The read
+// event, the audit record a harness keeps from the model, also counts them.
 import { type Actor, ExplainDeniedError } from "../actor.ts";
 import { appendEvent, currentItems } from "../events.ts";
 import type { PlaneDeps, ReadQuery, ReadResult } from "../plane.ts";
@@ -34,33 +37,47 @@ const RECENCY_DAYS = 30;
 const contentText = (item: MemoryItem) =>
   (typeof item.content === "string" ? item.content : JSON.stringify(item.content)).toLowerCase();
 
+/** The items containing a query term, each with the share of the terms it contains. */
+function termShare(items: MemoryItem[], terms: string[]): Map<string, number> {
+  const share = new Map<string, number>();
+  for (const item of items) {
+    const body = contentText(item);
+    const matched = terms.filter((t) => body.includes(t)).length;
+    if (matched > 0) share.set(item.id, matched / terms.length);
+  }
+  return share;
+}
+
 /**
  * The candidates matching the query text, in match order, with the share of
- * query terms each contains when the plane matched them itself; undefined
- * when the query has no terms. With store search the store orders the hits
- * and is asked only about `scopes`; without it, the plane matches terms.
+ * query terms each contains when the plane matched it itself; undefined when
+ * the query has no terms. With store search the store is asked about
+ * `scopes` only, the reader's readable member scopes, and orders those hits;
+ * an item the reader reaches only through a grant is matched by the plane
+ * over the projection, as on a store without search, so items the reader
+ * cannot reach never compete with it for a capped hit list (finding N1).
  */
 async function matching(
   { adapter }: PlaneDeps,
   reach: MemoryItem[],
   scopes: string[],
   text: string | undefined,
-): Promise<{ order: string[]; share?: Map<string, number> } | undefined> {
+): Promise<{ order: string[]; share: Map<string, number> } | undefined> {
   const query = text ?? "";
   const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
   if (terms.length === 0) return undefined;
-  if (adapter.search) {
-    if (scopes.length === 0) return { order: [] };
-    const hits = await adapter.search(query, scopes);
-    return { order: [...new Set(hits.map((i) => i.id))] };
+  if (!adapter.search) {
+    const share = termShare(reach, terms);
+    return { order: [...share.keys()], share };
   }
-  const share = new Map<string, number>();
-  for (const item of reach) {
-    const body = contentText(item);
-    const matched = terms.filter((t) => body.includes(t)).length;
-    if (matched > 0) share.set(item.id, matched / terms.length);
-  }
-  return { order: [...share.keys()], share };
+  const inScope = new Set(reach.filter((i) => scopes.includes(i.scope)).map((i) => i.id));
+  const hits = scopes.length === 0 ? [] : await adapter.search(query, scopes);
+  const share = termShare(
+    reach.filter((i) => !inScope.has(i.id)),
+    terms,
+  );
+  const order = [...new Set(hits.map((i) => i.id).filter((id) => inScope.has(id)))];
+  return { order: [...order, ...share.keys()], share };
 }
 
 function components(item: MemoryItem, at: string, rel: number | undefined) {
@@ -83,13 +100,10 @@ export async function filteredRead(
   const projected = currentItems(db);
   const reach = projected.filter((i) => reachable(policy, actor, i));
   const outOfReach = projected.length - reach.length;
-  // Readable scopes the actor belongs to, and the scopes of items a grant may
-  // admit it to; the store is never asked about any other scope.
+  // The readable scopes the actor belongs to: the store is never asked about
+  // any other scope, not even one a grant reaches into (finding N1).
   const scopes = [
-    ...new Set([
-      ...actor.memberships.filter((s) => readableScope(policy, actor, s)),
-      ...reach.map((i) => i.scope),
-    ]),
+    ...new Set(actor.memberships.filter((s) => readableScope(policy, actor, s))),
   ].sort();
   const match = await matching(deps, reach, scopes, query.text);
   const hitRank = new Map(match?.order.map((id, r) => [id, r]));
@@ -107,14 +121,15 @@ export async function filteredRead(
     counts[decision.check]++;
     return decision.admitted ? [{ item, decision }] : [];
   });
-  // Relevance from the store's order ranks among the admitted hits only, so
-  // hits the reader may not see cannot lower it (finding R5-1).
-  const byHit = [...passed].sort(
-    (a, b) => (hitRank.get(a.item.id) ?? 0) - (hitRank.get(b.item.id) ?? 0),
-  );
-  const relevance = new Map<string, number>();
+  // Relevance from the store's order ranks among the admitted store hits only,
+  // so hits the reader may not see cannot lower it (finding R5-1); an item the
+  // plane matched itself scores its share of the query terms.
+  const byHit = passed
+    .filter(({ item }) => !match?.share.has(item.id))
+    .sort((a, b) => (hitRank.get(a.item.id) ?? 0) - (hitRank.get(b.item.id) ?? 0));
+  const relevance = new Map<string, number>(match?.share);
   byHit.forEach(({ item }, r) => {
-    relevance.set(item.id, match?.share?.get(item.id) ?? 1 - r / byHit.length);
+    relevance.set(item.id, 1 - r / byHit.length);
   });
   const admitted = passed.map(({ item, decision }) => {
     const parts = components(item, at, match ? relevance.get(item.id) : undefined);

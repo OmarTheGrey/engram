@@ -3,8 +3,10 @@
 // same whether or not the store also holds items the reader cannot reach (in
 // no scope it may read, with no grant naming it). Non-interference, checked
 // over generated policies, scopes, grants, readers and queries, with and
-// without query text, on a store with and without search.
-import { createFakeAdapter } from "@engram/adapters";
+// without query text, on a store with and without search, and on a store
+// whose search returns only its first k hits (finding N1 of the second
+// review: hidden items in a searched scope must not crowd reachable ones out).
+import { type Adapter, createFakeAdapter } from "@engram/adapters";
 import fc from "fast-check";
 import { describe, expect, test } from "vitest";
 import { migrate } from "../../src/db/migrate.ts";
@@ -12,6 +14,7 @@ import { openSqlite } from "../../src/db/sqlite.ts";
 import { type Actor, createPlane, type ReadResult } from "../../src/plane.ts";
 import type { MemoryItem, Policy } from "../../src/schema.ts";
 import { arbActor, arbGatedItem, arbInstant, arbPolicy, seedFor } from "../generators.ts";
+import { AT, item, testPolicy } from "../unit/plane/helpers.ts";
 import { patternCovers } from "./oracle.ts";
 
 const RUNS = 500;
@@ -41,6 +44,20 @@ const ADMIT_ALL = (policy: Policy): Policy => ({
   })),
 });
 
+/**
+ * The fake adapter, with its search capped to the first `k` hits when `k` is
+ * set, as Mem0's topK caps it: a fake around a fake, not a mock.
+ */
+function cappedStore(search: boolean, k?: number): Adapter {
+  const inner = createFakeAdapter({ search });
+  const full = inner.search?.bind(inner);
+  if (!full || k === undefined) return inner;
+  return Object.assign(Object.create(inner) as Adapter, {
+    search: async (query: string, scopes: readonly string[]) =>
+      (await full(query, scopes)).slice(0, k),
+  });
+}
+
 async function readWith(
   policy: Policy,
   stored: MemoryItem[],
@@ -48,10 +65,11 @@ async function readWith(
   text: string | undefined,
   at: string,
   search: boolean,
+  cap?: number,
 ): Promise<ReadResult> {
   const db = openSqlite(":memory:");
   migrate(db);
-  const adapter = createFakeAdapter({ search });
+  const adapter = cappedStore(search, cap);
   let n = 0;
   const newId = () => `01920000-0000-7000-8000-${String(++n).padStart(12, "0")}`;
   const writer: Actor = {
@@ -91,7 +109,9 @@ const scenario = fc
       { arbitrary: fc.constant(COMMON), weight: 3 },
       w.length > 0 ? fc.constantFrom(...w) : fc.constant("nothing"),
     );
-    return fc.record({ s: fc.constant(s), text, search: fc.boolean() });
+    // The store's search uncapped, or capped at one or two hits.
+    const cap = fc.constantFrom<number | undefined>(undefined, 1, 2);
+    return fc.record({ s: fc.constant(s), text, search: fc.boolean(), cap });
   });
 
 const COMMON = "deploys";
@@ -158,7 +178,7 @@ describe("reads reveal nothing about unreachable items (decision D5)", () => {
         arbActor,
         scenario,
         arbInstant,
-        async (policy, reader, { s, text, search }, at) => {
+        async (policy, reader, { s, text, search, cap }, at) => {
           const { all, hidden, visible } = build(policy, reader, s);
           if (hidden.length > 0) seen.interfering++;
           // Hidden items the store's search would find in a scope the plane searches.
@@ -175,8 +195,8 @@ describe("reads reveal nothing about unreachable items (decision D5)", () => {
             )
           )
             seen.hiddenHits++;
-          const without = await readWith(policy, visible, reader, text, at, search);
-          const withHidden = await readWith(policy, all, reader, text, at, search);
+          const without = await readWith(policy, visible, reader, text, at, search, cap);
+          const withHidden = await readWith(policy, all, reader, text, at, search, cap);
           const view = (r: ReadResult) => ({
             items: r.items,
             explanations: r.explanations,
@@ -198,4 +218,53 @@ describe("reads reveal nothing about unreachable items (decision D5)", () => {
       "cases where the store finds a hidden item in a scope the plane searches",
     ).toBeGreaterThan(RUNS / 20);
   }, 120_000);
+});
+
+describe("a store whose search caps its hits (finding N1 of the second review)", () => {
+  // The reviewer's probe: mal holds a grant on one of omar's items, and omar
+  // also has a private item matching the same query. With the store's search
+  // capped at one hit, the private item used to take the only slot.
+  const policy = testPolicy();
+  const omar: Actor = { id: "person:omar", level: "person", memberships: ["person:omar"] };
+  const mal: Actor = { id: "person:mal", level: "person", memberships: ["person:mal"] };
+  const shared = item(1, {
+    scope: "person:omar",
+    content: "salary band shared",
+    grants: [{ to: mal.id, mode: "read", class: "semantic", expires: "2099-01-01T00:00:00Z" }],
+  });
+  const secret = item(2, { scope: "person:omar", content: "omar salary private" });
+
+  async function malReads(stored: MemoryItem[], cap: number) {
+    const db = openSqlite(":memory:");
+    migrate(db);
+    const adapter = cappedStore(true, cap);
+    const searches: (readonly string[])[] = [];
+    const search = adapter.search?.bind(adapter);
+    adapter.search = async (query, scopes) => {
+      searches.push([...scopes]);
+      return search ? search(query, scopes) : [];
+    };
+    let n = 0;
+    const newId = () => `01920000-0000-7000-8000-${String(++n).padStart(12, "0")}`;
+    const plane = createPlane({ db, adapter, policy, newId });
+    for (const it of stored) expect((await plane.write(omar, it, AT)).event.decision).toBe("allow");
+    const result = await plane.read(mal, { text: "salary", at: AT });
+    return { result, searched: searches.flat() };
+  }
+
+  test("a hidden matching item does not push a granted one out of the hits", async () => {
+    const alone = await malReads([shared], 1);
+    const crowded = await malReads([secret, shared], 1);
+    expect(alone.result.items.map((i) => i.id)).toEqual([shared.id]);
+    expect(crowded.result.items.map((i) => i.id)).toEqual([shared.id]);
+    expect(crowded.result.explanations).toEqual(alone.result.explanations);
+    expect(crowded.result.filtered).toBe(alone.result.filtered);
+    expect(crowded.searched, "omar's scope is never searched for mal").not.toContain("person:omar");
+  });
+
+  test("an item reached only through a grant is matched by the plane, scored by its share of the terms", async () => {
+    const { result } = await malReads([secret, shared], 1);
+    expect(result.explanations[0]?.score.components.relevance).toBe(1);
+    expect(result.explanations[0]?.grants_used).toEqual([`grants[0]:${mal.id}`]);
+  });
 });
