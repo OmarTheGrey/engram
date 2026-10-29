@@ -636,6 +636,115 @@ describe("the folder lock (review round 2, V4 defect 3)", () => {
     await expect(adapter.write(item(33))).rejects.toThrow("another-machine.invalid");
   });
 
+  /** A promise and the function that settles it. */
+  const gate = () => {
+    let open!: () => void;
+    const opened = new Promise<void>((r) => {
+      open = r;
+    });
+    return { opened, open };
+  };
+  const tokenIn = async (root: string) =>
+    JSON.parse(await readFile(lockOf(root), "utf8")).token as string;
+
+  test("a holder whose stale lock was broken and taken never removes the new holder's lock", async () => {
+    const root = await tempDir();
+    const aHolds = gate();
+    const aGoes = gate();
+    const bHolds = gate();
+    const bGoes = gate();
+    const a = createFilesAdapter({
+      root,
+      owner: "omar",
+      lockSeams: {
+        afterAcquire: async () => {
+          aHolds.open();
+          await aGoes.opened;
+        },
+      },
+    });
+    // B's clock runs two hours ahead, so A's lock is past the stale bound for B.
+    const b = createFilesAdapter({
+      root,
+      owner: "omar",
+      lockWaitMs: 2_000,
+      lockSeams: {
+        now: () => Date.now() + 7_200_000,
+        afterAcquire: async () => {
+          bHolds.open();
+          await bGoes.opened;
+        },
+      },
+    });
+    const aWrite = a.write(item(40));
+    await aHolds.opened;
+    const aToken = await tokenIn(root);
+    const bWrite = b.write(item(41));
+    await bHolds.opened;
+    const bToken = await tokenIn(root);
+    expect(bToken).not.toBe(aToken);
+    aGoes.open();
+    await aWrite;
+    expect(await tokenIn(root)).toBe(bToken);
+    bGoes.open();
+    await bWrite;
+    expect(await readdir(root)).not.toContain(".engram.lock");
+  });
+
+  test("two waiters breaking one stale lock at once leave exactly one holder", async () => {
+    const root = await tempDir();
+    await writeLock(root, {
+      pid: deadPid(),
+      host: hostname(),
+      token: "crashed-writer",
+      started: new Date().toISOString(),
+    });
+    const secondJudged = gate();
+    const firstHolds = gate();
+    const firstGoes = gate();
+    let secondAcquired = false;
+    const first = createFilesAdapter({
+      root,
+      owner: "omar",
+      lockSeams: {
+        // Break only once the second waiter has also judged the old lock stale.
+        beforeBreak: () => secondJudged.opened,
+        afterAcquire: async () => {
+          firstHolds.open();
+          await firstGoes.opened;
+        },
+      },
+    });
+    const second = createFilesAdapter({
+      root,
+      owner: "omar",
+      lockWaitMs: 5_000,
+      lockSeams: {
+        // Try to break the old lock only after the first waiter broke it and took a new one.
+        beforeBreak: async () => {
+          secondJudged.open();
+          await firstHolds.opened;
+        },
+        afterAcquire: async () => {
+          secondAcquired = true;
+        },
+      },
+    });
+    const firstWrite = first.write(item(42));
+    const secondWrite = second.write(item(43));
+    await firstHolds.opened;
+    const firstToken = await tokenIn(root);
+    // Time for the second waiter to try its break against the first holder's lock.
+    await new Promise((r) => setTimeout(r, 300));
+    expect(secondAcquired).toBe(false);
+    expect(await tokenIn(root)).toBe(firstToken);
+    firstGoes.open();
+    await Promise.all([firstWrite, secondWrite]);
+    expect(secondAcquired).toBe(true);
+    expect(await indexLines(root)).toHaveLength(2);
+    expect(await readdir(root)).not.toContain(".engram.lock");
+  });
+
   test("an unreadable lock is judged by its file time", async () => {
     const root = await tempDir();
     await writeFile(lockOf(root), "");
@@ -670,6 +779,13 @@ describe("titles and the index format (review findings R4-10, R4-13, R4-15)", ()
     expect(await indexLines(root)).toEqual([
       `- [Broken � pair](${ref.key}) - semantic memory in person:omar, version 1`,
     ]);
+    // YAML would escape a lone surrogate as \ud800 and hand it back to Claude
+    // Code; the title is made well-formed first, so the name holds U+FFFD.
+    // (The body is stored as JSON, which escapes the surrogate on purpose.)
+    const text = await readFile(join(root, ref.key), "utf8");
+    const [, front] = text.split(/^---\n|\n---\n/m);
+    expect(front?.split("\n").find((l) => l.startsWith("name:"))).not.toMatch(/\\ud800/i);
+    expect((parseYaml(front as string) as { name: string }).name).toBe("Broken � pair");
   });
 
   test("the folder offers search by scanning, without claiming native search", () => {

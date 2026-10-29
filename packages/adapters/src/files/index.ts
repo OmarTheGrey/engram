@@ -40,7 +40,9 @@
 // waits up to `lockWaitMs` (ten seconds by default) by the wall clock, then
 // refuses, naming the holder. Breaking is serialised through a second file,
 // `.engram.lock.break`, so two waiters never remove each other's fresh lock;
-// a holder removes the lock only while it still holds its own token.
+// a holder removes the lock only while it still holds its own token. Tests
+// replace the clock and add pause points through `lockSeams` (test seams
+// only; the defaults are the wall clock and no-ops).
 //
 // Engram's own index lines separate the link from the hook with " - "
 // (repository content avoids the em dash). Lines Claude Code wrote, which
@@ -67,6 +69,23 @@ export interface FilesAdapterOptions {
   importConfidence?: number;
   /** How long a write or delete waits for another writer's live lock, in ms. Default 10 000. */
   lockWaitMs?: number;
+  /**
+   * Test seams for the folder lock, never set in production: the defaults are
+   * the wall clock and no-ops. They exist so tests can stage the races the
+   * lock guards against (a holder outliving the stale bound, two waiters
+   * breaking one lock) deterministically.
+   */
+  lockSeams?: FilesLockSeams;
+}
+
+/** See `FilesAdapterOptions.lockSeams`. */
+export interface FilesLockSeams {
+  /** Milliseconds since the epoch for lock times and ages. Default `Date.now`. */
+  now?: () => number;
+  /** Called after a waiter judged the lock text stale and before it tries to break it. */
+  beforeBreak?: (lockText: string) => Promise<void>;
+  /** Called once this instance holds the lock, before the write or delete runs. */
+  afterAcquire?: () => Promise<void>;
 }
 
 /** A folder entry that list or search skipped, and why. */
@@ -309,6 +328,9 @@ export function createFilesAdapter(options: FilesAdapterOptions): FilesAdapter {
 
   // The folder lock (see the header). The token names this instance's locks.
   const lockWaitMs = options.lockWaitMs ?? LOCK_WAIT_MS;
+  const now = options.lockSeams?.now ?? Date.now;
+  const beforeBreak = options.lockSeams?.beforeBreak ?? (async () => undefined);
+  const afterAcquire = options.lockSeams?.afterAcquire ?? (async () => undefined);
   const token = `${process.pid}-${randomUUID()}`;
   const host = hostname();
   const lockPath = join(root, LOCK);
@@ -333,7 +355,7 @@ export function createFilesAdapter(options: FilesAdapterOptions): FilesAdapter {
       parsed = undefined;
     }
     if (isLockHolder(parsed)) {
-      const age = Date.now() - Date.parse(parsed.started);
+      const age = now() - Date.parse(parsed.started);
       const stale =
         parsed.token === token ||
         age > LOCK_STALE_MS ||
@@ -345,7 +367,7 @@ export function createFilesAdapter(options: FilesAdapterOptions): FilesAdapter {
     }
     // No readable holder: a writer between creating and filling the lock, or one that stopped there.
     try {
-      const age = Date.now() - (await lstat(lockPath)).mtimeMs;
+      const age = now() - (await lstat(lockPath)).mtimeMs;
       return { stale: age > LOCK_STALE_MS, holder: "a writer that has not recorded itself" };
     } catch (e) {
       if (isMissing(e)) return { stale: false, holder: "nobody" };
@@ -364,7 +386,7 @@ export function createFilesAdapter(options: FilesAdapterOptions): FilesAdapter {
     } catch (e) {
       if (!BUSY.includes(codeOf(e) ?? "")) throw e;
       const info = await lstat(breakPath).catch(() => undefined);
-      if (info && Date.now() - info.mtimeMs > LOCK_STALE_MS) await rm(breakPath, { force: true });
+      if (info && now() - info.mtimeMs > LOCK_STALE_MS) await rm(breakPath, { force: true });
       return false;
     }
     try {
@@ -387,7 +409,12 @@ export function createFilesAdapter(options: FilesAdapterOptions): FilesAdapter {
       if (BUSY.includes(codeOf(e) ?? "")) return false;
       throw e;
     }
-    const holder: LockHolder = { pid: process.pid, host, token, started: new Date().toISOString() };
+    const holder: LockHolder = {
+      pid: process.pid,
+      host,
+      token,
+      started: new Date(now()).toISOString(),
+    };
     try {
       await handle.writeFile(JSON.stringify(holder), "utf8");
     } catch (e) {
@@ -401,12 +428,15 @@ export function createFilesAdapter(options: FilesAdapterOptions): FilesAdapter {
 
   async function locked<T>(fn: () => Promise<T>): Promise<T> {
     await mkdir(root, { recursive: true });
-    const deadline = Date.now() + lockWaitMs;
+    const deadline = now() + lockWaitMs;
     for (let attempt = 0; !(await tryLock()); attempt++) {
       const text = await readLock();
       const judged = text === undefined ? undefined : await judgeLock(text);
-      if (text !== undefined && judged?.stale && (await breakLock(text))) continue;
-      if (Date.now() >= deadline) {
+      if (text !== undefined && judged?.stale) {
+        await beforeBreak(text);
+        if (await breakLock(text)) continue;
+      }
+      if (now() >= deadline) {
         throw new Error(
           `files adapter: ${lockPath} is held by ${judged?.holder ?? "another writer"}; another Engram writer is using this folder (a lock older than ${LOCK_STALE_MS / 1000} s, or one from a pid no longer running on this machine, is broken automatically)`,
         );
@@ -414,6 +444,7 @@ export function createFilesAdapter(options: FilesAdapterOptions): FilesAdapter {
       await sleep(Math.min(2 + attempt, 25));
     }
     try {
+      await afterAcquire();
       return await fn();
     } finally {
       // Never remove a lock another writer took after breaking ours as stale.

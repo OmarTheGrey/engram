@@ -34,7 +34,7 @@ Amendments made in review round 2, 2026-10-28 (PR #4, verifier report V4; pendin
 - The meta-test pins each broken adapter (now nineteen) to the cases it must fail, by name.
 - Files adapter: a hard link (a file with more than one name) is treated like a symlink: skipped and reported by list and search, refused by read, write and delete, and MEMORY.md is refused when it is one. The earlier claim that nothing outside the root is followed held for symlinks and junctions only.
 - Files adapter: a write or delete is all or nothing. MEMORY.md is checked before the item file changes, and if the index update fails anyway, the item file is removed or its previous bytes restored.
-- Files adapter: the lock file records the holder's pid, host, a per-instance token and the wall-clock time (the adapter has no injected clock; the time is a fact of store I/O, not a policy input). A waiter breaks a lock whose pid is not alive on this machine, or that is older than 60 s; otherwise it waits up to `lockWaitMs` (default 10 s) and refuses, naming the holder.
+- Files adapter: the lock file records the holder's pid, host, a per-instance token and the wall-clock time (the adapter has no injected clock; the time is a fact of store I/O, not a policy input). A waiter breaks a lock whose pid is not alive on this machine, or that is older than 60 s; otherwise it waits up to `lockWaitMs` (default 10 s) and refuses, naming the holder. `lockSeams` (a clock and two hooks, defaulting to the wall clock and no-ops) exists only so tests can stage the lock's races.
 - Mem0 adapter: the placeholder model in Mem0's config fails with its own error, distinct from the refusal of the replaced model slot, so a test shows the replacement is in place.
 
 ## Alternatives considered
