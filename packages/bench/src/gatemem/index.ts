@@ -4,6 +4,7 @@ export * from "./harness.ts";
 export * from "./judge.ts";
 export * from "./load.ts";
 export * from "./parse.ts";
+export * from "./plane.ts";
 export * from "./prompt.ts";
 export * from "./run.ts";
 export * from "./schema.ts";
