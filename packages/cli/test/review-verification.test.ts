@@ -79,9 +79,17 @@ describe("P3-16: the userinfo @ is found only in the authority; query values and
     }
   });
 
+  // The store probes never see the URL, so cheap ones keep this test on the
+  // log and its printing (review finding R2-5): the real Mem0 and MemFS
+  // probes cost seconds per doctor run and have their own tests.
+  const probes = {
+    "adapter mem0": async () => ["skip", "probe replaced in this test"] as ["skip", string],
+    "adapter letta": async () => ["skip", "probe replaced in this test"] as ["skip", string],
+  };
+
   it("doctor and write print no part of the secret", async () => {
     for (const [url, secret] of [...cases, ...unparseable]) {
-      const d = await cli(["doctor", "--db", url]);
+      const d = await cli(["doctor", "--db", url], { doctorProbes: probes });
       expect(d.out + d.err, url).not.toMatch(secret);
       const w = await cli([
         "write",
@@ -96,7 +104,9 @@ describe("P3-16: the userinfo @ is found only in the authority; query values and
       ]);
       expect(w.out + w.err, url).not.toMatch(secret);
     }
-  });
+    // The host "h" is looked up by name for each doctor and write: seconds on
+    // Windows (LLMNR, NetBIOS) before it fails, about 18 s for the loop alone.
+  }, 60_000);
 });
 
 describe("P3-17: short secrets are scrubbed only as whole tokens", () => {

@@ -19,9 +19,11 @@ export {
   createLettaAdapter,
   GitMissingError,
   gitVersion,
+  LETTA_LOCK_STALE_MS,
   type LettaAdapter,
   type LettaAdapterOptions,
   NotMemfsRepositoryError,
+  RepositoryBusyError,
   UnsafeLettaPathError,
 } from "./letta/index.ts";
 export { createMem0Adapter, type Mem0AdapterOptions } from "./mem0/index.ts";

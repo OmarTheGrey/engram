@@ -9,8 +9,9 @@
 // and error messages are scrubbed of every secret (packages/cli/src/setup.ts).
 // The adapter checks run through a Plane on an in-memory log, so
 // no adapter is called directly (AGENTS.md rule 2) and nothing is recorded;
-// the one exception is the letta check's delete of its own probe in its own
-// temporary repository, since the plane has no delete (checkLettaAdapter).
+// the exceptions are three calls the letta check makes on its probe in its
+// own temporary repository, `history`, `delete` and `read`, since the plane
+// has neither history nor delete (checkLettaAdapter).
 //
 // The checks that read the repository (provider key names, benchmark pins,
 // the pi pin) run only from a checkout (`io.repo`); elsewhere they are
@@ -231,10 +232,11 @@ export async function checkMem0Adapter(
 /**
  * `git` on the path, then a MemFS repository initialised in a temporary
  * folder: the probe written and read through the plane (one commit), then
- * deleted (a second commit) and gone, all offline. The delete is the one
- * adapter call doctor makes outside a plane: the plane has no delete (hard
- * deletion waits for person-scope erasure), and the repository is doctor's
- * own temporary folder, removed afterwards, never a governed store.
+ * deleted (a second commit) and gone, all offline. Three adapter calls are
+ * made outside a plane: `history` (one version in git), `delete`, and the
+ * `read` that finds the probe gone. The plane has no history and no delete
+ * (hard deletion waits for person-scope erasure), and the repository is
+ * doctor's own temporary folder, removed afterwards, never a governed store.
  */
 export async function checkLettaAdapter(
   at: string,
@@ -562,8 +564,14 @@ export async function doctorCommand(args: string[], io: Io): Promise<number> {
     return ["ok", `${root} is a readable folder`];
   });
   await check("adapter files", () => checkFilesAdapter(root, at, io.newId));
-  await check("adapter mem0", () => checkMem0Adapter(at, io.newId));
-  await check("adapter letta", () => checkLettaAdapter(at, io.newId));
+  await check(
+    "adapter mem0",
+    io.doctorProbes?.["adapter mem0"] ?? (() => checkMem0Adapter(at, io.newId)),
+  );
+  await check(
+    "adapter letta",
+    io.doctorProbes?.["adapter letta"] ?? (() => checkLettaAdapter(at, io.newId)),
+  );
   await check("provider keys", () => checkProviderKeys(io.repo, io.env));
   await check("benchmark pins", () => checkBenchmarkPins(io.repo));
   await check("pi pin", () => checkPiPin(io.repo));

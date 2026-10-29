@@ -24,6 +24,13 @@ import { ADAPTERS, cleanupAdapters } from "../conformance/registry.ts";
 
 afterAll(() => cleanupAdapters());
 
+// Review finding R2-13: Gate B criteria 1 to 3 hold "on both stores" only
+// while both real stores are registered; dropping one must fail here, not
+// quietly shrink the loops in this file and in acceptance.test.ts.
+test("the registry holds both of Gate B's real stores, Mem0 and Letta", () => {
+  expect(ADAPTERS.map((a) => a.name)).toEqual(expect.arrayContaining(["mem0", "letta"]));
+});
+
 const id = (n: number) => `01920000-0000-7000-8000-${String(n).padStart(12, "0")}`;
 const T0 = "2026-10-25T12:00:00Z";
 const LATER = "2026-10-25T14:00:00Z";

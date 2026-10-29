@@ -20,35 +20,46 @@
 // exactly.
 //
 // Git. One commit per write and per delete, touching only the item file and
-// engram/MEMORY.md (`git add` then `git commit -- <those two paths>`, so
-// anything else the user staged stays staged and uncommitted), with the
-// repository's own identity, configuration and hooks; when no user.name or
-// user.email is configured and the environment sets none, the commit is made
-// as `Engram <engram@localhost>` through GIT_AUTHOR_* and GIT_COMMITTER_*.
-// Rewriting an item with identical bytes makes no commit. When the add or the
-// commit fails (a hook refusing it, say), the item file and the index are put
-// back as they were and the two paths unstaged, so a write or delete is all
-// or nothing. Opening an empty folder runs `git init`; opening a repository
-// makes one setup commit (engram/MEMORY.md and the root line) when they are
-// missing. Nothing else is ever run: no fetch, pull, push or clone, and
-// GIT_TERMINAL_PROMPT=0 (git.ts).
+// engram/MEMORY.md: a new file is marked with `git add --intent-to-add
+// --force` (an entry another client's `git commit` never commits), then
+// `git commit --only -- <the paths>` commits exactly those paths from the
+// working tree, so anything else the user staged stays staged and
+// uncommitted. Commits are made with the repository's own identity,
+// configuration and hooks; when no user.name or user.email is configured and
+// the environment sets none, as `Engram <engram@localhost>` through
+// GIT_AUTHOR_* and GIT_COMMITTER_*. Whether the repository already holds the
+// bytes is decided before anything is staged, against `HEAD:<path>`; then
+// rewriting identical bytes makes no commit, and every failure of the add or
+// the commit is a failure: the files are put back as they were and the paths
+// unstaged, so a write or delete is all or nothing, and a restore that fails
+// is reported with both errors. Nothing is committed while HEAD is detached
+// or a rebase, merge, cherry-pick, revert or bisect is in progress. Opening
+// an empty folder runs `git init`; opening a repository makes one setup
+// commit (engram/MEMORY.md and the root line) when they are missing. Nothing
+// else is ever run: no fetch, pull, push or clone; GIT_TERMINAL_PROMPT=0, and
+// the git variables that would point a call at another repository or index
+// are removed from its environment (git.ts).
 //
 // What it never does: follow a symlink or junction, or read or replace a hard
 // link (a file with more than one name, maybe outside the repository), for
 // engram/, an item file, engram/MEMORY.md or the root MEMORY.md; accept a key
 // other than `engram/<lowercase UUID>.md` (so nothing under .git, nothing
 // outside engram/, no traversal); open a folder that is neither empty nor a
-// repository's top level, or a bare repository.
+// repository's top level, an empty folder inside another repository, or a
+// bare repository. A `.git` pointer file (a worktree, a submodule) is opened
+// and the repository it points at is committed to.
 //
 // Writes and deletes run one at a time within the instance and hold the lock
 // file `engram.lock` in the repository's git directory (../lock.ts) against
-// other instances and processes; git's own index lock refuses a commit that
-// another git client (Letta itself) is making at that moment, and the write
-// is then refused whole. `search` scans engram/ at query time and matches
-// every term (MemFS has no search of its own; native_search false); `history`
-// reads git (native_history true).
+// other instances and processes; it is stale after LETTA_LOCK_STALE_MS, more
+// than every git call a write makes can take. Another git client (Letta
+// itself, or the user) is not held by it: git's index lock refuses one of two
+// simultaneous index updates, and a refused write is restored whole.
+// `search` scans engram/ at query time and matches every term (MemFS has no
+// search of its own; native_search false); `history` reads git
+// (native_history true).
 import type { Dirent, Stats } from "node:fs";
-import { lstat, mkdir, open, readdir, realpath, rm } from "node:fs/promises";
+import { lstat, mkdir, open, readdir, readFile, realpath, rm, rmdir } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import {
@@ -58,9 +69,9 @@ import {
 } from "@engram/core";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import { type Adapter, ForeignRefError, type StoreRef } from "../contract.ts";
-import { atomicWrite, isMissing, isRecord } from "../fs-safe.ts";
+import { atomicWrite, isMissing, isRecord, sleep } from "../fs-safe.ts";
 import { createStoreLock, LOCK_WAIT_MS, type LockSeams } from "../lock.ts";
-import { git, runGit } from "./git.ts";
+import { GIT_TIMEOUT_MS, type GitOptions, type GitResult, git, runGit } from "./git.ts";
 
 export { GitMissingError, gitVersion } from "./git.ts";
 
@@ -73,6 +84,12 @@ export interface LettaAdapterOptions {
   lockWaitMs?: number;
   /** Test seams for the lock, never set in production (../lock.ts). */
   lockSeams?: LockSeams;
+  /**
+   * Test seam, never set in production: runs every git call of the adapter
+   * after it opened, so a test can make one call fail (a restore's reset).
+   * Default `runGit`.
+   */
+  gitRunner?: (args: readonly string[], options: GitOptions) => Promise<GitResult>;
 }
 
 export interface LettaAdapter extends Adapter {
@@ -90,6 +107,14 @@ export class UnsafeLettaPathError extends Error {
   constructor(path: string, why: string) {
     super(`letta adapter: ${JSON.stringify(path)} ${why}`);
     this.name = "UnsafeLettaPathError";
+  }
+}
+
+/** A repository state in which the adapter commits nothing. */
+export class RepositoryBusyError extends Error {
+  constructor(root: string, why: string) {
+    super(`letta adapter: ${root} ${why}; Engram commits nothing until it ends`);
+    this.name = "RepositoryBusyError";
   }
 }
 
@@ -117,6 +142,21 @@ const INDEX_HEAD = [
   "",
   "Memories written through Engram's control plane, one file per item. Engram commits every change; edit them through Engram, not by hand.",
   "",
+];
+/**
+ * The Letta lock's stale age: a write or delete holds it for at most five git
+ * calls (cat-file, add, commit, and on failure reset), each bounded by
+ * GIT_TIMEOUT_MS, so a live holder is never judged stale.
+ */
+export const LETTA_LOCK_STALE_MS = 5 * GIT_TIMEOUT_MS;
+/** Files in the git directory that mean an operation is in progress there. */
+const IN_PROGRESS = [
+  "rebase-merge",
+  "rebase-apply",
+  "CHERRY_PICK_HEAD",
+  "REVERT_HEAD",
+  "MERGE_HEAD",
+  "BISECT_LOG",
 ];
 const FALLBACK_NAME = "Engram";
 const FALLBACK_EMAIL = "engram@localhost";
@@ -217,8 +257,32 @@ export async function createLettaAdapter(options: LettaAdapterOptions): Promise<
   const dir = join(root, DIR);
   const indexPath = join(dir, INDEX);
   const env = await identityFallback(root);
-  const g = (args: string[], input?: string) => git([...SAFE, ...args], { cwd: root, env, input });
-  const gTry = (args: string[]) => runGit([...SAFE, ...args], { cwd: root, env });
+  const runner = options.gitRunner ?? runGit;
+  const gTry = (args: string[], input?: string) =>
+    runner([...SAFE, ...args], { cwd: root, env, input });
+  /**
+   * A git call that must succeed. While another git client holds the
+   * repository's index.lock (its own add or commit), git refuses at once
+   * before changing anything, so the call is retried for up to about two
+   * seconds; any other failure, or the lock outlasting that, rejects.
+   */
+  const g = async (args: string[], input?: string) => {
+    let result = await gTry(args, input);
+    for (
+      let attempt = 1;
+      result.code !== 0 && result.stderr.includes("index.lock") && attempt <= 12;
+      attempt++
+    ) {
+      await sleep(Math.min(10 * 2 ** attempt, 300));
+      result = await gTry(args, input);
+    }
+    if (result.code !== 0) {
+      throw new Error(
+        `letta adapter: git ${args[0]} failed (exit ${result.code}): ${result.stderr.trim() || "no message"}`,
+      );
+    }
+    return result.stdout;
+  };
   let lastDiagnostics: StoreDiagnostic[] = [];
 
   // One at a time within this instance, and the lock file against others.
@@ -233,6 +297,7 @@ export async function createLettaAdapter(options: LettaAdapterOptions): Promise<
     waitMs: options.lockWaitMs ?? LOCK_WAIT_MS,
     label: "letta adapter",
     guards: "repository",
+    staleMs: LETTA_LOCK_STALE_MS,
     seams: options.lockSeams,
   });
   const exclusive = <T>(fn: () => Promise<T>) => serial(() => lock(fn));
@@ -354,44 +419,100 @@ export async function createLettaAdapter(options: LettaAdapterOptions): Promise<
   }
 
   /**
-   * Puts the item file (or its absence) and the index in place and commits
-   * exactly those two paths. On any failure both files are put back and the
-   * paths unstaged, then the error is rethrown.
+   * Refuses to commit while HEAD is detached or an operation (rebase, merge,
+   * cherry-pick, revert, bisect) is in progress: a commit then would land
+   * where the operation's end can drop it, after the plane recorded it.
    */
-  async function commitChange(
-    id: string,
-    next: string | undefined,
-    nextIndex: string,
-    previous: Buffer | undefined,
-    previousIndex: Buffer | undefined,
-    message: string,
-  ) {
-    const key = `${DIR}/${id}.md`;
-    const path = join(dir, `${id}.md`);
-    try {
-      if (next === undefined) await rm(path, { force: true, maxRetries: 10, retryDelay: 10 });
-      else await atomicWrite(path, dir, `${id}.md`, next);
-      await atomicWrite(indexPath, dir, INDEX, nextIndex);
-      await g(["add", "--all", "--force", "--", key, INDEX_KEY]);
-      const committed = await gTry(["commit", "--quiet", "-m", message, "--", key, INDEX_KEY]);
-      if (committed.code !== 0) {
-        // Nothing staged for the two paths: the repository already holds these bytes.
-        const staged = await gTry(["diff", "--cached", "--quiet", "HEAD", "--", key, INDEX_KEY]);
-        if (staged.code === 0) return;
-        throw new Error(
-          `letta adapter: git commit failed (exit ${committed.code}): ${committed.stderr.trim() || "no message"}`,
-        );
+  async function checkRepositoryState() {
+    for (const name of IN_PROGRESS) {
+      try {
+        await lstat(join(gitDir, name));
+      } catch (e) {
+        if (isMissing(e)) continue;
+        throw e;
       }
+      throw new RepositoryBusyError(root, `has ${name} in its git directory`);
+    }
+    // The HEAD file names the branch in the files ref backend; anything else
+    // (a detached sha, or reftable's placeholder) is asked of git.
+    const head = await readFile(join(gitDir, "HEAD"), "utf8").catch(() => "");
+    const branch = /^ref: refs\/heads\/(\S+)\s*$/.exec(head)?.[1];
+    if (branch !== undefined && branch !== ".invalid") return;
+    if ((await gTry(["symbolic-ref", "--quiet", "HEAD"])).code !== 0)
+      throw new RepositoryBusyError(root, "has a detached HEAD");
+  }
+
+  /** The bytes HEAD holds at each path, undefined where it holds none (or there is no HEAD). */
+  async function headBlobs(keys: string[]): Promise<(Buffer | undefined)[]> {
+    const out = await g(["cat-file", "--batch"], keys.map((k) => `HEAD:${k}\n`).join(""));
+    const blobs: (Buffer | undefined)[] = [];
+    let at = 0;
+    for (let i = 0; i < keys.length; i++) {
+      const eol = out.indexOf(0x0a, at);
+      const header = out.subarray(at, eol).toString("utf8");
+      at = eol + 1;
+      const blob = /^[0-9a-f]+ blob (\d+)$/.exec(header);
+      if (!blob) {
+        blobs.push(undefined);
+        continue;
+      }
+      const size = Number(blob[1]);
+      blobs.push(out.subarray(at, at + size));
+      at += size + 1;
+    }
+    return blobs;
+  }
+
+  /** One file a commit changes: its next bytes (undefined: removed) and its bytes before. */
+  interface Change {
+    key: string;
+    path: string;
+    next: string | undefined;
+    previous: Buffer | undefined;
+  }
+
+  const putFile = async (c: Change, bytes: string | Buffer | undefined) => {
+    const folder = join(c.path, "..");
+    const base = c.key.slice(c.key.lastIndexOf("/") + 1);
+    if (bytes === undefined) await rm(c.path, { force: true, maxRetries: 10, retryDelay: 10 });
+    else await atomicWrite(c.path, folder, base, bytes);
+  };
+
+  /**
+   * Commits the changes as one commit of exactly their paths. Whether HEAD
+   * already holds the bytes is decided first, before anything is staged:
+   * then the working tree is brought in line and nothing is committed. Every
+   * failure after that puts the files back, unstages the paths and rethrows;
+   * a failed restore is reported with both errors. Returns whether it committed.
+   */
+  async function commitChanges(changes: Change[], message: string): Promise<boolean> {
+    await checkRepositoryState();
+    const head = await headBlobs(changes.map((c) => c.key));
+    const same = (i: number) => {
+      const c = changes[i] as Change;
+      const h = head[i];
+      return c.next === undefined ? h === undefined : h?.toString("utf8") === c.next;
+    };
+    if (changes.every((_, i) => same(i))) {
+      for (const c of changes) await putFile(c, c.next);
+      return false;
+    }
+    // A path HEAD lacks and the change removes was never committed: nothing to commit for it.
+    const paths = changes.filter((c, i) => c.next !== undefined || head[i] !== undefined);
+    const fresh = changes.filter((c, i) => c.next !== undefined && head[i] === undefined);
+    try {
+      for (const c of changes) await putFile(c, c.next);
+      if (fresh.length > 0)
+        await g(["add", "--intent-to-add", "--force", "--", ...fresh.map((c) => c.key)]);
+      await g(["commit", "--quiet", "-m", message, "--only", "--", ...paths.map((c) => c.key)]);
+      return true;
     } catch (e) {
       try {
-        if (previous) await atomicWrite(path, dir, `${id}.md`, previous);
-        else await rm(path, { force: true, maxRetries: 10, retryDelay: 10 });
-        if (previousIndex) await atomicWrite(indexPath, dir, INDEX, previousIndex);
-        else await rm(indexPath, { force: true, maxRetries: 10, retryDelay: 10 });
-        await gTry(["reset", "--quiet", "--", key, INDEX_KEY]);
+        for (const c of changes) await putFile(c, c.previous);
+        await g(["reset", "--quiet", "--", ...paths.map((c) => c.key)]);
       } catch (undo) {
         throw new Error(
-          `letta adapter: ${(e as Error).message}; restoring ${key} and ${INDEX_KEY} failed too (${(undo as Error).message})`,
+          `letta adapter: ${(e as Error).message}; restoring ${changes.map((c) => c.key).join(" and ")} failed too (${(undo as Error).message})`,
           { cause: e },
         );
       }
@@ -401,33 +522,34 @@ export async function createLettaAdapter(options: LettaAdapterOptions): Promise<
 
   // The layout: engram/, its MEMORY.md and the root line, one setup commit when any is missing.
   await exclusive(async () => {
-    if (!(await checkDir())) await mkdir(dir);
-    const index = await readRegular(indexPath, INDEX_KEY);
-    const rootIndexPath = join(root, INDEX);
-    const rootIndex = await readRegular(rootIndexPath, INDEX);
-    const rootText = rootIndex?.toString("utf8") ?? "";
-    const changed: string[] = [];
+    const created = !(await checkDir());
+    if (created) await mkdir(dir);
     try {
-      if (index === undefined) {
-        await atomicWrite(indexPath, dir, INDEX, `${INDEX_HEAD.join("\n")}\n`);
-        changed.push(INDEX_KEY);
-      }
+      const index = await readRegular(indexPath, INDEX_KEY);
+      const rootIndexPath = join(root, INDEX);
+      const rootIndex = await readRegular(rootIndexPath, INDEX);
+      const rootText = rootIndex?.toString("utf8") ?? "";
+      const changes: Change[] = [];
+      if (index === undefined)
+        changes.push({
+          key: INDEX_KEY,
+          path: indexPath,
+          next: `${INDEX_HEAD.join("\n")}\n`,
+          previous: undefined,
+        });
       if (!rootText.includes(ROOT_LINK)) {
         const eol = rootText.includes("\r\n") ? "\r\n" : "\n";
         const sep = rootText === "" || rootText.endsWith("\n") ? "" : eol;
-        await atomicWrite(rootIndexPath, root, INDEX, `${rootText}${sep}${ROOT_LINE}${eol}`);
-        changed.push(INDEX);
+        changes.push({
+          key: INDEX,
+          path: rootIndexPath,
+          next: `${rootText}${sep}${ROOT_LINE}${eol}`,
+          previous: rootIndex,
+        });
       }
-      if (changed.length === 0) return;
-      await g(["add", "--all", "--force", "--", ...changed]);
-      await g(["commit", "--quiet", "-m", "engram: list engram/ in MEMORY.md", "--", ...changed]);
+      if (changes.length > 0) await commitChanges(changes, "engram: list engram/ in MEMORY.md");
     } catch (e) {
-      if (changed.includes(INDEX_KEY)) await rm(indexPath, { force: true });
-      if (changed.includes(INDEX)) {
-        if (rootIndex) await atomicWrite(rootIndexPath, root, INDEX, rootIndex);
-        else await rm(rootIndexPath, { force: true });
-      }
-      if (changed.length > 0) await gTry(["reset", "--quiet", "--", ...changed]);
+      if (created) await rmdir(dir).catch(() => undefined);
       throw e;
     }
   });
@@ -460,14 +582,11 @@ export async function createLettaAdapter(options: LettaAdapterOptions): Promise<
         const stored = { ...item, store_ref: ref } as MemoryItem;
         const text = serialise(stored, key, (t) => parseItem(t, id));
         const nextIndex = withIndexLine(previousIndex?.toString("utf8"), id, indexLine(stored));
-        if (previous?.toString("utf8") === text && previousIndex?.toString("utf8") === nextIndex)
-          return ref;
-        await commitChange(
-          id,
-          text,
-          nextIndex,
-          previous,
-          previousIndex,
+        await commitChanges(
+          [
+            { key, path: join(dir, `${id}.md`), next: text, previous },
+            { key: INDEX_KEY, path: indexPath, next: nextIndex, previous: previousIndex },
+          ],
           `engram: write ${id} (${item.class} in ${item.scope}, version ${item.version})`,
         );
         return ref;
@@ -485,12 +604,11 @@ export async function createLettaAdapter(options: LettaAdapterOptions): Promise<
         if (previous === undefined) return;
         const previousIndex = await readRegular(indexPath, INDEX_KEY);
         const nextIndex = withIndexLine(previousIndex?.toString("utf8"), id, undefined);
-        await commitChange(
-          id,
-          undefined,
-          nextIndex,
-          previous,
-          previousIndex,
+        await commitChanges(
+          [
+            { key, path: join(dir, `${id}.md`), next: undefined, previous },
+            { key: INDEX_KEY, path: indexPath, next: nextIndex, previous: previousIndex },
+          ],
           `engram: delete ${id}`,
         );
       });
@@ -570,6 +688,16 @@ async function openRepository(root: string): Promise<{ root: string; gitDir: str
       "is neither a git repository's top level nor an empty folder; the Letta adapter opens a MemFS repository or initialises one in an empty folder",
     );
   } else {
+    // An empty folder inside another repository's tree is part of that
+    // repository; initialising a nested one there is refused, not guessed.
+    const outer = await runGit(["rev-parse", "--show-toplevel"], { cwd: root });
+    if (outer.code === 0) {
+      if (info === undefined) await rmdir(root).catch(() => undefined);
+      throw new NotMemfsRepositoryError(
+        root,
+        `is an empty folder inside the repository at ${outer.stdout.toString("utf8").trim()}; the Letta adapter initialises a repository only outside any other`,
+      );
+    }
     await git(["init", "--quiet"], { cwd: root });
   }
   const [bare, top, gitDir] = (

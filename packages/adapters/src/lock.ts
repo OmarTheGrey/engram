@@ -57,6 +57,8 @@ export interface StoreLockOptions {
   label: string;
   /** What the lock guards, for the refusal message, for example `folder`. */
   guards: string;
+  /** The age after which a lock is stale whoever holds it. Default LOCK_STALE_MS (files adapter). */
+  staleMs?: number;
   seams?: LockSeams;
 }
 
@@ -91,6 +93,7 @@ export type StoreLock = <T>(fn: () => Promise<T>) => Promise<T>;
 
 export function createStoreLock(options: StoreLockOptions): StoreLock {
   const { path: lockPath, waitMs } = options;
+  const staleMs = options.staleMs ?? LOCK_STALE_MS;
   const breakPath = `${lockPath}.break`;
   const now = options.seams?.now ?? Date.now;
   const beforeBreak = options.seams?.beforeBreak ?? (async () => undefined);
@@ -119,9 +122,7 @@ export function createStoreLock(options: StoreLockOptions): StoreLock {
     if (isLockHolder(parsed)) {
       const age = now() - Date.parse(parsed.started);
       const stale =
-        parsed.token === token ||
-        age > LOCK_STALE_MS ||
-        (parsed.host === host && !isAlive(parsed.pid));
+        parsed.token === token || age > staleMs || (parsed.host === host && !isAlive(parsed.pid));
       return {
         stale,
         holder: `pid ${parsed.pid} on ${parsed.host} since ${parsed.started}`,
@@ -130,7 +131,7 @@ export function createStoreLock(options: StoreLockOptions): StoreLock {
     // No readable holder: a writer between creating and filling the lock, or one that stopped there.
     try {
       const age = now() - (await lstat(lockPath)).mtimeMs;
-      return { stale: age > LOCK_STALE_MS, holder: "a writer that has not recorded itself" };
+      return { stale: age > staleMs, holder: "a writer that has not recorded itself" };
     } catch (e) {
       if (isMissing(e)) return { stale: false, holder: "nobody" };
       throw e;
@@ -148,7 +149,7 @@ export function createStoreLock(options: StoreLockOptions): StoreLock {
     } catch (e) {
       if (!BUSY.includes(codeOf(e) ?? "")) throw e;
       const info = await lstat(breakPath).catch(() => undefined);
-      if (info && now() - info.mtimeMs > LOCK_STALE_MS) await rm(breakPath, { force: true });
+      if (info && now() - info.mtimeMs > staleMs) await rm(breakPath, { force: true });
       return false;
     }
     try {
@@ -208,7 +209,7 @@ export function createStoreLock(options: StoreLockOptions): StoreLock {
       }
       if (now() >= deadline) {
         throw new Error(
-          `${options.label}: ${lockPath} is held by ${judged?.holder ?? "another writer"}; another Engram writer is using this ${options.guards} (a lock older than ${LOCK_STALE_MS / 1000} s, or one from a pid no longer running on this machine, is broken automatically)`,
+          `${options.label}: ${lockPath} is held by ${judged?.holder ?? "another writer"}; another Engram writer is using this ${options.guards} (a lock older than ${staleMs / 1000} s, or one from a pid no longer running on this machine, is broken automatically)`,
         );
       }
       await sleep(Math.min(2 + attempt, 25));

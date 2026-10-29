@@ -50,7 +50,18 @@ export interface Io {
   stdin?: NodeJS.ReadableStream;
   /** Standard output as a stream, for `engram mcp` over stdio. */
   stdout?: NodeJS.WritableStream;
+  /**
+   * Doctor's store probes by check name, in place of the real ones; unset
+   * outside tests (main.ts never sets it). A test about something else
+   * (redaction, say) passes cheap probes so it does not open Mem0 and a
+   * MemFS repository once per run (review finding R2-5).
+   */
+  doctorProbes?: Partial<Record<DoctorProbe, () => Promise<[Status, string]>>>;
 }
+
+/** The doctor checks that open a store and can be replaced through `Io.doctorProbes`. */
+export type DoctorProbe = "adapter mem0" | "adapter letta";
+type Status = "ok" | "fail" | "skip";
 
 export const HELP = `engram: the Engram control plane from the command line
 

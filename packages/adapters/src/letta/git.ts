@@ -1,6 +1,6 @@
 // The `git` executable, run without a shell (card A2, ADR 0028). Only local
-// commands are ever run here: init, rev-parse, config, add, commit, reset,
-// diff, log and cat-file; never fetch, pull, push, clone or anything that
+// commands are ever run here: init, rev-parse, config, symbolic-ref, add,
+// commit, reset, log and cat-file; never fetch, pull, push, clone or anything that
 // names a remote. GIT_TERMINAL_PROMPT=0 makes a credential prompt fail
 // instead of waiting, and every call has a timeout.
 import { spawn } from "node:child_process";
@@ -32,13 +32,40 @@ export interface GitOptions {
   input?: string;
 }
 
+/**
+ * Variables that point git at another repository, work tree, index or object
+ * store than the one in `cwd`. Git exports some of them to hooks, so a
+ * process started from a hook (or a shell inside another repository) would
+ * otherwise send the adapter's calls elsewhere.
+ */
+export const REDIRECTING_GIT_VARIABLES = [
+  "GIT_DIR",
+  "GIT_WORK_TREE",
+  "GIT_INDEX_FILE",
+  "GIT_COMMON_DIR",
+  "GIT_OBJECT_DIRECTORY",
+  "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+  "GIT_NAMESPACE",
+  "GIT_PREFIX",
+  "GIT_CEILING_DIRECTORIES",
+] as const;
+
+/** The environment of every git call: the process's, without the redirecting variables. */
+function gitEnv(extra: Readonly<Record<string, string>> | undefined): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = { ...process.env, ...extra };
+  const strip = new Set<string>(REDIRECTING_GIT_VARIABLES);
+  // Windows keys are case-insensitive in the process but not in a copy.
+  for (const key of Object.keys(env)) if (strip.has(key.toUpperCase())) delete env[key];
+  // GIT_OPTIONAL_LOCKS=0: a read never takes the index lock a writer needs.
+  return { ...env, GIT_TERMINAL_PROMPT: "0", GIT_OPTIONAL_LOCKS: "0" };
+}
+
 /** Runs git with `args` and resolves with its exit code and output; rejects only when it cannot run. */
 export function runGit(args: readonly string[], options: GitOptions): Promise<GitResult> {
   return new Promise((resolve, reject) => {
     const child = spawn("git", [...args], {
       cwd: options.cwd,
-      // GIT_OPTIONAL_LOCKS=0: a read never takes the index lock a writer needs.
-      env: { ...process.env, ...options.env, GIT_TERMINAL_PROMPT: "0", GIT_OPTIONAL_LOCKS: "0" },
+      env: gitEnv(options.env),
       shell: false,
       windowsHide: true,
       timeout: GIT_TIMEOUT_MS,
