@@ -136,16 +136,21 @@ export function writeForbidden(
 
 /**
  * Do two contents read the same? Written apart from core's content-hash.ts:
- * text code point by code point, dropping format characters (category Cf)
- * and U+180E after NFKC, lower case, words joined by one space; objects key
+ * text code point by code point, dropping default-ignorable code points
+ * (and the Hangul fillers by name) after NFKC, NFKC again, lower case, words
+ * joined by one space; objects key
  * by key in sorted order, arrays in order, every string read as text; and
  * text never equals an object.
  */
+/** Code points that render as nothing, named one by one besides the property. */
+const IGNORABLE: ReadonlySet<string> = new Set(["\u3164", "\u115F", "\u180E", "\u200B", "\uFEFF"]);
+
 export function sameContent(a: unknown, b: unknown): boolean {
   const text = (s: string) =>
     [...s.normalize("NFKC")]
-      .filter((ch) => ch !== "\u180E" && !/^\p{Cf}$/u.test(ch))
+      .filter((ch) => !IGNORABLE.has(ch) && !/^\p{Default_Ignorable_Code_Point}$/u.test(ch))
       .join("")
+      .normalize("NFKC")
       .toLowerCase()
       .split(/\s+/)
       .filter((w) => w !== "")

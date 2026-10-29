@@ -238,10 +238,21 @@ const admitting = (policy: Policy, scope: string, kinds: MemoryItem["provenance"
 };
 
 /**
+ * An item put in the written scope before the write, and how it ended up
+ * retired: by an allowed retire event (it blocks restating writes), or
+ * planted, written with status retired or retired by its own ttl, which
+ * blocks nothing (review findings P4-3 and P4-13).
+ */
+interface Prior {
+  item: MemoryItem;
+  how: "retire-event" | "written-retired" | "own-ttl";
+}
+
+/**
  * A policy, the item and its writer, and items already retired in the
  * written scope before the write (the retired-content rule, ADR 0025).
  */
-type WriteCase = readonly [Policy, readonly [MemoryItem[], Actor], readonly MemoryItem[]];
+type WriteCase = readonly [Policy, readonly [MemoryItem[], Actor], readonly Prior[]];
 
 /**
  * A write forbidden only by a grant without a class or without an expiry
@@ -320,11 +331,15 @@ const RETIRE_EVENT_ID = "01900000-0000-7000-8000-0000000000ff";
  * plane's own helper.
  */
 function retiredByEvent(db: Parameters<typeof allEvents>[0]): MemoryItem[] {
-  const last = new Map<string, string>();
+  const last = new Map<string, MemoryEvent>();
   for (const e of allEvents(db))
     if (e.decision === "allow" && e.item_id !== null && CHANGING.includes(e.op))
-      last.set(e.item_id, e.op);
-  return currentItems(db).filter((i) => ["retire", "evict"].includes(last.get(i.id) ?? ""));
+      last.set(e.item_id, e);
+  return currentItems(db).filter((i) => {
+    const e = last.get(i.id);
+    // Expiry by the item's own ttl was its writer's choice: no evidence (P4-13).
+    return (e?.op === "retire" || e?.op === "evict") && e.policy_id !== "engram/retention/item-ttl";
+  });
 }
 
 const CHANGING: readonly string[] = ["write", "update", "promote", "retire", "evict"];
@@ -339,33 +354,49 @@ const CHANGING: readonly string[] = ["write", "update", "promote", "retire", "ev
  * written active and then retired by an event: an item written with status
  * retired was retired by nobody and blocks nothing (review finding P4-3).
  */
-const retiredContentOnly: fc.Arbitrary<WriteCase> = fc
-  .tuple(
-    arbPolicy,
-    arbGrantedItem,
-    arbWriter,
-    fc.constantFrom<MemoryItem["provenance"]["kind"]>("model", "compaction", "tool"),
-    fc.constantFrom("person:a", "role:a", "team:b", "org"),
-  )
-  .map(([policy, item, writer, kind, wide]) => {
-    const scope = kind === "tool" ? wide : "person:a";
-    const written = { ...item, scope, grants: [] } as MemoryItem;
-    const retired = {
-      ...item,
-      id: RETIRED_ID,
-      scope,
-      grants: [],
-      status: "active",
-      provenance: { ...item.provenance, kind: "user" },
-      content: restated(item.content),
-    } as MemoryItem;
-    const actor = {
-      ...writer,
-      source: kind,
-      memberships: [...new Set([...writer.memberships, scope])],
-    };
-    return [admitting(policy, scope, [kind]), [[written], actor], [retired]] as const;
-  });
+const restatingCase = (hows: readonly Prior["how"][]): fc.Arbitrary<WriteCase> =>
+  fc
+    .tuple(
+      arbPolicy,
+      arbGrantedItem,
+      arbWriter,
+      fc.constantFrom<MemoryItem["provenance"]["kind"]>("model", "compaction", "tool"),
+      fc.constantFrom("person:a", "role:a", "team:b", "org"),
+      fc.constantFrom(...hows),
+    )
+    .map(([policy, item, writer, kind, wide, how]) => {
+      const scope = kind === "tool" ? wide : "person:a";
+      const written = { ...item, scope, grants: [] } as MemoryItem;
+      const retired = {
+        ...item,
+        id: RETIRED_ID,
+        scope,
+        grants: [],
+        status: "active",
+        provenance: { ...item.provenance, kind: "user" },
+        content: restated(item.content),
+      } as MemoryItem;
+      const actor = {
+        ...writer,
+        source: kind,
+        memberships: [...new Set([...writer.memberships, scope])],
+      };
+      return [
+        admitting(policy, scope, [kind]),
+        [[written], actor],
+        [{ item: { ...retired, status: how === "written-retired" ? "retired" : "active" }, how }],
+      ] as const;
+    });
+
+const retiredContentOnly = restatingCase(["retire-event"]);
+
+/**
+ * The same restating write, after an item planted as retired: written with
+ * status retired, or retired only by its own ttl. Nothing forbids it, and it
+ * must land (P4-3 and P4-13): a gate that counted either as retired content
+ * would deny it.
+ */
+const plantedOnly = restatingCase(["written-retired", "own-ttl"]);
 
 /**
  * One item made readable but for its own ttl: active, admitted by a live
@@ -498,7 +529,15 @@ describe("invariants", () => {
 
   const I2 = "invariant 2: no write lands in a scope whose policy forbids its class or source";
   test(I2, async () => {
-    const seen = { landed: 0, forbidden: 0, noClass: 0, noExpiry: 0, isolation: 0, retired: 0 };
+    const seen = {
+      landed: 0,
+      forbidden: 0,
+      noClass: 0,
+      noExpiry: 0,
+      isolation: 0,
+      retired: 0,
+      planted: 0,
+    };
     await fc.assert(
       fc.asyncProperty(
         fc.oneof(
@@ -509,13 +548,14 @@ describe("invariants", () => {
                 arbGrantedItem.map((i) => [i]),
                 arbWriter,
               ),
-              fc.constant([] as readonly MemoryItem[]),
+              fc.constant([] as readonly Prior[]),
             ),
             weight: 3,
           },
           { arbitrary: grantTermsOnly, weight: 1 },
           { arbitrary: isolationOnly, weight: 1 },
           { arbitrary: retiredContentOnly, weight: 1 },
+          { arbitrary: plantedOnly, weight: 1 },
         ),
         arbTimestamp,
         async ([policy, [[item], actor], retired], at) => {
@@ -523,10 +563,11 @@ describe("invariants", () => {
           const { db, adapter, plane, under } = freshPlane(policy);
           // Items retired before the write: written by a member, then
           // retired by an allowed retire event (ADR 0010: retired by event).
-          for (const r of retired) {
+          for (const { item: r, how } of retired) {
             const owner = { id: r.owner, level: "person" as const, memberships: [r.scope] };
             const { event } = await under(ADMIT_ALL).write(owner, r, at);
             expect(event.decision, "the item to retire lands").toBe("allow");
+            if (how === "written-retired") continue;
             appendEvent(db, {
               id: RETIRE_EVENT_ID,
               ts: at,
@@ -537,13 +578,25 @@ describe("invariants", () => {
               scope_to: r.scope,
               decision: "allow",
               reason: "retired before the write under test",
-              policy_id: "test/retire",
+              policy_id: how === "own-ttl" ? "engram/retention/item-ttl" : "test/retire",
               schema_version: 0,
             });
           }
           const projected = retiredByEvent(db);
           const { item: stored } = await plane.write(actor, item, at);
           if (stored) seen.landed++;
+          // A restating write after a planted retirement is forbidden by nothing: it lands.
+          if (retired.some((r) => r.how !== "retire-event")) {
+            expect(
+              writeForbidden(policy, actor, item, projected),
+              "a planted retirement is no retired content",
+            ).toBe(false);
+            expect(
+              stored,
+              `a restating write after a ${retired[0]?.how} plant must land`,
+            ).not.toBeNull();
+            seen.planted++;
+          }
           // Writes forbidden by exactly one condition a mutant could drop: a
           // grant's missing class or expiry, or source isolation; each would
           // land if the policy's rule were all the gate checked.
@@ -590,7 +643,8 @@ describe("invariants", () => {
         seen.noClass > RUNS / 50 &&
         seen.noExpiry > RUNS / 50 &&
         seen.isolation > RUNS / 50 &&
-        seen.retired > RUNS / 50,
+        seen.retired > RUNS / 50 &&
+        seen.planted > RUNS / 50,
       `invariant 2 needs writes that land, writes it forbids, and writes the policy's rule admits that are forbidden only by a grant without a class, a grant without an expiry, source isolation, or retired content; it saw ${JSON.stringify(seen)}`,
     ).toBe(true);
   }, 120_000);
@@ -742,7 +796,8 @@ describe("invariants", () => {
           const log = allEvents(db).filter((e) => e.seq <= before);
           const state = before < 0 ? [] : itemsAt(db, before);
           const changed = lastChanged(log, before);
-          const byTtl = scope === actor.id || actor.source === "user";
+          const byTtl =
+            (scope.split(":")[0] === "person" && scope === actor.id) || actor.source === "user";
           const expected: (string | null)[][] = [];
           for (const cls of ["episodic", "semantic", "procedural"] as const) {
             const own = state.filter((x) => x.scope === scope && x.class === cls);

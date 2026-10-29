@@ -25,6 +25,7 @@ import { appendEvent } from "../events.ts";
 import { itemById, itemsByStoreRef } from "../items.ts";
 import type { PlaneDeps, WriteCheckResult, WriteResult } from "../plane.ts";
 import { evaluateWrite, SCHEMA_ID, STORE_FAILURE_ID } from "../policy/evaluate.ts";
+import { ITEM_TTL_ID } from "../policy/retention.ts";
 import { Id, MemoryItem, Scope } from "../schema.ts";
 import { inWriteQueue } from "./queue.ts";
 import { enforceBudget } from "./retention.ts";
@@ -49,20 +50,25 @@ const validOrNull = (value: unknown, key: string, schema: typeof Id | typeof Sco
  * allowed retire or evict event retired counts: one written with status
  * `retired` was retired by nobody, and counting it would let any member
  * plant a block on content (review finding P4-3; ADR 0010: items are
- * retired by event).
+ * retired by event). Nor does expiry by the item's own ttl
+ * (`engram/retention/item-ttl`), which its writer chose (P4-13); expiry by a
+ * rule's ttl and budget eviction count.
  */
 export function retiredContent(db: Db, scope: string): Map<string, string> {
   const out = new Map<string, string>();
   const rows = db.prepare("SELECT body FROM items WHERE status = 'retired' ORDER BY id").all();
   const lastChange = db.prepare(
-    `SELECT op FROM events WHERE item_id = ? AND decision = 'allow'
+    `SELECT op, body FROM events WHERE item_id = ? AND decision = 'allow'
      AND op IN ('write', 'update', 'promote', 'retire', 'evict') ORDER BY seq DESC LIMIT 1`,
   );
   for (const row of rows) {
     const it = JSON.parse(String(row.body)) as MemoryItem;
     if (it.scope !== scope) continue;
-    const op = lastChange.get(it.id)?.op;
-    if (op !== "retire" && op !== "evict") continue;
+    const last = lastChange.get(it.id);
+    if (last?.op !== "retire" && last?.op !== "evict") continue;
+    // Expiry by the item's own ttl was set by its writer, so it is no
+    // evidence of removal (review finding P4-13).
+    if (JSON.parse(String(last.body)).policy_id === ITEM_TTL_ID) continue;
     const hash = contentHash(it.content);
     if (!out.has(hash)) out.set(hash, it.id);
   }

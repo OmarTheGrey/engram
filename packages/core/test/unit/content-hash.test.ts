@@ -31,6 +31,15 @@ describe("normaliseContent", () => {
     expect(normaliseContent({ t: "te​a" })).toBe(normaliseContent({ t: "tea" }));
   });
 
+  test("default-ignorable code points go too, and NFKC runs again after (finding P4-14)", () => {
+    const plain = normaliseContent("omar likes tea");
+    expect(normaliseContent("omar️ likes tea")).toBe(plain);
+    expect(normaliseContent("omar li͏kes tea")).toBe(plain);
+    expect(normaliseContent("omarㅤ likes tea")).toBe(plain);
+    expect(normaliseContent("ᅟomar likes tea")).toBe(plain);
+    expect(normaliseContent("cafe​́")).toBe(normaliseContent("café"));
+  });
+
   test("text never collides with structured content that prints the same", () => {
     expect(normaliseContent('{"a":1}')).not.toBe(normaliseContent({ a: 1 }));
   });

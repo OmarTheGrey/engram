@@ -18,6 +18,8 @@ Amendments made when implementing card E2.4, 2026-10-29 (pending the lead's revi
 
 - Review finding P4-7 (PR 4): before whitespace is collapsed, text is stripped of format characters that render as nothing, Unicode category Cf (zero-width space and joiners, the soft hyphen, the byte order mark, directional marks) and U+180E, so a restatement padded with them is the same content. Still not caught by the exact rule, by design until L1's near-duplicate form: trailing punctuation, and text wrapped in a record such as `{"text": ...}`.
 
+- Verification of PR 4 (finding P4-14): the stripped set is every default-ignorable code point (`\p{Default_Ignorable_Code_Point}`: format characters, variation selectors, the combining grapheme joiner, the Hangul fillers U+3164 and U+115F, named explicitly as well), and NFKC runs again after stripping. This replaces the Cf-and-U+180E set of the amendment above.
+
 ## Alternatives considered
 
 No alternatives were recorded beyond the recommendation.

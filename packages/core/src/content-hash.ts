@@ -4,8 +4,8 @@
 // and the exact form of the duplicate lint (card L1). It compares content
 // only: callers compare scope, class or anything else themselves.
 //
-// Normal form: text is NFKC-normalised, stripped of format characters that
-// render as nothing (category Cf and U+180E), lower-cased, with every run of
+// Normal form: text is NFKC-normalised, stripped of default-ignorable code
+// points (they render as nothing), NFKC-normalised again, lower-cased, with every run of
 // whitespace collapsed to one space and the ends trimmed, prefixed `text:`.
 // Structured content (a JSON object, procedural content included) is
 // canonical JSON, keys sorted at every depth, every string value normalised
@@ -15,14 +15,23 @@ import { createHash } from "node:crypto";
 import type { MemoryItem } from "./schema.ts";
 
 /**
- * Format characters (Unicode category Cf: zero-width space and joiners, the
- * soft hyphen, the byte order mark, directional marks) and U+180E render as
- * nothing, so text differing only by them reads the same (review finding P4-7).
+ * Default-ignorable code points render as nothing: zero-width spaces and
+ * joiners, the soft hyphen, the byte order mark, variation selectors, the
+ * combining grapheme joiner, the Hangul fillers (U+3164 and U+115F, listed
+ * explicitly as well) and the like, so text differing only by them reads the
+ * same (review findings P4-7 and P4-14).
  */
-const INVISIBLE = /[\p{Cf}᠎]/gu;
+const INVISIBLE = /[\p{Default_Ignorable_Code_Point}\u3164\u115F]/gu;
 
+/** NFKC runs again after stripping, so a mark stranded by a stripped character composes. */
 const normaliseText = (s: string) =>
-  s.normalize("NFKC").replace(INVISIBLE, "").toLowerCase().replace(/\s+/g, " ").trim();
+  s
+    .normalize("NFKC")
+    .replace(INVISIBLE, "")
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
 
 function canonical(value: unknown): unknown {
   if (typeof value === "string") return normaliseText(value);

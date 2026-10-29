@@ -105,7 +105,9 @@ export function isExpired(policy: Policy, item: MemoryItem, at: string): boolean
  * retires by ttl. Reads exclude expired items whoever sweeps.
  */
 export function mayRetireByTtl(actor: Pick<Actor, "id" | "source">, scope: string): boolean {
-  return scope === actor.id || actor.source === "user";
+  // Own means a person scope named by the actor's id: a principal id may be
+  // any string, such as `team:platform`, which is not anyone's own (P4-15).
+  return (scope.startsWith("person:") && scope === actor.id) || actor.source === "user";
 }
 
 const byId = (a: MemoryItem, b: MemoryItem) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);

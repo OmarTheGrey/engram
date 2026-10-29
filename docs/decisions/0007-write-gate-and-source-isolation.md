@@ -44,6 +44,8 @@ Amendments made when implementing card E2.4, 2026-10-29 (ADR 0025; pending the l
 
 - Review fix pass of PR 4 (findings P4-3 and P4-8, and the review's note on adoption): a call to `inWriteQueue` from inside a task on the same db rejects with `NestedWriteQueueError` instead of waiting for itself and stalling the log's queue; inside a task the in-slot primitives are `enforceBudget` and `appendEvent`. Adoption's retractions are appended inside the write queue, reading the projection again there. The retired-content check counts only items an allowed retire or evict event retired, never one written with status `retired`.
 
+- Verification of PR 4 (findings P4-13 and P4-16): the nesting guard refuses a call only while the slot whose async context it was made from is still running, so a callback created in a slot that fires after it ended queues normally. The retired-content check also ignores retirements by the item's own ttl (`engram/retention/item-ttl`), which its writer chose (ADR 0025).
+
 ## Alternatives considered
 
 (a) Deterministic rules only: source kind, scope, class, provenance presence, hash, size, and a per-scope budget. (b) Add a model-based classifier at write time.

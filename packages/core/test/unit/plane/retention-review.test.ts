@@ -8,6 +8,7 @@ import { openSqlite } from "../../../src/db/sqlite.ts";
 import { currentItems } from "../../../src/events.ts";
 import { type Actor, adoptStoreItems, createPlane, inWriteQueue } from "../../../src/plane.ts";
 import { RETIRED_CONTENT_ID } from "../../../src/policy/evaluate.ts";
+import { mayRetireByTtl } from "../../../src/policy/retention.ts";
 import type { MemoryItem, Policy } from "../../../src/schema.ts";
 import { AT, fresh, id, item, testPolicy } from "./helpers.ts";
 
@@ -225,4 +226,83 @@ test("P4-1, plane-level: a write's result is the item as it stands after its slo
   const second = await plane.write(user, mine(2, { content: "beta" }), AT);
   expect(second.item?.status).toBe("active");
   expect(second.retention.map((e) => e.item_id)).toEqual([id(1)]);
+});
+
+// Verification of the fix pass (findings P4-13 to P4-16).
+
+describe("P4-13: an item's own ttl cannot plant retired content", () => {
+  test("the reviewer's ttl:1 plant: the restating write lands", async () => {
+    const { plane } = fresh(open([]));
+    const tool = { ...omar, source: "tool" as const };
+    const planted = await plane.write(
+      tool,
+      item(1, { content: "Rotate keys monthly", ttl: 1 }),
+      AT,
+    );
+    expect(planted.event.decision).toBe("allow");
+    const swept = await plane.retain(user, "team:platform", "2026-10-25T12:00:05Z");
+    expect(swept.expired).toEqual([id(1)]);
+    const restated = await plane.write(
+      tool,
+      item(2, { content: "rotate keys monthly" }),
+      "2026-10-25T12:00:06Z",
+    );
+    expect(restated.event.decision).toBe("allow");
+  });
+
+  test("a rule's ttl still makes content retired", async () => {
+    const { plane } = fresh(open([rule({ scope: "team", ttl: 1 })]));
+    await plane.write(user, item(1, { content: "Rotate keys monthly" }), AT);
+    await plane.retain(user, "team:platform", "2026-10-25T12:00:05Z");
+    const restated = await plane.write(
+      { ...omar, source: "tool" },
+      item(2, { content: "rotate keys monthly" }),
+      "2026-10-25T12:00:06Z",
+    );
+    expect(restated.event.policy_id).toBe(RETIRED_CONTENT_ID);
+  });
+});
+
+describe("P4-15: only a person scope is an actor's own", () => {
+  test("an actor whose id is a shared scope retires nothing there by ttl", async () => {
+    expect(mayRetireByTtl({ id: "team:platform", source: "model" }, "team:platform")).toBe(false);
+    expect(mayRetireByTtl({ id: "org" }, "org")).toBe(false);
+    expect(mayRetireByTtl({ id: "person:omar" }, "person:omar")).toBe(true);
+    const { plane, db } = fresh(open([rule({ scope: "team", ttl: 60 })]));
+    await plane.write(user, item(1, { valid_from: AT }), AT);
+    const team: Actor = {
+      id: "team:platform",
+      level: "team",
+      memberships: ["team:platform"],
+      source: "model",
+    };
+    const report = await plane.retain(team, "team:platform", "9999-12-31T00:00:00Z");
+    expect(report.expired).toEqual([]);
+    expect(currentItems(db)[0]?.status).toBe("active");
+  });
+});
+
+describe("P4-16: the nesting guard refuses only real nesting", () => {
+  test("a callback that fires after its slot ended may queue", async () => {
+    const { db } = fresh(open([]));
+    let later: Promise<number> | undefined;
+    await inWriteQueue(db, () => {
+      later = new Promise<number>((resolve, reject) => {
+        setTimeout(() => {
+          inWriteQueue(db, () => 7).then(resolve, reject);
+        }, 20);
+      });
+    });
+    await expect(later).resolves.toBe(7);
+  });
+
+  test("a call awaited inside its slot is still refused", async () => {
+    const { db } = fresh(open([]));
+    await expect(
+      inWriteQueue(db, async () => {
+        await new Promise((r) => setTimeout(r, 5));
+        return inWriteQueue(db, () => 1);
+      }),
+    ).rejects.toThrow(/inside the write queue/);
+  });
 });
