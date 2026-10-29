@@ -63,6 +63,9 @@ promote options:
   --to <scope>                the target scope: the item's own or a wider one
   --review                    approve as a reviewer: a member of the target who does not own the item
   the plane records the promoter as source user; exit 1 on deny, or on ask when the target needs review
+  limit: the CLI does not authenticate. --as and --member are taken as given, so the
+  distinct-actor and reviewer rules hold only as far as this single-user machine does;
+  a promotion with --review is only as trustworthy as the machine it ran on
 
 explain options:
   --db <path>  --policy <preset|path>  and --as or --owner: only the reader may explain a read

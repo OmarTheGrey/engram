@@ -19,11 +19,14 @@
 // normal form, `sameContent`, not core's hash: finding P4-9), and which items
 // a budget overage evicts (`budgetVictims`).
 //
-// Promotion (card E2.5, ADR 0026) adds `promotionPermitted`, the evidence a
-// landing promotion needs, judged from the logged writes with the same
-// `sameContent`; the landed item is judged by `writeForbidden` like any write.
+// Promotion (card E2.5, ADR 0026) adds `promotionPermitted`: reach, expiry,
+// the source of a widening, duplicates, reviewers (authors included) and the
+// evidence a landing promotion needs, all judged from the oracle's own
+// replay of the events with its own strict content reading
+// (`sameStrictContent`); the landed item is judged by `writeForbidden` like
+// any write.
 import type { Actor } from "../../src/plane.ts";
-import type { Grant, MemoryItem, Policy } from "../../src/schema.ts";
+import type { Grant, MemoryEvent, MemoryItem, Policy } from "../../src/schema.ts";
 import { compareTimestamps } from "../../src/time.ts";
 
 const level = (scope: string) => (scope === "org" ? "org" : scope.split(":")[0]);
@@ -229,50 +232,136 @@ export function budgetVictims(
 export const TRUST = ["user", "document", "import", "tool", "model", "compaction"] as const;
 const SCOPE_RANK = ["person", "role", "team", "org"];
 
-/** One allowed write the log recorded, as the promotion oracle reads it. */
-export interface LoggedWrite {
-  item_id: string;
-  actor: string;
-  kind: MemoryItem["provenance"]["kind"];
-  scope: string;
-  content: MemoryItem["content"];
+/**
+ * The strict reading of "the same content" for promotions (review finding
+ * P5-12): format characters dropped and whitespace runs collapsed, nothing
+ * else; case and compatibility forms stay apart, so "US" never confirms
+ * "us". Written apart from core's content-hash.ts.
+ */
+export function sameStrictContent(a: unknown, b: unknown): boolean {
+  const text = (s: string) =>
+    [...s]
+      .filter((ch) => ch !== "\u180E" && !/^\p{Cf}$/u.test(ch))
+      .join("")
+      .split(/\s+/)
+      .filter((w) => w !== "")
+      .join(" ");
+  if (typeof a === "string" || typeof b === "string")
+    return typeof a === "string" && typeof b === "string" && text(a) === text(b);
+  if (Array.isArray(a) || Array.isArray(b))
+    return (
+      Array.isArray(a) &&
+      Array.isArray(b) &&
+      a.length === b.length &&
+      a.every((x, i) => sameStrictContent(x, b[i]))
+    );
+  if (a && b && typeof a === "object" && typeof b === "object") {
+    const ka = Object.keys(a).sort();
+    const kb = Object.keys(b).sort();
+    return (
+      ka.join("\u0000") === kb.join("\u0000") &&
+      ka.every((k) =>
+        sameStrictContent((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k]),
+      )
+    );
+  }
+  return a === b;
+}
+
+/** The items as the log leaves them, replayed by the oracle itself. */
+function replayed(events: readonly MemoryEvent[]): Map<string, MemoryItem> {
+  const out = new Map<string, MemoryItem>();
+  for (const e of events) {
+    if (e.decision !== "allow" || e.item_id === null) continue;
+    if ((e.op === "write" || e.op === "update" || e.op === "promote") && e.item)
+      out.set(e.item_id, e.item);
+    const was = out.get(e.item_id);
+    if ((e.op === "retire" || e.op === "evict") && was)
+      out.set(e.item_id, { ...was, status: "retired" });
+  }
+  return out;
 }
 
 /**
- * Invariant 2 for promotions (ADR 0026): may `actor` land a promotion of
- * `source` into `target`, given the allowed writes in the log? Necessary
- * conditions only, so the property is soundness: the actor belongs to the
- * source's scope; the source is not retired; the target is the source's
- * scope or a scope at a wider level; an actor asking to review is a reviewer
- * (user-sourced, a member of the target, not the owner); a target whose rule
- * requires review is reached only through a reviewer; an episodic item needs
- * at least k distinct actors among the writes of its content in its scope
- * with a user, document or tool source, or a reviewer where the policy
- * allows review; a procedural candidate never lands (no validation record
- * reaches the plane before card D3); anything else needs a reviewer. Whether
- * the landed item may be written into the target is `writeForbidden`'s.
+ * Invariant 2 for promotions (ADR 0026 and its review fix pass): may `actor`
+ * land a promotion of item `sourceId` into `target` at `at`, given the log
+ * `events` before it? Necessary conditions only, so the property is
+ * soundness, all judged from the oracle's own replay of the events:
+ *
+ * - the actor can read the source as `readable` says (scope or live grant),
+ *   which also leaves out an item past its ttl (P5-4, P5-7);
+ * - the source is not retired, and the target is its scope or a scope at a
+ *   wider level; a scope change is asked for by a user-sourced actor (P5-3);
+ * - no other active item of the promoted class in the target holds the
+ *   content (strict reading, P5-5);
+ * - an actor asking to review is a reviewer: user-sourced, a member of the
+ *   target, not the owner, and not the actor of any allowed write or update
+ *   of the source or a version its lineage reaches (P5-1); a target whose
+ *   rule requires review is reached only through a reviewer;
+ * - an episodic item needs at least k distinct actors among the allowed
+ *   writes, in its scope, of its content (strict reading), with a user,
+ *   document or tool source, of items still active now (the item's own
+ *   write aside), or a reviewer where the policy allows review; a
+ *   procedural candidate never lands (no validation record reaches the
+ *   plane before card D3); anything else needs a reviewer.
+ *
+ * Whether the landed item may be written into the target is `writeForbidden`'s.
  */
 export function promotionPermitted(
   policy: Policy,
   actor: Actor,
-  source: MemoryItem,
+  sourceId: string,
   target: string,
-  writes: readonly LoggedWrite[],
+  events: readonly MemoryEvent[],
   review: boolean,
+  at: string,
 ): boolean {
-  if (actor.memberships.indexOf(source.scope) === -1) return false;
+  const items = replayed(events);
+  const source = items.get(sourceId);
+  if (!source) return false;
+  if (!readable(policy, actor, source, at)) return false;
   if (source.status === "retired") return false;
+  const widening = target !== source.scope;
   if (
-    target !== source.scope &&
+    widening &&
     !(
       SCOPE_RANK.indexOf(level(target) as string) >
       SCOPE_RANK.indexOf(level(source.scope) as string)
     )
   )
     return false;
+  if (widening && actor.source !== "user") return false;
+  const promotedClass = source.class === "episodic" ? "semantic" : source.class;
+  for (const other of items.values())
+    if (
+      other.id !== sourceId &&
+      other.status === "active" &&
+      other.scope === target &&
+      other.class === promotedClass &&
+      sameStrictContent(other.content, source.content)
+    )
+      return false;
+  // The source and every version its lineage reaches, and who wrote them.
+  const versions = new Set<string>();
+  const queue = [sourceId];
+  for (let id = queue.pop(); id !== undefined; id = queue.pop()) {
+    if (versions.has(id)) continue;
+    versions.add(id);
+    queue.push(...(items.get(id)?.lineage ?? []));
+  }
+  const authors = new Set<string>();
+  for (const e of events)
+    if (
+      (e.op === "write" || e.op === "update") &&
+      e.decision === "allow" &&
+      e.item_id !== null &&
+      versions.has(e.item_id)
+    )
+      authors.add(e.actor);
   const reviewer =
     actor.source === "user" &&
     actor.id !== source.owner &&
+    !authors.has(actor.id) &&
     actor.memberships.indexOf(target) !== -1;
   if (review && !reviewer) return false;
   const reviewed = review && reviewer;
@@ -280,13 +369,15 @@ export function promotionPermitted(
   if (rule?.requires_review && !reviewed) return false;
   if (source.class === "episodic") {
     const actors = new Set<string>();
-    for (const w of writes)
-      if (
-        w.scope === source.scope &&
-        (w.kind === "user" || w.kind === "document" || w.kind === "tool") &&
-        sameContent(w.content, source.content)
-      )
-        actors.add(w.actor);
+    for (const e of events) {
+      const w = e.item;
+      if (e.op !== "write" || e.decision !== "allow" || !w) continue;
+      if (w.scope !== source.scope) continue;
+      const kind = w.provenance.kind;
+      if (kind !== "user" && kind !== "document" && kind !== "tool") continue;
+      if (w.id !== sourceId && items.get(w.id)?.status !== "active") continue;
+      if (sameStrictContent(w.content, source.content)) actors.add(e.actor);
+    }
     const { confirmations, or_review } = policy.promotion.episodic_to_semantic;
     return actors.size >= confirmations || (or_review && reviewed);
   }

@@ -32,8 +32,12 @@
 // would match nearly every name), and characters that only look like the
 // name (another alphabet's letters name another program).
 
-/** Store CLIs blocked by default: the stores the adapters name. */
-export const STORE_COMMANDS: readonly string[] = ["mem0", "letta"];
+/**
+ * Store CLIs blocked by default: the stores the adapters name, and the Engram
+ * CLI itself, which takes --as and --member as given and so would let a model
+ * write, confirm and approve as anyone (review finding P5-2).
+ */
+export const STORE_COMMANDS: readonly string[] = ["mem0", "letta", "engram"];
 
 /** Suffixes an executable name may carry on Windows or as a script. */
 const EXECUTABLE = /\.(exe|cmd|bat|com|ps1|sh|py|js|mjs|cjs)$/i;

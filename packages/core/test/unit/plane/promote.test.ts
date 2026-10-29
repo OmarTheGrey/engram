@@ -7,17 +7,22 @@
 // denied. A class or scope change is a new version written to the store, its
 // source retired in the same queue slot; a status-only change is in place.
 import { describe, expect, test } from "vitest";
-import { currentItems, rebuild } from "../../../src/events.ts";
+import { contentHash } from "../../../src/content-hash.ts";
+import { appendEvent, currentItems, rebuild } from "../../../src/events.ts";
 import { itemById } from "../../../src/items.ts";
+import { retiredContent } from "../../../src/plane/write.ts";
 import { type Actor, InvalidCallError } from "../../../src/plane.ts";
 import {
+  PROMOTE_DUPLICATE_ID,
+  PROMOTE_EXPIRED_ID,
   PROMOTE_MEMBERSHIP_ID,
   PROMOTE_NO_EVIDENCE_ID,
   PROMOTE_NOT_CANDIDATE_ID,
   PROMOTE_REVIEWER_ID,
+  PROMOTE_WIDENING_SOURCE_ID,
 } from "../../../src/policy/promotion.ts";
 import { itemsAt } from "../../../src/replay.ts";
-import type { MemoryItem, Policy } from "../../../src/schema.ts";
+import type { MemoryEvent, MemoryItem, Policy } from "../../../src/schema.ts";
 import { AT, fresh, id, item, testPolicy } from "./helpers.ts";
 
 const SCOPES = ["person:omar", "team:platform", "org"];
@@ -65,10 +70,11 @@ const episode = (n: number, owner: string, content = FACT, over: Partial<MemoryI
 /** The fixture: omar records FACT, and others restate it one by one. */
 async function confirmations(plane: ReturnType<typeof fresh>["plane"]) {
   await plane.write(omar, episode(1, "person:omar"), AT);
-  await plane.write(omar, episode(2, "person:omar", "the deploy runs on  TUESDAYS."), AT);
+  await plane.write(omar, episode(2, "person:omar", "The deploy  runs on Tuesdays."), AT);
   await plane.write(pi, episode(3, "agent:pi"), AT);
   await plane.write(compactor, episode(4, "agent:pi-compaction"), AT);
-  await plane.write(sara, episode(5, "person:sara", "  the deploy runs on tuesdays. "), AT);
+  // Whitespace only: the strict normal form keeps case (review finding P5-12).
+  await plane.write(sara, episode(5, "person:sara", "  The deploy runs on\tTuesdays. "), AT);
 }
 
 describe("acceptance (card E2.5): the fixture promotes only after k confirmations", () => {
@@ -180,13 +186,14 @@ describe("acceptance (card E2.5): the review path records the approver", () => {
   });
 
   test.each([
-    ["the owner", omar, "owns item"],
-    ["a model-sourced actor", pi, "only a user-sourced actor can approve"],
-  ])("%s cannot approve", async (_label, actor, text) => {
+    ["the owner", omar, "team:platform", "owns item"],
+    // In its own scope: a widening by a model-sourced actor is refused earlier (P5-3).
+    ["a model-sourced actor", pi, "person:omar", "only a user-sourced actor can approve"],
+  ])("%s cannot approve", async (_label, actor, target, text) => {
     const { plane, adapter } = fresh(POLICY);
     await plane.write(omar, episode(1, "person:omar"), AT);
     const writes = adapter.writes;
-    const result = await plane.promote(actor, id(1), "team:platform", AT, { review: true });
+    const result = await plane.promote(actor, id(1), target, AT, { review: true });
     expect(result.decision).toBe("deny");
     expect(result.event.policy_id).toBe(PROMOTE_REVIEWER_ID);
     expect(result.event.reason).toContain(text);
@@ -379,5 +386,224 @@ describe("promotion events and calls", () => {
       plane.promote(actor as Actor, itemId as string, scope as string, at as string),
     ).rejects.toThrow(InvalidCallError);
     expect(plane.events()).toEqual([]);
+  });
+});
+
+describe("review fix pass (P5)", () => {
+  test("P5-1: a writer who names someone else as owner cannot approve its own item", async () => {
+    const { plane } = fresh(POLICY);
+    // sara writes into org (requires review) naming omar as owner; it lands as a candidate.
+    const written = await plane.write(sara, item(1, { scope: "org", owner: "person:omar" }), AT);
+    expect(written.item?.status).toBe("candidate");
+    const self = await plane.promote(sara, id(1), "org", AT, { review: true });
+    expect(self.decision).toBe("deny");
+    expect(self.event.policy_id).toBe(PROMOTE_REVIEWER_ID);
+    expect(self.event.reason).toContain("wrote item");
+    // A rewrite by another member makes that member an author too.
+    await plane.write(ali, { ...item(1, { scope: "org", owner: "person:omar" }), version: 2 }, AT);
+    const other = { ...ali, source: "user" as const };
+    expect((await plane.promote(other, id(1), "org", AT, { review: true })).event.policy_id).toBe(
+      PROMOTE_REVIEWER_ID,
+    );
+    // Someone who wrote no version may.
+    const ada: Actor = { ...sara, id: "person:ada" };
+    expect((await plane.promote(ada, id(1), "org", AT, { review: true })).decision).toBe("allow");
+  });
+
+  test("P5-1: the authors of the item's lineage cannot approve its next version", async () => {
+    const { plane } = fresh(POLICY);
+    await plane.write(sara, episode(1, "person:omar"), AT);
+    const lifted = await plane.promote({ ...ali, source: "user" }, id(1), "person:omar", AT, {
+      review: true,
+    });
+    const next = lifted.item as MemoryItem;
+    expect(lifted.decision).toBe("allow");
+    const widened = await plane.promote(sara, next.id, "team:platform", AT, { review: true });
+    expect(widened.event.policy_id).toBe(PROMOTE_REVIEWER_ID);
+  });
+
+  test("P5-3: a model-sourced actor cannot widen a confirmed item", async () => {
+    const { plane } = fresh(POLICY);
+    await confirmations(plane);
+    await plane.write(ali, episode(6, "person:ali"), AT);
+    const result = await plane.promote(pi, id(1), "team:platform", AT);
+    expect(result.decision).toBe("deny");
+    expect(result.event.policy_id).toBe(PROMOTE_WIDENING_SOURCE_ID);
+  });
+
+  test("P5-4: an item past its ttl is not promoted, and nothing it would become is read", async () => {
+    const policy = {
+      ...POLICY,
+      retention: [
+        {
+          scope: "person" as const,
+          class: "episodic" as const,
+          ttl: 60,
+          budget: null,
+          eviction: "recency" as const,
+        },
+      ],
+    };
+    const { plane } = fresh(policy);
+    const t0 = "2026-10-24T12:00:00Z";
+    await plane.write(omar, episode(1, "person:omar", FACT, { valid_from: t0 }), t0);
+    const later = "2026-10-25T12:00:00Z";
+    const result = await plane.promote(sara, id(1), "team:platform", later, { review: true });
+    expect(result.decision).toBe("deny");
+    expect(result.event.policy_id).toBe(PROMOTE_EXPIRED_ID);
+    expect((await plane.read(sara, { at: later })).items).toEqual([]);
+  });
+
+  test("P5-5: after a promotion its confirmers cannot promote the fact again", async () => {
+    const { plane } = fresh(POLICY);
+    await confirmations(plane);
+    await plane.write(ali, episode(6, "person:ali"), AT);
+    expect((await plane.promote(omar, id(1), "team:platform", AT)).decision).toBe("allow");
+    // id(5) is still active, but the team already holds the fact as semantic.
+    const again = await plane.promote(omar, id(5), "team:platform", AT);
+    expect(again.decision).toBe("deny");
+    expect(again.event.policy_id).toBe(PROMOTE_DUPLICATE_ID);
+  });
+
+  test("P5-5: a retired confirmer no longer counts", async () => {
+    const { plane, db } = fresh(POLICY);
+    await confirmations(plane);
+    await plane.write(ali, episode(6, "person:ali"), AT);
+    appendEvent(db, {
+      id: id(800),
+      ts: AT,
+      op: "retire",
+      item_id: id(6),
+      actor: "person:ali",
+      scope_from: null,
+      scope_to: "person:omar",
+      decision: "allow",
+      reason: "retired by its author",
+      policy_id: "test/retire",
+      schema_version: 0,
+    });
+    const result = await plane.promote(omar, id(1), "team:platform", AT);
+    expect(result.event.policy_id).toBe(PROMOTE_NO_EVIDENCE_ID);
+    expect(result.event.reason).toContain("2 of the 3");
+  });
+
+  test("P5-6: after a promotion, an episode restating the fact is not retired content", async () => {
+    const { plane, db } = fresh(POLICY);
+    await plane.write(omar, episode(1, "person:omar"), AT);
+    const lifted = await plane.promote(sara, id(1), "person:omar", AT, { review: true });
+    expect(lifted.decision).toBe("allow");
+    expect(retiredContent(db, "person:omar").size).toBe(0);
+    for (const [actor, n] of [
+      [pi, 2],
+      [{ ...omar, source: "tool" as const }, 3],
+    ] as const) {
+      const again = await plane.write(actor, episode(n, "person:omar"), AT);
+      expect(again.event.decision, again.event.reason).toBe("allow");
+    }
+  });
+
+  test("P5-6: a source a promotion superseded into a wider scope is not retired content", async () => {
+    const { plane, db } = fresh(POLICY);
+    await plane.write(omar, episode(1, "person:omar"), AT);
+    const lifted = await plane.promote(sara, id(1), "team:platform", AT, { review: true });
+    expect(lifted.decision).toBe("allow");
+    // No active item in person:omar holds the fact now; only the superseded source.
+    expect(
+      currentItems(db).filter((i) => i.scope === "person:omar" && i.status === "active"),
+    ).toEqual([]);
+    expect(retiredContent(db, "person:omar").size).toBe(0);
+    const again = await plane.write(pi, episode(2, "person:omar"), AT);
+    expect(again.event.decision, again.event.reason).toBe("allow");
+  });
+
+  test("P5-6: retired content an active item in the scope still holds does not block", async () => {
+    const { plane, db } = fresh(POLICY);
+    await plane.write(omar, episode(1, "person:omar"), AT);
+    await plane.write(omar, episode(2, "person:omar"), AT);
+    appendEvent(db, {
+      id: id(801),
+      ts: AT,
+      op: "retire",
+      item_id: id(1),
+      actor: "person:omar",
+      scope_from: null,
+      scope_to: "person:omar",
+      decision: "allow",
+      reason: "retired by its owner",
+      policy_id: "test/retire",
+      schema_version: 0,
+    });
+    expect(retiredContent(db, "person:omar").size).toBe(0);
+    // Once no active item holds it, the retirement counts.
+    const { seq: _seq, ...last } = plane.events().at(-1) as MemoryEvent;
+    appendEvent(db, { ...last, id: id(802), item_id: id(2) });
+    expect(retiredContent(db, "person:omar").get(contentHash(FACT))).toBe(id(1));
+  });
+
+  test("P5-7: a member whose level cannot read the item's scope gets the opaque refusal", async () => {
+    const { plane } = fresh(POLICY);
+    await plane.write(omar, episode(1, "person:omar"), AT);
+    // testPolicy has no read matrix row for org: bo reads nothing, whatever it belongs to.
+    const bo: Actor = { ...sara, id: "person:bo", level: "org" };
+    expect((await plane.read(bo, { at: AT })).items).toEqual([]);
+    const result = await plane.promote(bo, id(1), "team:platform", AT, { review: true });
+    expect(result.item).toBeNull();
+    expect(result.event).toMatchObject({
+      policy_id: PROMOTE_MEMBERSHIP_ID,
+      scope_from: null,
+      reason: `item ${id(1)} is not one person:bo can access, so it cannot promote it`,
+    });
+    expect(JSON.stringify(result)).not.toContain("Tuesdays");
+  });
+
+  test("P5-7: a promoter who cannot read the target gets the event and a null item", async () => {
+    // A reader at level team may read team and org, not person scope: give it a grant on the source.
+    const { plane } = fresh(POLICY);
+    const granted = episode(1, "person:omar", FACT, {
+      grants: [
+        { to: "person:tess", class: "episodic", mode: "read", expires: "2027-01-01T00:00:00Z" },
+      ],
+    });
+    await plane.write(omar, granted, AT);
+    const tess: Actor = {
+      id: "person:tess",
+      level: "team",
+      memberships: ["person:omar"],
+      source: "user",
+    };
+    // tess cannot read person scope by level, yet the target is omar's own scope.
+    const result = await plane.promote(tess, id(1), "person:omar", AT, { review: true });
+    expect(result.decision).toBe("allow");
+    expect(result.item).toBeNull();
+    expect(result.event.item?.scope).toBe("person:omar");
+  });
+
+  test("P5-9: restatements in another scope do not confirm", async () => {
+    const { plane } = fresh(POLICY);
+    await plane.write(omar, episode(1, "person:omar"), AT);
+    const elsewhere = (n: number, who: Actor) =>
+      plane.write(
+        { ...who, memberships: [...who.memberships, "person:sara"] },
+        episode(n, who.id, FACT, { scope: "person:sara" }),
+        AT,
+      );
+    expect((await elsewhere(2, sara)).event.decision).toBe("allow");
+    expect((await elsewhere(3, ali)).event.decision).toBe("allow");
+    const result = await plane.promote(omar, id(1), "team:platform", AT);
+    expect(result.event.policy_id).toBe(PROMOTE_NO_EVIDENCE_ID);
+    expect(result.event.reason).toContain("1 of the 3");
+  });
+
+  test("P5-10: a store that returns a confirmer's ref for the new version is refused", async () => {
+    const { plane, adapter, db } = fresh(POLICY);
+    await confirmations(plane);
+    await plane.write(ali, episode(6, "person:ali"), AT);
+    adapter.fault = async () => ({ adapter: "fake", key: id(5) });
+    const before = currentItems(db);
+    await expect(plane.promote(omar, id(1), "team:platform", AT)).rejects.toThrow(
+      /already holds ref/,
+    );
+    expect(currentItems(db)).toEqual(before);
+    expect(plane.events().at(-1)?.policy_id).toBe("engram/write/store-failure");
   });
 });

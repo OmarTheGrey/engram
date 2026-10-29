@@ -13,10 +13,13 @@ import {
   type Confirmation,
   evaluatePromotion,
   leastTrusted,
+  PROMOTE_DUPLICATE_ID,
+  PROMOTE_EXPIRED_ID,
   PROMOTE_MEMBERSHIP_ID,
   PROMOTE_NO_EVIDENCE_ID,
   PROMOTE_NOT_CANDIDATE_ID,
   PROMOTE_REVIEWER_ID,
+  PROMOTE_WIDENING_SOURCE_ID,
   type PromotionEvidence,
 } from "../../../src/policy/promotion.ts";
 import type { MemoryItem, Policy } from "../../../src/schema.ts";
@@ -95,11 +98,14 @@ const omar: Actor = { id: "person:omar", level: "person", memberships: SCOPES, s
 /** Another user-sourced member of every scope: an eligible reviewer of omar's items. */
 const sara: Actor = { id: "person:sara", level: "person", memberships: SCOPES, source: "user" };
 
-const conf = (n: number, actor: string, kind: Confirmation["kind"] = "user"): Confirmation => ({
-  item_id: id(n),
-  actor,
-  kind,
-});
+const conf = (
+  n: number,
+  actor: string,
+  kind: Confirmation["kind"] = "user",
+  status: Confirmation["status"] = "active",
+): Confirmation => ({ item_id: id(n), actor, kind, status });
+
+const AT = "2026-10-25T12:00:00Z";
 
 /** The item's own write, by its owner, plus confirmations by sara and ali: three distinct actors. */
 const THREE: Confirmation[] = [
@@ -116,10 +122,12 @@ const judge = (
   target: string,
   evidence: PromotionEvidence,
   retired: ReadonlyMap<string, string> = new Map(),
-) => evaluatePromotion(policy, actor, it, target, evidence, retired);
+  at = AT,
+) => evaluatePromotion(policy, actor, it, { scope: target, at }, evidence, retired);
 
 const ev = (over: Partial<PromotionEvidence> = {}): PromotionEvidence => ({
   confirmations: [],
+  authors: [],
   review: false,
   ...over,
 });
@@ -418,5 +426,119 @@ describe("leastTrusted", () => {
     expect(leastTrusted(["tool", "import"])).toBe("tool");
     expect(leastTrusted(["user", "model", "tool"])).toBe("model");
     expect(leastTrusted(["compaction", "model"])).toBe("compaction");
+  });
+});
+
+describe("review fix pass (P5)", () => {
+  test("P5-1: an author of the item who is not its owner cannot approve it", () => {
+    // sara wrote the item naming omar as owner; she must not approve it.
+    const d = judge(
+      POLICY,
+      sara,
+      item(1),
+      "team:platform",
+      ev({ review: true, authors: ["person:sara"] }),
+    );
+    expect(d).toMatchObject({
+      decision: "deny",
+      check: "reviewer",
+      policy_id: PROMOTE_REVIEWER_ID,
+    });
+    expect(d.reason).toContain("wrote");
+  });
+
+  test("P5-3: a widening needs a user-sourced promoter, however confirmed", () => {
+    const pi: Actor = { ...omar, id: "agent:pi", source: "model" };
+    const d = judge(POLICY, pi, item(1), "team:platform", ev({ confirmations: THREE }));
+    expect(d).toMatchObject({ decision: "deny", policy_id: PROMOTE_WIDENING_SOURCE_ID });
+    // The same actor may still make it semantic in its own scope.
+    expect(judge(POLICY, pi, item(1), "person:omar", ev({ confirmations: THREE })).decision).toBe(
+      "allow",
+    );
+    // A source-less promoter is not user-sourced either.
+    const bare: Actor = { ...omar, source: undefined };
+    expect(
+      judge(POLICY, bare, item(1), "team:platform", ev({ confirmations: THREE })).policy_id,
+    ).toBe(PROMOTE_WIDENING_SOURCE_ID);
+  });
+
+  test("P5-4: an item past its ttl is not a candidate", () => {
+    const old = item(1, { ttl: 60, valid_from: "2026-10-24T12:00:00Z" });
+    const d = judge(POLICY, sara, old, "team:platform", ev({ review: true }));
+    expect(d).toMatchObject({ decision: "deny", policy_id: PROMOTE_EXPIRED_ID });
+    // At the last instant before it runs out it still is one.
+    const live = judge(
+      POLICY,
+      sara,
+      old,
+      "team:platform",
+      ev({ review: true }),
+      new Map(),
+      "2026-10-24T12:00:59.999Z",
+    );
+    expect(live.decision).toBe("allow");
+  });
+
+  test("P5-5: a confirming item that is no longer active does not count", () => {
+    const d = judge(
+      POLICY,
+      omar,
+      item(1),
+      "team:platform",
+      ev({
+        confirmations: [
+          THREE[0],
+          THREE[1],
+          conf(3, "person:ali", "document", "retired"),
+        ] as Confirmation[],
+      }),
+    );
+    expect(d).toMatchObject({ decision: "deny", check: "no-evidence", confirmations: 2 });
+  });
+
+  test("P5-5: content an active item of the target class already holds there is a duplicate", () => {
+    const d = judge(
+      POLICY,
+      omar,
+      item(1),
+      "team:platform",
+      ev({ confirmations: THREE, duplicate: id(7) }),
+    );
+    expect(d).toMatchObject({ decision: "deny", policy_id: PROMOTE_DUPLICATE_ID });
+    expect(d.reason).toContain(id(7));
+  });
+
+  test("P5-7: a member who cannot read the item's scope learns nothing about it", () => {
+    // Level org has no read matrix row in this policy: membership alone is not reach.
+    const bo: Actor = { ...sara, id: "person:bo", level: "org" };
+    const d = judge(
+      POLICY,
+      bo,
+      item(1),
+      "team:platform",
+      ev({ review: true, confirmations: THREE }),
+    );
+    expect(d).toMatchObject({ decision: "deny", policy_id: PROMOTE_MEMBERSHIP_ID });
+    expect(d.reason).not.toMatch(/episodic|retired|confirm|person:omar/);
+  });
+
+  test("P5-7, P5-11: a reader through a live grant may review without belonging to the item's scope", () => {
+    const granted = item(1, {
+      grants: [
+        { to: "person:sara", class: "episodic", mode: "read", expires: "2027-01-01T00:00:00Z" },
+      ],
+    });
+    const outside: Actor = { ...sara, memberships: ["team:platform"] };
+    const d = judge(POLICY, outside, granted, "team:platform", ev({ review: true }));
+    expect(d).toMatchObject({ decision: "allow", check: "reviewed" });
+    // An expired grant is no reach.
+    const lapsed = item(1, {
+      grants: [
+        { to: "person:sara", class: "episodic", mode: "read", expires: "2026-01-01T00:00:00Z" },
+      ],
+    });
+    expect(judge(POLICY, outside, lapsed, "team:platform", ev({ review: true })).policy_id).toBe(
+      PROMOTE_MEMBERSHIP_ID,
+    );
   });
 });

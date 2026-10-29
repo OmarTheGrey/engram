@@ -10,8 +10,11 @@
 //   <policy id>/promotion/review                 a reviewer approved, or a review is asked for
 //   <policy id>/promotion/procedural             a validation record meets replay_k of replay_n
 //   <policy id>/promotion/superseded             the source of a new version is retired (plane)
-//   engram/promote/membership                    the actor is not a member of the item's scope
+//   engram/promote/membership                    the actor cannot read the item (as `read` would reach it)
 //   engram/promote/not-candidate                 nothing to promote: retired, already active there, or not a widening
+//   engram/promote/expired                       the item is past its ttl (the read path's rule, ADR 0025)
+//   engram/promote/widening-source               a scope change by an actor that is not user-sourced
+//   engram/promote/duplicate                     an active item of the target class already holds the content there
 //   engram/promote/no-evidence                   too few confirmations, no reviewer, or no validation record
 //   engram/promote/reviewer                      the actor asked to approve but is not a reviewer
 // A promotion the target's write rule refuses is denied under that rule's own
@@ -19,9 +22,20 @@
 // promotion is evaluated as a write into the target scope (ADR 0026, item 5).
 import type { Actor } from "../actor.ts";
 import type { MemoryItem, Policy, ScopeLevel } from "../schema.ts";
-import { evaluateWrite, scopeLevel, type WriteDecision } from "./evaluate.ts";
+import { compareTimestamps } from "../time.ts";
+import {
+  evaluateWrite,
+  grantMatches,
+  readableScope,
+  scopeLevel,
+  type WriteDecision,
+} from "./evaluate.ts";
+import { itemExpiry } from "./retention.ts";
 
 export const PROMOTE_MEMBERSHIP_ID = "engram/promote/membership";
+export const PROMOTE_EXPIRED_ID = "engram/promote/expired";
+export const PROMOTE_WIDENING_SOURCE_ID = "engram/promote/widening-source";
+export const PROMOTE_DUPLICATE_ID = "engram/promote/duplicate";
 export const PROMOTE_NOT_CANDIDATE_ID = "engram/promote/not-candidate";
 export const PROMOTE_NO_EVIDENCE_ID = "engram/promote/no-evidence";
 export const PROMOTE_REVIEWER_ID = "engram/promote/reviewer";
@@ -67,6 +81,15 @@ export interface Confirmation {
   actor: string;
   /** The provenance kind the written item carried. */
   kind: Kind;
+  /** The written item's status now; only an active item confirms (review finding P5-5). */
+  status: MemoryItem["status"];
+}
+
+/** Where a promotion goes, and when it is asked for. */
+export interface PromotionTarget {
+  scope: string;
+  /** The time expiry and grant reach are judged at; injected, never read from a clock. */
+  at: string;
 }
 
 /** A replay validation record: `k` passes in `n` runs on held-out tasks (card D3). */
@@ -83,6 +106,17 @@ export interface PromotionEvidence {
    * distinct-actor rules; the plane only gathers.
    */
   confirmations: readonly Confirmation[];
+  /**
+   * Every actor of an allowed write or update event on the item or any
+   * version in its lineage: none of them may approve it, whoever the item
+   * names as owner (review finding P5-1).
+   */
+  authors: readonly string[];
+  /**
+   * An active item of the promoted class in the target scope that already
+   * holds the item's content (strict normal form), if there is one (P5-5).
+   */
+  duplicate?: string;
   /** The actor asks to approve the promotion as a reviewer. */
   review: boolean;
   /** For a procedural candidate: its replay validation record, when one exists. */
@@ -92,6 +126,9 @@ export interface PromotionEvidence {
 export type PromotionCheck =
   | "membership"
   | "not-candidate"
+  | "expired"
+  | "widening-source"
+  | "duplicate"
   | "write"
   | "reviewer"
   | "no-evidence"
@@ -127,6 +164,8 @@ function countConfirmations(item: MemoryItem, all: readonly Confirmation[]) {
   const byItem = new Set<string>();
   const byActor = new Map<string, Confirmation>();
   for (const c of all) {
+    // The item's own write counts whatever its status: it is the one promoted.
+    if (c.item_id !== item.id && c.status !== "active") continue;
     if (!CONFIRMING_KINDS.has(c.kind) || byItem.has(c.item_id)) continue;
     byItem.add(c.item_id);
     if (!byActor.has(c.actor)) byActor.set(c.actor, c);
@@ -139,10 +178,21 @@ function countConfirmations(item: MemoryItem, all: readonly Confirmation[]) {
   };
 }
 
-/** Why `actor` may not approve a promotion of `item` into `target`, or null (ADR 0026, item 3). */
-export function reviewerProblem(actor: Actor, item: MemoryItem, target: string): string | null {
+/**
+ * Why `actor` may not approve a promotion of `item` into `target`, or null
+ * (ADR 0026, item 3): it owns the item, wrote a version of it (`authors`,
+ * P5-1), is not user-sourced, or is not a member of the target.
+ */
+export function reviewerProblem(
+  actor: Actor,
+  item: MemoryItem,
+  target: string,
+  authors: readonly string[] = [],
+): string | null {
   if (actor.id === item.owner)
     return `${actor.id} owns item ${item.id} and cannot approve its own item`;
+  if (authors.includes(actor.id))
+    return `${actor.id} wrote item ${item.id} or a version of it and cannot approve its own item`;
   if (actor.source !== "user")
     return `${actor.id} acts with source ${actor.source ?? "none"}; only a user-sourced actor can approve`;
   if (!actor.memberships.includes(target))
@@ -168,27 +218,53 @@ export function validationMeets(policy: Policy, v: ValidationRecord): boolean {
 }
 
 /**
+ * Can `actor` read `item` at `at`, as `read` would reach it: by a readable
+ * scope (membership and the read matrix), or by a live grant naming it whose
+ * class is absent or the item's (when the policy honours grants). Status,
+ * ttl and validity are judged separately.
+ */
+export function canReach(policy: Policy, actor: Actor, item: MemoryItem, at: string): boolean {
+  if (readableScope(policy, actor, item.scope)) return true;
+  return (
+    policy.read.honour_grants &&
+    item.grants.some(
+      (g) =>
+        grantMatches(g.to, actor.id) &&
+        (g.class === undefined || g.class === item.class) &&
+        (g.expires === undefined || compareTimestamps(g.expires, at) > 0),
+    )
+  );
+}
+
+/**
  * The promotion gate (ADR 0026). Checks run in a fixed order and the first
  * failure decides:
  *
- * 1. The actor is a member of the item's scope; otherwise the reason names
- *    nothing about the item (`engram/promote/membership`).
+ * 1. The actor can read the item (`canReach`); otherwise the reason names
+ *    nothing about it (`engram/promote/membership`, P5-7).
  * 2. The item is a candidate: not retired; the target is its own scope or a
  *    scope at a wider level; and something changes (an episodic item becomes
- *    semantic, a candidate becomes active, or the scope widens).
- * 3. The promoted item is judged as a write into the target scope by
+ *    semantic, a candidate becomes active, or the scope widens). It is not
+ *    past its ttl (`engram/promote/expired`, P5-4).
+ * 3. A scope change needs a user-sourced actor
+ *    (`engram/promote/widening-source`, P5-3); choosing where content is
+ *    disclosed is an authority act. A same-scope change keeps the rules below.
+ * 4. No active item of the promoted class in the target already holds the
+ *    content (`engram/promote/duplicate`, P5-5).
+ * 5. The promoted item is judged as a write into the target scope by
  *    `evaluateWrite`: membership, grants, the rule's classes, sources, floor
  *    and the retired-content rule (`retired`, as for a write). A status-only
  *    change is judged against the item itself as the projected one.
- * 4. An actor asking to review must be a reviewer: not the owner,
- *    user-sourced, a member of the target (`engram/promote/reviewer`).
- * 5. Evidence: an episodic item needs k confirmations or, when `or_review`
+ * 6. An actor asking to review must be a reviewer: not the owner, not an
+ *    author of any version, user-sourced, a member of the target
+ *    (`engram/promote/reviewer`).
+ * 7. Evidence: an episodic item needs k confirmations or, when `or_review`
  *    holds, a reviewer; a procedural candidate needs a validation record
  *    meeting replay_k of replay_n, which a review cannot replace; anything
  *    else (a semantic candidate, a widening of an active item) needs a
  *    reviewer. Missing evidence that a review could supply asks when the
  *    target requires review, else denies (`engram/promote/no-evidence`).
- * 6. A target whose rule requires review asks when the actor is not
+ * 8. A target whose rule requires review asks when the actor is not
  *    reviewing, even with the evidence (decision `ask`, no item).
  *
  * A status-only change is in place: same id, version plus one, active. A
@@ -201,7 +277,7 @@ export function evaluatePromotion(
   policy: Policy,
   actor: Actor,
   item: MemoryItem,
-  target: string,
+  { scope: target, at }: PromotionTarget,
   evidence: PromotionEvidence,
   retired: ReadonlyMap<string, string>,
 ): PromotionDecision {
@@ -220,7 +296,7 @@ export function evaluatePromotion(
     policy_id,
   });
 
-  if (!actor.memberships.includes(item.scope))
+  if (!canReach(policy, actor, item, at))
     return deny(
       "membership",
       `item ${item.id} is not one ${actor.id} can access, so it cannot promote it`,
@@ -239,6 +315,27 @@ export function evaluatePromotion(
   const classChange = item.class === "episodic";
   if (sameScope && !classChange && item.status === "active")
     return notCandidate(`item ${item.id} is already active in ${target}`);
+  const expiry = itemExpiry(policy, item);
+  if (expiry !== null && compareTimestamps(expiry.at, at) <= 0)
+    return deny(
+      "expired",
+      `item ${item.id} is past its ttl: expired at ${expiry.at} (${expiry.policy_id})`,
+      PROMOTE_EXPIRED_ID,
+    );
+  if (!sameScope && actor.source !== "user")
+    return deny(
+      "widening-source",
+      `${actor.id} acts with source ${actor.source ?? "none"}; only a user-sourced actor may move content to another scope`,
+      PROMOTE_WIDENING_SOURCE_ID,
+    );
+  if (evidence.duplicate !== undefined)
+    return deny(
+      "duplicate",
+      readableScope(policy, actor, target)
+        ? `active item ${evidence.duplicate} already holds this content in ${target}`
+        : `an active item already holds this content in ${target}`,
+      PROMOTE_DUPLICATE_ID,
+    );
 
   const transition = sameScope && !classChange ? "in-place" : "new-version";
   const promoted: MemoryItem =
@@ -272,7 +369,7 @@ export function evaluatePromotion(
   const targetReview = write.check === "review";
 
   if (evidence.review) {
-    const problem = reviewerProblem(actor, item, target);
+    const problem = reviewerProblem(actor, item, target, evidence.authors);
     if (problem) return deny("reviewer", problem, PROMOTE_REVIEWER_ID);
   }
 

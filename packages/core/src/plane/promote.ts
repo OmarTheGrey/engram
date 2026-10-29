@@ -4,10 +4,15 @@
 // promotion decides against the projection the previous change left.
 //
 // Confirmations are counted from the log, never stored: every allowed write
-// event whose item is in the promoted item's scope and has its normalised
-// content hash (content-hash.ts, ADR 0018), with the actor the event names
-// and the provenance kind the written item carried. The evaluator keeps the
-// trusted kinds and counts distinct actors.
+// event whose item is in the promoted item's scope and has its content in
+// the strict normal form (content-hash.ts, review finding P5-12), with the
+// actor the event names, the provenance kind the written item carried and
+// that item's status now. The evaluator keeps active, trusted ones and
+// counts distinct actors. The plane also gathers who wrote the item or any
+// version in its lineage (none may approve it, P5-1) and whether an active
+// item of the promoted class already holds the content in the target (P5-5).
+// A promoter who cannot read the target scope gets the decision's event and
+// a null item (P5-7).
 //
 // On allow, a status-only change rewrites the item in place (same id,
 // version plus one); a class or scope change writes a new version under a
@@ -18,11 +23,11 @@
 // failure after an allow appends one deny event naming it and rethrows, as a
 // write does (decision D6).
 import { type Actor, checkCall, InvalidCallError } from "../actor.ts";
-import { contentHash } from "../content-hash.ts";
-import { allEvents, appendEvent } from "../events.ts";
-import { itemById } from "../items.ts";
+import { strictContentHash } from "../content-hash.ts";
+import { allEvents, appendEvent, currentItems } from "../events.ts";
+import { itemById, lineage } from "../items.ts";
 import type { GateResult, PlaneDeps, PromoteOptions } from "../plane.ts";
-import { STORE_FAILURE_ID } from "../policy/evaluate.ts";
+import { readableScope, STORE_FAILURE_ID } from "../policy/evaluate.ts";
 import {
   type Confirmation,
   evaluatePromotion,
@@ -36,16 +41,56 @@ import { refProblem, retiredContent } from "./write.ts";
 
 /** Every allowed write of `item`'s content in its scope, in log order (ADR 0026, item 2). */
 export function confirmationsOf(deps: PlaneDeps, item: MemoryItem): Confirmation[] {
-  const hash = contentHash(item.content);
+  const hash = strictContentHash(item.content);
   return allEvents(deps.db).flatMap((e) =>
     e.op === "write" &&
     e.decision === "allow" &&
     e.item &&
     e.item.scope === item.scope &&
-    contentHash(e.item.content) === hash
-      ? [{ item_id: e.item.id, actor: e.actor, kind: e.item.provenance.kind }]
+    strictContentHash(e.item.content) === hash
+      ? [
+          {
+            item_id: e.item.id,
+            actor: e.actor,
+            kind: e.item.provenance.kind,
+            status: itemById(deps.db, e.item.id)?.status ?? "retired",
+          },
+        ]
       : [],
   );
+}
+
+/** Every actor of an allowed write or update of `item` or any version in its lineage (P5-1). */
+export function authorsOf(deps: PlaneDeps, item: MemoryItem): string[] {
+  const ids = new Set([item.id, ...lineage(deps.db, item.id).ancestors.map((a) => a.id)]);
+  const out = new Set<string>();
+  for (const e of allEvents(deps.db))
+    if (
+      (e.op === "write" || e.op === "update") &&
+      e.decision === "allow" &&
+      e.item_id !== null &&
+      ids.has(e.item_id)
+    )
+      out.add(e.actor);
+  return [...out];
+}
+
+/** An active item of `cls` in `scope`, other than `item`, holding its content (strict form), if any. */
+function duplicateOf(
+  deps: PlaneDeps,
+  item: MemoryItem,
+  scope: string,
+  cls: MemoryItem["class"],
+): string | undefined {
+  const hash = strictContentHash(item.content);
+  return currentItems(deps.db).find(
+    (i) =>
+      i.id !== item.id &&
+      i.scope === scope &&
+      i.class === cls &&
+      i.status === "active" &&
+      strictContentHash(i.content) === hash,
+  )?.id;
 }
 
 /**
@@ -106,8 +151,18 @@ async function decideAndCommit(
     policy,
     actor,
     item,
-    toScope,
-    { confirmations: confirmationsOf(deps, item), review: options.review === true },
+    { scope: toScope, at },
+    {
+      confirmations: confirmationsOf(deps, item),
+      authors: authorsOf(deps, item),
+      duplicate: duplicateOf(
+        deps,
+        item,
+        toScope,
+        item.class === "episodic" ? "semantic" : item.class,
+      ),
+      review: options.review === true,
+    },
     retiredContent(db, toScope),
   );
   const visible = d.policy_id !== PROMOTE_MEMBERSHIP_ID;
@@ -141,7 +196,14 @@ async function decideAndCommit(
   let committed: MemoryEvent[];
   try {
     const store_ref = await adapter.write(toStore);
-    const problem = refProblem(deps, toStore, store_ref, false);
+    // Only the source and its own lineage may share the new version's ref:
+    // the confirming items its lineage also names are not versions (P5-10).
+    const problem = refProblem(
+      deps,
+      fresh ? ({ ...toStore, lineage: [item.id] } as MemoryItem) : toStore,
+      store_ref,
+      false,
+    );
     if (problem) throw new Error(problem);
     stored = { ...toStore, store_ref };
     committed = db.transaction(() => {
@@ -181,5 +243,8 @@ async function decideAndCommit(
   // Still in this promotion's queue slot: no other change lands in between.
   const retention = enforceBudget(deps, actor, stored.scope, stored.class, at, stored.id);
   const [event] = committed as [MemoryEvent, ...MemoryEvent[]];
-  return { decision: "allow", item: stored, event, events: [...committed, ...retention] };
+  // The event is the audit record; the item goes back only to a promoter
+  // who can read where it landed (P5-7).
+  const visibleItem = readableScope(policy, actor, stored.scope) ? stored : null;
+  return { decision: "allow", item: visibleItem, event, events: [...committed, ...retention] };
 }

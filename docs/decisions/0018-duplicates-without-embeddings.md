@@ -20,6 +20,10 @@ Amendments made when implementing card E2.4, 2026-10-29 (pending the lead's revi
 
 - Verification of PR 4 (finding P4-14): the stripped set is every default-ignorable code point (`\p{Default_Ignorable_Code_Point}`: format characters, variation selectors, the combining grapheme joiner, the Hangul fillers U+3164 and U+115F, named explicitly as well), and NFKC runs again after stripping. This replaces the Cf-and-U+180E set of the amendment above.
 
+Amendments made in the review fix pass of card E2.5, 2026-10-29 (review finding P5-12; pending the lead's review like the rest of this ADR):
+
+- There are two normal forms, exported under names that say what they do (packages/core/src/content-hash.ts). The merging form (`normaliseContentMerging`, `mergingContentHash`, also the plain `normaliseContent` and `contentHash`) applies NFKC and case folding, so "10²" and "102", or "US" and "us", are one content; it serves where merging is the safe direction, the retired-content rule. The strict form (`normaliseContentStrict`, `strictContentHash`) only drops format characters and collapses whitespace; it serves where not merging is the safe direction, promotion's confirmations and duplicate check (ADR 0026). The exact duplicate lint (L1) chooses its form when it lands.
+
 ## Alternatives considered
 
 No alternatives were recorded beyond the recommendation.

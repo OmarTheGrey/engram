@@ -1,0 +1,9 @@
+The red fixture of the conflict-marker check in scripts/check-prose.ts
+(review finding P5-8): a file a rebase left half-merged. make lint-docs
+skips this one path; scripts/test/check-prose.test.ts checks it is flagged.
+
+<<<<<<< HEAD
+the version on the branch being rebased onto
+=======
+the version from the commit being replayed
+>>>>>>> 3fef61d (E2.5: promotion (ADR 0026))

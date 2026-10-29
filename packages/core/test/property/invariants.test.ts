@@ -73,7 +73,13 @@
 // Invariant 1 also checks the Plane's surface (2606.24535, MemClaw's
 // get-by-id bypass): no method other than `read` returns an item, except
 // `write` and `promote` returning the caller's own item, and `events`, the
-// audit log no surface passes to a model.
+// audit log no surface passes to a model; a promoter who is not the owner
+// and cannot read the item learns nothing from promote (review fix pass,
+// finding P5-7). Since that pass invariant 2's promotions also exercise
+// authors who are not owners, items past their ttl, widenings by actors
+// that are not user-sourced, duplicates in the target, confirmers retired
+// before the promotion and promoters who cannot read the item, and the
+// oracle judges all of it from its own replay of the events.
 import { createFakeAdapter } from "@engram/adapters";
 import fc from "fast-check";
 import { describe, expect, test } from "vitest";
@@ -105,11 +111,11 @@ import {
 } from "../generators.ts";
 import {
   budgetVictims,
-  type LoggedWrite,
   pastTtl,
   patternCovers,
   promotionPermitted,
   readable,
+  sameContent,
   TRUST,
   writeForbidden,
 } from "./oracle.ts";
@@ -361,17 +367,25 @@ const RETIRE_EVENT_ID = "01900000-0000-7000-8000-0000000000ff";
 /**
  * The projected items whose last allowed changing event retired them: what
  * an allowed retire or evict event retired, read from the log, not from the
- * plane's own helper.
+ * plane's own helper. Two retirements are not retired content (review
+ * finding P5-6): a source a promotion superseded, whose content lives on in
+ * its new version, and content an active item in the same scope still holds.
  */
 function retiredByEvent(db: Parameters<typeof allEvents>[0]): MemoryItem[] {
   const last = new Map<string, MemoryEvent>();
   for (const e of allEvents(db))
     if (e.decision === "allow" && e.item_id !== null && CHANGING.includes(e.op))
       last.set(e.item_id, e);
-  return currentItems(db).filter((i) => {
+  const items = currentItems(db);
+  return items.filter((i) => {
     const e = last.get(i.id);
+    if (!e || !["retire", "evict"].includes(e.op)) return false;
     // Expiry by the item's own ttl was its writer's choice: no evidence (P4-13).
-    return (e?.op === "retire" || e?.op === "evict") && e.policy_id !== "engram/retention/item-ttl";
+    if (e.policy_id === "engram/retention/item-ttl") return false;
+    if (e.policy_id.endsWith("/promotion/superseded")) return false;
+    return !items.some(
+      (a) => a.status === "active" && a.scope === i.scope && sameContent(a.content, i.content),
+    );
   });
 }
 
@@ -1124,8 +1138,12 @@ const pId = (n: number) => `01950000-0000-7000-8000-${String(n + 1).padStart(12,
 interface Restatement {
   actor: (typeof P_ACTORS)[number];
   kind: Kind;
+  /** Also in another case: the same only in the merging form, never a confirmation. */
+  loud: boolean;
   same: boolean;
   inScope: boolean;
+  retired: boolean;
+  inTarget: boolean;
 }
 
 const arbRestatement: fc.Arbitrary<Restatement> = fc.record({
@@ -1134,6 +1152,7 @@ const arbRestatement: fc.Arbitrary<Restatement> = fc.record({
     { arbitrary: fc.constantFrom<Kind>("user", "document", "tool"), weight: 3 },
     { arbitrary: fc.constantFrom<Kind>("model", "compaction", "import"), weight: 2 },
   ),
+  loud: fc.constantFrom(false, false, true),
   same: fc.oneof(
     { arbitrary: fc.constant(true), weight: 4 },
     { arbitrary: fc.constant(false), weight: 1 },
@@ -1142,6 +1161,11 @@ const arbRestatement: fc.Arbitrary<Restatement> = fc.record({
     { arbitrary: fc.constant(true), weight: 5 },
     { arbitrary: fc.constant(false), weight: 1 },
   ),
+  // Retired by an event after it was written: it no longer confirms (P5-5).
+  retired: fc.constantFrom(false, false, false, false, true),
+  // Written into the target instead, as the class the promotion would make:
+  // an active one there is a duplicate (P5-5).
+  inTarget: fc.constantFrom(false, false, false, false, false, true),
 });
 
 /** True three times in four: most cases reach the evidence rules rather than stopping earlier. */
@@ -1174,11 +1198,24 @@ const arbPromotionCase = fc.record({
       const write = open
         ? [...policy.write.filter((r) => r.scope !== levelOf(target)), rule]
         : policy.write;
+      // An opened case also lets a person context read every level and a
+      // team context the shared ones, so reach rarely stops it; an org
+      // context still has no row, and reads nothing but through a grant.
+      const read: Policy["read"] = open
+        ? {
+            matrix: [
+              { reader: "person", may_read: ["person", "role", "team", "org"] },
+              { reader: "team", may_read: ["role", "team", "org"] },
+            ],
+            honour_grants: true,
+          }
+        : policy.read;
       return {
         target,
         policy: {
           ...policy,
           write,
+          read,
           promotion: {
             episodic_to_semantic: { confirmations: k, or_review: orReview },
             procedural: { replay_k: 4, replay_n: 5 },
@@ -1204,8 +1241,12 @@ const arbPromotionCase = fc.record({
       ),
       scope: fc.constantFrom(...P_SOURCES),
       owner: fc.constantFrom(...P_ACTORS),
+      // Who wrote it: the owner half the time, someone else otherwise (P5-1).
+      author: fc.option(fc.constantFrom(...P_ACTORS), { nil: undefined }),
       kind: fc.constantFrom(...KINDS),
       confidence: fc.constantFrom(0.2, 0.7, 1),
+      // Its own ttl, and how long after writing it is promoted (P5-4).
+      ttl: fc.constantFrom(null, null, null, 3),
     })
     // Model and compaction content lands only in person scope (ADR 0004, 0007).
     .map((s) =>
@@ -1214,7 +1255,12 @@ const arbPromotionCase = fc.record({
   restatements: fc.array(arbRestatement, { maxLength: 5 }),
   promoter: fc.record({
     id: fc.constantFrom(...P_ACTORS),
+    // A team or org context reads person scope only through a grant (P5-7).
+    level: fc.constantFrom<Actor["level"]>("person", "person", "person", "person", "team", "org"),
     source: fc.constantFrom<Kind | undefined>(
+      "user",
+      "user",
+      "user",
       "user",
       "user",
       "user",
@@ -1227,6 +1273,7 @@ const arbPromotionCase = fc.record({
     review: fc.boolean(),
   }),
   at: arbTimestamp,
+  after: fc.constantFrom(0, 0, 0, 5),
 });
 
 /** Invariant 2 over promotions (ADR 0026); runs inside invariant 2's test. */
@@ -1238,20 +1285,28 @@ async function promotionsLandOnlyWherePermitted(name: string) {
     sameActorOnly: 0,
     untrustedOnly: 0,
     ownerReview: 0,
+    authorReview: 0,
     writeRule: 0,
+    expired: 0,
+    wideningSource: 0,
+    duplicate: 0,
+    unreachable: 0,
   };
   await fc.assert(
     fc.asyncProperty(
       arbPromotionCase,
-      async ({ policy: { policy, target }, source, restatements, promoter, at }) => {
+      async ({ policy: { policy, target }, source, restatements, promoter, at, after }) => {
         const { db, adapter, plane, under } = freshPlane(policy);
         const store = under(ADMIT_ALL);
         const word = "alpha";
-        const content = (same: boolean) => (same ? restated(word) : "beta");
+        // The same content in spacing and a zero-width space (strictly the same),
+        // or also in case (the same only in the merging form, P5-12).
+        const content = (r: Restatement) =>
+          !r.same ? "beta" : r.loud ? restated(word) : " al​pha \n";
         const make = (n: number, scope: string, owner: string, text: MemoryItem["content"]) =>
           ({
             id: n < 0 ? P_SOURCE_ID : pId(n),
-            class: source.class === "procedural" ? "procedural" : "episodic",
+            class: source.class,
             scope,
             owner,
             content: source.class === "procedural" ? { body: String(text), tools: [] } : text,
@@ -1280,9 +1335,11 @@ async function promotionsLandOnlyWherePermitted(name: string) {
           class: source.class,
           status: source.status === "retired" ? "active" : source.status,
           content: source.class === "procedural" ? { body: word, tools: [] } : word,
+          ttl: source.ttl,
         } as MemoryItem;
+        const author = source.author ?? source.owner;
         expect(
-          (await store.write(writer(source.owner, source.scope, source.kind), item, at)).item,
+          (await store.write(writer(author, source.scope, source.kind), item, at)).item,
         ).not.toBeNull();
         if (source.status === "retired")
           appendEvent(db, {
@@ -1299,16 +1356,34 @@ async function promotionsLandOnlyWherePermitted(name: string) {
             schema_version: 0,
           });
         for (const [n, r] of restatements.entries()) {
-          const scope = r.inScope ? source.scope : "role:z";
-          await store.write(
+          const scope = r.inTarget ? target : r.inScope ? source.scope : "role:z";
+          const restatement = make(n, scope, r.actor, content(r));
+          const { item: landed } = await store.write(
             writer(r.actor, scope, r.kind),
-            make(n, scope, r.actor, content(r.same)),
+            r.inTarget && source.class === "episodic"
+              ? ({ ...restatement, class: "semantic" } as MemoryItem)
+              : restatement,
             at,
           );
+          if (landed && r.retired)
+            appendEvent(db, {
+              id: `01950000-0000-7000-8000-0000000001${String(n).padStart(2, "0")}`,
+              ts: at,
+              op: "retire",
+              item_id: landed.id,
+              actor: r.actor,
+              scope_from: null,
+              scope_to: scope,
+              decision: "allow",
+              reason: "a confirmer retired before the promotion",
+              policy_id: "test/retire",
+              schema_version: 0,
+            });
         }
+        const when = addSeconds(at, after) as string;
         const actor: Actor = {
           id: promoter.id,
-          level: "person",
+          level: promoter.level,
           memberships: [
             ...new Set([...promoter.extra, ...(promoter.joins ? [source.scope, target] : [])]),
           ],
@@ -1317,7 +1392,8 @@ async function promotionsLandOnlyWherePermitted(name: string) {
         const before = currentItems(db);
         const retired = retiredByEvent(db);
         const projected = before.find((i) => i.id === P_SOURCE_ID) as MemoryItem;
-        const writes: LoggedWrite[] = allEvents(db).flatMap((e) =>
+        const log = allEvents(db);
+        const writes = log.flatMap((e) =>
           e.op === "write" && e.decision === "allow" && e.item
             ? [
                 {
@@ -1331,7 +1407,7 @@ async function promotionsLandOnlyWherePermitted(name: string) {
             : [],
         );
         const logLength = plane.events().length;
-        const result = await plane.promote(actor, P_SOURCE_ID, target, at, {
+        const result = await plane.promote(actor, P_SOURCE_ID, target, when, {
           review: promoter.review,
         });
         const added = plane.events().slice(logLength);
@@ -1359,7 +1435,27 @@ async function promotionsLandOnlyWherePermitted(name: string) {
         ).size;
         const anyActors = new Set(sameText.map((w) => w.actor)).size;
 
-        if (result.item === null) {
+        if (result.decision === "deny" && result.event.policy_id === "engram/promote/expired")
+          seen.expired++;
+        if (result.event.policy_id === "engram/promote/widening-source") seen.wideningSource++;
+        if (result.event.policy_id === "engram/promote/duplicate") seen.duplicate++;
+        if (
+          result.event.policy_id === "engram/promote/membership" &&
+          actor.memberships.includes(projected.scope)
+        )
+          seen.unreachable++;
+        if (
+          result.event.policy_id === "engram/promote/reviewer" &&
+          actor.id !== projected.owner &&
+          actor.id === author &&
+          actor.source === "user" &&
+          actor.memberships.includes(target)
+        )
+          seen.authorReview++;
+        // A promoter who cannot read the target gets a null item even when it
+        // lands (P5-7); what landed is the decision event's item.
+        if (result.decision !== "allow") {
+          expect(result.item).toBeNull();
           expect(
             currentItems(db),
             `a promotion that did not land changed nothing: ${shown}`,
@@ -1381,9 +1477,10 @@ async function promotionsLandOnlyWherePermitted(name: string) {
           if (/\/write\//.test(result.event.policy_id) && trustedActors >= k) seen.writeRule++;
           return;
         }
-        const landed = result.item;
+        const landed = result.event.item as MemoryItem;
+        expect(result.item === null || result.item.id === landed.id).toBe(true);
         expect(
-          promotionPermitted(policy, actor, projected, target, writes, promoter.review),
+          promotionPermitted(policy, actor, P_SOURCE_ID, target, log, promoter.review, when),
           `a promotion landed without the evidence ADR 0026 asks for: ${shown}`,
         ).toBe(true);
         const { source: _source, ...judged } = actor;
@@ -1403,7 +1500,7 @@ async function promotionsLandOnlyWherePermitted(name: string) {
   );
   expect(
     Object.values(seen).every((n) => n > 0),
-    `invariant 2 over promotions needs landings by confirmation and by review, an ask, and refusals where only the distinct-actor rule, only the trusted-kind rule, only the owner-as-reviewer rule or only the target's write rule stood in the way; it saw ${JSON.stringify(seen)}`,
+    `invariant 2 over promotions needs landings by confirmation and by review, an ask, refusals where only the distinct-actor rule, only the trusted-kind rule, only the owner-as-reviewer rule or only the target's write rule stood in the way, and refusals by authorship, expiry, a widening's source, a duplicate and reach; it saw ${JSON.stringify(seen)}`,
   ).toBe(true);
 }
 
@@ -1493,6 +1590,18 @@ async function planeSurfaceLeaksNothing() {
   const promoted = await plane.promote(outsider, secret.id, "team:b", at, { review: true });
   leaks("promote", promoted);
   expect(promoted.item).toBeNull();
+  // A member of the item's scope and the target, not its owner, whose level
+  // has no read matrix row: it cannot read the item, so it learns nothing
+  // (review finding P5-7).
+  const blind: Actor = {
+    id: "person:b",
+    level: "org",
+    memberships: ["person:s", "team:b"],
+    source: "user",
+  };
+  const blindly = await plane.promote(blind, secret.id, "team:b", at, { review: true });
+  leaks("promote by a member who cannot read", blindly);
+  expect(blindly.item).toBeNull();
   leaks("retain", await plane.retain(outsider, "person:s", at));
   leaks(
     "recordBypass",
