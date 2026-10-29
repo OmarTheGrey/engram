@@ -50,9 +50,26 @@ export const item = (n: number, patch: Partial<MemoryItem> = {}): MemoryItem =>
     ...patch,
   }) as MemoryItem;
 
+/**
+ * The identity of every commit a test makes itself (a user's commit, another
+ * client's), given through the environment of each of its git calls, so no
+ * test relies on a global user.name or user.email: a CI runner has none. The
+ * adapter's own calls never see it and keep their fallback.
+ */
+export const TEST_IDENTITY: Readonly<Record<string, string>> = {
+  GIT_AUTHOR_NAME: "Engram Test",
+  GIT_AUTHOR_EMAIL: "test@engram.invalid",
+  GIT_COMMITTER_NAME: "Engram Test",
+  GIT_COMMITTER_EMAIL: "test@engram.invalid",
+};
+
+/** A test's own git call in `cwd`, with TEST_IDENTITY; resolves with its result whatever the exit code. */
+export const testGit = (cwd: string, ...args: string[]) =>
+  runGit(args, { cwd, env: TEST_IDENTITY });
+
 /** Runs git in `cwd` and returns its standard output; fails the test on a non-zero exit. */
 export async function gitOut(cwd: string, ...args: string[]): Promise<string> {
-  const r = await runGit(args, { cwd });
+  const r = await testGit(cwd, ...args);
   if (r.code !== 0) throw new Error(`git ${args.join(" ")}: ${r.stderr}`);
   return r.stdout.toString("utf8");
 }

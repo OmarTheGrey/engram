@@ -21,7 +21,7 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { expect, test } from "vitest";
 import { runGit } from "../../src/letta/git.ts";
-import { commits, freshLettaRepo, gitOut } from "./helpers.ts";
+import { commits, freshLettaRepo, gitOut, testGit } from "./helpers.ts";
 
 const run = promisify(execFile);
 const CHILD = fileURLToPath(new URL("./race.child.ts", import.meta.url));
@@ -54,8 +54,8 @@ test("two writer processes and a user committing in a loop: no user commit carri
   while (!done) {
     n++;
     await writeFile(join(root, "u.txt"), `user change ${n}\n`);
-    await runGit(["add", "u.txt"], { cwd: root });
-    await runGit(["commit", "--quiet", "-m", `user${n}`], { cwd: root });
+    await testGit(root, "add", "u.txt");
+    await testGit(root, "commit", "--quiet", "-m", `user${n}`);
   }
   const results = (await writers).map(
     (r) => JSON.parse(r.stdout) as { resolved: string[]; refused: string[] },
@@ -68,8 +68,10 @@ test("two writer processes and a user committing in a loop: no user commit carri
   /** Items a user's commit deleted: git's stale-index race reverting an Engram commit. */
   const reverted = new Set<string>();
   const writes: string[] = [];
+  let userCommits = 0;
   for (const sha of await commits(root)) {
     const { subject, files } = await changes(root, sha);
+    if (subject.startsWith("user")) userCommits++;
     if (subject.startsWith("engram:")) {
       expect(
         files.filter((f) => f.path !== "MEMORY.md" && !f.path.startsWith("engram/")),
@@ -100,6 +102,8 @@ test("two writer processes and a user committing in a loop: no user commit carri
   // The race is rare (about one run in fifteen, one commit each time); more
   // than one reverted item in a run is a defect, not the race (N2).
   expect(reverted.size, [...reverted].join(", ")).toBeLessThanOrEqual(1);
+  // The race happened: the user's loop committed at least once while Engram wrote.
+  expect(userCommits).toBeGreaterThan(0);
   expect(writes.sort()).toEqual([...resolved].sort());
   for (const id of resolved) {
     const inHead = (await runGit(["cat-file", "-e", `HEAD:engram/${id}.md`], { cwd: root })).code;
