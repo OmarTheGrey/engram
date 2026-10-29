@@ -1,6 +1,6 @@
 # PX1 Engram pi extension skeleton on the plane
 
-Status: done 2026-10-25 (branch pr6-pi); the extension runs on the real Plane, the S0.5 stub gate is removed, and the acceptance test is packages/pi-extension/test/plane.test.ts.
+Status: done in PR #7 (merged 2026-10-29); the extension runs on the real Plane, the S0.5 stub gate is removed, and the acceptance test is packages/pi-extension/test/plane.test.ts.
 
 Added by ADR 0001.
 
