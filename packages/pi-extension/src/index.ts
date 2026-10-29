@@ -8,9 +8,11 @@ export {
   type WriteDetails,
 } from "./extension.ts";
 export { systemClock, uuidv7 } from "./ids.ts";
-export { storeRootOf, toolPaths } from "./paths.ts";
+export { shellDrivePath, storeRootOf, toolPaths } from "./paths.ts";
 export {
+  defuseMessage,
   isMemoryTool,
+  neutraliseTags,
   ProducedResults,
   RECALL_MESSAGE,
   type RecallDetails,
@@ -18,6 +20,7 @@ export {
   recallDetails,
   renderRecall,
   SUMMARY_NOTICE,
+  sessionPlaceholder,
   tagMemoryResults,
   tagRecall,
   WITHHELD,

@@ -13,9 +13,34 @@
 // result of an earlier process (a resumed session). Item content is escaped,
 // so stored text cannot open or close a tag or forge an attribute.
 //
+// Forged tags (review round 2, defect 3): every other message the model is
+// sent (a file read, any other tool's result, a user message, an assistant
+// message, a bash execution, another extension's custom message, a summary)
+// has every tag opener defused: `<`, or a lookalike of it, followed by
+// `engram` (after optional spaces, invisible characters and a `/`) becomes
+// `&lt;`. So the only `<engram:` markup the model sees is what this handler
+// rebuilt from its record. A per-session secret nonce in the tag was the
+// other option; it was not taken because it protects nothing unless the
+// model checks the nonce, and the model is what the forgery targets, whereas
+// defusing does not depend on the model or on any text the attacker
+// controls. Thinking blocks are left as they are (providers sign them), as
+// are details, which pi never sends to the model.
+//
+// The session's messages carry no memory text (review round 2, defect 5): a
+// read's tool result and a recall message are stored with a placeholder
+// naming the read as their content, and the governed text lives only in the
+// record and in the details, which pi never sends to a model. So a
+// path that sends the session's messages to a model without the `context`
+// event (pi's bug-report summary, compaction, branch summaries) never sends
+// memory text, and the model still gets the tagged items through `context`.
+//
 // What this does not cover: a `context` or later handler of another
 // extension that runs after this one can still change what is sent; an
-// extension is code in the same process and can reach the store itself.
+// extension is code in the same process and can reach the store itself, or
+// write memory text into the session's messages itself (for example by
+// rewriting a result in its tool_result handler). The system prompt is not
+// among the messages and is not defused. A lookalike of `engram` spelled with
+// another alphabet's letters is not defused.
 import type { Explanation, MemoryItem } from "@engram/core";
 import type { AgentMessage } from "./vendor/pi-types.ts";
 
@@ -83,6 +108,54 @@ export function recallDetails(
 /** The plain text stored in the session: one `scope: content` line per item. */
 export function renderRecall(details: RecallDetails): string {
   return details.items.map((i) => `${i.scope}: ${i.content}`).join("\n") || "no memories";
+}
+
+/**
+ * What the session stores for a read, in place of the items' text (review
+ * round 2, defect 5). The model never sees it while the extension runs: the
+ * context handler replaces it with the tagged items.
+ */
+export function sessionPlaceholder(details: RecallDetails): string {
+  const n = details.items.length;
+  return `memory read ${details.read_id}: ${n} item${n === 1 ? "" : "s"} admitted, ${details.filtered} filtered; the Engram extension shows them to the model and keeps their text out of the session`;
+}
+
+/** A tag opener: `<` or a lookalike, optional spaces or invisible characters, an optional `/`, then `engram`. */
+const TAG_OPENER =
+  /[<\uff1c\ufe64\u2039\u3008\u27e8\u2329]([\s\u00ad\u200b-\u200f\u2060\ufeff]*\/?[\s\u00ad\u200b-\u200f\u2060\ufeff]*)(engram)/gi;
+
+/** `text` with every tag opener defused, so it can never read as Engram markup. */
+export const neutraliseTags = (text: string) => text.replace(TAG_OPENER, "&lt;$1$2");
+
+/** Thinking blocks are signed by the provider and are left as they are. */
+const SIGNED = new Set(["thinking", "redactedThinking", "redacted_thinking"]);
+
+/** `value` with every string defused; the same reference when nothing changed. */
+function defuse(value: unknown): unknown {
+  if (typeof value === "string") return neutraliseTags(value);
+  if (Array.isArray(value)) {
+    const out = value.map(defuse);
+    return out.some((v, i) => v !== value[i]) ? out : value;
+  }
+  if (value && typeof value === "object") {
+    if (SIGNED.has(String((value as { type?: unknown }).type))) return value;
+    const entries = Object.entries(value);
+    const out = entries.map(([k, v]) => [k, defuse(v)] as const);
+    return out.some(([, v], i) => v !== entries[i]?.[1]) ? Object.fromEntries(out) : value;
+  }
+  return value;
+}
+
+/** A message, or a session entry, with every tag opener outside its details defused. */
+export function defuseMessage<M extends object>(m: M): M {
+  let changed = false;
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(m)) {
+    const d = k === "details" ? v : defuse(v);
+    if (d !== v) changed = true;
+    out[k] = d;
+  }
+  return changed ? (out as M) : m;
 }
 
 /** Escapes text so it is never markup: `&` first, then the angle brackets and quotes. */
@@ -220,7 +293,9 @@ export function tagMemoryResults(
         });
         return { ...m, content: [{ type: "text", text: WITHHELD }], details: {} };
       }
-      const textOut = match.recall ? tagRecall(match.recall) : (match.text as string);
+      // A recorded text (a write result, a refusal, an explanation) may quote
+      // what the model or a store supplied, so it is defused like the rest.
+      const textOut = match.recall ? tagRecall(match.recall) : neutraliseTags(match.text as string);
       return { ...m, content: [{ type: "text", text: textOut }] };
     }
     if (m.role === "custom" && m.customType === RECALL_MESSAGE) {
@@ -236,7 +311,7 @@ export function tagMemoryResults(
       }
       return { ...m, content: tagRecall(p.recall) };
     }
-    return m;
+    return defuseMessage(m);
   });
   return { messages: out, withheld };
 }
@@ -245,7 +320,8 @@ export function tagMemoryResults(
  * The messages a summary is made from, with every memory result and recall
  * message replaced by a notice (finding R7-15). Pi's compaction and branch
  * summaries send session messages to the model without the `context` event,
- * so memory is kept out of them altogether rather than tagged.
+ * so memory is kept out of them altogether rather than tagged, and every
+ * other message has its tag openers defused.
  */
 export function withoutMemory<M extends AgentMessage>(messages: readonly M[]): M[] {
   return messages.map((m) => {
@@ -253,6 +329,6 @@ export function withoutMemory<M extends AgentMessage>(messages: readonly M[]): M
       return { ...m, content: [{ type: "text", text: SUMMARY_NOTICE }], details: {} };
     if (m.role === "custom" && m.customType === RECALL_MESSAGE)
       return { ...m, content: SUMMARY_NOTICE, details: {} };
-    return m;
+    return defuseMessage(m);
   });
 }

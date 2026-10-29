@@ -64,8 +64,9 @@ const contentText = (item: MemoryItem) =>
  * adapter directly, the one place outside an adapter's own tests that does
  * (AGENTS.md rule 2 governs the product paths; C2 is the measured absence of
  * them). There is no policy logic here: every write lands where it asks and
- * every read returns every match (rule 1). Results are rendered as the Engram
- * extension stores them in the session, one `scope: content` line per item.
+ * every read returns every match (rule 1). Results are rendered one
+ * `scope: content` line per item, as the Engram extension's renderRecall
+ * renders a governed read's items.
  */
 export function ungovernedMemoryTools(options: {
   store: UngovernedStore;

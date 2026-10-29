@@ -12,22 +12,27 @@
 // execute receives, so a call that a later handler blocks, or that is
 // aborted before it runs, never reaches the store or the log as allowed, and
 // two calls sharing a tool call id are two writes with their own results.
-// Writes carry the actor's source `model` (decision D4).
+// Since Plane.write queues writes per log, a write the check allowed can
+// still be denied at the commit; execute then returns the Plane's reason and
+// rule as an error result, like a deny in tool_call. Writes carry the
+// actor's source `model` (decision D4).
 //
 // Read path (decision D11): memory_read and before_agent_start's recall go
-// through Plane.read; the context handler shows the model only the results
-// this extension produced, rebuilt and tagged (tag.ts), and withholds every
-// other memory_* result with one bypass_blocked event each. Compaction and
-// branch summaries are built with memory left out (finding R7-15).
+// through Plane.read; the session stores a placeholder for each, and the
+// context handler shows the model only the results this extension produced,
+// rebuilt and tagged (tag.ts), withholds every other memory_* result with
+// one bypass_blocked event each, and defuses every tag opener in every other
+// message. Compaction and branch summaries are built with memory left out
+// (finding R7-15), and pi's bug-report summary finds none in the session.
 //
 // No-bypass (ADR 0014, decision D10): store commands are blocked in
 // user_bash and in the model's bash and powershell tools (bash.ts), and pi's
-// file tools, and any tool with a path argument, are blocked on paths inside
-// a store root (paths.ts); each block is a Plane.recordBypass event. Shell
-// text is checked word by word and errs towards blocking; a store name a
-// variable, an alias or a script hides at run time is out of reach of any
-// text check, and so is a shell command that reaches a root only through a
-// path it computes.
+// file tools, and any tool with a path argument at any depth, are blocked on
+// paths inside a store root (paths.ts); each block is a Plane.recordBypass
+// event. Shell text is normalised as a shell reads it and checked word by
+// word, erring towards blocking; a store name a variable, an alias or a
+// script supplies at run time is out of reach of any text check, and so is a
+// shell command that reaches a root only through a path it computes.
 import { createHash } from "node:crypto";
 import type { ExtensionAPI, ExtensionFactory } from "@earendil-works/pi-coding-agent";
 import {
@@ -49,13 +54,14 @@ import { blockedStoreCommand, pathWords, STORE_COMMANDS } from "./bash.ts";
 import { systemClock, uuidv7 } from "./ids.ts";
 import { storeRootOf, toolPaths } from "./paths.ts";
 import {
+  defuseMessage,
   isMemoryTool,
   ProducedResults,
   RECALL_MESSAGE,
   type RecallDetails,
   recallDetails,
-  renderRecall,
   SUMMARY_NOTICE,
+  sessionPlaceholder,
   tagMemoryResults,
   withoutMemory,
 } from "./tag.ts";
@@ -229,7 +235,12 @@ export function createEngramExtension(options: EngramExtensionOptions): Extensio
       ...MEMORY_WRITE,
       async execute(toolCallId, params, _signal, _onUpdate, ctx) {
         // The committed decision (decision D12): tool_call only checked it.
-        return produce(toolCallId, "memory_write", async () => {
+        // Writes over one log are queued in the Plane, and the policy or the
+        // projection may change between the check and the commit, so a write
+        // tool_call allowed can be denied here. The deny is reported as
+        // tool_call reports one (an error result with the Plane's reason and
+        // rule), returned rather than thrown so its details keep the event.
+        try {
           const at = now();
           const item = itemFromCall(
             params as Record<string, unknown>,
@@ -239,15 +250,19 @@ export function createEngramExtension(options: EngramExtensionOptions): Extensio
             modelOf(ctx),
           );
           const { item: stored, event } = await planeCall(() => plane.write(agent, item, at));
-          if (!stored) throw new Error(refusal(event));
           const details: WriteDetails = {
             event_id: event.id,
-            item_id: stored.id,
-            status: stored.status,
+            item_id: stored?.id ?? null,
+            status: stored?.status ?? null,
             policy_id: event.policy_id,
           };
-          return { text: writeResultText(stored), details };
-        });
+          const text = stored ? writeResultText(stored) : refusal(event);
+          record.addText(toolCallId, "memory_write", actor.id, text, !stored);
+          return { content: [{ type: "text", text }], details, isError: !stored };
+        } catch (e) {
+          record.addText(toolCallId, "memory_write", actor.id, message(e), true);
+          throw e;
+        }
       },
     });
 
@@ -257,7 +272,9 @@ export function createEngramExtension(options: EngramExtensionOptions): Extensio
         try {
           const details = await read(params.query);
           record.addRead(toolCallId, actor.id, details);
-          return { content: [{ type: "text", text: renderRecall(details) }], details };
+          // The session keeps a placeholder; the context handler shows the
+          // model the tagged items from the record (review round 2, defect 5).
+          return { content: [{ type: "text", text: sessionPlaceholder(details) }], details };
         } catch (e) {
           record.addText(toolCallId, "memory_read", actor.id, message(e), true);
           throw e;
@@ -351,7 +368,7 @@ export function createEngramExtension(options: EngramExtensionOptions): Extensio
       return {
         message: {
           customType: RECALL_MESSAGE,
-          content: renderRecall(details),
+          content: sessionPlaceholder(details),
           display: false,
           details,
         },
@@ -396,7 +413,8 @@ export function createEngramExtension(options: EngramExtensionOptions): Extensio
           }
           if (e.type === "custom_message" && e.customType === RECALL_MESSAGE)
             return { ...e, content: SUMMARY_NOTICE, details: {} };
-          return e;
+          // Another extension's message, a summary: forged tags defused (defect 3).
+          return defuseMessage(e);
         }),
       );
       return undefined;

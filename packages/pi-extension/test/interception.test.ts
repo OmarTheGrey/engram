@@ -104,9 +104,17 @@ describe("S0.5 interception on the Plane, through a pi SDK session", () => {
     expect(toolResult("call-4")).toMatchObject({ isError: true });
   });
 
-  test("the tag is request-local: the session keeps the untagged result", () => {
-    expect(toolResult("call-3")).toMatchObject({
-      content: [{ type: "text", text: "person:omar: deploys happen on Tuesdays" }],
+  test("the tag is request-local: the session keeps a placeholder, never the memory text", () => {
+    // Review round 2, defect 5: the governed text reaches the model only
+    // through the context handler, so pi's bug-report summary finds none.
+    const kept = toolResult("call-3");
+    expect(kept).toMatchObject({ content: [{ type: "text" }] });
+    expect(JSON.stringify(kept?.content)).toMatch(
+      /^\[\{"type":"text","text":"memory read \S+: 1 item admitted/,
+    );
+    expect(JSON.stringify(kept?.content)).not.toContain("deploys happen on Tuesdays");
+    expect(kept?.details).toMatchObject({
+      items: [{ scope: "person:omar", content: "deploys happen on Tuesdays" }],
     });
   });
 

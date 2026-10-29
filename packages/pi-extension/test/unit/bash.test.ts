@@ -4,7 +4,7 @@
 // wherever it stands. Every command the review showed passing must now be
 // blocked; a name hidden in a variable stays out of reach, and says so.
 import { describe, expect, test } from "vitest";
-import { blockedStoreCommand, commandWords, STORE_COMMANDS } from "../../src/bash.ts";
+import { blockedStoreCommand, commandWords, pathWords, STORE_COMMANDS } from "../../src/bash.ts";
 
 const blocked = (command: string) => blockedStoreCommand(command, STORE_COMMANDS);
 
@@ -94,6 +94,93 @@ describe("blockedStoreCommand", () => {
   });
 
   test("store names come from the configured list, matched without case", () => {
+    expect(blockedStoreCommand("Zep add x", ["zep"])).toBe("zep");
+    expect(blockedStoreCommand("mem0 add x", ["zep"])).toBeUndefined();
+  });
+});
+
+describe("shell spellings of a store name (review round 2, defect 1)", () => {
+  // The six routes the verifier ran in a real session, then more of the same
+  // families. Each spelling is one the shell itself turns into `mem0`.
+  test.each([
+    // The verifier's six.
+    ["me{m,}0 add x", "brace expansion"],
+    ["me\\\nm0 add x", "backslash-newline continuation"],
+    ["me\\\r\nm0 add x", "backslash-newline continuation, CRLF"],
+    ["$'\\x6dem0' add x", "ANSI-C quoting, hex"],
+    ["/usr/local/bin/mem? add x", "glob ?"],
+    ["/usr/local/bin/mem* add x", "glob *"],
+    ["cmd //c m^em0 add x", "cmd caret"],
+    ["npx mem0@latest add x", "versioned package"],
+    // The same families, spelled otherwise.
+    ["mem{0,1} add x", "brace expansion, alternatives"],
+    ["{mem0,true} add x", "brace expansion, whole word"],
+    ["me{m..m}0 add x", "brace expansion, letter range"],
+    ["mem{0..1} add x", "brace expansion, number range"],
+    ["me{{m,},}0 add x", "brace expansion, nested"],
+    ["$'\\155em0' add x", "ANSI-C quoting, octal"],
+    ["$'\\u006dem0' add x", "ANSI-C quoting, unicode"],
+    ["$'m\\145m0' add x", "ANSI-C quoting, inner octal"],
+    ['$"mem0" add x', "locale quoting"],
+    ["m[e]m0 add x", "glob class"],
+    ["m[!x]m0 add x", "glob negated class"],
+    ["/usr/local/bin/m?m? add x", "glob, two literals"],
+    ['cmd /c "m^e^m^0 add x"', "cmd carets"],
+    ["& m`em0 add x", "PowerShell backtick escape"],
+    ["npx mem0@1.2.3 add x", "pinned package"],
+    ["uvx letta@0.5 agents list", "uvx pinned package"],
+    ['m""em0 add x', "empty double quotes"],
+    ["m''em0 add x", "empty single quotes"],
+    ["\\mem0 add x", "leading backslash"],
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: shell text, not a template
+    ["${X:-mem0} add x", "parameter default"],
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: shell text, not a template
+    ["${X:=mem0} add x", "parameter assign default"],
+    ['"$(printf mem0)" add x', "substitution printing the name"],
+    ["$(printf 'm\\x65m0') add x", "printf escape"],
+    ["echo -e 'm\\x65m0' | sh", "echo -e escape"],
+    ["python -c \"__import__('me'+'m0')\"", "concatenation with +"],
+    ["pwsh -c \"& ('me'+'m0') add x\"", "PowerShell concatenation"],
+  ])("blocks %j (%s)", (command) => {
+    expect(blocked(command)).toBe(command.includes("letta") ? "letta" : "mem0");
+  });
+
+  test.each([
+    "ls *.md",
+    "ls *",
+    "rm -f build/*",
+    "echo {a,b}.txt",
+    "find . -name '*.ts'",
+    "curl 'https://example.com/a?b=c'",
+    "git log --format=%H@%s",
+    "npm view mem0ai@latest",
+    "printf 'a\\x62c'",
+    "echo $'hello\\n'",
+  ])("still lets %j run", (command) => {
+    expect(blocked(command)).toBeUndefined();
+  });
+
+  test.each([
+    // Recorded in ADR 0014 and bash.ts as out of reach of a text check.
+    ["$(printf mem%s 0) add x", "a name printf assembles from parts"],
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: shell text, not a template
+    ["x=me; ${x}m0 add x", "a name joined from a variable"],
+    ["/usr/local/bin/m* add x", "a glob with one literal character matches too much to test"],
+  ])("does not claim %j (%s)", (command) => {
+    expect(blocked(command)).toBeUndefined();
+  });
+});
+
+describe("pathWords", () => {
+  test("a path spelled in ANSI-C quoting, joined across a continuation or in braces is read decoded", () => {
+    expect(pathWords("cat $'\\x2ftmp\\x2fstore\\x2fa.md'")).toContain("/tmp/store/a.md");
+    expect(pathWords("cat /tmp/st\\\nore/a.md")).toContain("/tmp/store/a.md");
+    expect(pathWords("cat /tmp/{store,x}/a.md")).toContain("/tmp/store/a.md");
+  });
+});
+
+describe("blockedStoreCommand, configured list", () => {
+  test("matches without case", () => {
     expect(blockedStoreCommand("Zep add x", ["zep"])).toBe("zep");
     expect(blockedStoreCommand("mem0 add x", ["zep"])).toBeUndefined();
   });

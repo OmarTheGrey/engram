@@ -5,8 +5,9 @@
 import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { beforeAll, describe, expect, test } from "vitest";
-import { storeRootOf, toolPaths } from "../../src/paths.ts";
+import { shellDrivePath, storeRootOf, toolPaths } from "../../src/paths.ts";
 
 let base: string;
 let root: string;
@@ -80,5 +81,84 @@ describe("toolPaths", () => {
       "h",
     ]);
     expect(toolPaths("memory_read", { query: "x" }).paths).toEqual([]);
+  });
+
+  test("path arguments nested at any depth, under a path key or as a path-like value (defect 4)", () => {
+    const { paths } = toolPaths("someone_elses_tool", {
+      options: { target: "t", deeper: [{ source_path: "s" }, { outFile: "o" }] },
+      sources: [["../up/a.md"], "./here.md"],
+      query: "/abs/a.md",
+      win: "C:\\store\\a.md",
+      unc: "\\\\host\\share\\a.md",
+      home: "~/a.md",
+      url: "file:///tmp/a.md",
+    });
+    expect(paths).toEqual(
+      expect.arrayContaining([
+        "t",
+        "s",
+        "o",
+        "../up/a.md",
+        "./here.md",
+        "/abs/a.md",
+        "C:\\store\\a.md",
+        "\\\\host\\share\\a.md",
+        "~/a.md",
+        "file:///tmp/a.md",
+      ]),
+    );
+    expect(paths).toHaveLength(10);
+  });
+
+  test("free text, code and words under other keys are not paths", () => {
+    const { paths } = toolPaths("edit", {
+      path: "a.md",
+      edits: [{ oldText: "see /tmp/x for more", newText: "a/b\n/c/d" }],
+      pattern: "src/**",
+      content: "/* a comment */\nexport {};",
+    });
+    expect(paths).toEqual(["a.md"]);
+  });
+
+  test("a one-line value that looks like a path is checked, and blocks only inside a root", () => {
+    const { paths } = toolPaths("write", { path: "a.md", content: "/* a comment */" });
+    expect(paths).toEqual(["a.md", "/* a comment */"]);
+    expect(hit("/* a comment */")).toBeUndefined();
+  });
+});
+
+describe("shellDrivePath (defect 2)", () => {
+  test("Git Bash, MSYS, Cygwin and WSL drive paths map to the Windows drive", () => {
+    expect(shellDrivePath("/c/Users/x/a.md")).toBe("C:\\Users\\x\\a.md");
+    expect(shellDrivePath("/C/Users")).toBe("C:\\Users");
+    expect(shellDrivePath("/cygdrive/d/data/a.md")).toBe("D:\\data\\a.md");
+    expect(shellDrivePath("/mnt/c/Users/x")).toBe("C:\\Users\\x");
+    expect(shellDrivePath("/c")).toBe("C:\\");
+    expect(shellDrivePath("/c/")).toBe("C:\\");
+  });
+
+  test("anything else is left alone", () => {
+    expect(shellDrivePath("/usr/bin")).toBeUndefined();
+    expect(shellDrivePath("//host/share")).toBeUndefined();
+    expect(shellDrivePath("C:\\Users")).toBeUndefined();
+    expect(shellDrivePath("rel/c/x")).toBeUndefined();
+  });
+
+  test.runIf(process.platform === "win32")(
+    "on Windows a drive path in shell form reaches the root",
+    () => {
+      const shell = (p: string) =>
+        p.replace(/^([A-Za-z]):/, (_, d: string) => `/${d.toLowerCase()}`);
+      const file = join(root, "a.md").replaceAll("\\", "/");
+      expect(hit(shell(file))).toBe(root);
+      expect(hit(`/cygdrive${shell(file)}`)).toBe(root);
+      expect(hit(`/mnt${shell(file)}`)).toBe(root);
+      expect(hit(shell(join(base, "memory", "new.md").replaceAll("\\", "/")))).toBe(root);
+      expect(hit(shell(join(cwd, "a.md").replaceAll("\\", "/")))).toBeUndefined();
+    },
+  );
+
+  test("a file URL reaches the root, as pi's tools resolve it", () => {
+    expect(hit(pathToFileURL(join(root, "a.md")).href)).toBe(root);
   });
 });

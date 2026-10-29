@@ -27,7 +27,7 @@ import {
   type Policy,
   type PresetName,
 } from "@engram/core";
-import { ENGRAM_EVENT } from "@engram/pi-extension";
+import { ENGRAM_EVENT, type RecallDetails, renderRecall } from "@engram/pi-extension";
 import { z } from "zod";
 import { conditionSession, type UngovernedStore } from "./conditions.ts";
 import type { Condition } from "./config.ts";
@@ -186,15 +186,26 @@ function sessionDecisions(sessionManager: SessionManager): Decision[] {
   });
 }
 
+/** A governed read's items as `scope: content` lines, if `details` are a read's. */
+function governedRead(details: unknown): string | undefined {
+  const items = (details as Partial<RecallDetails> | undefined)?.items;
+  return Array.isArray(items) && typeof (details as RecallDetails).read_id === "string"
+    ? renderRecall(details as RecallDetails)
+    : undefined;
+}
+
 /** The answer and the memory the model was shown, from the session's messages. */
 function sessionOutput(session: AgentSession): {
   output: gatemem.AgentOutput;
   toolCalls: ProbeResult["tool_calls"];
 } {
   const messages = session.messages;
+  // C5's session keeps a placeholder for each read (the Engram extension's
+  // tag.ts, review round 2, defect 5); the items it admitted are in the
+  // result's details, rendered here as C2 and C3 render theirs.
   const reads = messages.flatMap((m) =>
     m.role === "toolResult" && m.toolName === "memory_read" && !m.isError
-      ? [textOf(m.content)]
+      ? [governedRead(m.details) ?? textOf(m.content)]
       : [],
   );
   const toolCalls = messages.flatMap((m) =>
