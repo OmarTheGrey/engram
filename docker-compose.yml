@@ -1,0 +1,33 @@
+# Deployment only. Nothing in the repository depends on this file: no test,
+# gate, Makefile target or CI job runs Docker (the lead's instruction of
+# 2026-10-29, recorded in ADR 0019 and ADR 0024). Development and tests use the
+# per-user SQLite log, and Postgres for tests comes from the embedded-postgres
+# npm package (card E1.1).
+#
+# What it holds, by card:
+#   E0.4  postgres: a shared event log for a deployed Engram (ADR 0024).
+#   E8.1  server: the HTTP API, added by that card.
+#   E8.5  ui: the inspector, added by that card.
+#
+# Use: docker compose up -d postgres, then point Engram at it with
+#   ENGRAM_DB_URL=postgres://engram:engram@localhost:5432/engram
+# The password below is a placeholder for a local deployment; change it for any other.
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: engram
+      POSTGRES_PASSWORD: engram
+      POSTGRES_DB: engram
+    ports:
+      - "5432:5432"
+    volumes:
+      - engram-pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U engram -d engram"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  engram-pg:

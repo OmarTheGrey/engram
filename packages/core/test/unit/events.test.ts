@@ -1,7 +1,6 @@
-import { beforeEach, describe, expect, test } from "vitest";
+import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import type { Db } from "../../src/db/db.ts";
 import { migrate } from "../../src/db/migrate.ts";
-import { openSqlite } from "../../src/db/sqlite.ts";
 import {
   appendEvent,
   currentItems,
@@ -10,6 +9,7 @@ import {
   eventsByScope,
 } from "../../src/events.ts";
 import type { MemoryItem } from "../../src/schema.ts";
+import { forEachBackend } from "../db/backends.ts";
 
 const ITEM: MemoryItem = {
   id: "01920000-0000-7000-8000-000000000001",
@@ -50,59 +50,62 @@ const write = (n: number, actor = "agent:pi") => ({
   schema_version: 0 as const,
 });
 
-let db: Db;
-beforeEach(() => {
-  db = openSqlite(":memory:");
-  migrate(db);
-});
-
-describe("appendEvent", () => {
-  test("assigns a dense sequence starting at zero", () => {
-    expect([1, 2, 3].map((n) => appendEvent(db, write(n)).seq)).toEqual([0, 1, 2]);
+forEachBackend((backend) => {
+  let db: Db;
+  beforeEach(() => {
+    db = backend.open();
+    migrate(db);
   });
+  afterEach(() => db.close());
 
-  test("rejects an event that does not parse as a MemoryEvent", () => {
-    expect(() => appendEvent(db, { ...write(1), op: "upsert" } as never)).toThrow();
-    expect(eventsByItem(db, ITEM.id)).toEqual([]);
-  });
-
-  test("updates the item projection in the same transaction", () => {
-    appendEvent(db, write(1));
-    expect(currentItems(db)).toEqual([ITEM]);
-  });
-
-  test("rejects an allowed write that carries no item, which replay could not reproduce", () => {
-    expect(() => appendEvent(db, { ...write(1), item: null })).toThrow(/carries no item/);
-    expect(currentItems(db)).toEqual([]);
-  });
-
-  test("rejects an event whose item_id differs from the item it carries", () => {
-    expect(() =>
-      appendEvent(db, { ...write(1), item_id: "01920000-0000-7000-8000-000000000099" }),
-    ).toThrow(/item_id/);
-  });
-
-  test("leaves the projection alone for a denied write", () => {
-    appendEvent(db, { ...write(1), decision: "deny", item: null });
-    expect(currentItems(db)).toEqual([]);
-  });
-});
-
-describe("queries", () => {
-  test("by item, by actor and by scope return events in sequence order", () => {
-    appendEvent(db, write(1, "agent:pi"));
-    appendEvent(db, write(2, "person:sara"));
-    appendEvent(db, {
-      ...write(3),
-      item_id: null,
-      scope_to: null,
-      scope_from: "org",
-      item: null,
-      op: "read",
+  describe("appendEvent", () => {
+    test("assigns a dense sequence starting at zero", () => {
+      expect([1, 2, 3].map((n) => appendEvent(db, write(n)).seq)).toEqual([0, 1, 2]);
     });
-    expect(eventsByItem(db, ITEM.id).map((e) => e.seq)).toEqual([0, 1]);
-    expect(eventsByActor(db, "person:sara").map((e) => e.seq)).toEqual([1]);
-    expect(eventsByScope(db, "team:platform").map((e) => e.seq)).toEqual([0, 1]);
-    expect(eventsByScope(db, "org").map((e) => e.seq)).toEqual([2]);
+
+    test("rejects an event that does not parse as a MemoryEvent", () => {
+      expect(() => appendEvent(db, { ...write(1), op: "upsert" } as never)).toThrow();
+      expect(eventsByItem(db, ITEM.id)).toEqual([]);
+    });
+
+    test("updates the item projection in the same transaction", () => {
+      appendEvent(db, write(1));
+      expect(currentItems(db)).toEqual([ITEM]);
+    });
+
+    test("rejects an allowed write that carries no item, which replay could not reproduce", () => {
+      expect(() => appendEvent(db, { ...write(1), item: null })).toThrow(/carries no item/);
+      expect(currentItems(db)).toEqual([]);
+    });
+
+    test("rejects an event whose item_id differs from the item it carries", () => {
+      expect(() =>
+        appendEvent(db, { ...write(1), item_id: "01920000-0000-7000-8000-000000000099" }),
+      ).toThrow(/item_id/);
+    });
+
+    test("leaves the projection alone for a denied write", () => {
+      appendEvent(db, { ...write(1), decision: "deny", item: null });
+      expect(currentItems(db)).toEqual([]);
+    });
+  });
+
+  describe("queries", () => {
+    test("by item, by actor and by scope return events in sequence order", () => {
+      appendEvent(db, write(1, "agent:pi"));
+      appendEvent(db, write(2, "person:sara"));
+      appendEvent(db, {
+        ...write(3),
+        item_id: null,
+        scope_to: null,
+        scope_from: "org",
+        item: null,
+        op: "read",
+      });
+      expect(eventsByItem(db, ITEM.id).map((e) => e.seq)).toEqual([0, 1]);
+      expect(eventsByActor(db, "person:sara").map((e) => e.seq)).toEqual([1]);
+      expect(eventsByScope(db, "team:platform").map((e) => e.seq)).toEqual([0, 1]);
+      expect(eventsByScope(db, "org").map((e) => e.seq)).toEqual([2]);
+    });
   });
 });

@@ -2,8 +2,9 @@
 // Owned by the lead: changing this file needs a second reviewer and a
 // `decision` log entry. It never has a skip.
 //
-// All four run against the real Plane (createPlane), with the read filter of
-// card E2.2 and the write gate of card E2.3, under random policies. Invariants
+// All five run against the real Plane (createPlane), with the read filter of
+// card E2.2, the write gate of card E2.3 and retention of card E2.4, under
+// random policies. Invariants
 // 1 and 2 were red by design against a stub that admitted everything until
 // those cards landed (issue #1); they are now asserted directly, in `make test`
 // and in `make test-invariants` alike. A failure prints the counterexample and
@@ -33,27 +34,97 @@
 // requires each, so a gate that drops any of those checks fails it.
 // Invariant 1 ignores validity and status on purpose: it is a soundness
 // check, and a filter that admits fewer items cannot break it.
+//
+// Retention (card E2.4, ADR 0025; a `decision` log entry records the change):
+// invariant 1's oracle excludes an item past its ttl, and its items carry
+// their own ttl in a third of the cases, under policies whose retention rules
+// set ttls but no budgets; a guard requires an item readable but for its ttl,
+// read exactly when the ttl runs out. Invariant 2's oracle forbids a model,
+// compaction or tool write restating content an allowed retire or evict
+// event retired in its scope, compared by the oracle's own normal form; the
+// generated case retires its item by an event, never by writing it retired
+// (review findings P4-3, P4-7). Invariant 5 runs sequences of writes (ids
+// reused from a pool), batches of writes and a sweep called together,
+// reads, adoptions of store items and sweeps by a user, a session and an
+// outsider, some under a tightened policy, under budgeted policies. Every
+// write's budget check, adoption's included, follows its write event
+// directly and evicts exactly the oracle's victims (budgetVictims, never
+// the item just written, items past their ttl holding no slot); every sweep
+// does exactly what the oracle says (expiry only by a user or in the actor's
+// own person scope, then the budgets; a manual ask once per state; a
+// non-member refused); no recency or utility budget is exceeded by items not
+// past their ttl at the end; every retire and evict event names a reason
+// and a rule; replay reproduces the state. Replay reproduces utility
+// evictions as events but could not re-decide them: reads are not in the
+// log (P4-5). The guard requires each kind of step and outcome.
+//
+// Promotion (card E2.5, ADR 0026; a `decision` log entry records the change):
+// invariant 2 also runs promotions. Each case writes an item and a sequence
+// of restatements of its content (same and different actors, trusted and
+// untrusted kinds, in its scope and outside it) and promotes it, sometimes as
+// a review, under a random policy. A promotion that lands must be one
+// `promotionPermitted` allows from the log (k distinct trusted actors, or a
+// reviewer who is user-sourced, a member of the target and not the owner),
+// its item one `writeForbidden` lets into the target, with a provenance kind
+// no more trusted than its source's; one that does not land changes nothing.
+// Guards require landings by confirmation and by review, an ask, refusals
+// where only the distinct-actor rule, only the trusted-kind rule, only the
+// owner-as-reviewer rule or only the target's write rule stood in the way.
+// Invariant 1 also checks the Plane's surface (2606.24535, MemClaw's
+// get-by-id bypass): no method other than `read` returns an item, except
+// `write` and `promote` returning the caller's own item, and `events`, the
+// audit log no surface passes to a model; a promoter who is not the owner
+// and cannot read the item learns nothing from promote (review fix pass,
+// finding P5-7). Since that pass invariant 2's promotions also exercise
+// authors who are not owners, items past their ttl, widenings by actors
+// that are not user-sourced, duplicates in the target, confirmers retired
+// before the promotion and promoters who cannot read the item, and the
+// oracle judges all of it from its own replay of the events. Since the
+// verification of that pass, sources also carry live read grants (a grantee
+// who is not a member never lands a promotion, P5-15) and sometimes a tag
+// character payload (never promoted, P5-14); restatements are sometimes by
+// the item's own author; reviewers who confirmed are refused (P5-16); and a
+// guard requires a refusal that only retired confirmers caused (P5-17).
 import { createFakeAdapter } from "@engram/adapters";
 import fc from "fast-check";
 import { describe, expect, test } from "vitest";
 import { migrate } from "../../src/db/migrate.ts";
 import { openSqlite } from "../../src/db/sqlite.ts";
-import { currentItems, rebuild } from "../../src/events.ts";
-import { type Actor, createPlane, type Plane } from "../../src/plane.ts";
-import type { MemoryItem, Policy } from "../../src/schema.ts";
-import { compareTimestamps } from "../../src/time.ts";
+import { allEvents, appendEvent, currentItems, rebuild } from "../../src/events.ts";
+import {
+  type Actor,
+  adoptStoreItems,
+  createPlane,
+  ExplainDeniedError,
+  NotImplementedYet,
+  type Plane,
+} from "../../src/plane.ts";
+import { itemsAt } from "../../src/replay.ts";
+import type { MemoryEvent, MemoryItem, Policy } from "../../src/schema.ts";
+import { addSeconds, compareTimestamps } from "../../src/time.ts";
 import {
   arbActor,
   arbGatedGrant,
-  arbGatedItem,
+  arbGatedItemWithTtl,
   arbGrantedItem,
   arbInstant,
   arbPolicy,
+  arbPolicyWithTtls,
   arbTimestamp,
   arbWriter,
   seedFor,
 } from "../generators.ts";
-import { patternCovers, readable, writeForbidden } from "./oracle.ts";
+import {
+  budgetVictims,
+  pastTtl,
+  patternCovers,
+  promotionPermitted,
+  readable,
+  sameContent,
+  sameStrictContent,
+  TRUST,
+  writeForbidden,
+} from "./oracle.ts";
 
 const RUNS = 1000;
 
@@ -66,7 +137,7 @@ function freshPlane(policy: Policy, search = true) {
   const plane: Plane = createPlane({ db, adapter, policy, newId });
   /** A plane over the same log and store that writes under `other`. */
   const under = (other: Policy): Plane => createPlane({ db, adapter, policy: other, newId });
-  return { db, adapter, plane, under };
+  return { db, adapter, plane, under, newId };
 }
 
 /** Every class from every source at every level, no floor, no review. */
@@ -91,7 +162,10 @@ const ADMIT_ALL: Policy = {
 };
 
 const uniqueItems = fc.uniqueArray(arbGrantedItem, { selector: (i) => i.id, maxLength: 6 });
-const uniqueGatedItems = fc.uniqueArray(arbGatedItem, { selector: (i) => i.id, maxLength: 6 });
+const uniqueGatedItems = fc.uniqueArray(arbGatedItemWithTtl, {
+  selector: (i) => i.id,
+  maxLength: 6,
+});
 
 /** `actor`, made a member of a subset of `scopes` as well. */
 const joining = (actor: fc.Arbitrary<Actor>, scopes: string[]) =>
@@ -138,9 +212,16 @@ const namedByAGrant = (items: MemoryItem[], reader: Actor) => {
       );
 };
 
-/** A read time from the colliding pool, or, as often, exactly a grant's expiry or a validity start. */
+/**
+ * A read time from the colliding pool, or, as often, exactly a grant's
+ * expiry, a validity start, or the instant an item's own ttl runs out.
+ */
 const atABoundary = (items: MemoryItem[]) => {
-  const edges = items.flatMap((i) => [i.valid_from, ...i.grants.flatMap((g) => g.expires ?? [])]);
+  const edges = items.flatMap((i) => [
+    i.valid_from,
+    ...i.grants.flatMap((g) => g.expires ?? []),
+    ...(i.ttl === null ? [] : [addSeconds(i.valid_from, i.ttl)].flatMap((t) => t ?? [])),
+  ]);
   return edges.length === 0 ? arbInstant : fc.oneof(arbInstant, fc.constantFrom(...edges));
 };
 
@@ -201,7 +282,22 @@ const admitting = (policy: Policy, scope: string, kinds: MemoryItem["provenance"
   return { ...policy, write: [...policy.write.filter((r) => r.scope !== level), rule] };
 };
 
-type WriteCase = readonly [Policy, readonly [MemoryItem[], Actor]];
+/**
+ * An item put in the written scope before the write, and how it ended up
+ * retired: by an allowed retire event (it blocks restating writes), or
+ * planted, written with status retired or retired by its own ttl, which
+ * blocks nothing (review findings P4-3 and P4-13).
+ */
+interface Prior {
+  item: MemoryItem;
+  how: "retire-event" | "written-retired" | "own-ttl";
+}
+
+/**
+ * A policy, the item and its writer, and items already retired in the
+ * written scope before the write (the retired-content rule, ADR 0025).
+ */
+type WriteCase = readonly [Policy, readonly [MemoryItem[], Actor], readonly Prior[]];
 
 /**
  * A write forbidden only by a grant without a class or without an expiry
@@ -233,7 +329,7 @@ const grantTermsOnly: fc.Arbitrary<WriteCase> = fc
       source: kind,
       memberships: [...new Set([...writer.memberships, item.scope])],
     };
-    return [admitting(policy, item.scope, [kind]), [[written], actor]] as const;
+    return [admitting(policy, item.scope, [kind]), [[written], actor], []] as const;
   });
 
 /**
@@ -256,8 +352,140 @@ const isolationOnly: fc.Arbitrary<WriteCase> = fc
       source: kind,
       memberships: [...new Set([...writer.memberships, scope])],
     };
-    return [admitting(policy, scope, [kind]), [[written], actor]] as const;
+    return [admitting(policy, scope, [kind]), [[written], actor], []] as const;
   });
+
+/** Upper-cases the ASCII letters of every string in `content` and pads text with whitespace. */
+const restated = (content: MemoryItem["content"]): MemoryItem["content"] => {
+  // Upper case, doubled spaces and a zero-width space (finding P4-7).
+  const loud = (s: string) => `\u200B${s.replace(/[a-z]/g, (c) => c.toUpperCase())}`;
+  if (typeof content === "string") return `  ${loud(content).replace(/ /g, "  ")}\n`;
+  return Object.fromEntries(
+    Object.entries(content).map(([k, v]) => [k, typeof v === "string" ? loud(v) : v]),
+  ) as MemoryItem["content"];
+};
+
+/** An id no generated item has (generated ids carry a random version-7 body). */
+const RETIRED_ID = "01900000-0000-7000-8000-000000000000";
+/** The retire event's id; freshPlane's event ids count up from ...0001. */
+const RETIRE_EVENT_ID = "01900000-0000-7000-8000-0000000000ff";
+
+/**
+ * The projected items whose last allowed changing event retired them: what
+ * an allowed retire or evict event retired, read from the log, not from the
+ * plane's own helper. Two retirements are not retired content (review
+ * finding P5-6): a source a promotion superseded, whose content lives on in
+ * its new version, and content an active item in the same scope still holds.
+ */
+function retiredByEvent(db: Parameters<typeof allEvents>[0]): MemoryItem[] {
+  const last = new Map<string, MemoryEvent>();
+  for (const e of allEvents(db))
+    if (e.decision === "allow" && e.item_id !== null && CHANGING.includes(e.op))
+      last.set(e.item_id, e);
+  const items = currentItems(db);
+  return items.filter((i) => {
+    const e = last.get(i.id);
+    if (!e || !["retire", "evict"].includes(e.op)) return false;
+    // Expiry by the item's own ttl was its writer's choice: no evidence (P4-13).
+    if (e.policy_id === "engram/retention/item-ttl") return false;
+    if (e.policy_id.endsWith("/promotion/superseded")) return false;
+    return !items.some(
+      (a) => a.status === "active" && a.scope === i.scope && sameContent(a.content, i.content),
+    );
+  });
+}
+
+const CHANGING: readonly string[] = ["write", "update", "promote", "retire", "evict"];
+
+/**
+ * A write forbidden only by retired content (ADR 0025): a member's model,
+ * compaction or tool write, without grants, into a scope whose rule admits
+ * that source (person scope for model and compaction, which source isolation
+ * keeps there), restating, in other case and spacing and with a zero-width
+ * space, an item an allowed retire event retired in that scope. A gate that
+ * dropped the rule, or a source from its list, would let it land. The item is
+ * written active and then retired by an event: an item written with status
+ * retired was retired by nobody and blocks nothing (review finding P4-3).
+ */
+const restatingCase = (hows: readonly Prior["how"][]): fc.Arbitrary<WriteCase> =>
+  fc
+    .tuple(
+      arbPolicy,
+      arbGrantedItem,
+      arbWriter,
+      fc.constantFrom<MemoryItem["provenance"]["kind"]>("model", "compaction", "tool"),
+      fc.constantFrom("person:a", "role:a", "team:b", "org"),
+      fc.constantFrom(...hows),
+    )
+    .map(([policy, item, writer, kind, wide, how]) => {
+      const scope = kind === "tool" ? wide : "person:a";
+      const written = { ...item, scope, grants: [] } as MemoryItem;
+      const retired = {
+        ...item,
+        id: RETIRED_ID,
+        scope,
+        grants: [],
+        status: "active",
+        provenance: { ...item.provenance, kind: "user" },
+        content: restated(item.content),
+      } as MemoryItem;
+      const actor = {
+        ...writer,
+        source: kind,
+        memberships: [...new Set([...writer.memberships, scope])],
+      };
+      return [
+        admitting(policy, scope, [kind]),
+        [[written], actor],
+        [{ item: { ...retired, status: how === "written-retired" ? "retired" : "active" }, how }],
+      ] as const;
+    });
+
+const retiredContentOnly = restatingCase(["retire-event"]);
+
+/**
+ * The same restating write, after an item planted as retired: written with
+ * status retired, or retired only by its own ttl. Nothing forbids it, and it
+ * must land (P4-3 and P4-13): a gate that counted either as retired content
+ * would deny it.
+ */
+const plantedOnly = restatingCase(["written-retired", "own-ttl"]);
+
+/**
+ * One item made readable but for its own ttl: active, admitted by a live
+ * grant of its class naming the reader (when the policy honours grants), with
+ * a ttl of one second, read exactly when the ttl runs out (where a `<`
+ * expiry check would admit it) or a nanosecond before (where it is live).
+ */
+const onATtl = (items: MemoryItem[], reader: Actor) => {
+  const pairs = items.flatMap((item, i) => item.grants.map((_, k) => [i, k] as const));
+  if (pairs.length === 0) return fc.tuple(fc.constant(items), fc.constant(reader), arbInstant);
+  return fc.tuple(fc.constantFrom(...pairs), fc.boolean()).map(([[i, k], onEnd]) => {
+    const target = items[i] as MemoryItem;
+    const g = target.grants[k] as MemoryItem["grants"][number];
+    const focused = {
+      ...target,
+      status: "active",
+      ttl: 1,
+      grants: target.grants.map((x, j) =>
+        j === k ? { ...x, class: target.class, expires: "2099-01-01T00:00:00Z" } : x,
+      ),
+    } as MemoryItem;
+    const end = addSeconds(focused.valid_from, 1) as string;
+    const list = items.map((it, j) => (j === i ? focused : it));
+    const named = g.to.includes("*") ? reader : { ...reader, id: g.to };
+    return [list, named, onEnd ? end : justBefore(end)] as const;
+  });
+};
+
+/** The instant a nanosecond before `ts` (fractions of at most nine digits). */
+function justBefore(ts: string): string {
+  const [whole, frac = ""] = ts.replace(/Z$/, "").split(".");
+  const ns = BigInt(frac.padEnd(9, "0").slice(0, 9));
+  if (ns > 0n) return `${whole}.${String(ns - 1n).padStart(9, "0")}Z`;
+  const prev = addSeconds(`${whole}Z`, -1) as string;
+  return `${prev.replace(/Z$/, "")}.999999999Z`;
+}
 
 const contentOf = (i: MemoryItem) =>
   (typeof i.content === "string" ? i.content : JSON.stringify(i.content)).toLowerCase();
@@ -265,16 +493,26 @@ const contentOf = (i: MemoryItem) =>
 describe("invariants", () => {
   const I1 = "invariant 1: no read returns an item the actor's scope and grants exclude";
   test(I1, async () => {
-    const seen = { byScope: 0, byGrant: 0, exclScope: 0, exclGrant: 0, expiryAtRead: 0 };
+    await planeSurfaceLeaksNothing();
+    const seen = {
+      byScope: 0,
+      byGrant: 0,
+      exclScope: 0,
+      exclGrant: 0,
+      expiryAtRead: 0,
+      pastTtl: 0,
+      ttlAtRead: 0,
+    };
     await fc.assert(
       fc.asyncProperty(
-        arbPolicy,
+        arbPolicyWithTtls,
         arbActor,
         itemsAnd(uniqueGatedItems, arbActor)
           .chain(([items, reader]) =>
             fc.oneof(
               fc.tuple(fc.constant(items), namedByAGrant(items, reader), atABoundary(items)),
               onAGrant(items, reader),
+              onATtl(items, reader),
             ),
           )
           .chain(([items, reader, at]) =>
@@ -298,7 +536,24 @@ describe("invariants", () => {
           const terms = (text ?? "").toLowerCase().split(/\s+/).filter(Boolean);
           for (const item of items) {
             const matches = terms.every((t) => contentOf(item).includes(t));
-            const live = item.status === "active" && compareTimestamps(item.valid_from, at) <= 0;
+            const active = item.status === "active" && compareTimestamps(item.valid_from, at) <= 0;
+            // An item the reader could see but for its ttl (ADR 0025): the
+            // read must leave it out, which the assertion above checks.
+            if (
+              active &&
+              pastTtl(policy, item, at) &&
+              readable({ ...policy, retention: [] }, reader, { ...item, ttl: null }, at)
+            ) {
+              seen.pastTtl++;
+              // Expired exactly at the read time: a `<` where `<=` belongs would admit it.
+              const rule = policy.retention.find(
+                (r) => r.scope === levelOf(item.scope) && r.class === item.class,
+              );
+              const ttls = [item.ttl, rule?.ttl ?? null].filter((t): t is number => t !== null);
+              const end = addSeconds(item.valid_from, Math.min(...ttls));
+              if (end !== null && compareTimestamps(end, at) === 0) seen.ttlAtRead++;
+            }
+            const live = active && !pastTtl(policy, item, at);
             // The boundary a `>=` expiry check gets wrong: an excluded live item whose
             // grant names the reader, for its class, and expires exactly at the read time.
             if (live && policy.read.honour_grants && !readable(policy, reader, item, at))
@@ -322,13 +577,21 @@ describe("invariants", () => {
     );
     expect(
       Object.values(seen).every((n) => n > 0),
-      `the run must admit by scope and by grant, exclude by scope and by a grant's terms, and meet a grant expiring at the read time; it saw ${JSON.stringify(seen)}`,
+      `the run must admit by scope and by grant, exclude by scope and by a grant's terms, meet a grant expiring at the read time, and meet an item readable but for its ttl; it saw ${JSON.stringify(seen)}`,
     ).toBe(true);
   }, 120_000);
 
   const I2 = "invariant 2: no write lands in a scope whose policy forbids its class or source";
   test(I2, async () => {
-    const seen = { landed: 0, forbidden: 0, noClass: 0, noExpiry: 0, isolation: 0 };
+    const seen = {
+      landed: 0,
+      forbidden: 0,
+      noClass: 0,
+      noExpiry: 0,
+      isolation: 0,
+      retired: 0,
+      planted: 0,
+    };
     await fc.assert(
       fc.asyncProperty(
         fc.oneof(
@@ -339,18 +602,55 @@ describe("invariants", () => {
                 arbGrantedItem.map((i) => [i]),
                 arbWriter,
               ),
+              fc.constant([] as readonly Prior[]),
             ),
             weight: 3,
           },
           { arbitrary: grantTermsOnly, weight: 1 },
           { arbitrary: isolationOnly, weight: 1 },
+          { arbitrary: retiredContentOnly, weight: 1 },
+          { arbitrary: plantedOnly, weight: 1 },
         ),
         arbTimestamp,
-        async ([policy, [[item], actor]], at) => {
+        async ([policy, [[item], actor], retired], at) => {
           if (!item) return;
-          const { db, adapter, plane } = freshPlane(policy);
+          const { db, adapter, plane, under } = freshPlane(policy);
+          // Items retired before the write: written by a member, then
+          // retired by an allowed retire event (ADR 0010: retired by event).
+          for (const { item: r, how } of retired) {
+            const owner = { id: r.owner, level: "person" as const, memberships: [r.scope] };
+            const { event } = await under(ADMIT_ALL).write(owner, r, at);
+            expect(event.decision, "the item to retire lands").toBe("allow");
+            if (how === "written-retired") continue;
+            appendEvent(db, {
+              id: RETIRE_EVENT_ID,
+              ts: at,
+              op: "retire",
+              item_id: r.id,
+              actor: owner.id,
+              scope_from: null,
+              scope_to: r.scope,
+              decision: "allow",
+              reason: "retired before the write under test",
+              policy_id: how === "own-ttl" ? "engram/retention/item-ttl" : "test/retire",
+              schema_version: 0,
+            });
+          }
+          const projected = retiredByEvent(db);
           const { item: stored } = await plane.write(actor, item, at);
           if (stored) seen.landed++;
+          // A restating write after a planted retirement is forbidden by nothing: it lands.
+          if (retired.some((r) => r.how !== "retire-event")) {
+            expect(
+              writeForbidden(policy, actor, item, projected),
+              "a planted retirement is no retired content",
+            ).toBe(false);
+            expect(
+              stored,
+              `a restating write after a ${retired[0]?.how} plant must land`,
+            ).not.toBeNull();
+            seen.planted++;
+          }
           // Writes forbidden by exactly one condition a mutant could drop: a
           // grant's missing class or expiry, or source isolation; each would
           // land if the policy's rule were all the gate checked.
@@ -363,6 +663,9 @@ describe("invariants", () => {
             })),
           };
           const otherwiseLands = admittedByRule(policy, actor, item);
+          const forbidden = writeForbidden(policy, actor, item, projected);
+          // Forbidden only because it restates retired content.
+          if (otherwiseLands && forbidden && !writeForbidden(policy, actor, item)) seen.retired++;
           if (otherwiseLands && writeForbidden(policy, actor, item)) {
             if (!writeForbidden(policy, actor, repaired)) {
               if (item.grants.some((g) => g.class === undefined)) seen.noClass++;
@@ -375,7 +678,7 @@ describe("invariants", () => {
             )
               seen.isolation++;
           }
-          if (writeForbidden(policy, actor, item)) {
+          if (forbidden) {
             seen.forbidden++;
             const inStore = (await adapter.list(item.scope)).map((i) => i.id);
             const projected = currentItems(db).map((i) => i.id);
@@ -393,10 +696,13 @@ describe("invariants", () => {
         seen.forbidden > 0 &&
         seen.noClass > RUNS / 50 &&
         seen.noExpiry > RUNS / 50 &&
-        seen.isolation > RUNS / 50,
-      `invariant 2 needs writes that land, writes it forbids, and writes the policy's rule admits that are forbidden only by a grant without a class, a grant without an expiry, or source isolation; it saw ${JSON.stringify(seen)}`,
+        seen.isolation > RUNS / 50 &&
+        seen.retired > RUNS / 50 &&
+        seen.planted > RUNS / 50,
+      `invariant 2 needs writes that land, writes it forbids, and writes the policy's rule admits that are forbidden only by a grant without a class, a grant without an expiry, source isolation, or retired content; it saw ${JSON.stringify(seen)}`,
     ).toBe(true);
-  }, 120_000);
+    await promotionsLandOnlyWherePermitted(`${I2}, promotions`);
+  }, 240_000);
 
   const I3 =
     "invariant 3: every read or write appends exactly one event, and a denial carries a reason and a policy id";
@@ -457,4 +763,916 @@ describe("invariants", () => {
       { numRuns: RUNS, seed: seedFor(I4) },
     );
   }, 120_000);
+
+  const I5 =
+    "invariant 5: after any write sequence no scope holds more active items of a class than its budget, every retire or evict event carries a reason and a policy id, and replay reproduces them";
+  test(I5, async () => {
+    const seen = {
+      recency: 0,
+      utility: 0,
+      utilityByReads: 0,
+      manual: 0,
+      swept: 0,
+      sweepEvicted: 0,
+      reused: 0,
+      concurrent: 0,
+      adopted: 0,
+      memberDenied: 0,
+      ttlLeftToUser: 0,
+    };
+    await fc.assert(
+      fc.asyncProperty(arbBudgetPolicy, arbSteps, async (policy, steps) => {
+        const { db, adapter, plane, under, newId } = freshPlane(policy);
+        /** How many times a read returned each item: the oracle's own count. */
+        const reads = new Map<string, number>();
+        const ruleFor = (p: Policy, scope: string, cls: MemoryItem["class"]) =>
+          p.retention.find((r) => r.scope === levelOf(scope) && r.class === cls);
+        const shown = (events: MemoryEvent[]) =>
+          events.map((e) => `${e.op}/${e.decision} ${e.item_id}: ${e.reason}`).join("; ");
+
+        /** Checks one write's budget check, `slot`, against the oracle at its write event. */
+        const checkWrite = (w: MemoryEvent, slot: MemoryEvent[]) => {
+          const it = w.item as MemoryItem;
+          const after = itemsAt(db, w.seq);
+          const active = after.filter(
+            (x) =>
+              x.scope === it.scope &&
+              x.class === it.class &&
+              x.status === "active" &&
+              !pastTtl(policy, x, w.ts),
+          );
+          const rule = ruleFor(policy, it.scope, it.class);
+          const changed = lastChanged(allEvents(db), w.seq);
+          const expected =
+            rule && rule.budget !== null
+              ? budgetVictims(rule.eviction, rule.budget, active, changed, reads, it.id)
+              : [];
+          const got = slot.map((e) => [e.op, e.decision, e.item_id]);
+          const why = `${shown(slot)} after writing ${it.id} (${it.class} in ${it.scope}) under ${JSON.stringify(rule)}`;
+          if (expected === "ask") {
+            seen.manual++;
+            expect(got, `a manual overage asks once: ${why}`).toEqual([["evict", "ask", null]]);
+            return;
+          }
+          expect(got, `the budget check evicts exactly the oracle's victims: ${why}`).toEqual(
+            expected.map((v) => ["evict", "allow", v]),
+          );
+          if (expected.length > 0 && rule) {
+            seen[rule.eviction === "recency" ? "recency" : "utility"]++;
+            if (rule.eviction === "utility") {
+              const byAge = budgetVictims(
+                "recency",
+                rule.budget ?? 0,
+                active,
+                changed,
+                reads,
+                it.id,
+              );
+              if (JSON.stringify(byAge) !== JSON.stringify(expected)) seen.utilityByReads++;
+            }
+          }
+        };
+
+        /** Checks one sweep's events against the oracle, given the log before it. */
+        const checkSweep = (
+          p: Policy,
+          actor: Actor,
+          scope: string,
+          at: string,
+          before: number,
+          events: MemoryEvent[],
+        ) => {
+          const got = events.map((e) => [e.op, e.decision, e.item_id]);
+          if (!actor.memberships.includes(scope)) {
+            seen.memberDenied++;
+            expect(got, "a non-member's sweep is one deny").toEqual([["retire", "deny", null]]);
+            return;
+          }
+          const log = allEvents(db).filter((e) => e.seq <= before);
+          const state = before < 0 ? [] : itemsAt(db, before);
+          const changed = lastChanged(log, before);
+          const byTtl =
+            (scope.split(":")[0] === "person" && scope === actor.id) || actor.source === "user";
+          const expected: (string | null)[][] = [];
+          for (const cls of ["episodic", "semantic", "procedural"] as const) {
+            const own = state.filter((x) => x.scope === scope && x.class === cls);
+            const expired = own.filter((x) => x.status !== "retired" && pastTtl(p, x, at));
+            if (byTtl) for (const x of expired) expected.push(["retire", "allow", x.id]);
+            else if (expired.length > 0) seen.ttlLeftToUser++;
+            const active = own.filter((x) => x.status === "active" && !pastTtl(p, x, at));
+            const rule = ruleFor(p, scope, cls);
+            if (!rule || rule.budget === null) continue;
+            const victims = budgetVictims(rule.eviction, rule.budget, active, changed, reads);
+            if (victims === "ask") {
+              // Asked once per state: not again while nothing in the class changed.
+              const policyId = `${p.id}/retention/${levelOf(scope)}/${cls}`;
+              const asked = log
+                .filter(
+                  (e) =>
+                    e.op === "evict" &&
+                    e.decision === "ask" &&
+                    e.scope_to === scope &&
+                    e.policy_id === policyId,
+                )
+                .at(-1)?.seq;
+              const latest = Math.max(-1, ...own.map((x) => changed.get(x.id) ?? -1));
+              if (asked === undefined || latest > asked) expected.push(["evict", "ask", null]);
+              continue;
+            }
+            for (const v of victims) expected.push(["evict", "allow", v]);
+          }
+          expect(
+            got,
+            `the sweep of ${scope} by ${actor.id} (${actor.source}) at ${at}: ${shown(events)}`,
+          ).toEqual(expected);
+          seen.swept += events.filter((e) => e.op === "retire").length;
+          seen.sweepEvicted += events.filter(
+            (e) => e.op === "evict" && e.decision === "allow",
+          ).length;
+        };
+
+        for (const [i, step] of steps.entries()) {
+          const at = stepTime(i);
+          const start = allEvents(db).length;
+          if (step.kind === "read") {
+            const { explanations } = await plane.read(WRITER5, { text: step.text, at });
+            for (const e of explanations) reads.set(e.item_id, (reads.get(e.item_id) ?? 0) + 1);
+            continue;
+          }
+          if (step.kind === "retain") {
+            const p = step.tight ? tightened(policy) : policy;
+            const actor = SWEEPERS[step.who];
+            const report = await under(p).retain(actor, step.scope, at);
+            checkSweep(p, actor, step.scope, at, start - 1, report.events);
+            continue;
+          }
+          if (step.kind === "adopt") {
+            // An item already in the store, never written through the plane.
+            const stored = { ...step.item, valid_from: at, store_ref: null } as MemoryItem;
+            await adapter.write(stored);
+            const owner: Actor = { id: WRITER5.id, level: "person", memberships: [stored.scope] };
+            const deps = { db, adapter, policy, newId };
+            const report = await adoptStoreItems(deps, owner, stored.scope, at);
+            const added = allEvents(db).slice(start);
+            for (const [k, w] of added.entries()) {
+              if (w.op !== "write" || w.decision !== "allow") continue;
+              if (w.item_id === stored.id) seen.adopted++;
+              const slot: MemoryEvent[] = [];
+              for (const e of added.slice(k + 1)) {
+                if (e.op !== "evict") break;
+                slot.push(e);
+              }
+              checkWrite(w, slot);
+            }
+            expect(report.evictions.map((e) => e.id)).toEqual(
+              added.filter((e) => e.op === "evict").map((e) => e.id),
+            );
+            continue;
+          }
+          // One write, or a batch of writes and a sweep called together.
+          const writes = step.kind === "write" ? [step.item] : step.items;
+          if (writes.length > 1) seen.concurrent++;
+          const held = new Set(currentItems(db).map((x) => x.id));
+          const calls = writes.map((w) => plane.write(WRITER5, { ...w, valid_from: at }, at));
+          const sweep =
+            step.kind === "batch" && step.sweep ? plane.retain(WRITER5, step.sweep, at) : undefined;
+          const results = await Promise.all(calls);
+          const report = await sweep;
+          const log = allEvents(db);
+          for (const result of results) {
+            if (result.event.decision !== "allow") {
+              expect(result.retention, "a denied write runs no budget check").toEqual([]);
+              continue;
+            }
+            if (held.has(result.event.item_id ?? "")) seen.reused++;
+            // The slot's events follow its write event directly: nothing interleaved.
+            const at0 = log.findIndex((e) => e.id === result.event.id);
+            expect(
+              log.slice(at0 + 1, at0 + 1 + result.retention.length).map((e) => e.id),
+              "a write's budget check runs in its own queue slot",
+            ).toEqual(result.retention.map((e) => e.id));
+            checkWrite(result.event, result.retention);
+          }
+          if (report && step.kind === "batch" && step.sweep) {
+            // The sweep was queued last: it ran after every write's slot.
+            const first = report.events[0]?.seq ?? log.length;
+            checkSweep(policy, WRITER5, step.sweep, at, first - 1, report.events);
+          }
+        }
+
+        const state = currentItems(db);
+        const lastAt = stepTime(steps.length - 1);
+        for (const rule of policy.retention) {
+          if (rule.budget === null || rule.eviction === "manual") continue;
+          for (const scope of I5_SCOPES.filter((s) => levelOf(s) === rule.scope)) {
+            const live = state.filter(
+              (x) =>
+                x.scope === scope &&
+                x.class === rule.class &&
+                x.status === "active" &&
+                !pastTtl(policy, x, lastAt),
+            ).length;
+            expect(
+              live,
+              `${scope} holds ${live} active ${rule.class} items not past their ttl, budget ${rule.budget}`,
+            ).toBeLessThanOrEqual(rule.budget);
+          }
+        }
+        const log = allEvents(db);
+        for (const e of log.filter((x) => x.op === "retire" || x.op === "evict")) {
+          expect(e.reason, `event ${e.seq} has a reason`).not.toBe("");
+          expect(e.policy_id, `event ${e.seq} names a retention or adoption rule`).toMatch(
+            /^(budgeted(-tight)?\/retention\/(person|team)\/(episodic|semantic|procedural)|engram\/retention\/(item-ttl|membership)|engram\/adopt\/retract)$/,
+          );
+          if (e.decision === "allow") expect(e.item_id).not.toBeNull();
+        }
+        rebuild(db);
+        expect(currentItems(db), "replay reproduces every retirement").toEqual(state);
+        if (log.length > 0) expect(itemsAt(db, log.length - 1)).toEqual(state);
+      }),
+      { numRuns: RUNS, seed: seedFor(I5) },
+    );
+    expect(
+      Object.values(seen).every((n) => n > 0),
+      `invariant 5 needs evictions by recency and by utility (some where reads, not age, chose the victim), a manual ask, a sweep that retired an expired item and one that evicted, a rewrite of a held id, a concurrent batch, an adopted item, a refused non-member sweep, and expired shared items a session left to a user; it saw ${JSON.stringify(seen)}`,
+    ).toBe(true);
+  }, 240_000);
 });
+
+/** Invariant 5's scopes: one person, one team. */
+const I5_SCOPES = ["person:a", "team:b"] as const;
+const WORDS = ["alpha", "beta", "gamma"] as const;
+/** Invariant 5's writer and reader: a member of both scopes, writing user content. */
+const WRITER5: Actor = {
+  id: "person:a",
+  level: "person",
+  memberships: [...I5_SCOPES],
+  source: "user",
+} as Actor;
+/**
+ * Who sweeps: the user; a session (no harness source, as the pi extension
+ * sweeps), whose ttl retirement is limited to its own person scope (P4-6);
+ * and an outsider, refused.
+ */
+const SWEEPERS = {
+  user: WRITER5,
+  session: { id: "person:a", level: "person", memberships: [...I5_SCOPES] } as Actor,
+  outsider: { id: "person:z", level: "person", memberships: ["person:z"] } as Actor,
+} as const;
+/** Step i runs i seconds after a fixed start, so a ttl of a few seconds runs out mid-sequence. */
+const stepTime = (i: number) => addSeconds("2026-10-25T12:00:00Z", i) as string;
+/** A few ids steps reuse, so writes rewrite held and evicted items. */
+const POOL = [1, 2, 3, 4].map((n) => `01910000-0000-7000-8000-00000000000${n}`);
+
+/** The policy with every budget one lower (at least 1): a sweep under it has something to evict. */
+function tightened(policy: Policy): Policy {
+  return {
+    ...policy,
+    id: "budgeted-tight",
+    retention: policy.retention.map((r) => ({
+      ...r,
+      budget: r.budget === null ? null : Math.max(1, r.budget - 1),
+    })),
+  };
+}
+
+/** Every write admitted, reads by person of person and team, and retention rules with budgets. */
+const arbBudgetPolicy: fc.Arbitrary<Policy> = fc
+  .uniqueArray(
+    fc.record({
+      scope: fc.constantFrom<"person" | "team">("person", "team"),
+      class: fc.constantFrom<MemoryItem["class"]>("episodic", "semantic", "procedural"),
+      ttl: fc.option(fc.constantFrom(2, 5), { nil: null, freq: 3 }),
+      budget: fc.option(fc.integer({ min: 1, max: 3 }), { nil: null, freq: 6 }),
+      eviction: fc.constantFrom<"recency" | "utility" | "manual">("recency", "utility", "manual"),
+    }),
+    { selector: (r) => `${r.scope}/${r.class}`, minLength: 1, maxLength: 6 },
+  )
+  .map((retention) => ({
+    ...ADMIT_ALL,
+    id: "budgeted",
+    read: { matrix: [{ reader: "person", may_read: ["person", "team"] }], honour_grants: false },
+    retention,
+  }));
+
+type Step =
+  | { kind: "write"; item: MemoryItem }
+  | { kind: "batch"; items: MemoryItem[]; sweep: string | null }
+  | { kind: "read"; text: string }
+  | { kind: "retain"; scope: string; who: keyof typeof SWEEPERS; tight: boolean }
+  | { kind: "adopt"; item: MemoryItem };
+
+/** An item for invariant 5: owned by its writer, version 1, an id from the pool half the time. */
+const arbI5Item: fc.Arbitrary<MemoryItem> = fc
+  .tuple(
+    arbGrantedItem,
+    fc.oneof(
+      fc.constantFrom(...POOL),
+      arbGrantedItem.map((x) => x.id),
+    ),
+    fc.constantFrom(...I5_SCOPES),
+    fc.constantFrom(...WORDS),
+    fc.constantFrom<MemoryItem["status"]>("active", "active", "active", "candidate"),
+  )
+  .map(([item, id, scope, word, status]) => {
+    const content = item.class === "procedural" ? { body: word, tools: [] } : word;
+    return {
+      ...item,
+      id,
+      owner: WRITER5.id,
+      version: 1,
+      scope,
+      status,
+      content,
+      grants: [],
+      ttl: null,
+    } as MemoryItem;
+  });
+
+const arbStep: fc.Arbitrary<Step> = fc.oneof(
+  { arbitrary: arbI5Item.map((item): Step => ({ kind: "write", item })), weight: 6 },
+  {
+    arbitrary: fc
+      .tuple(
+        fc.uniqueArray(arbI5Item, { selector: (x) => x.id, minLength: 2, maxLength: 3 }),
+        fc.option(fc.constantFrom(...I5_SCOPES), { nil: null }),
+      )
+      .map(([items, sweep]): Step => ({ kind: "batch", items, sweep })),
+    weight: 2,
+  },
+  { arbitrary: fc.constantFrom(...WORDS).map((text): Step => ({ kind: "read", text })), weight: 3 },
+  {
+    arbitrary: fc
+      .tuple(
+        fc.constantFrom(...I5_SCOPES),
+        fc.constantFrom<keyof typeof SWEEPERS>("user", "user", "session", "outsider"),
+        fc.boolean(),
+      )
+      .map(([scope, who, tight]): Step => ({ kind: "retain", scope, who, tight })),
+    weight: 2,
+  },
+  {
+    arbitrary: arbI5Item
+      .filter((x) => !POOL.includes(x.id))
+      .map((item): Step => ({ kind: "adopt", item: { ...item, status: "active" } })),
+    weight: 1,
+  },
+);
+const arbSteps = fc.array(arbStep, { minLength: 1, maxLength: 14 });
+
+/** The seq of the last allowed event that changed each item, up to and including `seq`. */
+function lastChanged(events: MemoryEvent[], seq: number): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const e of events) {
+    if (e.seq > seq || e.decision !== "allow" || e.item_id === null) continue;
+    if (["write", "update", "promote", "retire", "evict"].includes(e.op)) out.set(e.item_id, e.seq);
+  }
+  return out;
+}
+
+/** The scopes promotions start in, and the targets they aim at. */
+const P_SOURCES = ["person:a", "team:b"] as const;
+const P_TARGETS = ["person:a", "role:a", "team:b", "org"] as const;
+const P_ACTORS = ["person:a", "person:b", "person:c", "agent:pi"] as const;
+const KINDS = ["user", "document", "tool", "model", "import", "compaction"] as const;
+type Kind = (typeof KINDS)[number];
+const TRUSTED: readonly Kind[] = ["user", "document", "tool"];
+const P_SOURCE_ID = "01950000-0000-7000-8000-000000000000";
+const pId = (n: number) => `01950000-0000-7000-8000-${String(n + 1).padStart(12, "0")}`;
+
+/** A restatement of content made after the item: by whom, as what, and whether it matches. */
+interface Restatement {
+  actor: (typeof P_ACTORS)[number];
+  kind: Kind;
+  /** Also in another case: the same only in the merging form, never a confirmation. */
+  loud: boolean;
+  same: boolean;
+  inScope: boolean;
+  retired: boolean;
+  byAuthor: boolean;
+  inTarget: boolean;
+}
+
+const arbRestatement: fc.Arbitrary<Restatement> = fc.record({
+  actor: fc.constantFrom(...P_ACTORS),
+  kind: fc.oneof(
+    { arbitrary: fc.constantFrom<Kind>("user", "document", "tool"), weight: 3 },
+    { arbitrary: fc.constantFrom<Kind>("model", "compaction", "import"), weight: 2 },
+  ),
+  loud: fc.constantFrom(false, false, true),
+  same: fc.oneof(
+    { arbitrary: fc.constant(true), weight: 4 },
+    { arbitrary: fc.constant(false), weight: 1 },
+  ),
+  inScope: fc.oneof(
+    { arbitrary: fc.constant(true), weight: 5 },
+    { arbitrary: fc.constant(false), weight: 1 },
+  ),
+  // Retired by an event after it was written: it no longer confirms (P5-5).
+  retired: fc.constantFrom(false, false, true),
+  // Written by the item's own author again: the same actor twice (the distinct-actor rule).
+  byAuthor: fc.constantFrom(false, false, true),
+  // Written into the target instead, as the class the promotion would make:
+  // an active one there is a duplicate (P5-5).
+  inTarget: fc.constantFrom(false, false, false, false, false, true),
+});
+
+/** True three times in four: most cases reach the evidence rules rather than stopping earlier. */
+const oftenTrue = fc.constantFrom(true, true, true, false);
+
+/**
+ * A promotion case: a policy (its target rule opened three times in four,
+ * so evidence rather than the rule decides), the item, its restatements and
+ * the promoter, who reviews half the time and three times in four belongs
+ * to both the source and the target scope.
+ */
+const arbPromotionCase = fc.record({
+  policy: fc
+    .tuple(
+      arbPolicy,
+      fc.integer({ min: 1, max: 3 }),
+      fc.boolean(),
+      oftenTrue,
+      fc.boolean(),
+      fc.constantFrom(...P_TARGETS),
+    )
+    .map(([policy, k, orReview, open, review, target]) => {
+      const rule = {
+        scope: levelOf(target),
+        allowed_sources: ["user", "document", "tool", "import"] as Kind[],
+        confidence_floor: 0,
+        forbidden_classes: [],
+        requires_review: review,
+      };
+      const write = open
+        ? [...policy.write.filter((r) => r.scope !== levelOf(target)), rule]
+        : policy.write;
+      // An opened case also lets a person context read every level and a
+      // team context the shared ones, so reach rarely stops it; an org
+      // context still has no row, and reads nothing but through a grant.
+      const read: Policy["read"] = open
+        ? {
+            matrix: [
+              { reader: "person", may_read: ["person", "role", "team", "org"] },
+              { reader: "team", may_read: ["role", "team", "org"] },
+            ],
+            honour_grants: true,
+          }
+        : policy.read;
+      return {
+        target,
+        policy: {
+          ...policy,
+          write,
+          read,
+          promotion: {
+            episodic_to_semantic: { confirmations: k, or_review: orReview },
+            procedural: { replay_k: 4, replay_n: 5 },
+          },
+        } as Policy,
+      };
+    }),
+  source: fc
+    .record({
+      class: fc.constantFrom<MemoryItem["class"]>(
+        "episodic",
+        "episodic",
+        "episodic",
+        "semantic",
+        "procedural",
+      ),
+      status: fc.constantFrom<MemoryItem["status"]>(
+        "active",
+        "active",
+        "active",
+        "candidate",
+        "retired",
+      ),
+      scope: fc.constantFrom(...P_SOURCES),
+      owner: fc.constantFrom(...P_ACTORS),
+      // Who wrote it: the owner half the time, someone else otherwise (P5-1).
+      author: fc.option(fc.constantFrom(...P_ACTORS), { nil: undefined }),
+      kind: fc.constantFrom(...KINDS),
+      confidence: fc.constantFrom(0.2, 0.7, 1),
+      // Its own ttl, and how long after writing it is promoted (P5-4).
+      ttl: fc.constantFrom(null, null, null, 3),
+      // A live read grant on it, to someone who may then try to promote it (P5-15).
+      grantTo: fc.option(fc.constantFrom(...P_ACTORS), { nil: undefined }),
+      // A tag character in its content: a payload no reader sees (P5-14).
+      hidden: fc.constantFrom(false, false, false, false, false, false, false, true),
+    })
+    // Model and compaction content lands only in person scope (ADR 0004, 0007).
+    .map((s) =>
+      s.kind === "model" || s.kind === "compaction" ? { ...s, scope: "person:a" as const } : s,
+    ),
+  restatements: fc.array(arbRestatement, { maxLength: 6 }),
+  promoter: fc.record({
+    id: fc.constantFrom(...P_ACTORS),
+    // A team or org context reads person scope only through a grant (P5-7).
+    level: fc.constantFrom<Actor["level"]>(
+      "person",
+      "person",
+      "person",
+      "person",
+      "person",
+      "team",
+      "org",
+    ),
+    source: fc.constantFrom<Kind | undefined>(
+      "user",
+      "user",
+      "user",
+      "user",
+      "user",
+      "user",
+      "model",
+      "document",
+      undefined,
+    ),
+    extra: fc.subarray([...P_TARGETS]),
+    joins: oftenTrue,
+    review: fc.boolean(),
+  }),
+  at: arbTimestamp,
+  after: fc.constantFrom(0, 0, 0, 5),
+});
+
+/** Invariant 2 over promotions (ADR 0026); runs inside invariant 2's test. */
+async function promotionsLandOnlyWherePermitted(name: string) {
+  const seen = {
+    byConfirmation: 0,
+    byReview: 0,
+    asked: 0,
+    sameActorOnly: 0,
+    untrustedOnly: 0,
+    ownerReview: 0,
+    authorReview: 0,
+    grantee: 0,
+    hiddenText: 0,
+    confirmerReview: 0,
+    retiredOnly: 0,
+    writeRule: 0,
+    expired: 0,
+    wideningSource: 0,
+    duplicate: 0,
+    unreachable: 0,
+  };
+  await fc.assert(
+    fc.asyncProperty(
+      arbPromotionCase,
+      async ({ policy: { policy, target }, source, restatements, promoter, at, after }) => {
+        const { db, adapter, plane, under } = freshPlane(policy);
+        const store = under(ADMIT_ALL);
+        // The source's text, with a tag-character payload when it is hidden.
+        const word = source.hidden ? `alpha${String.fromCodePoint(0xe0041)}` : "alpha";
+        // The same content in spacing only (strictly the same), or also in
+        // case (the same only in the merging form, P5-12).
+        const content = (r: Restatement) =>
+          !r.same ? "beta" : r.loud ? restated(word) : ` ${word} \n`;
+        const make = (n: number, scope: string, owner: string, text: MemoryItem["content"]) =>
+          ({
+            id: n < 0 ? P_SOURCE_ID : pId(n),
+            class: source.class,
+            scope,
+            owner,
+            content: source.class === "procedural" ? { body: String(text), tools: [] } : text,
+            provenance: { kind: "user", ref: "r", hash: `sha256:${"0".repeat(64)}`, actor: owner },
+            confidence: source.confidence,
+            valid_from: at,
+            valid_to: null,
+            ttl: null,
+            grants: [],
+            version: 1,
+            lineage: [],
+            status: "active",
+            store_ref: null,
+            schema_version: 0,
+          }) as MemoryItem;
+        const writer = (id: string, scope: string, kind: Kind): Actor => ({
+          id,
+          level: "person",
+          memberships: [scope],
+          source: kind,
+        });
+        // A retired source is written active and retired by an event, never
+        // written retired (review finding P4-7).
+        const item = {
+          ...make(-1, source.scope, source.owner, word),
+          class: source.class,
+          status: source.status === "retired" ? "active" : source.status,
+          content: source.class === "procedural" ? { body: word, tools: [] } : word,
+          ttl: source.ttl,
+          // Model and compaction content carries no grants (decision D4).
+          grants:
+            source.grantTo && !["model", "compaction"].includes(source.kind)
+              ? [
+                  {
+                    to: source.grantTo,
+                    class: source.class,
+                    mode: "read",
+                    expires: "2099-01-01T00:00:00Z",
+                  },
+                ]
+              : [],
+        } as MemoryItem;
+        const author = source.author ?? source.owner;
+        expect(
+          (await store.write(writer(author, source.scope, source.kind), item, at)).item,
+        ).not.toBeNull();
+        if (source.status === "retired")
+          appendEvent(db, {
+            id: "01950000-0000-7000-8000-0000000000ff",
+            ts: at,
+            op: "retire",
+            item_id: P_SOURCE_ID,
+            actor: source.owner,
+            scope_from: null,
+            scope_to: source.scope,
+            decision: "allow",
+            reason: "retired before the promotion under test",
+            policy_id: "test/retire",
+            schema_version: 0,
+          });
+        for (const [n, r] of restatements.entries()) {
+          const scope = r.inTarget ? target : r.inScope ? source.scope : "role:z";
+          const by = r.byAuthor ? author : r.actor;
+          const restatement = make(n, scope, by, content(r));
+          const { item: landed } = await store.write(
+            writer(by, scope, r.kind),
+            r.inTarget && source.class === "episodic"
+              ? ({ ...restatement, class: "semantic" } as MemoryItem)
+              : restatement,
+            at,
+          );
+          if (landed && r.retired)
+            appendEvent(db, {
+              id: `01950000-0000-7000-8000-0000000001${String(n).padStart(2, "0")}`,
+              ts: at,
+              op: "retire",
+              item_id: landed.id,
+              actor: by,
+              scope_from: null,
+              scope_to: scope,
+              decision: "allow",
+              reason: "a confirmer retired before the promotion",
+              policy_id: "test/retire",
+              schema_version: 0,
+            });
+        }
+        const when = addSeconds(at, after) as string;
+        const actor: Actor = {
+          id: promoter.id,
+          level: promoter.level,
+          memberships: [
+            ...new Set([...promoter.extra, ...(promoter.joins ? [source.scope, target] : [])]),
+          ],
+          ...(promoter.source ? { source: promoter.source } : {}),
+        };
+        const before = currentItems(db);
+        const retired = retiredByEvent(db);
+        const projected = before.find((i) => i.id === P_SOURCE_ID) as MemoryItem;
+        const log = allEvents(db);
+        const writes = log.flatMap((e) =>
+          e.op === "write" && e.decision === "allow" && e.item
+            ? [
+                {
+                  item_id: e.item.id,
+                  actor: e.actor,
+                  kind: e.item.provenance.kind,
+                  scope: e.item.scope,
+                  content: e.item.content,
+                },
+              ]
+            : [],
+        );
+        const logLength = plane.events().length;
+        const result = await plane.promote(actor, P_SOURCE_ID, target, when, {
+          review: promoter.review,
+        });
+        const added = plane.events().slice(logLength);
+        expect(added[0], "the decision is the first event the promotion appends").toEqual(
+          result.event,
+        );
+        expect(result.events).toEqual(added.slice(0, result.events.length));
+        for (const e of added) {
+          expect(e.reason).not.toBe("");
+          expect(e.policy_id).not.toBe("");
+        }
+        const shown = `${projected.class} ${projected.status} item of ${projected.owner} (${projected.provenance.kind}) in ${projected.scope}, promoted to ${target} by ${actor.id} (source ${actor.source ?? "none"}, member of [${actor.memberships.join(", ")}], review ${promoter.review}) after writes ${JSON.stringify(writes.map((w) => [w.actor, w.kind, w.scope, w.content]))} under ${JSON.stringify({ write: policy.write, promotion: policy.promotion })}: ${result.event.decision} ${result.event.policy_id} ${result.event.reason}`;
+
+        // The evidence counts the oracle reads, for the guards.
+        const sameText = writes.filter(
+          (w) => w.scope === projected.scope && sameStrictContent(w.content, projected.content),
+        );
+        const isActive = (id: string) =>
+          id === P_SOURCE_ID || before.find((i) => i.id === id)?.status === "active";
+        const activeTrustedActors = new Set(
+          sameText
+            .filter((w) => TRUSTED.includes(w.kind) && isActive(w.item_id))
+            .map((w) => w.actor),
+        ).size;
+        const k = policy.promotion.episodic_to_semantic.confirmations;
+        const trustedItems = new Set(
+          sameText.filter((w) => TRUSTED.includes(w.kind)).map((w) => w.item_id),
+        ).size;
+        const trustedActors = new Set(
+          sameText.filter((w) => TRUSTED.includes(w.kind)).map((w) => w.actor),
+        ).size;
+        const anyActors = new Set(sameText.map((w) => w.actor)).size;
+
+        if (result.decision === "deny" && result.event.policy_id === "engram/promote/expired")
+          seen.expired++;
+        if (result.event.policy_id === "engram/promote/widening-source") seen.wideningSource++;
+        if (result.event.policy_id === "engram/promote/duplicate") seen.duplicate++;
+        if (result.event.policy_id === "engram/promote/hidden-text") seen.hiddenText++;
+        // A grantee who reads it but is not a member: the named refusal (P5-15).
+        if (result.event.reason.includes("a grant lets others read an item")) seen.grantee++;
+        if (result.event.reason.includes("confirmed item")) seen.confirmerReview++;
+        if (
+          result.event.policy_id === "engram/promote/membership" &&
+          actor.memberships.includes(projected.scope)
+        )
+          seen.unreachable++;
+        if (
+          result.event.policy_id === "engram/promote/reviewer" &&
+          actor.id !== projected.owner &&
+          actor.id === author &&
+          actor.source === "user" &&
+          actor.memberships.includes(target)
+        )
+          seen.authorReview++;
+        // A promoter who cannot read the target gets a null item even when it
+        // lands (P5-7); what landed is the decision event's item.
+        if (result.decision !== "allow") {
+          expect(result.item).toBeNull();
+          expect(
+            currentItems(db),
+            `a promotion that did not land changed nothing: ${shown}`,
+          ).toEqual(before);
+          if (result.decision === "ask") seen.asked++;
+          const evidenceOnly =
+            result.event.policy_id === "engram/promote/no-evidence" &&
+            projected.class === "episodic" &&
+            !promoter.review;
+          if (evidenceOnly && trustedItems >= k && trustedActors < k) seen.sameActorOnly++;
+          if (evidenceOnly && anyActors >= k && trustedActors < k) seen.untrustedOnly++;
+          // Only confirmers retired since stood in the way (P5-17).
+          if (evidenceOnly && trustedActors >= k && activeTrustedActors < k) seen.retiredOnly++;
+          if (
+            result.event.policy_id === "engram/promote/reviewer" &&
+            actor.id === projected.owner &&
+            actor.source === "user" &&
+            actor.memberships.includes(target)
+          )
+            seen.ownerReview++;
+          if (/\/write\//.test(result.event.policy_id) && trustedActors >= k) seen.writeRule++;
+          return;
+        }
+        const landed = result.event.item as MemoryItem;
+        expect(result.item === null || result.item.id === landed.id).toBe(true);
+        expect(
+          promotionPermitted(policy, actor, P_SOURCE_ID, target, log, promoter.review, when),
+          `a promotion landed without the evidence ADR 0026 asks for: ${shown}`,
+        ).toBe(true);
+        const { source: _source, ...judged } = actor;
+        expect(
+          writeForbidden(policy, judged, landed, retired),
+          `a promotion landed an item a write could not: ${JSON.stringify(landed)}; ${shown}`,
+        ).toBe(false);
+        expect(
+          TRUST.indexOf(landed.provenance.kind),
+          `the promoted item is more trusted than its source: ${shown}`,
+        ).toBeGreaterThanOrEqual(TRUST.indexOf(projected.provenance.kind));
+        expect((await adapter.list(landed.scope)).map((i) => i.id)).toContain(landed.id);
+        seen[promoter.review ? "byReview" : "byConfirmation"]++;
+      },
+    ),
+    { numRuns: RUNS, seed: seedFor(name) },
+  );
+  expect(
+    Object.values(seen).every((n) => n > 0),
+    `invariant 2 over promotions needs landings by confirmation and by review, an ask, refusals where only the distinct-actor rule, only the trusted-kind rule, only retired confirmers, only the owner-as-reviewer rule or only the target's write rule stood in the way, and refusals by authorship, confirmation, expiry, hidden text, a widening's source, a duplicate, reach and a read grant; it saw ${JSON.stringify(seen)}`,
+  ).toBe(true);
+}
+
+/**
+ * The Plane's surface (2606.24535): every method is accounted for, and none
+ * hands an item to an actor who cannot read it. An item is held in a scope
+ * the outsider is not in; each method is called by the outsider with what it
+ * takes (the item's id where one is taken) and its result must not carry the
+ * item's content. `read` filters; `write` and `promote` return only the
+ * caller's own item; `events` is the audit log, which surfaces mirror to the
+ * session record and never pass to a model.
+ */
+async function planeSurfaceLeaksNothing() {
+  const SECRET = "the vault code is 4711";
+  const policy: Policy = {
+    ...ADMIT_ALL,
+    read: {
+      matrix: [{ reader: "person", may_read: ["person", "role", "team", "org"] }],
+      honour_grants: true,
+    },
+  };
+  const { plane } = freshPlane(policy);
+  expect(Object.keys(plane).sort(), "a new Plane method must be classified here").toEqual([
+    "checkWrite",
+    "distill",
+    "events",
+    "explain",
+    "lint",
+    "promote",
+    "read",
+    "recordBypass",
+    "retain",
+    "simulate",
+    "write",
+  ]);
+  const at = "2026-10-25T12:00:00Z";
+  const owner: Actor = {
+    id: "person:s",
+    level: "person",
+    memberships: ["person:s"],
+    source: "user",
+  };
+  const outsider: Actor = {
+    id: "person:o",
+    level: "person",
+    memberships: ["person:o", "team:b"],
+    source: "user",
+  };
+  const secret = {
+    id: "01960000-0000-7000-8000-000000000001",
+    class: "episodic",
+    scope: "person:s",
+    owner: "person:s",
+    content: SECRET,
+    provenance: { kind: "user", ref: "r", hash: `sha256:${"0".repeat(64)}`, actor: "person:s" },
+    confidence: 1,
+    valid_from: at,
+    valid_to: null,
+    ttl: null,
+    grants: [],
+    version: 1,
+    lineage: [],
+    status: "active",
+    store_ref: null,
+    schema_version: 0,
+  } as MemoryItem;
+  expect((await plane.write(owner, secret, at)).item).not.toBeNull();
+  const { event: ownRead } = await plane.read(owner, { text: "vault", at });
+  const leaks = (label: string, value: unknown) =>
+    expect(
+      JSON.stringify(value) ?? "",
+      `${label} carries an item the caller cannot read`,
+    ).not.toContain("vault");
+  const rejection = (p: Promise<unknown>) =>
+    p.then(
+      () => undefined,
+      (e: unknown) => e,
+    );
+
+  const claim = { ...secret, scope: "person:o", owner: "person:o", content: "mine" } as MemoryItem;
+  const written = await plane.write(outsider, claim, at);
+  leaks("write", written);
+  expect(written.item).toBeNull();
+  leaks("checkWrite", await plane.checkWrite(outsider, claim, at));
+  const read = await plane.read(outsider, { text: "vault", at });
+  leaks("read", read);
+  const promoted = await plane.promote(outsider, secret.id, "team:b", at, { review: true });
+  leaks("promote", promoted);
+  expect(promoted.item).toBeNull();
+  // A member of the item's scope and the target, not its owner, whose level
+  // has no read matrix row: it cannot read the item, so it learns nothing
+  // (review finding P5-7).
+  const blind: Actor = {
+    id: "person:b",
+    level: "org",
+    memberships: ["person:s", "team:b"],
+    source: "user",
+  };
+  const blindly = await plane.promote(blind, secret.id, "team:b", at, { review: true });
+  leaks("promote by a member who cannot read", blindly);
+  expect(blindly.item).toBeNull();
+  leaks("retain", await plane.retain(outsider, "person:s", at));
+  leaks(
+    "recordBypass",
+    await plane.recordBypass(outsider, { command: "cat x", store: "files" }, at),
+  );
+  expect(await rejection(plane.explain(outsider, ownRead.id))).toBeInstanceOf(ExplainDeniedError);
+  for (const call of [
+    () => plane.lint("person:s"),
+    () => plane.simulate({ id: "w", events: [] }, policy),
+    () => plane.distill([], { id: "awm", model: "scripted/none", seed: 1 }),
+  ])
+    expect(
+      await rejection(call()),
+      "an unimplemented method must be classified when it lands",
+    ).toBeInstanceOf(NotImplementedYet);
+
+  // What write and promote return is the caller's own item.
+  const mine = { ...claim, id: "01960000-0000-7000-8000-000000000002" } as MemoryItem;
+  expect((await plane.write(outsider, mine, at)).item?.id).toBe(mine.id);
+  const lifted = await plane.promote(owner, secret.id, "person:s", at, { review: false });
+  expect(lifted.decision).toBe("allow");
+  expect(lifted.item?.lineage[0]).toBe(secret.id);
+}

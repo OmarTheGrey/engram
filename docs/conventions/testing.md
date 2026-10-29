@@ -13,7 +13,7 @@ Every change lands in the lowest layer that can catch its failure. A PR says whi
 | 3 replay | an event log replays to the same state; a state produces the same explanation; golden session fixtures replay through the plane to the same decisions | vitest | `packages/core/test/replay/`, fixtures in `fixtures/` | under 60 s |
 | 4 conformance | every adapter against the Adapter contract, first on the in-memory fake, then on the real store in a CI service container | vitest | `packages/adapters/test/conformance/` | under 5 min |
 | 5 harness | the pi extension inside a real pi SDK session with an in-memory session manager and a scripted model: writes are gated, reads are filtered, events are mirrored, bash bypasses are blocked | vitest | `packages/pi-extension/test/` | under 3 min |
-| 6 end to end | `docker compose up`, `engram doctor`, CLI smoke, MCP server handshake from a Claude Code and a Codex fixture | shell + vitest | `test/e2e/` | under 10 min, on main and nightly |
+| 6 end to end | `engram doctor` and a CLI smoke on SQLite and on embedded Postgres, MCP server handshake from a Claude Code and a Codex fixture; no Docker (Postgres from the embedded-postgres package, card E1.1) | vitest (`make test-e2e`, its own config) | `test/e2e/` | under 10 min, on main and nightly |
 | 7 benchmark fixture | each benchmark runner on a fixed subset of about 20 items, scripted model, cached; asserts the pipeline, not the score | vitest | `packages/bench/test/` | under 5 min |
 | 8 reproducibility | every `research/scripts/<name>.py` regenerates its results file from its config and the hash matches `MANIFEST.md`; analysis on synthetic data with a known effect recovers it | pytest | `research/tests/` | under 10 min, nightly |
 
@@ -27,6 +27,9 @@ CI runs layers 1 to 5 and 7 on every PR, 6 and 8 on main and nightly. A PR that 
 - `Plane.write(actor, item)` never lands an item in a scope whose policy forbids its class or its source.
 - Every denied read or write produced exactly one event with a reason and a policy id.
 - Replaying the events produced by any sequence of writes yields the same store state and the same read results.
+- After any write sequence no scope holds more active items of a class, not past their ttl, than its recency or utility budget; each write's and each sweep's retirements are exactly the oracle's (a manual rule asks once per overage state); every retire or evict event carries a reason and a policy id, and replay reproduces them (card E2.4, ADR 0025).
+
+Invariant 1's oracle also excludes an item past its ttl, and invariant 2's forbids a model, compaction or tool write restating content an allowed retire or evict event retired in its scope (ADR 0025). Invariant 2 also runs promotions (card E2.5, ADR 0026): one that lands was asked for by an actor who can read the item and is a member of its scope (or its owner in the owner's person scope: a read grant never moves an item), of an item not retired, not past its ttl and free of hidden characters, by a user-sourced actor when the scope changes, with no active item of the promoted class already holding the content in the target, and with the evidence ADR 0026 asks for (k distinct actors with trusted sources among items still active, or a reviewer who is user-sourced, a member of the target, not the owner, not an author of any version and not a confirmer); its item is one a write could land in the target. The oracle judges all of this from its own scan of the events. Invariant 1 also checks that no Plane method other than `read` hands an item to an actor who cannot read it, a promoter included.
 
 This file is owned by the lead. Changing it needs a second reviewer and a `decision` log entry. It never has a skip.
 

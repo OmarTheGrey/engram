@@ -2,7 +2,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, test } from "vitest";
-import { MIGRATIONS, migrate } from "../../../src/db/migrate.ts";
+import { MIGRATIONS, migrate, migrationText } from "../../../src/db/migrate.ts";
 import { openSqlite } from "../../../src/db/sqlite.ts";
 
 test("applies every migration once, in order, and records it", () => {
@@ -74,4 +74,12 @@ test("two connections to one file share a dense sequence", () => {
   ).toEqual([0, 1, 2, 3]);
   a.close();
   b.close();
+});
+
+test("a migration's text is shared, or chosen by the backend's dialect", () => {
+  const shared = { id: 1, name: "shared", up: "CREATE TABLE a (x INTEGER)" };
+  const split = { id: 2, name: "split", up: { sqlite: "SQLITE TEXT", postgres: "POSTGRES TEXT" } };
+  expect(migrationText(shared, "postgres")).toBe(shared.up);
+  expect(migrationText(split, "sqlite")).toBe("SQLITE TEXT");
+  expect(migrationText(split, "postgres")).toBe("POSTGRES TEXT");
 });

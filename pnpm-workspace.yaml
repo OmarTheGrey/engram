@@ -8,3 +8,10 @@ allowBuilds:
   # Native SQLite binding behind mem0ai's local vector store (packages/adapters, card A1).
   # Its install script fetches a prebuilt binary, or compiles one with node-gyp.
   better-sqlite3: true
+  # Postgres binaries for tests (embedded-postgres, card E1.1). The install script only
+  # recreates the shared-library symlinks the tarball cannot carry; Linux needs them.
+  "@embedded-postgres/linux-x64": true
+  "@embedded-postgres/windows-x64": true
+  "@embedded-postgres/darwin-arm64": true
+  "@embedded-postgres/darwin-x64": true
+  "@embedded-postgres/linux-arm64": true

@@ -51,6 +51,26 @@ function item(
   } as MemoryItem;
 }
 
+/**
+ * The one-sided Wilson score upper bound, at alpha 0.05 (z = 1.6449), on the
+ * failure rate of a procedure that passed `k` of `n` replays (SKILL.nb,
+ * 2606.08049): what replay_k of replay_n implies about failure.
+ */
+function wilsonUpperFailure(k: number, n: number): number {
+  const z = 1.6448536269514722;
+  const p = (n - k) / n;
+  const z2 = z * z;
+  const centre = p + z2 / (2 * n);
+  const spread = z * Math.sqrt((p * (1 - p)) / n + z2 / (4 * n * n));
+  return (centre + spread) / (1 + z2 / n);
+}
+
+test("the Wilson bounds the presets state are 0.35, 0.56 and 0.73 for 5, 4 and 3 of 5", () => {
+  expect(wilsonUpperFailure(5, 5)).toBeCloseTo(0.3511, 4);
+  expect(wilsonUpperFailure(4, 5)).toBeCloseTo(0.5647, 4);
+  expect(wilsonUpperFailure(3, 5)).toBeCloseTo(0.7275, 4);
+});
+
 const ruleFor = (p: Policy, level: ScopeLevel) => p.write.find((r) => r.scope === level);
 const mayRead = (p: Policy, level: ScopeLevel) =>
   p.read.matrix.find((r) => r.reader === level)?.may_read ?? [];
@@ -160,6 +180,20 @@ describe.each(PRESETS)("preset %s", (name: PresetName) => {
     expect(header).toMatch(/C5 runs the write gate and the read filter only/);
     expect(header).toMatch(/proposed values/);
     expect(header).not.toMatch(/promoted through review/);
+  });
+
+  test("its comment states the Wilson bound on failure its replay_k of replay_n implies (ADR 0026)", () => {
+    const { replay_k: k, replay_n: n } = policy.promotion.procedural;
+    const bound = wilsonUpperFailure(k, n).toFixed(2);
+    const header = readFileSync(presetUrl(name), "utf8")
+      .split("\n")
+      .filter((l) => l.startsWith("#"))
+      .map((l) => l.replace(/^#\s?/, ""))
+      .join(" ");
+    expect(header).toContain(
+      `Here ${k} of ${n} bounds the procedure's failure rate at ${bound}, the one-sided Wilson upper bound at alpha 0.05`,
+    );
+    expect(header).toMatch(/confirmations, replay_k and replay_n numbers are proposed values/);
   });
 
   test("declares retention for person-scope episodic memory (ADR 0010)", () => {

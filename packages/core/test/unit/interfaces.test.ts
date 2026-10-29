@@ -176,10 +176,7 @@ describe("fakes", () => {
       policy: POLICY,
       newId: () => id(++n),
     });
-    const actor = { id: "agent:pi", level: "person" as const, memberships: ["person:omar"] };
-    const at = "2026-10-25T09:00:00Z";
     const pending: [string, string, () => Promise<unknown>][] = [
-      ["promote", "E2.5", () => plane.promote(actor, id(1), "org", at)],
       ["lint", "L1", () => plane.lint("team:a")],
       ["simulate", "E8.9", () => plane.simulate({ id: "w", events: [] }, POLICY)],
       ["distill", "D2", () => plane.distill([SESSION], AWM)],

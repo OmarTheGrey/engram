@@ -46,9 +46,10 @@ fixtures/                 sessions, stores, faults, cassettes; regenerated only 
 ```
 pnpm install && uv sync        once, after clone
 make test                      vitest (core, adapters, conformance on fakes, replay-from-events) and pytest (research)
+                               core's Db tests also run on a throwaway embedded Postgres (no Docker); ENGRAM_PG_URL=<url> uses a server you name, ENGRAM_PG=skip skips them
 make test-one T=<path>         one test file, with its seed printed
-make test-invariants           the four invariants against the real Plane, with counterexample and seed; all pass since E2.2 and E2.3 (issue #1)
-make api                       regenerate sdk/schema (JSON Schema) and research/engram_types (Python) from the Zod schema; later also OpenAPI and the clients
+make test-invariants           the five invariants against the real Plane, with counterexample and seed; the fifth (retention budgets) since E2.4
+make api                       regenerate sdk/schema (JSON Schema) and research/engram_types (Python) from the Zod schema, and the provider key names doctor checks from pi-ai; later also OpenAPI and the clients
 make api-check                 make api, then fail if the generated files differ from what is committed
 make bench BENCH=gatemem       run one benchmark on its fixture subset offline: scripted model, committed cassettes (a miss is an error, never recorded into them), output in .engram/bench/<name>; gatemem only so far
 make bench BENCH=gatemem DRY=1 the live GateMem run counted on the full checkpoint set, no model called: its calls and prompt size (fetches the pinned data once into .engram/upstream); add MODEL=<provider/model-id> (and SEED=) to also list its cache keys for that model, never printed without it
@@ -56,10 +57,10 @@ make run CONFIG=<file>         replay a runner config: each (item, condition, se
 make lint                      biome, tsc, ruff, mypy; CI runs the same
 make lint-docs                 log entry frontmatter, em dashes in prose, CLAUDE.md equals AGENTS.md
 make lint-docs PR=<dir>        the PR gate on a PR directory (body.md, files.txt); fixtures in fixtures/ci/
-engram doctor                  db (never created by doctor), policy, store root, adapters; provider keys (E0.4) and benchmark pins not checked yet
-engram read --root <dir> --owner <id>   a memory folder through the plane, adopted as its owner, every item explained; the log defaults to <home>/.engram/engram.db; engram --help lists the rest
+engram doctor                  log and its backend (never created by doctor), policy, store root, files and Mem0 adapters through the plane, provider keys by name only, benchmark pins and fixture hashes, the pi pin against docs/deps.md, Node 24 or later
+engram read --root <dir> --owner <id>   a memory folder through the plane, adopted as its owner, every item explained; the log is --db, else ENGRAM_DB_URL, else <home>/.engram/engram.db; engram --help lists the rest
 make engram ARGS="<command> ..."   run the engram CLI from the repo (node packages/cli/src/main.ts)
-make test-e2e                  compose, doctor, CLI smoke, MCP handshakes
+make test-e2e                  layer 6: engram doctor, then a CLI smoke (write, read, explain) on a temp folder, on SQLite and on embedded Postgres; no Docker anywhere (MCP handshakes join with E8.4)
 make test-repro                every research script regenerates its result; hashes match MANIFEST.md
 make fixtures                  regenerate golden files and record scripted cassettes afresh; refuses without a message
 make thesis                    consolidate docs/log into research/thesis/drafts/ (ROOT=, OUT= to run on fixtures/log/repo)

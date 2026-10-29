@@ -1,20 +1,22 @@
-// The commands that call the Plane: read, write, explain, doctor. Each builds
+// The commands that call the Plane: read, write, promote, explain (doctor
+// is in ./doctor.ts). Each builds
 // the log, policy, actor and store, makes its Plane call, and prints the
 // result. The Plane makes every decision; nothing here is a policy `if`.
 // Every id comes from the Io (`io.newId`), so a run with a fixed Io is
 // reproducible.
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync } from "node:fs";
-import { access, constants, stat } from "node:fs/promises";
+import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { type ParseArgsConfig, parseArgs } from "node:util";
 import {
   type Actor,
   adoptStoreItems,
   createPlane,
+  Id,
   type MemoryItem,
   type Plane,
   type PlaneDeps,
+  Scope,
 } from "@engram/core";
 import { decisionLines, explanationLines, plural, preview } from "./format.ts";
 import type { Io } from "./run.ts";
@@ -23,9 +25,9 @@ import {
   buildActor,
   checkNumber,
   checkTime,
+  dbTarget,
   type Log,
   loadPolicy,
-  logPath,
   MEMORY_DB,
   NO_STORE,
   openLog,
@@ -36,7 +38,7 @@ import { openStore, type Store } from "./store.ts";
 
 type Options = NonNullable<ParseArgsConfig["options"]>;
 
-const STORE_OPTIONS = {
+export const STORE_OPTIONS = {
   store: { type: "string" },
   root: { type: "string" },
   owner: { type: "string" },
@@ -64,7 +66,7 @@ const WRITE_OPTIONS = {
   "valid-to": { type: "string" },
 } satisfies Options;
 
-function parse<O extends Options>(args: string[], options: O, positionals: boolean) {
+export function parse<O extends Options>(args: string[], options: O, positionals: boolean) {
   try {
     return parseArgs({ args, options, allowPositionals: positionals, strict: true });
   } catch (e) {
@@ -104,7 +106,7 @@ function openSession(
     (p) => resolve(io.cwd, p),
   );
   const actor = makeActor();
-  const log = openLog(flags.db, io.cwd, io.home);
+  const log = openLog(dbTarget(flags.db, io));
   const deps: PlaneDeps = { db: log.db, adapter: store.adapter, policy, newId: io.newId };
   return {
     log,
@@ -116,12 +118,25 @@ function openSession(
   };
 }
 
-const logHint = (log: Log, readId?: string) =>
-  log.path === MEMORY_DB
-    ? "log in memory; pass --db <path> to keep it for engram explain"
-    : readId
-      ? `log ${log.path}; engram explain ${readId} --db ${log.path}`
-      : `log ${log.path}`;
+/**
+ * Where the log is, and after a read the explain command that finds it: with
+ * no --db when the log came from ENGRAM_DB_URL or the default (the same
+ * lookup finds it again), with the path for a SQLite --db, and never with a
+ * redacted URL that looks runnable but is not.
+ */
+function logHint(log: Log, readId?: string): string {
+  const t = log.target;
+  if (t.backend === "sqlite" && t.path === MEMORY_DB)
+    return "log in memory; pass --db <path> to keep it for engram explain";
+  if (readId === undefined) return `log ${t.label}`;
+  const db =
+    t.source !== "flag"
+      ? ""
+      : t.backend === "sqlite"
+        ? ` --db ${t.path}`
+        : " --db <the same postgres URL>";
+  return `log ${t.label}; engram explain ${readId}${db}`;
+}
 
 export async function readCommand(args: string[], io: Io): Promise<number> {
   const { values, positionals } = parse(args, { ...STORE_OPTIONS, ...ACTOR_OPTIONS }, true);
@@ -129,21 +144,19 @@ export async function readCommand(args: string[], io: Io): Promise<number> {
   const s = openSession(io, values, () => buildActor(values, values.owner));
   const { actor } = s;
   try {
-    // The folder's own memories are adopted as its owner (decision D8);
-    // openStore has required --owner.
-    const imported = await adoptStoreItems(
-      s.deps,
-      storeOwner(values.owner as string),
-      s.store.scope,
-      at,
-    );
+    // Retention runs first, as the folder's owner (ADR 0025): the plane has
+    // no clock, so the surface sweeps; then the folder's own memories are
+    // adopted as its owner (decision D8). openStore has required --owner.
+    const owner = storeOwner(values.owner as string);
+    const retention = await s.plane.retain(owner, s.store.scope, at);
+    const imported = await adoptStoreItems(s.deps, owner, s.store.scope, at);
     const text = positionals.join(" ") || undefined;
     const result = await s.plane.read(actor, { text, at });
     const readId = result.event.id;
     const rows = result.items.map((item, i) => ({ item, explanation: result.explanations[i] }));
 
     if (values.json) {
-      const { denials: _d, retirements: _r, ...counts } = imported;
+      const { denials: _d, retirements: _r, evictions: _e, ...counts } = imported;
       io.out(
         `${JSON.stringify(
           {
@@ -152,14 +165,32 @@ export async function readCommand(args: string[], io: Io): Promise<number> {
             actor,
             policy: s.policyLabel,
             store: { name: s.store.name, root: s.store.root },
+            retention: {
+              expired: retention.expired,
+              evicted: retention.evicted,
+              events: retention.events.map((e) => ({
+                op: e.op,
+                decision: e.decision,
+                item_id: e.item_id,
+                reason: e.reason,
+                policy_id: e.policy_id,
+              })),
+            },
             imported: counts,
             denials: imported.denials,
             retirements: imported.retirements,
+            evictions: imported.evictions.map((e) => ({
+              op: e.op,
+              decision: e.decision,
+              item_id: e.item_id,
+              reason: e.reason,
+              policy_id: e.policy_id,
+            })),
             returned: result.items.length,
             filtered: result.filtered,
             reason: result.event.reason,
             items: rows,
-            log: s.log.path,
+            log: s.log.target.label,
           },
           null,
           2,
@@ -171,10 +202,18 @@ export async function readCommand(args: string[], io: Io): Promise<number> {
     const lines = [
       `read ${readId} at ${at} as ${actor.id} (${actor.level}) under ${s.policyLabel}`,
       `store ${s.store.name} at ${s.store.root}`,
+      `retention: ${retention.expired.length} expired, ${retention.evicted.length} evicted`,
+      ...retention.events.map(
+        (e) => `  ${e.op} ${e.decision} ${e.item_id ?? "(no item)"}: ${e.reason} (${e.policy_id})`,
+      ),
       `imported ${imported.allowed + imported.denied} of ${plural(imported.listed, "memory", "memories")}: ` +
         `${imported.allowed} allowed, ${imported.denied} denied, ${imported.unchanged} already in the log`,
       ...imported.denials.map((d) => `  denied ${d.item_id}: ${d.reason} (${d.policy_id})`),
       ...imported.retirements.map((r) => `  retired ${r.item_id}: ${r.reason}`),
+      ...imported.evictions.map(
+        (e) =>
+          `  ${e.decision === "ask" ? "asked" : "evicted"} ${e.item_id ?? "(no item)"} during adoption: ${e.reason} (${e.policy_id})`,
+      ),
       `${plural(result.items.length, "item")} returned, ${result.filtered} filtered`,
       `  ${result.event.reason}`,
     ];
@@ -257,6 +296,50 @@ export async function writeCommand(args: string[], io: Io): Promise<number> {
   }
 }
 
+/**
+ * `engram promote <item-id> --to <scope> [--review]`: one Plane.promote call
+ * as a user-sourced actor (ADR 0026: only a user-sourced actor can approve).
+ * Exit 0 when the promotion landed, 1 on deny or ask.
+ */
+export async function promoteCommand(args: string[], io: Io): Promise<number> {
+  const { values, positionals } = parse(
+    args,
+    { ...STORE_OPTIONS, ...ACTOR_OPTIONS, to: { type: "string" }, review: { type: "boolean" } },
+    true,
+  );
+  const [itemId, ...rest] = positionals;
+  if (itemId === undefined || rest.length > 0)
+    throw new UsageError("give exactly one item id: engram promote <item-id> --to <scope>");
+  if (!Id.safeParse(itemId).success) throw new UsageError(`${itemId} is not an item id (a UUIDv7)`);
+  if (values.to === undefined) throw new UsageError("give the target scope with --to <scope>");
+  if (!Scope.safeParse(values.to).success)
+    throw new UsageError(
+      `--to ${values.to} is not a scope (person:<id>, role:<id>, team:<id> or org)`,
+    );
+  const at = checkTime("--at", values.at) ?? io.now();
+  const actor = buildActor(values, values.owner, "user");
+  const s = openSession(io, values, () => actor);
+  try {
+    const result = await s.plane.promote(actor, itemId, values.to, at, {
+      review: values.review === true,
+    });
+    if (values.json) {
+      const { decision, event, events, item } = result;
+      io.out(`${JSON.stringify({ decision, event, events, item }, null, 2)}\n`);
+    } else {
+      const lines = decisionLines(result.event, result.item);
+      for (const e of result.events.slice(1))
+        lines.push(
+          `  ${e.op} ${e.decision} ${e.item_id ?? "(no item)"}: ${e.reason} (${e.policy_id})`,
+        );
+      io.out(`${[...lines, logHint(s.log)].join("\n")}\n`);
+    }
+    return result.decision === "allow" ? 0 : 1;
+  } finally {
+    s.log.db.close();
+  }
+}
+
 export async function explainCommand(args: string[], io: Io): Promise<number> {
   const { values, positionals } = parse(
     args,
@@ -276,7 +359,7 @@ export async function explainCommand(args: string[], io: Io): Promise<number> {
     throw new UsageError("give exactly one read id: engram explain <readId>");
   // Only the actor who made the read may explain it (decision D5).
   const actor = buildActor(values, values.owner);
-  const log = openLog(values.db, io.cwd, io.home, true);
+  const log = openLog(dbTarget(values.db, io), true);
   try {
     const policy = loadPolicy(values.policy, io.cwd);
     const plane = createPlane({ db: log.db, adapter: NO_STORE, policy, newId: io.newId });
@@ -293,79 +376,4 @@ export async function explainCommand(args: string[], io: Io): Promise<number> {
   } finally {
     log.db.close();
   }
-}
-
-type Status = "ok" | "fail" | "skip";
-interface Check {
-  status: Status;
-  name: string;
-  detail: string;
-}
-
-const firstLines = (e: unknown) => (e as Error).message.split("\n").join("; ");
-
-export async function doctorCommand(args: string[], io: Io): Promise<number> {
-  const { values } = parse(
-    args,
-    {
-      db: STORE_OPTIONS.db,
-      policy: STORE_OPTIONS.policy,
-      root: STORE_OPTIONS.root,
-      json: STORE_OPTIONS.json,
-    },
-    false,
-  );
-  const checks: Check[] = [];
-  const check = async (name: string, fn: () => [Status, string] | Promise<[Status, string]>) => {
-    try {
-      const [status, detail] = await fn();
-      checks.push({ status, name, detail });
-    } catch (e) {
-      checks.push({ status: "fail", name, detail: firstLines(e) });
-    }
-  };
-
-  await check("db", () => {
-    // Doctor never creates a log: a missing one is reported, not made.
-    const path = logPath(values.db, io.cwd, io.home);
-    if (path !== MEMORY_DB && !existsSync(path))
-      return ["ok", `${path}: no log yet; the first read or write creates it`];
-    const log = openLog(values.db, io.cwd, io.home, true);
-    log.db.close();
-    const state =
-      log.applied.length > 0 ? `migrations ${log.applied.join(", ")} applied` : "up to date";
-    return ["ok", `${log.path}: opens; ${state}`];
-  });
-  await check("policy", () => {
-    const p = loadPolicy(values.policy, io.cwd);
-    return ["ok", `${p.id} v${p.version} loads and validates`];
-  });
-  await check("store", async () => {
-    if (values.root === undefined) return ["skip", "no --root given"];
-    // The folder itself only: its memories are listed by the adapter, through
-    // the plane, when engram read adopts them.
-    const root = resolve(io.cwd, values.root);
-    if (!(await stat(root)).isDirectory()) return ["fail", `${root} is not a folder`];
-    await access(root, constants.R_OK);
-    return ["ok", `${root} is a readable folder`];
-  });
-  await check("adapter files", () => ["ok", "opens a Claude Code memory folder (card A3)"]);
-  await check("adapter mem0", () => [
-    "skip",
-    "built (card A1); the CLI does not open it yet, it needs an embedding model wired at the surface",
-  ]);
-  await check("adapter letta", () => ["skip", "not implemented yet (card A2)"]);
-  await check("provider keys", () => ["skip", "not checked yet (card E0.4)"]);
-  await check("benchmark pins", () => ["skip", "not checked; no card checks them yet"]);
-
-  const failed = checks.filter((c) => c.status === "fail").length;
-  if (values.json) io.out(`${JSON.stringify({ checks, failed }, null, 2)}\n`);
-  else {
-    const lines = checks.map((c) => `${c.status.padEnd(5)}${c.name.padEnd(16)}${c.detail}`);
-    lines.push(
-      failed === 0 ? "doctor: all checks passed" : `doctor: ${plural(failed, "check")} failed`,
-    );
-    io.out(`${lines.join("\n")}\n`);
-  }
-  return failed === 0 ? 0 : 1;
 }

@@ -91,6 +91,8 @@ Store commands are blocked in pi's `user_bash` and `tool_call` handlers wherever
 
 `candidate` to `active` to `retired` for every class. Procedural items are admitted only after replay validation passes k of n runs on held-out tasks (outcome checked, not completion); active skills carry a smoothed success rate; a drop below threshold, a changed environment hash, or a human rejection (which narrows the trigger) retires them. Retention budgets trigger `retire` events; hard deletion exists only for person-scope erasure and emits a deletion report. Retired items stay replayable and can be reinstated by event (ADR 0010, 0011).
 
+Retention (card E2.4, ADR 0025): the pure `evaluateRetention` decides; an item past its ttl (the tighter of its own and its rule's) is excluded at read at once (`engram/read/ttl`, counted in `filtered`) and retired by the next sweep with op `retire`; a budget overage is evicted with op `evict` in the rule's order (recency by last change, utility by how often reads returned the item, manual asks with one `evict` event of decision `ask`). `Plane.retain(actor, scope, at)` sweeps one scope as a member of it, in the write queue; it retires by ttl only in the actor's own person scope or for a user-sourced actor, so one skewed clock cannot retire shared memory. The write path runs the budget check of the written scope and class in the landing write's own queue slot, never evicting the item just written and counting no item past its ttl, and returns its events in `WriteResult.retention`. Reasons name no item to an actor who cannot read the scope. Utility counts explanation rows, which the log does not hold, so a utility eviction replays as an event but cannot be re-decided from the log. The pi extension sweeps after an allowed write and at `before_agent_start` for the session's scopes, and `engram read` before adoption; nothing runs on a timer. A `model`, `compaction` or `tool` write restating content an allowed retire or evict event retired in its scope is denied (`engram/write/retired-content`, by the normalised content hash of packages/core/src/content-hash.ts); a user, document or import write may re-admit it. The store is never written or deleted by retention.
+
 ## Model access
 
 `packages/core` has no import from pi-ai. Model-based lints and the distiller receive a `ModelCall` injected at the boundary; inside pi it is built on the session's model runtime, in the runner it is scripted or cassette-backed. Every call is seeded, cached on (benchmark item, condition, preset, store, model, seed, prompt hash), and metered into a usage ledger (UsageRecord per call) that the runner writes to `usage.json` beside its results; it is not in the event log yet (ADR 0017).
@@ -106,7 +108,8 @@ Adapter
 Plane
   write(actor, itemIn, at) -> WriteResult    policy and provenance, then the adapter, then the event carrying store_ref; at is the injected time
   read(actor, query) -> ReadResult           search in readable member scopes, match granted items, filter, explanation, event
-  promote(actor, itemId, toScope, at) -> GateResult
+  promote(actor, itemId, toScope, at, {review?}) -> GateResult   evidence from the log, judged as a write into toScope; new version or in place (ADR 0026)
+  retain(actor, scope, at) -> RetentionReport  expiry then budgets over one scope, as a member, in the write queue (ADR 0025)
   lint(scope) -> Finding[]
   simulate(workload, policy) -> SimReport    replays a recorded workload or a pi session under a policy; zero model calls
   distill(sessions, method) -> MemoryItem[]  candidate procedural items
@@ -126,7 +129,7 @@ See `AGENTS.md` for the authoritative map. In short: `packages/core` (plane, no 
 
 ## Open items this file does not settle
 
-- Calling context as a policy input (MemOS has it; see the literature review synthesis and ADR 0006).
+- Calling context as a policy input: absent in v1, justified in ADR 0006's amendments (the harness enters through `actor.source` and memberships); a per-tool context is v2 with a policy language.
 - Whether the distiller stores strategies as well as procedures (ADR 0012 says procedures only in v1).
 - Postgres: the `Db` interface is designed for the swap; nothing is built for it yet.
 - Cedar or another policy language: noted as v2 in ADR 0006.

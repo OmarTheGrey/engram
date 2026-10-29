@@ -17,7 +17,7 @@ test: ## layers 1 to 5 and 7 (vitest) and research tests (pytest)
 	$(PNPM) exec vitest run
 	$(UV) run pytest research || [ $$? -eq 5 ]
 
-test-invariants: ## the four invariants against the real Plane, with counterexample and seed (issue #1)
+test-invariants: ## the five invariants against the real Plane, with counterexample and seed (issue #1)
 	ENGRAM_INVARIANTS=1 $(PNPM) --filter core exec vitest run test/property/invariants.test.ts
 
 test-one: ## one test file with its seed printed: make test-one T=<path>
@@ -39,21 +39,27 @@ else
 	node scripts/check-log.ts
 endif
 
-test-e2e: ## stub: layer 6, compose, doctor, CLI smoke, MCP handshakes
-	@echo "test-e2e: not implemented yet (layer 6 lands with the surfaces cards)"; exit 2
+test-e2e: ## layer 6: engram doctor and a CLI smoke (write, read, explain) on SQLite and embedded Postgres; no Docker
+	$(PNPM) exec vitest run --config test/e2e/vitest.config.ts
 
 test-repro: ## stub: layer 8, every research script regenerates its result
 	@echo "test-repro: not implemented yet (layer 8 lands with the first research script)"; exit 2
 
-api: ## regenerate sdk/schema (JSON Schema) and research/engram_types (Python) from packages/core/src/schema.ts
+api: ## regenerate sdk/schema and research/engram_types from packages/core/src/schema.ts, and the provider key names from pi-ai
 	node packages/core/scripts/export-schema.ts sdk/schema
 	rm -rf research/engram_types
 	$(UV) run datamodel-codegen --input sdk/schema --input-file-type jsonschema 	  --output research/engram_types --output-model-type typing.TypedDict 	  --target-python-version 3.12 --use-standard-collections --use-union-operator 	  --use-title-as-name --disable-timestamp --formatters ruff-format
 	find research/engram_types -name '*.py' -exec sed -i 's/\r$$//' {} +
+	node packages/runner/scripts/provider-keys.ts
+	$(PNPM) exec biome format --write $(PROVIDER_KEYS) > /dev/null
+
+# The provider key names engram doctor checks, generated from pi-ai by the runner (the CLI never imports pi-ai).
+PROVIDER_KEYS := packages/runner/src/model/provider-keys.json
+GENERATED := sdk research/engram_types $(PROVIDER_KEYS)
 
 api-check: api ## fail if generated contracts differ from what is committed
-	@git diff --exit-code -- sdk research/engram_types
-	@[ -z "$$(git status --porcelain -- sdk research/engram_types)" ] || { git status --short -- sdk research/engram_types; echo "api-check: untracked generated files"; exit 1; }
+	@git diff --exit-code -- $(GENERATED)
+	@[ -z "$$(git status --porcelain -- $(GENERATED))" ] || { git status --short -- $(GENERATED); echo "api-check: untracked generated files"; exit 1; }
 
 BENCH_OUT ?= .engram/bench/$(BENCH)
 
@@ -82,7 +88,7 @@ RUNNER_FIXTURES := rn1-gatemem-probe
 fixtures: ## regenerate golden files and scripted cassettes; refuses without MSG=<reason>, which goes in the commit message
 	@[ -n "$(MSG)" ] || { echo "fixtures: refusing without MSG=<reason>"; exit 2; }
 	$(UV) run python research/scripts/consolidate_log.py --root fixtures/log/repo --out fixtures/log/expected
-	ENGRAM_UPDATE_FIXTURES=1 $(PNPM) --filter pi-extension exec vitest run test/interception.test.ts
+	ENGRAM_UPDATE_FIXTURES=1 $(PNPM) --filter pi-extension exec vitest run test/interception.test.ts test/retention.test.ts
 	env -u ENGRAM_OFFLINE node packages/bench/scripts/run-gatemem.ts --config fixtures/bench/gatemem/run-config.json --out .engram/bench/gatemem-record --record
 	for name in $(RUNNER_FIXTURES); do \
 	  rm -rf "fixtures/cassettes/$$name"; \

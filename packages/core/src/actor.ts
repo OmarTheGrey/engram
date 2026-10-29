@@ -3,7 +3,7 @@
 // an actor is supplied by the harness on every call and is never stored apart
 // from its id, which every event carries.
 import { z } from "zod";
-import { Principal, ProvenanceKind, ScopeLevel } from "./schema.ts";
+import { Principal, ProvenanceKind, ScopeLevel, Timestamp } from "./schema.ts";
 
 /** Who is asking, and in which capacity. */
 export interface Actor {
@@ -43,6 +43,19 @@ export class InvalidCallError extends Error {
     super(message);
     this.name = "InvalidCallError";
   }
+}
+
+/** Refuses a call whose actor or time no event could carry (decision D6). */
+export function checkCall(actor: unknown, at: unknown, method: string): void {
+  const a = ActorShape.safeParse(actor);
+  if (!a.success)
+    throw new InvalidCallError(
+      `Plane.${method}: invalid actor: ${a.error.issues.map((i) => `${i.path.join(".") || "actor"}: ${i.message}`).join("; ")}`,
+    );
+  if (!Timestamp.safeParse(at).success)
+    throw new InvalidCallError(
+      `Plane.${method}: invalid time ${JSON.stringify(at)}; expected a UTC ISO 8601 timestamp with a Z`,
+    );
 }
 
 /** `explain` called by an actor other than the one who made the read (decision D5). */

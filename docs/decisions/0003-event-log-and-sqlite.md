@@ -22,6 +22,10 @@ Amendments made in the review fix pass, 2026-10-25 (PR #6, findings R6-8 and R6-
 - Decision D9: the CLI's default event log is per user, `<home>/.engram/engram.db`, not `.engram/engram.db` under the working directory, so dogfood content never lands inside a repository by default (AGENTS.md rule 12). The home folder comes from the CLI's Io (injected in tests); `--db` still overrides, and `engram doctor` never creates a log.
 - The CLI takes every id it injects into the Plane from its Io (`newId`), so a run with a fixed Io is reproducible.
 
+Amendment made by card E1.1, 2026-10-29 (pending the lead's review like the rest of this ADR):
+
+- The Postgres swap this ADR left unbuilt is ADR 0024: the `Db` interface stays synchronous and gains a `dialect`; `openPostgres(url)` runs it on a worker thread; the contract both backends pass is `packages/core/test/db/contract.ts`. SQLite stays the default.
+
 ## Alternatives considered
 
 Storage: (a) `node:sqlite` (unflagged since Node 22.13 and 23.4, release candidate as of 25.7, no native build, prepared statements, extension loading opt-in, transactions via `exec`); (b) `better-sqlite3` (mature, native build); (c) libsql. Identity: UUIDv7 or ULID.
