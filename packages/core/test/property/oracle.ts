@@ -18,8 +18,15 @@
 // restate content an event retired in its scope (compared by the oracle's own
 // normal form, `sameContent`, not core's hash: finding P4-9), and which items
 // a budget overage evicts (`budgetVictims`).
+//
+// Promotion (card E2.5, ADR 0026) adds `promotionPermitted`: reach, expiry,
+// the source of a widening, duplicates, reviewers (authors included) and the
+// evidence a landing promotion needs, all judged from the oracle's own
+// replay of the events with its own strict content reading
+// (`sameStrictContent`); the landed item is judged by `writeForbidden` like
+// any write.
 import type { Actor } from "../../src/plane.ts";
-import type { Grant, MemoryItem, Policy } from "../../src/schema.ts";
+import type { Grant, MemoryEvent, MemoryItem, Policy } from "../../src/schema.ts";
 import { compareTimestamps } from "../../src/time.ts";
 
 const level = (scope: string) => (scope === "org" ? "org" : scope.split(":")[0]);
@@ -219,4 +226,192 @@ export function budgetVictims(
     victims.push((left.splice(pick, 1)[0] as MemoryItem).id);
   }
   return victims;
+}
+
+/** Provenance kinds, most trusted first (ADR 0004, ADR 0026). */
+export const TRUST = ["user", "document", "import", "tool", "model", "compaction"] as const;
+const SCOPE_RANK = ["person", "role", "team", "org"];
+
+/**
+ * The strict reading of "the same content" for promotions (review findings
+ * P5-12 and P5-14): whitespace runs collapsed, nothing else; case,
+ * compatibility forms and invisible characters all stay, so "US" never
+ * confirms "us" and a hidden payload never matches plain text. Written apart
+ * from core's content-hash.ts.
+ */
+export function sameStrictContent(a: unknown, b: unknown): boolean {
+  const text = (s: string) =>
+    s
+      .split(/\s+/)
+      .filter((w) => w !== "")
+      .join(" ");
+  if (typeof a === "string" || typeof b === "string")
+    return typeof a === "string" && typeof b === "string" && text(a) === text(b);
+  if (Array.isArray(a) || Array.isArray(b))
+    return (
+      Array.isArray(a) &&
+      Array.isArray(b) &&
+      a.length === b.length &&
+      a.every((x, i) => sameStrictContent(x, b[i]))
+    );
+  if (a && b && typeof a === "object" && typeof b === "object") {
+    const ka = Object.keys(a).sort();
+    const kb = Object.keys(b).sort();
+    return (
+      ka.join("\u0000") === kb.join("\u0000") &&
+      ka.every((k) =>
+        sameStrictContent((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k]),
+      )
+    );
+  }
+  return a === b;
+}
+
+/**
+ * Does `content` hold a character a reader would not see (P5-14)? Judged code
+ * point by code point: the tag block U+E0000 to U+E007F, a format character
+ * (Cf), or any other default-ignorable code point. Written apart from core.
+ */
+export function holdsHiddenText(content: unknown): boolean {
+  if (typeof content === "string")
+    return [...content].some((ch) => {
+      const cp = ch.codePointAt(0) as number;
+      return (
+        (cp >= 0xe0000 && cp <= 0xe007f) ||
+        /^\p{Cf}$/u.test(ch) ||
+        /^\p{Default_Ignorable_Code_Point}$/u.test(ch)
+      );
+    });
+  if (Array.isArray(content)) return content.some(holdsHiddenText);
+  if (content !== null && typeof content === "object")
+    return Object.entries(content).some(([k, v]) => holdsHiddenText(k) || holdsHiddenText(v));
+  return false;
+}
+
+/** The items as the log leaves them, replayed by the oracle itself. */
+function replayed(events: readonly MemoryEvent[]): Map<string, MemoryItem> {
+  const out = new Map<string, MemoryItem>();
+  for (const e of events) {
+    if (e.decision !== "allow" || e.item_id === null) continue;
+    if ((e.op === "write" || e.op === "update" || e.op === "promote") && e.item)
+      out.set(e.item_id, e.item);
+    const was = out.get(e.item_id);
+    if ((e.op === "retire" || e.op === "evict") && was)
+      out.set(e.item_id, { ...was, status: "retired" });
+  }
+  return out;
+}
+
+/**
+ * Invariant 2 for promotions (ADR 0026 and its review fix pass): may `actor`
+ * land a promotion of item `sourceId` into `target` at `at`, given the log
+ * `events` before it? Necessary conditions only, so the property is
+ * soundness, all judged from the oracle's own replay of the events:
+ *
+ * - the actor can read the source as `readable` says (scope or live grant),
+ *   which also leaves out an item past its ttl (P5-4, P5-7), and is a
+ *   member of the source's scope or its owner in the owner's person scope:
+ *   a grant never moves an item (P5-15);
+ * - the content holds no hidden character (P5-14);
+ * - the source is not retired, and the target is its scope or a scope at a
+ *   wider level; a scope change is asked for by a user-sourced actor (P5-3);
+ * - no other active item of the promoted class in the target holds the
+ *   content (strict reading, P5-5);
+ * - an actor asking to review is a reviewer: user-sourced, a member of the
+ *   target, not the owner, and not the actor of any allowed write or update
+ *   of the source or a version its lineage reaches (P5-1), nor of a write
+ *   that confirms it (P5-16); a target whose
+ *   rule requires review is reached only through a reviewer;
+ * - an episodic item needs at least k distinct actors among the allowed
+ *   writes, in its scope, of its content (strict reading), with a user,
+ *   document or tool source, of items still active now (the item's own
+ *   write aside), or a reviewer where the policy allows review; a
+ *   procedural candidate never lands (no validation record reaches the
+ *   plane before card D3); anything else needs a reviewer.
+ *
+ * Whether the landed item may be written into the target is `writeForbidden`'s.
+ */
+export function promotionPermitted(
+  policy: Policy,
+  actor: Actor,
+  sourceId: string,
+  target: string,
+  events: readonly MemoryEvent[],
+  review: boolean,
+  at: string,
+): boolean {
+  const items = replayed(events);
+  const source = items.get(sourceId);
+  if (!source) return false;
+  if (!readable(policy, actor, source, at)) return false;
+  const ownPerson = actor.id === source.owner && source.scope === actor.id;
+  if (actor.memberships.indexOf(source.scope) === -1 && !ownPerson) return false;
+  if (source.status === "retired") return false;
+  if (holdsHiddenText(source.content)) return false;
+  const widening = target !== source.scope;
+  if (
+    widening &&
+    !(
+      SCOPE_RANK.indexOf(level(target) as string) >
+      SCOPE_RANK.indexOf(level(source.scope) as string)
+    )
+  )
+    return false;
+  if (widening && actor.source !== "user") return false;
+  const promotedClass = source.class === "episodic" ? "semantic" : source.class;
+  for (const other of items.values())
+    if (
+      other.id !== sourceId &&
+      other.status === "active" &&
+      other.scope === target &&
+      other.class === promotedClass &&
+      sameStrictContent(other.content, source.content)
+    )
+      return false;
+  // The source and every version its lineage reaches, and who wrote them.
+  const versions = new Set<string>();
+  const queue = [sourceId];
+  for (let id = queue.pop(); id !== undefined; id = queue.pop()) {
+    if (versions.has(id)) continue;
+    versions.add(id);
+    queue.push(...(items.get(id)?.lineage ?? []));
+  }
+  const authors = new Set<string>();
+  for (const e of events)
+    if (
+      (e.op === "write" || e.op === "update") &&
+      e.decision === "allow" &&
+      e.item_id !== null &&
+      versions.has(e.item_id)
+    )
+      authors.add(e.actor);
+  // Who confirms it: the actors of allowed writes, in its scope, of its
+  // content (strict reading), with a user, document or tool source, of items
+  // still active now (the item's own write aside).
+  const actors = new Set<string>();
+  for (const e of events) {
+    const w = e.item;
+    if (e.op !== "write" || e.decision !== "allow" || !w) continue;
+    if (w.scope !== source.scope) continue;
+    const kind = w.provenance.kind;
+    if (kind !== "user" && kind !== "document" && kind !== "tool") continue;
+    if (w.id !== sourceId && items.get(w.id)?.status !== "active") continue;
+    if (sameStrictContent(w.content, source.content)) actors.add(e.actor);
+  }
+  const reviewer =
+    actor.source === "user" &&
+    actor.id !== source.owner &&
+    !authors.has(actor.id) &&
+    !actors.has(actor.id) &&
+    actor.memberships.indexOf(target) !== -1;
+  if (review && !reviewer) return false;
+  const reviewed = review && reviewer;
+  const rule = policy.write.filter((r) => r.scope === level(target))[0];
+  if (rule?.requires_review && !reviewed) return false;
+  if (source.class === "episodic") {
+    const { confirmations, or_review } = policy.promotion.episodic_to_semantic;
+    return actors.size >= confirmations || (or_review && reviewed);
+  }
+  if (source.class === "procedural" && source.status === "candidate") return false;
+  return reviewed;
 }

@@ -26,6 +26,14 @@
 # order, recency or utility, while a manual rule evicts nothing and asks. The
 # ttl and budget numbers below are proposed values, not measured ones.
 #
+# Promotion (ADR 0026): an episodic item becomes semantic after the
+# confirmations below, writes of its content in its scope by distinct actors
+# with a user, document or tool source, or through a reviewer; a procedural
+# candidate becomes active only with a replay record meeting replay_k of
+# replay_n. Here 5 of 5 bounds the procedure's failure rate at 0.35, the
+# one-sided Wilson upper bound at alpha 0.05; the confirmations, replay_k and
+# replay_n numbers are proposed values.
+#
 # Numbers: the confidence floors, ttls, budgets, confirmation counts, replay
 # k of n and thresholds are proposed values chosen for this preset, not taken
 # from ADR 0011 or any other source; they are reviewed before any run.

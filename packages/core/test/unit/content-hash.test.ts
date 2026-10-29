@@ -2,7 +2,44 @@
 // retired-content gate (card E2.4), promotion's confirmations (E2.5) and the
 // duplicate lint (L1).
 import { describe, expect, test } from "vitest";
-import { contentHash, normaliseContent } from "../../src/content-hash.ts";
+import {
+  contentHash,
+  mergingContentHash,
+  normaliseContent,
+  normaliseContentMerging,
+  normaliseContentStrict,
+  strictContentHash,
+} from "../../src/content-hash.ts";
+
+describe("the merging (broad) and strict normal forms (review finding P5-12)", () => {
+  test("the merging form joins compatibility forms and case; the strict form keeps them apart", () => {
+    expect(mergingContentHash("10²")).toBe(mergingContentHash("102"));
+    expect(mergingContentHash("US")).toBe(mergingContentHash("us"));
+    expect(strictContentHash("10²")).not.toBe(strictContentHash("102"));
+    expect(strictContentHash("US")).not.toBe(strictContentHash("us"));
+  });
+
+  test("the strict form collapses whitespace and nothing more: format characters stay (P5-14)", () => {
+    expect(normaliseContentStrict("  Deploy\tRuns \n")).toBe("text:Deploy Runs");
+    expect(strictContentHash("Deploy\u200b runs")).not.toBe(strictContentHash("Deploy runs"));
+    // A tag-character payload is not the plain sentence.
+    const tags = [..."hi"].map((c) => String.fromCodePoint(0xe0000 + c.charCodeAt(0))).join("");
+    expect(strictContentHash(`Deploy runs${tags}`)).not.toBe(strictContentHash("Deploy runs"));
+    expect(strictContentHash({ b: " X  y", a: 1 })).toBe(strictContentHash({ a: 1, b: "X y" }));
+    expect(strictContentHash("x")).not.toBe(strictContentHash({ x: "x" }));
+  });
+
+  test("the strict form keeps what the merging form drops: a variation selector", () => {
+    // U+FE0F is default-ignorable, which the merging form drops (P4-14).
+    expect(mergingContentHash("tea\ufe0f")).toBe(mergingContentHash("tea"));
+    expect(strictContentHash("tea\ufe0f")).not.toBe(strictContentHash("tea"));
+  });
+
+  test("the plain names are the merging form", () => {
+    expect(contentHash("US")).toBe(mergingContentHash("US"));
+    expect(normaliseContent("US")).toBe(normaliseContentMerging("US"));
+  });
+});
 
 describe("normaliseContent", () => {
   test("text is NFKC, lower case, with whitespace runs collapsed and trimmed", () => {

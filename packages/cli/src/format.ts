@@ -32,7 +32,7 @@ export function preview(item: MemoryItem): string {
 
 export function decisionLines(event: MemoryEvent, item: MemoryItem | null): string[] {
   const lines = [
-    `write ${event.id} at ${event.ts} by ${event.actor}`,
+    `${event.op} ${event.id} at ${event.ts} by ${event.actor}`,
     `${event.decision}: ${event.reason}`,
     `policy ${event.policy_id}`,
   ];

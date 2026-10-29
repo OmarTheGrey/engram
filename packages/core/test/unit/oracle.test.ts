@@ -2,14 +2,17 @@
 // shows up here rather than agreeing with itself in the property tests.
 import { describe, expect, test } from "vitest";
 import type { Actor } from "../../src/plane.ts";
-import type { Grant, MemoryItem, Policy } from "../../src/schema.ts";
+import type { Grant, MemoryEvent, MemoryItem, Policy } from "../../src/schema.ts";
 import {
   budgetVictims,
   grantAllowed,
+  holdsHiddenText,
   pastTtl,
   patternCovers,
+  promotionPermitted,
   readable,
   sameContent,
+  sameStrictContent,
   writeForbidden,
 } from "../property/oracle.ts";
 
@@ -193,5 +196,164 @@ describe("sameContent", () => {
     expect(sameContent({ b: "X", a: [1, "y"] }, { a: [1, "Y"], b: "x" })).toBe(true);
     expect(sameContent({ a: [1, 2] }, { a: [2, 1] })).toBe(false);
     expect(sameContent('{"a":1}', { a: 1 })).toBe(false);
+  });
+});
+
+describe("sameStrictContent", () => {
+  test("collapses spacing, nothing more (P5-12, P5-14)", () => {
+    expect(sameStrictContent("The  Deploy runs ", "The Deploy runs")).toBe(true);
+    expect(sameStrictContent("The Deploy\u200b runs", "The Deploy runs")).toBe(false);
+    expect(sameStrictContent("US", "us")).toBe(false);
+    expect(sameStrictContent("10\u00b2", "102")).toBe(false);
+    expect(sameStrictContent({ b: " X", a: 1 }, { a: 1, b: "X" })).toBe(true);
+    expect(sameStrictContent("x", { x: "x" })).toBe(false);
+  });
+});
+
+describe("holdsHiddenText", () => {
+  test("finds tag, format and default-ignorable characters anywhere in the content (P5-14)", () => {
+    expect(holdsHiddenText("plain text")).toBe(false);
+    expect(holdsHiddenText(`x${String.fromCodePoint(0xe0069)}`)).toBe(true);
+    expect(holdsHiddenText("x\u200b")).toBe(true);
+    expect(holdsHiddenText("x\ufe0f")).toBe(true);
+    expect(holdsHiddenText({ a: ["ok", "x\u2060"] })).toBe(true);
+    expect(holdsHiddenText({ "k\u00ad": "v" })).toBe(true);
+  });
+});
+
+describe("promotionPermitted", () => {
+  const AT = "2026-10-25T12:00:00Z";
+  const p = {
+    write: [{ scope: "team", requires_review: false }],
+    read: { matrix: [{ reader: "person", may_read: ["person", "team"] }], honour_grants: true },
+    retention: [],
+    promotion: { episodic_to_semantic: { confirmations: 2, or_review: true } },
+  } as unknown as Policy;
+  const ep = {
+    id: "e",
+    class: "episodic",
+    scope: "person:a",
+    owner: "person:a",
+    status: "active",
+    content: "FACT",
+    provenance: { kind: "user" },
+    grants: [],
+    lineage: [],
+    ttl: null,
+    valid_from: AT,
+  } as unknown as MemoryItem;
+  const promoter: Actor = {
+    id: "person:a",
+    level: "person",
+    memberships: ["person:a", "team:b"],
+    source: "user",
+  };
+  let seq = 0;
+  /** An allowed write event of `it` by `actor`. */
+  const wrote = (actor: string, it: MemoryItem, op: MemoryEvent["op"] = "write") =>
+    ({ seq: seq++, op, decision: "allow", item_id: it.id, actor, item: it }) as MemoryEvent;
+  const retire = (id: string) =>
+    ({ seq: seq++, op: "retire", decision: "allow", item_id: id, actor: "x" }) as MemoryEvent;
+  /** A restatement by `actor` with source `kind`. */
+  const said = (actor: string, kind: string, content = "FACT", scope = "person:a") =>
+    wrote(actor, {
+      ...ep,
+      id: `${actor}-${kind}-${content}-${scope}`,
+      owner: actor,
+      scope,
+      content,
+      provenance: { kind },
+    } as MemoryItem);
+  const own = wrote("person:a", ep);
+  const ok = (actor: Actor, events: MemoryEvent[], review = false, target = "team:b", at = AT) =>
+    promotionPermitted(p, actor, "e", target, events, review, at);
+
+  test("counts distinct actors with a user, document or tool source, in its scope, strictly the same", () => {
+    expect(ok(promoter, [own, said("b", "tool")])).toBe(true);
+    expect(ok(promoter, [own, said("person:a", "document")])).toBe(false);
+    expect(ok(promoter, [own, said("b", "model")])).toBe(false);
+    expect(ok(promoter, [own, said("b", "user", "other")])).toBe(false);
+    expect(ok(promoter, [own, said("b", "user", "fact")])).toBe(false);
+    expect(ok(promoter, [own, said("b", "user", "FACT", "person:z")])).toBe(false);
+  });
+
+  test("a confirmer retired since does not count (P5-5)", () => {
+    const b = said("b", "user");
+    expect(ok(promoter, [own, b, retire(b.item_id as string)])).toBe(false);
+  });
+
+  test("an active item of the promoted class holding the content in the target blocks it (P5-5)", () => {
+    const there = wrote("c", { ...ep, id: "t", class: "semantic", scope: "team:b" } as MemoryItem);
+    expect(ok(promoter, [own, said("b", "user"), there])).toBe(false);
+  });
+
+  test("a reviewer is user-sourced, a member of the target, not the owner and not an author (P5-1)", () => {
+    const sara = { ...promoter, id: "person:s" };
+    expect(ok(sara, [own], true)).toBe(true);
+    expect(ok(promoter, [own], true)).toBe(false);
+    expect(ok({ ...sara, source: "model" }, [own], true)).toBe(false);
+    expect(ok({ ...sara, memberships: ["person:a"] }, [own], true)).toBe(false);
+    // sara wrote the item, naming person:a as owner.
+    expect(ok(sara, [wrote("person:s", ep)], true)).toBe(false);
+    // ... or wrote a version its lineage reaches.
+    const older = { ...ep, id: "old" } as MemoryItem;
+    const next = { ...ep, lineage: ["old"] } as MemoryItem;
+    expect(ok(sara, [wrote("person:s", older), wrote("person:a", next)], true)).toBe(false);
+  });
+
+  test("a reader through a grant who is not a member of the item's scope never lands it (P5-15)", () => {
+    const granted = wrote("person:a", {
+      ...ep,
+      grants: [
+        { to: "person:g", class: "episodic", mode: "read", expires: "2027-01-01T00:00:00Z" },
+      ],
+    } as MemoryItem);
+    const gus: Actor = { id: "person:g", level: "person", memberships: ["team:b"], source: "user" };
+    expect(ok(gus, [granted, said("b", "user")], true)).toBe(false);
+    // The owner in the owner's own person scope needs no membership listed.
+    const self = wrote("person:a", {
+      ...ep,
+      grants: [
+        { to: "person:a", class: "episodic", mode: "read", expires: "2027-01-01T00:00:00Z" },
+      ],
+    } as MemoryItem);
+    expect(ok({ ...promoter, memberships: ["team:b"] }, [self, said("b", "user")])).toBe(true);
+  });
+
+  test("content with hidden text never lands (P5-14)", () => {
+    const hidden = wrote("person:a", { ...ep, content: "FACT\u200b" } as MemoryItem);
+    expect(ok(promoter, [hidden, said("b", "user", "FACT\u200b")])).toBe(false);
+  });
+
+  test("a confirmer is no reviewer (P5-16)", () => {
+    const sara = { ...promoter, id: "person:s" };
+    expect(ok(sara, [own, said("person:s", "user")], true)).toBe(false);
+  });
+
+  test("a widening needs a user-sourced actor (P5-3)", () => {
+    const pi = { ...promoter, id: "agent:pi", source: "tool" as const };
+    expect(ok(pi, [own, said("b", "user")])).toBe(false);
+    expect(ok(pi, [own, said("b", "user")], false, "person:a")).toBe(true);
+  });
+
+  test("an item past its ttl or out of the actor's reach is not promoted (P5-4, P5-7)", () => {
+    const short = wrote("person:a", { ...ep, ttl: 3 } as MemoryItem);
+    expect(ok(promoter, [short, said("b", "user")], false, "team:b", "2026-10-25T12:00:03Z")).toBe(
+      false,
+    );
+    expect(ok({ ...promoter, level: "org" }, [own, said("b", "user")])).toBe(false);
+  });
+
+  test("never narrows, never moves sideways, never lands a procedural candidate", () => {
+    const sara = { ...promoter, id: "person:s", memberships: ["team:b", "team:c", "person:a"] };
+    const fact = wrote("person:a", { ...ep, class: "semantic", scope: "team:b" } as MemoryItem);
+    expect(promotionPermitted(p, sara, "e", "person:a", [fact], true, AT)).toBe(false);
+    expect(promotionPermitted(p, sara, "e", "team:c", [fact], true, AT)).toBe(false);
+    const skill = wrote("person:a", {
+      ...ep,
+      class: "procedural",
+      status: "candidate",
+    } as MemoryItem);
+    expect(promotionPermitted(p, sara, "e", "person:a", [skill], true, AT)).toBe(false);
   });
 });

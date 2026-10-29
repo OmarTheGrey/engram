@@ -52,25 +52,38 @@ const validOrNull = (value: unknown, key: string, schema: typeof Id | typeof Sco
  * plant a block on content (review finding P4-3; ADR 0010: items are
  * retired by event). Nor does expiry by the item's own ttl
  * (`engram/retention/item-ttl`), which its writer chose (P4-13); expiry by a
- * rule's ttl and budget eviction count.
+ * rule's ttl and budget eviction count. Nor does a source a promotion
+ * superseded (`<policy>/promotion/superseded`), whose content lives on in
+ * its new version (review finding P5-6); and content an active item in the
+ * scope still holds is not retired at all (P5-6).
  */
 export function retiredContent(db: Db, scope: string): Map<string, string> {
   const out = new Map<string, string>();
-  const rows = db.prepare("SELECT body FROM items WHERE status = 'retired' ORDER BY id").all();
+  const rows = db.prepare("SELECT body FROM items ORDER BY id").all();
   const lastChange = db.prepare(
     `SELECT op, body FROM events WHERE item_id = ? AND decision = 'allow'
      AND op IN ('write', 'update', 'promote', 'retire', 'evict') ORDER BY seq DESC LIMIT 1`,
   );
+  const live = new Set<string>();
+  const retired: MemoryItem[] = [];
   for (const row of rows) {
     const it = JSON.parse(String(row.body)) as MemoryItem;
     if (it.scope !== scope) continue;
+    if (it.status === "active") live.add(contentHash(it.content));
+    if (it.status !== "retired") continue;
     const last = lastChange.get(it.id);
     if (last?.op !== "retire" && last?.op !== "evict") continue;
+    const policyId = (JSON.parse(String(last.body)) as { policy_id: string }).policy_id;
     // Expiry by the item's own ttl was set by its writer, so it is no
-    // evidence of removal (review finding P4-13).
-    if (JSON.parse(String(last.body)).policy_id === ITEM_TTL_ID) continue;
+    // evidence of removal (review finding P4-13); a promotion's superseded
+    // source lives on in its new version (P5-6).
+    if (policyId === ITEM_TTL_ID) continue;
+    if (policyId.endsWith("/promotion/superseded")) continue;
+    retired.push(it);
+  }
+  for (const it of retired) {
     const hash = contentHash(it.content);
-    if (!out.has(hash)) out.set(hash, it.id);
+    if (!live.has(hash) && !out.has(hash)) out.set(hash, it.id);
   }
   return out;
 }
@@ -97,7 +110,7 @@ const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
  * it: only the item itself and the versions its lineage reaches share a ref
  * (decision D1, finding R5-14).
  */
-function refProblem(
+export function refProblem(
   deps: PlaneDeps,
   item: MemoryItem,
   ref: StoreRef,

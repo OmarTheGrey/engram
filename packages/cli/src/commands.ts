@@ -1,5 +1,5 @@
-// The commands that call the Plane: read, write, explain (doctor is in
-// ./doctor.ts). Each builds
+// The commands that call the Plane: read, write, promote, explain (doctor
+// is in ./doctor.ts). Each builds
 // the log, policy, actor and store, makes its Plane call, and prints the
 // result. The Plane makes every decision; nothing here is a policy `if`.
 // Every id comes from the Io (`io.newId`), so a run with a fixed Io is
@@ -12,9 +12,11 @@ import {
   type Actor,
   adoptStoreItems,
   createPlane,
+  Id,
   type MemoryItem,
   type Plane,
   type PlaneDeps,
+  Scope,
 } from "@engram/core";
 import { decisionLines, explanationLines, plural, preview } from "./format.ts";
 import type { Io } from "./run.ts";
@@ -289,6 +291,50 @@ export async function writeCommand(args: string[], io: Io): Promise<number> {
     if (values.json) io.out(`${JSON.stringify({ event, item: stored }, null, 2)}\n`);
     else io.out(`${[...decisionLines(event, stored), logHint(s.log)].join("\n")}\n`);
     return event.decision === "allow" ? 0 : 1;
+  } finally {
+    s.log.db.close();
+  }
+}
+
+/**
+ * `engram promote <item-id> --to <scope> [--review]`: one Plane.promote call
+ * as a user-sourced actor (ADR 0026: only a user-sourced actor can approve).
+ * Exit 0 when the promotion landed, 1 on deny or ask.
+ */
+export async function promoteCommand(args: string[], io: Io): Promise<number> {
+  const { values, positionals } = parse(
+    args,
+    { ...STORE_OPTIONS, ...ACTOR_OPTIONS, to: { type: "string" }, review: { type: "boolean" } },
+    true,
+  );
+  const [itemId, ...rest] = positionals;
+  if (itemId === undefined || rest.length > 0)
+    throw new UsageError("give exactly one item id: engram promote <item-id> --to <scope>");
+  if (!Id.safeParse(itemId).success) throw new UsageError(`${itemId} is not an item id (a UUIDv7)`);
+  if (values.to === undefined) throw new UsageError("give the target scope with --to <scope>");
+  if (!Scope.safeParse(values.to).success)
+    throw new UsageError(
+      `--to ${values.to} is not a scope (person:<id>, role:<id>, team:<id> or org)`,
+    );
+  const at = checkTime("--at", values.at) ?? io.now();
+  const actor = buildActor(values, values.owner, "user");
+  const s = openSession(io, values, () => actor);
+  try {
+    const result = await s.plane.promote(actor, itemId, values.to, at, {
+      review: values.review === true,
+    });
+    if (values.json) {
+      const { decision, event, events, item } = result;
+      io.out(`${JSON.stringify({ decision, event, events, item }, null, 2)}\n`);
+    } else {
+      const lines = decisionLines(result.event, result.item);
+      for (const e of result.events.slice(1))
+        lines.push(
+          `  ${e.op} ${e.decision} ${e.item_id ?? "(no item)"}: ${e.reason} (${e.policy_id})`,
+        );
+      io.out(`${[...lines, logHint(s.log)].join("\n")}\n`);
+    }
+    return result.decision === "allow" ? 0 : 1;
   } finally {
     s.log.db.close();
   }

@@ -56,3 +56,45 @@ export function normaliseContent(content: MemoryItem["content"]): string {
 export function contentHash(content: MemoryItem["content"]): string {
   return `sha256:${createHash("sha256").update(normaliseContent(content)).digest("hex")}`;
 }
+
+// Two forms, named for what they do (review finding P5-12). The merging form
+// above (NFKC and case folding: "10²" is "102", "US" is "us") is right where
+// merging is the safe direction: the retired-content rule, which then blocks
+// more. The strict form is right where not merging is safe: confirmations
+// and the duplicate check of a promotion, where two texts that differ in
+// case or compatibility form must not corroborate each other. It only
+// collapses whitespace: format and default-ignorable characters stay, so a
+// confirmation matches exactly what its writer wrote, and content carrying a
+// hidden payload never matches plain restatements (review finding P5-14;
+// promotion also refuses such content outright). It never runs NFKC.
+
+/** The merging normal form (the one `normaliseContent` gives). */
+export const normaliseContentMerging = normaliseContent;
+/** `sha256:<hex>` of the merging normal form (the one `contentHash` gives). */
+export const mergingContentHash = contentHash;
+
+const strictText = (s: string) => s.replace(/\s+/g, " ").trim();
+
+function strictCanonical(value: unknown): unknown {
+  if (typeof value === "string") return strictText(value);
+  if (Array.isArray(value)) return value.map(strictCanonical);
+  if (value !== null && typeof value === "object")
+    return Object.fromEntries(
+      Object.entries(value)
+        .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+        .map(([k, v]) => [k, strictCanonical(v)]),
+    );
+  return value;
+}
+
+/** The strict normal form: whitespace collapsed, nothing else; no NFKC, no case folding, nothing dropped. */
+export function normaliseContentStrict(content: MemoryItem["content"]): string {
+  return typeof content === "string"
+    ? `text:${strictText(content)}`
+    : `json:${JSON.stringify(strictCanonical(content))}`;
+}
+
+/** `sha256:<hex>` of the strict normal form. */
+export function strictContentHash(content: MemoryItem["content"]): string {
+  return `sha256:${createHash("sha256").update(normaliseContentStrict(content)).digest("hex")}`;
+}

@@ -32,8 +32,12 @@
 // would match nearly every name), and characters that only look like the
 // name (another alphabet's letters name another program).
 
-/** Store CLIs blocked by default: the stores the adapters name. */
-export const STORE_COMMANDS: readonly string[] = ["mem0", "letta"];
+/**
+ * Store CLIs blocked by default: the stores the adapters name, and the Engram
+ * CLI itself, which takes --as and --member as given and so would let a model
+ * write, confirm and approve as anyone (review finding P5-2).
+ */
+export const STORE_COMMANDS: readonly string[] = ["mem0", "letta", "engram"];
 
 /** Suffixes an executable name may carry on Windows or as a script. */
 const EXECUTABLE = /\.(exe|cmd|bat|com|ps1|sh|py|js|mjs|cjs)$/i;
@@ -218,6 +222,18 @@ function globPattern(name: string): RegExp | undefined {
   }
 }
 
+/**
+ * Other spellings of a store's CLI than its name (review finding P5-18): the
+ * Engram CLI is also reached as the package `@engram/cli` (npx, pnpm dlx,
+ * `pnpm --filter`, with or without a version) and through its workspace
+ * folder `packages/cli` (its entry script `packages/cli/src/main.ts`, `cd`
+ * into it, `--filter ./packages/cli`). Each word is read with backslashes as
+ * slashes and in lower case.
+ */
+const ROUTES: Readonly<Record<string, readonly RegExp[]>> = {
+  engram: [/(^|[^a-z0-9])@engram\/cli(@|$)/, /(^|\/)packages\/cli(\/|$)/],
+};
+
 /** The store `command` names anywhere in it, if any (decision D10). */
 export function blockedStoreCommand(
   command: string,
@@ -228,6 +244,9 @@ export function blockedStoreCommand(
   const words = commandWords(command);
   if (command.includes("`")) words.push(...commandWords(command.replaceAll("`", "")));
   for (const word of words) {
+    const slashed = word.replaceAll("\\", "/").toLowerCase();
+    for (const store of stores)
+      if ((ROUTES[store.toLowerCase()] ?? []).some((route) => route.test(slashed))) return store;
     for (const name of names(word)) {
       const store = byName.get(name);
       if (store !== undefined) return store;
