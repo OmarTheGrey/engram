@@ -266,9 +266,18 @@ interface PinRow {
   status: string;
 }
 
-/** The pins table of packages/bench/PINS.md; throws on a row it cannot read. */
+/**
+ * The registered pins table of packages/bench/PINS.md: the first table, before
+ * "## Notes per pin"; a later table (candidates checked, not registered) is
+ * not a pin. Throws on a row it cannot read.
+ */
 export function parsePins(text: string): PinRow[] {
-  const lines = text.split(/\r?\n/).filter((l) => l.trim().startsWith("|"));
+  const all = text.split(/\r?\n/);
+  const notes = all.findIndex((l) => /^##\s+Notes per pin/.test(l));
+  const head = notes < 0 ? all : all.slice(0, notes);
+  const start = head.findIndex((l) => l.trim().startsWith("|"));
+  const end = start < 0 ? -1 : head.findIndex((l, i) => i > start && !l.trim().startsWith("|"));
+  const lines = start < 0 ? [] : head.slice(start, end < 0 ? head.length : end);
   const cells = (line: string) =>
     line
       .trim()

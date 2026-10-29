@@ -255,6 +255,32 @@ describe("engram doctor, each check red", () => {
     );
   });
 
+  it("benchmark pins: only the registered table counts, not a later candidates table", async () => {
+    const repo = await repoCopy();
+    const file = join(repo, PINS);
+    const original = parsePins(readFileSync(file, "utf8"));
+    await writeFile(
+      file,
+      `${readFileSync(file, "utf8")}
+## Candidates checked, not registered
+
+| benchmark | paper | repository | pinned commit | checked | status |
+|---|---|---|---|---|---|
+| MEM-INV-Bench | arXiv 2606.24322 | https://example.org/mem-inv | \`${"a".repeat(40)}\` | 2026-10-30 | released |
+| Other | arXiv 0000.00000 | none | none | 2026-10-30 | none |
+`,
+    );
+    expect(parsePins(readFileSync(file, "utf8"))).toEqual(original);
+    const { out } = await doctor({ repo });
+    const pinned = original.filter((r) => r.commit !== undefined).length;
+    expect(out).toMatch(
+      new RegExp(
+        `^ok\\s+benchmark pins\\s+\\S+: ${original.length} benchmarks, ${pinned} pinned`,
+        "m",
+      ),
+    );
+  });
+
   it("benchmark pins: a released benchmark without a commit does not parse", () => {
     const text = readFileSync(join(REPO, PINS), "utf8").replace(
       "`9e0b455f4ef0e2ab8f2e582289761153549043fc`",
