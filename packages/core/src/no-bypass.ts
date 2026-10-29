@@ -64,8 +64,8 @@ function pathCheckWords(command: string, depth = 0, quotedAbove = true): string[
   // R3-26: single quotes do not stop an outer shell expanding first. A
   // message is exempt only when every enclosing script argument was itself
   // wholly single-quoted (`quotedAbove`), and never in a command holding a
-  // heredoc with an unquoted delimiter, whose body the shell expands.
-  const exemptable = quotedAbove && !UNQUOTED_HEREDOC.test(command);
+  // heredoc of any kind (R3-27), whose body the shell may expand.
+  const exemptable = quotedAbove && !HEREDOC.test(command);
   // Each token keeps its text after quote removal, whether it held quoted
   // whitespace, the quoting of each character (`s` single, `d` double, `u`
   // none), and whether it ends a list or pipeline segment (an unquoted `;`,
@@ -215,10 +215,12 @@ function pathCheckWords(command: string, depth = 0, quotedAbove = true): string[
 }
 
 /**
- * A heredoc whose delimiter is unquoted (`<<EOF`, `<<-EOF`, not `<<'EOF'`,
- * `<<"EOF"`, `<<\EOF` or a here-string `<<<`): the shell expands its body.
+ * A heredoc, whatever its delimiter (`<<EOF`, `<<-EOF`, `<<!`, `<<.`,
+ * `<<$X`, `<<'EOF'`): any `<<` that is not part of a here-string `<<<`.
+ * Telling an expanding delimiter from a quoted one proved error-prone
+ * (R3-27), so no heredoc keeps the message exemption.
  */
-const UNQUOTED_HEREDOC = /(?<!<)<<-?[ \t]*(?![<'"\\])[A-Za-z0-9_]/;
+const HEREDOC = /(?<!<)<<(?!<)/;
 /** Commands that run the command after them, so it is still in command position (R3-20). */
 const WRAPPERS = new Set([
   "env",

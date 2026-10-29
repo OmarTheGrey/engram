@@ -140,6 +140,11 @@ describe("shellBypass and toolBypass", () => {
     "cat <<EOF\ngit commit -m '$(cd memory; cat a.md)'\nEOF",
     "cat <<EOF | bash\ngit commit -m '$(cd memory; cat a.md)'\nEOF",
     "bash <<-EOF\n\tgit commit -m 'memory leak'\nEOF",
+    // R3-27: any heredoc, whatever its delimiter.
+    "bash <<!\ngit commit -m '$(cd memory; cat a.md)'\n!",
+    "bash <<.\ngit commit -m '$(cd memory; cat a.md)'\n.",
+    "bash <<$X\ngit commit -m '$(cd memory; cat a.md)'\n$X",
+    "cat <<'EOF'\ngit commit -m 'memory leak'\nEOF",
     // Inside a double-quoted script no message is exempt, the cost of the rule.
     `bash -c "git commit -m 'memory leak'"`,
   ])("pins the message exemption's boundary: %s is blocked (R3-19 to R3-26)", (command) => {
@@ -154,7 +159,6 @@ describe("shellBypass and toolBypass", () => {
     "cd src\ngit commit -m 'memory leak'",
     `bash -c 'git commit -m "x"'`,
     `bash -c 'cd src && git commit --message=x'`,
-    "cat <<'EOF'\ngit commit -m 'memory leak'\nEOF",
   ])("keeps the exemption for a VCS message in command position: %s passes", (command) => {
     expect(shellBypass(command, check)).toBeUndefined();
   });
