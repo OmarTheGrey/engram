@@ -108,7 +108,7 @@ Adapter
 Plane
   write(actor, itemIn, at) -> WriteResult    policy and provenance, then the adapter, then the event carrying store_ref; at is the injected time
   read(actor, query) -> ReadResult           search in readable member scopes, match granted items, filter, explanation, event
-  promote(actor, itemId, toScope, at) -> GateResult
+  promote(actor, itemId, toScope, at, {review?}) -> GateResult   evidence from the log, judged as a write into toScope; new version or in place (ADR 0026)
   retain(actor, scope, at) -> RetentionReport  expiry then budgets over one scope, as a member, in the write queue (ADR 0025)
   lint(scope) -> Finding[]
   simulate(workload, policy) -> SimReport    replays a recorded workload or a pi session under a policy; zero model calls
@@ -129,7 +129,7 @@ See `AGENTS.md` for the authoritative map. In short: `packages/core` (plane, no 
 
 ## Open items this file does not settle
 
-- Calling context as a policy input (MemOS has it; see the literature review synthesis and ADR 0006).
+- Calling context as a policy input: absent in v1, justified in ADR 0006's amendments (the harness enters through `actor.source` and memberships); a per-tool context is v2 with a policy language.
 - Whether the distiller stores strategies as well as procedures (ADR 0012 says procedures only in v1).
 - Postgres: the `Db` interface is designed for the swap; nothing is built for it yet.
 - Cedar or another policy language: noted as v2 in ADR 0006.

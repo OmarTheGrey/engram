@@ -25,6 +25,10 @@ Amendments made in the review fix pass, 2026-10-25:
 - Decision D6 (finding R5-9, PR #5): default denies have their own ids. No write rule for the item's scope level is `engram/write/default-deny`; no read matrix row for the actor's level is `engram/read/default-deny`, for the item decisions and for the read event.
 - Not decided by D4, chosen by the fixer: membership in the current scope is also required on a rewrite, so a member of one scope cannot move another scope's item id into it; and the owner is compared as written, not against the actor's id, so a caller may still name another owner on a new item.
 
+Amendments made when implementing card E2.5, 2026-10-29 (pending the lead's review like the rest of this ADR):
+
+- Calling context as a policy input is absent in v1, and that is justified rather than left open (the literature review asks for one or the other, 2507.03724). The harness enters the decision through two inputs it sets and the caller cannot: `actor.source`, the provenance kind of what the actor writes (ADR 0004, decision D4), which also decides who may approve a promotion (ADR 0026); and `actor.memberships` with `actor.level`, which decide reach. A per-tool or per-task context (which tool is calling, on whose behalf, for what) would need a vocabulary of contexts and rules over them, which is a policy language; that is the v2 noted above (Cedar). The cost: two calls by the same actor from different tools are judged alike, so a harness that needs them apart must give them different actor ids or sources.
+
 ## Alternatives considered
 
 (a) Typed TypeScript policy objects: a read matrix over scopes {person, role, team, org}, grant records (`from`, `to`, `scope`, `class`, `expires`), write rules per (scope, class, source kind), retention budgets, promotion gates; evaluated by one pure function returning a decision with a reason. (b) Cedar through `cedar-wasm`. (c) OPA or Casbin.

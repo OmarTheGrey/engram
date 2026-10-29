@@ -6,8 +6,10 @@ import type { Grant, MemoryItem, Policy } from "../../src/schema.ts";
 import {
   budgetVictims,
   grantAllowed,
+  type LoggedWrite,
   pastTtl,
   patternCovers,
+  promotionPermitted,
   readable,
   sameContent,
   writeForbidden,
@@ -193,5 +195,83 @@ describe("sameContent", () => {
     expect(sameContent({ b: "X", a: [1, "y"] }, { a: [1, "Y"], b: "x" })).toBe(true);
     expect(sameContent({ a: [1, 2] }, { a: [2, 1] })).toBe(false);
     expect(sameContent('{"a":1}', { a: 1 })).toBe(false);
+  });
+});
+
+describe("sameContent", () => {
+  test("ignores case, spacing and format characters; keeps words and key order apart", () => {
+    expect(sameContent("The  Deploy​ runs ", "the deploy runs")).toBe(true);
+    expect(sameContent("the deploy runs", "the deploy ran")).toBe(false);
+    expect(sameContent({ b: "X", a: 1 }, { a: 1, b: " x" })).toBe(true);
+    expect(sameContent("x", { x: "x" })).toBe(false);
+  });
+});
+
+describe("promotionPermitted", () => {
+  const p = {
+    write: [{ scope: "team", requires_review: false }],
+    promotion: { episodic_to_semantic: { confirmations: 2, or_review: true } },
+  } as unknown as Policy;
+  const ep = {
+    id: "e",
+    class: "episodic",
+    scope: "person:a",
+    owner: "person:a",
+    status: "active",
+    content: "fact",
+  } as unknown as MemoryItem;
+  const promoter: Actor = {
+    id: "person:a",
+    level: "person",
+    memberships: ["person:a", "team:b"],
+    source: "user",
+  };
+  const w = (actor: string, kind: LoggedWrite["kind"], content = "FACT"): LoggedWrite => ({
+    item_id: `${actor}-${kind}`,
+    actor,
+    kind,
+    scope: "person:a",
+    content,
+  });
+
+  test("counts distinct actors with a user, document or tool source", () => {
+    expect(
+      promotionPermitted(p, promoter, ep, "team:b", [w("a", "user"), w("b", "tool")], false),
+    ).toBe(true);
+    expect(
+      promotionPermitted(p, promoter, ep, "team:b", [w("a", "user"), w("a", "document")], false),
+    ).toBe(false);
+    expect(
+      promotionPermitted(p, promoter, ep, "team:b", [w("a", "user"), w("b", "model")], false),
+    ).toBe(false);
+    expect(
+      promotionPermitted(
+        p,
+        promoter,
+        ep,
+        "team:b",
+        [w("a", "user"), w("b", "user", "other")],
+        false,
+      ),
+    ).toBe(false);
+  });
+
+  test("a reviewer is user-sourced, a member of the target and not the owner", () => {
+    const sara = { ...promoter, id: "person:s" };
+    expect(promotionPermitted(p, sara, ep, "team:b", [], true)).toBe(true);
+    expect(promotionPermitted(p, promoter, ep, "team:b", [], true)).toBe(false);
+    expect(promotionPermitted(p, { ...sara, source: "model" }, ep, "team:b", [], true)).toBe(false);
+    expect(
+      promotionPermitted(p, { ...sara, memberships: ["person:a"] }, ep, "team:b", [], true),
+    ).toBe(false);
+  });
+
+  test("never narrows, never moves sideways, never lands a procedural candidate", () => {
+    const sara = { ...promoter, id: "person:s", memberships: ["team:b", "team:c", "person:a"] };
+    const fact = { ...ep, class: "semantic", scope: "team:b" } as MemoryItem;
+    expect(promotionPermitted(p, sara, fact, "person:a", [], true)).toBe(false);
+    expect(promotionPermitted(p, sara, fact, "team:c", [], true)).toBe(false);
+    const skill = { ...ep, class: "procedural", status: "candidate" } as MemoryItem;
+    expect(promotionPermitted(p, sara, skill, "person:a", [], true)).toBe(false);
   });
 });

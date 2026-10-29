@@ -4,8 +4,9 @@
 //
 // `createPlane` is the real plane: the write gate (card E2.3, plane/write.ts),
 // the read filter and explanations (card E2.2, plane/read.ts), both deciding
-// through the pure evaluator in policy/evaluate.ts, and retention (card E2.4,
-// plane/retention.ts) through policy/retention.ts. Methods whose cards have
+// through the pure evaluator in policy/evaluate.ts, retention (card E2.4,
+// plane/retention.ts) through policy/retention.ts, and promotion (card E2.5,
+// plane/promote.ts) through policy/promotion.ts. Methods whose cards have
 // not landed reject with NotImplementedYet, naming the card that implements them.
 import type { Actor } from "./actor.ts";
 import type { Adapter } from "./adapter.ts";
@@ -16,6 +17,7 @@ import { allEvents } from "./events.ts";
 export { ADOPT_RETRACT_ID, type AdoptReport, adoptStoreItems } from "./plane/adopt.ts";
 
 import { recordBypass } from "./plane/bypass.ts";
+import { promote } from "./plane/promote.ts";
 import { filteredRead, storedExplanations } from "./plane/read.ts";
 import { retain } from "./plane/retention.ts";
 import { checkWrite, gatedWrite } from "./plane/write.ts";
@@ -118,7 +120,26 @@ export interface GateResult {
   decision: MemoryEvent["decision"];
   /** The item as it stands after the transition; null when it was denied or awaits review. */
   item: MemoryItem | null;
+  /**
+   * The decision's event: `promote` (allow or deny), or `gate` with decision
+   * `ask` when the target requires review and no reviewer approved.
+   */
   event: MemoryEvent;
+  /**
+   * Every event the call appended, in log order, `event` first: for a new
+   * version also the source's `retire` (`<policy>/promotion/superseded`) and
+   * any `evict` the target's budget check made (ADR 0025).
+   */
+  events: MemoryEvent[];
+}
+
+/** How a promotion is asked for (ADR 0026). */
+export interface PromoteOptions {
+  /**
+   * The actor approves as a reviewer: it must be user-sourced, a member of
+   * the target scope and not the item's owner, else `engram/promote/reviewer`.
+   */
+  review?: boolean;
 }
 
 export interface Plane {
@@ -131,8 +152,24 @@ export interface Plane {
    */
   checkWrite(actor: Actor, item: MemoryItem, at: string): Promise<WriteCheckResult>;
   read(actor: Actor, query: ReadQuery): Promise<ReadResult>;
-  /** Moves an item to a wider scope (or a candidate to active) if the promotion policy allows. */
-  promote(actor: Actor, itemId: string, toScope: string, at: string): Promise<GateResult>;
+  /**
+   * Promotes an item (ADR 0026): episodic to semantic after k confirmations
+   * counted from the log or a review, a procedural candidate to active with a
+   * validation record, a candidate to active or an item to a wider scope
+   * through a review; always judged as a write into `toScope`. A status-only
+   * change is in place; a class or scope change is a new version whose source
+   * is retired. Decision `ask`, with a null item and one `gate` event, when
+   * the target requires review and the actor is not reviewing. Runs in the
+   * write queue. An invalid actor, time, item id or scope is refused with
+   * InvalidCallError before the log is touched.
+   */
+  promote(
+    actor: Actor,
+    itemId: string,
+    toScope: string,
+    at: string,
+    options?: PromoteOptions,
+  ): Promise<GateResult>;
   /**
    * Sweeps one scope (ADR 0025): retires items past their ttl, then evicts
    * any budget overage in the rule's order, each one event; items stay in
@@ -193,9 +230,8 @@ export function createPlane(deps: PlaneDeps): Plane {
     explain: async (actor, readId) => storedExplanations(deps, actor, readId),
     recordBypass: async (actor, bypass, at) => recordBypass(deps, actor, bypass, at),
     retain: async (actor, scope, at) => retain(deps, actor, scope, at),
-    promote: async () => {
-      throw new NotImplementedYet("promote", "E2.5");
-    },
+    promote: async (actor, itemId, toScope, at, options) =>
+      promote(deps, actor, itemId, toScope, at, options),
     lint: async () => {
       throw new NotImplementedYet("lint", "L1");
     },

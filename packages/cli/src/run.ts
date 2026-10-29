@@ -1,9 +1,15 @@
 // The command table. `run` takes the arguments and an Io (output, working
 // directory, clock) and resolves to the exit code: 0 done, 1 a denied write,
-// a failed check or an error, 2 bad usage or a command whose card has not
-// landed. The CLI calls core and adapters directly; the generated client
+// a denied or asked promotion, a failed check or an error, 2 bad usage or a
+// command whose card has not landed. The CLI calls core and adapters directly; the generated client
 // (card E8.3) replaces that when it exists.
-import { doctorCommand, explainCommand, readCommand, writeCommand } from "./commands.ts";
+import {
+  doctorCommand,
+  explainCommand,
+  promoteCommand,
+  readCommand,
+  writeCommand,
+} from "./commands.ts";
 import { UsageError } from "./setup.ts";
 
 export interface Io {
@@ -25,14 +31,14 @@ usage: engram <command> [options]
 commands:
   read [query]      read through the plane and explain every returned item
   write             write one item through the plane's write gate
+  promote <itemId>  promote an item through the plane's promotion gate
   explain <readId>  the explanations a read recorded
   doctor            check the log, the policy, the store and the adapters
   lint              not implemented yet (card L1)
   simulate          not implemented yet (card E8.9)
-  promote           not implemented yet (card E2.5)
   serve             not implemented yet (card E8.1)
 
-store options (read, write):
+store options (read, write, promote):
   --store <name>              the store adapter; only files for now (default files)
   --root <folder>             the store folder, such as a Claude Code memory folder
   --owner <id>                the person whose folder it is; its memories are adopted as person:<id>
@@ -40,7 +46,7 @@ store options (read, write):
   --policy <preset|path>      strict, medium, permissive or a policy YAML file (default medium)
   --db <path>                 the event log (default <home>/.engram/engram.db; :memory: for none)
 
-actor options (read, write, explain):
+actor options (read, write, promote, explain):
   --as <principal>            who acts (default person:<owner>)
   --level <level>             person, role, team or org (default the actor's own level)
   --member <scope>            a scope the actor belongs to; repeatable (default the actor's scope)
@@ -52,6 +58,11 @@ write options:
   --id <uuidv7>  --scope <scope>  --class <episodic|semantic>
   --confidence <0..1>  --valid-from <iso>  --valid-to <iso>
   the plane records a write as source user by the acting principal, whatever the item claims
+
+promote options:
+  --to <scope>                the target scope: the item's own or a wider one
+  --review                    approve as a reviewer: a member of the target who does not own the item
+  the plane records the promoter as source user; exit 1 on deny, or on ask when the target needs review
 
 explain options:
   --db <path>  --policy <preset|path>  and --as or --owner: only the reader may explain a read
@@ -71,13 +82,13 @@ const COMMANDS: Record<string, (args: string[], io: Io) => Promise<number>> = {
   write: writeCommand,
   explain: explainCommand,
   doctor: doctorCommand,
+  promote: promoteCommand,
 };
 
 /** Commands in the architecture's CLI list whose cards have not landed, and the card for each. */
 const NOT_YET: Record<string, string> = {
   lint: "L1",
   simulate: "E8.9",
-  promote: "E2.5",
   serve: "E8.1",
 };
 

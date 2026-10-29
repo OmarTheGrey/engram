@@ -29,7 +29,11 @@ CI runs layers 1 to 5 and 7 on every PR, 6 and 8 on main and nightly. A PR that 
 - Replaying the events produced by any sequence of writes yields the same store state and the same read results.
 - After any write sequence no scope holds more active items of a class, not past their ttl, than its recency or utility budget; each write's and each sweep's retirements are exactly the oracle's (a manual rule asks once per overage state); every retire or evict event carries a reason and a policy id, and replay reproduces them (card E2.4, ADR 0025).
 
+<<<<<<< HEAD
 Invariant 1's oracle also excludes an item past its ttl, and invariant 2's forbids a model, compaction or tool write restating content an allowed retire or evict event retired in its scope (ADR 0025).
+=======
+Invariant 1's oracle also excludes an item past its ttl, and invariant 2's forbids a model, compaction or tool write restating content retired in its scope (ADR 0025). Invariant 2 also runs promotions: one that lands has the evidence ADR 0026 asks for (k distinct actors with trusted sources, or a reviewer who is user-sourced, a member of the target and not the owner) and its item is one a write could land in the target. Invariant 1 also checks that no Plane method other than `read` hands an item to an actor who cannot read it (card E2.5).
+>>>>>>> 3fef61d (E2.5: promotion (ADR 0026))
 
 This file is owned by the lead. Changing it needs a second reviewer and a `decision` log entry. It never has a skip.
 

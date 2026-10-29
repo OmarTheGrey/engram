@@ -18,6 +18,10 @@
 // restate content an event retired in its scope (compared by the oracle's own
 // normal form, `sameContent`, not core's hash: finding P4-9), and which items
 // a budget overage evicts (`budgetVictims`).
+//
+// Promotion (card E2.5, ADR 0026) adds `promotionPermitted`, the evidence a
+// landing promotion needs, judged from the logged writes with the same
+// `sameContent`; the landed item is judged by `writeForbidden` like any write.
 import type { Actor } from "../../src/plane.ts";
 import type { Grant, MemoryItem, Policy } from "../../src/schema.ts";
 import { compareTimestamps } from "../../src/time.ts";
@@ -219,4 +223,73 @@ export function budgetVictims(
     victims.push((left.splice(pick, 1)[0] as MemoryItem).id);
   }
   return victims;
+}
+
+/** Provenance kinds, most trusted first (ADR 0004, ADR 0026). */
+export const TRUST = ["user", "document", "import", "tool", "model", "compaction"] as const;
+const SCOPE_RANK = ["person", "role", "team", "org"];
+
+/** One allowed write the log recorded, as the promotion oracle reads it. */
+export interface LoggedWrite {
+  item_id: string;
+  actor: string;
+  kind: MemoryItem["provenance"]["kind"];
+  scope: string;
+  content: MemoryItem["content"];
+}
+
+/**
+ * Invariant 2 for promotions (ADR 0026): may `actor` land a promotion of
+ * `source` into `target`, given the allowed writes in the log? Necessary
+ * conditions only, so the property is soundness: the actor belongs to the
+ * source's scope; the source is not retired; the target is the source's
+ * scope or a scope at a wider level; an actor asking to review is a reviewer
+ * (user-sourced, a member of the target, not the owner); a target whose rule
+ * requires review is reached only through a reviewer; an episodic item needs
+ * at least k distinct actors among the writes of its content in its scope
+ * with a user, document or tool source, or a reviewer where the policy
+ * allows review; a procedural candidate never lands (no validation record
+ * reaches the plane before card D3); anything else needs a reviewer. Whether
+ * the landed item may be written into the target is `writeForbidden`'s.
+ */
+export function promotionPermitted(
+  policy: Policy,
+  actor: Actor,
+  source: MemoryItem,
+  target: string,
+  writes: readonly LoggedWrite[],
+  review: boolean,
+): boolean {
+  if (actor.memberships.indexOf(source.scope) === -1) return false;
+  if (source.status === "retired") return false;
+  if (
+    target !== source.scope &&
+    !(
+      SCOPE_RANK.indexOf(level(target) as string) >
+      SCOPE_RANK.indexOf(level(source.scope) as string)
+    )
+  )
+    return false;
+  const reviewer =
+    actor.source === "user" &&
+    actor.id !== source.owner &&
+    actor.memberships.indexOf(target) !== -1;
+  if (review && !reviewer) return false;
+  const reviewed = review && reviewer;
+  const rule = policy.write.filter((r) => r.scope === level(target))[0];
+  if (rule?.requires_review && !reviewed) return false;
+  if (source.class === "episodic") {
+    const actors = new Set<string>();
+    for (const w of writes)
+      if (
+        w.scope === source.scope &&
+        (w.kind === "user" || w.kind === "document" || w.kind === "tool") &&
+        sameContent(w.content, source.content)
+      )
+        actors.add(w.actor);
+    const { confirmations, or_review } = policy.promotion.episodic_to_semantic;
+    return actors.size >= confirmations || (or_review && reviewed);
+  }
+  if (source.class === "procedural" && source.status === "candidate") return false;
+  return reviewed;
 }

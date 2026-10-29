@@ -97,7 +97,7 @@ const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
  * it: only the item itself and the versions its lineage reaches share a ref
  * (decision D1, finding R5-14).
  */
-function refProblem(
+export function refProblem(
   deps: PlaneDeps,
   item: MemoryItem,
   ref: StoreRef,
