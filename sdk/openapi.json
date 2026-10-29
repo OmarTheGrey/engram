@@ -288,7 +288,7 @@
     "/api/v1/explain/{readId}": {
       "post": {
         "operationId": "explain",
-        "summary": "The explanations a read recorded, for the actor who made it only (decision D5).",
+        "summary": "The explanations a read recorded and the counts its event's reason records, for the actor who made it only (decision D5).",
         "parameters": [
           {
             "name": "readId",
@@ -2597,13 +2597,82 @@
             "items": {
               "$ref": "#/components/schemas/Explanation"
             }
+          },
+          "counts": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReadCounts"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The counts the read event's reason records (core's readCounts, decision 5 of the Gate B plan); null for a read event written before that format."
           }
         },
         "required": [
           "read_id",
-          "explanations"
+          "explanations",
+          "counts"
         ],
         "additionalProperties": false
+      },
+      "ReadCounts": {
+        "type": "object",
+        "properties": {
+          "returned": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "candidates": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "filtered": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "outside_validity": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "not_active": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "expired": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "excluded": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "out_of_reach": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "returned",
+          "candidates",
+          "filtered",
+          "outside_validity",
+          "not_active",
+          "expired",
+          "excluded",
+          "out_of_reach"
+        ],
+        "additionalProperties": false,
+        "description": "The counts a read event's reason records: returned of candidates, the filtered total and its categories, and the projected items outside the reader's reach (never candidates)."
       },
       "PromoteRequest": {
         "type": "object",

@@ -2,7 +2,7 @@
 // adapter, through the generated client (card E8.3: a client call round-trips
 // against the server), each response checked against the route's response
 // schema; and every route is in the OpenAPI document.
-import type { MemoryEvent } from "@engram/core";
+import { type MemoryEvent, readCounts } from "@engram/core";
 import { describe, expect, it } from "vitest";
 import * as C from "../src/contract.ts";
 import { openApiDocument } from "../src/openapi.ts";
@@ -95,7 +95,7 @@ describe("the routes, through the generated client, on the fake store", () => {
     expect(C.EventsResponse.parse(own.data).events[0]?.item?.content).toBe("fact 1");
   });
 
-  it("explain: the reader gets the explanations its read recorded", async () => {
+  it("explain: the reader gets the explanations its read recorded and its counts", async () => {
     const { client } = testWorkspace();
     await client.POST("/api/v1/items", {
       body: { actor: { ...dana, source: "user" }, item: itemFor(1) },
@@ -112,7 +112,9 @@ describe("the routes, through the generated client, on the fake store", () => {
     expect(C.ExplainResponse.parse(data)).toEqual({
       read_id: read.event.id,
       explanations: read.explanations,
+      counts: readCounts(read.event),
     });
+    expect(C.ExplainResponse.parse(data).counts?.filtered).toBe(read.filtered);
   });
 
   it("promote: a promotion the gate refuses is 200 with its deny event", async () => {

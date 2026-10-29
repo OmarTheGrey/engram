@@ -13,6 +13,7 @@ import {
   MemoryEvent,
   MemoryItem,
   Policy,
+  ReadCounts,
   SCHEMA_VERSION,
   Timestamp,
 } from "@engram/core";
@@ -101,6 +102,10 @@ export const ExplainRequest = z.strictObject({ actor: Actor });
 export const ExplainResponse = z.strictObject({
   read_id: z.string(),
   explanations: z.array(Explanation),
+  counts: ReadCounts.nullable().meta({
+    description:
+      "The counts the read event's reason records (core's readCounts, decision 5 of the Gate B plan); null for a read event written before that format.",
+  }),
 });
 
 export const PromoteRequest = z.strictObject({
@@ -198,6 +203,7 @@ export const COMPONENTS = {
   AdoptReport,
   ExplainRequest,
   ExplainResponse,
+  ReadCounts,
   PromoteRequest,
   GateResponse,
   RetainRequest,

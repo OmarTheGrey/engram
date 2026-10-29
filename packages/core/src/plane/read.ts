@@ -28,6 +28,7 @@ import {
   readRuleId,
 } from "../policy/evaluate.ts";
 import type { Explanation, MemoryItem } from "../schema.ts";
+import { formatReadReason } from "./read-reason.ts";
 import { checkCall } from "./write.ts";
 
 const DAY_MS = 86_400_000;
@@ -154,13 +155,16 @@ export async function filteredRead(
   // 0025), or reached through a grant whose class or expiry fails.
   const filtered =
     counts.excluded + counts["outside-validity"] + counts["not-active"] + counts.expired;
-  const reason =
-    `returned ${admitted.length} of ${candidates.length} candidates; ${filtered} filtered ` +
-    `(${counts["outside-validity"]} outside the validity window, ${counts["not-active"]} not active, ` +
-    `${counts.expired} past their ttl, ` +
-    `${counts.excluded} by a grant's class or expiry); ` +
-    `${outOfReach} projected ${outOfReach === 1 ? "item" : "items"} outside the reader's reach ` +
-    "were not candidates";
+  const reason = formatReadReason({
+    returned: admitted.length,
+    candidates: candidates.length,
+    filtered,
+    outside_validity: counts["outside-validity"],
+    not_active: counts["not-active"],
+    expired: counts.expired,
+    excluded: counts.excluded,
+    out_of_reach: outOfReach,
+  });
 
   const event = db.transaction(() => {
     const appended = appendEvent(db, {
