@@ -1,0 +1,4 @@
+- [Role and stack](user_role.md) - Dana is a backend engineer who works mostly in Go and Postgres
+- [Terse review comments](feedback_review_style.md) - keep code review comments short, one point per comment
+- [Release freeze](project_release_freeze.md) - the Lantern release freezes merges from Thursday noon
+- [Incident runbook location](reference_runbook.md) - the on-call runbook lives in the ops wiki under Lantern
