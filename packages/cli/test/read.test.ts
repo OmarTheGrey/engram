@@ -1,7 +1,7 @@
 // `engram read` over the synthetic Claude Code memory folder: the Gate A
 // demo (card A3's acceptance) on a fixture, through Plane.read.
 import { existsSync } from "node:fs";
-import { rm } from "node:fs/promises";
+import { rm, utimes, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
@@ -82,6 +82,43 @@ describe("engram read", () => {
     // The retired item is still in the owner's reach, so it counts as filtered (not active).
     expect(out).toContain("3 items returned, 1 filtered");
     expect(out).not.toContain("/reference_runbook.md");
+  });
+
+  it("touching a memory file, its content unchanged, adds no write, retire or deny", async () => {
+    const root = await fixtureCopy();
+    const first = new Date("2026-10-01T00:00:00.000Z");
+    for (const file of FIXTURE_FILES) await utimes(join(root, file), first, first);
+    const db = join(await tempDir(), "engram.db");
+    // No --import-valid-from: each imported memory's valid_from is its file's mtime.
+    const args = readArgs(db, root).filter(
+      (a, i, all) => a !== "--import-valid-from" && all[i - 1] !== "--import-valid-from",
+    );
+    await cli(args);
+    const before = logEvents(db).filter((e) => e.op !== "read");
+
+    const touched = new Date("2026-10-20T00:00:00.000Z");
+    await utimes(join(root, "user_role.md"), touched, touched);
+    const { code, out } = await cli(args);
+
+    expect(code).toBe(0);
+    expect(out).toContain("imported 0 of 4 memories: 0 allowed, 0 denied, 4 already in the log");
+    expect(logEvents(db).filter((e) => e.op !== "read")).toEqual(before);
+    expect(out).toContain("4 items returned, 0 filtered");
+  });
+
+  it("retires a memory file it can no longer parse, saying the store cannot read it", async () => {
+    const root = await fixtureCopy();
+    const db = join(await tempDir(), "engram.db");
+    await cli(readArgs(db, root));
+    await writeFile(join(root, "reference_runbook.md"), "---\nname: [unclosed\n---\nBody.\n");
+
+    const { out } = await cli(readArgs(db, root));
+
+    expect(out).toMatch(
+      /^ {2}retired [0-9a-f-]{36}: adopted from store files: store files can no longer read item [0-9a-f-]{36} \(reference_runbook\.md\): files adapter: reference_runbook\.md has unreadable frontmatter/m,
+    );
+    expect(out).not.toContain("is no longer in store");
+    expect(out).not.toContain("/reference_runbook.md\n");
   });
 
   it("keeps the log under the home folder by default, not the working directory (D9)", async () => {

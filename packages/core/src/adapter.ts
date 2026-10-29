@@ -35,6 +35,26 @@ export interface Adapter {
   search?(query: string, scopeFilter: readonly string[]): Promise<MemoryItem[]>;
   /** Every distinct version written under `ref`, oldest first; rewriting identical content adds none. */
   history?(ref: StoreRef): Promise<MemoryItem[]>;
+  /**
+   * The entries the latest `list` or `search` skipped because the store
+   * cannot read them, by key (a file whose frontmatter no longer parses).
+   * Adoption names the reason when it retires what the plane held there.
+   */
+  diagnostics?(): StoreDiagnostic[];
+  /**
+   * The fields of an item the latest `list` returned that the store derived
+   * from its own bookkeeping rather than stored with the item, such as a
+   * file's modification time standing in for `valid_from`. Adoption ignores
+   * them when it decides whether the store's item changed, so touching a
+   * file is not a new version (ADR 0013 amendments, round 2).
+   */
+  derivedFields?(item: MemoryItem): readonly (keyof MemoryItem)[];
+}
+
+/** An entry the store skipped, by key, and why. */
+export interface StoreDiagnostic {
+  key: string;
+  reason: string;
 }
 
 export class ForeignRefError extends Error {

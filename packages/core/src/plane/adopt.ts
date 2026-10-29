@@ -14,15 +14,22 @@
 // with its reason and policy_id (AGENTS.md rule 3).
 //
 // Skipped, with no event: an item the projection holds as the store has it
-// (status aside, since the gate may land it as a candidate), unless adoption
-// itself retired it; and an item whose last write was denied with the same
-// hash, so a denied item is not re-gated on every read.
+// (status aside, since the gate may land it as a candidate, and the fields
+// the store derives from its own bookkeeping aside, Adapter.derivedFields, so
+// touching a file is no new version), unless adoption itself retired it; and
+// an item whose last write was denied with the same hash, so a denied item is
+// not re-gated on every read.
 //
 // Retracted, with one retire event (policy_id engram/adopt/retract): a
 // projected item of this store and scope the store no longer lists, and a
 // projected item whose store version the gate just denied. So the plane never
-// serves content the store no longer has. An item retired by anything else
-// (an owner, eviction) is not brought back while the store has it unchanged.
+// serves content the store no longer has. When the store reports the entry
+// as unreadable (Adapter.diagnostics, such as a file whose frontmatter no
+// longer parses), the reason says so and names the store's diagnostic: the
+// store cannot serve that entry, and what the plane holds is a version the
+// store has since changed into something unreadable. An item retired by
+// anything else (an owner, eviction) is not brought back while the store has
+// it unchanged.
 import { createHash } from "node:crypto";
 import type { Actor } from "../actor.ts";
 import { appendEvent, currentItems, eventsByItem } from "../events.ts";
@@ -58,15 +65,20 @@ const canonical = (v: unknown): string =>
       : x,
   );
 
-/** The gate may land an item with another status, so status is not compared. */
-const sameItem = (a: MemoryItem, b: MemoryItem) =>
-  canonical({ ...a, status: null }) === canonical({ ...b, status: null });
+/**
+ * What adoption compares: the item without its status (the gate may land it
+ * as a candidate) and without the fields the store derived rather than
+ * stored (Adapter.derivedFields), so touching a file is no new version.
+ */
+const comparable = (item: MemoryItem, derived: readonly (keyof MemoryItem)[]) => {
+  const out: Record<string, unknown> = { ...item, status: null };
+  for (const field of derived) out[field] = null;
+  return canonical(out);
+};
 
-/** The hash a deny event records: of the store's item as listed, status aside. */
-const itemHash = (item: MemoryItem) =>
-  `sha256:${createHash("sha256")
-    .update(canonical({ ...item, status: null }))
-    .digest("hex")}`;
+/** The hash a deny event records: of the store's item as listed, compared as above. */
+const itemHash = (item: MemoryItem, derived: readonly (keyof MemoryItem)[]) =>
+  `sha256:${createHash("sha256").update(comparable(item, derived)).digest("hex")}`;
 
 const hashNote = (hash: string) => `; store item ${hash}`;
 
@@ -115,14 +127,15 @@ export async function adoptStoreItems(
     const known = itemById(db, item.id);
     const history = eventsByItem(db, item.id);
     const [asAdopted] = withPlaneProvenance(adopter, item);
-    if (known && sameItem(known, asAdopted)) {
+    const derived = adapter.derivedFields?.(item) ?? [];
+    if (known && comparable(known, derived) === comparable(asAdopted, derived)) {
       const retracted = history.at(-1)?.policy_id === ADOPT_RETRACT_ID;
       if (known.status !== "retired" || !retracted) {
         report.unchanged++;
         continue;
       }
     }
-    const note = hashNote(itemHash(item));
+    const note = hashNote(itemHash(item, derived));
     const lastWrite = history.filter((e) => e.op === "write").at(-1);
     if (lastWrite?.decision === "deny" && lastWrite.reason.endsWith(note)) {
       report.unchanged++;
@@ -148,12 +161,16 @@ export async function adoptStoreItems(
   }
 
   const present = new Set(listed.map((i) => i.id));
+  const unreadable = new Map((adapter.diagnostics?.() ?? []).map((d) => [d.key, d.reason]));
   for (const held of currentItems(db)) {
     if (held.scope !== scope || held.status === "retired" || present.has(held.id)) continue;
     if (held.store_ref?.adapter !== adapter.name) continue;
+    const diagnostic = unreadable.get(held.store_ref.key);
     retire(
       held,
-      `item ${held.id} is no longer in store ${adapter.name} scope ${scope}; the plane retires its projected version`,
+      diagnostic === undefined
+        ? `item ${held.id} is no longer in store ${adapter.name} scope ${scope}; the plane retires its projected version`
+        : `store ${adapter.name} can no longer read item ${held.id} (${held.store_ref.key}): ${diagnostic}; the plane retires its projected version, which the store no longer holds in a readable form`,
     );
   }
   return report;

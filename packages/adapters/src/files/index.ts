@@ -9,7 +9,9 @@
 // Code (or a person) wrote; it lists as a read-only item with the defaults in
 // `importedItem` below. This adapter does file I/O. No item field comes from
 // the clock: an imported item's valid_from comes from the options or the
-// file's mtime. Only the folder lock reads the wall clock (see below).
+// file's mtime. Only the folder lock reads the wall clock (see below). An
+// mtime-derived valid_from is reported by `derivedFields`, so adoption does
+// not take a touched file for a new version (ADR 0013 amendments, round 2).
 //
 // What it never does (review fix pass, ADR 0013 amendments):
 // - Read or replace anything that is not a regular file with one name,
@@ -97,6 +99,12 @@ export interface FileDiagnostic {
 export interface FilesAdapter extends Adapter {
   /** The entries the latest list or search skipped (malformed, or not a regular file), by key. */
   diagnostics(): FileDiagnostic[];
+  /**
+   * `["valid_from"]` for a file without Engram metadata whose valid_from the
+   * adapter took from the file's modification time (no `importValidFrom`),
+   * as the latest list, search or read of its key found it; otherwise none.
+   */
+  derivedFields(item: MemoryItem): (keyof MemoryItem)[];
 }
 
 /** A store_ref key that is not a plain Markdown file name, or not a regular file, inside the root. */
@@ -315,6 +323,8 @@ export function createFilesAdapter(options: FilesAdapterOptions): FilesAdapter {
   }
   const confidence = options.importConfidence ?? 0.5;
   let lastDiagnostics: FileDiagnostic[] = [];
+  /** Keys whose valid_from the latest load took from the file's modification time. */
+  const mtimeDerived = new Set<string>();
 
   // Writes and deletes run one at a time within this instance, and hold the
   // folder's lock file against other instances and processes, so MEMORY.md's
@@ -574,6 +584,8 @@ export function createFilesAdapter(options: FilesAdapterOptions): FilesAdapter {
       throw new Error(`files adapter: ${key} has unreadable frontmatter: ${(e as Error).message}`);
     }
     const engram = isRecord(meta) && "engram" in meta;
+    if (!engram && options.importValidFrom === undefined) mtimeDerived.add(key);
+    else mtimeDerived.delete(key);
     const candidate =
       isRecord(meta) && "engram" in meta
         ? engramItem(key, meta.engram, body)
@@ -680,6 +692,10 @@ export function createFilesAdapter(options: FilesAdapterOptions): FilesAdapter {
       native_graph: false,
     },
     diagnostics: () => lastDiagnostics.map((d) => ({ ...d })),
+    derivedFields: (item) =>
+      item.store_ref?.adapter === name && mtimeDerived.has(item.store_ref.key)
+        ? ["valid_from"]
+        : [],
     write(item) {
       return serial(() =>
         locked(async () => {

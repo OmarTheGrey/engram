@@ -8,12 +8,13 @@
 // denied, is retired so the plane never serves what the store does not hold.
 import { createFakeAdapter } from "@engram/adapters";
 import { describe, expect, test } from "vitest";
+import type { Adapter } from "../../../src/adapter.ts";
 import { migrate } from "../../../src/db/migrate.ts";
 import { openSqlite } from "../../../src/db/sqlite.ts";
 import { allEvents, appendEvent, currentItems } from "../../../src/events.ts";
 import { itemById } from "../../../src/items.ts";
 import { ADOPT_RETRACT_ID, adoptStoreItems, createPlane } from "../../../src/plane.ts";
-import type { Policy } from "../../../src/schema.ts";
+import type { MemoryItem, Policy } from "../../../src/schema.ts";
 import { AT, counting, id, item, testPolicy } from "./helpers.ts";
 
 const owner = { id: "person:omar", level: "person" as const, memberships: ["person:omar"] };
@@ -193,6 +194,64 @@ describe("adoptStoreItems", () => {
 
     const third = await adoptStoreItems(deps, owner, "person:omar", LATER);
     expect(third).toMatchObject({ retired: 0 });
+  });
+
+  test("retires an item the store can no longer read, naming the store's diagnostic", async () => {
+    const { deps, inner, db, plane } = await seeded();
+    await adoptStoreItems(deps, owner, "person:omar", AT);
+    // The store still has the entry, but skips it when listing: it cannot parse it.
+    await inner.delete(ref(1));
+    const diagnostic = { key: id(1), reason: "frontmatter does not parse at line 3" };
+    const adapter = Object.assign(Object.create(deps.adapter) as Adapter, {
+      diagnostics: () => [diagnostic],
+    });
+
+    const again = await adoptStoreItems({ ...deps, adapter }, owner, "person:omar", LATER);
+
+    expect(again).toMatchObject({ listed: 1, retired: 1 });
+    const retire = allEvents(db).at(-1);
+    expect(retire).toMatchObject({ item_id: id(1), op: "retire", policy_id: ADOPT_RETRACT_ID });
+    expect(retire?.reason).toBe(
+      `adopted from store fake: store fake can no longer read item ${id(1)} (${id(1)}): frontmatter does not parse at line 3; the plane retires its projected version, which the store no longer holds in a readable form`,
+    );
+    expect(retire?.reason).not.toContain("no longer in store");
+    expect((await plane.read(owner, { at: LATER })).items).toEqual([]);
+
+    // Readable again: adopted again, as any retracted item the store holds.
+    await inner.write(item(1, { scope: "person:omar" }));
+    const fixed = await adoptStoreItems(deps, owner, "person:omar", LATER);
+    expect(fixed).toMatchObject({ allowed: 1 });
+    expect(itemById(db, id(1))?.status).toBe("active");
+  });
+
+  test("a change only in fields the store derives is no change: no event, no gate", async () => {
+    const { deps, inner, db } = await seeded();
+    const adapter = Object.assign(Object.create(deps.adapter) as Adapter, {
+      derivedFields: (): (keyof MemoryItem)[] => ["valid_from"],
+    });
+    const derived = { ...deps, adapter };
+    await adoptStoreItems(derived, owner, "person:omar", AT);
+    const before = allEvents(db).length;
+    // As a touched file's modification time moves an imported item's valid_from.
+    await inner.write(item(1, { scope: "person:omar", valid_from: LATER }));
+    await inner.write(item(2, { scope: "person:omar", class: "episodic", valid_from: LATER }));
+
+    const again = await adoptStoreItems(derived, owner, "person:omar", LATER);
+
+    expect(again).toMatchObject({ allowed: 0, denied: 0, retired: 0, unchanged: 2 });
+    expect(allEvents(db)).toHaveLength(before);
+    expect(itemById(db, id(1))?.valid_from).toBe("2026-10-01T00:00:00Z");
+  });
+
+  test("a change in valid_from the store does not derive is gated again", async () => {
+    const { deps, inner, db } = await seeded();
+    await adoptStoreItems(deps, owner, "person:omar", AT);
+    await inner.write(item(1, { scope: "person:omar", valid_from: LATER }));
+
+    const again = await adoptStoreItems(deps, owner, "person:omar", LATER);
+
+    expect(again).toMatchObject({ allowed: 1, unchanged: 1 });
+    expect(itemById(db, id(1))?.valid_from).toBe(LATER);
   });
 
   test("re-adopts a retracted item when the store has it again", async () => {
