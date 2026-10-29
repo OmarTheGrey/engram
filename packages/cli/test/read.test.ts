@@ -3,6 +3,7 @@
 import { existsSync } from "node:fs";
 import { rm, utimes, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { loadPreset } from "@engram/core";
 import { describe, expect, it } from "vitest";
 import {
   cli,
@@ -182,6 +183,41 @@ describe("engram read", () => {
     const { out } = await cli(readArgs(db, FIXTURE, "--policy", "strict"));
     expect(out).toContain("under preset.strict");
     expect(out.match(/admitted by preset\.strict\/read\/person/g)).toHaveLength(4);
+  });
+
+  it("runs retention before adoption: expired memories are excluded, then retired (ADR 0025)", async () => {
+    const dir = await tempDir();
+    const db = join(dir, "engram.db");
+    // The medium preset with a one-day ttl on every person-scope class: the
+    // fixture's memories are valid from 2026-10-01, so at NOW they are expired.
+    const medium = loadPreset("medium");
+    const policy = join(dir, "short-ttl.yaml");
+    await writeFile(
+      policy,
+      JSON.stringify({
+        ...medium,
+        retention: medium.retention.map((r) => (r.scope === "person" ? { ...r, ttl: 86_400 } : r)),
+      }),
+    );
+    // First read: nothing in the log to sweep; adopted, then excluded at read.
+    const first = await cli(readArgs(db, FIXTURE, "--policy", policy));
+    expect(first.out).toContain("retention: 0 expired, 0 evicted");
+    expect(first.out).toContain("0 items returned, 4 filtered");
+    expect(first.out).toContain("4 past their ttl");
+    // Second read: the sweep retires them first, and adoption leaves them retired.
+    const second = await cli(readArgs(db, FIXTURE, "--policy", policy, "--json"));
+    const parsed = JSON.parse(second.out);
+    expect(parsed.retention.expired).toHaveLength(4);
+    expect(parsed.retention.events.map((e: { op: string }) => e.op)).toEqual([
+      "retire",
+      "retire",
+      "retire",
+      "retire",
+    ]);
+    expect(parsed.imported).toMatchObject({ allowed: 0, unchanged: 4 });
+    expect(parsed.returned).toBe(0);
+    const retires = logEvents(db).filter((e) => e.op === "retire");
+    expect(retires.every((e) => e.actor === "person:dana" && e.decision === "allow")).toBe(true);
   });
 
   it("refuses a read without a store root", async () => {

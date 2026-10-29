@@ -33,3 +33,19 @@ export function compareTimestamps(a: string, b: string): number {
   const pb = fb.padEnd(width, "0");
   return pa === pb ? 0 : pa < pb ? -1 : 1;
 }
+
+/** The last second a four-digit-year timestamp can write, in milliseconds. */
+const LAST_MS = Date.UTC(9999, 11, 31, 23, 59, 59);
+
+/**
+ * The instant `seconds` whole seconds after `ts`, keeping its fractional
+ * seconds exactly (ttl arithmetic, ADR 0025), or null when that instant is
+ * past what a four-digit-year timestamp can write: such a ttl never runs out.
+ */
+export function addSeconds(ts: string, seconds: number): string | null {
+  const [whole, fraction] = split(ts);
+  const ms = Date.parse(`${whole}Z`) + seconds * 1000;
+  if (!Number.isSafeInteger(ms) || ms > LAST_MS) return null;
+  const head = new Date(ms).toISOString().slice(0, 19);
+  return fraction === "" ? `${head}Z` : `${head}.${fraction}Z`;
+}

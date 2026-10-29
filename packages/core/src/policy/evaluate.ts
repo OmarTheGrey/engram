@@ -12,15 +12,19 @@
 //   engram/write/version            a rewrite lowers the version or changes the owner (D4)
 //   engram/write/grant              a grant the gate refuses (D4, ADR 0021, ADR 0004)
 //   engram/write/source-isolation   model and compaction content stays in person scope (ADR 0004, 0007)
+//   engram/write/retired-content    a model, compaction or tool write restates content retired in its scope (ADR 0025)
 //   engram/write/default-deny       no write rule for the item's scope level (D6)
 //   engram/write/schema             the item failed the schema
 //   engram/write/store-failure      the store failed after the gate allowed the write (D6)
 //   engram/read/default-deny        no read matrix row for the actor's level (D6)
 //   engram/read/status              only active items are read
 //   engram/read/validity            the validity window at the read time (ADR 0005)
+//   engram/read/ttl                 past its ttl: a lifecycle exclusion before any sweep (ADR 0025)
 import type { Actor } from "../actor.ts";
+import { contentHash } from "../content-hash.ts";
 import type { Grant, MemoryItem, Policy, ScopeLevel } from "../schema.ts";
 import { compareTimestamps } from "../time.ts";
+import { itemExpiry } from "./retention.ts";
 
 export const WRITE_MEMBERSHIP_ID = "engram/write/membership";
 export const WRITE_VERSION_ID = "engram/write/version";
@@ -32,9 +36,18 @@ export const STORE_FAILURE_ID = "engram/write/store-failure";
 export const READ_DEFAULT_DENY_ID = "engram/read/default-deny";
 export const READ_STATUS_ID = "engram/read/status";
 export const READ_VALIDITY_ID = "engram/read/validity";
+export const READ_TTL_ID = "engram/read/ttl";
+export const RETIRED_CONTENT_ID = "engram/write/retired-content";
 
 /** Sources that are untrusted by default and cannot leave person scope at write (ADR 0004, 0007). */
 const UNTRUSTED_SOURCES: ReadonlySet<string> = new Set(["model", "compaction"]);
+
+/**
+ * Sources that may not restate content retired in the scope (ADR 0025,
+ * Bemula's relearning): what a model, a compaction or a tool produces again
+ * is not a person re-establishing it. A user, document or import write may.
+ */
+const RELEARNING_SOURCES: ReadonlySet<string> = new Set(["model", "compaction", "tool"]);
 
 export function scopeLevel(scope: string): ScopeLevel {
   return (scope === "org" ? "org" : scope.split(":")[0]) as ScopeLevel;
@@ -78,7 +91,8 @@ export type WriteCheck =
   | "forbidden-class"
   | "source-not-allowed"
   | "source-isolation"
-  | "below-floor";
+  | "below-floor"
+  | "retired-content";
 
 export interface WriteDecision {
   /**
@@ -101,16 +115,21 @@ export interface WriteDecision {
  * version; every grant is one the gate accepts; a rule exists for the item's
  * scope level (none means deny); the class is not forbidden; the source kind
  * is listed; model and compaction sources stay in person scope; confidence is
- * at least the floor. A passing write lands as a candidate when the rule
- * requires review, otherwise with its own status. `existing` is the projected
- * item of the same id, when there is one. The provenance judged is the
- * item's; the plane sets it from the actor's source first (plane/write.ts).
+ * at least the floor; a model, compaction or tool source does not restate
+ * content retired in the scope (ADR 0025). A passing write lands as a
+ * candidate when the rule requires review, otherwise with its own status.
+ * `existing` is the projected item of the same id, when there is one;
+ * `retired` maps the normalised content hash (content-hash.ts) of every
+ * retired item in the item's scope to that item's id. The provenance judged
+ * is the item's; the plane sets it from the actor's source first
+ * (plane/write.ts).
  */
 export function evaluateWrite(
   policy: Policy,
   actor: Actor,
   item: MemoryItem,
   existing?: MemoryItem,
+  retired: ReadonlyMap<string, string> = new Map(),
 ): WriteDecision {
   const level = scopeLevel(item.scope);
   const policy_id = `${policy.id}/write/${level}`;
@@ -185,6 +204,17 @@ export function evaluateWrite(
       "below-floor",
       `confidence ${item.confidence} is below the ${level} floor ${rule.confidence_floor}`,
     );
+  if (RELEARNING_SOURCES.has(kind) && retired.size > 0) {
+    const was = retired.get(contentHash(item.content));
+    // The retired item is named only to a writer who may read its scope
+    // (as finding N3 keeps what a writer cannot read out of the reason).
+    if (was !== undefined)
+      return deny(
+        "retired-content",
+        `the content restates ${readableScope(policy, actor, item.scope) ? `item ${was}` : "an item"}, retired in ${item.scope}; a ${kind} source cannot bring it back, a user, document or import source can`,
+        RETIRED_CONTENT_ID,
+      );
+  }
   if (rule.requires_review)
     return {
       decision: "allow",
@@ -202,7 +232,13 @@ export function evaluateWrite(
   };
 }
 
-export type ReadCheck = "scope" | "grant" | "excluded" | "not-active" | "outside-validity";
+export type ReadCheck =
+  | "scope"
+  | "grant"
+  | "excluded"
+  | "not-active"
+  | "expired"
+  | "outside-validity";
 
 export interface ReadDecision {
   admitted: boolean;
@@ -245,7 +281,9 @@ export function reachable(policy: Policy, actor: Actor, item: MemoryItem): boole
 }
 
 /**
- * The read filter for one item. Only active items are read. Access is by
+ * The read filter for one item. Only active items are read, and only before
+ * their ttl runs out (ADR 0025: lifecycle is an admissibility axis, so an
+ * expired item is excluded before any sweep retires it). Access is by
  * scope (the actor is a member of the item's scope and the read matrix lets
  * the actor's level read that scope's level) or, when the policy honours
  * grants, by every live grant on the item whose `to` matches the actor, whose
@@ -270,6 +308,14 @@ export function evaluateRead(
 
   if (item.status !== "active")
     return result(false, "not-active", `item is ${item.status}, not active`, READ_STATUS_ID);
+  const expiry = itemExpiry(policy, item);
+  if (expiry !== null && compareTimestamps(expiry.at, at) <= 0)
+    return result(
+      false,
+      "expired",
+      `past its ttl: expired at ${expiry.at} (${expiry.policy_id})`,
+      READ_TTL_ID,
+    );
 
   const member = actor.memberships.includes(item.scope);
   let access: ReadDecision;

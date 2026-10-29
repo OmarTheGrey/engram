@@ -11,6 +11,14 @@
 // startsWith, and grants are judged by enumerating what is allowed. Both sides
 // compare timestamps through core's one helper (decision D7), which has its
 // own tests at nanosecond boundaries (test/unit/time.test.ts).
+//
+// Retention (card E2.4, ADR 0025) adds three readings: an item past its ttl
+// is not readable (`pastTtl`, judged as a duration rather than by adding the
+// ttl as the evaluator does), a model, compaction or tool write may not
+// restate retired content in its scope (compared through core's one content
+// hash helper, like time through its one timestamp helper), and which items
+// a budget overage evicts (`budgetVictims`).
+import { contentHash } from "../../src/content-hash.ts";
 import type { Actor } from "../../src/plane.ts";
 import type { Grant, MemoryItem, Policy } from "../../src/schema.ts";
 import { compareTimestamps } from "../../src/time.ts";
@@ -25,8 +33,37 @@ export function patternCovers(pattern: string, actorId: string): boolean {
   return actorId.length >= head.length && actorId.slice(0, head.length) === head;
 }
 
-/** Invariant 1: may `actor` see `item` at time `at` under `policy`? */
+const wholeSeconds = (ts: string) => Date.parse(`${ts.slice(0, 19)}Z`) / 1000;
+const fractionOf = (ts: string) => /\.(\d+)Z$/.exec(ts)?.[1] ?? "";
+
+/**
+ * Is `item` past its ttl at `at` (ADR 0025)? The ttl is the smaller of the
+ * item's own and its retention rule's (level and class); none means never.
+ * Judged as a duration, not by adding: `at` minus `valid_from` is at least
+ * the ttl. Whole seconds decide unless they tie with the ttl, and then the
+ * fractions do, compared digit by digit.
+ */
+export function pastTtl(policy: Policy, item: MemoryItem, at: string): boolean {
+  // Hand-built policies and items in the oracle's own tests may leave these out.
+  const rule = (policy.retention ?? []).filter(
+    (r) => r.scope === level(item.scope) && r.class === item.class,
+  )[0];
+  const ttls = [item.ttl ?? null, rule ? rule.ttl : null].filter((t): t is number => t !== null);
+  if (ttls.length === 0) return false;
+  const gap = wholeSeconds(at) - wholeSeconds(item.valid_from) - Math.min(...ttls);
+  if (gap !== 0) return gap > 0;
+  const [fa, fv] = [fractionOf(at), fractionOf(item.valid_from)];
+  const width = Math.max(fa.length, fv.length);
+  return fa.padEnd(width, "0") >= fv.padEnd(width, "0");
+}
+
+/**
+ * Invariant 1: may `actor` see `item` at time `at` under `policy`? Not when
+ * it is past its ttl: lifecycle is an admissibility axis (ADR 0025), so an
+ * expired item is out before any sweep retires it.
+ */
 export function readable(policy: Policy, actor: Actor, item: MemoryItem, at: string): boolean {
+  if (pastTtl(policy, item, at)) return false;
   const row = policy.read.matrix.filter((r) => r.reader === actor.level);
   const levels = row[0]?.may_read ?? [];
   const byScope =
@@ -68,15 +105,73 @@ export const effectiveKind = (actor: Actor, item: MemoryItem) =>
  * content may not land outside person scope (source isolation, ADR 0004 and
  * 0007): ADR 0004 lets it leave only through a gate pass, a promotion, which
  * no write is, and no policy field lifts the rule, so no policy allows it.
+ * A model, compaction or tool write may not restate the content of an item
+ * retired in the same scope (ADR 0025); `projected` is the projection the
+ * write meets, and only its retired items count.
  */
-export function writeForbidden(policy: Policy, actor: Actor, item: MemoryItem): boolean {
+export function writeForbidden(
+  policy: Policy,
+  actor: Actor,
+  item: MemoryItem,
+  projected: readonly MemoryItem[] = [],
+): boolean {
   if (!actor.memberships.some((m) => m === item.scope)) return true;
   const kind = effectiveKind(actor, item);
   const untrusted = kind === "model" || kind === "compaction";
+  const relearns = untrusted || kind === "tool";
+  if (
+    relearns &&
+    projected.some(
+      (p) =>
+        p.status === "retired" &&
+        p.scope === item.scope &&
+        contentHash(p.content) === contentHash(item.content),
+    )
+  )
+    return true;
   if (item.grants.length > 0 && untrusted) return true;
   if (!item.grants.every(grantAllowed)) return true;
   if (untrusted && level(item.scope) !== "person") return true;
   const rule = policy.write.find((r) => r.scope === level(item.scope));
   if (!rule) return false;
   return rule.forbidden_classes.includes(item.class) || !rule.allowed_sources.includes(kind);
+}
+
+/**
+ * Invariant 5: what a budget check must do to `active`, the active items of
+ * one scope and class: nothing at or under `budget`; over it, `ask` for a
+ * manual rule, else the ids to evict, worst first, chosen one at a time:
+ * for recency the item changed least recently (`lastChanged`, the seq of
+ * its last changing event, -1 when unknown), for utility the item fewest
+ * reads returned (`reads`), then the least recently changed; the lower id
+ * breaks what is left.
+ */
+export function budgetVictims(
+  eviction: Policy["retention"][number]["eviction"],
+  budget: number,
+  active: readonly MemoryItem[],
+  lastChanged: ReadonlyMap<string, number>,
+  reads: ReadonlyMap<string, number>,
+): string[] | "ask" {
+  if (active.length <= budget) return [];
+  if (eviction === "manual") return "ask";
+  const key = (i: MemoryItem): number[] => {
+    const changed = lastChanged.get(i.id) ?? -1;
+    return eviction === "utility" ? [reads.get(i.id) ?? 0, changed] : [changed];
+  };
+  const worse = (a: MemoryItem, b: MemoryItem) => {
+    const [ka, kb] = [key(a), key(b)];
+    for (let k = 0; k < ka.length; k++)
+      if ((ka[k] as number) !== (kb[k] as number)) return (ka[k] as number) < (kb[k] as number);
+    return a.id < b.id;
+  };
+  const left = [...active];
+  const victims: string[] = [];
+  while (left.length > budget) {
+    let pick = 0;
+    for (let j = 1; j < left.length; j++)
+      if (worse(left[j] as MemoryItem, left[pick] as MemoryItem)) pick = j;
+    victims.push((left.splice(pick, 1)[0] as MemoryItem).id);
+  }
+  return victims;
 }

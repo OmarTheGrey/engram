@@ -11,14 +11,25 @@
 // every event's reason is marked as an adoption from that store (plane/adopt.ts,
 // decision D8); that ref goes through the same checks as one the adapter
 // returns, and a ref that cannot be recorded leaves the store-failure event.
+//
+// After a landing write, in the same queue slot, the budget check of the
+// written scope and class runs (card E2.4, ADR 0025): so no write sequence
+// leaves a scope over a recency or utility budget, and a manual rule's
+// overage is asked about once per write that leaves it over.
 import { z } from "zod";
-import { type Actor, ActorShape, InvalidCallError } from "../actor.ts";
+import { type Actor, checkCall } from "../actor.ts";
 import type { StoreRef } from "../adapter.ts";
+import { contentHash } from "../content-hash.ts";
+import type { Db } from "../db/db.ts";
 import { appendEvent } from "../events.ts";
 import { itemById, itemsByStoreRef } from "../items.ts";
 import type { PlaneDeps, WriteCheckResult, WriteResult } from "../plane.ts";
 import { evaluateWrite, SCHEMA_ID, STORE_FAILURE_ID } from "../policy/evaluate.ts";
-import { Id, MemoryItem, Scope, Timestamp } from "../schema.ts";
+import { Id, MemoryItem, Scope } from "../schema.ts";
+import { inWriteQueue } from "./queue.ts";
+import { enforceBudget } from "./retention.ts";
+
+export { checkCall };
 
 const StoreRefShape = z.object({ adapter: z.string().min(1), key: z.string().min(1) });
 
@@ -31,17 +42,21 @@ const validOrNull = (value: unknown, key: string, schema: typeof Id | typeof Sco
   return parsed.success ? parsed.data : null;
 };
 
-/** Refuses a call whose actor or time no event could carry (decision D6). */
-export function checkCall(actor: unknown, at: unknown, method: string): void {
-  const a = ActorShape.safeParse(actor);
-  if (!a.success)
-    throw new InvalidCallError(
-      `Plane.${method}: invalid actor: ${a.error.issues.map((i) => `${i.path.join(".") || "actor"}: ${i.message}`).join("; ")}`,
-    );
-  if (!Timestamp.safeParse(at).success)
-    throw new InvalidCallError(
-      `Plane.${method}: invalid time ${JSON.stringify(at)}; expected a UTC ISO 8601 timestamp with a Z`,
-    );
+/**
+ * The normalised content hash of every retired item in `scope`, mapped to
+ * that item's id (the lowest id when several share it): what the
+ * retired-content rule compares a write against (ADR 0025).
+ */
+export function retiredContent(db: Db, scope: string): Map<string, string> {
+  const out = new Map<string, string>();
+  const rows = db.prepare("SELECT body FROM items WHERE status = 'retired' ORDER BY id").all();
+  for (const row of rows) {
+    const it = JSON.parse(String(row.body)) as MemoryItem;
+    if (it.scope !== scope) continue;
+    const hash = contentHash(it.content);
+    if (!out.has(hash)) out.set(hash, it.id);
+  }
+  return out;
 }
 
 /**
@@ -138,7 +153,13 @@ function decideWrite(deps: PlaneDeps, actor: Actor, input: MemoryItem, at: strin
     };
   }
   const [item, provenanceNote] = withPlaneProvenance(actor, parsed.data);
-  const decision = evaluateWrite(deps.policy, actor, item, itemById(deps.db, item.id));
+  const decision = evaluateWrite(
+    deps.policy,
+    actor,
+    item,
+    itemById(deps.db, item.id),
+    retiredContent(deps.db, item.scope),
+  );
   return { kind: "evaluated", item, decision, provenanceNote };
 }
 
@@ -189,7 +210,7 @@ async function decideAndWrite(
       reason: mark(decided.reason),
       policy_id: SCHEMA_ID,
     });
-    return { item: null, event };
+    return { item: null, event, retention: [] };
   }
 
   const { item, decision, provenanceNote } = decided;
@@ -203,7 +224,7 @@ async function decideAndWrite(
   };
   // The evaluator gives a status exactly when it allows.
   if (decision.status === null) {
-    return { item: null, event: appendEvent(db, { ...common, id: newId() }) };
+    return { item: null, event: appendEvent(db, { ...common, id: newId() }), retention: [] };
   }
 
   // The store gets the item as it will stand, with the gate's status; the
@@ -219,21 +240,22 @@ async function decideAndWrite(
         `the gate allowed the write (${decision.policy_id}) but ${adoption ? "the store's ref cannot be recorded" : "the store failed"}: ${problem}; ${provenanceNote}`,
       ),
     });
+  let stored: MemoryItem;
+  let event: WriteResult["event"];
   try {
     const store_ref = adoption ? adoption.ref : await adapter.write(toStore);
     const problem = refProblem(deps, item, store_ref, adoption !== undefined);
     if (problem) throw new Error(problem);
-    const stored: MemoryItem = { ...toStore, store_ref };
-    const event = appendEvent(db, { ...common, id: newId(), item: stored });
-    return { item: stored, event };
+    stored = { ...toStore, store_ref };
+    event = appendEvent(db, { ...common, id: newId(), item: stored });
   } catch (e) {
     failed(errorText(e));
     throw e;
   }
+  // Still in this write's queue slot: no other write lands in between.
+  const retention = enforceBudget(deps, actor, stored.scope, stored.class, at);
+  return { item: stored, event, retention };
 }
-
-/** The tail of each log's write queue, keyed by its db handle (finding N2). */
-const queues = new WeakMap<object, Promise<unknown>>();
 
 /**
  * Plane.write. Writes over one db handle run one at a time, in call order:
@@ -244,14 +266,9 @@ const queues = new WeakMap<object, Promise<unknown>>();
  * the queue. Reads are not queued: a read takes the projection once,
  * synchronously, and sees each write either wholly or not at all. Writers in
  * another process sharing the same log file are not serialised by this
- * (ADR 0007's amendments).
+ * (ADR 0007's amendments). The queue is plane/queue.ts, shared with
+ * Plane.retain and any other call that changes items.
  */
 export function gatedWrite(...args: Parameters<typeof decideAndWrite>): Promise<WriteResult> {
-  const { db } = args[0];
-  const run = (queues.get(db) ?? Promise.resolve()).then(() => decideAndWrite(...args));
-  queues.set(
-    db,
-    run.catch(() => undefined),
-  );
-  return run;
+  return inWriteQueue(args[0].db, () => decideAndWrite(...args));
 }

@@ -184,6 +184,24 @@ const arbProvenanceKinds = fc.uniqueArray(
   { maxLength: 6 },
 );
 
+/**
+ * Ttls in seconds that collide with the colliding instants: one second
+ * (12:00:00.0001 plus 1 is 12:00:01.0001, also in the pool), and a day.
+ */
+export const arbTtl = fc.constantFrom(1, 86_400);
+
+/** Retention rules with a ttl or none, and no budget, one per level and class at most. */
+export const arbTtlRules: fc.Arbitrary<Policy["retention"]> = fc.uniqueArray(
+  fc.record({
+    scope: fc.constantFrom(...SCOPE_LEVELS),
+    class: fc.constantFrom(...CLASSES),
+    ttl: fc.option(arbTtl, { nil: null }),
+    budget: fc.constant(null),
+    eviction: fc.constantFrom("recency", "utility", "manual"),
+  }),
+  { selector: (r) => `${r.scope}/${r.class}`, maxLength: 4 },
+);
+
 export const arbPolicy: fc.Arbitrary<Policy> = fc.record({
   id: fc.constantFrom("generated-a", "generated-b"),
   version: fc.constant(1),
@@ -256,6 +274,27 @@ export const arbGatedItem: fc.Arbitrary<MemoryItem> = fc
     valid_from,
     grants: ["model", "compaction"].includes(item.provenance.kind) ? [] : grants,
   }));
+
+/**
+ * A gated item that in a third of the cases carries its own ttl (ADR 0025),
+ * for invariant 1. A separate arbitrary, so the draws of every other
+ * property using arbGatedItem stay as they were.
+ */
+export const arbGatedItemWithTtl: fc.Arbitrary<MemoryItem> = fc
+  .tuple(
+    arbGatedItem,
+    fc.oneof({ arbitrary: fc.constant(null), weight: 2 }, { arbitrary: arbTtl, weight: 1 }),
+  )
+  .map(([item, ttl]) => ({ ...item, ttl }));
+
+/**
+ * A random policy whose retention rules set ttls but no budgets: an expired
+ * item is excluded at read (ADR 0025) and no write is followed by an
+ * eviction. Invariant 1 reads under it; budgets are invariant 5's.
+ */
+export const arbPolicyWithTtls: fc.Arbitrary<Policy> = fc
+  .tuple(arbPolicy, arbTtlRules)
+  .map(([policy, retention]) => ({ ...policy, retention }));
 
 export type ProvenanceKindName = MemoryItem["provenance"]["kind"];
 

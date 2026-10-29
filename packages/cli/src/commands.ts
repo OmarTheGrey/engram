@@ -129,14 +129,12 @@ export async function readCommand(args: string[], io: Io): Promise<number> {
   const s = openSession(io, values, () => buildActor(values, values.owner));
   const { actor } = s;
   try {
-    // The folder's own memories are adopted as its owner (decision D8);
-    // openStore has required --owner.
-    const imported = await adoptStoreItems(
-      s.deps,
-      storeOwner(values.owner as string),
-      s.store.scope,
-      at,
-    );
+    // Retention runs first, as the folder's owner (ADR 0025): the plane has
+    // no clock, so the surface sweeps; then the folder's own memories are
+    // adopted as its owner (decision D8). openStore has required --owner.
+    const owner = storeOwner(values.owner as string);
+    const retention = await s.plane.retain(owner, s.store.scope, at);
+    const imported = await adoptStoreItems(s.deps, owner, s.store.scope, at);
     const text = positionals.join(" ") || undefined;
     const result = await s.plane.read(actor, { text, at });
     const readId = result.event.id;
@@ -152,6 +150,17 @@ export async function readCommand(args: string[], io: Io): Promise<number> {
             actor,
             policy: s.policyLabel,
             store: { name: s.store.name, root: s.store.root },
+            retention: {
+              expired: retention.expired,
+              evicted: retention.evicted,
+              events: retention.events.map((e) => ({
+                op: e.op,
+                decision: e.decision,
+                item_id: e.item_id,
+                reason: e.reason,
+                policy_id: e.policy_id,
+              })),
+            },
             imported: counts,
             denials: imported.denials,
             retirements: imported.retirements,
@@ -171,6 +180,10 @@ export async function readCommand(args: string[], io: Io): Promise<number> {
     const lines = [
       `read ${readId} at ${at} as ${actor.id} (${actor.level}) under ${s.policyLabel}`,
       `store ${s.store.name} at ${s.store.root}`,
+      `retention: ${retention.expired.length} expired, ${retention.evicted.length} evicted`,
+      ...retention.events.map(
+        (e) => `  ${e.op} ${e.decision} ${e.item_id ?? "(no item)"}: ${e.reason} (${e.policy_id})`,
+      ),
       `imported ${imported.allowed + imported.denied} of ${plural(imported.listed, "memory", "memories")}: ` +
         `${imported.allowed} allowed, ${imported.denied} denied, ${imported.unchanged} already in the log`,
       ...imported.denials.map((d) => `  denied ${d.item_id}: ${d.reason} (${d.policy_id})`),

@@ -7,11 +7,13 @@ import {
   arbEventInput,
   arbGatedGrant,
   arbGatedItem,
+  arbGatedItemWithTtl,
   arbGrant,
   arbGrantedItem,
   arbId,
   arbInstant,
   arbPolicy,
+  arbPolicyWithTtls,
   seedFor,
 } from "../generators.ts";
 
@@ -31,6 +33,8 @@ check("generated gated items parse as MemoryItem", arbGatedItem, (v) => MemoryIt
 check("generated gated grants parse as Grant", arbGatedGrant, (v) => Grant.parse(v));
 check("generated instants parse as Timestamp", arbInstant, (v) => Timestamp.parse(v));
 check("generated policies parse as Policy", arbPolicy, (v) => Policy.parse(v));
+check("generated ttl policies parse as Policy", arbPolicyWithTtls, (v) => Policy.parse(v));
+check("generated ttl items parse as MemoryItem", arbGatedItemWithTtl, (v) => MemoryItem.parse(v));
 check(
   "generated events parse as MemoryEvent",
   fc.uniqueArray(arbId, { minLength: 1, maxLength: 3 }).chain((ids) => arbEventInput(ids)),

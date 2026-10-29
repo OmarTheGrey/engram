@@ -17,6 +17,17 @@ ADR 0010 says retention retires and never deletes, because eviction is what make
 5. **Retired content stays out.** A write whose actor source is `model`, `compaction` or `tool` is denied (`engram/write/retired-content`) when an item retired in the same scope has the same normalised content hash (ADR 0018's exact rule). A `user`, `document` or `import` source may re-admit it: a person restating a fact is a new user event, which is what Bemula's relearning suite requires. The near-duplicate form of this rule waits for the duplicate lint (L1, ADR 0018).
 6. **Reinstatement** is an allowed `update` event that sets `status` back to active on the retired version (ADR 0010); no new Plane method in E2.4, and a follow-up card names the surface for it.
 
+Amendments made when implementing card E2.4, 2026-10-29 (choices this ADR left open; pending the lead's review like the rest of it):
+
+- Which ttl: the tighter of the item's own `ttl` and its retention rule's (scope level and class). The event names the rule (`<policy>/retention/<level>/<class>`) when the rule's ttl decides and `engram/retention/item-ttl` when the item's own is tighter. The expiry instant is `valid_from` plus whole seconds with the fraction kept (`addSeconds` in packages/core/src/time.ts); a sum past the last four-digit-year second never expires.
+- A sweep retires expired candidates as well as expired active items, so an expired candidate cannot be promoted later; retired items are left alone.
+- The write path's check is the budget only, as decision 3 says: an expired item that no sweep has retired still counts toward the budget and can be evicted (op `evict`) by it. Reads exclude it either way. Running expiry in the write path too would retire items at write time and hide the read-time exclusion behind it.
+- Utility counts every explanation row naming the item, from any reader and any time; ties fall to recency, then to the item id. Recency ties (none in practice, since each changing event has its own seq) fall to the id; an item with no recorded change counts as oldest.
+- A manual rule asks once per write that leaves its class over budget and once per sweep that finds it over; the ask repeats until a person acts, which keeps it visible in every session that meets it.
+- A refused sweep (the actor is not a member) is one event with op `retire`, decision deny, no item, `engram/retention/membership`; the enum has no other op for it and no schema change was made.
+- The retired-content rule compares against every retired item in the scope, however it was retired (retention, adoption's retraction, a future owner retirement), through one normalised content hash (packages/core/src/content-hash.ts, ADR 0018's amendment). A user re-admitting the content does not lift it for later model writes while the retired copy exists; the reason names the retired item only to a writer whose read matrix lets it read the scope.
+- Plane.retain and the budget check never write or delete in the store; the store keeps the item as it was written (ADR 0010's amendment).
+
 ## Alternatives considered
 
 - Deny a write that would exceed the budget instead of evicting: contradicts ADR 0010's reading of the tenure crossover (the new material is what the agent needs now) and the preset comments; not taken.

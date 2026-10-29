@@ -17,6 +17,11 @@
 // rule as an error result, like a deny in tool_call. Writes carry the
 // actor's source `model` (decision D4).
 //
+// Retention (card E2.4, ADR 0025): Plane.retain sweeps a scope after an
+// allowed write to it and, at before_agent_start, each of the session's
+// scopes; the write itself runs its budget check in the Plane. Every retire
+// and evict event, a manual rule's ask included, is mirrored like any other.
+//
 // Read path (decision D11): memory_read and before_agent_start's recall go
 // through Plane.read; the session stores a placeholder for each, and the
 // context handler shows the model only the results this extension produced,
@@ -250,6 +255,10 @@ export function createEngramExtension(options: EngramExtensionOptions): Extensio
             modelOf(ctx),
           );
           const { item: stored, event } = await planeCall(() => plane.write(agent, item, at));
+          // Retention after an allowed write (ADR 0025): the write already ran
+          // the budget check of its class; the sweep also retires what has
+          // expired in the scope. Every retirement is mirrored as an event.
+          if (stored) await planeCall(() => plane.retain(actor, stored.scope, at));
           const details: WriteDetails = {
             event_id: event.id,
             item_id: stored?.id ?? null,
@@ -361,6 +370,11 @@ export function createEngramExtension(options: EngramExtensionOptions): Extensio
     });
 
     pi.on("before_agent_start", async (event) => {
+      // Retention for the session's scopes before each prompt (ADR 0025): the
+      // plane has no clock, so the surfaces sweep. A sweep with nothing to do
+      // appends nothing.
+      const at = now();
+      for (const scope of actor.memberships) await planeCall(() => plane.retain(actor, scope, at));
       if (options.recall === false || event.messageType !== "user") return undefined;
       const details = await read(event.prompt);
       if (details.items.length === 0) return undefined;
