@@ -8,9 +8,29 @@ import { promisify } from "node:util";
 import { afterEach, describe, expect, test } from "vitest";
 import { type Db, DbTimeoutError } from "../../src/db/db.ts";
 import { migrate } from "../../src/db/migrate.ts";
-import { openPostgres, type PostgresOptions, rewritePlaceholders } from "../../src/db/postgres.ts";
+import {
+  isServerTimeout,
+  openPostgres,
+  type PostgresOptions,
+  rewritePlaceholders,
+} from "../../src/db/postgres.ts";
 import { allEvents } from "../../src/events.ts";
 import { freshSchema, openInSchema, postgresUrl } from "./backends.ts";
+
+describe("isServerTimeout", () => {
+  // Review finding P2-14: decided by the SQLSTATE and the elapsed time, never
+  // by the message, which follows the server's lc_messages.
+  test("a query_canceled (57014) that ran for the timeout is the server's statement timeout, whatever the language", () => {
+    expect(isServerTimeout("57014", 1000, 1000)).toBe(true);
+    expect(isServerTimeout("57014", 1500, 1000)).toBe(true);
+  });
+
+  test("a 57014 before the timeout is a cancel, and another code is not a timeout", () => {
+    expect(isServerTimeout("57014", 10, 1000)).toBe(false);
+    expect(isServerTimeout("55P03", 5000, 1000)).toBe(false);
+    expect(isServerTimeout(undefined, 5000, 1000)).toBe(false);
+  });
+});
 
 describe("rewritePlaceholders", () => {
   test("numbers each ? in order", () => {
@@ -196,6 +216,41 @@ describe.skipIf(url === undefined)("openPostgres", () => {
     const db = open();
     db.close();
     expect(() => db.prepare("SELECT 1 AS one").get()).toThrow(/closed/);
+  });
+
+  test("a cancelled statement that is not the timeout is a plain error with its code", () => {
+    const db = open({ timeoutMs: 5000 });
+    let error: unknown;
+    try {
+      db.prepare("SELECT pg_cancel_backend(pg_backend_pid()), pg_sleep(2)").get();
+    } catch (e) {
+      error = e;
+    }
+    expect(error).not.toBeInstanceOf(DbTimeoutError);
+    expect((error as { code?: string }).code).toBe("57014");
+    expect(db.prepare("SELECT 1 AS one").get()).toEqual({ one: 1 });
+  });
+
+  test("a session ended for idling in a transaction names that cause and closes the Db", () => {
+    const db = keep(openInSchema(pgUrl, freshSchema(), { timeoutMs: 500 }));
+    expect(() =>
+      db.transaction(() => {
+        db.exec("SELECT 1");
+        const until = Date.now() + 2000;
+        while (Date.now() < until) {
+          // slow synchronous work inside the transaction
+        }
+        db.exec("SELECT 2");
+      }),
+    ).toThrow(/idle in a transaction for more than 500 ms/);
+    expect(() => db.prepare("SELECT 1 AS one").get()).toThrow(/closed/);
+  });
+
+  test("a fractional numeric that a number cannot hold exactly keeps its exact text", () => {
+    const db = open();
+    expect(
+      db.prepare("SELECT 12345678901234567.89::numeric AS big, 1.50::numeric AS small").get(),
+    ).toEqual({ big: "12345678901234567.89", small: 1.5 });
   });
 
   test("an int8 beyond the safe integer range reads back as a bigint", () => {

@@ -3,6 +3,7 @@ export * from "./adapter.ts";
 export * from "./db/db.ts";
 export { MIGRATIONS, type Migration, migrate, migrationText } from "./db/migrate.ts";
 export {
+  isServerTimeout,
   openPostgres,
   POSTGRES_CONNECT_TIMEOUT_MS,
   POSTGRES_TIMEOUT_MS,

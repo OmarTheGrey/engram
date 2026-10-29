@@ -154,6 +154,21 @@ export function rewritePlaceholders(sql: string): string {
 }
 
 /**
+ * Whether a failed statement is the server's statement timeout: SQLSTATE
+ * 57014 (query_canceled) after at least `timeoutMs`, the statement_timeout
+ * this connection set. Decided by the code and the elapsed time, never by the
+ * message, which follows the server's lc_messages (review finding P2-14); a
+ * 57014 sooner is another cancel (pg_cancel_backend).
+ */
+export function isServerTimeout(
+  code: string | undefined,
+  elapsedMs: number,
+  timeoutMs: number,
+): boolean {
+  return code === "57014" && elapsedMs >= timeoutMs;
+}
+
+/**
  * Opens a Postgres log at `url` (postgres://user:password@host:port/database),
  * in `options.schema` when given. Throws when the server cannot be reached
  * within the connect timeout, or at once when the driver cannot start (a url
@@ -193,6 +208,7 @@ export function openPostgres(url: string, options: PostgresOptions = {}): Db {
   const call = (req: Request, wait = backstopMs): Response & { ok: true } => {
     if (closed) throw new Error(`postgres Db is closed: ${closed}`);
     const what = req.op === "query" || req.op === "exec" ? req.sql : req.op;
+    const started = Date.now();
     Atomics.store(signal, 0, 0);
     port1.postMessage(req);
     if (Atomics.wait(signal, 0, 0, wait) === "timed-out") {
@@ -210,7 +226,7 @@ export function openPostgres(url: string, options: PostgresOptions = {}): Db {
         code: res.code,
       });
     }
-    if (res.code === "57014" && /statement timeout/.test(res.message)) {
+    if (isServerTimeout(res.code, Date.now() - started, timeoutMs)) {
       throw new DbTimeoutError(`postgres: the server cancelled ${what} after ${timeoutMs} ms`);
     }
     throw Object.assign(new Error(res.message), { code: res.code });

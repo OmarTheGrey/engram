@@ -21,18 +21,24 @@ const { url, flag, port, settings } = workerData as {
 };
 const signal = new Int32Array(flag);
 
-type Sql = postgres.Sql<{ bigint: bigint; numeric: number | bigint }>;
+type Sql = postgres.Sql<{ bigint: bigint; numeric: number | bigint | string }>;
 
 let sql: Sql | undefined;
 let fatal: string | undefined;
 let connected = false;
 let closing = false;
 let inFlight = false;
+// Whether a transaction is open, and when the last answer went out: a session
+// the server ends while idle in a transaction is named as such (P2-11).
+let inTransaction = false;
+let lastReply = Date.now();
+const idleMs = Number(settings.connection.idle_in_transaction_session_timeout ?? 0);
 
 const message = (e: unknown) => String((e as { message?: unknown })?.message ?? e);
 
 function reply(res: Response): void {
   inFlight = false;
+  lastReply = Date.now();
   port.postMessage(res);
   Atomics.store(signal, 0, 1);
   Atomics.notify(signal, 0);
@@ -41,6 +47,15 @@ function reply(res: Response): void {
 function die(cause: string): void {
   fatal ??= cause;
   if (inFlight) reply({ ok: false, message: fatal, code: "ENGRAM_CONNECTION_LOST", fatal: true });
+}
+
+/** Why the session is gone: idle in a transaction past the server's timeout, or lost. */
+function lostCause(sqlstate?: string, detail?: string): string {
+  const idled = inTransaction && idleMs > 0 && Date.now() - lastReply >= idleMs;
+  if (sqlstate === "25P03" || idled) {
+    return `the session was idle in a transaction for more than ${idleMs} ms, and the server ended it (idle_in_transaction_session_timeout)`;
+  }
+  return `the connection to Postgres was lost${detail ? `: ${detail}` : ""}`;
 }
 
 process.on("uncaughtException", (e) => die(`the Postgres worker failed: ${message(e)}`));
@@ -52,6 +67,13 @@ process.on("exit", () => die("the Postgres worker exited"));
 // idle-in-transaction timeout (25P03) codes.
 const LOST = /^(CONNECTION_|57P|08|25P03$)/;
 
+function numeric(x: string): bigint | number | string {
+  if (/^-?\d+$/.test(x)) return BigInt(x);
+  const n = Number(x);
+  const trimmed = x.includes(".") ? x.replace(/0+$/, "").replace(/\.$/, "") : x;
+  return String(n) === trimmed || Number.isNaN(n) ? n : x;
+}
+
 try {
   const { default: postgres } = await import("postgres");
   sql = postgres(url, {
@@ -61,16 +83,18 @@ try {
     connect_timeout: Math.max(1, Math.ceil(settings.connectTimeoutMs / 1000)),
     onnotice: () => {},
     onclose: () => {
-      if (connected && !closing) die("the connection to Postgres was lost");
+      if (connected && !closing) die(lostCause());
     },
     types: {
       bigint: postgres.BigInt,
-      // numeric (sum, avg): a number, or a bigint for an integer beyond 2^53.
+      // numeric (sum, avg): a bigint for an integer (a number when safe, see
+      // value()), a number for a fraction a number holds exactly, and the
+      // exact text otherwise (P2-12).
       numeric: {
         to: 1700,
         from: [1700],
         serialize: (x: unknown) => String(x),
-        parse: (x: string) => (/^-?\d+$/.test(x) ? BigInt(x) : Number(x)),
+        parse: numeric,
       },
     },
     connection: settings.connection,
@@ -101,6 +125,8 @@ async function answer(db: Sql, req: Request): Promise<Response> {
       connected = true;
       return { ok: true, rows: [], changes: 0 };
     case "exec":
+      if (/^\s*BEGIN\b/i.test(req.sql)) inTransaction = true;
+      if (/^\s*(COMMIT|ROLLBACK)\s*$/i.test(req.sql)) inTransaction = false;
       await db.unsafe(req.sql).simple();
       return { ok: true, rows: [], changes: 0 };
     case "query": {
@@ -134,7 +160,7 @@ port.on("message", (req: Request) => {
       const code = (e as { code?: unknown })?.code;
       const sqlstate = typeof code === "string" ? code : undefined;
       if (connected && sqlstate && LOST.test(sqlstate)) {
-        die(`the connection to Postgres was lost: ${message(e)}`);
+        die(lostCause(sqlstate, message(e)));
         return;
       }
       reply({ ok: false, message: message(e), code: sqlstate, fatal: false });
