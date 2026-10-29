@@ -34,7 +34,7 @@ This file is owned by the lead. Changing it needs a second reviewer and a `decis
 
 - Never mock the plane. Tests drive `Plane.read` and `Plane.write` and assert on events and results.
 - Stores are faked, not mocked: `packages/adapters/src/fake/` is a complete in-memory adapter that passes the conformance suite. Every test above layer 1 that needs a store uses it unless the test is specifically about a real store.
-- Models are scripted, not mocked: `packages/runner/src/model/scripted.ts` is a `ModelCall` that answers from a table keyed on a hash of the request, and fails loudly on an unknown key. Real-model tests use the cache as a cassette: the first run records under a seed, later runs replay with zero calls. Cassettes are committed as fixtures under `fixtures/cassettes/` and are the only way a real model enters CI.
+- Models are scripted, not mocked: `packages/runner/src/model/scripted.ts` is a `ModelCall` that answers from a table keyed on a hash of the request, and fails loudly on an unknown key. Real-model tests use the cache as a cassette: the first run records under a seed, later runs replay with zero calls. Cassettes are committed as fixtures under `fixtures/cassettes/` and are the only way a real model enters CI. A runner config's scripted cassettes are recorded only by `make fixtures`, which records them afresh; `make run` replays, and a miss is an error.
 - Time is injected. Nothing in `packages/core` reads the clock; validity and retention tests pass a clock.
 - Randomness is seeded. Any test that samples takes its seed from the test name; a failing case prints the seed and the case so it can be rerun by itself.
 
@@ -43,7 +43,7 @@ This file is owned by the lead. Changing it needs a second reviewer and a `decis
 - `fixtures/sessions/`: pi session JSONL files (version 3) that exercise one behaviour each: a write denied, a read filtered, a bash bypass blocked, a branch abandoned, a compaction. Each has a sibling `.expected.json` with the decisions and events the plane must produce. Regenerated only by `make fixtures`, which fails if the diff is not explained in the PR.
 - `fixtures/stores/`: snapshot states for each adapter at known points, used by replay and conformance tests.
 - `fixtures/faults/`: the seeded-fault catalogue (expired validity, changed source, scope mismatch, missing provenance, orphan, duplicate, contradiction, unsupported claim, each MPBench attack class). Every lint has a fixture that it must flag and a near-miss fixture that it must not.
-- `fixtures/cassettes/`: recorded model responses keyed by (prompt hash, model, seed).
+- `fixtures/cassettes/`: recorded model responses keyed by (benchmark item, condition, preset, store, model, seed, prompt hash) (ADR 0017).
 
 Golden files are updated by a command, never by hand, and the update is its own commit with the reason in the message.
 

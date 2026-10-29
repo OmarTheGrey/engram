@@ -12,8 +12,12 @@ import {
 } from "@earendil-works/pi-ai";
 import { type ModelCall, requestHash } from "@engram/core";
 
+type ScriptedToolCall = { id: string; name: string; arguments: ToolCall["arguments"] };
+
+/** One model answer: a tool call, several tool calls in one message, or text. */
 export type ScriptStep =
-  | { toolCall: { id: string; name: string; arguments: ToolCall["arguments"] } }
+  | { toolCall: ScriptedToolCall }
+  | { toolCalls: readonly ScriptedToolCall[] }
   | { text: string };
 
 export interface ScriptedPiModelOptions {
@@ -44,8 +48,11 @@ export function scriptedPiModel(
     (context): AssistantMessage => {
       seen.push(structuredClone(context));
       if ("text" in step) return fauxAssistantMessage(step.text);
-      const { id, name, arguments: args } = step.toolCall;
-      return fauxAssistantMessage([fauxToolCall(name, args, { id })], { stopReason: "toolUse" });
+      const calls = "toolCalls" in step ? step.toolCalls : [step.toolCall];
+      return fauxAssistantMessage(
+        calls.map(({ id, name, arguments: args }) => fauxToolCall(name, args, { id })),
+        { stopReason: "toolUse" },
+      );
     };
   faux.setResponses(steps.map(respond));
   return {

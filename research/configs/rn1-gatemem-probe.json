@@ -1,0 +1,14 @@
+{
+  "name": "rn1-gatemem-probe",
+  "kind": "pipeline",
+  "benchmark": "gatemem",
+  "data": "../../fixtures/bench/gatemem",
+  "items": ["med_episode_rewrite_en_012_new_hiv_deleted_harbor_light_line_ckpt_15"],
+  "conditions": ["C2", "C3", "C5"],
+  "model": "scripted/scripted-1",
+  "seeds": [1],
+  "preset": "medium",
+  "store": "fake",
+  "script": "../../fixtures/bench/gatemem/rn1-probe-script.json",
+  "cassettes": "../../fixtures/cassettes/rn1-gatemem-probe"
+}

@@ -14,12 +14,20 @@ import { allEvents } from "./events.ts";
 
 export { ADOPT_RETRACT_ID, type AdoptReport, adoptStoreItems } from "./plane/adopt.ts";
 
+import { recordBypass } from "./plane/bypass.ts";
 import { filteredRead, storedExplanations } from "./plane/read.ts";
-import { gatedWrite } from "./plane/write.ts";
+import { checkWrite, gatedWrite } from "./plane/write.ts";
 import type { Explanation, LintFinding, MemoryEvent, MemoryItem, Policy } from "./schema.ts";
 import type { SimReport, Workload } from "./simulate.ts";
 
 export { type Actor, ActorShape, ExplainDeniedError, InvalidCallError } from "./actor.ts";
+export {
+  BYPASS_ID,
+  BYPASS_PATH_ID,
+  BYPASS_RESULT_ID,
+  bypassAttempt,
+  MAX_ATTEMPT_LENGTH,
+} from "./plane/bypass.ts";
 
 export interface ReadQuery {
   text?: string;
@@ -51,6 +59,32 @@ export interface ReadResult {
   event: MemoryEvent;
 }
 
+/** The decision a write would get, without committing it (decision D12). */
+export interface WriteCheckResult {
+  decision: MemoryEvent["decision"];
+  reason: string;
+  policy_id: string;
+}
+
+/**
+ * Something a surface refused because it would reach a store without the
+ * Plane (ADR 0014, decisions D10 and D11), and the store it would reach.
+ */
+export interface Bypass {
+  /**
+   * What was attempted: the shell command, the file tool and its path, or the
+   * memory tool result. The event's reason keeps it, cut and with secrets removed.
+   */
+  command: string;
+  store: string;
+  /**
+   * `command` (default): a store's CLI in a shell command. `path`: a file tool
+   * on a path inside a store's root. `result`: a memory tool result the
+   * Engram extension did not produce, withheld from the model.
+   */
+  route?: "command" | "path" | "result";
+}
+
 /** The id of the `read` event a ReadResult carries; explain looks the read up by it. */
 export type ReadId = string;
 
@@ -64,6 +98,13 @@ export interface GateResult {
 
 export interface Plane {
   write(actor: Actor, item: MemoryItem, at: string): Promise<WriteResult>;
+  /**
+   * The decision `write` would give now, computed the same way, with no store
+   * write and no event (decision D12). A harness that decides before it
+   * commits (pi's tool_call before the tool's execute) checks here and
+   * commits with `write`, whose decision is the one recorded.
+   */
+  checkWrite(actor: Actor, item: MemoryItem, at: string): Promise<WriteCheckResult>;
   read(actor: Actor, query: ReadQuery): Promise<ReadResult>;
   /** Moves an item to a wider scope (or a candidate to active) if the promotion policy allows. */
   promote(actor: Actor, itemId: string, toScope: string, at: string): Promise<GateResult>;
@@ -73,6 +114,12 @@ export interface Plane {
   simulate(workload: Workload, policy: Policy): Promise<SimReport>;
   /** Candidate procedural items induced from sessions. */
   distill(sessions: Session[], method: DistillMethod): Promise<MemoryItem[]>;
+  /**
+   * Records a bypass a surface blocked (ADR 0014) as one `bypass_blocked`
+   * deny event whose reason keeps the attempt; nothing reaches the store.
+   * Refuses an invalid actor, time or bypass with InvalidCallError.
+   */
+  recordBypass(actor: Actor, bypass: Bypass, at: string): Promise<MemoryEvent>;
   /**
    * The explanations recorded for a read, for the actor who made it only;
    * another actor is refused with ExplainDeniedError (decision D5).
@@ -108,8 +155,10 @@ export interface PlaneDeps {
 export function createPlane(deps: PlaneDeps): Plane {
   return {
     write: (actor, item, at) => gatedWrite(deps, actor, item, at),
+    checkWrite: async (actor, item, at) => checkWrite(deps, actor, item, at),
     read: (actor, query) => filteredRead(deps, actor, query),
     explain: async (actor, readId) => storedExplanations(deps, actor, readId),
+    recordBypass: async (actor, bypass, at) => recordBypass(deps, actor, bypass, at),
     promote: async () => {
       throw new NotImplementedYet("promote", "E2.5");
     },

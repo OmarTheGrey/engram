@@ -1,6 +1,6 @@
 # PX1 Engram pi extension skeleton on the plane
 
-Status: open; step-0 task S0.5 proved the interception points with a test-only stub gate.
+Status: done 2026-10-25 (branch pr6-pi); the extension runs on the real Plane, the S0.5 stub gate is removed, and the acceptance test is packages/pi-extension/test/plane.test.ts.
 
 Added by ADR 0001.
 
