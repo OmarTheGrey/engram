@@ -7,10 +7,14 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test } from "vitest";
 
+// The test timeout and the child's own timeout. spawnSync blocks the worker,
+// so vitest cannot stop a test while Biome runs; the spawn timeout is what
+// ends a hung Biome, and the error it leaves fails the test rather than
+// passing as a non-zero lint status.
 const SPAWN_TIMEOUT = 30_000;
 
 /** Lints each source as its own probe file in one Biome run. */
-function lint(pkg: string, sources: readonly string[]) {
+function lint(pkg: string, sources: readonly string[], timeout = SPAWN_TIMEOUT) {
   const dir = join("packages", pkg, "src");
   mkdirSync(dir, { recursive: true });
   const files = sources.map((source, i) => {
@@ -22,8 +26,9 @@ function lint(pkg: string, sources: readonly string[]) {
     const run = spawnSync(
       "pnpm",
       ["exec", "biome", "lint", "--vcs-use-ignore-file=false", ...files],
-      { encoding: "utf8", shell: process.platform === "win32" },
+      { encoding: "utf8", shell: process.platform === "win32", timeout },
     );
+    if (run.error) throw run.error;
     return { status: run.status, output: run.stdout + run.stderr };
   } finally {
     for (const file of files) rmSync(file, { force: true });
@@ -45,6 +50,14 @@ test.each(["core", "adapters"])(
       PI_IMPORTS.length,
     );
     expect(run.status, run.output).not.toBe(0);
+  },
+  SPAWN_TIMEOUT,
+);
+
+test(
+  "a Biome run that outlives its spawn timeout fails the test instead of passing as a lint failure",
+  () => {
+    expect(() => lint("core", PI_IMPORTS, 1)).toThrow(/ETIMEDOUT/);
   },
   SPAWN_TIMEOUT,
 );
