@@ -11,7 +11,7 @@
       "scope_from": null,
       "scope_to": null,
       "decision": "allow",
-      "reason": "returned 0 of 0 candidates; 0 filtered (0 outside the validity window, 0 not active, 0 by a grant's class or expiry); 0 projected items outside the reader's reach were not candidates",
+      "reason": "returned 0 of 0 candidates; 0 filtered (0 outside the validity window, 0 not active, 0 past their ttl, 0 by a grant's class or expiry); 0 projected items outside the reader's reach were not candidates",
       "policy_id": "preset.medium/read/person",
       "schema_version": 0
     },
@@ -80,7 +80,7 @@
       "scope_from": null,
       "scope_to": null,
       "decision": "allow",
-      "reason": "returned 1 of 1 candidates; 0 filtered (0 outside the validity window, 0 not active, 0 by a grant's class or expiry); 0 projected items outside the reader's reach were not candidates",
+      "reason": "returned 1 of 1 candidates; 0 filtered (0 outside the validity window, 0 not active, 0 past their ttl, 0 by a grant's class or expiry); 0 projected items outside the reader's reach were not candidates",
       "policy_id": "preset.medium/read/person",
       "schema_version": 0
     },

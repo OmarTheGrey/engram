@@ -1,0 +1,149 @@
+{
+  "description": "Card E2.4. One pi SDK session with an in-memory session manager, a scripted model, the fake store, the medium preset with a person-scope semantic budget of one (recency) and actor person:omar. The second write evicts the first; the third restates the evicted content and is refused as retired content; the read returns the second only. events lists every engram.event custom entry in session order.",
+  "events": [
+    {
+      "id": "01920000-0000-7000-8000-000000000001",
+      "seq": 0,
+      "ts": "2026-10-25T12:00:00.000Z",
+      "op": "read",
+      "item_id": null,
+      "actor": "person:omar",
+      "scope_from": null,
+      "scope_to": null,
+      "decision": "allow",
+      "reason": "returned 0 of 0 candidates; 0 filtered (0 outside the validity window, 0 not active, 0 past their ttl, 0 by a grant's class or expiry); 0 projected items outside the reader's reach were not candidates",
+      "policy_id": "preset.medium/read/person",
+      "schema_version": 0
+    },
+    {
+      "id": "01920000-0000-7000-8000-000000000004",
+      "seq": 1,
+      "ts": "2026-10-25T12:00:00.000Z",
+      "op": "write",
+      "item_id": "01920000-0000-7000-8000-000000000003",
+      "actor": "person:omar",
+      "scope_from": null,
+      "scope_to": "person:omar",
+      "decision": "allow",
+      "reason": "semantic item from source model passes the person write rule; provenance set by the plane: source model, actor person:omar",
+      "policy_id": "preset.medium/write/person",
+      "item": {
+        "id": "01920000-0000-7000-8000-000000000003",
+        "scope": "person:omar",
+        "owner": "person:omar",
+        "provenance": {
+          "kind": "model",
+          "ref": "pi:tool_call/call-1",
+          "hash": "sha256:fee7376bfcde92d46afd2dce7f523c32735a118bffd209f451b562d0871d3c31",
+          "actor": "person:omar",
+          "model": "scripted/scripted-1"
+        },
+        "confidence": 0.5,
+        "valid_from": "2026-10-25T12:00:00.000Z",
+        "valid_to": null,
+        "ttl": null,
+        "grants": [],
+        "version": 1,
+        "lineage": [],
+        "status": "active",
+        "store_ref": {
+          "adapter": "fake",
+          "key": "01920000-0000-7000-8000-000000000003"
+        },
+        "schema_version": 0,
+        "class": "semantic",
+        "content": "deploys happen on Tuesdays"
+      },
+      "schema_version": 0
+    },
+    {
+      "id": "01920000-0000-7000-8000-000000000007",
+      "seq": 2,
+      "ts": "2026-10-25T12:00:00.000Z",
+      "op": "write",
+      "item_id": "01920000-0000-7000-8000-000000000006",
+      "actor": "person:omar",
+      "scope_from": null,
+      "scope_to": "person:omar",
+      "decision": "allow",
+      "reason": "semantic item from source model passes the person write rule; provenance set by the plane: source model, actor person:omar",
+      "policy_id": "preset.medium/write/person",
+      "item": {
+        "id": "01920000-0000-7000-8000-000000000006",
+        "scope": "person:omar",
+        "owner": "person:omar",
+        "provenance": {
+          "kind": "model",
+          "ref": "pi:tool_call/call-2",
+          "hash": "sha256:d3cca154294112bead8ee1c6825bb0d2cab8656c77709ca2d1b797c605f0d98f",
+          "actor": "person:omar",
+          "model": "scripted/scripted-1"
+        },
+        "confidence": 0.5,
+        "valid_from": "2026-10-25T12:00:00.000Z",
+        "valid_to": null,
+        "ttl": null,
+        "grants": [],
+        "version": 1,
+        "lineage": [],
+        "status": "active",
+        "store_ref": {
+          "adapter": "fake",
+          "key": "01920000-0000-7000-8000-000000000006"
+        },
+        "schema_version": 0,
+        "class": "semantic",
+        "content": "deploys happen on Wednesdays"
+      },
+      "schema_version": 0
+    },
+    {
+      "id": "01920000-0000-7000-8000-000000000008",
+      "seq": 3,
+      "ts": "2026-10-25T12:00:00.000Z",
+      "op": "evict",
+      "item_id": "01920000-0000-7000-8000-000000000003",
+      "actor": "person:omar",
+      "scope_from": null,
+      "scope_to": "person:omar",
+      "decision": "allow",
+      "reason": "scope person:omar holds 2 active semantic items, budget 1; evicted the oldest by last change (seq 1): item 01920000-0000-7000-8000-000000000003; retired, kept in the log and the store",
+      "policy_id": "preset.medium/retention/person/semantic",
+      "schema_version": 0
+    },
+    {
+      "id": "01920000-0000-7000-8000-000000000010",
+      "seq": 4,
+      "ts": "2026-10-25T12:00:00.000Z",
+      "op": "write",
+      "item_id": "01920000-0000-7000-8000-000000000009",
+      "actor": "person:omar",
+      "scope_from": null,
+      "scope_to": "person:omar",
+      "decision": "deny",
+      "reason": "the content restates item 01920000-0000-7000-8000-000000000003, retired in person:omar; a model source cannot bring it back, a user, document or import source can; provenance set by the plane: source model, actor person:omar",
+      "policy_id": "engram/write/retired-content",
+      "schema_version": 0
+    },
+    {
+      "id": "01920000-0000-7000-8000-000000000011",
+      "seq": 5,
+      "ts": "2026-10-25T12:00:00.000Z",
+      "op": "read",
+      "item_id": null,
+      "actor": "person:omar",
+      "scope_from": null,
+      "scope_to": null,
+      "decision": "allow",
+      "reason": "returned 1 of 2 candidates; 1 filtered (0 outside the validity window, 1 not active, 0 past their ttl, 0 by a grant's class or expiry); 0 projected items outside the reader's reach were not candidates",
+      "policy_id": "preset.medium/read/person",
+      "schema_version": 0
+    }
+  ],
+  "blocked_tool_calls": [
+    "call-3"
+  ],
+  "read_items": [
+    "deploys happen on Wednesdays"
+  ]
+}
