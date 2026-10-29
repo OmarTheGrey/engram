@@ -40,7 +40,7 @@ else
 	node scripts/check-log.ts
 endif
 
-test-e2e: ui ## layer 6: engram doctor and a CLI smoke on SQLite and embedded Postgres, and the inspector in Chromium on a fixture workspace; no Docker
+test-e2e: ui ## layer 6: engram doctor and a CLI smoke on SQLite and embedded Postgres, the MCP handshakes and the hook, and the inspector in Chromium on a fixture workspace; no Docker
 	$(PNPM) exec vitest run --config test/e2e/vitest.config.ts
 
 ui: ## build the inspector (Vite and React) into packages/ui/dist, which engram serve serves at /

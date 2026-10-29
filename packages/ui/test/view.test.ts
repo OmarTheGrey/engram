@@ -88,6 +88,7 @@ function readOf(items: MemoryItem[], ranks: number[]): ReadResponse {
     filtered: 0,
     event: event(0, { op: "read", scope_to: null }),
     sync: null,
+    policy: "p v1",
   };
 }
 
