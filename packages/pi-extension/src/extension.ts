@@ -213,8 +213,9 @@ export function createEngramExtension(options: EngramExtensionOptions): Extensio
     });
 
     /** A bypass event when `command` names a store or reaches a store root, else undefined. */
-    const shellBypass = async (command: string, cwd: string) => {
-      const found = coreShellBypass(command, check(cwd));
+    const shellBypass = async (command: string, cwd: string, shell?: "powershell") => {
+      // pi's powershell tool reads `\` as a path separator on every platform.
+      const found = coreShellBypass(command, { ...check(cwd), ...(shell ? { shell } : {}) });
       return found === undefined ? undefined : bypass(found);
     };
 
@@ -360,7 +361,11 @@ export function createEngramExtension(options: EngramExtensionOptions): Extensio
       if (isMemoryTool(event.toolName)) return undefined;
       let blocked: MemoryEvent | undefined;
       if (SHELL_TOOLS.has(event.toolName)) {
-        blocked = await shellBypass(String(input.command ?? ""), ctx.cwd);
+        blocked = await shellBypass(
+          String(input.command ?? ""),
+          ctx.cwd,
+          event.toolName === "powershell" ? "powershell" : undefined,
+        );
       }
       blocked ??= await pathBypass(event.toolName, input, ctx.cwd);
       return blocked ? { block: true, reason: refusal(blocked) } : undefined;

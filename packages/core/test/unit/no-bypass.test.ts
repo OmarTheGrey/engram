@@ -202,6 +202,24 @@ describe("shellBypass and toolBypass", () => {
     expect(shellBypass('bash -c "echo done"', check)).toBeUndefined();
   });
 
+  it("reads a backslash as a path separator for PowerShell and cmd on every platform", () => {
+    for (const shell of ["powershell", "cmd"] as const) {
+      expect(shellBypass("Get-Content memory\\a.md", { ...check, shell })?.route).toBe("path");
+      expect(shellBypass("type .\\memory\\a.md", { ...check, shell })?.route).toBe("path");
+    }
+    // Nested scripts carry their shell's reading.
+    expect(shellBypass('pwsh -Command "Get-Content memory\\a.md"', check)?.route).toBe("path");
+    expect(shellBypass('cmd /c "type memory\\a.md"', check)?.route).toBe("path");
+  });
+
+  it.runIf(process.platform !== "win32")(
+    "keeps a backslash as an escape for bash off Windows, where it names no separator",
+    () => {
+      // To bash, `memory\a.md` is the file `memorya.md`, not memory/a.md.
+      expect(shellBypass("cat memory\\a.md", check)).toBeUndefined();
+    },
+  );
+
   it("refuses every command whose cwd is inside a root", () => {
     expect(shellBypass("ls", { ...check, cwd: root })?.route).toBe("path");
   });

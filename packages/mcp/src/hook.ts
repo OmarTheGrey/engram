@@ -108,7 +108,10 @@ export function hookBypass(input: PreToolUseInput, scope: HookScope): Bypass | u
   ];
   for (const check of guarded) {
     if (SHELLS.has(lower) && typeof args.command === "string") {
-      const found = shellBypass(args.command, check);
+      const found = shellBypass(args.command, {
+        ...check,
+        shell: lower === "powershell" ? "powershell" : "posix",
+      });
       if (found !== undefined) return found;
     }
     const found = toolBypass(TOOL_KIND[lower] ?? lower, args, check);

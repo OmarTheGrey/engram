@@ -23,6 +23,12 @@ export interface BypassCheck {
   stores?: readonly string[];
   /** The store a path inside a root is reported as reaching. */
   rootStore: string;
+  /**
+   * The shell that reads the command: `posix` (bash, sh: a backslash
+   * escapes), or `powershell` or `cmd`, where a backslash is a path separator
+   * on every platform, pwsh on Linux included. Default `posix`.
+   */
+  shell?: ShellFlavor;
   /** The folder `~` names; the process's home when absent. */
   home?: string;
   /**
@@ -60,7 +66,15 @@ function reaches(word: string | undefined, check: BypassCheck, recursive: boolea
  * and its subcommand is a built-in that takes a message (VCS_MESSAGE_COMMANDS),
  * never an alias, which can evaluate its arguments.
  */
-function pathCheckWords(command: string, depth = 0, quotedAbove = true): string[] {
+/** How a shell reads a backslash in a word. */
+export type ShellFlavor = "posix" | "powershell" | "cmd";
+
+function pathCheckWords(
+  command: string,
+  depth = 0,
+  quotedAbove = true,
+  flavor: ShellFlavor = "posix",
+): string[] {
   // R3-26: single quotes do not stop an outer shell expanding first. A
   // message is exempt only when every enclosing script argument was itself
   // wholly single-quoted (`quotedAbove`), and never in a command holding a
@@ -132,7 +146,10 @@ function pathCheckWords(command: string, depth = 0, quotedAbove = true): string[
       // And after the last colon of the raw token, before brace expansion
       // (`:memory/a.md`, `:0:memory/a.md`, `stash@{0}:memory/a.md`: R3-25).
       const last = t.lastIndexOf(":");
-      return last >= 0 ? [...out, t.slice(last + 1)] : out;
+      const all = last >= 0 ? [...out, t.slice(last + 1)] : out;
+      // PowerShell and cmd read `\` as a path separator whatever the
+      // platform, so `memory\a.md` is `memory/a.md` to pwsh on Linux too.
+      return flavor === "posix" ? all : all.map((w) => w.replaceAll("\\", "/"));
     };
     const pending = next;
     next = undefined;
@@ -148,10 +165,15 @@ function pathCheckWords(command: string, depth = 0, quotedAbove = true): string[
       return out;
     };
     if (pending === "script") {
-      shell = undefined;
+      const inner: ShellFlavor =
+        shell === "pwsh" ? "powershell" : shell === "cmd" ? "cmd" : "posix";
       // `bash -c -- "..."`: the end of options comes before the script.
-      if (t === "--") next = "script";
-      return finish(t === "--" ? [] : pathCheckWords(t, depth + 1, exemptable && /^s+$/.test(m)));
+      if (t === "--") {
+        next = "script";
+        return finish([]);
+      }
+      shell = undefined;
+      return finish(pathCheckWords(t, depth + 1, exemptable && /^s+$/.test(m), inner));
     }
     if (pending === "encoded") {
       shell = undefined;
@@ -159,7 +181,7 @@ function pathCheckWords(command: string, depth = 0, quotedAbove = true): string[
       return finish(
         decoded === undefined
           ? words()
-          : [...words(), ...pathCheckWords(decoded, depth + 1, false)],
+          : [...words(), ...pathCheckWords(decoded, depth + 1, false, "powershell")],
       );
     }
     const pathLike = (out: string[]) => out.filter((w) => /[\\/]|^~|^\./.test(w));
@@ -345,7 +367,7 @@ export function shellBypass(command: string, check: BypassCheck): Bypass | undef
     if (inner) return { command, store: inner };
   }
   const path = { command, store: check.rootStore, route: "path" as const };
-  const words = pathCheckWords(command);
+  const words = pathCheckWords(command, 0, true, check.shell ?? "posix");
   for (const unc of command.matchAll(
     /[\\/]{2}(?:localhost|127\.0\.0\.1|\?|\.)[\\/][a-zA-Z][$:][^\s'"|;&<>()]*/gi,
   ))
