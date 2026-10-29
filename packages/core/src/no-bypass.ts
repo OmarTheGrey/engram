@@ -47,31 +47,41 @@ function reaches(word: string | undefined, check: BypassCheck, recursive: boolea
  * The words of a shell command for the path check. Cut at unquoted whitespace
  * first; every piece of every token, quoted or not, is checked (review
  * finding R3-16: a quoted string can be a script run by `eval`, `bash <<<`,
- * a pipe into a shell, `iex`, `python -c` or `node -e`). The one exception is
- * the message argument of a version-control tool's `-m`, `--message` or
- * `--message=` (git, hg, svn, jj, bzr: commit, tag and the like), where only
- * path-like words are checked (R3-15), so `git commit -m "fix memory leak"`
- * passes. A shell's script argument (`bash -c`, `pwsh -Command`, `cmd /c`)
- * and a PowerShell encoded command are checked as nested commands.
+ * a pipe into a shell, `iex`, `python -c` or `node -e`). An unquoted newline
+ * ends a list segment as `;` does (R3-23). A shell's script argument
+ * (`bash -c`, `pwsh -Command`, `cmd /c`) and a PowerShell encoded command are
+ * checked as nested commands.
+ *
+ * The one exception, as small as it can be made (R3-15 to R3-25): a commit
+ * message is read as one word, with only its path-like words checked, when
+ * all of these hold: it is wholly single-quoted (`-m '...'`, `--message
+ * '...'` or `--message='...'`), since single quotes never expand, so nothing
+ * inside can run; the tool (git, hg, svn, jj, bzr) is in command position;
+ * and its subcommand is a built-in that takes a message (VCS_MESSAGE_COMMANDS),
+ * never an alias, which can evaluate its arguments.
  */
 function pathCheckWords(command: string, depth = 0): string[] {
   // Each token keeps its text after quote removal, whether it held quoted
-  // whitespace, the part of it outside single quotes (where `$(`, backticks
-  // and `$name` still expand: R3-19), and whether it ends a list or pipeline
-  // segment (an unquoted `;`, `&` or `|` at its end).
-  const tokens: { text: string; spaced: boolean; live: string; ends: boolean }[] = [];
+  // whitespace, the quoting of each character (`s` single, `d` double, `u`
+  // none), and whether it ends a list or pipeline segment (an unquoted `;`,
+  // `&` or `|` at its end, or an unquoted newline after it).
+  const tokens: { text: string; spaced: boolean; modes: string; ends: boolean }[] = [];
   let text = "";
-  let live = "";
+  let modes = "";
   let spaced = false;
   let quote: string | undefined;
-  /** The last character of the token was outside quotes. */
-  let bare = false;
-  const flush = () => {
-    if (text !== "") tokens.push({ text, spaced, live, ends: bare && /[;&|]$/.test(text) });
+  const flush = (newline = false) => {
+    if (text !== "")
+      tokens.push({
+        text,
+        spaced,
+        modes,
+        ends: newline || (modes.endsWith("u") && /[;&|]$/.test(text)),
+      });
+    else if (newline && tokens.length > 0) (tokens.at(-1) as { ends: boolean }).ends = true;
     text = "";
-    live = "";
+    modes = "";
     spaced = false;
-    bare = false;
   };
   for (let i = 0; i < command.length; i++) {
     const c = command[i] as string;
@@ -80,40 +90,45 @@ function pathCheckWords(command: string, depth = 0): string[] {
       else {
         if (/\s/.test(c)) spaced = true;
         text += c;
-        if (quote === '"') live += c;
-        bare = false;
+        modes += quote === "'" ? "s" : "d";
       }
     } else if (c === "'" || c === '"') quote = c;
+    else if (c === "\\" && command[i + 1] === "\n") i++;
     else if (c === "\\" && /\s/.test(command[i + 1] ?? "")) {
       text += command[i + 1];
-      bare = false;
+      modes += "d";
       i++;
-    } else if (/\s/.test(c)) flush();
+    } else if (c === "\n") flush(true);
+    else if (/\s/.test(c)) flush();
     else {
       text += c;
-      live += c;
-      bare = true;
+      modes += "u";
     }
   }
   flush();
-  // The script argument of a shell (`bash -c "..."`, `pwsh -Command "..."`,
-  // `cmd /c "..."`) is a nested command, checked in full (ADR 0014 decision
-  // D10); a PowerShell `-EncodedCommand` is decoded and checked the same way
-  // (R3-17). A message is exempt only in its own command: a nested script
-  // gets the exemption only where it is itself a VCS command (R3-20).
   let shell: "sh" | "pwsh" | "cmd" | undefined;
-  let next: "script" | "encoded" | "message" | undefined;
-  let vcs = false;
+  let next: "script" | "encoded" | "message" | "option-arg" | undefined;
+  /** The VCS tool in command position, until its subcommand is known. */
+  let tool: string | undefined;
+  /** The subcommand words seen after the tool, options skipped. */
+  let subcommand: string[] = [];
+  /** The tool and subcommand take a message. */
+  let messages = false;
   /** The next token is in command position: first in its segment, or after a wrapper. */
   let atCommand = true;
   let wrapperArg = false;
-  return tokens.flatMap(({ text: t, spaced: s, live: l, ends }) => {
-    const words = () =>
-      commandWords(t).flatMap((w) => {
+  return tokens.flatMap(({ text: t, spaced: s, modes: m, ends }) => {
+    const words = () => {
+      const out = commandWords(t).flatMap((w) => {
         // `rev:path` (git show HEAD:memory/a.md) names a path after its first colon (R3-21).
         const colon = w.indexOf(":");
         return [w, ...w.split("=").slice(1), ...(colon > 0 ? [w.slice(colon + 1)] : [])];
       });
+      // And after the last colon of the raw token, before brace expansion
+      // (`:memory/a.md`, `:0:memory/a.md`, `stash@{0}:memory/a.md`: R3-25).
+      const last = t.lastIndexOf(":");
+      return last >= 0 ? [...out, t.slice(last + 1)] : out;
+    };
     const pending = next;
     next = undefined;
     const commandPosition = atCommand;
@@ -121,7 +136,8 @@ function pathCheckWords(command: string, depth = 0): string[] {
     const finish = (out: string[]) => {
       if (ends || /^(?:;|&&|\|\||\||&)$/.test(t)) {
         shell = undefined;
-        vcs = false;
+        tool = undefined;
+        messages = false;
         atCommand = true;
       }
       return out;
@@ -139,13 +155,23 @@ function pathCheckWords(command: string, depth = 0): string[] {
         decoded === undefined ? words() : [...words(), ...pathCheckWords(decoded, depth + 1)],
       );
     }
-    // A commit or tag message (R3-16): read as one word, its path-like words
-    // still checked, unless it can run something (R3-19): command or process
-    // substitution, a backtick, or a parameter expansion outside single quotes.
-    const message = pending === "message" || (vcs && /^--message=/i.test(t));
-    if (message && !EXPANDS.test(l)) return finish(words().filter((w) => /[\\/]|^~|^\./.test(w)));
-    if (message) return finish(words());
+    const pathLike = (out: string[]) => out.filter((w) => /[\\/]|^~|^\./.test(w));
+    if (pending === "message" && /^s+$/.test(m)) return finish(pathLike(words()));
+    if (messages && /^--message=/i.test(t) && /^u{10}s+$/.test(m)) return finish(pathLike(words()));
+    if (pending === "option-arg") return finish(words());
     const name = (t.split(/[\\/]/).pop() ?? "").toLowerCase().replace(/\.exe$/, "");
+    if (tool !== undefined && !messages) {
+      // The subcommand: the first non-option words after the tool, skipping
+      // `-c key=val` and `-C dir` pairs (R3-24).
+      if (/^-[cC]$/.test(t)) next = "option-arg";
+      else if (!/^-/.test(t)) {
+        subcommand.push(t);
+        const verdict = takesMessage(tool, subcommand);
+        if (verdict === false) tool = undefined;
+        else if (verdict === true) messages = true;
+      }
+      return finish(words());
+    }
     if (commandPosition && !s) {
       if (wrapperArg) {
         wrapperArg = false;
@@ -163,8 +189,10 @@ function pathCheckWords(command: string, depth = 0): string[] {
     if (SH_SHELLS.has(name) && !s) shell = "sh";
     else if ((name === "pwsh" || name === "powershell") && !s) shell = "pwsh";
     else if (name === "cmd" && !s) shell = "cmd";
-    else if (VCS.has(name) && !s && commandPosition) vcs = true;
-    else if (
+    else if (VCS.has(name) && !s && commandPosition) {
+      tool = name;
+      subcommand = [];
+    } else if (
       (shell === "sh" && /^-[a-z]*c$/i.test(t)) ||
       (shell === "pwsh" && /^-(?:c|command)$/i.test(t)) ||
       (shell === "cmd" && /^\/[ck]$/i.test(t))
@@ -172,14 +200,12 @@ function pathCheckWords(command: string, depth = 0): string[] {
       next = depth < MAX_NESTING ? "script" : undefined;
     else if (shell === "pwsh" && isEncodedFlag(t))
       next = depth < MAX_NESTING ? "encoded" : undefined;
-    else if (vcs && MESSAGE_FLAGS.has(t)) next = "message";
+    else if (messages && MESSAGE_FLAGS.has(t)) next = "message";
     // Every other word, quoted or not, is checked (R3-16: err towards blocking).
     return finish(words());
   });
 }
 
-/** Text that runs or expands something when a shell reads it (outside single quotes). */
-const EXPANDS = /\$\(|`|<\(|>\(|\$[A-Za-z_{]/;
 /** Commands that run the command after them, so it is still in command position (R3-20). */
 const WRAPPERS = new Set([
   "env",
@@ -193,9 +219,28 @@ const WRAPPERS = new Set([
   "nice",
   "doas",
 ]);
-/** Version-control tools whose `-m`/`--message` argument is a message, not a path. */
+/** Version-control tools whose built-in commit commands take a `-m`/`--message`. */
 const VCS = new Set(["git", "hg", "svn", "jj", "bzr"]);
-/** The message flags of their commit and tag commands. */
+/**
+ * The built-in subcommands that take a message, per tool, as word sequences
+ * (`git stash push`). Anything else, an alias included, gets no exemption.
+ */
+const VCS_MESSAGE_COMMANDS: Readonly<Record<string, readonly (readonly string[])[]>> = {
+  git: [["commit"], ["tag"], ["merge"], ["notes"], ["stash", "push"], ["stash", "save"]],
+  hg: [["commit"], ["tag"]],
+  svn: [["commit"], ["ci"]],
+  jj: [["commit"], ["describe"], ["new"]],
+  bzr: [["commit"]],
+};
+
+/** true when `words` is a message-taking subcommand, false when it cannot become one, else undefined. */
+function takesMessage(tool: string, words: readonly string[]): boolean | undefined {
+  const forms = (VCS_MESSAGE_COMMANDS[tool] ?? []).filter((f) => words.every((w, i) => f[i] === w));
+  if (forms.some((f) => f.length === words.length)) return true;
+  return forms.length > 0 ? undefined : false;
+}
+
+/** The message flags of those subcommands. */
 const MESSAGE_FLAGS = new Set(["-m", "--message"]);
 /** Whether a PowerShell argument is a prefix of `-EncodedCommand` (or its `-ec` alias). */
 function isEncodedFlag(token: string): boolean {

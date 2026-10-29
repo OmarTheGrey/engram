@@ -68,15 +68,21 @@ describe("shellBypass and toolBypass", () => {
   });
 
   it.each([
-    'git commit -m "fix memory leak"',
-    'git commit --message "memory: tidy"',
-    "git commit -m 'memory: tidy'",
-    'git commit --message="drop the memory cache"',
-    'git tag -a v1 -m "memory release"',
-    'hg commit -m "memory leak"',
-  ])("reads a version-control message as one word: %s names no root (R3-15, R3-16)", (command) => {
-    expect(shellBypass(command, check)).toBeUndefined();
-  });
+    "git commit -m 'fix memory leak'",
+    "git commit --message 'memory leak'",
+    "git commit --message='drop the memory cache'",
+    "git tag -a v1 -m 'memory release'",
+    "git -C . commit -m 'memory: tidy'",
+    "git -c user.name=x commit -m 'memory leak'",
+    "git stash push -m 'memory wip'",
+    "hg commit -m 'memory leak'",
+    "jj describe -m 'memory leak'",
+  ])(
+    "reads a single-quoted message of a built-in commit command as one word: %s passes (R3-15 to R3-25)",
+    (command) => {
+      expect(shellBypass(command, check)).toBeUndefined();
+    },
+  );
 
   it.each([
     'eval "cd memory && cat a.md"',
@@ -96,6 +102,10 @@ describe("shellBypass and toolBypass", () => {
 
   it.each([
     'sort -m "memory leak"',
+    // Double-quoted messages are checked in full: the documented cost (R3-23 to R3-25).
+    'git commit -m "fix memory leak"',
+    'git tag -a v1 -m "memory release"',
+    "git commit -m 'see memory/a.md'",
     'git commit -m "see memory/a.md"',
     'git commit -m "$(cd memory; cat a.md)"',
     'git commit -m "$(cd memory && cat a.md)"',
@@ -110,18 +120,31 @@ describe("shellBypass and toolBypass", () => {
     "git show HEAD:memory/a.md",
     "git show HEAD:./memory/a.md",
     "git cat-file -p HEAD:memory/a.md",
+    // R3-23: an unquoted newline ends a segment, so `echo` is in command position there.
+    'git status\necho -m "; cd memory; cat a.md" | bash',
+    // R3-24: an alias (or any non-built-in subcommand) gets no exemption.
+    `git -c alias.y='!f(){ eval "$2"; }; f' y -m "cd memory; cat a.md"`,
+    `git -c alias.y='!sh -c' y -m 'cd memory; cat a.md'`,
+    "git y -m 'cd memory; cat a.md'",
+    // R3-20: a git word outside command position, even single-quoted with a built-in.
+    "echo git commit -m 'cd memory; cat a.md' | bash",
+    "xargs echo git commit -m 'memory leak'",
+    "git stash list -m 'memory'",
+    // R3-25: index, stage and stash rev:path forms.
+    "git show :memory/a.md",
+    "git show :0:memory/a.md",
+    "git show stash@{0}:memory/a.md",
   ])("pins the message exemption's boundary: %s is blocked (R3-19 to R3-22)", (command) => {
     expect(shellBypass(command, check)?.route).toBe("path");
   });
 
   it.each([
-    'git commit -m "fix memory leak"',
-    "git commit -m 'memory: tidy'",
     "git commit -m '$(cd memory)'",
-    'env GIT_EDITOR=true git commit -m "memory leak"',
-    'sudo git commit -m "memory leak"',
-    'cd src && git commit -m "memory leak"',
-    `bash -c 'git commit -m "memory leak"'`,
+    "env GIT_EDITOR=true git commit -m 'memory leak'",
+    "sudo git commit -m 'memory leak'",
+    "cd src && git commit -m 'memory leak'",
+    "cd src\ngit commit -m 'memory leak'",
+    `bash -c "git commit -m 'memory leak'"`,
   ])("keeps the exemption for a VCS message in command position: %s passes", (command) => {
     expect(shellBypass(command, check)).toBeUndefined();
   });
