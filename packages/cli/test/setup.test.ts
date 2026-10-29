@@ -4,14 +4,17 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
-  BackendUnavailableError,
   dbTarget,
   defaultDb,
+  hasLog,
   MEMORY_DB,
   openDb,
+  openLog,
+  redactSecrets,
   redactUrl,
 } from "../src/setup.ts";
 import { cli, fixtureCopy, logEvents, REPO, tempDir } from "./helpers.ts";
+import { freshDatabase, hasLogTables, PG_PASSWORD, postgresTarget } from "./postgres.ts";
 
 const where = (env: Record<string, string> = {}) => ({ cwd: "/work", home: "/home/dana", env });
 
@@ -55,12 +58,66 @@ describe("openDb", () => {
     db.close();
   });
 
-  it("refuses Postgres until card E1.1 with a clear error", () => {
-    expect(() => openDb(dbTarget("postgres://u:p@h/db", where()))).toThrow(
-      new BackendUnavailableError(
-        "postgres://u:***@h/db: Postgres backend not available yet (card E1.1)",
-      ),
+  it("names an unreachable Postgres by its redacted label, never its password", () => {
+    // Port 1 on loopback: nothing listens, so the connection is refused at once.
+    const target = dbTarget("postgres://u:hunter2@127.0.0.1:1/db", where());
+    let message = "";
+    try {
+      openDb(target).close();
+    } catch (e) {
+      message = (e as Error).message;
+    }
+    expect(message.startsWith("postgres://u:***@127.0.0.1:1/db: ")).toBe(true);
+    expect(message).not.toContain("hunter2");
+  });
+
+  it("redactSecrets removes the URL and its password, raw and percent-encoded", () => {
+    const url = "postgres://u:p%40ss@h/db";
+    expect(redactSecrets(`failed ${url} with p@ss and p%40ss`, url)).toBe(
+      "failed postgres://u:***@h/db with *** and ***",
     );
+  });
+});
+
+const pg = postgresTarget();
+
+describe.skipIf(!("url" in pg))("on Postgres (embedded, from core's globalSetup)", () => {
+  const admin = "url" in pg ? pg.url : "";
+
+  it("openDb connects to a fresh database that holds no log, and openLog makes one", () => {
+    const url = freshDatabase(admin, "open");
+    const db = openDb(dbTarget(url, where()));
+    expect(db.dialect).toBe("postgres");
+    expect(hasLog(db)).toBe(false);
+    db.close();
+    const log = openLog(dbTarget(url, where()));
+    expect(log.applied.length).toBeGreaterThan(0);
+    expect(hasLog(log.db)).toBe(true);
+    log.db.close();
+  });
+
+  it("openLog with mustExist refuses a database with no log, and creates nothing", () => {
+    const url = freshDatabase(admin, "must");
+    expect(() => openLog(dbTarget(url, where()), true)).toThrow(/^no event log at postgres:/);
+    expect(hasLogTables(url)).toBe(false);
+  });
+
+  it("write, read and explain through ENGRAM_DB_URL, with the password in no output", async () => {
+    const url = freshDatabase(admin, "cmds");
+    const env = { ENGRAM_DB_URL: url };
+    const root = await fixtureCopy();
+    const owner = ["--root", root, "--owner", "dana"];
+    const w = await cli(["write", ...owner, "--content", "Lunch is at noon."], { env });
+    expect(w.code).toBe(0);
+    const r = await cli(["read", "lunch", ...owner], { env });
+    expect(r.code).toBe(0);
+    expect(r.out).toContain("Lunch is at noon.");
+    const readId = /^read (\S+) at /m.exec(r.out)?.[1] ?? "";
+    const x = await cli(["explain", readId, "--owner", "dana"], { env });
+    expect(x.out).toMatch(/^read \S+: \d+ explanations?/m);
+    expect(x.code).toBe(0);
+    for (const out of [w, r, x]) expect(out.out + out.err).not.toContain(PG_PASSWORD);
+    expect(r.out).toContain("postgres://");
   });
 });
 
@@ -74,14 +131,6 @@ describe("commands open the log ENGRAM_DB_URL names", () => {
     );
     expect(code).toBe(0);
     expect(logEvents(db).map((e) => e.op)).toContain("write");
-  });
-
-  it("a read against a Postgres URL fails with the card that brings it", async () => {
-    const { code, err } = await cli(["read", "--root", await fixtureCopy(), "--owner", "dana"], {
-      env: { ENGRAM_DB_URL: "postgres://localhost/engram" },
-    });
-    expect(err).toContain("Postgres backend not available yet (card E1.1)");
-    expect(code).toBe(1);
   });
 });
 

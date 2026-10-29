@@ -9,6 +9,7 @@ import {
   type Db,
   loadPreset,
   migrate,
+  openPostgres,
   openSqlite,
   type Policy,
   PRESETS,
@@ -77,19 +78,41 @@ export function dbTarget(
   return { backend: "sqlite", path, label: path };
 }
 
-/** A log backend this build cannot open yet. */
-export class BackendUnavailableError extends Error {}
+/** `text` with the URL's password, raw or percent-encoded, and the URL itself replaced. */
+export function redactSecrets(text: string, url: string): string {
+  let out = text.split(url).join(redactUrl(url));
+  try {
+    const encoded = new URL(url).password;
+    for (const secret of new Set([encoded, decodeURIComponent(encoded)]))
+      if (secret !== "") out = out.split(secret).join("***");
+  } catch {
+    // An unparseable URL has no password to find; the URL itself is replaced above.
+  }
+  return out;
+}
 
 /**
  * Opens the backend a target names, without migrating it. SQLite files are
- * opened as they are; the caller decides whether one may be created.
+ * opened as they are, so the caller decides whether one may be created;
+ * Postgres connects to a database that must exist (the CLI never creates
+ * one), and any error it raises names the target by its redacted label.
  */
 export function openDb(target: DbTarget): Db {
-  if (target.backend === "postgres")
-    throw new BackendUnavailableError(
-      `${target.label}: Postgres backend not available yet (card E1.1)`,
-    );
-  return openSqlite(target.path);
+  if (target.backend === "sqlite") return openSqlite(target.path);
+  try {
+    return openPostgres(target.url);
+  } catch (e) {
+    throw new Error(`${target.label}: ${redactSecrets((e as Error).message, target.url)}`);
+  }
+}
+
+/** Whether an open database holds an event log: the migrations table exists. */
+export function hasLog(db: Db): boolean {
+  const sql =
+    db.dialect === "postgres"
+      ? "SELECT count(*)::int AS n FROM pg_tables WHERE schemaname = current_schema() AND tablename = 'schema_migrations'"
+      : "SELECT count(*) AS n FROM sqlite_master WHERE type = 'table' AND name = 'schema_migrations'";
+  return Number(db.prepare(sql).get()?.n) > 0;
 }
 
 export interface Log {
@@ -99,11 +122,21 @@ export interface Log {
   applied: number[];
 }
 
-/** Whether a target's log exists; a Postgres database is never created by the CLI, so it counts as existing. */
-export const logExists = (target: DbTarget) =>
-  target.backend === "postgres" || target.path === MEMORY_DB || existsSync(target.path);
+/**
+ * Whether a target holds a log, without creating anything: a SQLite file
+ * that exists (or :memory:), or a Postgres database with the migrations table.
+ */
+export function logExists(target: DbTarget): boolean {
+  if (target.backend === "sqlite") return target.path === MEMORY_DB || existsSync(target.path);
+  const db = openDb(target);
+  try {
+    return hasLog(db);
+  } finally {
+    db.close();
+  }
+}
 
-/** Opens and migrates the log; `mustExist` refuses to create a SQLite file. */
+/** Opens and migrates the log; `mustExist` refuses to create one on either backend. */
 export function openLog(target: DbTarget, mustExist = false): Log {
   if (target.backend === "sqlite" && target.path !== MEMORY_DB) {
     if (mustExist && !existsSync(target.path)) throw new Error(`no event log at ${target.path}`);
@@ -111,6 +144,8 @@ export function openLog(target: DbTarget, mustExist = false): Log {
   }
   const db = openDb(target);
   try {
+    if (mustExist && target.backend === "postgres" && !hasLog(db))
+      throw new Error(`no event log at ${target.label}`);
     return { db, target, applied: migrate(db) };
   } catch (e) {
     db.close();

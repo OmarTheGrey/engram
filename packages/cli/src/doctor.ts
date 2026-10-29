@@ -1,6 +1,8 @@
 // `engram doctor`: one line per check, each with its reason. It never
-// creates a log, never reads a provider key's value and never reaches the
-// network. The adapter checks run through a Plane on an in-memory log, so
+// creates a log (on Postgres it only looks for the migrations table), never
+// reads a provider key's value, and reaches no network beyond the Postgres
+// server a postgres:// target names. A target's password is never printed.
+// The adapter checks run through a Plane on an in-memory log, so
 // no adapter is called directly (AGENTS.md rule 2) and nothing is recorded.
 //
 // The checks that read the repository (provider key names, benchmark pins,
@@ -52,8 +54,13 @@ const oneLine = (e: unknown) => (e as Error).message.split("\n").join("; ");
 
 /** The log: opens and migrates when it exists, names its backend; a missing SQLite file is reported, never made. */
 export function checkLog(target: DbTarget): CheckResult {
-  if (!logExists(target))
-    return ["ok", `sqlite ${target.label}: no log yet; the first read or write creates it`];
+  if (!logExists(target)) {
+    const reached = target.backend === "postgres" ? "connects, " : "";
+    return [
+      "ok",
+      `${target.backend} ${target.label}: ${reached}no log yet; the first read or write creates it`,
+    ];
+  }
   const log = openLog(target, true);
   log.db.close();
   const state =

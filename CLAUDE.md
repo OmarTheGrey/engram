@@ -59,7 +59,7 @@ make lint-docs PR=<dir>        the PR gate on a PR directory (body.md, files.txt
 engram doctor                  log and its backend (never created by doctor), policy, store root, files and Mem0 adapters through the plane, provider keys by name only, benchmark pins and fixture hashes, the pi pin against docs/deps.md, Node 24 or later
 engram read --root <dir> --owner <id>   a memory folder through the plane, adopted as its owner, every item explained; the log is --db, else ENGRAM_DB_URL, else <home>/.engram/engram.db; engram --help lists the rest
 make engram ARGS="<command> ..."   run the engram CLI from the repo (node packages/cli/src/main.ts)
-make test-e2e                  layer 6: engram doctor, then a CLI smoke (write, read, explain) on a temp folder, on SQLite; no Docker anywhere (MCP handshakes join with E8.4)
+make test-e2e                  layer 6: engram doctor, then a CLI smoke (write, read, explain) on a temp folder, on SQLite and on embedded Postgres; no Docker anywhere (MCP handshakes join with E8.4)
 make test-repro                every research script regenerates its result; hashes match MANIFEST.md
 make fixtures                  regenerate golden files and record scripted cassettes afresh; refuses without a message
 make thesis                    consolidate docs/log into research/thesis/drafts/ (ROOT=, OUT= to run on fixtures/log/repo)

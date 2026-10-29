@@ -1,7 +1,7 @@
 name: e2e
 
 # Layer 6 (docs/conventions/testing.md): on main and nightly, not on every PR.
-# No Docker: the smoke runs on SQLite; Postgres comes from embedded-postgres (card E1.1).
+# No Docker: the smoke runs on SQLite and on Postgres from embedded-postgres (card E1.1).
 on:
   push:
     branches: [main]

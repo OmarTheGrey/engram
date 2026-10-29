@@ -39,7 +39,7 @@ else
 	node scripts/check-log.ts
 endif
 
-test-e2e: ## layer 6: engram doctor and a CLI smoke (write, read, explain) on SQLite; no Docker
+test-e2e: ## layer 6: engram doctor and a CLI smoke (write, read, explain) on SQLite and embedded Postgres; no Docker
 	$(PNPM) exec vitest run --config test/e2e/vitest.config.ts
 
 test-repro: ## stub: layer 8, every research script regenerates its result

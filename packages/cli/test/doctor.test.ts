@@ -18,6 +18,7 @@ import {
 } from "../src/doctor.ts";
 import { run } from "../src/run.ts";
 import { cli, FIXTURE, NOW, REPO, readArgs, tempDir, testId } from "./helpers.ts";
+import { freshDatabase, hasLogTables, PG_PASSWORD, postgresTarget } from "./postgres.ts";
 
 /** A copy of exactly the repository files doctor reads. */
 async function repoCopy(): Promise<string> {
@@ -101,17 +102,56 @@ describe("engram doctor on this checkout", () => {
   });
 });
 
+const pg = postgresTarget();
+
+describe.skipIf(!("url" in pg))("engram doctor on Postgres (embedded)", () => {
+  const admin = "url" in pg ? pg.url : "";
+
+  it("connects to a database with no log, reports it and creates no table", async () => {
+    const url = freshDatabase(admin, "doctor");
+    const { code, out } = await cli(["doctor", "--db", url]);
+    expect(out).toMatch(
+      /^ok\s+log\s+postgres postgres:\/\/\S+:\*\*\*@\S+: connects, no log yet; the first read or write creates it/m,
+    );
+    expect(out).not.toContain(PG_PASSWORD);
+    expect(code).toBe(0);
+    expect(hasLogTables(url)).toBe(false);
+  });
+
+  it("reports the log a write created as up to date", async () => {
+    const url = freshDatabase(admin, "doctorlog");
+    const root = await tempDir();
+    const w = await cli([
+      "write",
+      "--root",
+      root,
+      "--owner",
+      "dana",
+      "--content",
+      "x",
+      "--db",
+      url,
+    ]);
+    expect(w.code).toBe(0);
+    const { out } = await cli(["doctor"], { env: { ENGRAM_DB_URL: url } });
+    expect(out).toMatch(/^ok\s+log\s+postgres \S+: opens; up to date/m);
+    expect(out).not.toContain(PG_PASSWORD);
+  });
+});
+
 describe("engram doctor, each check red", () => {
-  it("log: a Postgres target fails until card E1.1, without printing the password", async () => {
-    const url = "postgres://engram:hunter2@localhost:5432/engram";
+  it("log: an unreachable Postgres fails, named by its redacted label, never its password", async () => {
+    // Port 1 on loopback: nothing listens, so the connection is refused at once.
+    const url = "postgres://engram:hunter2@127.0.0.1:1/engram";
     const viaFlag = await cli(["doctor", "--db", url]);
     expect(viaFlag.out).toMatch(
-      /^fail\s+log\s+postgres:\/\/engram:\*\*\*@localhost:5432\/engram: Postgres backend not available yet \(card E1\.1\)/m,
+      /^fail\s+log\s+postgres:\/\/engram:\*\*\*@127\.0\.0\.1:1\/engram: /m,
     );
     expect(viaFlag.out).not.toContain("hunter2");
     expect(viaFlag.code).toBe(1);
     const viaEnv = await cli(["doctor"], { env: { ENGRAM_DB_URL: url } });
     expect(viaEnv.out).toMatch(/^fail\s+log\s+postgres:/m);
+    expect(viaEnv.out).not.toContain("hunter2");
   });
 
   it("policy: a file that does not validate fails, naming the line", async () => {
