@@ -1,17 +1,27 @@
-// Forward-only migrations, each applied once inside its own transaction.
-import type { Db } from "./db.ts";
+// Forward-only migrations, each applied once inside its own transaction. One
+// list for every backend (ADR 0024): a migration whose text differs by dialect
+// gives one text per dialect, and the rest is shared.
+import type { Db, Dialect } from "./db.ts";
 
 export interface Migration {
   id: number;
   name: string;
-  up: string;
+  up: string | Readonly<Record<Dialect, string>>;
+}
+
+/** The text of `m` for a backend speaking `dialect`. */
+export function migrationText(m: Migration, dialect: Dialect): string {
+  return typeof m.up === "string" ? m.up : m.up[dialect];
 }
 
 export const MIGRATIONS: readonly Migration[] = [
   {
     id: 1,
     name: "event log and item projection",
-    up: `
+    // Postgres: seq is a bigint, and ids compare bytewise (COLLATE "C"), as
+    // SQLite compares text, so ORDER BY id agrees on both backends.
+    up: {
+      sqlite: `
       CREATE TABLE events (
         seq INTEGER PRIMARY KEY,
         id TEXT NOT NULL UNIQUE,
@@ -29,6 +39,25 @@ export const MIGRATIONS: readonly Migration[] = [
       CREATE INDEX events_scope_to ON events (scope_to, seq);
       CREATE TABLE items (id TEXT PRIMARY KEY, status TEXT NOT NULL, body TEXT NOT NULL);
     `,
+      postgres: `
+      CREATE TABLE events (
+        seq BIGINT PRIMARY KEY,
+        id TEXT COLLATE "C" NOT NULL UNIQUE,
+        op TEXT NOT NULL,
+        item_id TEXT COLLATE "C",
+        actor TEXT NOT NULL,
+        scope_from TEXT,
+        scope_to TEXT,
+        decision TEXT NOT NULL,
+        body TEXT NOT NULL
+      );
+      CREATE INDEX events_item ON events (item_id, seq);
+      CREATE INDEX events_actor ON events (actor, seq);
+      CREATE INDEX events_scope_from ON events (scope_from, seq);
+      CREATE INDEX events_scope_to ON events (scope_to, seq);
+      CREATE TABLE items (id TEXT COLLATE "C" PRIMARY KEY, status TEXT NOT NULL, body TEXT NOT NULL);
+    `,
+    },
   },
   {
     id: 2,
@@ -39,7 +68,8 @@ export const MIGRATIONS: readonly Migration[] = [
     // the seq of the event that last changed the item; itemByStoreRef uses it
     // to break ties between holders that lineage does not order. Rows with a
     // null ref are items not yet stored.
-    up: `
+    up: {
+      sqlite: `
       ALTER TABLE items ADD COLUMN store_adapter TEXT;
       ALTER TABLE items ADD COLUMN store_key TEXT;
       ALTER TABLE items ADD COLUMN seq INTEGER;
@@ -51,6 +81,19 @@ export const MIGRATIONS: readonly Migration[] = [
                AND e.op IN ('write', 'update', 'promote', 'retire', 'evict'));
       CREATE INDEX items_store_ref ON items (store_adapter, store_key, seq);
     `,
+      postgres: `
+      ALTER TABLE items ADD COLUMN store_adapter TEXT;
+      ALTER TABLE items ADD COLUMN store_key TEXT;
+      ALTER TABLE items ADD COLUMN seq BIGINT;
+      UPDATE items SET
+        store_adapter = body::jsonb #>> '{store_ref,adapter}',
+        store_key = body::jsonb #>> '{store_ref,key}',
+        seq = (SELECT max(e.seq) FROM events e WHERE e.item_id = items.id
+               AND e.decision = 'allow'
+               AND e.op IN ('write', 'update', 'promote', 'retire', 'evict'));
+      CREATE INDEX items_store_ref ON items (store_adapter, store_key, seq);
+    `,
+    },
   },
   {
     id: 3,
@@ -86,7 +129,7 @@ export function migrate(db: Db, migrations: readonly Migration[] = MIGRATIONS): 
   for (const m of [...migrations].sort((a, b) => a.id - b.id)) {
     if (done.has(m.id)) continue;
     db.transaction(() => {
-      db.exec(m.up);
+      db.exec(migrationText(m, db.dialect));
       db.prepare("INSERT INTO schema_migrations (id, name) VALUES (?, ?)").run(m.id, m.name);
     });
     applied.push(m.id);

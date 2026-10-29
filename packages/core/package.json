@@ -10,12 +10,14 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "postgres": "3.4.9",
     "yaml": "2.9.1",
     "zod": "4.6.7"
   },
   "devDependencies": {
     "@engram/adapters": "workspace:*",
     "ajv": "8.20.0",
-    "ajv-formats": "3.0.1"
+    "ajv-formats": "3.0.1",
+    "embedded-postgres": "17.10.0-beta.17"
   }
 }
