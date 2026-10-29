@@ -3,27 +3,26 @@
 // checkpoint query is the session's prompt, and the session's final answer
 // is parsed and scored with card B1's rule-based scorer.
 //
-// The mapping from GateMem principals to Engram scopes is the simplest one
-// and a placeholder for the experiment cards: each turn is an episodic item
-// in its speaker's person scope, written by the speaker from user content
-// (model content for the `agent` role), and the requester reads as their own
-// person. Relationships are not mapped to grants. Under C5 the requester
-// therefore sees only their own turns. The pipeline is what this card
-// tests; scores under this mapping are not findings about the plane.
-import { createHash } from "node:crypto";
+// GateMem's principals, relationships and turns reach the plane through card
+// B3's mapping (@engram/bench, gatemem/plane.ts; ADR 0030): each principal an
+// actor with a person scope and the shared scopes of its unrestricted group
+// relationships, each turn an episodic item in its speaker's person scope
+// carrying read grants to the principals its unrestricted relationships
+// relate it to. Every condition gets the same store contents (decision D13):
+// C5 writes the items through the Plane, C2 and C3 straight to the store.
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AgentSession, SessionManager } from "@earendil-works/pi-coding-agent";
-import { createFakeAdapter } from "@engram/adapters";
 import { gatemem } from "@engram/bench";
 import {
   type Actor,
   type Adapter,
   createPlane,
-  type MemoryItem,
+  type MemoryEvent,
   migrate,
   openSqlite,
+  type Plane,
   type Policy,
   type PresetName,
 } from "@engram/core";
@@ -34,6 +33,7 @@ import type { Condition } from "./config.ts";
 import type { CacheStore, CallContext, UsageRecord } from "./model/cached.ts";
 import { type AnswerSource, cassettePiModel } from "./model/cassette.ts";
 import type { ScriptStep } from "./model/scripted.ts";
+import { openStore, type StoreName } from "./stores.ts";
 
 /** Deterministic UUIDv7-shaped ids: the n-th id a run hands out. */
 export const sequentialIds = () => {
@@ -41,57 +41,15 @@ export const sequentialIds = () => {
   return () => `01920000-0000-7000-8000-${String(++n).padStart(12, "0")}`;
 };
 
-/** GateMem turn times (`2026-03-14T08:00`) as UTC instants; a turn without one gets minute `index`. */
-export function turnTime(turn: gatemem.Turn, index: number): string {
-  if (turn.timestamp) {
-    const parsed = Date.parse(
-      `${turn.timestamp}${/[zZ]|[+-]\d\d:\d\d$/.test(turn.timestamp) ? "" : "Z"}`,
-    );
-    if (!Number.isNaN(parsed)) return new Date(parsed).toISOString();
-  }
-  return new Date(Date.UTC(2026, 0, 1, 0, index)).toISOString();
-}
+/** GateMem turn times as UTC instants (card B3 moved this to @engram/bench). */
+export const turnTime = gatemem.turnTime;
 
+/** A plain person actor (RN1's placeholder actor; the probe uses the B3 mapping's). */
 export const personOf = (principalId: string): Actor => ({
   id: `person:${principalId}`,
   level: "person",
   memberships: [`person:${principalId}`],
 });
-
-const sha256 = (s: string) => `sha256:${createHash("sha256").update(s).digest("hex")}`;
-
-/** One turn as the item its speaker writes. */
-export function turnItem(
-  episode: gatemem.AgentEpisode,
-  turn: gatemem.Turn,
-  index: number,
-  id: string,
-): MemoryItem {
-  const speaker = personOf(turn.speaker.principal_id);
-  return {
-    id,
-    class: "episodic",
-    scope: speaker.id,
-    owner: speaker.id,
-    content: turn.text,
-    provenance: {
-      kind: turn.speaker.role === "agent" ? "model" : "user",
-      ref: `gatemem:${episode.episode_id}/${turn.turn_id}`,
-      hash: sha256(turn.text),
-      actor: speaker.id,
-    },
-    confidence: 0.9,
-    valid_from: turnTime(turn, index),
-    valid_to: null,
-    ttl: null,
-    grants: [],
-    version: 1,
-    lineage: [],
-    status: "active",
-    store_ref: null,
-    schema_version: 0,
-  };
-}
 
 /** The scripted model's steps per checkpoint id. */
 export const ProbeScript = z.strictObject({
@@ -125,10 +83,20 @@ export interface Decision {
   reason: string;
 }
 
+/** One event of the Plane's log, without the item it carries (whose store_ref names the store). */
+export interface LoggedEvent extends Decision {
+  seq: number;
+  actor: string;
+  item_id: string | null;
+  scope_to: string | null;
+}
+
 export interface ProbeResult {
   item: string;
   checkpoint_id: string;
   condition: Condition;
+  /** The store the session ran on (card B3). */
+  store: StoreName;
   seed: number;
   /** Turns ingested, and how many of them the store holds after ingestion. */
   ingested: { turns: number; stored: number };
@@ -137,6 +105,8 @@ export interface ProbeResult {
   score: gatemem.Score;
   /** The engram.event entries of the session, in order (C5 only). */
   decisions: Decision[];
+  /** The Plane's whole log: each turn's write and the session's reads, in order (C5 only). */
+  events: LoggedEvent[];
 }
 
 export interface ProbeSpec {
@@ -148,7 +118,7 @@ export interface ProbeSpec {
   model: string;
   preset: PresetName;
   policy: Policy;
-  store: "fake";
+  store: StoreName;
   cache: CacheStore;
   /** A fresh answer source for this session (a script restarts per session). */
   answers: () => AnswerSource;
@@ -228,35 +198,24 @@ function sessionOutput(session: AgentSession): {
   };
 }
 
+/**
+ * The checkpoint's turns into the store: through the Plane under C5, each as
+ * its speaker's write at the turn's time; straight to the store under C2 and
+ * C3, the same items, so every condition holds the same contents.
+ */
 async function ingest(
-  condition: Condition,
-  episode: gatemem.AgentEpisode,
-  turns: readonly gatemem.Turn[],
-  deps: {
-    store: UngovernedStore;
-    db: ReturnType<typeof openSqlite>;
-    policy: Policy;
-    newId: () => string;
-  },
+  writes: readonly gatemem.TurnWrite[],
+  store: UngovernedStore,
+  plane: Plane | undefined,
 ): Promise<void> {
-  const plane =
-    condition === "C5"
-      ? createPlane({
-          db: deps.db,
-          adapter: deps.store.adapter,
-          policy: deps.policy,
-          newId: deps.newId,
-        })
-      : undefined;
-  for (const [i, turn] of turns.entries()) {
-    const item = turnItem(episode, turn, i, deps.newId());
+  for (const { actor, item } of writes) {
     if (plane) {
-      await plane.write(personOf(turn.speaker.principal_id), item, item.valid_from);
+      await plane.write(actor, item, item.valid_from);
     } else {
       // Ungoverned ingestion: straight to the store, as C2 and C3 read it.
-      await deps.store.adapter.write(item);
+      await store.adapter.write(item);
     }
-    deps.store.scopes.add(item.scope);
+    store.scopes.add(item.scope);
   }
 }
 
@@ -265,26 +224,37 @@ async function storedCount(store: UngovernedStore): Promise<number> {
   return lists.reduce((n, l) => n + l.length, 0);
 }
 
-/** Run one checkpoint under one condition and seed. */
+const logged = (e: MemoryEvent): LoggedEvent => ({
+  seq: e.seq,
+  op: e.op,
+  decision: e.decision,
+  policy_id: e.policy_id,
+  actor: e.actor,
+  item_id: e.item_id,
+  scope_to: e.scope_to,
+  reason: e.reason,
+});
+
+/** Run one checkpoint under one condition, store and seed. */
 export async function runProbe(spec: ProbeSpec): Promise<ProbeResult> {
   const checkpoint = spec.domain.checkpoints.find((c) => c.checkpoint_id === spec.checkpointId);
   if (!checkpoint)
     throw new Error(`no GateMem checkpoint ${spec.checkpointId} in ${spec.domain.domain}`);
   const full = spec.domain.episodes.find((e) => e.episode_id === checkpoint.episode_id);
   if (!full) throw new Error(`no episode ${checkpoint.episode_id} for ${spec.checkpointId}`);
-  const episode = gatemem.visibleEpisode(full);
-  const view = gatemem.visibleCheckpoint(checkpoint);
-  // Turns reach the session only up to the as-of turn, as in GateMem's harness.
-  const upTo = full.turns.findIndex((t) => t.turn_id === view.as_of_turn_id);
-  const turns = full.turns.slice(0, upTo + 1).map(gatemem.visibleTurn);
-  const at = turnTime(turns.at(-1) as gatemem.Turn, upTo);
-
   const newId = sequentialIds();
-  const adapter: Adapter = createFakeAdapter();
+  // Card B3's mapping strips the hidden fields first; turns reach the session
+  // only up to the as-of turn, as in GateMem's harness.
+  const mapped = gatemem.mapCheckpoint(full, checkpoint, newId);
+  const { episode, checkpoint: view, at } = mapped;
+
+  const adapter: Adapter = await openStore(spec.store);
   const store: UngovernedStore = { adapter, scopes: new Set() };
   const db = openSqlite(":memory:");
   migrate(db);
-  await ingest(spec.condition, episode, turns, { store, db, policy: spec.policy, newId });
+  const plane =
+    spec.condition === "C5" ? createPlane({ db, adapter, policy: spec.policy, newId }) : undefined;
+  await ingest(mapped.writes, store, plane);
 
   const cwd = mkdtempSync(join(tmpdir(), "engram-rn1-"));
   const cassette = cassettePiModel({
@@ -303,7 +273,7 @@ export async function runProbe(spec: ProbeSpec): Promise<ProbeResult> {
     cwd,
     model: cassette,
     systemPrompt: system,
-    actor: personOf(view.asker.principal_id),
+    actor: mapped.asker,
     preset: spec.preset,
     policy: spec.policy,
     store,
@@ -319,12 +289,14 @@ export async function runProbe(spec: ProbeSpec): Promise<ProbeResult> {
       item: `gatemem/${spec.checkpointId}`,
       checkpoint_id: spec.checkpointId,
       condition: spec.condition,
+      store: spec.store,
       seed: spec.seed,
-      ingested: { turns: turns.length, stored: await storedCount(store) },
+      ingested: { turns: mapped.writes.length, stored: await storedCount(store) },
       tool_calls: toolCalls,
       output,
       score: gatemem.scoreOne(checkpoint, output),
       decisions: sessionDecisions(sessionManager),
+      events: plane ? plane.events().map(logged) : [],
     };
   } finally {
     session.dispose();

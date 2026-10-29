@@ -84,6 +84,7 @@ run: ## replay a runner config as pi SDK sessions from its cassettes; a miss is 
 
 # Runner configs whose cassettes are fixtures, recorded from their scripted model by `make fixtures`.
 RUNNER_FIXTURES := rn1-gatemem-probe
+RUNNER_FIXTURES += b3-gatemem-plane
 
 fixtures: ## regenerate golden files and scripted cassettes; refuses without MSG=<reason>, which goes in the commit message
 	@[ -n "$(MSG)" ] || { echo "fixtures: refusing without MSG=<reason>"; exit 2; }

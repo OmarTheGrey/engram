@@ -12,7 +12,7 @@ import { join } from "node:path";
 import type { Api, Model } from "@earendil-works/pi-ai";
 import { gatemem } from "@engram/bench";
 import { loadPreset } from "@engram/core";
-import type { Condition, RunnerConfig } from "./config.ts";
+import { type Condition, configStores, type RunnerConfig } from "./config.ts";
 import { type ProbeResult, readProbeScript, runProbe } from "./gatemem-probe.ts";
 import { type CacheStore, fileCache, type UsageRecord } from "./model/cached.ts";
 import { type AnswerSource, runtimeAnswers, scriptedAnswers } from "./model/cassette.ts";
@@ -90,34 +90,42 @@ export async function runConfig(
   const cache = options.cache ?? fileCache(config.cassettes);
   const usage: UsageRecord[] = [];
   const rows: ProbeResult[] = [];
+  const stores = configStores(config);
   for (const item of config.items) {
     const domain = findDomain(domains, item);
-    for (const condition of config.conditions) {
-      for (const seed of config.seeds) {
-        rows.push(
-          await runProbe({
-            domain,
-            checkpointId: item,
-            condition,
-            seed,
-            model: config.model,
-            preset: config.preset,
-            policy,
-            store: config.store,
-            cache,
-            answers: answersFor(config, item, options),
-            ...(options.offline === undefined ? {} : { offline: options.offline }),
-            onUsage: (u) => usage.push(u),
-          }),
-        );
+    for (const store of stores) {
+      for (const condition of config.conditions) {
+        for (const seed of config.seeds) {
+          rows.push(
+            await runProbe({
+              domain,
+              checkpointId: item,
+              condition,
+              seed,
+              model: config.model,
+              preset: config.preset,
+              policy,
+              store,
+              cache,
+              answers: answersFor(config, item, options),
+              ...(options.offline === undefined ? {} : { offline: options.offline }),
+              onUsage: (u) => usage.push(u),
+            }),
+          );
+        }
       }
     }
   }
+  // Keyed by condition; with several stores, by `<condition>@<store>` (card B3).
   const summary: RunnerResult["summary"] = {};
-  for (const condition of config.conditions) {
-    summary[condition] = gatemem.aggregate(
-      rows.filter((r) => r.condition === (condition as Condition)).map((r) => r.score),
-    );
+  for (const store of stores) {
+    for (const condition of config.conditions) {
+      summary[stores.length === 1 ? condition : `${condition}@${store}`] = gatemem.aggregate(
+        rows
+          .filter((r) => r.condition === (condition as Condition) && r.store === store)
+          .map((r) => r.score),
+      );
+    }
   }
   return {
     config: config.name,

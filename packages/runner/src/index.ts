@@ -13,3 +13,4 @@ export {
   scriptedPiModel,
 } from "./model/scripted.ts";
 export * from "./run.ts";
+export { openStore, type StoreName } from "./stores.ts";

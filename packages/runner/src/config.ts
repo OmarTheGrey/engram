@@ -7,6 +7,7 @@ import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { PRESETS } from "@engram/core";
 import { z } from "zod";
+import { STORES, type StoreName } from "./stores.ts";
 
 /**
  * The conditions this runner builds. C1, C4, C6 and C7 are not built yet: C1
@@ -24,7 +25,7 @@ export const CONDITION_NAMES: Readonly<Record<Condition, string>> = {
   C5: "enforced",
 };
 
-export const STORES = ["fake"] as const;
+export { STORES } from "./stores.ts";
 
 const unique = <T>(values: readonly T[]) => new Set(values).size === values.length;
 
@@ -47,7 +48,11 @@ export const RunnerConfig = z.strictObject({
   seeds: z.array(z.number().int()).min(1).refine(unique, "seeds must be unique"),
   /** The policy preset C3 states and C5 enforces. */
   preset: z.enum(PRESETS),
-  store: z.enum(STORES),
+  /** One store, or several (card B3): each item runs on every store named. */
+  store: z.union([
+    z.enum(STORES),
+    z.array(z.enum(STORES)).min(1).refine(unique, "stores must be unique"),
+  ]),
   /** The scripted model's steps by checkpoint id. Required for a scripted model. */
   script: z.string().optional(),
   /** The cassette directory (a fileCache). */
@@ -67,6 +72,10 @@ export function parseRunnerConfig(value: unknown, base = process.cwd()): RunnerC
     ...(config.script === undefined ? {} : { script: resolve(base, config.script) }),
   };
 }
+
+/** The stores a config runs on, in its order. */
+export const configStores = (config: RunnerConfig): StoreName[] =>
+  typeof config.store === "string" ? [config.store] : [...config.store];
 
 /** Read a config file; its paths are resolved against the file's directory. */
 export function readRunnerConfig(path: string): RunnerConfig {
