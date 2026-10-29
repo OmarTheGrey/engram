@@ -101,6 +101,9 @@ describe("the inspector's files", () => {
       "/api%2fv1/nothing",
       "/%61pi/v1/nothing",
       "/api%5cv1",
+      "/api%00/x",
+      "/api%00",
+      "/assets%00/page",
     ];
     for (const path of paths) {
       const r = await get(path);

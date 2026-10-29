@@ -57,9 +57,17 @@ const headers = (type: string, cache: string) => ({
 /**
  * Whether `pathname` is in the API's space: its first segment, decoded once
  * and compared without case, is `api` (so `/api`, `/API/v1/x`, `/api/v2/x`,
- * `/api%2fv1/x`). Such a path is never answered with the inspector's page.
+ * `/api%2fv1/x`), or any part of it decodes to a NUL (`/api%00/x`), which no
+ * page has. Such a path is never answered with the inspector's page.
  */
 export function isApiPath(pathname: string): boolean {
+  let whole = pathname;
+  try {
+    whole = decodeURIComponent(pathname);
+  } catch {
+    // Compared as written below.
+  }
+  if (whole.includes("\0")) return true;
   const first = pathname.split("/")[1] ?? "";
   let decoded = first;
   try {

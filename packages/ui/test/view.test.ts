@@ -211,6 +211,14 @@ describe("the selection after a change of viewer", () => {
     expect(keepSelection(write, [event(5), write])).toBe(write);
   });
 
+  it("takes the new viewer's copy, which may withhold the item the old copy carried", () => {
+    const carried = { ...write, item: item(1) };
+    const withheld = { ...write };
+    const kept = keepSelection(carried, [event(5), withheld]);
+    expect(kept).toBe(withheld);
+    expect(kept && "item" in kept).toBe(false);
+  });
+
   it("keeps a read, whose explain view then names its reader (decision 5)", () => {
     expect(keepSelection(read, [])).toBe(read);
   });

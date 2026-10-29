@@ -137,18 +137,20 @@ export function filterEvents(
 }
 
 /**
- * The selection after a change of viewer: kept when it is a read (another
- * actor's read shows its event and who may explain it, decision 5) or one of
- * the events the new viewer may see; otherwise nothing is selected, so an
- * event the new viewer may not see never stays on screen.
+ * The selection after a change of viewer: the new viewer's copy of the event
+ * when its timeline holds it (that copy may withhold the item the previous
+ * viewer's copy carried), else the selected read itself (another actor's read
+ * shows its event and who may explain it, decision 5); otherwise nothing is
+ * selected, so an event the new viewer may not see never stays on screen.
  */
 export function keepSelection(
   selected: MemoryEvent | null,
   visible: readonly MemoryEvent[],
 ): MemoryEvent | null {
   if (selected === null) return null;
-  if (selected.op === "read") return selected;
-  return visible.some((e) => e.id === selected.id) ? selected : null;
+  const fresh = visible.find((e) => e.id === selected.id);
+  if (fresh !== undefined) return fresh;
+  return selected.op === "read" ? selected : null;
 }
 
 /** The scope column: the source and target scopes, or a dash for an event that names none. */
