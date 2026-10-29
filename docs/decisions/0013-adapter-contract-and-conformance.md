@@ -42,6 +42,10 @@ Amendments made in the review fix pass, round 2, 2026-10-29 (PR #6; pending the 
 - Two optional methods. `diagnostics()` lists, by key, the entries the latest `list` or `search` skipped because the store cannot read them (the files adapter already had it; it is now part of the contract, as `StoreDiagnostic`). `derivedFields(item)` names the fields of a listed item that the store derived from its own bookkeeping rather than stored with the item. Neither is required, and the conformance suite does not test them; adoption (ADR 0007) uses both when present.
 - Files adapter: a file without Engram metadata keeps `valid_from` from its modification time when `importValidFrom` is not given, and `derivedFields` reports `["valid_from"]` for it; for a file Engram wrote, or with `importValidFrom`, it reports none. So touching a file is not a new version of its memory. The alternative, a stable `valid_from` inside the adapter, was rejected: the adapter keeps no state and reads no clock, and the file's birth time is not portable (some file systems report the change time or the epoch instead), so no stable value carries the information the modification time does. Deciding in adoption keeps the adapter's item as it is and moves no store-specific rule into core.
 
+Amendments made by the Gate B plan, 2026-10-29 (`docs/tasks/gate-b-plan.md`, decision 2; pending the lead's review like the rest of this ADR):
+
+- Letta is reached through MemFS, its git-backed context repository on local disk, not through `@letta-ai/letta-client` and a Letta server (ADR 0028). The server needs Docker or a hosted account; card A2 already named the git-backed files.
+
 ## Alternatives considered
 
 No alternatives were recorded beyond the recommendation.
