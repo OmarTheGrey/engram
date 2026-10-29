@@ -220,6 +220,24 @@ describe.each(PAIRS)("strictness is ordered, %s", (_label, stricter, looser) => 
   });
 });
 
+test("under strict a role context cannot read person scope, even its own person's", () => {
+  // strict.yaml's comment: a context reads its own level and the levels above
+  // it, never person scope except as that person. The person acting in a role
+  // context is a member of their person scope, so only the read matrix stops
+  // the read; medium and permissive let a role context read it.
+  const context: Actor = {
+    id: "person:omar",
+    level: "role",
+    memberships: ["person:omar", SCOPE_OF.role, SCOPE_OF.team, SCOPE_OF.org],
+  };
+  const at = "2026-10-25T00:00:00Z";
+  expect(readable(strict, context, item("person", "user", "semantic"), at)).toBe(false);
+  for (const level of ["role", "team", "org"] as const)
+    expect(readable(strict, context, item(level, "user", "semantic"), at), level).toBe(true);
+  for (const looser of [medium, permissive])
+    expect(readable(looser, context, item("person", "user", "semantic"), at), looser.id).toBe(true);
+});
+
 test("the presets differ: strict forbids a write that permissive admits", () => {
   const it = item("team", "tool", "episodic");
   expect(writeForbidden(strict, it)).toBe(true);

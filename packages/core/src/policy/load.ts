@@ -5,6 +5,7 @@
 // files under packages/core/policies/, never a memory store.
 import { readFileSync } from "node:fs";
 import {
+  type Alias,
   Document,
   isAlias,
   isMap,
@@ -64,6 +65,7 @@ export function parsePolicy(text: string, source: string): Policy {
   const fail = (problems: Located[]) =>
     new PolicyError(source, sorted(problems.map((p) => locate(doc, at, p))));
   let js: unknown;
+  const lastResolved = traceAliasResolution(doc);
   try {
     js = doc.toJS();
   } catch (e) {
@@ -75,7 +77,8 @@ export function parsePolicy(text: string, source: string): Policy {
     // (yaml 2.9.1), so `message` is there.
     const raw = (e as Error).message;
     const message = `the document cannot be read: ${raw}`;
-    throw new PolicyError(source, [{ message, path: [], ...at(buildFaultOffset(doc, raw)) }]);
+    const offset = buildFaultOffset(doc, raw, lastResolved());
+    throw new PolicyError(source, [{ message, path: [], ...at(offset) }]);
   }
   const parsed = Policy.safeParse(js);
   if (!parsed.success) throw fail(parsed.error.issues.flatMap((issue) => schemaProblems(issue)));
@@ -272,11 +275,42 @@ const MERGE_FAULT = "Merge sources must be maps or map aliases";
 const OMAP_DUPLICATE = "Ordered maps must not include duplicate keys";
 const OMAP_TAG = "tag:yaml.org,2002:omap";
 
-/** Where the node at fault is for an error the yaml package throws from toJS. */
-function buildFaultOffset(doc: Document, message: string): number {
+/**
+ * Where the node at fault is for an error the yaml package throws from toJS.
+ * `faultAlias` is the alias being resolved when it threw, if any: for "too
+ * many aliases", the alias whose resolution passed the limit. Any other fault
+ * with no alias being resolved is placed at the start of the document.
+ */
+function buildFaultOffset(doc: Document, message: string, faultAlias?: Alias): number {
   if (message.startsWith(MERGE_FAULT)) return badMergeSourceOffset(doc);
   if (message.startsWith(OMAP_DUPLICATE)) return omapDuplicateOffset(doc);
-  return firstAliasOffset(doc);
+  return offsetOf(faultAlias);
+}
+
+/**
+ * Records which alias the yaml package last began to resolve while building
+ * the value, so that a fault it throws there names its alias. Each alias of
+ * this document (and only of this one; the yaml prototype is untouched) gets
+ * its own `resolve` that notes itself before resolving. yaml counts toward
+ * its alias limit only in a resolution with a context, so only those are
+ * noted; the context-free resolutions it makes while sizing an anchor are
+ * not. Building a whole document never nests one such resolution inside
+ * another, since an anchor precedes its aliases in document order and is
+ * built before any of them is reached, so the alias noted last is the one
+ * that threw (yaml 2.9.1).
+ */
+function traceAliasResolution(doc: Document): () => Alias | undefined {
+  let last: Alias | undefined;
+  visit(doc, {
+    Alias(_, alias) {
+      const resolve = alias.resolve;
+      alias.resolve = function (this: Alias, ...args: Parameters<Alias["resolve"]>) {
+        if (args[1] !== undefined) last = this;
+        return resolve.apply(this, args);
+      };
+    },
+  });
+  return () => last;
 }
 
 /**
@@ -317,18 +351,6 @@ function omapDuplicateOffset(doc: Document): number {
         }
         seen.push(id);
       }
-    },
-  });
-  return offset;
-}
-
-/** Where the first alias is, or the start of the document if it has none. */
-function firstAliasOffset(doc: Document): number {
-  let offset = 0;
-  visit(doc, {
-    Alias(_, node) {
-      offset = offsetOf(node);
-      return visit.BREAK;
     },
   });
   return offset;

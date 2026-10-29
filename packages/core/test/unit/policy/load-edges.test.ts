@@ -72,17 +72,61 @@ describe("parsePolicy positions", () => {
     ]);
   });
 
-  test("too many aliases is a PolicyError at the first alias, not a raw ReferenceError", () => {
-    let laughs = "a0: &a0 [lol, lol, lol, lol, lol, lol, lol, lol, lol, lol]\n";
-    for (let i = 1; i < 6; i++)
-      laughs += `a${i}: &a${i} [${Array(10)
-        .fill(`*a${i - 1}`)
-        .join(", ")}]\n`;
+  // An alias bomb (billion laughs): each anchor a<i> holds ten aliases of
+  // a<i-1>. The yaml package (2.9.1, maxAliasCount 100) gives each anchor a
+  // count that starts at 1 and grows by one per alias, and refuses an alias
+  // when its anchor's count times the anchor's expansion passes 100. After
+  // a1's ten aliases a0's count is 11, so a1 expands to 11, and the ninth *a1
+  // (a1 then counts 10, and 10 * 11 = 110) on a2's line, column 50, is the
+  // first alias whose resolution passes the limit. That alias is the one to
+  // report (review round 2, finding N2), not the first alias of the document.
+  let laughs = "a0: &a0 [lol, lol, lol, lol, lol, lol, lol, lol, lol, lol]\n";
+  for (let i = 1; i < 6; i++)
+    laughs += `a${i}: &a${i} [${Array(10)
+      .fill(`*a${i - 1}`)
+      .join(", ")}]\n`;
+
+  test("too many aliases is a PolicyError at the alias that passed the limit", () => {
     const text = `${VALID}${laughs}`;
     const [p, ...rest] = problemsOf(text);
     expect(rest).toEqual([]);
-    expect(p).toMatchObject({ path: [], line: lineOf(text, "a1: &a1"), col: 10 });
+    expect(p).toMatchObject({ path: [], line: lineOf(text, "a2: &a2"), col: 50 });
     expect(p?.message).toMatch(/alias/i);
+  });
+
+  test("an alias that passes the limit on its anchor's first use is reported, not the aliases yaml sizes it by", () => {
+    // a1 is used five times in a2, so a1 counts 6 and a2 expands to 6 * 11 =
+    // 66. The single *a2 makes a2 count 2, and 2 * 66 = 132 passes the limit.
+    // To size a2, yaml resolves a2's own *a1 aliases first, without counting
+    // them; the fault is still the *a2 that asked.
+    const small = [
+      "a0: &a0 [lol, lol, lol, lol, lol, lol, lol, lol, lol, lol]",
+      `a1: &a1 [${Array(10).fill("*a0").join(", ")}]`,
+      `a2: &a2 [${Array(5).fill("*a1").join(", ")}]`,
+      "a3: *a2",
+      "",
+    ].join("\n");
+    const text = `${VALID}${small}`;
+    const [p, ...rest] = problemsOf(text);
+    expect(rest).toEqual([]);
+    expect(p).toMatchObject({ path: [], line: lineOf(text, "a3: *a2"), col: 5 });
+    expect(p?.message).toMatch(/alias/i);
+  });
+
+  test("an alias bomb after a legitimate alias is reported in the bomb, not at the legitimate alias", () => {
+    // The verifier's probe (V23, N2): VALID with a legitimate anchor and alias
+    // in its read matrix, then the bomb from line 37.
+    const legit = VALID.replace("may_read: [person, org]", "may_read: &pr [person, org]").replace(
+      "{ reader: org, may_read: [org] }",
+      "{ reader: org, may_read: *pr }",
+    );
+    expect(legit).toContain("*pr");
+    const text = `${legit}${laughs}`;
+    expect(lineOf(text, "a0: &a0")).toBe(37);
+    const [p, ...rest] = problemsOf(text);
+    expect(rest).toEqual([]);
+    expect(p).toMatchObject({ path: [], line: lineOf(text, "a2: &a2"), col: 50 });
+    expect(text.split("\n")[(p?.line ?? 1) - 1]?.slice((p?.col ?? 1) - 1)).toMatch(/^\*a1,/);
   });
 
   test("an unknown complex key is reported on its own line", () => {
