@@ -250,8 +250,8 @@ describe("engram read", () => {
   });
 
   it("refuses a store the CLI cannot open yet", async () => {
-    const { code, err } = await cli(["read", "--store", "letta", "--root", FIXTURE]);
+    const { code, err } = await cli(["read", "--store", "mem0", "--root", FIXTURE]);
     expect(code).toBe(2);
-    expect(err).toContain("letta");
+    expect(err).toContain("mem0");
   });
 });

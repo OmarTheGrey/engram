@@ -15,6 +15,7 @@ export {
   ReadOnlyItemError,
   UnsafeKeyError,
 } from "./files/index.ts";
+export { checkMemfsRoot, deferLettaAdapter } from "./letta/deferred.ts";
 export {
   createLettaAdapter,
   GitMissingError,

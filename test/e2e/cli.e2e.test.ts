@@ -4,7 +4,10 @@
 // returns and explains it, and `engram explain` on that read from the log.
 // SQLite always; Postgres on the embedded server core's globalSetup starts (no
 // Docker), in a fresh database owned by a role whose password must never
-// appear in any output. The MCP handshakes are in mcp.e2e.test.ts (card E8.4).
+// appear in any output. The same write, read and explain then run with
+// `--store letta` on a fresh MemFS repository (card A2), whose git log must
+// show the one commit the write made. The MCP handshakes are in
+// mcp.e2e.test.ts (card E8.4).
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -127,6 +130,31 @@ describe.each(BACKENDS)("engram end to end on $name", (backend) => {
       const r = engram("doctor", "--db", db);
       expect(r.out).toMatch(new RegExp(`^ok\\s+log\\s+${backend.name} .*: opens; up to date`, "m"));
       expect(r.code).toBe(0);
+    });
+
+    it("the same write, read and explain on a Letta MemFS repository, one commit for the write", () => {
+      const letta = join(temp("letta"), "memory");
+      const ldb = backend.fresh();
+      const store = ["--store", "letta", "--root", letta, "--owner", "dana", "--db", ldb];
+      const w = engram("write", ...store, "--content", "The Letta store holds the freeze date.");
+      expect(w.err).toBe("");
+      expect(w.out).toMatch(/allow/);
+      expect(w.code).toBe(0);
+      const commits = spawnSync("git", ["log", "--format=%s"], { cwd: letta, encoding: "utf8" })
+        .stdout.split("\n")
+        .filter(Boolean);
+      expect(commits).toHaveLength(2);
+      expect(commits[0]).toMatch(/^engram: write \S+ \(semantic in person:dana, version 1\)$/);
+      expect(commits[1]).toBe("engram: list engram/ in MEMORY.md");
+
+      const r = engram("read", "freeze date", ...store);
+      expect(r.code).toBe(0);
+      expect(r.out).toContain("The Letta store holds the freeze date.");
+      const id = /^read (\S+) at /m.exec(r.out)?.[1] ?? "";
+      expect(id).not.toBe("");
+      const x = engram("explain", id, "--owner", "dana", "--db", ldb);
+      expect(x.out).toMatch(new RegExp(`^read ${id}: 1 explanation`, "m"));
+      expect(x.code).toBe(0);
     });
   });
 });

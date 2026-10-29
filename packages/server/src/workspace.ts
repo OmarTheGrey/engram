@@ -14,7 +14,7 @@
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { createFilesAdapter } from "@engram/adapters";
+import { createFilesAdapter, deferLettaAdapter, NotMemfsRepositoryError } from "@engram/adapters";
 import {
   type Actor,
   type Adapter,
@@ -530,20 +530,41 @@ export interface StoreFlags {
   importValidFrom?: string;
 }
 
+/** The stores a workspace opens. */
+export const WORKSPACE_STORES = ["files", "letta"] as const;
+
 /**
- * The store the flags name. Only the files store is opened here for now: Mem0
- * needs an embedding model wired at the surface, and the Letta store is wired
- * once card A2 lands (plan, section 4).
+ * The store the flags name: `files`, a Claude Code memory folder (card A3),
+ * or `letta`, a MemFS repository (card A2, ADR 0028): its top level, or an
+ * empty or missing folder the adapter initialises, items under `engram/`.
+ * Both need --root and --owner (whose person scope a read adopts the store's
+ * items into). The Letta repository is checked here for what the file system
+ * can tell (a bad folder is a usage error at once) and opened by git in the
+ * background; what only git can tell is the first store call's error. Mem0
+ * needs an embedding model wired at the surface and is not opened here.
  */
 export function openStore(flags: StoreFlags, resolvePath: (p: string) => string): Store {
   const name = flags.store ?? "files";
-  if (name !== "files")
+  if (!(WORKSPACE_STORES as readonly string[]).includes(name))
     throw new UsageError(
-      `--store ${name} is not available in the CLI yet; it opens files only (mem0 needs an embedding model wired at the surface; letta is card A2)`,
+      `--store ${name} is not available in the CLI yet; it opens ${WORKSPACE_STORES.join(" and ")} (mem0 needs an embedding model wired at the surface)`,
     );
-  if (flags.root === undefined) throw new UsageError("the files store needs --root <folder>");
-  if (flags.owner === undefined) throw new UsageError("the files store needs --owner <id>");
+  const folder = name === "letta" ? "<MemFS folder>" : "<folder>";
+  if (flags.root === undefined) throw new UsageError(`the ${name} store needs --root ${folder}`);
+  if (flags.owner === undefined) throw new UsageError(`the ${name} store needs --owner <id>`);
   const root = resolvePath(flags.root);
+  if (name === "letta") {
+    if (flags.importValidFrom !== undefined)
+      throw new UsageError("--import-valid-from applies to the files store only");
+    let adapter: Adapter;
+    try {
+      adapter = deferLettaAdapter({ root });
+    } catch (e) {
+      if (e instanceof NotMemfsRepositoryError) throw new UsageError(e.message);
+      throw e;
+    }
+    return { name, root, adapter, owner: flags.owner, scope: `person:${flags.owner}` };
+  }
   const adapter = createFilesAdapter({
     root,
     owner: flags.owner,
