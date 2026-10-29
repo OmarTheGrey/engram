@@ -121,6 +121,278 @@
       "answer": "\u00a0padded\u00a0",
       "used_record_ids": [],
       "flattened": "\u00a0padded\u00a0\n{\"s\": \"\\u001c\"}"
+    },
+    {
+      "raw": "{'action': 'refuse', 'answer': 'no', 'answer_structured': {'a': 1.0, 'b': (1, 2), 'c': None, 'd': True}}",
+      "action": "refuse",
+      "answer": "no",
+      "used_record_ids": [],
+      "flattened": "no\n{\"a\": 1.0, \"b\": [1, 2], \"c\": null, \"d\": true}"
+    },
+    {
+      "raw": "{'action': 'answer', 'answer': {'t': (1, 2.50), 'one': (1,), 'none': ()}, 'answer_structured': {'h': 0x10, 'u': 1_000, 'o': 0o17, 'b': 0b1_0}}",
+      "action": "answer",
+      "answer": "{'t': (1, 2.5), 'one': (1,), 'none': ()}",
+      "used_record_ids": [],
+      "flattened": "{'t': (1, 2.5), 'one': (1,), 'none': ()}\n{\"b\": 2, \"h\": 16, \"o\": 15, \"u\": 1000}"
+    },
+    {
+      "raw": "{'action': 'answer', 'answer': 'x', 'answer_structured': \"{'q': 2.0, 't': ('a', [1])}\"}",
+      "action": "answer",
+      "answer": "x",
+      "used_record_ids": [],
+      "flattened": "x\n{\"q\": 2.0, \"t\": [\"a\", [1]]}"
+    },
+    {
+      "raw": "{'action': 'answer', 'answer': 'x', 'answer_structured': {}, 'used_record_ids': ('r1', 'r2')}",
+      "action": "answer",
+      "answer": "x",
+      "used_record_ids": [],
+      "flattened": "x\n{}"
+    },
+    {
+      "raw": "{'action': 'answer', 'answer': 'x', 'answer_structured': {}, 'used_record_ids': ['r1', 2, 2.0, None, ('t',)]}",
+      "action": "answer",
+      "answer": "x",
+      "used_record_ids": [
+        "r1",
+        "2",
+        "2.0",
+        "None",
+        "('t',)"
+      ],
+      "flattened": "x\n{}"
+    },
+    {
+      "raw": "{'action': 'answer_redacted', 'answer': \"it's \\\"quoted\\\" \\\\ back\", 'answer_structured': {'k': 'caf\\xe9 \\u00e9 \\U0001F600 \\101 \\0 \\a \\q'}}",
+      "action": "answer_redacted",
+      "answer": "it's \"quoted\" \\ back",
+      "used_record_ids": [],
+      "flattened": "it's \"quoted\" \\ back\n{\"k\": \"caf\u00e9 \u00e9 \ud83d\ude00 A \\u0000 \\u0007 \\\\q\"}"
+    },
+    {
+      "raw": "{'action': 'answer', 'answer': r'raw \\n stays' ' and ' \"joined\", 'answer_structured': {'tq': '''multi\nline''', 'e': ''}}",
+      "action": "answer",
+      "answer": "raw \\n stays and joined",
+      "used_record_ids": [],
+      "flattened": "raw \\n stays and joined\n{\"e\": \"\", \"tq\": \"multi\\nline\"}"
+    },
+    {
+      "raw": "{\n  # a comment, then a trailing comma\n  'action': 'answer',\n  'answer': 'x',\n  'answer_structured': {'f': [1., .5, 1_0.5, 1e5, 1.5E-3, -0.0, -(1), - 2, +3, 12345678901234567890, 1e400]},\n}",
+      "action": "answer",
+      "answer": "x",
+      "used_record_ids": [],
+      "flattened": "x\n{\"f\": [1.0, 0.5, 10.5, 100000.0, 0.0015, -0.0, -1, -2, 3, 12345678901234567890, Infinity]}"
+    },
+    {
+      "raw": "{'action': 'answer', 'answer': 'x', 'answer_structured': {'b': 2, 'a': 1, 'b': 3, 'z': {'y': None, 'x': False}}}",
+      "action": "answer",
+      "answer": "x",
+      "used_record_ids": [],
+      "flattened": "x\n{\"a\": 1, \"b\": 3, \"z\": {\"x\": false, \"y\": null}}"
+    },
+    {
+      "raw": "{'action':\r\n 'answer',\r\n 'answer': '''a\r\nb''', 'answer_structured': {'s': 'x\\\r\ny'}}",
+      "action": "answer",
+      "answer": "a\nb",
+      "used_record_ids": [],
+      "flattened": "a\nb\n{\"s\": \"xy\"}"
+    },
+    {
+      "raw": "{\"action\": \"refuse\", \"answer\": None, \"answer_structured\": {\"n\": True}}",
+      "action": "refuse",
+      "answer": "None",
+      "used_record_ids": [],
+      "flattened": "None\n{\"n\": true}"
+    },
+    {
+      "raw": "Sure: {'action': 'answer', 'answer': 'x', 'answer_structured': {}} trailing",
+      "action": "answer",
+      "answer": "x",
+      "used_record_ids": [],
+      "flattened": "x\n{}"
+    },
+    {
+      "raw": "{\"action\":\"answer\",\"answer\":\"x\",\"answer_structured\":\"# {c}\\n{'k': 1}\"}",
+      "action": "answer",
+      "answer": "x",
+      "used_record_ids": [],
+      "flattened": "x\n{\"k\": 1}"
+    },
+    {
+      "raw": "{\"action\":\"answer\",\"answer\":\"x\",\"answer_structured\":\"# {c}\\n  {'k': 1}\"}",
+      "action": "answer",
+      "answer": "x",
+      "used_record_ids": [],
+      "flattened": "x\n{}"
+    },
+    {
+      "raw": "{'action': 'refuse', 'answer': true}",
+      "action": "refuse",
+      "answer": "{'action': 'refuse', 'answer': true}",
+      "used_record_ids": [],
+      "flattened": "{'action': 'refuse', 'answer': true}\n{}"
+    },
+    {
+      "raw": "{'action': 'refuse', 'answer': foo}",
+      "action": "refuse",
+      "answer": "{'action': 'refuse', 'answer': foo}",
+      "used_record_ids": [],
+      "flattened": "{'action': 'refuse', 'answer': foo}\n{}"
+    },
+    {
+      "raw": "{'action': 'refuse', 'answer': 1 + 2}",
+      "action": "refuse",
+      "answer": "{'action': 'refuse', 'answer': 1 + 2}",
+      "used_record_ids": [],
+      "flattened": "{'action': 'refuse', 'answer': 1 + 2}\n{}"
+    },
+    {
+      "raw": "{'action': 'refuse', 'answer': -(-1)}",
+      "action": "refuse",
+      "answer": "{'action': 'refuse', 'answer': -(-1)}",
+      "used_record_ids": [],
+      "flattened": "{'action': 'refuse', 'answer': -(-1)}\n{}"
+    },
+    {
+      "raw": "{'action': 'refuse', 'answer': +True}",
+      "action": "refuse",
+      "answer": "{'action': 'refuse', 'answer': +True}",
+      "used_record_ids": [],
+      "flattened": "{'action': 'refuse', 'answer': +True}\n{}"
+    },
+    {
+      "raw": "{'action': 'refuse', 'answer': f'x'}",
+      "action": "refuse",
+      "answer": "{'action': 'refuse', 'answer': f'x'}",
+      "used_record_ids": [],
+      "flattened": "{'action': 'refuse', 'answer': f'x'}\n{}"
+    },
+    {
+      "raw": "{'action': 'refuse', 'answer': ur'x'}",
+      "action": "refuse",
+      "answer": "{'action': 'refuse', 'answer': ur'x'}",
+      "used_record_ids": [],
+      "flattened": "{'action': 'refuse', 'answer': ur'x'}\n{}"
+    },
+    {
+      "raw": "{'action': 'refuse', 'answer': 'unterminated}",
+      "action": "refuse",
+      "answer": "{'action': 'refuse', 'answer': 'unterminated}",
+      "used_record_ids": [],
+      "flattened": "{'action': 'refuse', 'answer': 'unterminated}\n{}"
+    },
+    {
+      "raw": "{'action': 'refuse', 'answer': 'x'}\n x {}",
+      "action": "refuse",
+      "answer": "{'action': 'refuse', 'answer': 'x'}\n x {}",
+      "used_record_ids": [],
+      "flattened": "{'action': 'refuse', 'answer': 'x'}\n x {}\n{}"
+    },
+    {
+      "raw": "{{'action': 'refuse'}}",
+      "action": "refuse",
+      "answer": "{{'action': 'refuse'}}",
+      "used_record_ids": [],
+      "flattened": "{{'action': 'refuse'}}\n{}"
+    },
+    {
+      "raw": "{'action': 'refuse', 'answer': [1 2]}",
+      "action": "refuse",
+      "answer": "{'action': 'refuse', 'answer': [1 2]}",
+      "used_record_ids": [],
+      "flattened": "{'action': 'refuse', 'answer': [1 2]}\n{}"
+    },
+    {
+      "raw": "{'action': 'refuse', 'answer': 0777}",
+      "action": "refuse",
+      "answer": "{'action': 'refuse', 'answer': 0777}",
+      "used_record_ids": [],
+      "flattened": "{'action': 'refuse', 'answer': 0777}\n{}"
+    },
+    {
+      "raw": "{'action': 'refuse', 'answer': '\\x4'}",
+      "action": "refuse",
+      "answer": "{'action': 'refuse', 'answer': '\\x4'}",
+      "used_record_ids": [],
+      "flattened": "{'action': 'refuse', 'answer': '\\x4'}\n{}"
+    },
+    {
+      "raw": "{'action': 'refuse', 'answer': \u00a01}",
+      "action": "refuse",
+      "answer": "{'action': 'refuse', 'answer': \u00a01}",
+      "used_record_ids": [],
+      "flattened": "{'action': 'refuse', 'answer': \u00a01}\n{}"
+    },
+    {
+      "raw": "{'action': 'refuse', 'answer': '\\U00110000'}",
+      "action": "refuse",
+      "answer": "{'action': 'refuse', 'answer': '\\U00110000'}",
+      "used_record_ids": [],
+      "flattened": "{'action': 'refuse', 'answer': '\\U00110000'}\n{}"
+    },
+    {
+      "raw": "{'action': 'refuse', [1]: 2}",
+      "action": "refuse",
+      "answer": "{'action': 'refuse', [1]: 2}",
+      "used_record_ids": [],
+      "flattened": "{'action': 'refuse', [1]: 2}\n{}"
+    },
+    {
+      "raw": "{'action': 'refuse', 'answer': {[1]}}",
+      "action": "refuse",
+      "answer": "{'action': 'refuse', 'answer': {[1]}}",
+      "used_record_ids": [],
+      "flattened": "{'action': 'refuse', 'answer': {[1]}}\n{}"
+    },
+    {
+      "raw": "{'action': 'refuse', 'answer': b'x' 'y'}",
+      "action": "refuse",
+      "answer": "{'action': 'refuse', 'answer': b'x' 'y'}",
+      "used_record_ids": [],
+      "flattened": "{'action': 'refuse', 'answer': b'x' 'y'}\n{}"
+    },
+    {
+      "raw": "{'action': 'refuse', 'answer': 'x'.upper}",
+      "action": "refuse",
+      "answer": "{'action': 'refuse', 'answer': 'x'.upper}",
+      "used_record_ids": [],
+      "flattened": "{'action': 'refuse', 'answer': 'x'.upper}\n{}"
+    },
+    {
+      "raw": "{'action': 'refuse', 'answer': 'x'} \\\n",
+      "action": "refuse",
+      "answer": "x",
+      "used_record_ids": [],
+      "flattened": "x\n{}"
+    },
+    {
+      "raw": "{'action': 'refuse'}, {'answer': 'x'}",
+      "action": "refuse",
+      "answer": "{'action': 'refuse'}, {'answer': 'x'}",
+      "used_record_ids": [],
+      "flattened": "{'action': 'refuse'}, {'answer': 'x'}\n{}"
+    },
+    {
+      "raw": "{'action': 'refuse', 'answer': '\ud800'}",
+      "action": "refuse",
+      "answer": "{'action': 'refuse', 'answer': '\ud800'}",
+      "used_record_ids": [],
+      "flattened": "{'action': 'refuse', 'answer': '\ud800'}\n{}"
+    },
+    {
+      "raw": "{'action': 'refuse', 'answer': 1__0}",
+      "action": "refuse",
+      "answer": "{'action': 'refuse', 'answer': 1__0}",
+      "used_record_ids": [],
+      "flattened": "{'action': 'refuse', 'answer': 1__0}\n{}"
+    },
+    {
+      "raw": "{'action': 'refuse', 'answer': 'x' # unclosed}",
+      "action": "refuse",
+      "answer": "{'action': 'refuse', 'answer': 'x' # unclosed}",
+      "used_record_ids": [],
+      "flattened": "{'action': 'refuse', 'answer': 'x' # unclosed}\n{}"
     }
   ],
   "patterns": [
@@ -182,11 +454,6 @@
     {
       "text": "room 34",
       "pattern": "room \\d+",
-      "hits": true
-    },
-    {
-      "text": "id A-17 ok",
-      "pattern": "(?P<tag>[A-Z])-(?P=tag)?17",
       "hits": true
     },
     {
@@ -327,6 +594,279 @@
     {
       "text": "CALL Dr.  Lee",
       "pattern": "dr. lee",
+      "hits": true
+    },
+    {
+      "text": "\u0130stanbul",
+      "pattern": "(?i)istanbul",
+      "hits": true
+    },
+    {
+      "text": "istanbul",
+      "pattern": "(?i)\u0130stanbul",
+      "hits": true
+    },
+    {
+      "text": "\u0131stanbul",
+      "pattern": "(?i)istanbul",
+      "hits": true
+    },
+    {
+      "text": "ISTANBUL",
+      "pattern": "(?i)\u0131stanbul",
+      "hits": true
+    },
+    {
+      "text": "istanbul",
+      "pattern": "\u0131stanbul",
+      "hits": true
+    },
+    {
+      "text": "\u0131rmak",
+      "pattern": "irmak",
+      "hits": true
+    },
+    {
+      "text": "\u0130zmir",
+      "pattern": "izmir",
+      "hits": false
+    },
+    {
+      "text": "\u212a",
+      "pattern": "(?i)k",
+      "hits": true
+    },
+    {
+      "text": "k",
+      "pattern": "(?i)\u212a",
+      "hits": true
+    },
+    {
+      "text": "\u017f",
+      "pattern": "(?i)S",
+      "hits": true
+    },
+    {
+      "text": "\u03a3\u0391\u03a3",
+      "pattern": "(?i)\u03c3\u03b1\u03c2",
+      "hits": true
+    },
+    {
+      "text": "\u03d0",
+      "pattern": "(?i)\u0392",
+      "hits": true
+    },
+    {
+      "text": "\u00b5",
+      "pattern": "(?i)\u039c",
+      "hits": true
+    },
+    {
+      "text": "\ufb05",
+      "pattern": "(?i)\ufb06",
+      "hits": true
+    },
+    {
+      "text": "\u1e9e",
+      "pattern": "(?i)\u00df",
+      "hits": true
+    },
+    {
+      "text": "\u00df",
+      "pattern": "(?i)SS",
+      "hits": false
+    },
+    {
+      "text": "\u13a0",
+      "pattern": "(?i)\uab70",
+      "hits": true
+    },
+    {
+      "text": "\u2163",
+      "pattern": "(?i)\u2173",
+      "hits": true
+    },
+    {
+      "text": "\u24b6",
+      "pattern": "(?i)\u24d0",
+      "hits": true
+    },
+    {
+      "text": "\u01c5",
+      "pattern": "(?i)\u01c6",
+      "hits": true
+    },
+    {
+      "text": "\u01c5",
+      "pattern": "(?i)\u01c4",
+      "hits": true
+    },
+    {
+      "text": "\u0345",
+      "pattern": "(?i)\u03b9",
+      "hits": true
+    },
+    {
+      "text": "\ud801\udc00",
+      "pattern": "(?i)\ud801\udc28",
+      "hits": true
+    },
+    {
+      "text": "\ud801\udc00",
+      "pattern": "(?i)[\ud801\udc28x]",
+      "hits": true
+    },
+    {
+      "text": "\u0130",
+      "pattern": "(?i)[a-z]",
+      "hits": true
+    },
+    {
+      "text": "\u0131",
+      "pattern": "(?i)[a-z]",
+      "hits": true
+    },
+    {
+      "text": "\u0131",
+      "pattern": "(?i)[^i]",
+      "hits": false
+    },
+    {
+      "text": "\u0131",
+      "pattern": "(?i)[^i\\d]",
+      "hits": false
+    },
+    {
+      "text": "\u212a",
+      "pattern": "(?i)[j-l]",
+      "hits": true
+    },
+    {
+      "text": "\u017f",
+      "pattern": "(?i)[r-t]",
+      "hits": true
+    },
+    {
+      "text": "A",
+      "pattern": "(?i)[^a]",
+      "hits": false
+    },
+    {
+      "text": "\u00c9",
+      "pattern": "(?i)caf[\u00e9]",
+      "hits": false
+    },
+    {
+      "text": "CAF\u00c9",
+      "pattern": "(?i)caf[\u00e9]",
+      "hits": true
+    },
+    {
+      "text": "CAF\u00c9",
+      "pattern": "(?i)caf[\\w\u00e9]",
+      "hits": true
+    },
+    {
+      "text": "x-y",
+      "pattern": "[\\w-]",
+      "hits": true
+    },
+    {
+      "text": "x",
+      "pattern": "[\\w-a]",
+      "hits": false
+    },
+    {
+      "text": "Istanbul",
+      "pattern": "(?i:istanbul)",
+      "hits": true
+    },
+    {
+      "text": "ABC",
+      "pattern": "(?-i:abc)",
+      "hits": false
+    },
+    {
+      "text": "ABC",
+      "pattern": "(?i)a(?-i:b)c",
+      "hits": false
+    },
+    {
+      "text": "AbC",
+      "pattern": "(?i)a(?-i:b)c",
+      "hits": true
+    }
+  ],
+  "parse_untranslatable": [
+    {
+      "raw": "{'action': 'answer', 'answer': {'t': (1, 2.50), 's': {3, 1}}, 'answer_structured': {'h': 0x10, 'u': 1_000}}",
+      "action": "answer",
+      "answer": "{'t': (1, 2.5), 's': {1, 3}}",
+      "used_record_ids": [],
+      "flattened": "{'t': (1, 2.5), 's': {1, 3}}\n{\"h\": 16, \"u\": 1000}"
+    },
+    {
+      "raw": "{'action': 'answer', 'answer': 'x', 'answer_structured': {'z': 1j, 'b': b'by'}}",
+      "action": "answer",
+      "answer": "x",
+      "used_record_ids": [],
+      "flattened": "x\n{'z': 1j, 'b': b'by'}"
+    },
+    {
+      "raw": "{'action': 'answer', 'answer': 'x', 'answer_structured': {'e': ...}}",
+      "action": "answer",
+      "answer": "x",
+      "used_record_ids": [],
+      "flattened": "x\n{'e': Ellipsis}"
+    },
+    {
+      "raw": "{'action': 'answer', 'answer': '\\N{BULLET}', 'answer_structured': {}}",
+      "action": "answer",
+      "answer": "\u2022",
+      "used_record_ids": [],
+      "flattened": "\u2022\n{}"
+    },
+    {
+      "raw": "{'action': 'answer', 'answer': 'x', 'answer_structured': {1: 'one'}}",
+      "action": "answer",
+      "answer": "x",
+      "used_record_ids": [],
+      "flattened": "x\n{\"1\": \"one\"}"
+    },
+    {
+      "raw": "{'action': 'answer', 'answer': set(), 'answer_structured': {}}",
+      "action": "answer",
+      "answer": "set()",
+      "used_record_ids": [],
+      "flattened": "set()\n{}"
+    },
+    {
+      "raw": "{'action': 'answer', 'answer': 'x', 'answer_structured': {'c': -1 + 2j}}",
+      "action": "answer",
+      "answer": "x",
+      "used_record_ids": [],
+      "flattened": "x\n{'c': (-1+2j)}"
+    }
+  ],
+  "patterns_untranslatable": [
+    {
+      "text": "id A-17 ok",
+      "pattern": "(?P<tag>[A-Z])-(?P=tag)?17",
+      "hits": true
+    },
+    {
+      "text": "aA",
+      "pattern": "(?i)(a)\\1",
+      "hits": true
+    },
+    {
+      "text": "aA",
+      "pattern": "(?i)(?P<x>a)(?P=x)",
+      "hits": true
+    },
+    {
+      "text": "\ud801\udc00",
+      "pattern": "(?i)[\\U00010428-\\U00010429]",
       "hits": true
     }
   ]

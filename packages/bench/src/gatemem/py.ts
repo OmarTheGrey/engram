@@ -9,22 +9,34 @@
 //   with integer-like keys, and NaN, Infinity and -Infinity, which Python
 //   accepts.
 // - pyDumps: json.dumps(v, ensure_ascii=False, sort_keys=True); pyRepr and
-//   pyStr: repr() and str(), with Python's float repr and string quoting.
+//   pyStr: repr() and str(), with Python's float repr and string quoting, and
+//   tuples (PyTuple), which literal.ts's ast.literal_eval port produces.
 // - pyStrip, pyNormalizeWs: str.strip and re.sub(r"\s+", " ", s), on Python's
 //   whitespace set (str.isspace).
 // - pyRegex: a Python `re` pattern as an equivalent JavaScript RegExp (flag
 //   u): \w, \d, \s and \b as Python's Unicode classes, $ also before a final
-//   newline, . excluding only \n, (?P<name>) groups, \A and \Z, Python's
-//   literal braces and escapes. A construct with no JavaScript equivalent
-//   (atomic groups, possessive quantifiers, scoped or verbose flags, \N{...})
-//   throws UntranslatablePattern rather than matching differently; a pattern
-//   Python itself rejects throws SyntaxError, as re.error.
+//   newline, . excluding only \n, (?P<name>) groups, \A and \Z, scoped i and
+//   s flags, Python's literal braces, escapes and set syntax. A construct with
+//   no JavaScript equivalent (atomic groups, possessive quantifiers, verbose
+//   or multiline flags, \N{...}) throws UntranslatablePattern rather than
+//   matching differently; a pattern Python itself rejects throws SyntaxError,
+//   as re.error.
+// - Case-insensitive matching (round 2, R6-12) is not JavaScript's i flag,
+//   which compares case folds: Python compares the simple lowercase of the
+//   text's character with the pattern's, plus the equivalences listed in
+//   CPython's re/_casefix.py (i and dotless i, s and long s, the Greek symbol
+//   forms). So `(?i)istanbul` matches "İstanbul" in Python and not under the
+//   i flag. pyRegex therefore never sets the i flag: it expands every cased
+//   literal and set into the characters Python would accept. Back references
+//   under IGNORECASE, and set ranges beyond the BMP under it, which CPython
+//   matches by other rules, throw UntranslatablePattern.
 //
-// Known limits: JavaScript's case folding under the i flag and its Unicode
-// tables (Node's ICU) can differ from CPython's at the margins, such as
-// characters added in a Unicode version one of them lacks. Python's
-// \w equals [\p{L}\p{N}_] and \d equals \p{Nd} on Unicode 16 (checked
-// against CPython 3.14 over every code point).
+// Known limits: the Unicode tables differ by version. Node 24 has Unicode 17,
+// CPython 3.14 Unicode 16; they agree on lowercase and casedness for every
+// code point but the 28 pairs Unicode 17 added (U+A7CE to U+A7D5, U+16EA0 to
+// U+16ED3), checked over every code point against CPython's own
+// _sre.unicode_tolower and unicode_iscased. Python's \w equals [\p{L}\p{N}_]
+// and \d equals \p{Nd} on Unicode 16 (checked the same way).
 
 /** Python's whitespace (str.isspace), as the body of a character class. */
 export const PY_SPACE =
@@ -64,11 +76,40 @@ export class PyFloat {
   }
 }
 
+/** A Python tuple: repr() prints it in parentheses, json.dumps as a list, and it is not a list. */
+export class PyTuple {
+  readonly items: readonly unknown[];
+  constructor(items: readonly unknown[]) {
+    this.items = items;
+  }
+}
+
 /** The key order Python's dict keeps, for objects parsePyJson builds. */
 const ORDER = Symbol("python dict order");
 type PyDict = Record<string, unknown> & { [ORDER]?: string[] };
 
 const keysOf = (o: PyDict): string[] => o[ORDER] ?? Object.keys(o);
+
+/**
+ * A dict built from key-value pairs as Python builds one: a repeated key
+ * keeps its first position and takes its last value, and any key, even
+ * `__proto__`, is an own property.
+ */
+export function pyDict(entries: Iterable<readonly [string, unknown]>): Record<string, unknown> {
+  const obj: PyDict = {};
+  const order: string[] = [];
+  for (const [key, v] of entries) {
+    if (!Object.hasOwn(obj, key)) order.push(key);
+    Object.defineProperty(obj, key, {
+      value: v,
+      enumerable: true,
+      writable: true,
+      configurable: true,
+    });
+  }
+  Object.defineProperty(obj, ORDER, { value: order, enumerable: false });
+  return obj;
+}
 
 /** A plain object or one parsePyJson built: what Python calls a dict. */
 export function isPyDict(v: unknown): v is Record<string, unknown> {
@@ -139,8 +180,7 @@ export function parsePyJson(text: string): unknown {
     const c = text[i];
     if (c === "{") {
       i++;
-      const obj: PyDict = {};
-      const order: string[] = [];
+      const entries: [string, unknown][] = [];
       ws();
       if (text[i] === "}") {
         i++;
@@ -152,14 +192,7 @@ export function parsePyJson(text: string): unknown {
           ws();
           if (text[i] !== ":") fail("expected ':'");
           i++;
-          const v = value();
-          if (!Object.hasOwn(obj, key)) order.push(key);
-          Object.defineProperty(obj, key, {
-            value: v,
-            enumerable: true,
-            writable: true,
-            configurable: true,
-          });
+          entries.push([key, value()]);
           ws();
           if (text[i] === ",") {
             i++;
@@ -172,8 +205,7 @@ export function parsePyJson(text: string): unknown {
           fail("expected ',' or '}'");
         }
       }
-      Object.defineProperty(obj, ORDER, { value: order, enumerable: false });
-      return obj;
+      return pyDict(entries);
     }
     if (c === "[") {
       i++;
@@ -286,6 +318,7 @@ export function pyDumps(value: unknown): string {
   if (isNumber(value)) return numberText(value, true);
   if (typeof value === "string") return dumpString(value);
   if (Array.isArray(value)) return `[${value.map(pyDumps).join(", ")}]`;
+  if (value instanceof PyTuple) return `[${value.items.map(pyDumps).join(", ")}]`;
   const o = value as PyDict;
   const keys = [...keysOf(o)].sort(codePointCompare);
   return `{${keys.map((k) => `${dumpString(k)}: ${pyDumps(o[k])}`).join(", ")}}`;
@@ -320,6 +353,8 @@ export function pyRepr(value: unknown): string {
   if (isNumber(value)) return numberText(value, false);
   if (typeof value === "string") return reprString(value);
   if (Array.isArray(value)) return `[${value.map(pyRepr).join(", ")}]`;
+  if (value instanceof PyTuple)
+    return `(${value.items.map(pyRepr).join(", ")}${value.items.length === 1 ? "," : ""})`;
   const o = value as PyDict;
   return `{${keysOf(o)
     .map((k) => `${reprString(k)}: ${pyRepr(o[k])}`)
@@ -345,10 +380,152 @@ const NON_W_CLASS = `[^${PY_WORD}]`;
 const BOUNDARY = `(?:(?<=${W_CLASS})(?!${W_CLASS})|(?<!${W_CLASS})(?=${W_CLASS}))`;
 const NON_BOUNDARY = `(?:(?<=${W_CLASS})(?=${W_CLASS})|(?<!${W_CLASS})(?!${W_CLASS}))`;
 const END = "(?![\\s\\S])";
-/** Characters an escape in a flag-u pattern may name literally. */
-const SYNTAX = new Set("^$\\.*+?()[]{}|/");
 
-const hexEscape = (c: string) => `\\u{${(c.codePointAt(0) as number).toString(16)}}`;
+/**
+ * CPython's re/_casefix.py (_EXTRA_CASES) at 3.14, as groups: lowercase
+ * characters that match one another under IGNORECASE although their
+ * lowercase differs, because they share an uppercase (i and dotless i, s and
+ * long s, the Greek symbol forms, the Cyrillic variants).
+ */
+const EXTRA_CASE_GROUPS: readonly (readonly number[])[] = [
+  [0x0069, 0x0131],
+  [0x0073, 0x017f],
+  [0x00b5, 0x03bc],
+  [0x0345, 0x03b9, 0x1fbe],
+  [0x0390, 0x1fd3],
+  [0x03b0, 0x1fe3],
+  [0x03b2, 0x03d0],
+  [0x03b5, 0x03f5],
+  [0x03b8, 0x03d1],
+  [0x03ba, 0x03f0],
+  [0x03c0, 0x03d6],
+  [0x03c1, 0x03f1],
+  [0x03c2, 0x03c3],
+  [0x03c6, 0x03d5],
+  [0x0432, 0x1c80],
+  [0x0434, 0x1c81],
+  [0x043e, 0x1c82],
+  [0x0441, 0x1c83],
+  [0x0442, 0x1c84, 0x1c85],
+  [0x044a, 0x1c86],
+  [0x0463, 0x1c87],
+  [0x1c88, 0xa64b],
+  [0x1e61, 0x1e9b],
+  [0xfb05, 0xfb06],
+];
+const EXTRA_CASES = new Map<number, readonly number[]>(
+  EXTRA_CASE_GROUPS.flatMap((g) => g.map((c) => [c, g.filter((x) => x !== c)] as const)),
+);
+
+/** _sre.unicode_tolower: the first character of the full lowercase mapping. */
+const lowerOf = (cp: number) => String.fromCodePoint(cp).toLowerCase().codePointAt(0) as number;
+const upperOf = (cp: number) => String.fromCodePoint(cp).toUpperCase().codePointAt(0) as number;
+/** _sre.unicode_iscased */
+const isCased = (cp: number) => lowerOf(cp) !== cp || upperOf(cp) !== cp;
+
+let lowerSources: Map<number, number[]> | undefined;
+/** Every character whose lowercase is another character, by that lowercase; built once, lazily. */
+function sourcesOfLower(): Map<number, number[]> {
+  if (lowerSources) return lowerSources;
+  const map = new Map<number, number[]>();
+  for (let cp = 0; cp <= 0x10ffff; cp++) {
+    if (cp === 0xd800) cp = 0xe000;
+    const lo = lowerOf(cp);
+    if (lo === cp) continue;
+    const list = map.get(lo);
+    if (list) list.push(cp);
+    else map.set(lo, [cp]);
+  }
+  lowerSources = map;
+  return map;
+}
+
+/**
+ * The characters Python's IGNORECASE accepts for a set of lowered pattern
+ * characters: those whose lowercase is in the set or in its CPython
+ * equivalences (sre's LITERAL_UNI_IGNORE and IN_UNI_IGNORE).
+ */
+function caseMembers(lowered: Iterable<number>): number[] {
+  const accepted = new Set<number>();
+  for (const c of lowered) {
+    accepted.add(c);
+    for (const x of EXTRA_CASES.get(c) ?? []) accepted.add(x);
+  }
+  const members = new Set<number>();
+  const sources = sourcesOfLower();
+  for (const c of accepted) {
+    if (accepted.has(lowerOf(c))) members.add(c);
+    for (const s of sources.get(c) ?? []) members.add(s);
+  }
+  return [...members].sort((a, b) => a - b);
+}
+
+/** One code point in a flag-u pattern: ASCII letters and digits as they are, the rest escaped. */
+const cpOut = (cp: number) =>
+  (cp >= 0x30 && cp <= 0x39) || (cp >= 0x41 && cp <= 0x5a) || (cp >= 0x61 && cp <= 0x7a)
+    ? String.fromCodePoint(cp)
+    : `\\u{${cp.toString(16)}}`;
+
+const rangeOut = (lo: number, hi: number) =>
+  lo === hi ? cpOut(lo) : hi === lo + 1 ? cpOut(lo) + cpOut(hi) : `${cpOut(lo)}-${cpOut(hi)}`;
+
+/** Sorted code points as the body of a character class, runs as ranges. */
+function runsOut(cps: readonly number[]): string {
+  let out = "";
+  for (let k = 0; k < cps.length; ) {
+    let j = k;
+    while (j + 1 < cps.length && cps[j + 1] === (cps[j] as number) + 1) j++;
+    out += rangeOut(cps[k] as number, cps[j] as number);
+    k = j + 1;
+  }
+  return out;
+}
+
+/** A literal character, under IGNORECASE as the set of characters Python accepts for it. */
+const literalOut = (cp: number, icase: boolean) =>
+  icase && isCased(cp) ? `[${runsOut(caseMembers([lowerOf(cp)]))}]` : cpOut(cp);
+
+/** A member of a Python set: a character, a range of them, or a class such as \w. */
+type SetItem = { lo: number; hi: number; literal: boolean } | { cat: string };
+
+/**
+ * A Python set as a JavaScript class. Under IGNORECASE a set with a cased
+ * member tests the lowercase of the text's character against its members
+ * lowered, with their equivalences (sre's _optimize_charset); a set without
+ * one matches exactly, as sre's IN does.
+ */
+function setOut(items: readonly SetItem[], negate: boolean, icase: boolean, pattern: string) {
+  const cats = items.flatMap((i) => ("cat" in i ? [i.cat] : []));
+  const ranges = items.flatMap((i) => ("cat" in i ? [] : [i]));
+  const cased = (r: { lo: number; hi: number; literal: boolean }) => {
+    if (r.literal) return isCased(lowerOf(r.lo));
+    for (let c = r.lo; c <= r.hi; c++) if (isCased(c)) return true;
+    return false;
+  };
+  const hasCased = icase && ranges.some(cased);
+  if (hasCased && ranges.some((r) => !r.literal && r.hi > 0xffff && cased(r)))
+    throw new UntranslatablePattern(pattern, "a set range beyond the BMP under IGNORECASE");
+  let body: string;
+  if (hasCased) {
+    const lowered = new Set<number>();
+    for (const r of ranges) for (let c = r.lo; c <= r.hi; c++) lowered.add(lowerOf(c));
+    body = runsOut(caseMembers(lowered));
+  } else body = ranges.map((r) => rangeOut(r.lo, r.hi)).join("");
+  return `[${negate ? "^" : ""}${body}${cats.join("")}]`;
+}
+
+/** What one escape stands for: a character, a class, an assertion or a group reference. */
+type Esc = { lit: number } | { cat: string; outside: string } | { at: string } | { ref: string };
+
+interface Flags {
+  icase: boolean;
+  dotAll: boolean;
+}
+
+/** Characters an unescaped Python pattern passes to JavaScript as they are. */
+const META = new Set("^|*+?");
+
+const compiled = new Map<string, RegExp>();
 
 /**
  * A Python `re` pattern, searched with re.IGNORECASE when `ignoreCase`, as a
@@ -356,14 +533,23 @@ const hexEscape = (c: string) => `\\u{${(c.codePointAt(0) as number).toString(16
  * raises re.error, UntranslatablePattern where JavaScript has no equivalent.
  */
 export function pyRegex(pattern: string, ignoreCase: boolean): RegExp {
+  const key = `${ignoreCase ? "i" : "-"}${pattern}`;
+  let re = compiled.get(key);
+  if (!re) {
+    re = translate(pattern, ignoreCase);
+    compiled.set(key, re);
+  }
+  return re;
+}
+
+function translate(pattern: string, ignoreCase: boolean): RegExp {
   let p = pattern;
-  let dotAll = false;
-  let icase = ignoreCase;
+  let flags: Flags = { icase: ignoreCase, dotAll: false };
   const global = /^\(\?([aiLmsux]+)\)/.exec(p);
   if (global) {
     for (const f of global[1] as string) {
-      if (f === "i") icase = true;
-      else if (f === "s") dotAll = true;
+      if (f === "i") flags.icase = true;
+      else if (f === "s") flags.dotAll = true;
       else if (f !== "u") throw new UntranslatablePattern(pattern, `the global flag (?${f})`);
     }
     p = p.slice(global[0].length);
@@ -371,11 +557,18 @@ export function pyRegex(pattern: string, ignoreCase: boolean): RegExp {
   const chars = [...p];
   let out = "";
   let k = 0;
+  /** The flags in force outside each open group, so `)` restores them. */
+  const outer: Flags[] = [];
   const bad = (what: string): never => {
     throw new SyntaxError(`Python rejects ${JSON.stringify(pattern)}: ${what}`);
   };
-  /** One escape after a backslash at chars[k]; returns its translation. */
-  const escapeAt = (inClass: boolean): string => {
+  const octal = (digits: string): number => {
+    const v = Number.parseInt(digits, 8);
+    if (v > 0o377) bad(`octal escape value \\${digits} outside of range 0-0o377`);
+    return v;
+  };
+  /** One escape after a backslash at chars[k] (sre_parse's _escape and _class_escape). */
+  const escapeAt = (inClass: boolean): Esc => {
     const c = chars[k + 1];
     if (c === undefined) return bad("bad escape (end of pattern)");
     k += 2;
@@ -383,118 +576,159 @@ export function pyRegex(pattern: string, ignoreCase: boolean): RegExp {
       const s = chars.slice(k, k + n).join("");
       if (s.length !== n || !re.test(s)) bad(`incomplete escape \\${c}`);
       k += n;
-      return s;
+      return Number.parseInt(s, 16);
     };
     switch (c) {
       case "w":
-        return inClass ? PY_WORD : W_CLASS;
+        return { cat: PY_WORD, outside: W_CLASS };
       case "W":
         if (inClass) throw new UntranslatablePattern(pattern, "\\W inside a set");
-        return NON_W_CLASS;
+        return { at: NON_W_CLASS };
       case "s":
-        return inClass ? PY_SPACE : `[${PY_SPACE}]`;
+        return { cat: PY_SPACE, outside: `[${PY_SPACE}]` };
       case "S":
         if (inClass) throw new UntranslatablePattern(pattern, "\\S inside a set");
-        return `[^${PY_SPACE}]`;
+        return { at: `[^${PY_SPACE}]` };
       case "d":
-        return "\\p{Nd}";
+        return { cat: "\\p{Nd}", outside: "\\p{Nd}" };
       case "D":
-        return "\\P{Nd}";
+        return { cat: "\\P{Nd}", outside: "\\P{Nd}" };
       case "b":
-        return inClass ? "\\x08" : BOUNDARY;
+        return inClass ? { lit: 0x08 } : { at: BOUNDARY };
       case "B":
         if (inClass) return bad("bad escape \\B");
-        return NON_BOUNDARY;
+        return { at: NON_BOUNDARY };
       case "A":
         if (inClass) return bad("bad escape \\A");
-        return "(?<![\\s\\S])";
+        return { at: "(?<![\\s\\S])" };
       case "Z":
         if (inClass) return bad("bad escape \\Z");
-        return END;
-      case "n":
-      case "t":
-      case "r":
-      case "f":
-      case "v":
-        return `\\${c}`;
+        return { at: END };
       case "a":
-        return "\\x07";
+        return { lit: 0x07 };
+      case "f":
+        return { lit: 0x0c };
+      case "n":
+        return { lit: 0x0a };
+      case "r":
+        return { lit: 0x0d };
+      case "t":
+        return { lit: 0x09 };
+      case "v":
+        return { lit: 0x0b };
       case "x":
-        return `\\x${take(2, /^[0-9a-fA-F]{2}$/)}`;
+        return { lit: take(2, /^[0-9a-fA-F]{2}$/) };
       case "u":
-        return `\\u${take(4, /^[0-9a-fA-F]{4}$/)}`;
-      case "U":
-        return `\\u{${take(8, /^[0-9a-fA-F]{8}$/).replace(/^0+(?=.)/, "")}}`;
+        return { lit: take(4, /^[0-9a-fA-F]{4}$/) };
+      case "U": {
+        const v = take(8, /^[0-9a-fA-F]{8}$/);
+        if (v > 0x10ffff) bad("bad escape \\U");
+        return { lit: v };
+      }
       case "N":
         throw new UntranslatablePattern(pattern, "\\N{...}");
     }
     if (/[0-9]/.test(c)) {
-      // An octal escape (\0, or three octal digits) or a group reference.
-      const run = [c, ...chars.slice(k, k + 2)].join("").match(/^[0-9]*/)?.[0] ?? c;
-      if (c === "0" || (run.length === 3 && /^[0-7]{3}$/.test(run))) {
-        const oct = (c === "0" ? run.match(/^0[0-7]{0,2}/)?.[0] : run) as string;
-        k += oct.length - 1;
-        return hexEscape(String.fromCodePoint(Number.parseInt(oct, 8)));
+      const next = chars.slice(k, k + 2).join("");
+      if (inClass) {
+        // In a set every octal digit starts an octal escape of up to three digits.
+        if (!/[0-7]/.test(c)) return bad(`bad escape \\${c}`);
+        const digits = (c + next).match(/^[0-7]{1,3}/)?.[0] as string;
+        k += digits.length - 1;
+        return { lit: octal(digits) };
       }
-      if (inClass) return bad("bad escape in a set");
-      const ref = run.slice(0, 2);
+      if (c === "0") {
+        const digits = (c + next).match(/^0[0-7]{0,2}/)?.[0] as string;
+        k += digits.length - 1;
+        return { lit: Number.parseInt(digits, 8) };
+      }
+      // Three octal digits are an octal escape; otherwise one or two digits name a group.
+      if (/^[0-7]{3}/.test(c + next)) {
+        k += 2;
+        return { lit: octal(c + next) };
+      }
+      const ref = (c + next).match(/^[0-9]{1,2}/)?.[0] as string;
       k += ref.length - 1;
-      return `\\${ref}`;
+      return { ref };
     }
     if (/[A-Za-z]/.test(c)) return bad(`bad escape \\${c}`);
-    if (SYNTAX.has(c) || (inClass && c === "-")) return `\\${c}`;
-    return hexEscape(c);
+    return { lit: c.codePointAt(0) as number };
+  };
+  /** A back reference compares case-insensitively by sre's own rule; refused under IGNORECASE. */
+  const backReference = (js: string) => {
+    if (flags.icase) throw new UntranslatablePattern(pattern, "a back reference under IGNORECASE");
+    out += js;
+  };
+  /** One Python set, from just after its `[` (sre_parse's set syntax). */
+  const setAt = (): string => {
+    const items: SetItem[] = [];
+    let negate = false;
+    if (chars[k] === "^") {
+      negate = true;
+      k++;
+    }
+    const member = (): SetItem => {
+      const d = chars[k] as string;
+      if (d === "\\") {
+        const e = escapeAt(true);
+        if ("lit" in e) return { lo: e.lit, hi: e.lit, literal: true };
+        if ("cat" in e) return { cat: e.cat };
+        return bad("bad escape in a set");
+      }
+      k++;
+      const cp = d.codePointAt(0) as number;
+      return { lo: cp, hi: cp, literal: true };
+    };
+    for (;;) {
+      const d = chars[k];
+      if (d === undefined) return bad("unterminated character set");
+      if (d === "]" && items.length > 0) {
+        k++;
+        break;
+      }
+      const first = member();
+      if (chars[k] !== "-") {
+        items.push(first);
+        continue;
+      }
+      k++;
+      const that = chars[k];
+      if (that === undefined) return bad("unterminated character set");
+      if (that === "]") {
+        k++;
+        items.push(first, { lo: 0x2d, hi: 0x2d, literal: true });
+        break;
+      }
+      const second = member();
+      // A class such as \w at either end of a range is an error, never a literal `-`.
+      if ("cat" in first || "cat" in second || second.lo < first.lo)
+        return bad("bad character range");
+      items.push({ lo: first.lo, hi: second.lo, literal: false });
+    }
+    return setOut(items, negate, flags.icase, pattern);
   };
 
   while (k < chars.length) {
     const c = chars[k] as string;
     if (c === "\\") {
-      out += escapeAt(false);
+      const e = escapeAt(false);
+      if ("lit" in e) out += literalOut(e.lit, flags.icase);
+      else if ("cat" in e) out += e.outside;
+      else if ("at" in e) out += e.at;
+      else backReference(`\\${e.ref}`);
       continue;
     }
     if (c === "[") {
       k++;
-      let body = "";
-      if (chars[k] === "^") {
-        body += "^";
-        k++;
-      }
-      if (chars[k] === "]") {
-        body += "\\]";
-        k++;
-      }
-      // After a class escape such as \w, Python reads `-` as a literal, never a range.
-      let afterSet = false;
-      for (;;) {
-        const d = chars[k];
-        if (d === undefined) bad("unterminated character set");
-        if (d === "]") {
-          k++;
-          break;
-        }
-        if (d === "\\") {
-          afterSet = "wsdD".includes(chars[k + 1] ?? "");
-          body += escapeAt(true);
-          continue;
-        }
-        body += d === "[" || (d === "-" && afterSet) ? `\\${d}` : (d as string);
-        afterSet = false;
-        k++;
-      }
-      out += `[${body}]`;
+      out += setAt();
       continue;
     }
     if (c === "(") {
       const rest = chars.slice(k, k + 4).join("");
-      if (rest.startsWith("(?P<")) {
-        out += "(?<";
-        k += 4;
-        continue;
-      }
       if (rest.startsWith("(?P=")) {
         const close = chars.indexOf(")", k);
         if (close === -1) bad("unterminated name");
-        out += `\\k<${chars.slice(k + 4, close).join("")}>`;
+        backReference(`\\k<${chars.slice(k + 4, close).join("")}>`);
         k = close + 1;
         continue;
       }
@@ -504,20 +738,47 @@ export function pyRegex(pattern: string, ignoreCase: boolean): RegExp {
         k = close + 1;
         continue;
       }
-      if (/^\(\?[aiLmsux]+\)/.test(chars.slice(k, k + 8).join("")))
-        bad("global flags not at the start of the expression");
-      if (rest.startsWith("(?i:")) {
-        out += "(?:";
+      const head = chars.slice(k, k + 12).join("");
+      if (/^\(\?[aiLmsux]+\)/.test(head)) bad("global flags not at the start of the expression");
+      outer.push({ ...flags });
+      if (rest.startsWith("(?P<")) {
+        out += "(?<";
         k += 4;
         continue;
       }
       if (/^\(\?(?:[:=!]|<[=!])/.test(rest)) {
-        out += rest.startsWith("(?<") ? rest.slice(0, 4) : rest.slice(0, 3);
-        k += rest.startsWith("(?<") ? 4 : 3;
+        const n = rest.startsWith("(?<") ? 4 : 3;
+        out += rest.slice(0, n);
+        k += n;
+        continue;
+      }
+      const scoped = /^\(\?([aiLmsux]*)(?:(-)([a-zA-Z]*))?:/.exec(head);
+      if (scoped && (scoped[1] || scoped[2])) {
+        const on = scoped[1] as string;
+        const off = scoped[3] ?? "";
+        if (scoped[2] && !off) bad("missing flag");
+        if ([...off].some((f) => !"imsx".includes(f)))
+          bad("bad inline flags: cannot turn off flag");
+        if ([...on].some((f) => off.includes(f))) bad("bad inline flags: flag turned on and off");
+        for (const f of on + off)
+          if (!"isu".includes(f))
+            throw new UntranslatablePattern(pattern, `the scoped flag ${f} in ${scoped[0]}`);
+        if (on.includes("i")) flags.icase = true;
+        if (off.includes("i")) flags.icase = false;
+        if (on.includes("s")) flags.dotAll = true;
+        if (off.includes("s")) flags.dotAll = false;
+        out += "(?:";
+        k += scoped[0].length;
         continue;
       }
       if (rest.startsWith("(?")) throw new UntranslatablePattern(pattern, `the group ${rest}`);
       out += "(";
+      k++;
+      continue;
+    }
+    if (c === ")") {
+      flags = outer.pop() ?? flags;
+      out += ")";
       k++;
       continue;
     }
@@ -529,21 +790,23 @@ export function pyRegex(pattern: string, ignoreCase: boolean): RegExp {
         k += m[0].length;
         if (chars[k] === "+") throw new UntranslatablePattern(pattern, "a possessive quantifier");
         continue;
-      } else {
-        out += "\\{";
-        k++;
       }
+      out += literalOut(0x7b, false);
+      k++;
     } else if (c === "}" || c === "]") {
       out += `\\${c}`;
       k++;
     } else if (c === ".") {
-      out += dotAll ? "[\\s\\S]" : "[^\\n]";
+      out += flags.dotAll ? "[\\s\\S]" : "[^\\n]";
       k++;
     } else if (c === "$") {
       out += `(?=\\n?${END})`;
       k++;
-    } else {
+    } else if (META.has(c)) {
       out += c;
+      k++;
+    } else {
+      out += literalOut(c.codePointAt(0) as number, flags.icase);
       k++;
     }
     // A possessive quantifier (Python 3.11) has no JavaScript form.
@@ -551,10 +814,17 @@ export function pyRegex(pattern: string, ignoreCase: boolean): RegExp {
       throw new UntranslatablePattern(pattern, "a possessive quantifier");
   }
   try {
-    return new RegExp(out, `u${icase ? "i" : ""}${dotAll ? "s" : ""}`);
+    return new RegExp(out, "u");
   } catch (e) {
     throw new SyntaxError(
       `${(e as Error).message} (from Python pattern ${JSON.stringify(pattern)})`,
     );
   }
 }
+
+/**
+ * re.escape: a backslash before each character Python 3.7 and later escape
+ * (`()[]{}?*+-|^$\.&~#`, space and the whitespace controls).
+ */
+export const pyEscape = (s: string) =>
+  [...s].map((c) => ("()[]{}?*+-|^$\\.&~# \t\n\r\v\f".includes(c) ? `\\${c}` : c)).join("");

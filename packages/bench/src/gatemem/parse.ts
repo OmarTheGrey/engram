@@ -11,10 +11,12 @@
 // and integers beyond 2^53 survive, and NaN and Infinity are accepted. str()
 // and strip() are Python's too.
 //
-// One upstream fallback is not ported: when the text is not JSON, upstream
-// tries Python's ast.literal_eval (single quotes, None, True). Here such text
-// falls through to the action inference from plain text, as any other non-JSON
-// response does.
+// When the text is not JSON, upstream tries Python's ast.literal_eval, and so
+// does the port (literal.ts, round 2 of the review fix pass): a reply written
+// as a Python dict (single quotes, None, True, tuples) is read as that dict. A
+// literal the port cannot represent (a set, bytes, a complex number) throws
+// UntranslatableLiteral rather than being read as plain text.
+import { pyLiteralEval } from "./literal.ts";
 import { isPyDict, PY_SPACE, parsePyJson, pyRegex, pyStr, pyStrip } from "./py.ts";
 import type { Action, AgentOutput } from "./schema.ts";
 
@@ -42,16 +44,23 @@ export function extractJsonObject(s: string): string | undefined {
   return t.slice(start, end + 1);
 }
 
-/** _parse_llm_json, without the literal_eval fallback. */
+/** ast.literal_eval(text) when it gives a dict; undefined where Python raises or gives another type. */
+function literalDict(text: string): Record<string, unknown> | undefined {
+  const r = pyLiteralEval(text);
+  return r.ok && isPyDict(r.value) ? r.value : undefined;
+}
+
+/** _parse_llm_json: json.loads, then the ast.literal_eval fallback. */
 export function parseLlmJson(s: string): Record<string, unknown> | undefined {
   const js = extractJsonObject(s);
   if (js === undefined) return undefined;
+  let v: unknown;
   try {
-    const v = parsePyJson(js);
-    return isPyDict(v) ? v : undefined;
+    v = parsePyJson(js);
   } catch {
-    return undefined;
+    return literalDict(js);
   }
+  return isPyDict(v) ? v : undefined;
 }
 
 /** The explicit marker upstream looks for, compiled from its own Python pattern. */
@@ -105,10 +114,10 @@ export function inferActionFromText(raw: string): Action {
   return "answer";
 }
 
-/** _coerce_answer_structured */
+/** _coerce_answer_structured: a dict, or a string holding one; last, literal_eval of the whole string. */
 function coerceStructured(v: unknown): Record<string, unknown> {
   if (isPyDict(v)) return v;
-  if (typeof v === "string") return parseLlmJson(v) ?? {};
+  if (typeof v === "string") return parseLlmJson(v) ?? literalDict(v) ?? {};
   return {};
 }
 

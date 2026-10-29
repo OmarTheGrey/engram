@@ -43,6 +43,62 @@ PARSE_CASES: list[str] = [
     '{"action":"answer","answer":"x","answer_structured":{"k":1,"k":2.0}}',
     '{"action":"answer","answer":{"q":"say \\"hi\\"","n":"line\\nbreak\\ttab","u":"caf\\u00e9\\u0085\\u00a0"},"answer_structured":{}}',
     '{"action":"answer","answer":"\\u00a0padded\\u00a0","answer_structured":{"s":"\\u001c"}}',
+    # Not JSON: upstream's ast.literal_eval fallback (round 2, defect 7). Python
+    # literals the port reproduces: single quotes, None, True, False, tuples,
+    # escapes, raw and concatenated strings, comments, any int or float form.
+    "{'action': 'refuse', 'answer': 'no', 'answer_structured': {'a': 1.0, 'b': (1, 2), 'c': None, 'd': True}}",
+    "{'action': 'answer', 'answer': {'t': (1, 2.50), 'one': (1,), 'none': ()}, 'answer_structured': {'h': 0x10, 'u': 1_000, 'o': 0o17, 'b': 0b1_0}}",
+    "{'action': 'answer', 'answer': 'x', 'answer_structured': \"{'q': 2.0, 't': ('a', [1])}\"}",
+    "{'action': 'answer', 'answer': 'x', 'answer_structured': {}, 'used_record_ids': ('r1', 'r2')}",
+    "{'action': 'answer', 'answer': 'x', 'answer_structured': {}, 'used_record_ids': ['r1', 2, 2.0, None, ('t',)]}",
+    "{'action': 'answer_redacted', 'answer': \"it's \\\"quoted\\\" \\\\ back\", 'answer_structured': {'k': 'caf\\xe9 \\u00e9 \\U0001F600 \\101 \\0 \\a \\q'}}",
+    "{'action': 'answer', 'answer': r'raw \\n stays' ' and ' \"joined\", 'answer_structured': {'tq': '''multi\nline''', 'e': ''}}",
+    "{\n  # a comment, then a trailing comma\n  'action': 'answer',\n  'answer': 'x',\n  'answer_structured': {'f': [1., .5, 1_0.5, 1e5, 1.5E-3, -0.0, -(1), - 2, +3, 12345678901234567890, 1e400]},\n}",
+    "{'action': 'answer', 'answer': 'x', 'answer_structured': {'b': 2, 'a': 1, 'b': 3, 'z': {'y': None, 'x': False}}}",
+    "{'action':\r\n 'answer',\r\n 'answer': '''a\r\nb''', 'answer_structured': {'s': 'x\\\r\ny'}}",
+    '{"action": "refuse", "answer": None, "answer_structured": {"n": True}}',
+    "Sure: {'action': 'answer', 'answer': 'x', 'answer_structured': {}} trailing",
+    '{"action":"answer","answer":"x","answer_structured":"# {c}\\n{\'k\': 1}"}',
+    '{"action":"answer","answer":"x","answer_structured":"# {c}\\n  {\'k\': 1}"}',
+    # Literals upstream's literal_eval rejects: it returns None and the reply is
+    # read as plain text, as the port must do too.
+    "{'action': 'refuse', 'answer': true}",
+    "{'action': 'refuse', 'answer': foo}",
+    "{'action': 'refuse', 'answer': 1 + 2}",
+    "{'action': 'refuse', 'answer': -(-1)}",
+    "{'action': 'refuse', 'answer': +True}",
+    "{'action': 'refuse', 'answer': f'x'}",
+    "{'action': 'refuse', 'answer': ur'x'}",
+    "{'action': 'refuse', 'answer': 'unterminated}",
+    "{'action': 'refuse', 'answer': 'x'}\n x {}",
+    "{{'action': 'refuse'}}",
+    "{'action': 'refuse', 'answer': [1 2]}",
+    "{'action': 'refuse', 'answer': 0777}",
+    "{'action': 'refuse', 'answer': '\\x4'}",
+    "{'action': 'refuse', 'answer':  1}",
+    "{'action': 'refuse', 'answer': '\\U00110000'}",
+    "{'action': 'refuse', [1]: 2}",
+    "{'action': 'refuse', 'answer': {[1]}}",
+    "{'action': 'refuse', 'answer': b'x' 'y'}",
+    "{'action': 'refuse', 'answer': 'x'.upper}",
+    "{'action': 'refuse', 'answer': 'x'} \\\n",
+    "{'action': 'refuse'}, {'answer': 'x'}",
+    "{'action': 'refuse', 'answer': '\ud800'}",
+    "{'action': 'refuse', 'answer': 1__0}",
+    "{'action': 'refuse', 'answer': 'x' # unclosed}",
+]
+
+# Valid Python literals outside the subset the port reproduces (sets, bytes,
+# complex numbers, Ellipsis, \N{...} escapes, keys other than str): upstream
+# parses them; the port must throw rather than read the reply differently.
+UNTRANSLATABLE_PARSE_CASES: list[str] = [
+    "{'action': 'answer', 'answer': {'t': (1, 2.50), 's': {3, 1}}, 'answer_structured': {'h': 0x10, 'u': 1_000}}",
+    "{'action': 'answer', 'answer': 'x', 'answer_structured': {'z': 1j, 'b': b'by'}}",
+    "{'action': 'answer', 'answer': 'x', 'answer_structured': {'e': ...}}",
+    "{'action': 'answer', 'answer': '\\N{BULLET}', 'answer_structured': {}}",
+    "{'action': 'answer', 'answer': 'x', 'answer_structured': {1: 'one'}}",
+    "{'action': 'answer', 'answer': set(), 'answer_structured': {}}",
+    "{'action': 'answer', 'answer': 'x', 'answer_structured': {'c': -1 + 2j}}",
 ]
 
 # (text, pattern) pairs for pattern_hits.
@@ -59,7 +115,6 @@ PATTERN_CASES: list[tuple[str, str]] = [
     ("dose﻿two", r"dose\stwo"),
     ("room ٣٤", r"room \d+"),
     ("room 34", r"room \d+"),
-    ("id A-17 ok", r"(?P<tag>[A-Z])-(?P=tag)?17"),
     ("ends here\n", r"here$"),
     ("ends here\n", r"here\Z"),
     ("ends here", r"here\Z"),
@@ -88,6 +143,62 @@ PATTERN_CASES: list[tuple[str, str]] = [
     ("phone 555/0100 ext.12:30", "555/0100 ext.12:30"),
     ("call dr. lee", "dr. lee"),
     ("CALL Dr.  Lee", "dr. lee"),
+    # Case-insensitive matching of non-ASCII text (round 2, R6-12): Python
+    # compares the simple lowercase of each character, plus the equivalences
+    # in re/_casefix.py, where JavaScript's i flag compares case folds.
+    ("İstanbul", r"(?i)istanbul"),
+    ("istanbul", r"(?i)İstanbul"),
+    ("ıstanbul", r"(?i)istanbul"),
+    ("ISTANBUL", r"(?i)ıstanbul"),
+    ("istanbul", "ıstanbul"),
+    ("ırmak", "irmak"),
+    ("İzmir", "izmir"),
+    ("K", r"(?i)k"),
+    ("k", r"(?i)K"),
+    ("ſ", r"(?i)S"),
+    ("ΣΑΣ", r"(?i)σας"),
+    ("ϐ", r"(?i)Β"),
+    ("µ", r"(?i)Μ"),
+    ("ﬅ", r"(?i)ﬆ"),
+    ("ẞ", r"(?i)ß"),
+    ("ß", r"(?i)SS"),
+    ("Ꭰ", r"(?i)ꭰ"),
+    ("Ⅳ", r"(?i)ⅳ"),
+    ("Ⓐ", r"(?i)ⓐ"),
+    ("ǅ", r"(?i)ǆ"),
+    ("ǅ", r"(?i)Ǆ"),
+    ("ͅ", r"(?i)ι"),
+    ("𐐀", r"(?i)𐐨"),
+    ("𐐀", r"(?i)[𐐨x]"),
+    ("İ", r"(?i)[a-z]"),
+    ("ı", r"(?i)[a-z]"),
+    ("ı", r"(?i)[^i]"),
+    ("ı", r"(?i)[^i\d]"),
+    ("K", r"(?i)[j-l]"),
+    ("ſ", r"(?i)[r-t]"),
+    ("A", r"(?i)[^a]"),
+    ("É", r"(?i)caf[é]"),
+    ("CAFÉ", r"(?i)caf[é]"),
+    ("CAFÉ", r"(?i)caf[\wé]"),
+    ("x-y", r"[\w-]"),
+    ("x", r"[\w-a]"),
+    ("Istanbul", r"(?i:istanbul)"),
+    ("ABC", r"(?-i:abc)"),
+    ("ABC", r"(?i)a(?-i:b)c"),
+    ("AbC", r"(?i)a(?-i:b)c"),
+]
+
+# Patterns whose case-insensitive meaning the port cannot reproduce exactly:
+# it must throw UntranslatablePattern rather than match differently. A back
+# reference under IGNORECASE compares lowercase forms (sre's
+# GROUPREF_UNI_IGNORE), which no JavaScript construct does; pattern_hits
+# always searches with IGNORECASE, so every back reference lands here. None of
+# GateMem's 7,652 patterns at the pinned commit has one.
+UNTRANSLATABLE_PATTERN_CASES: list[tuple[str, str]] = [
+    ("id A-17 ok", r"(?P<tag>[A-Z])-(?P=tag)?17"),
+    ("aA", r"(?i)(a)\1"),
+    ("aA", r"(?i)(?P<x>a)(?P=x)"),
+    ("𐐀", r"(?i)[\U00010428-\U00010429]"),
 ]
 
 
@@ -125,8 +236,8 @@ def main() -> int:
             )
 
     router = Router()
-    parse_rows = []
-    for raw in PARSE_CASES:
+
+    def parse_row(raw: str) -> dict[str, Any]:
         router.text = raw
         out = generate_llm_output(
             query_text="q",
@@ -137,15 +248,15 @@ def main() -> int:
             user_prompt="u",
             llm_router=router,
         )
-        parse_rows.append(
-            {
-                "raw": raw,
-                "action": out["action"],
-                "answer": out["answer"],
-                "used_record_ids": out["used_record_ids"],
-                "flattened": flatten_output_text(out),
-            }
-        )
+        return {
+            "raw": raw,
+            "action": out["action"],
+            "answer": out["answer"],
+            "used_record_ids": out["used_record_ids"],
+            "flattened": flatten_output_text(out),
+        }
+
+    parse_rows = [parse_row(raw) for raw in PARSE_CASES]
     pattern_rows = [
         {"text": t, "pattern": pat, "hits": pattern_hits(t, pat)} for t, pat in PATTERN_CASES
     ]
@@ -155,10 +266,19 @@ def main() -> int:
         "python": sys.version.split()[0],
         "parse": parse_rows,
         "patterns": pattern_rows,
+        # What upstream returns where the port throws instead, for the record.
+        "parse_untranslatable": [parse_row(raw) for raw in UNTRANSLATABLE_PARSE_CASES],
+        "patterns_untranslatable": [
+            {"text": t, "pattern": pat, "hits": pattern_hits(t, pat)}
+            for t, pat in UNTRANSLATABLE_PATTERN_CASES
+        ],
     }
     with open(args.out, "w", encoding="utf-8", newline="\n") as f:
         f.write(json.dumps(golden, indent=2, ensure_ascii=True) + "\n")
-    print(f"wrote {len(parse_rows)} parse rows and {len(pattern_rows)} pattern rows to {args.out}")
+    print(
+        f"wrote {len(parse_rows)} parse rows, {len(pattern_rows)} pattern rows and "
+        f"{len(UNTRANSLATABLE_PARSE_CASES) + len(UNTRANSLATABLE_PATTERN_CASES)} untranslatable rows to {args.out}"
+    )
     return 0
 
 

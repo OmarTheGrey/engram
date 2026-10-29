@@ -16,7 +16,7 @@
 // R6-12): json.dumps and str() through py.ts, which keeps a model's floats as
 // floats, and patterns through pyRegex, which gives \w, \s, \d and \b their
 // Unicode meaning. test/gatemem/edge.test.ts holds this to upstream's output.
-import { PY_SPACE, PY_WORD, pyDumps, pyNormalizeWs, pyRegex, pyStr, pyStrip } from "./py.ts";
+import { pyDumps, pyEscape, pyNormalizeWs, pyRegex, pyStr, pyStrip } from "./py.ts";
 import type { AgentOutput, Checkpoint, PredictionRow } from "./schema.ts";
 
 /** json.dumps(value, ensure_ascii=False, sort_keys=True) */
@@ -75,15 +75,12 @@ export function actionMatch(pred: string, expected: string): boolean {
 }
 
 const looksLikeRegex = (p: string) => p.includes("\\") || /[[\]()|?+*{}]/.test(p);
-/** re.fullmatch(r"[a-z0-9][a-z0-9\s_\-/.:]*[a-z0-9]", low_pat, flags=re.IGNORECASE) */
-const TOKENS = new RegExp(`^[a-z0-9][a-z0-9${PY_SPACE}_\\-/.:]*[a-z0-9]$`, "iu");
 /**
- * re.escape(low_pat).replace(r"\ ", r"\s+") for the characters TOKENS admits:
- * `.` escaped, a space as a run of Python whitespace, the rest literal (`-`
- * needs no escape outside a set under flag u).
+ * re.fullmatch(r"[a-z0-9][a-z0-9\s_\-/.:]*[a-z0-9]", low_pat, flags=re.IGNORECASE),
+ * through pyRegex, so that it is Python's IGNORECASE: `ı` and `ſ` are in
+ * [a-z] there, as they are not under JavaScript's i flag (round 2, R6-12).
  */
-const tokenBody = (s: string) =>
-  [...s].map((c) => (c === "." ? "\\." : c === " " ? `[${PY_SPACE}]+` : c)).join("");
+const TOKENS = pyRegex("\\A(?:[a-z0-9][a-z0-9\\s_\\-/.:]*[a-z0-9])\\Z", true);
 
 /**
  * pattern_hits: a pattern that looks like a regex is searched case-insensitively;
@@ -109,8 +106,8 @@ export function patternHits(text: string, pat: string): boolean {
   const lowPat = pyNormalizeWs(pat).toLowerCase();
   if (!lowPat) return false;
   if (TOKENS.test(lowPat)) {
-    const word = `[${PY_WORD}]`;
-    return new RegExp(`(?<!${word})${tokenBody(lowPat)}(?!${word})`, "iu").test(lowText);
+    const boundary = `(?<!\\w)${pyEscape(lowPat).replaceAll("\\ ", "\\s+")}(?!\\w)`;
+    return pyRegex(boundary, true).test(lowText);
   }
   return lowText.includes(lowPat);
 }
