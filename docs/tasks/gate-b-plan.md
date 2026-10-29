@@ -1,6 +1,6 @@
 # Plan: Gate B engineering in six PRs
 
-Status: proposed 2026-10-29 by the orchestrating session on the lead's instruction ("create a spec for the gate b engineering and make it so that it is entirely done with all goals achieved in 6 prs at most then execute it"). The decisions in section 3 were taken by the orchestrating session, as for the Gate A plan (`docs/tasks/gate-a-e0-e1-e2-plan.md`), and stay pending the lead's review with the ADRs it drafts (0027 to 0029, and 0030 drafted by PR 5). Six PRs at most, this one included. Each PR follows AGENTS.md and the two conventions; rule 10 (one card per PR) is set aside for them as it was for PRs #2 to #15 (`docs/log/2026-10-25-six-prs-for-the-next-cards.md`).
+Status: done 2026-10-29. PR 1 merged as #17, PR 2 as #20, PR 3 as #21, PR 4 as #22, PR 5 as #18, PR 6 as #19; each PR had an independent review and a verification of its fixes before merge, and the Gate B record is section 7 (`docs/log/2026-10-29-gate-b-engineering-done.md`). Proposed 2026-10-29 by the orchestrating session on the lead's instruction ("create a spec for the gate b engineering and make it so that it is entirely done with all goals achieved in 6 prs at most then execute it"). The decisions in section 3 were taken by the orchestrating session, as for the Gate A plan (`docs/tasks/gate-a-e0-e1-e2-plan.md`), and stay pending the lead's review with the ADRs it drafts (0027 to 0029, and 0030 drafted by PR 5). Six PRs at most, this one included. Each PR follows AGENTS.md and the two conventions; rule 10 (one card per PR) is set aside for them as it was for PRs #2 to #15 (`docs/log/2026-10-25-six-prs-for-the-next-cards.md`).
 
 ## 1. Where the repository stands
 
@@ -128,3 +128,26 @@ Acceptance: `ENGRAM_OFFLINE=1 make run CONFIG=research/configs/b4-mem-inv-probe.
 - PX2, PX3, RN2; L1 and the lints (`engram lint` keeps returning 501 naming L1); E8.9 (`simulate` the same); E8.7 to E8.10; E9.
 - Adoption of Letta's own memory files (`persona.md` and the like) into the plane: a follow-up, as A3 did for Claude Code memory.
 - Schema changes.
+
+## 7. The Gate B record
+
+Checked on main after PR 6 merged, 2026-10-29. The lead declares the gate; the orchestrating session proposes "passed with exceptions (a) and (c)".
+
+| criterion | state | evidence |
+|---|---|---|
+| both adapters pass the conformance suite | pass: Mem0 and Letta (and files, the fake) | `packages/adapters/test/conformance/` (registry requires mem0 and letta), `pnpm --filter adapters exec vitest run test/conformance` |
+| a policy file denies a cross-scope read on both stores with the same event | pass on every registered store | `packages/adapters/test/plane/acceptance.test.ts`; GateMem's mapping on fake, Mem0 and Letta in `packages/runner/test/b3.test.ts` |
+| the event log reproduces a recorded workload's item set from events alone | pass on every registered store | `packages/adapters/test/plane/replay-workload.test.ts`; core's replay tests on SQLite and Postgres |
+| GateMem probes run through the plane on the primary model | pass through the plane under C5 on fake, Mem0 and Letta from cassettes; the primary-model half is exception (c) | `ENGRAM_OFFLINE=1 make run CONFIG=research/configs/b3-gatemem-plane.json`; the live command `make run ... MODEL=<provider/model> LIVE=1` waits for the pre-registration to name the model and the lead's key |
+| (a) GateMem reference numbers within tolerance on the ported judge | conditional on the pre-registration leaving the backlog, unchanged | `docs/tasks/B1.md` |
+| (b) the poisoning arm chosen and dated | pass: MEM-INV-Bench, 2026-10-29 | ADR 0029; B4 through the plane, `ENGRAM_OFFLINE=1 make run CONFIG=research/configs/b4-mem-inv-probe.json` |
+
+Phase 1's product track is done as well: the HTTP contract, its generated client, every CLI command one client call, the MCP server and the Claude Code hook (#21), and the inspector with its explain view (#22).
+
+What the reviews found and the PRs carry as recorded limits, for the lead and the thesis:
+
+- GateMem's forgetting checkpoints are not enforced: deletions are sentences in turns, and the mapping cannot see them (`docs/log/2026-10-29-b3-forgetting-not-enforced.md`); the mapping also widens access through symmetric and per-speaker grants (ADR 0030).
+- On MEM-INV-Bench the plane gates memory, not the action, and under `medium` it admits every channel; a tool echoing attacker text stays `tool`, since no provenance kind ranks untrusted outsiders below it (`docs/log/2026-10-29-b4-plane-gates-memory-not-action.md`, `docs/log/2026-10-29-b4-trust-order-echo-stays-tool.md`).
+- The no-bypass check errs towards blocking; ADR 0014's amendments list its false positives and what stays out of reach of any text check.
+- A plain `git commit` racing an Engram commit to a Letta repository can revert Engram's item; git's own race (ADR 0028).
+- The server and MCP server have no authentication and listen on loopback only (ADR 0027).
