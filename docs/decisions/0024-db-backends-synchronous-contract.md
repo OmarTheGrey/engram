@@ -15,6 +15,15 @@ ADR 0003 put node:sqlite behind a 40-line `Db` interface "so Postgres or better-
 3. SQLite per user (`<home>/.engram/engram.db`) stays the default of every surface; Postgres is chosen by `ENGRAM_DB_URL` or `--db postgres://...`, opened through one `openDb(target)` in the CLI's setup, which the extension reuses.
 4. CI runs the contract on both backends with a `postgres:17` service container, skipping Postgres cleanly, with the reason printed, when `ENGRAM_PG_URL` is unset; `docker compose up -d postgres` (card E0.4) provides it locally. Layer 6 (`make test-e2e`) runs `engram doctor` and the CLI smoke on both.
 
+Amendments made by card E1.1, 2026-10-29 (branch `pr-e1-1-postgres`; pending the lead's review like the rest of this ADR):
+
+- No Docker, on the lead's instruction of 2026-10-29: decision 4's `postgres:17` service container and the compose dependency are replaced by `embedded-postgres` (a dev dependency, exact-pinned): `packages/core/test/db/global-setup.ts` starts one throwaway Postgres 17 server per test run on a free port in a temporary data directory and stops it after, on Windows and on CI's Linux alike. `ENGRAM_PG_URL` names an existing server instead; `ENGRAM_PG=skip` skips the Postgres runs; when the server cannot start, the runs skip with the reason printed, except under CI, where the run fails.
+- The `Db` interface gains `readonly dialect: "sqlite" | "postgres"`; a migration's `up` is either shared text or one text per dialect. On Postgres, `seq` is `BIGINT` and ids are `TEXT COLLATE "C"`, so `ORDER BY id` agrees with SQLite's bytewise order; migration 2 reads JSON with `#>>` instead of `json_extract`. `ON CONFLICT ... DO UPDATE` is shared text, since Postgres has it.
+- An `int8` reads back as a number when it is a safe integer (as node:sqlite returns it) and as a bigint otherwise; a `bytea` reads back as a `Uint8Array`. Column aliases are lowercase on Postgres unless quoted.
+- The advisory lock's key is `(hashtext('engram.log'), hashtext(current_schema()))`: one lock per log, and two logs in one database (the tests' schemas) do not block each other.
+- Opening has its own timeout (`connectTimeoutMs`, 60 s by default), since a worker on a loaded machine starts slowly; statements default to 30 s (`timeoutMs`). After a `DbTimeoutError` the worker is terminated and the `Db` refuses every statement.
+- Nested transactions are one helper both backends share (`packages/core/src/db/transaction.ts`); they differ only in the outer begin text.
+
 ## Alternatives considered
 
 - Defer Postgres until E8.1 needs a shared log and amend the card to "deferred": lowest risk, but the card would not close and the contract suite would have one backend, so the swap would stay untested.

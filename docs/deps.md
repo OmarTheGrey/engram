@@ -32,5 +32,7 @@ One line per dependency: name, version, reason, licence. Added in the same PR as
 | axios | 1.20.0 (pnpm-lock.yaml) | dependency of mem0ai, installed by pnpm; HTTP client inside Mem0, not imported by Engram code | MIT |
 | zod | 3.25.76 (pnpm-lock.yaml) | dependency of mem0ai, installed by pnpm; Mem0's config validation, a second major version beside core's zod 4.6.7, not imported by Engram code | MIT |
 | uuid | 11.1.1 (pnpm-lock.yaml) | dependency of mem0ai, installed by pnpm; Mem0's memory ids | MIT |
+| postgres | 3.4.9 | postgres.js, the driver of the Postgres event log backend (`openPostgres`, card E1.1, ADR 0024); loaded only in its worker thread, so a SQLite user never loads it; no native build | Unlicense |
+| embedded-postgres | 17.10.0-beta.17 | dev: a throwaway Postgres 17 server for the core tests, on Windows and on CI's Linux, without Docker (card E1.1, ADR 0024 amendment); its platform binaries (`@embedded-postgres/<platform>`, MIT; Postgres itself under the PostgreSQL License) come from pnpm-lock.yaml, and their install script, which only restores shared-library symlinks, is allowed in pnpm-workspace.yaml; it pulls in `pg` and `async-exit-hook` (MIT), which Engram code does not import | MIT |
 
 Install size of the Mem0 adapter: mem0ai, better-sqlite3, compromise, @cloudflare/workers-types, openai 4, axios, zod 3 and uuid together take about 45 MB of `node_modules/.pnpm` (measured with `du -shc` over their folders on 2026-10-25, before their own dependencies). Only packages/adapters depends on them.

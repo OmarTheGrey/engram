@@ -5,6 +5,7 @@
 // inside it cannot be taken by another connection; nested calls are savepoints.
 import { DatabaseSync } from "node:sqlite";
 import type { Db, Param, Row, Statement } from "./db.ts";
+import { nestedTransactions } from "./transaction.ts";
 
 export const BUSY_TIMEOUT_MS = 5000;
 
@@ -12,14 +13,9 @@ export function openSqlite(path: string): Db {
   const db = new DatabaseSync(path);
   db.exec(`PRAGMA busy_timeout = ${BUSY_TIMEOUT_MS}`);
   if (path !== ":memory:") db.exec("PRAGMA journal_mode = WAL");
-  let depth = 0;
-
-  const begin = (name: string) => db.exec(depth === 0 ? "BEGIN IMMEDIATE" : `SAVEPOINT ${name}`);
-  const commit = (name: string, outer: boolean) => db.exec(outer ? "COMMIT" : `RELEASE ${name}`);
-  const rollback = (name: string, outer: boolean) =>
-    db.exec(outer ? "ROLLBACK" : `ROLLBACK TO ${name}; RELEASE ${name}`);
 
   return {
+    dialect: "sqlite",
     exec: (sql) => db.exec(sql),
     prepare(sql): Statement {
       const s = db.prepare(sql);
@@ -29,26 +25,7 @@ export function openSqlite(path: string): Db {
         all: (...p: Param[]) => s.all(...p) as Row[],
       };
     },
-    transaction<T>(fn: () => T): T {
-      const outer = depth === 0;
-      const name = `sp${depth}`;
-      begin(name);
-      depth++;
-      try {
-        const result = fn();
-        if (result instanceof Promise) {
-          void result.catch(() => {});
-          throw new Error("Db.transaction takes a synchronous body; await outside the transaction");
-        }
-        commit(name, outer);
-        return result;
-      } catch (e) {
-        rollback(name, outer);
-        throw e;
-      } finally {
-        depth--;
-      }
-    },
+    transaction: nestedTransactions((sql) => db.exec(sql), "BEGIN IMMEDIATE"),
     close: () => db.close(),
   };
 }

@@ -46,6 +46,7 @@ fixtures/                 sessions, stores, faults, cassettes; regenerated only 
 ```
 pnpm install && uv sync        once, after clone
 make test                      vitest (core, adapters, conformance on fakes, replay-from-events) and pytest (research)
+                               core's Db tests also run on a throwaway embedded Postgres (no Docker); ENGRAM_PG_URL=<url> uses a server you name, ENGRAM_PG=skip skips them
 make test-one T=<path>         one test file, with its seed printed
 make test-invariants           the four invariants against the real Plane, with counterexample and seed; all pass since E2.2 and E2.3 (issue #1)
 make api                       regenerate sdk/schema (JSON Schema) and research/engram_types (Python) from the Zod schema; later also OpenAPI and the clients
