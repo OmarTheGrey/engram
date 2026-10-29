@@ -7,9 +7,9 @@
 // commands get no provider key and a model no built-in provider serves
 // (review R5-3).
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import {
   createModels,
   type FauxResponseFactory,
@@ -209,13 +209,34 @@ describe("the replay of a live run (R5-5)", () => {
   });
 
   test("the command replays under ENGRAM_OFFLINE=1", async () => {
+    // The B3 config on its two in-process stores: the replay is what is
+    // tested, and the Letta sessions (a git commit per turn) take minutes on
+    // Windows, twice over; B3's own acceptance runs them (b3.test.ts).
+    const raw = JSON.parse(readFileSync(B3, "utf8")) as Record<string, unknown>;
+    const at = (p: unknown) => resolve(dirname(B3), String(p));
+    const twoStores = join(fresh(), "b3-two-stores.json");
+    writeFileSync(
+      twoStores,
+      JSON.stringify({
+        ...raw,
+        store: ["fake", "mem0"],
+        data: at(raw.data),
+        script: at(raw.script),
+        cassettes: at(raw.cassettes),
+      }),
+    );
     const cassettes = join(fresh(), "cassettes");
-    const recorded = liveConfig(b3, { model: FAUX_MODEL, repo: REPO, cassettes, env: {} });
+    const recorded = liveConfig(readRunnerConfig(twoStores), {
+      model: FAUX_MODEL,
+      repo: REPO,
+      cassettes,
+      env: {},
+    });
     await runConfig(recorded, liveOptions(recorded, fauxLive().models, {}));
     const run = runScript(
       [
         "--config",
-        B3,
+        twoStores,
         "--out",
         join(fresh(), "out"),
         "--replay",

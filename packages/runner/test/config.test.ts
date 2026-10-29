@@ -60,7 +60,7 @@ describe("runner config", () => {
       "mem0",
       "fake",
     ]);
-    expect(configStores(readRunnerConfig(B3))).toEqual(["fake", "mem0"]);
+    expect(configStores(readRunnerConfig(B3))).toEqual(["fake", "mem0", "letta"]);
   });
 
   test("a scripted model without a script is rejected", () => {
