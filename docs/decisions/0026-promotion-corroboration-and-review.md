@@ -42,7 +42,14 @@ Amendments made in the review fix pass of card E2.5, 2026-10-29 (review P5, deci
 - P5-10: for a new version, the ref check treats only the source and its own lineage as related, not the confirming items its lineage also names.
 - P5-12: confirmations and the duplicate check compare content in a strict normal form (format characters dropped, whitespace collapsed; no NFKC, no case folding), so "US" never confirms "us" and "10²" never confirms "102": for corroboration, not merging is the safe direction. The retired-content rule keeps the merging form, where merging is the safe direction. Both are exported under names that say so (`strictContentHash`, `mergingContentHash`; ADR 0018's amendments).
 
-## Alternatives considered
+Amendments made in the verification of the fix pass, 2026-10-29 (review findings P5-14 to P5-18, decisions taken by the orchestrating session; pending the lead's review like the rest of this ADR). These supersede the P5-11 decision above and refine P5-7 and P5-12:
+
+- P5-15, superseding P5-11: a read grant never lets anyone move or retire an item (ADR 0006, decision D4: grants let others read, never write). Reach (a readable scope or a live grant) only chooses between the opaque refusal and a named one. A promotion lands only when the promoter is also a member of the source's scope, or is the item's owner and the source is the owner's own person scope; otherwise it is refused under `engram/promote/membership` with a reason that names the rule. Invariant 2 puts live grants on its source items and its oracle requires source-scope membership itself.
+- P5-14: content holding any default-ignorable code point, format character (Cf) or Unicode tag character (U+E0000 to U+E007F) is never promoted (`engram/promote/hidden-text`); the reason names how many such characters there are, never the characters. The strict form of confirmations now collapses whitespace only and keeps every other character, so a confirmation matches exactly what its writer wrote and a hidden payload never matches plain restatements. This refines P5-12, whose strict form dropped format characters. The oracle checks hidden text with its own code.
+- P5-16: an actor of a write that counts as a confirmation (trusted source, item still active, same content in the strict form, in the item's scope) cannot also approve the promotion as its reviewer, the same rule as for authors.
+- P5-17: invariant 2 generates confirmers retired before the promotion and a guard requires a refusal that only those retirements caused, so dropping the rule that only active items confirm fails the invariant.
+- P5-18: the pi extension blocks the CLI's other routes as well as its name (ADR 0014's amendments, with the text check's remaining limit).
+
 
 - Confirmations by distinct provenance `ref` or `session_entry_id` only: launderable by one agent across sessions (channel L-c of 2606.24322). Rejected.
 - Any member of the target scope as reviewer, owner included: self-approval; rejected on 2609.01836.

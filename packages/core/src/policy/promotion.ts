@@ -10,7 +10,10 @@
 //   <policy id>/promotion/review                 a reviewer approved, or a review is asked for
 //   <policy id>/promotion/procedural             a validation record meets replay_k of replay_n
 //   <policy id>/promotion/superseded             the source of a new version is retired (plane)
-//   engram/promote/membership                    the actor cannot read the item (as `read` would reach it)
+//   engram/promote/membership                    the actor cannot read the item (opaque), or reads it
+//                                                but is not a member of its scope (nor its owner in
+//                                                the owner's person scope): grants never move an item
+//   engram/promote/hidden-text                   the content holds default-ignorable, format or tag characters
 //   engram/promote/not-candidate                 nothing to promote: retired, already active there, or not a widening
 //   engram/promote/expired                       the item is past its ttl (the read path's rule, ADR 0025)
 //   engram/promote/widening-source               a scope change by an actor that is not user-sourced
@@ -36,6 +39,30 @@ export const PROMOTE_MEMBERSHIP_ID = "engram/promote/membership";
 export const PROMOTE_EXPIRED_ID = "engram/promote/expired";
 export const PROMOTE_WIDENING_SOURCE_ID = "engram/promote/widening-source";
 export const PROMOTE_DUPLICATE_ID = "engram/promote/duplicate";
+export const PROMOTE_HIDDEN_TEXT_ID = "engram/promote/hidden-text";
+
+/**
+ * Characters that render as nothing: default-ignorable code points, format
+ * characters (Cf) and the tag block U+E0000 to U+E007F, which can spell a
+ * payload a reader never sees (ASCII smuggling, review finding P5-14).
+ */
+const HIDDEN = /[\p{Default_Ignorable_Code_Point}\p{Cf}\u{E0000}-\u{E007F}]/u;
+
+/** How many hidden characters every string in `content` holds together. */
+export function hiddenCharacters(content: unknown): number {
+  if (typeof content === "string") {
+    let n = 0;
+    for (const ch of content) if (HIDDEN.test(ch)) n++;
+    return n;
+  }
+  if (Array.isArray(content)) return content.reduce((n: number, v) => n + hiddenCharacters(v), 0);
+  if (content !== null && typeof content === "object")
+    return Object.entries(content).reduce(
+      (n, [k, v]) => n + hiddenCharacters(k) + hiddenCharacters(v),
+      0,
+    );
+  return 0;
+}
 export const PROMOTE_NOT_CANDIDATE_ID = "engram/promote/not-candidate";
 export const PROMOTE_NO_EVIDENCE_ID = "engram/promote/no-evidence";
 export const PROMOTE_REVIEWER_ID = "engram/promote/reviewer";
@@ -127,6 +154,7 @@ export type PromotionCheck =
   | "membership"
   | "not-candidate"
   | "expired"
+  | "hidden-text"
   | "widening-source"
   | "duplicate"
   | "write"
@@ -163,10 +191,14 @@ export interface PromotionDecision {
 function countConfirmations(item: MemoryItem, all: readonly Confirmation[]) {
   const byItem = new Set<string>();
   const byActor = new Map<string, Confirmation>();
+  const confirmers = new Set<string>();
   for (const c of all) {
     // The item's own write counts whatever its status: it is the one promoted.
     if (c.item_id !== item.id && c.status !== "active") continue;
-    if (!CONFIRMING_KINDS.has(c.kind) || byItem.has(c.item_id)) continue;
+    if (!CONFIRMING_KINDS.has(c.kind)) continue;
+    // Every actor of a write that confirms, for the reviewer rule (P5-16).
+    confirmers.add(c.actor);
+    if (byItem.has(c.item_id)) continue;
     byItem.add(c.item_id);
     if (!byActor.has(c.actor)) byActor.set(c.actor, c);
   }
@@ -175,6 +207,7 @@ function countConfirmations(item: MemoryItem, all: readonly Confirmation[]) {
     count: counted.length,
     actors: counted.map((c) => c.actor),
     confirming: counted.filter((c) => c.item_id !== item.id),
+    confirmers: [...confirmers],
   };
 }
 
@@ -188,11 +221,14 @@ export function reviewerProblem(
   item: MemoryItem,
   target: string,
   authors: readonly string[] = [],
+  confirmers: readonly string[] = [],
 ): string | null {
   if (actor.id === item.owner)
     return `${actor.id} owns item ${item.id} and cannot approve its own item`;
   if (authors.includes(actor.id))
     return `${actor.id} wrote item ${item.id} or a version of it and cannot approve its own item`;
+  if (confirmers.includes(actor.id))
+    return `${actor.id} confirmed item ${item.id} by restating it and cannot also approve its promotion`;
   if (actor.source !== "user")
     return `${actor.id} acts with source ${actor.source ?? "none"}; only a user-sourced actor can approve`;
   if (!actor.memberships.includes(target))
@@ -241,11 +277,15 @@ export function canReach(policy: Policy, actor: Actor, item: MemoryItem, at: str
  * failure decides:
  *
  * 1. The actor can read the item (`canReach`); otherwise the reason names
- *    nothing about it (`engram/promote/membership`, P5-7).
+ *    nothing about it (`engram/promote/membership`, P5-7). Reading is not
+ *    enough to move it: the actor must also be a member of its scope, or its
+ *    owner in the owner's person scope (P5-15), else a named refusal under
+ *    the same id.
  * 2. The item is a candidate: not retired; the target is its own scope or a
  *    scope at a wider level; and something changes (an episodic item becomes
  *    semantic, a candidate becomes active, or the scope widens). It is not
- *    past its ttl (`engram/promote/expired`, P5-4).
+ *    past its ttl (`engram/promote/expired`, P5-4), and its content holds no
+ *    hidden characters (`engram/promote/hidden-text`, P5-14).
  * 3. A scope change needs a user-sourced actor
  *    (`engram/promote/widening-source`, P5-3); choosing where content is
  *    disclosed is an authority act. A same-scope change keeps the rules below.
@@ -256,7 +296,8 @@ export function canReach(policy: Policy, actor: Actor, item: MemoryItem, at: str
  *    and the retired-content rule (`retired`, as for a write). A status-only
  *    change is judged against the item itself as the projected one.
  * 6. An actor asking to review must be a reviewer: not the owner, not an
- *    author of any version, user-sourced, a member of the target
+ *    author of any version, not a confirmer (P5-16), user-sourced, a member
+ *    of the target
  *    (`engram/promote/reviewer`).
  * 7. Evidence: an episodic item needs k confirmations or, when `or_review`
  *    holds, a reviewer; a procedural candidate needs a validation record
@@ -302,6 +343,17 @@ export function evaluatePromotion(
       `item ${item.id} is not one ${actor.id} can access, so it cannot promote it`,
       PROMOTE_MEMBERSHIP_ID,
     );
+  // Reach only chooses between the opaque refusal above and a named one: a
+  // read grant never lets anyone move or retire an item (ADR 0006, decision
+  // D4; review finding P5-15). The promoter belongs to the item's scope, or
+  // owns the item in its own person scope.
+  const ownPerson = actor.id === item.owner && item.scope === actor.id;
+  if (!actor.memberships.includes(item.scope) && !ownPerson)
+    return deny(
+      "membership",
+      `${actor.id} is not a member of ${item.scope}; a grant lets others read an item, never move or retire it`,
+      PROMOTE_MEMBERSHIP_ID,
+    );
 
   const from = LEVEL_ORDER.indexOf(scopeLevel(item.scope));
   const to = LEVEL_ORDER.indexOf(scopeLevel(target));
@@ -321,6 +373,13 @@ export function evaluatePromotion(
       "expired",
       `item ${item.id} is past its ttl: expired at ${expiry.at} (${expiry.policy_id})`,
       PROMOTE_EXPIRED_ID,
+    );
+  const hidden = hiddenCharacters(item.content);
+  if (hidden > 0)
+    return deny(
+      "hidden-text",
+      `item ${item.id} holds ${hidden} hidden character${hidden === 1 ? "" : "s"} (default-ignorable, format or tag characters) that a reader would not see; it is not promoted`,
+      PROMOTE_HIDDEN_TEXT_ID,
     );
   if (!sameScope && actor.source !== "user")
     return deny(
@@ -369,7 +428,7 @@ export function evaluatePromotion(
   const targetReview = write.check === "review";
 
   if (evidence.review) {
-    const problem = reviewerProblem(actor, item, target, evidence.authors);
+    const problem = reviewerProblem(actor, item, target, evidence.authors, counted.confirmers);
     if (problem) return deny("reviewer", problem, PROMOTE_REVIEWER_ID);
   }
 

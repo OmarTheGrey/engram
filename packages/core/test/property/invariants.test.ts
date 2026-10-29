@@ -79,7 +79,12 @@
 // authors who are not owners, items past their ttl, widenings by actors
 // that are not user-sourced, duplicates in the target, confirmers retired
 // before the promotion and promoters who cannot read the item, and the
-// oracle judges all of it from its own replay of the events.
+// oracle judges all of it from its own replay of the events. Since the
+// verification of that pass, sources also carry live read grants (a grantee
+// who is not a member never lands a promotion, P5-15) and sometimes a tag
+// character payload (never promoted, P5-14); restatements are sometimes by
+// the item's own author; reviewers who confirmed are refused (P5-16); and a
+// guard requires a refusal that only retired confirmers caused (P5-17).
 import { createFakeAdapter } from "@engram/adapters";
 import fc from "fast-check";
 import { describe, expect, test } from "vitest";
@@ -116,6 +121,7 @@ import {
   promotionPermitted,
   readable,
   sameContent,
+  sameStrictContent,
   TRUST,
   writeForbidden,
 } from "./oracle.ts";
@@ -1143,6 +1149,7 @@ interface Restatement {
   same: boolean;
   inScope: boolean;
   retired: boolean;
+  byAuthor: boolean;
   inTarget: boolean;
 }
 
@@ -1162,7 +1169,9 @@ const arbRestatement: fc.Arbitrary<Restatement> = fc.record({
     { arbitrary: fc.constant(false), weight: 1 },
   ),
   // Retired by an event after it was written: it no longer confirms (P5-5).
-  retired: fc.constantFrom(false, false, false, false, true),
+  retired: fc.constantFrom(false, false, true),
+  // Written by the item's own author again: the same actor twice (the distinct-actor rule).
+  byAuthor: fc.constantFrom(false, false, true),
   // Written into the target instead, as the class the promotion would make:
   // an active one there is a duplicate (P5-5).
   inTarget: fc.constantFrom(false, false, false, false, false, true),
@@ -1247,16 +1256,28 @@ const arbPromotionCase = fc.record({
       confidence: fc.constantFrom(0.2, 0.7, 1),
       // Its own ttl, and how long after writing it is promoted (P5-4).
       ttl: fc.constantFrom(null, null, null, 3),
+      // A live read grant on it, to someone who may then try to promote it (P5-15).
+      grantTo: fc.option(fc.constantFrom(...P_ACTORS), { nil: undefined }),
+      // A tag character in its content: a payload no reader sees (P5-14).
+      hidden: fc.constantFrom(false, false, false, false, false, false, false, true),
     })
     // Model and compaction content lands only in person scope (ADR 0004, 0007).
     .map((s) =>
       s.kind === "model" || s.kind === "compaction" ? { ...s, scope: "person:a" as const } : s,
     ),
-  restatements: fc.array(arbRestatement, { maxLength: 5 }),
+  restatements: fc.array(arbRestatement, { maxLength: 6 }),
   promoter: fc.record({
     id: fc.constantFrom(...P_ACTORS),
     // A team or org context reads person scope only through a grant (P5-7).
-    level: fc.constantFrom<Actor["level"]>("person", "person", "person", "person", "team", "org"),
+    level: fc.constantFrom<Actor["level"]>(
+      "person",
+      "person",
+      "person",
+      "person",
+      "person",
+      "team",
+      "org",
+    ),
     source: fc.constantFrom<Kind | undefined>(
       "user",
       "user",
@@ -1286,6 +1307,10 @@ async function promotionsLandOnlyWherePermitted(name: string) {
     untrustedOnly: 0,
     ownerReview: 0,
     authorReview: 0,
+    grantee: 0,
+    hiddenText: 0,
+    confirmerReview: 0,
+    retiredOnly: 0,
     writeRule: 0,
     expired: 0,
     wideningSource: 0,
@@ -1298,11 +1323,12 @@ async function promotionsLandOnlyWherePermitted(name: string) {
       async ({ policy: { policy, target }, source, restatements, promoter, at, after }) => {
         const { db, adapter, plane, under } = freshPlane(policy);
         const store = under(ADMIT_ALL);
-        const word = "alpha";
-        // The same content in spacing and a zero-width space (strictly the same),
-        // or also in case (the same only in the merging form, P5-12).
+        // The source's text, with a tag-character payload when it is hidden.
+        const word = source.hidden ? `alpha${String.fromCodePoint(0xe0041)}` : "alpha";
+        // The same content in spacing only (strictly the same), or also in
+        // case (the same only in the merging form, P5-12).
         const content = (r: Restatement) =>
-          !r.same ? "beta" : r.loud ? restated(word) : " al​pha \n";
+          !r.same ? "beta" : r.loud ? restated(word) : ` ${word} \n`;
         const make = (n: number, scope: string, owner: string, text: MemoryItem["content"]) =>
           ({
             id: n < 0 ? P_SOURCE_ID : pId(n),
@@ -1336,6 +1362,18 @@ async function promotionsLandOnlyWherePermitted(name: string) {
           status: source.status === "retired" ? "active" : source.status,
           content: source.class === "procedural" ? { body: word, tools: [] } : word,
           ttl: source.ttl,
+          // Model and compaction content carries no grants (decision D4).
+          grants:
+            source.grantTo && !["model", "compaction"].includes(source.kind)
+              ? [
+                  {
+                    to: source.grantTo,
+                    class: source.class,
+                    mode: "read",
+                    expires: "2099-01-01T00:00:00Z",
+                  },
+                ]
+              : [],
         } as MemoryItem;
         const author = source.author ?? source.owner;
         expect(
@@ -1357,9 +1395,10 @@ async function promotionsLandOnlyWherePermitted(name: string) {
           });
         for (const [n, r] of restatements.entries()) {
           const scope = r.inTarget ? target : r.inScope ? source.scope : "role:z";
-          const restatement = make(n, scope, r.actor, content(r));
+          const by = r.byAuthor ? author : r.actor;
+          const restatement = make(n, scope, by, content(r));
           const { item: landed } = await store.write(
-            writer(r.actor, scope, r.kind),
+            writer(by, scope, r.kind),
             r.inTarget && source.class === "episodic"
               ? ({ ...restatement, class: "semantic" } as MemoryItem)
               : restatement,
@@ -1371,7 +1410,7 @@ async function promotionsLandOnlyWherePermitted(name: string) {
               ts: at,
               op: "retire",
               item_id: landed.id,
-              actor: r.actor,
+              actor: by,
               scope_from: null,
               scope_to: scope,
               decision: "allow",
@@ -1423,9 +1462,15 @@ async function promotionsLandOnlyWherePermitted(name: string) {
 
         // The evidence counts the oracle reads, for the guards.
         const sameText = writes.filter(
-          (w) =>
-            w.scope === projected.scope && JSON.stringify(w.content) !== JSON.stringify("beta"),
+          (w) => w.scope === projected.scope && sameStrictContent(w.content, projected.content),
         );
+        const isActive = (id: string) =>
+          id === P_SOURCE_ID || before.find((i) => i.id === id)?.status === "active";
+        const activeTrustedActors = new Set(
+          sameText
+            .filter((w) => TRUSTED.includes(w.kind) && isActive(w.item_id))
+            .map((w) => w.actor),
+        ).size;
         const k = policy.promotion.episodic_to_semantic.confirmations;
         const trustedItems = new Set(
           sameText.filter((w) => TRUSTED.includes(w.kind)).map((w) => w.item_id),
@@ -1439,6 +1484,10 @@ async function promotionsLandOnlyWherePermitted(name: string) {
           seen.expired++;
         if (result.event.policy_id === "engram/promote/widening-source") seen.wideningSource++;
         if (result.event.policy_id === "engram/promote/duplicate") seen.duplicate++;
+        if (result.event.policy_id === "engram/promote/hidden-text") seen.hiddenText++;
+        // A grantee who reads it but is not a member: the named refusal (P5-15).
+        if (result.event.reason.includes("a grant lets others read an item")) seen.grantee++;
+        if (result.event.reason.includes("confirmed item")) seen.confirmerReview++;
         if (
           result.event.policy_id === "engram/promote/membership" &&
           actor.memberships.includes(projected.scope)
@@ -1467,6 +1516,8 @@ async function promotionsLandOnlyWherePermitted(name: string) {
             !promoter.review;
           if (evidenceOnly && trustedItems >= k && trustedActors < k) seen.sameActorOnly++;
           if (evidenceOnly && anyActors >= k && trustedActors < k) seen.untrustedOnly++;
+          // Only confirmers retired since stood in the way (P5-17).
+          if (evidenceOnly && trustedActors >= k && activeTrustedActors < k) seen.retiredOnly++;
           if (
             result.event.policy_id === "engram/promote/reviewer" &&
             actor.id === projected.owner &&
@@ -1500,7 +1551,7 @@ async function promotionsLandOnlyWherePermitted(name: string) {
   );
   expect(
     Object.values(seen).every((n) => n > 0),
-    `invariant 2 over promotions needs landings by confirmation and by review, an ask, refusals where only the distinct-actor rule, only the trusted-kind rule, only the owner-as-reviewer rule or only the target's write rule stood in the way, and refusals by authorship, expiry, a widening's source, a duplicate and reach; it saw ${JSON.stringify(seen)}`,
+    `invariant 2 over promotions needs landings by confirmation and by review, an ask, refusals where only the distinct-actor rule, only the trusted-kind rule, only retired confirmers, only the owner-as-reviewer rule or only the target's write rule stood in the way, and refusals by authorship, confirmation, expiry, hidden text, a widening's source, a duplicate, reach and a read grant; it saw ${JSON.stringify(seen)}`,
   ).toBe(true);
 }
 

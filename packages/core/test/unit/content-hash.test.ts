@@ -19,16 +19,20 @@ describe("the merging (broad) and strict normal forms (review finding P5-12)", (
     expect(strictContentHash("US")).not.toBe(strictContentHash("us"));
   });
 
-  test("the strict form collapses whitespace and drops format characters, nothing more", () => {
-    expect(normaliseContentStrict("  Deploy​\tRuns \n")).toBe("text:Deploy Runs");
+  test("the strict form collapses whitespace and nothing more: format characters stay (P5-14)", () => {
+    expect(normaliseContentStrict("  Deploy\tRuns \n")).toBe("text:Deploy Runs");
+    expect(strictContentHash("Deploy\u200b runs")).not.toBe(strictContentHash("Deploy runs"));
+    // A tag-character payload is not the plain sentence.
+    const tags = [..."hi"].map((c) => String.fromCodePoint(0xe0000 + c.charCodeAt(0))).join("");
+    expect(strictContentHash(`Deploy runs${tags}`)).not.toBe(strictContentHash("Deploy runs"));
     expect(strictContentHash({ b: " X  y", a: 1 })).toBe(strictContentHash({ a: 1, b: "X y" }));
     expect(strictContentHash("x")).not.toBe(strictContentHash({ x: "x" }));
   });
 
-  test("the strict form keeps its own character set: a variation selector is not dropped", () => {
-    // U+FE0F is default-ignorable, which the merging form drops (P4-14), but not a format character.
-    expect(mergingContentHash("tea️")).toBe(mergingContentHash("tea"));
-    expect(strictContentHash("tea️")).not.toBe(strictContentHash("tea"));
+  test("the strict form keeps what the merging form drops: a variation selector", () => {
+    // U+FE0F is default-ignorable, which the merging form drops (P4-14).
+    expect(mergingContentHash("tea\ufe0f")).toBe(mergingContentHash("tea"));
+    expect(strictContentHash("tea\ufe0f")).not.toBe(strictContentHash("tea"));
   });
 
   test("the plain names are the merging form", () => {

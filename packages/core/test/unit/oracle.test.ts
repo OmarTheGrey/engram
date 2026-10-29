@@ -6,6 +6,7 @@ import type { Grant, MemoryEvent, MemoryItem, Policy } from "../../src/schema.ts
 import {
   budgetVictims,
   grantAllowed,
+  holdsHiddenText,
   pastTtl,
   patternCovers,
   promotionPermitted,
@@ -199,12 +200,24 @@ describe("sameContent", () => {
 });
 
 describe("sameStrictContent", () => {
-  test("drops format characters and collapses spacing, nothing more (P5-12)", () => {
-    expect(sameStrictContent("The  Deploy\u200b runs ", "The Deploy runs")).toBe(true);
+  test("collapses spacing, nothing more (P5-12, P5-14)", () => {
+    expect(sameStrictContent("The  Deploy runs ", "The Deploy runs")).toBe(true);
+    expect(sameStrictContent("The Deploy\u200b runs", "The Deploy runs")).toBe(false);
     expect(sameStrictContent("US", "us")).toBe(false);
     expect(sameStrictContent("10\u00b2", "102")).toBe(false);
     expect(sameStrictContent({ b: " X", a: 1 }, { a: 1, b: "X" })).toBe(true);
     expect(sameStrictContent("x", { x: "x" })).toBe(false);
+  });
+});
+
+describe("holdsHiddenText", () => {
+  test("finds tag, format and default-ignorable characters anywhere in the content (P5-14)", () => {
+    expect(holdsHiddenText("plain text")).toBe(false);
+    expect(holdsHiddenText(`x${String.fromCodePoint(0xe0069)}`)).toBe(true);
+    expect(holdsHiddenText("x\u200b")).toBe(true);
+    expect(holdsHiddenText("x\ufe0f")).toBe(true);
+    expect(holdsHiddenText({ a: ["ok", "x\u2060"] })).toBe(true);
+    expect(holdsHiddenText({ "k\u00ad": "v" })).toBe(true);
   });
 });
 
@@ -286,6 +299,35 @@ describe("promotionPermitted", () => {
     const older = { ...ep, id: "old" } as MemoryItem;
     const next = { ...ep, lineage: ["old"] } as MemoryItem;
     expect(ok(sara, [wrote("person:s", older), wrote("person:a", next)], true)).toBe(false);
+  });
+
+  test("a reader through a grant who is not a member of the item's scope never lands it (P5-15)", () => {
+    const granted = wrote("person:a", {
+      ...ep,
+      grants: [
+        { to: "person:g", class: "episodic", mode: "read", expires: "2027-01-01T00:00:00Z" },
+      ],
+    } as MemoryItem);
+    const gus: Actor = { id: "person:g", level: "person", memberships: ["team:b"], source: "user" };
+    expect(ok(gus, [granted, said("b", "user")], true)).toBe(false);
+    // The owner in the owner's own person scope needs no membership listed.
+    const self = wrote("person:a", {
+      ...ep,
+      grants: [
+        { to: "person:a", class: "episodic", mode: "read", expires: "2027-01-01T00:00:00Z" },
+      ],
+    } as MemoryItem);
+    expect(ok({ ...promoter, memberships: ["team:b"] }, [self, said("b", "user")])).toBe(true);
+  });
+
+  test("content with hidden text never lands (P5-14)", () => {
+    const hidden = wrote("person:a", { ...ep, content: "FACT\u200b" } as MemoryItem);
+    expect(ok(promoter, [hidden, said("b", "user", "FACT\u200b")])).toBe(false);
+  });
+
+  test("a confirmer is no reviewer (P5-16)", () => {
+    const sara = { ...promoter, id: "person:s" };
+    expect(ok(sara, [own, said("person:s", "user")], true)).toBe(false);
   });
 
   test("a widening needs a user-sourced actor (P5-3)", () => {

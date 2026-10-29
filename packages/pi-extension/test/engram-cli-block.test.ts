@@ -7,7 +7,12 @@
 import type { ToolCall } from "@earendil-works/pi-ai";
 import { allEvents, loadPreset } from "@engram/core";
 import { afterEach, describe, expect, test } from "vitest";
-import { createEngramExtension, NO_BYPASS_ID, STORE_COMMANDS } from "../src/index.ts";
+import {
+  blockedStoreCommand,
+  createEngramExtension,
+  NO_BYPASS_ID,
+  STORE_COMMANDS,
+} from "../src/index.ts";
 import {
   AT,
   freshLog,
@@ -24,7 +29,21 @@ const COMMANDS = [
   "npx engram read --owner omar --root .",
   "node packages/cli/src/main.ts promote x --to org && engram read",
   "make engram ARGS=read",
+  // The CLI's other routes (review finding P5-18): the package spec, the
+  // workspace filter, and its entry script by path.
+  "npx @engram/cli promote x --to team:platform --review --as person:sam",
+  "npx -y @engram/cli@latest write --content x",
+  "pnpm dlx @engram/cli read --owner omar",
+  "pnpm --filter @engram/cli exec node src/main.ts promote x --to org",
+  "pnpm --filter ./packages/cli exec node src/main.ts read",
+  "node packages/cli/src/main.ts promote x --to org",
+  "node ./packages/cli/src/main.ts read",
+  "node C:\\repo\\packages\\cli\\src\\main.ts read",
+  "cd packages/cli && node src/main.ts promote x --to org",
 ];
+
+/** Commands that touch neither a store nor the CLI stay allowed. */
+const ALLOWED = ["ls packages", "pnpm --filter @engram/core test", "cat clinic/notes.md"];
 
 const call = (id: string, name: string, args: ToolCall["arguments"]) => ({
   toolCall: { id, name, arguments: args },
@@ -42,6 +61,11 @@ afterEach(() => run?.session.dispose());
 describe("P5-2: the engram CLI is blocked in a pi session", () => {
   test("engram is on the store command list", () => {
     expect(STORE_COMMANDS).toContain("engram");
+  });
+
+  test("every route is matched by the text check, and unrelated commands are not", () => {
+    for (const c of COMMANDS) expect(blockedStoreCommand(c, STORE_COMMANDS), c).toBe("engram");
+    for (const c of ALLOWED) expect(blockedStoreCommand(c, STORE_COMMANDS), c).toBeUndefined();
   });
 
   test("the model's bash calls to engram are blocked, each one event", async () => {
@@ -68,7 +92,7 @@ describe("P5-2: the engram CLI is blocked in a pi session", () => {
     // The reason keeps each attempt (long hex runs such as an item id are redacted).
     expect(blocked).toHaveLength(COMMANDS.length);
     for (const e of blocked)
-      expect(e.reason).toMatch(/^engram is a memory store command; .*attempted: .*engram/);
+      expect(e.reason).toMatch(/^engram is a memory store command; .*attempted: ./);
   });
 
   test("and user_bash, with exit code 126", async () => {

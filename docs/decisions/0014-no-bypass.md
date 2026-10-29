@@ -30,7 +30,11 @@ Amendments made in the second review round, 2026-10-29 (PR #7, verifier report d
 - Defect 2: on Windows, a Git Bash, MSYS, Cygwin or WSL drive path (`/c/x`, `/cygdrive/c/x`, `/mnt/c/x`) is read as `C:\x` before the store-root check, in shell commands and in file tool arguments, as pi's own tools read it. File tool arguments are also resolved the rest of the way pi resolves them (unicode spaces, `file://` URLs), and the path as written is checked as well.
 - Defect 4: "any tool with a path argument" now means: every string under a key that names a path (`path`, `file`, `dir`, `src`, `target`, `dest` and the like) at any depth of the arguments, and every one-line string anywhere in them that is a path on its own (absolute, `~/`, `./`, `../`, a `file://` URL). A relative path inside other free text (an edit's old text, a file's new content, a search pattern) is not read as a path, to avoid blocking ordinary edits that mention one; a hard link to a store file from outside the root is not seen either.
 
-## Alternatives considered
+Amendments made in card E2.5's verification, 2026-10-29 (review findings P5-2 and P5-18; pending the lead's review like the rest of this ADR):
+
+- `engram` is a store command: the Engram CLI takes `--as` and `--member` as given, so a model running it could write, confirm and approve as anyone (ADR 0026's amendments). It is blocked by name, and by its other routes: the package spec `@engram/cli` (npx, `pnpm dlx`, `pnpm --filter`, with or without a version) and the workspace folder `packages/cli` (its entry script `packages/cli/src/main.ts`, `cd` into the folder, `--filter ./packages/cli`); real-session tests in packages/pi-extension/test/engram-cli-block.test.ts. The cost: inside a pi session in this repository, any command naming `packages/cli` (running its tests, say) is refused too.
+- The text check's limit is the one stated for the store names: it does not reach the CLI through a name assembled at run time, an alias or a script defined outside the command, a copy of the entry script elsewhere, a shell started from another program, or an installed binary under another name. The CLI's identity limit itself is a stated limit of ADR 0026, not something this check removes.
+
 
 No alternatives were recorded beyond the recommendation.
 

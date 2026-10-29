@@ -63,19 +63,17 @@ export function contentHash(content: MemoryItem["content"]): string {
 // more. The strict form is right where not merging is safe: confirmations
 // and the duplicate check of a promotion, where two texts that differ in
 // case or compatibility form must not corroborate each other. It only
-// collapses whitespace and drops format characters (category Cf and U+180E);
-// it has its own character set, kept apart from the merging form's wider
-// default-ignorable set, and never runs NFKC.
+// collapses whitespace: format and default-ignorable characters stay, so a
+// confirmation matches exactly what its writer wrote, and content carrying a
+// hidden payload never matches plain restatements (review finding P5-14;
+// promotion also refuses such content outright). It never runs NFKC.
 
 /** The merging normal form (the one `normaliseContent` gives). */
 export const normaliseContentMerging = normaliseContent;
 /** `sha256:<hex>` of the merging normal form (the one `contentHash` gives). */
 export const mergingContentHash = contentHash;
 
-/** What the strict form drops: format characters (Cf) and U+180E, nothing wider. */
-const FORMAT = /[\p{Cf}᠎]/gu;
-
-const strictText = (s: string) => s.replace(FORMAT, "").replace(/\s+/g, " ").trim();
+const strictText = (s: string) => s.replace(/\s+/g, " ").trim();
 
 function strictCanonical(value: unknown): unknown {
   if (typeof value === "string") return strictText(value);
@@ -89,7 +87,7 @@ function strictCanonical(value: unknown): unknown {
   return value;
 }
 
-/** The strict normal form: whitespace collapsed and format characters dropped; no NFKC, no case folding. */
+/** The strict normal form: whitespace collapsed, nothing else; no NFKC, no case folding, nothing dropped. */
 export function normaliseContentStrict(content: MemoryItem["content"]): string {
   return typeof content === "string"
     ? `text:${strictText(content)}`
