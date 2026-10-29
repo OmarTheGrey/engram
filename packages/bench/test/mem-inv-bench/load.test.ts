@@ -27,17 +27,31 @@ describe("the vendored MEM-INV-Bench subset", () => {
     expect(pins).toContain(manifest.source.dataset_revision);
   });
 
-  test("every line of cases.jsonl matches its manifest hash", () => {
+  test("every line of every vendored file matches its manifest hash", () => {
     const manifest = readJson<Manifest>("manifest.json");
-    const lines = readFileSync(`${FIXTURES}cases.jsonl`, "utf8").split("\n");
-    expect(lines.pop()).toBe("");
-    expect(lines.map(sha256)).toEqual(manifest.files["cases.jsonl"]);
+    expect(Object.keys(manifest.files).sort()).toEqual([
+      "cases.jsonl",
+      "probe-script.json",
+      "script.json",
+      "upstream-golden.json",
+    ]);
+    for (const [name, hashes] of Object.entries(manifest.files)) {
+      const lines = readFileSync(`${FIXTURES}${name}`, "utf8").split("\n");
+      expect(lines.pop(), name).toBe("");
+      expect(lines.map(sha256), name).toEqual(hashes);
+    }
   });
 
-  test("case ids carry no label: they are mib-01 to mib-24", () => {
-    expect(cases().map((c) => c.case_id)).toEqual(
+  test("case ids are mib-01 to mib-24 in a drawn order: neither id nor position follows family or channel", () => {
+    const all = cases();
+    expect(all.map((c) => c.case_id)).toEqual(
       Array.from({ length: 24 }, (_, i) => `mib-${String(i + 1).padStart(2, "0")}`),
     );
+    // The ids still index labelled data; they only must not encode it in blocks.
+    const benign = all.flatMap((c, i) => (c.family === "legit" ? [i] : []));
+    expect(benign).not.toEqual([20, 21, 22, 23]);
+    const runs = all.filter((c, i) => i > 0 && c.channel === all[i - 1]?.channel).length;
+    expect(runs).toBeLessThan(10);
   });
 
   test("each laundering channel writes its memory through the channels upstream build_memory uses", () => {

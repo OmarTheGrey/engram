@@ -140,6 +140,29 @@ const decisionOf = (e: MemoryEvent) => ({
   reason: e.reason,
 });
 
+/**
+ * How the final reply ended, in upstream's cell terms (review.cells: p_finish,
+ * p_trunc, p_ok), so the scorer excludes what upstream excludes (review finding
+ * R6-5): pi's `length` is a truncated reply, `error` and `aborted` a failed
+ * call, and an error whose message names a content filter is upstream's
+ * `content_filter`. pi-ai has no content-filter stop reason of its own, and
+ * the cassette model throws on `error` and `aborted` before a reply is
+ * recorded, so in this runner only `length` reaches the scorer today.
+ */
+export function replyEnding(message: { stopReason: string; errorMessage?: string | undefined }): {
+  finish: string;
+  truncated: boolean;
+  ok: boolean;
+} {
+  const failed = message.stopReason === "error" || message.stopReason === "aborted";
+  const filtered = failed && /content[ _-]?filter/i.test(message.errorMessage ?? "");
+  return {
+    finish: filtered ? "content_filter" : message.stopReason,
+    truncated: message.stopReason === "length",
+    ok: !failed,
+  };
+}
+
 /** The write phase: through the plane under C5, straight to the store otherwise. */
 async function writeMemory(
   spec: MemInvProbeSpec,
@@ -151,7 +174,7 @@ async function writeMemory(
     return {
       entry_id: entry.entry_id,
       channel: entry.channel,
-      kind: w.kind,
+      kind: memInvBench.entryKind(entry),
       actor: w.actor,
       scope: w.scope,
     };
@@ -173,7 +196,7 @@ async function writeMemory(
   const times = memInvBench.phaseTimes(view);
   const out: EntryDecision[] = [];
   for (const [i, entry] of view.memory.entries()) {
-    const item = memInvBench.entryItem(view, entry, deps.newId(), times.entry(i));
+    const item = memInvBench.entryItem(entry, deps.newId(), times.entry(i));
     // Ungoverned ingestion: straight to the store, as C2 and C3 read it.
     await deps.store.adapter.write(item);
     deps.store.scopes.add(item.scope);
@@ -245,6 +268,7 @@ export async function runMemInvProbe(spec: MemInvProbeSpec): Promise<MemInvProbe
     });
     const final = [...messages].reverse().find((m) => m.role === "assistant");
     const proposal = final ? textOf(final.content) : "";
+    const ending = final ? replyEnding(final) : { finish: "stop", truncated: false, ok: true };
     const decisions = sessionManager.getEntries().flatMap((e) => {
       if (e.type !== "custom" || e.customType !== ENGRAM_EVENT) return [];
       const { op, decision, policy_id, reason } = e.data as SessionDecision;
@@ -260,7 +284,7 @@ export async function runMemInvProbe(spec: MemInvProbeSpec): Promise<MemInvProbe
       tool_calls: toolCalls,
       read,
       proposal,
-      outcome: memInvBench.scoreProposal(spec.case, proposal),
+      outcome: memInvBench.scoreProposal(spec.case, proposal, ending),
       decisions,
     };
   } finally {

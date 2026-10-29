@@ -23,4 +23,14 @@ describe("MEM-INV-Bench's MIT licence travels with what is derived from it", () 
       expect(head, file).toContain("fixtures/bench/mem-inv-bench/UPSTREAM-LICENSE");
     }
   });
+
+  test("the vendoring script, which ports build_memory and build_legit_memory, names the notice too", () => {
+    const head = readFileSync(
+      new URL("../../scripts/vendor-mem-inv-bench.py", import.meta.url),
+      "utf8",
+    ).slice(0, 400);
+    expect(head).toContain("MIT, Copyright (c) 2026 Yedidel Louck");
+    expect(head).toContain("fixtures/bench/mem-inv-bench/UPSTREAM-LICENSE");
+    expect(head).toContain("build_memory");
+  });
 });

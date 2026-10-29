@@ -17,6 +17,6 @@ supersedes: none
 
 **Why.** The card asked doctor to cover the MEM-INV-Bench fixture while keeping the rule that only the registered table holds pins; MEM-INV-Bench stays a candidate until the pre-registration registers it.
 
-**Result.** Doctor reports "6 benchmarks, 5 pinned" as before and "mem-inv-bench 24 lines at cf3c9a4 (candidate, not registered)"; an edited line and a moved candidate commit each fail, and disabling the files check fails three tests.
+**Result.** Doctor reports "6 benchmarks, 5 pinned" as before and "mem-inv-bench 1292 lines at cf3c9a4 (candidate, not registered)" over cases.jsonl, both scripts and the goldens; an edited line in any of them and a moved candidate commit each fail.
 
 **Consequence.** When the pre-registration registers the benchmark, its row moves to the pinned table and the same fixture is checked as a pin.

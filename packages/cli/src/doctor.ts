@@ -473,25 +473,21 @@ export function checkBenchmarkPins(repo: string | undefined): CheckResult {
           candidate ? "records for the candidate" : "pins"
         } ${pin.commit}`,
       ];
-    if (manifest.files) {
-      let lines = 0;
-      for (const [name, expected] of Object.entries(manifest.files)) {
-        const path = join(fixturesDir, dir, name);
-        const rel = `fixtures/bench/${dir}/${name}`;
-        if (!existsSync(path)) return ["fail", `${rel} is missing`];
-        if (lineHashes(path).join() !== expected.join())
-          return ["fail", `${rel} does not match the hashes in its manifest`];
-        lines += expected.length;
-      }
-      checked.push(
-        `${dir} ${lines} lines at ${pin.commit.slice(0, 7)}${candidate ? " (candidate, not registered)" : ""}`,
-      );
-      continue;
-    }
-    if (!manifest.selection)
+    // A manifest names its files (`files`, line hashes by path), GateMem's
+    // per-domain `selection`, or both; every one it names is checked
+    // (review finding R6-8: a `files` key never skips a `selection`).
+    if (!manifest.files && !manifest.selection)
       return ["fail", `fixtures/bench/${dir}/manifest.json has no selection`];
     let lines = 0;
-    for (const s of manifest.selection) {
+    for (const [name, expected] of Object.entries(manifest.files ?? {})) {
+      const path = join(fixturesDir, dir, name);
+      const rel = `fixtures/bench/${dir}/${name}`;
+      if (!existsSync(path)) return ["fail", `${rel} is missing`];
+      if (lineHashes(path).join() !== expected.join())
+        return ["fail", `${rel} does not match the hashes in its manifest`];
+      lines += expected.length;
+    }
+    for (const s of manifest.selection ?? []) {
       const files: [string, string[]][] = [
         ["episodes.jsonl", [s.episode_line_sha256]],
         ["checkpoints.jsonl", s.checkpoints.map((c) => c.line_sha256)],
@@ -505,7 +501,9 @@ export function checkBenchmarkPins(repo: string | undefined): CheckResult {
         lines += expected.length;
       }
     }
-    checked.push(`${dir} ${lines} lines at ${pin.commit.slice(0, 7)}`);
+    checked.push(
+      `${dir} ${lines} lines at ${pin.commit.slice(0, 7)}${candidate ? " (candidate, not registered)" : ""}`,
+    );
   }
   const pinned = rows.filter((r) => r.commit !== undefined).length;
   return [

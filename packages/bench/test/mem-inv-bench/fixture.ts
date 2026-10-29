@@ -40,7 +40,9 @@ export interface GoldenRow {
 
 export interface Golden {
   cases: Record<string, GoldenRow>;
+  /** A crafted row's upstream result, or `raises` where upstream raised instead. */
   crafted: (GoldenRow & {
+    raises?: string;
     row: {
       sid: string;
       family: string;

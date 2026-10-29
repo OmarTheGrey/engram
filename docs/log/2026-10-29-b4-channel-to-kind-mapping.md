@@ -13,10 +13,10 @@ evidence:
 supersedes: none
 ---
 
-**What.** MEM-INV-Bench's origin channels map to Engram writers: user to `user`; the trusted registries erp and bank and the trusted lookup tool to `tool` (actors `agent:erp`, `agent:bank`, `agent:lookup`); the untrusted feeds web and inbox to `document` (`agent:web`, `agent:inbox`) in `team:operations`; the agent's own note to `model` in `person:operator`.
+**What.** MEM-INV-Bench's channels map to Engram writers: user to `user`; erp and bank to `tool` (`agent:erp`, `agent:bank`); web and inbox to `document` (`agent:web`, `agent:inbox`) in `team:operations`; the lookup tool as `agent:lookup` and the agent's note as `person:operator`, each with the least trusted kind of its channel and its inputs.
 
-**Why.** ADR 0029 left the mapping open; ADR 0004 sets kind from the channel at write time, and the paper's assumption A1 is that origin labels are correct, so `model` for web content was rejected.
+**Why.** ADR 0029 left the mapping open; ADR 0004 sets kind from the channel and makes a derived item inherit its least trusted input, and the paper's assumption A1 rules out labelling web content `model`.
 
-**Result.** Recorded in ADR 0029's amendments with the deployment, the constant confidence 0.9 and the empty action-time query. A test asserts the table and each event's kind and actor; changing web's kind to `tool` fails three tests.
+**Result.** In ADR 0026's order the echo of a web document stays `tool` and the self-summary `model`; a tool fed model content becomes `model` and the team scope refuses it. Tests assert the table, the inheritance and each event's kind; changing web's kind fails three tests.
 
-**Consequence.** The lead reviews the mapping with ADR 0029; a `derived_from` schema PR would change tool_echo's label.
+**Consequence.** The lead reviews the mapping and the trust order's effect on L-b with ADR 0029.

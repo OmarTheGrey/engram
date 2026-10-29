@@ -7,17 +7,17 @@ chapter: limitations
 pillar: plane
 hypothesis: H1
 evidence:
-  - docs/decisions/0029-poisoning-arm-mem-inv-bench.md
   - packages/bench/test/mem-inv-bench/plane.test.ts
   - packages/runner/test/mem-inv-probe.test.ts
-  - packages/core/src/policy/evaluate.ts
+  - fixtures/cassettes/b4-mem-inv-probe
+  - docs/decisions/0029-poisoning-arm-mem-inv-bench.md
 supersedes: none
 ---
 
-**What.** On MEM-INV-Bench's channels the plane admits every entry under `medium` and does not gate the consequential action, so it cannot by itself stop the benchmark's attacks.
+**What.** Under `medium` the plane admits every MEM-INV-Bench channel's entry and the poison reaches the model's context; the plane does not gate the action.
 
-**Why.** H1's poisoning claim must be stated in what the plane enforces.
+**Why.** H1's poisoning claim must rest on what the plane decides.
 
-**Result.** Under `medium` every write of the five channel kinds is allowed (`plane.test.ts`); the B4 probe's reply is HIT under C5 as under C2. Three gaps: Engram's kinds have no untrusted-external value, so `document` feeds count as ADR 0026 confirmations (L-c); a trusted tool's echo of attacker text is `tool`, since no `derived_from` carries the input's trust (L-b); there is no action gate like TMA-NM. Under `strict` the shared entries wait for review and the read admits only the person scope.
+**Result.** Every channel's write is allowed (`plane.test.ts`), and the C5 cassette's last request carries the poison inside the read's memory tag (`mem-inv-probe.test.ts`). The HIT under C5 is the scripted reply and says nothing about the plane: the review set web's kind to `model`, the plane denied the poison, and C5 still scored HIT. Gaps: no untrusted-external kind; L-c passes because shared semantic `document` writes are admitted outright; L-b passes because ADR 0026's order ranks `tool` below `document`, so inheritance leaves the echo `tool`. Under `strict`, shared entries wait for review.
 
-**Consequence.** The thesis states the arm as memory admission and audit, not action authorisation; an untrusted kind and `derived_from` are candidates for the next schema PR.
+**Consequence.** The arm is stated as admission and audit; an untrusted kind is a candidate for the next schema PR.

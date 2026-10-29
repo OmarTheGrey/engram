@@ -3,7 +3,7 @@
   "kind": "pipeline",
   "benchmark": "mem-inv-bench",
   "data": "../../fixtures/bench/mem-inv-bench",
-  "items": ["mib-02"],
+  "items": ["mib-13"],
   "conditions": ["C5", "C2"],
   "model": "scripted/scripted-1",
   "seeds": [1],

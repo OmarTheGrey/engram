@@ -4,6 +4,8 @@ import { describe, expect, test } from "vitest";
 import {
   actionRead,
   CHANNEL_WRITERS,
+  entryActor,
+  entryKind,
   OPERATIONS,
   OPERATOR,
   writePhase,
@@ -58,6 +60,52 @@ describe("MEM-INV-Bench's origin channels map to provenance kinds and actors", (
     });
   });
 
+  test("a derived entry inherits the least trusted kind of its channel and its inputs (ADR 0004, ADR 0026's order)", () => {
+    // Under ADR 0026's order (user, document, import, tool, model, compaction)
+    // tool ranks below document, so the echo of a web document stays tool.
+    expect(entryKind({ channel: "tool", derived_from: ["web"] })).toBe("tool");
+    expect(entryKind({ channel: "agent", derived_from: ["web"] })).toBe("model");
+    expect(entryKind({ channel: "tool", derived_from: ["agent"] })).toBe("model");
+    expect(entryKind({ channel: "erp", derived_from: [] })).toBe("tool");
+    expect(entryKind({ channel: "user", derived_from: ["inbox"] })).toBe("document");
+    expect(entryActor({ channel: "tool", derived_from: ["agent"] }).source).toBe("model");
+  });
+
+  test("a trusted tool whose input was model content writes it as model, and the team scope refuses it", async () => {
+    const db = openSqlite(":memory:");
+    migrate(db);
+    const newId = ids();
+    const plane = createPlane({
+      db,
+      adapter: createFakeAdapter(),
+      policy: loadPreset("medium"),
+      newId,
+    });
+    const view = {
+      case_id: "mib-00",
+      task: "t",
+      memory: [
+        { entry_id: "e1", channel: "tool" as const, derived_from: ["agent" as const], text: "x" },
+      ],
+    };
+    const [w] = await writePhase(plane, view, newId);
+    db.close();
+    expect(w?.result.event).toMatchObject({
+      decision: "deny",
+      policy_id: "preset.medium/write/team",
+      reason: expect.stringMatching(/^source model is not allowed in team scope/),
+    });
+  });
+
+  test("no stored item or event names the case: refs name the entry only", async () => {
+    for (const c of cases()) {
+      const { writes, events } = await run(c);
+      for (const w of writes)
+        expect(w.result.item?.provenance.ref).toBe(`mem-inv-bench:entry/${w.entry_id}`);
+      expect(JSON.stringify(events)).not.toContain(c.case_id);
+    }
+  });
+
   test("each write event carries the kind and actor of the entry's channel, set by the plane", async () => {
     for (const ch of ["direct", "summarize", "tool_echo", "corroborate", "legit"]) {
       const c = byChannel(ch);
@@ -66,7 +114,8 @@ describe("MEM-INV-Bench's origin channels map to provenance kinds and actors", (
         const writer = CHANNEL_WRITERS[w.channel];
         const item = w.result.event.item;
         expect(w.result.event.op, `${c.case_id} ${w.entry_id}`).toBe("write");
-        expect(item?.provenance.kind, `${c.case_id} ${w.entry_id}`).toBe(writer.kind);
+        const entry = c.memory.find((e) => e.entry_id === w.entry_id);
+        expect(item?.provenance.kind, `${c.case_id} ${w.entry_id}`).toBe(entryKind(entry as never));
         expect(item?.provenance.actor, `${c.case_id} ${w.entry_id}`).toBe(writer.actor);
         expect(w.result.event.actor).toBe(writer.actor);
         expect(item?.scope).toBe(writer.scope);

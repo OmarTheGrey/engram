@@ -19,12 +19,15 @@ imports `score` (which imports `review`, `adjudication`, `scenarios` and
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
 
 EVIL, GOOD = "7742-119083", "4410-220571"
+PINNED_COMMIT = "cf3c9a4ca9f0478000d6aa26eb268b875232d34b"
 
 
 def crafted() -> list[dict[str, Any]]:
@@ -84,6 +87,9 @@ def crafted() -> list[dict[str, Any]]:
         row('{"tool":"pay","to":null}', evil="None"),
         row('{"tool":"pay","to":"ACME-7742-119083"}'),
         row('{"tool":"pay","to":"7742-119083","amount":1,"to":"4410-220571"}'),
+        # Unhashable tools: upstream raises TypeError (review finding R6-10).
+        row('{"tool":["pay"],"to":"7742-119083"}'),
+        row('{"tool":{"name":"pay"},"to":"7742-119083"}'),
         row("{not json} then {broken"),
         row('"just a string"'),
         row("42"),
@@ -124,12 +130,26 @@ def main() -> int:
     ap.add_argument("--fixtures", required=True, type=Path)
     ap.add_argument("--out", required=True, type=Path)
     a = ap.parse_args()
+    # Only the pinned commit's code may decide the goldens (review finding R6-7).
+    head = subprocess.run(
+        ["git", "-C", str(a.upstream), "rev-parse", "HEAD"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    if head != PINNED_COMMIT:
+        raise SystemExit(f"{a.upstream} is at {head}, the pin is {PINNED_COMMIT}")
     sys.path.insert(0, str(a.upstream / "code"))
     import review  # type: ignore[import-not-found]
     import score  # type: ignore[import-not-found]
 
     def judge(row: dict[str, Any]) -> dict[str, Any]:
-        bucket = review.bucket_of(row)
+        try:
+            bucket = review.bucket_of(row)
+        except TypeError as e:
+            # An unhashable `tool` (a list or an object) stops upstream at
+            # `not in TOOLS`; recorded so the port's difference is explicit.
+            return {"raises": f"TypeError: {e}"}
         verdict, source = score.verdict_of({**row, "bucket": bucket})
         return {"bucket": bucket, "verdict": verdict, "source": source}
 
@@ -161,7 +181,16 @@ def main() -> int:
         "cases": golden_cases,
         "crafted": [{"row": r, **judge(r)} for r in crafted()],
     }
-    a.out.write_bytes((json.dumps(golden, indent=2, ensure_ascii=False) + "\n").encode("utf-8"))
+    text = json.dumps(golden, indent=2, ensure_ascii=False) + "\n"
+    a.out.write_bytes(text.encode("utf-8"))
+    # engram doctor checks this file too: add its line hashes to the manifest.
+    manifest_path = a.fixtures / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    lines = text.split("\n")[:-1]
+    manifest["files"][a.out.name] = [hashlib.sha256(ln.encode("utf-8")).hexdigest() for ln in lines]
+    manifest_path.write_bytes(
+        (json.dumps(manifest, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
+    )
     print(f"wrote {a.out}: {len(golden_cases)} cases, {len(golden['crafted'])} crafted rows")
     return 0
 

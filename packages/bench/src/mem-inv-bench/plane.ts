@@ -18,7 +18,14 @@
 // person scope, where source isolation keeps it (ADR 0004, 0007). The user's
 // own statements are user content in the person scope.
 import { createHash } from "node:crypto";
-import type { Actor, MemoryItem, Plane, ReadResult, WriteResult } from "@engram/core";
+import {
+  type Actor,
+  leastTrusted,
+  type MemoryItem,
+  type Plane,
+  type ReadResult,
+  type WriteResult,
+} from "@engram/core";
 import type { MemoryEntry, OriginChannel } from "./schema.ts";
 import type { VisibleCase } from "./strip.ts";
 
@@ -35,10 +42,9 @@ export interface ChannelWriter {
 }
 
 /**
- * The channel-to-provenance mapping (ADR 0029, amendments). The kind is the
- * channel's, never a function of the content or of a derived entry's inputs:
- * Engram has no field that carries an input's trust into a derived item yet
- * (ADR 0026, decision 6), so a trusted tool echoing untrusted text is `tool`.
+ * The channel-to-provenance mapping (ADR 0029, amendments): the kind of what
+ * each channel writes on its own. A derived entry's kind is not the channel's
+ * alone: see entryKind.
  */
 export const CHANNEL_WRITERS: Readonly<Record<OriginChannel, ChannelWriter>> = {
   user: { actor: OPERATOR, kind: "user", scope: OPERATOR, origin: "user" },
@@ -50,12 +56,30 @@ export const CHANNEL_WRITERS: Readonly<Record<OriginChannel, ChannelWriter>> = {
   agent: { actor: OPERATOR, kind: "model", scope: OPERATOR, origin: "agent" },
 };
 
-/** The actor a channel writes as: a member of the scope it writes into, its source set by the harness. */
-export function channelActor(channel: OriginChannel): Actor {
-  const w = CHANNEL_WRITERS[channel];
+/**
+ * The provenance kind of one entry: the least trusted of its channel's kind
+ * and the kinds of the channels it was derived from (ADR 0004, "an item
+ * derived from others inherits the least trusted provenance of its inputs";
+ * ADR 0026's trust order, core's leastTrusted). The harness knows the inputs
+ * at the call boundary (the visible `derived_from`), so it applies the rule
+ * before the write. Under ADR 0026's order (user, document, import, tool,
+ * model, compaction) `tool` ranks below `document`, so a trusted tool echoing
+ * a web document stays `tool`; a self-summary of one stays `model`.
+ */
+export function entryKind(entry: Pick<MemoryEntry, "channel" | "derived_from">) {
+  return leastTrusted([
+    CHANNEL_WRITERS[entry.channel].kind,
+    ...entry.derived_from.map((c) => CHANNEL_WRITERS[c].kind),
+  ]);
+}
+
+/** The actor an entry is written as: its channel's, a member of the scope it writes into, its source the entry's kind. */
+export function entryActor(entry: Pick<MemoryEntry, "channel" | "derived_from">): Actor {
+  const w = CHANNEL_WRITERS[entry.channel];
+  const source = entryKind(entry);
   if (w.actor === OPERATOR)
-    return { id: OPERATOR, level: "person", memberships: [OPERATOR, OPERATIONS], source: w.kind };
-  return { id: w.actor, level: "team", memberships: [OPERATIONS], source: w.kind };
+    return { id: OPERATOR, level: "person", memberships: [OPERATOR, OPERATIONS], source };
+  return { id: w.actor, level: "team", memberships: [OPERATIONS], source };
 }
 
 /** The operator's assistant at action time: reads the person scope and the team's. */
@@ -70,13 +94,12 @@ const sha256 = (s: string) => `sha256:${createHash("sha256").update(s).digest("h
 /** Every entry's confidence: a constant that clears every preset's floor, so no admission turns on a number upstream does not have. */
 export const ENTRY_CONFIDENCE = 0.9;
 
-/** One entry as the item its channel writes. */
-export function entryItem(
-  view: VisibleCase,
-  entry: MemoryEntry,
-  id: string,
-  at: string,
-): MemoryItem {
+/**
+ * One entry as the item its channel writes. The ref names the entry, never
+ * the case: a case id is an index into labelled data, and nothing the plane
+ * stores or shows should carry one (review finding R6-4).
+ */
+export function entryItem(entry: MemoryEntry, id: string, at: string): MemoryItem {
   const w = CHANNEL_WRITERS[entry.channel];
   return {
     id,
@@ -85,8 +108,8 @@ export function entryItem(
     owner: w.scope === OPERATOR ? OPERATOR : w.actor,
     content: entry.text,
     provenance: {
-      kind: w.kind,
-      ref: `mem-inv-bench:${view.case_id}/${entry.entry_id}`,
+      kind: entryKind(entry),
+      ref: `mem-inv-bench:entry/${entry.entry_id}`,
       hash: sha256(entry.text),
       actor: w.actor,
     },
@@ -126,8 +149,8 @@ export async function writePhase(
   const out: EntryWrite[] = [];
   for (const [i, entry] of view.memory.entries()) {
     const at = times.entry(i);
-    const item = entryItem(view, entry, newId(), at);
-    const result = await plane.write(channelActor(entry.channel), item, at);
+    const item = entryItem(entry, newId(), at);
+    const result = await plane.write(entryActor(entry), item, at);
     out.push({ entry_id: entry.entry_id, channel: entry.channel, result });
   }
   return out;

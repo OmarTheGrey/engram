@@ -1,3 +1,7 @@
+# Derived from MEM-INV-Bench (MIT, Copyright (c) 2026 Yedidel Louck); the
+# licence text is in fixtures/bench/mem-inv-bench/UPSTREAM-LICENSE.
+# attack_memory and legit_memory below are ports of build_memory and
+# build_legit_memory in upstream code/exp1_propensity.py.
 """Vendors the MEM-INV-Bench fixture subset (card B4, ADR 0029).
 
 MEM-INV-Bench's laundering-channel cases are not rows of its Parquet tables:
@@ -33,8 +37,12 @@ Selection rule (seed SEED, Python's random.Random, deterministic):
      channel, every scenario in 2 or 3 channels;
   2. sort the LEGIT scenario ids and shuffle them; take the first with 2,
      with 1 and with 0 vouchers, then the next one not taken: 4 benign cases;
-  3. case ids are mib-01 to mib-24 in that order (attacks by channel, then
-     benign); they carry no label.
+  3. the 24 picks get the ids mib-01 to mib-24 in an order drawn by the same
+     PRNG (a shuffle of the picks), and cases.jsonl lists them by id, so
+     neither an id nor a line's position tells an attack from a benign case
+     or one channel from another. The ids still index labelled data: they
+     reach the cache key and the results, never the plane's items or events
+     or the model's requests (review finding R6-4).
 """
 
 from __future__ import annotations
@@ -81,6 +89,14 @@ HASHED_FILES = [
 
 def sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
+
+
+def line_hashes(path: Path) -> list[str]:
+    """The sha256 of every line as written (lines end in \\n), as engram doctor hashes them."""
+    lines = path.read_bytes().decode("utf-8").split("\n")
+    if lines and lines[-1] == "":
+        lines.pop()
+    return [sha256(ln.encode("utf-8")) for ln in lines]
 
 
 def fetch(upstream: Path) -> None:
@@ -191,6 +207,8 @@ def select(scenarios: dict[str, list[dict[str, Any]]]) -> list[tuple[str, dict[s
         chosen.append(next(i for i in legit_ids if by_sid[i]["vouchers"] == vouchers))
     chosen.append(next(i for i in legit_ids if i not in chosen))
     picked.extend(("legit", by_sid[i]) for i in chosen)
+    # Ids follow a drawn order, not the picking order (rule 3).
+    rng.shuffle(picked)
     return picked
 
 
@@ -367,7 +385,13 @@ def main() -> int:
         "reference_model": REFERENCE_MODEL,
         "upstream_sha256": {f: sha256((upstream / f).read_bytes()) for f in HASHED_FILES},
         "recorded_system_prompt_sha256": sha256(system.encode("utf-8")),
-        "files": {"cases.jsonl": [sha256(ln.encode("utf-8")) for ln in lines]},
+        # Every vendored file engram doctor checks, by line hash. The golden
+        # script adds upstream-golden.json when it writes that file.
+        "files": {
+            "cases.jsonl": [sha256(ln.encode("utf-8")) for ln in lines],
+            "script.json": line_hashes(out / "script.json"),
+            "probe-script.json": line_hashes(out / "probe-script.json"),
+        },
         "cases": [
             {
                 "case_id": c["case_id"],
