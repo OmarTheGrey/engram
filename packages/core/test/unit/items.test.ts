@@ -342,7 +342,12 @@ describe("item lookup", () => {
         .prepare("INSERT INTO items (id, status, body) VALUES (?, ?, ?)")
         .run(it.id, it.status, JSON.stringify(it));
     }
-    expect(migrate(fresh)).toEqual([2]);
+    expect(
+      migrate(
+        fresh,
+        MIGRATIONS.filter((m) => m.id <= 2),
+      ),
+    ).toEqual([2]);
     const seqs = Object.fromEntries(
       fresh
         .prepare("SELECT id, seq FROM items ORDER BY id")
