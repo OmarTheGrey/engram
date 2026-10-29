@@ -23,4 +23,5 @@ export {
 } from "./listen.ts";
 export { openApiDocument } from "./openapi.ts";
 export { API_PREFIX, type Method, ROUTES, type Route, type RouteContext } from "./routes.ts";
+export { builtUi, UI_CSP, UI_DIST, uiFile, uiResponse } from "./static.ts";
 export * from "./workspace.ts";

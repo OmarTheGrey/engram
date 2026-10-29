@@ -1,7 +1,8 @@
 name: e2e
 
 # Layer 6 (docs/conventions/testing.md): on main and nightly, not on every PR.
-# No Docker: the smoke runs on SQLite and on Postgres from embedded-postgres (card E1.1).
+# No Docker: the smoke runs on SQLite and on Postgres from embedded-postgres (card E1.1);
+# the inspector runs in Chromium from playwright (cards E8.5, E8.6).
 on:
   push:
     branches: [main]
@@ -23,4 +24,7 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # The inspector's layer 6 test drives Chromium through the playwright library (cards E8.5, E8.6);
+      # under CI a missing browser fails the run instead of skipping.
+      - run: pnpm exec playwright install --with-deps chromium
       - run: make test-e2e

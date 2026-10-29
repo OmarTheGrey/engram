@@ -1,0 +1,99 @@
+{
+  "description": "The inspector's fixture workspace (cards E8.5 and E8.6): three people, a shared team scope, writes the gate allows and one it denies, and one read by each person. Run through the generated client in process by packages/ui/test/workspace.ts; event ids come from a counter and every call names its time.",
+  "now": "2026-10-29T12:00:00.000Z",
+  "viewer": "dana",
+  "actors": {
+    "dana": { "id": "person:dana", "level": "person", "memberships": ["person:dana", "team:core"], "source": "user" },
+    "sam": { "id": "person:sam", "level": "person", "memberships": ["person:sam", "team:core"], "source": "user" },
+    "eve": { "id": "person:eve", "level": "person", "memberships": ["person:eve"], "source": "user" }
+  },
+  "steps": [
+    {
+      "op": "write",
+      "as": "dana",
+      "at": "2026-10-20T09:00:00.000Z",
+      "item": { "id": "01940000-0000-7000-8000-000000000001", "scope": "person:dana", "content": "Dana prefers tea in the morning.", "valid_from": "2026-10-01T00:00:00.000Z" }
+    },
+    {
+      "op": "write",
+      "as": "dana",
+      "at": "2026-10-20T09:05:00.000Z",
+      "item": { "id": "01940000-0000-7000-8000-000000000002", "scope": "team:core", "content": "The release freeze starts on Friday.", "valid_from": "2026-10-20T00:00:00.000Z" }
+    },
+    {
+      "op": "write",
+      "as": "dana",
+      "at": "2026-10-20T09:10:00.000Z",
+      "item": { "id": "01940000-0000-7000-8000-000000000003", "scope": "person:dana", "content": "Dana's old desk phone is 4411.", "valid_from": "2026-01-01T00:00:00.000Z", "valid_to": "2026-10-15T00:00:00.000Z" }
+    },
+    {
+      "op": "write",
+      "as": "dana",
+      "at": "2026-10-20T09:15:00.000Z",
+      "item": { "id": "01940000-0000-7000-8000-000000000004", "scope": "person:dana", "class": "episodic", "content": "Dana met the auditors this morning.", "valid_from": "2026-10-20T08:00:00.000Z", "ttl": 86400 }
+    },
+    {
+      "op": "write",
+      "as": "dana",
+      "at": "2026-10-20T09:20:00.000Z",
+      "item": { "id": "01940000-0000-7000-8000-000000000005", "scope": "person:dana", "status": "candidate", "content": "Dana may move to the platform team.", "valid_from": "2026-10-20T00:00:00.000Z" }
+    },
+    {
+      "op": "write",
+      "as": "sam",
+      "at": "2026-10-21T10:00:00.000Z",
+      "item": { "id": "01940000-0000-7000-8000-000000000006", "scope": "team:core", "content": "Sam owns the deploy checklist.", "valid_from": "2026-10-21T00:00:00.000Z" }
+    },
+    {
+      "op": "write",
+      "as": "sam",
+      "at": "2026-10-21T10:05:00.000Z",
+      "item": { "id": "01940000-0000-7000-8000-000000000007", "scope": "person:sam", "content": "Sam's dentist appointment is on Tuesday.", "valid_from": "2026-10-21T00:00:00.000Z" }
+    },
+    {
+      "op": "write",
+      "as": "eve",
+      "at": "2026-10-22T11:00:00.000Z",
+      "item": { "id": "01940000-0000-7000-8000-000000000008", "scope": "team:core", "content": "Eve thinks the freeze should move.", "valid_from": "2026-10-22T00:00:00.000Z" }
+    },
+    {
+      "op": "write",
+      "as": "dana",
+      "at": "2026-10-23T09:00:00.000Z",
+      "item": {
+        "id": "01940000-0000-7000-8000-000000000009",
+        "scope": "person:dana",
+        "content": "Dana's onboarding notes for Eve: start with the deploy checklist.",
+        "valid_from": "2026-10-23T00:00:00.000Z",
+        "grants": [{ "to": "person:eve", "mode": "read", "class": "semantic", "expires": "2026-12-31T00:00:00.000Z" }]
+      }
+    },
+    {
+      "op": "write",
+      "as": "dana",
+      "at": "2026-10-23T09:05:00.000Z",
+      "item": { "id": "01940000-0000-7000-8000-000000000010", "scope": "person:dana", "status": "candidate", "content": "Dana might take Friday off.", "valid_from": "2026-10-23T00:00:00.000Z" }
+    },
+    {
+      "op": "write",
+      "as": "dana",
+      "at": "2026-10-23T09:10:00.000Z",
+      "item": { "id": "01940000-0000-7000-8000-000000000011", "scope": "team:core", "content": "The new build server goes live in November.", "valid_from": "2026-11-15T00:00:00.000Z" }
+    },
+    {
+      "op": "write",
+      "as": "dana",
+      "at": "2026-10-23T09:15:00.000Z",
+      "item": { "id": "01940000-0000-7000-8000-000000000012", "scope": "team:core", "content": "The September sprint goal was the migration.", "valid_from": "2026-09-01T00:00:00.000Z", "valid_to": "2026-10-01T00:00:00.000Z" }
+    },
+    {
+      "op": "write",
+      "as": "dana",
+      "at": "2026-10-23T09:20:00.000Z",
+      "item": { "id": "01940000-0000-7000-8000-000000000013", "scope": "person:dana", "content": "<img src=x onerror=\"window.__engramXss=1\"><script>window.__engramXss=2</script>", "valid_from": "2026-10-23T00:00:00.000Z" }
+    },
+    { "op": "read", "as": "dana", "at": "2026-10-28T09:00:00.000Z" },
+    { "op": "read", "as": "sam", "at": "2026-10-28T09:30:00.000Z" },
+    { "op": "read", "as": "eve", "at": "2026-10-28T10:00:00.000Z" }
+  ]
+}

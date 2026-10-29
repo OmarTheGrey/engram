@@ -100,6 +100,11 @@ export function allEvents(db: Db): MemoryEvent[] {
   return parse(db.prepare("SELECT body FROM events ORDER BY seq").all());
 }
 
+/** The event with id `id`, or null; one indexed lookup, not a scan of the log. */
+export function eventById(db: Db, id: string): MemoryEvent | null {
+  return parse(db.prepare("SELECT body FROM events WHERE id = ?").all(id))[0] ?? null;
+}
+
 export function eventsByItem(db: Db, itemId: string): MemoryEvent[] {
   return parse(db.prepare("SELECT body FROM events WHERE item_id = ? ORDER BY seq").all(itemId));
 }

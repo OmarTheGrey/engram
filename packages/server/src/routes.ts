@@ -9,7 +9,14 @@
 // and ask are 200 with their event. Errors are thrown and mapped in app.ts;
 // lint, simulate and distill throw core's NotImplementedYet until their
 // cards land, which app.ts answers with 501 naming the card.
-import { adoptStoreItems, currentItems, type MemoryItem, visibleEvents } from "@engram/core";
+import {
+  adoptStoreItems,
+  currentItems,
+  eventById,
+  type MemoryItem,
+  readCounts,
+  visibleEvents,
+} from "@engram/core";
 import type { z } from "zod";
 import * as C from "./contract.ts";
 import { storeOwner, type Workspace } from "./workspace.ts";
@@ -106,13 +113,17 @@ export const ROUTES: readonly Route[] = [
     id: "explain",
     method: "post",
     path: "/explain/{readId}",
-    summary: "The explanations a read recorded, for the actor who made it only (decision D5).",
+    summary:
+      "The explanations a read recorded and the counts its event's reason records, for the actor who made it only (decision D5).",
     request: C.ExplainRequest,
     response: C.ExplainResponse,
     errors: [400, 403, 404],
     handler: async ({ workspace, body, params }) => {
       const readId = params.readId ?? "";
-      return { read_id: readId, explanations: await workspace.plane.explain(body.actor, readId) };
+      // Plane.explain refuses an unknown read and another actor's read first.
+      const explanations = await workspace.plane.explain(body.actor, readId);
+      const event = eventById(workspace.deps.db, readId);
+      return { read_id: readId, explanations, counts: event ? readCounts(event) : null };
     },
   }),
   route<z.infer<typeof C.PromoteRequest>>({
