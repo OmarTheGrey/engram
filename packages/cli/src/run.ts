@@ -70,7 +70,8 @@ explain options:
 doctor options:
   --db <path|url>             the event log to check (default as above); doctor never creates one
   --policy <preset|path>      the policy to load and validate
-  --root <folder>             a store folder to check is readable
+  --root <folder>             a store folder: readable, and its memories adopted through the plane
+                              on an in-memory log (counts only)
 
 output:
   --json                      machine-readable output

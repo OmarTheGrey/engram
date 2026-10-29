@@ -11,6 +11,15 @@
 // provider with ambient or OAuth credentials only (AWS profiles, Google ADC,
 // a subscription login) has an empty list: findEnvKeys excludes those by
 // design, and the doctor does not check them.
+//
+// Dependency on pi-ai's `compat` entry point: findEnvKeys is exported only
+// from `@earendil-works/pi-ai/compat`, which pi-ai 1.3.0 marks as temporary
+// and to be deleted with the coding-agent ModelManager migration. When a pi
+// pin bump removes it, `make api` fails loudly here (no silent drift). The
+// replacement is to read each provider's names from `builtinProviders()`
+// (`@earendil-works/pi-ai/providers/all`) if pi exposes them there, or to
+// probe each provider's `auth.apiKey.resolve` with a recording AuthContext.
+// Recorded in the ADR 0019 amendment of card E0.4.
 import { readFileSync } from "node:fs";
 import { findEnvKeys } from "@earendil-works/pi-ai/compat";
 import { builtinProviders } from "@earendil-works/pi-ai/providers/all";

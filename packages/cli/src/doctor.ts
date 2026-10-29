@@ -1,7 +1,8 @@
 // `engram doctor`: one line per check, each with its reason. It never
-// creates a log (on Postgres it only looks for the migrations table), never
-// reads a provider key's value, and reaches no network beyond the Postgres
-// server a postgres:// target names. A target's password is never printed.
+// creates, migrates or otherwise changes a log (SQLite is opened read-only,
+// Postgres sees SELECTs only), never prints a provider key's value (only its
+// length is tested), and reaches no network beyond the Postgres server a
+// postgres:// target names. No secret in a target's URL is ever printed.
 // The adapter checks run through a Plane on an in-memory log, so
 // no adapter is called directly (AGENTS.md rule 2) and nothing is recorded.
 //
@@ -11,7 +12,7 @@
 // packages/runner/src/model/provider-keys.json, which `make api` generates
 // from pi-ai: the CLI never imports pi-ai (AGENTS.md, what not to do).
 import { createHash } from "node:crypto";
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { access, constants, stat } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { createFilesAdapter, createHashingEmbedder, createMem0Adapter } from "@engram/adapters";
@@ -29,7 +30,7 @@ import {
 import { parse, STORE_OPTIONS } from "./commands.ts";
 import { plural } from "./format.ts";
 import type { Io } from "./run.ts";
-import { type DbTarget, dbTarget, loadPolicy, logExists, MEMORY_DB, openLog } from "./setup.ts";
+import { type DbTarget, dbTarget, inspectLog, loadPolicy, MEMORY_DB } from "./setup.ts";
 
 export type Status = "ok" | "fail" | "skip";
 export type CheckResult = [Status, string];
@@ -52,20 +53,32 @@ const sha256 = (text: string) => createHash("sha256").update(text).digest("hex")
 const readJson = (path: string): unknown => JSON.parse(readFileSync(path, "utf8"));
 const oneLine = (e: unknown) => (e as Error).message.split("\n").join("; ");
 
-/** The log: opens and migrates when it exists, names its backend; a missing SQLite file is reported, never made. */
+/**
+ * The log: found and named by backend, never created, never migrated
+ * (inspectLog opens SQLite read-only and sends Postgres SELECTs only).
+ * Pending migrations are reported for the next read or write to apply.
+ */
 export function checkLog(target: DbTarget): CheckResult {
-  if (!logExists(target)) {
+  const name = `${target.backend} ${target.label}`;
+  const state = inspectLog(target);
+  if (state.state === "absent") {
     const reached = target.backend === "postgres" ? "connects, " : "";
+    return ["ok", `${name}: ${reached}no log yet; the first read or write creates it`];
+  }
+  if (state.state === "foreign")
+    return ["fail", `${name}: not an Engram log (it holds other tables); point --db elsewhere`];
+  if (state.unknown.length > 0)
+    return [
+      "fail",
+      `${name}: newer than this Engram (migration${state.unknown.length === 1 ? "" : "s"} ${state.unknown.join(", ")}); update Engram`,
+    ];
+  const n = state.pending.length;
+  if (n > 0)
     return [
       "ok",
-      `${target.backend} ${target.label}: ${reached}no log yet; the first read or write creates it`,
+      `${name}: ${plural(n, "migration")} pending; the next read or write applies ${n === 1 ? "it" : "them"}`,
     ];
-  }
-  const log = openLog(target, true);
-  log.db.close();
-  const state =
-    log.applied.length > 0 ? `migrations ${log.applied.join(", ")} applied` : "up to date";
-  return ["ok", `${target.backend} ${target.label}: opens; ${state}`];
+  return ["ok", `${name}: opens; up to date`];
 }
 
 /** Runs `fn` on a Plane over `adapter` with a fresh in-memory log and the medium preset. */
@@ -102,11 +115,17 @@ export async function checkFilesAdapter(
       at,
     ),
   );
-  return [
-    "ok",
-    `${root}: ${plural(report.listed, "memory", "memories")} listed through the plane, ` +
-      `${report.allowed} admitted, ${report.denied} denied (medium preset, in-memory log)`,
-  ];
+  const counts =
+    `${plural(report.listed, "memory", "memories")} listed through the plane, ` +
+    `${report.allowed} admitted, ${report.denied} denied (medium preset, in-memory log)`;
+  // Files the adapter could not read are skipped by list; counted here, never shown.
+  const unreadable = adapter.diagnostics().length;
+  if (unreadable > 0)
+    return [
+      "fail",
+      `${root}: ${plural(unreadable, "file")} unreadable by the files adapter; ${counts}`,
+    ];
+  return ["ok", `${root}: ${counts}`];
 }
 
 /** Opens an in-memory Mem0 with the hashing embedder: offline, no model, no key. */
@@ -167,8 +186,22 @@ export async function checkMem0Adapter(
 
 const ProviderKeysError = (why: string) => new Error(`${PROVIDER_KEYS}: ${why}; run make api`);
 
-/** The provider key variable names pi-ai reads, per provider, as the runner generated them. */
-export function providerKeyNames(repo: string): Map<string, string[]> {
+/**
+ * Providers whose credentials pi-ai also takes from somewhere other than a key
+ * variable, beyond those with no key variable at all: Google Vertex accepts
+ * Application Default Credentials besides GOOGLE_CLOUD_API_KEY.
+ */
+const AMBIENT_TOO = ["google-vertex (ADC)"];
+
+/**
+ * The provider key variable names pi-ai reads, by name with their providers,
+ * and the providers that have none (ambient or login credentials only), as
+ * the runner generated them.
+ */
+export function providerKeyNames(repo: string): {
+  byName: Map<string, string[]>;
+  keyless: string[];
+} {
   const file = join(repo, PROVIDER_KEYS);
   if (!existsSync(file)) throw ProviderKeysError("missing");
   const data = readJson(file) as { providers?: unknown };
@@ -176,36 +209,42 @@ export function providerKeyNames(repo: string): Map<string, string[]> {
   if (typeof providers !== "object" || providers === null || Array.isArray(providers))
     throw ProviderKeysError("has no providers object");
   const byName = new Map<string, string[]>();
+  const keyless: string[] = [];
   for (const [provider, names] of Object.entries(providers)) {
     if (!Array.isArray(names) || names.some((n) => typeof n !== "string"))
       throw ProviderKeysError(`provider ${provider} has no list of names`);
+    if (names.length === 0) keyless.push(provider);
     for (const name of names as string[]) byName.set(name, [...(byName.get(name) ?? []), provider]);
   }
   if (byName.size === 0) throw ProviderKeysError("names no key variable");
-  return byName;
+  return { byName, keyless };
 }
 
 /**
- * Which provider key variables are set: presence only (`name in env`), so the
- * value is never read, printed or sent anywhere. None set is not a failure:
- * scripted and cassette runs need no key.
+ * Which provider key variables are set. A variable counts only when its value
+ * is non-empty, as pi-ai counts it; the check reads the value's length in
+ * place and never copies, logs or prints the value. None set is not a
+ * failure: scripted and cassette runs need no key. Credentials that are not
+ * a key variable (AWS profiles, Google ADC, OAuth logins) are named as not
+ * checked.
  */
 export function checkProviderKeys(
   repo: string | undefined,
   env: Readonly<Record<string, string | undefined>>,
 ): CheckResult {
   if (repo === undefined) return NO_REPO;
-  const byName = providerKeyNames(repo);
+  const { byName, keyless } = providerKeyNames(repo);
   const providers = new Set([...byName.values()].flat());
-  const set = [...byName.keys()].filter((name) => name in env).sort();
+  const set = [...byName.keys()].filter((name) => (env[name]?.length ?? 0) > 0).sort();
+  const notChecked = `not checked: ${[...keyless, ...AMBIENT_TOO].sort().join(", ")} (credentials that are not a key variable)`;
   if (set.length === 0)
     return [
       "ok",
       `none of ${byName.size} key variables for ${providers.size} providers is set; ` +
-        "live model calls need one, scripted and cassette runs do not",
+        `live model calls need one, scripted and cassette runs do not; ${notChecked}`,
     ];
   const named = set.map((name) => `${name} (${byName.get(name)?.join(", ")})`);
-  return ["ok", `set: ${named.join("; ")}; values not read`];
+  return ["ok", `set: ${named.join("; ")}; values not read; ${notChecked}`];
 }
 
 interface PinRow {
@@ -256,11 +295,16 @@ interface Manifest {
   }[];
 }
 
-const lineHashes = (path: string) =>
-  readFileSync(path, "utf8")
-    .split("\n")
-    .filter(Boolean)
-    .map((l) => sha256(l));
+/**
+ * The sha256 of every line, blank lines included, as the vendoring wrote
+ * them: lines joined by "\n" with one final "\n", so only that last empty
+ * piece is dropped. An inserted blank line is a line and fails the match.
+ */
+const lineHashes = (path: string) => {
+  const lines = readFileSync(path, "utf8").split("\n");
+  if (lines.at(-1) === "") lines.pop();
+  return lines.map((l) => sha256(l));
+};
 
 /**
  * PINS.md parses, and every vendored benchmark fixture (fixtures/bench/<name>
@@ -275,8 +319,11 @@ export function checkBenchmarkPins(repo: string | undefined): CheckResult {
   const key = (name: string) => name.toLowerCase().replace(/[^a-z0-9]/g, "");
   const fixturesDir = join(repo, BENCH_FIXTURES);
   const fixtures = existsSync(fixturesDir)
-    ? readdirSync(fixturesDir).filter((d) => existsSync(join(fixturesDir, d, "manifest.json")))
+    ? readdirSync(fixturesDir).filter((d) => statSync(join(fixturesDir, d)).isDirectory())
     : [];
+  // Every vendored fixture carries its manifest; one without is unverifiable.
+  const bare = fixtures.find((d) => !existsSync(join(fixturesDir, d, "manifest.json")));
+  if (bare !== undefined) return ["fail", `fixtures/bench/${bare} has no manifest.json`];
   const checked: string[] = [];
   for (const dir of fixtures) {
     const manifest = readJson(join(fixturesDir, dir, "manifest.json")) as Manifest;
@@ -395,6 +442,8 @@ export async function doctorCommand(args: string[], io: Io): Promise<number> {
     false,
   );
   const at = io.now();
+  // Outside the checks: a bad --db or ENGRAM_DB_URL is usage (exit 2), not a failed check.
+  const target = dbTarget(values.db, io);
   const root = values.root === undefined ? undefined : resolve(io.cwd, values.root);
   const checks: Check[] = [];
   const check = async (name: string, fn: () => CheckResult | Promise<CheckResult>) => {
@@ -406,7 +455,7 @@ export async function doctorCommand(args: string[], io: Io): Promise<number> {
     }
   };
 
-  await check("log", () => checkLog(dbTarget(values.db, io)));
+  await check("log", () => checkLog(target));
   await check("policy", () => {
     const p = loadPolicy(values.policy, io.cwd);
     return ["ok", `${p.id} v${p.version} loads and validates`];

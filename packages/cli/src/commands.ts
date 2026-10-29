@@ -116,12 +116,25 @@ function openSession(
   };
 }
 
-const logHint = (log: Log, readId?: string) =>
-  log.target.backend === "sqlite" && log.target.path === MEMORY_DB
-    ? "log in memory; pass --db <path> to keep it for engram explain"
-    : readId
-      ? `log ${log.target.label}; engram explain ${readId} --db ${log.target.label}`
-      : `log ${log.target.label}`;
+/**
+ * Where the log is, and after a read the explain command that finds it: with
+ * no --db when the log came from ENGRAM_DB_URL or the default (the same
+ * lookup finds it again), with the path for a SQLite --db, and never with a
+ * redacted URL that looks runnable but is not.
+ */
+function logHint(log: Log, readId?: string): string {
+  const t = log.target;
+  if (t.backend === "sqlite" && t.path === MEMORY_DB)
+    return "log in memory; pass --db <path> to keep it for engram explain";
+  if (readId === undefined) return `log ${t.label}`;
+  const db =
+    t.source !== "flag"
+      ? ""
+      : t.backend === "sqlite"
+        ? ` --db ${t.path}`
+        : " --db <the same postgres URL>";
+  return `log ${t.label}; engram explain ${readId}${db}`;
+}
 
 export async function readCommand(args: string[], io: Io): Promise<number> {
   const { values, positionals } = parse(args, { ...STORE_OPTIONS, ...ACTOR_OPTIONS }, true);

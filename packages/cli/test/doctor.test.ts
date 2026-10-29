@@ -18,7 +18,13 @@ import {
 } from "../src/doctor.ts";
 import { run } from "../src/run.ts";
 import { cli, FIXTURE, NOW, REPO, readArgs, tempDir, testId } from "./helpers.ts";
-import { freshDatabase, hasLogTables, PG_PASSWORD, postgresTarget } from "./postgres.ts";
+import {
+  freshDatabase,
+  hasLogTables,
+  PG_PASSWORD,
+  PG_PASSWORD_ENCODED,
+  postgresTarget,
+} from "./postgres.ts";
 
 /** A copy of exactly the repository files doctor reads. */
 async function repoCopy(): Promise<string> {
@@ -111,9 +117,10 @@ describe.skipIf(!("url" in pg))("engram doctor on Postgres (embedded)", () => {
     const url = freshDatabase(admin, "doctor");
     const { code, out } = await cli(["doctor", "--db", url]);
     expect(out).toMatch(
-      /^ok\s+log\s+postgres postgres:\/\/\S+:\*\*\*@\S+: connects, no log yet; the first read or write creates it/m,
+      /^ok\s+log\s+postgres postgres:\/\/\*\*\*@\S+: connects, no log yet; the first read or write creates it/m,
     );
     expect(out).not.toContain(PG_PASSWORD);
+    expect(out).not.toContain(PG_PASSWORD_ENCODED);
     expect(code).toBe(0);
     expect(hasLogTables(url)).toBe(false);
   });
@@ -136,6 +143,7 @@ describe.skipIf(!("url" in pg))("engram doctor on Postgres (embedded)", () => {
     const { out } = await cli(["doctor"], { env: { ENGRAM_DB_URL: url } });
     expect(out).toMatch(/^ok\s+log\s+postgres \S+: opens; up to date/m);
     expect(out).not.toContain(PG_PASSWORD);
+    expect(out).not.toContain(PG_PASSWORD_ENCODED);
   });
 });
 
@@ -144,9 +152,7 @@ describe("engram doctor, each check red", () => {
     // Port 1 on loopback: nothing listens, so the connection is refused at once.
     const url = "postgres://engram:hunter2@127.0.0.1:1/engram";
     const viaFlag = await cli(["doctor", "--db", url]);
-    expect(viaFlag.out).toMatch(
-      /^fail\s+log\s+postgres:\/\/engram:\*\*\*@127\.0\.0\.1:1\/engram: /m,
-    );
+    expect(viaFlag.out).toMatch(/^fail\s+log\s+postgres:\/\/\*\*\*@127\.0\.0\.1:1\/engram: /m);
     expect(viaFlag.out).not.toContain("hunter2");
     expect(viaFlag.code).toBe(1);
     const viaEnv = await cli(["doctor"], { env: { ENGRAM_DB_URL: url } });
