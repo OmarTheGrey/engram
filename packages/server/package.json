@@ -8,5 +8,17 @@
   },
   "scripts": {
     "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@engram/adapters": "workspace:*",
+    "@engram/core": "workspace:*",
+    "@hono/node-server": "2.1.5",
+    "hono": "4.13.13",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@engram/sdk": "workspace:*",
+    "openapi-typescript": "7.13.0",
+    "typescript": "5.9.3"
   }
 }

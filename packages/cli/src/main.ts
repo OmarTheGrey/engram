@@ -25,6 +25,10 @@ const { uuidv7 } = await import("./uuid.ts");
 // The checkout this file runs from, for doctor's pin checks: packages/cli/src is three levels down.
 const repo = fileURLToPath(new URL("../../..", import.meta.url));
 
+// Stop a long-running command (serve, mcp) on Ctrl-C or a termination signal.
+const stopping = new AbortController();
+for (const signal of ["SIGINT", "SIGTERM"] as const) process.once(signal, () => stopping.abort());
+
 process.exitCode = await run(process.argv.slice(2), {
   out: (text) => process.stdout.write(text),
   err: (text) => process.stderr.write(text),
@@ -35,4 +39,7 @@ process.exitCode = await run(process.argv.slice(2), {
   env: process.env,
   nodeVersion: process.versions.node,
   repo: existsSync(join(repo, "pnpm-workspace.yaml")) ? repo : undefined,
+  stop: stopping.signal,
+  stdin: process.stdin,
+  stdout: process.stdout,
 });

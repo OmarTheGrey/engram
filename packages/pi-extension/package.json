@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./tools": "./src/tools.ts",
+    "./tag": "./src/tag.ts"
   },
   "scripts": {
     "test": "vitest run --passWithNoTests"

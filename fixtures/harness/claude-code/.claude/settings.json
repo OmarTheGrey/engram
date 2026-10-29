@@ -1,0 +1,23 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "engram",
+            "args": [
+              "hook",
+              "claude-code",
+              "--root",
+              "${CLAUDE_PROJECT_DIR}/memory",
+              "--as",
+              "person:dana"
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -22,14 +22,14 @@ packages/core/            the plane: schema, events, policy, lints, explain, dis
 packages/adapters/        one adapter per store: files, mem0, letta. Each implements the Adapter contract
 packages/pi-extension/    the Engram pi extension: tools, tool_call and context handlers, commands, custom entries
 packages/pi-package/      the distributable pi package (extension, skills, prompt templates)
-packages/mcp/             MCP server exposing governed read, write, explain, simulate to Claude Code and Codex
+packages/mcp/             MCP server exposing governed read, write, explain, simulate to Claude Code and Codex; the Claude Code hook
 packages/cli/             `engram` command; calls core and adapters, holds no policy logic
-packages/server/          HTTP API for the inspector; OpenAPI generated from it
+packages/server/          HTTP API over core (route table, loopback only), the workspace opener; OpenAPI generated from it
 packages/ui/              inspector; calls the generated client
 packages/bench/           benchmark runners on the pi SDK, pinned in packages/bench/PINS.md; vendored upstream judges
 packages/runner/          experiment runner: pi SDK sessions, seeded, cached; Pi Durable behind a flag
 research/                 Python: configs/, scripts/, results/, analysis, stats, figures, thesis
-sdk/                      generated clients; do not edit by hand
+sdk/                      generated: JSON Schema, sdk/openapi.json, the TypeScript client sdk/ts (@engram/sdk); do not edit by hand
 docs/                     architecture, decisions, tasks, research, readings, deps, glossary
 docs/architecture.md      the architecture: layers, memory model, write and read paths, interfaces (living document)
 docs/roadmap.md           phases, gates, week plan and the task cards; cards are expanded into docs/tasks/
@@ -49,7 +49,7 @@ make test                      vitest (core, adapters, conformance on fakes, rep
                                core's Db tests also run on a throwaway embedded Postgres (no Docker); ENGRAM_PG_URL=<url> uses a server you name, ENGRAM_PG=skip skips them
 make test-one T=<path>         one test file, with its seed printed
 make test-invariants           the five invariants against the real Plane, with counterexample and seed; the fifth (retention budgets) since E2.4
-make api                       regenerate sdk/schema (JSON Schema) and research/engram_types (Python) from the Zod schema, and the provider key names doctor checks from pi-ai; later also OpenAPI and the clients
+make api                       regenerate sdk/schema (JSON Schema) and research/engram_types (Python) from the Zod schema, sdk/openapi.json from the server's route table, the TypeScript client in sdk/ts and packages/ui/src/api, and the provider key names doctor checks from pi-ai
 make api-check                 make api, then fail if the generated files differ from what is committed
 make bench BENCH=gatemem       run one benchmark on its fixture subset offline: scripted model, committed cassettes (a miss is an error, never recorded into them), output in .engram/bench/<name>; gatemem only so far
 make bench BENCH=gatemem DRY=1 the live GateMem run counted on the full checkpoint set, no model called: its calls and prompt size (fetches the pinned data once into .engram/upstream); add MODEL=<provider/model-id> (and SEED=) to also list its cache keys for that model, never printed without it
@@ -61,8 +61,13 @@ make lint-docs                 log entry frontmatter, em dashes in prose, CLAUDE
 make lint-docs PR=<dir>        the PR gate on a PR directory (body.md, files.txt); fixtures in fixtures/ci/
 engram doctor                  log and its backend (never created by doctor), policy, store root, files and Mem0 adapters through the plane, provider keys by name only, benchmark pins and fixture hashes, the pi pin against docs/deps.md, Node 24 or later
 engram read --root <dir> --owner <id>   a memory folder through the plane, adopted as its owner, every item explained; the log is --db, else ENGRAM_DB_URL, else <home>/.engram/engram.db; engram --help lists the rest
+engram write | read | promote | explain | retain | lint | simulate   each one call of the generated client: in process over the workspace its flags name, or to the server --server <url> (or ENGRAM_SERVER_URL) names
+engram retain --scope <scope>  sweep one scope's retention as a user-sourced member: expired items retired, budgets enforced
+engram serve [--host 127.0.0.1] [--port 7313] [--as <id> --member <scope>]   the HTTP API on loopback only (no authentication yet), over the workspace flags; --as names the inspector's viewer
+engram mcp --as <id> --member <scope>   the MCP server over stdio for Claude Code and Codex, every call as that actor with source model; --http <port> serves streamable HTTP on loopback
+engram hook claude-code --root <dir>   a Claude Code PreToolUse hook: denies a Bash command naming a store and a file tool inside a store root, recording each block
 make engram ARGS="<command> ..."   run the engram CLI from the repo (node packages/cli/src/main.ts)
-make test-e2e                  layer 6: engram doctor, then a CLI smoke (write, read, explain) on a temp folder, on SQLite and on embedded Postgres; no Docker anywhere (MCP handshakes join with E8.4)
+make test-e2e                  layer 6: engram doctor, then a CLI smoke (write, read, explain) on a temp folder, on SQLite and on embedded Postgres; the MCP handshake from the Claude Code and Codex fixtures in fixtures/harness/ and the Claude Code hook; no Docker anywhere
 make test-repro                every research script regenerates its result; hashes match MANIFEST.md
 make fixtures                  regenerate golden files and record scripted cassettes afresh; refuses without a message
 make thesis                    consolidate docs/log into research/thesis/drafts/ (ROOT=, OUT= to run on fixtures/log/repo)

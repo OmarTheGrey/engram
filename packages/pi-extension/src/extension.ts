@@ -31,10 +31,11 @@
 // (finding R7-15), and pi's bug-report summary finds none in the session.
 //
 // No-bypass (ADR 0014, decision D10): store commands are blocked in
-// user_bash and in the model's bash and powershell tools (bash.ts), and pi's
-// file tools, and any tool with a path argument at any depth, are blocked on
-// paths inside a store root (paths.ts); each block is a Plane.recordBypass
-// event. Shell text is normalised as a shell reads it and checked word by
+// user_bash and in the model's bash and powershell tools, and pi's file
+// tools, and any tool with a path argument at any depth, are blocked on paths
+// inside a store root; core decides both (packages/core/src/no-bypass.ts, the
+// same check the Claude Code hook runs) and each block is a
+// Plane.recordBypass event. Shell text is normalised as a shell reads it and checked word by
 // word, erring towards blocking; a store name a variable, an alias or a
 // script supplies at run time is out of reach of any text check, and so is a
 // shell command that reaches a root only through a path it computes.
@@ -45,6 +46,7 @@ import {
   type Adapter,
   BYPASS_ID,
   type Bypass,
+  shellBypass as coreShellBypass,
   createPlane,
   type Db,
   type MemoryEvent,
@@ -53,11 +55,10 @@ import {
   type Plane,
   type Policy,
   type ReadResult,
+  STORE_COMMANDS,
+  toolBypass,
 } from "@engram/core";
-import { Type } from "typebox";
-import { blockedStoreCommand, pathWords, STORE_COMMANDS } from "./bash.ts";
 import { systemClock, uuidv7 } from "./ids.ts";
-import { storeRootOf, toolPaths } from "./paths.ts";
 import {
   defuseMessage,
   isMemoryTool,
@@ -70,7 +71,14 @@ import {
   tagMemoryResults,
   withoutMemory,
 } from "./tag.ts";
-import { MEMORY_READ, MEMORY_WRITE, writeResultText } from "./tools.ts";
+import {
+  MEMORY_EXPLAIN,
+  MEMORY_READ,
+  MEMORY_SIMULATE,
+  MEMORY_WRITE,
+  notImplementedText,
+  writeResultText,
+} from "./tools.ts";
 
 export const ENGRAM_EVENT = "engram.event";
 /** The rule id of a blocked store command (ADR 0014); the Plane's. */
@@ -196,28 +204,25 @@ export function createEngramExtension(options: EngramExtensionOptions): Extensio
 
     const bypass = (b: Bypass) => planeCall(() => plane.recordBypass(agent, b, now()));
 
+    /** Core decides (no-bypass.ts); the extension records what it blocks. */
+    const check = (cwd: string) => ({
+      cwd,
+      roots: storeRoots,
+      stores: storeCommands,
+      rootStore: adapter.name,
+    });
+
     /** A bypass event when `command` names a store or reaches a store root, else undefined. */
-    const shellBypass = async (command: string, cwd: string) => {
-      const store = blockedStoreCommand(command, storeCommands);
-      if (store !== undefined) return bypass({ command, store });
-      for (const word of pathWords(command)) {
-        if (storeRootOf(word, { cwd, roots: storeRoots, recursive: false }) !== undefined)
-          return bypass({ command, store: adapter.name, route: "path" });
-      }
-      return undefined;
+    const shellBypass = async (command: string, cwd: string, shell?: "powershell") => {
+      // pi's powershell tool reads `\` as a path separator on every platform.
+      const found = coreShellBypass(command, { ...check(cwd), ...(shell ? { shell } : {}) });
+      return found === undefined ? undefined : bypass(found);
     };
 
     /** A bypass event when the tool call names a path inside a store root, else undefined. */
     const pathBypass = async (toolName: string, input: Record<string, unknown>, cwd: string) => {
-      const { paths, recursive } = toolPaths(toolName, input);
-      for (const path of paths) {
-        if (storeRootOf(path, { cwd, roots: storeRoots, recursive }) !== undefined) {
-          const shown =
-            path === undefined ? `${toolName} (no path, the cwd)` : `${toolName} ${path}`;
-          return bypass({ command: shown, store: adapter.name, route: "path" });
-        }
-      }
-      return undefined;
+      const found = toolBypass(toolName, input, check(cwd));
+      return found === undefined ? undefined : bypass(found);
     };
 
     /** Runs a memory tool's body and records the text it produced, or the error it threw. */
@@ -300,11 +305,7 @@ export function createEngramExtension(options: EngramExtensionOptions): Extensio
     });
 
     pi.registerTool({
-      name: "memory_explain",
-      label: "Memory explain",
-      description:
-        "Explain why one of this session's reads returned what it did: score components, rank, admitting rule, grants, validity.",
-      parameters: Type.Object({ read_id: Type.String() }),
+      ...MEMORY_EXPLAIN,
       async execute(toolCallId, params) {
         return produce(toolCallId, "memory_explain", async () => {
           // Only the reader may explain a read (decision D5): another
@@ -319,11 +320,7 @@ export function createEngramExtension(options: EngramExtensionOptions): Extensio
     });
 
     pi.registerTool({
-      name: "memory_simulate",
-      label: "Memory simulate",
-      description:
-        "Replay this session's memory events under the current policy and report which decisions would change.",
-      parameters: Type.Object({}),
+      ...MEMORY_SIMULATE,
       async execute(toolCallId) {
         return produce(toolCallId, "memory_simulate", async () => {
           try {
@@ -334,7 +331,7 @@ export function createEngramExtension(options: EngramExtensionOptions): Extensio
             return { text: JSON.stringify(report, null, 2), details: report };
           } catch (e) {
             if (e instanceof NotImplementedYet) {
-              throw new Error(`memory_simulate: not implemented yet (card ${e.card})`);
+              throw new Error(notImplementedText("memory_simulate", e.card));
             }
             throw e;
           }
@@ -364,7 +361,11 @@ export function createEngramExtension(options: EngramExtensionOptions): Extensio
       if (isMemoryTool(event.toolName)) return undefined;
       let blocked: MemoryEvent | undefined;
       if (SHELL_TOOLS.has(event.toolName)) {
-        blocked = await shellBypass(String(input.command ?? ""), ctx.cwd);
+        blocked = await shellBypass(
+          String(input.command ?? ""),
+          ctx.cwd,
+          event.toolName === "powershell" ? "powershell" : undefined,
+        );
       }
       blocked ??= await pathBypass(event.toolName, input, ctx.cwd);
       return blocked ? { block: true, reason: refusal(blocked) } : undefined;

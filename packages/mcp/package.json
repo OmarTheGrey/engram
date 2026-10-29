@@ -8,5 +8,18 @@
   },
   "scripts": {
     "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@engram/core": "workspace:*",
+    "@engram/pi-extension": "workspace:*",
+    "@engram/sdk": "workspace:*",
+    "@engram/server": "workspace:*",
+    "@hono/node-server": "2.1.5",
+    "@modelcontextprotocol/sdk": "1.32.1",
+    "hono": "4.13.13",
+    "typebox": "1.3.27"
+  },
+  "devDependencies": {
+    "@engram/adapters": "workspace:*"
   }
 }

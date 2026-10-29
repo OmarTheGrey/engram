@@ -85,7 +85,7 @@ Adoption is the write path for what a store already holds, such as a Claude Code
 
 ## No-bypass
 
-Store commands are blocked in pi's `user_bash` and `tool_call` handlers wherever a store name stands in the command, and pi's file tools are blocked on paths inside a store root; both are routed through the Engram tools. A name or path a variable, alias or script supplies at run time is out of reach of any text check (decision D10). MCP tools that reach a store are wrapped so their calls pass the gate. A blocked bypass is an event (ADR 0014). Outside pi, this guarantee is weaker and the thesis says so (ADR 0022).
+Store commands are blocked in pi's `user_bash` and `tool_call` handlers wherever a store name stands in the command, and pi's file tools are blocked on paths inside a store root; both are routed through the Engram tools. Core decides both (packages/core/src/no-bypass.ts), and the Claude Code PreToolUse hook (`engram hook claude-code`) runs the same checks. A name or path a variable, alias or script supplies at run time is out of reach of any text check (decision D10). MCP tools that reach a store are wrapped so their calls pass the gate. A blocked bypass is an event (ADR 0014). Outside pi, this guarantee is weaker and the thesis says so (ADR 0022).
 
 ## Lifecycle
 
@@ -115,11 +115,22 @@ Plane
   distill(sessions, method) -> MemoryItem[]  candidate procedural items
   explain(actor, readId) -> Explanation[]    to the actor who made the read only
 
+visibleEvents(actor, events, view) -> MemoryEvent[]   pure, in core: events in the actor's member scopes and events it
+                                                made; an event naming no scope (a read, a bypass) only its maker sees;
+                                                an event's item only if the read filter would return it now
+
 Surfaces
   pi extension   tools memory_write, memory_read, memory_explain, memory_simulate; commands /engram explain | lint | simulate | policy
-  MCP server     the same tools for Claude Code and Codex
-  HTTP           /api/v1/items, /events, /policy, /lint, /simulate, /distill, /explain/{readId}; OpenAPI generated
-  CLI            engram write | read | lint | simulate | promote | explain | serve | doctor
+  MCP server     the same tools for Claude Code and Codex (packages/mcp): engram mcp --as --member over stdio
+                 or streamable HTTP on loopback, every call as that actor with source model; the pi extension's
+                 tool definitions and memory tag; engram hook claude-code, a PreToolUse hook that blocks bypasses
+  HTTP           packages/server, a Hono app over one route table (ADR 0027): /api/v1/items, /items/check, /read,
+                 /explain/{readId}, /promote, /retain, /events (visibleEvents), /policy, /lint, /simulate,
+                 /distill (501 naming L1, E8.9, D2), /bypass, /viewer, /health; a decision is 200 with its event;
+                 loopback Host and Origin only, JSON bodies only, no CORS, 1 MiB bodies; OpenAPI generated
+                 into sdk/openapi.json, the client into sdk/ts and packages/ui/src/api
+  CLI            engram write | read | promote | explain | retain | lint | simulate, each one client call, in
+                 process over app.fetch or to --server; engram serve | mcp | hook claude-code | doctor
   UI             inspector: lanes by scope, timeline, diff, explain, findings, review queue, live session via pi RPC
 ```
 

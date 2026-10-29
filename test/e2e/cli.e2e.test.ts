@@ -4,7 +4,7 @@
 // returns and explains it, and `engram explain` on that read from the log.
 // SQLite always; Postgres on the embedded server core's globalSetup starts (no
 // Docker), in a fresh database owned by a role whose password must never
-// appear in any output. The MCP handshakes join with card E8.4.
+// appear in any output. The MCP handshakes are in mcp.e2e.test.ts (card E8.4).
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";

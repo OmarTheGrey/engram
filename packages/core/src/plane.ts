@@ -24,7 +24,13 @@ import { checkWrite, gatedWrite } from "./plane/write.ts";
 import type { Explanation, LintFinding, MemoryEvent, MemoryItem, Policy } from "./schema.ts";
 import type { SimReport, Workload } from "./simulate.ts";
 
-export { type Actor, ActorShape, ExplainDeniedError, InvalidCallError } from "./actor.ts";
+export {
+  type Actor,
+  ActorShape,
+  ExplainDeniedError,
+  InvalidCallError,
+  UnknownReadError,
+} from "./actor.ts";
 export {
   BYPASS_ID,
   BYPASS_PATH_ID,

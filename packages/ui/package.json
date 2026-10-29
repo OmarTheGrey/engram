@@ -8,5 +8,8 @@
   },
   "scripts": {
     "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "openapi-fetch": "0.17.0"
   }
 }
