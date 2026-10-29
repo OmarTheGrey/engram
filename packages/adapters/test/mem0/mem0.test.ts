@@ -11,7 +11,12 @@ import { promisify } from "node:util";
 import { MemoryItem } from "@engram/core";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import { createHashingEmbedder } from "../../src/fake/embedder.ts";
-import { createMem0Adapter, createMem0Memory } from "../../src/mem0/index.ts";
+import {
+  createMem0Adapter,
+  createMem0Memory,
+  PLACEHOLDER_REACHED,
+  REFUSAL,
+} from "../../src/mem0/index.ts";
 
 const run = promisify(execFile);
 
@@ -131,7 +136,18 @@ describe("mem0 adapter, review fixes", () => {
     const memory = await createMem0Memory({ embedder: createHashingEmbedder() });
     await expect(
       memory.add("Dana moved to the platform team.", { userId: "engram", infer: true }),
-    ).rejects.toThrow("Engram never asks Mem0 to call a model");
+    ).rejects.toThrow(REFUSAL);
+  });
+
+  test("the refusal comes from the replaced model slot, not from the placeholder in Mem0's config", async () => {
+    expect(REFUSAL).not.toContain(PLACEHOLDER_REACHED);
+    const memory = await createMem0Memory({ embedder: createHashingEmbedder() });
+    const llm = (memory as unknown as { llm: { generateResponse(m: unknown[]): Promise<unknown> } })
+      .llm;
+    // The slot itself refuses, with the exact error and no model module loaded.
+    await expect(llm.generateResponse([{ role: "user", content: "hi" }])).rejects.toThrow(
+      new Error(REFUSAL),
+    );
   });
 
   test("a file vector store keeps its entity index beside it, as <name>_entities.db", async () => {

@@ -62,7 +62,9 @@ export interface Mem0AdapterOptions {
 
 /** Large enough that `list` returns every item in a scope. */
 const LIST_LIMIT = Number.MAX_SAFE_INTEGER;
-const REFUSAL = "mem0 adapter: Engram never asks Mem0 to call a model (infer: false)";
+export const REFUSAL = "mem0 adapter: Engram never asks Mem0 to call a model (infer: false)";
+export const PLACEHOLDER_REACHED =
+  "mem0 adapter: Mem0 reached the placeholder model of its config; the refusing model slot is missing";
 
 type Mem0Module = typeof import("mem0ai/oss");
 let mem0Module: Promise<Mem0Module> | undefined;
@@ -141,10 +143,11 @@ export async function createMem0Memory(options: Mem0AdapterOptions): Promise<Mem
         },
       },
     },
-    // Mem0 requires an LLM config; this placeholder is replaced below.
+    // Mem0 requires an LLM config; this placeholder is replaced below. Its
+    // error differs from REFUSAL, so a test can tell the two apart.
     llm: {
       provider: "langchain",
-      config: { model: { invoke: () => Promise.reject(new Error(REFUSAL)) } },
+      config: { model: { invoke: () => Promise.reject(new Error(PLACEHOLDER_REACHED)) } },
     },
     vectorStore: {
       provider: "memory",

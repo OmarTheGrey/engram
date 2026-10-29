@@ -27,6 +27,16 @@ Amendments made in the review fix pass, 2026-10-25 (PR #4, findings R4-1 to R4-1
 - Files adapter: only regular files directly in the root are read or listed (symlinks, junctions and directories are skipped and refused); a malformed file is skipped by `list` and `search` and reported by `diagnostics()`, while `read` of it still throws; item ids must be lowercase and a name that differs only in case is refused; every write and delete holds `.engram.lock` in the root; Engram's index lines use " - ", and Claude Code's own lines are left as written.
 - Mem0 adapter: `dbPath` is ":memory:" or a file ending in `.db`, and a file store writes `<name>_entities.db` beside it; telemetry is off whatever the import order; Mem0's model slot is replaced by one that refuses every call.
 
+Amendments made in review round 2, 2026-10-28 (PR #4, verifier report V4; pending the lead's review like the rest of this ADR):
+
+- Fidelity also covers confidence at 0 and at 1, a lineage of several entries in the order written (neither sorted nor reversed), content with leading and trailing whitespace, a `role:` scope and an episodic item; the corpus holds each.
+- `search` returns matching items whatever their status: candidate and retired items are found like active ones, because status is the plane's read filter, not the store's.
+- The meta-test pins each broken adapter (now nineteen) to the cases it must fail, by name.
+- Files adapter: a hard link (a file with more than one name) is treated like a symlink: skipped and reported by list and search, refused by read, write and delete, and MEMORY.md is refused when it is one. The earlier claim that nothing outside the root is followed held for symlinks and junctions only.
+- Files adapter: a write or delete is all or nothing. MEMORY.md is checked before the item file changes, and if the index update fails anyway, the item file is removed or its previous bytes restored.
+- Files adapter: the lock file records the holder's pid, host, a per-instance token and the wall-clock time (the adapter has no injected clock; the time is a fact of store I/O, not a policy input). A waiter breaks a lock whose pid is not alive on this machine, or that is older than 60 s; otherwise it waits up to `lockWaitMs` (default 10 s) and refuses, naming the holder.
+- Mem0 adapter: the placeholder model in Mem0's config fails with its own error, distinct from the refusal of the replaced model slot, so a test shows the replacement is in place.
+
 ## Alternatives considered
 
 No alternatives were recorded beyond the recommendation.

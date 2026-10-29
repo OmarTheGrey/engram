@@ -4,6 +4,7 @@
 // No adapter reaches the network or Mem0's home folder: a guard refuses every
 // fetch, socket connection and DNS lookup (network-guard.ts), and MEM0_DIR
 // points at a temporary folder that must stay absent.
+import dns from "node:dns";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import net from "node:net";
 import { tmpdir } from "node:os";
@@ -41,6 +42,15 @@ test("the guard refuses a raw socket connection, not only fetch", () => {
   const before = guard.attempts.length;
   expect(() => net.connect(9, "127.0.0.1")).toThrow("network access refused");
   expect(guard.attempts.slice(before)).toHaveLength(1);
+  guard.attempts.splice(before);
+});
+
+test("the guard refuses fetch and both DNS lookups", async () => {
+  const before = guard.attempts.length;
+  await expect(fetch("https://example.invalid/")).rejects.toThrow("network access refused");
+  expect(() => dns.lookup("example.invalid", () => undefined)).toThrow("network access refused");
+  await expect(dns.promises.lookup("example.invalid")).rejects.toThrow("network access refused");
+  expect(guard.attempts.slice(before)).toHaveLength(3);
   guard.attempts.splice(before);
 });
 

@@ -7,28 +7,48 @@
 // frontmatter adds every other item field under the one key `engram`, so a
 // read returns the exact item. A file with no `engram` key is a memory Claude
 // Code (or a person) wrote; it lists as a read-only item with the defaults in
-// `importedItem` below. This adapter does file I/O; the clock is never read:
-// an imported item's valid_from comes from the options or the file's mtime.
+// `importedItem` below. This adapter does file I/O. No item field comes from
+// the clock: an imported item's valid_from comes from the options or the
+// file's mtime. Only the folder lock reads the wall clock (see below).
 //
 // What it never does (review fix pass, ADR 0013 amendments):
-// - Follow anything that is not a regular file directly inside the root: a
-//   symlink, junction, directory or device is skipped by list and search and
-//   refused by read, write and delete.
+// - Read or replace anything that is not a regular file with one name,
+//   directly inside the root: a symlink, junction, directory or device, and a
+//   hard link (a file with more than one name, any of which may be outside
+//   the root; the link count cannot say which), is skipped by list and search
+//   and refused by read, write and delete. MEMORY.md is held to the same rule.
 // - Let one malformed file break the folder: list and search skip it and
 //   report it through `diagnostics()`; a read of it still throws.
 // - Depend on the file system's case rules: keys match directory entries
 //   exactly, item ids must be lowercase, and a write is refused when a file
 //   whose name differs only in case exists.
+// - Leave half a write: MEMORY.md is checked before the item file is
+//   written, and if the index update still fails, the item file is removed
+//   (or its previous bytes restored), so a write or delete that rejects
+//   leaves the folder as it was.
 // - Lose MEMORY.md lines to another adapter instance or process: every write
 //   and delete holds the lock file `.engram.lock` in the root, and temporary
 //   files have unique names.
 //
+// The lock file holds its holder's pid, host name, a per-instance token and
+// the wall-clock time it was taken (JSON). The adapter has no injected clock;
+// that time is a fact of store I/O, read by other writers, never a policy
+// input. A waiting writer breaks the lock when it is stale: its host is this
+// machine and its pid is not alive (a crashed writer), or it is older than
+// LOCK_STALE_MS. A lock with no readable holder (a writer that stopped between
+// creating and filling it) is judged by its file time. Otherwise the writer
+// waits up to `lockWaitMs` (ten seconds by default) by the wall clock, then
+// refuses, naming the holder. Breaking is serialised through a second file,
+// `.engram.lock.break`, so two waiters never remove each other's fresh lock;
+// a holder removes the lock only while it still holds its own token.
+//
 // Engram's own index lines separate the link from the hook with " - "
 // (repository content avoids the em dash). Lines Claude Code wrote, which
 // may use an em dash, are left exactly as they are.
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type { Dirent } from "node:fs";
 import { lstat, mkdir, open, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { hostname } from "node:os";
 import { join } from "node:path";
 import { type MemoryItem, MemoryItem as MemoryItemSchema, Scope } from "@engram/core";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
@@ -45,6 +65,8 @@ export interface FilesAdapterOptions {
   importValidFrom?: string;
   /** Confidence for imported files. Default 0.5: model-written, never reviewed. */
   importConfidence?: number;
+  /** How long a write or delete waits for another writer's live lock, in ms. Default 10 000. */
+  lockWaitMs?: number;
 }
 
 /** A folder entry that list or search skipped, and why. */
@@ -74,10 +96,24 @@ export class ReadOnlyItemError extends Error {
 
 const INDEX = "MEMORY.md";
 const LOCK = ".engram.lock";
-/** About twelve seconds of waiting for another writer before giving up. */
-const LOCK_ATTEMPTS = 500;
+const LOCK_BREAK = ".engram.lock.break";
+/** Default wait for a live lock, by the wall clock. */
+const LOCK_WAIT_MS = 10_000;
+/**
+ * A lock older than this is stale whoever holds it. A live holder keeps the
+ * lock for one write or delete: a directory listing, a read of one item file
+ * and of MEMORY.md, and two atomic writes whose renames retry at most five
+ * times over 300 ms. That takes milliseconds on a local disk and well under a
+ * second on a slow share, so a minute leaves two orders of magnitude for a
+ * live writer, while a writer that crashed on another machine (whose pid this
+ * machine cannot check) blocks the folder for one minute at most.
+ */
+export const LOCK_STALE_MS = 60_000;
+const BUSY = ["EEXIST", "EPERM", "EACCES", "EBUSY"];
 const NOT_REGULAR =
   "is not a regular file inside the root; symlinks, directories and devices are never followed";
+const HARD_LINKED =
+  "is a hard link (the file has more than one name, maybe outside the root) and is never read or replaced";
 const CLAUDE_TYPES = ["user", "feedback", "project", "reference"] as const;
 type ContentFormat = "text" | "json" | "skill";
 
@@ -200,9 +236,9 @@ const isMissing = (e: unknown) => codeOf(e) === "ENOENT";
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** Temp file with a unique name, then rename, retried briefly on the transient locks Windows scanners take. */
-async function atomicWrite(path: string, dir: string, base: string, data: string) {
+async function atomicWrite(path: string, dir: string, base: string, data: string | Buffer) {
   const tmp = join(dir, `.${base}.${process.pid}.${++tempCounter}.engram-tmp`);
-  await writeFile(tmp, data, "utf8");
+  await writeFile(tmp, data);
   for (let attempt = 0; ; attempt++) {
     try {
       await rename(tmp, path);
@@ -221,6 +257,34 @@ async function atomicWrite(path: string, dir: string, base: string, data: string
 interface Loaded {
   item: MemoryItem;
   engram: boolean;
+  /** The file's bytes, to restore them if a later step of a write or delete fails. */
+  bytes: Buffer;
+}
+
+/** What a lock file says about its holder. */
+interface LockHolder {
+  pid: number;
+  host: string;
+  token: string;
+  started: string;
+}
+
+const isLockHolder = (v: unknown): v is LockHolder =>
+  isRecord(v) &&
+  Number.isInteger(v.pid) &&
+  typeof v.host === "string" &&
+  typeof v.token === "string" &&
+  typeof v.started === "string" &&
+  !Number.isNaN(Date.parse(v.started));
+
+/** Whether a process with this pid runs on this machine (EPERM: it runs, as another user). */
+function isAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (e) {
+    return codeOf(e) === "EPERM";
+  }
 }
 
 export function createFilesAdapter(options: FilesAdapterOptions): FilesAdapter {
@@ -243,29 +307,128 @@ export function createFilesAdapter(options: FilesAdapterOptions): FilesAdapter {
     return run;
   };
 
+  // The folder lock (see the header). The token names this instance's locks.
+  const lockWaitMs = options.lockWaitMs ?? LOCK_WAIT_MS;
+  const token = `${process.pid}-${randomUUID()}`;
+  const host = hostname();
+  const lockPath = join(root, LOCK);
+  const breakPath = join(root, LOCK_BREAK);
+
+  /** The lock file's text, or undefined when it is gone or briefly unreadable. */
+  async function readLock(): Promise<string | undefined> {
+    try {
+      return await readFile(lockPath, "utf8");
+    } catch (e) {
+      if (isMissing(e) || BUSY.includes(codeOf(e) ?? "")) return undefined;
+      throw e;
+    }
+  }
+
+  /** Whether the lock whose text is `text` is stale, and who holds it, for the refusal. */
+  async function judgeLock(text: string): Promise<{ stale: boolean; holder: string }> {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      parsed = undefined;
+    }
+    if (isLockHolder(parsed)) {
+      const age = Date.now() - Date.parse(parsed.started);
+      const stale =
+        parsed.token === token ||
+        age > LOCK_STALE_MS ||
+        (parsed.host === host && !isAlive(parsed.pid));
+      return {
+        stale,
+        holder: `pid ${parsed.pid} on ${parsed.host} since ${parsed.started}`,
+      };
+    }
+    // No readable holder: a writer between creating and filling the lock, or one that stopped there.
+    try {
+      const age = Date.now() - (await lstat(lockPath)).mtimeMs;
+      return { stale: age > LOCK_STALE_MS, holder: "a writer that has not recorded itself" };
+    } catch (e) {
+      if (isMissing(e)) return { stale: false, holder: "nobody" };
+      throw e;
+    }
+  }
+
+  /**
+   * Removes the stale lock whose text was `text`, unless another writer has
+   * replaced it meanwhile. Only one waiter breaks at a time (the break file);
+   * a break file left by a crashed waiter is removed once it is stale.
+   */
+  async function breakLock(text: string): Promise<boolean> {
+    try {
+      await (await open(breakPath, "wx")).close();
+    } catch (e) {
+      if (!BUSY.includes(codeOf(e) ?? "")) throw e;
+      const info = await lstat(breakPath).catch(() => undefined);
+      if (info && Date.now() - info.mtimeMs > LOCK_STALE_MS) await rm(breakPath, { force: true });
+      return false;
+    }
+    try {
+      if ((await readLock()) !== text) return false;
+      await rm(lockPath, { force: true });
+      return true;
+    } finally {
+      await rm(breakPath, { force: true, maxRetries: 10, retryDelay: 10 });
+    }
+  }
+
+  /** Creates the lock with this writer's record; false when another writer holds it. */
+  async function tryLock(): Promise<boolean> {
+    let handle: Awaited<ReturnType<typeof open>>;
+    try {
+      handle = await open(lockPath, "wx");
+    } catch (e) {
+      // EEXIST: another writer holds it. EPERM, EACCES, EBUSY: on Windows, a
+      // lock being deleted by its holder.
+      if (BUSY.includes(codeOf(e) ?? "")) return false;
+      throw e;
+    }
+    const holder: LockHolder = { pid: process.pid, host, token, started: new Date().toISOString() };
+    try {
+      await handle.writeFile(JSON.stringify(holder), "utf8");
+    } catch (e) {
+      await handle.close();
+      await rm(lockPath, { force: true });
+      throw e;
+    }
+    await handle.close();
+    return true;
+  }
+
   async function locked<T>(fn: () => Promise<T>): Promise<T> {
     await mkdir(root, { recursive: true });
-    const lock = join(root, LOCK);
-    for (let attempt = 0; ; attempt++) {
-      try {
-        await (await open(lock, "wx")).close();
-        break;
-      } catch (e) {
-        // EEXIST: another writer holds it. EPERM, EACCES, EBUSY: on Windows, a
-        // lock being deleted by its holder.
-        if (!["EEXIST", "EPERM", "EACCES", "EBUSY"].includes(codeOf(e) ?? "")) throw e;
-        if (attempt >= LOCK_ATTEMPTS) {
-          throw new Error(
-            `files adapter: ${lock} is still held; another Engram writer is using this folder, or one stopped without removing it (remove the file if none is running)`,
-          );
-        }
-        await sleep(Math.min(2 + attempt, 25));
+    const deadline = Date.now() + lockWaitMs;
+    for (let attempt = 0; !(await tryLock()); attempt++) {
+      const text = await readLock();
+      const judged = text === undefined ? undefined : await judgeLock(text);
+      if (text !== undefined && judged?.stale && (await breakLock(text))) continue;
+      if (Date.now() >= deadline) {
+        throw new Error(
+          `files adapter: ${lockPath} is held by ${judged?.holder ?? "another writer"}; another Engram writer is using this folder (a lock older than ${LOCK_STALE_MS / 1000} s, or one from a pid no longer running on this machine, is broken automatically)`,
+        );
       }
+      await sleep(Math.min(2 + attempt, 25));
     }
     try {
       return await fn();
     } finally {
-      await rm(lock, { force: true, maxRetries: 10, retryDelay: 10 });
+      // Never remove a lock another writer took after breaking ours as stale.
+      if (holderToken(await readLock()) === token) {
+        await rm(lockPath, { force: true, maxRetries: 10, retryDelay: 10 });
+      }
+    }
+  }
+
+  function holderToken(text: string | undefined): string | undefined {
+    try {
+      const parsed: unknown = text === undefined ? undefined : JSON.parse(text);
+      return isLockHolder(parsed) ? parsed.token : undefined;
+    } catch {
+      return undefined;
     }
   }
 
@@ -366,6 +529,7 @@ export function createFilesAdapter(options: FilesAdapterOptions): FilesAdapter {
       ) {
         throw new UnsafeKeyError(key, NOT_REGULAR);
       }
+      if (opened.nlink > 1 || link.nlink > 1) throw new UnsafeKeyError(key, HARD_LINKED);
       bytes = await handle.readFile();
       mtime = opened.mtime;
     } finally {
@@ -387,7 +551,7 @@ export function createFilesAdapter(options: FilesAdapterOptions): FilesAdapter {
     if (!parsed.success) {
       throw new Error(`files adapter: ${key} does not hold a valid item: ${parsed.error.message}`);
     }
-    return { item: parsed.data, engram };
+    return { item: parsed.data, engram, bytes };
   }
 
   async function load(key: string): Promise<Loaded | undefined> {
@@ -414,12 +578,25 @@ export function createFilesAdapter(options: FilesAdapterOptions): FilesAdapter {
     return items;
   }
 
+  /** Refuses MEMORY.md unless it is missing or a regular file with one name. */
+  async function checkIndex() {
+    let info: Awaited<ReturnType<typeof lstat>>;
+    try {
+      info = await lstat(join(root, INDEX));
+    } catch (e) {
+      if (isMissing(e)) return;
+      throw e;
+    }
+    if (!info.isFile()) throw new UnsafeKeyError(INDEX, NOT_REGULAR);
+    if (info.nlink > 1) throw new UnsafeKeyError(INDEX, HARD_LINKED);
+  }
+
   /** Puts `line` in place of the index line linking `key`, or removes it when `line` is undefined. */
   async function updateIndex(key: string, line: string | undefined) {
     const path = join(root, INDEX);
     let text = "";
     try {
-      if (!(await lstat(path)).isFile()) throw new UnsafeKeyError(INDEX, NOT_REGULAR);
+      await checkIndex();
       text = await readFile(path, "utf8");
     } catch (e) {
       if (!isMissing(e)) throw e;
@@ -433,6 +610,33 @@ export function createFilesAdapter(options: FilesAdapterOptions): FilesAdapter {
     const kept = lines.filter((l) => !links(l));
     if (line !== undefined) kept.splice(at >= 0 ? at : kept.length, 0, line);
     await atomicWrite(path, root, INDEX, kept.length ? `${kept.join(eol)}${eol}` : "");
+  }
+
+  /**
+   * Runs the index update of a write or delete that has already changed the
+   * item file; if it fails, puts the item file back as it was (`previous`
+   * bytes, or no file) and rethrows, so the folder is left unchanged.
+   */
+  async function allOrNothing(
+    key: string,
+    previous: Buffer | undefined,
+    update: () => Promise<void>,
+  ) {
+    try {
+      await update();
+    } catch (e) {
+      const path = join(root, key);
+      try {
+        if (previous) await atomicWrite(path, root, key, previous);
+        else await rm(path, { force: true, maxRetries: 10, retryDelay: 10 });
+      } catch (undo) {
+        throw new Error(
+          `files adapter: updating ${INDEX} failed (${(e as Error).message}) and restoring ${key} failed too (${(undo as Error).message})`,
+          { cause: e },
+        );
+      }
+      throw e;
+    }
   }
 
   const adapter: FilesAdapter = {
@@ -468,10 +672,14 @@ export function createFilesAdapter(options: FilesAdapterOptions): FilesAdapter {
             );
           }
           const same = folder.find((e) => e.name === key);
-          if (same && !(await loadEntry(same))?.engram) throw new ReadOnlyItemError(key);
+          const previous = same ? await loadEntry(same) : undefined;
+          if (previous && !previous.engram) throw new ReadOnlyItemError(key);
+          await checkIndex();
           const ref: StoreRef = { adapter: name, key };
           await atomicWrite(join(root, key), root, key, serialise({ ...item, store_ref: ref }));
-          await updateIndex(key, `- [${titleOf(item)}](${key}) - ${hookOf(item)}`);
+          await allOrNothing(key, previous?.bytes, () =>
+            updateIndex(key, `- [${titleOf(item)}](${key}) - ${hookOf(item)}`),
+          );
           return ref;
         }),
       );
@@ -486,8 +694,9 @@ export function createFilesAdapter(options: FilesAdapterOptions): FilesAdapter {
           const loaded = await load(key);
           if (!loaded) return;
           if (!loaded.engram) throw new ReadOnlyItemError(key);
+          await checkIndex();
           await rm(join(root, key), { force: true });
-          await updateIndex(key, undefined);
+          await allOrNothing(key, loaded.bytes, () => updateIndex(key, undefined));
         }),
       );
     },

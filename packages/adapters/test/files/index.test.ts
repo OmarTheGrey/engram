@@ -2,20 +2,25 @@
 // Claude Code memory files without Engram metadata list as read-only items
 // with documented defaults; Engram items are Markdown files whose frontmatter
 // keeps Claude Code's fields; MEMORY.md stays in step; paths stay inside root.
+import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
+  chmod,
   cp,
+  link,
   lstat,
   mkdir,
   mkdtemp,
   readdir,
   readFile,
+  rename,
   rm,
+  stat,
   symlink,
   utimes,
   writeFile,
 } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { hostname, tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { type MemoryItem, MemoryItem as MemoryItemSchema } from "@engram/core";
@@ -458,6 +463,188 @@ describe("two adapter instances on one folder (review finding R4-6)", () => {
     await Promise.all(refs.map((ref, n) => (n % 2 ? a : b).delete(ref)));
     expect(await indexLines(root)).toEqual([]);
     expect(await readdir(root)).toEqual(["MEMORY.md"]);
+  });
+});
+
+describe("hard links (review round 2, V4 defect 1)", () => {
+  test("a hard link inside the root to a file outside it is not listed, not read, reported", async () => {
+    const root = await tempDir();
+    const outside = await tempDir();
+    await writeFile(join(outside, "secret.md"), "---\nname: secret\n---\nOutside secret.\n");
+    await link(join(outside, "secret.md"), join(root, "leak.md"));
+    const adapter = createFilesAdapter({ root, owner: "dana", importValidFrom: VALID_FROM });
+    expect(await adapter.list("person:dana")).toEqual([]);
+    expect(await adapter.search?.("secret", ["person:dana"])).toEqual([]);
+    expect(adapter.diagnostics()).toEqual([
+      { key: "leak.md", reason: expect.stringContaining("hard link") },
+    ]);
+    await expect(adapter.read({ adapter: "files", key: "leak.md" })).rejects.toBeInstanceOf(
+      UnsafeKeyError,
+    );
+  });
+
+  test("a write never replaces a hard-linked file at the item's file name", async () => {
+    const root = await tempDir();
+    const outside = await tempDir();
+    const target = join(outside, "target.md");
+    const adapter = createFilesAdapter({ root: outside, owner: "omar" });
+    await adapter.write(item(8));
+    await rename(join(outside, `${item(8).id}.md`), target);
+    const before = await readFile(target, "utf8");
+    const key = `${item(8).id}.md`;
+    await link(target, join(root, key));
+    const inRoot = createFilesAdapter({ root, owner: "omar" });
+    await expect(inRoot.write(item(8, { content: "changed" }))).rejects.toBeInstanceOf(
+      UnsafeKeyError,
+    );
+    await expect(inRoot.delete({ adapter: "files", key })).rejects.toBeInstanceOf(UnsafeKeyError);
+    expect(await readFile(target, "utf8")).toBe(before);
+    expect((await stat(join(root, key))).nlink).toBe(2);
+  });
+
+  test("a write is refused when MEMORY.md is a hard link, and nothing is written", async () => {
+    const root = await tempDir();
+    const outside = await tempDir();
+    await writeFile(join(outside, "index.md"), "- [Outside](outside.md) - theirs\n");
+    await link(join(outside, "index.md"), join(root, "MEMORY.md"));
+    const adapter = createFilesAdapter({ root, owner: "omar" });
+    await expect(adapter.write(item(9))).rejects.toBeInstanceOf(UnsafeKeyError);
+    expect(await readdir(root)).toEqual(["MEMORY.md"]);
+    expect(await readFile(join(outside, "index.md"), "utf8")).toBe(
+      "- [Outside](outside.md) - theirs\n",
+    );
+  });
+});
+
+describe("a write is all or nothing (review round 2, V4 defect 2)", () => {
+  test("MEMORY.md as a directory: the write is refused and no item file is left", async () => {
+    const root = await tempDir();
+    await mkdir(join(root, "MEMORY.md"));
+    const adapter = createFilesAdapter({ root, owner: "omar" });
+    await expect(adapter.write(item(20))).rejects.toBeInstanceOf(UnsafeKeyError);
+    expect(await readdir(root)).toEqual(["MEMORY.md"]);
+  });
+
+  test("MEMORY.md as a symlink: the write is refused, no item file is left, the target is untouched", async ({
+    skip,
+  }) => {
+    const root = await tempDir();
+    const outside = await tempDir();
+    await writeFile(join(outside, "index.md"), "outside index\n");
+    try {
+      await symlink(join(outside, "index.md"), join(root, "MEMORY.md"), "file");
+    } catch (e) {
+      if (isUnavailable(e)) return skip("symlinks are unavailable here");
+      throw e;
+    }
+    const adapter = createFilesAdapter({ root, owner: "omar" });
+    await expect(adapter.write(item(21))).rejects.toBeInstanceOf(UnsafeKeyError);
+    expect(await readdir(root)).toEqual(["MEMORY.md"]);
+    expect(await readFile(join(outside, "index.md"), "utf8")).toBe("outside index\n");
+  });
+
+  test("a rewrite refused for its MEMORY.md never touches the item file", async () => {
+    const root = await tempDir();
+    const adapter = createFilesAdapter({ root, owner: "omar" });
+    const ref = await adapter.write(item(24));
+    const before = await stat(join(root, ref.key), { bigint: true });
+    await rm(join(root, "MEMORY.md"));
+    await mkdir(join(root, "MEMORY.md"));
+    await expect(adapter.write(item(24, { version: 2, content: "v2" }))).rejects.toBeInstanceOf(
+      UnsafeKeyError,
+    );
+    const after = await stat(join(root, ref.key), { bigint: true });
+    expect([after.ino, after.mtimeNs]).toEqual([before.ino, before.mtimeNs]);
+  });
+
+  test("an index update that fails after the checks removes a new item file and restores a rewritten one", async () => {
+    const root = await tempDir();
+    const adapter = createFilesAdapter({ root, owner: "omar" });
+    const ref = await adapter.write(item(22));
+    const before = await readFile(join(root, ref.key), "utf8");
+    const index = join(root, "MEMORY.md");
+    // Read-only: on Windows the rename over it fails, elsewhere reading it does.
+    await chmod(index, 0o000);
+    try {
+      await expect(adapter.write(item(23))).rejects.toThrow();
+      await expect(adapter.write(item(22, { version: 2, content: "v2" }))).rejects.toThrow();
+    } finally {
+      await chmod(index, 0o644);
+    }
+    expect((await readdir(root)).sort()).toEqual([ref.key, "MEMORY.md"]);
+    expect(await readFile(join(root, ref.key), "utf8")).toBe(before);
+    expect(await adapter.read(ref)).toEqual({ ...item(22), store_ref: ref });
+  });
+});
+
+describe("the folder lock (review round 2, V4 defect 3)", () => {
+  /** The pid of a process that has exited. */
+  const deadPid = () => spawnSync(process.execPath, ["-e", ""]).pid as number;
+  const lockOf = (root: string) => join(root, ".engram.lock");
+  const writeLock = (root: string, lock: Record<string, unknown>) =>
+    writeFile(lockOf(root), JSON.stringify(lock));
+
+  test("a lock left by a crashed writer on this machine is broken at once", async () => {
+    const root = await tempDir();
+    await writeLock(root, {
+      pid: deadPid(),
+      host: hostname(),
+      token: "crashed-writer",
+      started: new Date().toISOString(),
+    });
+    const adapter = createFilesAdapter({ root, owner: "omar", lockWaitMs: 2_000 });
+    const ref = await adapter.write(item(30));
+    expect(await adapter.read(ref)).toEqual({ ...item(30), store_ref: ref });
+    expect(await readdir(root)).not.toContain(".engram.lock");
+  });
+
+  test("a lock held by a live writer is waited for, then refused, naming its holder", async () => {
+    const root = await tempDir();
+    await writeLock(root, {
+      pid: process.pid,
+      host: hostname(),
+      token: "another-instance",
+      started: new Date().toISOString(),
+    });
+    const adapter = createFilesAdapter({ root, owner: "omar", lockWaitMs: 300 });
+    await expect(adapter.write(item(31))).rejects.toThrow(`pid ${process.pid}`);
+    expect(JSON.parse(await readFile(lockOf(root), "utf8")).token).toBe("another-instance");
+  });
+
+  test("a lock older than the staleness bound is broken even when its pid is alive", async () => {
+    const root = await tempDir();
+    await writeLock(root, {
+      pid: process.pid,
+      host: hostname(),
+      token: "stuck-writer",
+      started: new Date(Date.now() - 3_600_000).toISOString(),
+    });
+    const adapter = createFilesAdapter({ root, owner: "omar", lockWaitMs: 2_000 });
+    await adapter.write(item(32));
+    expect(await readdir(root)).not.toContain(".engram.lock");
+  });
+
+  test("a fresh lock from another machine is not judged by a local pid", async () => {
+    const root = await tempDir();
+    await writeLock(root, {
+      pid: deadPid(),
+      host: "another-machine.invalid",
+      token: "remote-writer",
+      started: new Date().toISOString(),
+    });
+    const adapter = createFilesAdapter({ root, owner: "omar", lockWaitMs: 300 });
+    await expect(adapter.write(item(33))).rejects.toThrow("another-machine.invalid");
+  });
+
+  test("an unreadable lock is judged by its file time", async () => {
+    const root = await tempDir();
+    await writeFile(lockOf(root), "");
+    const adapter = createFilesAdapter({ root, owner: "omar", lockWaitMs: 300 });
+    await expect(adapter.write(item(34))).rejects.toThrow(".engram.lock");
+    const old = new Date(Date.now() - 3_600_000);
+    await utimes(lockOf(root), old, old);
+    await adapter.write(item(34));
+    expect(await readdir(root)).not.toContain(".engram.lock");
   });
 });
 
