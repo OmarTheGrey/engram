@@ -1,0 +1,133 @@
+# Preset: permissive. The loose end of the strictness sweep (X5, H2).
+#
+# Stance: as close to ungoverned as the plane's commitments allow. Every class
+# may go to every scope, confidence floors are low and nothing waits for
+# review. Two commitments stay: model-written and compaction content does not
+# leave person scope (ADR 0004, 0007), and team and org contexts never read
+# person scope except through a grant (ADR 0021). Any other context may read
+# any level it is a member of. Retention retires, never deletes (ADR 0010),
+# with large budgets, and covers every class at every scope; episodic records
+# carry a budget wherever they are admitted. Promotion follows the mechanism
+# of ADR 0011 with fewer confirmations and a looser replay record.
+#
+# Lints: lints.enabled lists the lints a lint-running condition (C6) uses; it
+# does not turn lints on. C5 runs the write gate and the read filter only,
+# whatever this list says. Only the lints that keep the record sound are
+# listed: validity and provenance. replay-drift and environment-changed are
+# procedural lifecycle triggers (ADR 0011), not lints; lints.thresholds sets
+# the drift trigger's success floor and minimum trials.
+#
+# Numbers: the confidence floors, ttls, budgets, confirmation counts, replay
+# k of n and thresholds are proposed values chosen for this preset, not taken
+# from ADR 0011 or any other source; they are reviewed before any run.
+id: preset.permissive
+version: 1
+write:
+  - scope: person
+    allowed_sources: [user, document, tool, import, model, compaction]
+    confidence_floor: 0.0
+    forbidden_classes: []
+    requires_review: false
+  - scope: role
+    allowed_sources: [user, document, tool, import]
+    confidence_floor: 0.2
+    forbidden_classes: []
+    requires_review: false
+  - scope: team
+    allowed_sources: [user, document, tool, import]
+    confidence_floor: 0.3
+    forbidden_classes: []
+    requires_review: false
+  - scope: org
+    allowed_sources: [user, document, tool, import]
+    confidence_floor: 0.5
+    forbidden_classes: []
+    requires_review: false
+read:
+  matrix:
+    - reader: person
+      may_read: [person, role, team, org]
+    - reader: role
+      may_read: [person, role, team, org]
+    - reader: team
+      may_read: [role, team, org]
+    - reader: org
+      may_read: [role, team, org]
+  honour_grants: true
+retention:
+  - scope: person
+    class: episodic
+    ttl: null
+    budget: 20000
+    eviction: recency
+  - scope: person
+    class: semantic
+    ttl: null
+    budget: 10000
+    eviction: utility
+  - scope: person
+    class: procedural
+    ttl: null
+    budget: 1000
+    eviction: utility
+  - scope: role
+    class: episodic
+    ttl: null
+    budget: 20000
+    eviction: recency
+  - scope: role
+    class: semantic
+    ttl: null
+    budget: 10000
+    eviction: utility
+  - scope: role
+    class: procedural
+    ttl: null
+    budget: 1000
+    eviction: utility
+  - scope: team
+    class: episodic
+    ttl: null
+    budget: 50000
+    eviction: recency
+  - scope: team
+    class: semantic
+    ttl: null
+    budget: 50000
+    eviction: utility
+  - scope: team
+    class: procedural
+    ttl: null
+    budget: 2000
+    eviction: utility
+  - scope: org
+    class: episodic
+    ttl: null
+    budget: 100000
+    eviction: recency
+  - scope: org
+    class: semantic
+    ttl: null
+    budget: null
+    eviction: manual
+  - scope: org
+    class: procedural
+    ttl: null
+    budget: null
+    eviction: manual
+promotion:
+  episodic_to_semantic:
+    confirmations: 2
+    or_review: true
+  procedural:
+    replay_k: 3
+    replay_n: 5
+lints:
+  enabled:
+    - expired-validity
+    - missing-provenance
+  thresholds:
+    near-duplicate: 0.9
+    replay-drift.success-floor: 0.6
+    replay-drift.min-trials: 10
+schema_version: 0

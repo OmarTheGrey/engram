@@ -1,0 +1,363 @@
+// Policy loader and validator (card E2.1). YAML text becomes a `Policy`
+// (schema.ts, ADR 0006) or a `PolicyError` whose every problem carries the
+// line and column of the YAML node at fault, for syntax errors and schema
+// errors alike. `parsePolicy` is pure; `loadPreset` reads only the bundled
+// files under packages/core/policies/, never a memory store.
+import { readFileSync } from "node:fs";
+import {
+  type Alias,
+  Document,
+  isAlias,
+  isMap,
+  isPair,
+  isScalar,
+  isSeq,
+  LineCounter,
+  type Node,
+  type Pair,
+  parseDocument,
+  visit,
+} from "yaml";
+import type { z } from "zod";
+import { LIFECYCLE_TRIGGERS, LINT_IDS, LINT_THRESHOLD_KEYS } from "../lint.ts";
+import { Policy, ScopeLevel } from "../schema.ts";
+
+export type PolicyPath = (string | number)[];
+
+/** One reason a policy was rejected; `line` and `col` are 1-based. */
+export interface PolicyProblem {
+  message: string;
+  /** Where in the policy object the fault is; empty for a syntax error. */
+  path: PolicyPath;
+  line: number;
+  col: number;
+}
+
+export class PolicyError extends Error {
+  readonly source: string;
+  readonly problems: PolicyProblem[];
+
+  constructor(source: string, problems: PolicyProblem[]) {
+    super(problems.map((p) => `${source}:${p.line}:${p.col}: ${p.message}`).join("\n"));
+    this.name = "PolicyError";
+    this.source = source;
+    this.problems = problems;
+  }
+}
+
+/** Parse and validate one policy document. `source` names it in errors. */
+export function parsePolicy(text: string, source: string): Policy {
+  const lineCounter = new LineCounter();
+  const doc = parseDocument(text, { lineCounter, prettyErrors: false, uniqueKeys: true });
+  const at = (offset: number) => {
+    const { line, col } = lineCounter.linePos(offset);
+    return { line, col };
+  };
+
+  const syntax = [...doc.errors, ...doc.warnings].map((e) => ({
+    message: e.message,
+    path: [],
+    // yaml places a repeated ordered map key at the map; point at the repeat.
+    ...at(e.message.startsWith(OMAP_DUPLICATE) ? omapDuplicateOffset(doc) : e.pos[0]),
+  }));
+  if (syntax.length > 0) throw new PolicyError(source, sorted(syntax));
+
+  const fail = (problems: Located[]) =>
+    new PolicyError(source, sorted(problems.map((p) => locate(doc, at, p))));
+  let js: unknown;
+  const lastResolved = traceAliasResolution(doc);
+  try {
+    js = doc.toJS();
+  } catch (e) {
+    // The yaml package finds some faults only while it builds the value and
+    // throws: a ReferenceError when aliases expand past its limit (a resource
+    // exhaustion guard), and, under YAML 1.1, a merge source that is not a
+    // mapping or an ordered map key repeated through an alias. Report each
+    // like any other fault, at its node. Everything toJS throws is an Error
+    // (yaml 2.9.1), so `message` is there.
+    const raw = (e as Error).message;
+    const message = `the document cannot be read: ${raw}`;
+    const offset = buildFaultOffset(doc, raw, lastResolved());
+    throw new PolicyError(source, [{ message, path: [], ...at(offset) }]);
+  }
+  const parsed = Policy.safeParse(js);
+  if (!parsed.success) throw fail(parsed.error.issues.flatMap((issue) => schemaProblems(issue)));
+  const semantic = semanticProblems(parsed.data);
+  if (semantic.length > 0) throw fail(semantic);
+  return parsed.data;
+}
+
+/** The bundled strictness presets, strictest first. */
+export const PRESETS = ["strict", "medium", "permissive"] as const;
+export type PresetName = (typeof PRESETS)[number];
+
+/** Where a bundled preset's YAML lives. */
+export function presetUrl(name: PresetName): URL {
+  if (!PRESETS.includes(name))
+    throw new Error(`unknown preset "${name}"; expected one of ${PRESETS.join(", ")}`);
+  return new URL(`../../policies/${name}.yaml`, import.meta.url);
+}
+
+/** Load and validate a bundled preset by name. */
+export function loadPreset(name: PresetName): Policy {
+  return parsePolicy(readFileSync(presetUrl(name), "utf8"), `policies/${name}.yaml`);
+}
+
+interface Located {
+  path: PolicyPath;
+  message: string;
+  /** Point at this key of the mapping at `path` rather than at the mapping. */
+  key?: string;
+  /** Point at the key that holds the node at `path` rather than at the node. */
+  atKey?: boolean;
+}
+
+function schemaProblems(issue: z.core.$ZodIssue): Located[] {
+  const path = issue.path.filter((s): s is string | number => typeof s !== "symbol");
+  if (issue.code === "unrecognized_keys")
+    return issue.keys.map((key) => ({ path, key, message: `unknown field "${key}"` }));
+  return [{ path, message: issue.message }];
+}
+
+/**
+ * Checks the schema cannot express. The evaluator looks a rule up by scope
+ * level (and class, for retention), so two rules for the same key would make
+ * the decision depend on their order. A policy must also cover every level
+ * (D3, ADR 0006 amendment): the evaluator default-denies a missing level, but
+ * a loaded policy with a gap is a mistake to report, not a rule to apply. Lint
+ * ids and threshold keys come from the registry in lint.ts (D2, ADR 0008).
+ */
+function semanticProblems(policy: Policy): Located[] {
+  const out: Located[] = [];
+  const complete = (present: string[], path: PolicyPath, what: string) => {
+    const missing = ScopeLevel.options.filter((level) => !present.includes(level));
+    if (missing.length > 0)
+      out.push({ path, atKey: true, message: `no ${what} for ${missing.join(", ")}` });
+  };
+  complete(
+    policy.write.map((r) => r.scope),
+    ["write"],
+    "write rule",
+  );
+  complete(
+    policy.read.matrix.map((r) => r.reader),
+    ["read", "matrix"],
+    "read matrix row",
+  );
+  const unique = <T>(
+    rows: T[],
+    key: (r: T) => string,
+    path: (i: number) => PolicyPath,
+    what: string,
+  ) => {
+    const seen = new Set<string>();
+    rows.forEach((row, i) => {
+      const k = key(row);
+      if (seen.has(k)) out.push({ path: path(i), message: `a second ${what} for ${k}` });
+      seen.add(k);
+    });
+  };
+  unique(
+    policy.write,
+    (r) => r.scope,
+    (i) => ["write", i, "scope"],
+    "write rule",
+  );
+  unique(
+    policy.read.matrix,
+    (r) => r.reader,
+    (i) => ["read", "matrix", i, "reader"],
+    "read matrix row",
+  );
+  unique(
+    policy.retention,
+    (r) => `${r.scope} ${r.class}`,
+    (i) => ["retention", i, "scope"],
+    "retention rule",
+  );
+  const seenLints = new Set<string>();
+  policy.lints.enabled.forEach((id, i) => {
+    const path = ["lints", "enabled", i];
+    if (seenLints.has(id)) out.push({ path, message: `a second entry for lint id ${id}` });
+    else if ((LIFECYCLE_TRIGGERS as readonly string[]).includes(id))
+      out.push({
+        path,
+        message: `"${id}" is a procedural lifecycle trigger (ADR 0011), not a lint; set its thresholds under lints.thresholds`,
+      });
+    else if ((LINT_THRESHOLD_KEYS as readonly string[]).includes(id))
+      out.push({
+        path,
+        message: `"${id}" is a threshold key, not a lint id; set it under lints.thresholds`,
+      });
+    else if (!(LINT_IDS as readonly string[]).includes(id))
+      out.push({
+        path,
+        message: `unknown lint id "${id}"; expected one of ${LINT_IDS.join(", ")}`,
+      });
+    seenLints.add(id);
+  });
+  for (const key of Object.keys(policy.lints.thresholds))
+    if (!(LINT_THRESHOLD_KEYS as readonly string[]).includes(key))
+      out.push({
+        path: ["lints", "thresholds"],
+        key,
+        message: `unknown threshold key "${key}"; expected one of ${LINT_THRESHOLD_KEYS.join(", ")}`,
+      });
+  const { replay_k, replay_n } = policy.promotion.procedural;
+  if (replay_k > replay_n)
+    out.push({
+      path: ["promotion", "procedural", "replay_k"],
+      message: `replay_k (${replay_k}) exceeds replay_n (${replay_n})`,
+    });
+  return out;
+}
+
+/** Find the YAML node for `path`, falling back to the deepest node that exists. */
+function locate(
+  doc: Document,
+  at: (offset: number) => { line: number; col: number },
+  { path, message, key: ownKey, atKey }: Located,
+): PolicyProblem {
+  const walk = atKey ? path.slice(0, -1) : path;
+  const key = atKey ? String(path[path.length - 1]) : ownKey;
+  let node: unknown = doc.contents;
+  let missing: string | number | undefined;
+  for (const seg of walk) {
+    const next = child(doc, node, seg);
+    if (next === undefined) {
+      missing = seg;
+      break;
+    }
+    node = next;
+  }
+  if (key !== undefined && missing === undefined) {
+    const pair = pairFor(node, key);
+    if (pair) node = pair.key;
+  }
+  const where = at(offsetOf(node));
+  const text =
+    missing !== undefined && walk.length === path.length && path[path.length - 1] === missing
+      ? `missing required field "${missing}"`
+      : message;
+  return { message: text, path, ...where };
+}
+
+function child(doc: Document, node: unknown, seg: string | number): unknown {
+  let next: unknown;
+  if (isMap(node)) {
+    const pair = pairFor(node, String(seg));
+    next = pair ? (pair.value ?? pair.key) : undefined;
+  } else if (isSeq(node) && typeof seg === "number") {
+    next = node.items[seg];
+  }
+  return resolved(doc, next);
+}
+
+/** The node an alias points at; any other node as it is. */
+function resolved(doc: Document, node: unknown): unknown {
+  return isAlias(node) ? node.resolve(doc) : node;
+}
+
+function pairFor(node: unknown, key: string): Pair | undefined {
+  if (!isMap(node)) return undefined;
+  return node.items.find((p) => isPair(p) && keyText(p.key) === key) as Pair | undefined;
+}
+
+/**
+ * A key as the schema sees it: a scalar's value, or a complex key (`? [a, b]`)
+ * as its YAML flow text, which is how the yaml package names it in toJS.
+ */
+function keyText(key: unknown): string {
+  return isScalar(key) ? String(key.value) : new Document(key).toString().trim();
+}
+
+const MERGE_FAULT = "Merge sources must be maps or map aliases";
+const OMAP_DUPLICATE = "Ordered maps must not include duplicate keys";
+const OMAP_TAG = "tag:yaml.org,2002:omap";
+
+/**
+ * Where the node at fault is for an error the yaml package throws from toJS.
+ * `faultAlias` is the alias being resolved when it threw, if any: for "too
+ * many aliases", the alias whose resolution passed the limit. Any other fault
+ * with no alias being resolved is placed at the start of the document.
+ */
+function buildFaultOffset(doc: Document, message: string, faultAlias?: Alias): number {
+  if (message.startsWith(MERGE_FAULT)) return badMergeSourceOffset(doc);
+  if (message.startsWith(OMAP_DUPLICATE)) return omapDuplicateOffset(doc);
+  return offsetOf(faultAlias);
+}
+
+/**
+ * Records which alias the yaml package last began to resolve while building
+ * the value, so that a fault it throws there names its alias. Each alias of
+ * this document (and only of this one; the yaml prototype is untouched) gets
+ * its own `resolve` that notes itself before resolving. yaml counts toward
+ * its alias limit only in a resolution with a context, so only those are
+ * noted; the context-free resolutions it makes while sizing an anchor are
+ * not. Building a whole document never nests one such resolution inside
+ * another, since an anchor precedes its aliases in document order and is
+ * built before any of them is reached, so the alias noted last is the one
+ * that threw (yaml 2.9.1).
+ */
+function traceAliasResolution(doc: Document): () => Alias | undefined {
+  let last: Alias | undefined;
+  visit(doc, {
+    Alias(_, alias) {
+      const resolve = alias.resolve;
+      alias.resolve = function (this: Alias, ...args: Parameters<Alias["resolve"]>) {
+        if (args[1] !== undefined) last = this;
+        return resolve.apply(this, args);
+      };
+    },
+  });
+  return () => last;
+}
+
+/**
+ * The first merge source (`<<: x`, or an item of `<<: [x, y]`) that is not a
+ * mapping or an alias of one, as written. A YAML 1.1 merge key is a scalar
+ * whose value is a symbol; under YAML 1.2 `<<` is an ordinary key.
+ */
+function badMergeSourceOffset(doc: Document): number {
+  const sources: unknown[] = [];
+  visit(doc, {
+    Pair(_, pair) {
+      if (isScalar(pair.key) && typeof pair.key.value === "symbol") {
+        const value = resolved(doc, pair.value);
+        sources.push(...(isSeq(value) ? value.items : [pair.value]));
+      }
+    },
+  });
+  return offsetOf(sources.find((s) => !isMap(resolved(doc, s))));
+}
+
+/**
+ * The first key of an ordered map (`!!omap`) that repeats an earlier key of
+ * the same map, as written. Keys compare as the yaml package compares them: a
+ * scalar by its value, a collection reached through an alias by identity.
+ */
+function omapDuplicateOffset(doc: Document): number {
+  let offset = 0;
+  visit(doc, {
+    Seq(_, seq) {
+      if (seq.tag !== OMAP_TAG) return;
+      const seen: unknown[] = [];
+      for (const { key } of seq.items as Pair[]) {
+        const node = resolved(doc, key);
+        const id = isScalar(node) ? node.value : node;
+        if (seen.includes(id)) {
+          offset = offsetOf(key);
+          return visit.BREAK;
+        }
+        seen.push(id);
+      }
+    },
+  });
+  return offset;
+}
+
+function offsetOf(node: unknown): number {
+  return (node as Node | null)?.range?.[0] ?? 0;
+}
+
+const sorted = (ps: PolicyProblem[]) => [...ps].sort((a, b) => a.line - b.line || a.col - b.col);

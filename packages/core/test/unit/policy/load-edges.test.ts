@@ -1,0 +1,307 @@
+// Edge cases of the YAML-to-node mapping in parsePolicy (card E2.1): every
+// problem still names the line it comes from when the document uses an alias,
+// leaves a value empty, is empty itself, or has a complex key.
+import { readFileSync } from "node:fs";
+import { describe, expect, test } from "vitest";
+import { PolicyError, type PolicyProblem, parsePolicy } from "../../../src/policy/load.ts";
+
+const VALID =
+  readFileSync(new URL("./load.test.ts", import.meta.url), "utf8")
+    .split("const VALID = `")[1]
+    ?.split("`;")[0] ?? "";
+
+function problemsOf(text: string): PolicyProblem[] {
+  try {
+    parsePolicy(text, "test.yaml");
+  } catch (e) {
+    expect(e).toBeInstanceOf(PolicyError);
+    return (e as PolicyError).problems;
+  }
+  throw new Error("expected the policy to be rejected");
+}
+
+const lineOf = (text: string, needle: string) =>
+  text.split("\n").findIndex((l) => l.includes(needle)) + 1;
+
+describe("parsePolicy positions", () => {
+  test("a key with no value is reported on its own line", () => {
+    const text = VALID.replace("version: 1", "version:");
+    const [p] = problemsOf(text);
+    expect(p).toMatchObject({ path: ["version"], line: lineOf(text, "version:") });
+  });
+
+  test("an empty document is reported at line 1", () => {
+    expect(problemsOf("")).toEqual([expect.objectContaining({ path: [], line: 1, col: 1 })]);
+  });
+
+  test("a problem reached through an alias is reported where the anchored node is", () => {
+    const text = VALID.replace(
+      "  episodic_to_semantic:\n",
+      "  episodic_to_semantic: &e2s\n",
+    ).replace("  procedural:\n    replay_k: 4\n    replay_n: 5\n", "  procedural: *e2s\n");
+    const fromAlias = problemsOf(text).filter((p) => p.path.join(".") === "promotion.procedural");
+    expect(fromAlias.map((p) => p.line)).toEqual([
+      lineOf(text, "confirmations: 3"),
+      lineOf(text, "or_review: true"),
+    ]);
+  });
+
+  test("a second document is reported at its document marker", () => {
+    const text = `${VALID}---\n${VALID}`;
+    const [p, ...rest] = problemsOf(text);
+    expect(rest).toEqual([]);
+    expect(p).toMatchObject({ path: [], line: lineOf(text, "---"), col: 1 });
+    expect(p?.message).toMatch(/multiple documents/);
+  });
+
+  test("an unterminated quote is reported where the parser notices it, the end of input", () => {
+    // A known limit (docs/log/2026-10-25-e2-1-unterminated-quote-line.md): yaml
+    // finds a missing closing quote only at the end, so the line is the last
+    // one, after the final newline; the message names the missing quote.
+    const text = VALID.replace("id: test-policy", 'id: "test-policy');
+    const [p] = problemsOf(text);
+    expect(p).toMatchObject({ path: [], line: text.split("\n").length, col: 1 });
+    expect(p?.message).toMatch(/Missing closing "quote/);
+  });
+
+  test("an unresolved tag is reported as a problem at its line, not dropped", () => {
+    const text = VALID.replace("version: 1", "version: !foo 1");
+    const problems = problemsOf(text);
+    expect(problems).toEqual([
+      expect.objectContaining({ path: [], line: 2, col: 10, message: "Unresolved tag: !foo" }),
+    ]);
+  });
+
+  // An alias bomb (billion laughs): each anchor a<i> holds ten aliases of
+  // a<i-1>. The yaml package (2.9.1, maxAliasCount 100) gives each anchor a
+  // count that starts at 1 and grows by one per alias, and refuses an alias
+  // when its anchor's count times the anchor's expansion passes 100. After
+  // a1's ten aliases a0's count is 11, so a1 expands to 11, and the ninth *a1
+  // (a1 then counts 10, and 10 * 11 = 110) on a2's line, column 50, is the
+  // first alias whose resolution passes the limit. That alias is the one to
+  // report (review round 2, finding N2), not the first alias of the document.
+  let laughs = "a0: &a0 [lol, lol, lol, lol, lol, lol, lol, lol, lol, lol]\n";
+  for (let i = 1; i < 6; i++)
+    laughs += `a${i}: &a${i} [${Array(10)
+      .fill(`*a${i - 1}`)
+      .join(", ")}]\n`;
+
+  test("too many aliases is a PolicyError at the alias that passed the limit", () => {
+    const text = `${VALID}${laughs}`;
+    const [p, ...rest] = problemsOf(text);
+    expect(rest).toEqual([]);
+    expect(p).toMatchObject({ path: [], line: lineOf(text, "a2: &a2"), col: 50 });
+    expect(p?.message).toMatch(/alias/i);
+  });
+
+  test("an alias that passes the limit on its anchor's first use is reported, not the aliases yaml sizes it by", () => {
+    // a1 is used five times in a2, so a1 counts 6 and a2 expands to 6 * 11 =
+    // 66. The single *a2 makes a2 count 2, and 2 * 66 = 132 passes the limit.
+    // To size a2, yaml resolves a2's own *a1 aliases first, without counting
+    // them; the fault is still the *a2 that asked.
+    const small = [
+      "a0: &a0 [lol, lol, lol, lol, lol, lol, lol, lol, lol, lol]",
+      `a1: &a1 [${Array(10).fill("*a0").join(", ")}]`,
+      `a2: &a2 [${Array(5).fill("*a1").join(", ")}]`,
+      "a3: *a2",
+      "",
+    ].join("\n");
+    const text = `${VALID}${small}`;
+    const [p, ...rest] = problemsOf(text);
+    expect(rest).toEqual([]);
+    expect(p).toMatchObject({ path: [], line: lineOf(text, "a3: *a2"), col: 5 });
+    expect(p?.message).toMatch(/alias/i);
+  });
+
+  test("an alias bomb after a legitimate alias is reported in the bomb, not at the legitimate alias", () => {
+    // The verifier's probe (V23, N2): VALID with a legitimate anchor and alias
+    // in its read matrix, then the bomb from line 37.
+    const legit = VALID.replace("may_read: [person, org]", "may_read: &pr [person, org]").replace(
+      "{ reader: org, may_read: [org] }",
+      "{ reader: org, may_read: *pr }",
+    );
+    expect(legit).toContain("*pr");
+    const text = `${legit}${laughs}`;
+    expect(lineOf(text, "a0: &a0")).toBe(37);
+    const [p, ...rest] = problemsOf(text);
+    expect(rest).toEqual([]);
+    expect(p).toMatchObject({ path: [], line: lineOf(text, "a2: &a2"), col: 50 });
+    expect(text.split("\n")[(p?.line ?? 1) - 1]?.slice((p?.col ?? 1) - 1)).toMatch(/^\*a1,/);
+  });
+
+  test("an unknown complex key is reported on its own line", () => {
+    const text = `${VALID}? [a, b]\n: 1\n`;
+    const [p] = problemsOf(text);
+    expect(p).toMatchObject({
+      message: expect.stringMatching(/unknown field/),
+      line: lineOf(text, "? [a, b]"),
+    });
+  });
+});
+
+// Documents whose YAML nodes and JSON values differ in shape: an explicit key
+// with no value, a null key, and YAML 1.1 tags whose values are objects
+// (Buffer, Date) although their nodes are scalars. The problem must still name
+// the nearest line; a tagged scalar starts at its value, after the tag.
+describe("parsePolicy positions when the YAML node and the value differ in shape", () => {
+  test("an explicit key with no value is reported at the key", () => {
+    const text = VALID.replace("version: 1", "? version");
+    const [p] = problemsOf(text);
+    expect(p).toMatchObject({ path: ["version"], line: lineOf(text, "? version"), col: 3 });
+  });
+
+  test("a null threshold key is reported at the thresholds mapping", () => {
+    const text = VALID.replace("  thresholds: {}", "  thresholds:\n    ~: 1");
+    const [p, ...rest] = problemsOf(text);
+    expect(rest).toEqual([]);
+    expect(p).toMatchObject({
+      path: ["lints", "thresholds"],
+      message: expect.stringMatching(/^unknown threshold key ""/),
+      line: lineOf(text, "~: 1"),
+      col: 5,
+    });
+  });
+
+  test("a binary scalar where a mapping belongs is reported at the scalar, field by field", () => {
+    const text = `%YAML 1.1\n---\n${VALID.replace(
+      "lints:\n  enabled: [expired-validity]\n  thresholds: {}\n",
+      "lints: !!binary aGk=\n",
+    )}`;
+    const lints = problemsOf(text).filter((p) => p.path[0] === "lints");
+    // The bytes of "hi" are the indexed keys "0" and "1" of a Buffer.
+    expect(lints.map((p) => p.message)).toEqual(
+      expect.arrayContaining(['unknown field "0"', 'unknown field "1"']),
+    );
+    for (const p of lints) expect(p).toMatchObject({ line: lineOf(text, "lints:"), col: 17 });
+  });
+
+  test("a timestamp scalar where a mapping belongs reports its missing fields at the scalar", () => {
+    const text = `%YAML 1.1\n---\n${VALID.replace(
+      "promotion:\n  episodic_to_semantic:\n    confirmations: 3\n    or_review: true\n  procedural:\n    replay_k: 4\n    replay_n: 5\n",
+      "promotion: !!timestamp 2001-01-01\n",
+    )}`;
+    const promotion = problemsOf(text).filter((p) => p.path[0] === "promotion");
+    expect(promotion.map((p) => p.message).sort()).toEqual([
+      'missing required field "episodic_to_semantic"',
+      'missing required field "procedural"',
+    ]);
+    for (const p of promotion)
+      expect(p).toMatchObject({ line: lineOf(text, "promotion:"), col: 24 });
+  });
+});
+
+// YAML 1.1 faults the yaml package finds only while it builds the value: a
+// merge source that is not a mapping, and a duplicate key in an ordered map.
+// Each is reported at the node at fault, as written. VALID's promotion block
+// is lines 26 to 32 and its thresholds line 35; the two-line 1.1 header moves
+// them down by two. An alias on VALID's line 9, before every fault, makes sure the
+// position is the fault's own and not the first alias in the document.
+const YAML_11 = `%YAML 1.1\n---\n${VALID.replace(
+  "    confidence_floor: 0.5\n",
+  "    confidence_floor: &f 0.5\n",
+).replace(
+  "{ scope: role, allowed_sources: [user], confidence_floor: 0.5",
+  "{ scope: role, allowed_sources: [user], confidence_floor: *f",
+)}`;
+
+describe("parsePolicy positions for faults found while building the value", () => {
+  const onlyProblem = (text: string) => {
+    const [p, ...rest] = problemsOf(text);
+    expect(rest).toEqual([]);
+    return p;
+  };
+
+  test("a scalar merge source is reported at the scalar", () => {
+    const text = YAML_11.replace("promotion:\n", "promotion:\n  <<: 1\n");
+    expect(onlyProblem(text)).toEqual({
+      message: "the document cannot be read: Merge sources must be maps or map aliases",
+      path: [],
+      line: 29,
+      col: 7,
+    });
+  });
+
+  test("a scalar in a sequence of merge sources is reported at that item", () => {
+    const text = YAML_11.replace(
+      "  episodic_to_semantic:\n",
+      "  episodic_to_semantic: &e2s\n",
+    ).replace("  procedural:\n", "  procedural:\n    <<: [*e2s, 3]\n");
+    expect(onlyProblem(text)).toMatchObject({
+      message: expect.stringMatching(/Merge sources must be maps/),
+      line: 33,
+      col: 16,
+    });
+  });
+
+  test("a merge source that is an alias of a scalar is reported at the alias", () => {
+    const text = YAML_11.replace("id: test-policy", "id: &s test-policy").replace(
+      "promotion:\n",
+      "promotion:\n  <<: *s\n",
+    );
+    expect(onlyProblem(text)).toMatchObject({
+      message: expect.stringMatching(/Merge sources must be maps/),
+      line: 29,
+      col: 7,
+    });
+  });
+
+  test("an ordered map key repeated through an alias is reported at the repeat", () => {
+    const text = YAML_11.replace(
+      "  thresholds: {}",
+      "  thresholds: !!omap\n    - &k near-duplicate: 0.85\n    - *k : 0.9",
+    );
+    expect(onlyProblem(text)).toEqual({
+      message: "the document cannot be read: Ordered maps must not include duplicate keys",
+      path: [],
+      line: 39,
+      col: 7,
+    });
+  });
+
+  test("an ordered map key written twice is reported at the second key", () => {
+    const text = YAML_11.replace(
+      "  thresholds: {}",
+      "  thresholds: !!omap\n    - near-duplicate: 0.85\n    - near-duplicate: 0.9",
+    );
+    expect(onlyProblem(text)).toEqual({
+      message: "Ordered maps must not include duplicate keys: near-duplicate",
+      path: [],
+      line: 39,
+      col: 7,
+    });
+  });
+
+  test("an ordered map collection key repeated through an alias is reported at the repeat", () => {
+    const text = YAML_11.replace(
+      "  enabled: [expired-validity]",
+      "  enabled: &k [expired-validity]",
+    ).replace(
+      "  thresholds: {}",
+      "  thresholds: !!omap\n    - ? *k\n      : 1\n    - ? *k\n      : 2",
+    );
+    expect(onlyProblem(text)).toMatchObject({
+      message: expect.stringMatching(/Ordered maps must not include duplicate keys$/),
+      line: 40,
+      col: 9,
+    });
+  });
+});
+
+describe("problems come out in document order, whatever order they are found in", () => {
+  test("schema problems: the schema checks version before schema_version", () => {
+    const text = `schema_version: 1\n${VALID.replace("version: 1", "version: 0").replace("schema_version: 0\n", "")}`;
+    expect(problemsOf(text).map((p) => p.path.join("."))).toEqual(["schema_version", "version"]);
+  });
+
+  test("checks after the schema: replay_k is checked after the write rules", () => {
+    const lines = VALID.split("\n");
+    const promotion = lines.splice(25, 7); // lines 26 to 32, the promotion block
+    lines.splice(2, 0, ...promotion); // now right after version
+    lines.splice(15, 0, lines[15] ?? ""); // repeat the role write rule
+    const text = lines.join("\n").replace("replay_k: 4", "replay_k: 6");
+    expect(problemsOf(text).map((p) => p.path.join("."))).toEqual([
+      "promotion.procedural.replay_k",
+      "write.2.scope",
+    ]);
+  });
+});

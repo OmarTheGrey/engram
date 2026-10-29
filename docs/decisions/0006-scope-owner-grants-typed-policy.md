@@ -18,6 +18,10 @@ Amendments made when deciding:
 - A write is forbidden when the rule for its scope level forbids its class or does not list its source kind.
 - Calling context as a policy input remains open (`docs/architecture.md`, open items).
 
+Amendments made in the review fix pass, 2026-10-25:
+
+- D3, complete policies: a loaded policy has exactly one write rule and one read matrix row for each scope level (person, role, team, org). `parsePolicy` (`packages/core/src/policy/load.ts`) rejects a policy missing any, reported at the line of the `write` or `read.matrix` key and naming the missing levels; a second rule for one level was already rejected. The evaluator still default-denies a missing level, for policies built in code.
+
 ## Alternatives considered
 
 (a) Typed TypeScript policy objects: a read matrix over scopes {person, role, team, org}, grant records (`from`, `to`, `scope`, `class`, `expires`), write rules per (scope, class, source kind), retention budgets, promotion gates; evaluated by one pure function returning a decision with a reason. (b) Cedar through `cedar-wasm`. (c) OPA or Casbin.
