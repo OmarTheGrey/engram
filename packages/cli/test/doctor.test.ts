@@ -152,11 +152,13 @@ describe("engram doctor, each check red", () => {
     // Port 1 on loopback: nothing listens, so the connection is refused at once.
     const url = "postgres://engram:hunter2@127.0.0.1:1/engram";
     const viaFlag = await cli(["doctor", "--db", url]);
-    expect(viaFlag.out).toMatch(/^fail\s+log\s+postgres:\/\/\*\*\*@127\.0\.0\.1:1\/engram: /m);
+    expect(viaFlag.out).toMatch(
+      /^fail\s+log\s+postgres postgres:\/\/\*\*\*@127\.0\.0\.1:1\/engram: /m,
+    );
     expect(viaFlag.out).not.toContain("hunter2");
     expect(viaFlag.code).toBe(1);
     const viaEnv = await cli(["doctor"], { env: { ENGRAM_DB_URL: url } });
-    expect(viaEnv.out).toMatch(/^fail\s+log\s+postgres:/m);
+    expect(viaEnv.out).toMatch(/^fail\s+log\s+postgres postgres:/m);
     expect(viaEnv.out).not.toContain("hunter2");
   });
 

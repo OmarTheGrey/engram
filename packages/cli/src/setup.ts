@@ -52,8 +52,20 @@ export type DbTarget = (
 /** Any `scheme://`: a URL, never a SQLite path. */
 const SCHEME = /^([a-z][a-z0-9+.-]*):\/\//i;
 const POSTGRES_SCHEMES = new Set(["postgres", "postgresql"]);
-/** Query parameters whose value is treated as a secret (password, sslpassword, passfile, tokens, keys). */
-const SECRET_PARAM = /pass|secret|token|key/i;
+/**
+ * Query parameters whose value is printed as given: connection settings that
+ * carry no credential. Every other value (password, sslpassword, passfile,
+ * tokens, keys, anything unknown) is printed as `***`.
+ */
+const SHOWN_PARAMS = new Set([
+  "sslmode",
+  "application_name",
+  "connect_timeout",
+  "options",
+  "target_session_attrs",
+]);
+/** Below this length a secret is scrubbed only as a whole token, so it cannot garble a message. */
+const SHORT_SECRET = 4;
 
 const safeDecode = (text: string) => {
   try {
@@ -63,66 +75,109 @@ const safeDecode = (text: string) => {
   }
 };
 
+interface UrlParts {
+  scheme: string;
+  /** The userinfo, found only inside the authority (before the first `/`, `?` or `#`). */
+  userinfo: string | undefined;
+  /** host[:port] */
+  host: string;
+  /** The path, from its `/`, without query or fragment. */
+  path: string;
+  query: { raw: string; name: string; value: string | undefined }[] | undefined;
+  fragment: string | undefined;
+}
+
 /**
- * A URL cut into its scheme, userinfo (everything up to the last `@`, so a
- * password holding an unencoded `@`, `/` or `?` is still inside it) and the
- * rest. String-based, so it works on URLs no parser accepts.
+ * A URL cut into its parts by text, so it works on URLs no parser accepts.
+ * The authority ends at the first `/`, `?` or `#` after `//`; the userinfo is
+ * what precedes its last `@`. An `@` in the path, query or fragment is never
+ * read as the end of a userinfo.
  */
-function splitUrl(url: string): { scheme: string; userinfo: string | undefined; rest: string } {
+function splitUrl(url: string): UrlParts | undefined {
   const m = SCHEME.exec(url);
-  if (!m) return { scheme: "", userinfo: undefined, rest: url };
+  if (!m) return undefined;
   const after = url.slice(m[0].length);
-  const at = after.lastIndexOf("@");
-  return at < 0
-    ? { scheme: m[0], userinfo: undefined, rest: after }
-    : { scheme: m[0], userinfo: after.slice(0, at), rest: after.slice(at + 1) };
+  const hashAt = after.indexOf("#");
+  const fragment = hashAt < 0 ? undefined : after.slice(hashAt + 1);
+  const beforeHash = hashAt < 0 ? after : after.slice(0, hashAt);
+  const qAt = beforeHash.indexOf("?");
+  const queryText = qAt < 0 ? undefined : beforeHash.slice(qAt + 1);
+  const beforeQuery = qAt < 0 ? beforeHash : beforeHash.slice(0, qAt);
+  const slash = beforeQuery.indexOf("/");
+  const authority = slash < 0 ? beforeQuery : beforeQuery.slice(0, slash);
+  const path = slash < 0 ? "" : beforeQuery.slice(slash);
+  const at = authority.lastIndexOf("@");
+  const query = queryText?.split("&").map((raw) => {
+    const eq = raw.indexOf("=");
+    return {
+      raw,
+      name: eq < 0 ? raw : raw.slice(0, eq),
+      value: eq < 0 ? undefined : raw.slice(eq + 1),
+    };
+  });
+  return {
+    scheme: m[0],
+    userinfo: at < 0 ? undefined : authority.slice(0, at),
+    host: at < 0 ? authority : authority.slice(at + 1),
+    path,
+    query,
+    fragment,
+  };
 }
 
-/** Each `name=value` of the query in `rest`, with its raw text. */
-const queryParams = (rest: string) => {
-  const q = rest.indexOf("?");
-  if (q < 0) return [];
-  return rest
-    .slice(q + 1)
-    .split("#")[0]
-    ?.split("&")
-    .map((raw) => {
-      const eq = raw.indexOf("=");
-      return {
-        raw,
-        name: eq < 0 ? raw : raw.slice(0, eq),
-        value: eq < 0 ? undefined : raw.slice(eq + 1),
-      };
-    });
-};
+const shown = (name: string) => SHOWN_PARAMS.has(safeDecode(name).toLowerCase());
 
-/** A URL with its userinfo and every secret-like query value replaced by `***`. */
+/**
+ * A URL as the CLI prints it: the userinfo, every query value outside
+ * SHOWN_PARAMS and the fragment replaced by `***`. A path holding an `@` (a
+ * password with a raw `/`, `?` or `#` before its `@`) is not trusted to split
+ * where the user meant, so everything after the scheme is masked.
+ */
 export function redactUrl(url: string): string {
-  const { scheme, userinfo, rest } = splitUrl(url);
-  const q = rest.indexOf("?");
-  const base = q < 0 ? rest : rest.slice(0, q);
-  const params = (queryParams(rest) ?? []).map((p) =>
-    p.value !== undefined && SECRET_PARAM.test(safeDecode(p.name)) ? `${p.name}=***` : p.raw,
-  );
-  const query = q < 0 ? "" : `?${params.join("&")}`;
-  return `${scheme}${userinfo === undefined ? "" : "***@"}${base}${query}`;
+  const p = splitUrl(url);
+  if (!p) return url;
+  if (p.path.includes("@") || p.host.includes("@")) return `${p.scheme}***`;
+  const query =
+    p.query === undefined
+      ? ""
+      : `?${p.query
+          .map((q) => (q.value === undefined || shown(q.name) ? q.raw : `${q.name}=***`))
+          .join("&")}`;
+  return `${p.scheme}${p.userinfo === undefined ? "" : "***@"}${p.host}${p.path}${query}${
+    p.fragment === undefined ? "" : "#***"
+  }`;
 }
 
-/** The secrets a URL holds: its password and secret-like query values, raw and decoded. */
+/** What redactUrl hides: the password, masked query values and the fragment, raw, decoded and encoded. */
 function urlSecrets(url: string): string[] {
-  const { userinfo, rest } = splitUrl(url);
+  const p = splitUrl(url);
+  if (!p) return [];
   const found: string[] = [];
-  if (userinfo?.includes(":")) found.push(userinfo.slice(userinfo.indexOf(":") + 1));
-  for (const p of queryParams(rest) ?? [])
-    if (p.value !== undefined && SECRET_PARAM.test(safeDecode(p.name))) found.push(p.value);
+  if (p.userinfo?.includes(":")) found.push(p.userinfo.slice(p.userinfo.indexOf(":") + 1));
+  for (const q of p.query ?? []) if (q.value !== undefined && !shown(q.name)) found.push(q.value);
+  if (p.fragment !== undefined) found.push(p.fragment);
   const all = new Set(found.flatMap((s) => [s, safeDecode(s), encodeURIComponent(safeDecode(s))]));
   return [...all].filter((s) => s !== "").sort((a, b) => b.length - a.length);
 }
 
-/** `text` with the URL replaced by its redacted form and every secret it holds by `***`. */
+const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/**
+ * `text` with the URL, wherever it appears, replaced by its redacted form, and
+ * every secret it holds by `***`: anywhere when the secret has at least
+ * SHORT_SECRET characters, otherwise only as a whole token, so a one-letter
+ * password cannot turn "connect" into "conn***ct".
+ */
 export function redactSecrets(text: string, url: string): string {
   let out = text.split(url).join(redactUrl(url));
-  for (const secret of urlSecrets(url)) out = out.split(secret).join("***");
+  for (const secret of urlSecrets(url)) {
+    if (secret.length >= SHORT_SECRET) out = out.split(secret).join("***");
+    else
+      out = out.replace(
+        new RegExp(`(?<![\\p{L}\\p{N}])${escapeRegExp(secret)}(?![\\p{L}\\p{N}])`, "gu"),
+        "***",
+      );
+  }
   return out;
 }
 
@@ -235,50 +290,26 @@ function classify(c: Contents): LogState {
   return { state: "engram", pending, unknown };
 }
 
-/**
- * What a target holds, without creating or changing anything: a SQLite file
- * is opened read-only (and not at all when it does not exist), Postgres sees
- * SELECT queries only. Never migrates.
- */
-export function inspectLog(target: DbTarget): LogState {
-  if (target.backend === "sqlite") {
-    if (target.path === MEMORY_DB || !existsSync(target.path)) return { state: "absent" };
-    const db = new DatabaseSync(target.path, { readOnly: true });
-    try {
-      return classify({
-        tables: db
-          .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
-          .all()
-          .map((r) => String(r.name)),
-        columns: () =>
-          db
-            .prepare("SELECT name FROM pragma_table_info('schema_migrations')")
-            .all()
-            .map((r) => String(r.name)),
-        rows: () =>
-          db.prepare("SELECT id, name FROM schema_migrations").all() as {
-            id: number;
-            name: string;
-          }[],
-      });
-    } finally {
-      db.close();
-    }
-  }
-  const db = openDb(target);
+/** An error that names its target: `<label>: <message>`, the label added unless already there. */
+function named(target: DbTarget, e: unknown): Error {
+  const message = (e as Error).message;
+  return new Error(message.startsWith(target.label) ? message : `${target.label}: ${message}`);
+}
+
+/** The SQLite file's contents, opened read-only; never created, never changed. */
+function inspectSqliteFile(path: string): LogState {
+  const db = new DatabaseSync(path, { readOnly: true });
   try {
     return classify({
       tables: db
-        .prepare("SELECT tablename FROM pg_tables WHERE schemaname = current_schema()")
+        .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
         .all()
-        .map((r) => String(r.tablename)),
+        .map((r) => String(r.name)),
       columns: () =>
         db
-          .prepare(
-            "SELECT column_name FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = 'schema_migrations'",
-          )
+          .prepare("SELECT name FROM pragma_table_info('schema_migrations')")
           .all()
-          .map((r) => String(r.column_name)),
+          .map((r) => String(r.name)),
       rows: () =>
         db.prepare("SELECT id, name FROM schema_migrations").all() as {
           id: number;
@@ -290,6 +321,65 @@ export function inspectLog(target: DbTarget): LogState {
   }
 }
 
+/** An open Postgres Db's contents in its schema, by SELECT queries only. */
+function inspectPostgres(db: Db): LogState {
+  return classify({
+    tables: db
+      .prepare("SELECT tablename FROM pg_tables WHERE schemaname = current_schema()")
+      .all()
+      .map((r) => String(r.tablename)),
+    columns: () =>
+      db
+        .prepare(
+          "SELECT column_name FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = 'schema_migrations'",
+        )
+        .all()
+        .map((r) => String(r.column_name)),
+    rows: () =>
+      db.prepare("SELECT id, name FROM schema_migrations").all() as {
+        id: number;
+        name: string;
+      }[],
+  });
+}
+
+/**
+ * What a target holds, without creating or changing anything: a SQLite file
+ * is opened read-only (and not at all when it does not exist), Postgres sees
+ * SELECT queries only. Never migrates. An error names the target.
+ */
+export function inspectLog(target: DbTarget): LogState {
+  try {
+    if (target.backend === "sqlite")
+      return target.path === MEMORY_DB || !existsSync(target.path)
+        ? { state: "absent" }
+        : inspectSqliteFile(target.path);
+    const db = openDb(target);
+    try {
+      return inspectPostgres(db);
+    } finally {
+      db.close();
+    }
+  } catch (e) {
+    throw named(target, e);
+  }
+}
+
+/**
+ * Why no command may use what a target holds, or undefined when it may: a
+ * database that is not an Engram log, or a log newer than this Engram. One
+ * rule for doctor, which reports it, and openLog, which refuses.
+ */
+export function logRefusal(target: DbTarget, state: LogState): string | undefined {
+  if (state.state === "foreign")
+    return `${target.label}: not an Engram log (it holds other tables); point --db elsewhere`;
+  if (state.state === "engram" && state.unknown.length > 0)
+    return `${target.label}: newer than this Engram (migration${
+      state.unknown.length === 1 ? "" : "s"
+    } ${state.unknown.join(", ")}); update Engram`;
+  return undefined;
+}
+
 export interface Log {
   db: Db;
   target: DbTarget;
@@ -297,16 +387,33 @@ export interface Log {
   applied: number[];
 }
 
-/** Opens and migrates the log; `mustExist` refuses to create one on either backend. */
+/**
+ * Opens and migrates the log. It first inspects the target as doctor does
+ * and refuses a database that is not an Engram log or a log newer than this
+ * Engram, so a write never turns another tool's database into a log;
+ * `mustExist` also refuses a target with no log, on either backend.
+ */
 export function openLog(target: DbTarget, mustExist = false): Log {
+  const check = (state: LogState) => {
+    if (mustExist && state.state === "absent") throw new Error(`no event log at ${target.label}`);
+    const refusal = logRefusal(target, state);
+    if (refusal !== undefined) throw new Error(refusal);
+  };
   if (target.backend === "sqlite" && target.path !== MEMORY_DB) {
-    if (mustExist && !existsSync(target.path)) throw new Error(`no event log at ${target.path}`);
+    check(inspectLog(target));
     mkdirSync(dirname(target.path), { recursive: true });
   }
   const db = openDb(target);
   try {
-    if (mustExist && target.backend === "postgres" && !hasLog(db))
-      throw new Error(`no event log at ${target.label}`);
+    if (target.backend === "postgres") {
+      let state: LogState;
+      try {
+        state = inspectPostgres(db);
+      } catch (e) {
+        throw named(target, e);
+      }
+      check(state);
+    }
     return { db, target, applied: migrate(db) };
   } catch (e) {
     db.close();

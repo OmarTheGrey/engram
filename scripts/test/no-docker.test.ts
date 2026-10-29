@@ -7,7 +7,8 @@ import { describe, expect, test } from "vitest";
 
 /** A container runtime or tool, in a command or a source. */
 // The file name docker-compose.yml is not a call: a test asserts it is deployment only.
-const CONTAINER = /\b(?:docker(?:-compose)?(?![-.\w])|podman|testcontainers|compose\s+up)\b/i;
+const CONTAINER =
+  /\b(?:docker(?:-compose)?(?:\.exe)?(?![-.\w])|podman|nerdctl|testcontainers|compose\s+up)\b/i;
 /** Workflow keys that run a job or a service in a container. */
 const WORKFLOW_CONTAINER = /^\s*(?:services|container|image)\s*:/m;
 
@@ -68,6 +69,8 @@ describe("no Docker anywhere a gate runs", () => {
       "jobs:\n  t:\n    steps:\n      - run: docker-compose up -d\n",
       "jobs:\n  t:\n    steps:\n      - run: docker compose up -d postgres\n",
       "jobs:\n  t:\n    steps:\n      - run: docker run --rm postgres:17\n",
+      "jobs:\n  t:\n    steps:\n      - run: docker.exe run --rm postgres:17\n",
+      "jobs:\n  t:\n    steps:\n      - run: nerdctl run postgres:17\n",
     ])
       expect(workflowFindings(yaml), yaml).not.toEqual([]);
     expect(

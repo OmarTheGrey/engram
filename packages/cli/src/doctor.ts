@@ -2,7 +2,9 @@
 // creates, migrates or otherwise changes a log (SQLite is opened read-only,
 // Postgres sees SELECTs only), never prints a provider key's value (only its
 // length is tested), and reaches no network beyond the Postgres server a
-// postgres:// target names. No secret in a target's URL is ever printed.
+// postgres:// target names. A target's URL is printed redacted: its userinfo,
+// every query value outside a short allow-list and its fragment become `***`,
+// and error messages are scrubbed of them (packages/cli/src/setup.ts).
 // The adapter checks run through a Plane on an in-memory log, so
 // no adapter is called directly (AGENTS.md rule 2) and nothing is recorded.
 //
@@ -30,7 +32,15 @@ import {
 import { parse, STORE_OPTIONS } from "./commands.ts";
 import { plural } from "./format.ts";
 import type { Io } from "./run.ts";
-import { type DbTarget, dbTarget, inspectLog, loadPolicy, MEMORY_DB } from "./setup.ts";
+import {
+  type DbTarget,
+  dbTarget,
+  inspectLog,
+  type LogState,
+  loadPolicy,
+  logRefusal,
+  MEMORY_DB,
+} from "./setup.ts";
 
 export type Status = "ok" | "fail" | "skip";
 export type CheckResult = [Status, string];
@@ -60,19 +70,20 @@ const oneLine = (e: unknown) => (e as Error).message.split("\n").join("; ");
  */
 export function checkLog(target: DbTarget): CheckResult {
   const name = `${target.backend} ${target.label}`;
-  const state = inspectLog(target);
+  let state: LogState;
+  try {
+    state = inspectLog(target);
+  } catch (e) {
+    // The message already starts with the target's label.
+    return ["fail", `${target.backend} ${(e as Error).message.split("\n").join("; ")}`];
+  }
   if (state.state === "absent") {
     const reached = target.backend === "postgres" ? "connects, " : "";
     return ["ok", `${name}: ${reached}no log yet; the first read or write creates it`];
   }
-  if (state.state === "foreign")
-    return ["fail", `${name}: not an Engram log (it holds other tables); point --db elsewhere`];
-  if (state.unknown.length > 0)
-    return [
-      "fail",
-      `${name}: newer than this Engram (migration${state.unknown.length === 1 ? "" : "s"} ${state.unknown.join(", ")}); update Engram`,
-    ];
-  const n = state.pending.length;
+  const refusal = logRefusal(target, state);
+  if (refusal !== undefined) return ["fail", `${target.backend} ${refusal}`];
+  const n = state.state === "engram" ? state.pending.length : 0;
   if (n > 0)
     return [
       "ok",
