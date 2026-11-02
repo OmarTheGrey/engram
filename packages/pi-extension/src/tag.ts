@@ -166,13 +166,33 @@ const escapeMarkup = (s: string) =>
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;");
 
-/** One item as the memory tag shows it. `policy_id`, the admitting rule, is C5's only. */
+/**
+ * One item as the memory tag shows it. `policy_id`, the admitting rule, is
+ * C5's only; `attributes`, the item's metadata, is C4's only (ADR 0031).
+ */
 interface TaggedItem {
   item_id: string;
   scope: string;
   rank: number;
   content: string;
   policy_id?: string;
+  attributes?: readonly (readonly [string, string])[];
+}
+
+/** The attributes the tag itself writes; metadata may not reuse one. */
+const OWN_ATTRIBUTES = new Set(["item_id", "scope", "rank", "policy_id", "read_id", "filtered"]);
+const ATTRIBUTE_NAME = /^[a-z][a-z_]*$/;
+
+/** An item's metadata as attributes, each name a plain lower-case word the tag does not own. */
+function metadata(attributes: TaggedItem["attributes"]): string {
+  return (attributes ?? [])
+    .map(([name, value]) => {
+      if (!ATTRIBUTE_NAME.test(name) || OWN_ATTRIBUTES.has(name)) {
+        throw new Error(`memory tag: ${JSON.stringify(name)} is not a metadata attribute name`);
+      }
+      return attr(name, value);
+    })
+    .join("");
 }
 
 /** A read as the memory tag shows it. The read id and the read rule are C5's only. */
@@ -199,7 +219,7 @@ function tagRead(read: TaggedRead): string {
   const head = `<engram:memory${attr("read_id", read.read_id)}${attr("policy_id", read.policy_id)} filtered="${read.filtered}">`;
   const body = read.items.map(
     (i) =>
-      `<engram:item${attr("item_id", i.item_id)}${attr("scope", i.scope)} rank="${i.rank}"${attr("policy_id", i.policy_id)}>\n${escapeMarkup(i.content)}\n</engram:item>`,
+      `<engram:item${attr("item_id", i.item_id)}${attr("scope", i.scope)} rank="${i.rank}"${metadata(i.attributes)}${attr("policy_id", i.policy_id)}>\n${escapeMarkup(i.content)}\n</engram:item>`,
   );
   return [head, ...(body.length > 0 ? body : ["no memories"]), "</engram:memory>"].join("\n");
 }
@@ -208,11 +228,18 @@ function tagRead(read: TaggedRead): string {
 export const tagRecall = (details: RecallDetails): string => tagRead(details);
 
 /**
- * The tagged text the model receives for an ungoverned read (C2, C3): the
- * store's matches in its order, nothing filtered, no read id and no rules.
+ * The tagged text the model receives for an ungoverned read (C2, C3, C4):
+ * the store's matches in its order, nothing filtered, no read id and no
+ * rules. C4's items carry their metadata as attributes after the rank
+ * (ADR 0031); without them the tag is C2's and C3's.
  */
 export function tagUngovernedRead(
-  items: readonly { id: string; scope: string; content: string }[],
+  items: readonly {
+    id: string;
+    scope: string;
+    content: string;
+    attributes?: readonly (readonly [string, string])[];
+  }[],
 ): string {
   return tagRead({
     filtered: 0,
@@ -221,6 +248,7 @@ export function tagUngovernedRead(
       scope: i.scope,
       rank: n + 1,
       content: i.content,
+      ...(i.attributes === undefined ? {} : { attributes: i.attributes }),
     })),
   });
 }

@@ -83,14 +83,17 @@ endif
 
 RUN_OUT ?= .engram/runs/$(basename $(notdir $(CONFIG)))
 
-run: ## replay a runner config as pi SDK sessions from its cassettes; a miss is an error: make run CONFIG=research/configs/rn1-gatemem-probe.json; MODEL=<provider/model> LIVE=1 runs it live into new cassettes under .engram/runs, REPLAY=1 replays those offline
+run: ## replay a runner config as pi SDK sessions from its cassettes; a miss is an error: make run CONFIG=research/configs/rn1-gatemem-probe.json; MODEL=<provider/model> LIVE=1 runs it live into new cassettes under .engram/runs, REPLAY=1 replays those offline; COUNT=1 checks its data against the pin and counts its sessions, calling no model
 	@[ -n "$(CONFIG)" ] || { echo "usage: make run CONFIG=<runner config>"; exit 2; }
-	node packages/runner/scripts/run.ts --config "$(CONFIG)" --out "$(RUN_OUT)$(if $(filter 1,$(LIVE) $(REPLAY)),-live)" $(if $(filter 1,$(LIVE)),--live --model "$(MODEL)") $(if $(filter 1,$(REPLAY)),--replay --model "$(MODEL)")
+	node packages/runner/scripts/run.ts --config "$(CONFIG)" --out "$(RUN_OUT)$(if $(filter 1,$(LIVE) $(REPLAY)),-live)$(if $(filter 1,$(COUNT)),-count)" $(if $(filter 1,$(LIVE)),--live --model "$(MODEL)") $(if $(filter 1,$(REPLAY)),--replay --model "$(MODEL)") $(if $(filter 1,$(COUNT)),--count)
 
 # Runner configs whose cassettes are fixtures, recorded from their scripted model by `make fixtures`.
 RUNNER_FIXTURES := rn1-gatemem-probe
 RUNNER_FIXTURES += b3-gatemem-plane
 RUNNER_FIXTURES += b4-mem-inv-probe
+RUNNER_FIXTURES += x1-h1-gatemem
+RUNNER_FIXTURES += x1-h1-gatemem-rag
+RUNNER_FIXTURES += x1-h1-mem-inv
 
 # MEM-INV-Bench at its pinned commit (card B4); the vendoring clones it here when missing.
 MEM_INV_UPSTREAM ?= .engram/upstream/mem-inv-bench

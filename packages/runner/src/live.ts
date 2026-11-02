@@ -8,6 +8,9 @@
 //   make run CONFIG=research/configs/b3-gatemem-plane.json MODEL=<provider/model> LIVE=1
 //   make run CONFIG=research/configs/b3-gatemem-plane.json MODEL=<provider/model> REPLAY=1
 //
+// The same guards and directories serve every benchmark the runner knows:
+// GateMem, and MEM-INV-Bench since card X1 (plan decision 5).
+//
 // Guards, each refused before any session starts:
 // - Recording refuses under ENGRAM_OFFLINE=1: offline means no model is
 //   reached. `liveOptions` refuses it again, so a caller that skips
@@ -23,9 +26,16 @@ import { existsSync, readdirSync } from "node:fs";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import { createModels } from "@earendil-works/pi-ai";
 import { builtinProviders } from "@earendil-works/pi-ai/providers/all";
-import type { RunnerConfig } from "./config.ts";
+import type { LiveModels } from "./answers.ts";
 import { fileCache } from "./model/cached.ts";
-import type { LiveModels, RunnerOptions } from "./run.ts";
+import type { RunnerOptions } from "./run.ts";
+
+/** What the live guards read of a config, whatever its benchmark (GateMem, MEM-INV-Bench). */
+export interface LiveRunConfig {
+  name: string;
+  model: string;
+  cassettes: string;
+}
 
 export class LiveRunRefused extends Error {
   constructor(message: string) {
@@ -55,7 +65,7 @@ const within = (parent: string, child: string) => {
 const offline = (env: NodeJS.ProcessEnv) => env.ENGRAM_OFFLINE === "1";
 
 /** The named model's live cassette directory, checked against the rules above. */
-function liveCassettes(config: RunnerConfig, request: LiveRunRequest): string {
+function liveCassettes(config: LiveRunConfig, request: LiveRunRequest): string {
   const [provider = "", ...rest] = request.model.split("/");
   const id = rest.join("/");
   if (!provider || !id) throw new LiveRunRefused(`model ${request.model} is not provider/model-id`);
@@ -95,7 +105,7 @@ function liveCassettes(config: RunnerConfig, request: LiveRunRequest): string {
  * The config a live run records with: the request's model and its live
  * cassette directory. Throws LiveRunRefused on any guard.
  */
-export function liveConfig(config: RunnerConfig, request: LiveRunRequest): RunnerConfig {
+export function liveConfig<C extends LiveRunConfig>(config: C, request: LiveRunRequest): C {
   if (offline(request.env ?? process.env)) {
     throw new LiveRunRefused("ENGRAM_OFFLINE=1 is set, and a live run reaches a model");
   }
@@ -106,7 +116,7 @@ export function liveConfig(config: RunnerConfig, request: LiveRunRequest): Runne
  * The config that replays a live run's cassettes: the same model and
  * directory, allowed offline; the directory must exist.
  */
-export function replayConfig(config: RunnerConfig, request: LiveRunRequest): RunnerConfig {
+export function replayConfig<C extends LiveRunConfig>(config: C, request: LiveRunRequest): C {
   const cassettes = liveCassettes(config, request);
   // A live run that died before its first call leaves an empty folder (liveOptions
   // creates it), so a folder with no cassette file counts as nothing recorded.
@@ -129,7 +139,7 @@ export function builtinLiveModels(): LiveModels {
  * `liveConfig`.
  */
 export function liveOptions(
-  config: RunnerConfig,
+  config: LiveRunConfig,
   live: LiveModels,
   env: NodeJS.ProcessEnv = process.env,
 ): RunnerOptions {
@@ -140,6 +150,6 @@ export function liveOptions(
 }
 
 /** The runner options of a replay: the config's cassettes only, every miss an error. */
-export function replayOptions(config: RunnerConfig): RunnerOptions {
+export function replayOptions(config: LiveRunConfig): RunnerOptions {
   return { cache: fileCache(config.cassettes), offline: true };
 }

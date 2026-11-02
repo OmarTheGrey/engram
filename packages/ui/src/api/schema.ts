@@ -527,7 +527,7 @@ export interface components {
             /** @description The counts the read event's reason records (core's readCounts, decision 5 of the Gate B plan); null for a read event written before that format. Audit data for the human inspector: out_of_reach counts items outside the reader's reach, which decision D5 keeps from the reader, so a surface that answers a model (the MCP tools, the pi extension) must not pass the counts on. */
             counts: components["schemas"]["ReadCounts"] | null;
         };
-        /** @description The counts a read event's reason records: returned of candidates, the filtered total and its categories, and the projected items outside the reader's reach (never candidates). */
+        /** @description The counts a read event's reason records: returned of candidates, the filtered total and its categories, the admitted items a read limit cut (when the plane has one), and the projected items outside the reader's reach (never candidates). */
         ReadCounts: {
             returned: number;
             candidates: number;
@@ -536,6 +536,8 @@ export interface components {
             not_active: number;
             expired: number;
             excluded: number;
+            /** @description Admitted items the read limit cut: present only on a read by a plane with the core retrieval pipeline and a limit. */
+            cut?: number;
             out_of_reach: number;
         };
         PromoteRequest: {

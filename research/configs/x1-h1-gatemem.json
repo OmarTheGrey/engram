@@ -1,0 +1,24 @@
+{
+  "name": "x1-h1-gatemem",
+  "kind": "pipeline",
+  "benchmark": "gatemem",
+  "data": "../../fixtures/bench/gatemem",
+  "items": [
+    "med_episode_rewrite_en_012_new_hiv_deleted_harbor_light_line_ckpt_13",
+    "household_episode_custom_en_009_linden_lesson_linden_listen_tutor_music_private_note_ckpt_01"
+  ],
+  "conditions": ["C1", "C2", "C3", "C4", "C5"],
+  "model": "scripted/scripted-1",
+  "seeds": [1, 2],
+  "preset": "medium",
+  "store": "fake",
+  "script": "../../fixtures/bench/gatemem/x1-probe-script.json",
+  "cassettes": "../../fixtures/cassettes/x1-h1-gatemem",
+  "c4_verdicts": "engram",
+  "judge": {
+    "model": "scripted/judge-1",
+    "temperature": 0,
+    "max_tokens": 4096,
+    "script": "../../fixtures/bench/gatemem/x1-judge-script.json"
+  }
+}

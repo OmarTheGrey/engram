@@ -56,6 +56,7 @@ make bench BENCH=gatemem DRY=1 the live GateMem run counted on the full checkpoi
 make run CONFIG=<file>         replay a runner config: each (item, condition, store, seed) a pi SDK session, every model call from its cassettes, a miss an error; output in .engram/runs/<name>
 make run CONFIG=<file> MODEL=<provider/model> LIVE=1   the same config on a named model, recording into new cassettes under .engram/runs/<name>-live (Gate B exception (c)); refused under ENGRAM_OFFLINE=1, only under .engram/ or outside the repo
 make run CONFIG=<file> MODEL=<provider/model> REPLAY=1  replay that live run's cassettes; allowed offline, a miss an error
+make run CONFIG=<file> COUNT=1 check the config's data against the pinned hashes (an experiment's GateMem data fetched at the pin when missing) and print the sessions it would run per condition, store and seed, into .engram/runs/<name>-count/count.json; no model called, no cassette read or written. An experiment config (research/configs/h1-*.json) runs only with MODEL= and LIVE=1 or REPLAY=1, or COUNT=1
 make lint                      biome, tsc, ruff, mypy; CI runs the same
 make lint-docs                 log entry frontmatter, em dashes in prose, CLAUDE.md equals AGENTS.md
 make lint-docs PR=<dir>        the PR gate on a PR directory (body.md, files.txt); fixtures in fixtures/ci/

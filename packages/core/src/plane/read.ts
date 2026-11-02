@@ -17,6 +17,14 @@
 // hidden items in a granted item's scope crowd it out). Relevance ranks among
 // admitted items only, and items out of reach are never candidates. The read
 // event, the audit record a harness keeps from the model, also counts them.
+//
+// A plane built with `retrieval: { pipeline: "core" }` (ADR 0009, proposed
+// amendment of 2026-11-02; PR #25 review round 2, R1) does not search the
+// store at all: its candidates are the reachable projected items matching
+// the query by the core retrieval pipeline (plane/retrieve.ts, any query
+// term), the read filter admits some, and the admitted ones are ranked by
+// that pipeline and cut to its limit. Without the option the read is as
+// above, unchanged.
 import { type Actor, ExplainDeniedError, UnknownReadError } from "../actor.ts";
 import { appendEvent, currentItems } from "../events.ts";
 import type { PlaneDeps, ReadQuery, ReadResult } from "../plane.ts";
@@ -29,11 +37,8 @@ import {
 } from "../policy/evaluate.ts";
 import type { Explanation, MemoryItem } from "../schema.ts";
 import { formatReadReason } from "./read-reason.ts";
+import { matchesQuery, queryTerms, retrieve, scoreComponents } from "./retrieve.ts";
 import { checkCall } from "./write.ts";
-
-const DAY_MS = 86_400_000;
-/** Recency halves after this many days. */
-const RECENCY_DAYS = 30;
 
 const contentText = (item: MemoryItem) =>
   (typeof item.content === "string" ? item.content : JSON.stringify(item.content)).toLowerCase();
@@ -81,15 +86,6 @@ async function matching(
   return { order: [...order, ...share.keys()], share };
 }
 
-function components(item: MemoryItem, at: string, rel: number | undefined) {
-  const ageDays = Math.max(0, (Date.parse(at) - Date.parse(item.valid_from)) / DAY_MS);
-  const out: Record<string, number> = {};
-  if (rel !== undefined) out.relevance = rel;
-  out.confidence = item.confidence;
-  out.recency = 1 / (1 + ageDays / RECENCY_DAYS);
-  return out;
-}
-
 export async function filteredRead(
   deps: PlaneDeps,
   actor: Actor,
@@ -106,9 +102,15 @@ export async function filteredRead(
   const scopes = [
     ...new Set(actor.memberships.filter((s) => readableScope(policy, actor, s))),
   ].sort();
-  const match = await matching(deps, reach, scopes, query.text);
+  const core = deps.retrieval?.pipeline === "core";
+  const terms = queryTerms(query.text);
+  const match = core ? undefined : await matching(deps, reach, scopes, query.text);
   const hitRank = new Map(match?.order.map((id, r) => [id, r]));
-  const candidates = match ? reach.filter((i) => hitRank.has(i.id)) : reach;
+  const candidates = core
+    ? reach.filter((i) => matchesQuery(i, terms))
+    : match
+      ? reach.filter((i) => hitRank.has(i.id))
+      : reach;
 
   const counts: Record<ReadCheck, number> = {
     scope: 0,
@@ -133,13 +135,28 @@ export async function filteredRead(
   byHit.forEach(({ item }, r) => {
     relevance.set(item.id, 1 - r / byHit.length);
   });
-  const admitted = passed.map(({ item, decision }) => {
-    const parts = components(item, at, match ? relevance.get(item.id) : undefined);
-    const total = Object.values(parts).reduce((a, b) => a + b, 0);
-    return { item, decision, parts, total };
-  });
-  // Candidates arrive ordered by id and the sort is stable, so ties keep id order.
-  admitted.sort((a, b) => b.total - a.total);
+  const decisionOf = new Map(passed.map(({ item, decision }) => [item.id, decision]));
+  const admitted = core
+    ? // The core pipeline over what the filter admitted: ranked, then cut.
+      retrieve(
+        passed.map(({ item }) => item),
+        query.text,
+        at,
+        deps.retrieval?.limit,
+      ).map(({ item, components: parts, total }) => ({
+        item,
+        decision: decisionOf.get(item.id) as ReturnType<typeof evaluateRead>,
+        parts,
+        total,
+      }))
+    : passed.map(({ item, decision }) => {
+        const parts = scoreComponents(item, at, match ? relevance.get(item.id) : undefined);
+        const total = Object.values(parts).reduce((a, b) => a + b, 0);
+        return { item, decision, parts, total };
+      });
+  // Candidates arrive ordered by id and the sort is stable, so ties keep id
+  // order; the core pipeline's list is already in its order.
+  if (!core) admitted.sort((a, b) => b.total - a.total);
 
   const explanations: Explanation[] = admitted.map(({ item, decision, parts, total }, i) => ({
     item_id: item.id,
@@ -155,6 +172,8 @@ export async function filteredRead(
   // 0025), or reached through a grant whose class or expiry fails.
   const filtered =
     counts.excluded + counts["outside-validity"] + counts["not-active"] + counts.expired;
+  // Under the core pipeline with a limit, the admitted items ranked below it.
+  const limited = core && deps.retrieval?.limit !== undefined;
   const reason = formatReadReason({
     returned: admitted.length,
     candidates: candidates.length,
@@ -163,6 +182,7 @@ export async function filteredRead(
     not_active: counts["not-active"],
     expired: counts.expired,
     excluded: counts.excluded,
+    ...(limited ? { cut: passed.length - admitted.length } : {}),
     out_of_reach: outOfReach,
   });
 

@@ -289,7 +289,9 @@ export interface CheckpointMapping {
   mapping: EpisodeMapping;
   /** The asker as the actor the read is made as. */
   asker: Actor;
-  /** The turns up to and including the as-of turn, as their speakers' writes, in order. */
+  /** The turns up to and including the as-of turn, stripped (visibleTurn), in order. */
+  turns: Turn[];
+  /** The same turns as their speakers' writes, in order. */
   writes: TurnWrite[];
   /** The as-of turn's time: when the writes are done and the question is asked. */
   at: string;
@@ -331,6 +333,7 @@ export function mapCheckpoint(
     checkpoint,
     mapping,
     asker: asker.actor,
+    turns,
     writes: turns.map((t, i) => turnWrite(mapping, t, i, newId())),
     at: turnTime(turns.at(-1) as Turn, upTo),
   };

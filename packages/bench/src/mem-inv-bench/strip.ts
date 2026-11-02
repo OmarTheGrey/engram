@@ -40,6 +40,9 @@ export function visibleCase(c: Case): VisibleCase {
       channel: e.channel,
       derived_from: [...e.derived_from],
       text: e.text,
+      // The input the agent's note summarises: world state the harness
+      // regenerates the note from, never a label.
+      ...(e.summarized_from === undefined ? {} : { summarized_from: e.summarized_from }),
     })),
   };
 }

@@ -120,6 +120,48 @@ describe("renderRecall and tagRecall", () => {
     );
   });
 
+  test("an annotated read (C4) carries each item's metadata after its rank, escaped (ADR 0031)", () => {
+    const annotated = tagUngovernedRead([
+      {
+        id: "i1",
+        scope: "team:x",
+        content: "fact",
+        attributes: [
+          ["channel", "web"],
+          ["note", 'a "b" <c>'],
+        ],
+      },
+      { id: "i2", scope: "org", content: "other" },
+    ]);
+    expect(annotated).toBe(
+      [
+        '<engram:memory filtered="0">',
+        '<engram:item item_id="i1" scope="team:x" rank="1" channel="web" note="a &quot;b&quot; &lt;c&gt;">',
+        "fact",
+        "</engram:item>",
+        '<engram:item item_id="i2" scope="org" rank="2">',
+        "other",
+        "</engram:item>",
+        "</engram:memory>",
+      ].join("\n"),
+    );
+    // Without its metadata it is the C2 and C3 tag of the same items.
+    expect(annotated.replace(' channel="web" note="a &quot;b&quot; &lt;c&gt;"', "")).toBe(
+      tagUngovernedRead([
+        { id: "i1", scope: "team:x", content: "fact" },
+        { id: "i2", scope: "org", content: "other" },
+      ]),
+    );
+  });
+
+  test("an attribute name that is not a plain lower-case word, or one the tag owns, is refused", () => {
+    for (const name of ["rank", "item_id", "scope", "policy_id", "read_id", 'x" y="1', "Upper"]) {
+      expect(() =>
+        tagUngovernedRead([{ id: "i1", scope: "s", content: "c", attributes: [[name, "v"]] }]),
+      ).toThrow(/attribute/);
+    }
+  });
+
   test("the governed tag minus its read id and rules is the ungoverned tag of the same items", () => {
     const governed = tagRecall({ ...details, filtered: 0 });
     const ungoverned = tagUngovernedRead([{ id: "i1", scope: "team:x", content: "fact" }]);

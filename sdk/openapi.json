@@ -2655,6 +2655,12 @@
             "minimum": 0,
             "maximum": 9007199254740991
           },
+          "cut": {
+            "description": "Admitted items the read limit cut: present only on a read by a plane with the core retrieval pipeline and a limit.",
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
           "out_of_reach": {
             "type": "integer",
             "minimum": 0,
@@ -2672,7 +2678,7 @@
           "out_of_reach"
         ],
         "additionalProperties": false,
-        "description": "The counts a read event's reason records: returned of candidates, the filtered total and its categories, and the projected items outside the reader's reach (never candidates)."
+        "description": "The counts a read event's reason records: returned of candidates, the filtered total and its categories, the admitted items a read limit cut (when the plane has one), and the projected items outside the reader's reach (never candidates)."
       },
       "PromoteRequest": {
         "type": "object",

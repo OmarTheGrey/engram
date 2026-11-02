@@ -18,6 +18,17 @@ export * from "./items.ts";
 export * from "./lint.ts";
 export * from "./model.ts";
 export * from "./no-bypass.ts";
+export {
+  matchesQuery,
+  queryTerms,
+  type RankedItem,
+  rankForRead,
+  retrieve,
+  scoreComponents,
+  termShareOf,
+  type WalkedItem,
+  walkToAdmitted,
+} from "./plane/retrieve.ts";
 export * from "./plane.ts";
 export * from "./policy/evaluate.ts";
 export * from "./policy/load.ts";

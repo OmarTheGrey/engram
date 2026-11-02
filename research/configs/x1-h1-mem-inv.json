@@ -1,0 +1,14 @@
+{
+  "name": "x1-h1-mem-inv",
+  "kind": "pipeline",
+  "benchmark": "mem-inv-bench",
+  "data": "../../fixtures/bench/mem-inv-bench",
+  "items": ["mib-14", "mib-01"],
+  "conditions": ["C2", "C3", "C4", "C5"],
+  "model": "scripted/scripted-1",
+  "seeds": [1],
+  "preset": "medium",
+  "store": ["fake", "mem0", "letta"],
+  "script": "../../fixtures/bench/mem-inv-bench/probe-script.json",
+  "cassettes": "../../fixtures/cassettes/x1-h1-mem-inv"
+}
