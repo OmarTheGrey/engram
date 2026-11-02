@@ -340,7 +340,15 @@ def test_the_rung_choice_confirms_down_and_up() -> None:
     assert choose_rung(7, 5, lambda r: r >= 3, always) == 3  # walks down while the rung below holds
     assert choose_rung(7, 1, lambda r: r >= 3, always) == 3  # climbs while the power falls short
     assert choose_rung(4, 1, lambda r: False, always) is None  # never reaches the target
-    assert choose_rung(7, 2, lambda r: r >= 2, lambda r: False) is None  # never holds the level
+    seen: list[int] = []
+
+    def never(r: int) -> bool:
+        seen.append(r)
+        if len(seen) > 50:
+            raise AssertionError("the rung choice is looping")
+        return False
+
+    assert choose_rung(7, 2, lambda r: r >= 2, never) is None  # never holds the level
 
 
 TINY = {
