@@ -4,7 +4,10 @@
 // every turn item, with core's evaluateRead under the preset as the verdict)
 // against C2's and C5's lists, and how many of C4's are allowed and denied.
 // C4's allowed items equal C5's list by construction; the counts confirm it
-// on the data. Counts only; no session runs, no model is called.
+// on the data. For comparison, `c2_top_allowed` counts the allowed items
+// among C2's top READ_LIMIT, which is what C4 showed as allowed in round 2,
+// and `c2_top_allowed_strict_subset` the checkpoints where those were fewer
+// than C5's list. Counts only; no session runs, no model is called.
 //
 //   node packages/runner/scripts/c4-walk-lengths.ts <bench/data dir> [preset]
 import { gatemem } from "@engram/bench";
@@ -68,6 +71,8 @@ function main(): number {
         c4_items: 0,
         c4_allowed: 0,
         c4_denied: 0,
+        c2_top_allowed: 0,
+        c2_top_allowed_strict_subset: 0,
       });
       row.checkpoints = (row.checkpoints ?? 0) + 1;
       row.c2_items = (row.c2_items ?? 0) + c2.length;
@@ -75,6 +80,10 @@ function main(): number {
       row.c4_items = (row.c4_items ?? 0) + c4.length;
       row.c4_allowed = (row.c4_allowed ?? 0) + allowed.length;
       row.c4_denied = (row.c4_denied ?? 0) + c4.length - allowed.length;
+      const c2Allowed = c2.filter((r) => admits(r.item)).length;
+      row.c2_top_allowed = (row.c2_top_allowed ?? 0) + c2Allowed;
+      if (c2Allowed < c5.length)
+        row.c2_top_allowed_strict_subset = (row.c2_top_allowed_strict_subset ?? 0) + 1;
     }
   }
   const sorted = [...lengths].sort((a, b) => a - b);
