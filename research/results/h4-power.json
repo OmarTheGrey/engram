@@ -1,0 +1,3831 @@
+{
+  "alpha": 0.05,
+  "arms": 3,
+  "cells": [
+    {
+      "as_written": {
+        "items": 453,
+        "pair_power": 0.9675,
+        "power": 0.9025,
+        "power_nondegenerate": 0.9025,
+        "power_one_rung_below": 0.76
+      },
+      "evaluated": [
+        {
+          "items": 269,
+          "pair_power": 0.785,
+          "power": 0.5925,
+          "power_nondegenerate": 0.5925
+        },
+        {
+          "items": 320,
+          "pair_power": 0.8775,
+          "power": 0.7375,
+          "power_nondegenerate": 0.7375
+        },
+        {
+          "items": 381,
+          "pair_power": 0.8775,
+          "power": 0.76,
+          "power_nondegenerate": 0.76
+        },
+        {
+          "items": 453,
+          "pair_power": 0.9675,
+          "power": 0.9025,
+          "power_nondegenerate": 0.9025
+        }
+      ],
+      "kappa": 1.0,
+      "margin": 0.02,
+      "nondegenerate": {
+        "items": 453,
+        "pair_power": 0.9675,
+        "power": 0.9025,
+        "power_nondegenerate": 0.9025,
+        "power_one_rung_below": 0.76
+      },
+      "normal_approx_items_one_pair": 279.752347,
+      "rate": 0.02,
+      "seed_model": "independent"
+    },
+    {
+      "as_written": {
+        "items": 1280,
+        "pair_power": 0.9375,
+        "power": 0.8825,
+        "power_nondegenerate": 0.8825,
+        "power_one_rung_below": 0.775
+      },
+      "evaluated": [
+        {
+          "items": 761,
+          "pair_power": 0.7475,
+          "power": 0.535,
+          "power_nondegenerate": 0.535
+        },
+        {
+          "items": 905,
+          "pair_power": 0.85,
+          "power": 0.6625,
+          "power_nondegenerate": 0.6625
+        },
+        {
+          "items": 1076,
+          "pair_power": 0.8975,
+          "power": 0.775,
+          "power_nondegenerate": 0.775
+        },
+        {
+          "items": 1280,
+          "pair_power": 0.9375,
+          "power": 0.8825,
+          "power_nondegenerate": 0.8825
+        }
+      ],
+      "kappa": 1.0,
+      "margin": 0.02,
+      "nondegenerate": {
+        "items": 1280,
+        "pair_power": 0.9375,
+        "power": 0.8825,
+        "power_nondegenerate": 0.8825,
+        "power_one_rung_below": 0.775
+      },
+      "normal_approx_items_one_pair": 839.25704,
+      "rate": 0.02,
+      "seed_model": "identical"
+    },
+    {
+      "as_written": {
+        "items": 190,
+        "pair_power": 0.91,
+        "power": 0.8175,
+        "power_nondegenerate": 0.8175,
+        "power_one_rung_below": 0.6725
+      },
+      "evaluated": [
+        {
+          "items": 135,
+          "pair_power": 0.8,
+          "power": 0.6125,
+          "power_nondegenerate": 0.6125
+        },
+        {
+          "items": 160,
+          "pair_power": 0.845,
+          "power": 0.6725,
+          "power_nondegenerate": 0.6725
+        },
+        {
+          "items": 190,
+          "pair_power": 0.91,
+          "power": 0.8175,
+          "power_nondegenerate": 0.8175
+        }
+      ],
+      "kappa": 0.5,
+      "margin": 0.02,
+      "nondegenerate": {
+        "items": 190,
+        "pair_power": 0.91,
+        "power": 0.8175,
+        "power_nondegenerate": 0.8175,
+        "power_one_rung_below": 0.6725
+      },
+      "normal_approx_items_one_pair": 139.876173,
+      "rate": 0.02,
+      "seed_model": "independent"
+    },
+    {
+      "as_written": {
+        "items": 640,
+        "pair_power": 0.915,
+        "power": 0.825,
+        "power_nondegenerate": 0.825,
+        "power_one_rung_below": 0.7525
+      },
+      "evaluated": [
+        {
+          "items": 381,
+          "pair_power": 0.725,
+          "power": 0.495,
+          "power_nondegenerate": 0.4925
+        },
+        {
+          "items": 453,
+          "pair_power": 0.855,
+          "power": 0.68,
+          "power_nondegenerate": 0.68
+        },
+        {
+          "items": 538,
+          "pair_power": 0.8875,
+          "power": 0.7525,
+          "power_nondegenerate": 0.7525
+        },
+        {
+          "items": 640,
+          "pair_power": 0.915,
+          "power": 0.825,
+          "power_nondegenerate": 0.825
+        }
+      ],
+      "kappa": 0.5,
+      "margin": 0.02,
+      "nondegenerate": {
+        "items": 640,
+        "pair_power": 0.915,
+        "power": 0.825,
+        "power_nondegenerate": 0.825,
+        "power_one_rung_below": 0.7525
+      },
+      "normal_approx_items_one_pair": 419.62852,
+      "rate": 0.02,
+      "seed_model": "identical"
+    },
+    {
+      "as_written": {
+        "items": 135,
+        "pair_power": 0.9625,
+        "power": 0.9475,
+        "power_nondegenerate": 0.9,
+        "power_one_rung_below": 0.7875
+      },
+      "evaluated": [
+        {
+          "items": 67,
+          "pair_power": 0.7875,
+          "power": 0.6325,
+          "power_nondegenerate": 0.3925
+        },
+        {
+          "items": 80,
+          "pair_power": 0.6925,
+          "power": 0.4975,
+          "power_nondegenerate": 0.3625
+        },
+        {
+          "items": 95,
+          "pair_power": 0.845,
+          "power": 0.695,
+          "power_nondegenerate": 0.56
+        },
+        {
+          "items": 113,
+          "pair_power": 0.8875,
+          "power": 0.7875,
+          "power_nondegenerate": 0.71
+        },
+        {
+          "items": 135,
+          "pair_power": 0.9625,
+          "power": 0.9475,
+          "power_nondegenerate": 0.9
+        }
+      ],
+      "kappa": 0.25,
+      "margin": 0.02,
+      "nondegenerate": {
+        "items": 135,
+        "pair_power": 0.9625,
+        "power": 0.9475,
+        "power_nondegenerate": 0.9,
+        "power_one_rung_below": 0.7875
+      },
+      "normal_approx_items_one_pair": 69.938087,
+      "rate": 0.02,
+      "seed_model": "independent"
+    },
+    {
+      "as_written": {
+        "items": 320,
+        "pair_power": 0.91,
+        "power": 0.81,
+        "power_nondegenerate": 0.7275,
+        "power_one_rung_below": 0.7375
+      },
+      "evaluated": [
+        {
+          "items": 190,
+          "pair_power": 0.615,
+          "power": 0.44,
+          "power_nondegenerate": 0.1825
+        },
+        {
+          "items": 226,
+          "pair_power": 0.73,
+          "power": 0.5225,
+          "power_nondegenerate": 0.3575
+        },
+        {
+          "items": 269,
+          "pair_power": 0.865,
+          "power": 0.7375,
+          "power_nondegenerate": 0.5775
+        },
+        {
+          "items": 320,
+          "pair_power": 0.91,
+          "power": 0.81,
+          "power_nondegenerate": 0.7275
+        },
+        {
+          "items": 381,
+          "pair_power": 0.945,
+          "power": 0.86,
+          "power_nondegenerate": 0.8125
+        }
+      ],
+      "kappa": 0.25,
+      "margin": 0.02,
+      "nondegenerate": {
+        "items": 381,
+        "pair_power": 0.945,
+        "power": 0.86,
+        "power_nondegenerate": 0.8125,
+        "power_one_rung_below": 0.81
+      },
+      "normal_approx_items_one_pair": 209.81426,
+      "rate": 0.02,
+      "seed_model": "identical"
+    },
+    {
+      "as_written": {
+        "items": 905,
+        "pair_power": 0.9225,
+        "power": 0.815,
+        "power_nondegenerate": 0.815,
+        "power_one_rung_below": 0.69
+      },
+      "evaluated": [
+        {
+          "items": 640,
+          "pair_power": 0.75,
+          "power": 0.55,
+          "power_nondegenerate": 0.55
+        },
+        {
+          "items": 761,
+          "pair_power": 0.8725,
+          "power": 0.69,
+          "power_nondegenerate": 0.69
+        },
+        {
+          "items": 905,
+          "pair_power": 0.9225,
+          "power": 0.815,
+          "power_nondegenerate": 0.815
+        }
+      ],
+      "kappa": 1.0,
+      "margin": 0.02,
+      "nondegenerate": {
+        "items": 905,
+        "pair_power": 0.9225,
+        "power": 0.815,
+        "power_nondegenerate": 0.815,
+        "power_one_rung_below": 0.69
+      },
+      "normal_approx_items_one_pair": 677.971249,
+      "rate": 0.05,
+      "seed_model": "independent"
+    },
+    {
+      "as_written": {
+        "items": 2560,
+        "pair_power": 0.9,
+        "power": 0.8225,
+        "power_nondegenerate": 0.8225,
+        "power_one_rung_below": 0.6225
+      },
+      "evaluated": [
+        {
+          "items": 1810,
+          "pair_power": 0.7225,
+          "power": 0.47,
+          "power_nondegenerate": 0.47
+        },
+        {
+          "items": 2153,
+          "pair_power": 0.8075,
+          "power": 0.6225,
+          "power_nondegenerate": 0.6225
+        },
+        {
+          "items": 2560,
+          "pair_power": 0.9,
+          "power": 0.8225,
+          "power_nondegenerate": 0.8225
+        }
+      ],
+      "kappa": 1.0,
+      "margin": 0.02,
+      "nondegenerate": {
+        "items": 2560,
+        "pair_power": 0.9,
+        "power": 0.8225,
+        "power_nondegenerate": 0.8225,
+        "power_one_rung_below": 0.6225
+      },
+      "normal_approx_items_one_pair": 2033.913746,
+      "rate": 0.05,
+      "seed_model": "identical"
+    },
+    {
+      "as_written": {
+        "items": 453,
+        "pair_power": 0.9375,
+        "power": 0.825,
+        "power_nondegenerate": 0.825,
+        "power_one_rung_below": 0.695
+      },
+      "evaluated": [
+        {
+          "items": 320,
+          "pair_power": 0.8325,
+          "power": 0.59,
+          "power_nondegenerate": 0.59
+        },
+        {
+          "items": 381,
+          "pair_power": 0.84,
+          "power": 0.695,
+          "power_nondegenerate": 0.695
+        },
+        {
+          "items": 453,
+          "pair_power": 0.9375,
+          "power": 0.825,
+          "power_nondegenerate": 0.825
+        }
+      ],
+      "kappa": 0.5,
+      "margin": 0.02,
+      "nondegenerate": {
+        "items": 453,
+        "pair_power": 0.9375,
+        "power": 0.825,
+        "power_nondegenerate": 0.825,
+        "power_one_rung_below": 0.695
+      },
+      "normal_approx_items_one_pair": 338.985624,
+      "rate": 0.05,
+      "seed_model": "independent"
+    },
+    {
+      "as_written": {
+        "items": 1522,
+        "pair_power": 0.9525,
+        "power": 0.865,
+        "power_nondegenerate": 0.865,
+        "power_one_rung_below": 0.79
+      },
+      "evaluated": [
+        {
+          "items": 905,
+          "pair_power": 0.77,
+          "power": 0.525,
+          "power_nondegenerate": 0.525
+        },
+        {
+          "items": 1076,
+          "pair_power": 0.8025,
+          "power": 0.6225,
+          "power_nondegenerate": 0.6225
+        },
+        {
+          "items": 1280,
+          "pair_power": 0.91,
+          "power": 0.79,
+          "power_nondegenerate": 0.79
+        },
+        {
+          "items": 1522,
+          "pair_power": 0.9525,
+          "power": 0.865,
+          "power_nondegenerate": 0.865
+        }
+      ],
+      "kappa": 0.5,
+      "margin": 0.02,
+      "nondegenerate": {
+        "items": 1522,
+        "pair_power": 0.9525,
+        "power": 0.865,
+        "power_nondegenerate": 0.865,
+        "power_one_rung_below": 0.79
+      },
+      "normal_approx_items_one_pair": 1016.956873,
+      "rate": 0.05,
+      "seed_model": "identical"
+    },
+    {
+      "as_written": {
+        "items": 269,
+        "pair_power": 0.9525,
+        "power": 0.89,
+        "power_nondegenerate": 0.89,
+        "power_one_rung_below": 0.765
+      },
+      "evaluated": [
+        {
+          "items": 160,
+          "pair_power": 0.7375,
+          "power": 0.5375,
+          "power_nondegenerate": 0.5375
+        },
+        {
+          "items": 190,
+          "pair_power": 0.855,
+          "power": 0.7225,
+          "power_nondegenerate": 0.7225
+        },
+        {
+          "items": 226,
+          "pair_power": 0.8825,
+          "power": 0.765,
+          "power_nondegenerate": 0.765
+        },
+        {
+          "items": 269,
+          "pair_power": 0.9525,
+          "power": 0.89,
+          "power_nondegenerate": 0.89
+        }
+      ],
+      "kappa": 0.25,
+      "margin": 0.02,
+      "nondegenerate": {
+        "items": 269,
+        "pair_power": 0.9525,
+        "power": 0.89,
+        "power_nondegenerate": 0.89,
+        "power_one_rung_below": 0.765
+      },
+      "normal_approx_items_one_pair": 169.492812,
+      "rate": 0.05,
+      "seed_model": "independent"
+    },
+    {
+      "as_written": {
+        "items": 761,
+        "pair_power": 0.9575,
+        "power": 0.865,
+        "power_nondegenerate": 0.865,
+        "power_one_rung_below": 0.68
+      },
+      "evaluated": [
+        {
+          "items": 453,
+          "pair_power": 0.75,
+          "power": 0.5375,
+          "power_nondegenerate": 0.5375
+        },
+        {
+          "items": 538,
+          "pair_power": 0.7675,
+          "power": 0.615,
+          "power_nondegenerate": 0.615
+        },
+        {
+          "items": 640,
+          "pair_power": 0.85,
+          "power": 0.68,
+          "power_nondegenerate": 0.68
+        },
+        {
+          "items": 761,
+          "pair_power": 0.9575,
+          "power": 0.865,
+          "power_nondegenerate": 0.865
+        }
+      ],
+      "kappa": 0.25,
+      "margin": 0.02,
+      "nondegenerate": {
+        "items": 761,
+        "pair_power": 0.9575,
+        "power": 0.865,
+        "power_nondegenerate": 0.865,
+        "power_one_rung_below": 0.68
+      },
+      "normal_approx_items_one_pair": 508.478436,
+      "rate": 0.05,
+      "seed_model": "identical"
+    },
+    {
+      "as_written": {
+        "items": 1810,
+        "pair_power": 0.93,
+        "power": 0.8275,
+        "power_nondegenerate": 0.8275,
+        "power_one_rung_below": 0.7025
+      },
+      "evaluated": [
+        {
+          "items": 1280,
+          "pair_power": 0.79,
+          "power": 0.54,
+          "power_nondegenerate": 0.54
+        },
+        {
+          "items": 1522,
+          "pair_power": 0.8475,
+          "power": 0.7025,
+          "power_nondegenerate": 0.7025
+        },
+        {
+          "items": 1810,
+          "pair_power": 0.93,
+          "power": 0.8275,
+          "power_nondegenerate": 0.8275
+        }
+      ],
+      "kappa": 1.0,
+      "margin": 0.02,
+      "nondegenerate": {
+        "items": 1810,
+        "pair_power": 0.93,
+        "power": 0.8275,
+        "power_nondegenerate": 0.8275,
+        "power_one_rung_below": 0.7025
+      },
+      "normal_approx_items_one_pair": 1284.577103,
+      "rate": 0.1,
+      "seed_model": "independent"
+    },
+    {
+      "as_written": {
+        "items": 5120,
+        "pair_power": 0.9175,
+        "power": 0.8525,
+        "power_nondegenerate": 0.8525,
+        "power_one_rung_below": 0.67
+      },
+      "evaluated": [
+        {
+          "items": 3620,
+          "pair_power": 0.7675,
+          "power": 0.5825,
+          "power_nondegenerate": 0.5825
+        },
+        {
+          "items": 4305,
+          "pair_power": 0.84,
+          "power": 0.67,
+          "power_nondegenerate": 0.67
+        },
+        {
+          "items": 5120,
+          "pair_power": 0.9175,
+          "power": 0.8525,
+          "power_nondegenerate": 0.8525
+        }
+      ],
+      "kappa": 1.0,
+      "margin": 0.02,
+      "nondegenerate": {
+        "items": 5120,
+        "pair_power": 0.9175,
+        "power": 0.8525,
+        "power_nondegenerate": 0.8525,
+        "power_one_rung_below": 0.67
+      },
+      "normal_approx_items_one_pair": 3853.731308,
+      "rate": 0.1,
+      "seed_model": "identical"
+    },
+    {
+      "as_written": {
+        "items": 905,
+        "pair_power": 0.92,
+        "power": 0.8425,
+        "power_nondegenerate": 0.8425,
+        "power_one_rung_below": 0.74
+      },
+      "evaluated": [
+        {
+          "items": 640,
+          "pair_power": 0.82,
+          "power": 0.61,
+          "power_nondegenerate": 0.61
+        },
+        {
+          "items": 761,
+          "pair_power": 0.8775,
+          "power": 0.74,
+          "power_nondegenerate": 0.74
+        },
+        {
+          "items": 905,
+          "pair_power": 0.92,
+          "power": 0.8425,
+          "power_nondegenerate": 0.8425
+        }
+      ],
+      "kappa": 0.5,
+      "margin": 0.02,
+      "nondegenerate": {
+        "items": 905,
+        "pair_power": 0.92,
+        "power": 0.8425,
+        "power_nondegenerate": 0.8425,
+        "power_one_rung_below": 0.74
+      },
+      "normal_approx_items_one_pair": 642.288551,
+      "rate": 0.1,
+      "seed_model": "independent"
+    },
+    {
+      "as_written": {
+        "items": 2560,
+        "pair_power": 0.93,
+        "power": 0.85,
+        "power_nondegenerate": 0.85,
+        "power_one_rung_below": 0.6975
+      },
+      "evaluated": [
+        {
+          "items": 1810,
+          "pair_power": 0.7975,
+          "power": 0.57,
+          "power_nondegenerate": 0.57
+        },
+        {
+          "items": 2153,
+          "pair_power": 0.865,
+          "power": 0.6975,
+          "power_nondegenerate": 0.6975
+        },
+        {
+          "items": 2560,
+          "pair_power": 0.93,
+          "power": 0.85,
+          "power_nondegenerate": 0.85
+        }
+      ],
+      "kappa": 0.5,
+      "margin": 0.02,
+      "nondegenerate": {
+        "items": 2560,
+        "pair_power": 0.93,
+        "power": 0.85,
+        "power_nondegenerate": 0.85,
+        "power_one_rung_below": 0.6975
+      },
+      "normal_approx_items_one_pair": 1926.865654,
+      "rate": 0.1,
+      "seed_model": "identical"
+    },
+    {
+      "as_written": {
+        "items": 453,
+        "pair_power": 0.9425,
+        "power": 0.8525,
+        "power_nondegenerate": 0.8525,
+        "power_one_rung_below": 0.695
+      },
+      "evaluated": [
+        {
+          "items": 320,
+          "pair_power": 0.8,
+          "power": 0.5875,
+          "power_nondegenerate": 0.5875
+        },
+        {
+          "items": 381,
+          "pair_power": 0.865,
+          "power": 0.695,
+          "power_nondegenerate": 0.695
+        },
+        {
+          "items": 453,
+          "pair_power": 0.9425,
+          "power": 0.8525,
+          "power_nondegenerate": 0.8525
+        }
+      ],
+      "kappa": 0.25,
+      "margin": 0.02,
+      "nondegenerate": {
+        "items": 453,
+        "pair_power": 0.9425,
+        "power": 0.8525,
+        "power_nondegenerate": 0.8525,
+        "power_one_rung_below": 0.695
+      },
+      "normal_approx_items_one_pair": 321.144276,
+      "rate": 0.1,
+      "seed_model": "independent"
+    },
+    {
+      "as_written": {
+        "items": 1280,
+        "pair_power": 0.9125,
+        "power": 0.8025,
+        "power_nondegenerate": 0.8025,
+        "power_one_rung_below": 0.685
+      },
+      "evaluated": [
+        {
+          "items": 905,
+          "pair_power": 0.8075,
+          "power": 0.5675,
+          "power_nondegenerate": 0.5675
+        },
+        {
+          "items": 1076,
+          "pair_power": 0.8375,
+          "power": 0.685,
+          "power_nondegenerate": 0.685
+        },
+        {
+          "items": 1280,
+          "pair_power": 0.9125,
+          "power": 0.8025,
+          "power_nondegenerate": 0.8025
+        }
+      ],
+      "kappa": 0.25,
+      "margin": 0.02,
+      "nondegenerate": {
+        "items": 1280,
+        "pair_power": 0.9125,
+        "power": 0.8025,
+        "power_nondegenerate": 0.8025,
+        "power_one_rung_below": 0.685
+      },
+      "normal_approx_items_one_pair": 963.432827,
+      "rate": 0.1,
+      "seed_model": "identical"
+    },
+    {
+      "as_written": {
+        "items": 3620,
+        "pair_power": 0.9625,
+        "power": 0.9075,
+        "power_nondegenerate": 0.9075,
+        "power_one_rung_below": 0.7975
+      },
+      "evaluated": [
+        {
+          "items": 2153,
+          "pair_power": 0.7725,
+          "power": 0.5575,
+          "power_nondegenerate": 0.5575
+        },
+        {
+          "items": 2560,
+          "pair_power": 0.87,
+          "power": 0.6925,
+          "power_nondegenerate": 0.6925
+        },
+        {
+          "items": 3044,
+          "pair_power": 0.9225,
+          "power": 0.7975,
+          "power_nondegenerate": 0.7975
+        },
+        {
+          "items": 3620,
+          "pair_power": 0.9625,
+          "power": 0.9075,
+          "power_nondegenerate": 0.9075
+        }
+      ],
+      "kappa": 1.0,
+      "margin": 0.02,
+      "nondegenerate": {
+        "items": 3620,
+        "pair_power": 0.9625,
+        "power": 0.9075,
+        "power_nondegenerate": 0.9075,
+        "power_one_rung_below": 0.7975
+      },
+      "normal_approx_items_one_pair": 2283.692627,
+      "rate": 0.2,
+      "seed_model": "independent"
+    },
+    {
+      "as_written": {
+        "items": 10240,
+        "pair_power": 0.9475,
+        "power": 0.865,
+        "power_nondegenerate": 0.865,
+        "power_one_rung_below": 0.7675
+      },
+      "evaluated": [
+        {
+          "items": 6089,
+          "pair_power": 0.765,
+          "power": 0.5325,
+          "power_nondegenerate": 0.5325
+        },
+        {
+          "items": 7241,
+          "pair_power": 0.8525,
+          "power": 0.6675,
+          "power_nondegenerate": 0.6675
+        },
+        {
+          "items": 8611,
+          "pair_power": 0.8975,
+          "power": 0.7675,
+          "power_nondegenerate": 0.7675
+        },
+        {
+          "items": 10240,
+          "pair_power": 0.9475,
+          "power": 0.865,
+          "power_nondegenerate": 0.865
+        }
+      ],
+      "kappa": 1.0,
+      "margin": 0.02,
+      "nondegenerate": {
+        "items": 10240,
+        "pair_power": 0.9475,
+        "power": 0.865,
+        "power_nondegenerate": 0.865,
+        "power_one_rung_below": 0.7675
+      },
+      "normal_approx_items_one_pair": 6851.077881,
+      "rate": 0.2,
+      "seed_model": "identical"
+    },
+    {
+      "as_written": {
+        "items": 1810,
+        "pair_power": 0.9625,
+        "power": 0.91,
+        "power_nondegenerate": 0.91,
+        "power_one_rung_below": 0.79
+      },
+      "evaluated": [
+        {
+          "items": 1076,
+          "pair_power": 0.7925,
+          "power": 0.58,
+          "power_nondegenerate": 0.58
+        },
+        {
+          "items": 1280,
+          "pair_power": 0.8625,
+          "power": 0.655,
+          "power_nondegenerate": 0.655
+        },
+        {
+          "items": 1522,
+          "pair_power": 0.9125,
+          "power": 0.79,
+          "power_nondegenerate": 0.79
+        },
+        {
+          "items": 1810,
+          "pair_power": 0.9625,
+          "power": 0.91,
+          "power_nondegenerate": 0.91
+        }
+      ],
+      "kappa": 0.5,
+      "margin": 0.02,
+      "nondegenerate": {
+        "items": 1810,
+        "pair_power": 0.9625,
+        "power": 0.91,
+        "power_nondegenerate": 0.91,
+        "power_one_rung_below": 0.79
+      },
+      "normal_approx_items_one_pair": 1141.846313,
+      "rate": 0.2,
+      "seed_model": "independent"
+    },
+    {
+      "as_written": {
+        "items": 5120,
+        "pair_power": 0.935,
+        "power": 0.8575,
+        "power_nondegenerate": 0.8575,
+        "power_one_rung_below": 0.78
+      },
+      "evaluated": [
+        {
+          "items": 3044,
+          "pair_power": 0.7525,
+          "power": 0.525,
+          "power_nondegenerate": 0.525
+        },
+        {
+          "items": 3620,
+          "pair_power": 0.8325,
+          "power": 0.6325,
+          "power_nondegenerate": 0.6325
+        },
+        {
+          "items": 4305,
+          "pair_power": 0.9075,
+          "power": 0.78,
+          "power_nondegenerate": 0.78
+        },
+        {
+          "items": 5120,
+          "pair_power": 0.935,
+          "power": 0.8575,
+          "power_nondegenerate": 0.8575
+        }
+      ],
+      "kappa": 0.5,
+      "margin": 0.02,
+      "nondegenerate": {
+        "items": 5120,
+        "pair_power": 0.935,
+        "power": 0.8575,
+        "power_nondegenerate": 0.8575,
+        "power_one_rung_below": 0.78
+      },
+      "normal_approx_items_one_pair": 3425.53894,
+      "rate": 0.2,
+      "seed_model": "identical"
+    },
+    {
+      "as_written": {
+        "items": 761,
+        "pair_power": 0.92,
+        "power": 0.815,
+        "power_nondegenerate": 0.815,
+        "power_one_rung_below": 0.6675
+      },
+      "evaluated": [
+        {
+          "items": 538,
+          "pair_power": 0.7575,
+          "power": 0.5225,
+          "power_nondegenerate": 0.5225
+        },
+        {
+          "items": 640,
+          "pair_power": 0.815,
+          "power": 0.6675,
+          "power_nondegenerate": 0.6675
+        },
+        {
+          "items": 761,
+          "pair_power": 0.92,
+          "power": 0.815,
+          "power_nondegenerate": 0.815
+        }
+      ],
+      "kappa": 0.25,
+      "margin": 0.02,
+      "nondegenerate": {
+        "items": 761,
+        "pair_power": 0.92,
+        "power": 0.815,
+        "power_nondegenerate": 0.815,
+        "power_one_rung_below": 0.6675
+      },
+      "normal_approx_items_one_pair": 570.923157,
+      "rate": 0.2,
+      "seed_model": "independent"
+    },
+    {
+      "as_written": {
+        "items": 2560,
+        "pair_power": 0.925,
+        "power": 0.8625,
+        "power_nondegenerate": 0.8625,
+        "power_one_rung_below": 0.7925
+      },
+      "evaluated": [
+        {
+          "items": 1522,
+          "pair_power": 0.73,
+          "power": 0.5,
+          "power_nondegenerate": 0.5
+        },
+        {
+          "items": 1810,
+          "pair_power": 0.8425,
+          "power": 0.6575,
+          "power_nondegenerate": 0.6575
+        },
+        {
+          "items": 2153,
+          "pair_power": 0.9025,
+          "power": 0.7925,
+          "power_nondegenerate": 0.7925
+        },
+        {
+          "items": 2560,
+          "pair_power": 0.925,
+          "power": 0.8625,
+          "power_nondegenerate": 0.8625
+        }
+      ],
+      "kappa": 0.25,
+      "margin": 0.02,
+      "nondegenerate": {
+        "items": 2560,
+        "pair_power": 0.925,
+        "power": 0.8625,
+        "power_nondegenerate": 0.8625,
+        "power_one_rung_below": 0.7925
+      },
+      "normal_approx_items_one_pair": 1712.76947,
+      "rate": 0.2,
+      "seed_model": "identical"
+    },
+    {
+      "as_written": {
+        "items": 67,
+        "pair_power": 0.9175,
+        "power": 0.8625,
+        "power_nondegenerate": 0.8625,
+        "power_one_rung_below": 0.705
+      },
+      "evaluated": [
+        {
+          "items": 40,
+          "pair_power": 0.625,
+          "power": 0.4125,
+          "power_nondegenerate": 0.375
+        },
+        {
+          "items": 48,
+          "pair_power": 0.85,
+          "power": 0.7325,
+          "power_nondegenerate": 0.7225
+        },
+        {
+          "items": 57,
+          "pair_power": 0.86,
+          "power": 0.705,
+          "power_nondegenerate": 0.7025
+        },
+        {
+          "items": 67,
+          "pair_power": 0.9175,
+          "power": 0.8625,
+          "power_nondegenerate": 0.8625
+        }
+      ],
+      "kappa": 1.0,
+      "margin": 0.05,
+      "nondegenerate": {
+        "items": 67,
+        "pair_power": 0.9175,
+        "power": 0.8625,
+        "power_nondegenerate": 0.8625,
+        "power_one_rung_below": 0.705
+      },
+      "normal_approx_items_one_pair": 44.760375,
+      "rate": 0.02,
+      "seed_model": "independent"
+    },
+    {
+      "as_written": {
+        "items": 226,
+        "pair_power": 0.96,
+        "power": 0.9025,
+        "power_nondegenerate": 0.9025,
+        "power_one_rung_below": 0.795
+      },
+      "evaluated": [
+        {
+          "items": 113,
+          "pair_power": 0.6875,
+          "power": 0.475,
+          "power_nondegenerate": 0.46
+        },
+        {
+          "items": 135,
+          "pair_power": 0.725,
+          "power": 0.505,
+          "power_nondegenerate": 0.5
+        },
+        {
+          "items": 160,
+          "pair_power": 0.8175,
+          "power": 0.685,
+          "power_nondegenerate": 0.68
+        },
+        {
+          "items": 190,
+          "pair_power": 0.9125,
+          "power": 0.795,
+          "power_nondegenerate": 0.7925
+        },
+        {
+          "items": 226,
+          "pair_power": 0.96,
+          "power": 0.9025,
+          "power_nondegenerate": 0.9025
+        }
+      ],
+      "kappa": 1.0,
+      "margin": 0.05,
+      "nondegenerate": {
+        "items": 226,
+        "pair_power": 0.96,
+        "power": 0.9025,
+        "power_nondegenerate": 0.9025,
+        "power_one_rung_below": 0.795
+      },
+      "normal_approx_items_one_pair": 134.281126,
+      "rate": 0.02,
+      "seed_model": "identical"
+    },
+    {
+      "as_written": {
+        "items": 28,
+        "pair_power": 0.885,
+        "power": 0.8175,
+        "power_nondegenerate": 0.455,
+        "power_one_rung_below": 0.5725
+      },
+      "evaluated": [
+        {
+          "items": 20,
+          "pair_power": 0.4025,
+          "power": 0.1725,
+          "power_nondegenerate": 0.02
+        },
+        {
+          "items": 24,
+          "pair_power": 0.705,
+          "power": 0.5725,
+          "power_nondegenerate": 0.16
+        },
+        {
+          "items": 28,
+          "pair_power": 0.885,
+          "power": 0.8175,
+          "power_nondegenerate": 0.455
+        },
+        {
+          "items": 34,
+          "pair_power": 0.93,
+          "power": 0.85,
+          "power_nondegenerate": 0.605
+        },
+        {
+          "items": 40,
+          "pair_power": 0.8975,
+          "power": 0.7525,
+          "power_nondegenerate": 0.57
+        },
+        {
+          "items": 48,
+          "pair_power": 0.9775,
+          "power": 0.965,
+          "power_nondegenerate": 0.8
+        }
+      ],
+      "kappa": 0.5,
+      "margin": 0.05,
+      "nondegenerate": {
+        "items": 48,
+        "pair_power": 0.9775,
+        "power": 0.965,
+        "power_nondegenerate": 0.8,
+        "power_one_rung_below": 0.7525
+      },
+      "normal_approx_items_one_pair": 22.380188,
+      "rate": 0.02,
+      "seed_model": "independent"
+    },
+    {
+      "as_written": {
+        "items": 135,
+        "pair_power": 0.9275,
+        "power": 0.865,
+        "power_nondegenerate": 0.7375,
+        "power_one_rung_below": 0.78
+      },
+      "evaluated": [
+        {
+          "items": 67,
+          "pair_power": 0.78,
+          "power": 0.6575,
+          "power_nondegenerate": 0.2575
+        },
+        {
+          "items": 80,
+          "pair_power": 0.6975,
+          "power": 0.56,
+          "power_nondegenerate": 0.2325
+        },
+        {
+          "items": 95,
+          "pair_power": 0.7775,
+          "power": 0.6275,
+          "power_nondegenerate": 0.365
+        },
+        {
+          "items": 113,
+          "pair_power": 0.88,
+          "power": 0.78,
+          "power_nondegenerate": 0.5425
+        },
+        {
+          "items": 135,
+          "pair_power": 0.9275,
+          "power": 0.865,
+          "power_nondegenerate": 0.7375
+        },
+        {
+          "items": 160,
+          "pair_power": 0.9725,
+          "power": 0.94,
+          "power_nondegenerate": 0.8425
+        }
+      ],
+      "kappa": 0.5,
+      "margin": 0.05,
+      "nondegenerate": {
+        "items": 160,
+        "pair_power": 0.9725,
+        "power": 0.94,
+        "power_nondegenerate": 0.8425,
+        "power_one_rung_below": 0.865
+      },
+      "normal_approx_items_one_pair": 67.140563,
+      "rate": 0.02,
+      "seed_model": "identical"
+    },
+    {
+      "as_written": {
+        "items": 24,
+        "pair_power": 0.925,
+        "power": 0.8875,
+        "power_nondegenerate": 0.1275,
+        "power_one_rung_below": 0.445
+      },
+      "evaluated": [
+        {
+          "items": 10,
+          "pair_power": 0.7175,
+          "power": 0.605,
+          "power_nondegenerate": 0.0
+        },
+        {
+          "items": 12,
+          "pair_power": 0.725,
+          "power": 0.5825,
+          "power_nondegenerate": 0.0
+        },
+        {
+          "items": 14,
+          "pair_power": 0.6375,
+          "power": 0.5025,
+          "power_nondegenerate": 0.0025
+        },
+        {
+          "items": 17,
+          "pair_power": 0.66,
+          "power": 0.5075,
+          "power_nondegenerate": 0.005
+        },
+        {
+          "items": 20,
+          "pair_power": 0.625,
+          "power": 0.445,
+          "power_nondegenerate": 0.0075
+        },
+        {
+          "items": 24,
+          "pair_power": 0.925,
+          "power": 0.8875,
+          "power_nondegenerate": 0.1275
+        },
+        {
+          "items": 28,
+          "pair_power": 0.98,
+          "power": 0.9725,
+          "power_nondegenerate": 0.225
+        },
+        {
+          "items": 34,
+          "pair_power": 0.9725,
+          "power": 0.96,
+          "power_nondegenerate": 0.295
+        },
+        {
+          "items": 40,
+          "pair_power": 0.955,
+          "power": 0.93,
+          "power_nondegenerate": 0.35
+        },
+        {
+          "items": 48,
+          "pair_power": 0.9975,
+          "power": 0.9925,
+          "power_nondegenerate": 0.5
+        },
+        {
+          "items": 57,
+          "pair_power": 1.0,
+          "power": 1.0,
+          "power_nondegenerate": 0.6225
+        },
+        {
+          "items": 67,
+          "pair_power": 1.0,
+          "power": 1.0,
+          "power_nondegenerate": 0.7125
+        },
+        {
+          "items": 80,
+          "pair_power": 1.0,
+          "power": 1.0,
+          "power_nondegenerate": 0.7025
+        },
+        {
+          "items": 95,
+          "pair_power": 1.0,
+          "power": 1.0,
+          "power_nondegenerate": 0.86
+        }
+      ],
+      "kappa": 0.25,
+      "margin": 0.05,
+      "nondegenerate": {
+        "items": 95,
+        "pair_power": 1.0,
+        "power": 1.0,
+        "power_nondegenerate": 0.86,
+        "power_one_rung_below": 1.0
+      },
+      "normal_approx_items_one_pair": 11.190094,
+      "rate": 0.02,
+      "seed_model": "independent"
+    },
+    {
+      "as_written": {
+        "items": 67,
+        "pair_power": 0.925,
+        "power": 0.88,
+        "power_nondegenerate": 0.1125,
+        "power_one_rung_below": 0.455
+      },
+      "evaluated": [
+        {
+          "items": 28,
+          "pair_power": 0.7825,
+          "power": 0.6775,
+          "power_nondegenerate": 0.0
+        },
+        {
+          "items": 34,
+          "pair_power": 0.72,
+          "power": 0.6225,
+          "power_nondegenerate": 0.0
+        },
+        {
+          "items": 40,
+          "pair_power": 0.6725,
+          "power": 0.5325,
+          "power_nondegenerate": 0.0
+        },
+        {
+          "items": 48,
+          "pair_power": 0.6525,
+          "power": 0.485,
+          "power_nondegenerate": 0.0075
+        },
+        {
+          "items": 57,
+          "pair_power": 0.6125,
+          "power": 0.455,
+          "power_nondegenerate": 0.0125
+        },
+        {
+          "items": 67,
+          "pair_power": 0.925,
+          "power": 0.88,
+          "power_nondegenerate": 0.1125
+        },
+        {
+          "items": 80,
+          "pair_power": 0.88,
+          "power": 0.8175,
+          "power_nondegenerate": 0.1275
+        },
+        {
+          "items": 95,
+          "pair_power": 0.9325,
+          "power": 0.8675,
+          "power_nondegenerate": 0.2325
+        },
+        {
+          "items": 113,
+          "pair_power": 0.98,
+          "power": 0.96,
+          "power_nondegenerate": 0.355
+        },
+        {
+          "items": 135,
+          "pair_power": 0.995,
+          "power": 0.9875,
+          "power_nondegenerate": 0.465
+        },
+        {
+          "items": 160,
+          "pair_power": 0.9975,
+          "power": 0.9925,
+          "power_nondegenerate": 0.58
+        },
+        {
+          "items": 190,
+          "pair_power": 1.0,
+          "power": 1.0,
+          "power_nondegenerate": 0.685
+        },
+        {
+          "items": 226,
+          "pair_power": 1.0,
+          "power": 1.0,
+          "power_nondegenerate": 0.7525
+        },
+        {
+          "items": 269,
+          "pair_power": 1.0,
+          "power": 1.0,
+          "power_nondegenerate": 0.8075
+        }
+      ],
+      "kappa": 0.25,
+      "margin": 0.05,
+      "nondegenerate": {
+        "items": 269,
+        "pair_power": 1.0,
+        "power": 1.0,
+        "power_nondegenerate": 0.8075,
+        "power_one_rung_below": 1.0
+      },
+      "normal_approx_items_one_pair": 33.570282,
+      "rate": 0.02,
+      "seed_model": "identical"
+    },
+    {
+      "as_written": {
+        "items": 160,
+        "pair_power": 0.9275,
+        "power": 0.8125,
+        "power_nondegenerate": 0.8125,
+        "power_one_rung_below": 0.7475
+      },
+      "evaluated": [
+        {
+          "items": 95,
+          "pair_power": 0.7525,
+          "power": 0.515,
+          "power_nondegenerate": 0.515
+        },
+        {
+          "items": 113,
+          "pair_power": 0.815,
+          "power": 0.5575,
+          "power_nondegenerate": 0.5575
+        },
+        {
+          "items": 135,
+          "pair_power": 0.895,
+          "power": 0.7475,
+          "power_nondegenerate": 0.7475
+        },
+        {
+          "items": 160,
+          "pair_power": 0.9275,
+          "power": 0.8125,
+          "power_nondegenerate": 0.8125
+        }
+      ],
+      "kappa": 1.0,
+      "margin": 0.05,
+      "nondegenerate": {
+        "items": 160,
+        "pair_power": 0.9275,
+        "power": 0.8125,
+        "power_nondegenerate": 0.8125,
+        "power_one_rung_below": 0.7475
+      },
+      "normal_approx_items_one_pair": 108.4754,
+      "rate": 0.05,
+      "seed_model": "independent"
+    },
+    {
+      "as_written": {
+        "items": 538,
+        "pair_power": 0.9475,
+        "power": 0.9,
+        "power_nondegenerate": 0.9,
+        "power_one_rung_below": 0.79
+      },
+      "evaluated": [
+        {
+          "items": 320,
+          "pair_power": 0.7475,
+          "power": 0.52,
+          "power_nondegenerate": 0.52
+        },
+        {
+          "items": 381,
+          "pair_power": 0.86,
+          "power": 0.7125,
+          "power_nondegenerate": 0.7125
+        },
+        {
+          "items": 453,
+          "pair_power": 0.9025,
+          "power": 0.79,
+          "power_nondegenerate": 0.79
+        },
+        {
+          "items": 538,
+          "pair_power": 0.9475,
+          "power": 0.9,
+          "power_nondegenerate": 0.9
+        }
+      ],
+      "kappa": 1.0,
+      "margin": 0.05,
+      "nondegenerate": {
+        "items": 538,
+        "pair_power": 0.9475,
+        "power": 0.9,
+        "power_nondegenerate": 0.9,
+        "power_one_rung_below": 0.79
+      },
+      "normal_approx_items_one_pair": 325.426199,
+      "rate": 0.05,
+      "seed_model": "identical"
+    },
+    {
+      "as_written": {
+        "items": 95,
+        "pair_power": 0.9675,
+        "power": 0.9225,
+        "power_nondegenerate": 0.9225,
+        "power_one_rung_below": 0.7975
+      },
+      "evaluated": [
+        {
+          "items": 48,
+          "pair_power": 0.7575,
+          "power": 0.565,
+          "power_nondegenerate": 0.56
+        },
+        {
+          "items": 57,
+          "pair_power": 0.785,
+          "power": 0.5975,
+          "power_nondegenerate": 0.5975
+        },
+        {
+          "items": 67,
+          "pair_power": 0.8975,
+          "power": 0.795,
+          "power_nondegenerate": 0.795
+        },
+        {
+          "items": 80,
+          "pair_power": 0.8975,
+          "power": 0.7975,
+          "power_nondegenerate": 0.7975
+        },
+        {
+          "items": 95,
+          "pair_power": 0.9675,
+          "power": 0.9225,
+          "power_nondegenerate": 0.9225
+        }
+      ],
+      "kappa": 0.5,
+      "margin": 0.05,
+      "nondegenerate": {
+        "items": 95,
+        "pair_power": 0.9675,
+        "power": 0.9225,
+        "power_nondegenerate": 0.9225,
+        "power_one_rung_below": 0.7975
+      },
+      "normal_approx_items_one_pair": 54.2377,
+      "rate": 0.05,
+      "seed_model": "independent"
+    },
+    {
+      "as_written": {
+        "items": 226,
+        "pair_power": 0.9275,
+        "power": 0.83,
+        "power_nondegenerate": 0.83,
+        "power_one_rung_below": 0.705
+      },
+      "evaluated": [
+        {
+          "items": 160,
+          "pair_power": 0.7325,
+          "power": 0.4775,
+          "power_nondegenerate": 0.475
+        },
+        {
+          "items": 190,
+          "pair_power": 0.8725,
+          "power": 0.705,
+          "power_nondegenerate": 0.705
+        },
+        {
+          "items": 226,
+          "pair_power": 0.9275,
+          "power": 0.83,
+          "power_nondegenerate": 0.83
+        }
+      ],
+      "kappa": 0.5,
+      "margin": 0.05,
+      "nondegenerate": {
+        "items": 226,
+        "pair_power": 0.9275,
+        "power": 0.83,
+        "power_nondegenerate": 0.83,
+        "power_one_rung_below": 0.705
+      },
+      "normal_approx_items_one_pair": 162.7131,
+      "rate": 0.05,
+      "seed_model": "identical"
+    },
+    {
+      "as_written": {
+        "items": 48,
+        "pair_power": 0.9625,
+        "power": 0.935,
+        "power_nondegenerate": 0.8675,
+        "power_one_rung_below": 0.675
+      },
+      "evaluated": [
+        {
+          "items": 24,
+          "pair_power": 0.6175,
+          "power": 0.455,
+          "power_nondegenerate": 0.1775
+        },
+        {
+          "items": 28,
+          "pair_power": 0.86,
+          "power": 0.755,
+          "power_nondegenerate": 0.465
+        },
+        {
+          "items": 34,
+          "pair_power": 0.875,
+          "power": 0.765,
+          "power_nondegenerate": 0.5775
+        },
+        {
+          "items": 40,
+          "pair_power": 0.83,
+          "power": 0.675,
+          "power_nondegenerate": 0.555
+        },
+        {
+          "items": 48,
+          "pair_power": 0.9625,
+          "power": 0.935,
+          "power_nondegenerate": 0.8675
+        }
+      ],
+      "kappa": 0.25,
+      "margin": 0.05,
+      "nondegenerate": {
+        "items": 48,
+        "pair_power": 0.9625,
+        "power": 0.935,
+        "power_nondegenerate": 0.8675,
+        "power_one_rung_below": 0.675
+      },
+      "normal_approx_items_one_pair": 27.11885,
+      "rate": 0.05,
+      "seed_model": "independent"
+    },
+    {
+      "as_written": {
+        "items": 135,
+        "pair_power": 0.885,
+        "power": 0.8125,
+        "power_nondegenerate": 0.7125,
+        "power_one_rung_below": 0.755
+      },
+      "evaluated": [
+        {
+          "items": 80,
+          "pair_power": 0.5975,
+          "power": 0.4525,
+          "power_nondegenerate": 0.2275
+        },
+        {
+          "items": 95,
+          "pair_power": 0.7425,
+          "power": 0.5325,
+          "power_nondegenerate": 0.36
+        },
+        {
+          "items": 113,
+          "pair_power": 0.8525,
+          "power": 0.755,
+          "power_nondegenerate": 0.6075
+        },
+        {
+          "items": 135,
+          "pair_power": 0.885,
+          "power": 0.8125,
+          "power_nondegenerate": 0.7125
+        },
+        {
+          "items": 160,
+          "pair_power": 0.9475,
+          "power": 0.8925,
+          "power_nondegenerate": 0.8375
+        }
+      ],
+      "kappa": 0.25,
+      "margin": 0.05,
+      "nondegenerate": {
+        "items": 160,
+        "pair_power": 0.9475,
+        "power": 0.8925,
+        "power_nondegenerate": 0.8375,
+        "power_one_rung_below": 0.8125
+      },
+      "normal_approx_items_one_pair": 81.35655,
+      "rate": 0.05,
+      "seed_model": "identical"
+    },
+    {
+      "as_written": {
+        "items": 269,
+        "pair_power": 0.92,
+        "power": 0.8075,
+        "power_nondegenerate": 0.8075,
+        "power_one_rung_below": 0.6475
+      },
+      "evaluated": [
+        {
+          "items": 190,
+          "pair_power": 0.76,
+          "power": 0.5375,
+          "power_nondegenerate": 0.5375
+        },
+        {
+          "items": 226,
+          "pair_power": 0.855,
+          "power": 0.6475,
+          "power_nondegenerate": 0.6475
+        },
+        {
+          "items": 269,
+          "pair_power": 0.92,
+          "power": 0.8075,
+          "power_nondegenerate": 0.8075
+        }
+      ],
+      "kappa": 1.0,
+      "margin": 0.05,
+      "nondegenerate": {
+        "items": 269,
+        "pair_power": 0.92,
+        "power": 0.8075,
+        "power_nondegenerate": 0.8075,
+        "power_one_rung_below": 0.6475
+      },
+      "normal_approx_items_one_pair": 205.532336,
+      "rate": 0.1,
+      "seed_model": "independent"
+    },
+    {
+      "as_written": {
+        "items": 905,
+        "pair_power": 0.9475,
+        "power": 0.865,
+        "power_nondegenerate": 0.865,
+        "power_one_rung_below": 0.7625
+      },
+      "evaluated": [
+        {
+          "items": 538,
+          "pair_power": 0.75,
+          "power": 0.53,
+          "power_nondegenerate": 0.53
+        },
+        {
+          "items": 640,
+          "pair_power": 0.815,
+          "power": 0.6525,
+          "power_nondegenerate": 0.6525
+        },
+        {
+          "items": 761,
+          "pair_power": 0.9075,
+          "power": 0.7625,
+          "power_nondegenerate": 0.7625
+        },
+        {
+          "items": 905,
+          "pair_power": 0.9475,
+          "power": 0.865,
+          "power_nondegenerate": 0.865
+        }
+      ],
+      "kappa": 1.0,
+      "margin": 0.05,
+      "nondegenerate": {
+        "items": 905,
+        "pair_power": 0.9475,
+        "power": 0.865,
+        "power_nondegenerate": 0.865,
+        "power_one_rung_below": 0.7625
+      },
+      "normal_approx_items_one_pair": 616.597009,
+      "rate": 0.1,
+      "seed_model": "identical"
+    },
+    {
+      "as_written": {
+        "items": 135,
+        "pair_power": 0.89,
+        "power": 0.8125,
+        "power_nondegenerate": 0.8125,
+        "power_one_rung_below": 0.64
+      },
+      "evaluated": [
+        {
+          "items": 95,
+          "pair_power": 0.765,
+          "power": 0.5325,
+          "power_nondegenerate": 0.5325
+        },
+        {
+          "items": 113,
+          "pair_power": 0.805,
+          "power": 0.64,
+          "power_nondegenerate": 0.64
+        },
+        {
+          "items": 135,
+          "pair_power": 0.89,
+          "power": 0.8125,
+          "power_nondegenerate": 0.8125
+        }
+      ],
+      "kappa": 0.5,
+      "margin": 0.05,
+      "nondegenerate": {
+        "items": 135,
+        "pair_power": 0.89,
+        "power": 0.8125,
+        "power_nondegenerate": 0.8125,
+        "power_one_rung_below": 0.64
+      },
+      "normal_approx_items_one_pair": 102.766168,
+      "rate": 0.1,
+      "seed_model": "independent"
+    },
+    {
+      "as_written": {
+        "items": 381,
+        "pair_power": 0.91,
+        "power": 0.8125,
+        "power_nondegenerate": 0.8125,
+        "power_one_rung_below": 0.55
+      },
+      "evaluated": [
+        {
+          "items": 269,
+          "pair_power": 0.7525,
+          "power": 0.5325,
+          "power_nondegenerate": 0.5325
+        },
+        {
+          "items": 320,
+          "pair_power": 0.78,
+          "power": 0.55,
+          "power_nondegenerate": 0.55
+        },
+        {
+          "items": 381,
+          "pair_power": 0.91,
+          "power": 0.8125,
+          "power_nondegenerate": 0.8125
+        }
+      ],
+      "kappa": 0.5,
+      "margin": 0.05,
+      "nondegenerate": {
+        "items": 381,
+        "pair_power": 0.91,
+        "power": 0.8125,
+        "power_nondegenerate": 0.8125,
+        "power_one_rung_below": 0.55
+      },
+      "normal_approx_items_one_pair": 308.298505,
+      "rate": 0.1,
+      "seed_model": "identical"
+    },
+    {
+      "as_written": {
+        "items": 80,
+        "pair_power": 0.915,
+        "power": 0.8075,
+        "power_nondegenerate": 0.8075,
+        "power_one_rung_below": 0.7825
+      },
+      "evaluated": [
+        {
+          "items": 48,
+          "pair_power": 0.8025,
+          "power": 0.615,
+          "power_nondegenerate": 0.6075
+        },
+        {
+          "items": 57,
+          "pair_power": 0.8025,
+          "power": 0.635,
+          "power_nondegenerate": 0.635
+        },
+        {
+          "items": 67,
+          "pair_power": 0.9175,
+          "power": 0.7825,
+          "power_nondegenerate": 0.7825
+        },
+        {
+          "items": 80,
+          "pair_power": 0.915,
+          "power": 0.8075,
+          "power_nondegenerate": 0.8075
+        }
+      ],
+      "kappa": 0.25,
+      "margin": 0.05,
+      "nondegenerate": {
+        "items": 80,
+        "pair_power": 0.915,
+        "power": 0.8075,
+        "power_nondegenerate": 0.8075,
+        "power_one_rung_below": 0.7825
+      },
+      "normal_approx_items_one_pair": 51.383084,
+      "rate": 0.1,
+      "seed_model": "independent"
+    },
+    {
+      "as_written": {
+        "items": 226,
+        "pair_power": 0.925,
+        "power": 0.8425,
+        "power_nondegenerate": 0.8425,
+        "power_one_rung_below": 0.7225
+      },
+      "evaluated": [
+        {
+          "items": 135,
+          "pair_power": 0.65,
+          "power": 0.4225,
+          "power_nondegenerate": 0.4125
+        },
+        {
+          "items": 160,
+          "pair_power": 0.7625,
+          "power": 0.5125,
+          "power_nondegenerate": 0.5125
+        },
+        {
+          "items": 190,
+          "pair_power": 0.8575,
+          "power": 0.7225,
+          "power_nondegenerate": 0.7225
+        },
+        {
+          "items": 226,
+          "pair_power": 0.925,
+          "power": 0.8425,
+          "power_nondegenerate": 0.8425
+        }
+      ],
+      "kappa": 0.25,
+      "margin": 0.05,
+      "nondegenerate": {
+        "items": 226,
+        "pair_power": 0.925,
+        "power": 0.8425,
+        "power_nondegenerate": 0.8425,
+        "power_one_rung_below": 0.7225
+      },
+      "normal_approx_items_one_pair": 154.149252,
+      "rate": 0.1,
+      "seed_model": "identical"
+    },
+    {
+      "as_written": {
+        "items": 538,
+        "pair_power": 0.9375,
+        "power": 0.855,
+        "power_nondegenerate": 0.855,
+        "power_one_rung_below": 0.74
+      },
+      "evaluated": [
+        {
+          "items": 320,
+          "pair_power": 0.71,
+          "power": 0.485,
+          "power_nondegenerate": 0.485
+        },
+        {
+          "items": 381,
+          "pair_power": 0.8125,
+          "power": 0.62,
+          "power_nondegenerate": 0.62
+        },
+        {
+          "items": 453,
+          "pair_power": 0.895,
+          "power": 0.74,
+          "power_nondegenerate": 0.74
+        },
+        {
+          "items": 538,
+          "pair_power": 0.9375,
+          "power": 0.855,
+          "power_nondegenerate": 0.855
+        }
+      ],
+      "kappa": 1.0,
+      "margin": 0.05,
+      "nondegenerate": {
+        "items": 538,
+        "pair_power": 0.9375,
+        "power": 0.855,
+        "power_nondegenerate": 0.855,
+        "power_one_rung_below": 0.74
+      },
+      "normal_approx_items_one_pair": 365.39082,
+      "rate": 0.2,
+      "seed_model": "independent"
+    },
+    {
+      "as_written": {
+        "items": 1522,
+        "pair_power": 0.9025,
+        "power": 0.81,
+        "power_nondegenerate": 0.81,
+        "power_one_rung_below": 0.6975
+      },
+      "evaluated": [
+        {
+          "items": 1076,
+          "pair_power": 0.7825,
+          "power": 0.555,
+          "power_nondegenerate": 0.555
+        },
+        {
+          "items": 1280,
+          "pair_power": 0.855,
+          "power": 0.6975,
+          "power_nondegenerate": 0.6975
+        },
+        {
+          "items": 1522,
+          "pair_power": 0.9025,
+          "power": 0.81,
+          "power_nondegenerate": 0.81
+        }
+      ],
+      "kappa": 1.0,
+      "margin": 0.05,
+      "nondegenerate": {
+        "items": 1522,
+        "pair_power": 0.9025,
+        "power": 0.81,
+        "power_nondegenerate": 0.81,
+        "power_one_rung_below": 0.6975
+      },
+      "normal_approx_items_one_pair": 1096.172461,
+      "rate": 0.2,
+      "seed_model": "identical"
+    },
+    {
+      "as_written": {
+        "items": 269,
+        "pair_power": 0.9325,
+        "power": 0.825,
+        "power_nondegenerate": 0.825,
+        "power_one_rung_below": 0.7175
+      },
+      "evaluated": [
+        {
+          "items": 160,
+          "pair_power": 0.675,
+          "power": 0.44,
+          "power_nondegenerate": 0.44
+        },
+        {
+          "items": 190,
+          "pair_power": 0.8075,
+          "power": 0.6375,
+          "power_nondegenerate": 0.6375
+        },
+        {
+          "items": 226,
+          "pair_power": 0.86,
+          "power": 0.7175,
+          "power_nondegenerate": 0.7175
+        },
+        {
+          "items": 269,
+          "pair_power": 0.9325,
+          "power": 0.825,
+          "power_nondegenerate": 0.825
+        }
+      ],
+      "kappa": 0.5,
+      "margin": 0.05,
+      "nondegenerate": {
+        "items": 269,
+        "pair_power": 0.9325,
+        "power": 0.825,
+        "power_nondegenerate": 0.825,
+        "power_one_rung_below": 0.7175
+      },
+      "normal_approx_items_one_pair": 182.69541,
+      "rate": 0.2,
+      "seed_model": "independent"
+    },
+    {
+      "as_written": {
+        "items": 761,
+        "pair_power": 0.9575,
+        "power": 0.88,
+        "power_nondegenerate": 0.88,
+        "power_one_rung_below": 0.7025
+      },
+      "evaluated": [
+        {
+          "items": 538,
+          "pair_power": 0.7725,
+          "power": 0.5325,
+          "power_nondegenerate": 0.5325
+        },
+        {
+          "items": 640,
+          "pair_power": 0.845,
+          "power": 0.7025,
+          "power_nondegenerate": 0.7025
+        },
+        {
+          "items": 761,
+          "pair_power": 0.9575,
+          "power": 0.88,
+          "power_nondegenerate": 0.88
+        }
+      ],
+      "kappa": 0.5,
+      "margin": 0.05,
+      "nondegenerate": {
+        "items": 761,
+        "pair_power": 0.9575,
+        "power": 0.88,
+        "power_nondegenerate": 0.88,
+        "power_one_rung_below": 0.7025
+      },
+      "normal_approx_items_one_pair": 548.08623,
+      "rate": 0.2,
+      "seed_model": "identical"
+    },
+    {
+      "as_written": {
+        "items": 135,
+        "pair_power": 0.975,
+        "power": 0.895,
+        "power_nondegenerate": 0.895,
+        "power_one_rung_below": 0.7125
+      },
+      "evaluated": [
+        {
+          "items": 80,
+          "pair_power": 0.6925,
+          "power": 0.3925,
+          "power_nondegenerate": 0.3925
+        },
+        {
+          "items": 95,
+          "pair_power": 0.84,
+          "power": 0.67,
+          "power_nondegenerate": 0.67
+        },
+        {
+          "items": 113,
+          "pair_power": 0.855,
+          "power": 0.7125,
+          "power_nondegenerate": 0.7125
+        },
+        {
+          "items": 135,
+          "pair_power": 0.975,
+          "power": 0.895,
+          "power_nondegenerate": 0.895
+        }
+      ],
+      "kappa": 0.25,
+      "margin": 0.05,
+      "nondegenerate": {
+        "items": 135,
+        "pair_power": 0.975,
+        "power": 0.895,
+        "power_nondegenerate": 0.895,
+        "power_one_rung_below": 0.7125
+      },
+      "normal_approx_items_one_pair": 91.347705,
+      "rate": 0.2,
+      "seed_model": "independent"
+    },
+    {
+      "as_written": {
+        "items": 381,
+        "pair_power": 0.94,
+        "power": 0.8725,
+        "power_nondegenerate": 0.8725,
+        "power_one_rung_below": 0.65
+      },
+      "evaluated": [
+        {
+          "items": 269,
+          "pair_power": 0.7625,
+          "power": 0.555,
+          "power_nondegenerate": 0.555
+        },
+        {
+          "items": 320,
+          "pair_power": 0.8375,
+          "power": 0.65,
+          "power_nondegenerate": 0.65
+        },
+        {
+          "items": 381,
+          "pair_power": 0.94,
+          "power": 0.8725,
+          "power_nondegenerate": 0.8725
+        }
+      ],
+      "kappa": 0.25,
+      "margin": 0.05,
+      "nondegenerate": {
+        "items": 381,
+        "pair_power": 0.94,
+        "power": 0.8725,
+        "power_nondegenerate": 0.8725,
+        "power_one_rung_below": 0.65
+      },
+      "normal_approx_items_one_pair": 274.043115,
+      "rate": 0.2,
+      "seed_model": "identical"
+    },
+    {
+      "as_written": {
+        "items": 14,
+        "pair_power": 0.8975,
+        "power": 0.85,
+        "power_nondegenerate": 0.4225,
+        "power_one_rung_below": 0.565
+      },
+      "evaluated": [
+        {
+          "items": 10,
+          "pair_power": 0.3975,
+          "power": 0.215,
+          "power_nondegenerate": 0.035
+        },
+        {
+          "items": 12,
+          "pair_power": 0.7175,
+          "power": 0.565,
+          "power_nondegenerate": 0.15
+        },
+        {
+          "items": 14,
+          "pair_power": 0.8975,
+          "power": 0.85,
+          "power_nondegenerate": 0.4225
+        },
+        {
+          "items": 17,
+          "pair_power": 0.915,
+          "power": 0.8075,
+          "power_nondegenerate": 0.52
+        },
+        {
+          "items": 20,
+          "pair_power": 0.905,
+          "power": 0.8125,
+          "power_nondegenerate": 0.625
+        },
+        {
+          "items": 24,
+          "pair_power": 0.9575,
+          "power": 0.9275,
+          "power_nondegenerate": 0.7725
+        },
+        {
+          "items": 28,
+          "pair_power": 0.9975,
+          "power": 0.975,
+          "power_nondegenerate": 0.8925
+        }
+      ],
+      "kappa": 1.0,
+      "margin": 0.1,
+      "nondegenerate": {
+        "items": 28,
+        "pair_power": 0.9975,
+        "power": 0.975,
+        "power_nondegenerate": 0.8925,
+        "power_one_rung_below": 0.9275
+      },
+      "normal_approx_items_one_pair": 11.190094,
+      "rate": 0.02,
+      "seed_model": "independent"
+    },
+    {
+      "as_written": {
+        "items": 57,
+        "pair_power": 0.91,
+        "power": 0.8025,
+        "power_nondegenerate": 0.59,
+        "power_one_rung_below": 0.705
+      },
+      "evaluated": [
+        {
+          "items": 28,
+          "pair_power": 0.4175,
+          "power": 0.225,
+          "power_nondegenerate": 0.05
+        },
+        {
+          "items": 34,
+          "pair_power": 0.735,
+          "power": 0.605,
+          "power_nondegenerate": 0.2125
+        },
+        {
+          "items": 40,
+          "pair_power": 0.6825,
+          "power": 0.565,
+          "power_nondegenerate": 0.23
+        },
+        {
+          "items": 48,
+          "pair_power": 0.8125,
+          "power": 0.705,
+          "power_nondegenerate": 0.4175
+        },
+        {
+          "items": 57,
+          "pair_power": 0.91,
+          "power": 0.8025,
+          "power_nondegenerate": 0.59
+        },
+        {
+          "items": 67,
+          "pair_power": 0.9425,
+          "power": 0.89,
+          "power_nondegenerate": 0.7325
+        },
+        {
+          "items": 80,
+          "pair_power": 0.9725,
+          "power": 0.965,
+          "power_nondegenerate": 0.8825
+        }
+      ],
+      "kappa": 1.0,
+      "margin": 0.1,
+      "nondegenerate": {
+        "items": 80,
+        "pair_power": 0.9725,
+        "power": 0.965,
+        "power_nondegenerate": 0.8825,
+        "power_one_rung_below": 0.89
+      },
+      "normal_approx_items_one_pair": 33.570282,
+      "rate": 0.02,
+      "seed_model": "identical"
+    },
+    {
+      "as_written": {
+        "items": 12,
+        "pair_power": 0.9025,
+        "power": 0.8325,
+        "power_nondegenerate": 0.1175,
+        "power_one_rung_below": 0.4175
+      },
+      "evaluated": [
+        {
+          "items": 10,
+          "pair_power": 0.6025,
+          "power": 0.4175,
+          "power_nondegenerate": 0.0075
+        },
+        {
+          "items": 12,
+          "pair_power": 0.9025,
+          "power": 0.8325,
+          "power_nondegenerate": 0.1175
+        },
+        {
+          "items": 14,
+          "pair_power": 0.9875,
+          "power": 0.9775,
+          "power_nondegenerate": 0.235
+        },
+        {
+          "items": 17,
+          "pair_power": 0.9875,
+          "power": 0.965,
+          "power_nondegenerate": 0.3325
+        },
+        {
+          "items": 20,
+          "pair_power": 0.97,
+          "power": 0.9375,
+          "power_nondegenerate": 0.34
+        },
+        {
+          "items": 24,
+          "pair_power": 0.995,
+          "power": 0.99,
+          "power_nondegenerate": 0.52
+        },
+        {
+          "items": 28,
+          "pair_power": 0.9975,
+          "power": 0.995,
+          "power_nondegenerate": 0.6
+        },
+        {
+          "items": 34,
+          "pair_power": 1.0,
+          "power": 1.0,
+          "power_nondegenerate": 0.665
+        },
+        {
+          "items": 40,
+          "pair_power": 1.0,
+          "power": 1.0,
+          "power_nondegenerate": 0.8
+        }
+      ],
+      "kappa": 0.5,
+      "margin": 0.1,
+      "nondegenerate": {
+        "items": 40,
+        "pair_power": 1.0,
+        "power": 1.0,
+        "power_nondegenerate": 0.8,
+        "power_one_rung_below": 1.0
+      },
+      "normal_approx_items_one_pair": 5.595047,
+      "rate": 0.02,
+      "seed_model": "independent"
+    },
+    {
+      "as_written": {
+        "items": 34,
+        "pair_power": 0.925,
+        "power": 0.8575,
+        "power_nondegenerate": 0.125,
+        "power_one_rung_below": 0.485
+      },
+      "evaluated": [
+        {
+          "items": 14,
+          "pair_power": 0.7625,
+          "power": 0.675,
+          "power_nondegenerate": 0.0
+        },
+        {
+          "items": 17,
+          "pair_power": 0.7025,
+          "power": 0.6125,
+          "power_nondegenerate": 0.0
+        },
+        {
+          "items": 20,
+          "pair_power": 0.675,
+          "power": 0.5325,
+          "power_nondegenerate": 0.0
+        },
+        {
+          "items": 24,
+          "pair_power": 0.66,
+          "power": 0.51,
+          "power_nondegenerate": 0.01
+        },
+        {
+          "items": 28,
+          "pair_power": 0.6725,
+          "power": 0.485,
+          "power_nondegenerate": 0.0025
+        },
+        {
+          "items": 34,
+          "pair_power": 0.925,
+          "power": 0.8575,
+          "power_nondegenerate": 0.125
+        },
+        {
+          "items": 40,
+          "pair_power": 0.9,
+          "power": 0.84,
+          "power_nondegenerate": 0.1625
+        },
+        {
+          "items": 48,
+          "pair_power": 0.96,
+          "power": 0.9,
+          "power_nondegenerate": 0.275
+        },
+        {
+          "items": 57,
+          "pair_power": 0.9825,
+          "power": 0.955,
+          "power_nondegenerate": 0.4025
+        },
+        {
+          "items": 67,
+          "pair_power": 0.9925,
+          "power": 0.99,
+          "power_nondegenerate": 0.4875
+        },
+        {
+          "items": 80,
+          "pair_power": 0.995,
+          "power": 0.995,
+          "power_nondegenerate": 0.58
+        },
+        {
+          "items": 95,
+          "pair_power": 1.0,
+          "power": 1.0,
+          "power_nondegenerate": 0.685
+        },
+        {
+          "items": 113,
+          "pair_power": 1.0,
+          "power": 1.0,
+          "power_nondegenerate": 0.7325
+        },
+        {
+          "items": 135,
+          "pair_power": 1.0,
+          "power": 1.0,
+          "power_nondegenerate": 0.8225
+        }
+      ],
+      "kappa": 0.5,
+      "margin": 0.1,
+      "nondegenerate": {
+        "items": 135,
+        "pair_power": 1.0,
+        "power": 1.0,
+        "power_nondegenerate": 0.8225,
+        "power_one_rung_below": 1.0
+      },
+      "normal_approx_items_one_pair": 16.785141,
+      "rate": 0.02,
+      "seed_model": "identical"
+    },
+    {
+      "as_written": {
+        "items": 12,
+        "pair_power": 0.96,
+        "power": 0.95,
+        "power_nondegenerate": 0.0425,
+        "power_one_rung_below": 0.6775
+      },
+      "evaluated": [
+        {
+          "items": 10,
+          "pair_power": 0.795,
+          "power": 0.6775,
+          "power_nondegenerate": 0.0025
+        },
+        {
+          "items": 12,
+          "pair_power": 0.96,
+          "power": 0.95,
+          "power_nondegenerate": 0.0425
+        },
+        {
+          "items": 14,
+          "pair_power": 0.995,
+          "power": 0.9925,
+          "power_nondegenerate": 0.075
+        },
+        {
+          "items": 17,
+          "pair_power": 0.995,
+          "power": 0.995,
+          "power_nondegenerate": 0.1275
+        },
+        {
+          "items": 20,
+          "pair_power": 0.9975,
+          "power": 0.995,
+          "power_nondegenerate": 0.1525
+        },
+        {
+          "items": 24,
+          "pair_power": 1.0,
+          "power": 0.9975,
+          "power_nondegenerate": 0.2175
+        },
+        {
+          "items": 28,
+          "pair_power": 1.0,
+          "power": 1.0,
+          "power_nondegenerate": 0.2325
+        },
+        {
+          "items": 34,
+          "pair_power": 1.0,
+          "power": 1.0,
+          "power_nondegenerate": 0.29
+        },
+        {
+          "items": 40,
+          "pair_power": 1.0,
+          "power": 1.0,
+          "power_nondegenerate": 0.45
+        },
+        {
+          "items": 48,
+          "pair_power": 1.0,
+          "power": 1.0,
+          "power_nondegenerate": 0.5075
+        },
+        {
+          "items": 57,
+          "pair_power": 1.0,
+          "power": 1.0,
+          "power_nondegenerate": 0.635
+        },
+        {
+          "items": 67,
+          "pair_power": 1.0,
+          "power": 1.0,
+          "power_nondegenerate": 0.6625
+        },
+        {
+          "items": 80,
+          "pair_power": 1.0,
+          "power": 1.0,
+          "power_nondegenerate": 0.7375
+        },
+        {
+          "items": 95,
+          "pair_power": 1.0,
+          "power": 1.0,
+          "power_nondegenerate": 0.845
+        }
+      ],
+      "kappa": 0.25,
+      "margin": 0.1,
+      "nondegenerate": {
+        "items": 95,
+        "pair_power": 1.0,
+        "power": 1.0,
+        "power_nondegenerate": 0.845,
+        "power_one_rung_below": 1.0
+      },
+      "normal_approx_items_one_pair": 2.797523,
+      "rate": 0.02,
+      "seed_model": "independent"
+    },
+    {
+      "as_written": {
+        "items": 10,
+        "pair_power": 0.9075,
+        "power": 0.86,
+        "power_nondegenerate": 0.0,
+        "power_one_rung_below": null
+      },
+      "evaluated": [
+        {
+          "items": 10,
+          "pair_power": 0.9075,
+          "power": 0.86,
+          "power_nondegenerate": 0.0
+        },
+        {
+          "items": 12,
+          "pair_power": 0.8925,
+          "power": 0.845,
+          "power_nondegenerate": 0.0
+        },
+        {
+          "items": 14,
+          "pair_power": 0.8775,
+          "power": 0.82,
+          "power_nondegenerate": 0.0
+        },
+        {
+          "items": 17,
+          "pair_power": 0.8275,
+          "power": 0.755,
+          "power_nondegenerate": 0.0
+        },
+        {
+          "items": 20,
+          "pair_power": 0.795,
+          "power": 0.7125,
+          "power_nondegenerate": 0.0
+        },
+        {
+          "items": 24,
+          "pair_power": 0.8225,
+          "power": 0.7125,
+          "power_nondegenerate": 0.0025
+        },
+        {
+          "items": 28,
+          "pair_power": 0.765,
+          "power": 0.6475,
+          "power_nondegenerate": 0.0
+        },
+        {
+          "items": 34,
+          "pair_power": 0.98,
+          "power": 0.965,
+          "power_nondegenerate": 0.055
+        },
+        {
+          "items": 40,
+          "pair_power": 0.9475,
+          "power": 0.9325,
+          "power_nondegenerate": 0.0625
+        },
+        {
+          "items": 48,
+          "pair_power": 0.995,
+          "power": 0.985,
+          "power_nondegenerate": 0.0925
+        },
+        {
+          "items": 57,
+          "pair_power": 0.9975,
+          "power": 0.99,
+          "power_nondegenerate": 0.1525
+        },
+        {
+          "items": 67,
+          "pair_power": 1.0,
+          "power": 0.9975,
+          "power_nondegenerate": 0.2075
+        },
+        {
+          "items": 80,
+          "pair_power": 1.0,
+          "power": 1.0,
+          "power_nondegenerate": 0.27
+        },
+        {
+          "items": 95,
+          "pair_power": 1.0,
+          "power": 1.0,
+          "power_nondegenerate": 0.3675
+        },
+        {
+          "items": 113,
+          "pair_power": 1.0,
+          "power": 1.0,
+          "power_nondegenerate": 0.39
+        },
+        {
+          "items": 135,
+          "pair_power": 1.0,
+          "power": 1.0,
+          "power_nondegenerate": 0.5
+        },
+        {
+          "items": 160,
+          "pair_power": 1.0,
+          "power": 1.0,
+          "power_nondegenerate": 0.5925
+        },
+        {
+          "items": 190,
+          "pair_power": 1.0,
+          "power": 1.0,
+          "power_nondegenerate": 0.66
+        },
+        {
+          "items": 226,
+          "pair_power": 1.0,
+          "power": 1.0,
+          "power_nondegenerate": 0.7475
+        },
+        {
+          "items": 269,
+          "pair_power": 1.0,
+          "power": 1.0,
+          "power_nondegenerate": 0.865
+        }
+      ],
+      "kappa": 0.25,
+      "margin": 0.1,
+      "nondegenerate": {
+        "items": 269,
+        "pair_power": 1.0,
+        "power": 1.0,
+        "power_nondegenerate": 0.865,
+        "power_one_rung_below": 1.0
+      },
+      "normal_approx_items_one_pair": 8.39257,
+      "rate": 0.02,
+      "seed_model": "identical"
+    },
+    {
+      "as_written": {
+        "items": 34,
+        "pair_power": 0.92,
+        "power": 0.815,
+        "power_nondegenerate": 0.815,
+        "power_one_rung_below": 0.625
+      },
+      "evaluated": [
+        {
+          "items": 24,
+          "pair_power": 0.795,
+          "power": 0.5825,
+          "power_nondegenerate": 0.5825
+        },
+        {
+          "items": 28,
+          "pair_power": 0.79,
+          "power": 0.625,
+          "power_nondegenerate": 0.625
+        },
+        {
+          "items": 34,
+          "pair_power": 0.92,
+          "power": 0.815,
+          "power_nondegenerate": 0.815
+        }
+      ],
+      "kappa": 1.0,
+      "margin": 0.1,
+      "nondegenerate": {
+        "items": 34,
+        "pair_power": 0.92,
+        "power": 0.815,
+        "power_nondegenerate": 0.815,
+        "power_one_rung_below": 0.625
+      },
+      "normal_approx_items_one_pair": 27.11885,
+      "rate": 0.05,
+      "seed_model": "independent"
+    },
+    {
+      "as_written": {
+        "items": 113,
+        "pair_power": 0.935,
+        "power": 0.8275,
+        "power_nondegenerate": 0.8275,
+        "power_one_rung_below": 0.74
+      },
+      "evaluated": [
+        {
+          "items": 80,
+          "pair_power": 0.695,
+          "power": 0.5075,
+          "power_nondegenerate": 0.5075
+        },
+        {
+          "items": 95,
+          "pair_power": 0.8925,
+          "power": 0.74,
+          "power_nondegenerate": 0.74
+        },
+        {
+          "items": 113,
+          "pair_power": 0.935,
+          "power": 0.8275,
+          "power_nondegenerate": 0.8275
+        }
+      ],
+      "kappa": 1.0,
+      "margin": 0.1,
+      "nondegenerate": {
+        "items": 113,
+        "pair_power": 0.935,
+        "power": 0.8275,
+        "power_nondegenerate": 0.8275,
+        "power_one_rung_below": 0.74
+      },
+      "normal_approx_items_one_pair": 81.35655,
+      "rate": 0.05,
+      "seed_model": "identical"
+    },
+    {
+      "as_written": {
+        "items": 24,
+        "pair_power": 0.97,
+        "power": 0.92,
+        "power_nondegenerate": 0.8275,
+        "power_one_rung_below": 0.6825
+      },
+      "evaluated": [
+        {
+          "items": 12,
+          "pair_power": 0.64,
+          "power": 0.48,
+          "power_nondegenerate": 0.195
+        },
+        {
+          "items": 14,
+          "pair_power": 0.8775,
+          "power": 0.7925,
+          "power_nondegenerate": 0.49
+        },
+        {
+          "items": 17,
+          "pair_power": 0.885,
+          "power": 0.75,
+          "power_nondegenerate": 0.5725
+        },
+        {
+          "items": 20,
+          "pair_power": 0.8275,
+          "power": 0.6825,
+          "power_nondegenerate": 0.57
+        },
+        {
+          "items": 24,
+          "pair_power": 0.97,
+          "power": 0.92,
+          "power_nondegenerate": 0.8275
+        }
+      ],
+      "kappa": 0.5,
+      "margin": 0.1,
+      "nondegenerate": {
+        "items": 24,
+        "pair_power": 0.97,
+        "power": 0.92,
+        "power_nondegenerate": 0.8275,
+        "power_one_rung_below": 0.6825
+      },
+      "normal_approx_items_one_pair": 13.559425,
+      "rate": 0.05,
+      "seed_model": "independent"
+    },
+    {
+      "as_written": {
+        "items": 67,
+        "pair_power": 0.9025,
+        "power": 0.8275,
+        "power_nondegenerate": 0.7125,
+        "power_one_rung_below": 0.755
+      },
+      "evaluated": [
+        {
+          "items": 40,
+          "pair_power": 0.6175,
+          "power": 0.455,
+          "power_nondegenerate": 0.2125
+        },
+        {
+          "items": 48,
+          "pair_power": 0.7475,
+          "power": 0.5775,
+          "power_nondegenerate": 0.4175
+        },
+        {
+          "items": 57,
+          "pair_power": 0.8525,
+          "power": 0.755,
+          "power_nondegenerate": 0.59
+        },
+        {
+          "items": 67,
+          "pair_power": 0.9025,
+          "power": 0.8275,
+          "power_nondegenerate": 0.7125
+        },
+        {
+          "items": 80,
+          "pair_power": 0.9375,
+          "power": 0.8775,
+          "power_nondegenerate": 0.84
+        }
+      ],
+      "kappa": 0.5,
+      "margin": 0.1,
+      "nondegenerate": {
+        "items": 80,
+        "pair_power": 0.9375,
+        "power": 0.8775,
+        "power_nondegenerate": 0.84,
+        "power_one_rung_below": 0.8275
+      },
+      "normal_approx_items_one_pair": 40.678275,
+      "rate": 0.05,
+      "seed_model": "identical"
+    },
+    {
+      "as_written": {
+        "items": 14,
+        "pair_power": 0.96,
+        "power": 0.9375,
+        "power_nondegenerate": 0.2775,
+        "power_one_rung_below": 0.775
+      },
+      "evaluated": [
+        {
+          "items": 10,
+          "pair_power": 0.5275,
+          "power": 0.355,
+          "power_nondegenerate": 0.005
+        },
+        {
+          "items": 12,
+          "pair_power": 0.86,
+          "power": 0.775,
+          "power_nondegenerate": 0.1425
+        },
+        {
+          "items": 14,
+          "pair_power": 0.96,
+          "power": 0.9375,
+          "power_nondegenerate": 0.2775
+        },
+        {
+          "items": 17,
+          "pair_power": 0.975,
+          "power": 0.9475,
+          "power_nondegenerate": 0.38
+        },
+        {
+          "items": 20,
+          "pair_power": 0.96,
+          "power": 0.9,
+          "power_nondegenerate": 0.435
+        },
+        {
+          "items": 24,
+          "pair_power": 0.9975,
+          "power": 0.9975,
+          "power_nondegenerate": 0.6225
+        },
+        {
+          "items": 28,
+          "pair_power": 0.9975,
+          "power": 0.99,
+          "power_nondegenerate": 0.7025
+        },
+        {
+          "items": 34,
+          "pair_power": 1.0,
+          "power": 1.0,
+          "power_nondegenerate": 0.78
+        },
+        {
+          "items": 40,
+          "pair_power": 1.0,
+          "power": 1.0,
+          "power_nondegenerate": 0.8675
+        }
+      ],
+      "kappa": 0.25,
+      "margin": 0.1,
+      "nondegenerate": {
+        "items": 40,
+        "pair_power": 1.0,
+        "power": 1.0,
+        "power_nondegenerate": 0.8675,
+        "power_one_rung_below": 1.0
+      },
+      "normal_approx_items_one_pair": 6.779712,
+      "rate": 0.05,
+      "seed_model": "independent"
+    },
+    {
+      "as_written": {
+        "items": 34,
+        "pair_power": 0.88,
+        "power": 0.82,
+        "power_nondegenerate": 0.1475,
+        "power_one_rung_below": 0.415
+      },
+      "evaluated": [
+        {
+          "items": 20,
+          "pair_power": 0.6175,
+          "power": 0.4925,
+          "power_nondegenerate": 0.0
+        },
+        {
+          "items": 24,
+          "pair_power": 0.64,
+          "power": 0.435,
+          "power_nondegenerate": 0.01
+        },
+        {
+          "items": 28,
+          "pair_power": 0.6,
+          "power": 0.415,
+          "power_nondegenerate": 0.01
+        },
+        {
+          "items": 34,
+          "pair_power": 0.88,
+          "power": 0.82,
+          "power_nondegenerate": 0.1475
+        },
+        {
+          "items": 40,
+          "pair_power": 0.8325,
+          "power": 0.755,
+          "power_nondegenerate": 0.175
+        },
+        {
+          "items": 48,
+          "pair_power": 0.945,
+          "power": 0.8775,
+          "power_nondegenerate": 0.3025
+        },
+        {
+          "items": 57,
+          "pair_power": 0.97,
+          "power": 0.95,
+          "power_nondegenerate": 0.4875
+        },
+        {
+          "items": 67,
+          "pair_power": 0.9975,
+          "power": 0.9875,
+          "power_nondegenerate": 0.5625
+        },
+        {
+          "items": 80,
+          "pair_power": 0.9925,
+          "power": 0.9875,
+          "power_nondegenerate": 0.6825
+        },
+        {
+          "items": 95,
+          "pair_power": 1.0,
+          "power": 1.0,
+          "power_nondegenerate": 0.7875
+        },
+        {
+          "items": 113,
+          "pair_power": 1.0,
+          "power": 0.9975,
+          "power_nondegenerate": 0.865
+        }
+      ],
+      "kappa": 0.25,
+      "margin": 0.1,
+      "nondegenerate": {
+        "items": 113,
+        "pair_power": 1.0,
+        "power": 0.9975,
+        "power_nondegenerate": 0.865,
+        "power_one_rung_below": 1.0
+      },
+      "normal_approx_items_one_pair": 20.339137,
+      "rate": 0.05,
+      "seed_model": "identical"
+    },
+    {
+      "as_written": {
+        "items": 67,
+        "pair_power": 0.9075,
+        "power": 0.82,
+        "power_nondegenerate": 0.82,
+        "power_one_rung_below": 0.675
+      },
+      "evaluated": [
+        {
+          "items": 48,
+          "pair_power": 0.77,
+          "power": 0.535,
+          "power_nondegenerate": 0.535
+        },
+        {
+          "items": 57,
+          "pair_power": 0.8475,
+          "power": 0.675,
+          "power_nondegenerate": 0.675
+        },
+        {
+          "items": 67,
+          "pair_power": 0.9075,
+          "power": 0.82,
+          "power_nondegenerate": 0.82
+        }
+      ],
+      "kappa": 1.0,
+      "margin": 0.1,
+      "nondegenerate": {
+        "items": 67,
+        "pair_power": 0.9075,
+        "power": 0.82,
+        "power_nondegenerate": 0.82,
+        "power_one_rung_below": 0.675
+      },
+      "normal_approx_items_one_pair": 51.383084,
+      "rate": 0.1,
+      "seed_model": "independent"
+    },
+    {
+      "as_written": {
+        "items": 226,
+        "pair_power": 0.95,
+        "power": 0.8825,
+        "power_nondegenerate": 0.8825,
+        "power_one_rung_below": 0.695
+      },
+      "evaluated": [
+        {
+          "items": 135,
+          "pair_power": 0.7375,
+          "power": 0.475,
+          "power_nondegenerate": 0.475
+        },
+        {
+          "items": 160,
+          "pair_power": 0.7625,
+          "power": 0.56,
+          "power_nondegenerate": 0.56
+        },
+        {
+          "items": 190,
+          "pair_power": 0.87,
+          "power": 0.695,
+          "power_nondegenerate": 0.695
+        },
+        {
+          "items": 226,
+          "pair_power": 0.95,
+          "power": 0.8825,
+          "power_nondegenerate": 0.8825
+        }
+      ],
+      "kappa": 1.0,
+      "margin": 0.1,
+      "nondegenerate": {
+        "items": 226,
+        "pair_power": 0.95,
+        "power": 0.8825,
+        "power_nondegenerate": 0.8825,
+        "power_one_rung_below": 0.695
+      },
+      "normal_approx_items_one_pair": 154.149252,
+      "rate": 0.1,
+      "seed_model": "identical"
+    },
+    {
+      "as_written": {
+        "items": 40,
+        "pair_power": 0.9325,
+        "power": 0.835,
+        "power_nondegenerate": 0.835,
+        "power_one_rung_below": 0.79
+      },
+      "evaluated": [
+        {
+          "items": 24,
+          "pair_power": 0.7875,
+          "power": 0.62,
+          "power_nondegenerate": 0.6175
+        },
+        {
+          "items": 28,
+          "pair_power": 0.835,
+          "power": 0.6675,
+          "power_nondegenerate": 0.6675
+        },
+        {
+          "items": 34,
+          "pair_power": 0.9075,
+          "power": 0.79,
+          "power_nondegenerate": 0.79
+        },
+        {
+          "items": 40,
+          "pair_power": 0.9325,
+          "power": 0.835,
+          "power_nondegenerate": 0.835
+        }
+      ],
+      "kappa": 0.5,
+      "margin": 0.1,
+      "nondegenerate": {
+        "items": 40,
+        "pair_power": 0.9325,
+        "power": 0.835,
+        "power_nondegenerate": 0.835,
+        "power_one_rung_below": 0.79
+      },
+      "normal_approx_items_one_pair": 25.691542,
+      "rate": 0.1,
+      "seed_model": "independent"
+    },
+    {
+      "as_written": {
+        "items": 113,
+        "pair_power": 0.9475,
+        "power": 0.89,
+        "power_nondegenerate": 0.89,
+        "power_one_rung_below": 0.715
+      },
+      "evaluated": [
+        {
+          "items": 67,
+          "pair_power": 0.6,
+          "power": 0.3725,
+          "power_nondegenerate": 0.37
+        },
+        {
+          "items": 80,
+          "pair_power": 0.7575,
+          "power": 0.5275,
+          "power_nondegenerate": 0.5275
+        },
+        {
+          "items": 95,
+          "pair_power": 0.8775,
+          "power": 0.715,
+          "power_nondegenerate": 0.715
+        },
+        {
+          "items": 113,
+          "pair_power": 0.9475,
+          "power": 0.89,
+          "power_nondegenerate": 0.89
+        }
+      ],
+      "kappa": 0.5,
+      "margin": 0.1,
+      "nondegenerate": {
+        "items": 113,
+        "pair_power": 0.9475,
+        "power": 0.89,
+        "power_nondegenerate": 0.89,
+        "power_one_rung_below": 0.715
+      },
+      "normal_approx_items_one_pair": 77.074626,
+      "rate": 0.1,
+      "seed_model": "identical"
+    },
+    {
+      "as_written": {
+        "items": 24,
+        "pair_power": 0.965,
+        "power": 0.915,
+        "power_nondegenerate": 0.8225,
+        "power_one_rung_below": 0.685
+      },
+      "evaluated": [
+        {
+          "items": 12,
+          "pair_power": 0.685,
+          "power": 0.5025,
+          "power_nondegenerate": 0.15
+        },
+        {
+          "items": 14,
+          "pair_power": 0.865,
+          "power": 0.7675,
+          "power_nondegenerate": 0.4525
+        },
+        {
+          "items": 17,
+          "pair_power": 0.88,
+          "power": 0.765,
+          "power_nondegenerate": 0.5475
+        },
+        {
+          "items": 20,
+          "pair_power": 0.845,
+          "power": 0.685,
+          "power_nondegenerate": 0.5475
+        },
+        {
+          "items": 24,
+          "pair_power": 0.965,
+          "power": 0.915,
+          "power_nondegenerate": 0.8225
+        }
+      ],
+      "kappa": 0.25,
+      "margin": 0.1,
+      "nondegenerate": {
+        "items": 24,
+        "pair_power": 0.965,
+        "power": 0.915,
+        "power_nondegenerate": 0.8225,
+        "power_one_rung_below": 0.685
+      },
+      "normal_approx_items_one_pair": 12.845771,
+      "rate": 0.1,
+      "seed_model": "independent"
+    },
+    {
+      "as_written": {
+        "items": 67,
+        "pair_power": 0.9375,
+        "power": 0.8375,
+        "power_nondegenerate": 0.7175,
+        "power_one_rung_below": 0.77
+      },
+      "evaluated": [
+        {
+          "items": 34,
+          "pair_power": 0.7,
+          "power": 0.525,
+          "power_nondegenerate": 0.1925
+        },
+        {
+          "items": 40,
+          "pair_power": 0.64,
+          "power": 0.425,
+          "power_nondegenerate": 0.1725
+        },
+        {
+          "items": 48,
+          "pair_power": 0.795,
+          "power": 0.6025,
+          "power_nondegenerate": 0.415
+        },
+        {
+          "items": 57,
+          "pair_power": 0.8825,
+          "power": 0.77,
+          "power_nondegenerate": 0.6
+        },
+        {
+          "items": 67,
+          "pair_power": 0.9375,
+          "power": 0.8375,
+          "power_nondegenerate": 0.7175
+        },
+        {
+          "items": 80,
+          "pair_power": 0.94,
+          "power": 0.88,
+          "power_nondegenerate": 0.825
+        }
+      ],
+      "kappa": 0.25,
+      "margin": 0.1,
+      "nondegenerate": {
+        "items": 80,
+        "pair_power": 0.94,
+        "power": 0.88,
+        "power_nondegenerate": 0.825,
+        "power_one_rung_below": 0.8375
+      },
+      "normal_approx_items_one_pair": 38.537313,
+      "rate": 0.1,
+      "seed_model": "identical"
+    },
+    {
+      "as_written": {
+        "items": 135,
+        "pair_power": 0.955,
+        "power": 0.8575,
+        "power_nondegenerate": 0.8575,
+        "power_one_rung_below": 0.7175
+      },
+      "evaluated": [
+        {
+          "items": 80,
+          "pair_power": 0.71,
+          "power": 0.4675,
+          "power_nondegenerate": 0.4675
+        },
+        {
+          "items": 95,
+          "pair_power": 0.82,
+          "power": 0.62,
+          "power_nondegenerate": 0.62
+        },
+        {
+          "items": 113,
+          "pair_power": 0.915,
+          "power": 0.7175,
+          "power_nondegenerate": 0.7175
+        },
+        {
+          "items": 135,
+          "pair_power": 0.955,
+          "power": 0.8575,
+          "power_nondegenerate": 0.8575
+        }
+      ],
+      "kappa": 1.0,
+      "margin": 0.1,
+      "nondegenerate": {
+        "items": 135,
+        "pair_power": 0.955,
+        "power": 0.8575,
+        "power_nondegenerate": 0.8575,
+        "power_one_rung_below": 0.7175
+      },
+      "normal_approx_items_one_pair": 91.347705,
+      "rate": 0.2,
+      "seed_model": "independent"
+    },
+    {
+      "as_written": {
+        "items": 381,
+        "pair_power": 0.91,
+        "power": 0.8275,
+        "power_nondegenerate": 0.8275,
+        "power_one_rung_below": 0.7025
+      },
+      "evaluated": [
+        {
+          "items": 269,
+          "pair_power": 0.79,
+          "power": 0.5925,
+          "power_nondegenerate": 0.5925
+        },
+        {
+          "items": 320,
+          "pair_power": 0.8475,
+          "power": 0.7025,
+          "power_nondegenerate": 0.7025
+        },
+        {
+          "items": 381,
+          "pair_power": 0.91,
+          "power": 0.8275,
+          "power_nondegenerate": 0.8275
+        }
+      ],
+      "kappa": 1.0,
+      "margin": 0.1,
+      "nondegenerate": {
+        "items": 381,
+        "pair_power": 0.91,
+        "power": 0.8275,
+        "power_nondegenerate": 0.8275,
+        "power_one_rung_below": 0.7025
+      },
+      "normal_approx_items_one_pair": 274.043115,
+      "rate": 0.2,
+      "seed_model": "identical"
+    },
+    {
+      "as_written": {
+        "items": 67,
+        "pair_power": 0.925,
+        "power": 0.84,
+        "power_nondegenerate": 0.84,
+        "power_one_rung_below": 0.78
+      },
+      "evaluated": [
+        {
+          "items": 40,
+          "pair_power": 0.7,
+          "power": 0.4475,
+          "power_nondegenerate": 0.4475
+        },
+        {
+          "items": 48,
+          "pair_power": 0.8325,
+          "power": 0.6325,
+          "power_nondegenerate": 0.6325
+        },
+        {
+          "items": 57,
+          "pair_power": 0.9,
+          "power": 0.78,
+          "power_nondegenerate": 0.78
+        },
+        {
+          "items": 67,
+          "pair_power": 0.925,
+          "power": 0.84,
+          "power_nondegenerate": 0.84
+        }
+      ],
+      "kappa": 0.5,
+      "margin": 0.1,
+      "nondegenerate": {
+        "items": 67,
+        "pair_power": 0.925,
+        "power": 0.84,
+        "power_nondegenerate": 0.84,
+        "power_one_rung_below": 0.78
+      },
+      "normal_approx_items_one_pair": 45.673853,
+      "rate": 0.2,
+      "seed_model": "independent"
+    },
+    {
+      "as_written": {
+        "items": 226,
+        "pair_power": 0.9575,
+        "power": 0.9,
+        "power_nondegenerate": 0.9,
+        "power_one_rung_below": 0.7775
+      },
+      "evaluated": [
+        {
+          "items": 135,
+          "pair_power": 0.77,
+          "power": 0.555,
+          "power_nondegenerate": 0.555
+        },
+        {
+          "items": 160,
+          "pair_power": 0.85,
+          "power": 0.69,
+          "power_nondegenerate": 0.69
+        },
+        {
+          "items": 190,
+          "pair_power": 0.875,
+          "power": 0.7775,
+          "power_nondegenerate": 0.7775
+        },
+        {
+          "items": 226,
+          "pair_power": 0.9575,
+          "power": 0.9,
+          "power_nondegenerate": 0.9
+        }
+      ],
+      "kappa": 0.5,
+      "margin": 0.1,
+      "nondegenerate": {
+        "items": 226,
+        "pair_power": 0.9575,
+        "power": 0.9,
+        "power_nondegenerate": 0.9,
+        "power_one_rung_below": 0.7775
+      },
+      "normal_approx_items_one_pair": 137.021558,
+      "rate": 0.2,
+      "seed_model": "identical"
+    },
+    {
+      "as_written": {
+        "items": 34,
+        "pair_power": 0.9275,
+        "power": 0.855,
+        "power_nondegenerate": 0.855,
+        "power_one_rung_below": 0.725
+      },
+      "evaluated": [
+        {
+          "items": 20,
+          "pair_power": 0.6275,
+          "power": 0.395,
+          "power_nondegenerate": 0.3825
+        },
+        {
+          "items": 24,
+          "pair_power": 0.865,
+          "power": 0.7025,
+          "power_nondegenerate": 0.695
+        },
+        {
+          "items": 28,
+          "pair_power": 0.8625,
+          "power": 0.725,
+          "power_nondegenerate": 0.72
+        },
+        {
+          "items": 34,
+          "pair_power": 0.9275,
+          "power": 0.855,
+          "power_nondegenerate": 0.855
+        }
+      ],
+      "kappa": 0.25,
+      "margin": 0.1,
+      "nondegenerate": {
+        "items": 34,
+        "pair_power": 0.9275,
+        "power": 0.855,
+        "power_nondegenerate": 0.855,
+        "power_one_rung_below": 0.725
+      },
+      "normal_approx_items_one_pair": 22.836926,
+      "rate": 0.2,
+      "seed_model": "independent"
+    },
+    {
+      "as_written": {
+        "items": 113,
+        "pair_power": 0.9625,
+        "power": 0.9225,
+        "power_nondegenerate": 0.9225,
+        "power_one_rung_below": 0.7925
+      },
+      "evaluated": [
+        {
+          "items": 67,
+          "pair_power": 0.715,
+          "power": 0.4775,
+          "power_nondegenerate": 0.47
+        },
+        {
+          "items": 80,
+          "pair_power": 0.8025,
+          "power": 0.63,
+          "power_nondegenerate": 0.63
+        },
+        {
+          "items": 95,
+          "pair_power": 0.895,
+          "power": 0.7925,
+          "power_nondegenerate": 0.7925
+        },
+        {
+          "items": 113,
+          "pair_power": 0.9625,
+          "power": 0.9225,
+          "power_nondegenerate": 0.9225
+        }
+      ],
+      "kappa": 0.25,
+      "margin": 0.1,
+      "nondegenerate": {
+        "items": 113,
+        "pair_power": 0.9625,
+        "power": 0.9225,
+        "power_nondegenerate": 0.9225,
+        "power_one_rung_below": 0.7925
+      },
+      "normal_approx_items_one_pair": 68.510779,
+      "rate": 0.2,
+      "seed_model": "identical"
+    }
+  ],
+  "ladder_start": 10,
+  "ladder_stop": 40960,
+  "name": "h4-power",
+  "resamples": 10000,
+  "seed": 20261102,
+  "seeds_per_item": 3,
+  "simulations": 400,
+  "steps_per_doubling": 4,
+  "target_power": 0.8
+}
