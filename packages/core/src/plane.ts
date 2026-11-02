@@ -232,6 +232,15 @@ export interface PlaneDeps {
   policy: Policy;
   /** UUIDv7 generator for event ids, injected so core stays free of clocks and randomness. */
   newId: () => string;
+  /**
+   * How `read` finds and orders what it returns. Unset: the store's search in
+   * the reader's member scopes and the plane's match for granted items (ADR
+   * 0009 as accepted). `{ pipeline: "core" }`: the core retrieval pipeline
+   * (plane/retrieve.ts) over the reachable projection, after the read
+   * filter, cut to `limit` when given; the store is never searched (ADR
+   * 0009, proposed amendment of 2026-11-02).
+   */
+  retrieval?: { pipeline: "core"; limit?: number };
 }
 
 export function createPlane(deps: PlaneDeps): Plane {
