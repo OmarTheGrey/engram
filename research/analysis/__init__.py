@@ -20,6 +20,7 @@ from analysis.bootstrap import (
     item_means,
     paired_bootstrap,
     paired_differences,
+    paired_item_differences,
     resample_means,
     tost,
 )
@@ -44,6 +45,7 @@ __all__ = [
     "item_means",
     "paired_bootstrap",
     "paired_differences",
+    "paired_item_differences",
     "read_sessions",
     "resample_means",
     "tost",

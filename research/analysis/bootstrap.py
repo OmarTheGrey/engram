@@ -4,9 +4,9 @@ The Statistics section of docs/research/preregistration.md (v0.2), executable
 (plan decision 3 of docs/tasks/prereg-v1-plan.md; ADR 0016):
 
 - The unit is the benchmark item, paired across conditions on the same item,
-  model and seed. Seeds are averaged within an item before resampling
-  (`item_means`), and the differences pair the items present under both
-  conditions (`paired_differences`).
+  model and seed. Seeds are averaged within an item before resampling, over
+  the seeds both conditions kept (`paired_item_differences`; `item_means`
+  gives one condition's rate).
 - The interval is a paired bootstrap of the mean difference: 10,000
   resamples, BCa, 95 percent (Efron and Tibshirani 1993, ch. 14; the formulas
   in docs/readings/litreview/methods-efron-tibshirani-bootstrap.md). The
@@ -91,6 +91,39 @@ def paired_differences(
     """The items under both conditions, sorted, and their differences a minus b."""
     items = sorted(set(a) & set(b))
     return items, np.array([a[i] - b[i] for i in items], dtype=np.float64)
+
+
+def paired_item_differences(
+    a: Iterable[Session], b: Iterable[Session]
+) -> tuple[list[str], FloatArray]:
+    """Item-level differences a minus b, over the seeds both conditions kept.
+
+    The pairing is on the same item, model and seed (the pre-registration's
+    unit): an (item, seed) excluded or missing under either condition is
+    dropped from both, then each item's difference is averaged over its
+    remaining seeds. An item with no seed left is left out; a repeated
+    (item, seed) under one condition is an error.
+    """
+
+    def outcomes(sessions: Iterable[Session]) -> dict[tuple[str, int], float | None]:
+        out: dict[tuple[str, int], float | None] = {}
+        for item, seed, outcome in sessions:
+            if (item, seed) in out:
+                raise ValueError(f"item {item!r} seed {seed} appears twice")
+            out[(item, seed)] = outcome
+        return out
+
+    first, second = outcomes(a), outcomes(b)
+    sums: dict[str, float] = {}
+    counts: dict[str, int] = {}
+    for key in first.keys() & second.keys():
+        x, y = first[key], second[key]
+        if x is None or y is None:
+            continue
+        sums[key[0]] = sums.get(key[0], 0.0) + float(x) - float(y)
+        counts[key[0]] = counts.get(key[0], 0) + 1
+    items = sorted(sums)
+    return items, np.array([sums[i] / counts[i] for i in items], dtype=np.float64)
 
 
 def _values(values: Sequence[float] | FloatArray) -> FloatArray:

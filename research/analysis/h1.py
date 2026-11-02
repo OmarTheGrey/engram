@@ -41,16 +41,23 @@ dict:
   seed spread the pre-registration asks to report).
 - `contrasts`: per benchmark and model, the paired bootstrap of the tested
   contrast (C4 minus C5) and of the descriptive ones (C3 minus C5, C2 minus
-  C5): mean difference, BCa and percentile intervals, one-sided p-value, z0
-  and acceleration. Only the tested contrast enters a decision.
+  C5): its item count `n`, the (item, seed) sessions dropped because either
+  condition excluded or lacked them, mean difference, BCa and percentile
+  intervals, one-sided p-value, z0 and acceleration. Only the tested contrast
+  enters a decision.
 - `primary`, `holm` and `decision`: see `decide_h1`.
 
-Each bootstrap's seed is drawn from the config's seed and the contrast's
-position, so the table is the same on every run (AGENTS.md rule 6).
+Each contrast pairs an item's sessions on the same seed: an (item, seed)
+excluded or missing under either condition is dropped from both
+(`paired_item_differences`), and the contrast reports how many were dropped.
+Each bootstrap's seed is drawn from the config's seed and a hash of
+(benchmark, model, contrast), so the table is the same on every run and a
+contrast's test does not move when other sessions are added (AGENTS.md rule 6).
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass, field
@@ -63,9 +70,10 @@ from analysis.bootstrap import (
     ALPHA,
     CONFIDENCE,
     RESAMPLES,
+    Session,
     item_means,
     paired_bootstrap,
-    paired_differences,
+    paired_item_differences,
 )
 from analysis.holm import holm
 from analysis.wilson import wilson
@@ -209,8 +217,11 @@ def decide_h1(
     return {"primary": primary, "secondary": secondary, "h1": h1}, holm_part
 
 
-def _seed_for(seed: int, index: int) -> int:
-    return int(np.random.SeedSequence([seed, index]).generate_state(1)[0])
+def _seed_for(seed: int, *parts: str) -> int:
+    """A bootstrap seed from the config's seed and a stable hash of `parts`."""
+    digest = hashlib.sha256("\x1f".join(parts).encode("utf-8")).digest()
+    words = [int.from_bytes(digest[i : i + 4], "little") for i in range(0, 16, 4)]
+    return int(np.random.SeedSequence([seed, *words]).generate_state(1)[0])
 
 
 def build_h1_table(sessions: Sequence[SessionRow], config: H1Config) -> dict[str, Any]:
@@ -251,24 +262,28 @@ def build_h1_table(sessions: Sequence[SessionRow], config: H1Config) -> dict[str
             }
         )
 
+    def sessions_of(key: tuple[str, str, str]) -> list[Session]:
+        return [(s.item, s.seed, _outcome(s)) for s in groups[key]]
+
     contrasts: list[dict[str, Any]] = []
     pairs = sorted({(b, m) for b, m, _ in groups})
     names = [config.tested, *config.descriptive]
-    index = 0
     for benchmark, model in pairs:
         for name in names:
             a, b = name.split("-")
-            index += 1
-            if (benchmark, model, a) not in means or (benchmark, model, b) not in means:
+            if (benchmark, model, a) not in groups or (benchmark, model, b) not in groups:
                 continue
-            items, diffs = paired_differences(
-                means[(benchmark, model, a)], means[(benchmark, model, b)]
-            )
+            first, second = sessions_of((benchmark, model, a)), sessions_of((benchmark, model, b))
+            items, diffs = paired_item_differences(first, second)
             if not items:
                 continue
+            kept = {(i, s) for i, s, o in first if o is not None} & {
+                (i, s) for i, s, o in second if o is not None
+            }
+            either = {(i, s) for i, s, _ in first} | {(i, s) for i, s, _ in second}
             result = paired_bootstrap(
                 diffs,
-                seed=_seed_for(config.seed, index),
+                seed=_seed_for(config.seed, benchmark, model, name),
                 resamples=config.resamples,
                 confidence=config.confidence,
             )
@@ -278,6 +293,7 @@ def build_h1_table(sessions: Sequence[SessionRow], config: H1Config) -> dict[str
                     "model": model,
                     "contrast": name,
                     "tested": name == config.tested,
+                    "seeds_dropped": len(either) - len(kept),
                     **asdict(result),
                 }
             )
