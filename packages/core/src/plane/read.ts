@@ -172,6 +172,8 @@ export async function filteredRead(
   // 0025), or reached through a grant whose class or expiry fails.
   const filtered =
     counts.excluded + counts["outside-validity"] + counts["not-active"] + counts.expired;
+  // Under the core pipeline with a limit, the admitted items ranked below it.
+  const limited = core && deps.retrieval?.limit !== undefined;
   const reason = formatReadReason({
     returned: admitted.length,
     candidates: candidates.length,
@@ -180,6 +182,7 @@ export async function filteredRead(
     not_active: counts["not-active"],
     expired: counts.expired,
     excluded: counts.excluded,
+    ...(limited ? { cut: passed.length - admitted.length } : {}),
     out_of_reach: outOfReach,
   });
 
