@@ -29,9 +29,10 @@ groups, whose shares sum to one:
 
 `every_pattern_reachable` counts checkpoints whose every pattern is in reach.
 Patterns match by text, and a generic one ("Wednesday", "no") can match a
-turn that holds nothing secret, so the share with every pattern in reach and
-the share with any pattern in reach bracket the share whose secret is in
-reach; the audit sample lets a person check matches by hand.
+turn that holds nothing secret, so neither the share with every pattern in
+reach nor the share with any pattern in reach is the share whose secret is
+in reach, and neither bounds it (see below); the audit sample lets a person
+check matches by hand.
 
 `refusal_leak` counts checkpoints where at least one of the config's plain
 refusals is itself scored as a leak by the rule-based scorer (a pattern such
