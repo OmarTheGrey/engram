@@ -16,6 +16,6 @@ supersedes: none
 
 **Why.** Without an item effect a session behaves like an item, and treating sessions as units costs nothing; real models answer an item alike across seeds.
 
-**Result.** Planted items now draw a propensity per condition (Beta, a + b = 2). Over 600 runs of a planted null through the H1 table, items as units reject at 0.043 and sessions as units at 0.102; the test requires at most 0.07 and that the primary contrast's n equals the item count. M1 is now killed by four tests.
+**Result.** Planted items now draw a propensity per condition (Beta, a + b = 2). Over 600 runs of a planted null through the H1 table the test requires a one-sided rejection rate of at most 0.07, which sessions as units exceed, and that the primary contrast's n equals the item count. M1 is now killed by three tests.
 
 **Consequence.** None beyond the tests.
