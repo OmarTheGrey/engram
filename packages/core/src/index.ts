@@ -26,6 +26,8 @@ export {
   retrieve,
   scoreComponents,
   termShareOf,
+  type WalkedItem,
+  walkToAdmitted,
 } from "./plane/retrieve.ts";
 export * from "./plane.ts";
 export * from "./policy/evaluate.ts";

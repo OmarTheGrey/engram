@@ -108,3 +108,36 @@ export function retrieve(
   );
   return limit === undefined ? ranked : ranked.slice(0, limit);
 }
+
+/** An item of a walk down the ranking, with the verdict it was walked past with. */
+export interface WalkedItem extends RankedItem {
+  admitted: boolean;
+}
+
+/**
+ * The pipeline's ranking over every candidate (`retrieve` with no limit),
+ * walked from the top until it has passed as many admitted items as the
+ * pipeline over the admitted items alone returns (`limit`, or every admitted
+ * candidate when fewer): every item walked past, admitted or not, in rank
+ * order, each with its verdict. Since each item is scored on its own, the
+ * walk's admitted items are exactly `retrieve(admitted, text, at, limit)` in
+ * its order, and every item not admitted ranks above the last admitted one.
+ * This is the runner's C4 read (PR #25 review round 3, V-2): the list C5
+ * returns, with the items C5's filter removed shown beside it. `admitted`
+ * is the caller's verdict; for C4 it is core's evaluateRead.
+ */
+export function walkToAdmitted(
+  items: readonly MemoryItem[],
+  text: string | undefined,
+  at: string,
+  limit: number | undefined,
+  admitted: (item: MemoryItem) => boolean,
+): WalkedItem[] {
+  const ranked = retrieve(items, text, at).map((r) => ({ ...r, admitted: admitted(r.item) }));
+  const available = ranked.filter((r) => r.admitted).length;
+  const wanted = limit === undefined ? available : Math.min(limit, available);
+  if (wanted <= 0) return [];
+  let passed = 0;
+  const last = ranked.findIndex((r) => r.admitted && ++passed === wanted);
+  return ranked.slice(0, last + 1);
+}

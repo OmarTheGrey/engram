@@ -5,7 +5,7 @@
 // searches the store.
 import { describe, expect, test } from "vitest";
 import { currentItems } from "../../../src/events.ts";
-import { queryTerms, rankForRead, retrieve } from "../../../src/plane/retrieve.ts";
+import { queryTerms, rankForRead, retrieve, walkToAdmitted } from "../../../src/plane/retrieve.ts";
 import { type Actor, createPlane } from "../../../src/plane.ts";
 import { evaluateRead } from "../../../src/policy/evaluate.ts";
 import { AT, fresh, id, item } from "./helpers.ts";
@@ -72,6 +72,49 @@ describe("the core retrieval pipeline", () => {
       ).map((r) => r.item.id);
       expect(sub).toEqual(all.filter((x) => x !== drop.id));
     }
+  });
+});
+
+describe("the walk to the admitted items (C4's read, review round 3, V-2)", () => {
+  const items = [
+    item(1, { content: "deploys run on fridays", confidence: 0.9 }),
+    item(2, { content: "deploys need a reviewer", confidence: 0.8 }),
+    item(3, { content: "fridays are quiet", confidence: 0.7 }),
+    item(4, { content: "deploys on fridays are frozen", confidence: 0.6 }),
+    item(5, { content: "deploys", confidence: 0.5 }),
+    item(6, { content: "lunch is at noon" }),
+  ];
+  const q = "deploys fridays";
+  const denied = new Set([id(1), id(3)]);
+  const admitted = (i: { id: string }) => !denied.has(i.id);
+
+  test("walks the whole ranking until it has passed as many admitted items as the admitted-only read returns", () => {
+    const ranking = retrieve(items, q, AT).map((r) => r.item.id);
+    for (const limit of [0, 1, 2, 3, 10]) {
+      const walked = walkToAdmitted(items, q, AT, limit, admitted);
+      const expected = retrieve(items.filter(admitted), q, AT, limit).map((r) => r.item.id);
+      expect(walked.filter((w) => w.admitted).map((w) => w.item.id)).toEqual(expected);
+      // A prefix of the whole ranking, ending on an admitted item.
+      expect(walked.map((w) => w.item.id)).toEqual(ranking.slice(0, walked.length));
+      if (walked.length > 0) expect(walked.at(-1)?.admitted).toBe(true);
+      expect(walked.every((w) => w.admitted === admitted(w.item))).toBe(true);
+    }
+    expect(walkToAdmitted(items, q, AT, 0, admitted)).toEqual([]);
+  });
+
+  test("with fewer admitted items than the limit it stops after the last admitted one", () => {
+    const one = (i: { id: string }) => i.id === id(2);
+    const walked = walkToAdmitted(items, q, AT, 20, one);
+    expect(walked.at(-1)?.item.id).toBe(id(2));
+    expect(walked.filter((w) => w.admitted)).toHaveLength(1);
+    expect(walkToAdmitted(items, q, AT, 20, () => false)).toEqual([]);
+  });
+
+  test("without a limit it passes every admitted candidate", () => {
+    const walked = walkToAdmitted(items, q, AT, undefined, admitted);
+    expect(walked.filter((w) => w.admitted).map((w) => w.item.id)).toEqual(
+      retrieve(items.filter(admitted), q, AT).map((r) => r.item.id),
+    );
   });
 });
 
