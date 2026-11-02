@@ -22,6 +22,7 @@ import {
   type CallShape,
   callShape,
   catalogueEntry,
+  catalogueSnapshot,
   gatememPromptChars,
   sessionShapes,
 } from "../src/research/cost-shapes.ts";
@@ -75,6 +76,7 @@ function main(): number {
       .split(",")
       .filter(Boolean)
       .map((m) => catalogueEntry(models, m)),
+    snapshot: catalogueSnapshot(),
   };
   writeFileSync(values.out, `${JSON.stringify(out)}\n`);
   console.error(

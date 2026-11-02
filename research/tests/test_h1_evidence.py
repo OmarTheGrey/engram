@@ -13,7 +13,7 @@ from typing import Any
 
 import pytest
 
-from scripts import h1_c4_verdict_agreement, h1_c4_walk, h1_mem_inv_admission
+from scripts import h1_c4_verdict_agreement, h1_c4_walk, h1_cost, h1_mem_inv_admission
 from scripts.results_io import REPO, line_hashes, load_config
 
 PINNED_MEM_INV = "cf3c9a4ca9f0478000d6aa26eb268b875232d34b"
@@ -185,3 +185,81 @@ def test_the_walk_length_quantiles_follow_the_development_script() -> None:
             "161+": 2,
         },
     }
+
+
+# H1's cost table (PR 4, deliverable 1), on planted shapes.
+
+
+def two_call_session(s: int, t_out: int, t_in: int, r: int, k: int, a: int) -> dict[str, Any]:
+    """A fixture session: a read call, then the answer after one memory_read result."""
+    return {
+        "calls": [
+            {"messages": 2, "input_tokens": s, "output_tokens": t_out, "reads": []},
+            {
+                "messages": 4,
+                "input_tokens": s + t_in + r,
+                "output_tokens": a,
+                "reads": [{"tokens": r, "items": k}],
+            },
+        ]
+    }
+
+
+def test_a_fixture_condition_s_shape_is_the_mean_of_its_sessions() -> None:
+    shape = h1_cost.fixture_shape(
+        [two_call_session(100, 8, 10, 50, 5, 20), two_call_session(200, 8, 12, 150, 5, 40)]
+    )
+    assert shape == {
+        "sessions": 2,
+        "prompt": 150.0,
+        "call_out": 8.0,
+        "call_in": 11.0,
+        "read_tokens": 100.0,
+        "read_items": 5.0,
+        "tokens_per_item": 20.0,
+        "answer_out": 30.0,
+    }
+
+
+def test_a_session_that_is_not_one_read_then_an_answer_is_refused() -> None:
+    one_call = {"calls": [{"messages": 2, "input_tokens": 9, "output_tokens": 3, "reads": []}]}
+    with pytest.raises(ValueError, match="one read, then the answer"):
+        h1_cost.fixture_shape([one_call])
+
+
+def test_a_session_s_tokens_grow_with_each_extra_read_turn() -> None:
+    shape = h1_cost.fixture_shape([two_call_session(100, 8, 10, 50, 5, 20)])
+    # As measured: the read call, then the answer with the call and the result in its input.
+    assert h1_cost.session_tokens(shape, items_per_read=5, prompt_delta=0, extra_reads=0) == {
+        "calls": 2,
+        "input": 260.0,
+        "output": 28.0,
+    }
+    # Two more reads: four calls, each carrying every earlier call and result.
+    assert h1_cost.session_tokens(shape, items_per_read=5, prompt_delta=0, extra_reads=2) == {
+        "calls": 4,
+        "input": 4 * 100 + 60 * (1 + 2 + 3),
+        "output": 3 * 8 + 20,
+    }
+    # The full set's memory: 20 items at the fixture's 10 tokens each; a longer prompt.
+    assert h1_cost.session_tokens(shape, items_per_read=20, prompt_delta=40, extra_reads=0) == {
+        "calls": 2,
+        "input": 2 * 140 + 10 + 200,
+        "output": 28.0,
+    }
+
+
+def test_a_price_is_per_million_tokens_and_reasoning_is_output() -> None:
+    entry = {"input_per_million": 2.5, "output_per_million": 10, "reasoning": True}
+    tokens = {"calls": 4, "input": 1_000_000.0, "output": 2_000_000.0}
+    assert h1_cost.price(tokens, 1.0, entry, reasoning_per_call=0) == 22.5
+    assert h1_cost.price(tokens, 2.0, entry, reasoning_per_call=0) == 45.0
+    # Reasoning tokens are billed as output, per call, for a reasoning model only.
+    assert h1_cost.price(tokens, 1.0, entry, reasoning_per_call=250_000) == 22.5 + 10.0
+    plain = {**entry, "reasoning": False}
+    assert h1_cost.price(tokens, 1.0, plain, reasoning_per_call=250_000) == 22.5
+
+
+def test_a_refused_model_gets_no_cost() -> None:
+    refused = {"model": "openrouter/x/y", "accepted": False, "found": True}
+    assert h1_cost.candidate_costs(refused, {}, {}) is None

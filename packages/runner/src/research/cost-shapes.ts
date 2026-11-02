@@ -20,7 +20,11 @@
 //   pinned version resolves it (live.ts `builtinLiveModels`, the resolver a
 //   live run uses), its prices per million tokens, and whether the runner's
 //   answer path accepts it (cassette.ts SEEDED_APIS: an API that carries the
-//   seed).
+//   seed). `catalogueSnapshot` says when pi-ai generated its catalogue: the
+//   date of the prices.
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { estimateTokens } from "@earendil-works/pi-coding-agent";
 import { gatemem } from "@engram/bench";
 import type { LiveModels } from "../answers.ts";
@@ -148,12 +152,22 @@ export function sessionShapes(calls: readonly CallShape[]): SessionShape[] {
   return [...sessions.entries()].sort(([a], [b]) => (a < b ? -1 : 1)).map(([, s]) => s);
 }
 
-/** The characters of the system and user prompt a GateMem probe sends, per checkpoint. */
-export function gatememPromptChars(data: string): { checkpoint_id: string; chars: number }[] {
+/**
+ * The characters of the system and user prompt a GateMem probe sends, per
+ * checkpoint, with its query type (a hidden label, read only to group the
+ * sizes; the prompt itself comes from the stripped checkpoint).
+ */
+export function gatememPromptChars(
+  data: string,
+): { checkpoint_id: string; kind: string; chars: number }[] {
   return gatemem.loadDataset(data).flatMap((domain) =>
     domain.checkpoints.map((c) => {
       const { system, user } = probeInputs(domain, c.checkpoint_id, sequentialIds());
-      return { checkpoint_id: c.checkpoint_id, chars: system.length + user.length };
+      return {
+        checkpoint_id: c.checkpoint_id,
+        kind: c.query_type,
+        chars: system.length + user.length,
+      };
     }),
   );
 }
@@ -196,5 +210,31 @@ export function catalogueEntry(models: LiveModels, name: string): CatalogueEntry
     output_per_million: model.cost.output,
     reasoning: model.reasoning,
     context_window: model.contextWindow,
+  };
+}
+
+/**
+ * The catalogue the prices come from: the runner's pinned pi-ai version, the
+ * time pi-ai generated its provider data (its data manifest's `generatedAt`),
+ * and the sha256 its manifest records for OpenRouter's file.
+ */
+export function catalogueSnapshot(): {
+  package: string;
+  version: string;
+  generated_at: string;
+  openrouter_sha256: string;
+} {
+  const runner = JSON.parse(
+    readFileSync(new URL("../../package.json", import.meta.url), "utf8"),
+  ) as { dependencies: Record<string, string> };
+  const entry = fileURLToPath(import.meta.resolve("@earendil-works/pi-ai"));
+  const manifest = JSON.parse(
+    readFileSync(join(dirname(entry), "providers", "data", ".manifest.json"), "utf8"),
+  ) as { generatedAt: string; files: Record<string, string> };
+  return {
+    package: "@earendil-works/pi-ai",
+    version: runner.dependencies["@earendil-works/pi-ai"] as string,
+    generated_at: manifest.generatedAt,
+    openrouter_sha256: manifest.files["openrouter.json"] as string,
   };
 }

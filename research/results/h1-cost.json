@@ -1,0 +1,983 @@
+{
+  "assumptions": [
+    "Tokens are pi's own estimate, characters over four (pi-coding-agent estimateTokens); the high estimate counts three characters per token (token_scale 4/3) for JSON, ids and non-English text.",
+    "The scripted cassettes fix one memory read and one answer per session; the high estimate lets a live model make two more reads, each repeating the session so far and a read as large as the first.",
+    "Memory per read on the full set: each checkpoint's own question as the query (GateMem, research/results/h1-c4-walk.json); every entry of a case, or what the preset admits under C5 (MEM-INV-Bench, research/results/h1-mem-inv-admission.json). Tokens per item are the fixture reads'.",
+    "The GateMem prompt moves from the fixture checkpoints' size to the full set's mean per item kind; the MEM-INV-Bench prompt is the fixture's (one system prompt, short tasks).",
+    "Answers and the judge's verdict are as long as the scripted ones; a live answer may be longer, which the high estimate's token scale covers only in part.",
+    "The runner asks for thinking off; the high estimate adds 1,024 reasoning output tokens per answer call for every model the catalogue marks as reasoning, and none for the judge (GPT-4o).",
+    "The judge runs once per GateMem session (low) or three times (high, upstream's three attempts); HTTP retries are not counted.",
+    "MEM-INV-Bench's 8 agent notes cost their recorded size (low) or their 300-token limit (high).",
+    "No prompt caching, batch discount or provider minimum is assumed; prices are list prices from the catalogue, not a quote."
+  ],
+  "candidates": [
+    {
+      "accepted": true,
+      "api": "openai-completions",
+      "cost": {
+        "gatemem": {
+          "high": 2734.285071,
+          "low": 336.948385
+        },
+        "gatemem_violation_set": {
+          "high": 1890.764563,
+          "low": 233.152443
+        },
+        "mem-inv-bench": {
+          "high": 24.472555,
+          "low": 1.913126
+        }
+      },
+      "found": true,
+      "input_per_million": 2,
+      "maker": "OpenAI",
+      "model": "openrouter/openai/gpt-6.1-sol",
+      "output_per_million": 10,
+      "reasoning": true,
+      "tier": "large",
+      "total_with_judge": {
+        "high": 3027.579159,
+        "low": 406.066911
+      }
+    },
+    {
+      "accepted": true,
+      "api": "openai-completions",
+      "cost": {
+        "gatemem": {
+          "high": 136.714254,
+          "low": 16.847419
+        },
+        "gatemem_violation_set": {
+          "high": 94.538228,
+          "low": 11.657622
+        },
+        "mem-inv-bench": {
+          "high": 1.223628,
+          "low": 0.095656
+        }
+      },
+      "found": true,
+      "input_per_million": 0.1,
+      "maker": "OpenAI",
+      "model": "openrouter/openai/gpt-6-luna",
+      "output_per_million": 0.5,
+      "reasoning": true,
+      "tier": "small",
+      "total_with_judge": {
+        "high": 406.759414,
+        "low": 84.148476
+      }
+    },
+    {
+      "accepted": true,
+      "api": "openai-completions",
+      "cost": {
+        "gatemem": {
+          "high": 2956.97227,
+          "low": 339.583369
+        },
+        "gatemem_violation_set": {
+          "high": 2040.360562,
+          "low": 234.922563
+        },
+        "mem-inv-bench": {
+          "high": 28.265771,
+          "low": 1.929958
+        }
+      },
+      "found": true,
+      "input_per_million": 2,
+      "maker": "OpenAI",
+      "model": "openrouter/openai/gpt-5.6-terra",
+      "output_per_million": 12,
+      "reasoning": true,
+      "tier": "reference: MEM-INV-Bench's recorded study",
+      "total_with_judge": {
+        "high": 3254.059574,
+        "low": 408.718727
+      }
+    },
+    {
+      "accepted": true,
+      "api": "openai-completions",
+      "cost": {
+        "gatemem": {
+          "high": 2049.305981,
+          "low": 417.891752
+        },
+        "gatemem_violation_set": {
+          "high": 1444.095905,
+          "low": 289.227903
+        },
+        "mem-inv-bench": {
+          "high": 7.089494,
+          "low": 2.370367
+        }
+      },
+      "found": true,
+      "input_per_million": 2.5,
+      "maker": "OpenAI",
+      "model": "openrouter/openai/gpt-4o",
+      "output_per_million": 10,
+      "reasoning": false,
+      "tier": "reference: GateMem's judge",
+      "total_with_judge": {
+        "high": 2325.217008,
+        "low": 487.467519
+      }
+    },
+    {
+      "accepted": true,
+      "api": "openai-completions",
+      "cost": {
+        "gatemem": {
+          "high": 2734.285071,
+          "low": 336.948385
+        },
+        "gatemem_violation_set": {
+          "high": 1890.764563,
+          "low": 233.152443
+        },
+        "mem-inv-bench": {
+          "high": 24.472555,
+          "low": 1.913126
+        }
+      },
+      "found": true,
+      "input_per_million": 2,
+      "maker": "Google",
+      "model": "openrouter/google/gemini-4-argon",
+      "output_per_million": 10,
+      "reasoning": true,
+      "tier": "large",
+      "total_with_judge": {
+        "high": 3027.579159,
+        "low": 406.066911
+      }
+    },
+    {
+      "accepted": true,
+      "api": "openai-completions",
+      "cost": {
+        "gatemem": {
+          "high": 1025.356902,
+          "low": 126.355644
+        },
+        "gatemem_violation_set": {
+          "high": 709.036711,
+          "low": 87.432166
+        },
+        "mem-inv-bench": {
+          "high": 9.177208,
+          "low": 0.717422
+        }
+      },
+      "found": true,
+      "input_per_million": 0.75,
+      "maker": "Google",
+      "model": "openrouter/google/gemini-3.8-flash",
+      "output_per_million": 3.75,
+      "reasoning": true,
+      "tier": "small",
+      "total_with_judge": {
+        "high": 1303.355643,
+        "low": 194.278467
+      }
+    },
+    {
+      "accepted": true,
+      "api": "openai-completions",
+      "cost": {
+        "gatemem": {
+          "high": 755.340522,
+          "low": 109.453878
+        },
+        "gatemem_violation_set": {
+          "high": 525.218946,
+          "low": 75.772027
+        },
+        "mem-inv-bench": {
+          "high": 5.572421,
+          "low": 0.620222
+        }
+      },
+      "found": true,
+      "input_per_million": 0.66,
+      "maker": "DeepSeek",
+      "model": "openrouter/deepseek/deepseek-v4-pro-0813",
+      "output_per_million": 1.98,
+      "reasoning": true,
+      "tier": "large",
+      "total_with_judge": {
+        "high": 1029.734476,
+        "low": 177.2795
+      }
+    },
+    {
+      "accepted": true,
+      "api": "openai-completions",
+      "cost": {
+        "gatemem": {
+          "high": 84.835437,
+          "low": 1.881062
+        },
+        "gatemem_violation_set": {
+          "high": 57.145779,
+          "low": 1.283233
+        },
+        "mem-inv-bench": {
+          "high": 1.381416,
+          "low": 0.011327
+        }
+      },
+      "found": true,
+      "input_per_million": 0.00576,
+      "maker": "DeepSeek",
+      "model": "openrouter/deepseek/deepseek-v4.1-flash",
+      "output_per_million": 0.72,
+      "reasoning": true,
+      "tier": "small",
+      "total_with_judge": {
+        "high": 355.038386,
+        "low": 69.097789
+      }
+    },
+    {
+      "accepted": true,
+      "api": "openai-completions",
+      "cost": {
+        "gatemem": {
+          "high": 2288.910674,
+          "low": 331.678417
+        },
+        "gatemem_violation_set": {
+          "high": 1591.572565,
+          "low": 229.612203
+        },
+        "mem-inv-bench": {
+          "high": 16.886123,
+          "low": 1.879462
+        }
+      },
+      "found": true,
+      "input_per_million": 2,
+      "maker": "Qwen",
+      "model": "openrouter/qwen/qwen3.8-max-0902",
+      "output_per_million": 6,
+      "reasoning": true,
+      "tier": "large",
+      "total_with_judge": {
+        "high": 2574.61833,
+        "low": 400.763279
+      }
+    },
+    {
+      "accepted": true,
+      "api": "openai-completions",
+      "cost": {
+        "gatemem": {
+          "high": 173.895173,
+          "low": 24.902231
+        },
+        "gatemem_violation_set": {
+          "high": 120.863902,
+          "low": 17.238616
+        },
+        "mem-inv-bench": {
+          "high": 1.304391,
+          "low": 0.141128
+        }
+      },
+      "found": true,
+      "input_per_million": 0.15,
+      "maker": "Qwen",
+      "model": "openrouter/qwen/qwen3.8-flash",
+      "output_per_million": 0.47,
+      "reasoning": true,
+      "tier": "small",
+      "total_with_judge": {
+        "high": 444.021097,
+        "low": 92.248759
+      }
+    },
+    {
+      "accepted": true,
+      "api": "openai-completions",
+      "cost": {
+        "gatemem": {
+          "high": 783.796809,
+          "low": 112.836536
+        },
+        "gatemem_violation_set": {
+          "high": 544.874572,
+          "low": 78.112402
+        },
+        "mem-inv-bench": {
+          "high": 5.836112,
+          "low": 0.639438
+        }
+      },
+      "found": true,
+      "input_per_million": 0.68,
+      "maker": "Mistral",
+      "model": "openrouter/mistralai/mistral-large-4-0",
+      "output_per_million": 2.09,
+      "reasoning": true,
+      "tier": "large",
+      "total_with_judge": {
+        "high": 1058.454454,
+        "low": 180.681374
+      }
+    },
+    {
+      "accepted": true,
+      "api": "openai-completions",
+      "cost": {
+        "gatemem": {
+          "high": 188.36984,
+          "low": 25.073505
+        },
+        "gatemem_violation_set": {
+          "high": 130.587642,
+          "low": 17.353674
+        },
+        "mem-inv-bench": {
+          "high": 1.55095,
+          "low": 0.142222
+        }
+      },
+      "found": true,
+      "input_per_million": 0.15,
+      "maker": "Mistral",
+      "model": "openrouter/mistralai/mistral-small-2603",
+      "output_per_million": 0.6,
+      "reasoning": true,
+      "tier": "small",
+      "total_with_judge": {
+        "high": 458.742324,
+        "low": 92.421127
+      }
+    },
+    {
+      "accepted": true,
+      "api": "openai-completions",
+      "cost": {
+        "gatemem": {
+          "high": 5468.570143,
+          "low": 673.896771
+        },
+        "gatemem_violation_set": {
+          "high": 3781.529126,
+          "low": 466.304885
+        },
+        "mem-inv-bench": {
+          "high": 48.945111,
+          "low": 3.826251
+        }
+      },
+      "found": true,
+      "input_per_million": 4,
+      "maker": "Meta",
+      "model": "openrouter/meta/muse-wonder",
+      "output_per_million": 20,
+      "reasoning": true,
+      "tier": "large",
+      "total_with_judge": {
+        "high": 5786.336786,
+        "low": 744.928422
+      }
+    },
+    {
+      "accepted": true,
+      "api": "openai-completions",
+      "cost": {
+        "gatemem": {
+          "high": 376.739681,
+          "low": 50.14701
+        },
+        "gatemem_violation_set": {
+          "high": 261.175285,
+          "low": 34.707348
+        },
+        "mem-inv-bench": {
+          "high": 3.101901,
+          "low": 0.284444
+        }
+      },
+      "found": true,
+      "input_per_million": 0.3,
+      "maker": "Meta",
+      "model": "openrouter/meta/muse-glimmer-30b",
+      "output_per_million": 1.2,
+      "reasoning": true,
+      "tier": "small",
+      "total_with_judge": {
+        "high": 648.663115,
+        "low": 117.636854
+      }
+    },
+    {
+      "accepted": false,
+      "api": "anthropic-messages",
+      "cost": null,
+      "found": true,
+      "input_per_million": 2,
+      "maker": "Anthropic",
+      "model": "openrouter/anthropic/claude-sonnet-5.5",
+      "output_per_million": 10,
+      "reasoning": true,
+      "tier": "large"
+    },
+    {
+      "accepted": false,
+      "api": "anthropic-messages",
+      "cost": null,
+      "found": true,
+      "input_per_million": 0.1,
+      "maker": "Anthropic",
+      "model": "openrouter/anthropic/claude-haiku-5.5",
+      "output_per_million": 0.5,
+      "reasoning": true,
+      "tier": "small"
+    }
+  ],
+  "estimates": {
+    "high": {
+      "extra_read_turns": 2,
+      "judge_calls": "max",
+      "note_output_tokens": 300,
+      "reasoning_tokens_per_call": 1024,
+      "token_scale": 1.333333
+    },
+    "low": {
+      "extra_read_turns": 0,
+      "judge_calls": "min",
+      "note_output_tokens": null,
+      "reasoning_tokens_per_call": 0,
+      "token_scale": 1.0
+    }
+  },
+  "hypothesis": "H1",
+  "inputs": {
+    "admission": {
+      "file": "research/results/h1-mem-inv-admission.json",
+      "sha256": "bed41bee4be4e3bb6bbf9f260b846626e3b57886d5672ccaa865b6443290ecab"
+    },
+    "cassettes": {
+      "gatemem": "fixtures/cassettes/x1-h1-gatemem",
+      "mem-inv-bench": "fixtures/cassettes/x1-h1-mem-inv"
+    },
+    "gatemem_commit": "a983828b3bb7565e16e25ac8cdc2fc1982633b0b",
+    "walk": {
+      "file": "research/results/h1-c4-walk.json",
+      "sha256": "479f24192d83ec1a091dfc5b925073d79aefe1415d6171439ba74bb94fd6f8fa"
+    }
+  },
+  "judge": {
+    "accepted": true,
+    "api": "openai-completions",
+    "cost": {
+      "judge": {
+        "high": 268.821533,
+        "low": 67.2054
+      },
+      "judge_violation_set": {
+        "high": 180.587955,
+        "low": 45.147
+      }
+    },
+    "input_per_million": 2.5,
+    "model": "openrouter/openai/gpt-4o",
+    "output_per_million": 10,
+    "reasoning": false
+  },
+  "measured": {
+    "gatemem": {
+      "C2": {
+        "fixture": {
+          "answer_out": 41.5,
+          "call_in": 8.0,
+          "call_out": 8.0,
+          "prompt": 1147.5,
+          "read_items": 8.0,
+          "read_tokens": 578.0,
+          "sessions": 4,
+          "tokens_per_item": 72.25
+        },
+        "full_set": {
+          "privacy": {
+            "high": {
+              "calls": 4,
+              "input": 13321.428473,
+              "output": 65.5
+            },
+            "items_per_read": 19.933975,
+            "low": {
+              "calls": 2,
+              "input": 3764.254814,
+              "output": 49.5
+            },
+            "prompt_delta": 10.512552,
+            "sessions": 2181
+          },
+          "safety": {
+            "high": {
+              "calls": 4,
+              "input": 13405.347969,
+              "output": 65.5
+            },
+            "items_per_read": 20.0,
+            "low": {
+              "calls": 2,
+              "input": 3796.673984,
+              "output": 49.5
+            },
+            "prompt_delta": 24.336992,
+            "sessions": 2289
+          },
+          "utility": {
+            "high": {
+              "calls": 4,
+              "input": 13208.529533,
+              "output": 65.5
+            },
+            "items_per_read": 19.641484,
+            "low": {
+              "calls": 2,
+              "input": 3750.070398,
+              "output": 49.5
+            },
+            "prompt_delta": 13.986607,
+            "sessions": 2184
+          }
+        }
+      },
+      "C3": {
+        "fixture": {
+          "answer_out": 41.5,
+          "call_in": 8.0,
+          "call_out": 8.0,
+          "prompt": 2166.5,
+          "read_items": 8.0,
+          "read_tokens": 578.0,
+          "sessions": 4,
+          "tokens_per_item": 72.25
+        },
+        "full_set": {
+          "privacy": {
+            "high": {
+              "calls": 4,
+              "input": 17397.428473,
+              "output": 65.5
+            },
+            "items_per_read": 19.933975,
+            "low": {
+              "calls": 2,
+              "input": 5802.254814,
+              "output": 49.5
+            },
+            "prompt_delta": 10.512552,
+            "sessions": 2181
+          },
+          "safety": {
+            "high": {
+              "calls": 4,
+              "input": 17481.347969,
+              "output": 65.5
+            },
+            "items_per_read": 20.0,
+            "low": {
+              "calls": 2,
+              "input": 5834.673984,
+              "output": 49.5
+            },
+            "prompt_delta": 24.336992,
+            "sessions": 2289
+          },
+          "utility": {
+            "high": {
+              "calls": 4,
+              "input": 17284.529533,
+              "output": 65.5
+            },
+            "items_per_read": 19.641484,
+            "low": {
+              "calls": 2,
+              "input": 5788.070398,
+              "output": 49.5
+            },
+            "prompt_delta": 13.986607,
+            "sessions": 2184
+          }
+        }
+      },
+      "C4": {
+        "fixture": {
+          "answer_out": 41.5,
+          "call_in": 8.0,
+          "call_out": 8.0,
+          "prompt": 2301.5,
+          "read_items": 7.0,
+          "read_tokens": 649.0,
+          "sessions": 4,
+          "tokens_per_item": 92.714286
+        },
+        "full_set": {
+          "privacy": {
+            "high": {
+              "calls": 4,
+              "input": 53101.828552,
+              "output": 65.5
+            },
+            "items_per_read": 78.746905,
+            "low": {
+              "calls": 2,
+              "input": 11932.988161,
+              "output": 49.5
+            },
+            "prompt_delta": 10.512552,
+            "sessions": 2181
+          },
+          "safety": {
+            "high": {
+              "calls": 4,
+              "input": 50324.743587,
+              "output": 65.5
+            },
+            "items_per_read": 73.655308,
+            "low": {
+              "calls": 2,
+              "input": 11488.573254,
+              "output": 49.5
+            },
+            "prompt_delta": 24.336992,
+            "sessions": 2289
+          },
+          "utility": {
+            "high": {
+              "calls": 4,
+              "input": 38114.542975,
+              "output": 65.5
+            },
+            "items_per_read": 51.78022,
+            "low": {
+              "calls": 2,
+              "input": 9439.739305,
+              "output": 49.5
+            },
+            "prompt_delta": 13.986607,
+            "sessions": 2184
+          }
+        }
+      },
+      "C5": {
+        "fixture": {
+          "answer_out": 41.5,
+          "call_in": 8.0,
+          "call_out": 8.0,
+          "prompt": 1147.5,
+          "read_items": 3.5,
+          "read_tokens": 357.5,
+          "sessions": 4,
+          "tokens_per_item": 102.142857
+        },
+        "full_set": {
+          "privacy": {
+            "high": {
+              "calls": 4,
+              "input": 11668.476223,
+              "output": 65.5
+            },
+            "items_per_read": 11.403026,
+            "low": {
+              "calls": 2,
+              "input": 3488.762773,
+              "output": 49.5
+            },
+            "prompt_delta": 10.512552,
+            "sessions": 2181
+          },
+          "safety": {
+            "high": {
+              "calls": 4,
+              "input": 15023.797697,
+              "output": 65.5
+            },
+            "items_per_read": 16.78768,
+            "low": {
+              "calls": 2,
+              "input": 4066.415606,
+              "output": 49.5
+            },
+            "prompt_delta": 24.336992,
+            "sessions": 2289
+          },
+          "utility": {
+            "high": {
+              "calls": 4,
+              "input": 13477.670918,
+              "output": 65.5
+            },
+            "items_per_read": 14.332418,
+            "low": {
+              "calls": 2,
+              "input": 3794.927296,
+              "output": 49.5
+            },
+            "prompt_delta": 13.986607,
+            "sessions": 2184
+          }
+        }
+      },
+      "fixture_checkpoints": [
+        "household_episode_custom_en_009_linden_lesson_linden_listen_tutor_music_private_note_ckpt_01",
+        "med_episode_rewrite_en_012_new_hiv_deleted_harbor_light_line_ckpt_13"
+      ],
+      "prompt_chars_fixture": 4000.5,
+      "prompt_chars_full_set": {
+        "privacy": 4042.550206,
+        "safety": 4097.847969,
+        "utility": 4056.446429
+      }
+    },
+    "judge": {
+      "calls": 1,
+      "input": 870.0,
+      "output": 35.0
+    },
+    "mem-inv-bench": {
+      "C2": {
+        "fixture": {
+          "answer_out": 12.0,
+          "call_in": 6.0,
+          "call_out": 6.0,
+          "prompt": 386.0,
+          "read_items": 2.5,
+          "read_tokens": 120.0,
+          "sessions": 6,
+          "tokens_per_item": 48.0
+        },
+        "full_set": {
+          "high": {
+            "calls": 4,
+            "input": 2231.789474,
+            "output": 30.0
+          },
+          "items_per_read": 2.263158,
+          "low": {
+            "calls": 2,
+            "input": 886.631579,
+            "output": 18.0
+          }
+        }
+      },
+      "C3": {
+        "fixture": {
+          "answer_out": 12.0,
+          "call_in": 6.0,
+          "call_out": 6.0,
+          "prompt": 1400.0,
+          "read_items": 2.5,
+          "read_tokens": 120.0,
+          "sessions": 6,
+          "tokens_per_item": 48.0
+        },
+        "full_set": {
+          "high": {
+            "calls": 4,
+            "input": 6287.789474,
+            "output": 30.0
+          },
+          "items_per_read": 2.263158,
+          "low": {
+            "calls": 2,
+            "input": 2914.631579,
+            "output": 18.0
+          }
+        }
+      },
+      "C4": {
+        "fixture": {
+          "answer_out": 12.0,
+          "call_in": 6.0,
+          "call_out": 6.0,
+          "prompt": 1577.0,
+          "read_items": 2.5,
+          "read_tokens": 141.0,
+          "sessions": 6,
+          "tokens_per_item": 56.4
+        },
+        "full_set": {
+          "high": {
+            "calls": 4,
+            "input": 7109.852632,
+            "output": 30.0
+          },
+          "items_per_read": 2.263158,
+          "low": {
+            "calls": 2,
+            "input": 3287.642105,
+            "output": 18.0
+          }
+        }
+      },
+      "C5": {
+        "fixture": {
+          "answer_out": 12.0,
+          "call_in": 6.0,
+          "call_out": 6.0,
+          "prompt": 386.0,
+          "read_items": 2.5,
+          "read_tokens": 165.5,
+          "sessions": 6,
+          "tokens_per_item": 66.2
+        },
+        "full_set": {
+          "high": {
+            "calls": 4,
+            "input": 2478.926316,
+            "output": 30.0
+          },
+          "items_per_read": 2.263158,
+          "low": {
+            "calls": 2,
+            "input": 927.821053,
+            "output": 18.0
+          }
+        }
+      },
+      "admitted": 86,
+      "cases": 38,
+      "entries": 86,
+      "note": {
+        "input": 72.0,
+        "output": 26.0
+      }
+    }
+  },
+  "name": "h1-cost",
+  "prices": {
+    "generated_at": "2026-10-15T19:00:55.287Z",
+    "openrouter_sha256": "d303cf8e4ad2cfd322ea5fc8c9e617d46b21d36d9ebe0454be26ae92d91440aa",
+    "package": "@earendil-works/pi-ai",
+    "provider": "openrouter",
+    "unit": "US dollars per million tokens (pi-ai catalogue cost.input, cost.output)",
+    "version": "1.3.0"
+  },
+  "sizes": {
+    "gatemem": {
+      "config": "h1-gatemem",
+      "item_kinds": {
+        "access control": 727,
+        "active forgetting": 763,
+        "utility": 728
+      },
+      "items": 2218,
+      "judge": {
+        "calls_max": 79848,
+        "calls_min": 26616,
+        "model": "openrouter/openai/gpt-4o"
+      },
+      "note_calls": 0,
+      "per_condition": {
+        "C2": 6654,
+        "C3": 6654,
+        "C4": 6654,
+        "C5": 6654
+      },
+      "seeds": [
+        1,
+        2,
+        3
+      ],
+      "sessions": 26616
+    },
+    "mem-inv-bench": {
+      "config": "h1-mem-inv",
+      "item_kinds": {
+        "attack/corroborate": 8,
+        "attack/direct": 8,
+        "attack/summarize": 8,
+        "attack/tool_echo": 8,
+        "benign": 6
+      },
+      "items": 38,
+      "note_calls": 8,
+      "per_condition": {
+        "C2": 114,
+        "C3": 114,
+        "C4": 114,
+        "C5": 114
+      },
+      "seeds": [
+        1,
+        2,
+        3
+      ],
+      "sessions": 456
+    }
+  },
+  "tokens": {
+    "gatemem": {
+      "high": {
+        "calls": 106464.0,
+        "input": 810424538.536672,
+        "output": 2324463.418884
+      },
+      "low": {
+        "calls": 53232.0,
+        "input": 161886732.642857,
+        "output": 1317492.0
+      }
+    },
+    "gatemem_violation_set": {
+      "high": {
+        "calls": 71520.0,
+        "input": 571392283.437608,
+        "output": 1561519.60962
+      },
+      "low": {
+        "calls": 35760.0,
+        "input": 112150921.285714,
+        "output": 885060.0
+      }
+    },
+    "judge": {
+      "high": {
+        "calls": 79848.0,
+        "input": 92623656.84408,
+        "output": 3726239.06844
+      },
+      "low": {
+        "calls": 26616.0,
+        "input": 23155920.0,
+        "output": 931560.0
+      }
+    },
+    "judge_violation_set": {
+      "high": {
+        "calls": 53640.0,
+        "input": 62222384.4444,
+        "output": 2503199.3742
+      },
+      "low": {
+        "calls": 17880.0,
+        "input": 15555600.0,
+        "output": 625800.0
+      }
+    },
+    "mem-inv-bench": {
+      "high": {
+        "calls": 1832.0,
+        "input": 2753237.71169,
+        "output": 20639.99544
+      },
+      "low": {
+        "calls": 920.0,
+        "input": 914482.8,
+        "output": 8416.0
+      }
+    }
+  }
+}

@@ -11,6 +11,7 @@ import type { CacheEntry } from "../../src/model/cached.ts";
 import {
   callShape,
   catalogueEntry,
+  catalogueSnapshot,
   decodeMessage,
   gatememPromptChars,
   sessionShapes,
@@ -162,6 +163,15 @@ describe("the candidate models, as pi-ai 1.3.0's catalogue and the runner see th
     expect(catalogueEntry(models, "openrouter/no/such-model")).toMatchObject({
       found: false,
       accepted: false,
+    });
+  });
+
+  test("the prices are dated by pi-ai's own catalogue at the runner's pin", () => {
+    expect(catalogueSnapshot()).toEqual({
+      package: "@earendil-works/pi-ai",
+      version: "1.3.0",
+      generated_at: "2026-10-15T19:00:55.287Z",
+      openrouter_sha256: "d303cf8e4ad2cfd322ea5fc8c9e617d46b21d36d9ebe0454be26ae92d91440aa",
     });
   });
 });
