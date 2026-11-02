@@ -173,6 +173,7 @@ version = "0.0.0"
 source = { editable = "research" }
 dependencies = [
     { name = "numpy" },
+    { name = "scipy" },
     { name = "typing-extensions" },
 ]
 
@@ -183,12 +184,12 @@ dev = [
     { name = "mypy" },
     { name = "pytest" },
     { name = "ruff" },
-    { name = "scipy" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "numpy", specifier = "==2.5.4" },
+    { name = "scipy", specifier = "==1.18.1" },
     { name = "typing-extensions", specifier = ">=4.12" },
 ]
 
@@ -199,7 +200,6 @@ dev = [
     { name = "mypy" },
     { name = "pytest" },
     { name = "ruff" },
-    { name = "scipy", specifier = "==1.18.1" },
 ]
 
 [[package]]

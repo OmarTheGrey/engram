@@ -24,22 +24,27 @@ approximation's estimate with `simulations_walk` studies per size; the rung
 it lands on and the rung below are then rerun with `simulations_confirm`
 studies, and the smallest rung whose confirmed power reaches the target is
 kept, provided the TOST holds its level there; otherwise the choice moves up
-a rung. The level is held when, with one pair's true difference on the
-margin, the exact level at kappa 0 is at most alpha under both seed models,
-and the level measured over `simulations_level` runs either way round, at
-every kappa of `level_kappas` and the cell's own under both seed models, is
-at most alpha by two Monte Carlo standard errors. Every seed comes from the
-config's seed and the cell's index (AGENTS.md rule 6), so the result does not
-depend on how the cells are spread over processes.
+a rung. The level is held when, with the true difference on the margin, the
+largest level found over the composite null (`composite_sup`: every
+distribution of an item's difference on the three-seed lattice with its mean
+on the margin, identical and independent seeds, any rates and kappas) is at
+most alpha, and so are the exact levels of the cell's own pair on the
+margin, rates (rate, rate + margin), under both seed models at every kappa
+of `level_kappas` and the cell's own. Every level is exact
+(`lattice_level`); none is simulated. Each size records which check set it:
+power, the composite null, or the cell's own distributions. Every seed
+comes from the config's seed and the cell's index (AGENTS.md rule 6), so the
+result does not depend on how the cells are spread over processes.
 """
 
 from __future__ import annotations
 
 import argparse
 import os
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Mapping, MutableMapping, Sequence
 from concurrent.futures import ProcessPoolExecutor
 from itertools import product
+from multiprocessing import Manager
 from pathlib import Path
 from typing import Any, cast
 
@@ -49,16 +54,41 @@ from analysis.power import (
     PowerPoint,
     SeedModel,
     choose_rung,
-    exact_level,
+    composite_sup,
+    difference_distribution,
     ladder,
-    level_gate,
+    lattice_level,
     normal_approx_items,
     power_at,
-    simulated_level,
+    round_up,
     smallest_passing,
     start_rung,
 )
 from scripts.results_io import load_config, write_result
+
+_SHARED: MutableMapping[tuple[int, float, float], dict[str, Any]] | None = None
+"""The composite-null suprema the worker processes have computed, shared between them."""
+
+
+def _share(table: MutableMapping[tuple[int, float, float], dict[str, Any]]) -> None:
+    global _SHARED
+    _SHARED = table
+
+
+def shared_sup(items: int, margin: float, alpha: float) -> dict[str, Any]:
+    """`composite_sup` through a table every worker reads and fills.
+
+    The supremum depends only on (items, margin, alpha), so the cells of a
+    margin share it; it is deterministic, so two workers racing on one key
+    cost time, not a different result.
+    """
+    key = (items, margin, alpha)
+    if _SHARED is not None and (found := _SHARED.get(key)) is not None:
+        return dict(found)
+    sup = composite_sup(items, margin, alpha)
+    if _SHARED is not None:
+        _SHARED[key] = sup
+    return sup
 
 
 def alpha_result(
@@ -72,7 +102,6 @@ def alpha_result(
     rungs = ladder(
         int(config["ladder_start"]), int(config["ladder_stop"]), int(config["steps_per_doubling"])
     )
-    level_runs = int(config["simulations_level"])
     walk: dict[int, PowerPoint] = {}
     confirm: dict[int, PowerPoint] = {}
     levels: dict[int, dict[str, Any]] = {}
@@ -90,33 +119,32 @@ def alpha_result(
 
     def level(items: int) -> dict[str, Any]:
         if items not in levels:
-            exact = {
-                m: exact_level(cell.margin, items, m, alpha=alpha, seeds=cell.seeds)
-                for m in SEED_MODELS
-            }
-            measured = {
-                f"{m} kappa {k:g}": simulated_level(
-                    cell.rate,
-                    cell.margin,
-                    items,
-                    k,
-                    m,
-                    runs=level_runs,
-                    seed=seed,
-                    alpha=alpha,
-                    seeds=cell.seeds,
+            sup = shared_sup(items, cell.margin, alpha)
+            own = {
+                f"{model}, kappa {k:g}": round_up(
+                    lattice_level(
+                        items,
+                        cell.margin,
+                        alpha,
+                        difference_distribution(
+                            (cell.rate, cell.rate + cell.margin), k, model, cell.seeds
+                        ),
+                    )
                 )
+                for model in SEED_MODELS
                 for k in kappas
-                for m in SEED_MODELS
             }
-            worst = max(measured, key=lambda key: measured[key])
+            worst = max(own, key=lambda key: own[key])
+            fails = [
+                *(["composite null"] if sup["level"] > alpha else []),
+                *(["own distributions"] if own[worst] > alpha else []),
+            ]
             levels[items] = {
-                "exact_kappa_0": exact,
-                "simulated_max": measured[worst],
-                "simulated_max_at": worst,
-                "holds": level_gate(
-                    list(exact.values()), list(measured.values()), alpha=alpha, runs=level_runs
-                ),
+                "composite_sup": sup,
+                "own_max": own[worst],
+                "own_max_at": worst,
+                "fails": fails,
+                "holds": not fails,
             }
         return levels[items]
 
@@ -138,6 +166,13 @@ def alpha_result(
         )
         chosen = None if r is None else rungs[r]
         below = None if r is None or r == 0 else confirm.get(rungs[r - 1])
+        below_level = None if r is None or r == 0 else levels.get(rungs[r - 1])
+        if chosen is None:
+            set_by = None
+        elif below is None or below.power < target:
+            set_by = "power"
+        else:
+            set_by = ", ".join(below_level["fails"]) if below_level else "power"
         targets[str(families)] = {
             "families": int(families),
             "target_power": target,
@@ -146,7 +181,8 @@ def alpha_result(
             "power": None if chosen is None else confirm[chosen].power,
             "pair_power": None if chosen is None else confirm[chosen].pair_power,
             "power_one_rung_below": None if below is None else below.power,
-            "level_one_rung_below": (None if r is None or r == 0 else levels.get(rungs[r - 1])),
+            "level_one_rung_below": below_level,
+            "set_by": set_by,
             "level": None if chosen is None else levels[chosen],
         }
     return {
@@ -204,7 +240,11 @@ def compute(config: Mapping[str, Any]) -> dict[str, Any]:
     # Each cell draws its seeds from the config's seed and its own index, so
     # the result does not depend on how the cells are spread over processes.
     jobs = [(cell, dict(config), i) for i, cell in enumerate(cells)]
-    with ProcessPoolExecutor(max_workers=max(1, min(len(jobs), os.cpu_count() or 1))) as pool:
+    workers = max(1, min(len(jobs), os.cpu_count() or 1))
+    with (
+        Manager() as manager,
+        ProcessPoolExecutor(workers, initializer=_share, initargs=(manager.dict(),)) as pool,
+    ):
         grid = list(pool.map(_cell_job, jobs))
     keys = (
         "arms",
@@ -214,7 +254,6 @@ def compute(config: Mapping[str, Any]) -> dict[str, Any]:
         "level_kappas",
         "simulations_walk",
         "simulations_confirm",
-        "simulations_level",
         "target_power",
         "seed",
         "ladder_start",

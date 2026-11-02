@@ -24,7 +24,7 @@ One line per dependency: name, version, reason, licence. Added in the same PR as
 | datamodel-code-generator | 0.86.0 | dev: generates research/engram_types from sdk/schema | MIT |
 | typing-extensions | >=4.12 (uv.lock) | runtime import of the generated research/engram_types | PSF-2.0 |
 | numpy | 2.5.4 | research/analysis: the paired bootstrap (10,000 multinomial resamples per test), BCa quantiles, and the seeded simulations of the analysis tests and of H4's power calculation (prereg v1 plan, PR 2); released 2026-10-10 | BSD-3-Clause (bundled parts 0BSD, MIT, Zlib, CC0-1.0) |
-| scipy | 1.18.1 | dev: the reference implementation the BCa interval is tested against (scipy.stats.bootstrap, method BCa; research/tests/test_analysis.py); never imported by research/analysis or a script; released 2026-08-21 | BSD-3-Clause |
+| scipy | 1.18.1 | research/analysis/power.py: SLSQP, the climb over the composite null of H4's TOST (PR 2 review round 3); and the reference implementation the BCa interval is tested against (scipy.stats.bootstrap, method BCa; research/tests/test_analysis.py); released 2026-08-21 | BSD-3-Clause |
 | yaml | 2.9.1 | parses policy files in packages/core with node ranges, so a rejected policy names its line (card E2.1), and the YAML frontmatter of Claude Code memory files in the files adapter (card A3) | ISC |
 | mem0ai | 3.3.1 | open-source Mem0 (`mem0ai/oss`) behind the Mem0 adapter, card A1 (ADR 0013); packages/adapters only | Apache-2.0 |
 | better-sqlite3 | 12.11.1 | the SQLite binding of Mem0's local vector store; a native build allowed in pnpm-workspace.yaml (prebuilt binary, else node-gyp) | MIT |

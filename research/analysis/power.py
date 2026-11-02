@@ -24,12 +24,20 @@ each pair of arms is tested on the item-level differences.
 
 H4 holds for a family of arms only if every pair is equivalent, so the power
 reported is the share of simulated studies in which all pairs pass (an
-intersection-union test, which needs no multiplicity correction). The TOST's
-level is checked at every size reported: `exact_level` computes it exactly at
-kappa 0 (the disagreement count is binomial there), and `simulated_level`
-measures it at other kappas; `level_gate` admits a size only if the exact
-levels are at most alpha and the measured ones are at most alpha by two
-Monte Carlo standard errors.
+intersection-union test, which needs no multiplicity correction).
+
+The TOST's level is checked at every size reported, exactly. With three
+seeds an item's difference d lies on the lattice {-1, -2/3, ..., 1}, and the
+TOST decides from (sum d, sum d^2); for any distribution of d the joint
+distribution of those sums is the n-th power of one item's characteristic
+function, inverted by FFT on a window that Bernstein's inequality bounds
+(`lattice_sums`, `lattice_level`). `composite_sup` searches the composite
+null, every lattice distribution with the mean on the margin (identical
+seeds, independent seeds, any rates, any kappa), for its largest level;
+the H4 script admits a size only if that is at most alpha and so are the
+exact levels of the cell's own distributions on the margin.
+`simulated_level` measures a level by simulation; the tests use it as an
+independent check of the exact route.
 
 The TOST decides from the sums of d and d^2 (`equivalent_from_sums`), which
 are linear in the counts of the items' states; a simulated study is one
@@ -45,13 +53,14 @@ from dataclasses import dataclass
 from functools import lru_cache
 from itertools import combinations, pairwise, product
 from statistics import NormalDist
-from typing import Literal
+from typing import Any, Literal
 
 import numpy as np
 import numpy.typing as npt
+from scipy.optimize import minimize  # type: ignore[import-untyped]  # no type stubs
 
 from analysis.bootstrap import ALPHA, FloatArray
-from analysis.equivalence import critical_z, equivalent_from_sums, variance_floor
+from analysis.equivalence import BoolArray, critical_z, equivalent_from_sums, variance_floor
 
 SeedModel = Literal["independent", "identical"]
 SEED_MODELS: tuple[SeedModel, ...] = ("identical", "independent")
@@ -278,12 +287,319 @@ def exact_level(
     return level + max(0.0, 1.0 - covered)
 
 
-def level_gate(
-    exact: Sequence[float], simulated: Sequence[float], *, alpha: float, runs: int
-) -> bool:
-    """Exact levels at most alpha; measured ones at most alpha by two Monte Carlo errors."""
-    tolerance = 2.0 * math.sqrt(alpha * (1.0 - alpha) / runs)
-    return all(e <= alpha for e in exact) and all(m + tolerance <= alpha for m in simulated)
+LATTICE: IntArray = np.arange(-3, 4, dtype=np.int64)
+"""Three times an item's difference over three seeds: d is one of -1, -2/3, ..., 1."""
+FOLD = 1e-13
+"""Bernstein's bound on the probability outside each window `lattice_sums` keeps."""
+SUPPORTS: tuple[tuple[int, int], ...] = tuple((a, b) for a in (-3, -2, -1) for b in (1, 2, 3))
+"""The three-point lattice supports {a/3, 0, b/3} the composite-null search starts from."""
+GRID = 36
+"""Values of the free share per three-point support before refinement."""
+REFINE = 14
+"""Golden-section steps around the best grid value."""
+STARTS = 4
+"""The best starting distributions the seven-point search climbs from."""
+
+
+def lattice_probs(probs: Sequence[float] | FloatArray) -> FloatArray:
+    """Seven probabilities, P(3d = -3), ..., P(3d = 3), checked."""
+    p = np.asarray(probs, dtype=np.float64)
+    if p.shape != (7,) or (p < 0.0).any() or abs(float(p.sum()) - 1.0) > 1e-9:
+        raise ValueError("a lattice distribution is seven non-negative probabilities summing to 1")
+    return p
+
+
+def _half_width(variance: float, bound: float) -> float:
+    """The h with 2 exp(-h^2 / (2 (variance + bound h / 3))) = FOLD (Bernstein's inequality)."""
+    log = math.log(2.0 / FOLD)
+    return bound * log / 3.0 + math.sqrt((bound * log / 3.0) ** 2 + 2.0 * variance * log)
+
+
+def _sums_window(probs: FloatArray, items: int) -> tuple[int, int, int, int, float]:
+    """Windows of 3 sum d and 9 sum d^2, and a bound on the probability outside them."""
+    support = probs > 0.0
+    squares = LATTICE * LATTICE
+    mean_t, mean_q = float(probs @ LATTICE), float(probs @ squares)
+    var_t = items * float(probs @ (LATTICE - mean_t) ** 2)
+    var_q = items * float(probs @ (squares - mean_q) ** 2)
+    h_t = _half_width(var_t, float(np.max(np.abs(LATTICE - mean_t)[support])))
+    h_q = _half_width(var_q, float(np.max(np.abs(squares - mean_q)[support])))
+    t0 = max(-3 * items, math.floor(items * mean_t - h_t))
+    t1 = min(3 * items, math.ceil(items * mean_t + h_t))
+    q0 = max(0, math.floor(items * mean_q - h_q))
+    q1 = min(9 * items, math.ceil(items * mean_q + h_q))
+    tail = (0.0 if (t0, t1) == (-3 * items, 3 * items) else FOLD) + (
+        0.0 if (q0, q1) == (0, 9 * items) else FOLD
+    )
+    return t0, t1, q0, q1, tail
+
+
+def _fast_size(n: int) -> int:
+    """The smallest 5-smooth number at least n: a fast FFT length."""
+    size = n
+    while True:
+        rest = size
+        for factor in (2, 3, 5):
+            while rest % factor == 0:
+                rest //= factor
+        if rest == 1:
+            return size
+        size += 1
+
+
+def lattice_sums(probs: FloatArray, items: int) -> tuple[FloatArray, int, int, float]:
+    """The joint distribution of (3 sum d, 9 sum d^2) over `items` items, d drawn from `probs`.
+
+    The items' characteristic function, one item's to the power `items`, on a
+    torus as wide as the windows `_sums_window` picks, inverted by FFT: entry
+    (i, k) is P(3 sum d = t0 + i, 9 sum d^2 = q0 + k), except that the
+    probability outside the windows, at most `tail` by Bernstein's
+    inequality, folds onto the torus. Returns the table, t0, q0 and tail.
+    """
+    if items < 1:
+        raise ValueError("the sums need at least one item")
+    t0, t1, q0, q1, tail = _sums_window(probs, items)
+    rows, cols = t1 - t0 + 1, q1 - q0 + 1
+    size_t, size_q = _fast_size(rows), _fast_size(cols)
+    # The distribution is real, so half the spectrum along one axis carries it.
+    phase_t = np.exp(-2j * np.pi * np.outer(np.fft.fftfreq(size_t), LATTICE))
+    phase_q = np.exp(-2j * np.pi * np.outer(np.fft.rfftfreq(size_q), LATTICE * LATTICE))
+    one = np.asarray((phase_t * probs) @ phase_q.T, dtype=np.complex128)
+    power: npt.NDArray[np.complex128] | None = None
+    exponent = items
+    while exponent:
+        if exponent & 1:
+            power = one.copy() if power is None else power * one
+        exponent >>= 1
+        if exponent:
+            one = one * one
+    assert power is not None
+    table = np.fft.irfft2(power, s=(size_t, size_q))
+    table = np.roll(table, (-(t0 % size_t), -(q0 % size_q)), axis=(0, 1))[:rows, :cols]
+    return table, t0, q0, tail
+
+
+def _decisions(
+    t: tuple[int, int], q: tuple[int, int], items: int, margin: float, alpha: float
+) -> BoolArray:
+    """The TOST's decision at every (3 sum d, 9 sum d^2) of a window."""
+    totals = np.arange(t[0], t[1] + 1, dtype=np.float64)[:, None] / 3.0
+    squares = np.arange(q[0], q[1] + 1, dtype=np.float64)[None, :] / 9.0
+    total, square = np.broadcast_arrays(totals, squares)
+    return equivalent_from_sums(total, square, items, margin, alpha)
+
+
+def lattice_level(
+    items: int, margin: float, alpha: float, probs: Sequence[float] | FloatArray
+) -> float:
+    """The TOST's level, exactly, when every item's d is drawn from `probs` on the lattice.
+
+    The probability outside the windows is added, so the value is never below
+    the true level by more than floating-point rounding (about 1e-12).
+    """
+    p = lattice_probs(probs)
+    table, t0, q0, tail = lattice_sums(p, items)
+    rows, cols = table.shape
+    decided = _decisions((t0, t0 + rows - 1), (q0, q0 + cols - 1), items, margin, alpha)
+    return float(np.sum(table * decided)) + tail
+
+
+def lattice_level_gradient(
+    items: int, margin: float, alpha: float, probs: Sequence[float] | FloatArray
+) -> tuple[float, FloatArray]:
+    """The level and its derivative in each probability.
+
+    The level is a polynomial in the seven probabilities, homogeneous of
+    degree `items`; its derivative in P(3d = k) is `items` times the level
+    with one item fixed at k and the other `items` - 1 drawn, and the level is
+    the probabilities' dot product with the derivatives over `items`.
+    """
+    p = lattice_probs(probs)
+    table, t0, q0, tail = lattice_sums(p, items - 1)
+    rows, cols = table.shape
+    decided = _decisions((t0 - 3, t0 + rows + 2), (q0, q0 + cols + 8), items, margin, alpha)
+    gradient = np.array(
+        [
+            items * float(np.sum(table * decided[3 + k : 3 + k + rows, k * k : k * k + cols]))
+            for k in LATTICE
+        ]
+    )
+    return float(p @ gradient) / items + tail, gradient
+
+
+def on_margin(probs: Sequence[float] | FloatArray, margin: float) -> FloatArray:
+    """`probs` clipped at 0, normalised, and mixed with a point mass so the mean is -margin.
+
+    The point mass is at -1 when the mean is above -margin, at 0 when below.
+    """
+    p = np.clip(np.asarray(probs, dtype=np.float64), 0.0, None)
+    p = p / p.sum()
+    mean = float(p @ LATTICE) / 3.0
+    if mean > -margin:
+        share, point = (mean + margin) / (mean + 1.0), 0
+    else:
+        share, point = 1.0 + margin / mean, 3
+    p = (1.0 - share) * p
+    p[point] += share
+    return p
+
+
+def difference_distribution(
+    rates: tuple[float, float], kappa: float, seed_model: SeedModel, seeds: int = 3
+) -> FloatArray:
+    """P(3d = k) for d the seed-averaged difference, first arm minus second (`item_states`)."""
+    if seeds != 3:
+        raise ValueError("the lattice of differences is for three seeds")
+    states, probs = item_states(list(rates), kappa, seed_model, seeds)
+    out = np.zeros(7)
+    np.add.at(out, (states[:, 0] - states[:, 1]) * (3 // _draws(seed_model, seeds)) + 3, probs)
+    return out
+
+
+def three_point_level(
+    items: int, margin: float, alpha: float, a: int, b: int, share: float
+) -> float:
+    """The TOST's level, exactly, when d is a/3, 0 or b/3 with mean -margin and P(b/3) = share.
+
+    P(a/3) is then (3 margin + b share) / (-a). The level is a sum over the
+    trinomial counts of the two non-zero values; the probability outside the
+    counts summed (well below 1e-15) is added back, so the value is never
+    below the true level.
+    """
+    low = (3.0 * margin + b * share) / (-a)
+    if low + share > 1.0 + 1e-12:
+        raise ValueError("no distribution on that support has its mean on the margin")
+    log_f = _log_factorials(items)
+
+    def counts(p: float) -> IntArray:
+        if p <= 0.0:
+            return np.zeros(1, dtype=np.int64)
+        spread = 9.0 * math.sqrt(items * p * (1.0 - p)) + 3.0
+        first = max(0, int(items * p - spread))
+        last = min(items, int(items * p + spread) + 1)
+        return np.arange(first, last + 1, dtype=np.int64)
+
+    x, y = np.meshgrid(counts(low), counts(share), indexing="ij")
+    ok = x + y <= items
+    x, y = x[ok], y[ok]
+    zero = items - x - y
+    log_p = log_f[items] - log_f[x] - log_f[y] - log_f[zero]
+    if low > 0.0:
+        log_p = log_p + x * math.log(low)
+    if share > 0.0:
+        log_p = log_p + y * math.log(share)
+    rest = 1.0 - low - share
+    # With nothing left for zero, any count of zeros is impossible.
+    rest_term = zero * math.log(rest) if rest > 0.0 else np.where(zero > 0, -np.inf, 0.0)
+    mass = np.exp(log_p + rest_term)
+    decided = equivalent_from_sums(
+        (a * x + b * y) / 3.0, (a * a * x + b * b * y) / 9.0, items, margin, alpha
+    )
+    return float(np.sum(mass * decided)) + max(0.0, 1.0 - float(np.sum(mass)))
+
+
+def three_point(a: int, b: int, share: float, margin: float) -> FloatArray:
+    """The distribution on {a/3, 0, b/3} with mean -margin and P(b/3) = share."""
+    p = np.zeros(7)
+    p[a + 3] += (3.0 * margin + b * share) / (-a)
+    p[b + 3] += share
+    p[3] += 1.0 - p.sum()
+    return p
+
+
+def _support_sup(items: int, margin: float, alpha: float, a: int, b: int) -> tuple[float, float]:
+    top = (-a - 3.0 * margin) / (b - a)
+    grid = [0.0, *np.geomspace(1e-5, top, GRID).tolist()]
+    values = [three_point_level(items, margin, alpha, a, b, q) for q in grid]
+    i = int(np.argmax(values))
+    best, at = values[i], grid[i]
+    lo, hi = grid[max(0, i - 1)], grid[min(len(grid) - 1, i + 1)]
+    golden = (math.sqrt(5.0) - 1.0) / 2.0
+    for _ in range(REFINE):
+        left, right = hi - golden * (hi - lo), lo + golden * (hi - lo)
+        lv = three_point_level(items, margin, alpha, a, b, left)
+        rv = three_point_level(items, margin, alpha, a, b, right)
+        for v, q in ((lv, left), (rv, right)):
+            if v > best:
+                best, at = v, q
+        if lv >= rv:
+            hi = right
+        else:
+            lo = left
+    return best, at
+
+
+def round_up(level: float) -> float:
+    """A level rounded up to the six decimals results keep: never below the value."""
+    return math.ceil(level * 1e6) / 1e6
+
+
+def composite_sup(items: int, margin: float, alpha: float = ALPHA) -> dict[str, Any]:
+    """See `_composite_sup`; cached, since every cell of a margin asks for the same sizes."""
+    level, probs, found = _composite_sup(items, margin, alpha)
+    return {"level": round_up(level), "probs": list(probs), "found": found}
+
+
+@lru_cache(maxsize=1024)
+def _composite_sup(items: int, margin: float, alpha: float) -> tuple[float, tuple[float, ...], str]:
+    """The largest level found over every null distribution the three-seed design allows.
+
+    The composite null on the lower boundary: every distribution of d on the
+    seven-point lattice {-1, -2/3, ..., 1} with mean -margin. It holds every
+    identical-seed distribution (d in {-1, 0, 1}, the whole boundary, not a
+    kappa grid) and every independent-seed one, at any rates and kappa. The
+    upper boundary is its mirror image and has the same levels.
+
+    The search: the kappa-0 distribution of independent seeds; every
+    three-point support {a/3, 0, b/3}, over a grid of its free share refined
+    by golden section (`three_point_level`); then, from the STARTS best of
+    those, a climb over all seven probabilities by SLSQP with the exact
+    gradient (`lattice_level_gradient`), each end point put back on the
+    margin and its level computed exactly. Every level reported is exact and
+    rounded up; the maximum over distributions is numerical, so the value is
+    the largest level found, a lower bound on the supremum.
+    research/tests/test_equivalence.py checks it against a fine grid of the
+    identical-seed boundary and a random search over the whole lattice.
+    """
+    q = [math.comb(3, j) * margin**j * (1.0 - margin) ** (3 - j) for j in range(4)]
+    kappa_0 = np.array([q[3], q[2], q[1], q[0], 0.0, 0.0, 0.0])
+    starts: list[tuple[float, FloatArray, str]] = [
+        (exact_level(margin, items, "independent", alpha=alpha), kappa_0, "independent, kappa 0")
+    ]
+    for a, b in SUPPORTS:
+        level, share = _support_sup(items, margin, alpha, a, b)
+        starts.append((level, three_point(a, b, share, margin), f"{a}/3, 0, {b}/3"))
+    starts.sort(key=lambda s: -s[0])
+    best = starts[0]
+    constraints = (
+        {"type": "eq", "fun": lambda p: float(p.sum()) - 1.0, "jac": lambda p: np.ones(7)},
+        {
+            "type": "eq",
+            "fun": lambda p: float(p @ LATTICE) / 3.0 + margin,
+            "jac": lambda p: LATTICE / 3.0,
+        },
+    )
+
+    def objective(x: FloatArray) -> tuple[float, FloatArray]:
+        p = np.clip(x, 0.0, None)
+        level, gradient = lattice_level_gradient(items, margin, alpha, p / p.sum())
+        return -level, -gradient
+
+    for _, start, name in starts[:STARTS]:
+        climbed = minimize(
+            objective,
+            start,
+            jac=True,
+            method="SLSQP",
+            bounds=[(0.0, 1.0)] * 7,
+            constraints=constraints,
+            options={"maxiter": 200, "ftol": 1e-12},
+        )
+        p = on_margin(climbed.x, margin)
+        level = lattice_level(items, margin, alpha, p)
+        if level > best[0]:
+            best = (level, p, f"seven-point climb from {name}")
+    return best[0], tuple(float(x) for x in best[1]), best[2]
 
 
 def joint_threshold(target: float, *, draws: int = 400_000, seed: int = 20261102) -> float:
