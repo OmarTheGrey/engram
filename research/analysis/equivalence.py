@@ -27,13 +27,24 @@ and V1 of the second):
 
 Each side is held to alpha / 2, and the TOST's p-value is
 min(1, 2 max(p_lower, p_upper)): equivalence at level alpha exactly when
-p < alpha, so p is on the scale of the other primary p-values and enters
-Holm as they do (finding V3). The normal approximation of each side can run
-above its nominal level when one arm's violations are rare (a right-skewed
-count); halving it is the margin that leaves the TOST's level at or below
-alpha, which research/analysis/power.py measures, exactly at kappa 0 and by
-simulation elsewhere, for every size it reports. The level is checked, not
-proved.
+p < alpha, so p is on the scale of the other primary p-values (finding V3).
+The normal approximation of each side runs above its nominal level when the
+differences are skewed (one arm's violations rare where the other's are
+not), and halving alpha does not always absorb it: over the composite null
+the level exceeds alpha at small sizes (review round 3, R2-1).
+research/analysis/power.py computes, exactly, the largest level found over
+every null distribution the three-seed design allows, and H4's sizes are
+only those at which it is at most alpha. The level is checked, not proved.
+
+H4 names three arms in each of several families (stores and models, on each
+benchmark) and holds only if every pair in every family is equivalent. Its
+one primary p-value, the one Holm adjusts with the other four, is the
+intersection-union p (`intersection_union_p`): the largest pairwise TOST p.
+H4's null is the union of the pairs' nulls; wherever it holds, some pair's
+null holds, and the largest p falls below alpha only if that pair's does,
+which has probability at most alpha. So the largest p is a valid p-value for
+H4, H4 is supported at alpha exactly when every pair is, and no correction
+for the number of pairs is needed.
 
 Monotone in the evidence: the decision depends on the sample only through
 (sum d, sum d^2); at a fixed mean, a less dispersed sample has a smaller sum
@@ -43,7 +54,7 @@ so no seed.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from statistics import NormalDist
 
@@ -107,6 +118,18 @@ class EquivalenceResult:
     alpha: float
     equivalent: bool
     variance_floor: float
+
+
+def intersection_union_p(results: Iterable[EquivalenceResult]) -> float:
+    """H4's one primary p-value: the largest TOST p over every pair of every family it names.
+
+    Below alpha exactly when every pair is equivalent at alpha (see the
+    module docstring for why it is a valid p-value for H4).
+    """
+    values = [r.p for r in results]
+    if not values:
+        raise ValueError("H4's p-value needs at least one pair")
+    return max(values)
 
 
 def tost(
