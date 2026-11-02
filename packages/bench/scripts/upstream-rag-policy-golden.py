@@ -191,8 +191,9 @@ def main() -> int:
         "upstream_sha256": files,
         "rows": rows,
     }
-    Path(args.out).write_text(
-        json.dumps(out, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    # Bytes, so the file ends lines in \n on every platform.
+    Path(args.out).write_bytes(
+        (json.dumps(out, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
     )
     print(f"{len(rows)} checkpoints written to {args.out}")
     return 0
