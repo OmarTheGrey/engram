@@ -25,7 +25,8 @@ function main(): number {
       if (!e) throw new Error(`no episode for ${c.checkpoint_id}`);
       const mapped = gatemem.mapCheckpoint(e, c, sequentialIds());
       const gate = gatemem.ragPolicyGate(mapped.episode, mapped.turns, mapped.checkpoint);
-      const kind = (leaks[c.query_type] ??= { leak_items: 0, rag_allows: 0, engram_allows: 0 });
+      leaks[c.query_type] ??= { leak_items: 0, rag_allows: 0, engram_allows: 0 };
+      const kind = leaks[c.query_type] as (typeof leaks)[string];
       mapped.writes.forEach(({ item }, i) => {
         const rag = (gate[i] as gatemem.RagPolicyChunk).allowed;
         const engram = evaluateRead(policy, mapped.asker, item, mapped.at).admitted;
