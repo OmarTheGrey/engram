@@ -64,7 +64,7 @@ function main(): number {
       lengths.push(c4.length);
       const b = bucketOf(c4.length);
       histogram[b] = (histogram[b] ?? 0) + 1;
-      const row = (byType[c.query_type] ??= {
+      byType[c.query_type] ??= {
         checkpoints: 0,
         c2_items: 0,
         c5_items: 0,
@@ -73,7 +73,8 @@ function main(): number {
         c4_denied: 0,
         c2_top_allowed: 0,
         c2_top_allowed_strict_subset: 0,
-      });
+      };
+      const row = byType[c.query_type] as Record<string, number>;
       row.checkpoints = (row.checkpoints ?? 0) + 1;
       row.c2_items = (row.c2_items ?? 0) + c2.length;
       row.c5_items = (row.c5_items ?? 0) + c5.length;
