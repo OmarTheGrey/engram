@@ -24,7 +24,7 @@ from analysis.power import (
     smallest_passing,
     start_rung,
 )
-from scripts import h1_gatemem_reach, h1_mem_inv_admission, h4_power, reproduce
+from scripts import h1_gatemem_reach, h1_mem_inv_admission, h1_table, h4_power, reproduce
 from scripts.results_io import REPO, dumps_result, ensure_pinned_gatemem, line_hashes
 
 # make test-repro (research/scripts/reproduce.py).
@@ -276,3 +276,53 @@ def test_a_power_cell_reports_both_sizes_and_what_it_evaluated() -> None:
         p["items"] for p in result["evaluated"]
     )
     assert h4_power.cell_result(cell, config, 0) == result
+
+
+# The H1 table script (research/scripts/h1_table.py), on planted sessions.
+
+
+def test_the_h1_table_script_is_byte_stable_on_planted_sessions(tmp_path: Path) -> None:
+    rng = np.random.default_rng(20261102)
+    rows = []
+    for benchmark, items in (("gatemem", 200), ("mem-inv-bench", 24)):
+        for condition, rate in (("C2", 0.4), ("C3", 0.3), ("C4", 0.25), ("C5", 0.05)):
+            draws = rng.random((items, 3)) < rate
+            for i in range(items):
+                for s in range(3):
+                    rows.append(
+                        {
+                            "benchmark": benchmark,
+                            "model": "provider/m1",
+                            "store": "fake",
+                            "preset": "none" if condition == "C2" else "medium",
+                            "condition": condition,
+                            "item": f"{benchmark}/{i:03d}",
+                            "seed": s + 1,
+                            "violation": bool(draws[i, s]),
+                        }
+                    )
+    sessions = tmp_path / "sessions.jsonl"
+    sessions.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    config = tmp_path / "h1.json"
+    config.write_text(
+        json.dumps(
+            {
+                "name": "h1-planted",
+                "sessions": str(sessions),
+                "primary_model": "provider/m1",
+                "store": "fake",
+                "seed": 7,
+            }
+        ),
+        encoding="utf-8",
+    )
+    first, second = tmp_path / "a.json", tmp_path / "b.json"
+    assert h1_table.main(["--config", str(config), "--out", str(first)]) == 0
+    assert h1_table.main(["--config", str(config), "--out", str(second)]) == 0
+    assert first.read_bytes() == second.read_bytes()
+    table = json.loads(first.read_text(encoding="utf-8"))
+    assert table["decision"] == {
+        "h1": "supported",
+        "primary": "supported",
+        "secondary": "does not contradict",
+    }
