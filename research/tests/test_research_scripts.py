@@ -20,6 +20,7 @@ import pytest
 from analysis.power import (
     SEED_MODELS,
     Cell,
+    PowerPoint,
     choose_rung,
     joint_threshold,
     ladder,
@@ -420,15 +421,18 @@ def test_the_level_gate_needs_both_its_exact_and_its_simulated_half() -> None:
     assert not level_gate([0.04, 0.03], [0.045], alpha=0.05, runs=4000)  # 0.045 + 0.0069 > 0.05
 
 
-def test_a_size_whose_exact_kappa_0_level_fails_is_not_reported(
-    monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.parametrize(("exact", "reported"), [(0.0, True), (1.0, False)])
+def test_a_size_is_reported_only_if_its_exact_kappa_0_level_holds(
+    monkeypatch: pytest.MonkeyPatch, exact: float, reported: bool
 ) -> None:
-    """If the exact level at kappa 0 fails at every size, the script reports none."""
-    monkeypatch.setattr(h4_power, "exact_level", lambda *a, **k: 1.0)
+    """Power always reached and simulated levels always clean: the exact level alone decides."""
+    monkeypatch.setattr(h4_power, "power_at", lambda cell, n, **k: PowerPoint(n, 1.0, 1.0, 1))
+    monkeypatch.setattr(h4_power, "simulated_level", lambda *a, **k: 0.0)
+    monkeypatch.setattr(h4_power, "exact_level", lambda *a, **k: exact)
     cell = Cell(rate=0.2, margin=0.1, kappa=1.0, seed_model="identical")
-    config = {**TINY, "families": [1], "ladder_stop": 400}
-    result = h4_power.cell_result(cell, config, 0)
-    assert result["alphas"]["0.05"]["targets"]["1"]["items"] is None
+    result = h4_power.cell_result(cell, {**TINY, "families": [1]}, 0)
+    items = result["alphas"]["0.05"]["targets"]["1"]["items"]
+    assert (items is not None) == reported
 
 
 def test_the_power_grid_spread_over_processes_equals_the_cells_computed_one_by_one() -> None:
