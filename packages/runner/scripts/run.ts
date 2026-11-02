@@ -114,14 +114,11 @@ async function runOne(path: string, out: string, flags: Flags): Promise<Outcome>
     console.log([...countLines(count), `written to ${join(out, "count.json")}`].join("\n"));
     return { code: 0, sessions: count.sessions, calls: { new: 0, cached: 0 } };
   }
-  if (config.kind === "experiment") {
-    if (!named) {
-      console.error(
-        `run.ts: ${config.name} is an experiment config: it runs on a named model (MODEL=<provider/model> LIVE=1), replays that run (MODEL=<provider/model> REPLAY=1), or is counted (COUNT=1)`,
-      );
-      return FAILED;
-    }
-    await ensurePinnedData(config, { fetch: true, log: (l) => console.log(l) });
+  if (config.kind === "experiment" && !named) {
+    console.error(
+      `run.ts: ${config.name} is an experiment config: it runs on a named model (MODEL=<provider/model> LIVE=1), replays that run (MODEL=<provider/model> REPLAY=1), or is counted (COUNT=1)`,
+    );
+    return FAILED;
   }
 
   let options: RunnerOptions = { offline: !flags.record };
@@ -132,13 +129,13 @@ async function runOne(path: string, out: string, flags: Flags): Promise<Outcome>
       ...(flags.cassettes === undefined ? {} : { cassettes: resolve(flags.cassettes) }),
     };
     try {
-      if (flags.live) {
-        config = liveConfig(config, request);
-        options = liveOptions(config, builtinLiveModels());
-      } else {
-        config = replayConfig(config, request);
-        options = replayOptions(config);
+      // The guards first, so a refused run fetches nothing and creates no folder.
+      config = flags.live ? liveConfig(config, request) : replayConfig(config, request);
+      // An experiment runs only on its pinned data (fetched at the pin when missing).
+      if (config.kind === "experiment") {
+        await ensurePinnedData(config, { fetch: true, log: (l) => console.log(l) });
       }
+      options = flags.live ? liveOptions(config, builtinLiveModels()) : replayOptions(config);
     } catch (e) {
       if (e instanceof LiveRunRefused) {
         console.error(e.message);
