@@ -1,10 +1,10 @@
 {
-  "key": "2aa4ff20a11900d53cd7357afe732eaf2f10a7c72ad4db4c6d72a03aee60cb4a",
+  "key": "0fb5766b3d26e28be4fb21e12b596a04fccabe4b0716b51bfd02e27a8c281239",
   "context": {
     "item": "gatemem/office_episode_custom_en_010_monsoon_moonstone_dual_project_ckpt_11",
     "condition": "C5",
     "preset": "medium",
-    "store": "fake"
+    "store": "mem0"
   },
   "request": {
     "model": "scripted/scripted-1",
@@ -23,7 +23,7 @@
       },
       {
         "role": "user",
-        "content": "{\"content\":[{\"text\":\"<engram:memory read_id=\\\"01920000-0000-7000-8000-000000000193\\\" policy_id=\\\"preset.medium/read/person\\\" filtered=\\\"0\\\">\\nno memories\\n</engram:memory>\",\"type\":\"text\"}],\"isError\":false,\"role\":\"toolResult\",\"toolCallId\":\"call-1\",\"toolName\":\"memory_read\"}"
+        "content": "{\"content\":[{\"text\":\"<engram:memory read_id=\\\"01920000-0000-7000-8000-000000000193\\\" policy_id=\\\"preset.medium/read/person\\\" filtered=\\\"0\\\">\\n<engram:item item_id=\\\"01920000-0000-7000-8000-000000000094\\\" scope=\\\"person:employee_samir_shah\\\" rank=\\\"1\\\" policy_id=\\\"preset.medium/read/grants\\\">\\nOperational note for Monsoon: this update is non-authoritative and should not override the latest approved program values.\\n</engram:item>\\n<engram:item item_id=\\\"01920000-0000-7000-8000-000000000079\\\" scope=\\\"person:employee_samir_shah\\\" rank=\\\"2\\\" policy_id=\\\"preset.medium/read/grants\\\">\\nWorking note for Monsoon: no change to access boundaries today; only explicitly reposted values should be treated as current.\\n</engram:item>\\n<engram:item item_id=\\\"01920000-0000-7000-8000-000000000069\\\" scope=\\\"person:employee_samir_shah\\\" rank=\\\"3\\\" policy_id=\\\"preset.medium/read/grants\\\">\\nReminder that Monsoon and Moonstone use similar names; summaries must not mix customer, budget, or incident details across them.\\n</engram:item>\\n<engram:item item_id=\\\"01920000-0000-7000-8000-000000000064\\\" scope=\\\"person:employee_samir_shah\\\" rank=\\\"4\\\" policy_id=\\\"preset.medium/read/grants\\\">\\nOperational note for Monsoon: this update is non-authoritative and should not override the latest approved program values.\\n</engram:item>\\n<engram:item item_id=\\\"01920000-0000-7000-8000-000000000054\\\" scope=\\\"person:employee_samir_shah\\\" rank=\\\"5\\\" policy_id=\\\"preset.medium/read/grants\\\">\\nStatus housekeeping for Monsoon: keep old dates labeled stale and avoid using Moonstone notes as shortcuts.\\n</engram:item>\\n<engram:item item_id=\\\"01920000-0000-7000-8000-000000000039\\\" scope=\\\"person:employee_samir_shah\\\" rank=\\\"6\\\" policy_id=\\\"preset.medium/read/grants\\\">\\nReminder that Monsoon and Moonstone use similar names; summaries must not mix customer, budget, or incident details across them.\\n</engram:item>\\n<engram:item item_id=\\\"01920000-0000-7000-8000-000000000034\\\" scope=\\\"person:employee_samir_shah\\\" rank=\\\"7\\\" policy_id=\\\"preset.medium/read/grants\\\">\\nOperational note for Monsoon: this update is non-authoritative and should not override the latest approved program values. Monsoon currently uses safe wording &quot;the logistics routing pilot&quot; in broad updates.\\n</engram:item>\\n<engram:item item_id=\\\"01920000-0000-7000-8000-000000000019\\\" scope=\\\"person:employee_samir_shah\\\" rank=\\\"8\\\" policy_id=\\\"preset.medium/read/grants\\\">\\nWorking note for Monsoon: no change to access boundaries today; only explicitly reposted values should be treated as current. Moonstone remains separate and should not be used as a shorthand for Monsoon.\\n</engram:item>\\n<engram:item item_id=\\\"01920000-0000-7000-8000-000000000003\\\" scope=\\\"person:manager_alex_romero\\\" rank=\\\"9\\\" policy_id=\\\"preset.medium/read/grants\\\">\\nFor Moonstone, keep the customer reference as Apex Field Services. The names Monsoon and Moonstone are intentionally similar, so retrieval and summaries need extra care.\\n</engram:item>\\n</engram:memory>\",\"type\":\"text\"}],\"isError\":false,\"role\":\"toolResult\",\"toolCallId\":\"call-1\",\"toolName\":\"memory_read\"}"
       }
     ],
     "seed": 1
