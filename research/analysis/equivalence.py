@@ -32,9 +32,17 @@ The normal approximation of each side runs above its nominal level when the
 differences are skewed (one arm's violations rare where the other's are
 not), and halving alpha does not always absorb it: over the composite null
 the level exceeds alpha at small sizes (review round 3, R2-1).
-research/analysis/power.py computes, exactly, the largest level found over
-every null distribution the three-seed design allows, and H4's sizes are
-only those at which it is at most alpha. The level is checked, not proved.
+research/analysis/power.py searches the composite null's boundary, the
+distributions of an item's difference on the three-seed lattice whose mean
+is on the margin (|mean| = margin), and computes each level it visits
+exactly; the largest level that search found is a lower bound on the
+supremum. The interior of the null (|mean| beyond the margin) is not
+searched, and no argument is made that it holds a lower level; items are
+assumed independent and identically distributed. H4's sizes are only those
+at which the largest level found is at most alpha (and, since Holm may test
+H4 at 0.05 / k for k = 1 to 5, research/results/h4-holm-levels.json records
+it at every such threshold for the sizes committed at alpha 0.01). The level
+is checked, not proved.
 
 H4 names three arms in each of several families (stores and models, on each
 benchmark) and holds only if every pair in every family is equivalent. Its
