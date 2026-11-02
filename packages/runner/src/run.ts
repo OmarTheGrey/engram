@@ -1,6 +1,7 @@
 // The SDK runner (card RN1, ADR 0001 "Runner"): a plain serial queue over
-// (item, condition, seed), each one a fresh pi SDK session with an in-memory
-// session manager. Pi Durable is card RN2, behind ENGRAM_RUNNER=durable.
+// (item, store, condition, seed), each one a fresh pi SDK session with an
+// in-memory session manager. Pi Durable is card RN2, behind
+// ENGRAM_RUNNER=durable.
 //
 // Results are deterministic: rows are in config order, ids come from a
 // counter, times from the benchmark, and nothing records a wall-clock time.
@@ -9,19 +10,14 @@
 // and the usage ledger go to usage.json (finding R7-10).
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { Api, Model } from "@earendil-works/pi-ai";
 import { gatemem } from "@engram/bench";
 import { loadPreset } from "@engram/core";
-import { type Condition, configStores, type RunnerConfig } from "./config.ts";
-import { type ProbeResult, readProbeScript, runProbe } from "./gatemem-probe.ts";
+import { answersFor, type LiveModels } from "./answers.ts";
+import { configCells, configItems, configStores, type RunnerConfig } from "./config.ts";
+import { type ProbeResult, runProbe } from "./gatemem-probe.ts";
 import { type CacheStore, fileCache, type UsageRecord } from "./model/cached.ts";
-import { type AnswerSource, runtimeAnswers, scriptedAnswers } from "./model/cassette.ts";
-import type { CompletesSimple } from "./model/pi.ts";
 
-/** Answers for a live (not scripted) model: a model runtime that resolves `provider/model-id`. */
-export interface LiveModels extends CompletesSimple {
-  getModel(provider: string, id: string): Model<Api> | undefined;
-}
+export type { LiveModels } from "./answers.ts";
 
 export interface RunnerOptions {
   /** Defaults to the config's cassette directory. */
@@ -49,37 +45,9 @@ function findDomain(domains: readonly gatemem.Domain[], checkpointId: string): g
   return domain;
 }
 
-/** The answer source for a session's misses, chosen by the config's model. */
-function answersFor(
-  config: RunnerConfig,
-  item: string,
-  options: RunnerOptions,
-): () => AnswerSource {
-  const [provider = "", ...rest] = config.model.split("/");
-  const id = rest.join("/");
-  if (provider === "scripted") {
-    const script = readProbeScript(config.script as string);
-    const steps = script.steps[item];
-    return () => {
-      if (!steps) {
-        return async () => {
-          throw new Error(`the script has no steps for ${item}`);
-        };
-      }
-      return scriptedAnswers(steps, { provider, model: id });
-    };
-  }
-  return () => {
-    const live = options.live;
-    const model = live?.getModel(provider, id);
-    if (!live || !model) {
-      return async () => {
-        throw new Error(`no live model ${config.model} to answer a cache miss`);
-      };
-    }
-    return runtimeAnswers(live, model);
-  };
-}
+/** Every checkpoint id of the data, domain by domain in load order, each domain in file order. */
+export const gatememItems = (domains: readonly gatemem.Domain[]): string[] =>
+  domains.flatMap((d) => d.checkpoints.map((c) => c.checkpoint_id));
 
 export async function runConfig(
   config: RunnerConfig,
@@ -90,42 +58,38 @@ export async function runConfig(
   const cache = options.cache ?? fileCache(config.cassettes);
   const usage: UsageRecord[] = [];
   const rows: ProbeResult[] = [];
-  const stores = configStores(config);
-  for (const item of config.items) {
+  const cells = configCells(config);
+  for (const item of configItems(config, gatememItems(domains))) {
     const domain = findDomain(domains, item);
-    for (const store of stores) {
-      for (const condition of config.conditions) {
-        for (const seed of config.seeds) {
-          rows.push(
-            await runProbe({
-              domain,
-              checkpointId: item,
-              condition,
-              seed,
-              model: config.model,
-              preset: config.preset,
-              policy,
-              store,
-              cache,
-              answers: answersFor(config, item, options),
-              ...(options.offline === undefined ? {} : { offline: options.offline }),
-              onUsage: (u) => usage.push(u),
-            }),
-          );
-        }
+    for (const { condition, store } of cells) {
+      for (const seed of config.seeds) {
+        rows.push(
+          await runProbe({
+            domain,
+            checkpointId: item,
+            condition,
+            seed,
+            model: config.model,
+            preset: config.preset,
+            policy,
+            store,
+            cache,
+            answers: answersFor(config, item, condition, options.live),
+            ...(options.offline === undefined ? {} : { offline: options.offline }),
+            onUsage: (u) => usage.push(u),
+          }),
+        );
       }
     }
   }
-  // Keyed by condition; with several stores, by `<condition>@<store>` (card B3).
+  // Keyed by condition; with several stores, by `<condition>@<store>` (card B3),
+  // C1 as `C1@none`.
+  const several = configStores(config).length > 1;
   const summary: RunnerResult["summary"] = {};
-  for (const store of stores) {
-    for (const condition of config.conditions) {
-      summary[stores.length === 1 ? condition : `${condition}@${store}`] = gatemem.aggregate(
-        rows
-          .filter((r) => r.condition === (condition as Condition) && r.store === store)
-          .map((r) => r.score),
-      );
-    }
+  for (const { condition, store } of cells) {
+    summary[several ? `${condition}@${store}` : condition] = gatemem.aggregate(
+      rows.filter((r) => r.condition === condition && r.store === store).map((r) => r.score),
+    );
   }
   return {
     config: config.name,

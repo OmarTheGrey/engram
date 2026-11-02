@@ -1,8 +1,11 @@
 // Experiment runner: seeded, cached pi SDK sessions.
+export * from "./answers.ts";
 export { userBash } from "./bash.ts";
 export * from "./conditions.ts";
 export * from "./config.ts";
+export * from "./count.ts";
 export * from "./gatemem-probe.ts";
+export * from "./live.ts";
 export * from "./mem-inv-probe.ts";
 export * from "./model/cached.ts";
 export * from "./model/cassette.ts";

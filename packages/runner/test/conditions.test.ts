@@ -10,8 +10,14 @@ import { allEvents, loadPreset, migrate, openSqlite, parsePolicy, presetUrl } fr
 import { NO_BYPASS_ID } from "@engram/pi-extension";
 import { afterEach, describe, expect, test } from "vitest";
 import { userBash } from "../src/bash.ts";
-import { conditionSession, POLICY_LEGEND, policyInstruction } from "../src/conditions.ts";
-import type { Condition } from "../src/config.ts";
+import {
+  conditionSession,
+  metadataInstruction,
+  POLICY_LEGEND,
+  policyInstruction,
+  type ReadMetadata,
+} from "../src/conditions.ts";
+import { CONDITION_TABLE, type Condition } from "../src/config.ts";
 import { personOf, sequentialIds } from "../src/gatemem-probe.ts";
 import { scriptedPiModel } from "../src/model/scripted.ts";
 
@@ -22,7 +28,11 @@ afterEach(() => {
   for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
 });
 
-async function build(condition: Condition, steps: Parameters<typeof scriptedPiModel>[0] = []) {
+async function build(
+  condition: Condition,
+  steps: Parameters<typeof scriptedPiModel>[0] = [],
+  metadata?: ReadMetadata,
+) {
   const cwd = mkdtempSync(join(tmpdir(), "engram-rn1-test-"));
   dirs.push(cwd);
   const db = openSqlite(":memory:");
@@ -41,6 +51,7 @@ async function build(condition: Condition, steps: Parameters<typeof scriptedPiMo
     db,
     newId: sequentialIds(),
     now: () => AT,
+    ...(metadata === undefined ? {} : { metadata }),
   });
   return { ...built, db, store, scripted };
 }
@@ -252,6 +263,135 @@ describe("condition sessions", () => {
     expect(allEvents(db).map((e) => [e.op, e.policy_id])).toEqual([
       ["bypass_blocked", NO_BYPASS_ID],
     ]);
+    session.dispose();
+  });
+});
+
+describe("C1 and C4 (card X1, ADR 0031)", () => {
+  const LEGEND = "- note: a test attribute.";
+  const metadata = {
+    attributes: (item: { content: unknown }) =>
+      [["note", String(item.content).startsWith("I") ? "first" : "second"]] as const,
+    legend: LEGEND,
+  };
+
+  test("the condition table is the pre-registration's: neighbours differ in one mechanism each", () => {
+    expect(CONDITION_TABLE).toEqual({
+      C1: { name: "no memory", memory: "context", policyText: false, metadata: false },
+      C2: { name: "ungoverned", memory: "store", policyText: false, metadata: false },
+      C3: { name: "instruction", memory: "store", policyText: true, metadata: false },
+      C4: { name: "instruction with metadata", memory: "store", policyText: true, metadata: true },
+      C5: { name: "enforced", memory: "plane", policyText: false, metadata: false },
+    });
+    const differ = (a: Condition, b: Condition) =>
+      (["memory", "policyText", "metadata"] as const).filter(
+        (k) => CONDITION_TABLE[a][k] !== CONDITION_TABLE[b][k],
+      );
+    expect(differ("C1", "C2")).toEqual(["memory"]);
+    expect(differ("C2", "C3")).toEqual(["policyText"]);
+    expect(differ("C3", "C4")).toEqual(["metadata"]);
+  });
+
+  test("C1 offers no tool and states no policy", async () => {
+    const { session } = await build("C1");
+    expect(session.getActiveToolNames()).toEqual([]);
+    expect(session.extensionRunner.hasHandlers("tool_call")).toBe(false);
+    expect(session.systemPrompt.includes(POLICY_MARK)).toBe(false);
+    expect(session.systemPrompt).toContain("You are the benchmark's assistant.");
+    session.dispose();
+  });
+
+  test("C4 is C3's session plus the metadata legend; it refuses to run without metadata", async () => {
+    await expect(build("C4")).rejects.toThrow(/metadata/);
+    const c3 = await build("C3");
+    const c4 = await build("C4", [], metadata);
+    expect(c4.session.getActiveToolNames().sort()).toEqual(["memory_read", "memory_write"]);
+    expect(c4.session.systemPrompt).toContain(POLICY_MARK);
+    expect(c4.session.systemPrompt).toContain(metadataInstruction(LEGEND));
+    // Each session has its own temporary working directory.
+    const noCwd = (s: string) => s.replace(/<cwd>[\s\S]*<\/cwd>/, "<cwd/>");
+    expect(noCwd(c4.session.systemPrompt).replace(`\n\n${metadataInstruction(LEGEND)}`, "")).toBe(
+      noCwd(c3.session.systemPrompt),
+    );
+    c3.session.dispose();
+    c4.session.dispose();
+  });
+
+  test("C4's read is C3's with each item's metadata as attributes", async () => {
+    const shown: string[] = [];
+    for (const condition of ["C3", "C4"] as const) {
+      const { session, scripted } = await build(
+        condition,
+        [
+          {
+            toolCalls: [
+              {
+                id: "w1",
+                name: "memory_write",
+                arguments: { scope: SAM.id, content: "I handle the invoices" },
+              },
+              {
+                id: "w2",
+                name: "memory_write",
+                arguments: { scope: SAM.id, content: "the invoices are due on Fridays" },
+              },
+            ],
+          },
+          { toolCall: { id: "r1", name: "memory_read", arguments: { query: "invoices" } } },
+          { text: "done" },
+        ],
+        metadata,
+      );
+      await session.prompt("remember, then recall");
+      const sent = scripted.seen[2]?.messages.find(
+        (m) => m.role === "toolResult" && m.toolCallId === "r1",
+      );
+      const first =
+        sent && "content" in sent && Array.isArray(sent.content) ? sent.content[0] : undefined;
+      shown.push(first && "text" in first ? first.text : "");
+      session.dispose();
+    }
+    const [c3, c4] = shown as [string, string];
+    expect(c4).toContain(' rank="1" note="first">');
+    expect(c4).toContain(' rank="2" note="second">');
+    expect(c4.replaceAll(/ note="[^"]*"/g, "")).toBe(c3);
+  });
+
+  test("a read with no query terms returns every item, as the plane's does, even where the store's search returns none", async () => {
+    const adapter = createFakeAdapter();
+    const empty = { ...adapter, search: async () => [] };
+    const store = { adapter: empty, scopes: new Set<string>() };
+    const cwd = mkdtempSync(join(tmpdir(), "engram-x1-test-"));
+    dirs.push(cwd);
+    const db = openSqlite(":memory:");
+    migrate(db);
+    const scripted = scriptedPiModel([
+      {
+        toolCall: {
+          id: "w1",
+          name: "memory_write",
+          arguments: { scope: SAM.id, content: "I handle the invoices" },
+        },
+      },
+      { toolCall: { id: "r1", name: "memory_read", arguments: { query: " " } } },
+      { text: "done" },
+    ]);
+    const { session } = await conditionSession({
+      condition: "C2",
+      cwd,
+      model: scripted,
+      systemPrompt: "s",
+      actor: SAM,
+      preset: "medium",
+      policy: loadPreset("medium"),
+      store,
+      db,
+      newId: sequentialIds(),
+      now: () => AT,
+    });
+    await session.prompt("go");
+    const read = session.messages.find((m) => m.role === "toolResult" && m.toolCallId === "r1");
+    expect(JSON.stringify(read)).toContain("I handle the invoices");
     session.dispose();
   });
 });

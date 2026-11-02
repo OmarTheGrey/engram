@@ -1,0 +1,13 @@
+{
+  "name": "h1-mem-inv",
+  "kind": "experiment",
+  "benchmark": "mem-inv-bench",
+  "data": "../../fixtures/bench/mem-inv-bench/full",
+  "items": "all",
+  "conditions": ["C2", "C3", "C4", "C5"],
+  "model": "prereg/M1",
+  "seeds": [1, 2, 3],
+  "preset": "medium",
+  "store": "fake",
+  "cassettes": "../../.engram/runs/h1-mem-inv/cassettes"
+}

@@ -3,7 +3,7 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
-import { configStores, parseRunnerConfig, readRunnerConfig } from "../src/config.ts";
+import { configItems, configStores, parseRunnerConfig, readRunnerConfig } from "../src/config.ts";
 import { B3, EXAMPLE } from "./paths.ts";
 
 const valid = {
@@ -46,7 +46,9 @@ describe("runner config", () => {
     ["an unknown preset", { preset: "lenient" }],
     ["a model without a provider", { model: "scripted-1" }],
     ["an unknown field", { temperature: 0.2 }],
-    ["a registered-experiment kind", { kind: "experiment" }],
+    ["an experiment run by a scripted model (card X1)", { kind: "experiment" }],
+    ["an unknown kind", { kind: "pilot" }],
+    ["items that are neither a list nor all", { items: "every" }],
     ["an unknown store", { store: "redis" }],
     ["an empty store list", { store: [] }],
     ["a store twice", { store: ["fake", "fake"] }],
@@ -61,6 +63,27 @@ describe("runner config", () => {
       "fake",
     ]);
     expect(configStores(readRunnerConfig(B3))).toEqual(["fake", "mem0", "letta"]);
+  });
+
+  test("an experiment names a model slot and every item of its data (card X1)", () => {
+    const { script: _script, ...rest } = valid;
+    const config = parseRunnerConfig({
+      ...rest,
+      kind: "experiment",
+      model: "prereg/M1",
+      items: "all",
+    });
+    expect(config).toMatchObject({ kind: "experiment", items: "all", model: "prereg/M1" });
+    expect(configItems(config, ["a", "b"])).toEqual(["a", "b"]);
+    expect(configItems(valid as never, ["ckpt", "other"])).toEqual(["ckpt"]);
+    expect(() => configItems({ ...valid, items: ["nope"] } as never, ["ckpt"])).toThrow(/no item/);
+  });
+
+  test("conditions C1 and C4 are accepted beside C2, C3 and C5", () => {
+    expect(parseRunnerConfig({ ...valid, conditions: ["C1", "C4"] }).conditions).toEqual([
+      "C1",
+      "C4",
+    ]);
   });
 
   test("a scripted model without a script is rejected", () => {
