@@ -4,6 +4,7 @@ version = "0.0.0"
 description = "Engram research code: configs, scripts, results, analysis, thesis."
 requires-python = ">=3.12"
 dependencies = [
+    "numpy==2.5.4",
     "typing-extensions>=4.12",
 ]
 
@@ -14,6 +15,7 @@ dev = [
     "ruff",
     "mypy",
     "datamodel-code-generator==0.86.0",
+    "scipy==1.18.1",
 ]
 
 [build-system]
