@@ -1,10 +1,11 @@
 // The read path (card E2.2, docs/architecture.md "Read path", ADR 0009). The
 // plane owns the metadata: candidates are the projected items the reader can
 // reach (a readable scope, or a grant whose `to` matches it), narrowed by the
-// adapter's search when there is query text (or by term matching in the plane
-// when the store has no search). Each candidate goes through the read filter
-// (status, ttl, scope and matrix or grants, validity window at the query time); the
-// admitted ones are ranked by named score components and explained; one read
+// adapter's search when there is query text (or, for items the store is not
+// searched for, by the plane's own match: every query term). Each candidate
+// goes through the read filter (status, ttl, scope and matrix or grants,
+// validity window at the query time); the admitted ones are ranked by named
+// score components, each item scored on its own (rankForRead), and explained; one read
 // event is appended and the explanations are stored under its id, in the same
 // transaction, so `explain(actor, readId)` returns exactly what the read
 // returned, to that reader only.
@@ -38,47 +39,76 @@ const RECENCY_DAYS = 30;
 const contentText = (item: MemoryItem) =>
   (typeof item.content === "string" ? item.content : JSON.stringify(item.content)).toLowerCase();
 
-/** The items containing a query term, each with the share of the terms it contains. */
-function termShare(items: MemoryItem[], terms: string[]): Map<string, number> {
-  const share = new Map<string, number>();
-  for (const item of items) {
-    const body = contentText(item);
-    const matched = terms.filter((t) => body.includes(t)).length;
-    if (matched > 0) share.set(item.id, matched / terms.length);
-  }
-  return share;
-}
+/** The query's terms: lower-cased, split on whitespace. */
+const termsOf = (text: string | undefined) =>
+  (text ?? "").toLowerCase().split(/\s+/).filter(Boolean);
+
+/** The share of the query terms an item's content contains. */
+const shareOf = (item: MemoryItem, terms: readonly string[]) => {
+  const body = contentText(item);
+  return terms.filter((t) => body.includes(t)).length / terms.length;
+};
 
 /**
- * The candidates matching the query text, in match order, with the share of
- * query terms each contains when the plane matched it itself; undefined when
- * the query has no terms. With store search the store is asked about
- * `scopes` only, the reader's readable member scopes, and orders those hits;
- * an item the reader reaches only through a grant is matched by the plane
- * over the projection, as on a store without search, so items the reader
- * cannot reach never compete with it for a capped hit list (finding N1).
+ * The ids of the candidates matching the query text; undefined when the query
+ * has no terms. With store search the store is asked about `scopes` only, the
+ * reader's readable member scopes, and its hits are the matches there; an
+ * item the reader reaches only through a grant is matched by the plane over
+ * the projection, as on a store without search, so items the reader cannot
+ * reach never compete with it for a capped hit list (finding N1). The plane
+ * matches an item that holds every query term, the rule a lexical store's
+ * search applies (fake, files, Letta), so a grant never makes the plane find
+ * an item the store's own search would not (PR #25 review, P3-1).
  */
 async function matching(
   { adapter }: PlaneDeps,
   reach: MemoryItem[],
   scopes: string[],
   text: string | undefined,
-): Promise<{ order: string[]; share: Map<string, number> } | undefined> {
-  const query = text ?? "";
-  const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
+): Promise<Set<string> | undefined> {
+  const terms = termsOf(text);
   if (terms.length === 0) return undefined;
-  if (!adapter.search) {
-    const share = termShare(reach, terms);
-    return { order: [...share.keys()], share };
-  }
+  const holdsEvery = (i: MemoryItem) => shareOf(i, terms) === 1;
+  if (!adapter.search) return new Set(reach.filter(holdsEvery).map((i) => i.id));
   const inScope = new Set(reach.filter((i) => scopes.includes(i.scope)).map((i) => i.id));
-  const hits = scopes.length === 0 ? [] : await adapter.search(query, scopes);
-  const share = termShare(
-    reach.filter((i) => !inScope.has(i.id)),
-    terms,
-  );
-  const order = [...new Set(hits.map((i) => i.id).filter((id) => inScope.has(id)))];
-  return { order: [...order, ...share.keys()], share };
+  const hits = scopes.length === 0 ? [] : await adapter.search(text ?? "", scopes);
+  return new Set([
+    ...hits.map((i) => i.id).filter((id) => inScope.has(id)),
+    ...reach.filter((i) => !inScope.has(i.id) && holdsEvery(i)).map((i) => i.id),
+  ]);
+}
+
+/** One item's score for a read, by named component. */
+export interface RankedItem {
+  item: MemoryItem;
+  components: Record<string, number>;
+  total: number;
+}
+
+/**
+ * The order of a read: each item scored on its own, by its share of the
+ * query terms (`relevance`, only when the query has terms), its confidence
+ * and its recency at the read time; highest total first, ties by item id. An
+ * item's score depends on no other item, so a set and any subset of it are
+ * ordered alike. The plane ranks what it admits with it, and a reader that
+ * reaches the store without the plane (the runner's ungoverned conditions)
+ * orders what the store returns with it too: one ordering rule (PR #25
+ * review, P3-11; ADR 0009).
+ */
+export function rankForRead(
+  items: readonly MemoryItem[],
+  text: string | undefined,
+  at: string,
+): RankedItem[] {
+  const terms = termsOf(text);
+  return items
+    .map((item) => {
+      const parts = components(item, at, terms.length > 0 ? shareOf(item, terms) : undefined);
+      return { item, components: parts, total: Object.values(parts).reduce((a, b) => a + b, 0) };
+    })
+    .sort(
+      (a, b) => b.total - a.total || (a.item.id < b.item.id ? -1 : a.item.id > b.item.id ? 1 : 0),
+    );
 }
 
 function components(item: MemoryItem, at: string, rel: number | undefined) {
@@ -107,8 +137,7 @@ export async function filteredRead(
     ...new Set(actor.memberships.filter((s) => readableScope(policy, actor, s))),
   ].sort();
   const match = await matching(deps, reach, scopes, query.text);
-  const hitRank = new Map(match?.order.map((id, r) => [id, r]));
-  const candidates = match ? reach.filter((i) => hitRank.has(i.id)) : reach;
+  const candidates = match ? reach.filter((i) => match.has(i.id)) : reach;
 
   const counts: Record<ReadCheck, number> = {
     scope: 0,
@@ -123,23 +152,20 @@ export async function filteredRead(
     counts[decision.check]++;
     return decision.admitted ? [{ item, decision }] : [];
   });
-  // Relevance from the store's order ranks among the admitted store hits only,
-  // so hits the reader may not see cannot lower it (finding R5-1); an item the
-  // plane matched itself scores its share of the query terms.
-  const byHit = passed
-    .filter(({ item }) => !match?.share.has(item.id))
-    .sort((a, b) => (hitRank.get(a.item.id) ?? 0) - (hitRank.get(b.item.id) ?? 0));
-  const relevance = new Map<string, number>(match?.share);
-  byHit.forEach(({ item }, r) => {
-    relevance.set(item.id, 1 - r / byHit.length);
-  });
-  const admitted = passed.map(({ item, decision }) => {
-    const parts = components(item, at, match ? relevance.get(item.id) : undefined);
-    const total = Object.values(parts).reduce((a, b) => a + b, 0);
-    return { item, decision, parts, total };
-  });
-  // Candidates arrive ordered by id and the sort is stable, so ties keep id order.
-  admitted.sort((a, b) => b.total - a.total);
+  // Each admitted item is scored on its own (rankForRead): relevance is its
+  // share of the query terms, so neither hits the reader may not see (finding
+  // R5-1) nor any other item can move it (PR #25 review, P3-11).
+  const decisionOf = new Map(passed.map(({ item, decision }) => [item.id, decision]));
+  const admitted = rankForRead(
+    passed.map(({ item }) => item),
+    query.text,
+    at,
+  ).map(({ item, components: parts, total }) => ({
+    item,
+    decision: decisionOf.get(item.id) as ReturnType<typeof evaluateRead>,
+    parts,
+    total,
+  }));
 
   const explanations: Explanation[] = admitted.map(({ item, decision, parts, total }, i) => ({
     item_id: item.id,
