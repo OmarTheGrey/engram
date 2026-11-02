@@ -1,7 +1,7 @@
 # ADR 0013: Adapter contract with capability flags; conformance suite on a fake first
 
-Status: accepted with amendments, pending lead review, 2026-10-22
-Deciders: drafted by the coding agent in step-0 task S0.13; pending review and acceptance by Omar (lead). Until then this records a recommendation the code already follows.
+Status: accepted with amendments, 2026-11-02
+Deciders: Omar (lead)
 Supersedes: the proposal of the same number in `docs/decisions/README.md`
 
 ## Context
@@ -16,7 +16,7 @@ Amendments made when deciding:
 
 - Implemented in S0.11: the contract is asynchronous; a write is idempotent per item id; a ref from another adapter is refused; the conformance suite is the exported function `conformance(name, factory)`; a capability claiming native search or history requires the method.
 
-Amendments made in the review fix pass, 2026-10-25 (PR #4, findings R4-1 to R4-16; pending the lead's review like the rest of this ADR):
+Amendments made in the review fix pass, 2026-10-25 (PR #4, findings R4-1 to R4-16):
 
 - Fidelity: `read`, `list`, `search` and `history` return exactly the item written, every field deep-equal (grants, validity window, ttl, lineage, optional provenance fields, JSON content, content of any length, any Unicode including CRLF and a lone surrogate), with `store_ref` set to the ref the write returned. The suite compares whole items on every hit, and a committed meta-test (`packages/adapters/test/conformance/meta.test.ts`) requires each of twelve deliberately broken adapters to fail at least one case.
 - Refs (orchestrator decision D1): several versions may live under one ref, which is the same item id rewritten (`history`); two distinct item ids get two refs, because both must stay readable. A rewrite that changes only `status` is stored.
@@ -27,7 +27,7 @@ Amendments made in the review fix pass, 2026-10-25 (PR #4, findings R4-1 to R4-1
 - Files adapter: only regular files directly in the root are read or listed (symlinks, junctions and directories are skipped and refused); a malformed file is skipped by `list` and `search` and reported by `diagnostics()`, while `read` of it still throws; item ids must be lowercase and a name that differs only in case is refused; every write and delete holds `.engram.lock` in the root; Engram's index lines use " - ", and Claude Code's own lines are left as written.
 - Mem0 adapter: `dbPath` is ":memory:" or a file ending in `.db`, and a file store writes `<name>_entities.db` beside it; telemetry is off whatever the import order; Mem0's model slot is replaced by one that refuses every call.
 
-Amendments made in review round 2, 2026-10-28 (PR #4, verifier report V4; pending the lead's review like the rest of this ADR):
+Amendments made in review round 2, 2026-10-28 (PR #4, verifier report V4):
 
 - Fidelity also covers confidence at 0 and at 1, a lineage of several entries in the order written (neither sorted nor reversed), content with leading and trailing whitespace, a `role:` scope and an episodic item; the corpus holds each.
 - `search` returns matching items whatever their status: candidate and retired items are found like active ones, because status is the plane's read filter, not the store's.
@@ -37,12 +37,12 @@ Amendments made in review round 2, 2026-10-28 (PR #4, verifier report V4; pendin
 - Files adapter: the lock file records the holder's pid, host, a per-instance token and the wall-clock time (the adapter has no injected clock; the time is a fact of store I/O, not a policy input). A waiter breaks a lock whose pid is not alive on this machine, or that is older than 60 s; otherwise it waits up to `lockWaitMs` (default 10 s) and refuses, naming the holder. `lockSeams` (a clock and two hooks, defaulting to the wall clock and no-ops) exists only so tests can stage the lock's races.
 - Mem0 adapter: the placeholder model in Mem0's config fails with its own error, distinct from the refusal of the replaced model slot, so a test shows the replacement is in place.
 
-Amendments made in the review fix pass, round 2, 2026-10-29 (PR #6; pending the lead's review like the rest of this ADR):
+Amendments made in the review fix pass, round 2, 2026-10-29 (PR #6):
 
 - Two optional methods. `diagnostics()` lists, by key, the entries the latest `list` or `search` skipped because the store cannot read them (the files adapter already had it; it is now part of the contract, as `StoreDiagnostic`). `derivedFields(item)` names the fields of a listed item that the store derived from its own bookkeeping rather than stored with the item. Neither is required, and the conformance suite does not test them; adoption (ADR 0007) uses both when present.
 - Files adapter: a file without Engram metadata keeps `valid_from` from its modification time when `importValidFrom` is not given, and `derivedFields` reports `["valid_from"]` for it; for a file Engram wrote, or with `importValidFrom`, it reports none. So touching a file is not a new version of its memory. The alternative, a stable `valid_from` inside the adapter, was rejected: the adapter keeps no state and reads no clock, and the file's birth time is not portable (some file systems report the change time or the epoch instead), so no stable value carries the information the modification time does. Deciding in adoption keeps the adapter's item as it is and moves no store-specific rule into core.
 
-Amendments made by the Gate B plan, 2026-10-29 (`docs/tasks/gate-b-plan.md`, decision 2; pending the lead's review like the rest of this ADR):
+Amendments made by the Gate B plan, 2026-10-29 (`docs/tasks/gate-b-plan.md`, decision 2):
 
 - Letta is reached through MemFS, its git-backed context repository on local disk, not through `@letta-ai/letta-client` and a Letta server (ADR 0028). The server needs Docker or a hosted account; card A2 already named the git-backed files.
 

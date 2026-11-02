@@ -1,7 +1,7 @@
 # ADR 0028: The Letta adapter works over MemFS, Letta's git-backed context repository, on local disk
 
-Status: accepted, pending lead review, 2026-10-29
-Deciders: drafted by the orchestrating session on the lead's instruction (plan `docs/tasks/gate-b-plan.md`, decision 2); pending review and acceptance by Omar (lead). Until then this records the design card A2 follows.
+Status: accepted, 2026-11-02
+Deciders: Omar (lead)
 Supersedes: the sentence of ADR 0013 "Letta through `@letta-ai/letta-client`" (amended there to point here).
 
 ## Context
@@ -16,7 +16,7 @@ Gate B needs two adapters passing the conformance suite and denying a cross-scop
 4. `search` uses the adapter's own lexical index of those files (`native_search: false`: MemFS has no search of its own, its search is an optional mod); `history` reads git (`native_history: true`).
 5. Git is reached through the `git` executable; no new npm dependency. `engram doctor` checks it.
 
-Amendments made by card A2, 2026-10-29 (Gate B plan PR 2, branch `gb-pr2-letta`; the choices this ADR left open, pending the lead's review like the rest of it; Opening, Commits, All or nothing, Lock and Doctor corrected by the review fix pass of PR #20, findings R2-1 to R2-12):
+Amendments made by card A2, 2026-10-29 (Gate B plan PR 2, branch `gb-pr2-letta`; the choices this ADR left open; Opening, Commits, All or nothing, Lock and Doctor corrected by the review fix pass of PR #20, findings R2-1 to R2-12):
 
 - Opening. `createLettaAdapter({ root })` is asynchronous: it resolves the folder before any write. A missing or empty folder is initialised with `git init`, unless it lies inside another repository's tree, which is refused (and a folder it created for that is removed); an existing repository is opened only at its top level and only when it is not bare; a non-empty folder that is not a repository, a folder inside another repository's tree, a symlinked root and a symlinked `.git` are refused. A `.git` that is a pointer file (a linked worktree, or a submodule's checkout) is opened: the adapter commits to the repository it points at, on that worktree's own branch, and keeps its lock in that worktree's git directory.
 - Setup. When `engram/MEMORY.md` or the root `MEMORY.md` line is missing, opening adds it in one setup commit of its own (message `engram: list engram/ in MEMORY.md`), so every later commit is one write or one delete. The root line is `- [engram/](engram/MEMORY.md) - ...`, appended with the file's own line ending; nothing else in the root `MEMORY.md` changes. Indexes carry no frontmatter (Letta's documentation exempts `MEMORY.md`).

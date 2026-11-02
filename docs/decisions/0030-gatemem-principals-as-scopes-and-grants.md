@@ -1,7 +1,7 @@
 # ADR 0030: GateMem's principals are actors, its unrestricted relationships are memberships and read grants, read from the fields an agent may see
 
-Status: accepted, pending lead review, 2026-10-29
-Deciders: drafted by the orchestrating session's plan (`docs/tasks/gate-b-plan.md`, decision 7), implemented by card B3; pending review and acceptance by Omar (lead). Until then this records the mapping card B3 follows.
+Status: accepted, 2026-11-02
+Deciders: Omar (lead)
 Supersedes: the placeholder mapping of card RN1 (each speaker's own person scope, no grants; `packages/runner/src/gatemem-probe.ts` before card B3).
 
 ## Context

@@ -1,7 +1,7 @@
 # ADR 0029: The poisoning arm runs on MEM-INV-Bench
 
-Status: accepted, pending lead review, 2026-10-29
-Deciders: drafted by the orchestrating session on the lead's instruction (plan `docs/tasks/gate-b-plan.md`, decision 3); pending review and acceptance by Omar (lead). Until then this records the choice cards B4 and X3 follow.
+Status: accepted, 2026-11-02
+Deciders: Omar (lead)
 Supersedes: nothing; it settles Gate A exception (b) and plan decision 6 of `docs/tasks/gate-a-e0-e1-e2-plan.md`.
 
 ## Context
@@ -15,7 +15,7 @@ H1's second benchmark is a poisoning arm. Gate A exception (b) orders the choice
 3. B4 vendors its fixture subset at `cf3c9a4` and the Hugging Face revision recorded in PINS.md; the row moves into the pinned table with the registration.
 4. If MPBench is released before card X3 starts, the lead may add it by a `decision` entry and a pin PR (no experiment has started, so rule 8 allows it). BF1 stays the fallback's fallback.
 
-Amendments made when implementing card B4, 2026-10-29 (choices this ADR left open; pending the lead's review like the rest of it):
+Amendments made when implementing card B4, 2026-10-29 (choices this ADR left open):
 
 - Where the cases are: MEM-INV-Bench's laundering-channel cases are authored in `code/scenarios.py` and built by `code/exp1_propensity.py`; the Hugging Face Parquet tables hold the five extension plans. B4 therefore vendors from the code and the recorded study at `cf3c9a4` (24 cases, `fixtures/bench/mem-inv-bench/README.md`) and needs no Parquet reader and no new dependency. The Hugging Face revision is recorded in the manifest but no file of it is read.
 - The deployment the cases run in: one operator, `person:operator`, whose assistant acts for them and reads as `{person:operator, team:operations}` at action time. Connected services write shared operational records into `team:operations`, each as its own actor; the agent's own notes go to the operator's person scope. Upstream has one undivided memory; this is the smallest Engram deployment in which every channel has a writer the plane can tell apart.
