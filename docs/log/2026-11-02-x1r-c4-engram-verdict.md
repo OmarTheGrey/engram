@@ -10,7 +10,7 @@ evidence:
   - docs/decisions/0031-c1-and-c4-on-each-benchmark.md
   - packages/runner/src/gatemem-probe.ts
   - packages/runner/test/x1-gatemem.test.ts
-supersedes: none
+supersedes: docs/log/2026-11-02-x1-c4-shows-the-verdict.md
 ---
 
 **What.** C4's `access` verdict on GateMem comes by default from the plane's own read decision under the preset C5 enforces (core's `evaluateRead`); GateMem's RAG-Policy verdict is a second source chosen with `c4_verdicts: "gatemem-rag"`. ADR 0031 is rewritten.
