@@ -5,7 +5,9 @@ Usage:
         --config research/configs/h1-mem-inv-admission.json \\
         --out research/results/h1-mem-inv-admission.json
 
-For each vendored case (fixtures/bench/mem-inv-bench) and each bundled preset
+For each vendored case (the config's `cases` file under `fixtures`: H1's full
+set `full/cases.jsonl`, 38 cases, since PR 4 of the plan; the 24-case subset
+`cases.jsonl` when a config names none) and each bundled preset
 (docs/tasks/prereg-v1-plan.md, PR 2, item 3): every memory entry crosses
 `Plane.write` as its channel's actor (ADR 0029's mapping), then the operator's
 action-time `Plane.read` says which entries reach the model. The plane and the
@@ -34,12 +36,22 @@ ENTRY = "packages/runner/scripts/mem-inv-admission.ts"
 FIELDS = ("entry_id", "channel", "kind", "scope", "decision", "status", "in_read")
 
 
-def check_fixture(fixtures: Path) -> str:
-    """The vendored cases match their manifest line by line; returns the pinned commit."""
+def check_fixture(fixtures: Path, cases: str = "cases.jsonl", key: str | None = None) -> str:
+    """The vendored cases match their manifest line by line; returns the pinned commit.
+
+    `cases` is the case file under `fixtures` (the subset by default,
+    `full/cases.jsonl` for H1's full set); `key` is its entry under the
+    manifest's `files`, the same path unless given.
+    """
     manifest = json.loads((fixtures / "manifest.json").read_text(encoding="utf-8"))
-    if line_hashes(fixtures / "cases.jsonl") != manifest["files"]["cases.jsonl"]:
-        raise ValueError(f"{fixtures / 'cases.jsonl'} differs from its manifest's line hashes")
+    if line_hashes(fixtures / cases) != manifest["files"][key or cases]:
+        raise ValueError(f"{fixtures / cases} differs from its manifest's line hashes")
     return str(manifest["source"]["commit"])
+
+
+def cases_dir(config: Mapping[str, Any]) -> Path:
+    """The directory holding the config's case file, which the entry point loads."""
+    return (REPO / str(config["fixtures"]) / str(config.get("cases", "cases.jsonl"))).parent
 
 
 def _share(count: int, total: int) -> float:
@@ -120,12 +132,21 @@ def summarise(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
 
 def compute(config: Mapping[str, Any]) -> dict[str, Any]:
     fixtures = REPO / str(config["fixtures"])
-    commit = check_fixture(fixtures)
+    cases_file = str(config.get("cases", "cases.jsonl"))
+    commit = check_fixture(fixtures, cases_file)
     presets = sorted(str(p) for p in config["presets"])
     with tempfile.TemporaryDirectory() as tmp:
         out = Path(tmp) / "admission.json"
         run_node(
-            [ENTRY, "--fixtures", str(fixtures), "--presets", ",".join(presets), "--out", str(out)]
+            [
+                ENTRY,
+                "--fixtures",
+                str(cases_dir(config)),
+                "--presets",
+                ",".join(presets),
+                "--out",
+                str(out),
+            ]
         )
         rows: list[dict[str, Any]] = json.loads(out.read_text(encoding="utf-8"))["rows"]
     cases = [
@@ -143,6 +164,7 @@ def compute(config: Mapping[str, Any]) -> dict[str, Any]:
     return {
         "name": config["name"],
         "benchmark": "mem-inv-bench",
+        "cases_file": f"{config['fixtures']}/{cases_file}",
         "commit": commit,
         "mapping": "ADR 0029 (packages/bench/src/mem-inv-bench/plane.ts)",
         "presets": presets,
