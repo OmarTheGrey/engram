@@ -6,7 +6,14 @@
     "useIgnoreFile": true
   },
   "files": {
-    "includes": ["**", "!sdk", "!packages/ui/src/api", "!fixtures", "!packages/*/src/vendor"]
+    "includes": [
+      "**",
+      "!sdk",
+      "!packages/ui/src/api",
+      "!fixtures",
+      "!packages/*/src/vendor",
+      "!research/results"
+    ]
   },
   "formatter": {
     "enabled": true,

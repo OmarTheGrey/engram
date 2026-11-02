@@ -278,6 +278,33 @@ def test_a_power_cell_reports_both_sizes_and_what_it_evaluated() -> None:
     assert h4_power.cell_result(cell, config, 0) == result
 
 
+def test_the_power_grid_spread_over_processes_equals_the_cells_computed_one_by_one() -> None:
+    config = {
+        "name": "h4-tiny",
+        "seed": 9,
+        "arms": 3,
+        "seeds_per_item": 3,
+        "margins": [0.1],
+        "rates": [0.1, 0.2],
+        "kappas": [1.0],
+        "seed_models": ["independent", "identical"],
+        "target_power": 0.8,
+        "alpha": 0.05,
+        "simulations": 10,
+        "resamples": 300,
+        "ladder_start": 10,
+        "ladder_stop": 2_000,
+        "steps_per_doubling": 1,
+    }
+    grid = h4_power.compute(config)["cells"]
+    cells = [
+        Cell(rate=rate, margin=0.1, kappa=1.0, seed_model=model)
+        for rate in (0.1, 0.2)
+        for model in ("independent", "identical")
+    ]
+    assert grid == [h4_power.cell_result(c, config, i) for i, c in enumerate(cells)]
+
+
 # The H1 table script (research/scripts/h1_table.py), on planted sessions.
 
 

@@ -15,5 +15,5 @@
   "resamples": 10000,
   "ladder_start": 10,
   "ladder_stop": 40960,
-  "steps_per_doubling": 2
+  "steps_per_doubling": 4
 }

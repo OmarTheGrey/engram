@@ -19,7 +19,9 @@ Every simulation's seed is drawn from the config's seed (AGENTS.md rule 6).
 from __future__ import annotations
 
 import argparse
+import os
 from collections.abc import Mapping, Sequence
+from concurrent.futures import ProcessPoolExecutor
 from itertools import product
 from pathlib import Path
 from typing import Any, cast
@@ -100,6 +102,10 @@ def cell_result(cell: Cell, config: Mapping[str, Any], index: int) -> dict[str, 
     }
 
 
+def _cell_job(job: tuple[Cell, dict[str, Any], int]) -> dict[str, Any]:
+    return cell_result(*job)
+
+
 def compute(config: Mapping[str, Any]) -> dict[str, Any]:
     cells = [
         Cell(
@@ -114,7 +120,11 @@ def compute(config: Mapping[str, Any]) -> dict[str, Any]:
             config["margins"], config["rates"], config["kappas"], config["seed_models"]
         )
     ]
-    grid = [cell_result(cell, config, i) for i, cell in enumerate(cells)]
+    # Each cell draws its seeds from the config's seed and its own index, so
+    # the result does not depend on how the cells are spread over processes.
+    jobs = [(cell, dict(config), i) for i, cell in enumerate(cells)]
+    with ProcessPoolExecutor(max_workers=max(1, min(len(jobs), os.cpu_count() or 1))) as pool:
+        grid = list(pool.map(_cell_job, jobs))
     keys = (
         "arms",
         "seeds_per_item",
