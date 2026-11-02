@@ -36,6 +36,7 @@ Every ADR, 0001 to 0030, is accepted by the lead, and the lead is its decider. A
 | 0028 | The Letta adapter works over MemFS, Letta's git-backed context repository, on local disk | accepted |
 | 0029 | The poisoning arm runs on MEM-INV-Bench | accepted |
 | 0030 | GateMem's principals are actors, its unrestricted relationships are memberships and read grants, read from the fields an agent may see | accepted |
+| 0031 | What C1 and C4 are on GateMem and on MEM-INV-Bench | proposed |
 
 ---
 
