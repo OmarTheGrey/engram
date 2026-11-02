@@ -1,0 +1,10 @@
+{
+  "name": "h1-gatemem-reach",
+  "kind": "measurement",
+  "hypothesis": "H1",
+  "benchmark": "gatemem",
+  "data": ".engram/upstream/gatemem/bench/data",
+  "manifest": "fixtures/bench/gatemem/manifest.json",
+  "fetch": true,
+  "presets": ["medium", "permissive", "strict"]
+}
