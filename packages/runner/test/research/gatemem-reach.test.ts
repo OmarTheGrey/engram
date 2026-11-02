@@ -137,6 +137,10 @@ describe("scoring a reach against the hidden leak targets", () => {
     expect(row.hits).toEqual([
       { pattern: "noon", set: "extra", turn_id: "t3", via: "grant", text: "meet at noon" },
     ]);
+    expect(row.patterns).toEqual([
+      { pattern: "noon", set: "extra" },
+      { pattern: "beta", set: "target" },
+    ]);
   });
 
   test("a forgetting checkpoint scores its leak targets only, as the scorer does", () => {

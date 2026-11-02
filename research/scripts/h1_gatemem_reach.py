@@ -36,6 +36,15 @@ reach; the audit sample lets a person check matches by hand.
 `refusal_leak` counts checkpoints where at least one of the config's plain
 refusals is itself scored as a leak by the rule-based scorer (a pattern such
 as "no" inside "No, I can't share that"): no condition can prevent it.
+
+Patterns match by text, so a match can be a coincidence. `with_bare_pattern`
+and `only_bare_patterns` count checkpoints with at least one, or only, bare
+patterns (the config's `bare`: a word such as "yes" or "no", or three
+characters or fewer), and `with_yes_no` those with a pattern that is exactly
+"yes" or "no". Neither share brackets the share whose secret is in reach: a
+checkpoint whose every pattern is bare can be counted reachable on a
+coincidence. The audit sample draws whole checkpoints, each with all its
+patterns and matches, so a person can estimate that share by hand.
 """
 
 from __future__ import annotations
@@ -60,9 +69,25 @@ def _share(count: int, total: int) -> float:
     return count / total if total else 0.0
 
 
-def pattern_stats(rows: Sequence[Mapping[str, Any]], prefix: str) -> dict[str, Any]:
-    """The three groups and the every-pattern count for one pattern set (see the docstring)."""
+def is_bare(pattern: str, bare: Mapping[str, Any]) -> bool:
+    """A pattern that can match by coincidence: a listed word, or no longer than `max_length`."""
+    text = pattern.strip().lower()
+    return text in {str(w) for w in bare["words"]} or len(text) <= int(bare["max_length"])
+
+
+def _patterns(row: Mapping[str, Any], prefix: str) -> list[str]:
+    return [p["pattern"] for p in row["patterns"] if prefix != "" or p["set"] == "target"]
+
+
+def pattern_stats(
+    rows: Sequence[Mapping[str, Any]], prefix: str, bare: Mapping[str, Any]
+) -> dict[str, Any]:
+    """The three groups, the every-pattern count and the bare-pattern counts for one set."""
     n = len(rows)
+    sets = [_patterns(r, prefix) for r in rows]
+    with_bare = sum(1 for ps in sets if any(is_bare(p, bare) for p in ps))
+    only_bare = sum(1 for ps in sets if ps and all(is_bare(p, bare) for p in ps))
+    yes_no = sum(1 for ps in sets if any(p.strip().lower() in ("yes", "no") for p in ps))
     total = "targets" if prefix == "" else "scored_patterns"
     reachable = sum(1 for r in rows if r[f"{prefix}reachable"] > 0)
     located = sum(1 for r in rows if r[f"{prefix}located"] > 0)
@@ -82,10 +107,13 @@ def pattern_stats(rows: Sequence[Mapping[str, Any]], prefix: str) -> dict[str, A
         "share_located_unreachable": _share(unreachable, n),
         "share_not_located": _share(n - located, n),
         "share_every_pattern_reachable": _share(every, n),
+        "with_bare_pattern": with_bare,
+        "only_bare_patterns": only_bare,
+        "with_yes_no": yes_no,
     }
 
 
-def stats(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+def stats(rows: Sequence[Mapping[str, Any]], bare: Mapping[str, Any]) -> dict[str, Any]:
     """Counts and shares over a group of checkpoint rows, for both pattern sets."""
     n = len(rows)
     refusal = sum(1 for r in rows if r["refusal_leaks"] > 0)
@@ -96,7 +124,7 @@ def stats(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
         "with_extra_patterns": sum(1 for r in rows if r["extra_patterns"] > 0),
         "refusal_leak": refusal,
         "share_refusal_leak": _share(refusal, n),
-        **{name: pattern_stats(rows, prefix) for name, prefix in SETS.items()},
+        **{name: pattern_stats(rows, prefix, bare) for name, prefix in SETS.items()},
     }
 
 
@@ -107,39 +135,44 @@ def _grouped(rows: Iterable[Mapping[str, Any]], key: str) -> dict[str, list[Mapp
     return dict(sorted(out.items()))
 
 
-def summarise(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+def summarise(rows: Sequence[Mapping[str, Any]], bare: Mapping[str, Any]) -> dict[str, Any]:
     """Per checkpoint kind: overall, per domain, and per attack type (exploratory)."""
     kinds: dict[str, Any] = {}
     for kind, mine in _grouped(rows, "kind").items():
         kinds[kind] = {
-            "all": stats(mine),
-            "domains": {d: stats(g) for d, g in _grouped(mine, "domain").items()},
-            "attack_types": {a: stats(g) for a, g in _grouped(mine, "attack_type").items()},
+            "all": stats(mine, bare),
+            "domains": {d: stats(g, bare) for d, g in _grouped(mine, "domain").items()},
+            "attack_types": {a: stats(g, bare) for a, g in _grouped(mine, "attack_type").items()},
         }
-    return {"kinds": kinds, "all": stats(rows)}
+    return {"kinds": kinds, "all": stats(rows, bare)}
 
 
 def audit_sample(
     rows: Sequence[Mapping[str, Any]], per_kind: int, seed: int
 ) -> list[dict[str, Any]]:
-    """A seeded sample of scored patterns in reach, `per_kind` per kind, for a hand audit."""
+    """A seeded sample of reachable checkpoints, `per_kind` per kind, each with all its matches.
+
+    Drawn among the checkpoints with a scored pattern in reach, so a hand
+    audit of the sample estimates the share of them whose match is the secret.
+    """
     rng = np.random.default_rng(seed)
     sample: list[dict[str, Any]] = []
     for kind, mine in _grouped(rows, "kind").items():
-        hits = [
-            {
-                "checkpoint_id": r["checkpoint_id"],
-                "kind": kind,
-                "domain": r["domain"],
-                "attack_type": r["attack_type"],
-                **h,
-            }
-            for r in mine
-            for h in r["hits"]
-        ]
-        chosen = rng.choice(len(hits), size=min(per_kind, len(hits)), replace=False)
-        sample.extend(hits[int(i)] for i in sorted(chosen))
-    return sorted(sample, key=lambda h: (h["kind"], h["checkpoint_id"], h["pattern"]))
+        reachable = [r for r in mine if r["hits"]]
+        chosen = rng.choice(len(reachable), size=min(per_kind, len(reachable)), replace=False)
+        for i in sorted(int(c) for c in chosen):
+            r = reachable[i]
+            sample.append(
+                {
+                    "checkpoint_id": r["checkpoint_id"],
+                    "kind": kind,
+                    "domain": r["domain"],
+                    "attack_type": r["attack_type"],
+                    "patterns": r["patterns"],
+                    "hits": r["hits"],
+                }
+            )
+    return sorted(sample, key=lambda c: (c["kind"], c["checkpoint_id"]))
 
 
 def compute(config: Mapping[str, Any]) -> dict[str, Any]:
@@ -191,7 +224,8 @@ def compute(config: Mapping[str, Any]) -> dict[str, Any]:
         "primary_preset": primary,
         "identical_across_presets": all(rows[p] == rows[primary] for p in presets),
         "refusals": refusals,
-        "by_preset": {p: summarise(rows[p]) for p in presets},
+        "bare": config["bare"],
+        "by_preset": {p: summarise(rows[p], config["bare"]) for p in presets},
         "audit_sample": audit_sample(rows[primary], int(audit["per_kind"]), int(audit["seed"])),
     }
 

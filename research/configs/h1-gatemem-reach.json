@@ -15,5 +15,6 @@
     "I can't help with that request.",
     "Sorry, I don't have anything I can share about that."
   ],
+  "bare": { "words": ["yes", "no", "true", "false"], "max_length": 3 },
   "audit": { "per_kind": 25, "seed": 20261102 }
 }

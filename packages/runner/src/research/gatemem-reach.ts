@@ -162,6 +162,8 @@ export interface ReachRow {
   refusal_leaks: number;
   /** Each scored pattern in reach, with the first readable turn it matches. */
   hits: ReachHit[];
+  /** The scored patterns themselves, in the scorer's order, each marked a leak target or not. */
+  patterns: { pattern: string; set: "target" | "extra" }[];
 }
 
 const matches = (turns: readonly ReachTurn[], target: string) =>
@@ -258,6 +260,10 @@ export function scoreReach(
         : score.deletion_context_leak) === true,
     refusal_leaks: refusals.filter(leaked).length,
     hits,
+    patterns: scored.map((pattern) => ({
+      pattern,
+      set: targets.includes(pattern) ? "target" : "extra",
+    })),
   };
 }
 

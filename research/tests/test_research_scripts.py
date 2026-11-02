@@ -176,8 +176,17 @@ def reach_row(
             {"pattern": f"p{i}", "set": "target", "turn_id": f"t{i}", "via": "grant", "text": "x"}
             for i in range(scored_reachable)
         ],
+        "patterns": [
+            *(
+                {"pattern": str(extra.get("target_word", f"secret {i}")), "set": "target"}
+                for i in range(targets)
+            ),
+            *({"pattern": "no", "set": "extra"} for _ in range(plus)),
+        ],
     }
 
+
+BARE = {"words": ["yes", "no", "true", "false"], "max_length": 3}
 
 PLANTED = [
     reach_row("access", "office", 2, 2, 2),
@@ -189,7 +198,7 @@ PLANTED = [
 
 
 def test_the_reach_summary_puts_every_checkpoint_in_exactly_one_group() -> None:
-    summary = h1_gatemem_reach.summarise(PLANTED)
+    summary = h1_gatemem_reach.summarise(PLANTED, BARE)
     access = summary["kinds"]["access"]["all"]
     assert access["checkpoints"] == 4
     targets, scored = access["targets"], access["scored"]
@@ -214,13 +223,30 @@ def test_the_reach_summary_puts_every_checkpoint_in_exactly_one_group() -> None:
     assert summary["kinds"]["access"]["domains"]["medical"]["targets"]["reachable"] == 0
     assert summary["kinds"]["forgetting"]["all"]["targets"]["reachable_own"] == 1
     assert summary["all"]["checkpoints"] == 5
+    # The third checkpoint's one extra pattern is "no": bare and yes-or-no, in the scored set only.
+    assert (scored["with_bare_pattern"], scored["with_yes_no"], scored["only_bare_patterns"]) == (
+        1,
+        1,
+        0,
+    )
+    assert targets["with_bare_pattern"] == 0
 
 
-def test_the_audit_sample_is_seeded_and_drawn_per_kind() -> None:
+def test_a_checkpoint_whose_only_targets_are_bare_words_is_counted() -> None:
+    rows = [reach_row("forgetting", "office", 1, 1, 1, target_word="No")]
+    group = h1_gatemem_reach.summarise(rows, BARE)["kinds"]["forgetting"]["all"]["targets"]
+    assert (group["only_bare_patterns"], group["with_yes_no"]) == (1, 1)
+
+
+def test_the_audit_sample_draws_reachable_checkpoints_each_with_all_its_matches() -> None:
     first = h1_gatemem_reach.audit_sample(PLANTED, per_kind=2, seed=5)
     assert first == h1_gatemem_reach.audit_sample(PLANTED, per_kind=2, seed=5)
-    assert [h["kind"] for h in first] == ["access", "access", "forgetting"]
-    assert all(set(h) >= {"checkpoint_id", "pattern", "turn_id", "via", "text"} for h in first)
+    assert [c["kind"] for c in first] == ["access", "access", "forgetting"]
+    by_id = {r["checkpoint_id"]: r for r in PLANTED}
+    for c in first:
+        assert c["hits"] == by_id[c["checkpoint_id"]]["hits"] != []
+        assert c["patterns"] == by_id[c["checkpoint_id"]]["patterns"]
+    assert len({c["checkpoint_id"] for c in first}) == len(first)
 
 
 def test_the_admission_summary_counts_cases_reaching_the_read() -> None:
