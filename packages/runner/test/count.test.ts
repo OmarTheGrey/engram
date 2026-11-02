@@ -4,7 +4,16 @@
 // touching a cassette. An experiment config runs only live, as a replay of a
 // live run, or counted.
 import { spawnSync } from "node:child_process";
-import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { gatemem } from "@engram/bench";
@@ -155,6 +164,40 @@ describe("an experiment config runs only live, replayed, or counted", () => {
     });
     expect(record.status).toBe(2);
     expect(existsSync(out)).toBe(false);
+  }, 30_000);
+
+  test("a live run of a GateMem experiment whose data is missing, under ENGRAM_OFFLINE=1, is refused before it fetches or creates anything (P3-6)", () => {
+    const dir = fresh();
+    const data = join(dir, "data");
+    mkdirSync(data);
+    const raw = JSON.parse(readFileSync(H1_GATEMEM, "utf8"));
+    const config = join(dir, "h1-missing-data.json");
+    writeFileSync(
+      config,
+      JSON.stringify({ ...raw, name: "h1-missing-data", data, cassettes: join(dir, "cassettes") }),
+    );
+    const out = join(dir, "out");
+    const cassettes = join(dir, "live-cassettes");
+    const run = runScript(
+      [
+        "--config",
+        config,
+        "--out",
+        out,
+        "--live",
+        "--model",
+        "faux-live/model-1",
+        "--cassettes",
+        cassettes,
+      ],
+      { ENGRAM_OFFLINE: "1" },
+    );
+    expect(run.status).toBe(2);
+    expect(run.stderr).toMatch(/live run refused: ENGRAM_OFFLINE=1/);
+    expect(run.stdout).not.toMatch(/fetched/);
+    expect(readdirSync(data)).toEqual([]);
+    expect(existsSync(out)).toBe(false);
+    expect(existsSync(cassettes)).toBe(false);
   }, 30_000);
 
   test("the command counts it, writing count.json and nothing else", () => {

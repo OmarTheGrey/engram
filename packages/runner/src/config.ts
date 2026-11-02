@@ -70,6 +70,8 @@ export { STORES } from "./stores.ts";
 
 const unique = <T>(values: readonly T[]) => new Set(values).size === values.length;
 
+export const C4_VERDICT_SOURCES = ["engram", "gatemem-rag"] as const;
+
 export const RunnerConfig = z.strictObject({
   /** Names the run in results and cassettes. */
   name: z.string().regex(/^[a-z0-9][a-z0-9-]*$/),
@@ -110,8 +112,34 @@ export const RunnerConfig = z.strictObject({
   script: z.string().optional(),
   /** The cassette directory (a fileCache). */
   cassettes: z.string(),
+  /**
+   * Where C4's per-item `access` verdict comes from on GateMem (ADR 0031):
+   * `engram`, the plane's own read decision under the preset C5 enforces
+   * (the default, so C4 and C5 differ in mechanism only), or `gatemem-rag`,
+   * GateMem's RAG-Policy rule table (packages/bench gatemem/rag-policy.ts).
+   */
+  c4_verdicts: z.enum(C4_VERDICT_SOURCES).optional(),
+  /**
+   * The answer judge, as GateMem scores its access, forgetting and utility
+   * checkpoints (card B1's port, packages/bench gatemem/judge.ts): a model,
+   * its temperature and output limit, and for a scripted judge its replies
+   * by checkpoint. An experiment config without one uses the paper's
+   * (`openai/gpt-4o`, temperature 0, 4096 tokens). Every judge call is
+   * cached and keyed like an answer call (ADR 0017).
+   */
+  judge: z
+    .strictObject({
+      model: z.string().regex(/^[^/\s]+\/\S+$/, "judge model must be provider/model-id"),
+      temperature: z.number().min(0).default(0),
+      max_tokens: z.number().int().positive().default(4096),
+      script: z.string().optional(),
+    })
+    .optional(),
 });
 export type RunnerConfig = z.infer<typeof RunnerConfig>;
+
+/** The sources of C4's GateMem verdict; `engram` is the default (ADR 0031). */
+export type C4VerdictSource = (typeof C4_VERDICT_SOURCES)[number];
 
 /** What every runner config has in common, whatever its benchmark. */
 export type AnyRunnerConfig = Omit<RunnerConfig, "benchmark" | "store"> & {
@@ -125,22 +153,50 @@ export function checkConfig<C extends AnyRunnerConfig>(config: C): C {
   if (scripted && config.script === undefined) {
     throw new Error(`config ${config.name}: a scripted model needs a script`);
   }
-  if (config.kind === "experiment" && (scripted || config.script !== undefined)) {
+  const judge = config.judge;
+  if (
+    config.kind === "experiment" &&
+    (scripted ||
+      config.script !== undefined ||
+      judge?.model.startsWith("scripted/") ||
+      judge?.script !== undefined)
+  ) {
     throw new Error(
-      `config ${config.name}: an experiment runs on a live model, never a scripted one or a script`,
+      `config ${config.name}: an experiment runs on a live model and a live judge, never a scripted one or a script`,
     );
+  }
+  if (judge?.model.startsWith("scripted/") && judge.script === undefined) {
+    throw new Error(`config ${config.name}: a scripted judge needs a script`);
   }
   return config;
 }
 
 /** The config with its paths resolved against `base`. */
 export function resolvePaths<C extends AnyRunnerConfig>(config: C, base: string): C {
+  const judge = config.judge;
   return {
     ...config,
     data: resolve(base, config.data),
     cassettes: resolve(base, config.cassettes),
     ...(config.script === undefined ? {} : { script: resolve(base, config.script) }),
+    ...(judge?.script === undefined
+      ? {}
+      : { judge: { ...judge, script: resolve(base, judge.script) } }),
   };
+}
+
+/** The paper's judge (GateMem's score_predictions.py defaults): what an experiment uses when it names none. */
+export const PAPER_JUDGE_CONFIG = {
+  model: "openai/gpt-4o",
+  temperature: 0,
+  max_tokens: 4096,
+} as const;
+
+/** The judge a GateMem config runs: its own, the paper's for an experiment that names none, else none. */
+export function configJudge(
+  config: Pick<AnyRunnerConfig, "judge" | "kind">,
+): NonNullable<RunnerConfig["judge"]> | undefined {
+  return config.judge ?? (config.kind === "experiment" ? { ...PAPER_JUDGE_CONFIG } : undefined);
 }
 
 export function parseRunnerConfig(value: unknown, base = process.cwd()): RunnerConfig {

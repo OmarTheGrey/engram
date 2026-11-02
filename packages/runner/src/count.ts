@@ -15,6 +15,7 @@ import {
   type Condition,
   configCells,
   configItems,
+  configJudge,
   configStores,
   type NO_STORE,
 } from "./config.ts";
@@ -99,6 +100,10 @@ export interface SessionCount {
   }[];
   per_condition: Partial<Record<Condition, number>>;
   sessions: number;
+  /** The answer judge (GateMem, J1): one to three calls per session, upstream's attempts. */
+  judge?: { model: string; calls_min: number; calls_max: number };
+  /** MEM-INV-Bench's agent notes, one call each before the sessions (P3-4). */
+  note_calls: number;
 }
 
 const tally = (labels: readonly string[]) => {
@@ -115,7 +120,7 @@ const GATEMEM_KIND: Readonly<Record<string, string>> = {
 };
 
 /** The items a config runs, with their hidden kind labels (for counting only). */
-function itemsOf(config: AnyRunnerConfig): { ids: string[]; kinds: string[] } {
+function itemsOf(config: AnyRunnerConfig): { ids: string[]; kinds: string[]; notes: number } {
   if (config.benchmark === "gatemem") {
     const domains = gatemem.loadDataset(config.data);
     const ids = configItems(config, gatememItems(domains));
@@ -125,6 +130,7 @@ function itemsOf(config: AnyRunnerConfig): { ids: string[]; kinds: string[] } {
     return {
       ids,
       kinds: ids.map((id) => GATEMEM_KIND[typeOf.get(id) as string] ?? "unknown"),
+      notes: 0,
     };
   }
   const cases = memInvBench.loadCases(config.data);
@@ -139,6 +145,11 @@ function itemsOf(config: AnyRunnerConfig): { ids: string[]; kinds: string[] } {
       const c = byId.get(id) as memInvBench.Case;
       return c.family === "legit" ? "benign" : `attack/${c.channel}`;
     }),
+    notes: ids.reduce(
+      (n, id) =>
+        n + (byId.get(id)?.memory.filter((e) => e.summarized_from !== undefined).length ?? 0),
+      0,
+    ),
   };
 }
 
@@ -148,7 +159,8 @@ export async function countConfig(
   options: { fetch?: boolean; log?: (line: string) => void } = {},
 ): Promise<SessionCount> {
   const data = await ensurePinnedData(config, options);
-  const { ids, kinds } = itemsOf(config);
+  const { ids, kinds, notes } = itemsOf(config);
+  const judge = config.benchmark === "gatemem" ? configJudge(config) : undefined;
   const cells = configCells(config).flatMap(({ condition, store }) =>
     config.seeds.map((seed) => ({ condition, store, seed, sessions: ids.length })),
   );
@@ -170,6 +182,16 @@ export async function countConfig(
     cells,
     per_condition,
     sessions: cells.reduce((n, c) => n + c.sessions, 0),
+    ...(judge
+      ? {
+          judge: {
+            model: judge.model,
+            calls_min: cells.reduce((n, c) => n + c.sessions, 0),
+            calls_max: 3 * cells.reduce((n, c) => n + c.sessions, 0),
+          },
+        }
+      : {}),
+    note_calls: notes,
   };
 }
 
@@ -185,6 +207,14 @@ export function countLines(count: SessionCount): string[] {
     `sessions: ${count.sessions} = ${count.items} items x ${count.cells.length / count.seeds.length} condition-store cells (${count.conditions.join(", ")} on ${count.stores.join(", ")}${count.conditions.includes("C1") ? "; C1 once, with no store" : ""}) x ${count.seeds.length} seeds (${count.seeds.join(", ")})`,
     ...Object.entries(count.per_condition).map(([c, n]) => `  ${c}: ${n} sessions`),
     ...count.cells.map((c) => `  ${c.condition} ${c.store} seed ${c.seed}: ${c.sessions} sessions`),
+    ...(count.judge
+      ? [
+          `judge ${count.judge.model}: ${count.judge.calls_min} to ${count.judge.calls_max} calls (one to three attempts per session)`,
+        ]
+      : []),
+    ...(count.note_calls > 0
+      ? [`agent notes: ${count.note_calls} calls by the model under test, before the sessions`]
+      : []),
     "no model was called; no cassette was read or written",
   ];
 }

@@ -13,8 +13,15 @@ import { join } from "node:path";
 import { gatemem } from "@engram/bench";
 import { loadPreset } from "@engram/core";
 import { answersFor, type LiveModels } from "./answers.ts";
-import { configCells, configItems, configStores, type RunnerConfig } from "./config.ts";
-import { type ProbeResult, runProbe } from "./gatemem-probe.ts";
+import {
+  configCells,
+  configItems,
+  configJudge,
+  configStores,
+  type RunnerConfig,
+} from "./config.ts";
+import { type ProbeResult, probeContext, runProbe } from "./gatemem-probe.ts";
+import { judgeAnswer } from "./judge.ts";
 import { type CacheStore, fileCache, type UsageRecord } from "./model/cached.ts";
 
 export type { LiveModels } from "./answers.ts";
@@ -33,6 +40,12 @@ export interface RunnerResult {
   rows: ProbeResult[];
   /** Per condition, the rule-based summary of its rows (card B1's aggregate). */
   summary: Record<string, ReturnType<typeof gatemem.aggregate>>;
+  /**
+   * Per condition, when the config has a judge (J1): the judge's summary
+   * promoted into the rule-based one as score_predictions.py --use_llm_judge
+   * promotes it; its action, utility and leak rates are the paper's.
+   */
+  judge?: Record<string, Record<string, unknown>>;
   /** Model calls answered by the answer source (new) and from the cache; written to usage.json only. */
   calls: { new: number; cached: number };
   /** The cost ledger, one record per call (ADR 0017); written to usage.json only. */
@@ -59,26 +72,43 @@ export async function runConfig(
   const usage: UsageRecord[] = [];
   const rows: ProbeResult[] = [];
   const cells = configCells(config);
+  const judge = configJudge(config);
   for (const item of configItems(config, gatememItems(domains))) {
     const domain = findDomain(domains, item);
+    const checkpoint = domain.checkpoints.find((c) => c.checkpoint_id === item);
     for (const { condition, store } of cells) {
       for (const seed of config.seeds) {
-        rows.push(
-          await runProbe({
-            domain,
-            checkpointId: item,
-            condition,
+        const spec = {
+          domain,
+          checkpointId: item,
+          condition,
+          seed,
+          model: config.model,
+          preset: config.preset,
+          policy,
+          store,
+          cache,
+          answers: answersFor(config, item, condition, options.live),
+          ...(options.offline === undefined ? {} : { offline: options.offline }),
+          onUsage: (u: UsageRecord) => usage.push(u),
+          ...(config.c4_verdicts === undefined ? {} : { c4Verdicts: config.c4_verdicts }),
+        };
+        const row = await runProbe(spec);
+        // GateMem's judge scores the answer as its own scoring does (J1).
+        if (judge && checkpoint) {
+          row.judge = await judgeAnswer({
+            judge,
+            checkpoint,
+            output: row.output,
             seed,
-            model: config.model,
-            preset: config.preset,
-            policy,
-            store,
+            context: probeContext(spec),
             cache,
-            answers: answersFor(config, item, condition, options.live),
-            ...(options.offline === undefined ? {} : { offline: options.offline }),
+            live: options.live,
+            offline: options.offline,
             onUsage: (u) => usage.push(u),
-          }),
-        );
+          });
+        }
+        rows.push(row);
       }
     }
   }
@@ -86,15 +116,25 @@ export async function runConfig(
   // C1 as `C1@none`.
   const several = configStores(config).length > 1;
   const summary: RunnerResult["summary"] = {};
+  const judged: NonNullable<RunnerResult["judge"]> = {};
   for (const { condition, store } of cells) {
-    summary[several ? `${condition}@${store}` : condition] = gatemem.aggregate(
-      rows.filter((r) => r.condition === condition && r.store === store).map((r) => r.score),
-    );
+    const key = several ? `${condition}@${store}` : condition;
+    const mine = rows.filter((r) => r.condition === condition && r.store === store);
+    const aggregate = gatemem.aggregate(mine.map((r) => r.score));
+    summary[key] = aggregate;
+    const judgeRows = mine.flatMap((r) => (r.judge ? [r.judge] : []));
+    if (judge && judgeRows.length > 0) {
+      judged[key] = gatemem.promoteJudgeMetrics(
+        { ...aggregate, gated_by_action: false, judge: "run" },
+        gatemem.judgeSummary(judgeRows, false, judge.model),
+      );
+    }
   }
   return {
     config: config.name,
     rows,
     summary,
+    ...(judge ? { judge: judged } : {}),
     calls: {
       new: usage.filter((u) => !u.hit).length,
       cached: usage.filter((u) => u.hit).length,
@@ -114,7 +154,10 @@ export function writeRunnerResult(result: RunnerResult, out: string): void {
     join(out, "results.jsonl"),
     result.rows.map((r) => `${JSON.stringify(r)}\n`).join(""),
   );
-  const { config, summary, calls, usage } = result;
-  writeFileSync(join(out, "summary.json"), `${JSON.stringify({ config, summary }, null, 2)}\n`);
+  const { config, summary, judge, calls, usage } = result;
+  writeFileSync(
+    join(out, "summary.json"),
+    `${JSON.stringify({ config, summary, ...(judge ? { judge } : {}) }, null, 2)}\n`,
+  );
   writeFileSync(join(out, "usage.json"), `${JSON.stringify({ config, calls, usage }, null, 2)}\n`);
 }

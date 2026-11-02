@@ -34,7 +34,15 @@ import {
   SessionManager,
   SettingsManager,
 } from "@earendil-works/pi-coding-agent";
-import type { Actor, Adapter, Db, MemoryItem, Policy, PresetName } from "@engram/core";
+import {
+  type Actor,
+  type Adapter,
+  type Db,
+  type MemoryItem,
+  type Policy,
+  type PresetName,
+  rankForRead,
+} from "@engram/core";
 import {
   createEngramExtension,
   MEMORY_READ,
@@ -132,8 +140,7 @@ export function ungovernedMemoryTools(options: {
     pi.registerTool({
       ...MEMORY_READ,
       async execute(_toolCallId, params) {
-        const scopes = [...store.scopes].sort();
-        const items = await search(store.adapter, params.query, scopes);
+        const items = await ungovernedRead(store, params.query, now());
         const text = tagUngovernedRead(
           items.map((i) => {
             const meta = attributes?.(i);
@@ -149,6 +156,24 @@ export function ungovernedMemoryTools(options: {
       },
     });
   };
+}
+
+/**
+ * What an ungoverned read (C2, C3, C4) returns, in order: the store's matches
+ * for `query` in every scope it holds, ordered by core's `rankForRead`, the
+ * order the plane gives what it admits under C5. One retrieval rule (the
+ * store's own search, which the plane also uses in the reader's scopes and
+ * matches by the same every-term rule for granted items) and one ordering
+ * rule for every condition, so C5's items are a subset of C2's, in the same
+ * relative order, on a lexical store (PR #25 review, P3-1 and P3-11).
+ */
+export async function ungovernedRead(
+  store: UngovernedStore,
+  query: string,
+  at: string,
+): Promise<MemoryItem[]> {
+  const items = await search(store.adapter, query, [...store.scopes].sort());
+  return rankForRead(items, query, at).map((r) => r.item);
 }
 
 /**

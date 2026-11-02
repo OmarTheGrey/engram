@@ -13,5 +13,12 @@
   "preset": "medium",
   "store": "fake",
   "script": "../../fixtures/bench/gatemem/x1-probe-script.json",
-  "cassettes": "../../fixtures/cassettes/x1-h1-gatemem"
+  "cassettes": "../../fixtures/cassettes/x1-h1-gatemem",
+  "c4_verdicts": "engram",
+  "judge": {
+    "model": "scripted/judge-1",
+    "temperature": 0,
+    "max_tokens": 4096,
+    "script": "../../fixtures/bench/gatemem/x1-judge-script.json"
+  }
 }

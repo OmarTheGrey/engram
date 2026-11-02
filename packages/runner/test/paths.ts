@@ -11,6 +11,7 @@ export const B3 = join(configs, "b3-gatemem-plane.json");
 /** Card X1: every condition on both of H1's arms, at fixture size, and the suite of both. */
 export const X1_SUITE = join(configs, "x1-h1-probe.json");
 export const X1_GATEMEM = join(configs, "x1-h1-gatemem.json");
+export const X1_GATEMEM_RAG = join(configs, "x1-h1-gatemem-rag.json");
 export const X1_MEM_INV = join(configs, "x1-h1-mem-inv.json");
 
 /** H1's full-size experiment configs (plan decision 6). */

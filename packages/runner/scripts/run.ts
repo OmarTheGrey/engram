@@ -59,7 +59,7 @@ import {
   writeMemInvResult,
 } from "../src/mem-inv-probe.ts";
 import { type RunnerOptions, runConfig, writeRunnerResult } from "../src/run.ts";
-import { memInvLines } from "./run-mem-inv.ts";
+import { memInvLines, runFooter } from "./run-mem-inv.ts";
 
 const REPO = fileURLToPath(new URL("../../../", import.meta.url));
 
@@ -85,6 +85,24 @@ function readAnyConfig(path: string): { gatemem: RunnerConfig } | { memInv: MemI
   return isMemInvConfig(path)
     ? { memInv: readMemInvConfig(path) }
     : { gatemem: readRunnerConfig(path) };
+}
+
+/** `, judge: action_ok true, leak false`: the judge's verdict on one row, when it ran. */
+function judged(
+  row:
+    | {
+        judge: {
+          action_ok: boolean;
+          privacy_leak: boolean | null;
+          deletion_leak: boolean | null;
+          utility_ok: boolean | null;
+        };
+      }
+    | undefined,
+): string {
+  if (!row) return "";
+  const j = row.judge;
+  return `, judge: action_ok ${j.action_ok}, utility_ok ${j.utility_ok}, leak ${j.privacy_leak ?? j.deletion_leak}`;
 }
 
 /** `write allow 96, read allow 1`: the plane's events by op and decision, in first-seen order. */
@@ -149,10 +167,6 @@ async function runOne(path: string, out: string, flags: Flags): Promise<Outcome>
     : flags.replay
       ? ` (replayed from ${config.cassettes})`
       : "";
-  const footer = named
-    ? "live run on a named model; a pipeline config's numbers are still not results"
-    : "pipeline config: scripted model, rule-based scorer only; these are not results";
-
   if ("memInv" in read) {
     const memInv = config as MemInvRunnerConfig;
     const result = await runMemInvConfig(memInv, options);
@@ -169,9 +183,15 @@ async function runOne(path: string, out: string, flags: Flags): Promise<Outcome>
     `model calls: ${result.calls.new} new, ${result.calls.cached} from cassettes${how}`,
     ...result.rows.map(
       (r) =>
-        `  ${r.condition} ${r.store} seed ${r.seed} ${r.checkpoint_id}: action ${r.output.action} (correct ${r.score.action_correct}), answer leak ${r.score.privacy_leak ?? r.score.deletion_leak}, context leak ${r.score.privacy_context_leak ?? r.score.deletion_context_leak}, ${r.decisions.length} session decisions, plane log ${eventCounts(r.events)}`,
+        `  ${r.condition} ${r.store} seed ${r.seed} ${r.checkpoint_id}: action ${r.output.action} (correct ${r.score.action_correct}), answer leak ${r.score.privacy_leak ?? r.score.deletion_leak}, context leak ${r.score.privacy_context_leak ?? r.score.deletion_context_leak}${judged(r.judge)}, ${r.decisions.length} session decisions, plane log ${eventCounts(r.events)}`,
     ),
-    footer,
+    runFooter(
+      gm.kind,
+      named,
+      result.judge
+        ? "rule-based scorer and the answer judge"
+        : "rule-based scorer only; the config names no judge",
+    ),
     `written to ${out}`,
   ];
   console.log(lines.join("\n"));

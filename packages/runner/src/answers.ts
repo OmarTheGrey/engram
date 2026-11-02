@@ -33,13 +33,32 @@ export function answersFor(
   condition: Condition,
   live?: LiveModels,
 ): () => AnswerSource {
+  return sourceFor(config, item, live, (steps) => scriptSteps(steps, item, condition));
+}
+
+/**
+ * The answer source for a MEM-INV-Bench case's agent note (mem-inv-probe.ts
+ * `withNotes`): the script's `<case>@note` steps, or the live model.
+ */
+export function noteAnswersFor(
+  config: { model: string; script?: string | undefined },
+  caseId: string,
+  live?: LiveModels,
+): () => AnswerSource {
+  return sourceFor(config, `${caseId}@note`, live, (steps) => steps[`${caseId}@note`]);
+}
+
+function sourceFor(
+  config: { model: string; script?: string | undefined },
+  item: string,
+  live: LiveModels | undefined,
+  pick: (steps: Readonly<Record<string, unknown[]>>) => unknown[] | undefined,
+): () => AnswerSource {
   const [provider = "", ...rest] = config.model.split("/");
   const id = rest.join("/");
   if (provider === "scripted") {
     const script = readProbeScript(config.script as string);
-    const steps = scriptSteps(script.steps, item, condition) as
-      | Parameters<typeof scriptedAnswers>[0]
-      | undefined;
+    const steps = pick(script.steps) as Parameters<typeof scriptedAnswers>[0] | undefined;
     return () => {
       if (!steps) {
         return async () => {

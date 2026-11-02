@@ -92,6 +92,7 @@ RUNNER_FIXTURES := rn1-gatemem-probe
 RUNNER_FIXTURES += b3-gatemem-plane
 RUNNER_FIXTURES += b4-mem-inv-probe
 RUNNER_FIXTURES += x1-h1-gatemem
+RUNNER_FIXTURES += x1-h1-gatemem-rag
 RUNNER_FIXTURES += x1-h1-mem-inv
 
 # MEM-INV-Bench at its pinned commit (card B4); the vendoring clones it here when missing.

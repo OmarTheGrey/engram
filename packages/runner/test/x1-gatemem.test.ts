@@ -5,8 +5,17 @@
 // speaker, their role and GateMem's RAG-Policy gate's verdict for the asker
 // (packages/bench/src/gatemem/rag-policy.ts, held to upstream by
 // rag-policy.test.ts). Neither reads a hidden field.
+
+import { createFakeAdapter } from "@engram/adapters";
 import { gatemem } from "@engram/bench";
-import { loadPreset, type ModelRequest } from "@engram/core";
+import {
+  createPlane,
+  evaluateRead,
+  loadPreset,
+  type ModelRequest,
+  migrate,
+  openSqlite,
+} from "@engram/core";
 import { describe, expect, test } from "vitest";
 import { answersFor } from "../src/answers.ts";
 import { type Condition, readRunnerConfig } from "../src/config.ts";
@@ -122,33 +131,83 @@ describe("C1 on GateMem: the long-context agent (ADR 0031)", () => {
   }, 60_000);
 });
 
-describe("C4 on GateMem: instruction with the RAG-Policy's metadata (ADR 0031)", () => {
-  test("each turn item carries its speaker, role and the RAG-Policy gate's verdict", () => {
+describe("C4 on GateMem: instruction with each item's verdict (ADR 0031)", () => {
+  test("by default each turn item carries its speaker, role and the plane's own read decision for the asker (core's evaluateRead)", () => {
+    const policy = loadPreset("medium");
     for (const id of [MEDICAL, HOUSEHOLD]) {
       const { mapped } = probeInputs(domainOf(id), id, sequentialIds());
-      const gate = gatemem.ragPolicyGate(mapped.episode, mapped.turns, mapped.checkpoint);
-      const metadata = gatememMetadata(mapped);
+      const metadata = gatememMetadata(mapped, "engram", policy);
       expect(metadata.legend).toBe(GATEMEM_METADATA_LEGEND);
       mapped.writes.forEach(({ item }, i) => {
-        const chunk = gate[i] as gatemem.RagPolicyChunk;
+        const turn = mapped.turns[i] as gatemem.Turn;
         expect(metadata.attributes(item)).toEqual([
-          ["speaker", chunk.principal_id],
-          ["speaker_role", chunk.role],
-          ["access", chunk.allowed ? "allowed" : "denied"],
+          ["speaker", turn.speaker.principal_id],
+          ["speaker_role", turn.speaker.role],
+          [
+            "access",
+            evaluateRead(policy, mapped.asker, item, mapped.at).admitted ? "allowed" : "denied",
+          ],
         ]);
       });
     }
   });
 
-  test("C4's read shows the model items the gate allows and items it denies, with the verdict", async () => {
-    const cache = recordingCache();
-    const row = await runProbe(spec(MEDICAL, "C4", cache));
+  test("C4's engram verdict is exactly what C5's plane admits: an item is allowed if and only if C5's read returns it", async () => {
+    for (const id of [MEDICAL, HOUSEHOLD]) {
+      const newId = sequentialIds();
+      const { mapped } = probeInputs(domainOf(id), id, newId);
+      const policy = loadPreset("medium");
+      const db = openSqlite(":memory:");
+      migrate(db);
+      const plane = createPlane({ db, adapter: createFakeAdapter(), policy, newId });
+      for (const { actor, item } of mapped.writes) await plane.write(actor, item, item.valid_from);
+      const admitted = new Set(
+        (await plane.read(mapped.asker, { at: mapped.at })).items.map((i) => i.id),
+      );
+      const metadata = gatememMetadata(mapped, "engram", policy);
+      for (const { item } of mapped.writes) {
+        const access = metadata.attributes(item)?.find(([k]) => k === "access")?.[1];
+        expect(access, item.provenance.ref).toBe(admitted.has(item.id) ? "allowed" : "denied");
+      }
+      expect(admitted.size).toBeGreaterThan(0);
+      expect(admitted.size).toBeLessThan(mapped.writes.length);
+      db.close();
+    }
+  });
+
+  test("the gatemem-rag source gives GateMem's RAG-Policy gate's verdict instead", () => {
+    for (const id of [MEDICAL, HOUSEHOLD]) {
+      const { mapped } = probeInputs(domainOf(id), id, sequentialIds());
+      const gate = gatemem.ragPolicyGate(mapped.episode, mapped.turns, mapped.checkpoint);
+      const metadata = gatememMetadata(mapped, "gatemem-rag");
+      mapped.writes.forEach(({ item }, i) => {
+        const chunk = gate[i] as gatemem.RagPolicyChunk;
+        expect(metadata.attributes(item)?.[2]).toEqual([
+          "access",
+          chunk.allowed ? "allowed" : "denied",
+        ]);
+      });
+    }
+  });
+
+  test("C4's read shows the model items allowed and denied, with the verdict; the config chooses the source", async () => {
+    const engram = recordingCache();
+    const row = await runProbe(spec(MEDICAL, "C4", engram));
     expect(row.tool_calls).toEqual([{ name: "memory_read", arguments: { query: "April 17" } }]);
-    const last = JSON.stringify(cache.entries.at(-1)?.request);
-    expect(last).toContain("<memory-metadata>");
-    expect(last).toMatch(/speaker_role=\\+"scheduler\\+" access=\\+"allowed\\+"/);
-    expect(last).toMatch(/speaker_role=\\+"family_member\\+" access=\\+"denied\\+"/);
-    expect(cache.entries.at(-1)?.context.preset).toBe("medium");
+    const shown = JSON.stringify(engram.entries.at(-1)?.request);
+    expect(shown).toContain("<memory-metadata>");
+    expect(shown).toMatch(/access=\\+"allowed\\+"/);
+    expect(shown).toMatch(/access=\\+"denied\\+"/);
+    expect(engram.entries.at(-1)?.context.preset).toBe("medium");
+    const rag = recordingCache();
+    await runProbe({ ...spec(MEDICAL, "C4", rag), c4Verdicts: "gatemem-rag" });
+    // The family member's own question: the plane admits it (her own scope), the rule table denies it.
+    const verdict = (cache: typeof rag) =>
+      /speaker_role=\\+"family_member\\+" access=\\+"(\w+)\\+"/.exec(
+        JSON.stringify(cache.entries.at(-1)?.request),
+      )?.[1];
+    expect(verdict(engram)).toBe("allowed");
+    expect(verdict(rag)).toBe("denied");
     expect(
       probeContext({ checkpointId: MEDICAL, condition: "C4", preset: "medium", store: "fake" }),
     ).toEqual({ item: `gatemem/${MEDICAL}`, condition: "C4", preset: "medium", store: "fake" });

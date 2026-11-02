@@ -1,5 +1,5 @@
 {
   "name": "x1-h1-probe",
   "kind": "pipeline",
-  "suite": ["x1-h1-gatemem.json", "x1-h1-mem-inv.json"]
+  "suite": ["x1-h1-gatemem.json", "x1-h1-gatemem-rag.json", "x1-h1-mem-inv.json"]
 }

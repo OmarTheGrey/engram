@@ -180,6 +180,22 @@ describe("condition sessions", () => {
     expect(c5.replaceAll(/ (?:read_id|policy_id)="[^"]*"/g, "")).toBe(c2);
   });
 
+  test("the model receives C3's and C4's policy JSON with single braces; only the cache key's record doubles them (J2)", async () => {
+    for (const condition of ["C3", "C4"] as const) {
+      const { session, scripted } = await build(condition, [{ text: "ok" }], {
+        attributes: () => undefined,
+        legend: "- none.",
+      });
+      await session.prompt("hello");
+      const system = scripted.seen[0]?.messages.find((m) => m.role === "system");
+      const sent = JSON.stringify(system);
+      expect(sent, condition).toContain("<memory-policy>");
+      expect(sent, condition).toContain('{\\n  \\"id\\": \\"preset.medium\\"');
+      expect(sent, condition).not.toContain("{{");
+      session.dispose();
+    }
+  });
+
   test("C3's policy text is the loaded policy's content and the requester's memberships", () => {
     const text = policyInstruction(loadPreset("medium"), "medium", SAM);
     expect(text).toContain('"id": "preset.medium"');

@@ -9,5 +9,7 @@
   "seeds": [1, 2, 3],
   "preset": "medium",
   "store": "fake",
-  "cassettes": "../../.engram/runs/h1-gatemem/cassettes"
+  "cassettes": "../../.engram/runs/h1-gatemem/cassettes",
+  "c4_verdicts": "engram",
+  "judge": { "model": "openai/gpt-4o", "temperature": 0, "max_tokens": 4096 }
 }
