@@ -142,6 +142,8 @@ Checked on main after PR 6 merged, 2026-10-29. The lead declares the gate; the o
 | (a) GateMem reference numbers within tolerance on the ported judge | conditional on the pre-registration leaving the backlog, unchanged | `docs/tasks/B1.md` |
 | (b) the poisoning arm chosen and dated | pass: MEM-INV-Bench, 2026-10-29 | ADR 0029; B4 through the plane, `ENGRAM_OFFLINE=1 make run CONFIG=research/configs/b4-mem-inv-probe.json` |
 
+Note, 2026-11-02 (PR #25, card X1, review round 3), pending the lead: B3, RN1 and B4 now run C5 through the runner's `coreReadPlane`, a plane built with the core retrieval pipeline that ADR 0009's proposed amendment of 2026-11-02 introduces, and B3's and RN1's cassettes were recorded again under it (B4's did not change); the commands above replay them. So this record's evidence that GateMem probes run through the plane now rests on that proposal. The read filter is the same either way, and so is every write event and every denial; what differs is which admitted items a read returns and in what order (B3's `ckpt_08` returns 20 of 115 candidates under the pipeline; 80 items on fake and Letta and 98 on Mem0 under the accepted read). If the lead rejects the amendment, C5 reads through the plane's accepted read again, `make fixtures` records B3, RN1 and B4 again, and this record cites those runs.
+
 Phase 1's product track is done as well: the HTTP contract, its generated client, every CLI command one client call, the MCP server and the Claude Code hook (#21), and the inspector with its explain view (#22).
 
 What the reviews found and the PRs carry as recorded limits, for the lead and the thesis:
