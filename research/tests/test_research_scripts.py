@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import shutil
 from pathlib import Path
 from typing import Any
@@ -17,17 +18,19 @@ from typing import Any
 import numpy as np
 import pytest
 
+from analysis.equivalence import tost
 from analysis.power import (
     SEED_MODELS,
     Cell,
     PowerPoint,
+    SeedModel,
     choose_rung,
+    item_states,
     joint_threshold,
     ladder,
     level_gate,
     normal_approx_items,
-    simulate_arms,
-    simulate_items,
+    power_at,
     simulated_level,
     smallest_passing,
     start_rung,
@@ -298,26 +301,55 @@ def test_the_admission_summary_counts_cases_reaching_the_read() -> None:
 # The power simulation (research/analysis/power.py), at a tiny size.
 
 
-def test_simulated_arms_have_the_rate_and_the_discordance_the_cell_states() -> None:
-    cell = Cell(rate=0.2, margin=0.05, kappa=0.5, seed_model="identical")
-    values = simulate_items(cell, 200_000, np.random.default_rng(1))
-    assert values.shape == (3, 200_000)
-    assert float(values.mean()) == pytest.approx(0.2, abs=0.003)
-    disagree = float(np.mean(values[0] != values[1]))
-    assert disagree == pytest.approx(0.5 * 2 * 0.2 * 0.8, abs=0.003)
+def test_item_states_give_each_arm_its_rate_and_the_stated_discordance() -> None:
+    states, probs = item_states([0.2, 0.2, 0.2], 0.5, "identical", 3)
+    assert probs.sum() == pytest.approx(1.0)
+    for arm in range(3):
+        assert float(probs @ states[:, arm]) == pytest.approx(0.2)
+    assert float(probs @ (states[:, 0] != states[:, 1])) == pytest.approx(0.5 * 2 * 0.2 * 0.8)
 
 
 def test_arms_on_the_margin_with_kappa_0_disagree_on_exactly_the_margin_one_way() -> None:
-    values = simulate_arms([0.1, 0.15], 0.0, "identical", 3, 200_000, np.random.default_rng(3))
-    assert float(values[1].mean() - values[0].mean()) == pytest.approx(0.05, abs=0.003)
-    assert float(np.mean(values[0] > values[1])) == 0.0
-    assert float(np.mean(values[0] != values[1])) == pytest.approx(0.05, abs=0.003)
+    states, probs = item_states([0.1, 0.15], 0.0, "identical", 3)
+    assert float(probs @ (states[:, 1] - states[:, 0] == 1)) == pytest.approx(0.05)
+    assert float(probs @ (states[:, 0] > states[:, 1])) == 0.0
 
 
-def test_independent_seeds_average_three_draws_per_item() -> None:
-    cell = Cell(rate=0.5, margin=0.05, kappa=1.0, seed_model="independent")
-    values = simulate_items(cell, 1_000, np.random.default_rng(2))
-    assert set(np.unique(values)) <= {0.0, 1 / 3, 2 / 3, 1.0}
+def test_independent_seeds_sum_three_draws_per_item() -> None:
+    states, probs = item_states([0.3, 0.3, 0.3], 1.0, "independent", 3)
+    assert states.min() == 0 and states.max() == 3
+    assert float(probs @ states[:, 0]) == pytest.approx(0.9)
+    # Arms independent at kappa 1: the count of arm 0 is binomial(3, 0.3).
+    assert float(probs @ (states[:, 0] == 3)) == pytest.approx(0.3**3)
+
+
+def brute_force_power(cell: Cell, items: int, studies: int, seed: int) -> float:
+    """Every item and draw simulated one by one: the oracle for power_at's multinomial counts."""
+    rng = np.random.default_rng(seed)
+    draws = 3 if cell.seed_model == "independent" else 1
+    passed = 0
+    for _ in range(studies):
+        shared = rng.random((items, draws))
+        split = rng.random((items, draws)) < cell.kappa
+        own = rng.random((cell.arms, items, draws))
+        means = (np.where(split[None], own, shared[None]) < cell.rate).mean(axis=2)
+        ok = True
+        for a, b in ((0, 1), (0, 2), (1, 2)):
+            d = means[a] - means[b]
+            ok = ok and tost(d, margin=cell.margin).equivalent
+        passed += ok
+    return passed / studies
+
+
+@pytest.mark.parametrize("seed_model", SEED_MODELS)
+def test_power_from_item_state_counts_agrees_with_simulating_every_item(
+    seed_model: SeedModel,
+) -> None:
+    cell = Cell(rate=0.1, margin=0.1, kappa=0.5, seed_model=seed_model)
+    fast = power_at(cell, 150, simulations=4000, seed=1).power
+    slow = brute_force_power(cell, 150, 1500, seed=2)
+    error = math.sqrt(slow * (1 - slow) / 1500 + fast * (1 - fast) / 4000)
+    assert fast == pytest.approx(slow, abs=4 * error)
 
 
 def test_the_normal_approximation_uses_the_tost_s_floored_score_variance() -> None:

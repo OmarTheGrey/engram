@@ -31,8 +31,10 @@ measures it at other kappas; `level_gate` admits a size only if the exact
 levels are at most alpha and the measured ones are at most alpha by two
 Monte Carlo standard errors.
 
-The TOST decides from the sums of d and d^2 (`equivalent_from_sums`), so whole
-batches of simulated studies are tested at once.
+The TOST decides from the sums of d and d^2 (`equivalent_from_sums`), which
+are linear in the counts of the items' states; a simulated study is one
+multinomial draw of those counts (`item_states`), the same distribution as
+drawing every item, at a cost that does not grow with the study's size.
 """
 
 from __future__ import annotations
@@ -41,19 +43,19 @@ import math
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from functools import lru_cache
-from itertools import combinations
+from itertools import combinations, pairwise, product
 from statistics import NormalDist
 from typing import Literal
 
 import numpy as np
+import numpy.typing as npt
 
 from analysis.bootstrap import ALPHA, FloatArray
 from analysis.equivalence import critical_z, equivalent_from_sums, variance_floor
 
 SeedModel = Literal["independent", "identical"]
 SEED_MODELS: tuple[SeedModel, ...] = ("identical", "independent")
-CHUNK = 4_000_000
-"""Uniform draws per batch of simulated studies."""
+IntArray = npt.NDArray[np.int64]
 
 
 @dataclass(frozen=True)
@@ -72,50 +74,47 @@ def _draws(seed_model: SeedModel, seeds: int) -> int:
     return seeds if seed_model == "independent" else 1
 
 
-def simulate_arms(
-    rates: Sequence[float],
-    kappa: float,
-    seed_model: SeedModel,
-    seeds: int,
-    items: int,
-    rng: np.random.Generator,
-) -> FloatArray:
-    """Seed-averaged outcomes, shape (arms, items), one arm per rate (see the module docstring)."""
-    batch = simulate_batch(rates, kappa, seed_model, seeds, items, 1, rng)
-    first: FloatArray = batch[0]
-    return first
+def item_states(
+    rates: Sequence[float], kappa: float, seed_model: SeedModel, seeds: int
+) -> tuple[IntArray, FloatArray]:
+    """Every arm's violation count over an item's draws, and the probability of each.
+
+    One draw: with probability 1 - kappa every arm reads one shared uniform
+    and violates when it falls below the arm's rate (so the arms' outcomes
+    are nested by rate); with probability kappa each arm reads its own. An
+    item sums `seeds` independent draws (`independent`) or one (`identical`,
+    whose draw every seed repeats). Returns the states, shape (K, arms), and
+    their probabilities, shape (K,).
+    """
+    arms = len(rates)
+    per_draw: dict[tuple[int, ...], float] = {}
+    cuts = sorted({0.0, 1.0, *(float(r) for r in rates)})
+    for low, high in pairwise(cuts):
+        pattern = tuple(int(r >= high) for r in rates)
+        per_draw[pattern] = per_draw.get(pattern, 0.0) + (1.0 - kappa) * (high - low)
+    for pattern in product((0, 1), repeat=arms):
+        chance = math.prod(r if v else 1.0 - r for r, v in zip(rates, pattern, strict=True))
+        per_draw[pattern] = per_draw.get(pattern, 0.0) + kappa * chance
+    states: dict[tuple[int, ...], float] = {(0,) * arms: 1.0}
+    for _ in range(_draws(seed_model, seeds)):
+        grown: dict[tuple[int, ...], float] = {}
+        for state, p_state in states.items():
+            for pattern, p_pattern in per_draw.items():
+                key = tuple(a + b for a, b in zip(state, pattern, strict=True))
+                grown[key] = grown.get(key, 0.0) + p_state * p_pattern
+        states = grown
+    keys = sorted(states)
+    probs = np.array([states[k] for k in keys], dtype=np.float64)
+    return np.array(keys, dtype=np.int64), probs / probs.sum()
 
 
-def simulate_items(cell: Cell, items: int, rng: np.random.Generator) -> FloatArray:
-    """The cell's arms at its common rate, shape (arms, items)."""
-    return simulate_arms(
-        [cell.rate] * cell.arms, cell.kappa, cell.seed_model, cell.seeds, items, rng
-    )
-
-
-def simulate_batch(
-    rates: Sequence[float],
-    kappa: float,
-    seed_model: SeedModel,
-    seeds: int,
-    items: int,
-    studies: int,
-    rng: np.random.Generator,
-) -> FloatArray:
-    """Seed-averaged outcomes of `studies` independent studies, shape (studies, arms, items)."""
-    draws = _draws(seed_model, seeds)
-    shared = rng.random((studies, 1, items, draws))
-    split = rng.random((studies, 1, items, draws)) < kappa
-    own = rng.random((studies, len(rates), items, draws))
-    uniform = np.where(split, own, shared)
-    outcomes = uniform < np.asarray(rates, dtype=np.float64)[None, :, None, None]
-    means: FloatArray = outcomes.mean(axis=3, dtype=np.float64)
-    return means
-
-
-def _batches(total: int, per_study: int) -> list[int]:
-    size = max(1, CHUNK // max(1, per_study))
-    return [min(size, total - start) for start in range(0, total, size)]
+def _pair_sums(
+    counts: IntArray, states: IntArray, a: int, b: int, draws: int
+) -> tuple[FloatArray, FloatArray]:
+    d = (states[:, a] - states[:, b]).astype(np.float64) / draws
+    total: FloatArray = counts @ d
+    squares: FloatArray = counts @ (d * d)
+    return total, squares
 
 
 @dataclass(frozen=True)
@@ -134,25 +133,24 @@ def power_at(
     seed: int,
     alpha: float = ALPHA,
 ) -> PowerPoint:
-    """The share of `simulations` seeded studies whose every pair passes, at `items` per arm."""
+    """The share of `simulations` seeded studies whose every pair passes, at `items` per arm.
+
+    A study is drawn as the counts of its items' states (`item_states`), one
+    multinomial: the TOST needs only each pair's sums of d and d^2, which
+    are linear in those counts, so a study costs the same at any size.
+    """
     rng = np.random.default_rng(np.random.SeedSequence([seed, items, simulations]))
-    rates = [cell.rate] * cell.arms
-    per_study = cell.arms * items * _draws(cell.seed_model, cell.seeds)
-    joint = first = 0
-    for batch in _batches(simulations, per_study):
-        means = simulate_batch(rates, cell.kappa, cell.seed_model, cell.seeds, items, batch, rng)
-        passed = []
-        for a, b in combinations(range(cell.arms), 2):
-            d = means[:, a, :] - means[:, b, :]
-            passed.append(
-                equivalent_from_sums(d.sum(axis=1), (d * d).sum(axis=1), items, cell.margin, alpha)
-            )
-        joint += int(np.logical_and.reduce(passed).sum())
-        first += int(passed[0].sum())
+    states, probs = item_states([cell.rate] * cell.arms, cell.kappa, cell.seed_model, cell.seeds)
+    counts = rng.multinomial(items, probs, size=simulations)
+    draws = _draws(cell.seed_model, cell.seeds)
+    passed = [
+        equivalent_from_sums(*_pair_sums(counts, states, a, b, draws), items, cell.margin, alpha)
+        for a, b in combinations(range(cell.arms), 2)
+    ]
     return PowerPoint(
         items=items,
-        power=joint / simulations,
-        pair_power=first / simulations,
+        power=float(np.logical_and.reduce(passed).mean()),
+        pair_power=float(passed[0].mean()),
         simulations=simulations,
     )
 
@@ -174,22 +172,20 @@ def simulated_level(
     The pair's rates are (rate, rate + margin) and the reverse, `runs` times
     each, under `kappa` and `seed_model`; the larger of the two shares.
     """
-    per_study = 2 * items * _draws(seed_model, seeds)
     worst = 0.0
+    draws = _draws(seed_model, seeds)
     for direction, rates in enumerate(((rate, rate + margin), (rate + margin, rate))):
         rng = np.random.default_rng(
             np.random.SeedSequence(
                 [seed, items, direction, round(kappa * 1_000_000), SEED_MODELS.index(seed_model)]
             )
         )
-        passed = 0
-        for batch in _batches(runs, per_study):
-            means = simulate_batch(rates, kappa, seed_model, seeds, items, batch, rng)
-            d = means[:, 0, :] - means[:, 1, :]
-            passed += int(
-                equivalent_from_sums(d.sum(axis=1), (d * d).sum(axis=1), items, margin, alpha).sum()
-            )
-        worst = max(worst, passed / runs)
+        states, probs = item_states(rates, kappa, seed_model, seeds)
+        counts = rng.multinomial(items, probs, size=runs)
+        decided = equivalent_from_sums(
+            *_pair_sums(counts, states, 0, 1, draws), items, margin, alpha
+        )
+        worst = max(worst, float(decided.mean()))
     return worst
 
 
