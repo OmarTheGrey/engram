@@ -17,6 +17,6 @@ supersedes: none
 
 **Why.** Under the pipeline the reason said "0 filtered" and lost the 95 items the limit dropped (review round 3, V-6).
 
-**Result.** The property test round-trips counts with and without `cut`; a real capped read parses to its cut, an uncapped one to none. The event schema (`schema.ts`, `schema_version`, `sdk/schema`) is unchanged, so this is not a schema change under rule 5; the inspector still parses every reason, and does not show the cut yet.
+**Result.** The property test round-trips counts with and without `cut`; a real capped read parses to its cut, an uncapped one to none. The event schema (`schema.ts`, `schema_version`, `sdk/schema`) is unchanged, so this is no schema change under rule 5; the inspector parses every reason and does not show the cut yet.
 
 **Consequence.** Audit data only, like `out_of_reach`; no surface answering a model passes it on.
