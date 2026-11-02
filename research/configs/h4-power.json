@@ -15,7 +15,7 @@
   "target_power": 0.8,
   "simulations_walk": 1000,
   "simulations_confirm": 4000,
-  "simulations_level": 4000,
+  "simulations_level": 20000,
   "ladder_start": 10,
   "ladder_stop": 81920,
   "steps_per_doubling": 4
