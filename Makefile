@@ -46,8 +46,8 @@ test-e2e: ui ## layer 6: engram doctor and a CLI smoke on SQLite and embedded Po
 ui: ## build the inspector (Vite and React) into packages/ui/dist, which engram serve serves at /
 	$(PNPM) --filter ui build
 
-test-repro: ## stub: layer 8, every research script regenerates its result
-	@echo "test-repro: not implemented yet (layer 8 lands with the first research script)"; exit 2
+test-repro: ## layer 8: rerun every row of research/results/MANIFEST.md and fail on a sha256 that differs; may fetch pinned benchmark data into .engram/upstream
+	$(UV) run python research/scripts/reproduce.py
 
 api: ## regenerate sdk/schema, sdk/openapi.json, the clients in sdk/ts and packages/ui/src/api, research/engram_types, and the provider key names from pi-ai
 	node packages/core/scripts/export-schema.ts sdk/schema

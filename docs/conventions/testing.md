@@ -15,9 +15,9 @@ Every change lands in the lowest layer that can catch its failure. A PR says whi
 | 5 harness | the pi extension inside a real pi SDK session with an in-memory session manager and a scripted model: writes are gated, reads are filtered, events are mirrored, bash bypasses are blocked | vitest | `packages/pi-extension/test/` | under 3 min |
 | 6 end to end | `engram doctor` and a CLI smoke on SQLite and on embedded Postgres, MCP server handshake from a Claude Code and a Codex fixture; no Docker (Postgres from the embedded-postgres package, card E1.1) | vitest (`make test-e2e`, its own config) | `test/e2e/` | under 10 min, on main and nightly |
 | 7 benchmark fixture | each benchmark runner on a fixed subset of about 20 items, scripted model, cached; asserts the pipeline, not the score | vitest | `packages/bench/test/` | under 5 min |
-| 8 reproducibility | every `research/scripts/<name>.py` regenerates its results file from its config and the hash matches `MANIFEST.md`; analysis on synthetic data with a known effect recovers it | pytest | `research/tests/` | under 10 min, nightly |
+| 8 reproducibility | `make test-repro`: every row of `research/results/MANIFEST.md` is rerun by its `research/scripts/<name>.py` from its config and its sha256 must match; the analysis on synthetic data with a known effect recovers it (`research/tests/test_analysis.py` and `research/tests/test_equivalence.py`, in `make test`) | Python (`research/scripts/reproduce.py`) and pytest | `research/scripts/`, `research/tests/` | about 17 min on 32 cores, by hand before a results PR merges |
 
-CI runs layers 1 to 5 and 7 on every PR, 6 and 8 on main and nightly. A PR that touches `packages/core/src/schema.ts` or `policy/` runs everything.
+CI runs layers 1 to 5 and 7 on every PR, and 6 on main and nightly. Layer 8's `make test-repro` is not run by CI (plan decision 10 of `docs/tasks/prereg-v1-plan.md`): a script may fetch pinned benchmark data, so it is run by hand before a PR that adds or changes a result merges; the reproduce logic and the analysis tests run in `make test`. A PR that touches `packages/core/src/schema.ts` or `policy/` runs everything.
 
 ## The invariants are always on
 
@@ -60,8 +60,8 @@ Golden files are updated by a command, never by hand, and the update is its own 
 ## Experiments are tests too
 
 - An experiment is a config under `research/configs/` and a script under `research/scripts/`. The script is deterministic given the config, the cache and the seed.
-- `research/tests/test_reproduce.py` runs every script on its config in replay mode (cache only, no network) and compares the output hash to `MANIFEST.md`. A result that cannot be reproduced is removed from the manifest and from the thesis.
-- `research/tests/test_analysis.py` feeds the analysis code synthetic data with a planted effect and a planted null and checks the bootstrap intervals and the Holm-corrected decisions come out right. The statistics are tested before they see real data.
+- `make test-repro` (`research/scripts/reproduce.py`) runs every row's script on its config into a temporary file and fails when its sha256, or the committed file's, differs from the row's. A script calls no model; one that needs pinned benchmark data fetches it into `.engram/upstream` at the pinned commit (data only, refused under `ENGRAM_OFFLINE=1`), so a fresh clone needs the network. `research/tests/test_research_scripts.py` tests the reproduce loop on a toy manifest in `make test`. A result that cannot be reproduced is removed from the manifest and from the thesis.
+- `research/tests/test_analysis.py` feeds the analysis code synthetic data with a planted effect and a planted null and checks the bootstrap intervals and the Holm-corrected decisions come out right; `research/tests/test_equivalence.py` does the same for H4's TOST: its decision, its p-value's scale in Holm, its monotonicity on every point of the lattice and its exact level over the composite null. The statistics are tested before they see real data.
 - The pre-registration file is checked by `research/tests/test_prereg.py`: every hypothesis names its conditions, benchmarks, metric, test and stopping rule, and every results file in the manifest maps to one hypothesis.
 
 ## Flaky tests

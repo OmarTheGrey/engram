@@ -1,0 +1,8 @@
+{
+  "name": "h1-mem-inv-admission",
+  "kind": "measurement",
+  "hypothesis": "H1",
+  "benchmark": "mem-inv-bench",
+  "fixtures": "fixtures/bench/mem-inv-bench",
+  "presets": ["medium", "permissive", "strict"]
+}

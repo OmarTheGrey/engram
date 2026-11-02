@@ -1,0 +1,21 @@
+{
+  "name": "h4-power",
+  "kind": "measurement",
+  "hypothesis": "H4",
+  "seed": 20261102,
+  "arms": 3,
+  "seeds_per_item": 3,
+  "margins": [0.02, 0.05, 0.1],
+  "rates": [0.02, 0.05, 0.1, 0.2],
+  "kappas": [1.0, 0.25],
+  "seed_models": ["independent", "identical"],
+  "families": [1, 2, 4],
+  "alphas": [0.05, 0.01],
+  "level_kappas": [0.02, 0.05, 0.1],
+  "target_power": 0.8,
+  "simulations_walk": 1000,
+  "simulations_confirm": 4000,
+  "ladder_start": 10,
+  "ladder_stop": 81920,
+  "steps_per_doubling": 4
+}
