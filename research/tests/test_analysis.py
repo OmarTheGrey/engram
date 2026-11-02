@@ -14,6 +14,7 @@ Every simulation takes its seed from the test (AGENTS.md rule 6).
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 from statistics import NormalDist
 from typing import Any
@@ -25,7 +26,9 @@ from scipy import stats  # type: ignore[import-untyped]  # scipy ships no type s
 from analysis import (
     RESAMPLES,
     bca_interval,
+    binomial_cdf,
     build_h1_table,
+    clopper_pearson_upper,
     holm,
     item_means,
     paired_bootstrap,
@@ -186,16 +189,6 @@ def test_the_p_value_is_the_share_of_resamples_at_or_below_zero_in_exact_arithme
     assert result.resamples == RESAMPLES == 10_000
 
 
-def test_tost_p_values_are_shares_at_or_beyond_each_margin_in_exact_arithmetic() -> None:
-    """The margin 1/16 is itself a resample mean of these sixteen thirds (3/48)."""
-    margin = 1 / 16
-    result = tost(THIRDS, margin=margin, seed=5)
-    sums = exact_resample_sums(THIRDS, seed=5)
-    # mean = sums / (3 * 16); at or below -1/16 is sums <= -3.
-    assert result.p_lower == float(np.mean(sums <= -3))
-    assert result.p_upper == float(np.mean(sums >= 3))
-
-
 def test_identical_differences_are_reported_as_degenerate_not_as_a_nan_interval() -> None:
     result = paired_bootstrap(np.zeros(40), seed=1)
     assert result.method == "degenerate"
@@ -348,7 +341,8 @@ def test_tost_finds_equivalence_when_the_difference_is_well_inside_the_margin() 
     diffs = planted_differences(31, items=800, rate_a=0.10, rate_b=0.10)
     result = tost(diffs, margin=0.05, seed=32)
     assert result.equivalent
-    assert result.p == max(result.p_lower, result.p_upper) < 0.05
+    assert result.p == max(result.p_lower, result.p_upper) < 0.025
+    assert (result.route_lower, result.route_upper) == ("bootstrap", "bootstrap")
 
 
 def test_tost_refuses_equivalence_when_the_difference_exceeds_the_margin() -> None:
@@ -358,10 +352,114 @@ def test_tost_refuses_equivalence_when_the_difference_exceeds_the_margin() -> No
     assert result.p_upper > 0.5
 
 
-def test_tost_marks_a_sample_with_no_discordant_item_as_degenerate() -> None:
-    result = tost(np.zeros(12), margin=0.02, seed=1)
-    assert result.degenerate
-    assert result.equivalent
+@pytest.mark.parametrize("margin", [0.02, 0.05, 0.10])
+def test_a_pair_with_no_discordant_item_passes_only_once_the_exact_bound_is_inside_the_margin(
+    margin: float,
+) -> None:
+    """No item differs: the exact 97.5 percent bound 1 - 0.025^(1/n) must sit below the margin."""
+    floor = math.ceil(math.log(0.025) / math.log(1 - margin))
+    short = tost(np.zeros(floor - 1), margin=margin, seed=1)
+    enough = tost(np.zeros(floor), margin=margin, seed=1)
+    assert short.degenerate and not short.equivalent
+    assert enough.degenerate and enough.equivalent
+    assert (enough.route_lower, enough.route_upper) == ("exact", "exact")
+    assert (
+        clopper_pearson_upper(0, floor, 0.025)
+        < margin
+        <= clopper_pearson_upper(0, floor - 1, 0.025)
+    )
+
+
+def test_a_side_with_few_discordant_items_takes_the_exact_binomial_p_value() -> None:
+    d = np.zeros(300)
+    d[:3] = -1.0
+    d[3:5] = 1 / 3
+    result = tost(d, margin=0.05, seed=2)
+    assert (result.below, result.above) == (3, 2)
+    assert result.route_lower == "exact" and result.route_upper == "exact"
+    assert result.p_lower == pytest.approx(binomial_cdf(3, 300, 0.05))
+    assert result.p_upper == pytest.approx(binomial_cdf(2, 300, 0.05))
+
+
+def test_the_tost_bootstrap_route_reports_shares_at_or_beyond_each_margin() -> None:
+    """With the exact route switched off, the p-values are the bootstrap shares."""
+    margin = 1 / 16
+    result = tost(THIRDS, margin=margin, seed=5, min_discordant=0)
+    sums = exact_resample_sums(THIRDS, seed=5)
+    assert result.p_lower == float(np.mean(sums <= -3))
+    assert result.p_upper == float(np.mean(sums >= 3))
+
+
+@pytest.mark.parametrize(
+    ("k", "n", "upper"),
+    [(0, 10, 1 - 0.025 ** (1 / 10)), (1, 10, 0.4450), (5, 20, 0.4910), (10, 10, 1.0)],
+)
+def test_clopper_pearson_upper_bounds_match_published_values(k: int, n: int, upper: float) -> None:
+    """Upper ends of the exact 95 percent intervals for 1 of 10 and 5 of 20 (Clopper-Pearson)."""
+    assert clopper_pearson_upper(k, n, 0.025) == pytest.approx(upper, abs=5e-5)
+
+
+def test_the_binomial_cdf_matches_a_direct_sum() -> None:
+    direct = sum(math.comb(40, j) * 0.1**j * 0.9 ** (40 - j) for j in range(5))
+    assert binomial_cdf(4, 40, 0.1) == pytest.approx(direct, rel=1e-12)
+
+
+def margin_pair(
+    rng: np.random.Generator,
+    rate_a: float,
+    rate_b: float,
+    kappa: float,
+    identical: bool,
+    items: int,
+) -> np.ndarray:
+    """Item-level differences of two arms with rates a and b, coupled through shared uniforms."""
+    draws = 1 if identical else 3
+    shared = rng.random((items, draws))
+    split = rng.random((items, draws)) < kappa
+    a = np.where(split, rng.random((items, draws)), shared) < rate_a
+    b = np.where(split, rng.random((items, draws)), shared) < rate_b
+    out: np.ndarray = a.mean(axis=1) - b.mean(axis=1)
+    return out
+
+
+SIZE_RUNS = 1_000
+# Monte Carlo error: two standard errors of a 0.05 rate over SIZE_RUNS runs.
+SIZE_TOLERANCE = 0.05 + 2 * math.sqrt(0.05 * 0.95 / SIZE_RUNS)
+
+
+@pytest.mark.parametrize(
+    ("rate", "margin", "kappa", "identical", "items"),
+    [
+        # The review's cases: 0 against 0.10 at 14 items; 0.02 against 0.07 at 24 and 48;
+        # identical seeds at 10 items.
+        (0.00, 0.10, 0.0, False, 14),
+        (0.02, 0.05, 0.25, False, 24),
+        (0.02, 0.05, 0.25, False, 48),
+        (0.02, 0.10, 0.25, True, 10),
+        # Sparse discordance, the hardest case for a bootstrap: one arm violates
+        # wherever the other does, and on a margin's share more.
+        (0.02, 0.10, 0.0, True, 60),
+        (0.02, 0.05, 0.0, True, 150),
+        (0.00, 0.05, 0.0, False, 150),
+        (0.10, 0.10, 1.0, False, 60),
+        # Dense enough for the bootstrap route, where a per-side level of 0.05 overshoots.
+        (0.10, 0.05, 0.0, False, 120),
+        (0.00, 0.05, 0.0, False, 240),
+    ],
+)
+def test_tost_holds_its_level_with_the_true_difference_on_the_margin(
+    rate: float, margin: float, kappa: float, identical: bool, items: int
+) -> None:
+    """Equivalence is declared in at most 5 percent of runs, plus Monte Carlo error, either way."""
+    rng = np.random.default_rng(20261102)
+    for low, high in ((rate, rate + margin), (rate + margin, rate)):
+        passed = sum(
+            tost(
+                margin_pair(rng, low, high, kappa, identical, items), margin=margin, seed=run
+            ).equivalent
+            for run in range(SIZE_RUNS)
+        )
+        assert passed / SIZE_RUNS <= SIZE_TOLERANCE, (low, high, passed)
 
 
 # The H1 table (research/analysis/h1.py) from a results file.

@@ -18,9 +18,12 @@ import pytest
 
 from analysis.power import (
     Cell,
+    joint_threshold,
     ladder,
     normal_approx_items,
+    simulate_arms,
     simulate_items,
+    size_at_margin,
     smallest_passing,
     start_rung,
 )
@@ -273,6 +276,13 @@ def test_simulated_arms_have_the_rate_and_the_discordance_the_cell_states() -> N
     assert disagree == pytest.approx(0.5 * 2 * 0.2 * 0.8, abs=0.003)
 
 
+def test_arms_on_the_margin_with_kappa_0_disagree_on_exactly_the_margin_one_way() -> None:
+    values = simulate_arms([0.1, 0.15], 0.0, "identical", 3, 200_000, np.random.default_rng(3))
+    assert float(values[1].mean() - values[0].mean()) == pytest.approx(0.05, abs=0.003)
+    assert float(np.mean(values[0] > values[1])) == 0.0
+    assert float(np.mean(values[0] != values[1])) == pytest.approx(0.05, abs=0.003)
+
+
 def test_independent_seeds_average_three_draws_per_item() -> None:
     cell = Cell(rate=0.5, margin=0.05, kappa=1.0, seed_model="independent")
     values = simulate_items(cell, 1_000, np.random.default_rng(2))
@@ -280,13 +290,22 @@ def test_independent_seeds_average_three_draws_per_item() -> None:
 
 
 def test_the_normal_approximation_scales_with_discordance_over_margin_squared() -> None:
+    """Each side at alpha / 2: z(0.975) + z(0.9) for one pair at 80 percent power."""
     base = Cell(rate=0.1, margin=0.05, kappa=1.0, seed_model="identical")
     n = normal_approx_items(base)
-    assert n == pytest.approx(0.18 * (1.6448536 + 1.2815516) ** 2 / 0.0025, rel=1e-6)
+    assert n == pytest.approx(0.18 * (1.9599640 + 1.2815516) ** 2 / 0.0025, rel=1e-6)
     half = Cell(rate=0.1, margin=0.05, kappa=0.5, seed_model="identical")
     assert normal_approx_items(half) == pytest.approx(n / 2)
     three = Cell(rate=0.1, margin=0.05, kappa=1.0, seed_model="independent")
     assert normal_approx_items(three) == pytest.approx(n / 3)
+    assert normal_approx_items(base, joint=True) > n
+
+
+def test_the_joint_threshold_exceeds_one_pair_and_rises_with_the_target() -> None:
+    """All three pairs inside need a wider standardised band than one pair (1.28 at 0.8)."""
+    one, two = joint_threshold(0.8), joint_threshold(0.8**0.5)
+    assert 1.2816 < one < two
+    assert joint_threshold(0.8) == one  # seeded
 
 
 def test_the_ladder_and_its_walk() -> None:
@@ -301,53 +320,61 @@ def test_the_ladder_and_its_walk() -> None:
     assert smallest_passing(rungs, 0, lambda n: 0.0, 0.8) is None
 
 
-def test_a_power_cell_reports_both_sizes_and_what_it_evaluated() -> None:
-    config = {
-        "seed": 7,
-        "target_power": 0.8,
-        "alpha": 0.05,
-        "simulations": 20,
-        "resamples": 500,
-        "ladder_start": 10,
-        "ladder_stop": 5_000,
-        "steps_per_doubling": 1,
-    }
+TINY = {
+    "name": "h4-tiny",
+    "seed": 7,
+    "arms": 3,
+    "seeds_per_item": 3,
+    "margins": [0.1],
+    "rates": [0.2],
+    "kappas": [1.0],
+    "seed_models": ["independent", "identical"],
+    "families": [1, 4],
+    "target_power": 0.8,
+    "alpha": 0.05,
+    "simulations_walk": 20,
+    "simulations_confirm": 40,
+    "simulations_size": 40,
+    "resamples": 300,
+    "ladder_start": 10,
+    "ladder_stop": 5_000,
+    "steps_per_doubling": 2,
+}
+
+
+def test_a_power_cell_reports_a_confirmed_size_and_its_level_per_family_target() -> None:
     cell = Cell(rate=0.2, margin=0.1, kappa=1.0, seed_model="independent")
-    result = h4_power.cell_result(cell, config, 0)
-    assert result["as_written"]["items"] >= 10
-    assert result["nondegenerate"]["items"] >= result["as_written"]["items"]
-    assert result["as_written"]["power"] >= 0.8
+    result = h4_power.cell_result(cell, TINY, 0)
+    one, four = result["targets"]["1"], result["targets"]["4"]
+    assert four["target_power"] == pytest.approx(0.8**0.25)
+    assert one["items"] <= four["items"]
+    for t in (one, four):
+        assert t["power"] >= t["target_power"]
+        assert max(t["size_at_margin"], t["size_at_margin_kappa_0"]) <= result["size_tolerance"]
+        below = t["power_one_rung_below"]
+        assert below is None or below < t["target_power"]
+    assert result["size_tolerance"] == pytest.approx(0.05 + 2 * (0.05 * 0.95 / 40) ** 0.5)
     assert [p["items"] for p in result["evaluated"]] == sorted(
         p["items"] for p in result["evaluated"]
     )
-    assert h4_power.cell_result(cell, config, 0) == result
+    assert h4_power.cell_result(cell, TINY, 0) == result
 
 
 def test_the_power_grid_spread_over_processes_equals_the_cells_computed_one_by_one() -> None:
-    config = {
-        "name": "h4-tiny",
-        "seed": 9,
-        "arms": 3,
-        "seeds_per_item": 3,
-        "margins": [0.1],
-        "rates": [0.1, 0.2],
-        "kappas": [1.0],
-        "seed_models": ["independent", "identical"],
-        "target_power": 0.8,
-        "alpha": 0.05,
-        "simulations": 10,
-        "resamples": 300,
-        "ladder_start": 10,
-        "ladder_stop": 2_000,
-        "steps_per_doubling": 1,
-    }
-    grid = h4_power.compute(config)["cells"]
+    grid = h4_power.compute(TINY)["cells"]
     cells = [
-        Cell(rate=rate, margin=0.1, kappa=1.0, seed_model=model)
-        for rate in (0.1, 0.2)
+        Cell(rate=0.2, margin=0.1, kappa=1.0, seed_model=model)
         for model in ("independent", "identical")
     ]
-    assert grid == [h4_power.cell_result(c, config, i) for i, c in enumerate(cells)]
+    assert grid == [h4_power.cell_result(c, TINY, i) for i, c in enumerate(cells)]
+
+
+def test_a_reported_size_holds_the_level_on_an_independent_rerun() -> None:
+    """The level at a cell's reported size, rerun with seeds the script did not use."""
+    cell = Cell(rate=0.02, margin=0.1, kappa=0.25, seed_model="identical")
+    items = h4_power.cell_result(cell, {**TINY, "resamples": 2000}, 3)["targets"]["1"]["items"]
+    size = size_at_margin(cell, items, simulations=600, seed=987, kappa=0.0)
+    assert size <= 0.05 + 2 * (0.05 * 0.95 / 600) ** 0.5
 
 
 # The H1 table script (research/scripts/h1_table.py), on planted sessions.
