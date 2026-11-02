@@ -24,12 +24,23 @@ import { type ModelCall, UnsupportedRequestError } from "@engram/core";
 import type { LiveModels } from "./answers.ts";
 import type { RunnerConfig } from "./config.ts";
 import { type CacheStore, type CallContext, cached, type UsageRecord } from "./model/cached.ts";
+import { JUDGE_RETRY, realSleep, type Sleep, withRetry } from "./model/retry.ts";
 
 /** The one API a live judge runs on: it carries the seed and `response_format` through `samplingParams`. */
 export const SEEDED_JUDGE_API = "openai-completions";
 
-/** A live judge on pi-ai: seeded chat completions, with upstream's JSON schema as `response_format`. */
-export function liveJudgeCall(models: LiveModels): ModelCall {
+/**
+ * A live judge on pi-ai: seeded chat completions, with upstream's JSON schema
+ * as `response_format`. A transient failure is retried as GateMem's router
+ * retries it (JUDGE_RETRY: three attempts, 429, 5xx and network errors, waits
+ * of min(2^i, 10) seconds); a call that still fails, or fails otherwise,
+ * throws, and the port's judgeOne records the failed attempt and goes on to
+ * its next one, as upstream's scoring does with the router's error (PR #25
+ * review round 3, V-4). Nothing failed is cached. The reply is not stripped
+ * here: the port's parser strips it as upstream's provider does, and a test
+ * holds a padded verdict to the stripped one's row.
+ */
+export function liveJudgeCall(models: LiveModels, options: { sleep?: Sleep } = {}): ModelCall {
   return async (request) => {
     const [provider = "", ...rest] = request.model.split("/");
     const model = models.getModel(provider, rest.join("/"));
@@ -42,33 +53,40 @@ export function liveJudgeCall(models: LiveModels): ModelCall {
         `API ${model.api} takes no seed`,
       );
     }
-    const reply = await models.completeSimple(
-      model,
-      {
-        messages: request.messages.map((m) => ({
-          role: "user" as const,
-          content: m.content,
-          timestamp: 0,
-        })),
-      },
-      {
-        ...(request.temperature === undefined ? {} : { temperature: request.temperature }),
-        ...(request.maxTokens === undefined ? {} : { maxTokens: request.maxTokens }),
-        samplingParams: {
-          seed: request.seed,
-          ...(schema === undefined
-            ? {}
-            : {
-                response_format: {
-                  type: "json_schema",
-                  json_schema: { name: schema.name, strict: true, schema: schema.schema },
-                },
-              }),
-        },
-      },
+    const { reply, attempts } = await withRetry(
+      () =>
+        models.completeSimple(
+          model,
+          {
+            messages: request.messages.map((m) => ({
+              role: "user" as const,
+              content: m.content,
+              timestamp: 0,
+            })),
+          },
+          {
+            ...(request.temperature === undefined ? {} : { temperature: request.temperature }),
+            ...(request.maxTokens === undefined ? {} : { maxTokens: request.maxTokens }),
+            samplingParams: {
+              seed: request.seed,
+              ...(schema === undefined
+                ? {}
+                : {
+                    response_format: {
+                      type: "json_schema",
+                      json_schema: { name: schema.name, strict: true, schema: schema.schema },
+                    },
+                  }),
+            },
+          },
+        ),
+      JUDGE_RETRY,
+      options.sleep ?? realSleep,
     );
     if (reply.stopReason === "error" || reply.stopReason === "aborted") {
-      throw new Error(`judge call failed: ${reply.errorMessage ?? reply.stopReason}`);
+      throw new Error(
+        `judge call failed after ${attempts} ${attempts === 1 ? "attempt" : "attempts"}: ${reply.errorMessage ?? reply.stopReason}`,
+      );
     }
     return {
       text: reply.content.flatMap((c) => (c.type === "text" ? [c.text] : [])).join(""),

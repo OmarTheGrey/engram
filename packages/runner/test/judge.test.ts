@@ -15,8 +15,14 @@ import { type CacheEntry, type CacheStore, memoryCache } from "../src/model/cach
 import { runConfig } from "../src/run.ts";
 import { H1_GATEMEM, X1_GATEMEM } from "./paths.ts";
 
-/** A model collection that records each completion it is asked for and answers with `text`. */
-function recordingModels(api: string, text: string) {
+/** One reply of a live model: its text, or a failure with pi-ai's error message. */
+type LiveReply = { text: string } | { error: string };
+
+/**
+ * A model collection that records each completion it is asked for and
+ * answers with `replies` in order (the last one again once they run out).
+ */
+function scriptedModels(api: string, replies: LiveReply[]) {
   const asked: { context: Context; options: Record<string, unknown> }[] = [];
   const model = { id: "openai/gpt-4o", provider: "openrouter", api } as unknown as Model<Api>;
   const models: LiveModels = {
@@ -24,9 +30,10 @@ function recordingModels(api: string, text: string) {
       provider === "openrouter" && id === "openai/gpt-4o" ? model : undefined,
     async completeSimple(_model, context, options) {
       asked.push({ context, options: { ...(options as Record<string, unknown>) } });
+      const reply = replies[Math.min(asked.length, replies.length) - 1] as LiveReply;
       return {
         role: "assistant",
-        content: [{ type: "text", text }],
+        content: [{ type: "text", text: "text" in reply ? reply.text : "" }],
         api,
         provider: "openai",
         model: "gpt-4o",
@@ -38,13 +45,19 @@ function recordingModels(api: string, text: string) {
           totalTokens: 5,
           cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0.001 },
         },
-        stopReason: "stop",
+        stopReason: "text" in reply ? "stop" : "error",
+        ...("error" in reply ? { errorMessage: reply.error } : {}),
         timestamp: 0,
       } as AssistantMessage;
     },
   };
   return { models, asked };
 }
+
+/** A model collection that records each completion it is asked for and answers with `text`. */
+const recordingModels = (api: string, text: string) => scriptedModels(api, [{ text }]);
+
+const SETTINGS = { model: "openrouter/openai/gpt-4o", seed: 7, temperature: 0, maxTokens: 4096 };
 
 const VERDICT =
   '{"action_ok": true, "utility_ok": null, "privacy_leak": false, "deletion_leak": null, "notes": "ok"}';
@@ -153,6 +166,77 @@ describe("the answer judge (J1)", () => {
     expect(row.judge.action_ok).toBe(false);
     expect(row.judge.privacy_leak).toBe(false);
     expect(row.judge).not.toHaveProperty("gated_by_action");
+  });
+
+  test("a transient failure is retried as GateMem's router retries it: two failures, then the verdict, after waits of 1 and 2 seconds (V-4)", async () => {
+    const { models, asked } = scriptedModels("openai-completions", [
+      { error: "429 Rate limit exceeded" },
+      { error: '503: {"error":"busy"}' },
+      { text: VERDICT },
+    ]);
+    const slept: number[] = [];
+    const call = liveJudgeCall(models, {
+      sleep: async (ms) => {
+        slept.push(ms);
+      },
+    });
+    const reply = await call(gatemem.judgeRequest("judge this", 1, SETTINGS));
+    expect(reply.text).toBe(VERDICT);
+    expect(asked).toHaveLength(3);
+    // Every attempt is the same seeded request.
+    expect(asked[2]?.options).toEqual(asked[0]?.options);
+    expect(slept).toEqual([1000, 2000]);
+  });
+
+  test("the judge gives up after three transient failures, and at once on any other failure (V-4)", async () => {
+    const busy = scriptedModels("openai-completions", [{ error: "502 Bad Gateway" }]);
+    const slept: number[] = [];
+    const sleep = async (ms: number) => {
+      slept.push(ms);
+    };
+    await expect(
+      liveJudgeCall(busy.models, { sleep })(gatemem.judgeRequest("judge this", 1, SETTINGS)),
+    ).rejects.toThrow(/judge call failed after 3 attempts: 502 Bad Gateway/);
+    expect(busy.asked).toHaveLength(3);
+    expect(slept).toEqual([1000, 2000]);
+    const refused = scriptedModels("openai-completions", [{ error: "401 Unauthorized" }]);
+    await expect(
+      liveJudgeCall(refused.models, { sleep })(gatemem.judgeRequest("judge this", 1, SETTINGS)),
+    ).rejects.toThrow(/after 1 attempt: 401/);
+    expect(refused.asked).toHaveLength(1);
+  });
+
+  test("a verdict with surrounding whitespace is judged as the stripped one, as upstream's provider strips it (V-4)", async () => {
+    const config = readRunnerConfig(X1_GATEMEM);
+    const domain = gatemem
+      .loadDataset(config.data)
+      .find((d) =>
+        d.checkpoints.some((c) => c.checkpoint_id === config.items[0]),
+      ) as gatemem.Domain;
+    const checkpoint = domain.checkpoints.find(
+      (c) => c.checkpoint_id === config.items[0],
+    ) as gatemem.Checkpoint;
+    const judgeWith = (text: string) =>
+      judgeAnswer({
+        judge: { model: "openrouter/openai/gpt-4o", temperature: 0, max_tokens: 4096 },
+        checkpoint,
+        output: { action: "answer_redacted", answer: "x", answer_structured: {} },
+        seed: 1,
+        context: {
+          item: `gatemem/${checkpoint.checkpoint_id}`,
+          condition: "C2",
+          preset: "none",
+          store: "fake",
+        },
+        cache: memoryCache(),
+        live: recordingModels("openai-completions", text).models,
+        offline: false,
+      });
+    const plain = await judgeWith(VERDICT);
+    expect(plain.judge.parse_ok).toBe(true);
+    for (const padded of [`\n  ${VERDICT}  \n`, `\n\n\`\`\`json\n${VERDICT}\n\`\`\`\n  `]) {
+      expect(await judgeWith(padded)).toEqual(plain);
+    }
   });
 
   test("each session's answer is judged, every judge call cached under the session's item, condition, preset and store; a re-run makes none", async () => {

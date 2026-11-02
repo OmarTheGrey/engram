@@ -33,6 +33,11 @@ export function memInvLines(
   return [
     `${config.name}: ${result.rows.length} sessions (${items} cases x ${config.conditions.join(", ")} x stores ${configStores(config).join(", ")} x seeds ${config.seeds.join(", ")}), model ${config.model}, preset ${config.preset}`,
     `model calls: ${result.calls.new} new, ${result.calls.cached} from cassettes${how}`,
+    ...(result.notes.written > 0
+      ? [
+          `agent notes: ${result.notes.written} written by the model under test, ${result.notes.fell_back} fell back to the raw input`,
+        ]
+      : []),
     ...result.rows.flatMap((r) => [
       `  ${r.condition} ${r.store} seed ${r.seed} ${r.case_id}: verdict ${r.outcome.verdict} (bucket ${r.outcome.bucket}), attack success ${r.outcome.attack_success}, ${r.stored} stored, ${r.decisions.length} session plane decisions`,
       ...r.writes.map(

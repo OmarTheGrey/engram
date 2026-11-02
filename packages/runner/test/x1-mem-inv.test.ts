@@ -18,6 +18,7 @@ import {
 import { memInvBench } from "@engram/bench";
 import { loadPreset } from "@engram/core";
 import { afterAll, describe, expect, test } from "vitest";
+import { memInvLines } from "../scripts/run-mem-inv.ts";
 import { answersFor } from "../src/answers.ts";
 import type { Condition } from "../src/config.ts";
 import { liveConfig, liveOptions, replayConfig, replayOptions } from "../src/live.ts";
@@ -26,6 +27,7 @@ import {
   MEM_INV_METADATA_LEGEND,
   type MemInvProbeSpec,
   NOTE_SAMPLING,
+  type NoteOutcome,
   noteContext,
   notePrompt,
   parseMemInvConfig,
@@ -280,47 +282,133 @@ describe("the agent's own note is written by the model under test (PR #25 review
     expect(cache.entries).toEqual([]);
   });
 
-  /** A live model that answers the note call once with `text`, ending with `stopReason`. */
-  async function noteFrom(text: string, stopReason: "length" | "stop" | "error") {
+  type Reply = {
+    text: string;
+    stopReason: "length" | "stop" | "error" | "aborted";
+    errorMessage?: string;
+  };
+  /** A live model answering the note calls with `replies` in order; the waits and warnings it caused. */
+  async function notesFrom(...replies: Reply[]) {
     const faux = fauxProvider({
       api: "openai-completions",
       provider: "faux-live",
       models: [{ id: "model-1" }],
     });
-    faux.setResponses([
-      () =>
-        fauxAssistantMessage(fauxText(text), {
-          stopReason,
-          ...(stopReason === "error" ? { errorMessage: "HTTP 502" } : {}),
-        }),
-    ]);
+    faux.setResponses(
+      replies.map(
+        (r) => () =>
+          fauxAssistantMessage(fauxText(r.text), {
+            stopReason: r.stopReason,
+            ...(r.errorMessage === undefined ? {} : { errorMessage: r.errorMessage }),
+          }),
+      ),
+    );
     const models = createModels();
     models.setProvider(faux.provider);
     const cache = recordingCache();
+    const slept: number[] = [];
+    const warnings: string[] = [];
+    const notes: NoteOutcome[] = [];
     const written = await withNotes(summarized, {
       config: { ...config, model: FAUX_MODEL, script: undefined },
       cache,
       live: models,
       offline: false,
+      sleep: async (ms) => {
+        slept.push(ms);
+      },
+      warn: (w) => warnings.push(w),
+      onNote: (n) => notes.push(n),
     });
     return {
       note: written.memory.find((e) => e.entry_id === agentEntry.entry_id)?.text,
       cache,
+      slept,
+      warnings,
+      notes,
     };
   }
+  /** The note from one reply. */
+  const noteFrom = (text: string, stopReason: Reply["stopReason"], errorMessage?: string) =>
+    notesFrom({ text, stopReason, ...(errorMessage === undefined ? {} : { errorMessage }) });
 
   test.each([
-    ["cut off at the token limit", "Partial note", "length"],
-    ["empty", "", "stop"],
-    ["whitespace only", " \n\t ", "stop"],
-    ["from a failed call", "", "error"],
+    ["cut off at the token limit", "Partial note", "length", undefined],
+    ["empty", "", "stop", undefined],
+    ["whitespace only", " \n\t ", "stop", undefined],
+    ["from a call that failed for good", "", "error", '400: {"error":"bad request"}'],
   ] as const)(
-    "a reply %s falls back to the raw input, as upstream does (R7)",
-    async (_name, text, stopReason) => {
-      const { note } = await noteFrom(text, stopReason);
+    "a reply %s falls back to the raw input, as upstream does (R7), and the run counts it",
+    async (_name, text, stopReason, errorMessage) => {
+      const { note, notes } = await noteFrom(text, stopReason, errorMessage);
       expect(note).toBe(agentEntry.summarized_from);
+      expect(notes).toEqual([
+        {
+          case_id: "mib-14",
+          entry_id: agentEntry.entry_id,
+          fell_back: true,
+          stop_reason: stopReason,
+        },
+      ]);
     },
   );
+
+  test("a note call that fails twice with transient errors and then answers writes the answer, after waits of 1 and 2 seconds (V-4)", async () => {
+    const { note, cache, slept, warnings, notes } = await notesFrom(
+      { text: "", stopReason: "error", errorMessage: "429 Rate limit exceeded" },
+      { text: "", stopReason: "error", errorMessage: '502: {"error":"bad gateway"}' },
+      { text: "Pay Acme at 7742-119083.", stopReason: "stop" },
+    );
+    expect(note).toBe("Pay Acme at 7742-119083.");
+    expect(slept).toEqual([1000, 2000]);
+    expect(warnings).toEqual([]);
+    expect(notes[0]?.fell_back).toBe(false);
+    // Only the answer is recorded.
+    expect(cache.entries).toHaveLength(1);
+    expect(JSON.parse(cache.entries[0]?.response.text ?? "{}")).toEqual({
+      stopReason: "stop",
+      text: "Pay Acme at 7742-119083.",
+    });
+  });
+
+  test("a note call that keeps failing gives up after four attempts with a warning, as upstream's driver does, and falls back (V-4)", async () => {
+    const busy = {
+      text: "",
+      stopReason: "error",
+      errorMessage: "503 Service Unavailable",
+    } as const;
+    const { note, cache, slept, warnings } = await notesFrom(busy, busy, busy, busy, busy);
+    expect(note).toBe(agentEntry.summarized_from);
+    expect(slept).toEqual([1000, 2000, 4000]);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toMatch(/note call failed \(faux-live\/model-1\) after 4 attempts: 503/);
+    expect(JSON.parse(cache.entries[0]?.response.text ?? "{}")).toEqual({
+      stopReason: "error",
+      text: "",
+    });
+  });
+
+  test("an aborted note call is never recorded: the run stops (V-4)", async () => {
+    await expect(noteFrom("", "aborted")).rejects.toThrow(/aborted/);
+    const cache = recordingCache();
+    const faux = fauxProvider({
+      api: "openai-completions",
+      provider: "faux-live",
+      models: [{ id: "model-1" }],
+    });
+    faux.setResponses([() => fauxAssistantMessage(fauxText(""), { stopReason: "aborted" })]);
+    const models = createModels();
+    models.setProvider(faux.provider);
+    await expect(
+      withNotes(summarized, {
+        config: { ...config, model: FAUX_MODEL, script: undefined },
+        cache,
+        live: models,
+        offline: false,
+      }),
+    ).rejects.toThrow(/aborted/);
+    expect(cache.entries).toEqual([]);
+  });
 
   test("a reply is stripped of surrounding whitespace, as upstream's driver strips it (R7)", async () => {
     const { note } = await noteFrom("\n  Pay Acme at 7742-119083.  \n", "stop");
@@ -328,7 +416,7 @@ describe("the agent's own note is written by the model under test (PR #25 review
   });
 
   test("a failed note call is recorded, so a replay writes the same memory without asking again (R7)", async () => {
-    const { cache } = await noteFrom("", "error");
+    const { cache } = await noteFrom("", "error", "401 Unauthorized");
     expect(cache.entries).toHaveLength(1);
     expect(JSON.parse(cache.entries[0]?.response.text ?? "{}")).toEqual({
       stopReason: "error",
@@ -351,5 +439,10 @@ describe("the agent's own note is written by the model under test (PR #25 review
     );
     // 4 conditions x 2 stores x 2 seeds sessions of two calls each, and one note.
     expect(result.calls).toEqual({ new: 4 * 2 * 2 * 2 + 1, cached: 0 });
+    // The run's summary counts the notes and the ones that fell back (V-4).
+    expect(result.notes).toEqual({ written: 1, fell_back: 0 });
+    expect(memInvLines(config, result, "out")).toContain(
+      "agent notes: 1 written by the model under test, 0 fell back to the raw input",
+    );
   }, 120_000);
 });

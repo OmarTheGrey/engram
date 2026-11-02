@@ -55,6 +55,7 @@ import {
   type UsageRecord,
 } from "./model/cached.ts";
 import { type AnswerSource, cassettePiModel } from "./model/cassette.ts";
+import { NOTE_RETRY, realSleep, type Sleep, withRetry } from "./model/retry.ts";
 import { closeStore, openStore, type StoreName } from "./stores.ts";
 
 /**
@@ -383,6 +384,8 @@ export interface MemInvRunnerResult {
     string,
     { sessions: number; attack_success: number; verdicts: Record<string, number> }
   >;
+  /** The agent notes written before the sessions, and how many fell back to the raw input (V-4). */
+  notes: { written: number; fell_back: number };
   calls: { new: number; cached: number };
   usage: UsageRecord[];
 }
@@ -426,6 +429,13 @@ export const noteContext = (caseId: string): CallContext => ({
  * config's first seed (upstream writes one note per scenario and model, for
  * every trial), cached and keyed like every other call (ADR 0017); a
  * scripted model answers from the script's `<case>@note` steps.
+ *
+ * A live call that fails for a transient reason is retried as upstream's
+ * driver.call retries it (NOTE_RETRY: four attempts, 429, 5xx and network
+ * errors, waits of min(2^i, 20) seconds), and only the final reply is
+ * recorded; when every attempt fails, a warning names the error, as
+ * upstream's does, and the failure is recorded and falls back. An aborted
+ * call is never recorded: the run stops (PR #25 review round 3, V-4).
  */
 export async function withNotes(
   c: memInvBench.Case,
@@ -435,6 +445,12 @@ export async function withNotes(
     live?: LiveModels | undefined;
     offline?: boolean | undefined;
     onUsage?: ((usage: UsageRecord) => void) | undefined;
+    /** How the retry waits; a real wait unless a test injects one. */
+    sleep?: Sleep | undefined;
+    /** Where the warning goes when a note call fails for good; stderr unless given. */
+    warn?: ((warning: string) => void) | undefined;
+    /** Told of each note written, and whether it fell back to the raw input. */
+    onNote?: ((note: NoteOutcome) => void) | undefined;
   },
 ): Promise<memInvBench.Case> {
   if (!c.memory.some((e) => e.summarized_from !== undefined)) return c;
@@ -450,13 +466,26 @@ export async function withNotes(
     const prompt = notePrompt(input);
     const answers = noteAnswersFor(config, c.case_id, options.live)();
     const inner: ModelCall = async () => {
-      const reply = await answers(
-        { messages: [{ role: "user", content: prompt, timestamp: 0 }] },
-        { seed, stream: { ...NOTE_SAMPLING } },
+      const { reply, attempts } = await withRetry(
+        () =>
+          answers(
+            { messages: [{ role: "user", content: prompt, timestamp: 0 }] },
+            { seed, stream: { ...NOTE_SAMPLING } },
+          ),
+        NOTE_RETRY,
+        options.sleep ?? realSleep,
       );
-      // A failed call is upstream's `ok: False` with an empty text: recorded,
-      // and the note falls back to the raw input.
-      const failed = reply.stopReason === "error" || reply.stopReason === "aborted";
+      if (reply.stopReason === "aborted") {
+        throw new Error(`the note call for ${c.case_id} was aborted; nothing was recorded`);
+      }
+      // A call that failed for good is upstream's `ok: False` with an empty
+      // text: warned about, recorded, and the note falls back to the raw input.
+      const failed = reply.stopReason === "error";
+      if (failed) {
+        (options.warn ?? ((w: string) => process.stderr.write(`${w}\n`)))(
+          `[warn] note call failed (${config.model}) after ${attempts} attempts: ${reply.errorMessage ?? "error"}`,
+        );
+      }
       return {
         text: canonicalJson({
           stopReason: reply.stopReason,
@@ -485,8 +514,23 @@ export async function withNotes(
     const { stopReason, text } = JSON.parse(response.text) as { stopReason: string; text: string };
     const usable = text.trim() !== "" && !["length", "error", "aborted"].includes(stopReason);
     memory.push({ ...entry, text: usable ? text.trim() : input });
+    options.onNote?.({
+      case_id: c.case_id,
+      entry_id: entry.entry_id,
+      fell_back: !usable,
+      stop_reason: stopReason,
+    });
   }
   return { ...c, memory };
+}
+
+/** One agent note written by withNotes. */
+export interface NoteOutcome {
+  case_id: string;
+  entry_id: string;
+  /** The note is the raw input: the reply was empty, cut off or failed. */
+  fell_back: boolean;
+  stop_reason: string;
 }
 
 export async function runMemInvConfig(
@@ -498,6 +542,7 @@ export async function runMemInvConfig(
   const cache = options.cache ?? fileCache(config.cassettes);
   const usage: UsageRecord[] = [];
   const rows: MemInvProbeResult[] = [];
+  const notes: NoteOutcome[] = [];
   const stores = configStores(config);
   const items = configItems(
     config,
@@ -512,6 +557,7 @@ export async function runMemInvConfig(
       live: options.live,
       offline: options.offline,
       onUsage: (u) => usage.push(u),
+      onNote: (n) => notes.push(n),
     });
     for (const store of stores) {
       for (const condition of config.conditions) {
@@ -553,6 +599,7 @@ export async function runMemInvConfig(
     config: config.name,
     rows,
     summary,
+    notes: { written: notes.length, fell_back: notes.filter((n) => n.fell_back).length },
     calls: { new: usage.filter((u) => !u.hit).length, cached: usage.filter((u) => u.hit).length },
     usage,
   };
@@ -568,7 +615,10 @@ export function writeMemInvResult(result: MemInvRunnerResult, out: string): void
     join(out, "results.jsonl"),
     result.rows.map((r) => `${JSON.stringify(r)}\n`).join(""),
   );
-  const { config, summary, calls, usage } = result;
-  writeFileSync(join(out, "summary.json"), `${JSON.stringify({ config, summary }, null, 2)}\n`);
+  const { config, summary, notes, calls, usage } = result;
+  writeFileSync(
+    join(out, "summary.json"),
+    `${JSON.stringify({ config, summary, notes }, null, 2)}\n`,
+  );
   writeFileSync(join(out, "usage.json"), `${JSON.stringify({ config, calls, usage }, null, 2)}\n`);
 }
