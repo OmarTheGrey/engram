@@ -4,7 +4,6 @@ Work the lead has deliberately set aside. Nothing here blocks a card unless the 
 
 | item | backlogged | what is left | where it stands |
 |---|---|---|---|
-| Pre-registration v1 | 2026-10-22 by the lead | confirm H1 to H5 (reconstructed, since the proposal was not in the repository), the proposed thresholds, three models from three providers and H4's sample size; then tag `prereg-v1` and deposit it externally (ADR 0023) | v0.2 (2026-10-25) in `docs/research/preregistration.md`, tag `prereg-v0`; card R1 |
 | MPBench | 2026-10-22 by the lead; the request leaves the backlog by plan decision 6 (2026-10-29) | the lead sends the request in `docs/research/mpbench-request.md` if still wanted and records the date in `packages/bench/PINS.md`; the poisoning arm was chosen on 2026-10-29: MEM-INV-Bench (ADR 0029, Gate A exception (b)) | no release (S0.6); MEM-INV-Bench released, checked and recorded as a candidate in `packages/bench/PINS.md`, not pinned (2026-10-29); cards B2 and BF1 |
 
 ## Follow-ups from the Gate A plan (2026-10-29)
@@ -25,7 +24,7 @@ Found by the reviews of PRs #10 to #15 and left open on purpose; none blocks Gat
 
 The GateMem live run (card B1) waits on the pre-registration; its judge is ported and `make bench BENCH=gatemem DRY=1` counts its calls (Gate A exception (a)).
 
-Until the pre-registration leaves the backlog, no experiment runs: AGENTS.md forbids a benchmark, method or test that it does not register, and roadmap Gate C depends on it.
+The pre-registration left the backlog on 2026-11-02 (`docs/log/2026-11-02-r1-leaves-the-backlog.md`, plan `docs/tasks/prereg-v1-plan.md`). No experiment runs before `prereg-v1` is tagged: AGENTS.md forbids a benchmark, method or test that it does not register, and roadmap Gate C depends on it.
 
 ## Follow-ups from the Gate B plan, PR 5 review (2026-10-29)
 
@@ -33,7 +32,7 @@ Found by the review of card B3 (GateMem through the plane, ADR 0030); none block
 
 | item | what is left | where it is recorded |
 |---|---|---|
-| GateMem deletion mechanism | under ADR 0030's mapping C5 enforces no deletion, so GateMem's active-forgetting checkpoints, half of H1's primary violation set, test nothing the plane does; choose a mechanism (model-driven ingestion with a retire tool, or a deletion lint over turns) or state F as out of scope for C5. Needs the lead's decision before the pre-registration leaves the backlog | ADR 0030 consequences; `docs/log/2026-10-29-b3-forgetting-not-enforced.md` |
+| GateMem deletion mechanism | under ADR 0030's mapping C5 enforces no deletion, so GateMem's active-forgetting checkpoints, half of H1's primary violation set, test nothing the plane does; choose a mechanism (model-driven ingestion with a retire tool, or a deletion lint over turns) or state F as out of scope for C5. Needs the lead's decision before `prereg-v1` is tagged; the v1 plan's PR 2 measures the reachable-leak share and its PR 4 puts a recommendation in the decision sheet | ADR 0030 consequences; `docs/log/2026-10-29-b3-forgetting-not-enforced.md` |
 | GateMem reachable-leak share | a `research/scripts/` measurement, from a `research/configs/` config, of the share of access and forgetting checkpoints whose leak targets sit in turns the asker can reach under ADR 0030's mapping: an upper bound on what C5 can prevent. Not written yet | ADR 0030 consequences (review R5-2) |
 | `@engram/bench` and `@engram/runner` import each other | bench's judge imports the runner's model code and the runner imports bench; a top-level use of one in the other breaks at load. Move the shared model types and the cached model call into a package both import, or into core where they are types | `docs/log/2026-10-29-b3-failure-bench-runner-import-cycle.md` |
 
