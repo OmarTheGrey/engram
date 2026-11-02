@@ -300,7 +300,7 @@ describe("the floor: C2 finds memory for a checkpoint's own question (R1, V-5)",
       w.close();
     }
     const n = cases.length;
-    // Reported in docs/log/2026-11-02-x1r2-retrieval-floor.md and its round-3 successor.
+    // Reported in docs/log/2026-11-02-x1r2-retrieval-floor.md and x1r3-floor-recall.md.
     expect({ n, found, located }).toEqual({
       n: 20,
       found: expect.any(Number),
