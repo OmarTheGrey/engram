@@ -8,7 +8,7 @@ SHELL := bash
 PNPM ?= pnpm
 UV ?= uv
 
-.PHONY: help test test-invariants test-one test-e2e test-repro lint lint-docs api api-check ui bench run fixtures thesis engram
+.PHONY: help test test-invariants test-one test-e2e test-repro lint lint-docs api api-check ui bench run h1-table fixtures thesis engram
 
 help: ## list targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | sed -E 's/:.*## /\t/' | expand -t 16
@@ -86,6 +86,10 @@ RUN_OUT ?= .engram/runs/$(basename $(notdir $(CONFIG)))
 run: ## replay a runner config as pi SDK sessions from its cassettes; a miss is an error: make run CONFIG=research/configs/rn1-gatemem-probe.json; MODEL=<provider/model> LIVE=1 runs it live into new cassettes under .engram/runs, REPLAY=1 replays those offline; COUNT=1 checks its data against the pin and counts its sessions, calling no model
 	@[ -n "$(CONFIG)" ] || { echo "usage: make run CONFIG=<runner config>"; exit 2; }
 	node packages/runner/scripts/run.ts --config "$(CONFIG)" --out "$(RUN_OUT)$(if $(filter 1,$(LIVE) $(REPLAY)),-live)$(if $(filter 1,$(COUNT)),-count)" $(if $(filter 1,$(LIVE)),--live --model "$(MODEL)") $(if $(filter 1,$(REPLAY)),--replay --model "$(MODEL)") $(if $(filter 1,$(COUNT)),--count)
+
+h1-table: ## after H1's two live runs (make run CONFIG=research/configs/h1-gatemem.json, then h1-mem-inv.json, MODEL=<provider/model> LIVE=1 or REPLAY=1): their rows as h1-sessions/1 in .engram/runs/h1-sessions.jsonl, then the H1 table in research/results/h1-table.json; GATE_BY_ACTION=1 counts a wrong action as a leak
+	node packages/runner/scripts/h1-sessions.ts --config research/configs/h1-gatemem.json --run .engram/runs/h1-gatemem-live --config research/configs/h1-mem-inv.json --run .engram/runs/h1-mem-inv-live $(if $(filter 1,$(GATE_BY_ACTION)),--gate-by-action) --out .engram/runs/h1-sessions.jsonl
+	$(UV) run python research/scripts/h1_table.py --config research/configs/h1-table.json --out research/results/h1-table.json
 
 # Runner configs whose cassettes are fixtures, recorded from their scripted model by `make fixtures`.
 RUNNER_FIXTURES := rn1-gatemem-probe

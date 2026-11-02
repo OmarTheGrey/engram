@@ -1,0 +1,9 @@
+{
+  "name": "h1-table",
+  "kind": "measurement",
+  "hypothesis": "H1",
+  "sessions": ".engram/runs/h1-sessions.jsonl",
+  "primary_model": "prereg/M1",
+  "store": "fake",
+  "seed": 20261103
+}
