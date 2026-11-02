@@ -12,7 +12,7 @@ evidence:
 supersedes: none
 ---
 
-**What.** Commit `dc0e139` holds a log entry of 153 words, over the 150-word limit, so `make lint-docs` fails on it.
+**What.** The commit that added the H1 pipeline's log entries holds one of 153 words, over the 150-word limit, so `make lint-docs` fails on it.
 
 **Why.** The lint and the commit ran as `make lint-docs | tail -4 && git commit`: the pipe returned `tail`'s exit status, so the commit went ahead after the lint had failed. The same kind of failure as PR #25's commit `2b075e4` (its own failure entry in this PR).
 

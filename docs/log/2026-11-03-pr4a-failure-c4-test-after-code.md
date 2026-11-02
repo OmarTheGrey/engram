@@ -16,6 +16,6 @@ supersedes: none
 
 **Why.** The module wrapped two existing development scripts and was written in one pass from them; the testing convention asks for the failing test first.
 
-**Result.** The gap was closed after the fact by mutation: with the work committed (`cc14a86`), swapping the C3-only and C4-only leak counts failed "a denied leak item one list shows and the other does not is counted on the right side", and inverting the plane's verdict failed "the verdicts counted are the ones C4 shows under each source"; each file was restored by copy. The Python aggregation tests were written first and failed on the missing scripts.
+**Result.** The gap was closed after the fact by mutation: with the work committed first, swapping the C3-only and C4-only leak counts failed "a denied leak item one list shows and the other does not is counted on the right side", and inverting the plane's verdict failed "the verdicts counted are the ones C4 shows under each source"; each file was restored by copy. The Python aggregation tests were written first and failed on the missing scripts.
 
 **Consequence.** The later deliverables of this PR write the test first.
