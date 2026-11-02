@@ -92,6 +92,7 @@ export async function runConfig(
           ...(options.offline === undefined ? {} : { offline: options.offline }),
           onUsage: (u: UsageRecord) => usage.push(u),
           ...(config.c4_verdicts === undefined ? {} : { c4Verdicts: config.c4_verdicts }),
+          ...(config.read_limit === undefined ? {} : { readLimit: config.read_limit }),
         };
         const row = await runProbe(spec);
         // GateMem's judge scores the answer as its own scoring does (J1).

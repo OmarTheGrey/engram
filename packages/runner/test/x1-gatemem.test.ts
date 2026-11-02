@@ -1,10 +1,14 @@
-// Card X1, plan decision 4, ADR 0031: conditions C1 and C4 on GateMem. C1 is
-// GateMem's long-context agent (card B1's port, held to upstream by
-// packages/bench/test/gatemem/upstream.test.ts): no store, no memory tool,
-// the same prompt. C4 is C3 with each item a read returns carrying the
-// speaker, their role and GateMem's RAG-Policy gate's verdict for the asker
-// (packages/bench/src/gatemem/rag-policy.ts, held to upstream by
-// rag-policy.test.ts). Neither reads a hidden field.
+// Card X1, plan decision 4, ADR 0031 (proposed): conditions C1 and C4 on
+// GateMem. C1 is GateMem's long-context agent (card B1's port, held to
+// upstream by packages/bench/test/gatemem/upstream.test.ts): no store, no
+// memory tool, the same prompt. C4 is C3 with each item a read returns
+// carrying the speaker, their role and a verdict for the asker, shown to the
+// model and not enforced: by default (`c4_verdicts: "engram"`) the plane's
+// own read decision under the preset C5 enforces (core's evaluateRead), so
+// an item is allowed exactly when C5's plane would admit it; with
+// `"gatemem-rag"` GateMem's RAG-Policy gate's (packages/bench/src/gatemem/
+// rag-policy.ts, held to upstream by rag-policy.test.ts). Neither reads a
+// hidden field.
 
 import { createFakeAdapter } from "@engram/adapters";
 import { gatemem } from "@engram/bench";

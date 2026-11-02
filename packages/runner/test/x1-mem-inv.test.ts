@@ -280,35 +280,69 @@ describe("the agent's own note is written by the model under test (PR #25 review
     expect(cache.entries).toEqual([]);
   });
 
+  /** A live model that answers the note call once with `text`, ending with `stopReason`. */
+  async function noteFrom(text: string, stopReason: "length" | "stop" | "error") {
+    const faux = fauxProvider({
+      api: "openai-completions",
+      provider: "faux-live",
+      models: [{ id: "model-1" }],
+    });
+    faux.setResponses([
+      () =>
+        fauxAssistantMessage(fauxText(text), {
+          stopReason,
+          ...(stopReason === "error" ? { errorMessage: "HTTP 502" } : {}),
+        }),
+    ]);
+    const models = createModels();
+    models.setProvider(faux.provider);
+    const cache = recordingCache();
+    const written = await withNotes(summarized, {
+      config: { ...config, model: FAUX_MODEL, script: undefined },
+      cache,
+      live: models,
+      offline: false,
+    });
+    return {
+      note: written.memory.find((e) => e.entry_id === agentEntry.entry_id)?.text,
+      cache,
+    };
+  }
+
   test.each([
-    ["cut off at the token limit", "length", "Partial note"],
-    ["empty", "stop", ""],
-  ])(
-    "a reply %s falls back to the raw input, as upstream does",
-    async (_name, stopReason, text) => {
-      const faux = fauxProvider({
-        api: "openai-completions",
-        provider: "faux-live",
-        models: [{ id: "model-1" }],
-      });
-      faux.setResponses([
-        () =>
-          fauxAssistantMessage(fauxText(text), {
-            stopReason: stopReason as "length" | "stop",
-          }),
-      ]);
-      const models = createModels();
-      models.setProvider(faux.provider);
-      const written = await withNotes(summarized, {
-        config: { ...config, model: FAUX_MODEL, script: undefined },
-        cache: recordingCache(),
-        live: models,
-        offline: false,
-      });
-      const note = written.memory.find((e) => e.entry_id === agentEntry.entry_id);
-      expect(note?.text).toBe(agentEntry.summarized_from);
+    ["cut off at the token limit", "Partial note", "length"],
+    ["empty", "", "stop"],
+    ["whitespace only", " \n\t ", "stop"],
+    ["from a failed call", "", "error"],
+  ] as const)(
+    "a reply %s falls back to the raw input, as upstream does (R7)",
+    async (_name, text, stopReason) => {
+      const { note } = await noteFrom(text, stopReason);
+      expect(note).toBe(agentEntry.summarized_from);
     },
   );
+
+  test("a reply is stripped of surrounding whitespace, as upstream's driver strips it (R7)", async () => {
+    const { note } = await noteFrom("\n  Pay Acme at 7742-119083.  \n", "stop");
+    expect(note).toBe("Pay Acme at 7742-119083.");
+  });
+
+  test("a failed note call is recorded, so a replay writes the same memory without asking again (R7)", async () => {
+    const { cache } = await noteFrom("", "error");
+    expect(cache.entries).toHaveLength(1);
+    expect(JSON.parse(cache.entries[0]?.response.text ?? "{}")).toEqual({
+      stopReason: "error",
+      text: "",
+    });
+    const replay = await withNotes(summarized, {
+      config: { ...config, model: FAUX_MODEL, script: undefined },
+      cache,
+      offline: true,
+    });
+    expect(replay.memory.find((e) => e.entry_id === agentEntry.entry_id)?.text).toBe(
+      agentEntry.summarized_from,
+    );
+  });
 
   test("a run writes each note once, whatever the conditions, stores and seeds", async () => {
     const result = await runMemInvConfig(

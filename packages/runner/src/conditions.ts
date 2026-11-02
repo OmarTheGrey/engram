@@ -37,11 +37,13 @@ import {
 import {
   type Actor,
   type Adapter,
+  createPlane,
   type Db,
   type MemoryItem,
+  type Plane,
   type Policy,
   type PresetName,
-  rankForRead,
+  retrieve,
 } from "@engram/core";
 import {
   createEngramExtension,
@@ -85,11 +87,12 @@ const contentText = (item: MemoryItem) =>
  * the adapter directly, the one place outside an adapter's own tests that
  * does (AGENTS.md rule 2 governs the product paths; C2 to C4 are the measured
  * absence of them). There is no policy logic here: every write lands where it
- * asks and every read returns every match (rule 1). A read is rendered in the
- * memory tag's shape (tagUngovernedRead), the shape C5's reads reach the
- * model in, without the read id and the admitting rules C5's carry (ADR
- * 0015); under C4 each item also carries its metadata (ADR 0031), which
- * describes the item and decides nothing.
+ * asks and every read returns the core retrieval pipeline's top matches
+ * (rule 1). A read is rendered in the memory tag's shape (tagUngovernedRead),
+ * the shape C5's reads reach the model in, without the read id and the
+ * admitting rules C5's carry (ADR 0015); under C4 each item also carries its
+ * metadata (ADR 0031): facts about the item and a verdict shown to the
+ * model, not enforced.
  */
 export function ungovernedMemoryTools(options: {
   store: UngovernedStore;
@@ -98,8 +101,11 @@ export function ungovernedMemoryTools(options: {
   now: () => string;
   /** C4's per-item metadata; absent under C2 and C3. */
   attributes?: ItemAttributes;
+  /** The read limit every condition shares (READ_LIMIT unless given). */
+  readLimit?: number;
 }): ExtensionFactory {
   const { store, actor, newId, now, attributes } = options;
+  const readLimit = options.readLimit ?? READ_LIMIT;
   return (pi) => {
     pi.registerTool({
       ...MEMORY_WRITE,
@@ -140,7 +146,7 @@ export function ungovernedMemoryTools(options: {
     pi.registerTool({
       ...MEMORY_READ,
       async execute(_toolCallId, params) {
-        const items = await ungovernedRead(store, params.query, now());
+        const items = await ungovernedRead(store, params.query, now(), readLimit);
         const text = tagUngovernedRead(
           items.map((i) => {
             const meta = attributes?.(i);
@@ -159,38 +165,48 @@ export function ungovernedMemoryTools(options: {
 }
 
 /**
- * What an ungoverned read (C2, C3, C4) returns, in order: the store's matches
- * for `query` in every scope it holds, ordered by core's `rankForRead`, the
- * order the plane gives what it admits under C5. One retrieval rule (the
- * store's own search, which the plane also uses in the reader's scopes and
- * matches by the same every-term rule for granted items) and one ordering
- * rule for every condition, so C5's items are a subset of C2's, in the same
- * relative order, on a lexical store (PR #25 review, P3-1 and P3-11).
+ * How many items a read returns in every condition: GateMem's RAG-Policy
+ * baseline retrieves the top 20 at the pin (configs/runs/paper_main.yaml,
+ * top_k: 20; run_eval.py's default), so a read of 20 short turns costs about
+ * what the benchmark's own retrieval puts in a prompt (PR #25 review round 2,
+ * R1).
+ */
+export const READ_LIMIT = 20;
+
+/**
+ * What an ungoverned read (C2, C3, C4) returns, in order: the core retrieval
+ * pipeline (core's `retrieve`: candidates holding any query term, each item
+ * scored on its own, the top `limit`) over every item the store lists in the
+ * scopes it holds. C5's plane runs the same pipeline over what its filter
+ * admits (a plane built with `retrieval: { pipeline: "core" }`), so the
+ * conditions differ only by that filter: one retrieval pipeline for every
+ * condition and every store (PR #25 review round 2, R1). The store's own
+ * search is not used: a semantic one (Mem0) would make the conditions differ
+ * by retrieval, and the plane may not search outside the reader's scopes
+ * (ADR 0009, N1).
  */
 export async function ungovernedRead(
   store: UngovernedStore,
   query: string,
   at: string,
+  limit: number = READ_LIMIT,
 ): Promise<MemoryItem[]> {
-  const items = await search(store.adapter, query, [...store.scopes].sort());
-  return rankForRead(items, query, at).map((r) => r.item);
+  const scopes = [...store.scopes].sort();
+  const listed = (await Promise.all(scopes.map((s) => store.adapter.list(s)))).flat();
+  return retrieve(listed, query, at, limit).map((r) => r.item);
 }
 
 /**
- * The store's matches for `query`. A query with no terms asks for every item,
- * as the plane's read does (it matches nothing and ranks all it may return):
- * every item of every scope, listed, since a store's search may return
- * nothing for an empty query (Mem0's does). Otherwise the store's search, or,
- * without one, every listed item containing every query term.
+ * The plane C5's extension reads through: the same Plane, its read replaced
+ * by one from a plane over the same log and store built with the core
+ * pipeline and the shared limit, so C5 is C2 plus the read filter.
  */
-async function search(adapter: Adapter, query: string, scopes: string[]): Promise<MemoryItem[]> {
-  const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
-  const listAll = async () => (await Promise.all(scopes.map((s) => adapter.list(s)))).flat();
-  if (terms.length === 0) return listAll();
-  if (adapter.search) return adapter.search(query, scopes);
-  return (await listAll()).filter((i) =>
-    terms.every((t) => contentText(i).toLowerCase().includes(t)),
-  );
+export function coreReadPlane(
+  deps: { db: Db; adapter: Adapter; policy: Policy; newId: () => string },
+  limit: number,
+): (plane: Plane) => Plane {
+  const core = createPlane({ ...deps, retrieval: { pipeline: "core", limit } });
+  return (plane) => ({ ...plane, read: (actor, query) => core.read(actor, query) });
 }
 
 /** `value` with object keys sorted at every depth; arrays keep their order, which is meaningful. */
@@ -255,6 +271,8 @@ export interface ConditionSessionSpec {
   now: () => string;
   /** C4's metadata and its legend; required by C4, ignored by every other condition. */
   metadata?: ReadMetadata;
+  /** How many items a read returns, in every condition (READ_LIMIT unless given). */
+  readLimit?: number;
 }
 
 export interface ConditionSession {
@@ -303,6 +321,10 @@ function extensionsFor(spec: ConditionSessionSpec): ExtensionFactory[] {
         newId,
         now,
         recall: false,
+        wrapPlane: coreReadPlane(
+          { db: spec.db, adapter: store.adapter, policy: spec.policy, newId },
+          spec.readLimit ?? READ_LIMIT,
+        ),
       }),
     ];
   }
@@ -315,6 +337,7 @@ function extensionsFor(spec: ConditionSessionSpec): ExtensionFactory[] {
       actor,
       newId,
       now,
+      readLimit: spec.readLimit ?? READ_LIMIT,
       ...(m.metadata ? { attributes: (spec.metadata as ReadMetadata).attributes } : {}),
     }),
   ];

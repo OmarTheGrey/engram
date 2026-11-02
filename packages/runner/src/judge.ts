@@ -7,33 +7,40 @@
 // probe's item, condition, preset and store, the judge model, the row's seed
 // and the prompt hash. Tests and fixtures use a scripted judge.
 //
-// The live judge is the paper's (`openai/gpt-4o`) through pi-ai. Upstream
-// asks OpenAI's Responses API for structured output with
-// `text.format = {type: json_schema, name, strict: true, schema}`; pi-ai's
-// OpenAI Responses adapter merges `samplingParams` into the request body as
-// it is, so the same payload goes out. A structured attempt on any other API
-// is refused (UnsupportedRequestError), which stops the judge as the port
-// does rather than change the protocol. The judge runs at temperature 0 and
-// sends no seed (upstream sends none, and the Responses API takes none); the
-// row's seed only keys its cache entry.
+// The live judge is the paper's model, OpenAI's GPT-4o, reached through
+// OpenRouter's chat completions (`openrouter/openai/gpt-4o`), the
+// OpenAI-compatible API that carries a seed, so every judge call is seeded as
+// ADR 0017 (finding R7-7) requires of any live call (PR #25 review round 2,
+// R4); upstream reaches it through OpenAI's Responses API, which takes no
+// seed. The structured attempts send upstream's JSON schema as chat
+// completions' `response_format` ({type: json_schema, json_schema: {name,
+// strict: true, schema}}); pi-ai's chat-completions adapter merges
+// `samplingParams` into the request body as it is, the seed with it. A judge
+// on any other API is refused before it is called (UnsupportedRequestError),
+// which stops the judge as the port does rather than send an unseeded call or
+// drop the schema.
 import { gatemem } from "@engram/bench";
 import { type ModelCall, UnsupportedRequestError } from "@engram/core";
 import type { LiveModels } from "./answers.ts";
 import type { RunnerConfig } from "./config.ts";
 import { type CacheStore, type CallContext, cached, type UsageRecord } from "./model/cached.ts";
 
-/** The API whose request body carries upstream's structured-output payload through `samplingParams`. */
-export const STRUCTURED_JUDGE_API = "openai-responses";
+/** The one API a live judge runs on: it carries the seed and `response_format` through `samplingParams`. */
+export const SEEDED_JUDGE_API = "openai-completions";
 
-/** A live judge on pi-ai: upstream's structured-output payload on the OpenAI Responses API. */
+/** A live judge on pi-ai: seeded chat completions, with upstream's JSON schema as `response_format`. */
 export function liveJudgeCall(models: LiveModels): ModelCall {
   return async (request) => {
     const [provider = "", ...rest] = request.model.split("/");
     const model = models.getModel(provider, rest.join("/"));
     if (!model) throw new Error(`no live judge model ${request.model}`);
     const schema = request.responseSchema;
-    if (schema !== undefined && model.api !== STRUCTURED_JUDGE_API) {
-      throw new UnsupportedRequestError(request.model, "structured output", schema.name);
+    if (model.api !== SEEDED_JUDGE_API) {
+      throw new UnsupportedRequestError(
+        request.model,
+        "a seeded call (ADR 0017, finding R7-7)",
+        `API ${model.api} takes no seed`,
+      );
     }
     const reply = await models.completeSimple(
       model,
@@ -47,20 +54,17 @@ export function liveJudgeCall(models: LiveModels): ModelCall {
       {
         ...(request.temperature === undefined ? {} : { temperature: request.temperature }),
         ...(request.maxTokens === undefined ? {} : { maxTokens: request.maxTokens }),
-        ...(schema === undefined
-          ? {}
-          : {
-              samplingParams: {
-                text: {
-                  format: {
-                    type: "json_schema",
-                    name: schema.name,
-                    strict: true,
-                    schema: schema.schema,
-                  },
+        samplingParams: {
+          seed: request.seed,
+          ...(schema === undefined
+            ? {}
+            : {
+                response_format: {
+                  type: "json_schema",
+                  json_schema: { name: schema.name, strict: true, schema: schema.schema },
                 },
-              },
-            }),
+              }),
+        },
       },
     );
     if (reply.stopReason === "error" || reply.stopReason === "aborted") {

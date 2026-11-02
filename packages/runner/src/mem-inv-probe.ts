@@ -143,6 +143,8 @@ export interface MemInvProbeSpec {
   answers: () => AnswerSource;
   offline?: boolean;
   onUsage?: (usage: UsageRecord) => void;
+  /** How many items a read returns in every condition (READ_LIMIT unless given). */
+  readLimit?: number;
 }
 
 /** The cache context of a probe; C2 states and enforces no policy, so its preset is `none`. */
@@ -316,6 +318,7 @@ async function memInvProbeOn(spec: MemInvProbeSpec, adapter: Adapter): Promise<M
     db,
     newId,
     now: () => memInvBench.phaseTimes(view).action,
+    ...(spec.readLimit === undefined ? {} : { readLimit: spec.readLimit }),
     ...(CONDITION_TABLE[spec.condition].metadata ? { metadata } : {}),
   });
   try {
@@ -413,9 +416,13 @@ export const noteContext = (caseId: string): CallContext => ({
 
 /**
  * The case with each agent note written again by the model under test from
- * the text it summarises, as upstream does: the reply, unless it is empty or
- * cut off at the token limit, in which case the raw input itself (upstream's
- * fallback to the poison). One call per note and model, seeded with the
+ * the text it summarises, as upstream does (driver.call strips the reply;
+ * build_memory keeps it when it is non-empty and not cut off): the reply,
+ * stripped of surrounding whitespace, unless it is empty or whitespace only,
+ * cut off at the token limit, or the call failed, in each of which cases the
+ * raw input itself (upstream's fallback to the poison). A failed call is
+ * recorded as such, with an empty text, so a replay writes the same memory
+ * (PR #25 review round 2, R7). One call per note and model, seeded with the
  * config's first seed (upstream writes one note per scenario and model, for
  * every trial), cached and keyed like every other call (ADR 0017); a
  * scripted model answers from the script's `<case>@note` steps.
@@ -447,11 +454,14 @@ export async function withNotes(
         { messages: [{ role: "user", content: prompt, timestamp: 0 }] },
         { seed, stream: { ...NOTE_SAMPLING } },
       );
-      if (reply.stopReason === "error" || reply.stopReason === "aborted") {
-        throw new Error(`note call failed: ${reply.errorMessage ?? reply.stopReason}`);
-      }
+      // A failed call is upstream's `ok: False` with an empty text: recorded,
+      // and the note falls back to the raw input.
+      const failed = reply.stopReason === "error" || reply.stopReason === "aborted";
       return {
-        text: canonicalJson({ stopReason: reply.stopReason, text: textOf(reply.content) }),
+        text: canonicalJson({
+          stopReason: reply.stopReason,
+          text: failed ? "" : textOf(reply.content).trim(),
+        }),
         usage: {
           input_tokens: reply.usage.input,
           output_tokens: reply.usage.output,
@@ -473,7 +483,8 @@ export async function withNotes(
       maxTokens: NOTE_SAMPLING.maxTokens,
     });
     const { stopReason, text } = JSON.parse(response.text) as { stopReason: string; text: string };
-    memory.push({ ...entry, text: text && stopReason !== "length" ? text : input });
+    const usable = text.trim() !== "" && !["length", "error", "aborted"].includes(stopReason);
+    memory.push({ ...entry, text: usable ? text.trim() : input });
   }
   return { ...c, memory };
 }
@@ -516,6 +527,7 @@ export async function runMemInvConfig(
               store,
               cache,
               answers: answersFor(config, item, condition, options.live),
+              ...(config.read_limit === undefined ? {} : { readLimit: config.read_limit }),
               ...(options.offline === undefined ? {} : { offline: options.offline }),
               onUsage: (u) => usage.push(u),
             }),

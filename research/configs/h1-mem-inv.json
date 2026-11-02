@@ -9,5 +9,6 @@
   "seeds": [1, 2, 3],
   "preset": "medium",
   "store": "fake",
-  "cassettes": "../../.engram/runs/h1-mem-inv/cassettes"
+  "cassettes": "../../.engram/runs/h1-mem-inv/cassettes",
+  "read_limit": 20
 }

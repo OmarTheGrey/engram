@@ -120,6 +120,12 @@ export const RunnerConfig = z.strictObject({
    */
   c4_verdicts: z.enum(C4_VERDICT_SOURCES).optional(),
   /**
+   * How many items a read returns, in every condition (the core retrieval
+   * pipeline's limit; conditions.ts READ_LIMIT, 20, when unset): GateMem's
+   * RAG-Policy baseline retrieves the top 20 at the pin.
+   */
+  read_limit: z.number().int().positive().optional(),
+  /**
    * The answer judge, as GateMem scores its access, forgetting and utility
    * checkpoints (card B1's port, packages/bench gatemem/judge.ts): a model,
    * its temperature and output limit, and for a scripted judge its replies
@@ -185,9 +191,14 @@ export function resolvePaths<C extends AnyRunnerConfig>(config: C, base: string)
   };
 }
 
-/** The paper's judge (GateMem's score_predictions.py defaults): what an experiment uses when it names none. */
+/**
+ * The paper's judge model and settings (GateMem's score_predictions.py
+ * defaults: GPT-4o, temperature 0, 4096 tokens), reached through OpenRouter's
+ * seeded chat completions (judge.ts; PR #25 review round 2, R4): what an
+ * experiment uses when it names none.
+ */
 export const PAPER_JUDGE_CONFIG = {
-  model: "openai/gpt-4o",
+  model: "openrouter/openai/gpt-4o",
   temperature: 0,
   max_tokens: 4096,
 } as const;

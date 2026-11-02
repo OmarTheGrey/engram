@@ -142,6 +142,8 @@ export interface ProbeSpec {
   onUsage?: (usage: UsageRecord) => void;
   /** Where C4's verdict comes from (ADR 0031); `engram` when unset. */
   c4Verdicts?: C4VerdictSource;
+  /** How many items a read returns in every condition (READ_LIMIT unless given). */
+  readLimit?: number;
 }
 
 /** Where the memory comes from in this prompt: the tools, in every condition but C1. */
@@ -429,6 +431,7 @@ async function probeOn(spec: ProbeSpec, adapter: Adapter | undefined): Promise<P
     db,
     newId,
     now: () => at,
+    ...(spec.readLimit === undefined ? {} : { readLimit: spec.readLimit }),
     ...(mechanism.metadata
       ? { metadata: gatememMetadata(mapped, spec.c4Verdicts ?? "engram", spec.policy) }
       : {}),

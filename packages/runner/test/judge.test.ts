@@ -2,7 +2,7 @@
 // scoring runs it (card B1's port): upstream's prompt and attempts, every
 // call cached and keyed like an answer call, the summary promoted as
 // score_predictions.py --use_llm_judge promotes it. A scripted judge stands
-// in for the paper's `openai/gpt-4o`; the live judge's request is checked
+// in for the paper's GPT-4o (through OpenRouter); the live judge's request is checked
 // on a fake model collection that records what it is asked to send.
 import type { Api, AssistantMessage, Context, Model } from "@earendil-works/pi-ai";
 import { gatemem } from "@engram/bench";
@@ -10,7 +10,7 @@ import { UnsupportedRequestError } from "@engram/core";
 import { describe, expect, test } from "vitest";
 import type { LiveModels } from "../src/answers.ts";
 import { configJudge, PAPER_JUDGE_CONFIG, readRunnerConfig } from "../src/config.ts";
-import { liveJudgeCall } from "../src/judge.ts";
+import { judgeAnswer, liveJudgeCall } from "../src/judge.ts";
 import { type CacheEntry, type CacheStore, memoryCache } from "../src/model/cached.ts";
 import { runConfig } from "../src/run.ts";
 import { H1_GATEMEM, X1_GATEMEM } from "./paths.ts";
@@ -18,9 +18,10 @@ import { H1_GATEMEM, X1_GATEMEM } from "./paths.ts";
 /** A model collection that records each completion it is asked for and answers with `text`. */
 function recordingModels(api: string, text: string) {
   const asked: { context: Context; options: Record<string, unknown> }[] = [];
-  const model = { id: "gpt-4o", provider: "openai", api } as unknown as Model<Api>;
+  const model = { id: "openai/gpt-4o", provider: "openrouter", api } as unknown as Model<Api>;
   const models: LiveModels = {
-    getModel: (provider, id) => (provider === "openai" && id === "gpt-4o" ? model : undefined),
+    getModel: (provider, id) =>
+      provider === "openrouter" && id === "openai/gpt-4o" ? model : undefined,
     async completeSimple(_model, context, options) {
       asked.push({ context, options: { ...(options as Record<string, unknown>) } });
       return {
@@ -60,9 +61,9 @@ function recordingCache(): CacheStore & { entries: CacheEntry[] } {
 }
 
 describe("the answer judge (J1)", () => {
-  test("an experiment config without a judge gets the paper's; H1's names it; a pipeline config may name none", () => {
+  test("an experiment config without a judge gets the paper's, through OpenRouter's seeded API; H1's names it; a pipeline config may name none", () => {
     expect(PAPER_JUDGE_CONFIG).toEqual({
-      model: "openai/gpt-4o",
+      model: "openrouter/openai/gpt-4o",
       temperature: 0,
       max_tokens: 4096,
     });
@@ -71,16 +72,16 @@ describe("the answer judge (J1)", () => {
     expect(configJudge(readRunnerConfig(H1_GATEMEM))).toEqual(PAPER_JUDGE_CONFIG);
   });
 
-  test("the live judge sends upstream's structured-output payload on the Responses API, at temperature 0, with no seed", async () => {
-    const { models, asked } = recordingModels("openai-responses", VERDICT);
+  test("the live judge sends a seeded chat-completions call, upstream's schema as response_format, at temperature 0 (R4)", async () => {
+    const { models, asked } = recordingModels("openai-completions", VERDICT);
     const call = liveJudgeCall(models);
-    const request = gatemem.judgeRequest("judge this", 1, {
-      model: "openai/gpt-4o",
+    const settings = {
+      model: "openrouter/openai/gpt-4o",
       seed: 7,
       temperature: 0,
       maxTokens: 4096,
-    });
-    const reply = await call(request);
+    };
+    const reply = await call(gatemem.judgeRequest("judge this", 1, settings));
     expect(reply.text).toBe(VERDICT);
     expect(asked).toHaveLength(1);
     expect(asked[0]?.context.messages).toEqual([
@@ -90,41 +91,68 @@ describe("the answer judge (J1)", () => {
       temperature: 0,
       maxTokens: 4096,
       samplingParams: {
-        text: {
-          format: {
-            type: "json_schema",
-            name: "benchmark_judge",
-            strict: true,
-            schema: gatemem.JUDGE_JSON_SCHEMA,
-          },
+        seed: 7,
+        response_format: {
+          type: "json_schema",
+          json_schema: { name: "benchmark_judge", strict: true, schema: gatemem.JUDGE_JSON_SCHEMA },
         },
       },
     });
-    // The plain third attempt sends no schema.
-    await call(
-      gatemem.judgeRequest("judge this", 3, {
-        model: "openai/gpt-4o",
-        seed: 7,
-        temperature: 0,
-        maxTokens: 4096,
-      }),
-    );
-    expect(asked[1]?.options).toEqual({ temperature: 0, maxTokens: 4096 });
+    // The plain third attempt sends no schema, and still the seed.
+    await call(gatemem.judgeRequest("judge this", 3, settings));
+    expect(asked[1]?.options).toEqual({
+      temperature: 0,
+      maxTokens: 4096,
+      samplingParams: { seed: 7 },
+    });
   });
 
-  test("a structured attempt on another API is refused rather than sent without its schema", async () => {
-    const { models, asked } = recordingModels("openai-completions", VERDICT);
-    await expect(
-      liveJudgeCall(models)(
-        gatemem.judgeRequest("judge this", 1, {
-          model: "openai/gpt-4o",
-          seed: 1,
-          temperature: 0,
-          maxTokens: 4096,
-        }),
-      ),
-    ).rejects.toThrow(UnsupportedRequestError);
+  test("a judge on an API that takes no seed is refused before it is called (ADR 0017, R7-7)", async () => {
+    const { models, asked } = recordingModels("openai-responses", VERDICT);
+    for (const attempt of [1, 3] as const) {
+      await expect(
+        liveJudgeCall(models)(
+          gatemem.judgeRequest("judge this", attempt, {
+            model: "openrouter/openai/gpt-4o",
+            seed: 1,
+            temperature: 0,
+            maxTokens: 4096,
+          }),
+        ),
+      ).rejects.toThrow(UnsupportedRequestError);
+    }
     expect(asked).toEqual([]);
+  });
+
+  test("action gating is off, as upstream's gate_by_action defaults to false: a wrong action leaves the judge's leak verdict alone", async () => {
+    const config = readRunnerConfig(X1_GATEMEM);
+    const domain = gatemem
+      .loadDataset(config.data)
+      .find((d) =>
+        d.checkpoints.some((c) => c.checkpoint_id === config.items[0]),
+      ) as gatemem.Domain;
+    const checkpoint = domain.checkpoints.find(
+      (c) => c.checkpoint_id === config.items[0],
+    ) as gatemem.Checkpoint;
+    expect(checkpoint.query_type).toBe("privacy");
+    // A wrong action (the checkpoint expects answer_redacted); the scripted judge says no leak.
+    const row = await judgeAnswer({
+      judge: config.judge as NonNullable<typeof config.judge>,
+      checkpoint,
+      output: { action: "answer", answer: "x", answer_structured: {} },
+      seed: 1,
+      context: {
+        item: `gatemem/${checkpoint.checkpoint_id}`,
+        condition: "C2",
+        preset: "none",
+        store: "fake",
+      },
+      cache: memoryCache(),
+      offline: false,
+    });
+    expect(row.judge.action_ok).toBe(false);
+    expect(row.judge.privacy_leak).toBe(false);
+    expect(row.judge).not.toHaveProperty("gated_by_action");
   });
 
   test("each session's answer is judged, every judge call cached under the session's item, condition, preset and store; a re-run makes none", async () => {

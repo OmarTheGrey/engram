@@ -11,5 +11,6 @@
   "store": "fake",
   "cassettes": "../../.engram/runs/h1-gatemem/cassettes",
   "c4_verdicts": "engram",
-  "judge": { "model": "openai/gpt-4o", "temperature": 0, "max_tokens": 4096 }
+  "read_limit": 20,
+  "judge": { "model": "openrouter/openai/gpt-4o", "temperature": 0, "max_tokens": 4096 }
 }
