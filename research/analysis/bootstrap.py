@@ -25,11 +25,18 @@ differences from one multinomial, which is the same distribution as drawing
 indices and costs time in the number of distinct values (at most seven for
 binary outcomes averaged over three seeds) instead of the number of items.
 
-z0 counts ties at the observed mean as half below, as scipy's reference
-implementation does (scipy.stats.bootstrap, `_percentile_of_score`): the
-bootstrap distribution of a mean of 0/1 outcomes is discrete, and Efron and
-Tibshirani's strict count would push z0 down whenever resamples tie the
-observed mean.
+Ties. The bootstrap distribution of a mean of 0/1 outcomes is discrete: many
+resamples have a mean exactly equal to zero, to a margin, or to the observed
+mean in exact arithmetic, but floating-point sums in a different order land a
+few units in the last place to either side (on a 30-item sample of thirds,
+scipy's exact comparison found 189 of 611 resamples tying the observed mean).
+So every comparison of a resample mean with a bound (`at_or_below`,
+`at_or_above`, the ties of z0) treats values within TOLERANCE as equal: far
+above rounding error, far below the smallest step between distinct means
+(1 / (3 n) for three seeds). z0 counts ties at the observed mean as half
+below, as scipy's reference implementation means to (scipy.stats.bootstrap,
+`_percentile_of_score`, which compares exactly); Efron and Tibshirani's strict
+count would push z0 down whenever resamples tie the observed mean.
 
 Every function that resamples takes `seed` and has no default (AGENTS.md rule 6).
 """
@@ -47,6 +54,9 @@ import numpy.typing as npt
 RESAMPLES = 10_000
 CONFIDENCE = 0.95
 ALPHA = 0.05
+
+TOLERANCE = 1e-9
+"""Resample means closer than this to a bound are at the bound (see the module docstring)."""
 
 FloatArray = npt.NDArray[np.float64]
 _NORMAL = NormalDist()
@@ -102,6 +112,20 @@ def resample_means(values: FloatArray, *, resamples: int, rng: np.random.Generat
     return means
 
 
+def at_or_below(theta_star: FloatArray, bound: float) -> float:
+    """The share of resample means at or below `bound`, ties within TOLERANCE included."""
+    return float(np.mean(theta_star <= bound + TOLERANCE))
+
+
+def at_or_above(theta_star: FloatArray, bound: float) -> float:
+    """The share of resample means at or above `bound`, ties within TOLERANCE included."""
+    return float(np.mean(theta_star >= bound - TOLERANCE))
+
+
+def _all_equal(values: FloatArray) -> bool:
+    return float(np.ptp(values)) <= TOLERANCE
+
+
 def acceleration(values: FloatArray) -> float:
     """The jackknife acceleration of the mean (Efron and Tibshirani 1993, eq. 14.15)."""
     n = values.size
@@ -123,8 +147,9 @@ def bca_interval(
     infinite and BCa is undefined.
     """
     theta = float(values.mean())
-    below = int(np.count_nonzero(theta_star < theta) + np.count_nonzero(theta_star <= theta))
-    share = below / (2 * theta_star.size)
+    below = int(np.count_nonzero(theta_star < theta - TOLERANCE))
+    ties = int(np.count_nonzero(np.abs(theta_star - theta) <= TOLERANCE))
+    share = (2 * below + ties) / (2 * theta_star.size)
     if share <= 0.0 or share >= 1.0:
         raise ValueError("every resample lies on one side of the observed mean; BCa is undefined")
     z0 = _NORMAL.inv_cdf(share)
@@ -176,7 +201,7 @@ def paired_bootstrap(
     """
     d = _values(differences)
     mean = float(d.mean())
-    if np.all(d == d[0]):
+    if _all_equal(d):
         return BootstrapResult(
             n=int(d.size),
             mean=mean,
@@ -194,7 +219,7 @@ def paired_bootstrap(
     star = resample_means(d, resamples=resamples, rng=np.random.default_rng(seed))
     tail = (1.0 - confidence) / 2.0
     p_low, p_high = (float(x) for x in np.quantile(star, [tail, 1.0 - tail]))
-    p_value = float(np.mean(star <= 0.0))
+    p_value = at_or_below(star, 0.0)
     try:
         low, high, z0, a = bca_interval(d, star, confidence=confidence)
     except ValueError:
@@ -267,8 +292,8 @@ def tost(
         raise ValueError("the equivalence margin must be positive")
     d = _values(differences)
     star = resample_means(d, resamples=resamples, rng=np.random.default_rng(seed))
-    p_lower = float(np.mean(star <= -margin))
-    p_upper = float(np.mean(star >= margin))
+    p_lower = at_or_below(star, -margin)
+    p_upper = at_or_above(star, margin)
     p = max(p_lower, p_upper)
     return EquivalenceResult(
         n=int(d.size),
@@ -279,6 +304,6 @@ def tost(
         p=p,
         alpha=alpha,
         equivalent=p < alpha,
-        degenerate=bool(np.all(d == d[0])),
+        degenerate=_all_equal(d),
         resamples=resamples,
     )

@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from statistics import NormalDist
 from typing import Any
 
 import numpy as np
@@ -116,13 +117,36 @@ def test_a_planted_null_holds_the_one_sided_rejection_rate_near_its_level() -> N
     assert 0.03 <= rejected / runs <= 0.07
 
 
-def test_the_p_value_is_the_share_of_resamples_at_or_below_zero() -> None:
-    diffs = np.array([1.0, 0.0, 0.0, -1.0, 1.0, 1.0, 0.0, 1.0])
-    result = paired_bootstrap(diffs, seed=7)
-    rng = np.random.default_rng(7)
-    star = resample_means(diffs, resamples=RESAMPLES, rng=rng)
-    assert result.p_one_sided == float(np.mean(star <= 0))
+THIRDS = np.array([-1, 0, 0, 1, 2, 0, -2, 1, 0, 3, -1, 0, 1, 0, -3, 2]) / 3
+
+
+def exact_resample_sums(values_in_thirds: np.ndarray, seed: int) -> np.ndarray:
+    """Each resample's sum, in thirds and in integers: resample_means's draws, unrounded."""
+    distinct, counts = np.unique(values_in_thirds, return_counts=True)
+    draws = np.random.default_rng(seed).multinomial(
+        values_in_thirds.size, counts / values_in_thirds.size, size=RESAMPLES
+    )
+    sums: np.ndarray = draws @ np.rint(distinct * 3).astype(np.int64)
+    return sums
+
+
+def test_the_p_value_is_the_share_of_resamples_at_or_below_zero_in_exact_arithmetic() -> None:
+    """Resamples whose mean is zero only up to rounding still count as at or below zero."""
+    result = paired_bootstrap(THIRDS, seed=7)
+    sums = exact_resample_sums(THIRDS, seed=7)
+    assert np.count_nonzero(sums == 0) > 500  # many resamples sit exactly on zero
+    assert result.p_one_sided == float(np.mean(sums <= 0))
     assert result.resamples == RESAMPLES == 10_000
+
+
+def test_tost_p_values_are_shares_at_or_beyond_each_margin_in_exact_arithmetic() -> None:
+    """The margin 1/16 is itself a resample mean of these sixteen thirds (3/48)."""
+    margin = 1 / 16
+    result = tost(THIRDS, margin=margin, seed=5)
+    sums = exact_resample_sums(THIRDS, seed=5)
+    # mean = sums / (3 * 16); at or below -1/16 is sums <= -3.
+    assert result.p_lower == float(np.mean(sums <= -3))
+    assert result.p_upper == float(np.mean(sums >= 3))
 
 
 def test_identical_differences_are_reported_as_degenerate_not_as_a_nan_interval() -> None:
@@ -147,6 +171,9 @@ KNOWN_SAMPLE = np.array(
         *[0.0, -1 / 3, 0.0, 2 / 3, 0.0, 0.0, 1.0, 0.0, 0.0, 1 / 3, 0.0, 0.0, 1.0, 0.0, 0.0],
     ]
 )
+# Thirty lognormal quantiles: right-skewed, and no two resamples share a mean, so
+# scipy's exact comparisons and this module's tolerant ones count the same ties (none).
+LOGNORMAL_SAMPLE = np.exp(np.array([NormalDist().inv_cdf((i + 0.5) / 30) for i in range(30)]))
 
 
 def scipy_bca(sample: np.ndarray, seed: int, resamples: int) -> Any:
@@ -162,14 +189,25 @@ def scipy_bca(sample: np.ndarray, seed: int, resamples: int) -> Any:
 
 def test_bca_endpoints_equal_scipy_on_the_same_bootstrap_distribution() -> None:
     """Fed scipy's own resamples, the BCa formula gives scipy's interval to rounding."""
-    reference = scipy_bca(KNOWN_SAMPLE, seed=20261102, resamples=RESAMPLES)
+    reference = scipy_bca(LOGNORMAL_SAMPLE, seed=20261102, resamples=RESAMPLES)
     low, high, z0, acceleration = bca_interval(
-        KNOWN_SAMPLE, reference.bootstrap_distribution, confidence=0.95
+        LOGNORMAL_SAMPLE, reference.bootstrap_distribution, confidence=0.95
     )
     assert low == pytest.approx(reference.confidence_interval.low, abs=1e-12)
     assert high == pytest.approx(reference.confidence_interval.high, abs=1e-12)
     assert acceleration > 0.01  # a skewed sample, so BCa moves the endpoints
     assert z0 != 0.0
+
+
+def test_ties_at_the_observed_mean_count_half_below_even_when_rounding_splits_them() -> None:
+    """z0 is the normal quantile of (below + ties / 2) / B, ties found within the tolerance."""
+    values = np.array([0.0, 0.0, 1 / 3, 1.0])
+    theta = float(values.mean())
+    # 30 below, 40 tying (some a few ulps off, as a different summation order gives), 30 above.
+    ties = theta + np.array([0.0, 1e-16, -1e-16, 2e-16] * 10)
+    star = np.concatenate([np.full(30, theta - 0.2), ties, np.full(30, theta + 0.2)])
+    z0 = bca_interval(values, star, confidence=0.95)[2]
+    assert z0 == pytest.approx(NormalDist().inv_cdf((30 + 40 / 2) / 100), abs=1e-12)
 
 
 # Right-skewed, so BCa moves the upper endpoint by about a fifth of the interval's width.
@@ -271,14 +309,6 @@ def test_tost_refuses_equivalence_when_the_difference_exceeds_the_margin() -> No
     result = tost(diffs, margin=0.05, seed=34)
     assert not result.equivalent
     assert result.p_upper > 0.5
-
-
-def test_tost_p_values_are_shares_of_resamples_beyond_each_margin() -> None:
-    diffs = np.array([0.0, 1 / 3, 0.0, -1 / 3, 0.0, 2 / 3, 0.0, 0.0, -1 / 3, 0.0])
-    result = tost(diffs, margin=0.1, seed=5)
-    star = resample_means(diffs, resamples=RESAMPLES, rng=np.random.default_rng(5))
-    assert result.p_lower == float(np.mean(star <= -0.1))
-    assert result.p_upper == float(np.mean(star >= 0.1))
 
 
 def test_tost_marks_a_sample_with_no_discordant_item_as_degenerate() -> None:
