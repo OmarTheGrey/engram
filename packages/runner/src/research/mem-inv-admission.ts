@@ -113,6 +113,9 @@ export function marked(c: memInvBench.Case): memInvBench.MemoryEntry[] {
   return c.memory.filter((e) => e.text.includes(c.value as string));
 }
 
+/** One entry's decision as the measurement reports it. */
+export type LabelledEntry = Omit<EntryAdmission, "actor" | "derived_from">;
+
 /** One case under one preset, against its labels. */
 export interface AdmissionRow {
   case_id: string;
@@ -121,7 +124,9 @@ export interface AdmissionRow {
   /** The laundering channel (direct, summarize, tool_echo, corroborate) or `legit`. */
   laundering: memInvBench.Case["channel"];
   /** The marked entries' decisions, in memory order. */
-  marked: Omit<EntryAdmission, "actor" | "scope" | "derived_from">[];
+  marked: LabelledEntry[];
+  /** The other entries' decisions (an attack's trusted filler), in memory order. */
+  unmarked: LabelledEntry[];
   /** Some marked entry was written (allowed, whatever its status). */
   written: boolean;
   /** Some marked entry landed active. */
@@ -136,23 +141,34 @@ export function labelAdmission(c: memInvBench.Case, admission: Admission): Admis
   }
   const ids = new Set(marked(c).map((e) => e.entry_id));
   if (ids.size === 0) throw new Error(`${c.case_id}: no entry carries the case's key`);
-  const rows = admission.entries
-    .filter((e) => ids.has(e.entry_id))
-    .map(({ entry_id, channel, kind, decision, policy_id, status, in_read }) => ({
-      entry_id,
-      channel,
-      kind,
-      decision,
-      policy_id,
-      status,
-      in_read,
-    }));
+  const label = ({
+    entry_id,
+    channel,
+    kind,
+    scope,
+    decision,
+    policy_id,
+    status,
+    in_read,
+  }: EntryAdmission): LabelledEntry => ({
+    entry_id,
+    channel,
+    kind,
+    scope,
+    decision,
+    policy_id,
+    status,
+    in_read,
+  });
+  const rows = admission.entries.filter((e) => ids.has(e.entry_id)).map(label);
+  const others = admission.entries.filter((e) => !ids.has(e.entry_id)).map(label);
   return {
     case_id: c.case_id,
     preset: admission.preset,
     family: c.family,
     laundering: c.channel,
     marked: rows,
+    unmarked: others,
     written: rows.some((e) => e.decision === "allow"),
     active: rows.some((e) => e.status === "active"),
     in_read: rows.some((e) => e.in_read),

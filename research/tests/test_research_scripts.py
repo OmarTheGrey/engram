@@ -141,8 +141,12 @@ def test_the_vendored_mem_inv_cases_match_their_manifest(tmp_path: Path) -> None
 def reach_row(
     kind: str, domain: str, targets: int, located: int, reachable: int, **extra: object
 ) -> dict[str, object]:
+    """A planted row; the scored set is the targets plus `extra` patterns found as given."""
+    plus = int(extra.get("extra", 0))  # type: ignore[call-overload]
+    plus_reachable = int(extra.get("extra_reachable", 0))  # type: ignore[call-overload]
+    scored_reachable = reachable + plus_reachable
     return {
-        "checkpoint_id": f"{domain}_{kind}_{targets}{located}{reachable}",
+        "checkpoint_id": f"{domain}_{kind}_{targets}{located}{reachable}{plus}",
         "kind": kind,
         "domain": domain,
         "attack_type": extra.get("attack_type", "planted"),
@@ -151,29 +155,64 @@ def reach_row(
         "reachable": reachable,
         "reachable_own": extra.get("own", 0),
         "reachable_granted": extra.get("granted", reachable),
-        "context_leak": extra.get("context_leak", reachable > 0),
+        "scored_patterns": targets + plus,
+        "scored_located": located + plus_reachable,
+        "scored_reachable": scored_reachable,
+        "scored_reachable_own": extra.get("own", 0),
+        "scored_reachable_granted": extra.get("granted", scored_reachable),
+        "extra_patterns": plus,
+        "context_leak": scored_reachable > 0,
+        "refusal_leaks": extra.get("refusal_leaks", 0),
         "denied_writes": 0,
+        "hits": [
+            {"pattern": f"p{i}", "set": "target", "turn_id": f"t{i}", "via": "grant", "text": "x"}
+            for i in range(scored_reachable)
+        ],
     }
 
 
-def test_the_reach_summary_counts_reachable_and_located_checkpoints() -> None:
-    rows = [
-        reach_row("access", "office", 2, 2, 2),
-        reach_row("access", "office", 2, 2, 1),
-        reach_row("access", "medical", 3, 3, 0),
-        reach_row("access", "medical", 1, 0, 0),
-        reach_row("forgetting", "office", 1, 1, 1, own=1, granted=0),
-    ]
-    summary = h1_gatemem_reach.summarise(rows)
+PLANTED = [
+    reach_row("access", "office", 2, 2, 2),
+    reach_row("access", "office", 2, 2, 1),
+    reach_row("access", "medical", 3, 3, 0, extra=1, extra_reachable=1, refusal_leaks=2),
+    reach_row("access", "medical", 1, 0, 0),
+    reach_row("forgetting", "office", 1, 1, 1, own=1, granted=0),
+]
+
+
+def test_the_reach_summary_puts_every_checkpoint_in_exactly_one_group() -> None:
+    summary = h1_gatemem_reach.summarise(PLANTED)
     access = summary["kinds"]["access"]["all"]
     assert access["checkpoints"] == 4
-    assert access["reachable"] == 2 and access["share_reachable"] == 0.5
-    assert access["every_target_reachable"] == 1
-    assert access["located"] == 3 and access["located_unreachable"] == 1
-    assert access["targets"] == 8 and access["targets_reachable"] == 3
-    assert summary["kinds"]["access"]["domains"]["medical"]["reachable"] == 0
-    assert summary["kinds"]["forgetting"]["all"]["reachable_own"] == 1
+    targets, scored = access["targets"], access["scored"]
+    assert (targets["reachable"], targets["located_unreachable"], targets["not_located"]) == (
+        2,
+        1,
+        1,
+    )
+    assert targets["share_reachable"] == 0.5 and targets["share_not_located"] == 0.25
+    for group in (targets, scored):
+        assert (
+            group["share_reachable"]
+            + group["share_located_unreachable"]
+            + group["share_not_located"]
+        ) == 1.0
+    assert targets["every_pattern_reachable"] == 1
+    assert targets["patterns"] == 8 and targets["patterns_reachable"] == 3
+    # The not_include pattern in reach moves the third checkpoint into the reachable group.
+    assert (scored["reachable"], scored["located_unreachable"]) == (3, 0)
+    assert access["with_extra_patterns"] == 1 and access["refusal_leak"] == 1
+    assert access["context_leak"] == 3
+    assert summary["kinds"]["access"]["domains"]["medical"]["targets"]["reachable"] == 0
+    assert summary["kinds"]["forgetting"]["all"]["targets"]["reachable_own"] == 1
     assert summary["all"]["checkpoints"] == 5
+
+
+def test_the_audit_sample_is_seeded_and_drawn_per_kind() -> None:
+    first = h1_gatemem_reach.audit_sample(PLANTED, per_kind=2, seed=5)
+    assert first == h1_gatemem_reach.audit_sample(PLANTED, per_kind=2, seed=5)
+    assert [h["kind"] for h in first] == ["access", "access", "forgetting"]
+    assert all(set(h) >= {"checkpoint_id", "pattern", "turn_id", "via", "text"} for h in first)
 
 
 def test_the_admission_summary_counts_cases_reaching_the_read() -> None:
@@ -181,10 +220,12 @@ def test_the_admission_summary_counts_cases_reaching_the_read() -> None:
         entry = {
             "channel": "web",
             "kind": "document",
+            "scope": "team:operations",
             "decision": "allow",
             "status": status,
             "in_read": in_read,
         }
+        filler = {**entry, "channel": "erp", "kind": "tool", "in_read": status == "active"}
         return {
             "preset": preset,
             "family": "legit" if laundering == "legit" else "attack",
@@ -193,6 +234,7 @@ def test_the_admission_summary_counts_cases_reaching_the_read() -> None:
             "active": status == "active",
             "in_read": in_read,
             "marked": [entry],
+            "unmarked": [] if laundering == "legit" else [filler],
         }
 
     rows = [
@@ -214,6 +256,9 @@ def test_the_admission_summary_counts_cases_reaching_the_read() -> None:
     }
     # Only attacks' entries are counted by channel.
     assert strict["poisoned_entries_by_channel"]["web"]["statuses"] == {"candidate": 1}
+    assert strict["attack_filler"]["statuses"] == {"candidate": 1}
+    assert strict["entries_by_scope"]["team:operations"]["admitted"] == 0
+    assert strict["entries_by_scope"]["team:operations"]["entries"] == 3
 
 
 # The power simulation (research/analysis/power.py), at a tiny size.

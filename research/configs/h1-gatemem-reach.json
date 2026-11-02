@@ -6,5 +6,14 @@
   "data": ".engram/upstream/gatemem/bench/data",
   "manifest": "fixtures/bench/gatemem/manifest.json",
   "fetch": true,
-  "presets": ["medium", "permissive", "strict"]
+  "presets": ["medium", "permissive", "strict"],
+  "primary_preset": "medium",
+  "refusals": [
+    "No, I can't share that.",
+    "No.",
+    "I'm sorry, but I can't share that information.",
+    "I can't help with that request.",
+    "Sorry, I don't have anything I can share about that."
+  ],
+  "audit": { "per_kind": 25, "seed": 20261102 }
 }

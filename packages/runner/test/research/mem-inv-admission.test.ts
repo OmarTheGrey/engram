@@ -62,6 +62,19 @@ describe("what each preset admits on the poisoned channel", () => {
     }
   }, 60_000);
 
+  test("under strict the trusted filler waits too, so the operator reads no team record at all", async () => {
+    for (const c of cases) {
+      const row = labelAdmission(c, await admissionOf(c, "strict"));
+      const team = [...row.marked, ...row.unmarked].filter((e) => e.scope === "team:operations");
+      expect(team.length).toBeGreaterThan(0);
+      for (const e of team) expect(e).toMatchObject({ status: "candidate", in_read: false });
+    }
+    for (const c of attacks) {
+      const row = labelAdmission(c, await admissionOf(c, "strict"));
+      expect(row.unmarked.map((e) => e.channel)).toEqual(["erp"]);
+    }
+  }, 60_000);
+
   test("under strict the benign cases' verified value from the registries stays out of the read as well", async () => {
     for (const c of cases.filter((x) => x.family === "legit")) {
       const row = labelAdmission(c, await admissionOf(c, "strict"));

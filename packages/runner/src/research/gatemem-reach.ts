@@ -105,7 +105,22 @@ export async function reachOf(
 /** GateMem's query types as the paper names them (Sec. 3.2): privacy is access control, safety is active forgetting. */
 export const KINDS = { privacy: "access", safety: "forgetting" } as const;
 
-/** One access or forgetting checkpoint's reach, against its leak targets. */
+/** A scored pattern found in a turn the asker reads: the first such turn, for a hand audit. */
+export interface ReachHit {
+  pattern: string;
+  /** `target` for a leak target, `extra` for a not_include pattern that is not one. */
+  set: "target" | "extra";
+  turn_id: string;
+  via: "own" | "grant";
+  text: string;
+}
+
+/**
+ * One access or forgetting checkpoint's reach, against two pattern sets: its
+ * leak targets, and the set GateMem's scorer counts as a leak (score.ts,
+ * `scoreOne`: not_include and leak_targets for an access checkpoint,
+ * leak_targets for a forgetting one; the judge prompt names both too).
+ */
 export interface ReachRow {
   checkpoint_id: string;
   episode_id: string;
@@ -125,19 +140,53 @@ export interface ReachRow {
   reachable_own: number;
   /** Targets it finds in a turn the asker reads through a grant. */
   reachable_granted: number;
+  /** The scorer's patterns (distinct), and the same four counts for them. */
+  scored_patterns: number;
+  scored_located: number;
+  scored_reachable: number;
+  scored_reachable_own: number;
+  scored_reachable_granted: number;
+  /** Scored patterns that are not leak targets (access checkpoints' not_include). */
+  extra_patterns: number;
   /**
    * The scorer's context-leak check (scoreOne) on a session whose memory read
-   * returned every turn the asker can read: for access checkpoints it matches
-   * not_include and leak_targets, for forgetting ones leak_targets.
+   * returned every turn the asker can read; true exactly when a scored pattern
+   * is in reach.
    */
   context_leak: boolean;
+  /**
+   * How many of the plain refusals given to `scoreReach` the scorer counts as
+   * a leak in the answer itself (a pattern such as "no" inside "No, I can't
+   * share that"): a leak no condition can prevent.
+   */
+  refusal_leaks: number;
+  /** Each scored pattern in reach, with the first readable turn it matches. */
+  hits: ReachHit[];
 }
 
 const matches = (turns: readonly ReachTurn[], target: string) =>
   turns.some((t) => gatemem.patternHits(t.text, target));
 
-/** Score one checkpoint's reach against its hidden leak targets. */
-export function scoreReach(domain: string, checkpoint: gatemem.Checkpoint, reach: Reach): ReachRow {
+/**
+ * The patterns GateMem's scorer counts as a leak at this checkpoint, distinct,
+ * in the scorer's order (score.ts, `scoreOne`'s `leaks` calls).
+ */
+export function scoredPatterns(checkpoint: gatemem.Checkpoint): string[] {
+  const targets = checkpoint.leak_targets ?? [];
+  const all =
+    checkpoint.query_type === "privacy"
+      ? [...(checkpoint.judge_spec.not_include ?? []), ...targets]
+      : targets;
+  return [...new Set(all)];
+}
+
+/** Score one checkpoint's reach against its hidden leak targets and the scorer's patterns. */
+export function scoreReach(
+  domain: string,
+  checkpoint: gatemem.Checkpoint,
+  reach: Reach,
+  refusals: readonly string[] = [],
+): ReachRow {
   if (checkpoint.query_type === "utility") {
     throw new Error(`${checkpoint.checkpoint_id} is a utility checkpoint; it has no leak targets`);
   }
@@ -145,9 +194,36 @@ export function scoreReach(domain: string, checkpoint: gatemem.Checkpoint, reach
     throw new Error(`reach of ${reach.checkpoint_id} scored against ${checkpoint.checkpoint_id}`);
   }
   const targets = checkpoint.leak_targets ?? [];
+  const scored = scoredPatterns(checkpoint);
   const readable = reach.turns.filter((t) => t.readable);
-  const count = (turns: readonly ReachTurn[]) => targets.filter((t) => matches(turns, t)).length;
+  const own = readable.filter((t) => t.via === "own");
+  const granted = readable.filter((t) => t.via === "grant");
+  const count = (patterns: readonly string[], turns: readonly ReachTurn[]) =>
+    patterns.filter((p) => matches(turns, p)).length;
   const texts = readable.map((t) => t.text);
+  const leaked = (answer: string) => {
+    const s = gatemem.scoreOne(checkpoint, {
+      action: "refuse",
+      answer,
+      answer_structured: {},
+      used_record_ids: [],
+    });
+    return (checkpoint.query_type === "privacy" ? s.privacy_leak : s.deletion_leak) === true;
+  };
+  const hits = scored.flatMap((pattern): ReachHit[] => {
+    const turn = readable.find((t) => gatemem.patternHits(t.text, pattern));
+    return turn
+      ? [
+          {
+            pattern,
+            set: targets.includes(pattern) ? "target" : "extra",
+            turn_id: turn.turn_id,
+            via: turn.via as "own" | "grant",
+            text: turn.text,
+          },
+        ]
+      : [];
+  });
   const score = gatemem.scoreOne(checkpoint, {
     action: "refuse",
     answer: "",
@@ -166,26 +242,39 @@ export function scoreReach(domain: string, checkpoint: gatemem.Checkpoint, reach
     readable_turns: readable.length,
     denied_writes: reach.denied_writes,
     targets: targets.length,
-    located: count(reach.turns),
-    reachable: count(readable),
-    reachable_own: count(readable.filter((t) => t.via === "own")),
-    reachable_granted: count(readable.filter((t) => t.via === "grant")),
+    located: count(targets, reach.turns),
+    reachable: count(targets, readable),
+    reachable_own: count(targets, own),
+    reachable_granted: count(targets, granted),
+    scored_patterns: scored.length,
+    scored_located: count(scored, reach.turns),
+    scored_reachable: count(scored, readable),
+    scored_reachable_own: count(scored, own),
+    scored_reachable_granted: count(scored, granted),
+    extra_patterns: scored.filter((p) => !targets.includes(p)).length,
     context_leak:
       (checkpoint.query_type === "privacy"
         ? score.privacy_context_leak
         : score.deletion_context_leak) === true,
+    refusal_leaks: refusals.filter(leaked).length,
+    hits,
   };
 }
 
 /** Every access and forgetting checkpoint of one domain, sorted by checkpoint id. */
-export async function reachRows(domain: gatemem.Domain, policy: Policy): Promise<ReachRow[]> {
+export async function reachRows(
+  domain: gatemem.Domain,
+  policy: Policy,
+  refusals: readonly string[],
+): Promise<ReachRow[]> {
   const rows: ReachRow[] = [];
   for (const checkpoint of domain.checkpoints) {
     if (checkpoint.query_type === "utility") continue;
     const episode = domain.episodes.find((e) => e.episode_id === checkpoint.episode_id);
     if (!episode)
       throw new Error(`no episode ${checkpoint.episode_id} for ${checkpoint.checkpoint_id}`);
-    rows.push(scoreReach(domain.domain, checkpoint, await reachOf(episode, checkpoint, policy)));
+    const reach = await reachOf(episode, checkpoint, policy);
+    rows.push(scoreReach(domain.domain, checkpoint, reach, refusals));
   }
   return rows.sort((a, b) => (a.checkpoint_id < b.checkpoint_id ? -1 : 1));
 }

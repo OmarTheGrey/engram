@@ -31,6 +31,7 @@ from typing import Any
 from scripts.results_io import REPO, line_hashes, load_config, run_node, write_result
 
 ENTRY = "packages/runner/scripts/mem-inv-admission.ts"
+FIELDS = ("entry_id", "channel", "kind", "scope", "decision", "status", "in_read")
 
 
 def check_fixture(fixtures: Path) -> str:
@@ -82,7 +83,12 @@ def _counts(values: Iterable[str]) -> dict[str, int]:
 
 
 def summarise(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
-    """Per preset: by family, by laundering channel, and by each marked entry's channel."""
+    """Per preset: by family, laundering channel, marked entry's channel, and scope of every entry.
+
+    `attack_filler` is the attacks' unmarked entries (the trusted registry's
+    note); `entries_by_scope` counts every entry of every case by the scope it
+    is written to, so a reader sees what the operator's read holds at all.
+    """
     out: dict[str, Any] = {}
     for preset in sorted({str(r["preset"]) for r in rows}):
         mine = [r for r in rows if r["preset"] == preset]
@@ -99,6 +105,14 @@ def summarise(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
             "poisoned_entries_by_channel": {
                 ch: entry_stats([e for e in entries if e["channel"] == ch])
                 for ch in sorted({str(e["channel"]) for e in entries})
+            },
+            "attack_filler": entry_stats(
+                [e for r in mine if r["family"] == "attack" for e in r["unmarked"]]
+            ),
+            "entries_by_scope": {
+                scope: entry_stats([e for e in every if e["scope"] == scope])
+                for every in [[e for r in mine for e in [*r["marked"], *r["unmarked"]]]]
+                for scope in sorted({str(e["scope"]) for e in every})
             },
         }
     return out
@@ -121,10 +135,8 @@ def compute(config: Mapping[str, Any]) -> dict[str, Any]:
             "family": r["family"],
             "laundering": r["laundering"],
             "admitted": r["in_read"],
-            "marked": [
-                {k: e[k] for k in ("entry_id", "channel", "kind", "decision", "status", "in_read")}
-                for e in r["marked"]
-            ],
+            "marked": [{k: e[k] for k in FIELDS} for e in r["marked"]],
+            "unmarked": [{k: e[k] for k in FIELDS} for e in r["unmarked"]],
         }
         for r in rows
     ]
