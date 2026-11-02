@@ -1,17 +1,24 @@
-// PR #25 review round 2, R1: one retrieval pipeline for every condition,
+// One retrieval pipeline for every condition (PR #25 review round 2, R1),
 // defined in core (`retrieve`: candidates holding any query term, each item
-// scored on its own, the top READ_LIMIT). C2 to C4 run it over what the store
-// lists; C5's plane runs it over what its read filter admits. On every GateMem
-// fixture checkpoint and nine queries each:
+// scored on its own, the top READ_LIMIT). Every read here goes through the
+// `memory_read` tool of the condition's own session, built by
+// conditionSession exactly as a run builds it (review round 3, V-3): C2's and
+// C4's tools over the store, C5's the Engram extension over the plane its
+// `coreReadPlane` wraps. On every GateMem fixture checkpoint and nine queries
+// each:
 // - C2's list is the pipeline over every item, on every store H1 might use
 //   (fake, files, Letta, Mem0: each lists every item it holds, so none of
 //   their native searches is involved);
 // - C5's list is the pipeline over the items the plane admits for the asker;
+// - C4, whose verdict is the plane's (core's evaluateRead), shows C5's list as
+//   its allowed items, in C5's order, and every denied item it shows ranks
+//   above the last allowed one (review round 3, V-2);
 // - without a limit, C5's list is a subset of C2's in C2's order (with one it
 //   need not be, by design: the admitted items' top 20 is not the top 20 of
 //   everything);
 // - the floor: C2 finds memory for a checkpoint's own question about as often
-//   as the history holds what the question is about.
+//   as the history holds what the question is about, and its top 20 holds it
+//   on at least 90 percent of the checkpoints whose history does (V-5).
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -26,9 +33,12 @@ import {
   openSqlite,
   retrieve,
 } from "@engram/core";
+import type { RecallDetails } from "@engram/pi-extension";
 import { afterAll, describe, expect, test } from "vitest";
-import { READ_LIMIT, ungovernedRead } from "../src/conditions.ts";
-import { probeInputs, sequentialIds } from "../src/gatemem-probe.ts";
+import { conditionSession, READ_LIMIT } from "../src/conditions.ts";
+import type { Condition } from "../src/config.ts";
+import { gatememMetadata, probeInputs, sequentialIds } from "../src/gatemem-probe.ts";
+import { scriptedPiModel } from "../src/model/scripted.ts";
 import { closeStore, openStore } from "../src/stores.ts";
 
 const DATA = new URL("../../../fixtures/bench/gatemem/", import.meta.url);
@@ -56,8 +66,27 @@ const cases = domains.flatMap((d) =>
   d.checkpoints.map((c) => [c.checkpoint_id, d, [...QUERIES, c.query_text]] as const),
 );
 
-/** One checkpoint's items written to a store (C2) and through a core-pipeline plane (C5). */
-async function setUp(
+/** What one `memory_read` call showed: the items' refs in rank order, and C4's `access` attribute of each. */
+interface Shown {
+  refs: string[];
+  access: (string | undefined)[];
+}
+
+const TAG = /<engram:item ([^>]*)>/g;
+const ATTRIBUTE = /(\w+)="([^"]*)"/g;
+/** The `access` attribute of each item tag in a read's text, in order. */
+const accessOf = (text: string) =>
+  [...text.matchAll(TAG)].map(
+    (m) =>
+      Object.fromEntries([...(m[1] as string).matchAll(ATTRIBUTE)].map((a) => [a[1], a[2]])).access,
+  );
+
+/**
+ * A checkpoint's world as a run builds it: the history written straight to
+ * the store (C2, C4) and through the plane into its log (C5), and each
+ * condition's session over it, whose `memory_read` tool the test calls.
+ */
+async function world(
   domain: gatemem.Domain,
   checkpointId: string,
   adapter: Adapter,
@@ -66,81 +95,149 @@ async function setUp(
   const newId = sequentialIds();
   const { mapped } = probeInputs(domain, checkpointId, newId);
   const store = { adapter, scopes: new Set<string>() };
+  const planeStore = { adapter: createFakeAdapter(), scopes: new Set<string>() };
   const db = openSqlite(":memory:");
   migrate(db);
-  const plane = createPlane({
-    db,
-    adapter: createFakeAdapter(),
-    policy,
-    newId,
-    retrieval: { pipeline: "core", limit },
-  });
+  const writer = createPlane({ db, adapter: planeStore.adapter, policy, newId });
   for (const { actor, item } of mapped.writes) {
     await store.adapter.write(item);
     store.scopes.add(item.scope);
-    expect((await plane.write(actor, item, item.valid_from)).event.decision).toBe("allow");
+    expect((await writer.write(actor, item, item.valid_from)).event.decision).toBe("allow");
   }
   const items = mapped.writes.map((w) => w.item);
+  const refById = new Map(items.map((i) => [i.id, refOf(i)]));
   const admitted = items.filter((i) => evaluateRead(policy, mapped.asker, i, mapped.at).admitted);
+  const sessions: { dispose(): void }[] = [];
+
+  async function readTool(condition: Condition) {
+    const cwd = mkdtempSync(join(tmpdir(), "engram-x1-retrieval-"));
+    temp.push(cwd);
+    const { session } = await conditionSession({
+      condition,
+      cwd,
+      model: scriptedPiModel([]),
+      systemPrompt: "You are the benchmark's assistant.",
+      actor: mapped.asker,
+      preset: "medium",
+      policy,
+      store: condition === "C5" ? planeStore : store,
+      db,
+      newId,
+      now: () => mapped.at,
+      readLimit: limit,
+      ...(condition === "C4" ? { metadata: gatememMetadata(mapped, "engram", policy) } : {}),
+    });
+    sessions.push(session);
+    const tool = session.extensionRunner
+      .getAllRegisteredTools()
+      .find((t) => t.definition.name === "memory_read");
+    if (!tool) throw new Error(`${condition} registers no memory_read`);
+    const execute = tool.definition.execute as unknown as (
+      id: string,
+      params: { query: string },
+    ) => Promise<{ content: { type: string; text?: string }[]; details: unknown }>;
+    let calls = 0;
+    return async (query: string): Promise<Shown> => {
+      const result = await execute(`${condition}-read-${++calls}`, { query });
+      const ids =
+        condition === "C5"
+          ? (result.details as RecallDetails).items.map((i) => i.item_id)
+          : (result.details as { item_ids: string[] }).item_ids;
+      return {
+        refs: ids.map((id) => refById.get(id) ?? id),
+        access: accessOf(result.content[0]?.text ?? ""),
+      };
+    };
+  }
+
   return {
     mapped,
     items,
     admitted,
-    c2: async (q: string) => (await ungovernedRead(store, q, mapped.at, limit)).map(refOf),
-    c5: async (q: string) =>
-      (await plane.read(mapped.asker, { text: q, at: mapped.at })).items.map(refOf),
-    close: () => db.close(),
+    readTool,
+    close: () => {
+      for (const s of sessions) s.dispose();
+      db.close();
+    },
   };
 }
 
 const pipeline = (items: MemoryItem[], q: string, at: string, limit: number) =>
   retrieve(items, q, at, limit).map((r) => refOf(r.item));
 
-describe("one retrieval pipeline for every condition (R1)", () => {
+/** C4's reads over the first test: how many showed a denied item, and how many showed more than the limit. */
+const c4Seen = { reads: 0, withDenied: 0, beyondLimit: 0 };
+
+describe("one retrieval pipeline for every condition (R1), through each condition's own tool (V-3)", () => {
+  afterAll(() => {
+    // Only when every checkpoint's reads ran (not under a -t filter): the C4
+    // property was not vacuous.
+    if (c4Seen.reads < cases.length * (QUERIES.length + 1)) return;
+    expect(c4Seen.withDenied).toBeGreaterThan(0);
+    expect(c4Seen.beyondLimit).toBeGreaterThan(0);
+  });
   test.each(cases)(
-    "%s: C2 is the pipeline over every item, C5 the pipeline over what the plane admits, at the read limit",
+    "%s: C2 is the pipeline over every item, C5 the pipeline over what the plane admits, and C4 shows C5's list with the denied items it walked past (V-2)",
     async (id, domain, queries) => {
-      const run = await setUp(domain, id, createFakeAdapter(), READ_LIMIT);
+      const w = await world(domain, id, createFakeAdapter(), READ_LIMIT);
+      const [c2, c4, c5] = [await w.readTool("C2"), await w.readTool("C4"), await w.readTool("C5")];
+      const at = w.mapped.at;
+      const admittedRefs = new Set(w.admitted.map(refOf));
       for (const q of queries) {
-        const at = run.mapped.at;
-        expect(await run.c2(q), `C2 ${JSON.stringify(q)}`).toEqual(
-          pipeline(run.items, q, at, READ_LIMIT),
+        const label = JSON.stringify(q);
+        const [two, four, five] = [await c2(q), await c4(q), await c5(q)];
+        expect(two.refs, `C2 ${label}`).toEqual(pipeline(w.items, q, at, READ_LIMIT));
+        expect(five.refs, `C5 ${label}`).toEqual(pipeline(w.admitted, q, at, READ_LIMIT));
+        // C4: a prefix of the whole ranking; its allowed items are C5's list in
+        // order; every item carries the plane's verdict; and every denied item
+        // ranks above the last allowed one.
+        expect(four.refs, `C4 ranking ${label}`).toEqual(
+          pipeline(w.items, q, at, NO_LIMIT).slice(0, four.refs.length),
         );
-        expect(await run.c5(q), `C5 ${JSON.stringify(q)}`).toEqual(
-          pipeline(run.admitted, q, at, READ_LIMIT),
+        expect(four.access, `C4 verdicts ${label}`).toEqual(
+          four.refs.map((r) => (admittedRefs.has(r) ? "allowed" : "denied")),
         );
+        const allowed = four.refs.filter((_, k) => four.access[k] === "allowed");
+        expect(allowed, `C4 allowed ${label}`).toEqual(five.refs);
+        const lastAllowed = four.access.lastIndexOf("allowed");
+        expect(lastAllowed, `C4 ends on an allowed item ${label}`).toBe(four.refs.length - 1);
+        c4Seen.reads++;
+        if (four.access.includes("denied")) c4Seen.withDenied++;
+        if (four.refs.length > READ_LIMIT) c4Seen.beyondLimit++;
       }
-      run.close();
+      w.close();
     },
-    60_000,
+    120_000,
   );
 
   test.each(cases)(
     "%s: without a limit, C5's entries are a subset of C2's, in C2's order",
     async (id, domain, queries) => {
-      const run = await setUp(domain, id, createFakeAdapter(), NO_LIMIT);
+      const w = await world(domain, id, createFakeAdapter(), NO_LIMIT);
+      const [c2, c5] = [await w.readTool("C2"), await w.readTool("C5")];
       for (const q of queries) {
-        const [c2, c5] = [await run.c2(q), await run.c5(q)];
-        const inC5 = new Set(c5);
+        const [two, five] = [(await c2(q)).refs, (await c5(q)).refs];
+        const inC5 = new Set(five);
         expect(
-          c2.filter((r) => inC5.has(r)),
+          two.filter((r) => inC5.has(r)),
           JSON.stringify(q),
-        ).toEqual(c5);
+        ).toEqual(five);
       }
-      run.close();
+      w.close();
     },
-    60_000,
+    120_000,
   );
 
   test("with the limit the subset need not hold, by design, and the test sees such a read", async () => {
     let notSubset = 0;
     for (const [id, domain, queries] of cases) {
-      const run = await setUp(domain, id, createFakeAdapter(), READ_LIMIT);
+      const w = await world(domain, id, createFakeAdapter(), READ_LIMIT);
+      const [c2, c5] = [await w.readTool("C2"), await w.readTool("C5")];
       for (const q of queries) {
-        const c2 = new Set(await run.c2(q));
-        if ((await run.c5(q)).some((r) => !c2.has(r))) notSubset++;
+        const two = new Set((await c2(q)).refs);
+        if ((await c5(q)).refs.some((r) => !two.has(r))) notSubset++;
       }
-      run.close();
+      w.close();
     }
     expect(notSubset).toBeGreaterThan(0);
   }, 300_000);
@@ -160,13 +257,14 @@ describe("one retrieval pipeline for every condition (R1)", () => {
           temp.push(root);
           adapter = createFilesAdapter({ root, owner: "x1" });
         } else adapter = await openStore(name);
-        const run = await setUp(domain, id, adapter, READ_LIMIT);
+        const w = await world(domain, id, adapter, READ_LIMIT);
+        const c2 = await w.readTool("C2");
         for (const q of queries) {
-          expect(await run.c2(q), `${name} ${JSON.stringify(q)}`).toEqual(
-            pipeline(run.items, q, run.mapped.at, READ_LIMIT),
+          expect((await c2(q)).refs, `${name} ${JSON.stringify(q)}`).toEqual(
+            pipeline(w.items, q, w.mapped.at, READ_LIMIT),
           );
         }
-        run.close();
+        w.close();
         if (name !== "files") await closeStore(adapter);
       }
     },
@@ -174,8 +272,8 @@ describe("one retrieval pipeline for every condition (R1)", () => {
   );
 });
 
-describe("the floor: C2 finds memory for a checkpoint's own question (R1)", () => {
-  test("about as often as the history holds the leak target or the answer the question is about", async () => {
+describe("the floor: C2 finds memory for a checkpoint's own question (R1, V-5)", () => {
+  test("about as often as the history holds the leak target or the answer, and its top 20 holds it on at least 90 percent of those", async () => {
     let found = 0;
     let located = 0;
     let recalled = 0;
@@ -183,24 +281,26 @@ describe("the floor: C2 finds memory for a checkpoint's own question (R1)", () =
       const checkpoint = domain.checkpoints.find(
         (c) => c.checkpoint_id === id,
       ) as gatemem.Checkpoint;
-      const run = await setUp(domain, id, createFakeAdapter(), READ_LIMIT);
-      const c2 = await run.c2(checkpoint.query_text);
+      const w = await world(domain, id, createFakeAdapter(), READ_LIMIT);
+      const c2 = (await (await w.readTool("C2"))(checkpoint.query_text)).refs;
       const patterns =
         checkpoint.query_type === "utility"
           ? (checkpoint.judge_spec.include ?? [])
           : (checkpoint.leak_targets ?? []);
       const holding = new Set(
-        run.items
+        w.items
           .filter((i) => patterns.some((p) => gatemem.patternHits(String(i.content), p)))
           .map(refOf),
       );
       if (c2.length > 0) found++;
-      if (holding.size > 0) located++;
-      if (c2.some((r) => holding.has(r))) recalled++;
-      run.close();
+      if (holding.size > 0) {
+        located++;
+        if (c2.some((r) => holding.has(r))) recalled++;
+      }
+      w.close();
     }
     const n = cases.length;
-    // Reported in docs/log/2026-11-02-x1r2-retrieval-floor.md.
+    // Reported in docs/log/2026-11-02-x1r2-retrieval-floor.md and its round-3 successor.
     expect({ n, found, located }).toEqual({
       n: 20,
       found: expect.any(Number),
@@ -208,6 +308,8 @@ describe("the floor: C2 finds memory for a checkpoint's own question (R1)", () =
     });
     expect(Math.abs(found - located) / n).toBeLessThanOrEqual(0.1);
     expect(found / n).toBeGreaterThanOrEqual(0.9);
-    expect(recalled).toBeGreaterThan(0);
+    // Recall at the read limit: a ranking that ignored relevance (or reversed
+    // it) would push the target below the top 20 on most checkpoints.
+    expect(recalled / located).toBeGreaterThanOrEqual(0.9);
   }, 300_000);
 });

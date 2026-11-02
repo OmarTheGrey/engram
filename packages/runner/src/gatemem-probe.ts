@@ -180,34 +180,50 @@ export const GATEMEM_METADATA_LEGEND = [
  * the model, not enforced (ADR 0031). Its source is `engram` by default: the
  * plane's own read decision under the policy C5 enforces, computed by core's
  * evaluateRead for the asker at the checkpoint's time, so C4 and C5 apply the
- * same policy and differ in mechanism only. `gatemem-rag` is GateMem's
- * RAG-Policy rule table, a different policy. An item the session's model
- * wrote itself has no turn and carries no metadata.
+ * same policy and differ in mechanism only; it is computed for every item,
+ * an item the session's model wrote included. `gatemem-rag` is GateMem's
+ * RAG-Policy rule table, a different policy, which judges turns only: an
+ * item the session's model wrote has no turn and carries no metadata under
+ * it. The verdict is also what C4's read walks to (conditions.ts, c4Read;
+ * PR #25 review round 3, V-2): under `engram`, the allowed items C4 shows are
+ * exactly C5's list.
  */
 export function gatememMetadata(
   mapped: gatemem.CheckpointMapping,
   source: C4VerdictSource = "engram",
   policy?: Policy,
 ): ReadMetadata {
-  const allowed =
+  if (source === "engram" && !policy) {
+    throw new Error("C4's engram verdict needs the policy C5 enforces");
+  }
+  const rag =
     source === "gatemem-rag"
-      ? gatemem
-          .ragPolicyGate(mapped.episode, mapped.turns, mapped.checkpoint)
-          .map((chunk) => chunk.allowed)
-      : mapped.writes.map(({ item }) => {
-          if (!policy) throw new Error("C4's engram verdict needs the policy C5 enforces");
-          return evaluateRead(policy, mapped.asker, item, mapped.at).admitted;
-        });
-  const byItem = new Map<string, readonly (readonly [string, string])[]>();
-  mapped.writes.forEach(({ item }, i) => {
+      ? gatemem.ragPolicyGate(mapped.episode, mapped.turns, mapped.checkpoint)
+      : undefined;
+  const turnOf = new Map(mapped.writes.map(({ item }, i) => [item.id, i]));
+  const verdict = (item: MemoryItem): boolean | undefined => {
+    if (rag === undefined)
+      return evaluateRead(policy as Policy, mapped.asker, item, mapped.at).admitted;
+    const i = turnOf.get(item.id);
+    return i === undefined ? undefined : (rag[i] as { allowed: boolean }).allowed;
+  };
+  const attributes = (item: MemoryItem) => {
+    const v = verdict(item);
+    const access = v === undefined ? [] : [["access", v ? "allowed" : "denied"] as const];
+    const i = turnOf.get(item.id);
+    if (i === undefined) return access.length > 0 ? access : undefined;
     const turn = mapped.turns[i] as gatemem.Turn;
-    byItem.set(item.id, [
-      ["speaker", turn.speaker.principal_id],
-      ["speaker_role", turn.speaker.role],
-      ["access", allowed[i] ? "allowed" : "denied"],
-    ]);
-  });
-  return { attributes: (item) => byItem.get(item.id), legend: GATEMEM_METADATA_LEGEND };
+    return [
+      ["speaker", turn.speaker.principal_id] as const,
+      ["speaker_role", turn.speaker.role] as const,
+      ...access,
+    ];
+  };
+  return {
+    attributes,
+    legend: GATEMEM_METADATA_LEGEND,
+    admits: (item) => verdict(item) === true,
+  };
 }
 
 /**

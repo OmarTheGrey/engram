@@ -9,6 +9,9 @@
 // - C4 instruction with metadata: C3, and each item a read returns carries
 //   requester and policy metadata as attributes of its memory tag, with a
 //   legend of them after the policy text; the model decides (ADR 0031).
+//   When the metadata carries a verdict, C4's read walks the shared ranking
+//   until it has passed the items C5 would return, and shows every item it
+//   walked past, allowed and denied (PR #25 review round 3, V-2).
 // - C5 enforced: the Engram extension on the real Plane, at the config's preset.
 //
 // Every condition gets the same benchmark prompt, the same model and the
@@ -44,6 +47,7 @@ import {
   type Policy,
   type PresetName,
   retrieve,
+  walkToAdmitted,
 } from "@engram/core";
 import {
   createEngramExtension,
@@ -69,6 +73,12 @@ export type ItemAttributes = (
 export interface ReadMetadata {
   attributes: ItemAttributes;
   legend: string;
+  /**
+   * The verdict the attributes show for an item, when the metadata carries
+   * one: C4's read then walks the shared ranking to the items it admits
+   * (c4Read). An item without a verdict counts as not admitted.
+   */
+  admits?: (item: MemoryItem) => boolean;
 }
 
 export interface UngovernedStore {
@@ -101,10 +111,12 @@ export function ungovernedMemoryTools(options: {
   now: () => string;
   /** C4's per-item metadata; absent under C2 and C3. */
   attributes?: ItemAttributes;
+  /** C4's verdict, when its metadata carries one: the read walks to what it admits (c4Read). */
+  admits?: (item: MemoryItem) => boolean;
   /** The read limit every condition shares (READ_LIMIT unless given). */
   readLimit?: number;
 }): ExtensionFactory {
-  const { store, actor, newId, now, attributes } = options;
+  const { store, actor, newId, now, attributes, admits } = options;
   const readLimit = options.readLimit ?? READ_LIMIT;
   return (pi) => {
     pi.registerTool({
@@ -146,7 +158,9 @@ export function ungovernedMemoryTools(options: {
     pi.registerTool({
       ...MEMORY_READ,
       async execute(_toolCallId, params) {
-        const items = await ungovernedRead(store, params.query, now(), readLimit);
+        const items = admits
+          ? await c4Read(store, params.query, now(), readLimit, admits)
+          : await ungovernedRead(store, params.query, now(), readLimit);
         const text = tagUngovernedRead(
           items.map((i) => {
             const meta = attributes?.(i);
@@ -191,9 +205,33 @@ export async function ungovernedRead(
   at: string,
   limit: number = READ_LIMIT,
 ): Promise<MemoryItem[]> {
+  return retrieve(await listed(store), query, at, limit).map((r) => r.item);
+}
+
+/** Every item the store lists in the scopes it holds. */
+async function listed(store: UngovernedStore): Promise<MemoryItem[]> {
   const scopes = [...store.scopes].sort();
-  const listed = (await Promise.all(scopes.map((s) => store.adapter.list(s)))).flat();
-  return retrieve(listed, query, at, limit).map((r) => r.item);
+  return (await Promise.all(scopes.map((s) => store.adapter.list(s)))).flat();
+}
+
+/**
+ * What C4's read returns when its metadata carries a verdict (PR #25 review
+ * round 3, V-2): core's walk down the shared ranking of every listed item
+ * (`walkToAdmitted`) until it has passed as many items the verdict admits as
+ * C5's read returns (the limit, or every admitted candidate when fewer),
+ * every item walked past included, admitted or not. With core's evaluateRead
+ * as the verdict, the admitted items are C5's list exactly, in its order, and
+ * every denied item C4 shows ranks above the last of them; C4 differs from C5
+ * only in also showing those denied items, labelled.
+ */
+export async function c4Read(
+  store: UngovernedStore,
+  query: string,
+  at: string,
+  limit: number,
+  admits: (item: MemoryItem) => boolean,
+): Promise<MemoryItem[]> {
+  return walkToAdmitted(await listed(store), query, at, limit, admits).map((w) => w.item);
 }
 
 /**
@@ -338,10 +376,16 @@ function extensionsFor(spec: ConditionSessionSpec): ExtensionFactory[] {
       newId,
       now,
       readLimit: spec.readLimit ?? READ_LIMIT,
-      ...(m.metadata ? { attributes: (spec.metadata as ReadMetadata).attributes } : {}),
+      ...(m.metadata ? metadataTools(spec.metadata as ReadMetadata) : {}),
     }),
   ];
 }
+
+/** C4's attributes, and its verdict when the metadata carries one. */
+const metadataTools = (metadata: ReadMetadata) => ({
+  attributes: metadata.attributes,
+  ...(metadata.admits === undefined ? {} : { admits: metadata.admits }),
+});
 
 /** A pi SDK session for one condition, in memory, reading no user configuration. */
 export async function conditionSession(spec: ConditionSessionSpec): Promise<ConditionSession> {
