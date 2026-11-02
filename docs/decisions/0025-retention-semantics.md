@@ -1,7 +1,7 @@
 # ADR 0025: Retention semantics: expiry at read and by sweep, budgets enforced in the write queue, eviction order, retired content stays out
 
-Status: accepted, pending lead review, 2026-10-29
-Deciders: drafted by the orchestrating session on the lead's instruction (plan `docs/tasks/gate-a-e0-e1-e2-plan.md`, decision 5); pending review and acceptance by Omar (lead). Until then this records the design card E2.4 follows.
+Status: accepted, 2026-11-02
+Deciders: Omar (lead)
 Supersedes: nothing; it gives ADR 0010 (retention never deletes) its mechanism.
 
 ## Context
@@ -17,7 +17,7 @@ ADR 0010 says retention retires and never deletes, because eviction is what make
 5. **Retired content stays out.** A write whose actor source is `model`, `compaction` or `tool` is denied (`engram/write/retired-content`) when an item retired in the same scope has the same normalised content hash (ADR 0018's exact rule). A `user`, `document` or `import` source may re-admit it: a person restating a fact is a new user event, which is what Bemula's relearning suite requires. The near-duplicate form of this rule waits for the duplicate lint (L1, ADR 0018).
 6. **Reinstatement** is an allowed `update` event that sets `status` back to active on the retired version (ADR 0010); no new Plane method in E2.4, and a follow-up card names the surface for it.
 
-Amendments made when implementing card E2.4, 2026-10-29 (choices this ADR left open; pending the lead's review like the rest of it):
+Amendments made when implementing card E2.4, 2026-10-29 (choices this ADR left open):
 
 - Which ttl: the tighter of the item's own `ttl` and its retention rule's (scope level and class). The event names the rule (`<policy>/retention/<level>/<class>`) when the rule's ttl decides and `engram/retention/item-ttl` when the item's own is tighter. The expiry instant is `valid_from` plus whole seconds with the fraction kept (`addSeconds` in packages/core/src/time.ts); a sum past the last four-digit-year second never expires.
 - A sweep retires expired candidates as well as expired active items, so an expired candidate cannot be promoted later; retired items are left alone.
@@ -28,7 +28,7 @@ Amendments made when implementing card E2.4, 2026-10-29 (choices this ADR left o
 - The retired-content rule compares against every retired item in the scope, however it was retired (retention, adoption's retraction, a future owner retirement), through one normalised content hash (packages/core/src/content-hash.ts, ADR 0018's amendment). A user re-admitting the content does not lift it for later model writes while the retired copy exists; the reason names the retired item only to a writer whose read matrix lets it read the scope.
 - Plane.retain and the budget check never write or delete in the store; the store keeps the item as it was written (ADR 0010's amendment).
 
-Amendments made in the review fix pass, 2026-10-29 (PR 4, findings P4-1 to P4-12; they replace the implementation amendments above where they differ; pending the lead's review like the rest of this ADR):
+Amendments made in the review fix pass, 2026-10-29 (PR 4, findings P4-1 to P4-12; they replace the implementation amendments above where they differ):
 
 - Finding P4-1: the write path's budget check never evicts the item the write just landed (`enforceBudget(..., protect)`); it counts toward the budget and the victims come from the other items. Under `utility` a new item has no reads, so the literal rule would evict every new write once a scope is full of read items, which is the "deny a write over budget" this ADR rejects. `WriteResult.item` is the item as it stands after the slot, and the pi tool's text and `details.status` report the status after its sweep.
 - Finding P4-2 (replaces the third implementation amendment): an item past its ttl holds no budget slot, in the write path and in a sweep. The write path still does not retire it, so the read-time exclusion stays visible; the budget is counted over active items not past their ttl, and that is what invariant 5 bounds.
@@ -40,7 +40,7 @@ Amendments made in the review fix pass, 2026-10-29 (PR 4, findings P4-1 to P4-12
 - Finding P4-12 (replaces the fifth implementation amendment): a manual rule's ask is appended only when no ask for that scope and rule has been recorded since the last change to any item of that class in the scope. A write is such a change, so a write that leaves the class over budget always asks; repeated sweeps of an unchanged overage do not.
 - From the review's outside notes: adoption's retractions (`engram/adopt/retract`) are appended inside the write queue, and the queue refuses a call made from inside itself on the same db (`NestedWriteQueueError`, finding P4-8; ADR 0007's amendment).
 
-Amendments made after the verification of the review fix pass, 2026-10-29 (PR 4, findings P4-13 to P4-17 and the orchestrator's decisions; pending the lead's review like the rest of this ADR):
+Amendments made after the verification of the review fix pass, 2026-10-29 (PR 4, findings P4-13 to P4-17 and the orchestrator's decisions):
 
 - Finding P4-13 (the orchestrator's decision): a retirement whose event names `engram/retention/item-ttl` does not make content retired, because the item's own ttl is set by its writer: a member could write content with `ttl: 1` and let the next sweep turn it into a block on everyone's model, compaction and tool writes. Expiry by a rule's ttl, budget eviction, adoption's retraction and any other allowed retire or evict still count, including those a user-sourced sweep makes under a rule. The check is one condition in `retiredContent` (packages/core/src/plane/write.ts).
 - Residual risk, recorded for the lead: a member can still plant a block by budget flooding, writing the target content and then enough items for recency (or utility) to evict it, after which the eviction counts as retired content. It needs write access to the scope and leaves a trail of writes and an evict event naming the item; closing it would mean judging who caused an eviction, which this ADR does not attempt.

@@ -1,7 +1,7 @@
 # ADR 0016: Statistics: paired bootstrap, Holm, three models from three providers, stopping rules
 
-Status: accepted with amendments, pending lead review, 2026-10-22
-Deciders: drafted by the coding agent in step-0 task S0.13; pending review and acceptance by Omar (lead). Until then this records a recommendation the code already follows.
+Status: accepted with amendments, 2026-11-02
+Deciders: Omar (lead)
 Supersedes: the proposal of the same number in `docs/decisions/README.md`
 
 ## Context

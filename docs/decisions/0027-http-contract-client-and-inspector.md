@@ -1,7 +1,7 @@
 # ADR 0027: One HTTP contract for every surface: a route table, generated OpenAPI and client, loopback only until authentication
 
-Status: accepted, pending lead review, 2026-10-29
-Deciders: drafted by the orchestrating session on the lead's instruction (plan `docs/tasks/gate-b-plan.md`, decisions 4 to 6); pending review and acceptance by Omar (lead). Until then this records the design cards E8.1 to E8.6 follow.
+Status: accepted, 2026-11-02
+Deciders: Omar (lead)
 Supersedes: nothing; it gives ADR 0001's "the HTTP server is thin, clients are generated from it" and ADR 0022's MCP surface their mechanism.
 
 ## Context
@@ -18,7 +18,7 @@ ADR 0001 makes the HTTP server a thin TypeScript layer over core with clients ge
 6. **A decision is a response, not an error.** Allow, deny and ask are 200 with the event; `InvalidCallError` is 400, `ExplainDeniedError` 403, `NotImplementedYet` 501 naming the card.
 7. **The inspector reads through the plane.** It views as one actor; scope lanes come from `Plane.read` as that actor; the timeline shows `visibleEvents(actor, events)` (a pure core function: events in the viewer's member scopes and events the viewer made); the explain view uses `Plane.explain`, so only a read's own reader sees its explanations (decision D5). The read event's filtered counts are parsed by a core function beside the one that writes the reason.
 
-Amendments made in PR 3 of the plan (cards E8.1, E8.3, E8.2, E8.4; branch gb-pr3-surfaces, 2026-10-29; pending the lead's review like the rest of this ADR):
+Amendments made in PR 3 of the plan (cards E8.1, E8.3, E8.2, E8.4; branch gb-pr3-surfaces, 2026-10-29):
 
 - The table lives in packages/server/src/routes.ts, the schemas in contract.ts, the guards and error mapping in app.ts. Statuses the decision left open: `UnknownReadError` (new in core, thrown by explain for an id that names no read) is 404; a store call in a workspace with no store (`NoStoreError`) is 503; a request failing its schema or not JSON is 400; a refused Host or Origin is 403; a body that is not application/json is 415; a body over 1 MiB is 413; an unknown route is 404. Every error body is `{ error: { code, message, card? } }`; a 500 carries `internal error` only, and its error goes to `onError` (the server's stderr, or the CLI's in process).
 - The JSON-body rule covers POST, PUT and PATCH; GET, HEAD and DELETE carry no body. The rules are one middleware, `loopbackGuard(port)`, which the MCP server's streamable HTTP endpoint also runs behind. The Host must be `127.0.0.1`, `localhost` or `[::1]` with the server's port, in the Host header and in the URL the app sees; `engram serve --host` accepts `127.0.0.1`, `::1` and `localhost`. The default port is 7313.
@@ -32,7 +32,7 @@ Amendments made in PR 3 of the plan (cards E8.1, E8.3, E8.2, E8.4; branch gb-pr3
 - Review fix pass (findings R3-11 and R3-12): after binding, `listen` and the MCP server's HTTP transport check that the bound address is loopback (127.0.0.0/8, ::1, or mapped 127) and close the socket if it is not, since `localhost` is resolved by the system; the MCP HTTP endpoint has the same 1 MiB body cap as the API.
 - The viewer of `GET /viewer` is `engram serve --as` with `--member` and `--level`, built as the CLI builds actors, without a source.
 
-Amendments made by cards E8.5 and E8.6, 2026-10-29 (branch `gb-pr4-inspector`, PR 4 of the Gate B plan; pending the lead's review like the rest of this ADR):
+Amendments made by cards E8.5 and E8.6, 2026-10-29 (branch `gb-pr4-inspector`, PR 4 of the Gate B plan):
 
 - The inspector's stack: Vite 8.3.4 (the version vitest already runs on) and React 19.3.1, with no `@vitejs/plugin-react` (Vite's own transform compiles TSX as `packages/ui/tsconfig.json` says, and a production build needs no fast refresh), no router, no state or CSS library, system fonts only. `make ui` builds it into `packages/ui/dist`. TypeScript 7 checks it under `make lint` through `packages/ui/tsconfig.json` (DOM library, `react-jsx`); the root tsconfig excludes `packages/ui`.
 - Serving: `createApp` takes a `ui` directory and serves it at `/` for GET and HEAD outside `/api/v1`, after the Host and Origin guards, and never for a path in the API's space (any path whose first segment, decoded once and compared without case, is `api`: those get the API's JSON 404); `listen` passes the built `packages/ui/dist` when it holds an `index.html`, so `engram serve` serves the inspector with no flag. A path is decoded once and refused with a backslash, a NUL, a `.` or `..` segment or a segment holding `:` (a drive or a stream on Windows), and the file must resolve, links followed, inside the directory; a path without an extension that names no file gets `index.html`. Every inspector response carries a same-origin Content-Security-Policy (`default-src 'self'`, `connect-src 'self'`), `nosniff` and `no-referrer`. With no build, `/` answers 404 naming `make ui`.

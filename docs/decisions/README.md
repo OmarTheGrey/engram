@@ -2,40 +2,40 @@
 
 One file per decision, `NNNN-<slug>.md`, format: context, decision, alternatives, consequences, sources. Status is one of proposed, accepted, superseded. A proposed ADR is a question with a recommended answer; accepting it is a `decision` log entry plus a status change in the same PR.
 
-ADRs 0001 and 0020 are accepted by the lead. ADRs 0002 to 0023 (except 0020) were drafted as accepted in step-0 task S0.13 (2026-10-22) and are pending a review and flesh-out session with the team (`docs/tasks/backlog.md`); each has its own file, which is authoritative once reviewed. ADRs 0024 to 0026 were drafted as accepted on 2026-10-29 by the orchestrating session on the lead's instruction (`docs/log/2026-10-29-plan-decisions-taken.md`), and ADRs 0027 to 0029 the same day for the Gate B plan (`docs/tasks/gate-b-plan.md`), with ADR 0030 drafted by its PR 5 (card B3) on the plan's decision 7; they join that review and have files only, no proposal below. The proposals below are kept as the record of what was decided from; they were distilled from the readings in `docs/readings/`, the gap analysis in the proposal, and checks run on 2026-10-17. Each proposal names the papers or facts that force it, the options, the recommended pick, and what it unblocks. They were accepted, amended or rejected in step 0 (see `docs/tasks/step-0.md`).
+Every ADR, 0001 to 0030, is accepted by the lead, and the lead is its decider. ADRs 0001 and 0020 were decided by the lead directly. ADRs 0002 to 0030 were drafted during the project (0002 to 0023 in step-0 task S0.13 on 2026-10-22, 0024 to 0030 by the Gate A and Gate B plans on 2026-10-29, recorded in `docs/log/`) and accepted by the lead on 2026-11-02 with every amendment they carry (`docs/log/2026-11-02-adrs-accepted.md`); each file is authoritative. ADRs 0024 to 0030 have files only, no proposal below. The proposals below are kept as the record of what was decided from; they were distilled from the readings in `docs/readings/`, the gap analysis in the proposal, and checks run on 2026-10-17. Each proposal names the papers or facts that force it, the options, the recommended pick, and what it unblocks. They were accepted, amended or rejected in step 0 (see `docs/tasks/step-0.md`).
 
 | # | Title | Status |
 |---|---|---|
 | 0001 | pi is the base building block of the control plane | accepted |
-| 0002 | Memory item schema, versioning and generated contracts | accepted with amendments, pending lead review |
-| 0003 | Event log as source of truth; store state as projection; SQLite via node:sqlite | accepted with amendments, pending lead review |
-| 0004 | Provenance model and source trust | accepted with amendments, pending lead review |
-| 0005 | Validity is bi-temporal; updates supersede, never overwrite | accepted with amendments, pending lead review |
-| 0006 | Scope, owner and grants; policy as typed objects, not a policy language | accepted with amendments, pending lead review |
-| 0007 | Write gate rules and source isolation | accepted, pending lead review |
-| 0008 | Lints: deterministic first, model-based second, both as events | accepted, pending lead review |
-| 0009 | Retrieval explanations carry score components, rank and policy decision | accepted with amendments, pending lead review |
-| 0010 | Retention never deletes; eviction retires; long-horizon arm is mandatory | accepted, pending lead review |
-| 0011 | One lifecycle for every class: candidate, active, retired; replay admission for procedures | accepted with amendments, pending lead review |
-| 0012 | Induction method: Agent Workflow Memory over pi session trees, reimplemented in TypeScript | accepted, pending lead review |
-| 0013 | Adapter contract with capability flags; conformance suite on a fake first | accepted with amendments, pending lead review |
-| 0014 | No-bypass: store commands blocked in bash; MCP store tools wrapped | accepted with amendments, pending lead review |
-| 0015 | Evaluation protocol: six benchmarks, seven conditions, vendored judges, label audit | accepted with amendments, pending lead review |
-| 0016 | Statistics: paired bootstrap, Holm, three models from three providers, stopping rules | accepted with amendments, pending lead review |
-| 0017 | Every model call is cached, metered and seeded; cassettes are the cache | accepted with amendments, pending lead review |
-| 0018 | Duplicate and near-duplicate detection without embeddings by default | accepted, pending lead review |
-| 0019 | Monorepo tooling | accepted with amendments, pending lead review |
+| 0002 | Memory item schema, versioning and generated contracts | accepted with amendments |
+| 0003 | Event log as source of truth; store state as projection; SQLite via node:sqlite | accepted with amendments |
+| 0004 | Provenance model and source trust | accepted with amendments |
+| 0005 | Validity is bi-temporal; updates supersede, never overwrite | accepted with amendments |
+| 0006 | Scope, owner and grants; policy as typed objects, not a policy language | accepted with amendments |
+| 0007 | Write gate rules and source isolation | accepted |
+| 0008 | Lints: deterministic first, model-based second, both as events | accepted |
+| 0009 | Retrieval explanations carry score components, rank and policy decision | accepted with amendments |
+| 0010 | Retention never deletes; eviction retires; long-horizon arm is mandatory | accepted |
+| 0011 | One lifecycle for every class: candidate, active, retired; replay admission for procedures | accepted with amendments |
+| 0012 | Induction method: Agent Workflow Memory over pi session trees, reimplemented in TypeScript | accepted |
+| 0013 | Adapter contract with capability flags; conformance suite on a fake first | accepted with amendments |
+| 0014 | No-bypass: store commands blocked in bash; MCP store tools wrapped | accepted with amendments |
+| 0015 | Evaluation protocol: six benchmarks, seven conditions, vendored judges, label audit | accepted with amendments |
+| 0016 | Statistics: paired bootstrap, Holm, three models from three providers, stopping rules | accepted with amendments |
+| 0017 | Every model call is cached, metered and seeded; cassettes are the cache | accepted with amendments |
+| 0018 | Duplicate and near-duplicate detection without embeddings by default | accepted |
+| 0019 | Monorepo tooling | accepted with amendments |
 | 0020 | Licence | accepted |
-| 0021 | Twin: person and role scopes, consent grants, handover; offboarding deferred | accepted, pending lead review |
-| 0022 | Other harnesses through MCP; interception limits stated | accepted with amendments, pending lead review |
-| 0023 | Pre-registration lives in the repo, tagged, and is mirrored externally | accepted with amendments, pending lead review |
-| 0024 | Db backends: one synchronous contract, SQLite per user by default, Postgres on a worker thread | accepted, pending lead review |
-| 0025 | Retention semantics: expiry at read and by sweep, budgets enforced in the write queue, eviction order, retired content stays out | accepted, pending lead review |
-| 0026 | Promotion: confirmations are independent corroboration, reviewers are user-sourced members, a promotion is a write under the target's rule | accepted, pending lead review |
-| 0027 | One HTTP contract for every surface: a route table, generated OpenAPI and client, loopback only until authentication | accepted, pending lead review |
-| 0028 | The Letta adapter works over MemFS, Letta's git-backed context repository, on local disk | accepted, pending lead review |
-| 0029 | The poisoning arm runs on MEM-INV-Bench | accepted, pending lead review |
-| 0030 | GateMem's principals are actors, its unrestricted relationships are memberships and read grants, read from the fields an agent may see | accepted, pending lead review |
+| 0021 | Twin: person and role scopes, consent grants, handover; offboarding deferred | accepted |
+| 0022 | Other harnesses through MCP; interception limits stated | accepted with amendments |
+| 0023 | Pre-registration lives in the repo, tagged, and is mirrored externally | accepted with amendments |
+| 0024 | Db backends: one synchronous contract, SQLite per user by default, Postgres on a worker thread | accepted |
+| 0025 | Retention semantics: expiry at read and by sweep, budgets enforced in the write queue, eviction order, retired content stays out | accepted |
+| 0026 | Promotion: confirmations are independent corroboration, reviewers are user-sourced members, a promotion is a write under the target's rule | accepted |
+| 0027 | One HTTP contract for every surface: a route table, generated OpenAPI and client, loopback only until authentication | accepted |
+| 0028 | The Letta adapter works over MemFS, Letta's git-backed context repository, on local disk | accepted |
+| 0029 | The poisoning arm runs on MEM-INV-Bench | accepted |
+| 0030 | GateMem's principals are actors, its unrestricted relationships are memberships and read grants, read from the fields an agent may see | accepted |
 
 ---
 

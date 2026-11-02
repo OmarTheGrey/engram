@@ -1,7 +1,7 @@
 # ADR 0026: Promotion: confirmations are independent corroboration, reviewers are user-sourced members, a promotion is a write under the target's rule
 
-Status: accepted, pending lead review, 2026-10-29
-Deciders: drafted by the orchestrating session on the lead's instruction (plan `docs/tasks/gate-a-e0-e1-e2-plan.md`, decisions 3 and 4); pending review and acceptance by Omar (lead). Until then this records the design card E2.5 follows.
+Status: accepted, 2026-11-02
+Deciders: Omar (lead)
 Supersedes: nothing; it gives ADR 0011 (one lifecycle, replay admission) its promotion mechanism.
 
 ## Context
@@ -18,7 +18,7 @@ The policy says episodic items become semantic "after k confirmations or review"
 6. **Versioning.** A status-only transition (candidate to active) is in place: same id, version plus one, one `promote` event carrying the item. A class or scope change is a new id whose `lineage` names the source item and every confirming item (the evidence pointers of a reflection); the promoted item's provenance kind is the least trusted among its sources, its actor the approver or the promoting actor; the source is retired by a `retire` event (`<policy>/promotion/superseded`) in the same queue slot (ADR 0005, decision D1). A `derived_from` field on provenance (the trust ceiling the literature review asks for) is a schema change and waits for its own PR; lineage carries the pointers until then.
 7. **Ask.** When `requires_review` holds and the actor is not a reviewer, the result is decision `ask` with a null item and one `gate` event, so the request is visible in the review queue (E8.8) without landing.
 
-Amendments made when implementing card E2.5, 2026-10-29 (choices this ADR left open; pending the lead's review like the rest of it):
+Amendments made when implementing card E2.5, 2026-10-29 (choices this ADR left open):
 
 - `Plane.promote` takes an optional fifth argument `{ review?: boolean }`: an actor approves by asking to, and an ineligible actor asking is refused (`engram/promote/reviewer`). An eligible actor who does not ask is not treated as a reviewer, so a confirmation count is never silently replaced by an approval. The CLI's `--review` sets it.
 - The validation record is not a Plane argument: a caller-supplied `{ k, n }` would be a self-granted authority (2609.01836). The evaluator accepts one; the plane passes none until card D3 gives it a source, so no procedural candidate becomes active through the plane before D3.
@@ -30,7 +30,7 @@ Amendments made when implementing card E2.5, 2026-10-29 (choices this ADR left o
 - A promotion is judged as a write by the promoting actor with the promoted item's provenance (the least trusted kind), not the actor's source. So model-written content never leaves person scope, even by promotion: source isolation (ADR 0007) holds for it, which narrows ADR 0004's "cannot be promoted beyond person scope without a gate pass" to "cannot leave person scope"; a person restates it as user content instead.
 - A new version keeps the source's owner, content, confidence, validity, ttl and grants. A store failure after the gate allowed appends one `promote` deny event (`engram/write/store-failure`) and rethrows, as a write does. The target's budget check runs after a landing promotion, in its queue slot.
 
-Amendments made in the review fix pass of card E2.5, 2026-10-29 (review P5, decisions taken by the orchestrating session; pending the lead's review like the rest of this ADR). Where they differ from the list above, these replace it:
+Amendments made in the review fix pass of card E2.5, 2026-10-29 (review P5, decisions taken by the orchestrating session). Where they differ from the list above, these replace it:
 
 - P5-1: a reviewer is not the owner and not the actor of any allowed `write` or `update` event on the item or on any version its lineage reaches, whoever the item names as owner (`owner` is a field the writer sets). The plane gathers the authors from the log; invariant 2's generator writes items whose author is not their owner, and its oracle finds the authors in its own scan of the events.
 - P5-2, a limit stated plainly: the CLI does not authenticate. `--as` and `--member` are taken as given and `engram promote` sets source `user`, so through the CLI the distinct-actor rule and the reviewer rule hold only as far as the single-user machine it runs on; a CLI promotion with `--review` is only as trustworthy as that machine. ADR 0006's "set by the harness, the caller cannot" holds for the pi extension, not for the CLI. `engram promote --help` says so. So that a model cannot use the CLI to do the same, `engram` is on the pi extension's store-command block list (packages/pi-extension/src/bash.ts), with a real-session test.
@@ -42,7 +42,7 @@ Amendments made in the review fix pass of card E2.5, 2026-10-29 (review P5, deci
 - P5-10: for a new version, the ref check treats only the source and its own lineage as related, not the confirming items its lineage also names.
 - P5-12: confirmations and the duplicate check compare content in a strict normal form (format characters dropped, whitespace collapsed; no NFKC, no case folding), so "US" never confirms "us" and "10²" never confirms "102": for corroboration, not merging is the safe direction. The retired-content rule keeps the merging form, where merging is the safe direction. Both are exported under names that say so (`strictContentHash`, `mergingContentHash`; ADR 0018's amendments).
 
-Amendments made in the verification of the fix pass, 2026-10-29 (review findings P5-14 to P5-18, decisions taken by the orchestrating session; pending the lead's review like the rest of this ADR). These supersede the P5-11 decision above and refine P5-7 and P5-12:
+Amendments made in the verification of the fix pass, 2026-10-29 (review findings P5-14 to P5-18, decisions taken by the orchestrating session). These supersede the P5-11 decision above and refine P5-7 and P5-12:
 
 - P5-15, superseding P5-11: a read grant never lets anyone move or retire an item (ADR 0006, decision D4: grants let others read, never write). Reach (a readable scope or a live grant) only chooses between the opaque refusal and a named one. A promotion lands only when the promoter is also a member of the source's scope, or is the item's owner and the source is the owner's own person scope; otherwise it is refused under `engram/promote/membership` with a reason that names the rule. Invariant 2 puts live grants on its source items and its oracle requires source-scope membership itself.
 - P5-14: content holding any default-ignorable code point, format character (Cf) or Unicode tag character (U+E0000 to U+E007F) is never promoted (`engram/promote/hidden-text`); the reason names how many such characters there are, never the characters. The strict form of confirmations now collapses whitespace only and keeps every other character, so a confirmation matches exactly what its writer wrote and a hidden payload never matches plain restatements. This refines P5-12, whose strict form dropped format characters. The oracle checks hidden text with its own code.

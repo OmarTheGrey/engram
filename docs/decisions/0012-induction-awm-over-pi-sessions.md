@@ -1,7 +1,7 @@
 # ADR 0012: Induction method: Agent Workflow Memory over pi session trees, reimplemented in TypeScript
 
-Status: accepted, pending lead review, 2026-10-22
-Deciders: drafted by the coding agent in step-0 task S0.13; pending review and acceptance by Omar (lead). Until then this records a recommendation the code already follows.
+Status: accepted, 2026-11-02
+Deciders: Omar (lead)
 Supersedes: the proposal of the same number in `docs/decisions/README.md`
 
 ## Context
