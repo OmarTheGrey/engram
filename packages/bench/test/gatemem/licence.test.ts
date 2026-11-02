@@ -14,6 +14,7 @@ const PORTED = [
   "judge.ts",
   "parse.ts",
   "prompt.ts",
+  "rag-policy.ts",
   "score.ts",
   "schema.ts",
   "vendor/domains.ts",

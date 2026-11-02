@@ -42,7 +42,12 @@ Selection rule (seed SEED, Python's random.Random, deterministic):
      neither an id nor a line's position tells an attack from a benign case
      or one channel from another. The ids still index labelled data: they
      reach the cache key and the results, never the plane's items or events
-     or the model's requests (review finding R6-4).
+     or the model's requests (review finding R6-4);
+  4. the full case set, H1's on this arm (full/cases.jsonl): every ATTACK
+     scenario in every channel and every LEGIT scenario, 38 cases; the 24
+     picks above keep their ids and come first, and the 14 other cells follow
+     as mib-25 to mib-38 in an order drawn by Random(SEED + 1). Every cell's
+     memory is checked against the recorded study as above.
 """
 
 from __future__ import annotations
@@ -105,6 +110,9 @@ def fetch(upstream: Path) -> None:
     upstream.mkdir(parents=True, exist_ok=True)
     run = lambda *args: subprocess.run(["git", "-C", str(upstream), *args], check=True)  # noqa: E731
     run("init", "-q")
+    # The files byte for byte as committed: a Windows default of
+    # core.autocrlf=true would check text out with CRLF and fail every hash.
+    run("config", "core.autocrlf", "false")
     run("remote", "add", "origin", UPSTREAM["repository"] + ".git")
     run("fetch", "-q", "--depth", "1", "origin", UPSTREAM["commit"])
     run("checkout", "-q", "FETCH_HEAD")
@@ -210,6 +218,26 @@ def select(scenarios: dict[str, list[dict[str, Any]]]) -> list[tuple[str, dict[s
     # Ids follow a drawn order, not the picking order (rule 3).
     rng.shuffle(picked)
     return picked
+
+
+def select_full(
+    scenarios: dict[str, list[dict[str, Any]]], picked: list[tuple[str, dict[str, Any]]]
+) -> list[tuple[str, dict[str, Any]]]:
+    """The full case set (rule 4): every ATTACK scenario in every channel and every LEGIT one.
+
+    The subset's picks keep their ids (mib-01 to mib-24) and come first; the
+    cells the subset left out follow in an order drawn by Random(SEED + 1), so
+    an id above 24 tells neither family nor channel either.
+    """
+    every = [(ch, s) for s in scenarios["ATTACK"] for ch in CHANNELS]
+    every += [("legit", s) for s in scenarios["LEGIT"]]
+    taken = {(ch, s["sid"]) for ch, s in picked}
+    rest = sorted(
+        ((ch, s) for ch, s in every if (ch, s["sid"]) not in taken),
+        key=lambda cell: (cell[1]["sid"], cell[0]),
+    )
+    random.Random(SEED + 1).shuffle(rest)
+    return [*picked, *rest]
 
 
 def recorded_memory(user: str) -> str:
@@ -341,13 +369,23 @@ def main() -> int:
     picked = select(scenarios)
     records = proposals_for(upstream / EVIDENCE, picked)
     cases = build_cases(picked, records)
+    full_picked = select_full(scenarios, picked)
+    full_records = proposals_for(upstream / EVIDENCE, full_picked)
+    full_cases = build_cases(full_picked, full_records)
+    if full_cases[: len(cases)] != cases:
+        raise SystemExit("the full set does not begin with the subset's cases")
     system = records[0]["system"]
-    if any(r["system"] != system for r in records):
+    if any(r["system"] != system for r in full_records):
         raise SystemExit("recorded system prompts differ between cases")
 
     out.mkdir(parents=True, exist_ok=True)
     lines = [json.dumps(c, ensure_ascii=False) for c in cases]
     (out / "cases.jsonl").write_bytes("".join(f"{ln}\n" for ln in lines).encode("utf-8"))
+    full_lines = [json.dumps(c, ensure_ascii=False) for c in full_cases]
+    (out / "full").mkdir(exist_ok=True)
+    (out / "full" / "cases.jsonl").write_bytes(
+        "".join(f"{ln}\n" for ln in full_lines).encode("utf-8")
+    )
     (out / "UPSTREAM-LICENSE").write_bytes((upstream / "LICENSE").read_bytes())
     script = {
         "rule": (
@@ -391,7 +429,10 @@ def main() -> int:
             "cases.jsonl": [sha256(ln.encode("utf-8")) for ln in lines],
             "script.json": line_hashes(out / "script.json"),
             "probe-script.json": line_hashes(out / "probe-script.json"),
+            "full/cases.jsonl": [sha256(ln.encode("utf-8")) for ln in full_lines],
         },
+        # The full set's first cases are the subset's (rule 4), so one list
+        # describes both; the subset is the first len(files["cases.jsonl"]).
         "cases": [
             {
                 "case_id": c["case_id"],
@@ -401,7 +442,7 @@ def main() -> int:
                 "recorded_from": f"{r['file']}:{r['line']}",
                 "recorded_prompt_sha256": sha256(r["user"].encode("utf-8")),
             }
-            for c, r in zip(cases, records, strict=True)
+            for c, r in zip(full_cases, full_records, strict=True)
         ],
     }
     (out / "manifest.json").write_bytes(

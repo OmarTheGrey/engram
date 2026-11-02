@@ -55,6 +55,28 @@ function memoryAudit(items: readonly MemoryItem[], block: string) {
   };
 }
 
+/** run_eval.py's max_turns for the long-context agent: max(300, top_k), top_k 20. */
+export const LONG_CONTEXT_TURNS = 300;
+
+/**
+ * The long-context agent's memory items: the last `maxTurns` turns, as
+ * LongContextAgent.query builds them. The runner's condition C1 puts the same
+ * items in the same prompt (ADR 0031).
+ */
+export function longContextItems(
+  turns: readonly Turn[],
+  maxTurns = LONG_CONTEXT_TURNS,
+): MemoryItem[] {
+  return turns.slice(-maxTurns).map((t) => ({
+    record_id: t.record_refs?.[0] ?? t.turn_id,
+    turn_id: t.turn_id,
+    principal_id: t.speaker.principal_id,
+    role: t.speaker.role,
+    text: t.text,
+    record_refs: t.record_refs ?? [],
+  }));
+}
+
 export class LongContextAgent implements GateMemAgent {
   readonly maxTurns: number;
   private episode: AgentEpisode | undefined;
@@ -63,7 +85,7 @@ export class LongContextAgent implements GateMemAgent {
 
   constructor(options: LongContextOptions) {
     this.options = options;
-    this.maxTurns = options.maxTurns ?? 300;
+    this.maxTurns = options.maxTurns ?? LONG_CONTEXT_TURNS;
   }
 
   reset(episode: AgentEpisode): void {
@@ -77,14 +99,7 @@ export class LongContextAgent implements GateMemAgent {
 
   /** The memory items for the prompt: the last `maxTurns` ingested turns. */
   context(): MemoryItem[] {
-    return this.turns.slice(-this.maxTurns).map((t) => ({
-      record_id: t.record_refs?.[0] ?? t.turn_id,
-      turn_id: t.turn_id,
-      principal_id: t.speaker.principal_id,
-      role: t.speaker.role,
-      text: t.text,
-      record_refs: t.record_refs ?? [],
-    }));
+    return longContextItems(this.turns, this.maxTurns);
   }
 
   async query(checkpoint: AgentCheckpoint): Promise<AgentOutput> {

@@ -31,6 +31,7 @@ describe("the vendored MEM-INV-Bench subset", () => {
     const manifest = readJson<Manifest>("manifest.json");
     expect(Object.keys(manifest.files).sort()).toEqual([
       "cases.jsonl",
+      "full/cases.jsonl",
       "probe-script.json",
       "script.json",
       "upstream-golden.json",

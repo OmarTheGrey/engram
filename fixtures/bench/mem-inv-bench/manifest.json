@@ -497,6 +497,46 @@
       "737db166c79ae98e44bbe5ad43e03bf3774f7b3696068842d56a72e863dfeb20",
       "d10b36aa74a59bcf4a88185837f658afaf3646eff2bb16c3928d0e9335e945d2"
     ],
+    "full/cases.jsonl": [
+      "f4c5b1412481c80368ccaa0560e9337eb9c03ce9492c73c0bd7d0f73a1e38c61",
+      "2494cf23e92e8d9393c5592f1b6239ce837440c7f694c3b49305db91d1397600",
+      "73174aeedae8e46ca79a132375648354755204cf4b6c435f2f3278ffcaf0b1de",
+      "4d6c3cf5134f4941cda896cd8ea46bbcb3c73e0875cf1ccf6e742a26e7ba32b9",
+      "c9e460a7ed1d3e8cdc16a35feb62c77cba50b464875c9d7848e86e7419611e4e",
+      "8ada8a6e925b21cdb87aa863d49045c95e515a09a97c66dfcc785cc343705562",
+      "8b7af7da5964014027248e7d55db56c75fd9becebc02178d648d2afca44ab9a4",
+      "be330072afe2a8a9d0bf789f4da5703d2e29e7bfc227bd528b4966c9347cd366",
+      "c893117e41d43f7a4e8dfa903412d932a5785724e07d5aaf4999a91a19bb1575",
+      "ddecc7a5aeb1e15f010fdc2819bf1fc78bc9b157a4eb1960265580914ff0c1e3",
+      "3f1c9b397cad793ab891fb1b534ddcedf26e1b60aaef1bfb589a38bc555b0856",
+      "afe68a403c84b52304535c81af5e5f65e8b6e98b31dfc00a7b4abdf78c1a8093",
+      "fd51be34a448e665a834ab7362ce3ceb9ddf481b5305b7f4059db2be7ff00e51",
+      "3cc80a69f8757f66093bb799fc2aa5e471aba36319336e8fa46603ce50db10c3",
+      "ed1655a09798955aa55944c372631265162690639143999b7a7c9d7a110f6e2a",
+      "606f9225611833fe9402c40772074c0bfd968eeaf46b641646edf969421214bc",
+      "c86f6db9cd401df43f447f38ecb46864781f11060e3e1239b46d08003d1b9c8f",
+      "6198e8ddd5c23a5e5f4417854eb3a269904483cd18a2132d37e3146b41be6d12",
+      "a17514295aefce1f721a36158ab6f2ecdbb3ec8ab96e98cfe9fe8acd63dc119c",
+      "e8eecbae3eb4bb99fed194696b6a3576bea3d37439555204ca4b5d183cd89b60",
+      "db80bbf86c614d2241b19c64fdca037cf74b3f9823fbfbc2926a459c4aedbbdb",
+      "5a52070765cd3d3ccbd82cc36cad12dacbc2fe7163aaf6408300d92902be5719",
+      "6ddf051cbd3f69e17dc65d79c06a3fd947522d77b1fcfe5d274e8de71d9b50e1",
+      "a5ef7db3992c6da548aacb3ee4c1bb245020e3968ec49d0eb2b38ef9b84444e0",
+      "57d2d8f62df91d29400ce7d4231152d33accc7ce4098e0c448b5c4f2ad648b08",
+      "0f74c3d1aff46d6f41b8c39d079293cc753fc0a667a90eed8911db2f545477a3",
+      "e0fbe636c7c25472b90aa3c9bce1ab788ced0de771293256d57ac05b1d1a7566",
+      "ba4309181b2deea9da5b8cc5a7735841220b6d99abe1dba816ff38bd68220e25",
+      "19f1d35a4d68842cbece5f9de8ca12600068e395b0e5830dd222a2b73c0dfd78",
+      "125e72b508c11ffbdf462efab9a8392952e2ed01d28a46df8ee03d8330a96f54",
+      "c4b9d9ab1f9a6fb9616e121906ca2e099cf13047c75ae5b5d363e0f8292c6a3c",
+      "6e140241a12e12f35a70ff459d05db9b84e4e760e0e70869670be5e85b9f85f8",
+      "aba475de2bb09df9ea1c05c0a88cef2193353bfc14c72b3a0930ab37a4fb1247",
+      "1fca4290e6bab3c8a9cf3f49fd511fd68a7cf8d4f2a6447002762905e682d668",
+      "a6c04625b2c61cba4a3472e977dbc0e204838dc6f4c3f0766aa52cfb07642c2e",
+      "cf6ddbb0323e9ffec1a0928c1258287111acf7976d83d577cca7e0949dcc078c",
+      "c584e1397f61adb1a07bf0427625cf8efd540047b597a4da5ecf07b5bbe9041e",
+      "20ee15c6f7f5a41d03cfc992f10c784fe90b1e36bcc5c3aa539a9fc0a938a55d"
+    ],
     "upstream-golden.json": [
       "021fb596db81e6d02bf3d2586ee3981fe519f275c0ac9ca76bbcf2ebb4097d96",
       "f086eb9ce5757d10d81969f909e81a3955cafa13385981908442f737878b1669",
@@ -1519,6 +1559,118 @@
       "sid": "contractor_0v",
       "recorded_from": "logs/exp1_t3_8m.jsonl:461",
       "recorded_prompt_sha256": "059ed81caae52a7153715e16afe3aa998ba2a77743162fe0aac132e2c6a99025"
+    },
+    {
+      "case_id": "mib-25",
+      "family": "attack",
+      "channel": "tool_echo",
+      "sid": "payroll_redirect",
+      "recorded_from": "logs/exp1_t3_8m.jsonl:136",
+      "recorded_prompt_sha256": "fc98e56fa0ed3b8bd3499be5db4d96d12b9117c84381495db0d923c44a7fc391"
+    },
+    {
+      "case_id": "mib-26",
+      "family": "attack",
+      "channel": "direct",
+      "sid": "vendor_swap",
+      "recorded_from": "logs/exp1_t3_8m.jsonl:224",
+      "recorded_prompt_sha256": "a3cbbc235b94ccb3900bc2e41ec9d44c2b8a93268d1154ac6cbe0d32543bfc37"
+    },
+    {
+      "case_id": "mib-27",
+      "family": "attack",
+      "channel": "corroborate",
+      "sid": "crm_exfil",
+      "recorded_from": "logs/exp1_t3_8m.jsonl:92",
+      "recorded_prompt_sha256": "a40122786e0cddcd0aa0c99ea9097b2109caa808b87f9ef7f35d24517f7d85fe"
+    },
+    {
+      "case_id": "mib-28",
+      "family": "attack",
+      "channel": "direct",
+      "sid": "saas_admin",
+      "recorded_from": "logs/exp1_fixsaas_admin_gpt-56-terr_t3_1m.jsonl:1",
+      "recorded_prompt_sha256": "0781c265b6ff19963b274c1b30f4d93b383d4179c29d54d67140553e9ad919d3"
+    },
+    {
+      "case_id": "mib-29",
+      "family": "attack",
+      "channel": "summarize",
+      "sid": "utility_bill",
+      "recorded_from": "logs/exp1_t3_8m.jsonl:294",
+      "recorded_prompt_sha256": "c326c8ce33b90ce0e8f285d94cfd79dcd4f08a6a291914d2df1edb2bd376531f"
+    },
+    {
+      "case_id": "mib-30",
+      "family": "attack",
+      "channel": "direct",
+      "sid": "crm_exfil",
+      "recorded_from": "logs/exp1_t3_8m.jsonl:45",
+      "recorded_prompt_sha256": "a3d508ba9e5e59f6135440aef693f1259bfeb8c5b8ec461ae7d68ef3fe5b5f6f"
+    },
+    {
+      "case_id": "mib-31",
+      "family": "legit",
+      "channel": "legit",
+      "sid": "urgent_util_1v",
+      "recorded_from": "logs/exp1_t3_8m.jsonl:450",
+      "recorded_prompt_sha256": "91707da3090d55e865b45c8f38dc254fc853b44d481ac9edf528658da5bc1535"
+    },
+    {
+      "case_id": "mib-32",
+      "family": "attack",
+      "channel": "summarize",
+      "sid": "devops_key",
+      "recorded_from": "logs/exp1_t3_8m.jsonl:352",
+      "recorded_prompt_sha256": "086234130c17f63896e088a19d1b119fce4bfca68da7734693d0468d13040b32"
+    },
+    {
+      "case_id": "mib-33",
+      "family": "attack",
+      "channel": "tool_echo",
+      "sid": "acme_pay",
+      "recorded_from": "logs/exp1_t3_8m.jsonl:33",
+      "recorded_prompt_sha256": "7dfd12766946541fb4d01cd70c978ed765b6337ef218121e763b42a95e8776f1"
+    },
+    {
+      "case_id": "mib-34",
+      "family": "legit",
+      "channel": "legit",
+      "sid": "partner_report_2v",
+      "recorded_from": "logs/exp1_t3_8m.jsonl:425",
+      "recorded_prompt_sha256": "5d46dc0fd1ada9815d099f485704a188d82107893cbb7dd0389417658119898e"
+    },
+    {
+      "case_id": "mib-35",
+      "family": "attack",
+      "channel": "summarize",
+      "sid": "globex_wire",
+      "recorded_from": "logs/exp1_t3_8m.jsonl:1",
+      "recorded_prompt_sha256": "aac4d0a519e758ed56edeab066e4fa58a8f6b917a2d8827d50af901a50e61c7f"
+    },
+    {
+      "case_id": "mib-36",
+      "family": "attack",
+      "channel": "tool_echo",
+      "sid": "vendor_swap",
+      "recorded_from": "logs/exp1_t3_8m.jsonl:254",
+      "recorded_prompt_sha256": "ef8ac8c6f38d1f4c7bee263d61cdafd880a6898cdb2cc4d847bad20a60bb87f6"
+    },
+    {
+      "case_id": "mib-37",
+      "family": "attack",
+      "channel": "corroborate",
+      "sid": "devops_key",
+      "recorded_from": "logs/exp1_t3_8m.jsonl:383",
+      "recorded_prompt_sha256": "a9f12a6c1dc88910f5dfd7fe2f140135eb0b06c561d32f058431a2fbd0e5d588"
+    },
+    {
+      "case_id": "mib-38",
+      "family": "attack",
+      "channel": "corroborate",
+      "sid": "saas_admin",
+      "recorded_from": "logs/exp1_fixsaas_admin_gpt-56-terr_t3_1m.jsonl:23",
+      "recorded_prompt_sha256": "831ae201cf77a4512d3ec9ad3a88a9e828424a57710e1ac0e64d083a5b9d3efd"
     }
   ]
 }
