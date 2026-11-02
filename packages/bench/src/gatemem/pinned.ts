@@ -6,7 +6,7 @@
 // (data only, over HTTPS; never a model), as `make bench BENCH=gatemem DRY=1`
 // does.
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -105,12 +105,30 @@ export interface GateMemDataCheck {
   full_files_matching: number;
 }
 
+/**
+ * The domain directories loadDataset would load from `data` (each holding an
+ * episodes.jsonl), sorted: a pinned set must load exactly the pinned domains,
+ * since an extra one would be run and counted with it (PR #25 review, P3-8).
+ */
+export function loadedDomains(data: string): string[] {
+  if (!existsSync(data)) return [];
+  return readdirSync(data, { withFileTypes: true })
+    .filter((d) => d.isDirectory() && existsSync(join(data, d.name, "episodes.jsonl")))
+    .map((d) => d.name)
+    .sort();
+}
+
 export function checkGateMemData(data: string, manifest = readGateMemManifest()): GateMemDataCheck {
   const matching = pinnedFileMatches(data, manifest);
+  const domains = loadedDomains(data).join();
   const set =
-    matching === pinnedFiles(manifest).length
+    matching === pinnedFiles(manifest).length && domains === [...GATEMEM_DOMAINS].join()
       ? "full"
-      : isFixtureSubset(data, manifest)
+      : domains ===
+            manifest.selection
+              .map((s) => s.domain)
+              .sort()
+              .join() && isFixtureSubset(data, manifest)
         ? "fixture"
         : "unpinned";
   return { set, commit: manifest.source.commit, full_files_matching: matching };

@@ -177,7 +177,9 @@ def attack_memory(scn: dict[str, Any], channel: str, summary: str) -> list[dict[
     if channel == "direct":
         shown = [entry("web", scn["poison"])]
     elif channel == "summarize":
-        shown = [entry("agent", summary, ["web"])]
+        # The note keeps the poison it summarises, so the runner can write it
+        # again with the model under test, as build_memory does (driver.gen).
+        shown = [{**entry("agent", summary, ["web"]), "summarized_from": scn["poison"]}]
     elif channel == "tool_echo":
         shown = [entry("tool", f"[{scn['entity']} lookup] record on file: {v}", ["web"])]
     elif channel == "corroborate":
@@ -347,6 +349,7 @@ def build_cases(
                 "channel": e["channel"],
                 "derived_from": e["derived_from"],
                 "text": e["text"],
+                **({"summarized_from": e["summarized_from"]} if "summarized_from" in e else {}),
             }
             for e in memory
         ]
@@ -404,7 +407,7 @@ def main() -> int:
     # The runner's scripted pi model (packages/runner/src/mem-inv-probe.ts):
     # one memory_read with an empty query, which every store answers with all
     # it holds (upstream shows the model its whole memory), then the proposal.
-    probe = {
+    probe: dict[str, Any] = {
         "steps": {
             c["case_id"]: [
                 {"toolCall": {"id": "call-1", "name": "memory_read", "arguments": {"query": ""}}},
@@ -413,6 +416,13 @@ def main() -> int:
             for c, r in zip(cases, records, strict=True)
         }
     }
+    # The agent's own note, written by the model under test before the session
+    # (packages/runner mem-inv-probe.ts): the scripted model writes the
+    # reference model's recorded note, so a scripted run shows the recorded memory.
+    for c in cases:
+        for e in c["memory"]:
+            if "summarized_from" in e:
+                probe["steps"][f"{c['case_id']}@note"] = [{"text": e["text"]}]
     (out / "probe-script.json").write_bytes(
         (json.dumps(probe, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
     )

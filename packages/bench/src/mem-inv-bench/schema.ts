@@ -24,13 +24,26 @@ export const ORIGIN_CHANNELS = ["web", "inbox", "erp", "bank", "user", "agent", 
 export const OriginChannel = z.enum(ORIGIN_CHANNELS);
 export type OriginChannel = z.infer<typeof OriginChannel>;
 
-export const MemoryEntry = z.strictObject({
-  entry_id: z.string().regex(/^e\d+$/),
-  channel: OriginChannel,
-  /** The channels of a derived entry's inputs (upstream `derived_from`); empty for an ingested one. */
-  derived_from: z.array(OriginChannel),
-  text: z.string().min(1),
-});
+export const MemoryEntry = z
+  .strictObject({
+    entry_id: z.string().regex(/^e\d+$/),
+    channel: OriginChannel,
+    /** The channels of a derived entry's inputs (upstream `derived_from`); empty for an ingested one. */
+    derived_from: z.array(OriginChannel),
+    text: z.string().min(1),
+    /**
+     * For the agent's own note (channel `agent`): the untrusted text it
+     * summarised, upstream's raw poison. Upstream writes the note with the
+     * model under test (`build_memory`, channel `summarize`), so the runner
+     * regenerates it from this input; `text` is the reference model's
+     * recorded note, used where no model is asked. Never shown to a model as
+     * memory: upstream ingests the raw item but shows only the note.
+     */
+    summarized_from: z.string().min(1).optional(),
+  })
+  .refine((e) => (e.summarized_from !== undefined) === (e.channel === "agent"), {
+    message: "an agent note carries the text it summarised, and only an agent note does",
+  });
 export type MemoryEntry = z.infer<typeof MemoryEntry>;
 
 /** The laundering channels of upstream CHANNELS, and `legit` for a benign case. */

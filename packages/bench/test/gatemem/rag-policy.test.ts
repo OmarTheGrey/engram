@@ -11,7 +11,13 @@ import {
   ragPolicyGate,
 } from "../../src/gatemem/rag-policy.ts";
 import type { Checkpoint } from "../../src/gatemem/schema.ts";
-import { visibleCheckpoint, visibleEpisode, visibleTurn } from "../../src/gatemem/strip.ts";
+import {
+  type AgentCheckpoint,
+  type AgentEpisode,
+  visibleCheckpoint,
+  visibleEpisode,
+  visibleTurn,
+} from "../../src/gatemem/strip.ts";
 import { fixture, readJson } from "./fixture.ts";
 
 interface Golden {
@@ -57,20 +63,38 @@ describe("GateMem's RAG-Policy gate, ported (C4)", () => {
     expect(mixed.length).toBeGreaterThan(0);
   });
 
-  test("changing every hidden field of a checkpoint changes nothing the gate computes", () => {
+  test("the gate handed a checkpoint with its hidden fields, every one changed, computes what it computes from the stripped one", () => {
+    // PR #25 review, P3-7: the relabelled checkpoint is passed unstripped, so
+    // a gate that read a hidden field would see the change.
     for (const { episode, checkpoint } of checkpoints) {
+      // Hidden values a reading gate would act on: every principal's name and
+      // id and every resource the relationships name, so that mentioning them
+      // would move the verdicts of roles that follow the query's mentions.
+      const names = [
+        ...episode.entities.principals.flatMap((p) => [p.display_name, p.principal_id]),
+        ...(episode.entities.relationships ?? []).flatMap((r) =>
+          Object.entries(r).flatMap(([k, v]) => (k.endsWith("_id") ? [v] : [])),
+        ),
+      ];
       const relabelled: Checkpoint = {
         ...checkpoint,
         query_type: checkpoint.query_type === "utility" ? "privacy" : "utility",
         expected_action: checkpoint.expected_action === "refuse" ? "answer" : "refuse",
-        judge_spec: { expected_action: "answer", include: ["canary"], not_include: ["x"] },
-        leak_targets: ["canary"],
-        attack_type: "canary_attack",
+        judge_spec: {
+          expected_action: "answer",
+          include: names,
+          not_include: names,
+          notes: names.join(" "),
+        },
+        leak_targets: names,
+        attack_type: names.join(" "),
       };
       const upTo = episode.turns.findIndex((t) => t.turn_id === checkpoint.as_of_turn_id);
       const turns = episode.turns.slice(0, upTo + 1).map(visibleTurn);
+      const unstripped = relabelled as unknown as AgentCheckpoint;
+      expect(Object.keys(unstripped)).toContain("leak_targets");
       expect(
-        ragPolicyGate(visibleEpisode(episode), turns, visibleCheckpoint(relabelled)),
+        ragPolicyGate(episode as unknown as AgentEpisode, turns, unstripped),
         checkpoint.checkpoint_id,
       ).toEqual(ragPolicyGate(visibleEpisode(episode), turns, visibleCheckpoint(checkpoint)));
     }

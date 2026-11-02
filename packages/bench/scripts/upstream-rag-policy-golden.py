@@ -135,6 +135,7 @@ def main() -> int:
     p.add_argument("--upstream", required=True)
     p.add_argument("--data", required=True)
     p.add_argument("--out", required=True)
+    p.add_argument("--hashes", action="store_true", help="per-checkpoint hashes only")
     args = p.parse_args()
     upstream = Path(args.upstream).resolve()
     data = Path(args.data).resolve()
@@ -186,11 +187,23 @@ def main() -> int:
             (upstream / "bench/retrieval/chunker.py").read_text(encoding="utf-8")
         ),
     }
-    out = {
+    out: dict[str, Any] = {
         "source": "GateMem bench/agents/rag_policy.py at a983828, chunk_mode turn",
         "upstream_sha256": files,
-        "rows": rows,
     }
+    if args.hashes:
+        # The compact form for the pinned full set (PR #25 review, P3-5): per
+        # checkpoint, the first 16 hex digits of the sha256 of its row as
+        # canonical JSON (rag-policy-full.test.ts recomputes them from the port).
+        out["hidden_fields_inert"] = sum(1 for r in rows if r["hidden_fields_inert"])
+        out["checkpoints"] = {
+            r["checkpoint_id"]: _sha(
+                _canonical({k: v for k, v in r.items() if k != "hidden_fields_inert"})
+            )[:16]
+            for r in rows
+        }
+    else:
+        out["rows"] = rows
     # Bytes, so the file ends lines in \n on every platform.
     Path(args.out).write_bytes(
         (json.dumps(out, indent=2, ensure_ascii=False) + "\n").encode("utf-8")

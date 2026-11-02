@@ -34,6 +34,14 @@ describe("GateMem data against the pin", () => {
     });
   });
 
+  test("an extra domain directory beside the fixture makes it unpinned (P3-8)", () => {
+    const dir = fresh();
+    cpSync(FIXTURES, dir, { recursive: true });
+    mkdirSync(join(dir, "extra"));
+    writeFileSync(join(dir, "extra", "episodes.jsonl"), "");
+    expect(checkGateMemData(dir).set).toBe("unpinned");
+  });
+
   test("one changed line makes the fixture unpinned", () => {
     const dir = fresh();
     cpSync(FIXTURES, dir, { recursive: true });
@@ -57,6 +65,15 @@ describe("GateMem data against the pin", () => {
       }
     }
     expect(checkGateMemData(dir, manifest)).toMatchObject({ set: "full", full_files_matching: 8 });
+    // A fifth domain directory would be loaded, run and counted with the pinned four (P3-8).
+    mkdirSync(join(dir, "extra"));
+    writeFileSync(join(dir, "extra", "episodes.jsonl"), "");
+    expect(checkGateMemData(dir, manifest)).toMatchObject({
+      set: "unpinned",
+      full_files_matching: 8,
+    });
+    rmSync(join(dir, "extra"), { recursive: true });
+    expect(checkGateMemData(dir, manifest).set).toBe("full");
     rmSync(join(dir, "office", "episodes.jsonl"));
     expect(checkGateMemData(dir, manifest)).toMatchObject({
       set: "unpinned",
