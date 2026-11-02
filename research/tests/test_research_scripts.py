@@ -12,19 +12,22 @@ import hashlib
 import json
 import shutil
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pytest
 
 from analysis.power import (
+    SEED_MODELS,
     Cell,
     choose_rung,
     joint_threshold,
     ladder,
+    level_gate,
     normal_approx_items,
     simulate_arms,
     simulate_items,
-    size_at_margin,
+    simulated_level,
     smallest_passing,
     start_rung,
 )
@@ -290,16 +293,16 @@ def test_independent_seeds_average_three_draws_per_item() -> None:
     assert set(np.unique(values)) <= {0.0, 1 / 3, 2 / 3, 1.0}
 
 
-def test_the_normal_approximation_scales_with_discordance_over_margin_squared() -> None:
-    """Each side at alpha / 2: z(0.975) + z(0.9) for one pair at 80 percent power."""
+def test_the_normal_approximation_uses_the_tost_s_floored_score_variance() -> None:
+    """Each side at alpha / 2; the variance about the margin is var + m^2, floored at m(1 - m)."""
+    z = 1.9599640 + 1.2815516
     base = Cell(rate=0.1, margin=0.05, kappa=1.0, seed_model="identical")
-    n = normal_approx_items(base)
-    assert n == pytest.approx(0.18 * (1.9599640 + 1.2815516) ** 2 / 0.0025, rel=1e-6)
-    half = Cell(rate=0.1, margin=0.05, kappa=0.5, seed_model="identical")
-    assert normal_approx_items(half) == pytest.approx(n / 2)
-    three = Cell(rate=0.1, margin=0.05, kappa=1.0, seed_model="independent")
-    assert normal_approx_items(three) == pytest.approx(n / 3)
-    assert normal_approx_items(base, joint=True) > n
+    assert normal_approx_items(base) == pytest.approx((0.18 + 0.0025) * z**2 / 0.0025, rel=1e-6)
+    sparse = Cell(rate=0.02, margin=0.05, kappa=0.25, seed_model="independent")
+    # 0.25 * 2 * 0.02 * 0.98 / 3 + 0.0025 is below the floor 0.05 * 0.95.
+    assert normal_approx_items(sparse) == pytest.approx(0.0475 * z**2 / 0.0025, rel=1e-6)
+    assert normal_approx_items(base, joint=True) > normal_approx_items(base)
+    assert normal_approx_items(base, alpha=0.01) > normal_approx_items(base)
 
 
 def test_the_joint_threshold_exceeds_one_pair_and_rises_with_the_target() -> None:
@@ -357,55 +360,91 @@ TINY = {
     "arms": 3,
     "seeds_per_item": 3,
     "margins": [0.1],
-    "rates": [0.2],
+    "rates": [0.2, 0.1],
     "kappas": [1.0],
-    "seed_models": ["independent", "identical"],
+    "seed_models": ["identical"],
     "families": [1, 4],
+    "alphas": [0.05],
+    "level_kappas": [0.05],
     "target_power": 0.8,
-    "alpha": 0.05,
-    "simulations_walk": 20,
-    "simulations_confirm": 40,
-    "simulations_size": 40,
-    "resamples": 300,
+    "simulations_walk": 100,
+    "simulations_confirm": 200,
+    "simulations_level": 1000,
     "ladder_start": 10,
-    "ladder_stop": 5_000,
+    "ladder_stop": 20_000,
     "steps_per_doubling": 2,
 }
 
 
-def test_a_power_cell_reports_a_confirmed_size_and_its_level_per_family_target() -> None:
-    cell = Cell(rate=0.2, margin=0.1, kappa=1.0, seed_model="independent")
+def check_target(t: dict[str, Any], alpha: float, runs: int) -> None:
+    """A reported size: its power reaches the target, its level holds, the rung below fails one."""
+    assert t["power"] >= t["target_power"]
+    level = t["level"]
+    assert level["holds"]
+    assert max(level["exact_kappa_0"].values()) <= alpha
+    assert level["simulated_max"] + 2 * (alpha * (1 - alpha) / runs) ** 0.5 <= alpha
+    below, below_level = t["power_one_rung_below"], t["level_one_rung_below"]
+    assert below is None or below < t["target_power"] or not below_level["holds"]
+
+
+def test_a_power_cell_reports_per_family_a_confirmed_size_whose_level_holds() -> None:
+    cell = Cell(rate=0.2, margin=0.1, kappa=1.0, seed_model="identical")
     result = h4_power.cell_result(cell, TINY, 0)
-    one, four = result["targets"]["1"], result["targets"]["4"]
+    assert result["level_kappas"] == [0.05, 1.0]
+    one, four = (result["alphas"]["0.05"]["targets"][f] for f in ("1", "4"))
     assert four["target_power"] == pytest.approx(0.8**0.25)
     assert one["items"] <= four["items"]
     for t in (one, four):
-        assert t["power"] >= t["target_power"]
-        assert max(t["size_at_margin"], t["size_at_margin_kappa_0"]) <= result["size_tolerance"]
-        below = t["power_one_rung_below"]
-        assert below is None or below < t["target_power"]
-    assert result["size_tolerance"] == pytest.approx(0.05 + 2 * (0.05 * 0.95 / 40) ** 0.5)
-    assert [p["items"] for p in result["evaluated"]] == sorted(
-        p["items"] for p in result["evaluated"]
-    )
+        check_target(t, 0.05, 1000)
     assert h4_power.cell_result(cell, TINY, 0) == result
+
+
+def test_at_alpha_0_01_the_size_is_at_least_the_size_at_0_05_and_its_level_holds() -> None:
+    config = {
+        **TINY,
+        "alphas": [0.05, 0.01],
+        "families": [1],
+        "level_kappas": [],
+        "simulations_level": 4000,
+    }
+    cell = Cell(rate=0.2, margin=0.1, kappa=1.0, seed_model="identical")
+    result = h4_power.cell_result(cell, config, 0)["alphas"]
+    strict, loose = result["0.01"]["targets"]["1"], result["0.05"]["targets"]["1"]
+    assert strict["items"] >= loose["items"]
+    check_target(strict, 0.01, 4000)
+
+
+def test_the_level_gate_needs_both_its_exact_and_its_simulated_half() -> None:
+    assert level_gate([0.04, 0.03], [0.02], alpha=0.05, runs=4000)
+    assert not level_gate([0.06, 0.03], [0.02], alpha=0.05, runs=4000)  # kappa 0, exact
+    assert not level_gate([0.04, 0.03], [0.045], alpha=0.05, runs=4000)  # 0.045 + 0.0069 > 0.05
+
+
+def test_a_size_whose_exact_kappa_0_level_fails_is_not_reported(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """If the exact level at kappa 0 fails at every size, the script reports none."""
+    monkeypatch.setattr(h4_power, "exact_level", lambda *a, **k: 1.0)
+    cell = Cell(rate=0.2, margin=0.1, kappa=1.0, seed_model="identical")
+    config = {**TINY, "families": [1], "ladder_stop": 400}
+    result = h4_power.cell_result(cell, config, 0)
+    assert result["alphas"]["0.05"]["targets"]["1"]["items"] is None
 
 
 def test_the_power_grid_spread_over_processes_equals_the_cells_computed_one_by_one() -> None:
     grid = h4_power.compute(TINY)["cells"]
-    cells = [
-        Cell(rate=0.2, margin=0.1, kappa=1.0, seed_model=model)
-        for model in ("independent", "identical")
-    ]
+    cells = [Cell(rate=r, margin=0.1, kappa=1.0, seed_model="identical") for r in (0.2, 0.1)]
     assert grid == [h4_power.cell_result(c, TINY, i) for i, c in enumerate(cells)]
 
 
 def test_a_reported_size_holds_the_level_on_an_independent_rerun() -> None:
     """The level at a cell's reported size, rerun with seeds the script did not use."""
     cell = Cell(rate=0.02, margin=0.1, kappa=0.25, seed_model="identical")
-    items = h4_power.cell_result(cell, {**TINY, "resamples": 2000}, 3)["targets"]["1"]["items"]
-    size = size_at_margin(cell, items, simulations=600, seed=987, kappa=0.0)
-    assert size <= 0.05 + 2 * (0.05 * 0.95 / 600) ** 0.5
+    items = h4_power.cell_result(cell, TINY, 3)["alphas"]["0.05"]["targets"]["1"]["items"]
+    for kappa in (0.02, 0.1):
+        for model in SEED_MODELS:
+            level = simulated_level(0.02, 0.1, items, kappa, model, runs=2000, seed=987)
+            assert level <= 0.05
 
 
 # The H1 table script (research/scripts/h1_table.py), on planted sessions.
