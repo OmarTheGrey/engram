@@ -4,6 +4,6 @@ One row per results file. A results file exists only if `research/scripts/<scrip
 
 | file | config | script | commit | sha256 | figure |
 |---|---|---|---|---|---|
-| research/results/h1-gatemem-reach.json | research/configs/h1-gatemem-reach.json | research/scripts/h1_gatemem_reach.py | d5f6323 | c5df3162bfa9ee60637fc40a5e119f1bed522c1e6657b1d79843b170c320fcc6 | none |
-| research/results/h1-mem-inv-admission.json | research/configs/h1-mem-inv-admission.json | research/scripts/h1_mem_inv_admission.py | d5f6323 | 4b56b4d8eecd6c7ada2e7b9e66e518eb21b7b93b4e02d0bd4fc48e1c9bc84f87 | none |
-| research/results/h4-power.json | research/configs/h4-power.json | research/scripts/h4_power.py | d5f6323 | 6b96f74f62375e1238461fcf80d9c144551225da812b488507208af8ddd70b6d | none |
+| research/results/h1-gatemem-reach.json | research/configs/h1-gatemem-reach.json | research/scripts/h1_gatemem_reach.py | 6e15530 | b04b4006f6f14fe4827dbca52a3a51b8477f7ec2aeda56b69b412001d05dcac0 | none |
+| research/results/h1-mem-inv-admission.json | research/configs/h1-mem-inv-admission.json | research/scripts/h1_mem_inv_admission.py | 6e15530 | 6e12dde3413645939e96441da6e240c30189b62da75bea8d48a3307511ea510a | none |
+| research/results/h4-power.json | research/configs/h4-power.json | research/scripts/h4_power.py | 6e15530 | 08e30bf6098eb218516b96f2f6df036aab6793317729c4aa21c2a4647349f74e | none |
