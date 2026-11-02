@@ -118,12 +118,37 @@ describe("a plane built with the core pipeline", () => {
     expect(read.event.reason).toMatch(/returned 3 of 3 candidates; 0 filtered/);
   });
 
-  test("the limit applies after the filter: an item the reader cannot see takes no slot", async () => {
+  test("the limit applies to what the reader reaches: an item outside her reach takes no slot", async () => {
     const { plane } = await seeded(1);
     const read = await plane.read(sara, { text: "deploys fridays", at: AT });
     // Item 3 (payments) would rank first over everything; sara's top one is item 1.
     expect(read.items.map((i) => i.id)).toEqual([id(1)]);
     expect(read.explanations).toHaveLength(1);
+  });
+
+  test("the limit applies after the read filter: a reachable item the filter rejects takes no slot", async () => {
+    const { env } = await seeded();
+    // In sara's own scope and the best match, but its validity window has closed.
+    const closed = item(6, {
+      content: "deploys deploys fridays fridays",
+      confidence: 0.99,
+      valid_from: "2026-10-20T00:00:00Z",
+      valid_to: "2026-10-24T00:00:00Z",
+    });
+    expect((await env.plane.write(writer, closed, AT)).event.decision).toBe("allow");
+    let n = 0;
+    const plane = createPlane({
+      db: env.db,
+      adapter: env.adapter,
+      policy: env.policy,
+      newId: () => id(700_000 + ++n),
+      retrieval: { pipeline: "core", limit: 1 },
+    });
+    const own = currentItems(env.db).filter((i) => i.scope === "team:platform");
+    expect(retrieve(own, "deploys fridays", AT, 1)[0]?.item.id).toBe(id(6));
+    const read = await plane.read(sara, { text: "deploys fridays", at: AT });
+    expect(read.items.map((i) => i.id)).toEqual([id(1)]);
+    expect(read.event.reason).toMatch(/1 outside the validity window/);
   });
 
   test("a granted item is a candidate when it holds any query term", async () => {
