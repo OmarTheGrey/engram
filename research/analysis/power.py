@@ -241,3 +241,30 @@ def start_rung(rungs: list[int], items: float) -> int:
     """The largest rung at or below `items` (the first rung when none is)."""
     below = [i for i, n in enumerate(rungs) if n <= items]
     return below[-1] if below else 0
+
+
+def choose_rung(
+    rungs: int,
+    start: int,
+    power_holds: Callable[[int], bool],
+    level_holds: Callable[[int], bool],
+) -> int | None:
+    """The smallest rung, from `start`, whose power reaches the target and whose level holds.
+
+    Climbs while the power falls short; walks down while the rung below also
+    reaches the target, but never below a rung whose level failed; climbs past
+    a rung whose level fails. None when the ladder of `rungs` rungs runs out.
+    """
+    floor = 0
+    r = start
+    while 0 <= r < rungs:
+        if not power_holds(r):
+            r += 1
+        elif r > floor and power_holds(r - 1):
+            r -= 1
+        elif not level_holds(r):
+            floor = r + 1
+            r += 1
+        else:
+            return r
+    return None

@@ -35,7 +35,7 @@ from __future__ import annotations
 import argparse
 import math
 import os
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from concurrent.futures import ProcessPoolExecutor
 from itertools import product
 from pathlib import Path
@@ -45,6 +45,7 @@ from analysis.power import (
     Cell,
     PowerPoint,
     SeedModel,
+    choose_rung,
     ladder,
     normal_approx_items,
     power_at,
@@ -72,7 +73,7 @@ def cell_result(cell: Cell, config: Mapping[str, Any], index: int) -> dict[str, 
     sizes: dict[int, tuple[float, float]] = {}
     tolerance = size_tolerance(alpha, int(config["simulations_size"]))
 
-    def power(cache: dict[int, PowerPoint], runs: int) -> Any:
+    def power(cache: dict[int, PowerPoint], runs: int) -> Callable[[int], float]:
         def at(items: int) -> float:
             if items not in cache:
                 cache[items] = power_at(
@@ -108,16 +109,19 @@ def cell_result(cell: Cell, config: Mapping[str, Any], index: int) -> dict[str, 
     for families in config["families"]:
         target = float(config["target_power"]) ** (1 / int(families))
         approx = normal_approx_items(cell, alpha=alpha, power=target, joint=True)
-        r = smallest_passing(rungs, start_rung(rungs, approx), walked, target)
-        while r is not None:
-            if confirmed(rungs[r]) < target:
-                r = r + 1 if r + 1 < len(rungs) else None
-            elif r > 0 and confirmed(rungs[r - 1]) >= target:
-                r -= 1
-            elif max(size(rungs[r])) > tolerance:
-                r = r + 1 if r + 1 < len(rungs) else None
-            else:
-                break
+        walked_to = smallest_passing(rungs, start_rung(rungs, approx), walked, target)
+
+        def power_holds(i: int, goal: float = target) -> bool:
+            return confirmed(rungs[i]) >= goal
+
+        def level_holds(i: int) -> bool:
+            return max(size(rungs[i])) <= tolerance
+
+        r = (
+            None
+            if walked_to is None
+            else choose_rung(len(rungs), walked_to, power_holds, level_holds)
+        )
         targets[str(families)] = {
             "families": int(families),
             "target_power": target,

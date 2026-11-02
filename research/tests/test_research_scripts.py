@@ -18,6 +18,7 @@ import pytest
 
 from analysis.power import (
     Cell,
+    choose_rung,
     joint_threshold,
     ladder,
     normal_approx_items,
@@ -318,6 +319,28 @@ def test_the_ladder_and_its_walk() -> None:
     assert smallest_passing(rungs, 2, curve.__getitem__, 0.8) == 4
     assert smallest_passing(rungs, 6, curve.__getitem__, 0.8) == 4
     assert smallest_passing(rungs, 0, lambda n: 0.0, 0.8) is None
+
+
+def test_the_rung_choice_climbs_past_a_failed_level_and_never_walks_back_below_it() -> None:
+    """Power holds from rung 2; the level fails at rungs 2 and 3. The choice is 4, and it ends."""
+    calls: list[int] = []
+
+    def size_ok(r: int) -> bool:
+        calls.append(r)
+        if len(calls) > 20:
+            raise AssertionError("the rung choice is looping")
+        return r >= 4
+
+    assert choose_rung(7, 2, lambda r: r >= 2, size_ok) == 4
+    assert calls == [2, 3, 4]
+
+
+def test_the_rung_choice_confirms_down_and_up() -> None:
+    always = lambda r: True  # noqa: E731
+    assert choose_rung(7, 5, lambda r: r >= 3, always) == 3  # walks down while the rung below holds
+    assert choose_rung(7, 1, lambda r: r >= 3, always) == 3  # climbs while the power falls short
+    assert choose_rung(4, 1, lambda r: False, always) is None  # never reaches the target
+    assert choose_rung(7, 2, lambda r: r >= 2, lambda r: False) is None  # never holds the level
 
 
 TINY = {
