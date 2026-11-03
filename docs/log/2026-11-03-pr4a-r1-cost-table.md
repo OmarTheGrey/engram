@@ -19,6 +19,6 @@ supersedes: docs/log/2026-11-03-pr4a-cost-table.md
 
 **Why.** Review findings P4A-2, P4A-5, P4A-6 and P4A-8.
 
-**Result.** Before: reasoning priced only in the high estimate and for every reasoning model alike; items and the judge prompt at the fixture's size. After: reasoning by whether off is honoured, a floor in the low estimate, a per-1,000-tokens column, items and the judge prompt moved to the full set, a price-anomaly flag, and candidate and why-not fields. Tests hold the off-effort reading to pi-ai's code for nine named models; mutants reading a null off as honoured, dropping the floor, or ignoring the item move fail them.
+**Result.** Before: reasoning priced only in the high estimate and for every reasoning model alike; items and the judge prompt at the fixture's size. After: reasoning by whether off is honoured, a floor in the low estimate, a per-1,000-tokens column, items and the judge prompt moved to the full set, a price-anomaly flag, and candidate and why-not fields. Tests hold the off-effort reading to pi-ai's code for nine models; mutants misreading a null off, dropping the floor or the item move fail them.
 
-**Consequence.** Part B cites `research/results/h1-cost.json` for the model choice.
+**Consequence.** Part B cites the result for the model choice.

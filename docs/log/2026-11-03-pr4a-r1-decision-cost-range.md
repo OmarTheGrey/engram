@@ -16,6 +16,6 @@ supersedes: docs/log/2026-11-03-pr4a-decision-cost-range.md
 
 **Why.** The superseded entry counted no reasoning in the low estimate for any model (review P4A-2). Neither pi-ai nor its catalogue states a default effort, so the floor is assumed, not sourced.
 
-**Result.** 4,096 is not shown to cover a provider's default effort either, and 1,024 may not cover stray reasoning; so each candidate also reports what 1,000 reasoning tokens per answer call cost (54,152 calls low, 108,296 high), and any budget can be priced from the table.
+**Result.** 4,096 is not shown to cover a provider's default effort either; so each candidate also reports what 1,000 reasoning tokens per answer call cost (54,152 calls low, 108,296 high), and any budget can be priced from it.
 
 **Consequence.** The first live sessions' usage ledger should replace these budgets before the full run.
