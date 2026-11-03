@@ -12,6 +12,7 @@ import type { ProbeResult } from "../../src/gatemem-probe.ts";
 import type { MemInvProbeResult } from "../../src/mem-inv-probe.ts";
 import {
   answerModels,
+  type BlindReply,
   gatememSessions,
   gatememViolation,
   joinBlindReadings,
@@ -492,6 +493,12 @@ describe("the blind UNREAD kit: opaque ids in a seeded order, joined back throug
     expect(withReply((r) => (r.verdicts = { ana: "HIT" }))).toThrow(/ben/);
     expect(withReply((r) => (r.verdicts = { ana: "HIT", ben: "SAFE" }))).toThrow(/SAFE/);
     expect(withReply((r) => (r.proposal_sha256 = sha("another reply")))).toThrow(/sha256/);
+    // Two replies' texts and hashes crossed under their ids: each is read as another session's.
+    const crossed = filled();
+    const [r0, r1] = crossed.replies as [BlindReply, BlindReply];
+    [r0.proposal, r1.proposal] = [r1.proposal, r0.proposal];
+    [r0.proposal_sha256, r1.proposal_sha256] = [r1.proposal_sha256, r0.proposal_sha256];
+    expect(() => joinBlindReadings(crossed, key, rows, cases, SEED)).toThrow(/not its key entry's/);
     const twice = filled();
     twice.replies.push(twice.replies[0] as (typeof twice.replies)[0]);
     expect(() => joinBlindReadings(twice, key, rows, cases, SEED)).toThrow(/twice/);
