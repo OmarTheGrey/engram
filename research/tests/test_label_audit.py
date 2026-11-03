@@ -316,7 +316,33 @@ def test_the_key_check_agreement_reads_the_phase_2_sheets(tmp_path: Path) -> Non
     result = agreement.compare_dir(out, ["ana", "ben"], draw, stop_share=STOP_SHARE)
     assert result["gatemem"]["keys_ok"]["between_members"]["disagreements"] == 1
     assert result["gatemem"]["keys_ok"]["no"] == {"ana": 0, "ben": 1}
+    # One member's no rejects nothing: the rule needs both (final verification, F-1).
+    for benchmark in ("gatemem", "mem-inv-bench"):
+        assert result[benchmark]["rejected"]["count"] == 0, benchmark
+        assert result[benchmark]["stop"] is False, benchmark
     assert json.loads(json.dumps(result)) == result
+
+
+def test_the_cli_takes_stop_share_from_its_config(tmp_path: Path) -> None:
+    """`main` applies the config's threshold, not a number of its own (final verification, F-2)."""
+    real = load_config(REPO / "research/configs/label-audit.json")
+    for n, share in enumerate((float(real["stop_share"]), 0.3)):
+        where = tmp_path / f"audit-{n}"
+        where.mkdir()
+        # MEM-INV-Bench alone: the vendored cases need no fetch.
+        config = {k: v for k, v in real.items() if k != "gatemem"}
+        config["stop_share"] = share
+        config_path = where / "label-audit.json"
+        config_path.write_text(json.dumps(config), encoding="utf-8")
+        drawn = sample.draw(config)
+        sample.write_phase_1(drawn, ["ana", "ben"], where)
+        for member in ("ana", "ben"):
+            fill(where, drawn, member, lambda item: item.label)
+        out = where / "agreement.json"
+        argv = ["--config", str(config_path), "--dir", str(where), "--members", "ana,ben"]
+        assert agreement.main([*argv, "--out", str(out)]) == 0
+        result = json.loads(out.read_text(encoding="utf-8"))
+        assert result["mem-inv-bench"]["stop_share"] == share
 
 
 def test_the_stopping_rule_counts_items_both_members_reject_against_the_configs_share(
