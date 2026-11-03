@@ -17,6 +17,6 @@ supersedes: none
 
 **Why.** v0.2 reports MGS as H1's secondary, and the choice moves a large share of GateMem's cost.
 
-**Result.** Utility is 8,736 of the 26,616 sessions (`docs/log/2026-11-02-x1r-utility-checkpoints.md`); the cost with and without them is in `research/results/h1-cost.json` [pending part A's fix].
+**Result.** Utility is 8,736 of the 26,616 sessions (`docs/log/2026-11-02-x1r-utility-checkpoints.md`); for M1, access and forgetting alone cost 221.94 to 1,936.49 dollars against 321.59 to 2,813.02 for all three kinds (`research/results/h1-cost.json`).
 
 **Consequence.** If dropped, `items` in `research/configs/h1-gatemem.json` changes and MGS is not reported.

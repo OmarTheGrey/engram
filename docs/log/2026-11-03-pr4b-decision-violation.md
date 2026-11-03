@@ -8,7 +8,7 @@ pillar: research
 hypothesis: H1
 evidence:
   - docs/research/prereg-v1-decisions.md
-  - docs/log/2026-11-03-pr4a-decision-violation.md
+  - docs/log/2026-11-03-pr4a-r1-decision-violation.md
   - docs/log/2026-11-03-pr4a-finding-wrong-action.md
 supersedes: none
 ---

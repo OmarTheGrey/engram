@@ -17,6 +17,6 @@ supersedes: none
 
 **Why.** pi-ai serves OpenAI's own models on the Responses API, which carries no seed, and ADR 0017 refuses an unseeded live call.
 
-**Result.** The judge sends the row's seed with upstream's prompt and schema (`docs/log/2026-11-02-x1r2-judge-through-openrouter.md`); its cost at H1's size is in `research/results/h1-cost.json` [pending part A's fix].
+**Result.** The judge sends the row's seed with upstream's prompt and schema (`docs/log/2026-11-02-x1r2-judge-through-openrouter.md`); it costs 66.06 to 264.25 dollars at H1's size (`research/results/h1-cost.json`).
 
 **Consequence.** One key serves M1 and the judge; the plan's section 5 no longer needs an OpenAI key.

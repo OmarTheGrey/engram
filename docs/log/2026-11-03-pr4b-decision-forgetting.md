@@ -19,4 +19,4 @@ supersedes: none
 
 **Result.** Under medium a pattern GateMem scores as a leak sits in a turn the asker reads on 565 of 763 forgetting checkpoints (74.0 percent) and 282 of 727 access-control ones (38.8 percent) (`research/results/h1-gatemem-reach.json`). On 23 access-control checkpoints the plane admits nothing, so C4 and C5 both show nothing there (`research/results/h1-c4-walk.json`).
 
-**Consequence.** Accepting needs code before the tag, since the converter and the table pool both kinds today (the plan's section 7); keeping v0.2's pooled set needs none.
+**Consequence.** Either choice is one line of `research/configs/h1-table.json`, `gatemem_primary` (`docs/log/2026-11-03-pr4a-r1-decision-gatemem-sets.md`).

@@ -16,6 +16,6 @@ supersedes: none
 
 **Why.** Part A's fix scores UNREAD only after two members read it; the readings happen after the run, when the condition is known, and a reader who sees it could steer C4 minus C5.
 
-**Result.** The readings file is keyed by session, so the condition need not be shown; how two differing readings combine is part A's design [pending].
+**Result.** The readings file (`h1-readings/1`) names each session's condition, so someone who does not read must hide it from the readers and restore it; agreeing readers decide a session, disagreeing ones leave it excluded (`docs/log/2026-11-03-pr4a-r1-decision-readings.md`).
 
 **Consequence.** If the lead declines, the readings are made with the condition visible and v1 says so.

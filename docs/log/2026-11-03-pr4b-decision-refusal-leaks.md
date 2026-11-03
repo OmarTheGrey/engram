@@ -19,4 +19,4 @@ supersedes: none
 
 **Result.** Five fixed refusals are scored as leaks at 29 of 727 access-control and 12 of 763 forgetting checkpoints, through bare words (`research/results/h1-gatemem-reach.json`); whether the judge counts them is unmeasured.
 
-**Consequence.** The sensitivity table needs the checkpoints' ids, which the result does not list yet (the plan's section 7).
+**Consequence.** The ids are in `research/results/h1-refusal-leaks.json`, which `research/configs/h1-table.json` names for the sensitivity table.

@@ -18,4 +18,4 @@ supersedes: none
 
 **Result.** Within H1 such a model reasons alike in every condition, so C4 minus C5 stays fair. But its effort is an unstated provider default that can change during a run and is not in the cache key, so v1 could not say what it tested; reasoning tokens raise cost; and in H4's model family one reasoning model beside two that do not would mix reasoning into the model difference.
 
-**Consequence.** Google leaves the candidates; the marks come from part A's fixed cost table [pending].
+**Consequence.** Google leaves the candidates; the table's 256 and 4,096 reasoning tokens for such models are unsourced.
