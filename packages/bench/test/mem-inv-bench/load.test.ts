@@ -19,7 +19,7 @@ describe("the vendored MEM-INV-Bench subset", () => {
     );
   });
 
-  test("was vendored at the commit the PINS.md candidate row records", () => {
+  test("was vendored at the commit the PINS.md row pins", () => {
     const manifest = readJson<Manifest>("manifest.json");
     const pins = readFileSync(new URL("../../PINS.md", import.meta.url), "utf8");
     expect(manifest.source.commit).toBe("cf3c9a4ca9f0478000d6aa26eb268b875232d34b");

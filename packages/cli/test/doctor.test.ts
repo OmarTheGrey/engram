@@ -53,6 +53,23 @@ const edit = async (file: string, from: string | RegExp, to: string) => {
   await writeFile(file, next);
 };
 
+/**
+ * PINS.md with MEM-INV-Bench's row moved from the pinned table to the
+ * candidates table, where it stood before the pre-registration's v1 draft
+ * registered it, so the candidate path stays tested on a real row.
+ */
+const asCandidate = (text: string): string => {
+  const lines = text.split("\n");
+  const at = lines.findIndex((l) => l.startsWith("| MEM-INV-Bench |"));
+  expect(at).toBeGreaterThan(0);
+  const [row] = lines.splice(at, 1);
+  const heading = lines.findIndex((l) => l.startsWith("## Candidates checked, not registered"));
+  const rule = lines.findIndex((l, i) => i > heading && l.startsWith("|---"));
+  expect(heading > 0 && rule > heading).toBe(true);
+  lines.splice(rule + 1, 0, row as string);
+  return lines.join("\n");
+};
+
 /** Doctor with a fresh log path and the given options. */
 const doctor = async (opts: Parameters<typeof cli>[1] = {}, ...args: string[]) =>
   cli(["doctor", "--db", join(await tempDir(), "e.db"), ...args], opts);
@@ -71,7 +88,7 @@ describe("engram doctor on this checkout", () => {
       /^ok\s+adapter letta\s+git version .*a MemFS repository in a temporary folder: a write and a read round-trip through the plane, one commit, and a delete, offline/m,
     );
     expect(out).toMatch(/^ok\s+provider keys\s+none of \d+ key variables for \d+ providers/m);
-    expect(out).toMatch(/^ok\s+benchmark pins\s+.*6 benchmarks, 5 pinned; .*gatemem 24 lines/m);
+    expect(out).toMatch(/^ok\s+benchmark pins\s+.*6 benchmarks, 6 pinned; .*gatemem 24 lines/m);
     expect(out).toMatch(/^ok\s+pi pin\s+pi-ai 1\.3\.0, pi-coding-agent 1\.3\.0/m);
     expect(out).toMatch(/^ok\s+node\s+Node \d+/m);
     expect(out).toContain("doctor: all checks passed");
@@ -335,14 +352,37 @@ describe("engram doctor, each check red", () => {
     );
   });
 
-  it("benchmark pins: a candidate's fixture is checked against the commit of its check, and is not a pin", async () => {
+  it("benchmark pins: MEM-INV-Bench's fixture is checked against its pin, a registered row since the v1 draft", async () => {
     const { out } = await doctor({ repo: REPO });
     expect(out).toMatch(
-      /^ok\s+benchmark pins\s+.*6 benchmarks, 5 pinned; .*mem-inv-bench \d+ lines at cf3c9a4 \(candidate, not registered\)/m,
+      /^ok\s+benchmark pins\s+.*6 benchmarks, 6 pinned; .*mem-inv-bench \d+ lines at cf3c9a4(?! \(candidate)/m,
     );
   });
 
-  it("benchmark pins: fails when a candidate fixture's line no longer matches its manifest hash", async () => {
+  it("benchmark pins: fails when MEM-INV-Bench's pin moves away from the commit its fixture was vendored at", async () => {
+    const repo = await repoCopy();
+    await edit(
+      join(repo, PINS),
+      "`cf3c9a4ca9f0478000d6aa26eb268b875232d34b`",
+      `\`${"b".repeat(40)}\``,
+    );
+    const { out } = await doctor({ repo });
+    expect(out).toMatch(
+      /^fail\s+benchmark pins\s+fixtures\/bench\/mem-inv-bench was vendored at cf3c9a4\S*, \S+ pins b{40}/m,
+    );
+  });
+
+  it("benchmark pins: a candidate's fixture is checked against the commit of its check, and is not a pin", async () => {
+    const repo = await repoCopy();
+    const file = join(repo, PINS);
+    await writeFile(file, asCandidate(readFileSync(file, "utf8")));
+    const { out } = await doctor({ repo });
+    expect(out).toMatch(
+      /^ok\s+benchmark pins\s+.*5 benchmarks, 5 pinned; .*mem-inv-bench \d+ lines at cf3c9a4 \(candidate, not registered\)/m,
+    );
+  });
+
+  it("benchmark pins: fails when the MEM-INV-Bench fixture's line no longer matches its manifest hash", async () => {
     const repo = await repoCopy();
     await edit(
       join(repo, BENCH_FIXTURES, "mem-inv-bench", "cases.jsonl"),
@@ -355,7 +395,7 @@ describe("engram doctor, each check red", () => {
     );
   });
 
-  it("benchmark pins: fails when the scripts or the goldens of the candidate fixture change", async () => {
+  it("benchmark pins: fails when the scripts or the goldens of the MEM-INV-Bench fixture change", async () => {
     for (const name of ["script.json", "probe-script.json", "upstream-golden.json"]) {
       const repo = await repoCopy();
       await edit(join(repo, BENCH_FIXTURES, "mem-inv-bench", name), /"/, '"x');
@@ -384,11 +424,9 @@ describe("engram doctor, each check red", () => {
 
   it("benchmark pins: fails when the candidate's recorded commit moves away from the fixture's", async () => {
     const repo = await repoCopy();
-    await edit(
-      join(repo, PINS),
-      "`cf3c9a4ca9f0478000d6aa26eb268b875232d34b`",
-      `\`${"b".repeat(40)}\``,
-    );
+    const file = join(repo, PINS);
+    await writeFile(file, asCandidate(readFileSync(file, "utf8")));
+    await edit(file, "`cf3c9a4ca9f0478000d6aa26eb268b875232d34b`", `\`${"b".repeat(40)}\``);
     const { out } = await doctor({ repo });
     expect(out).toMatch(
       /^fail\s+benchmark pins\s+fixtures\/bench\/mem-inv-bench was vendored at cf3c9a4\S*, \S+ records for the candidate b{40}/m,
