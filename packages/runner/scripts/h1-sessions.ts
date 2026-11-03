@@ -8,7 +8,8 @@
 //   node packages/runner/scripts/h1-sessions.ts \
 //       --config research/configs/h1-gatemem.json --run .engram/runs/h1-gatemem-live \
 //       --config research/configs/h1-mem-inv.json --run .engram/runs/h1-mem-inv-live \
-//       [--gate-by-action] [--readings <h1-readings/1 file>] \
+//       --table-config research/configs/h1-table.json [--gate-by-action] \
+//       [--readings <filled template> --readings-key <key>] \
 //       [--unread-out <file> [--readers <a>,<b>]] --out .engram/runs/h1-sessions.jsonl
 //
 // `make h1-table` runs exactly this, then research/scripts/h1_table.py. The
@@ -18,10 +19,17 @@
 // than one answer model is refused.
 //
 // MEM-INV-Bench's UNREAD sessions do not score until two members read them
-// (upstream's score.py). --unread-out writes a readings file listing every
-// UNREAD attack session with its reply and empty verdicts; the readers fill
-// it in locally (it holds model replies: keep it under .engram/) and pass it
-// back with --readings, which applies it before scoring.
+// (upstream's score.py), blind to the condition (decision sheet item 14).
+// --unread-out writes the blind template (`h1-blind-readings/1`): each UNREAD
+// attack session's reply under an opaque id, in an order the H1 table
+// config's seed (--table-config) shuffles, with the case's task and values
+// and empty verdicts, and no condition, store, seed or item. Beside it,
+// `<name>-key.json` holds the key from id to session; the readers are not
+// given it. Both hold model replies or point at them: keep them under
+// .engram/. The readers fill a copy of the template, and --readings with
+// --readings-key joins it back through the key, which must be the key this
+// run and seed give. A readings file keyed by session (`h1-readings/1`) is
+// applied as it is.
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
@@ -32,11 +40,14 @@ import { isMemInvConfig, type MemInvProbeResult, readMemInvConfig } from "../src
 import {
   answerModels,
   type Conversion,
+  type ConvertOptions,
   gatememSessions,
+  joinBlindReadings,
   memInvSessions,
   parseReadings,
   type Reading,
-  unreadTemplate,
+  unreadKeyPath,
+  unreadKit,
 } from "../src/research/h1-sessions.ts";
 
 const readJsonl = <T>(path: string): T[] =>
@@ -45,15 +56,22 @@ const readJsonl = <T>(path: string): T[] =>
     .filter((l) => l.trim() !== "")
     .map((l) => JSON.parse(l) as T);
 
-interface RunFlags {
-  gateByAction: boolean;
-  readings: ReadonlyMap<string, Reading>;
-  unread: Record<string, unknown>[];
-  readers: string[];
-}
+const readJson = (path: string, what: string): unknown => {
+  if (!existsSync(path)) throw new Error(`no ${what} at ${path}`);
+  return JSON.parse(readFileSync(path, "utf8"));
+};
 
-function convertRun(configPath: string, run: string, flags: RunFlags): Conversion {
-  const { gateByAction } = flags;
+type Loaded =
+  | { kind: "gatemem"; run: string; options: ConvertOptions; rows: ProbeResult[] }
+  | {
+      kind: "mem-inv";
+      run: string;
+      options: ConvertOptions;
+      rows: MemInvProbeResult[];
+      cases: memInvBench.Case[];
+    };
+
+function loadRun(configPath: string, run: string, gateByAction: boolean): Loaded {
   const memInv = isMemInvConfig(configPath);
   const config = memInv ? readMemInvConfig(configPath) : readRunnerConfig(configPath);
   const summary = JSON.parse(readFileSync(join(run, "summary.json"), "utf8")) as { config: string };
@@ -75,13 +93,29 @@ function convertRun(configPath: string, run: string, flags: RunFlags): Conversio
   }
   const options = { model: config.model, preset: config.preset, gateByAction };
   const results = join(run, "results.jsonl");
-  if (memInv) {
-    const families = new Map(memInvBench.loadCases(config.data).map((c) => [c.case_id, c.family]));
-    const rows = readJsonl<MemInvProbeResult>(results);
-    flags.unread.push(...unreadTemplate(rows, families, flags.readers).sessions);
-    return memInvSessions(rows, families, options, flags.readings);
+  return memInv
+    ? {
+        kind: "mem-inv",
+        run,
+        options,
+        rows: readJsonl<MemInvProbeResult>(results),
+        cases: memInvBench.loadCases(config.data),
+      }
+    : { kind: "gatemem", run, options, rows: readJsonl<ProbeResult>(results) };
+}
+
+/** The H1 table config's seed, which orders the blind template. */
+function tableSeed(path: string | undefined): number {
+  if (path === undefined) {
+    throw new Error(
+      "--table-config <H1 table config> is needed: its seed orders the UNREAD template",
+    );
   }
-  return gatememSessions(readJsonl<ProbeResult>(results), options);
+  const { seed } = readJson(path, "H1 table config") as { seed?: unknown };
+  if (typeof seed !== "number" || !Number.isInteger(seed)) {
+    throw new Error(`${path} names no integer seed`);
+  }
+  return seed;
 }
 
 function main(): number {
@@ -90,7 +124,9 @@ function main(): number {
       config: { type: "string", multiple: true },
       run: { type: "string", multiple: true },
       "gate-by-action": { type: "boolean", default: false },
+      "table-config": { type: "string" },
       readings: { type: "string" },
+      "readings-key": { type: "string" },
       "unread-out": { type: "string" },
       readers: { type: "string", default: "reader1,reader2" },
       out: { type: "string" },
@@ -100,39 +136,89 @@ function main(): number {
   const runs = values.run ?? [];
   if (!values.out || configs.length === 0 || configs.length !== runs.length) {
     console.error(
-      "usage: h1-sessions.ts (--config <runner config> --run <run dir>)... [--gate-by-action] [--readings <file>] [--unread-out <file> [--readers <a>,<b>]] --out <sessions.jsonl>",
+      "usage: h1-sessions.ts (--config <runner config> --run <run dir>)... [--table-config <H1 table config>] [--gate-by-action] [--readings <file> [--readings-key <key>]] [--unread-out <file> [--readers <a>,<b>]] --out <sessions.jsonl>",
     );
     return 2;
   }
-  const flags: RunFlags = {
-    gateByAction: values["gate-by-action"] === true,
-    readings:
-      values.readings === undefined
-        ? new Map()
-        : parseReadings(JSON.parse(readFileSync(values.readings, "utf8"))),
-    unread: [],
-    readers: (values.readers ?? "").split(",").filter(Boolean),
-  };
+  const loaded = configs.map((configPath, i) =>
+    loadRun(configPath, runs[i] as string, values["gate-by-action"] === true),
+  );
+  const memInvRows = loaded.flatMap((l) => (l.kind === "mem-inv" ? l.rows : []));
+  const cases = new Map(
+    loaded.flatMap((l) =>
+      l.kind === "mem-inv" ? l.cases.map((c) => [c.case_id, c] as const) : [],
+    ),
+  );
+
+  let readings: ReadonlyMap<string, Reading> = new Map();
+  if (values.readings !== undefined) {
+    const value = readJson(values.readings, "readings file");
+    if ((value as { schema?: unknown }).schema === "h1-blind-readings/1") {
+      const keyPath = values["readings-key"];
+      if (keyPath === undefined) {
+        throw new Error(
+          "a blind readings file is joined through its key: name it with --readings-key (make h1-table passes .engram/runs/h1-unread-key.json)",
+        );
+      }
+      if (!existsSync(keyPath)) {
+        throw new Error(
+          `no key at ${keyPath}: the key make h1-table wrote beside the template is needed to join the readings`,
+        );
+      }
+      readings = joinBlindReadings(
+        value,
+        readJson(keyPath, "key"),
+        memInvRows,
+        cases,
+        tableSeed(values["table-config"]),
+      );
+    } else {
+      readings = parseReadings(value);
+      if (values["readings-key"] !== undefined) {
+        console.error(
+          "h1-sessions: readings keyed by session (h1-readings/1): the key is not used",
+        );
+      }
+    }
+  }
+
   const lines: string[] = [];
-  configs.forEach((configPath, i) => {
-    const run = runs[i] as string;
-    const out = convertRun(configPath, run, flags);
+  for (const l of loaded) {
+    const out: Conversion =
+      l.kind === "mem-inv"
+        ? memInvSessions(
+            l.rows,
+            new Map(l.cases.map((c) => [c.case_id, c.family])),
+            l.options,
+            readings,
+          )
+        : gatememSessions(l.rows, l.options);
     lines.push(...out.sessions.map((s) => `${JSON.stringify(s)}\n`));
     const reasons = Object.entries(out.exclusions)
       .sort(([a], [b]) => (a < b ? -1 : 1))
       .map(([reason, n]) => `${reason} ${n}`);
     const excluded = Object.values(out.exclusions).reduce((a, b) => a + b, 0);
     console.error(
-      `h1-sessions: ${run}: ${out.sessions.length} sessions (${excluded} excluded${reasons.length ? `: ${reasons.join(", ")}` : ""}), ${out.skipped.condition} rows of another condition and ${out.skipped.not_scored} without an H1 violation left out${out.readings_applied ? `; ${out.readings_applied} UNREAD sessions decided by readings` : ""}`,
+      `h1-sessions: ${l.run}: ${out.sessions.length} sessions (${excluded} excluded${reasons.length ? `: ${reasons.join(", ")}` : ""}), ${out.skipped.condition} rows of another condition and ${out.skipped.not_scored} without an H1 violation left out${out.readings_applied ? `; ${out.readings_applied} UNREAD sessions decided by readings` : ""}`,
     );
-  });
+  }
   writeFileSync(values.out, lines.join(""));
   console.error(`h1-sessions: ${lines.length} sessions written to ${values.out}`);
-  if (values["unread-out"] !== undefined) {
-    const template = { schema: "h1-readings/1", readers: flags.readers, sessions: flags.unread };
-    writeFileSync(values["unread-out"], `${JSON.stringify(template, null, 2)}\n`);
+
+  const unreadOut = values["unread-out"];
+  if (unreadOut !== undefined) {
+    const readers = (values.readers ?? "").split(",").filter(Boolean);
+    const { template, key } = unreadKit(
+      memInvRows,
+      cases,
+      tableSeed(values["table-config"]),
+      readers,
+    );
+    const keyPath = unreadKeyPath(unreadOut);
+    writeFileSync(unreadOut, `${JSON.stringify(template, null, 2)}\n`);
+    writeFileSync(keyPath, `${JSON.stringify(key, null, 2)}\n`);
     console.error(
-      `h1-sessions: ${flags.unread.length} UNREAD sessions to read written to ${values["unread-out"]}`,
+      `h1-sessions: ${template.replies.length} UNREAD replies to read, blind, written to ${unreadOut}; their key, which the readers are not given, to ${keyPath}`,
     );
   }
   return 0;

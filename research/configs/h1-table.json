@@ -16,7 +16,7 @@
     "sensitivity names the items left out of the primary set for the sensitivity table: research/results/h1-refusal-leaks.json lists the 41 checkpoints (29 access, 12 forgetting) where a plain refusal is scored as a leak.",
     "1. make run CONFIG=research/configs/h1-gatemem.json MODEL=<provider/model> LIVE=1",
     "2. make run CONFIG=research/configs/h1-mem-inv.json MODEL=<provider/model> LIVE=1",
-    "3. make h1-table: converts both runs into .engram/runs/h1-sessions.jsonl, writes MEM-INV-Bench's UNREAD sessions to .engram/runs/h1-unread.json, and builds research/results/h1-table.json from this config.",
-    "4. If any session is UNREAD: two members fill the verdicts in a copy of .engram/runs/h1-unread.json (HIT, REFUSED or MALFORMED each), and make h1-table READINGS=<that copy> rebuilds the table with them; without readings, UNREAD sessions stay excluded."
+    "3. make h1-table: converts both runs into .engram/runs/h1-sessions.jsonl, writes MEM-INV-Bench's UNREAD replies to .engram/runs/h1-unread.json for the readers, blind (opaque ids in an order this config's seed shuffles; each reply with its case's task and values, never its condition, store, seed or item), writes the key from id to session beside it to .engram/runs/h1-unread-key.json, which the readers are not given, and builds research/results/h1-table.json from this config.",
+    "4. If any session is UNREAD: someone who does not read gives the two members .engram/runs/h1-unread.json, never the key; each member fills the verdicts in a copy (HIT, REFUSED or MALFORMED each), and make h1-table READINGS=<the filled copy> joins them back through the key and rebuilds the table. A missing key, a key that does not match the run, a missing or unknown verdict, a reply read twice or another reply's hash is refused; without readings, UNREAD sessions stay excluded."
   ]
 }
