@@ -182,6 +182,27 @@ export function scoredPatterns(checkpoint: gatemem.Checkpoint): string[] {
   return [...new Set(all)];
 }
 
+/**
+ * The plain refusals GateMem's rule-based scorer counts as a leak in the
+ * answer itself at this checkpoint (a pattern such as "no" inside "No, I
+ * can't share that"), in the order given: a leak no condition can prevent.
+ * Shared by `scoreReach` and the refusal-leak list (scripts/refusal-leaks.ts).
+ */
+export function refusalLeaks(
+  checkpoint: gatemem.Checkpoint,
+  refusals: readonly string[],
+): string[] {
+  return refusals.filter((answer) => {
+    const s = gatemem.scoreOne(checkpoint, {
+      action: "refuse",
+      answer,
+      answer_structured: {},
+      used_record_ids: [],
+    });
+    return (checkpoint.query_type === "privacy" ? s.privacy_leak : s.deletion_leak) === true;
+  });
+}
+
 /** Score one checkpoint's reach against its hidden leak targets and the scorer's patterns. */
 export function scoreReach(
   domain: string,
@@ -203,15 +224,6 @@ export function scoreReach(
   const count = (patterns: readonly string[], turns: readonly ReachTurn[]) =>
     patterns.filter((p) => matches(turns, p)).length;
   const texts = readable.map((t) => t.text);
-  const leaked = (answer: string) => {
-    const s = gatemem.scoreOne(checkpoint, {
-      action: "refuse",
-      answer,
-      answer_structured: {},
-      used_record_ids: [],
-    });
-    return (checkpoint.query_type === "privacy" ? s.privacy_leak : s.deletion_leak) === true;
-  };
   const hits = scored.flatMap((pattern): ReachHit[] => {
     const turn = readable.find((t) => gatemem.patternHits(t.text, pattern));
     return turn
@@ -258,7 +270,7 @@ export function scoreReach(
       (checkpoint.query_type === "privacy"
         ? score.privacy_context_leak
         : score.deletion_context_leak) === true,
-    refusal_leaks: refusals.filter(leaked).length,
+    refusal_leaks: refusalLeaks(checkpoint, refusals).length,
     hits,
     patterns: scored.map((pattern) => ({
       pattern,

@@ -5,5 +5,18 @@
   "sessions": ".engram/runs/h1-sessions.jsonl",
   "primary_model": "prereg/M1",
   "store": "fake",
-  "seed": 20261103
+  "seed": 20261103,
+  "gatemem_primary": "access",
+  "sensitivity": {
+    "name": "without the checkpoints where a plain refusal is scored as a leak",
+    "items_from": "research/results/h1-refusal-leaks.json"
+  },
+  "how_to": [
+    "gatemem_primary names the GateMem set H1's primary test runs on: access, forgetting, or access and forgetting; the other two are reported as secondary, unadjusted, and only the primary set's C4 minus C5 p-value enters Holm.",
+    "sensitivity names the items left out of the primary set for the sensitivity table: research/results/h1-refusal-leaks.json lists the 41 checkpoints (29 access, 12 forgetting) where a plain refusal is scored as a leak.",
+    "1. make run CONFIG=research/configs/h1-gatemem.json MODEL=<provider/model> LIVE=1",
+    "2. make run CONFIG=research/configs/h1-mem-inv.json MODEL=<provider/model> LIVE=1",
+    "3. make h1-table: converts both runs into .engram/runs/h1-sessions.jsonl, writes MEM-INV-Bench's UNREAD sessions to .engram/runs/h1-unread.json, and builds research/results/h1-table.json from this config.",
+    "4. If any session is UNREAD: two members fill the verdicts in a copy of .engram/runs/h1-unread.json (HIT, REFUSED or MALFORMED each), and make h1-table READINGS=<that copy> rebuilds the table with them; without readings, UNREAD sessions stay excluded."
+  ]
 }

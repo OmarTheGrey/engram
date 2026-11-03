@@ -134,8 +134,15 @@ describe("GateMem sessions", () => {
       item: "gatemem/ckpt_01",
     };
     expect(out.sessions).toEqual([
-      { ...base, preset: "none", condition: "C2", seed: 2, violation: true },
-      { ...base, preset: "medium", condition: "C5", seed: 1, violation: false },
+      { ...base, preset: "none", condition: "C2", seed: 2, violation: true, kind: "access" },
+      {
+        ...base,
+        preset: "medium",
+        condition: "C5",
+        seed: 1,
+        violation: false,
+        kind: "forgetting",
+      },
       {
         ...base,
         preset: "medium",
@@ -143,6 +150,7 @@ describe("GateMem sessions", () => {
         seed: 1,
         violation: null,
         exclusion: "no judge verdict",
+        kind: "access",
       },
     ]);
     expect(out.skipped).toEqual({ condition: 1, not_scored: 1 });

@@ -35,6 +35,23 @@ fix pass, P4A-1); a version-1 file, which has none, still parses.
   disagree". It must be absent or null when `violation` is not null. The
   table counts excluded sessions by it ("unstated" where a null violation
   names no reason).
+- `kind`: optional, GateMem only: the checkpoint's kind, "access" (access
+  control) or "forgetting" (active forgetting). A table with GateMem sets
+  needs it on every GateMem session (PR 4's review fix pass, item 8).
+
+GateMem sets
+------------
+
+`GATEMEM_SETS` names the sets the table reports: "access", "forgetting" and
+"access and forgetting". `H1Config.gatemem_primary` names the one the
+primary test runs on; only its C4 minus C5 p-value enters Holm and the
+decision. The table then also gives, under `secondary`, the rates and
+contrasts of each other set (GateMem only, unadjusted, no decision), and,
+when `sensitivity_items` is given, under `sensitivity` the primary set's
+rates and contrasts without those items (for example the checkpoints where
+a plain refusal is scored as a leak, research/results/h1-refusal-leaks.json).
+With no primary set named, every GateMem session is in the primary test, as
+before sets existed.
 
 The table
 ---------
@@ -94,7 +111,14 @@ BENCHMARKS = ("gatemem", "mem-inv-bench")
 CONDITIONS = ("C2", "C3", "C4", "C5")
 HYPOTHESES = ("H1", "H2", "H3", "H4", "H5")
 FIELDS = ("benchmark", "model", "store", "preset", "condition", "item", "seed", "violation")
-OPTIONAL = ("exclusion",)
+OPTIONAL = ("exclusion", "kind")
+GATEMEM_KINDS = ("access", "forgetting")
+# The GateMem sets H1's table reports: one is the primary, the others secondary.
+GATEMEM_SETS: dict[str, tuple[str, ...]] = {
+    "access": ("access",),
+    "forgetting": ("forgetting",),
+    "access and forgetting": ("access", "forgetting"),
+}
 UNSTATED = "unstated"
 
 
@@ -113,6 +137,7 @@ class SessionRow:
     seed: int
     violation: bool | None
     exclusion: str | None = None
+    kind: str | None = None
 
 
 def parse_session(obj: object, where: str) -> SessionRow:
@@ -126,6 +151,11 @@ def parse_session(obj: object, where: str) -> SessionRow:
         raise SchemaError(f"{where}: exclusion must be a non-empty string or null")
     if exclusion is not None and obj.get("violation") is not None:
         raise SchemaError(f"{where}: exclusion names why a null violation is excluded")
+    kind = obj.get("kind")
+    if kind is not None and kind not in GATEMEM_KINDS:
+        raise SchemaError(f"{where}: kind must be one of {GATEMEM_KINDS} or null")
+    if kind is not None and obj.get("benchmark") != "gatemem":
+        raise SchemaError(f"{where}: kind is GateMem's checkpoint kind")
     if extra or missing:
         raise SchemaError(f"{where}: unknown fields {extra}, missing fields {missing}")
     for name in ("benchmark", "model", "store", "preset", "condition", "item"):
@@ -139,7 +169,7 @@ def parse_session(obj: object, where: str) -> SessionRow:
         raise SchemaError(f"{where}: seed must be an integer")
     if obj["violation"] is not None and not isinstance(obj["violation"], bool):
         raise SchemaError(f"{where}: violation must be true, false or null")
-    return SessionRow(**{name: obj[name] for name in FIELDS}, exclusion=exclusion)
+    return SessionRow(**{name: obj[name] for name in FIELDS}, exclusion=exclusion, kind=kind)
 
 
 def read_sessions(path: Path) -> list[SessionRow]:
@@ -163,6 +193,10 @@ class H1Config:
     """What the table is built for.
 
     `other_primary_p` holds H2 to H5's primary p-values once they exist.
+    `gatemem_primary` names the GateMem set the primary test runs on (a key
+    of GATEMEM_SETS); None keeps every GateMem session, as before sets
+    existed. `sensitivity_items` lists items left out of the primary set for
+    the sensitivity table, `sensitivity_name` names it.
     """
 
     primary_model: str
@@ -173,6 +207,9 @@ class H1Config:
     tested: str = "C4-C5"
     descriptive: tuple[str, ...] = ("C3-C5", "C2-C5")
     other_primary_p: Mapping[str, float] | None = field(default=None)
+    gatemem_primary: str | None = None
+    sensitivity_name: str | None = None
+    sensitivity_items: frozenset[str] | None = None
     resamples: int = RESAMPLES
     confidence: float = CONFIDENCE
     alpha: float = ALPHA
@@ -242,11 +279,15 @@ def _seed_for(seed: int, *parts: str) -> int:
     return int(np.random.SeedSequence([seed, *words]).generate_state(1)[0])
 
 
-def build_h1_table(sessions: Sequence[SessionRow], config: H1Config) -> dict[str, Any]:
-    """The H1 table for the sessions of `config.store` (see the module docstring)."""
-    mine = [s for s in sessions if s.store == config.store]
-    if not mine:
-        raise ValueError(f"no session ran on store {config.store!r}")
+def _rates_and_contrasts(
+    mine: Sequence[SessionRow], config: H1Config, tag: str = ""
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Rates per benchmark, model and condition, and the paired contrasts, for `mine`.
+
+    `tag` names a secondary or sensitivity set; it enters each bootstrap's
+    seed, so a set's contrasts are drawn apart from the primary's, which keep
+    the seed they had before sets existed (tag "").
+    """
     groups: dict[tuple[str, str, str], list[SessionRow]] = {}
     for s in mine:
         groups.setdefault((s.benchmark, s.model, s.condition), []).append(s)
@@ -302,7 +343,7 @@ def build_h1_table(sessions: Sequence[SessionRow], config: H1Config) -> dict[str
             either = {(i, s) for i, s, _ in first} | {(i, s) for i, s, _ in second}
             result = paired_bootstrap(
                 diffs,
-                seed=_seed_for(config.seed, benchmark, model, name),
+                seed=_seed_for(config.seed, benchmark, model, name, *([tag] if tag else [])),
                 resamples=config.resamples,
                 confidence=config.confidence,
             )
@@ -316,6 +357,35 @@ def build_h1_table(sessions: Sequence[SessionRow], config: H1Config) -> dict[str
                     **asdict(result),
                 }
             )
+
+    return rates, contrasts
+
+
+def _gatemem_kinds(rows: Sequence[SessionRow], kinds: Sequence[str]) -> list[SessionRow]:
+    """The GateMem sessions of the given kinds; refuses a GateMem session with no kind."""
+    unkinded = [s for s in rows if s.benchmark == "gatemem" and s.kind is None]
+    if unkinded:
+        raise SchemaError(
+            f"{len(unkinded)} GateMem sessions name no kind; a table with sets needs it"
+        )
+    return [s for s in rows if s.benchmark == "gatemem" and s.kind in kinds]
+
+
+def build_h1_table(sessions: Sequence[SessionRow], config: H1Config) -> dict[str, Any]:
+    """The H1 table for the sessions of `config.store` (see the module docstring)."""
+    mine = [s for s in sessions if s.store == config.store]
+    if not mine:
+        raise ValueError(f"no session ran on store {config.store!r}")
+    primary_set = config.gatemem_primary
+    if primary_set is not None and primary_set not in GATEMEM_SETS:
+        raise ValueError(f"gatemem_primary must be one of {sorted(GATEMEM_SETS)}")
+    if primary_set is None:
+        primary_sessions = list(mine)
+    else:
+        primary_sessions = [s for s in mine if s.benchmark != "gatemem"] + _gatemem_kinds(
+            mine, GATEMEM_SETS[primary_set]
+        )
+    rates, contrasts = _rates_and_contrasts(primary_sessions, config)
 
     def tested_on(benchmark: str) -> dict[str, Any] | None:
         return next(
@@ -334,14 +404,14 @@ def build_h1_table(sessions: Sequence[SessionRow], config: H1Config) -> dict[str
         raise ValueError(
             f"no {config.tested} contrast on {config.primary_benchmark} for {config.primary_model}"
         )
-    secondary = tested_on(config.secondary_benchmark)
+    secondary_arm = tested_on(config.secondary_benchmark)
     decision, holm_part = decide_h1(
         float(primary["p_one_sided"]),
         config.other_primary_p,
-        None if secondary is None else float(secondary["high"]),
+        None if secondary_arm is None else float(secondary_arm["high"]),
         config.alpha,
     )
-    return {
+    table: dict[str, Any] = {
         "schema": TABLE_SCHEMA,
         "sessions_schema": SESSIONS_SCHEMA,
         "store": config.store,
@@ -356,6 +426,42 @@ def build_h1_table(sessions: Sequence[SessionRow], config: H1Config) -> dict[str
         "holm": holm_part,
         "decision": decision,
     }
+    if primary_set is None:
+        return table
+    table["gatemem_primary_set"] = {"name": primary_set, "kinds": list(GATEMEM_SETS[primary_set])}
+    secondary = []
+    for name, kinds in GATEMEM_SETS.items():
+        if name == primary_set:
+            continue
+        set_rates, set_contrasts = _rates_and_contrasts(
+            _gatemem_kinds(mine, kinds), config, f"set {name}"
+        )
+        secondary.append(
+            {
+                "name": name,
+                "kinds": list(kinds),
+                "adjusted": False,
+                "rates": set_rates,
+                "contrasts": set_contrasts,
+            }
+        )
+    table["secondary"] = secondary
+    if config.sensitivity_items is not None:
+        left_out = set(config.sensitivity_items)
+        kept = [s for s in primary_sessions if s.benchmark == "gatemem" and s.item not in left_out]
+        gone = {s.item for s in primary_sessions if s.benchmark == "gatemem"} & left_out
+        set_rates, set_contrasts = _rates_and_contrasts(
+            kept, config, f"sensitivity {config.sensitivity_name}"
+        )
+        table["sensitivity"] = {
+            "name": config.sensitivity_name,
+            "set": primary_set,
+            "adjusted": False,
+            "items_left_out": len(gone),
+            "rates": set_rates,
+            "contrasts": set_contrasts,
+        }
+    return table
 
 
 def _exclusions(rows: Sequence[SessionRow]) -> dict[str, int]:

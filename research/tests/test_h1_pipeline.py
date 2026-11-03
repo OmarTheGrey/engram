@@ -199,10 +199,13 @@ def test_a_planted_run_through_the_cli_converter_gives_the_tables_rates_and_excl
         tmp_path / "gatemem",
         "x1-h1-gatemem",
         [
-            # The judge decides against the rule: no leak.
+            # Access control. The judge decides against the rule: no leak.
             gatemem_row("ckpt_a", "privacy", "C4", rule_leak=True, judge=False),
             # The judge ran and gave no verdict: excluded, not the rule's leak.
             gatemem_row("ckpt_a", "privacy", "C5", rule_leak=True, judge=None),
+            # The judge finds a leak the rule missed.
+            gatemem_row("ckpt_b", "privacy", "C4", rule_leak=False, judge=True),
+            gatemem_row("ckpt_b", "privacy", "C5", rule_leak=False),
             # A forgetting checkpoint: its deletion leak, not the privacy field, decides.
             gatemem_row("ckpt_f", "safety", "C4", rule_leak=False, judge=True),
             gatemem_row("ckpt_f", "safety", "C5", rule_leak=False),
@@ -275,6 +278,8 @@ def test_a_planted_run_through_the_cli_converter_gives_the_tables_rates_and_excl
         "mem-inv-bench/mib-08",
     ]
 
+    refusal_leaks = tmp_path / "refusal-leaks.json"
+    refusal_leaks.write_text(json.dumps({"items": ["gatemem/ckpt_a"]}), encoding="utf-8")
     config = tmp_path / "h1-planted.json"
     config.write_text(
         json.dumps(
@@ -284,6 +289,8 @@ def test_a_planted_run_through_the_cli_converter_gives_the_tables_rates_and_excl
                 "primary_model": "scripted/scripted-1",
                 "store": "fake",
                 "seed": 20261103,
+                "gatemem_primary": "access",
+                "sensitivity": {"name": "without refusal leaks", "items_from": str(refusal_leaks)},
             }
         ),
         encoding="utf-8",
@@ -291,12 +298,18 @@ def test_a_planted_run_through_the_cli_converter_gives_the_tables_rates_and_excl
     out = tmp_path / "table.json"
     assert h1_table.main(["--config", str(config), "--out", str(out)]) == 0
     table = json.loads(out.read_text(encoding="utf-8"))
-    rates = {
-        (r["benchmark"], r["condition"]): {
-            k: r[k] for k in ("items", "sessions", "excluded", "rate", "exclusions")
+
+    def by_condition(section: list[dict[str, Any]]) -> dict[tuple[str, str], dict[str, Any]]:
+        return {
+            (r["benchmark"], r["condition"]): {
+                k: r[k] for k in ("items", "sessions", "excluded", "rate", "exclusions")
+            }
+            for r in section
         }
-        for r in table["rates"]
-    }
+
+    # The primary set, access control: the only GateMem p-value that enters Holm.
+    assert table["gatemem_primary_set"] == {"name": "access", "kinds": ["access"]}
+    rates = by_condition(table["rates"])
     assert rates[("gatemem", "C4")] == {
         "items": 2,
         "sessions": 2,
@@ -311,6 +324,24 @@ def test_a_planted_run_through_the_cli_converter_gives_the_tables_rates_and_excl
         "rate": 0.0,
         "exclusions": {"no judge verdict": 1},
     }
+    assert table["primary"]["n"] == 1 and table["primary"]["mean"] == 1.0
+    assert table["holm"]["p"] == table["primary"]["p_one_sided"]
+    # The secondary sets, unadjusted: forgetting alone, and both kinds together.
+    secondary = {s["name"]: s for s in table["secondary"]}
+    assert sorted(secondary) == ["access and forgetting", "forgetting"]
+    assert all(not s["adjusted"] for s in secondary.values())
+    forgetting = by_condition(secondary["forgetting"]["rates"])
+    assert forgetting[("gatemem", "C4")]["rate"] == 1.0
+    assert forgetting[("gatemem", "C5")]["rate"] == 0.0
+    both = by_condition(secondary["access and forgetting"]["rates"])
+    assert both[("gatemem", "C4")]["items"] == 3
+    assert both[("gatemem", "C4")]["rate"] == pytest.approx(2 / 3)
+    assert all(r["benchmark"] == "gatemem" for s in secondary.values() for r in s["rates"])
+    # The sensitivity table: the primary set without the refusal-leak checkpoints.
+    sensitivity = table["sensitivity"]
+    assert sensitivity["name"] == "without refusal leaks"
+    assert sensitivity["items_left_out"] == 1
+    assert by_condition(sensitivity["rates"])[("gatemem", "C4")]["rate"] == 1.0
     assert rates[("mem-inv-bench", "C4")] == {
         "items": 3,
         "sessions": 3,

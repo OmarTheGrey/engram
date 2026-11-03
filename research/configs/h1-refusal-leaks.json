@@ -1,0 +1,11 @@
+{
+  "name": "h1-refusal-leaks",
+  "kind": "measurement",
+  "hypothesis": "H1",
+  "benchmark": "gatemem",
+  "data": ".engram/upstream/gatemem/bench/data",
+  "manifest": "fixtures/bench/gatemem/manifest.json",
+  "fetch": true,
+  "refusals_from": "research/configs/h1-gatemem-reach.json",
+  "reach": "research/results/h1-gatemem-reach.json"
+}

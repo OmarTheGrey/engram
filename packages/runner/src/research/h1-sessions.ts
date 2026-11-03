@@ -55,6 +55,8 @@ export interface H1Session {
   seed: number;
   violation: boolean | null;
   exclusion?: string;
+  /** GateMem only: the checkpoint's kind, which H1's table splits its primary and secondary sets by. */
+  kind?: "access" | "forgetting";
 }
 
 /** A session's outcome: a violation, or null with the reason it is excluded. */
@@ -197,6 +199,7 @@ function convert<R extends { item: string; condition: Condition; store: string; 
   rows: readonly R[],
   outcomeOf: (row: R) => Scored | undefined,
   options: ConvertOptions,
+  kindOf: (row: R) => H1Session["kind"] = () => undefined,
 ): Omit<Conversion, "readings_applied"> {
   const out: Omit<Conversion, "readings_applied"> = {
     sessions: [],
@@ -216,6 +219,7 @@ function convert<R extends { item: string; condition: Condition; store: string; 
     if (outcome.violation === null) {
       out.exclusions[outcome.exclusion] = (out.exclusions[outcome.exclusion] ?? 0) + 1;
     }
+    const kind = kindOf(row);
     out.sessions.push({
       benchmark,
       model: options.model,
@@ -225,6 +229,7 @@ function convert<R extends { item: string; condition: Condition; store: string; 
       item: row.item,
       seed: row.seed,
       ...outcome,
+      ...(kind === undefined ? {} : { kind }),
     });
   }
   return out;
@@ -233,7 +238,13 @@ function convert<R extends { item: string; condition: Condition; store: string; 
 /** A GateMem run's rows as H1 sessions. */
 export function gatememSessions(rows: readonly ProbeResult[], options: ConvertOptions): Conversion {
   return {
-    ...convert("gatemem", rows, (r) => gatememViolation(r, options), options),
+    ...convert(
+      "gatemem",
+      rows,
+      (r) => gatememViolation(r, options),
+      options,
+      (r) => (r.score.query_type === "privacy" ? "access" : "forgetting"),
+    ),
     readings_applied: 0,
   };
 }

@@ -6,23 +6,47 @@ Usage:
 
 The config names the results file (`sessions`, a path from the repository
 root), the primary model, the store, the bootstrap seed, and, once they exist,
-H2 to H5's primary p-values (`other_primary_p`). No H1 run exists yet: this is
-the command the H1 runs feed once the pre-registration is tagged.
+H2 to H5's primary p-values (`other_primary_p`). Optionally:
+
+- `gatemem_primary`: the GateMem set the primary test runs on ("access",
+  "forgetting" or "access and forgetting"; analysis.h1.GATEMEM_SETS). The
+  other two sets are reported as secondary, unadjusted; only the primary
+  GateMem p-value enters Holm. Absent, every GateMem session is primary.
+- `sensitivity`: `{"name": ..., "items_from": <a results file with an
+  "items" list>}`, for a sensitivity table on the primary set without those
+  items (for example research/results/h1-refusal-leaks.json); the table
+  records the file's sha256.
+
+No H1 run exists yet: this is the command the H1 runs feed once the
+pre-registration is tagged (`make h1-table`).
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
 from analysis.h1 import H1Config, build_h1_table, read_sessions
-from scripts.results_io import REPO, load_config, write_result
+from scripts.results_io import REPO, load_config, sha256_file, write_result
 
 
 def compute(config: Mapping[str, Any]) -> dict[str, Any]:
     others = config.get("other_primary_p")
+    sensitivity = config.get("sensitivity")
+    items: frozenset[str] | None = None
+    source: dict[str, Any] = {}
+    if sensitivity is not None:
+        path = REPO / str(sensitivity["items_from"])
+        items = frozenset(str(i) for i in json.loads(path.read_text(encoding="utf-8"))["items"])
+        source = {
+            "sensitivity_items_from": {
+                "file": sensitivity["items_from"],
+                "sha256": sha256_file(path),
+            }
+        }
     table = build_h1_table(
         read_sessions(REPO / str(config["sessions"])),
         H1Config(
@@ -32,9 +56,14 @@ def compute(config: Mapping[str, Any]) -> dict[str, Any]:
             other_primary_p=None
             if others is None
             else {str(k): float(v) for k, v in others.items()},
+            gatemem_primary=None
+            if config.get("gatemem_primary") is None
+            else str(config["gatemem_primary"]),
+            sensitivity_name=None if sensitivity is None else str(sensitivity["name"]),
+            sensitivity_items=items,
         ),
     )
-    return {"name": config["name"], "sessions": config["sessions"], **table}
+    return {"name": config["name"], "sessions": config["sessions"], **source, **table}
 
 
 def main(argv: Sequence[str] | None = None) -> int:

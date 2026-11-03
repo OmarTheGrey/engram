@@ -13,7 +13,13 @@ from typing import Any
 
 import pytest
 
-from scripts import h1_c4_verdict_agreement, h1_c4_walk, h1_cost, h1_mem_inv_admission
+from scripts import (
+    h1_c4_verdict_agreement,
+    h1_c4_walk,
+    h1_cost,
+    h1_mem_inv_admission,
+    h1_refusal_leaks,
+)
 from scripts.results_io import REPO, line_hashes, load_config
 
 PINNED_MEM_INV = "cf3c9a4ca9f0478000d6aa26eb268b875232d34b"
@@ -305,3 +311,35 @@ def test_an_input_price_at_the_cache_read_price_is_flagged() -> None:
     assert "cache-read" in str(h1_cost.price_anomaly(odd))
     usual = {"input_per_million": 2.5, "output_per_million": 10, "cache_read_per_million": 1.25}
     assert h1_cost.price_anomaly(usual) is None
+
+
+# The refusal-leak checkpoints (PR 4 review fix pass, item 9), on planted rows.
+
+
+def test_the_refusal_leak_list_names_every_checkpoint_a_plain_refusal_leaks_at() -> None:
+    rows = [
+        {"checkpoint_id": "b", "domain": "office", "kind": "access", "refusals": ["No."]},
+        {"checkpoint_id": "a", "domain": "office", "kind": "access", "refusals": []},
+        {"checkpoint_id": "c", "domain": "medical", "kind": "forgetting", "refusals": ["No."]},
+        {"checkpoint_id": "d", "domain": "medical", "kind": "access", "refusals": ["No, x"]},
+    ]
+    out = h1_refusal_leaks.summarise(rows)
+    assert out["counts"] == {"access": 2, "forgetting": 1}
+    assert out["checkpoints"] == {"access": 3, "forgetting": 1}
+    assert out["ids"] == {"access": ["b", "d"], "forgetting": ["c"]}
+    assert out["items"] == ["gatemem/b", "gatemem/c", "gatemem/d"]
+
+
+def test_the_refusal_leak_counts_are_read_from_the_reach_result_for_the_check() -> None:
+    reach = {
+        "primary_preset": "medium",
+        "by_preset": {
+            "medium": {
+                "kinds": {
+                    "access": {"all": {"refusal_leak": 2}},
+                    "forgetting": {"all": {"refusal_leak": 1}},
+                }
+            }
+        },
+    }
+    assert h1_refusal_leaks.reach_counts(reach) == {"access": 2, "forgetting": 1}

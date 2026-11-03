@@ -63,3 +63,49 @@ def test_the_table_counts_excluded_sessions_by_reason_per_condition(tmp_path: Pa
     assert by["C4"]["excluded"] == 2
     assert by["C5"]["exclusions"] == {"no judge verdict": 1}
     assert table["sessions_schema"] == "h1-sessions/2"
+
+
+# GateMem's checkpoint kind and the sets it splits the table by (review fix pass, item 8).
+
+
+def test_a_kind_is_gatemems_access_or_forgetting(tmp_path: Path) -> None:
+    ok = [session("a", "C4", True, kind="access"), session("b", "C4", False, kind="forgetting")]
+    assert [s.kind for s in read_sessions(write(tmp_path / "k.jsonl", ok))] == [
+        "access",
+        "forgetting",
+    ]
+    with pytest.raises(SchemaError, match="kind must be"):
+        read_sessions(write(tmp_path / "u.jsonl", [session("a", "C4", True, kind="utility")]))
+    other = {**session("a", "C4", True, kind="access"), "benchmark": "mem-inv-bench"}
+    with pytest.raises(SchemaError, match="GateMem's checkpoint kind"):
+        read_sessions(write(tmp_path / "m.jsonl", [other]))
+
+
+def test_a_primary_set_needs_every_gatemem_session_to_name_its_kind(tmp_path: Path) -> None:
+    rows = [session("a", "C4", True, kind="access"), session("a", "C5", False)]
+    with pytest.raises(SchemaError, match="name no kind"):
+        build_h1_table(
+            read_sessions(write(tmp_path / "s.jsonl", rows)),
+            H1Config(primary_model="m/x", store="fake", seed=1, gatemem_primary="access"),
+        )
+
+
+def test_only_the_primary_sets_p_value_enters_the_decision(tmp_path: Path) -> None:
+    # Access: C4 violates on every item, C5 on none. Forgetting: no difference.
+    rows = [
+        session(f"a{i}", c, c == "C4", kind="access") for i in range(12) for c in ("C4", "C5")
+    ] + [session(f"f{i}", c, False, kind="forgetting") for i in range(12) for c in ("C4", "C5")]
+    sessions = read_sessions(write(tmp_path / "s.jsonl", rows))
+    on_access = build_h1_table(
+        sessions, H1Config(primary_model="m/x", store="fake", seed=1, gatemem_primary="access")
+    )
+    on_forgetting = build_h1_table(
+        sessions,
+        H1Config(primary_model="m/x", store="fake", seed=1, gatemem_primary="forgetting"),
+    )
+    assert on_access["primary"]["mean"] == 1.0
+    assert on_access["holm"]["p"] == on_access["primary"]["p_one_sided"]
+    assert on_forgetting["primary"]["mean"] == 0.0
+    assert on_forgetting["decision"]["primary"] == "not supported"
+    names = [s["name"] for s in on_access["secondary"]]
+    assert names == ["forgetting", "access and forgetting"]
