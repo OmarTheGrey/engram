@@ -1,4 +1,4 @@
-"""The H1 table from a results file in the `h1-sessions/1` schema (research/analysis/h1.py).
+"""The H1 table from a results file in the `h1-sessions/2` schema (research/analysis/h1.py).
 
 Usage:
     uv run python research/scripts/h1_table.py --config research/configs/<name>.json \\

@@ -6,12 +6,14 @@ compared with ungoverned memory C2. The primary test is the one-sided paired
 bootstrap of C4 minus C5 on GateMem, decided by its Holm-adjusted p-value; the
 poisoning arm's interval must not contradict it.
 
-The results file (schema `h1-sessions/1`)
+The results file (schema `h1-sessions/2`)
 ----------------------------------------
 
 JSON Lines, one object per session: one benchmark item under one condition,
-model, store, preset and seed. Every field is required and no other is
-allowed; (benchmark, model, store, condition, item, seed) is unique.
+model, store, preset and seed. Every field below but `exclusion` is required
+and no other is allowed; (benchmark, model, store, condition, item, seed) is
+unique. Version 2 adds the optional `exclusion` (PR 4 of the plan, review
+fix pass, P4A-1); a version-1 file, which has none, still parses.
 
 - `benchmark`: "gatemem" or "mem-inv-bench", the arm.
 - `model`: string, the answer model, `provider/model-id`.
@@ -22,11 +24,17 @@ allowed; (benchmark, model, store, condition, item, seed) is unique.
 - `item`: string, the benchmark item, the same id under every condition (for
   example `gatemem/<checkpoint_id>`).
 - `seed`: integer, the experiment seed (1, 2, 3).
-- `violation`: true, false or null. H1's metric for the session: on GateMem a
-  leaked target or a wrong action at an access or forgetting checkpoint, on
-  MEM-INV-Bench an attack that succeeded. Null when the session is excluded
-  (MEM-INV-Bench's EXCLUDED and FILTERED buckets, a judge call that failed);
-  it then counts for nothing.
+- `violation`: true, false or null. H1's metric for the session, as the
+  converter (packages/runner/src/research/h1-sessions.ts) defines it: on
+  GateMem a leak verdict at an access or forgetting checkpoint, on
+  MEM-INV-Bench a HIT (an attack that succeeded) against a REFUSED. Null when
+  the session is excluded; it then counts for nothing.
+- `exclusion`: optional; when `violation` is null, why: on GateMem "no judge
+  verdict", on MEM-INV-Bench the verdict upstream's score.py keeps out of the
+  denominator ("FILTERED", "EXCLUDED", "MALFORMED", "UNREAD") or "readers
+  disagree". It must be absent or null when `violation` is not null. The
+  table counts excluded sessions by it ("unstated" where a null violation
+  names no reason).
 
 The table
 ---------
@@ -37,8 +45,10 @@ dict:
 - `rates`: per benchmark, model and condition, the violation rate (the mean
   over items of each item's seed-averaged outcome), its Wilson 95 percent
   interval with the item count as n (the item is the unit of analysis), the
-  item, session and excluded counts, and the rate of each seed alone (the
-  seed spread the pre-registration asks to report).
+  item, session and excluded counts, the excluded sessions by reason
+  (`exclusions`, so an exclusion that differs between conditions is
+  visible), and the rate of each seed alone (the seed spread the
+  pre-registration asks to report).
 - `contrasts`: per benchmark and model, the paired bootstrap of the tested
   contrast (C4 minus C5) and of the descriptive ones (C3 minus C5, C2 minus
   C5): its item count `n`, the (item, seed) sessions dropped because either
@@ -78,16 +88,18 @@ from analysis.bootstrap import (
 from analysis.holm import holm
 from analysis.wilson import wilson
 
-SESSIONS_SCHEMA = "h1-sessions/1"
-TABLE_SCHEMA = "h1-table/1"
+SESSIONS_SCHEMA = "h1-sessions/2"
+TABLE_SCHEMA = "h1-table/2"
 BENCHMARKS = ("gatemem", "mem-inv-bench")
 CONDITIONS = ("C2", "C3", "C4", "C5")
 HYPOTHESES = ("H1", "H2", "H3", "H4", "H5")
 FIELDS = ("benchmark", "model", "store", "preset", "condition", "item", "seed", "violation")
+OPTIONAL = ("exclusion",)
+UNSTATED = "unstated"
 
 
 class SchemaError(ValueError):
-    """A results file that does not follow `h1-sessions/1`."""
+    """A results file that does not follow `h1-sessions/2`."""
 
 
 @dataclass(frozen=True)
@@ -100,14 +112,20 @@ class SessionRow:
     item: str
     seed: int
     violation: bool | None
+    exclusion: str | None = None
 
 
 def parse_session(obj: object, where: str) -> SessionRow:
     """One line of the results file, checked against the schema."""
     if not isinstance(obj, dict):
         raise SchemaError(f"{where}: a session is a JSON object")
-    extra = sorted(set(obj) - set(FIELDS))
+    extra = sorted(set(obj) - set(FIELDS) - set(OPTIONAL))
     missing = [f for f in FIELDS if f not in obj]
+    exclusion = obj.get("exclusion")
+    if exclusion is not None and (not isinstance(exclusion, str) or not exclusion):
+        raise SchemaError(f"{where}: exclusion must be a non-empty string or null")
+    if exclusion is not None and obj.get("violation") is not None:
+        raise SchemaError(f"{where}: exclusion names why a null violation is excluded")
     if extra or missing:
         raise SchemaError(f"{where}: unknown fields {extra}, missing fields {missing}")
     for name in ("benchmark", "model", "store", "preset", "condition", "item"):
@@ -121,7 +139,7 @@ def parse_session(obj: object, where: str) -> SessionRow:
         raise SchemaError(f"{where}: seed must be an integer")
     if obj["violation"] is not None and not isinstance(obj["violation"], bool):
         raise SchemaError(f"{where}: violation must be true, false or null")
-    return SessionRow(**{name: obj[name] for name in FIELDS})
+    return SessionRow(**{name: obj[name] for name in FIELDS}, exclusion=exclusion)
 
 
 def read_sessions(path: Path) -> list[SessionRow]:
@@ -255,6 +273,7 @@ def build_h1_table(sessions: Sequence[SessionRow], config: H1Config) -> dict[str
                 "items": len(per_item),
                 "sessions": len(included),
                 "excluded": len(rows) - len(included),
+                "exclusions": _exclusions(rows),
                 "rate": rate,
                 "wilson_low": low,
                 "wilson_high": high,
@@ -337,6 +356,16 @@ def build_h1_table(sessions: Sequence[SessionRow], config: H1Config) -> dict[str
         "holm": holm_part,
         "decision": decision,
     }
+
+
+def _exclusions(rows: Sequence[SessionRow]) -> dict[str, int]:
+    """Excluded sessions by reason, sorted; a null violation with no reason is "unstated"."""
+    counts: dict[str, int] = {}
+    for s in rows:
+        if s.violation is None:
+            reason = s.exclusion or UNSTATED
+            counts[reason] = counts.get(reason, 0) + 1
+    return dict(sorted(counts.items()))
 
 
 def _outcome(s: SessionRow) -> float | None:
