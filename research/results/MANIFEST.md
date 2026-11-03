@@ -9,5 +9,5 @@ One row per results file. A results file exists only if `research/scripts/<scrip
 | research/results/h4-power.json | research/configs/h4-power.json | research/scripts/h4_power.py | b688cb0 | 852a6776acf7dc3338c5b4fa5c1d65d64318c296464876c4b43b8e32e8c8bf53 | none |
 | research/results/h1-c4-verdict-agreement.json | research/configs/h1-c4-verdict-agreement.json | research/scripts/h1_c4_verdict_agreement.py | ec07ea8 | 9335a67724db6405aa9a93ef90838869f597340ca0838a8945367a09305701f1 | none |
 | research/results/h1-c4-walk.json | research/configs/h1-c4-walk.json | research/scripts/h1_c4_walk.py | ec07ea8 | 479f24192d83ec1a091dfc5b925073d79aefe1415d6171439ba74bb94fd6f8fa | none |
-| research/results/h1-cost.json | research/configs/h1-cost.json | research/scripts/h1_cost.py | d86b2dd | 21b06c85d72c50591f20c165d487bfd60eab3c73a1a3127e57774872814d5314 | none |
+| research/results/h1-cost.json | research/configs/h1-cost.json | research/scripts/h1_cost.py | 7beec4a | f147daf74c9bbec665b067ed0dc47eec97b25d5af7b8862ba582b0e7938c37fb | none |
 | research/results/h4-holm-levels.json | research/configs/h4-holm-levels.json | research/scripts/h4_holm_levels.py | 789bd74 | dcacf0c9ce70c8f6fd3055a6461ab542bdd51839dc0fea561e029372b7ed45d4 | none |
