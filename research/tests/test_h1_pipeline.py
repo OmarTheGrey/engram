@@ -3,7 +3,7 @@
 The fixture probe (research/configs/x1-h1-probe.json) replays from its
 committed cassettes with ENGRAM_OFFLINE=1, the converter
 (packages/runner/scripts/h1-sessions.ts) turns its GateMem and MEM-INV-Bench
-rows into `h1-sessions/1`, and research/scripts/h1_table.py builds the H1
+rows into `h1-sessions/2`, and research/scripts/h1_table.py builds the H1
 table from them: the chain the live run takes, with a scripted model. The
 numbers are the scripted replies' and are not results; nothing here is
 written under research/results.
