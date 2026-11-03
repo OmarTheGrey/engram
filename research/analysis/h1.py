@@ -86,11 +86,18 @@ dict:
   condition excluded or lacked them, mean difference, BCa and percentile
   intervals, one-sided p-value, z0 and acceleration. Only the tested contrast
   enters a decision.
-- `primary`, `holm` and `decision`: see `decide_h1`.
+- `primary`, `holm` and `decision`: see `decide_h1`; in the main table
+  only.
 - `gate_by_action`: the config's setting, which every session must share:
   the main table is leak only, and `research/configs/h1-table-gate-by-action.json`
   builds the gate-by-action table, upstream's Eq. 11 reading, from its own
   sessions (D2).
+- `decides`: whether this table decides H1, true for the main table and
+  false for the gate-by-action table, from the setting. The gate-by-action
+  table drops `primary`, `holm` and `decision`, so nothing in it reads as
+  H1's decision; its rates, contrasts (C4 minus C5 among them, with its
+  p-value), sets, sensitivity table and MGS stay, for reference (final
+  verification, F-6).
 - `mgs`: per model and condition, GateMem's MGS = U x (1 - A) x (1 - F)
   (D1): U the share of utility checkpoints answered right (`utility_ok`), A
   and F the access-control and forgetting violation rates as this table
@@ -493,6 +500,7 @@ def build_h1_table(sessions: Sequence[SessionRow], config: H1Config) -> dict[str
         "confidence": config.confidence,
         "alpha": config.alpha,
         "gate_by_action": config.gate_by_action,
+        "decides": not config.gate_by_action,
         "rates": rates,
         "contrasts": contrasts,
         "primary": primary,
@@ -500,6 +508,10 @@ def build_h1_table(sessions: Sequence[SessionRow], config: H1Config) -> dict[str
         "decision": decision,
         "mgs": _mgs(mine, config),
     }
+    if config.gate_by_action:
+        # A second reading of the same runs: no decision block, so none reads as H1's.
+        for name in ("primary", "holm", "decision"):
+            del table[name]
     if primary_set is None:
         return table
     table["gatemem_primary_set"] = {"name": primary_set, "kinds": list(GATEMEM_SETS[primary_set])}

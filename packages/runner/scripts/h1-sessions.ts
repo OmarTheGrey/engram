@@ -19,7 +19,8 @@
 // than one answer model is refused.
 //
 // MEM-INV-Bench's UNREAD sessions do not score until two members read them
-// (upstream's score.py), blind to the condition (decision sheet item 14).
+// (upstream's score.py), and they are not shown the condition (decision
+// sheet item 14).
 // --unread-out writes the blind template (`h1-blind-readings/1`): each UNREAD
 // attack session's reply under an opaque id, in an order the H1 table
 // config's seed (--table-config) shuffles, with the case's task and values

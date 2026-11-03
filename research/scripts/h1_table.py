@@ -19,7 +19,9 @@ H2 to H5's primary p-values (`other_primary_p`). Optionally:
 - `gate_by_action`: false (the default) for the main, leak-only table; true
   for the gate-by-action table (research/configs/h1-table-gate-by-action.json,
   `make h1-table GATE_BY_ACTION=1`). The table records it and refuses
-  sessions converted under the other setting.
+  sessions converted under the other setting; it records `decides`, true
+  only for the main table, and the gate-by-action table has no `primary`,
+  `holm` or `decision` block.
 
 No H1 run exists yet: this is the command the H1 runs feed once the
 pre-registration is tagged (`make h1-table`).

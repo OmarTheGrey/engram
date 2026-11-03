@@ -101,8 +101,18 @@ def test_a_table_records_its_gate_by_action_setting_and_refuses_the_other(tmp_pa
     by_action = [{**r, "gate_by_action": True} for r in PLANTED]
     plain = read_sessions(write(tmp_path / "plain.jsonl", leak_only))
     gated = read_sessions(write(tmp_path / "gated.jsonl", by_action))
-    assert build_h1_table(plain, config())["gate_by_action"] is False
-    assert build_h1_table(gated, config(gate_by_action=True))["gate_by_action"] is True
+    main = build_h1_table(plain, config())
+    second = build_h1_table(gated, config(gate_by_action=True))
+    assert main["gate_by_action"] is False and second["gate_by_action"] is True
+    # Only the main table decides H1; the gate-by-action table has no decision block
+    # (final verification, F-6), though its contrasts are all there.
+    assert main["decides"] is True
+    assert {"primary", "holm", "decision"} <= set(main)
+    assert second["decides"] is False
+    assert not {"primary", "holm", "decision"} & set(second)
+    assert [c["contrast"] for c in second["contrasts"]] == [
+        c["contrast"] for c in main["contrasts"]
+    ]
     with pytest.raises(ValueError, match="gate_by_action"):
         build_h1_table(gated, config())
     with pytest.raises(ValueError, match="gate_by_action"):

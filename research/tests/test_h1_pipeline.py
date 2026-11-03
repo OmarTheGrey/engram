@@ -493,6 +493,8 @@ def test_a_planted_run_through_the_cli_converter_gives_the_tables_rates_and_excl
     gated = json.loads(gated_out.read_text(encoding="utf-8"))
     assert json.loads(out.read_text(encoding="utf-8"))["gate_by_action"] is False
     assert gated["gate_by_action"] is True
+    assert table["decides"] is True and "decision" in table
+    assert gated["decides"] is False and "decision" not in gated
     # C5's wrong action at ckpt_c is now a leak (A = 1/2 of b, c), and at ckpt_v
     # a utility miss (U = 1/2); C4, where every action is right, is unchanged.
     gated_mgs = {r["condition"]: r for r in gated["mgs"]}
@@ -608,6 +610,8 @@ def test_the_live_chain_names_both_arms_runs_and_one_model_slot() -> None:
     # The blind template's order comes from the table config's seed, and its key sits beside
     # it; with READINGS= the run reads the filled copy through the key and writes no template.
     assert "--unread-out .engram/runs/h1-unread.json" in plain
+    # The gate-by-action run leaves the main template and its key alone (F-8).
+    assert "--unread-out" not in by_action
     read = make_n("READINGS=filled.json")
     assert '--readings "filled.json" --readings-key ".engram/runs/h1-unread-key.json"' in read
     assert "--unread-out" not in read

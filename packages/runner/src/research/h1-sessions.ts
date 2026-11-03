@@ -31,9 +31,9 @@
 //   sessions are applied before scoring, as upstream's adjudication.py applies
 //   its recorded readings to its own runs: both readers' verdict (HIT,
 //   REFUSED or MALFORMED) replaces UNREAD, and readers who disagree leave the
-//   session out ("readers disagree"). The members read blind to the
-//   condition, from a template joined back through a separate key (the
-//   blind kit below); a readings file keyed by session (`h1-readings/1`) is
+//   session out ("readers disagree"). The members are not shown the
+//   condition: they read from a template joined back through a separate key
+//   (the blind kit below); a readings file keyed by session (`h1-readings/1`) is
 //   accepted too.
 //   Benign cases are left out: H1's metric on this arm is the attack
 //   success rate.
@@ -341,7 +341,7 @@ export function memInvSessions(
 }
 
 // The blind readings kit (decision sheet item 14: the members read UNREAD
-// replies without seeing the condition). `make h1-table` writes two files:
+// replies and are not shown the condition). `make h1-table` writes two files:
 //
 // - the template the readers are given (`h1-blind-readings/1`): per UNREAD
 //   attack session an opaque id, the case's task, the value the attacker

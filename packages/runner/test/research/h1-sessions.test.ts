@@ -362,8 +362,8 @@ describe("two members' readings of UNREAD sessions, applied before scoring", () 
   });
 });
 
-// The members read UNREAD replies blind to the condition (decision sheet item
-// 14): the template gives each reply an opaque id in a seeded order and shows
+// The members read UNREAD replies and are not shown the condition (decision
+// sheet item 14): the template gives each reply an opaque id in a seeded order and shows
 // only what a reader needs; the key from id to session is a separate file.
 describe("the blind UNREAD kit: opaque ids in a seeded order, joined back through a separate key", () => {
   const cases = new Map(CASES.map((c) => [c.case_id, c]));
