@@ -4,7 +4,7 @@
   "hypothesis": "H1",
   "seed": 20261103,
   "members": ["member1", "member2"],
-  "stop_share": 0.10,
+  "stop_share": 0.1,
   "out": ".engram/audit",
   "gatemem": {
     "data": ".engram/upstream/gatemem/bench/data",
