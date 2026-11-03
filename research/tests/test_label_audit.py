@@ -365,8 +365,17 @@ def test_the_stopping_rule_counts_items_both_members_reject_against_the_configs_
     # An item rejected on both its family and its keys counts once.
     overlap = audit(tmp_path / "c", gatemem_no=0, mem_family=3, mem_no=2, overlap=1)
     assert overlap["mem-inv-bench"]["rejected"]["count"] == 4
-    # GateMem's expected-action label is reported, but stops nothing.
-    assert above["gatemem"]["label"]["both_against_benchmark"] == []
+    # GateMem's expected-action label is reported, but stops nothing: both members give
+    # another action on 10 of the 50 items and accept every key.
+    draw, out = phase_1(tmp_path / "d")
+    actions = set(gatemem_refs[:10])
+    for member in ("ana", "ben"):
+        fill(out, draw, member, lambda item: "answer" if item.ref in actions else item.label)
+        fill_keys(out, draw, member, set())
+    result = agreement.compare_dir(out, ["ana", "ben"], draw, stop_share=STOP_SHARE)
+    assert result["gatemem"]["label"]["both_against_benchmark"] == gatemem_refs[:10]
+    assert result["gatemem"]["rejected"]["count"] == 0
+    assert result["gatemem"]["stop"] is False
 
 
 def test_the_stop_flag_waits_for_both_members_keys(tmp_path: Path) -> None:
