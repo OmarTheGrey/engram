@@ -71,7 +71,7 @@ engram hook claude-code --root <dir>   a Claude Code PreToolUse hook: denies a B
 make engram ARGS="<command> ..."   run the engram CLI from the repo (node packages/cli/src/main.ts)
 make test-e2e                  layer 6: engram doctor, then a CLI smoke (write, read, explain) on a temp folder and on a Letta MemFS repository, on SQLite and on embedded Postgres; the MCP handshake from the Claude Code and Codex fixtures in fixtures/harness/ and the Claude Code hook; then make ui and the inspector in Chromium (playwright) on fixtures/workspaces/inspector; no Docker anywhere
 make ui                        build the inspector (Vite and React) into packages/ui/dist, which engram serve serves at / beside /api/v1; Chromium for its e2e test: pnpm exec playwright install chromium
-make test-repro                every row of research/results/MANIFEST.md rerun by its research/scripts/<name>.py from its config; fails on a sha256 that differs
+make test-repro                every row of research/results/MANIFEST.md rerun by its research/scripts/<name>.py from its config; fails on a sha256 that differs; ENGRAM_RESEARCH_WORKERS=<n> caps the worker processes of the H4 scripts (one per core otherwise; the bytes do not change)
                                a script needing pinned benchmark data fetches it (data, never a model) into .engram/upstream, so a fresh clone needs the network; CI does not run it
 make fixtures                  regenerate golden files and record scripted cassettes afresh; refuses without a message; clones MEM-INV-Bench at its pin into .engram/upstream when missing (network) and runs its own scorer for the goldens
 make thesis                    consolidate docs/log into research/thesis/drafts/ (ROOT=, OUT= to run on fixtures/log/repo)

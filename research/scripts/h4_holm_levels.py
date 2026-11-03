@@ -25,14 +25,13 @@ committed table (by its sha256) and that every level holds.
 from __future__ import annotations
 
 import argparse
-import os
 from collections.abc import Mapping, Sequence
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 from typing import Any
 
 from analysis.power import composite_sup
-from scripts.results_io import REPO, load_config, sha256_file, write_result
+from scripts.results_io import REPO, load_config, sha256_file, workers, write_result
 
 
 def thresholds(alpha: float, hypotheses: int) -> list[float]:
@@ -63,8 +62,7 @@ def compute(config: Mapping[str, Any]) -> dict[str, Any]:
     sizes = committed_sizes(power, alpha)
     levels = thresholds(float(config["family_alpha"]), int(config["hypotheses"]))
     jobs = [(n, m, t) for n, m in sizes for t in levels]
-    workers = max(1, min(len(jobs), os.cpu_count() or 1))
-    with ProcessPoolExecutor(workers) as pool:
+    with ProcessPoolExecutor(workers(len(jobs))) as pool:
         sups = list(pool.map(_sup, jobs))
     found = iter(sups)
     rows = []

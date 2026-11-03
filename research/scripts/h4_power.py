@@ -40,7 +40,6 @@ result does not depend on how the cells are spread over processes.
 from __future__ import annotations
 
 import argparse
-import os
 from collections.abc import Callable, Mapping, MutableMapping, Sequence
 from concurrent.futures import ProcessPoolExecutor
 from itertools import product
@@ -64,7 +63,7 @@ from analysis.power import (
     smallest_passing,
     start_rung,
 )
-from scripts.results_io import load_config, write_result
+from scripts.results_io import load_config, workers, write_result
 
 _SHARED: MutableMapping[tuple[int, float, float], dict[str, Any]] | None = None
 """The composite-null suprema the worker processes have computed, shared between them."""
@@ -240,10 +239,11 @@ def compute(config: Mapping[str, Any]) -> dict[str, Any]:
     # Each cell draws its seeds from the config's seed and its own index, so
     # the result does not depend on how the cells are spread over processes.
     jobs = [(cell, dict(config), i) for i, cell in enumerate(cells)]
-    workers = max(1, min(len(jobs), os.cpu_count() or 1))
     with (
         Manager() as manager,
-        ProcessPoolExecutor(workers, initializer=_share, initargs=(manager.dict(),)) as pool,
+        ProcessPoolExecutor(
+            workers(len(jobs)), initializer=_share, initargs=(manager.dict(),)
+        ) as pool,
     ):
         grid = list(pool.map(_cell_job, jobs))
     keys = (
