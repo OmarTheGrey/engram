@@ -27,10 +27,12 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { estimateTokens } from "@earendil-works/pi-coding-agent";
 import { gatemem } from "@engram/bench";
+import type { Policy } from "@engram/core";
 import type { LiveModels } from "../answers.ts";
 import { probeInputs, sequentialIds } from "../gatemem-probe.ts";
 import type { CacheEntry } from "../model/cached.ts";
 import { SEEDED_APIS } from "../model/cassette.ts";
+import { walkLists } from "./c4-evidence.ts";
 
 type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
 
@@ -75,6 +77,8 @@ function replyMessage(text: string): { role: string; content: unknown } {
 }
 
 const ITEM_TAG = "<engram:item";
+/** The text of each item a read shows, inside its memory tag. */
+const ITEM_TEXT = /<engram:item[^>]*>([\s\S]*?)<\/engram:item>/g;
 
 export interface CallShape {
   kind: "answer" | "judge" | "note";
@@ -88,7 +92,7 @@ export interface CallShape {
   input_tokens: number;
   output_tokens: number;
   /** Each memory_read result in the request: its tokens and the items it shows. */
-  reads: { tokens: number; items: number }[];
+  reads: { tokens: number; items: number; text_chars: number }[];
 }
 
 /** One cassette entry's shape; `judgeModel` names the GateMem judge, when the run has one. */
@@ -106,8 +110,16 @@ export function callShape(entry: CacheEntry, judgeModel?: string): CallShape {
         : "answer";
   const reads = decoded.flatMap((m) => {
     if (m.role !== "toolResult" || m.toolName !== "memory_read") return [];
-    const text = JSON.stringify(m.content);
-    return [{ tokens: tokensOf(m), items: text.split(ITEM_TAG).length - 1 }];
+    const parts = Array.isArray(m.content) ? (m.content as { text?: unknown }[]) : [];
+    const text = parts.map((c) => (typeof c.text === "string" ? c.text : "")).join("");
+    const shown = [...text.matchAll(ITEM_TEXT)].map((x) => (x[1] ?? "").trim());
+    return [
+      {
+        tokens: tokensOf(m),
+        items: text.split(ITEM_TAG).length - 1,
+        text_chars: shown.reduce((n, t) => n + t.length, 0),
+      },
+    ];
   });
   return {
     kind,
@@ -153,20 +165,59 @@ export function sessionShapes(calls: readonly CallShape[]): SessionShape[] {
 }
 
 /**
- * The characters of the system and user prompt a GateMem probe sends, per
- * checkpoint, with its query type (a hidden label, read only to group the
- * sizes; the prompt itself comes from the stripped checkpoint).
+ * Per checkpoint: the characters of the system and user prompt a GateMem
+ * probe sends; the turns up to the as-of turn the probe ingests and their
+ * text's characters, so a read item's size can be moved to the full set's;
+ * and the characters of GateMem's judge prompt for the checkpoint with an
+ * empty answer (judge.ts `renderJudgePrompt`), the part of the judge's input
+ * that depends on the checkpoint; and, per condition, how many items its
+ * read shows for the checkpoint's own question and their text's characters
+ * (C2 and C3 the pipeline's top `readLimit`, C4 the walk, C5 the admitted
+ * items' top `readLimit`: c4-evidence.ts `walkLists`, under `policy`). The
+ * query type is a hidden label, read only to group the sizes; the probe's
+ * prompt, turns and lists come from the stripped checkpoint, and the judge
+ * prompt holds the labels, as upstream's judge sees them.
  */
 export function gatememPromptChars(
   data: string,
-): { checkpoint_id: string; kind: string; chars: number }[] {
+  policy: Policy,
+  readLimit?: number,
+): {
+  checkpoint_id: string;
+  kind: string;
+  chars: number;
+  turns: number;
+  turn_chars: number;
+  judge_chars: number;
+  shown: Record<"C2" | "C3" | "C4" | "C5", { items: number; chars: number }>;
+}[] {
   return gatemem.loadDataset(data).flatMap((domain) =>
     domain.checkpoints.map((c) => {
-      const { system, user } = probeInputs(domain, c.checkpoint_id, sequentialIds());
+      const { system, user, mapped } = probeInputs(domain, c.checkpoint_id, sequentialIds());
+      const lists = walkLists(domain, c, policy, readLimit);
+      const textOf = new Map(
+        lists.mapped.writes.map(({ item }, i) => [
+          item.id,
+          (lists.mapped.turns[i] as gatemem.Turn).text,
+        ]),
+      );
+      const shown = (list: readonly { item: { id: string } }[]) => ({
+        items: list.length,
+        chars: list.reduce((n, r) => n + (textOf.get(r.item.id) ?? "").length, 0),
+      });
       return {
         checkpoint_id: c.checkpoint_id,
         kind: c.query_type,
         chars: system.length + user.length,
+        turns: mapped.turns.length,
+        turn_chars: mapped.turns.reduce((n, t) => n + t.text.length, 0),
+        judge_chars: gatemem.renderJudgePrompt(c, {}).length,
+        shown: {
+          C2: shown(lists.c3),
+          C3: shown(lists.c3),
+          C4: shown(lists.c4),
+          C5: shown(lists.c5),
+        },
       };
     }),
   );
@@ -178,11 +229,48 @@ export interface CatalogueEntry {
   api: string | null;
   /** The runner's answer path accepts it: its API carries the seed (SEEDED_APIS). */
   accepted: boolean;
-  /** US dollars per million tokens, pi-ai's catalogue `cost.input` and `cost.output`. */
+  /** US dollars per million tokens, pi-ai's catalogue `cost.input`, `cost.output` and `cost.cacheRead`. */
   input_per_million: number | null;
   output_per_million: number | null;
+  cache_read_per_million: number | null;
   reasoning: boolean | null;
   context_window: number | null;
+  /** The catalogue's `compat.thinkingFormat`: how pi-ai asks this model for reasoning. */
+  thinking_format: string | null;
+  /**
+   * The reasoning effort pi-ai sends when the runner asks for thinking off
+   * (conditions.ts, `thinkingLevel: "off"`), or null when it sends none.
+   */
+  off_effort: string | null;
+  /**
+   * Whether thinking off reaches the model: true for a model without
+   * reasoning or one pi-ai sends an off effort for; false when the
+   * catalogue maps off to null, so no reasoning parameter is sent and the
+   * provider's default effort applies; null for a thinking format this
+   * reading of pi-ai does not cover.
+   */
+  can_turn_reasoning_off: boolean | null;
+}
+
+/**
+ * What pi-ai 1.3.0 sends for thinking off on OpenRouter's format
+ * (api/openai-completions.js): with no requested effort, a reasoning model
+ * whose `thinkingLevelMap.off` is not null gets `{ effort: off ?? "none" }`;
+ * one whose `off` is null gets no reasoning parameter at all.
+ */
+function offReasoning(model: {
+  reasoning: boolean;
+  compat?: { thinkingFormat?: string };
+  thinkingLevelMap?: Record<string, string | null> | undefined;
+}): { off_effort: string | null; can_turn_reasoning_off: boolean | null } {
+  if (!model.reasoning) return { off_effort: null, can_turn_reasoning_off: true };
+  if (model.compat?.thinkingFormat !== "openrouter") {
+    return { off_effort: null, can_turn_reasoning_off: null };
+  }
+  const off = model.thinkingLevelMap?.off;
+  return off === null
+    ? { off_effort: null, can_turn_reasoning_off: false }
+    : { off_effort: off ?? "none", can_turn_reasoning_off: true };
 }
 
 /** A `provider/model-id` as pi-ai's built-in providers resolve it. */
@@ -197,10 +285,18 @@ export function catalogueEntry(models: LiveModels, name: string): CatalogueEntry
       accepted: false,
       input_per_million: null,
       output_per_million: null,
+      cache_read_per_million: null,
       reasoning: null,
       context_window: null,
+      thinking_format: null,
+      off_effort: null,
+      can_turn_reasoning_off: null,
     };
   }
+  const described = model as typeof model & {
+    compat?: { thinkingFormat?: string };
+    thinkingLevelMap?: Record<string, string | null>;
+  };
   return {
     model: name,
     found: true,
@@ -208,8 +304,11 @@ export function catalogueEntry(models: LiveModels, name: string): CatalogueEntry
     accepted: SEEDED_APIS.includes(model.api),
     input_per_million: model.cost.input,
     output_per_million: model.cost.output,
+    cache_read_per_million: model.cost.cacheRead,
     reasoning: model.reasoning,
     context_window: model.contextWindow,
+    thinking_format: described.compat?.thinkingFormat ?? null,
+    ...offReasoning(described),
   };
 }
 

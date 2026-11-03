@@ -9,13 +9,14 @@
 //       --cassettes fixtures/cassettes/x1-h1-gatemem --cassettes fixtures/cassettes/x1-h1-mem-inv \
 //       --judge scripted/judge-1 \
 //       --prompts full=.engram/upstream/gatemem/bench/data --prompts fixture=fixtures/bench/gatemem \
-//       --models openrouter/openai/gpt-4o,... --out <file.json>
+//       [--preset medium] --models openrouter/openai/gpt-4o,... --out <file.json>
 //
 // The output names each cassette directory by its last path part and each
 // prompt set by its label, and holds no path or time.
 import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { parseArgs } from "node:util";
+import { loadPreset, PRESETS, type PresetName } from "@engram/core";
 import { builtinLiveModels } from "../src/live.ts";
 import type { CacheEntry } from "../src/model/cached.ts";
 import {
@@ -51,6 +52,7 @@ function main(): number {
       judge: { type: "string" },
       prompts: { type: "string", multiple: true },
       models: { type: "string" },
+      preset: { type: "string", default: "medium" },
       out: { type: "string" },
     },
   });
@@ -58,9 +60,16 @@ function main(): number {
     const at = p.indexOf("=");
     return at > 0 ? [p.slice(0, at), p.slice(at + 1)] : undefined;
   });
-  if (!values.out || !values.cassettes?.length || !values.models || prompts.includes(undefined)) {
+  const preset = values.preset as PresetName;
+  if (
+    !values.out ||
+    !values.cassettes?.length ||
+    !values.models ||
+    prompts.includes(undefined) ||
+    !PRESETS.includes(preset)
+  ) {
     console.error(
-      "usage: cost-shapes.ts (--cassettes <dir>)... [--judge <model>] (--prompts <label>=<gatemem data dir>)... --models <m1,m2,...> --out <file.json>",
+      "usage: cost-shapes.ts (--cassettes <dir>)... [--judge <model>] (--prompts <label>=<gatemem data dir>)... [--preset medium] --models <m1,m2,...> --out <file.json>",
     );
     return 2;
   }
@@ -70,7 +79,10 @@ function main(): number {
       values.cassettes.map((dir) => [basename(dir), cassetteShapes(dir, values.judge)]),
     ),
     prompts: Object.fromEntries(
-      (prompts as [string, string][]).map(([label, dir]) => [label, gatememPromptChars(dir)]),
+      (prompts as [string, string][]).map(([label, dir]) => [
+        label,
+        gatememPromptChars(dir, loadPreset(preset)),
+      ]),
     ),
     catalogue: values.models
       .split(",")

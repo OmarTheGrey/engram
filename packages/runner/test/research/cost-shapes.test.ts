@@ -4,7 +4,7 @@
 // models as pi-ai's catalogue and the runner's seeded-API rule see them.
 import { join } from "node:path";
 import { estimateTokens } from "@earendil-works/pi-coding-agent";
-import { canonicalJson } from "@engram/core";
+import { canonicalJson, loadPreset } from "@engram/core";
 import { describe, expect, test } from "vitest";
 import { builtinLiveModels } from "../../src/live.ts";
 import type { CacheEntry } from "../../src/model/cached.ts";
@@ -92,7 +92,9 @@ describe("a cassette call's shape", () => {
     const each = [system, user, call, read].map((m) => estimateTokens(m as never));
     expect(shape.input_tokens).toBe(each.reduce((a, b) => a + b, 0));
     expect(shape.output_tokens).toBe(estimateTokens({ role: "assistant", ...answer } as never));
-    expect(shape.reads).toEqual([{ tokens: estimateTokens(read as never), items: 2 }]);
+    expect(shape.reads).toEqual([
+      { tokens: estimateTokens(read as never), items: 2, text_chars: 2 },
+    ]);
     expect(shape.kind).toBe("answer");
   });
 
@@ -134,10 +136,25 @@ describe("a cassette call's shape", () => {
 });
 
 describe("the GateMem prompt the runner sends", () => {
-  test("is measured per checkpoint from the probe's own prompts", () => {
-    const sizes = gatememPromptChars(join(REPO, "fixtures/bench/gatemem"));
+  test("is measured per checkpoint from the probe's own prompts, with its turns and its judge prompt", () => {
+    const sizes = gatememPromptChars(join(REPO, "fixtures/bench/gatemem"), loadPreset("medium"));
     expect(sizes.length).toBe(20);
-    for (const s of sizes) expect(s.chars).toBeGreaterThan(0);
+    for (const s of sizes) {
+      expect(s.chars).toBeGreaterThan(0);
+      expect(s.turns).toBeGreaterThan(0);
+      expect(s.turn_chars).toBeGreaterThan(s.turns);
+      expect(s.judge_chars).toBeGreaterThan(0);
+      // What each condition's read shows for the checkpoint's own question:
+      // C2 and C3 the same list, C4 at least C5's.
+      expect(s.shown.C2).toEqual(s.shown.C3);
+      expect(s.shown.C4.items).toBeGreaterThanOrEqual(s.shown.C5.items);
+      for (const list of Object.values(s.shown)) {
+        expect(list.chars > 0).toBe(list.items > 0);
+      }
+    }
+    // The turns are those up to the as-of turn, as the probe ingests them.
+    const first = sizes.find((s) => s.checkpoint_id.endsWith("ckpt_13"));
+    expect(first?.turns).toBeLessThan(sizes.reduce((n, s) => Math.max(n, s.turns), 0) + 1);
   });
 });
 
@@ -152,9 +169,43 @@ describe("the candidate models, as pi-ai 1.3.0's catalogue and the runner see th
       accepted: true,
       input_per_million: 2.5,
       output_per_million: 10,
+      cache_read_per_million: 1.25,
       reasoning: false,
       context_window: 128000,
+      thinking_format: "openrouter",
+      off_effort: null,
+      can_turn_reasoning_off: true,
     });
+  });
+
+  test("with thinking off, pi-ai sends the catalogue's off effort, or none at all when it maps off to null", () => {
+    // pi-ai 1.3.0 api/openai-completions.js, OpenRouter's format: no requested
+    // effort and thinkingLevelMap.off !== null sends { effort: off ?? "none" };
+    // off === null sends nothing, so the provider's default effort applies.
+    expect(catalogueEntry(models, "openrouter/openai/gpt-6-luna")).toMatchObject({
+      reasoning: true,
+      off_effort: "none",
+      can_turn_reasoning_off: true,
+    });
+    expect(catalogueEntry(models, "openrouter/qwen/qwen3.8-flash")).toMatchObject({
+      reasoning: true,
+      off_effort: "none",
+      can_turn_reasoning_off: true,
+    });
+    for (const name of [
+      "openai/gpt-6.1-sol",
+      "google/gemini-4-argon",
+      "google/gemini-3.8-flash",
+      "qwen/qwen3.8-max-0902",
+      "meta/muse-wonder",
+      "meta/muse-glimmer-30b",
+    ]) {
+      expect(catalogueEntry(models, `openrouter/${name}`)).toMatchObject({
+        reasoning: true,
+        off_effort: null,
+        can_turn_reasoning_off: false,
+      });
+    }
   });
 
   test("a model on an API that cannot carry a seed is refused, as the runner refuses it", () => {

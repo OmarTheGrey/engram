@@ -20,18 +20,22 @@ packages/runner/scripts/cost-shapes.ts and packages/runner/scripts/run.ts
 - per condition, a fixture session's shape from its cassettes, every token
   count pi's own estimate (characters over four): the prompt (the first
   call's input), the read call (its output, and its size when replayed into
-  the next call), the memory_read result (its tokens and the items it shows,
-  so tokens per item) and the answer (the last call's output); the judge's
-  prompt and verdict; a note's prompt and reply;
-- the GateMem probe's prompt per checkpoint, on the fixture's checkpoints and
-  on the pinned full set, so the prompt is moved to the full set's size;
-- items per read on the full set: on GateMem from research/results/h1-c4-walk.json
-  (C2 and C3 show C3's list, C4 its walk, C5 C5's list, each checkpoint's own
-  question), on MEM-INV-Bench from research/results/h1-mem-inv-admission.json
+  the next call), the memory_read result (its tokens, the items it shows and
+  their text's characters, so tokens and characters per item) and the answer
+  (the last call's output); the judge's prompt and verdict; a note's prompt
+  and reply;
+- per GateMem checkpoint, on the fixture's checkpoints and on the pinned full
+  set: the probe's prompt, GateMem's judge prompt with an empty answer, and,
+  per condition, the items its read shows for the checkpoint's own question
+  and their text's characters (C2 and C3 C3's list, C4 its walk, C5 C5's
+  list: the same lists research/results/h1-c4-walk.json counts, whose item
+  totals this script checks against it);
+- on MEM-INV-Bench, items per read from research/results/h1-mem-inv-admission.json
   (C2 to C4 hold every entry; C5 reads what the preset admits);
-- each candidate's API, prices per million tokens and reasoning flag from
-  pi-ai's built-in catalogue, and whether the runner's answer path accepts
-  it (an API that carries the seed).
+- each candidate's API, prices per million tokens (input, output, cache
+  read), reasoning flag and what pi-ai sends for thinking off, from pi-ai's
+  built-in catalogue, and whether the runner's answer path accepts it (an
+  API that carries the seed).
 
 The session model. The scripted cassettes make one read, then answer: a
 session is the read call (input: the prompt; output: the tool call) and the
@@ -42,14 +46,20 @@ calls and results:
     input  = (r + 1) * prompt + (call_in + read) * r * (r + 1) / 2
     output = r * call_out + answer_out
 
-where `read` is the full set's items per read times the fixture's tokens per
-item, and the prompt is the fixture's plus the full set's extra characters
-over four. The low estimate takes r = 1 (the fixture's own shape) at pi's
-four characters per token; the high one takes the config's extra read turns,
-three characters per token, the judge's three attempts, the note's token
-limit, and a reasoning budget per answer call for every model the catalogue
-marks as reasoning (the runner asks for thinking `off`, so the low estimate
-counts none). Every assumption is in the config and in the result.
+where `read` is the full set's items per read times the tokens per item,
+the fixture's tokens per item moved by the difference between the full
+set's and the fixture's characters per shown item, over four (P4A-8); the
+prompt and the judge's input are moved the same way to the full set's
+mean. The low estimate takes r = 1 (the fixture's own shape) at pi's four
+characters per token, one judge call, and reasoning only where it cannot
+be turned off; the high one takes the config's extra read turns, three
+characters per token, the judge's three attempts and the note's token
+limit. Reasoning tokens per answer call depend on whether the runner's
+thinking `off` reaches the model (pi-ai sends no reasoning parameter when
+the catalogue maps off to null, so the provider's default effort applies):
+the config states both budgets, and each candidate also reports what 1,000
+reasoning tokens per call cost, so any budget can be priced by hand. Every
+assumption is in the config and in the result.
 """
 
 from __future__ import annotations
@@ -74,11 +84,15 @@ from scripts.results_io import (
 SHAPES = "packages/runner/scripts/cost-shapes.ts"
 RUN = "packages/runner/scripts/run.ts"
 MILLION = 1_000_000
+CHARS_PER_TOKEN = 4
 # COUNT's item kinds, as the walk result names them (GateMem's query types).
 GATEMEM_KINDS = {"access control": "privacy", "active forgetting": "safety", "utility": "utility"}
 VIOLATION_KINDS = ("privacy", "safety")
 # What each condition's read shows on the full set, by the walk result's list names.
 WALK_LIST = {"C2": "c3", "C3": "c3", "C4": "c4", "C5": "c5"}
+# A catalogue price this far from the usual is flagged (P4A-6).
+CACHE_READ_FLOOR = 1.5
+OUTPUT_OVER_INPUT = 25.0
 
 
 def fixture_shape(sessions: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
@@ -98,23 +112,32 @@ def fixture_shape(sessions: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
                 "call_in": last["input_tokens"] - first["input_tokens"] - read["tokens"],
                 "read_tokens": read["tokens"],
                 "read_items": read["items"],
+                "read_text": read.get("text_chars", 0),
                 "answer_out": last["output_tokens"],
             }
         )
-    shape: dict[str, Any] = {k: fmean(float(r[k]) for r in rows) for k in rows[0]}
+    shape: dict[str, Any] = {
+        k: fmean(float(r[k]) for r in rows) for k in rows[0] if k != "read_text"
+    }
     items = sum(r["read_items"] for r in rows)
     shape["tokens_per_item"] = sum(r["read_tokens"] for r in rows) / items if items else 0.0
+    shape["text_chars_per_item"] = sum(r["read_text"] for r in rows) / items if items else 0.0
     shape["sessions"] = len(rows)
     return shape
 
 
 def session_tokens(
-    shape: Mapping[str, Any], *, items_per_read: float, prompt_delta: float, extra_reads: int
+    shape: Mapping[str, Any],
+    *,
+    items_per_read: float,
+    prompt_delta: float,
+    extra_reads: int,
+    item_delta: float = 0.0,
 ) -> dict[str, float | int]:
     """One session's calls and tokens with the full set's memory and prompt (module docstring)."""
     r = 1 + extra_reads
     prompt = float(shape["prompt"]) + prompt_delta
-    read = items_per_read * float(shape["tokens_per_item"])
+    read = items_per_read * (float(shape["tokens_per_item"]) + item_delta)
     return {
         "calls": r + 1,
         "input": (r + 1) * prompt + (float(shape["call_in"]) + read) * r * (r + 1) / 2,
@@ -160,6 +183,13 @@ def workload_tokens(groups: Sequence[Mapping[str, Any]]) -> dict[str, float]:
     }
 
 
+def reasoning_budget(entry: Mapping[str, Any], settings: Mapping[str, Any]) -> float:
+    """Reasoning tokens per answer call: off honoured or ignored, as the catalogue says."""
+    budgets = settings["reasoning_tokens_per_call"]
+    off = entry.get("can_turn_reasoning_off")
+    return float(budgets["off_honoured" if off is not False else "off_ignored"])
+
+
 def candidate_costs(
     entry: Mapping[str, Any],
     workloads: Mapping[str, Mapping[str, Sequence[Mapping[str, Any]]]],
@@ -170,13 +200,27 @@ def candidate_costs(
         return None
     return {
         name: {
-            est: workload_cost(
-                by_estimate[est], entry, float(estimates[est]["reasoning_tokens_per_call"])
-            )
+            est: workload_cost(by_estimate[est], entry, reasoning_budget(entry, estimates[est]))
             for est in sorted(by_estimate)
         }
         for name, by_estimate in workloads.items()
     }
+
+
+def price_anomaly(entry: Mapping[str, Any]) -> str | None:
+    """A note when the input price sits at the cache-read price or far below the output price."""
+    i, o = entry.get("input_per_million"), entry.get("output_per_million")
+    c = entry.get("cache_read_per_million")
+    if not i or not o:
+        return None
+    reasons = []
+    if c and i < CACHE_READ_FLOOR * c:
+        reasons.append(f"the input price is {i / c:.2f} times the cache-read price")
+    if o / i > OUTPUT_OVER_INPUT:
+        reasons.append(f"the output price is {o / i:.0f} times the input price")
+    if not reasons:
+        return None
+    return "likely a catalogue anomaly: " + " and ".join(reasons)
 
 
 def _count(config_path: str, tmp: Path) -> dict[str, Any]:
@@ -215,6 +259,8 @@ def compute(config: Mapping[str, Any]) -> dict[str, Any]:
                 f"full={data['full']}",
                 "--prompts",
                 f"fixture={data['fixture']}",
+                "--preset",
+                str(counts["gatemem"]["preset"]),
                 "--models",
                 ",".join([*(str(c["model"]) for c in candidates), judge_model]),
                 "--out",
@@ -234,15 +280,18 @@ def compute(config: Mapping[str, Any]) -> dict[str, Any]:
     gm = counts["gatemem"]
     gm_cassette = Path(arms["gatemem"]["cassettes"]).name
     gm_sessions = shapes["cassettes"][gm_cassette]["sessions"]
-    fixture_prompts = {p["checkpoint_id"]: p["chars"] for p in shapes["prompts"]["fixture"]}
+    fixture = {p["checkpoint_id"]: p for p in shapes["prompts"]["fixture"]}
+    full = shapes["prompts"]["full"]
     used = sorted({s["item"].removeprefix("gatemem/") for s in gm_sessions})
-    prompt_fixture = fmean(fixture_prompts[c] for c in used)
+    prompt_fixture = fmean(fixture[c]["chars"] for c in used)
+    judge_fixture = fmean(fixture[c]["judge_chars"] for c in used)
     walk_kinds = walk["by_preset"][gm["preset"]]["kinds"]
     per_cell = len(gm["seeds"]) * len(gm["stores"])
-    prompt_full = {
-        kind: fmean(p["chars"] for p in shapes["prompts"]["full"] if p["kind"] == kind)
-        for kind in GATEMEM_KINDS.values()
-    }
+
+    def of_kind(kind: str) -> list[Mapping[str, Any]]:
+        return [p for p in full if p["kind"] == kind]
+
+    prompt_full = {k: fmean(p["chars"] for p in of_kind(k)) for k in GATEMEM_KINDS.values()}
     measured["gatemem"] = {
         "fixture_checkpoints": used,
         "prompt_chars_fixture": prompt_fixture,
@@ -254,17 +303,30 @@ def compute(config: Mapping[str, Any]) -> dict[str, Any]:
         shape = fixture_shape([s for s in gm_sessions if s["condition"] == condition])
         kinds: dict[str, Any] = {}
         for label, kind in GATEMEM_KINDS.items():
-            delta = (prompt_full[kind] - prompt_fixture) / 4
             group = walk_kinds[kind]
             items = group["items"][WALK_LIST[condition]] / group["checkpoints"]
+            shown_items = sum(int(p["shown"][condition]["items"]) for p in of_kind(kind))
+            shown_chars = sum(int(p["shown"][condition]["chars"]) for p in of_kind(kind))
+            if shown_items != group["items"][WALK_LIST[condition]]:
+                raise ValueError(f"{condition} {kind}: the shown lists differ from the walk result")
+            chars_per_item = shown_chars / shown_items if shown_items else 0.0
+            item_delta = (chars_per_item - shape["text_chars_per_item"]) / CHARS_PER_TOKEN
+            delta = (prompt_full[kind] - prompt_fixture) / CHARS_PER_TOKEN
             sessions = int(gm["item_kinds"][label]) * per_cell
-            kinds[kind] = {"sessions": sessions, "items_per_read": items, "prompt_delta": delta}
+            kinds[kind] = {
+                "sessions": sessions,
+                "items_per_read": items,
+                "text_chars_per_item": chars_per_item,
+                "item_tokens_delta": item_delta,
+                "prompt_delta": delta,
+            }
             for est, settings in estimates.items():
                 tokens = session_tokens(
                     shape,
                     items_per_read=items,
                     prompt_delta=delta,
                     extra_reads=int(settings["extra_read_turns"]),
+                    item_delta=item_delta,
                 )
                 kinds[kind][est] = tokens
                 g = {"sessions": sessions, "tokens": tokens, "scale": settings["token_scale"]}
@@ -315,14 +377,20 @@ def compute(config: Mapping[str, Any]) -> dict[str, Any]:
             {"sessions": int(mi["note_calls"]), "tokens": tokens, "scale": 1.0}
         )
 
-    # The judge: every GateMem session, one to three attempts.
+    # The judge: every GateMem session, one to three attempts; its prompt moved to the full set.
     judge_calls = shapes["cassettes"][gm_cassette]["judge"]
+    judge_full = fmean(float(p["judge_chars"]) for p in full)
     judge_shape = {
         "calls": 1,
-        "input": fmean(float(j["input_tokens"]) for j in judge_calls),
+        "input": fmean(float(j["input_tokens"]) for j in judge_calls)
+        + (judge_full - judge_fixture) / CHARS_PER_TOKEN,
         "output": fmean(float(j["output_tokens"]) for j in judge_calls),
     }
-    measured["judge"] = judge_shape
+    measured["judge"] = {
+        **judge_shape,
+        "prompt_chars_fixture": judge_fixture,
+        "prompt_chars_full_set": judge_full,
+    }
     violation_share = sum(gm["item_kinds"][k] for k, v in GATEMEM_KINDS.items() if v != "utility")
     judge_workloads: dict[str, dict[str, list[dict[str, Any]]]] = {
         "judge": {},
@@ -342,16 +410,42 @@ def compute(config: Mapping[str, Any]) -> dict[str, Any]:
     judge_entry = catalogue[judge_model]
     judge_cost = candidate_costs(judge_entry, judge_workloads, estimates)
 
+    answer_calls = {
+        est: workload_tokens([*workloads["gatemem"][est], *workloads["mem-inv-bench"][est]])[
+            "calls"
+        ]
+        for est in estimates
+    }
     table = []
     for c in candidates:
         entry = catalogue[str(c["model"])]
         costs = candidate_costs(entry, workloads, estimates)
         row: dict[str, Any] = {
             **{k: c[k] for k in ("model", "maker", "tier")},
-            **{k: entry[k] for k in ("api", "accepted", "found", "reasoning")},
-            "input_per_million": entry["input_per_million"],
-            "output_per_million": entry["output_per_million"],
+            "candidate": bool(c.get("candidate", True)),
+            "why_not": c.get("why_not"),
+            **{
+                k: entry[k]
+                for k in (
+                    "api",
+                    "accepted",
+                    "found",
+                    "reasoning",
+                    "off_effort",
+                    "can_turn_reasoning_off",
+                    "input_per_million",
+                    "output_per_million",
+                    "cache_read_per_million",
+                )
+            },
+            "price_anomaly": price_anomaly(entry),
             "cost": costs,
+            "reasoning_cost_per_1000_tokens_per_call": None
+            if costs is None or not entry["reasoning"]
+            else {
+                est: answer_calls[est] * 1000 * float(entry["output_per_million"]) / MILLION
+                for est in sorted(estimates)
+            },
         }
         if costs is not None and judge_cost is not None:
             row["total_with_judge"] = {

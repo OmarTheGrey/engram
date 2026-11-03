@@ -190,7 +190,9 @@ def test_the_walk_length_quantiles_follow_the_development_script() -> None:
 # H1's cost table (PR 4, deliverable 1), on planted shapes.
 
 
-def two_call_session(s: int, t_out: int, t_in: int, r: int, k: int, a: int) -> dict[str, Any]:
+def two_call_session(
+    s: int, t_out: int, t_in: int, r: int, k: int, a: int, text: int = 0
+) -> dict[str, Any]:
     """A fixture session: a read call, then the answer after one memory_read result."""
     return {
         "calls": [
@@ -199,7 +201,7 @@ def two_call_session(s: int, t_out: int, t_in: int, r: int, k: int, a: int) -> d
                 "messages": 4,
                 "input_tokens": s + t_in + r,
                 "output_tokens": a,
-                "reads": [{"tokens": r, "items": k}],
+                "reads": [{"tokens": r, "items": k, "text_chars": text}],
             },
         ]
     }
@@ -207,7 +209,10 @@ def two_call_session(s: int, t_out: int, t_in: int, r: int, k: int, a: int) -> d
 
 def test_a_fixture_condition_s_shape_is_the_mean_of_its_sessions() -> None:
     shape = h1_cost.fixture_shape(
-        [two_call_session(100, 8, 10, 50, 5, 20), two_call_session(200, 8, 12, 150, 5, 40)]
+        [
+            two_call_session(100, 8, 10, 50, 5, 20, text=400),
+            two_call_session(200, 8, 12, 150, 5, 40, text=600),
+        ]
     )
     assert shape == {
         "sessions": 2,
@@ -217,6 +222,7 @@ def test_a_fixture_condition_s_shape_is_the_mean_of_its_sessions() -> None:
         "read_tokens": 100.0,
         "read_items": 5.0,
         "tokens_per_item": 20.0,
+        "text_chars_per_item": 100.0,
         "answer_out": 30.0,
     }
 
@@ -247,6 +253,10 @@ def test_a_session_s_tokens_grow_with_each_extra_read_turn() -> None:
         "input": 2 * 140 + 10 + 200,
         "output": 28.0,
     }
+    # Items whose text runs 8 characters shorter than the fixture's: 2 tokens fewer each.
+    assert h1_cost.session_tokens(
+        shape, items_per_read=20, prompt_delta=0, extra_reads=0, item_delta=-2.0
+    ) == {"calls": 2, "input": 2 * 100 + 10 + 20 * 8, "output": 28.0}
 
 
 def test_a_price_is_per_million_tokens_and_reasoning_is_output() -> None:
@@ -263,3 +273,35 @@ def test_a_price_is_per_million_tokens_and_reasoning_is_output() -> None:
 def test_a_refused_model_gets_no_cost() -> None:
     refused = {"model": "openrouter/x/y", "accepted": False, "found": True}
     assert h1_cost.candidate_costs(refused, {}, {}) is None
+
+
+def test_a_model_that_cannot_turn_reasoning_off_pays_the_floor_in_the_low_estimate() -> None:
+    tokens = {"calls": 2, "input": 0.0, "output": 0.0}
+    workloads = {"arm": {"low": [{"sessions": 1_000_000, "tokens": tokens, "scale": 1.0}]}}
+    estimates = {"low": {"reasoning_tokens_per_call": {"off_honoured": 0, "off_ignored": 256}}}
+    entry = {
+        "accepted": True,
+        "reasoning": True,
+        "input_per_million": 1,
+        "output_per_million": 10,
+    }
+    honoured = h1_cost.candidate_costs(
+        {**entry, "can_turn_reasoning_off": True}, workloads, estimates
+    )
+    ignored = h1_cost.candidate_costs(
+        {**entry, "can_turn_reasoning_off": False}, workloads, estimates
+    )
+    assert honoured == {"arm": {"low": 0.0}}
+    # 1,000,000 sessions x 2 calls x 256 tokens at 10 dollars per million.
+    assert ignored == {"arm": {"low": 5_120.0}}
+
+
+def test_an_input_price_at_the_cache_read_price_is_flagged() -> None:
+    odd = {
+        "input_per_million": 0.00576,
+        "output_per_million": 0.72,
+        "cache_read_per_million": 0.0054,
+    }
+    assert "cache-read" in str(h1_cost.price_anomaly(odd))
+    usual = {"input_per_million": 2.5, "output_per_million": 10, "cache_read_per_million": 1.25}
+    assert h1_cost.price_anomaly(usual) is None

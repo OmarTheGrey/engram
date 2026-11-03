@@ -135,20 +135,44 @@ export function verdictRow(
 }
 
 /** C3's, C4's and C5's lists for one checkpoint's own question, and the denied leak items each shows. */
+/**
+ * C3's, C4's and C5's lists for one checkpoint's own question, as walkRow
+ * counts them, with the mapping and the verdict they come from. Shared with
+ * the cost table's measure of what each list shows (cost-shapes.ts).
+ */
+export function walkLists(
+  domain: gatemem.Domain,
+  checkpoint: gatemem.Checkpoint,
+  policy: Policy,
+  readLimit = READ_LIMIT,
+) {
+  const mapped = mappingOf(domain, checkpoint);
+  const items = mapped.writes.map((w) => w.item);
+  const query = mapped.checkpoint.query_text;
+  const admits = (i: MemoryItem) => evaluateRead(policy, mapped.asker, i, mapped.at).admitted;
+  const candidates = retrieve(items, query, mapped.at);
+  return {
+    mapped,
+    admits,
+    candidates,
+    c3: candidates.slice(0, readLimit),
+    c4: walkToAdmitted(items, query, mapped.at, readLimit, admits),
+    c5: retrieve(items.filter(admits), query, mapped.at, readLimit),
+  };
+}
+
 export function walkRow(
   domain: gatemem.Domain,
   checkpoint: gatemem.Checkpoint,
   policy: Policy,
   readLimit = READ_LIMIT,
 ): WalkRow {
-  const mapped = mappingOf(domain, checkpoint);
-  const items = mapped.writes.map((w) => w.item);
-  const query = mapped.checkpoint.query_text;
-  const admits = (i: MemoryItem) => evaluateRead(policy, mapped.asker, i, mapped.at).admitted;
-  const candidates = retrieve(items, query, mapped.at);
-  const c3 = candidates.slice(0, readLimit);
-  const c4 = walkToAdmitted(items, query, mapped.at, readLimit, admits);
-  const c5 = retrieve(items.filter(admits), query, mapped.at, readLimit);
+  const { mapped, admits, candidates, c3, c4, c5 } = walkLists(
+    domain,
+    checkpoint,
+    policy,
+    readLimit,
+  );
   const allowed = c4.filter((w) => w.admitted);
   // Hidden labels, read here only to say which items hold a target.
   const textOf = new Map(
