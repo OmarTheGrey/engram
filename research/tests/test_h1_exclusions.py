@@ -68,14 +68,14 @@ def test_the_table_counts_excluded_sessions_by_reason_per_condition(tmp_path: Pa
 # GateMem's checkpoint kind and the sets it splits the table by (review fix pass, item 8).
 
 
-def test_a_kind_is_gatemems_access_or_forgetting(tmp_path: Path) -> None:
+def test_a_kind_is_gatemems_access_forgetting_or_utility(tmp_path: Path) -> None:
     ok = [session("a", "C4", True, kind="access"), session("b", "C4", False, kind="forgetting")]
     assert [s.kind for s in read_sessions(write(tmp_path / "k.jsonl", ok))] == [
         "access",
         "forgetting",
     ]
     with pytest.raises(SchemaError, match="kind must be"):
-        read_sessions(write(tmp_path / "u.jsonl", [session("a", "C4", True, kind="utility")]))
+        read_sessions(write(tmp_path / "u.jsonl", [session("a", "C4", True, kind="other")]))
     other = {**session("a", "C4", True, kind="access"), "benchmark": "mem-inv-bench"}
     with pytest.raises(SchemaError, match="GateMem's checkpoint kind"):
         read_sessions(write(tmp_path / "m.jsonl", [other]))

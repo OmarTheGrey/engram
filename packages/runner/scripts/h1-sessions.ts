@@ -29,9 +29,16 @@
 // .engram/. The readers fill a copy of the template, and --readings with
 // --readings-key joins it back through the key, which must be the key this
 // run and seed give. A readings file keyed by session (`h1-readings/1`) is
-// applied as it is.
+// applied as it is. --readings and --unread-out may not name the same file:
+// the template a reading was filled in is never overwritten by the run that
+// reads it (`make h1-table READINGS=` passes no --unread-out).
+//
+// GateMem's utility checkpoints become sessions of kind `utility`, for the
+// table's MGS only; --gate-by-action is recorded on every session
+// (`gate_by_action`), and `make h1-table GATE_BY_ACTION=1` writes those
+// sessions to their own file.
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { memInvBench } from "@engram/bench";
 import { configJudge, readRunnerConfig } from "../src/config.ts";
@@ -118,9 +125,13 @@ function tableSeed(path: string | undefined): number {
   return seed;
 }
 
+const USAGE =
+  "usage: h1-sessions.ts (--config <runner config> --run <run dir>)... [--table-config <H1 table config>] [--gate-by-action] [--readings <file> [--readings-key <key>]] [--unread-out <file> [--readers <a>,<b>]] --out <sessions.jsonl>";
+
 function main(): number {
   const { values } = parseArgs({
     options: {
+      help: { type: "boolean", short: "h", default: false },
       config: { type: "string", multiple: true },
       run: { type: "string", multiple: true },
       "gate-by-action": { type: "boolean", default: false },
@@ -132,13 +143,25 @@ function main(): number {
       out: { type: "string" },
     },
   });
+  if (values.help) {
+    console.log(USAGE);
+    return 0;
+  }
   const configs = values.config ?? [];
   const runs = values.run ?? [];
   if (!values.out || configs.length === 0 || configs.length !== runs.length) {
-    console.error(
-      "usage: h1-sessions.ts (--config <runner config> --run <run dir>)... [--table-config <H1 table config>] [--gate-by-action] [--readings <file> [--readings-key <key>]] [--unread-out <file> [--readers <a>,<b>]] --out <sessions.jsonl>",
-    );
+    console.error(USAGE);
     return 2;
+  }
+  const unreadOut = values["unread-out"];
+  if (
+    values.readings !== undefined &&
+    unreadOut !== undefined &&
+    resolve(values.readings) === resolve(unreadOut)
+  ) {
+    throw new Error(
+      `--readings and --unread-out name the same file (${unreadOut}): writing the template would overwrite the readings`,
+    );
   }
   const loaded = configs.map((configPath, i) =>
     loadRun(configPath, runs[i] as string, values["gate-by-action"] === true),
@@ -199,13 +222,12 @@ function main(): number {
       .map(([reason, n]) => `${reason} ${n}`);
     const excluded = Object.values(out.exclusions).reduce((a, b) => a + b, 0);
     console.error(
-      `h1-sessions: ${l.run}: ${out.sessions.length} sessions (${excluded} excluded${reasons.length ? `: ${reasons.join(", ")}` : ""}), ${out.skipped.condition} rows of another condition and ${out.skipped.not_scored} without an H1 violation left out${out.readings_applied ? `; ${out.readings_applied} UNREAD sessions decided by readings` : ""}`,
+      `h1-sessions: ${l.run}: ${out.sessions.length} sessions (${excluded} excluded${reasons.length ? `: ${reasons.join(", ")}` : ""}${out.utility ? `; ${out.utility} utility, for MGS only` : ""}), ${out.skipped.condition} rows of another condition and ${out.skipped.not_scored} without an H1 violation left out${out.readings_applied ? `; ${out.readings_applied} UNREAD sessions decided by readings` : ""}`,
     );
   }
   writeFileSync(values.out, lines.join(""));
   console.error(`h1-sessions: ${lines.length} sessions written to ${values.out}`);
 
-  const unreadOut = values["unread-out"];
   if (unreadOut !== undefined) {
     const readers = (values.readers ?? "").split(",").filter(Boolean);
     const { template, key } = unreadKit(

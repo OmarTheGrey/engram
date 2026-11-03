@@ -15,7 +15,11 @@ H2 to H5's primary p-values (`other_primary_p`). Optionally:
 - `sensitivity`: `{"name": ..., "items_from": <a results file with an
   "items" list>}`, for a sensitivity table on the primary set without those
   items (for example research/results/h1-refusal-leaks.json); the table
-  records the file's sha256.
+  records the file's sha256. It needs `gatemem_primary`.
+- `gate_by_action`: false (the default) for the main, leak-only table; true
+  for the gate-by-action table (research/configs/h1-table-gate-by-action.json,
+  `make h1-table GATE_BY_ACTION=1`). The table records it and refuses
+  sessions converted under the other setting.
 
 No H1 run exists yet: this is the command the H1 runs feed once the
 pre-registration is tagged (`make h1-table`).
@@ -61,6 +65,7 @@ def compute(config: Mapping[str, Any]) -> dict[str, Any]:
             else str(config["gatemem_primary"]),
             sensitivity_name=None if sensitivity is None else str(sensitivity["name"]),
             sensitivity_items=items,
+            gate_by_action=bool(config.get("gate_by_action", False)),
         ),
     )
     return {"name": config["name"], "sessions": config["sessions"], **source, **table}
