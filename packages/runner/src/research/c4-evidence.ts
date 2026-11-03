@@ -134,7 +134,6 @@ export function verdictRow(
   };
 }
 
-/** C3's, C4's and C5's lists for one checkpoint's own question, and the denied leak items each shows. */
 /**
  * C3's, C4's and C5's lists for one checkpoint's own question, as walkRow
  * counts them, with the mapping and the verdict they come from. Shared with
@@ -161,6 +160,7 @@ export function walkLists(
   };
 }
 
+/** C3's, C4's and C5's lists for one checkpoint's own question, and the denied leak items each shows. */
 export function walkRow(
   domain: gatemem.Domain,
   checkpoint: gatemem.Checkpoint,

@@ -27,8 +27,11 @@ with a reference, the benchmark, the item's context file and empty columns
 for the member's own label and a comment, and one context file per item
 under `<out>/context/<benchmark>/`: what an agent sees (the question and who
 asks it, the episode's people and every turn up to the question; the task
-and the memory), and nothing else: no checkpoint id, kind, expected action,
-leak target, judge spec, family, laundering channel or scoring value.
+and the text of each memory entry), and nothing else: no checkpoint id,
+kind, expected action, leak target, judge spec, family, laundering channel
+or scoring value. A MEM-INV-Bench entry shows its text alone, not the
+channel it came through or what it was derived from: under C2 and C3 the
+model sees only the text (PR 4's final fix round, D6).
 Phase 2 (key check), for one member, is refused until that member's phase-1
 sheets are complete; it writes `<out>/<benchmark>-<member>-keys.csv` with
 each item's scoring keys (GateMem's leak targets and not_include patterns;
@@ -181,10 +184,9 @@ def _read_jsonl(path: Path) -> list[dict[str, Any]]:
 
 
 def _mem_inv_context(ref: str, case: Mapping[str, Any]) -> str:
+    """The task and each memory entry's text, as the model sees them under C2 and C3 (D6)."""
     lines = [f"# {ref}", "", CONTENT_MARK, "", f"Task: {case['task']}", "", "Memory:", ""]
-    for e in case["memory"]:
-        derived = f", derived from {', '.join(e['derived_from'])}" if e.get("derived_from") else ""
-        lines.append(f"- {e['entry_id']} via {e['channel']}{derived}: {e['text']}")
+    lines.extend(f"- {e['text']}" for e in case["memory"])
     return "\n".join(lines) + "\n"
 
 

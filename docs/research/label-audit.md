@@ -18,7 +18,7 @@ The draw is fixed by the seed in `research/configs/label-audit.json`; drawing it
 Each item's context file shows what an agent sees, and nothing else.
 
 - **GateMem:** who asks and as of which turn, the question, the episode's people and relationships, and every turn up to the question.
-- **MEM-INV-Bench:** the task and the memory entries, each with the channel it came through.
+- **MEM-INV-Bench:** the task and the text of each memory entry. Not the channel an entry came through or what it was derived from: under C2 and C3 the model sees only the text.
 
 Phase 1 shows no checkpoint id, kind, expected action, leak target, judge spec, family, laundering channel or scoring value. The phase-1 sheet has a reference, the benchmark, the context file's path, and two empty columns: `member_label` and `member_comment`.
 
@@ -63,11 +63,19 @@ Leak targets and poisoned values do appear inside the turns and the memory, beca
      - the members' disagreement count and rate on the label, and Cohen's kappa;
      - each member's disagreement with the benchmark's label;
      - the items both members label otherwise than the benchmark, by reference;
-     - once both members' key sheets exist, the same agreement on the keys.
+     - once both members' key sheets exist, the same agreement on the keys;
+     - the items both members reject and the stop flag (below).
    - A blank or unknown label, or a sheet whose items differ from the draw, is refused, with the items named.
 
+   **The stopping rule.** It applies to what decides a violation, with the threshold `stop_share` (0.10) from `research/configs/label-audit.json`:
+   - On GateMem an item is rejected when both members answer `no` on its scoring keys: the leak targets decide every violation. The agreement on the expected action is reported, but it stops nothing.
+   - On MEM-INV-Bench an item is rejected when both members' phase-1 label differs from the benchmark's family, or both answer `no` on its keys. An item rejected both ways counts once.
+   - `agreement.json` gives, per benchmark, `rejected` (the rule, the references and their count), `stop_share` and `stop`.
+   - `stop` is true when more than `stop_share` of the benchmark's items are rejected: 6 or more of GateMem's 50, 4 or more of MEM-INV-Bench's 38. It is false once both members' key sheets are in and the count is at or below that, and null before then, unless the rejections counted so far already exceed it.
+   - When `stop` is true, that benchmark's runs wait for an amendment.
+
 5. **Report it.** `agreement.json` holds counts and references only, no benchmark text.
-   - Write a `finding` log entry (`docs/conventions/documentation.md`) with the rates and kappas per benchmark, the sha256 of `agreement.json`, and the references both members reject.
+   - Write a `finding` log entry (`docs/conventions/documentation.md`) with the rates and kappas per benchmark, the sha256 of `agreement.json`, the references both members reject, and each benchmark's `stop`.
    - The pre-registration reports the members' disagreement rate per benchmark.
    - An item both members reject is a candidate label error. List it in v1; do not silently drop it.
 
@@ -84,12 +92,14 @@ It answers a different question: whether a text match is the secret or a coincid
 
 ## Files
 
-- `research/configs/label-audit.json`: the seed, the members, the sample sizes and the data.
+- `research/configs/label-audit.json`: the seed, the members, the stopping rule's `stop_share`, the sample sizes and the data.
 - `research/scripts/label_audit_sample.py`: the draw, the blind phase-1 sheets and contexts, and the phase-2 key sheets.
-- `research/scripts/label_audit_agreement.py`: the agreement, with labels from the draw.
+- `research/scripts/label_audit_agreement.py`: the agreement, with labels from the draw, and the stopping rule.
 - `research/tests/test_label_audit.py`. It checks:
+  - that each phase-1 context equals what an agent sees, rebuilt from the data, so nothing appended to it passes;
   - that no phase-1 sheet or context holds an item's label, key, family or kind;
   - the seeded, mixed order;
   - that phase 2 is refused until phase 1 is complete;
   - the agreement against labels from the draw, with a kappa computed by hand;
-  - that a sheet cannot change the benchmark label.
+  - that a sheet cannot change the benchmark label;
+  - the stopping rule above and below the threshold on both benchmarks, and the stop flag waiting for the keys.
