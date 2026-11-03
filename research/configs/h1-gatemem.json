@@ -8,7 +8,7 @@
   "model": "prereg/M1",
   "seeds": [1, 2, 3],
   "preset": "medium",
-  "store": "fake",
+  "store": "mem0",
   "cassettes": "../../.engram/runs/h1-gatemem/cassettes",
   "c4_verdicts": "engram",
   "read_limit": 20,

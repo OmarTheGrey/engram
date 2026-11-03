@@ -41,7 +41,7 @@ const runScript = (args: string[], env: Record<string, string> = {}) =>
   });
 
 describe("H1's configs (plan decision 6)", () => {
-  test("h1-gatemem: every checkpoint of the pinned full set, C2 to C5, seeds 1 to 3, preset medium, on the placeholder store", () => {
+  test("h1-gatemem: every checkpoint of the pinned full set, C2 to C5, seeds 1 to 3, preset medium, on the recommended store, Mem0", () => {
     const config = readRunnerConfig(H1_GATEMEM);
     expect(config).toMatchObject({
       kind: "experiment",
@@ -51,7 +51,7 @@ describe("H1's configs (plan decision 6)", () => {
       model: "prereg/M1",
       seeds: [1, 2, 3],
       preset: "medium",
-      store: "fake",
+      store: "mem0",
     });
     expect(config.data.replaceAll("\\", "/")).toMatch(/\.engram\/upstream\/gatemem\/bench\/data$/);
     expect(config.script).toBeUndefined();
