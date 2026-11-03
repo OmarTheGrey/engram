@@ -8,7 +8,7 @@ pillar: research
 hypothesis: H1
 evidence:
   - docs/tasks/prereg-v1-plan.md
-  - "ENGRAM_OFFLINE=1 make run CONFIG=research/configs/h1-gatemem.json MODEL=openrouter/openai/gpt-6.1-sol LIVE=1"
+  - "ENGRAM_OFFLINE=1 make run CONFIG=research/configs/h1-gatemem.json MODEL=openrouter/openai/gpt-5.6-terra LIVE=1"
   - "make h1-table"
 supersedes: none
 ---
