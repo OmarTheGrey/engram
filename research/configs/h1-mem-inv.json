@@ -8,7 +8,7 @@
   "model": "prereg/M1",
   "seeds": [1, 2, 3],
   "preset": "medium",
-  "store": "fake",
+  "store": "mem0",
   "cassettes": "../../.engram/runs/h1-mem-inv/cassettes",
   "read_limit": 20
 }

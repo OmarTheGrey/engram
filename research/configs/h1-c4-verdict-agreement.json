@@ -1,0 +1,11 @@
+{
+  "name": "h1-c4-verdict-agreement",
+  "kind": "measurement",
+  "hypothesis": "H1",
+  "benchmark": "gatemem",
+  "data": ".engram/upstream/gatemem/bench/data",
+  "manifest": "fixtures/bench/gatemem/manifest.json",
+  "fetch": true,
+  "presets": ["medium", "permissive", "strict"],
+  "primary_preset": "medium"
+}

@@ -20,6 +20,23 @@ from typing import Any
 
 REPO = Path(__file__).resolve().parents[2]
 DECIMALS = 6
+WORKERS_ENV = "ENGRAM_RESEARCH_WORKERS"
+
+
+def workers(jobs: int) -> int:
+    """Worker processes for `jobs` jobs: one per core, capped by ENGRAM_RESEARCH_WORKERS when set.
+
+    A script's result must not depend on the count (each job draws its seeds
+    from the config and its own index); the cap only bounds memory on a
+    shared machine (PR 4 review, P4A-10).
+    """
+    cap = os.environ.get(WORKERS_ENV)
+    limit = os.cpu_count() or 1
+    if cap is not None:
+        if not cap.isdigit() or int(cap) < 1:
+            raise ValueError(f"{WORKERS_ENV} must be a positive integer, not {cap!r}")
+        limit = int(cap)
+    return max(1, min(jobs, limit))
 
 
 def load_config(path: Path) -> dict[str, Any]:

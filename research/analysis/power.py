@@ -542,7 +542,7 @@ def composite_sup(items: int, margin: float, alpha: float = ALPHA) -> dict[str, 
 
 @lru_cache(maxsize=1024)
 def _composite_sup(items: int, margin: float, alpha: float) -> tuple[float, tuple[float, ...], str]:
-    """The largest level found over every null distribution the three-seed design allows.
+    """The largest level a search of the composite null's boundary (|mean| = margin) found.
 
     The composite null on the lower boundary: every distribution of d on the
     seven-point lattice {-1, -2/3, ..., 1} with mean -margin. It holds every

@@ -8,6 +8,8 @@ research/analysis/power.py), its decision must be monotone in the evidence
 of the other primary p-values so it can enter Holm (V3; R2-3, at the
 threshold), H4's one p-value is the intersection-union p over its pairs, and
 a per-side level of alpha instead of alpha / 2 must fail a level test (V6).
+H4 pairs only items both arms kept on every seed (decision sheet 13h; PR 4's
+final fix round, V-19).
 """
 
 from __future__ import annotations
@@ -22,7 +24,14 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 from scipy.optimize import minimize  # type: ignore[import-untyped]  # no type stubs
 
-from analysis.equivalence import critical_z, equivalent_from_sums, intersection_union_p, tost
+from analysis.bootstrap import paired_item_differences
+from analysis.equivalence import (
+    complete_item_differences,
+    critical_z,
+    equivalent_from_sums,
+    intersection_union_p,
+    tost,
+)
 from analysis.h1 import decide_h1
 from analysis.holm import holm
 from analysis.power import (
@@ -46,6 +55,32 @@ PHI = NormalDist().cdf
 def thirds(counts: dict[int, int]) -> np.ndarray:
     """A sample of item-level differences: `counts[j]` items at j / 3."""
     return np.concatenate([np.full(c, j / 3) for j, c in sorted(counts.items())])
+
+
+# H4's pairing (decision sheet 13h).
+
+
+def test_h4_pairs_only_items_both_arms_kept_on_every_seed_and_counts_the_rest() -> None:
+    a = [
+        *(("i1", s, o) for s, o in ((1, 1.0), (2, 0.0), (3, 1.0))),
+        *(("i2", s, o) for s, o in ((1, 1.0), (2, 1.0), (3, None))),  # excluded on seed 3
+        *(("i3", s, 0.0) for s in (1, 2)),  # seed 3 missing
+        *(("i4", s, 1.0) for s in (1, 2, 3)),
+    ]
+    b = [
+        *(("i1", s, 0.0) for s in (1, 2, 3)),
+        *(("i2", s, 0.0) for s in (1, 2, 3)),
+        *(("i3", s, 0.0) for s in (1, 2, 3)),
+        *(("i4", s, 1.0) for s in (1, 2)),  # the other arm lost seed 3
+    ]
+    items, diffs, dropped = complete_item_differences(a, b, seeds=(1, 2, 3))
+    assert items == ["i1"]
+    assert diffs.tolist() == [pytest.approx(2 / 3)]
+    assert dropped == ["i2", "i3", "i4"]
+    # The bootstrap's pairing, which H1 uses, keeps them over the seeds left.
+    assert paired_item_differences(a, b)[0] == ["i1", "i2", "i3", "i4"]
+    with pytest.raises(ValueError, match="appears twice"):
+        complete_item_differences([*a, ("i1", 1, 0.0)], b, seeds=(1, 2, 3))
 
 
 # The decision and its p-value.

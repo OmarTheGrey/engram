@@ -4,7 +4,7 @@ Work the lead has deliberately set aside. Nothing here blocks a card unless the 
 
 | item | backlogged | what is left | where it stands |
 |---|---|---|---|
-| MPBench | 2026-10-22 by the lead; the request leaves the backlog by plan decision 6 (2026-10-29) | the lead sends the request in `docs/research/mpbench-request.md` if still wanted and records the date in `packages/bench/PINS.md`; the poisoning arm was chosen on 2026-10-29: MEM-INV-Bench (ADR 0029, Gate A exception (b)) | no release (S0.6); MEM-INV-Bench released, checked and recorded as a candidate in `packages/bench/PINS.md`, not pinned (2026-10-29); cards B2 and BF1 |
+| MPBench | 2026-10-22 by the lead; the request leaves the backlog by plan decision 6 (2026-10-29) | the lead sends the request in `docs/research/mpbench-request.md` if still wanted and records the date in `packages/bench/PINS.md`; the poisoning arm was chosen on 2026-10-29: MEM-INV-Bench (ADR 0029, Gate A exception (b)) | no release (S0.6); MEM-INV-Bench released, checked and recorded as a candidate (2026-10-29), then pinned in `packages/bench/PINS.md` and registered for H1 by the pre-registration's v1 draft, with MPBench moved to the candidates table (2026-11-03, plan decision 8; decision sheet item 15 of `docs/research/prereg-v1-decisions.md`); MPBench may return by amendment before card X3; cards B2 and BF1 |
 
 ## Follow-ups from the Gate A plan (2026-10-29)
 
@@ -32,7 +32,7 @@ Found by the review of card B3 (GateMem through the plane, ADR 0030); none block
 
 | item | what is left | where it is recorded |
 |---|---|---|
-| GateMem deletion mechanism | under ADR 0030's mapping C5 enforces no deletion, so GateMem's active-forgetting checkpoints, half of H1's primary violation set, test nothing the plane does; choose a mechanism (model-driven ingestion with a retire tool, or a deletion lint over turns) or state F as out of scope for C5. Needs the lead's decision before `prereg-v1` is tagged; the v1 plan's PR 2 measures the reachable-leak share and its PR 4 puts a recommendation in the decision sheet | ADR 0030 consequences; `docs/log/2026-10-29-b3-forgetting-not-enforced.md` |
+| GateMem deletion mechanism | under ADR 0030's mapping C5 enforces no deletion, so GateMem's active-forgetting checkpoints, half of H1's primary violation set, test nothing the plane does; choose a mechanism (model-driven ingestion with a retire tool, or a deletion lint over turns) or state F as out of scope for C5. Needs the lead's decision before `prereg-v1` is tagged; the v1 plan's PR 2 measured the reachable-leak share, and PR 4's decision sheet recommends access control as H1's primary GateMem set and forgetting as a secondary set, with no mechanism built (item 9 of `docs/research/prereg-v1-decisions.md`) | ADR 0030 consequences; `docs/log/2026-10-29-b3-forgetting-not-enforced.md` |
 | GateMem reachable-leak share | measured by the pre-registration v1 plan's PR 2: `research/results/h1-gatemem-reach.json`, from `research/scripts/h1_gatemem_reach.py` and `research/configs/h1-gatemem-reach.json`, the share of access and forgetting checkpoints whose scored leak patterns sit in turns the asker can read under ADR 0030's mapping, beside the shares the plane keeps out of reach | ADR 0030 consequences (review R5-2) |
 | `@engram/bench` and `@engram/runner` import each other | bench's judge imports the runner's model code and the runner imports bench; a top-level use of one in the other breaks at load. Move the shared model types and the cached model call into a package both import, or into core where they are types | `docs/log/2026-10-29-b3-failure-bench-runner-import-cycle.md` |
 
@@ -45,3 +45,11 @@ Found by the review of card B3 (GateMem through the plane, ADR 0030); none block
 | Authentication for the HTTP and MCP surfaces | both listen on loopback only and take a self-asserted actor; compose gains `server` and `ui` with it | ADR 0027 |
 | No-bypass false positives | the shell check refuses a bare store name, a double-quoted commit message naming it, and any command run from inside a store root | ADR 0014 amendments |
 | Letta writes from `-a` committers | a client committing with `git commit -a` or after `git add -A` can carry an Engram item, and git's own race can revert one | ADR 0028 |
+
+## Follow-ups from the pre-registration v1 plan (2026-11-03)
+
+Found by the reviews of PRs #25 and #26; none blocks the v1 tag.
+
+| item | what is left | where it is recorded |
+|---|---|---|
+| A read's `cut` count in the inspector | core's read reason records the admitted items a read limit cut (`ReadCounts.cut`, "N cut by the read limit"), and `parseReadReason` and the generated client carry it, but the inspector's explanation shows the returned, candidate and filtered counts and the filtered categories, not the cut; show the cut beside them (`packages/ui/src/App.tsx`) | `docs/log/2026-11-02-x1r3-read-reason-cut.md`; PR #25 review round 3, V-6 |

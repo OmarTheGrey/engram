@@ -4,5 +4,6 @@
   "hypothesis": "H1",
   "benchmark": "mem-inv-bench",
   "fixtures": "fixtures/bench/mem-inv-bench",
+  "cases": "full/cases.jsonl",
   "presets": ["medium", "permissive", "strict"]
 }

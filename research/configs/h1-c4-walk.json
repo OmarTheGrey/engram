@@ -1,0 +1,12 @@
+{
+  "name": "h1-c4-walk",
+  "kind": "measurement",
+  "hypothesis": "H1",
+  "benchmark": "gatemem",
+  "data": ".engram/upstream/gatemem/bench/data",
+  "manifest": "fixtures/bench/gatemem/manifest.json",
+  "fetch": true,
+  "presets": ["medium"],
+  "primary_preset": "medium",
+  "read_limit": 20
+}

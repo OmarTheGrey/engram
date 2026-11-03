@@ -3,8 +3,15 @@
 H4 (docs/research/preregistration.md) says the violation rate under C5 does
 not depend on the store or the model. Each pair of arms is tested on its
 item-level differences d in [-1, 1] (seed-averaged 0/1 outcomes, paired on
-item and seed by `analysis.bootstrap.paired_item_differences`) for |mean| <
-margin, by two one-sided tests (TOST).
+item and seed) for |mean| < margin, by two one-sided tests (TOST).
+
+H4's table code pairs through `complete_item_differences`, not through
+`analysis.bootstrap.paired_item_differences`: the latter keeps an item that
+lost a seed under either arm, averaged over the seeds left, but an item
+averaged over two seeds lies off the three-seed lattice H4's level was
+searched on, so decision sheet 13h takes it out of that pair's test.
+`complete_item_differences` keeps only items both arms kept on every seed
+and returns the rest, which H4's table reports as a count.
 
 The lower side tests H0: mean <= -margin against mean > -margin with
 
@@ -32,9 +39,17 @@ The normal approximation of each side runs above its nominal level when the
 differences are skewed (one arm's violations rare where the other's are
 not), and halving alpha does not always absorb it: over the composite null
 the level exceeds alpha at small sizes (review round 3, R2-1).
-research/analysis/power.py computes, exactly, the largest level found over
-every null distribution the three-seed design allows, and H4's sizes are
-only those at which it is at most alpha. The level is checked, not proved.
+research/analysis/power.py searches the composite null's boundary, the
+distributions of an item's difference on the three-seed lattice whose mean
+is on the margin (|mean| = margin), and computes each level it visits
+exactly; the largest level that search found is a lower bound on the
+supremum. The interior of the null (|mean| beyond the margin) is not
+searched, and no argument is made that it holds a lower level; items are
+assumed independent and identically distributed. H4's sizes are only those
+at which the largest level found is at most alpha (and, since Holm may test
+H4 at 0.05 / k for k = 1 to 5, research/results/h4-holm-levels.json records
+it at every such threshold for the sizes committed at alpha 0.01). The level
+is checked, not proved.
 
 H4 names three arms in each of several families (stores and models, on each
 benchmark) and holds only if every pair in every family is equivalent. Its
@@ -61,10 +76,48 @@ from statistics import NormalDist
 import numpy as np
 import numpy.typing as npt
 
-from analysis.bootstrap import ALPHA, FloatArray, _values
+from analysis.bootstrap import ALPHA, FloatArray, Session, _values
 
 _NORMAL = NormalDist()
 BoolArray = npt.NDArray[np.bool_]
+
+
+def complete_item_differences(
+    a: Iterable[Session], b: Iterable[Session], seeds: Sequence[int]
+) -> tuple[list[str], FloatArray, list[str]]:
+    """H4's paired differences a minus b, over items both arms kept on every seed.
+
+    An item excluded or missing on any of `seeds` under either arm leaves the
+    pair's test (decision sheet 13h; see the module docstring). Returns the
+    items kept, sorted, their differences (each the mean over `seeds`), and
+    the items dropped, sorted. A repeated (item, seed) under one arm is an
+    error.
+    """
+
+    def outcomes(sessions: Iterable[Session]) -> dict[tuple[str, int], float | None]:
+        out: dict[tuple[str, int], float | None] = {}
+        for item, seed, outcome in sessions:
+            if (item, seed) in out:
+                raise ValueError(f"item {item!r} seed {seed} appears twice")
+            out[(item, seed)] = outcome
+        return out
+
+    first, second = outcomes(a), outcomes(b)
+    every = sorted({item for item, _ in first} | {item for item, _ in second})
+    kept: list[str] = []
+    diffs: list[float] = []
+    dropped: list[str] = []
+    for item in every:
+        pairs = [(first.get((item, s)), second.get((item, s))) for s in seeds]
+        if all(x is not None and y is not None for x, y in pairs):
+            kept.append(item)
+            diffs.append(
+                sum(float(x) - float(y) for x, y in pairs if x is not None and y is not None)
+                / len(seeds)
+            )
+        else:
+            dropped.append(item)
+    return kept, np.array(diffs, dtype=np.float64), dropped
 
 
 def critical_z(alpha: float) -> float:

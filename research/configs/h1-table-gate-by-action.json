@@ -1,0 +1,19 @@
+{
+  "name": "h1-table-gate-by-action",
+  "kind": "measurement",
+  "hypothesis": "H1",
+  "sessions": ".engram/runs/h1-sessions-gate-by-action.jsonl",
+  "primary_model": "prereg/M1",
+  "store": "mem0",
+  "seed": 20261103,
+  "gatemem_primary": "access",
+  "sensitivity": {
+    "name": "without the checkpoints where a plain refusal is scored as a leak",
+    "items_from": "research/results/h1-refusal-leaks.json"
+  },
+  "gate_by_action": true,
+  "how_to": [
+    "The gate-by-action reading of H1's table: the same runs, converted with upstream's --gate_by_action, so a wrong action at an access-control or forgetting checkpoint counts as a leak, and a wrong action at a utility checkpoint as a miss (the GateMem paper's Eq. 11 reading). It is reported beside the main, leak-only table (research/configs/h1-table.json), which decides H1: this table records decides: false and drops the primary, holm and decision block, keeping its rates, contrasts, sets, sensitivity table and MGS for reference. It refuses sessions converted without the flag, and its run writes no UNREAD template, so the main one and its key are left alone.",
+    "make h1-table GATE_BY_ACTION=1, after the main table's steps (with the same READINGS= if the members read UNREAD sessions): sessions in .engram/runs/h1-sessions-gate-by-action.jsonl, output research/results/h1-table-gate-by-action.json."
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "name": "h4-holm-levels",
+  "kind": "measurement",
+  "hypothesis": "H4",
+  "power_result": "research/results/h4-power.json",
+  "committed_alpha": "0.01",
+  "family_alpha": 0.05,
+  "hypotheses": 5
+}

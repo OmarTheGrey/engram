@@ -8,7 +8,7 @@ SHELL := bash
 PNPM ?= pnpm
 UV ?= uv
 
-.PHONY: help test test-invariants test-one test-e2e test-repro lint lint-docs api api-check ui bench run fixtures thesis engram
+.PHONY: help test test-invariants test-one test-e2e test-repro lint lint-docs api api-check ui bench run h1-table fixtures thesis engram
 
 help: ## list targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | sed -E 's/:.*## /\t/' | expand -t 16
@@ -86,6 +86,16 @@ RUN_OUT ?= .engram/runs/$(basename $(notdir $(CONFIG)))
 run: ## replay a runner config as pi SDK sessions from its cassettes; a miss is an error: make run CONFIG=research/configs/rn1-gatemem-probe.json; MODEL=<provider/model> LIVE=1 runs it live into new cassettes under .engram/runs, REPLAY=1 replays those offline; COUNT=1 checks its data against the pin and counts its sessions, calling no model
 	@[ -n "$(CONFIG)" ] || { echo "usage: make run CONFIG=<runner config>"; exit 2; }
 	node packages/runner/scripts/run.ts --config "$(CONFIG)" --out "$(RUN_OUT)$(if $(filter 1,$(LIVE) $(REPLAY)),-live)$(if $(filter 1,$(COUNT)),-count)" $(if $(filter 1,$(LIVE)),--live --model "$(MODEL)") $(if $(filter 1,$(REPLAY)),--replay --model "$(MODEL)") $(if $(filter 1,$(COUNT)),--count)
+
+# The key from the blind UNREAD template's ids to H1's sessions; make h1-table writes it beside the template.
+READINGS_KEY ?= .engram/runs/h1-unread-key.json
+# GATE_BY_ACTION=1 gives the gate-by-action reading its own config, sessions and table; the main table's files are not touched.
+H1_SUFFIX := $(if $(filter 1,$(GATE_BY_ACTION)),-gate-by-action)
+H1_TABLE := h1-table$(H1_SUFFIX)
+
+h1-table: ## after H1's two live runs (make run CONFIG=research/configs/h1-gatemem.json, then h1-mem-inv.json, MODEL=<provider/model> LIVE=1 or REPLAY=1): their rows as h1-sessions/2 in .engram/runs/h1-sessions.jsonl, MEM-INV-Bench's UNREAD replies in .engram/runs/h1-unread.json for two readers, blind (opaque ids in an order the table config's seed shuffles; no condition, store, seed or item), with the key from id to session beside it in .engram/runs/h1-unread-key.json, which the readers are not given, then the H1 table in research/results/h1-table.json (primary GateMem set, secondary sets and refusal-leak sensitivity as research/configs/h1-table.json names them); the table also gives MGS per condition and MEM-INV-Bench's read_before_action; READINGS=<filled copy of the template> joins their readings back through that key (READINGS_KEY= names another) and writes no template; GATE_BY_ACTION=1 is the gate-by-action reading (a wrong action counts as a leak), which decides nothing (decides false, no decision block): sessions .engram/runs/h1-sessions-gate-by-action.jsonl, config research/configs/h1-table-gate-by-action.json, table research/results/h1-table-gate-by-action.json, the main table's files, template and key untouched
+	node packages/runner/scripts/h1-sessions.ts --config research/configs/h1-gatemem.json --run .engram/runs/h1-gatemem-live --config research/configs/h1-mem-inv.json --run .engram/runs/h1-mem-inv-live --table-config research/configs/$(H1_TABLE).json $(if $(filter 1,$(GATE_BY_ACTION)),--gate-by-action) $(if $(READINGS),--readings "$(READINGS)" --readings-key "$(READINGS_KEY)",$(if $(H1_SUFFIX),,--unread-out .engram/runs/h1-unread.json)) --out .engram/runs/h1-sessions$(H1_SUFFIX).jsonl
+	$(UV) run python research/scripts/h1_table.py --config research/configs/$(H1_TABLE).json --out research/results/$(H1_TABLE).json
 
 # Runner configs whose cassettes are fixtures, recorded from their scripted model by `make fixtures`.
 RUNNER_FIXTURES := rn1-gatemem-probe

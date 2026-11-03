@@ -1,0 +1,390 @@
+{
+  "benchmark": "gatemem",
+  "by_preset": {
+    "medium": {
+      "all": {
+        "all": {
+          "agree": 235384,
+          "checkpoints": 2218,
+          "engram_allows": 96189,
+          "items": 325530,
+          "rag_allows": 126653,
+          "rag_allows_engram_denies": 60305,
+          "rag_denies_engram_allows": 29841,
+          "share_agree": 0.723079,
+          "share_engram_allows": 0.295484,
+          "share_rag_allows": 0.389067,
+          "share_rag_allows_engram_denies": 0.185252,
+          "share_rag_denies_engram_allows": 0.091669
+        },
+        "leak": {
+          "agree": 7425,
+          "checkpoints": 2218,
+          "engram_allows": 3020,
+          "items": 10726,
+          "rag_allows": 3917,
+          "rag_allows_engram_denies": 2099,
+          "rag_denies_engram_allows": 1202,
+          "share_agree": 0.692243,
+          "share_engram_allows": 0.281559,
+          "share_rag_allows": 0.365187,
+          "share_rag_allows_engram_denies": 0.195693,
+          "share_rag_denies_engram_allows": 0.112064
+        }
+      },
+      "kinds": {
+        "privacy": {
+          "all": {
+            "agree": 67243,
+            "checkpoints": 727,
+            "engram_allows": 16388,
+            "items": 96386,
+            "rag_allows": 30105,
+            "rag_allows_engram_denies": 21430,
+            "rag_denies_engram_allows": 7713,
+            "share_agree": 0.697643,
+            "share_engram_allows": 0.170025,
+            "share_rag_allows": 0.312338,
+            "share_rag_allows_engram_denies": 0.222335,
+            "share_rag_denies_engram_allows": 0.080022
+          },
+          "leak": {
+            "agree": 3665,
+            "checkpoints": 727,
+            "engram_allows": 722,
+            "items": 5259,
+            "rag_allows": 1528,
+            "rag_allows_engram_denies": 1200,
+            "rag_denies_engram_allows": 394,
+            "share_agree": 0.696901,
+            "share_engram_allows": 0.137288,
+            "share_rag_allows": 0.29055,
+            "share_rag_allows_engram_denies": 0.22818,
+            "share_rag_denies_engram_allows": 0.074919
+          }
+        },
+        "safety": {
+          "all": {
+            "agree": 103580,
+            "checkpoints": 763,
+            "engram_allows": 49359,
+            "items": 142659,
+            "rag_allows": 59670,
+            "rag_allows_engram_denies": 24695,
+            "rag_denies_engram_allows": 14384,
+            "share_agree": 0.726067,
+            "share_engram_allows": 0.345993,
+            "share_rag_allows": 0.41827,
+            "share_rag_allows_engram_denies": 0.173105,
+            "share_rag_denies_engram_allows": 0.100828
+          },
+          "leak": {
+            "agree": 3760,
+            "checkpoints": 763,
+            "engram_allows": 2298,
+            "items": 5467,
+            "rag_allows": 2389,
+            "rag_allows_engram_denies": 899,
+            "rag_denies_engram_allows": 808,
+            "share_agree": 0.687763,
+            "share_engram_allows": 0.42034,
+            "share_rag_allows": 0.436986,
+            "share_rag_allows_engram_denies": 0.164441,
+            "share_rag_denies_engram_allows": 0.147796
+          }
+        },
+        "utility": {
+          "all": {
+            "agree": 64561,
+            "checkpoints": 728,
+            "engram_allows": 30442,
+            "items": 86485,
+            "rag_allows": 36878,
+            "rag_allows_engram_denies": 14180,
+            "rag_denies_engram_allows": 7744,
+            "share_agree": 0.746499,
+            "share_engram_allows": 0.351992,
+            "share_rag_allows": 0.426409,
+            "share_rag_allows_engram_denies": 0.163959,
+            "share_rag_denies_engram_allows": 0.089542
+          },
+          "leak": {
+            "agree": 0,
+            "checkpoints": 728,
+            "engram_allows": 0,
+            "items": 0,
+            "rag_allows": 0,
+            "rag_allows_engram_denies": 0,
+            "rag_denies_engram_allows": 0,
+            "share_agree": 0.0,
+            "share_engram_allows": 0.0,
+            "share_rag_allows": 0.0,
+            "share_rag_allows_engram_denies": 0.0,
+            "share_rag_denies_engram_allows": 0.0
+          }
+        }
+      }
+    },
+    "permissive": {
+      "all": {
+        "all": {
+          "agree": 235384,
+          "checkpoints": 2218,
+          "engram_allows": 96189,
+          "items": 325530,
+          "rag_allows": 126653,
+          "rag_allows_engram_denies": 60305,
+          "rag_denies_engram_allows": 29841,
+          "share_agree": 0.723079,
+          "share_engram_allows": 0.295484,
+          "share_rag_allows": 0.389067,
+          "share_rag_allows_engram_denies": 0.185252,
+          "share_rag_denies_engram_allows": 0.091669
+        },
+        "leak": {
+          "agree": 7425,
+          "checkpoints": 2218,
+          "engram_allows": 3020,
+          "items": 10726,
+          "rag_allows": 3917,
+          "rag_allows_engram_denies": 2099,
+          "rag_denies_engram_allows": 1202,
+          "share_agree": 0.692243,
+          "share_engram_allows": 0.281559,
+          "share_rag_allows": 0.365187,
+          "share_rag_allows_engram_denies": 0.195693,
+          "share_rag_denies_engram_allows": 0.112064
+        }
+      },
+      "kinds": {
+        "privacy": {
+          "all": {
+            "agree": 67243,
+            "checkpoints": 727,
+            "engram_allows": 16388,
+            "items": 96386,
+            "rag_allows": 30105,
+            "rag_allows_engram_denies": 21430,
+            "rag_denies_engram_allows": 7713,
+            "share_agree": 0.697643,
+            "share_engram_allows": 0.170025,
+            "share_rag_allows": 0.312338,
+            "share_rag_allows_engram_denies": 0.222335,
+            "share_rag_denies_engram_allows": 0.080022
+          },
+          "leak": {
+            "agree": 3665,
+            "checkpoints": 727,
+            "engram_allows": 722,
+            "items": 5259,
+            "rag_allows": 1528,
+            "rag_allows_engram_denies": 1200,
+            "rag_denies_engram_allows": 394,
+            "share_agree": 0.696901,
+            "share_engram_allows": 0.137288,
+            "share_rag_allows": 0.29055,
+            "share_rag_allows_engram_denies": 0.22818,
+            "share_rag_denies_engram_allows": 0.074919
+          }
+        },
+        "safety": {
+          "all": {
+            "agree": 103580,
+            "checkpoints": 763,
+            "engram_allows": 49359,
+            "items": 142659,
+            "rag_allows": 59670,
+            "rag_allows_engram_denies": 24695,
+            "rag_denies_engram_allows": 14384,
+            "share_agree": 0.726067,
+            "share_engram_allows": 0.345993,
+            "share_rag_allows": 0.41827,
+            "share_rag_allows_engram_denies": 0.173105,
+            "share_rag_denies_engram_allows": 0.100828
+          },
+          "leak": {
+            "agree": 3760,
+            "checkpoints": 763,
+            "engram_allows": 2298,
+            "items": 5467,
+            "rag_allows": 2389,
+            "rag_allows_engram_denies": 899,
+            "rag_denies_engram_allows": 808,
+            "share_agree": 0.687763,
+            "share_engram_allows": 0.42034,
+            "share_rag_allows": 0.436986,
+            "share_rag_allows_engram_denies": 0.164441,
+            "share_rag_denies_engram_allows": 0.147796
+          }
+        },
+        "utility": {
+          "all": {
+            "agree": 64561,
+            "checkpoints": 728,
+            "engram_allows": 30442,
+            "items": 86485,
+            "rag_allows": 36878,
+            "rag_allows_engram_denies": 14180,
+            "rag_denies_engram_allows": 7744,
+            "share_agree": 0.746499,
+            "share_engram_allows": 0.351992,
+            "share_rag_allows": 0.426409,
+            "share_rag_allows_engram_denies": 0.163959,
+            "share_rag_denies_engram_allows": 0.089542
+          },
+          "leak": {
+            "agree": 0,
+            "checkpoints": 728,
+            "engram_allows": 0,
+            "items": 0,
+            "rag_allows": 0,
+            "rag_allows_engram_denies": 0,
+            "rag_denies_engram_allows": 0,
+            "share_agree": 0.0,
+            "share_engram_allows": 0.0,
+            "share_rag_allows": 0.0,
+            "share_rag_allows_engram_denies": 0.0,
+            "share_rag_denies_engram_allows": 0.0
+          }
+        }
+      }
+    },
+    "strict": {
+      "all": {
+        "all": {
+          "agree": 235384,
+          "checkpoints": 2218,
+          "engram_allows": 96189,
+          "items": 325530,
+          "rag_allows": 126653,
+          "rag_allows_engram_denies": 60305,
+          "rag_denies_engram_allows": 29841,
+          "share_agree": 0.723079,
+          "share_engram_allows": 0.295484,
+          "share_rag_allows": 0.389067,
+          "share_rag_allows_engram_denies": 0.185252,
+          "share_rag_denies_engram_allows": 0.091669
+        },
+        "leak": {
+          "agree": 7425,
+          "checkpoints": 2218,
+          "engram_allows": 3020,
+          "items": 10726,
+          "rag_allows": 3917,
+          "rag_allows_engram_denies": 2099,
+          "rag_denies_engram_allows": 1202,
+          "share_agree": 0.692243,
+          "share_engram_allows": 0.281559,
+          "share_rag_allows": 0.365187,
+          "share_rag_allows_engram_denies": 0.195693,
+          "share_rag_denies_engram_allows": 0.112064
+        }
+      },
+      "kinds": {
+        "privacy": {
+          "all": {
+            "agree": 67243,
+            "checkpoints": 727,
+            "engram_allows": 16388,
+            "items": 96386,
+            "rag_allows": 30105,
+            "rag_allows_engram_denies": 21430,
+            "rag_denies_engram_allows": 7713,
+            "share_agree": 0.697643,
+            "share_engram_allows": 0.170025,
+            "share_rag_allows": 0.312338,
+            "share_rag_allows_engram_denies": 0.222335,
+            "share_rag_denies_engram_allows": 0.080022
+          },
+          "leak": {
+            "agree": 3665,
+            "checkpoints": 727,
+            "engram_allows": 722,
+            "items": 5259,
+            "rag_allows": 1528,
+            "rag_allows_engram_denies": 1200,
+            "rag_denies_engram_allows": 394,
+            "share_agree": 0.696901,
+            "share_engram_allows": 0.137288,
+            "share_rag_allows": 0.29055,
+            "share_rag_allows_engram_denies": 0.22818,
+            "share_rag_denies_engram_allows": 0.074919
+          }
+        },
+        "safety": {
+          "all": {
+            "agree": 103580,
+            "checkpoints": 763,
+            "engram_allows": 49359,
+            "items": 142659,
+            "rag_allows": 59670,
+            "rag_allows_engram_denies": 24695,
+            "rag_denies_engram_allows": 14384,
+            "share_agree": 0.726067,
+            "share_engram_allows": 0.345993,
+            "share_rag_allows": 0.41827,
+            "share_rag_allows_engram_denies": 0.173105,
+            "share_rag_denies_engram_allows": 0.100828
+          },
+          "leak": {
+            "agree": 3760,
+            "checkpoints": 763,
+            "engram_allows": 2298,
+            "items": 5467,
+            "rag_allows": 2389,
+            "rag_allows_engram_denies": 899,
+            "rag_denies_engram_allows": 808,
+            "share_agree": 0.687763,
+            "share_engram_allows": 0.42034,
+            "share_rag_allows": 0.436986,
+            "share_rag_allows_engram_denies": 0.164441,
+            "share_rag_denies_engram_allows": 0.147796
+          }
+        },
+        "utility": {
+          "all": {
+            "agree": 64561,
+            "checkpoints": 728,
+            "engram_allows": 30442,
+            "items": 86485,
+            "rag_allows": 36878,
+            "rag_allows_engram_denies": 14180,
+            "rag_denies_engram_allows": 7744,
+            "share_agree": 0.746499,
+            "share_engram_allows": 0.351992,
+            "share_rag_allows": 0.426409,
+            "share_rag_allows_engram_denies": 0.163959,
+            "share_rag_denies_engram_allows": 0.089542
+          },
+          "leak": {
+            "agree": 0,
+            "checkpoints": 728,
+            "engram_allows": 0,
+            "items": 0,
+            "rag_allows": 0,
+            "rag_allows_engram_denies": 0,
+            "rag_denies_engram_allows": 0,
+            "share_agree": 0.0,
+            "share_engram_allows": 0.0,
+            "share_rag_allows": 0.0,
+            "share_rag_allows_engram_denies": 0.0,
+            "share_rag_denies_engram_allows": 0.0
+          }
+        }
+      }
+    }
+  },
+  "commit": "a983828b3bb7565e16e25ac8cdc2fc1982633b0b",
+  "mapping": "ADR 0030 (packages/bench/src/gatemem/plane.ts)",
+  "name": "h1-c4-verdict-agreement",
+  "presets": [
+    "medium",
+    "permissive",
+    "strict"
+  ],
+  "primary_preset": "medium",
+  "sources": {
+    "engram": "the plane's read decision under the preset (core evaluateRead)",
+    "gatemem-rag": "GateMem's RAG-Policy gate (packages/bench/src/gatemem/rag-policy.ts)"
+  }
+}

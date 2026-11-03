@@ -1,0 +1,107 @@
+{
+  "name": "h1-cost",
+  "kind": "measurement",
+  "hypothesis": "H1",
+  "arms": {
+    "gatemem": {
+      "config": "research/configs/h1-gatemem.json",
+      "cassettes": "fixtures/cassettes/x1-h1-gatemem"
+    },
+    "mem-inv-bench": {
+      "config": "research/configs/h1-mem-inv.json",
+      "cassettes": "fixtures/cassettes/x1-h1-mem-inv"
+    }
+  },
+  "fixture_judge": "scripted/judge-1",
+  "gatemem_data": {
+    "full": ".engram/upstream/gatemem/bench/data",
+    "fixture": "fixtures/bench/gatemem",
+    "manifest": "fixtures/bench/gatemem/manifest.json",
+    "fetch": true
+  },
+  "walk": "research/results/h1-c4-walk.json",
+  "admission": "research/results/h1-mem-inv-admission.json",
+  "estimates": {
+    "low": {
+      "token_scale": 1.0,
+      "extra_read_turns": 0,
+      "judge_calls": "min",
+      "reasoning_tokens_per_call": { "off_honoured": 0, "off_ignored": 256 },
+      "note_output_tokens": null
+    },
+    "high": {
+      "token_scale": 1.333333,
+      "extra_read_turns": 2,
+      "judge_calls": "max",
+      "reasoning_tokens_per_call": { "off_honoured": 1024, "off_ignored": 4096 },
+      "note_output_tokens": 300
+    }
+  },
+  "assumptions": [
+    "Tokens are pi's own estimate, characters over four (pi-coding-agent estimateTokens); the high estimate counts three characters per token (token_scale 4/3) for JSON, ids and non-English text.",
+    "The scripted cassettes fix one memory read and one answer per session; the high estimate lets a live model make two more reads, each repeating the session so far and a read as large as the first.",
+    "Memory per read on the full set: each checkpoint's own question as the query (GateMem, research/results/h1-c4-walk.json); every entry of a case, or what the preset admits under C5 (MEM-INV-Bench, research/results/h1-mem-inv-admission.json).",
+    "Tokens per GateMem item are the fixture reads', moved by the difference between the text characters per item the full set's lists show and those the fixture reads showed, per condition and item kind, over four; MEM-INV-Bench's are the fixture's.",
+    "The GateMem prompt and the judge's prompt move from the fixture checkpoints' size to the full set's mean (the prompt per item kind); the MEM-INV-Bench prompt is the fixture's (one system prompt, short tasks).",
+    "Answers and the judge's verdict are as long as the scripted ones; a live answer may be longer, which the high estimate's token scale covers only in part.",
+    "The runner asks for thinking off (packages/runner/src/conditions.ts). pi-ai 1.3.0 sends OpenRouter the catalogue's off effort for a reasoning model whose thinkingLevelMap maps off to a value (or none when it has no map), and no reasoning parameter where it maps off to null, so the provider's default effort applies. Neither pi-ai nor its catalogue states a default effort or a token count for one.",
+    "Reasoning output tokens per answer call, where off is honoured: 0 (low) and 1,024 (high); where it is ignored: 256 (low, a floor assumed, not measured) and 4,096 (high, not shown to cover a provider's default effort, which on a reasoning model can be larger). None for the judge (GPT-4o has no reasoning). Each candidate reports what 1,000 reasoning tokens per answer call cost, so any other budget can be priced from the table.",
+    "The judge runs once per GateMem session (low) or three times (high, upstream's three attempts); HTTP retries are not counted.",
+    "MEM-INV-Bench's 8 agent notes cost their recorded size (low) or their 300-token limit (high).",
+    "No prompt caching, batch discount or provider minimum is assumed; prices are list prices from the catalogue, not a quote, and a price the script flags as a likely catalogue anomaly is used as listed."
+  ],
+  "candidates": [
+    { "model": "openrouter/openai/gpt-6.1-sol", "maker": "OpenAI", "tier": "large" },
+    { "model": "openrouter/openai/gpt-6-luna", "maker": "OpenAI", "tier": "small" },
+    {
+      "model": "openrouter/openai/gpt-5.6-terra",
+      "maker": "OpenAI",
+      "tier": "reference: MEM-INV-Bench's recorded study"
+    },
+    {
+      "model": "openrouter/openai/gpt-4o",
+      "maker": "OpenAI",
+      "tier": "reference: GateMem's judge"
+    },
+    { "model": "openrouter/google/gemini-4-argon", "maker": "Google", "tier": "large" },
+    { "model": "openrouter/google/gemini-3.8-flash", "maker": "Google", "tier": "small" },
+    { "model": "openrouter/deepseek/deepseek-v4-pro-0813", "maker": "DeepSeek", "tier": "large" },
+    { "model": "openrouter/deepseek/deepseek-v4.1-flash", "maker": "DeepSeek", "tier": "small" },
+    { "model": "openrouter/qwen/qwen3.8-max-0902", "maker": "Qwen", "tier": "large" },
+    { "model": "openrouter/qwen/qwen3.8-flash", "maker": "Qwen", "tier": "small" },
+    { "model": "openrouter/mistralai/mistral-large-4-0", "maker": "Mistral", "tier": "large" },
+    { "model": "openrouter/mistralai/mistral-small-2603", "maker": "Mistral", "tier": "small" },
+    { "model": "openrouter/meta/muse-wonder", "maker": "Meta", "tier": "large" },
+    { "model": "openrouter/meta/muse-glimmer-30b", "maker": "Meta", "tier": "small" },
+    { "model": "openrouter/anthropic/claude-sonnet-5.5", "maker": "Anthropic", "tier": "large" },
+    { "model": "openrouter/anthropic/claude-haiku-5.5", "maker": "Anthropic", "tier": "small" },
+    {
+      "model": "openrouter/anthropic/claude-sonnet-5.5:batch",
+      "maker": "Anthropic",
+      "tier": "large, batch variant",
+      "candidate": false,
+      "why_not": "the catalogue names it \"(batch)\" at half the interactive price; whether OpenRouter serves it as synchronous chat completions, and passes the seed, cannot be checked without a call"
+    },
+    {
+      "model": "openrouter/anthropic/claude-haiku-5.5:batch",
+      "maker": "Anthropic",
+      "tier": "small, batch variant",
+      "candidate": false,
+      "why_not": "the catalogue names it \"(batch)\" at half the interactive price; whether OpenRouter serves it as synchronous chat completions, and passes the seed, cannot be checked without a call"
+    },
+    {
+      "model": "openrouter/~anthropic/claude-sonnet-latest",
+      "maker": "Anthropic",
+      "tier": "large, floating alias",
+      "candidate": false,
+      "why_not": "a floating alias (\"Latest\"): the model behind it can change during the run, so H1 could not name the model it ran on"
+    },
+    {
+      "model": "openrouter/~anthropic/claude-haiku-latest",
+      "maker": "Anthropic",
+      "tier": "small, floating alias",
+      "candidate": false,
+      "why_not": "a floating alias (\"Latest\"): the model behind it can change during the run, so H1 could not name the model it ran on"
+    }
+  ]
+}

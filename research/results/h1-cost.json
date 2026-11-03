@@ -1,0 +1,1332 @@
+{
+  "assumptions": [
+    "Tokens are pi's own estimate, characters over four (pi-coding-agent estimateTokens); the high estimate counts three characters per token (token_scale 4/3) for JSON, ids and non-English text.",
+    "The scripted cassettes fix one memory read and one answer per session; the high estimate lets a live model make two more reads, each repeating the session so far and a read as large as the first.",
+    "Memory per read on the full set: each checkpoint's own question as the query (GateMem, research/results/h1-c4-walk.json); every entry of a case, or what the preset admits under C5 (MEM-INV-Bench, research/results/h1-mem-inv-admission.json).",
+    "Tokens per GateMem item are the fixture reads', moved by the difference between the text characters per item the full set's lists show and those the fixture reads showed, per condition and item kind, over four; MEM-INV-Bench's are the fixture's.",
+    "The GateMem prompt and the judge's prompt move from the fixture checkpoints' size to the full set's mean (the prompt per item kind); the MEM-INV-Bench prompt is the fixture's (one system prompt, short tasks).",
+    "Answers and the judge's verdict are as long as the scripted ones; a live answer may be longer, which the high estimate's token scale covers only in part.",
+    "The runner asks for thinking off (packages/runner/src/conditions.ts). pi-ai 1.3.0 sends OpenRouter the catalogue's off effort for a reasoning model whose thinkingLevelMap maps off to a value (or none when it has no map), and no reasoning parameter where it maps off to null, so the provider's default effort applies. Neither pi-ai nor its catalogue states a default effort or a token count for one.",
+    "Reasoning output tokens per answer call, where off is honoured: 0 (low) and 1,024 (high); where it is ignored: 256 (low, a floor assumed, not measured) and 4,096 (high, not shown to cover a provider's default effort, which on a reasoning model can be larger). None for the judge (GPT-4o has no reasoning). Each candidate reports what 1,000 reasoning tokens per answer call cost, so any other budget can be priced from the table.",
+    "The judge runs once per GateMem session (low) or three times (high, upstream's three attempts); HTTP retries are not counted.",
+    "MEM-INV-Bench's 8 agent notes cost their recorded size (low) or their 300-token limit (high).",
+    "No prompt caching, batch discount or provider minimum is assumed; prices are list prices from the catalogue, not a quote, and a price the script flags as a likely catalogue anomaly is used as listed."
+  ],
+  "candidates": [
+    {
+      "accepted": true,
+      "api": "openai-completions",
+      "cache_read_per_million": 0.1,
+      "can_turn_reasoning_off": false,
+      "candidate": true,
+      "cost": {
+        "gatemem": {
+          "high": 5860.903631,
+          "low": 455.227861
+        },
+        "gatemem_violation_set": {
+          "high": 3983.992514,
+          "low": 311.714733
+        },
+        "mem-inv-bench": {
+          "high": 80.751595,
+          "low": 4.268326
+        }
+      },
+      "found": true,
+      "input_per_million": 2,
+      "maker": "OpenAI",
+      "model": "openrouter/openai/gpt-6.1-sol",
+      "off_effort": null,
+      "output_per_million": 10,
+      "price_anomaly": null,
+      "reasoning": true,
+      "reasoning_cost_per_1000_tokens_per_call": {
+        "high": 1082.96,
+        "low": 541.52
+      },
+      "tier": "large",
+      "total_with_judge": {
+        "high": 6205.905991,
+        "low": 525.558894
+      },
+      "why_not": null
+    },
+    {
+      "accepted": true,
+      "api": "openai-completions",
+      "cache_read_per_million": 0.01,
+      "can_turn_reasoning_off": true,
+      "candidate": true,
+      "cost": {
+        "gatemem": {
+          "high": 129.516478,
+          "low": 15.947697
+        },
+        "gatemem_violation_set": {
+          "high": 89.344906,
+          "low": 11.008457
+        },
+        "mem-inv-bench": {
+          "high": 1.223628,
+          "low": 0.095656
+        }
+      },
+      "found": true,
+      "input_per_million": 0.1,
+      "maker": "OpenAI",
+      "model": "openrouter/openai/gpt-6-luna",
+      "off_effort": "none",
+      "output_per_million": 0.5,
+      "price_anomaly": null,
+      "reasoning": true,
+      "reasoning_cost_per_1000_tokens_per_call": {
+        "high": 54.148,
+        "low": 27.076
+      },
+      "tier": "small",
+      "total_with_judge": {
+        "high": 394.990869,
+        "low": 82.106061
+      },
+      "why_not": null
+    },
+    {
+      "accepted": true,
+      "api": "openai-completions",
+      "cache_read_per_million": 0.2,
+      "can_turn_reasoning_off": true,
+      "candidate": true,
+      "cost": {
+        "gatemem": {
+          "high": 2813.01675,
+          "low": 321.588925
+        },
+        "gatemem_violation_set": {
+          "high": 1936.494113,
+          "low": 221.939253
+        },
+        "mem-inv-bench": {
+          "high": 28.265771,
+          "low": 1.929958
+        }
+      },
+      "found": true,
+      "input_per_million": 2,
+      "maker": "OpenAI",
+      "model": "openrouter/openai/gpt-5.6-terra",
+      "off_effort": "none",
+      "output_per_million": 12,
+      "price_anomaly": null,
+      "reasoning": true,
+      "reasoning_cost_per_1000_tokens_per_call": {
+        "high": 1299.552,
+        "low": 649.824
+      },
+      "tier": "reference: MEM-INV-Bench's recorded study",
+      "total_with_judge": {
+        "high": 3105.533286,
+        "low": 389.58159
+      },
+      "why_not": null
+    },
+    {
+      "accepted": true,
+      "api": "openai-completions",
+      "cache_read_per_million": 1.25,
+      "can_turn_reasoning_off": true,
+      "candidate": true,
+      "cost": {
+        "gatemem": {
+          "high": 1869.361581,
+          "low": 395.398696
+        },
+        "gatemem_violation_set": {
+          "high": 1314.262844,
+          "low": 272.998767
+        },
+        "mem-inv-bench": {
+          "high": 7.089494,
+          "low": 2.370367
+        }
+      },
+      "found": true,
+      "input_per_million": 2.5,
+      "maker": "OpenAI",
+      "model": "openrouter/openai/gpt-4o",
+      "off_effort": null,
+      "output_per_million": 10,
+      "price_anomaly": null,
+      "reasoning": false,
+      "reasoning_cost_per_1000_tokens_per_call": null,
+      "tier": "reference: GateMem's judge",
+      "total_with_judge": {
+        "high": 2140.701839,
+        "low": 463.831771
+      },
+      "why_not": null
+    },
+    {
+      "accepted": true,
+      "api": "openai-completions",
+      "cache_read_per_million": 0.1,
+      "can_turn_reasoning_off": false,
+      "candidate": true,
+      "cost": {
+        "gatemem": {
+          "high": 5860.903631,
+          "low": 455.227861
+        },
+        "gatemem_violation_set": {
+          "high": 3983.992514,
+          "low": 311.714733
+        },
+        "mem-inv-bench": {
+          "high": 80.751595,
+          "low": 4.268326
+        }
+      },
+      "found": true,
+      "input_per_million": 2,
+      "maker": "Google",
+      "model": "openrouter/google/gemini-4-argon",
+      "off_effort": null,
+      "output_per_million": 10,
+      "price_anomaly": null,
+      "reasoning": true,
+      "reasoning_cost_per_1000_tokens_per_call": {
+        "high": 1082.96,
+        "low": 541.52
+      },
+      "tier": "large",
+      "total_with_judge": {
+        "high": 6205.905991,
+        "low": 525.558894
+      },
+      "why_not": null
+    },
+    {
+      "accepted": true,
+      "api": "openai-completions",
+      "cache_read_per_million": 0.075,
+      "can_turn_reasoning_off": false,
+      "candidate": true,
+      "cost": {
+        "gatemem": {
+          "high": 2197.838862,
+          "low": 170.710448
+        },
+        "gatemem_violation_set": {
+          "high": 1493.997193,
+          "low": 116.893025
+        },
+        "mem-inv-bench": {
+          "high": 30.281848,
+          "low": 1.600622
+        }
+      },
+      "found": true,
+      "input_per_million": 0.75,
+      "maker": "Google",
+      "model": "openrouter/google/gemini-3.8-flash",
+      "off_effort": null,
+      "output_per_million": 3.75,
+      "price_anomaly": null,
+      "reasoning": true,
+      "reasoning_cost_per_1000_tokens_per_call": {
+        "high": 406.11,
+        "low": 203.07
+      },
+      "tier": "small",
+      "total_with_judge": {
+        "high": 2492.371474,
+        "low": 238.373777
+      },
+      "why_not": null
+    },
+    {
+      "accepted": true,
+      "api": "openai-completions",
+      "cache_read_per_million": 0.022,
+      "can_turn_reasoning_off": true,
+      "candidate": true,
+      "cost": {
+        "gatemem": {
+          "high": 707.835201,
+          "low": 103.515711
+        },
+        "gatemem_violation_set": {
+          "high": 490.943018,
+          "low": 71.487535
+        },
+        "mem-inv-bench": {
+          "high": 5.572421,
+          "low": 0.620222
+        }
+      },
+      "found": true,
+      "input_per_million": 0.66,
+      "maker": "DeepSeek",
+      "model": "openrouter/deepseek/deepseek-v4-pro-0813",
+      "off_effort": "none",
+      "output_per_million": 1.98,
+      "price_anomaly": null,
+      "reasoning": true,
+      "reasoning_cost_per_1000_tokens_per_call": {
+        "high": 214.42608,
+        "low": 107.22096
+      },
+      "tier": "large",
+      "total_with_judge": {
+        "high": 977.658385,
+        "low": 170.198641
+      },
+      "why_not": null
+    },
+    {
+      "accepted": true,
+      "api": "openai-completions",
+      "cache_read_per_million": 0.0054,
+      "can_turn_reasoning_off": true,
+      "candidate": true,
+      "cost": {
+        "gatemem": {
+          "high": 84.420845,
+          "low": 1.829238
+        },
+        "gatemem_violation_set": {
+          "high": 56.846644,
+          "low": 1.245841
+        },
+        "mem-inv-bench": {
+          "high": 1.381416,
+          "low": 0.011327
+        }
+      },
+      "found": true,
+      "input_per_million": 0.00576,
+      "maker": "DeepSeek",
+      "model": "openrouter/deepseek/deepseek-v4.1-flash",
+      "off_effort": "none",
+      "output_per_million": 0.72,
+      "price_anomaly": "likely a catalogue anomaly: the input price is 1.07 times the cache-read price and the output price is 125 times the input price",
+      "reasoning": true,
+      "reasoning_cost_per_1000_tokens_per_call": {
+        "high": 77.97312,
+        "low": 38.98944
+      },
+      "tier": "small",
+      "total_with_judge": {
+        "high": 350.053025,
+        "low": 67.903272
+      },
+      "why_not": null
+    },
+    {
+      "accepted": true,
+      "api": "openai-completions",
+      "cache_read_per_million": 0.25,
+      "can_turn_reasoning_off": false,
+      "candidate": true,
+      "cost": {
+        "gatemem": {
+          "high": 4107.299602,
+          "low": 395.448325
+        },
+        "gatemem_violation_set": {
+          "high": 2805.962756,
+          "low": 271.556253
+        },
+        "mem-inv-bench": {
+          "high": 50.653547,
+          "low": 3.292582
+        }
+      },
+      "found": true,
+      "input_per_million": 2,
+      "maker": "Qwen",
+      "model": "openrouter/qwen/qwen3.8-max-0902",
+      "off_effort": null,
+      "output_per_million": 6,
+      "price_anomaly": null,
+      "reasoning": true,
+      "reasoning_cost_per_1000_tokens_per_call": {
+        "high": 649.776,
+        "low": 324.912
+      },
+      "tier": "large",
+      "total_with_judge": {
+        "high": 4422.203913,
+        "low": 464.803614
+      },
+      "why_not": null
+    },
+    {
+      "accepted": true,
+      "api": "openai-completions",
+      "cache_read_per_million": 0.016,
+      "can_turn_reasoning_off": true,
+      "candidate": true,
+      "cost": {
+        "gatemem": {
+          "high": 163.098509,
+          "low": 23.552648
+        },
+        "gatemem_violation_set": {
+          "high": 113.073919,
+          "low": 16.264868
+        },
+        "mem-inv-bench": {
+          "high": 1.304391,
+          "low": 0.141128
+        }
+      },
+      "found": true,
+      "input_per_million": 0.15,
+      "maker": "Qwen",
+      "model": "openrouter/qwen/qwen3.8-flash",
+      "off_effort": "none",
+      "output_per_million": 0.47,
+      "price_anomaly": null,
+      "reasoning": true,
+      "reasoning_cost_per_1000_tokens_per_call": {
+        "high": 50.89912,
+        "low": 25.45144
+      },
+      "tier": "small",
+      "total_with_judge": {
+        "high": 428.653664,
+        "low": 89.756483
+      },
+      "why_not": null
+    },
+    {
+      "accepted": true,
+      "api": "openai-completions",
+      "cache_read_per_million": 0.07,
+      "can_turn_reasoning_off": true,
+      "candidate": true,
+      "cost": {
+        "gatemem": {
+          "high": 734.851932,
+          "low": 106.718425
+        },
+        "gatemem_violation_set": {
+          "high": 509.559979,
+          "low": 73.698077
+        },
+        "mem-inv-bench": {
+          "high": 5.836112,
+          "low": 0.639438
+        }
+      },
+      "found": true,
+      "input_per_million": 0.68,
+      "maker": "Mistral",
+      "model": "openrouter/mistralai/mistral-large-4-0",
+      "off_effort": "none",
+      "output_per_million": 2.09,
+      "price_anomaly": null,
+      "reasoning": true,
+      "reasoning_cost_per_1000_tokens_per_call": {
+        "high": 226.33864,
+        "low": 113.17768
+      },
+      "tier": "large",
+      "total_with_judge": {
+        "high": 1004.938809,
+        "low": 173.420571
+      },
+      "why_not": null
+    },
+    {
+      "accepted": true,
+      "api": "openai-completions",
+      "cache_read_per_million": 0.015,
+      "can_turn_reasoning_off": true,
+      "candidate": true,
+      "cost": {
+        "gatemem": {
+          "high": 177.573176,
+          "low": 23.723922
+        },
+        "gatemem_violation_set": {
+          "high": 122.797659,
+          "low": 16.379926
+        },
+        "mem-inv-bench": {
+          "high": 1.55095,
+          "low": 0.142222
+        }
+      },
+      "found": true,
+      "input_per_million": 0.15,
+      "maker": "Mistral",
+      "model": "openrouter/mistralai/mistral-small-2603",
+      "off_effort": "none",
+      "output_per_million": 0.6,
+      "price_anomaly": null,
+      "reasoning": true,
+      "reasoning_cost_per_1000_tokens_per_call": {
+        "high": 64.9776,
+        "low": 32.4912
+      },
+      "tier": "small",
+      "total_with_judge": {
+        "high": 443.374891,
+        "low": 89.928851
+      },
+      "why_not": null
+    },
+    {
+      "accepted": true,
+      "api": "openai-completions",
+      "cache_read_per_million": 0.2,
+      "can_turn_reasoning_off": false,
+      "candidate": true,
+      "cost": {
+        "gatemem": {
+          "high": 11721.807263,
+          "low": 910.455722
+        },
+        "gatemem_violation_set": {
+          "high": 7967.985028,
+          "low": 623.429466
+        },
+        "mem-inv-bench": {
+          "high": 161.503191,
+          "low": 8.536651
+        }
+      },
+      "found": true,
+      "input_per_million": 4,
+      "maker": "Meta",
+      "model": "openrouter/meta/muse-wonder",
+      "off_effort": null,
+      "output_per_million": 20,
+      "price_anomaly": null,
+      "reasoning": true,
+      "reasoning_cost_per_1000_tokens_per_call": {
+        "high": 2165.92,
+        "low": 1083.04
+      },
+      "tier": "large",
+      "total_with_judge": {
+        "high": 12147.561217,
+        "low": 985.05508
+      },
+      "why_not": null
+    },
+    {
+      "accepted": true,
+      "api": "openai-completions",
+      "cache_read_per_million": 0.04,
+      "can_turn_reasoning_off": false,
+      "candidate": true,
+      "cost": {
+        "gatemem": {
+          "high": 747.615242,
+          "low": 63.800714
+        },
+        "gatemem_violation_set": {
+          "high": 509.246645,
+          "low": 43.745324
+        },
+        "mem-inv-bench": {
+          "high": 9.855386,
+          "low": 0.567068
+        }
+      },
+      "found": true,
+      "input_per_million": 0.3,
+      "maker": "Meta",
+      "model": "openrouter/meta/muse-glimmer-30b",
+      "off_effort": null,
+      "output_per_million": 1.2,
+      "price_anomaly": null,
+      "reasoning": true,
+      "reasoning_cost_per_1000_tokens_per_call": {
+        "high": 129.9552,
+        "low": 64.9824
+      },
+      "tier": "small",
+      "total_with_judge": {
+        "high": 1021.721392,
+        "low": 130.430489
+      },
+      "why_not": null
+    },
+    {
+      "accepted": false,
+      "api": "anthropic-messages",
+      "cache_read_per_million": 0.1,
+      "can_turn_reasoning_off": null,
+      "candidate": true,
+      "cost": null,
+      "found": true,
+      "input_per_million": 2,
+      "maker": "Anthropic",
+      "model": "openrouter/anthropic/claude-sonnet-5.5",
+      "off_effort": null,
+      "output_per_million": 10,
+      "price_anomaly": null,
+      "reasoning": true,
+      "reasoning_cost_per_1000_tokens_per_call": null,
+      "tier": "large",
+      "why_not": null
+    },
+    {
+      "accepted": false,
+      "api": "anthropic-messages",
+      "cache_read_per_million": 0.01,
+      "can_turn_reasoning_off": null,
+      "candidate": true,
+      "cost": null,
+      "found": true,
+      "input_per_million": 0.1,
+      "maker": "Anthropic",
+      "model": "openrouter/anthropic/claude-haiku-5.5",
+      "off_effort": null,
+      "output_per_million": 0.5,
+      "price_anomaly": null,
+      "reasoning": true,
+      "reasoning_cost_per_1000_tokens_per_call": null,
+      "tier": "small",
+      "why_not": null
+    },
+    {
+      "accepted": true,
+      "api": "openai-completions",
+      "cache_read_per_million": 0.05,
+      "can_turn_reasoning_off": false,
+      "candidate": false,
+      "cost": {
+        "gatemem": {
+          "high": 2930.451816,
+          "low": 227.61393
+        },
+        "gatemem_violation_set": {
+          "high": 1991.996257,
+          "low": 155.857367
+        },
+        "mem-inv-bench": {
+          "high": 40.375798,
+          "low": 2.134163
+        }
+      },
+      "found": true,
+      "input_per_million": 1,
+      "maker": "Anthropic",
+      "model": "openrouter/anthropic/claude-sonnet-5.5:batch",
+      "off_effort": null,
+      "output_per_million": 5,
+      "price_anomaly": null,
+      "reasoning": true,
+      "reasoning_cost_per_1000_tokens_per_call": {
+        "high": 541.48,
+        "low": 270.76
+      },
+      "tier": "large, batch variant",
+      "total_with_judge": {
+        "high": 3235.078377,
+        "low": 295.810801
+      },
+      "why_not": "the catalogue names it \"(batch)\" at half the interactive price; whether OpenRouter serves it as synchronous chat completions, and passes the seed, cannot be checked without a call"
+    },
+    {
+      "accepted": true,
+      "api": "openai-completions",
+      "cache_read_per_million": 0.005,
+      "can_turn_reasoning_off": true,
+      "candidate": false,
+      "cost": {
+        "gatemem": {
+          "high": 64.758239,
+          "low": 7.973849
+        },
+        "gatemem_violation_set": {
+          "high": 44.672453,
+          "low": 5.504228
+        },
+        "mem-inv-bench": {
+          "high": 0.611814,
+          "low": 0.047828
+        }
+      },
+      "found": true,
+      "input_per_million": 0.05,
+      "maker": "Anthropic",
+      "model": "openrouter/anthropic/claude-haiku-5.5:batch",
+      "off_effort": "none",
+      "output_per_million": 0.25,
+      "price_anomaly": null,
+      "reasoning": true,
+      "reasoning_cost_per_1000_tokens_per_call": {
+        "high": 27.074,
+        "low": 13.538
+      },
+      "tier": "small, batch variant",
+      "total_with_judge": {
+        "high": 329.620817,
+        "low": 74.084384
+      },
+      "why_not": "the catalogue names it \"(batch)\" at half the interactive price; whether OpenRouter serves it as synchronous chat completions, and passes the seed, cannot be checked without a call"
+    },
+    {
+      "accepted": true,
+      "api": "openai-completions",
+      "cache_read_per_million": 0.1,
+      "can_turn_reasoning_off": false,
+      "candidate": false,
+      "cost": {
+        "gatemem": {
+          "high": 5860.903631,
+          "low": 455.227861
+        },
+        "gatemem_violation_set": {
+          "high": 3983.992514,
+          "low": 311.714733
+        },
+        "mem-inv-bench": {
+          "high": 80.751595,
+          "low": 4.268326
+        }
+      },
+      "found": true,
+      "input_per_million": 2,
+      "maker": "Anthropic",
+      "model": "openrouter/~anthropic/claude-sonnet-latest",
+      "off_effort": null,
+      "output_per_million": 10,
+      "price_anomaly": null,
+      "reasoning": true,
+      "reasoning_cost_per_1000_tokens_per_call": {
+        "high": 1082.96,
+        "low": 541.52
+      },
+      "tier": "large, floating alias",
+      "total_with_judge": {
+        "high": 6205.905991,
+        "low": 525.558894
+      },
+      "why_not": "a floating alias (\"Latest\"): the model behind it can change during the run, so H1 could not name the model it ran on"
+    },
+    {
+      "accepted": true,
+      "api": "openai-completions",
+      "cache_read_per_million": 0.01,
+      "can_turn_reasoning_off": true,
+      "candidate": false,
+      "cost": {
+        "gatemem": {
+          "high": 129.516478,
+          "low": 15.947697
+        },
+        "gatemem_violation_set": {
+          "high": 89.344906,
+          "low": 11.008457
+        },
+        "mem-inv-bench": {
+          "high": 1.223628,
+          "low": 0.095656
+        }
+      },
+      "found": true,
+      "input_per_million": 0.1,
+      "maker": "Anthropic",
+      "model": "openrouter/~anthropic/claude-haiku-latest",
+      "off_effort": "none",
+      "output_per_million": 0.5,
+      "price_anomaly": null,
+      "reasoning": true,
+      "reasoning_cost_per_1000_tokens_per_call": {
+        "high": 54.148,
+        "low": 27.076
+      },
+      "tier": "small, floating alias",
+      "total_with_judge": {
+        "high": 394.990869,
+        "low": 82.106061
+      },
+      "why_not": "a floating alias (\"Latest\"): the model behind it can change during the run, so H1 could not name the model it ran on"
+    }
+  ],
+  "estimates": {
+    "high": {
+      "extra_read_turns": 2,
+      "judge_calls": "max",
+      "note_output_tokens": 300,
+      "reasoning_tokens_per_call": {
+        "off_honoured": 1024,
+        "off_ignored": 4096
+      },
+      "token_scale": 1.333333
+    },
+    "low": {
+      "extra_read_turns": 0,
+      "judge_calls": "min",
+      "note_output_tokens": null,
+      "reasoning_tokens_per_call": {
+        "off_honoured": 0,
+        "off_ignored": 256
+      },
+      "token_scale": 1.0
+    }
+  },
+  "hypothesis": "H1",
+  "inputs": {
+    "admission": {
+      "file": "research/results/h1-mem-inv-admission.json",
+      "sha256": "bed41bee4be4e3bb6bbf9f260b846626e3b57886d5672ccaa865b6443290ecab"
+    },
+    "cassettes": {
+      "gatemem": "fixtures/cassettes/x1-h1-gatemem",
+      "mem-inv-bench": "fixtures/cassettes/x1-h1-mem-inv"
+    },
+    "gatemem_commit": "a983828b3bb7565e16e25ac8cdc2fc1982633b0b",
+    "walk": {
+      "file": "research/results/h1-c4-walk.json",
+      "sha256": "479f24192d83ec1a091dfc5b925073d79aefe1415d6171439ba74bb94fd6f8fa"
+    }
+  },
+  "judge": {
+    "accepted": true,
+    "api": "openai-completions",
+    "cost": {
+      "judge": {
+        "high": 264.250764,
+        "low": 66.062708
+      },
+      "judge_violation_set": {
+        "high": 177.51742,
+        "low": 44.379366
+      }
+    },
+    "input_per_million": 2.5,
+    "model": "openrouter/openai/gpt-4o",
+    "output_per_million": 10,
+    "reasoning": false
+  },
+  "measured": {
+    "gatemem": {
+      "C2": {
+        "fixture": {
+          "answer_out": 41.5,
+          "call_in": 8.0,
+          "call_out": 8.0,
+          "prompt": 1147.5,
+          "read_items": 8.0,
+          "read_tokens": 578.0,
+          "sessions": 4,
+          "text_chars_per_item": 164.625,
+          "tokens_per_item": 72.25
+        },
+        "full_set": {
+          "privacy": {
+            "high": {
+              "calls": 4,
+              "input": 12619.767882,
+              "output": 65.5
+            },
+            "item_tokens_delta": -5.866538,
+            "items_per_read": 19.933975,
+            "low": {
+              "calls": 2,
+              "input": 3647.311382,
+              "output": 49.5
+            },
+            "prompt_delta": 10.512552,
+            "sessions": 2181,
+            "text_chars_per_item": 141.158846
+          },
+          "safety": {
+            "high": {
+              "calls": 4,
+              "input": 12689.288663,
+              "output": 65.5
+            },
+            "item_tokens_delta": -5.967161,
+            "items_per_read": 20.0,
+            "low": {
+              "calls": 2,
+              "input": 3677.330767,
+              "output": 49.5
+            },
+            "prompt_delta": 24.336992,
+            "sessions": 2289,
+            "text_chars_per_item": 140.756356
+          },
+          "utility": {
+            "high": {
+              "calls": 4,
+              "input": 12446.476219,
+              "output": 65.5
+            },
+            "item_tokens_delta": -6.466359,
+            "items_per_read": 19.641484,
+            "low": {
+              "calls": 2,
+              "input": 3623.061513,
+              "output": 49.5
+            },
+            "prompt_delta": 13.986607,
+            "sessions": 2184,
+            "text_chars_per_item": 138.759564
+          }
+        }
+      },
+      "C3": {
+        "fixture": {
+          "answer_out": 41.5,
+          "call_in": 8.0,
+          "call_out": 8.0,
+          "prompt": 2166.5,
+          "read_items": 8.0,
+          "read_tokens": 578.0,
+          "sessions": 4,
+          "text_chars_per_item": 164.625,
+          "tokens_per_item": 72.25
+        },
+        "full_set": {
+          "privacy": {
+            "high": {
+              "calls": 4,
+              "input": 16695.767882,
+              "output": 65.5
+            },
+            "item_tokens_delta": -5.866538,
+            "items_per_read": 19.933975,
+            "low": {
+              "calls": 2,
+              "input": 5685.311382,
+              "output": 49.5
+            },
+            "prompt_delta": 10.512552,
+            "sessions": 2181,
+            "text_chars_per_item": 141.158846
+          },
+          "safety": {
+            "high": {
+              "calls": 4,
+              "input": 16765.288663,
+              "output": 65.5
+            },
+            "item_tokens_delta": -5.967161,
+            "items_per_read": 20.0,
+            "low": {
+              "calls": 2,
+              "input": 5715.330767,
+              "output": 49.5
+            },
+            "prompt_delta": 24.336992,
+            "sessions": 2289,
+            "text_chars_per_item": 140.756356
+          },
+          "utility": {
+            "high": {
+              "calls": 4,
+              "input": 16522.476219,
+              "output": 65.5
+            },
+            "item_tokens_delta": -6.466359,
+            "items_per_read": 19.641484,
+            "low": {
+              "calls": 2,
+              "input": 5661.061513,
+              "output": 49.5
+            },
+            "prompt_delta": 13.986607,
+            "sessions": 2184,
+            "text_chars_per_item": 138.759564
+          }
+        }
+      },
+      "C4": {
+        "fixture": {
+          "answer_out": 41.5,
+          "call_in": 8.0,
+          "call_out": 8.0,
+          "prompt": 2301.5,
+          "read_items": 7.0,
+          "read_tokens": 649.0,
+          "sessions": 4,
+          "text_chars_per_item": 171.642857,
+          "tokens_per_item": 92.714286
+        },
+        "full_set": {
+          "privacy": {
+            "high": {
+              "calls": 4,
+              "input": 47727.671203,
+              "output": 65.5
+            },
+            "item_tokens_delta": -11.374325,
+            "items_per_read": 78.746905,
+            "low": {
+              "calls": 2,
+              "input": 11037.295269,
+              "output": 49.5
+            },
+            "prompt_delta": 10.512552,
+            "sessions": 2181,
+            "text_chars_per_item": 126.145557
+          },
+          "safety": {
+            "high": {
+              "calls": 4,
+              "input": 44429.370202,
+              "output": 65.5
+            },
+            "item_tokens_delta": -13.340006,
+            "items_per_read": 73.655308,
+            "low": {
+              "calls": 2,
+              "input": 10506.011023,
+              "output": 49.5
+            },
+            "prompt_delta": 24.336992,
+            "sessions": 2289,
+            "text_chars_per_item": 118.282834
+          },
+          "utility": {
+            "high": {
+              "calls": 4,
+              "input": 34323.202021,
+              "output": 65.5
+            },
+            "item_tokens_delta": -12.203312,
+            "items_per_read": 51.78022,
+            "low": {
+              "calls": 2,
+              "input": 8807.849146,
+              "output": 49.5
+            },
+            "prompt_delta": 13.986607,
+            "sessions": 2184,
+            "text_chars_per_item": 122.829611
+          }
+        }
+      },
+      "C5": {
+        "fixture": {
+          "answer_out": 41.5,
+          "call_in": 8.0,
+          "call_out": 8.0,
+          "prompt": 1147.5,
+          "read_items": 3.5,
+          "read_tokens": 357.5,
+          "sessions": 4,
+          "text_chars_per_item": 211.714286,
+          "tokens_per_item": 102.142857
+        },
+        "full_set": {
+          "privacy": {
+            "high": {
+              "calls": 4,
+              "input": 10272.819218,
+              "output": 65.5
+            },
+            "item_tokens_delta": -20.398927,
+            "items_per_read": 11.403026,
+            "low": {
+              "calls": 2,
+              "input": 3256.153272,
+              "output": 49.5
+            },
+            "prompt_delta": 10.512552,
+            "sessions": 2181,
+            "text_chars_per_item": 130.118577
+          },
+          "safety": {
+            "high": {
+              "calls": 4,
+              "input": 13122.666074,
+              "output": 65.5
+            },
+            "item_tokens_delta": -18.874274,
+            "items_per_read": 16.78768,
+            "low": {
+              "calls": 2,
+              "input": 3749.560335,
+              "output": 49.5
+            },
+            "prompt_delta": 24.336992,
+            "sessions": 2289,
+            "text_chars_per_item": 136.217191
+          },
+          "utility": {
+            "high": {
+              "calls": 4,
+              "input": 11909.69113,
+              "output": 65.5
+            },
+            "item_tokens_delta": -18.233488,
+            "items_per_read": 14.332418,
+            "low": {
+              "calls": 2,
+              "input": 3533.597331,
+              "output": 49.5
+            },
+            "prompt_delta": 13.986607,
+            "sessions": 2184,
+            "text_chars_per_item": 138.780334
+          }
+        }
+      },
+      "fixture_checkpoints": [
+        "household_episode_custom_en_009_linden_lesson_linden_listen_tutor_music_private_note_ckpt_01",
+        "med_episode_rewrite_en_012_new_hiv_deleted_harbor_light_line_ckpt_13"
+      ],
+      "prompt_chars_fixture": 4000.5,
+      "prompt_chars_full_set": {
+        "privacy": 4042.550206,
+        "safety": 4097.847969,
+        "utility": 4056.446429
+      }
+    },
+    "judge": {
+      "calls": 1,
+      "input": 852.826984,
+      "output": 35.0,
+      "prompt_chars_fixture": 3383.0,
+      "prompt_chars_full_set": 3314.307935
+    },
+    "mem-inv-bench": {
+      "C2": {
+        "fixture": {
+          "answer_out": 12.0,
+          "call_in": 6.0,
+          "call_out": 6.0,
+          "prompt": 386.0,
+          "read_items": 2.5,
+          "read_tokens": 120.0,
+          "sessions": 6,
+          "text_chars_per_item": 63.6,
+          "tokens_per_item": 48.0
+        },
+        "full_set": {
+          "high": {
+            "calls": 4,
+            "input": 2231.789474,
+            "output": 30.0
+          },
+          "items_per_read": 2.263158,
+          "low": {
+            "calls": 2,
+            "input": 886.631579,
+            "output": 18.0
+          }
+        }
+      },
+      "C3": {
+        "fixture": {
+          "answer_out": 12.0,
+          "call_in": 6.0,
+          "call_out": 6.0,
+          "prompt": 1400.0,
+          "read_items": 2.5,
+          "read_tokens": 120.0,
+          "sessions": 6,
+          "text_chars_per_item": 63.6,
+          "tokens_per_item": 48.0
+        },
+        "full_set": {
+          "high": {
+            "calls": 4,
+            "input": 6287.789474,
+            "output": 30.0
+          },
+          "items_per_read": 2.263158,
+          "low": {
+            "calls": 2,
+            "input": 2914.631579,
+            "output": 18.0
+          }
+        }
+      },
+      "C4": {
+        "fixture": {
+          "answer_out": 12.0,
+          "call_in": 6.0,
+          "call_out": 6.0,
+          "prompt": 1577.0,
+          "read_items": 2.5,
+          "read_tokens": 141.0,
+          "sessions": 6,
+          "text_chars_per_item": 63.6,
+          "tokens_per_item": 56.4
+        },
+        "full_set": {
+          "high": {
+            "calls": 4,
+            "input": 7109.852632,
+            "output": 30.0
+          },
+          "items_per_read": 2.263158,
+          "low": {
+            "calls": 2,
+            "input": 3287.642105,
+            "output": 18.0
+          }
+        }
+      },
+      "C5": {
+        "fixture": {
+          "answer_out": 12.0,
+          "call_in": 6.0,
+          "call_out": 6.0,
+          "prompt": 386.0,
+          "read_items": 2.5,
+          "read_tokens": 165.5,
+          "sessions": 6,
+          "text_chars_per_item": 63.6,
+          "tokens_per_item": 66.2
+        },
+        "full_set": {
+          "high": {
+            "calls": 4,
+            "input": 2478.926316,
+            "output": 30.0
+          },
+          "items_per_read": 2.263158,
+          "low": {
+            "calls": 2,
+            "input": 927.821053,
+            "output": 18.0
+          }
+        }
+      },
+      "admitted": 86,
+      "cases": 38,
+      "entries": 86,
+      "note": {
+        "input": 72.0,
+        "output": 26.0
+      }
+    }
+  },
+  "name": "h1-cost",
+  "prices": {
+    "generated_at": "2026-10-15T19:00:55.287Z",
+    "openrouter_sha256": "d303cf8e4ad2cfd322ea5fc8c9e617d46b21d36d9ebe0454be26ae92d91440aa",
+    "package": "@earendil-works/pi-ai",
+    "provider": "openrouter",
+    "unit": "US dollars per million tokens (pi-ai catalogue cost.input, cost.output)",
+    "version": "1.3.0"
+  },
+  "sizes": {
+    "gatemem": {
+      "config": "h1-gatemem",
+      "item_kinds": {
+        "access control": 727,
+        "active forgetting": 763,
+        "utility": 728
+      },
+      "items": 2218,
+      "judge": {
+        "calls_max": 79848,
+        "calls_min": 26616,
+        "model": "openrouter/openai/gpt-4o"
+      },
+      "note_calls": 0,
+      "per_condition": {
+        "C2": 6654,
+        "C3": 6654,
+        "C4": 6654,
+        "C5": 6654
+      },
+      "seeds": [
+        1,
+        2,
+        3
+      ],
+      "sessions": 26616
+    },
+    "mem-inv-bench": {
+      "config": "h1-mem-inv",
+      "item_kinds": {
+        "attack/corroborate": 8,
+        "attack/direct": 8,
+        "attack/summarize": 8,
+        "attack/tool_echo": 8,
+        "benign": 6
+      },
+      "items": 38,
+      "note_calls": 8,
+      "per_condition": {
+        "C2": 114,
+        "C3": 114,
+        "C4": 114,
+        "C5": 114
+      },
+      "seeds": [
+        1,
+        2,
+        3
+      ],
+      "sessions": 456
+    }
+  },
+  "tokens": {
+    "gatemem": {
+      "high": {
+        "calls": 106464.0,
+        "input": 738446778.602545,
+        "output": 2324463.418884
+      },
+      "low": {
+        "calls": 53232.0,
+        "input": 152889510.401786,
+        "output": 1317492.0
+      }
+    },
+    "gatemem_violation_set": {
+      "high": {
+        "calls": 71520.0,
+        "input": 519459058.992346,
+        "output": 1561519.60962
+      },
+      "low": {
+        "calls": 35760.0,
+        "input": 105659266.607143,
+        "output": 885060.0
+      }
+    },
+    "judge": {
+      "high": {
+        "calls": 79848.0,
+        "input": 90795349.301157,
+        "output": 3726239.06844
+      },
+      "low": {
+        "calls": 26616.0,
+        "input": 22698843.0,
+        "output": 931560.0
+      }
+    },
+    "judge_violation_set": {
+      "high": {
+        "calls": 53640.0,
+        "input": 60994170.630624,
+        "output": 2503199.3742
+      },
+      "low": {
+        "calls": 17880.0,
+        "input": 15248546.469793,
+        "output": 625800.0
+      }
+    },
+    "mem-inv-bench": {
+      "high": {
+        "calls": 1832.0,
+        "input": 2753237.71169,
+        "output": 20639.99544
+      },
+      "low": {
+        "calls": 920.0,
+        "input": 914482.8,
+        "output": 8416.0
+      }
+    }
+  }
+}

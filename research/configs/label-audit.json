@@ -1,0 +1,20 @@
+{
+  "name": "label-audit",
+  "kind": "audit-kit",
+  "hypothesis": "H1",
+  "seed": 20261103,
+  "members": ["member1", "member2"],
+  "stop_share": 0.1,
+  "out": ".engram/audit",
+  "gatemem": {
+    "data": ".engram/upstream/gatemem/bench/data",
+    "manifest": "fixtures/bench/gatemem/manifest.json",
+    "fetch": true,
+    "per_kind": 25
+  },
+  "mem-inv-bench": {
+    "fixtures": "fixtures/bench/mem-inv-bench",
+    "cases": "full/cases.jsonl",
+    "per_benchmark": 50
+  }
+}
