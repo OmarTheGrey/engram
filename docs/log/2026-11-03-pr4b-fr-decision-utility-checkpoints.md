@@ -16,6 +16,6 @@ supersedes: docs/log/2026-11-03-pr4b-decision-utility-checkpoints.md
 
 **Why.** the final verification of PR #27 (V-1, V-17): v1 promised MGS with nothing computing it, and item 20 gave no definition and a rounded share from another model.
 
-**Result.** MGS = U × (1 − A) × (1 − F) per condition, U the judge's utility accuracy, A and F as each table defines a violation; secondary and descriptive, no test, outside Holm. For M1 the utility checkpoints add 99.65 to 876.53 dollars of answers and 21.68 to 86.73 of judge; access and forgetting alone are about 69 percent of the arm (`research/results/h1-cost.json`).
+**Result.** MGS = U × (1 − A) × (1 − F) per condition, U the share of utility checkpoints the judge finds complete (`utility_ok`; the gate-by-action table also needs the right action), A and F as each table defines a violation; secondary and descriptive, outside Holm. For M1 the utility checkpoints add 99.65 to 876.53 dollars of answers and 21.68 to 86.73 of judge; access and forgetting alone are about 69 percent of the arm (`research/results/h1-cost.json`).
 
 **Consequence.** The H1 table computes MGS in both readings.
