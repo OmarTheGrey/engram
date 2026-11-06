@@ -281,7 +281,7 @@ describe("adoptStoreItems", () => {
       decision: "allow",
       reason: "retired by its owner",
       policy_id: "test/retire",
-      schema_version: 0,
+      schema_version: 1,
     });
 
     const again = await adoptStoreItems(deps, owner, "person:omar", LATER);
@@ -305,7 +305,7 @@ describe("adoptStoreItems", () => {
       reason: "seeded",
       policy_id: "test/seed",
       item: { ...item(7, { scope: "person:omar" }), store_ref: ref(1) },
-      schema_version: 0,
+      schema_version: 1,
     });
 
     await expect(adoptStoreItems(deps, owner, "person:omar", AT)).rejects.toThrow(/already holds/);

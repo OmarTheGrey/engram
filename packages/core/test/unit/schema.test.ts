@@ -28,8 +28,8 @@ test("sdk/schema holds exactly one generated file per contract and shared defini
   );
 });
 
-test("the schema version is 0", () => {
-  expect(SCHEMA_VERSION).toBe(0);
+test("the schema version is 1", () => {
+  expect(SCHEMA_VERSION).toBe(1);
 });
 
 describe.each(Object.keys(CONTRACTS))("%s", (name) => {

@@ -29,7 +29,7 @@ Their words, our words. Use the right-hand column in code, documents and the the
 | class | episodic, semantic or procedural |
 | scope | person, role, team or org; where an item lives and who may read it by default |
 | owner | the principal who wrote the item or on whose behalf it was written |
-| provenance | kind (user, document, tool, model, import, compaction), ref, hash, actor, session entry id |
+| provenance | kind (user, document, tool, model, import, compaction, external), ref, hash, actor, session entry id; `external` is an untrusted outsider's content, ranked last |
 | confidence | 0 to 1, set at write, revised by lints |
 | valid_from, valid_to | the window in which the item is true; ingestion time lives on the event |
 | ttl | retention budget hint; expiry retires, never deletes |

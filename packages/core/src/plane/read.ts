@@ -35,7 +35,7 @@ import {
   readableScope,
   readRuleId,
 } from "../policy/evaluate.ts";
-import type { Explanation, MemoryItem } from "../schema.ts";
+import { type Explanation, type MemoryItem, SCHEMA_VERSION } from "../schema.ts";
 import { formatReadReason } from "./read-reason.ts";
 import { matchesQuery, queryTerms, retrieve, scoreComponents } from "./retrieve.ts";
 import { checkCall } from "./write.ts";
@@ -165,7 +165,7 @@ export async function filteredRead(
     policy_id: decision.policy_id,
     grants_used: decision.grants_used,
     validity: { at, valid_from: item.valid_from, valid_to: item.valid_to },
-    schema_version: 0 as const,
+    schema_version: 1 as const,
   }));
   // Reachable candidates the filter removed: outside the validity window, not
   // active, past their ttl (a lifecycle exclusion before any sweep, ADR
@@ -198,7 +198,8 @@ export async function filteredRead(
       decision: "allow",
       reason,
       policy_id: readRuleId(policy, actor),
-      schema_version: 0 as const,
+      item_ids: admitted.map((a) => a.item.id),
+      schema_version: SCHEMA_VERSION,
     });
     const insert = db.prepare(
       "INSERT INTO explanations (read_id, rank, item_id, body) VALUES (?, ?, ?, ?)",

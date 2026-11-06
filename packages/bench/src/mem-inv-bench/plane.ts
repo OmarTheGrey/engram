@@ -122,7 +122,7 @@ export function entryItem(entry: MemoryEntry, id: string, at: string): MemoryIte
     lineage: [],
     status: "active",
     store_ref: null,
-    schema_version: 0,
+    schema_version: 1,
   };
 }
 

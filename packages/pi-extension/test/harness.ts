@@ -122,7 +122,7 @@ export function teamFact(itemId: string, scope: string, content: string): Memory
     lineage: [],
     status: "active",
     store_ref: null,
-    schema_version: 0,
+    schema_version: 1,
   };
 }
 

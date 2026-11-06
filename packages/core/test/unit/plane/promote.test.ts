@@ -482,7 +482,7 @@ describe("review fix pass (P5)", () => {
       decision: "allow",
       reason: "retired by its author",
       policy_id: "test/retire",
-      schema_version: 0,
+      schema_version: 1,
     });
     const result = await plane.promote(omar, id(1), "team:platform", AT);
     expect(result.event.policy_id).toBe(PROMOTE_NO_EVIDENCE_ID);
@@ -533,7 +533,7 @@ describe("review fix pass (P5)", () => {
       decision: "allow",
       reason: "retired by its owner",
       policy_id: "test/retire",
-      schema_version: 0,
+      schema_version: 1,
     });
     expect(retiredContent(db, "person:omar").size).toBe(0);
     // Once no active item holds it, the retirement counts.

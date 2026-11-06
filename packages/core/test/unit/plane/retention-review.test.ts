@@ -127,7 +127,7 @@ describe("P4-4: eviction reasons reveal nothing to a writer who cannot read the 
     expect(second.retention).toHaveLength(1);
     const [evict] = second.retention;
     expect(evict?.reason).not.toContain(id(1));
-    expect(evict?.reason).not.toMatch(/seq|explanation rows|holds \d/);
+    expect(evict?.reason).not.toMatch(/seq|reads returned|holds \d/);
     // A reader of the scope still gets the full reason.
     const third = await plane.write(user, item(3), AT);
     expect(third.retention[0]?.reason).toContain(id(2));

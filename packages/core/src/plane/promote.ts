@@ -127,7 +127,7 @@ async function decideAndCommit(
   options: PromoteOptions,
 ): Promise<GateResult> {
   const { db, adapter, newId, policy } = deps;
-  const base = { ts: at, actor: actor.id, schema_version: 0 as const };
+  const base = { ts: at, actor: actor.id, schema_version: 1 as const };
   const item = itemById(db, itemId);
 
   if (!item) {

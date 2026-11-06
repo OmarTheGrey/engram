@@ -79,7 +79,7 @@ describe("visibleEvents", () => {
       decision: "allow" as const,
       reason: "superseded",
       policy_id: "p",
-      schema_version: 0 as const,
+      schema_version: 1 as const,
     };
     expect(eventVisibleTo(ali, event)).toBe(true);
     expect(eventVisibleTo({ id: "person:x", memberships: ["org"] }, event)).toBe(true);
