@@ -10,6 +10,21 @@ export {
 export { systemClock, uuidv7 } from "./ids.ts";
 export { shellDrivePath, storeRootOf, toolPaths } from "./paths.ts";
 export {
+  type CallEntry,
+  decisionOf,
+  ENGRAM_CALL,
+  ENGRAM_POLICY,
+  logFromSession,
+  parseSession,
+  replaySession,
+  type SessionLine,
+  type SessionReplay,
+  sessionCalls,
+  sessionEvents,
+  sessionPolicy,
+  sessionWorkload,
+} from "./replay.ts";
+export {
   defuseMessage,
   isMemoryTool,
   neutraliseTags,

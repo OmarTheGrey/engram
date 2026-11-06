@@ -1564,7 +1564,8 @@ async function promotionsLandOnlyWherePermitted(name: string) {
  * takes (the item's id where one is taken) and its result must not carry the
  * item's content. `read` filters; `write` and `promote` return only the
  * caller's own item; `events` is the audit log, which surfaces mirror to the
- * session record and never pass to a model.
+ * session record and never pass to a model; `simulate` replays only the
+ * workload it is given, on scratch logs and stores (card E8.9).
  */
 async function planeSurfaceLeaksNothing() {
   const SECRET = "the vault code is 4711";
@@ -1661,9 +1662,27 @@ async function planeSurfaceLeaksNothing() {
     await plane.recordBypass(outsider, { command: "cat x", store: "files" }, at),
   );
   expect(await rejection(plane.explain(outsider, ownRead.id))).toBeInstanceOf(ExplainDeniedError);
+  // simulate replays only the workload it is given, on scratch logs and
+  // stores (card E8.9): the outsider's own read of the secret's words finds
+  // nothing, and the real log gains no event.
+  const logged = plane.events().length;
+  leaks(
+    "simulate",
+    await plane.simulate(
+      {
+        id: "w",
+        actors: { o: outsider },
+        steps: [
+          { op: "read", as: "o", at, text: "vault" },
+          { op: "retain", as: "o", at, scope: "person:s" },
+        ],
+      },
+      policy,
+    ),
+  );
+  expect(plane.events().length, "simulate appends nothing to the real log").toBe(logged);
   for (const call of [
     () => plane.lint("person:s"),
-    () => plane.simulate({ id: "w", events: [] }, policy),
     () => plane.distill([], { id: "awm", model: "scripted/none", seed: 1 }),
   ])
     expect(

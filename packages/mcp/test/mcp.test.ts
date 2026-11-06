@@ -2,7 +2,7 @@
 // over the in-memory, stdio and streamable HTTP transports. Also: the tools
 // are the pi extension's (names, descriptions, wording), no parameter names an
 // actor or a source, a write that claims `user` lands as `model` (decision
-// D4), simulate is a tool error naming card E8.9, the HTTP transport refuses a
+// D4), simulate replays only the server's own calls, the HTTP transport refuses a
 // foreign Origin, and loading the server loads no pi package.
 import { spawnSync } from "node:child_process";
 import { cp, mkdtemp, rm } from "node:fs/promises";
@@ -134,11 +134,23 @@ describe("over the in-memory transport", () => {
     expect(textOf(result)).toContain("only its reader may explain it");
   });
 
-  it("answers memory_simulate with a tool error naming card E8.9", async () => {
+  it("answers memory_simulate with a replay of this server's own calls under a candidate preset", async () => {
     const client = await inMemory(await testWorkspace());
-    const result = await client.callTool({ name: "memory_simulate", arguments: {} });
-    expect(result.isError).toBe(true);
-    expect(textOf(result)).toBe("memory_simulate: not implemented yet (card E8.9)");
+    await client.callTool({
+      name: "memory_write",
+      arguments: { scope: "person:dana", content: "Dana deploys on Tuesdays." },
+    });
+    await client.callTool({ name: "memory_read", arguments: { query: "deploys" } });
+    const result = await client.callTool({
+      name: "memory_simulate",
+      arguments: { candidate: "strict" },
+    });
+    expect(result.isError).toBeFalsy();
+    const report = JSON.parse(textOf(result));
+    expect(report.model_calls).toBe(0);
+    expect(report.candidate.policy_id).toBe("preset.strict");
+    expect(report.baseline.outcomes.map((o: { op: string }) => o.op)).toEqual(["write", "read"]);
+    expect(report.baseline.utility.returned).toBe(1);
   });
 
   it("refuses arguments that fail the tool's schema", async () => {

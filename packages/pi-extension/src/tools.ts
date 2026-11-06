@@ -43,8 +43,12 @@ export const MEMORY_SIMULATE = {
   name: "memory_simulate",
   label: "Memory simulate",
   description:
-    "Replay this session's memory events under the current policy and report which decisions would change.",
-  parameters: Type.Object({}),
+    "Replay this session's memory calls under the current policy and a candidate preset (strict, medium or permissive; default the current policy) and report which decisions, recall and evictions would change. Nothing is written.",
+  parameters: Type.Object({
+    candidate: Type.Optional(
+      Type.Union([Type.Literal("strict"), Type.Literal("medium"), Type.Literal("permissive")]),
+    ),
+  }),
 } as const;
 
 /** What a memory tool says when the Plane method behind it has not landed. */
