@@ -123,7 +123,7 @@ export function writeForbidden(
 ): boolean {
   if (!actor.memberships.some((m) => m === item.scope)) return true;
   const kind = effectiveKind(actor, item);
-  const untrusted = kind === "model" || kind === "compaction";
+  const untrusted = kind === "model" || kind === "compaction" || kind === "external";
   const relearns = untrusted || kind === "tool";
   if (
     relearns &&
@@ -229,7 +229,15 @@ export function budgetVictims(
 }
 
 /** Provenance kinds, most trusted first (ADR 0004, ADR 0026). */
-export const TRUST = ["user", "document", "import", "tool", "model", "compaction"] as const;
+export const TRUST = [
+  "user",
+  "document",
+  "import",
+  "tool",
+  "model",
+  "compaction",
+  "external",
+] as const;
 const SCOPE_RANK = ["person", "role", "team", "org"];
 
 /**

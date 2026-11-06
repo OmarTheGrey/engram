@@ -4,10 +4,14 @@
 // model source and admitted to a user source, and every retirement is an
 // event that replay reproduces. Items stay in the store: retire, never delete
 // (ADR 0010).
+
+import { createFakeAdapter } from "@engram/adapters";
 import { describe, expect, test } from "vitest";
 import { contentHash } from "../../../src/content-hash.ts";
+import { migrate } from "../../../src/db/migrate.ts";
+import { openSqlite } from "../../../src/db/sqlite.ts";
 import { currentItems, rebuild } from "../../../src/events.ts";
-import { type Actor, InvalidCallError } from "../../../src/plane.ts";
+import { type Actor, createPlane, InvalidCallError } from "../../../src/plane.ts";
 import { READ_TTL_ID, RETIRED_CONTENT_ID } from "../../../src/policy/evaluate.ts";
 import { ITEM_TTL_ID, RETENTION_MEMBERSHIP_ID } from "../../../src/policy/retention.ts";
 import { itemsAt } from "../../../src/replay.ts";
@@ -93,11 +97,54 @@ describe("acceptance (card E2.4): budget exceeded evicts per policy; events reco
     await plane.read(omar, { text: "alpha", at: AT });
     const third = await plane.write(user, mine(3, { content: "gamma" }), AT);
     expect(third.retention.map((e) => e.item_id)).toEqual([id(2)]);
-    expect(third.retention[0]?.reason).toContain("0 explanation rows");
+    expect(third.retention[0]?.reason).toContain("0 reads returned it");
     expect(statusOf(db)[id(1)]).toBe("active");
     // With no reads between them, utility falls back to recency: item 1 is older than 3.
     const fourth = await plane.write(user, mine(4, { content: "delta" }), AT);
     expect(fourth.retention.map((e) => e.item_id)).toEqual([id(3)]);
+  });
+
+  test("utility replays from the log alone: a log rebuilt without its explanation rows evicts the same item (schema version 1, P4-5)", async () => {
+    const { plane, db } = fresh(policy([budget(2, "utility")]));
+    await plane.write(user, mine(1, { content: "alpha" }), AT);
+    await plane.write(user, mine(2, { content: "beta" }), AT);
+    await plane.read(omar, { text: "alpha", at: AT });
+    // A copy of the log: the same events, rebuilt, with no explanation rows,
+    // over its own store and its own ids.
+    const copyDb = openSqlite(":memory:");
+    migrate(copyDb);
+    let m = 0;
+    const copy = {
+      db: copyDb,
+      plane: createPlane({
+        db: copyDb,
+        adapter: createFakeAdapter(),
+        policy: policy([budget(2, "utility")]),
+        newId: () => id(800_000 + ++m),
+      }),
+    };
+    const insert = copy.db.prepare(
+      "INSERT INTO events (seq, id, op, item_id, actor, scope_from, scope_to, decision, body) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    );
+    for (const e of plane.events())
+      insert.run(
+        e.seq,
+        e.id,
+        e.op,
+        e.item_id,
+        e.actor,
+        e.scope_from,
+        e.scope_to,
+        e.decision,
+        JSON.stringify(e),
+      );
+    rebuild(copy.db);
+    expect(copy.db.prepare("SELECT count(*) AS n FROM explanations").get()?.n).toBe(0);
+    const original = await plane.write(user, mine(3, { content: "gamma" }), AT);
+    const replayed = await copy.plane.write(user, mine(3, { content: "gamma" }), AT);
+    expect(original.retention.map((e) => e.item_id)).toEqual([id(2)]);
+    expect(replayed.retention.map((e) => e.item_id)).toEqual([id(2)]);
+    expect(statusOf(db)).toEqual(statusOf(copy.db));
   });
 
   test("manual: nothing is evicted, one evict event with decision ask names the overage", async () => {

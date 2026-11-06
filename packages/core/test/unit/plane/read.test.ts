@@ -61,6 +61,20 @@ describe("Plane.read", () => {
     });
   });
 
+  test("the read event names the items it returned, in rank order, and nothing it filtered (schema version 1)", async () => {
+    const { plane } = await seeded([
+      item(1, { scope: "team:platform", content: "deploys on tuesday" }),
+      item(2, { scope: "team:platform", content: "deploys need a review" }),
+      item(3, { scope: "team:payments", content: "deploys of payroll" }),
+    ]);
+    const result = await plane.read(platform, { text: "deploys", at: AT });
+    expect(result.event.item_ids).toEqual(result.explanations.map((e) => e.item_id));
+    expect(result.event.item_ids).toHaveLength(2);
+    expect(result.event.item_ids).not.toContain(id(3));
+    const none = await plane.read(platform, { text: "nothing matches", at: AT });
+    expect(none.event.item_ids).toEqual([]);
+  });
+
   test("explains each item with rank, components, admitting rule, grants and validity", async () => {
     const { plane } = await seeded([item(1, { valid_to: "2027-01-01T00:00:00Z" })]);
     const { explanations } = await plane.read(platform, { at: AT });
@@ -72,7 +86,7 @@ describe("Plane.read", () => {
       policy_id: "test/read/team",
       grants_used: [],
       validity: { at: AT, valid_from: "2026-10-01T00:00:00Z", valid_to: "2027-01-01T00:00:00Z" },
-      schema_version: 0,
+      schema_version: 1,
     });
     expect(Object.keys(e?.score.components ?? {}).sort()).toEqual(["confidence", "recency"]);
     const sum = Object.values(e?.score.components ?? {}).reduce((a, b) => a + b, 0);

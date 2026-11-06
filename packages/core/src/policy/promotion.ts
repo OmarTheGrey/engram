@@ -87,9 +87,19 @@ export const CONFIRMING_KINDS: ReadonlySet<Kind> = new Set(["user", "document", 
 /**
  * Provenance kinds from most to least trusted. The trusted three of ADR 0025
  * (user, document, import: the sources that may re-admit retired content)
- * come first, then tool, model and compaction, the lowest (ADR 0004).
+ * come first, then tool, model and compaction (ADR 0004), and last external,
+ * an outsider's content (schema version 1), so a tool that echoes it
+ * inherits `external`, not `tool`.
  */
-const TRUST_ORDER: readonly Kind[] = ["user", "document", "import", "tool", "model", "compaction"];
+const TRUST_ORDER: readonly Kind[] = [
+  "user",
+  "document",
+  "import",
+  "tool",
+  "model",
+  "compaction",
+  "external",
+];
 
 /** The least trusted of `kinds` (ADR 0004: a derived item inherits the least trusted of its inputs). */
 export function leastTrusted(kinds: readonly Kind[]): Kind {

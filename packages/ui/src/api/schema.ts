@@ -249,7 +249,7 @@ export interface components {
             owner: string;
             provenance: {
                 /** @enum {string} */
-                kind: "user" | "document" | "tool" | "model" | "import" | "compaction";
+                kind: "user" | "document" | "tool" | "model" | "import" | "compaction" | "external";
                 ref: string;
                 hash: string;
                 actor: string;
@@ -271,7 +271,7 @@ export interface components {
                 key: string;
             } | null;
             /** @constant */
-            schema_version: 0;
+            schema_version: 1;
             /** @constant */
             class: "procedural";
             content: {
@@ -285,7 +285,7 @@ export interface components {
             owner: string;
             provenance: {
                 /** @enum {string} */
-                kind: "user" | "document" | "tool" | "model" | "import" | "compaction";
+                kind: "user" | "document" | "tool" | "model" | "import" | "compaction" | "external";
                 ref: string;
                 hash: string;
                 actor: string;
@@ -307,7 +307,7 @@ export interface components {
                 key: string;
             } | null;
             /** @constant */
-            schema_version: 0;
+            schema_version: 1;
             /** @enum {string} */
             class: "episodic" | "semantic";
             content: string | {
@@ -336,8 +336,9 @@ export interface components {
                 output_tokens: number;
                 cost_usd: number;
             };
+            item_ids?: string[];
             /** @constant */
-            schema_version: 0;
+            schema_version: 1;
         };
         Policy: {
             id: string;
@@ -345,7 +346,7 @@ export interface components {
             write: {
                 /** @enum {string} */
                 scope: "person" | "role" | "team" | "org";
-                allowed_sources: ("user" | "document" | "tool" | "model" | "import" | "compaction")[];
+                allowed_sources: ("user" | "document" | "tool" | "model" | "import" | "compaction" | "external")[];
                 confidence_floor: number;
                 forbidden_classes: ("episodic" | "semantic" | "procedural")[];
                 requires_review: boolean;
@@ -385,7 +386,7 @@ export interface components {
                 };
             };
             /** @constant */
-            schema_version: 0;
+            schema_version: 1;
         };
         Grant: {
             to: string;
@@ -416,7 +417,7 @@ export interface components {
                 valid_to: string | null;
             };
             /** @constant */
-            schema_version: 0;
+            schema_version: 1;
         };
         LintFinding: {
             /** Format: uuid */
@@ -431,7 +432,7 @@ export interface components {
             message: string;
             evidence: string[];
             /** @constant */
-            schema_version: 0;
+            schema_version: 1;
         };
         JsonValue: unknown;
         /** @description Who acts, as the caller asserts it (no authentication in v0, ADR 0027): id, the level it reads as, its member scopes, and the provenance kind of what it writes. */
@@ -441,7 +442,7 @@ export interface components {
             level: "person" | "role" | "team" | "org";
             memberships: string[];
             /** @enum {string} */
-            source?: "user" | "document" | "tool" | "model" | "import" | "compaction";
+            source?: "user" | "document" | "tool" | "model" | "import" | "compaction" | "external";
         };
         WriteRequest: {
             actor: components["schemas"]["Actor"];
@@ -601,7 +602,7 @@ export interface components {
                     level: "person" | "role" | "team" | "org";
                     memberships: string[];
                     /** @enum {string} */
-                    source?: "user" | "document" | "tool" | "model" | "import" | "compaction";
+                    source?: "user" | "document" | "tool" | "model" | "import" | "compaction" | "external";
                 };
             };
             steps: ({
@@ -811,7 +812,7 @@ export interface components {
             /** @constant */
             status: "ok";
             /** @constant */
-            schema_version: 0;
+            schema_version: 1;
         };
         ErrorResponse: {
             error: {

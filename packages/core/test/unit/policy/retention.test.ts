@@ -32,7 +32,7 @@ function item(n: number, over: Partial<MemoryItem> = {}): MemoryItem {
     lineage: [],
     status: "active",
     store_ref: null,
-    schema_version: 0,
+    schema_version: 1,
     ...over,
   } as MemoryItem;
 }
@@ -59,7 +59,7 @@ function policy(retention: Rule[]): Policy {
       procedural: { replay_k: 4, replay_n: 5 },
     },
     lints: { enabled: [], thresholds: {} },
-    schema_version: 0,
+    schema_version: 1,
   };
 }
 
@@ -155,7 +155,7 @@ describe("budgets", () => {
       usage(seq, { 1: 1, 2: 9, 3: 1, 4: 0 }),
     );
     expect(out.map((r) => r.item_id)).toEqual([id(4), id(3)]);
-    expect(out[0]?.reason).toContain("0 explanation rows");
+    expect(out[0]?.reason).toContain("0 reads returned it");
   });
 
   test("manual evicts nothing and asks once, naming the overage", () => {

@@ -39,7 +39,7 @@ describe("memory_explain carries no audit counts", () => {
           lineage: [],
           status: "active",
           store_ref: null,
-          schema_version: 0,
+          schema_version: 1,
         },
         NOW,
       );

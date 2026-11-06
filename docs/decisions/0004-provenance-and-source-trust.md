@@ -27,6 +27,12 @@ Amendments made in the review fix pass, 2026-10-25 (PR #6, finding R6-2):
 - Decision D8: adoption sets `source: import` itself and runs as the store's owner, so an adopted item's provenance is kind `import` with actor `person:<owner>`; the store's own record of who wrote it (for a Claude Code memory file, `agent:claude-code`) is replaced, and `provenance.ref` still names the file. The CLI sets `source: user` for `engram write`, which no longer takes a `--source` flag.
 - Decision D4 (finding R5-7): an item whose provenance kind is model or compaction carries no grants; the write gate denies one that does (`engram/write/grant`).
 
+Amendments made by the schema version 1 PR, 2026-11-06 (branch `schema-v1`):
+
+- A seventh kind, `external`: content from an untrusted outsider (a public web page, an inbound mail, any feed a connector ingests from outside), the `untrusted_external` origin of MEM-INV-Bench's TMA-NM (2606.24322, Sec. IV). It ranks last in the trust order (`leastTrusted`, after compaction), so a trusted tool that echoes an outsider's text inherits `external` instead of staying `tool`, which closes the trusted-tool echo (channel L-b) by inheritance once a harness labels the outsider's content `external` (finding of card B4, `docs/log/2026-10-29-b4-trust-order-echo-stays-tool.md`).
+- The gate treats it as it treats model and compaction content: it carries no grants, cannot leave person scope without a gate pass (`engram/write/source-isolation`), cannot restate retired content (ADR 0025) and never confirms a promotion (ADR 0026). No bundled preset lists it in `allowed_sources`, so until a policy does, every `external` write is denied as a source the rule does not allow.
+- The kinds a harness sets are unchanged: no surface labels anything `external` yet. Mapping MEM-INV-Bench's `web` and `inbox` channels to it (ADR 0029, now `document`) changes the poisoning arm and is its own PR, after the pre-registration decides it.
+
 ## Alternatives considered
 
 (a) A `provenance` object: `{kind, ref, hash, actor, session_entry_id, model?}` with `kind` in {user, document, tool, model, import, compaction}. (b) A free-text source string.

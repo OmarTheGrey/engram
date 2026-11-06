@@ -14,4 +14,4 @@ class LintFinding(TypedDict, closed=True):
     severity: Literal["info", "warn", "error"]
     message: str
     evidence: list[str]
-    schema_version: Literal[0]
+    schema_version: Literal[1]

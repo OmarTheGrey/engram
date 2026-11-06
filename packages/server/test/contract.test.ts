@@ -133,7 +133,7 @@ describe("the routes, through the generated client, on the fake store", () => {
         "returned 0 of 1 candidates; 1 filtered (1 outside the validity window, 0 not active, " +
         "0 by a grant's class or expiry); 2 projected items outside the reader's reach were not candidates",
       policy_id: "preset.medium/read/person",
-      schema_version: 0,
+      schema_version: 1,
     });
     const { data, response } = await client.POST("/api/v1/explain/{readId}", {
       params: { path: { readId: old.id } },

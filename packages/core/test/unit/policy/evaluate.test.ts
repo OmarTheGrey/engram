@@ -44,7 +44,7 @@ function item(over: Partial<MemoryItem> & { kind?: Provenance["kind"] } = {}): M
     lineage: [],
     status: "active",
     store_ref: null,
-    schema_version: 0,
+    schema_version: 1,
     ...rest,
   } as MemoryItem;
 }
@@ -76,7 +76,7 @@ function policy(over: Partial<Policy> = {}): Policy {
       procedural: { replay_k: 4, replay_n: 5 },
     },
     lints: { enabled: [], thresholds: {} },
-    schema_version: 0,
+    schema_version: 1,
     ...over,
   };
 }
@@ -149,6 +149,45 @@ describe("evaluateWrite", () => {
   test("denies compaction content outside person scope even when the rule lists compaction", () => {
     const d = evaluateWrite(policy(), writer, item({ kind: "compaction" }));
     expect(d).toMatchObject({ decision: "deny", check: "source-isolation" });
+  });
+
+  test("denies external content outside person scope even when the rule lists external", () => {
+    const listed = policy({
+      write: [
+        rule({ allowed_sources: ["user", "external"] }),
+        rule({ scope: "person", forbidden_classes: [], allowed_sources: ["external"] }),
+      ],
+    });
+    const d = evaluateWrite(listed, writer, item({ kind: "external" }));
+    expect(d).toMatchObject({ decision: "deny", check: "source-isolation" });
+    expect(d.policy_id).toBe(SOURCE_ISOLATION_ID);
+    const own = evaluateWrite(listed, writer, item({ kind: "external", scope: "person:omar" }));
+    expect(own).toMatchObject({ decision: "allow", policy_id: "p/write/person" });
+  });
+
+  test("external content carries no grants, as model content does not (decision D4)", () => {
+    const listed = policy({
+      write: [
+        rule(),
+        rule({ scope: "person", forbidden_classes: [], allowed_sources: ["external"] }),
+      ],
+    });
+    const granted = item({
+      kind: "external",
+      scope: "person:omar",
+      grants: [
+        { to: "person:sara", class: "semantic", mode: "read", expires: "2099-01-01T00:00:00Z" },
+      ],
+    });
+    expect(evaluateWrite(listed, writer, granted)).toMatchObject({
+      decision: "deny",
+      check: "grant",
+    });
+  });
+
+  test("denies external content where the rule does not list it", () => {
+    const d = evaluateWrite(policy(), writer, item({ kind: "external", scope: "person:omar" }));
+    expect(d).toMatchObject({ decision: "deny", check: "source-not-allowed" });
   });
 
   test("admits model and compaction content in person scope when the rule lists them", () => {

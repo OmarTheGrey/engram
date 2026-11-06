@@ -28,7 +28,7 @@ const ITEM: MemoryItem = {
   lineage: [],
   status: "active",
   store_ref: { adapter: "fake", key: "k1" },
-  schema_version: 0,
+  schema_version: 1,
 };
 
 const NEXT: MemoryItem = { ...ITEM, content: "Deploys happen on Wednesdays.", version: 2 };
@@ -47,7 +47,7 @@ function event(op: MemoryEvent["op"], decision: MemoryEvent["decision"], item?: 
     reason: "unit",
     policy_id: "p/unit",
     item: item ?? null,
-    schema_version: 0,
+    schema_version: 1,
   } satisfies MemoryEvent;
 }
 

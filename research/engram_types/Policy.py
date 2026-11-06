@@ -8,7 +8,9 @@ from typing_extensions import TypedDict
 
 class WriteItem(TypedDict, closed=True):
     scope: Literal["person", "role", "team", "org"]
-    allowed_sources: list[Literal["user", "document", "tool", "model", "import", "compaction"]]
+    allowed_sources: list[
+        Literal["user", "document", "tool", "model", "import", "compaction", "external"]
+    ]
     confidence_floor: float
     forbidden_classes: list[Literal["episodic", "semantic", "procedural"]]
     requires_review: bool
@@ -65,4 +67,4 @@ class Policy(TypedDict, closed=True):
     retention: list[RetentionItem]
     promotion: Promotion
     lints: Lints
-    schema_version: Literal[0]
+    schema_version: Literal[1]

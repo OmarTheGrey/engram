@@ -150,7 +150,7 @@ function itemFromCall(
     lineage: [],
     status: "active",
     store_ref: null,
-    schema_version: 0,
+    schema_version: 1,
   } as unknown as MemoryItem;
 }
 

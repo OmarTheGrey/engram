@@ -32,7 +32,7 @@ export function item(
     lineage: [],
     status: "active",
     store_ref: null,
-    schema_version: 0,
+    schema_version: 1,
     ...rest,
   } as MemoryItem;
 }
@@ -62,7 +62,7 @@ export function testPolicy(over: Partial<Policy> = {}): Policy {
       procedural: { replay_k: 4, replay_n: 5 },
     },
     lints: { enabled: [], thresholds: {} },
-    schema_version: 0,
+    schema_version: 1,
     ...over,
   };
 }

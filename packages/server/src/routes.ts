@@ -245,6 +245,6 @@ export const ROUTES: readonly Route[] = [
     summary: "The server answers.",
     response: C.HealthResponse,
     errors: [],
-    handler: async () => ({ status: "ok", schema_version: 0 }),
+    handler: async () => ({ status: "ok", schema_version: 1 }),
   }),
 ];
