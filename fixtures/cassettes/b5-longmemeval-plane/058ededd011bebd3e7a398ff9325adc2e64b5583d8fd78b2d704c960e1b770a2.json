@@ -1,0 +1,29 @@
+{
+  "key": "058ededd011bebd3e7a398ff9325adc2e64b5583d8fd78b2d704c960e1b770a2",
+  "context": {
+    "item": "longmemeval/0f05491a",
+    "condition": "C2:judge",
+    "preset": "none",
+    "store": "letta"
+  },
+  "request": {
+    "model": "scripted/judge-1",
+    "messages": [
+      {
+        "role": "user",
+        "content": "I will give you a question, a correct answer, and a response from a model. Please answer yes if the response contains the correct answer. Otherwise, answer no. If the response contains some previous information along with an updated answer, the response should be considered as correct as long as the updated answer is the required answer.\n\nQuestion: How many stars do I need to reach the gold level on my Starbucks Rewards app?\n\nCorrect Answer: 120\n\nModel Response: 120\n\nIs the model response correct? Answer yes or no only."
+      }
+    ],
+    "seed": 1,
+    "temperature": 0,
+    "maxTokens": 10
+  },
+  "response": {
+    "text": "yes",
+    "usage": {
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "cost_usd": 0
+    }
+  }
+}

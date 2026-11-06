@@ -1,0 +1,284 @@
+{
+  "steps": {
+    "66f24dbb": [
+      {
+        "toolCall": {
+          "id": "call-1",
+          "name": "memory_read",
+          "arguments": {
+            "query": "What did I buy for my sister's birthday gift?"
+          }
+        }
+      },
+      {
+        "text": "a yellow dress"
+      }
+    ],
+    "3d86fd0a": [
+      {
+        "toolCall": {
+          "id": "call-1",
+          "name": "memory_read",
+          "arguments": {
+            "query": "Where did I meet Sophia?"
+          }
+        }
+      },
+      {
+        "text": "I don't know."
+      }
+    ],
+    "f4f1d8a4_abs": [
+      {
+        "toolCall": {
+          "id": "call-1",
+          "name": "memory_read",
+          "arguments": {
+            "query": "What did my dad gave me as a birthday gift?"
+          }
+        }
+      },
+      {
+        "text": "The chat history does not say, so I cannot answer that."
+      }
+    ],
+    "0862e8bf_abs": [
+      {
+        "toolCall": {
+          "id": "call-1",
+          "name": "memory_read",
+          "arguments": {
+            "query": "What is the name of my hamster?"
+          }
+        }
+      },
+      {
+        "text": "The chat history does not say, so I cannot answer that."
+      }
+    ],
+    "b6025781": [
+      {
+        "toolCall": {
+          "id": "call-1",
+          "name": "memory_read",
+          "arguments": {
+            "query": "I'm planning my meal prep next week, any suggestions for new recipes?"
+          }
+        }
+      },
+      {
+        "text": "The user would prefer responses that suggest healthy meal prep recipes, especially those that incorporate quinoa and roasted vegetables, and offer variations in protein sources. They might appreciate suggestions that build upon their existing preferences, such as new twists on chicken Caesar salads or turkey and avocado wraps. The user may not prefer responses that suggest unhealthy or high-calorie meal prep options, or those that deviate significantly from their established healthy eating habits."
+      }
+    ],
+    "a89d7624": [
+      {
+        "toolCall": {
+          "id": "call-1",
+          "name": "memory_read",
+          "arguments": {
+            "query": "I'm planning a trip to Denver soon. Any suggestions on what to do there?"
+          }
+        }
+      },
+      {
+        "text": "I don't know."
+      }
+    ],
+    "f523d9fe": [
+      {
+        "toolCall": {
+          "id": "call-1",
+          "name": "memory_read",
+          "arguments": {
+            "query": "I wanted to check back on our previous conversation about Netflix. I mentioned that I wanted to be able to access all seasons of old shows? Do you remember what show I used as an example, the one that only had the last season available?"
+          }
+        }
+      },
+      {
+        "text": "Doc Martin"
+      }
+    ],
+    "e8a79c70": [
+      {
+        "toolCall": {
+          "id": "call-1",
+          "name": "memory_read",
+          "arguments": {
+            "query": "I was going through our previous conversation about making a classic French omelette, and I wanted to confirm - how many eggs did you say we need for the recipe?"
+          }
+        }
+      },
+      {
+        "text": "I don't know."
+      }
+    ],
+    "9aaed6a3": [
+      {
+        "toolCall": {
+          "id": "call-1",
+          "name": "memory_read",
+          "arguments": {
+            "query": "How much cashback did I earn at SaveMart last Thursday?"
+          }
+        }
+      },
+      {
+        "text": "$0.75"
+      }
+    ],
+    "efc3f7c2": [
+      {
+        "toolCall": {
+          "id": "call-1",
+          "name": "memory_read",
+          "arguments": {
+            "query": "How much earlier do I wake up on Fridays compared to other weekdays?"
+          }
+        }
+      },
+      {
+        "text": "I don't know."
+      }
+    ],
+    "09ba9854_abs": [
+      {
+        "toolCall": {
+          "id": "call-1",
+          "name": "memory_read",
+          "arguments": {
+            "query": "How much will I save by taking the bus from the airport to my hotel instead of a taxi?"
+          }
+        }
+      },
+      {
+        "text": "The chat history does not say, so I cannot answer that."
+      }
+    ],
+    "2311e44b_abs": [
+      {
+        "toolCall": {
+          "id": "call-1",
+          "name": "memory_read",
+          "arguments": {
+            "query": "How many pages do I have left to read in 'Sapiens'?"
+          }
+        }
+      },
+      {
+        "text": "The chat history does not say, so I cannot answer that."
+      }
+    ],
+    "bcbe585f": [
+      {
+        "toolCall": {
+          "id": "call-1",
+          "name": "memory_read",
+          "arguments": {
+            "query": "How many weeks ago did I attend a bird watching workshop at the local Audubon society?"
+          }
+        }
+      },
+      {
+        "text": "4"
+      }
+    ],
+    "8077ef71": [
+      {
+        "toolCall": {
+          "id": "call-1",
+          "name": "memory_read",
+          "arguments": {
+            "query": "How many days ago did I attend a networking event?"
+          }
+        }
+      },
+      {
+        "text": "I don't know."
+      }
+    ],
+    "c8090214_abs": [
+      {
+        "toolCall": {
+          "id": "call-1",
+          "name": "memory_read",
+          "arguments": {
+            "query": "How many days before I bought my iPad did I attend the Holiday Market?"
+          }
+        }
+      },
+      {
+        "text": "The chat history does not say, so I cannot answer that."
+      }
+    ],
+    "982b5123_abs": [
+      {
+        "toolCall": {
+          "id": "call-1",
+          "name": "memory_read",
+          "arguments": {
+            "query": "When did I book the Airbnb in Sacramento?"
+          }
+        }
+      },
+      {
+        "text": "The chat history does not say, so I cannot answer that."
+      }
+    ],
+    "0f05491a": [
+      {
+        "toolCall": {
+          "id": "call-1",
+          "name": "memory_read",
+          "arguments": {
+            "query": "How many stars do I need to reach the gold level on my Starbucks Rewards app?"
+          }
+        }
+      },
+      {
+        "text": "120"
+      }
+    ],
+    "dfde3500": [
+      {
+        "toolCall": {
+          "id": "call-1",
+          "name": "memory_read",
+          "arguments": {
+            "query": "What day of the week did I meet with my previous language exchange tutor Juan?"
+          }
+        }
+      },
+      {
+        "text": "I don't know."
+      }
+    ],
+    "f685340e_abs": [
+      {
+        "toolCall": {
+          "id": "call-1",
+          "name": "memory_read",
+          "arguments": {
+            "query": "How often do I play table tennis with my friends at the local park?"
+          }
+        }
+      },
+      {
+        "text": "The chat history does not say, so I cannot answer that."
+      }
+    ],
+    "6aeb4375_abs": [
+      {
+        "toolCall": {
+          "id": "call-1",
+          "name": "memory_read",
+          "arguments": {
+            "query": "How many Italian restaurants have I tried in my city?"
+          }
+        }
+      },
+      {
+        "text": "The chat history does not say, so I cannot answer that."
+      }
+    ]
+  }
+}

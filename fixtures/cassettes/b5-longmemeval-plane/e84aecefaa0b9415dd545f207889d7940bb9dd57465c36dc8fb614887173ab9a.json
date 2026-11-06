@@ -1,0 +1,31 @@
+{
+  "key": "e84aecefaa0b9415dd545f207889d7940bb9dd57465c36dc8fb614887173ab9a",
+  "context": {
+    "item": "longmemeval/3d86fd0a",
+    "condition": "C5",
+    "preset": "medium",
+    "store": "letta"
+  },
+  "request": {
+    "model": "scripted/scripted-1",
+    "messages": [
+      {
+        "role": "user",
+        "content": "{\"content\":\"\",\"role\":\"system\",\"sections\":{\"cwd\":\"<cwd>\\n{cwd}\\n</cwd>\",\"preamble\":\"You are a helpful assistant.\"},\"toolsAdded\":[{\"description\":\"Write one item to memory in a scope such as person:<id>, team:<id> or org.\",\"name\":\"memory_write\",\"parameters\":{\"properties\":{\"class\":{\"anyOf\":[{\"const\":\"semantic\",\"type\":\"string\"},{\"const\":\"episodic\",\"type\":\"string\"}]},\"confidence\":{\"maximum\":1,\"minimum\":0,\"type\":\"number\"},\"content\":{\"type\":\"string\"},\"scope\":{\"type\":\"string\"}},\"required\":[\"scope\",\"content\"],\"type\":\"object\"}},{\"description\":\"Read the memory items that match a query.\",\"name\":\"memory_read\",\"parameters\":{\"properties\":{\"query\":{\"type\":\"string\"}},\"required\":[\"query\"],\"type\":\"object\"}}]}"
+      },
+      {
+        "role": "user",
+        "content": "{\"content\":[{\"text\":\"I will give you several history chats between you and a user. Please answer the question based on the relevant chat history.\\n\\n\\nHistory Chats:\\n\\n(none in this prompt; retrieve memory with the memory_read tool)\\n\\nCurrent Date: 2023/05/25 (Thu) 15:35\\nQuestion: Where did I meet Sophia?\\nAnswer:\",\"type\":\"text\"}],\"role\":\"user\"}"
+      }
+    ],
+    "seed": 1
+  },
+  "response": {
+    "text": "{\"content\":[{\"arguments\":{\"query\":\"Where did I meet Sophia?\"},\"id\":\"call-1\",\"name\":\"memory_read\",\"type\":\"toolCall\"}],\"stopReason\":\"toolUse\"}",
+    "usage": {
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "cost_usd": 0
+    }
+  }
+}

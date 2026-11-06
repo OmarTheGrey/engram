@@ -254,11 +254,11 @@ describe("doctor benchmark pins (P3-12)", () => {
 
   it("fails when a fixture directory has no manifest.json", async () => {
     const repo = await pinsRepo();
-    await mkdir(join(repo, BENCH_FIXTURES, "longmemeval"));
-    await writeFile(join(repo, BENCH_FIXTURES, "longmemeval", "items.jsonl"), "{}\n");
+    await mkdir(join(repo, BENCH_FIXTURES, "merit"));
+    await writeFile(join(repo, BENCH_FIXTURES, "merit", "items.jsonl"), "{}\n");
     const { out } = await cli(["doctor", "--db", join(await tempDir(), "e.db")], { repo });
     expect(pinsLine(out)).toMatch(
-      /^fail\s+benchmark pins\s+fixtures\/bench\/longmemeval has no manifest\.json/,
+      /^fail\s+benchmark pins\s+fixtures\/bench\/merit has no manifest\.json/,
     );
   });
 });

@@ -70,15 +70,17 @@ BENCH_OUT ?= .engram/bench/$(BENCH)
 
 GATEMEM_DATA ?= .engram/upstream/gatemem/bench/data
 
-bench: ## run one benchmark on its fixture subset with the scripted model, offline: make bench BENCH=gatemem; DRY=1 counts the live run's calls on the full set, and its keys with MODEL=
+bench: ## run one benchmark on its fixture subset with the scripted model, offline: make bench BENCH=gatemem or BENCH=longmemeval; DRY=1 (gatemem) counts the live run's calls on the full set, and its keys with MODEL=
 ifeq ($(BENCH),gatemem)
 ifeq ($(DRY),1)
 	node packages/bench/scripts/dry-run-gatemem.ts --config fixtures/bench/gatemem/run-config.json --data "$(GATEMEM_DATA)" --fetch --out "$(BENCH_OUT)-dry" $(if $(MODEL),--model "$(MODEL)") $(if $(SEED),--seed "$(SEED)")
 else
 	ENGRAM_OFFLINE=1 node packages/bench/scripts/run-gatemem.ts --config fixtures/bench/gatemem/run-config.json --out "$(BENCH_OUT)"
 endif
+else ifeq ($(BENCH),longmemeval)
+	ENGRAM_OFFLINE=1 node packages/runner/scripts/run.ts --config research/configs/b5-longmemeval-plane.json --out "$(BENCH_OUT)"
 else
-	@echo "bench: BENCH=$(BENCH) has no runner; only gatemem exists (card B1), the others land with cards B2 to B9"; exit 2
+	@echo "bench: BENCH=$(BENCH) has no runner; gatemem (card B1) and longmemeval (card B5) exist, the others land with cards B2 to B9"; exit 2
 endif
 
 RUN_OUT ?= .engram/runs/$(basename $(notdir $(CONFIG)))
@@ -104,9 +106,12 @@ RUNNER_FIXTURES += b4-mem-inv-probe
 RUNNER_FIXTURES += x1-h1-gatemem
 RUNNER_FIXTURES += x1-h1-gatemem-rag
 RUNNER_FIXTURES += x1-h1-mem-inv
+RUNNER_FIXTURES += b5-longmemeval-plane
 
 # MEM-INV-Bench at its pinned commit (card B4); the vendoring clones it here when missing.
 MEM_INV_UPSTREAM ?= .engram/upstream/mem-inv-bench
+# LongMemEval at its pinned commit and dataset revision (card B5); the vendoring fetches what is missing.
+LONGMEMEVAL_UPSTREAM ?= .engram/upstream/longmemeval
 
 fixtures: ## regenerate golden files and scripted cassettes; refuses without MSG=<reason>, which goes in the commit message
 	@[ -n "$(MSG)" ] || { echo "fixtures: refusing without MSG=<reason>"; exit 2; }
@@ -115,6 +120,7 @@ fixtures: ## regenerate golden files and scripted cassettes; refuses without MSG
 	env -u ENGRAM_OFFLINE node packages/bench/scripts/run-gatemem.ts --config fixtures/bench/gatemem/run-config.json --out .engram/bench/gatemem-record --record
 	$(UV) run python -I packages/bench/scripts/vendor-mem-inv-bench.py --upstream "$(MEM_INV_UPSTREAM)" --fetch --out fixtures/bench/mem-inv-bench
 	$(UV) run python -I packages/bench/scripts/upstream-mem-inv-golden.py --upstream "$(MEM_INV_UPSTREAM)" --fixtures fixtures/bench/mem-inv-bench --out fixtures/bench/mem-inv-bench/upstream-golden.json
+	env -u ENGRAM_OFFLINE node packages/bench/scripts/vendor-longmemeval.ts --upstream "$(LONGMEMEVAL_UPSTREAM)" --fetch --out fixtures/bench/longmemeval
 	for name in $(RUNNER_FIXTURES); do \
 	  rm -rf "fixtures/cassettes/$$name"; \
 	  env -u ENGRAM_OFFLINE node packages/runner/scripts/run.ts --config "research/configs/$$name.json" --out ".engram/runs/$$name" --record; \

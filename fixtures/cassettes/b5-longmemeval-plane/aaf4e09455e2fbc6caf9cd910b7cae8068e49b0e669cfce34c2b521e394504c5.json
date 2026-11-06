@@ -1,0 +1,31 @@
+{
+  "key": "aaf4e09455e2fbc6caf9cd910b7cae8068e49b0e669cfce34c2b521e394504c5",
+  "context": {
+    "item": "longmemeval/66f24dbb",
+    "condition": "C2",
+    "preset": "none",
+    "store": "fake"
+  },
+  "request": {
+    "model": "scripted/scripted-1",
+    "messages": [
+      {
+        "role": "user",
+        "content": "{\"content\":\"\",\"role\":\"system\",\"sections\":{\"cwd\":\"<cwd>\\n{cwd}\\n</cwd>\",\"preamble\":\"You are a helpful assistant.\"},\"toolsAdded\":[{\"description\":\"Write one item to memory in a scope such as person:<id>, team:<id> or org.\",\"name\":\"memory_write\",\"parameters\":{\"properties\":{\"class\":{\"anyOf\":[{\"const\":\"semantic\",\"type\":\"string\"},{\"const\":\"episodic\",\"type\":\"string\"}]},\"confidence\":{\"maximum\":1,\"minimum\":0,\"type\":\"number\"},\"content\":{\"type\":\"string\"},\"scope\":{\"type\":\"string\"}},\"required\":[\"scope\",\"content\"],\"type\":\"object\"}},{\"description\":\"Read the memory items that match a query.\",\"name\":\"memory_read\",\"parameters\":{\"properties\":{\"query\":{\"type\":\"string\"}},\"required\":[\"query\"],\"type\":\"object\"}}]}"
+      },
+      {
+        "role": "user",
+        "content": "{\"content\":[{\"text\":\"I will give you several history chats between you and a user. Please answer the question based on the relevant chat history.\\n\\n\\nHistory Chats:\\n\\n(none in this prompt; retrieve memory with the memory_read tool)\\n\\nCurrent Date: 2023/05/30 (Tue) 04:48\\nQuestion: What did I buy for my sister's birthday gift?\\nAnswer:\",\"type\":\"text\"}],\"role\":\"user\"}"
+      }
+    ],
+    "seed": 1
+  },
+  "response": {
+    "text": "{\"content\":[{\"arguments\":{\"query\":\"What did I buy for my sister's birthday gift?\"},\"id\":\"call-1\",\"name\":\"memory_read\",\"type\":\"toolCall\"}],\"stopReason\":\"toolUse\"}",
+    "usage": {
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "cost_usd": 0
+    }
+  }
+}

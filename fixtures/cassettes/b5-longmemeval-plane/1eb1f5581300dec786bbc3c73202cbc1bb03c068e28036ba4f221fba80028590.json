@@ -1,0 +1,29 @@
+{
+  "key": "1eb1f5581300dec786bbc3c73202cbc1bb03c068e28036ba4f221fba80028590",
+  "context": {
+    "item": "longmemeval/66f24dbb",
+    "condition": "C2:judge",
+    "preset": "none",
+    "store": "mem0"
+  },
+  "request": {
+    "model": "scripted/judge-1",
+    "messages": [
+      {
+        "role": "user",
+        "content": "I will give you a question, a correct answer, and a response from a model. Please answer yes if the response contains the correct answer. Otherwise, answer no. If the response is equivalent to the correct answer or contains all the intermediate steps to get the correct answer, you should also answer yes. If the response only contains a subset of the information required by the answer, answer no. \n\nQuestion: What did I buy for my sister's birthday gift?\n\nCorrect Answer: a yellow dress\n\nModel Response: a yellow dress\n\nIs the model response correct? Answer yes or no only."
+      }
+    ],
+    "seed": 1,
+    "temperature": 0,
+    "maxTokens": 10
+  },
+  "response": {
+    "text": "yes",
+    "usage": {
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "cost_usd": 0
+    }
+  }
+}

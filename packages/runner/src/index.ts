@@ -8,6 +8,7 @@ export * from "./config.ts";
 export * from "./count.ts";
 export * from "./gatemem-probe.ts";
 export * from "./live.ts";
+export * from "./longmemeval-probe.ts";
 export * from "./mem-inv-probe.ts";
 export * from "./model/cassette.ts";
 export * from "./model/pi.ts";
