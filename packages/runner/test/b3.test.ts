@@ -3,8 +3,10 @@
 // from the committed cassettes, and each probe's output holds the plane's
 // write and read events. A cross-principal read the mapping forbids is
 // denied with the same events on every store.
-import { readdirSync } from "node:fs";
+import { mkdtempSync, readdirSync } from "node:fs";
+import { rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { Adapter } from "@engram/adapters";
 import { gatemem } from "@engram/bench";
 import {
@@ -30,8 +32,27 @@ import { runConfig } from "../src/run.ts";
 import { closeStore, LETTA_STORE_PREFIX, openStore } from "../src/stores.ts";
 import { B3 } from "./paths.ts";
 
+/** The temporary folder every test process shares, as this file found it. */
+const SHARED_TMP = tmpdir();
+
 /** The runner's Letta repositories now in the temporary folder. */
 const lettaFolders = () => readdirSync(tmpdir()).filter((f) => f.startsWith(LETTA_STORE_PREFIX));
+
+describe("the leftover check counts only this file's Letta stores", () => {
+  test("a runner Letta folder another test process makes in the shared temp folder is not counted", async () => {
+    // Other runner test files open Letta stores at the same time, in their
+    // own processes, all under the system's temporary folder; one made
+    // between this file's before and after looked like a leak (CI, PRs #28,
+    // #30, #31 and #33, 2026-11-06).
+    const before = lettaFolders();
+    const other = mkdtempSync(join(SHARED_TMP, LETTA_STORE_PREFIX));
+    try {
+      expect(lettaFolders().filter((f) => !before.includes(f))).toEqual([]);
+    } finally {
+      await rm(other, { recursive: true, force: true });
+    }
+  });
+});
 
 const config = readRunnerConfig(B3);
 
