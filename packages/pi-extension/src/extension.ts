@@ -49,14 +49,16 @@ import {
   shellBypass as coreShellBypass,
   createPlane,
   type Db,
+  loadPreset,
   type MemoryEvent,
   type MemoryItem,
-  NotImplementedYet,
   type Plane,
   type Policy,
   type ReadResult,
   STORE_COMMANDS,
   toolBypass,
+  type Workload,
+  type WorkloadStep,
 } from "@engram/core";
 import { systemClock, uuidv7 } from "./ids.ts";
 import {
@@ -76,7 +78,6 @@ import {
   MEMORY_READ,
   MEMORY_SIMULATE,
   MEMORY_WRITE,
-  notImplementedText,
   writeResultText,
 } from "./tools.ts";
 
@@ -173,9 +174,17 @@ export function createEngramExtension(options: EngramExtensionOptions): Extensio
 
   return (pi: ExtensionAPI) => {
     const record = new ProducedResults();
-    /** The events mirrored into this session, in order: memory_simulate's workload. */
-    const mirrored: MemoryEvent[] = [];
     const mirroredIds = new Set<string>();
+    /**
+     * The Plane calls this session made, in order: memory_simulate's workload
+     * (card E8.9). `agent` makes the tool calls, `member` the sweeps.
+     */
+    const steps: WorkloadStep[] = [];
+    const workload = (): Workload => ({
+      id: "session",
+      actors: { agent, member: actor },
+      steps: [...steps],
+    });
     const withheldLogged = new Set<string>();
 
     /**
@@ -190,14 +199,15 @@ export function createEngramExtension(options: EngramExtensionOptions): Extensio
         for (const event of plane.events().slice(before)) {
           if (mirroredIds.has(event.id)) continue;
           mirroredIds.add(event.id);
-          mirrored.push(event);
           pi.appendEntry(ENGRAM_EVENT, event);
         }
       }
     }
 
     const read = async (text: string): Promise<RecallDetails> => {
-      const result: ReadResult = await planeCall(() => plane.read(agent, { text, at: now() }));
+      const at = now();
+      steps.push({ op: "read", as: "agent", at, text });
+      const result: ReadResult = await planeCall(() => plane.read(agent, { text, at }));
       const { event, filtered, items, explanations } = result;
       return recallDetails(event.id, event.policy_id, filtered, items, explanations);
     };
@@ -259,6 +269,7 @@ export function createEngramExtension(options: EngramExtensionOptions): Extensio
             at,
             modelOf(ctx),
           );
+          steps.push({ op: "write", as: "agent", at, item });
           const written = await planeCall(() => plane.write(agent, item, at));
           const { event } = written;
           let stored = written.item;
@@ -268,6 +279,7 @@ export function createEngramExtension(options: EngramExtensionOptions): Extensio
           // and the result reports the item as the sweep left it (P4-1).
           if (stored) {
             const { scope } = stored;
+            steps.push({ op: "retain", as: "member", at, scope });
             const swept = await planeCall(() => plane.retain(actor, scope, at));
             if ([...swept.expired, ...swept.evicted].includes(stored.id))
               stored = { ...stored, status: "retired" };
@@ -321,20 +333,13 @@ export function createEngramExtension(options: EngramExtensionOptions): Extensio
 
     pi.registerTool({
       ...MEMORY_SIMULATE,
-      async execute(toolCallId) {
+      async execute(toolCallId, params) {
         return produce(toolCallId, "memory_simulate", async () => {
-          try {
-            const report = await plane.simulate(
-              { id: "session", events: [...mirrored] },
-              options.policy,
-            );
-            return { text: JSON.stringify(report, null, 2), details: report };
-          } catch (e) {
-            if (e instanceof NotImplementedYet) {
-              throw new Error(notImplementedText("memory_simulate", e.card));
-            }
-            throw e;
-          }
+          // A replay on scratch logs and stores (card E8.9): this session's
+          // own calls only, so it reveals nothing the session did not see.
+          const candidate = params.candidate ? loadPreset(params.candidate) : options.policy;
+          const report = await plane.simulate(workload(), candidate);
+          return { text: JSON.stringify(report, null, 2), details: report };
         });
       },
     });
@@ -353,6 +358,7 @@ export function createEngramExtension(options: EngramExtensionOptions): Extensio
         const check = await plane.checkWrite(agent, item, at);
         if (check.decision === "allow") return undefined;
         // A deny is committed here: one deny event, and nothing reaches the store.
+        steps.push({ op: "write", as: "agent", at, item });
         const { event: denied } = await planeCall(() => plane.write(agent, item, at));
         const reason = refusal(denied);
         record.addText(event.toolCallId, "memory_write", actor.id, reason, true);
@@ -383,7 +389,10 @@ export function createEngramExtension(options: EngramExtensionOptions): Extensio
       // plane has no clock, so the surfaces sweep. A sweep with nothing to do
       // appends nothing.
       const at = now();
-      for (const scope of actor.memberships) await planeCall(() => plane.retain(actor, scope, at));
+      for (const scope of actor.memberships) {
+        steps.push({ op: "retain", as: "member", at, scope });
+        await planeCall(() => plane.retain(actor, scope, at));
+      }
       if (options.recall === false || event.messageType !== "user") return undefined;
       const details = await read(event.prompt);
       if (details.items.length === 0) return undefined;

@@ -14,9 +14,9 @@
 //
 // Limit (review finding P4-5): utility counts explanation rows, which are not
 // in the event log, so replaying the log reproduces a utility eviction as an
-// event but cannot re-decide it; nor can a rebuilt database, a pi session's
-// workload or the simulator. The next schema PR can put the returned item ids
-// on read events.
+// event but cannot re-decide it, nor can a rebuilt database. The simulator
+// (plane/simulate.ts, ADR 0032) replays the reads themselves and so decides it
+// again. The next schema PR can put the returned item ids on read events.
 import { type Actor, checkCall, InvalidCallError } from "../actor.ts";
 import type { Db } from "../db/db.ts";
 import { appendEvent, currentItems } from "../events.ts";

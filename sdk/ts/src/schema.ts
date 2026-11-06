@@ -162,7 +162,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Replay a workload under a policy; 501 until card E8.9. */
+        /** Replay a recorded workload under the workspace's policy and a candidate, on scratch logs and stores; zero model calls. */
         post: operations["simulate"];
         delete?: never;
         options?: never;
@@ -590,12 +590,188 @@ export interface components {
         LintResponse: {
             findings: components["schemas"]["LintFinding"][];
         };
-        SimulateRequest: {
-            workload: {
-                id: string;
-                events: components["schemas"]["MemoryEvent"][];
+        /** @description A recorded workload (card E8.9): its actors by name and the plane calls it made, in order. Each write carries its whole item. */
+        Workload: {
+            id: string;
+            description?: string;
+            actors: {
+                [key: string]: {
+                    id: string;
+                    /** @enum {string} */
+                    level: "person" | "role" | "team" | "org";
+                    memberships: string[];
+                    /** @enum {string} */
+                    source?: "user" | "document" | "tool" | "model" | "import" | "compaction";
+                };
             };
+            steps: ({
+                /** @constant */
+                op: "write";
+                /** @description A key of the workload's actors. */
+                as: string;
+                /** Format: date-time */
+                at: string;
+                /** @description The MemoryItem (#/components/schemas/MemoryItem) as the caller sent it; one that fails the schema replays as the plane's engram/write/schema denial. */
+                item: {
+                    [key: string]: components["schemas"]["JsonValue"];
+                };
+            } | {
+                /** @constant */
+                op: "read";
+                /** @description A key of the workload's actors. */
+                as: string;
+                /** Format: date-time */
+                at: string;
+                text?: string;
+            } | {
+                /** @constant */
+                op: "retain";
+                /** @description A key of the workload's actors. */
+                as: string;
+                /** Format: date-time */
+                at: string;
+                scope: string;
+            } | {
+                /** @constant */
+                op: "promote";
+                /** @description A key of the workload's actors. */
+                as: string;
+                /** Format: date-time */
+                at: string;
+                /** Format: uuid */
+                item_id: string;
+                to_scope: string;
+                review?: boolean;
+            })[];
+            retrieval?: {
+                /** @constant */
+                pipeline: "core";
+                limit?: number;
+            };
+        };
+        SimulateRequest: {
+            workload: components["schemas"]["Workload"];
+            /** @description The candidate policy; the workspace's own policy when absent. The baseline is always the workspace's. */
             policy?: components["schemas"]["Policy"];
+        };
+        /** @description A workload replayed under the plane's policy (baseline) and a candidate policy, each on a scratch log and store: decisions, the utility proxy (items reads returned) and evictions per policy, and the steps that differ (card E8.9). */
+        SimReport: {
+            workload_id: string;
+            baseline: {
+                policy_id: string;
+                policy_version: number;
+                outcomes: {
+                    step: number;
+                    /** @enum {string} */
+                    op: "write" | "read" | "retain" | "promote";
+                    actor: string;
+                    item_id: string | null;
+                    /** @enum {string} */
+                    decision: "allow" | "deny" | "ask";
+                    reason: string;
+                    policy_id: string;
+                    returned: string[];
+                    evicted: string[];
+                    expired: string[];
+                    asked: number;
+                }[];
+                totals: {
+                    allow: number;
+                    deny: number;
+                    ask: number;
+                };
+                utility: {
+                    reads: number;
+                    returned: number;
+                    reads_with_recall: number;
+                    mean_returned: number;
+                };
+                evictions: {
+                    evicted: number;
+                    expired: number;
+                    asked: number;
+                };
+                active: {
+                    [key: string]: number;
+                };
+            };
+            candidate: {
+                policy_id: string;
+                policy_version: number;
+                outcomes: {
+                    step: number;
+                    /** @enum {string} */
+                    op: "write" | "read" | "retain" | "promote";
+                    actor: string;
+                    item_id: string | null;
+                    /** @enum {string} */
+                    decision: "allow" | "deny" | "ask";
+                    reason: string;
+                    policy_id: string;
+                    returned: string[];
+                    evicted: string[];
+                    expired: string[];
+                    asked: number;
+                }[];
+                totals: {
+                    allow: number;
+                    deny: number;
+                    ask: number;
+                };
+                utility: {
+                    reads: number;
+                    returned: number;
+                    reads_with_recall: number;
+                    mean_returned: number;
+                };
+                evictions: {
+                    evicted: number;
+                    expired: number;
+                    asked: number;
+                };
+                active: {
+                    [key: string]: number;
+                };
+            };
+            changed: {
+                step: number;
+                /** @enum {string} */
+                op: "write" | "read" | "retain" | "promote";
+                actor: string;
+                item_id: string | null;
+                baseline: {
+                    step: number;
+                    /** @enum {string} */
+                    op: "write" | "read" | "retain" | "promote";
+                    actor: string;
+                    item_id: string | null;
+                    /** @enum {string} */
+                    decision: "allow" | "deny" | "ask";
+                    reason: string;
+                    policy_id: string;
+                    returned: string[];
+                    evicted: string[];
+                    expired: string[];
+                    asked: number;
+                };
+                candidate: {
+                    step: number;
+                    /** @enum {string} */
+                    op: "write" | "read" | "retain" | "promote";
+                    actor: string;
+                    item_id: string | null;
+                    /** @enum {string} */
+                    decision: "allow" | "deny" | "ask";
+                    reason: string;
+                    policy_id: string;
+                    returned: string[];
+                    evicted: string[];
+                    expired: string[];
+                    asked: number;
+                };
+            }[];
+            /** @constant */
+            model_calls: 0;
         };
         DistillRequest: {
             sessions: {
@@ -1373,7 +1549,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["OpenReport"];
+                    "application/json": components["schemas"]["SimReport"];
                 };
             };
             /** @description the request fails its schema, or the plane refused the call (InvalidCallError) */
@@ -1423,15 +1599,6 @@ export interface operations {
             };
             /** @description an unexpected error; the body carries no internals */
             500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description the Plane method's card has not landed; the body names it */
-            501: {
                 headers: {
                     [name: string]: unknown;
                 };

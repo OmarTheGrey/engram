@@ -8,7 +8,7 @@ import { openSqlite } from "../../src/db/sqlite.ts";
 import type { Distiller, DistillMethod, Session } from "../../src/distill.ts";
 import type { Linter } from "../../src/lint.ts";
 import { createPlane, NotImplementedYet, type Plane } from "../../src/plane.ts";
-import type { LintFinding, MemoryEvent, MemoryItem, Policy } from "../../src/schema.ts";
+import type { LintFinding, MemoryItem, Policy } from "../../src/schema.ts";
 import type { Simulator, Workload } from "../../src/simulate.ts";
 import {
   createFakeDistiller,
@@ -69,21 +69,16 @@ const SKILL: MemoryItem = {
   schema_version: 0,
 };
 
-const event = (seq: number, decision: MemoryEvent["decision"]): MemoryEvent => ({
-  id: id(300 + seq),
-  seq,
-  ts: "2026-10-25T09:00:00Z",
-  op: "write",
-  item_id: id(1),
-  actor: "agent:pi",
-  scope_from: null,
-  scope_to: "team:a",
-  decision,
-  reason: "recorded",
-  policy_id: "p/write",
-  item: null,
-  schema_version: 0,
-});
+const CANDIDATE: Policy = { ...POLICY, id: "candidate" };
+
+const WORKLOAD: Workload = {
+  id: "w1",
+  actors: { pi: { id: "agent:pi", level: "person", memberships: ["person:omar"] } },
+  steps: [
+    { op: "write", as: "pi", at: "2026-10-25T09:00:00Z", item: SKILL },
+    { op: "read", as: "pi", at: "2026-10-25T09:00:01Z", text: "tests" },
+  ],
+};
 
 const SESSION: Session = {
   id: "s1",
@@ -108,50 +103,51 @@ describe("fakes", () => {
     ).toThrow();
   });
 
-  test("the fake simulator reports recorded decisions unchanged, with zero model calls", async () => {
-    const simulator: Simulator = createFakeSimulator();
-    const workload: Workload = { id: "w1", events: [event(0, "allow"), event(1, "deny")] };
-    const report = await simulator.simulate(workload, POLICY);
-    expect(report).toMatchObject({
-      workload_id: "w1",
-      policy_id: "test",
-      policy_version: 1,
-      totals: { allow: 1, deny: 1, ask: 0 },
-      changed: 0,
-      model_calls: 0,
-    });
-    expect(report.decisions.map((d) => [d.seq, d.recorded, d.simulated])).toEqual([
-      [0, "allow", "allow"],
-      [1, "deny", "deny"],
+  test("the fake simulator allows every step under both policies when unscripted, with zero model calls", async () => {
+    const simulator: Simulator = createFakeSimulator({ baseline: POLICY });
+    const report = await simulator.simulate(WORKLOAD, CANDIDATE);
+    expect(report).toMatchObject({ workload_id: "w1", changed: [], model_calls: 0 });
+    expect([report.baseline.policy_id, report.candidate.policy_id]).toEqual(["test", "candidate"]);
+    expect(report.candidate.totals).toEqual({ allow: 2, deny: 0, ask: 0 });
+    expect(report.candidate.outcomes.map((o) => [o.step, o.op, o.actor])).toEqual([
+      [0, "write", "agent:pi"],
+      [1, "read", "agent:pi"],
     ]);
   });
 
-  test("the fake simulator counts the decisions a scripted policy changes", async () => {
-    const simulator = createFakeSimulator({ decide: () => "deny" });
-    const report = await simulator.simulate(
-      { id: "w1", events: [event(0, "allow"), event(1, "deny")] },
-      POLICY,
-    );
-    expect(report.changed).toBe(1);
-    expect(report.totals).toEqual({ allow: 0, deny: 2, ask: 0 });
+  test("the fake simulator reports the steps a scripted candidate decides differently", async () => {
+    const simulator = createFakeSimulator({
+      baseline: POLICY,
+      decide: (step, _i, policy) =>
+        policy.id === "candidate" && step.op === "write" ? "deny" : "allow",
+    });
+    const report = await simulator.simulate(WORKLOAD, CANDIDATE);
+    expect(report.changed.map((c) => [c.step, c.baseline.decision, c.candidate.decision])).toEqual([
+      [0, "allow", "deny"],
+    ]);
+    expect(report.candidate.totals).toEqual({ allow: 1, deny: 1, ask: 0 });
   });
 
-  test("a fake simulator decision names the deciding rule of the candidate policy, not the policy", async () => {
-    // Review finding R2-6: SimDecision.policy_id is the id of the deciding
-    // rule, in the format of MemoryEvent.policy_id; SimReport.policy_id and
-    // policy_version name the candidate policy.
-    const workload = { id: "w1", events: [event(0, "allow"), event(1, "deny")] };
-    const scripted = await createFakeSimulator({ decide: () => "deny" }).simulate(workload, POLICY);
-    expect(scripted.decisions.map((d) => d.policy_id)).toEqual(["test/scripted", "test/scripted"]);
+  test("a fake simulator decision names the deciding rule of its policy, not the policy", async () => {
+    // Review finding R2-6: a step's policy_id is the id of the deciding rule,
+    // in the format of MemoryEvent.policy_id; each run's policy_id and
+    // policy_version name its policy.
+    const scripted = await createFakeSimulator({ baseline: POLICY, decide: () => "deny" }).simulate(
+      WORKLOAD,
+      CANDIDATE,
+    );
+    expect(scripted.candidate.outcomes.map((d) => d.policy_id)).toEqual([
+      "candidate/scripted",
+      "candidate/scripted",
+    ]);
     const ruled = await createFakeSimulator({
-      decide: (e) => ({ decision: "ask", policy_id: `test/write/person#${e.seq}`, reason: "r" }),
-    }).simulate(workload, POLICY);
-    expect(ruled.decisions.map((d) => [d.simulated, d.policy_id, d.reason])).toEqual([
+      baseline: POLICY,
+      decide: (_s, i) => ({ decision: "ask", policy_id: `test/write/person#${i}`, reason: "r" }),
+    }).simulate(WORKLOAD, CANDIDATE);
+    expect(ruled.candidate.outcomes.map((d) => [d.decision, d.policy_id, d.reason])).toEqual([
       ["ask", "test/write/person#0", "r"],
       ["ask", "test/write/person#1", "r"],
     ]);
-    const kept = await createFakeSimulator().simulate(workload, POLICY);
-    expect(kept.decisions.map((d) => d.policy_id)).toEqual(workload.events.map((e) => e.policy_id));
   });
 
   test("the fake distiller answers from its table and fails loudly on an unknown key", async () => {
@@ -178,7 +174,6 @@ describe("fakes", () => {
     });
     const pending: [string, string, () => Promise<unknown>][] = [
       ["lint", "L1", () => plane.lint("team:a")],
-      ["simulate", "E8.9", () => plane.simulate({ id: "w", events: [] }, POLICY)],
       ["distill", "D2", () => plane.distill([SESSION], AWM)],
     ];
     for (const [method, card, call] of pending) {
