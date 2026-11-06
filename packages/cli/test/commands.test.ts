@@ -15,7 +15,7 @@ commands:
   explain <readId>  the explanations a read recorded
   retain            sweep one scope's retention: expired items retired, budgets enforced
   lint              run the policy's lints over a scope; not implemented yet (card L1)
-  simulate          replay a workload under the policy; not implemented yet (card E8.9)
+  simulate          replay a recorded workload under the policy and a candidate; compare them
   serve             serve the HTTP API on a loopback port
   mcp               the MCP server for Claude Code and Codex, as one fixed actor
   hook claude-code  a Claude Code PreToolUse hook that blocks store bypasses
@@ -63,9 +63,15 @@ explain options:
 retain options:
   --scope <scope>             the scope to sweep, as a user-sourced member of it; exit 1 if refused
 
-lint and simulate options:
-  --scope <scope>             lint: the scope to lint (default org)
-  --workload <events.json>    simulate: a recorded workload, {id, events} (default empty)
+lint options:
+  --scope <scope>             the scope to lint (default org)
+
+simulate options:
+  --workload <workload.json>  a recorded workload: {id, actors, steps} (default empty)
+  --policy <preset|path>      the baseline policy (default medium)
+  --candidate <preset|path>   the policy to compare it with (default the baseline)
+  each policy replays the workload on a scratch log and store; the real log and store are
+  never read or written, and no model is called
 
 serve options:
   --host <address>            127.0.0.1 (default), ::1 or localhost; any other host is refused,
@@ -114,10 +120,7 @@ describe("engram help", () => {
 });
 
 describe("commands whose cards have not landed", () => {
-  it.each([
-    ["lint", "L1"],
-    ["simulate", "E8.9"],
-  ])("%s exits 2 naming card %s", async (command, card) => {
+  it.each([["lint", "L1"]])("%s exits 2 naming card %s", async (command, card) => {
     const { code, err } = await cli([command]);
     expect(code).toBe(2);
     expect(err).toBe(`engram ${command}: not implemented yet (card ${card})\n`);

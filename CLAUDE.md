@@ -65,6 +65,7 @@ engram doctor                  log and its backend (never created by doctor), po
 engram read --root <dir> --owner <id>   a memory folder through the plane, adopted as its owner, every item explained; --store letta takes a Letta MemFS repository (or an empty folder it initialises) as --root, every write one git commit; the log is --db, else ENGRAM_DB_URL, else <home>/.engram/engram.db; engram --help lists the rest
 engram write | read | promote | explain | retain | lint | simulate   each one call of the generated client: in process over the workspace its flags name, or to the server --server <url> (or ENGRAM_SERVER_URL) names
 engram retain --scope <scope>  sweep one scope's retention as a user-sourced member: expired items retired, budgets enforced
+engram simulate --workload <file> --policy <baseline> --candidate <policy>   replay a recorded workload (actors and calls) under both policies on scratch logs and stores; prints decisions, the utility proxy and evictions side by side, --json for the report
 engram serve [--host 127.0.0.1] [--port 7313] [--as <id> --member <scope>]   the HTTP API on loopback only (no authentication yet), over the workspace flags; --as names the inspector's viewer
 engram mcp --as <id> --member <scope>   the MCP server over stdio for Claude Code and Codex, every call as that actor with source model; --http <port> serves streamable HTTP on loopback
 engram hook claude-code --root <dir>   a Claude Code PreToolUse hook: denies a Bash command naming a store and a file tool inside a store root, recording each block

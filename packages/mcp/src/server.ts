@@ -22,14 +22,21 @@
 // schemas are the shared TypeBox (JSON Schema) definitions, which McpServer
 // would want restated in Zod.
 import { createHash } from "node:crypto";
-import type { Actor, Explanation, MemoryEvent, MemoryItem } from "@engram/core";
+import {
+  type Actor,
+  type Explanation,
+  loadPreset,
+  type MemoryEvent,
+  type MemoryItem,
+  type PresetName,
+  type WorkloadStep,
+} from "@engram/core";
 import { recallDetails, tagRecall } from "@engram/pi-extension/tag";
 import {
   MEMORY_EXPLAIN,
   MEMORY_READ,
   MEMORY_SIMULATE,
   MEMORY_WRITE,
-  notImplementedText,
   writeResultText,
 } from "@engram/pi-extension/tools";
 import type { EngramClient } from "@engram/sdk";
@@ -91,8 +98,8 @@ export function createMcpServer(options: McpOptions): Server {
   const { client, now, newId } = options;
   /** Every call is the launch actor's, labelled model (decision D4). */
   const agent: Actor = { ...options.actor, source: "model" };
-  /** The events this server's calls produced: memory_simulate's workload. */
-  const produced: MemoryEvent[] = [];
+  /** The Plane calls this server made, in order: memory_simulate's workload (card E8.9). */
+  const steps: WorkloadStep[] = [];
 
   const server = new Server(SERVER_INFO, { capabilities: { tools: {} } });
   server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: toolList() }));
@@ -135,16 +142,22 @@ export function createMcpServer(options: McpOptions): Server {
           store_ref: null,
           schema_version: 0,
         };
+        steps.push({
+          op: "write",
+          as: "agent",
+          at,
+          item: item as Extract<WorkloadStep, { op: "write" }>["item"],
+        });
         const answer = await client.POST("/api/v1/items", { body: { actor: agent, item, at } });
         if (answer.data === undefined) return text(failure(answer).message, true);
         const { item: stored, event } = answer.data as unknown as {
           item: MemoryItem | null;
           event: MemoryEvent;
         };
-        produced.push(event);
         return stored ? text(writeResultText(stored)) : text(refusal(event), true);
       }
       case "memory_read": {
+        steps.push({ op: "read", as: "agent", at, text: String(args.query) });
         const answer = await client.POST("/api/v1/read", {
           body: { actor: agent, text: String(args.query), at },
         });
@@ -155,7 +168,6 @@ export function createMcpServer(options: McpOptions): Server {
           filtered: number;
           event: MemoryEvent;
         };
-        produced.push(r.event);
         // The read event's reason counts items out of reach; it is kept from the model.
         return text(
           tagRecall(
@@ -173,13 +185,16 @@ export function createMcpServer(options: McpOptions): Server {
         return text(JSON.stringify(answer.data.explanations, null, 2));
       }
       case "memory_simulate": {
+        // Replayed on scratch logs and stores: this server's own calls only.
+        const candidate =
+          args.candidate === undefined ? undefined : loadPreset(args.candidate as PresetName);
         const answer = await client.POST("/api/v1/simulate", {
-          body: { workload: { id: "session", events: produced as never } },
+          body: {
+            workload: { id: "session", actors: { agent }, steps: [...steps] },
+            ...(candidate ? { policy: candidate } : {}),
+          },
         });
-        if (answer.data === undefined) {
-          const f = failure(answer);
-          return text(f.card ? notImplementedText("memory_simulate", f.card) : f.message, true);
-        }
+        if (answer.data === undefined) return text(failure(answer).message, true);
         return text(JSON.stringify(answer.data, null, 2));
       }
     }
