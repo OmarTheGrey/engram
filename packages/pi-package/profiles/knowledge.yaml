@@ -1,0 +1,134 @@
+# Profile: knowledge. Govern's policy (card E9.1): trusted organisational
+# memory, where what an organisation knows is first-hand, current, free of
+# conflicts and reviewed before it is shared.
+#
+# Provenance required for org: org takes only first-hand sources, a person
+# (user) or a cited document, each with a ref and a hash the source-changed
+# lint can check. A tool's output can echo an outsider's text (MEM-INV-Bench's
+# trusted-tool echo, 2606.24322), an import records what a store held without
+# saying who vouches for it, and model and compaction content never leaves
+# person scope (ADR 0004, 0007); none of them lands in org, by write or by
+# promotion, since a promotion is a write under the target's rule (ADR 0026).
+# To share such content a person restates it as user content.
+#
+# Validity required: every item carries valid_from (the schema), the read
+# filter excludes an item outside its window (ADR 0005), and the
+# expired-validity and source-changed lints are listed, so knowledge whose
+# window closed or whose source changed is found. A policy cannot require an
+# item to set valid_to; that would be a schema field (AGENTS.md rule 5).
+#
+# Conflict lint on: contradiction (model-based, card L3), duplicate and the
+# other deterministic lints are listed for a lint-running condition (C6), as
+# in every preset; listing a lint does not run it under C5.
+#
+# Review for promotion: team and org require review, so a write there lands
+# as a candidate, and a promotion into them asks (one gate event, decision
+# ask) until a user-sourced member of the target who did not write the item
+# approves it (ADR 0026). Episodic items stay in person scope: shared scopes
+# hold knowledge, not records of events.
+#
+# Reads, retention and promotion counts follow preset medium; the floors,
+# budgets and thresholds are proposed values, not measured ones, reviewed
+# before the profile governs dogfood (card E9.5).
+id: profile.knowledge
+version: 1
+write:
+  - scope: person
+    allowed_sources: [user, document, tool, import, model, compaction]
+    confidence_floor: 0.3
+    forbidden_classes: []
+    requires_review: false
+  - scope: role
+    allowed_sources: [user, document, tool, import]
+    confidence_floor: 0.6
+    forbidden_classes: [episodic]
+    requires_review: false
+  - scope: team
+    allowed_sources: [user, document, tool, import]
+    confidence_floor: 0.7
+    forbidden_classes: [episodic]
+    requires_review: true
+  - scope: org
+    allowed_sources: [user, document]
+    confidence_floor: 0.8
+    forbidden_classes: [episodic]
+    requires_review: true
+read:
+  matrix:
+    - reader: person
+      may_read: [person, role, team, org]
+    - reader: role
+      may_read: [person, role, team, org]
+    - reader: team
+      may_read: [role, team, org]
+    - reader: org
+      may_read: [team, org]
+  honour_grants: true
+retention:
+  - scope: person
+    class: episodic
+    ttl: 7776000 # 90 days
+    budget: 5000
+    eviction: recency
+  - scope: person
+    class: semantic
+    ttl: null
+    budget: 2000
+    eviction: utility
+  - scope: person
+    class: procedural
+    ttl: null
+    budget: 200
+    eviction: utility
+  - scope: role
+    class: semantic
+    ttl: null
+    budget: 2000
+    eviction: utility
+  - scope: role
+    class: procedural
+    ttl: null
+    budget: 200
+    eviction: utility
+  - scope: team
+    class: semantic
+    ttl: null
+    budget: 10000
+    eviction: utility
+  - scope: team
+    class: procedural
+    ttl: null
+    budget: 500
+    eviction: utility
+  - scope: org
+    class: semantic
+    ttl: null
+    budget: null
+    eviction: manual
+  - scope: org
+    class: procedural
+    ttl: null
+    budget: null
+    eviction: manual
+promotion:
+  episodic_to_semantic:
+    confirmations: 3
+    or_review: true
+  procedural:
+    replay_k: 4
+    replay_n: 5
+lints:
+  enabled:
+    - expired-validity
+    - source-changed
+    - scope-class-mismatch
+    - missing-provenance
+    - orphan
+    - duplicate
+    - contradiction
+    - unsupported-claim
+  thresholds:
+    near-duplicate: 0.85
+    replay-drift.success-floor: 0.7
+    replay-drift.min-trials: 10
+schema_version: 0
