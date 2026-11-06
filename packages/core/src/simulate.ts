@@ -14,7 +14,7 @@
 // implementation is plane/simulate.ts.
 import { z } from "zod";
 import { ActorShape } from "./actor.ts";
-import { JsonValue, type Policy, Timestamp } from "./schema.ts";
+import { Id, JsonValue, type Policy, Scope, Timestamp } from "./schema.ts";
 
 export type Decision = "allow" | "deny" | "ask";
 
@@ -32,13 +32,13 @@ export const WorkloadStep = z.discriminatedUnion("op", [
     }),
   }),
   z.strictObject({ op: z.literal("read"), as: name, at: Timestamp, text: z.string().optional() }),
-  z.strictObject({ op: z.literal("retain"), as: name, at: Timestamp, scope: z.string() }),
+  z.strictObject({ op: z.literal("retain"), as: name, at: Timestamp, scope: Scope }),
   z.strictObject({
     op: z.literal("promote"),
     as: name,
     at: Timestamp,
-    item_id: z.string(),
-    to_scope: z.string(),
+    item_id: Id,
+    to_scope: Scope,
     review: z.boolean().optional(),
   }),
 ]);

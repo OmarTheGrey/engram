@@ -638,6 +638,7 @@ export interface components {
                 as: string;
                 /** Format: date-time */
                 at: string;
+                /** Format: uuid */
                 item_id: string;
                 to_scope: string;
                 review?: boolean;

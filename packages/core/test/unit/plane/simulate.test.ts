@@ -202,6 +202,21 @@ describe("an invalid workload is refused before anything runs", () => {
     ).rejects.toThrow(InvalidCallError);
   });
 
+  test("a promotion naming no item id, or a sweep of no scope, is refused before anything runs", async () => {
+    const { plane } = fresh(testPolicy());
+    for (const step of [
+      { op: "promote", as: "omar", at: AT, item_id: "not-an-id", to_scope: "org" },
+      { op: "promote", as: "omar", at: AT, item_id: id(1), to_scope: "everyone" },
+      { op: "retain", as: "omar", at: AT, scope: "everyone" },
+    ])
+      await expect(
+        plane.simulate(
+          { id: "w", actors: { omar }, steps: [step] } as unknown as Workload,
+          testPolicy(),
+        ),
+      ).rejects.toThrow(/invalid workload/);
+  });
+
   test("a malformed step", async () => {
     const { plane } = fresh(testPolicy());
     const bad = { id: "w", actors: { omar }, steps: [{ op: "forget", as: "omar", at: AT }] };
