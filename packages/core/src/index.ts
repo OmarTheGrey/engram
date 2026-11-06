@@ -15,6 +15,7 @@ export { openSqlite } from "./db/sqlite.ts";
 export * from "./distill.ts";
 export * from "./events.ts";
 export * from "./items.ts";
+export * from "./lint/det.ts";
 export * from "./lint.ts";
 export * from "./model.ts";
 export * from "./no-bypass.ts";

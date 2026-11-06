@@ -177,7 +177,6 @@ describe("fakes", () => {
       newId: () => id(++n),
     });
     const pending: [string, string, () => Promise<unknown>][] = [
-      ["lint", "L1", () => plane.lint("team:a")],
       ["simulate", "E8.9", () => plane.simulate({ id: "w", events: [] }, POLICY)],
       ["distill", "D2", () => plane.distill([SESSION], AWM)],
     ];
@@ -191,6 +190,13 @@ describe("fakes", () => {
       expect((error as Error).message, method).toContain(`Plane.${method}`);
     }
     expect(plane.events()).toEqual([]);
+    // Landed with card L1: a lint of a scope with nothing in it finds nothing.
+    const actor = { id: "person:a", level: "person" as const, memberships: ["team:a"] };
+    expect(await plane.lint(actor, "2026-10-25T12:00:00Z", "team:a")).toEqual({
+      decision: "allow",
+      findings: [],
+      events: [],
+    });
     db.close();
   });
 });

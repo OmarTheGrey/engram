@@ -708,7 +708,7 @@
     "/api/v1/lint": {
       "post": {
         "operationId": "lint",
-        "summary": "Run the enabled lints over one scope; 501 until card L1.",
+        "summary": "Run the policy's enabled deterministic lints over one scope as a member of it; each finding is a lint event (card L1).",
         "requestBody": {
           "required": true,
           "content": {
@@ -782,16 +782,6 @@
           },
           "500": {
             "description": "an unexpected error; the body carries no internals",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "501": {
-            "description": "the Plane method's card has not landed; the body names it",
             "content": {
               "application/json": {
                 "schema": {
@@ -2828,11 +2818,21 @@
       "LintRequest": {
         "type": "object",
         "properties": {
+          "actor": {
+            "$ref": "#/components/schemas/Actor"
+          },
           "scope": {
             "type": "string"
+          },
+          "at": {
+            "description": "The time of the call, UTC ISO 8601; the server's clock when absent.",
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
           }
         },
         "required": [
+          "actor",
           "scope"
         ],
         "additionalProperties": false
@@ -2840,15 +2840,30 @@
       "LintResponse": {
         "type": "object",
         "properties": {
+          "decision": {
+            "type": "string",
+            "enum": [
+              "allow",
+              "deny"
+            ]
+          },
           "findings": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/LintFinding"
             }
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MemoryEvent"
+            }
           }
         },
         "required": [
-          "findings"
+          "decision",
+          "findings",
+          "events"
         ],
         "additionalProperties": false
       },

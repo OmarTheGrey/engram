@@ -7,7 +7,7 @@
 //
 // A decision is a response, not an error (ADR 0027 decision 6): allow, deny
 // and ask are 200 with their event. Errors are thrown and mapped in app.ts;
-// lint, simulate and distill throw core's NotImplementedYet until their
+// simulate and distill throw core's NotImplementedYet until their
 // cards land, which app.ts answers with 501 naming the card.
 import {
   adoptStoreItems,
@@ -184,11 +184,13 @@ export const ROUTES: readonly Route[] = [
     id: "lint",
     method: "post",
     path: "/lint",
-    summary: "Run the enabled lints over one scope; 501 until card L1.",
+    summary:
+      "Run the policy's enabled deterministic lints over one scope as a member of it; each finding is a lint event (card L1).",
     request: C.LintRequest,
     response: C.LintResponse,
-    errors: [400, 501],
-    handler: async ({ workspace, body }) => ({ findings: await workspace.plane.lint(body.scope) }),
+    errors: [400],
+    handler: ({ workspace, body, now }) =>
+      workspace.plane.lint(body.actor, body.at ?? now(), body.scope),
   }),
   route<z.infer<typeof C.SimulateRequest>>({
     id: "simulate",

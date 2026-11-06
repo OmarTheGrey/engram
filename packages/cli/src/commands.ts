@@ -8,7 +8,14 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { type ParseArgsConfig, parseArgs } from "node:util";
-import { type Actor, Id, type MemoryEvent, type MemoryItem, Scope } from "@engram/core";
+import {
+  type Actor,
+  Id,
+  type LintFinding,
+  type MemoryEvent,
+  type MemoryItem,
+  Scope,
+} from "@engram/core";
 import { type Connection, connect, result } from "./connect.ts";
 import { decisionLines, explanationLines, plural, preview } from "./format.ts";
 import type { Io } from "./run.ts";
@@ -470,27 +477,40 @@ export async function retainCommand(args: string[], io: Io): Promise<number> {
   }
 }
 
-/** `engram lint [--scope <scope>]`: one lint call; 501 naming card L1 until it lands. */
+/**
+ * `engram lint --scope <scope>`: one lint call (card L1) as a member of the
+ * scope: the policy's enabled deterministic lints, each finding a lint event
+ * with its reason. Exit 0 when clean, 1 on any finding or when refused.
+ */
 export async function lintCommand(args: string[], io: Io): Promise<number> {
   const { values } = parse(
     args,
-    {
-      db: STORE_OPTIONS.db,
-      policy: STORE_OPTIONS.policy,
-      json: STORE_OPTIONS.json,
-      scope: { type: "string" },
-      ...CLIENT_OPTIONS,
-    },
+    { ...STORE_OPTIONS, ...ACTOR_OPTIONS, ...CLIENT_OPTIONS, scope: { type: "string" } },
     false,
   );
-  const flags = { db: values.db, policy: values.policy, server: values.server };
-  const conn = connect(io, flags, workspaceOf(flags, false), undefined);
+  if (values.scope === undefined) throw new UsageError("give the scope with --scope <scope>");
+  const at = checkTime("--at", values.at) ?? io.now();
+  const actor = buildActor(values, values.owner, "user");
+  const { conn } = session(io, values, { requireStore: false, readOnlyStore: true }, () => actor);
   try {
     const answer = result(
-      await conn.client.POST("/api/v1/lint", { body: { scope: values.scope ?? "org" } }),
+      await conn.client.POST("/api/v1/lint", { body: { actor, scope: values.scope, at } }),
     );
-    io.out(`${JSON.stringify(answer.findings, null, 2)}\n`);
-    return answer.findings.length === 0 ? 0 : 1;
+    const report = answer as unknown as {
+      decision: "allow" | "deny";
+      findings: LintFinding[];
+      events: MemoryEvent[];
+    };
+    if (values.json) io.out(`${JSON.stringify(report, null, 2)}\n`);
+    else
+      io.out(
+        `${[
+          `lint ${values.scope} at ${at} as ${actor.id}: ${report.decision}, ${plural(report.findings.length, "finding")}`,
+          ...report.events.map(eventLine),
+          logHint(conn),
+        ].join("\n")}\n`,
+      );
+    return report.decision === "allow" && report.findings.length === 0 ? 0 : 1;
   } finally {
     conn.close();
   }

@@ -38,9 +38,9 @@ describe("the engram binary", () => {
   });
 
   it("exits 2 for a command whose card has not landed", { timeout: 40_000 }, async () => {
-    const r = engram(["lint"], await tempDir());
+    const r = engram(["simulate"], await tempDir());
     expect(r.status).toBe(2);
-    expect(r.stderr).toBe("engram lint: not implemented yet (card L1)\n");
+    expect(r.stderr).toBe("engram simulate: not implemented yet (card E8.9)\n");
   });
 
   it("exits 1 when a write is denied", { timeout: 40_000 }, async () => {

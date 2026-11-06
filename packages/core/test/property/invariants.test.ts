@@ -1659,8 +1659,8 @@ async function planeSurfaceLeaksNothing() {
     await plane.recordBypass(outsider, { command: "cat x", store: "files" }, at),
   );
   expect(await rejection(plane.explain(outsider, ownRead.id))).toBeInstanceOf(ExplainDeniedError);
+  leaks("lint", await plane.lint(outsider, at, "person:s"));
   for (const call of [
-    () => plane.lint("person:s"),
     () => plane.simulate({ id: "w", events: [] }, policy),
     () => plane.distill([], { id: "awm", model: "scripted/none", seed: 1 }),
   ])
