@@ -1,0 +1,294 @@
+{
+  "description": "The same text in another scope, in another class, and with different letter case, which the strict hash keeps apart: none flagged.",
+  "lint_id": "duplicate",
+  "kind": "near-miss",
+  "policy": {
+    "id": "fixture.faults",
+    "version": 1,
+    "write": [
+      {
+        "scope": "person",
+        "allowed_sources": [
+          "user",
+          "document",
+          "tool",
+          "model",
+          "import",
+          "compaction"
+        ],
+        "confidence_floor": 0.3,
+        "forbidden_classes": [],
+        "requires_review": false
+      },
+      {
+        "scope": "role",
+        "allowed_sources": [
+          "user",
+          "document",
+          "tool",
+          "model",
+          "import",
+          "compaction"
+        ],
+        "confidence_floor": 0.3,
+        "forbidden_classes": [],
+        "requires_review": false
+      },
+      {
+        "scope": "team",
+        "allowed_sources": [
+          "user",
+          "document",
+          "tool",
+          "model",
+          "import",
+          "compaction"
+        ],
+        "confidence_floor": 0.3,
+        "forbidden_classes": [],
+        "requires_review": false
+      },
+      {
+        "scope": "org",
+        "allowed_sources": [
+          "user",
+          "document",
+          "tool",
+          "model",
+          "import",
+          "compaction"
+        ],
+        "confidence_floor": 0.3,
+        "forbidden_classes": [],
+        "requires_review": false
+      }
+    ],
+    "read": {
+      "matrix": [
+        {
+          "reader": "person",
+          "may_read": [
+            "person",
+            "role",
+            "team",
+            "org"
+          ]
+        },
+        {
+          "reader": "role",
+          "may_read": [
+            "role",
+            "team",
+            "org"
+          ]
+        },
+        {
+          "reader": "team",
+          "may_read": [
+            "team",
+            "org"
+          ]
+        },
+        {
+          "reader": "org",
+          "may_read": [
+            "org"
+          ]
+        }
+      ],
+      "honour_grants": true
+    },
+    "retention": [],
+    "promotion": {
+      "episodic_to_semantic": {
+        "confirmations": 3,
+        "or_review": true
+      },
+      "procedural": {
+        "replay_k": 4,
+        "replay_n": 5
+      }
+    },
+    "lints": {
+      "enabled": [
+        "duplicate"
+      ],
+      "thresholds": {}
+    },
+    "schema_version": 0
+  },
+  "actor": {
+    "id": "person:dana",
+    "level": "person",
+    "memberships": [
+      "person:dana",
+      "team:core"
+    ],
+    "source": "user"
+  },
+  "scope": "team:core",
+  "at": "2026-11-06T12:00:00Z",
+  "events": [
+    {
+      "id": "01950000-0000-7000-8000-000000900001",
+      "seq": 0,
+      "ts": "2026-11-01T09:00:00Z",
+      "op": "write",
+      "item_id": "01950000-0000-7000-8000-000000000001",
+      "actor": "person:dana",
+      "scope_from": null,
+      "scope_to": "team:core",
+      "decision": "allow",
+      "reason": "semantic item from source user passes the team write rule; provenance set by the plane: source user, actor person:dana",
+      "policy_id": "fixture.faults/write/team",
+      "item": {
+        "id": "01950000-0000-7000-8000-000000000001",
+        "scope": "team:core",
+        "owner": "person:dana",
+        "provenance": {
+          "kind": "user",
+          "ref": "engram-cli",
+          "hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "actor": "person:dana"
+        },
+        "confidence": 0.9,
+        "valid_from": "2026-10-01T00:00:00Z",
+        "valid_to": null,
+        "ttl": null,
+        "grants": [],
+        "version": 1,
+        "lineage": [],
+        "status": "active",
+        "store_ref": {
+          "adapter": "fake",
+          "key": "01950000-0000-7000-8000-000000000001"
+        },
+        "schema_version": 0,
+        "class": "semantic",
+        "content": "The release freeze starts on Friday."
+      },
+      "schema_version": 0
+    },
+    {
+      "id": "01950000-0000-7000-8000-000000900002",
+      "seq": 1,
+      "ts": "2026-11-01T09:01:00Z",
+      "op": "write",
+      "item_id": "01950000-0000-7000-8000-000000000002",
+      "actor": "person:dana",
+      "scope_from": null,
+      "scope_to": "person:dana",
+      "decision": "allow",
+      "reason": "semantic item from source user passes the person write rule; provenance set by the plane: source user, actor person:dana",
+      "policy_id": "fixture.faults/write/person",
+      "item": {
+        "id": "01950000-0000-7000-8000-000000000002",
+        "scope": "person:dana",
+        "owner": "person:dana",
+        "provenance": {
+          "kind": "user",
+          "ref": "engram-cli",
+          "hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "actor": "person:dana"
+        },
+        "confidence": 0.9,
+        "valid_from": "2026-10-01T00:00:00Z",
+        "valid_to": null,
+        "ttl": null,
+        "grants": [],
+        "version": 1,
+        "lineage": [],
+        "status": "active",
+        "store_ref": {
+          "adapter": "fake",
+          "key": "01950000-0000-7000-8000-000000000002"
+        },
+        "schema_version": 0,
+        "class": "semantic",
+        "content": "The release freeze starts on Friday."
+      },
+      "schema_version": 0
+    },
+    {
+      "id": "01950000-0000-7000-8000-000000900003",
+      "seq": 2,
+      "ts": "2026-11-01T09:02:00Z",
+      "op": "write",
+      "item_id": "01950000-0000-7000-8000-000000000003",
+      "actor": "person:dana",
+      "scope_from": null,
+      "scope_to": "team:core",
+      "decision": "allow",
+      "reason": "episodic item from source user passes the team write rule; provenance set by the plane: source user, actor person:dana",
+      "policy_id": "fixture.faults/write/team",
+      "item": {
+        "id": "01950000-0000-7000-8000-000000000003",
+        "scope": "team:core",
+        "owner": "person:dana",
+        "provenance": {
+          "kind": "user",
+          "ref": "engram-cli",
+          "hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "actor": "person:dana"
+        },
+        "confidence": 0.9,
+        "valid_from": "2026-10-01T00:00:00Z",
+        "valid_to": null,
+        "ttl": null,
+        "grants": [],
+        "version": 1,
+        "lineage": [],
+        "status": "active",
+        "store_ref": {
+          "adapter": "fake",
+          "key": "01950000-0000-7000-8000-000000000003"
+        },
+        "schema_version": 0,
+        "class": "episodic",
+        "content": "The release freeze starts on Friday."
+      },
+      "schema_version": 0
+    },
+    {
+      "id": "01950000-0000-7000-8000-000000900004",
+      "seq": 3,
+      "ts": "2026-11-01T09:03:00Z",
+      "op": "write",
+      "item_id": "01950000-0000-7000-8000-000000000004",
+      "actor": "person:dana",
+      "scope_from": null,
+      "scope_to": "team:core",
+      "decision": "allow",
+      "reason": "semantic item from source user passes the team write rule; provenance set by the plane: source user, actor person:dana",
+      "policy_id": "fixture.faults/write/team",
+      "item": {
+        "id": "01950000-0000-7000-8000-000000000004",
+        "scope": "team:core",
+        "owner": "person:dana",
+        "provenance": {
+          "kind": "user",
+          "ref": "engram-cli",
+          "hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "actor": "person:dana"
+        },
+        "confidence": 0.9,
+        "valid_from": "2026-10-01T00:00:00Z",
+        "valid_to": null,
+        "ttl": null,
+        "grants": [],
+        "version": 1,
+        "lineage": [],
+        "status": "active",
+        "store_ref": {
+          "adapter": "fake",
+          "key": "01950000-0000-7000-8000-000000000004"
+        },
+        "schema_version": 0,
+        "class": "semantic",
+        "content": "the release freeze starts on friday."
+      },
+      "schema_version": 0
+    }
+  ],
+  "flags": []
+}

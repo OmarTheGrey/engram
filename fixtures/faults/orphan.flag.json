@@ -1,0 +1,273 @@
+{
+  "description": "An item whose provenance ref names an item retired by its ttl, and one whose lineage names an item never logged: both flagged.",
+  "lint_id": "orphan",
+  "kind": "flag",
+  "policy": {
+    "id": "fixture.faults",
+    "version": 1,
+    "write": [
+      {
+        "scope": "person",
+        "allowed_sources": [
+          "user",
+          "document",
+          "tool",
+          "model",
+          "import",
+          "compaction"
+        ],
+        "confidence_floor": 0.3,
+        "forbidden_classes": [],
+        "requires_review": false
+      },
+      {
+        "scope": "role",
+        "allowed_sources": [
+          "user",
+          "document",
+          "tool",
+          "model",
+          "import",
+          "compaction"
+        ],
+        "confidence_floor": 0.3,
+        "forbidden_classes": [],
+        "requires_review": false
+      },
+      {
+        "scope": "team",
+        "allowed_sources": [
+          "user",
+          "document",
+          "tool",
+          "model",
+          "import",
+          "compaction"
+        ],
+        "confidence_floor": 0.3,
+        "forbidden_classes": [],
+        "requires_review": false
+      },
+      {
+        "scope": "org",
+        "allowed_sources": [
+          "user",
+          "document",
+          "tool",
+          "model",
+          "import",
+          "compaction"
+        ],
+        "confidence_floor": 0.3,
+        "forbidden_classes": [],
+        "requires_review": false
+      }
+    ],
+    "read": {
+      "matrix": [
+        {
+          "reader": "person",
+          "may_read": [
+            "person",
+            "role",
+            "team",
+            "org"
+          ]
+        },
+        {
+          "reader": "role",
+          "may_read": [
+            "role",
+            "team",
+            "org"
+          ]
+        },
+        {
+          "reader": "team",
+          "may_read": [
+            "team",
+            "org"
+          ]
+        },
+        {
+          "reader": "org",
+          "may_read": [
+            "org"
+          ]
+        }
+      ],
+      "honour_grants": true
+    },
+    "retention": [],
+    "promotion": {
+      "episodic_to_semantic": {
+        "confirmations": 3,
+        "or_review": true
+      },
+      "procedural": {
+        "replay_k": 4,
+        "replay_n": 5
+      }
+    },
+    "lints": {
+      "enabled": [
+        "orphan"
+      ],
+      "thresholds": {}
+    },
+    "schema_version": 0
+  },
+  "actor": {
+    "id": "person:dana",
+    "level": "person",
+    "memberships": [
+      "person:dana",
+      "team:core"
+    ],
+    "source": "user"
+  },
+  "scope": "team:core",
+  "at": "2026-11-06T12:00:00Z",
+  "events": [
+    {
+      "id": "01950000-0000-7000-8000-000000900001",
+      "seq": 0,
+      "ts": "2026-11-01T09:00:00Z",
+      "op": "write",
+      "item_id": "01950000-0000-7000-8000-000000000001",
+      "actor": "person:dana",
+      "scope_from": null,
+      "scope_to": "team:core",
+      "decision": "allow",
+      "reason": "semantic item from source user passes the team write rule; provenance set by the plane: source user, actor person:dana",
+      "policy_id": "fixture.faults/write/team",
+      "item": {
+        "id": "01950000-0000-7000-8000-000000000001",
+        "scope": "team:core",
+        "owner": "person:dana",
+        "provenance": {
+          "kind": "user",
+          "ref": "engram-cli",
+          "hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "actor": "person:dana"
+        },
+        "confidence": 0.9,
+        "valid_from": "2026-11-01T00:00:00Z",
+        "valid_to": null,
+        "ttl": 60,
+        "grants": [],
+        "version": 1,
+        "lineage": [],
+        "status": "active",
+        "store_ref": {
+          "adapter": "fake",
+          "key": "01950000-0000-7000-8000-000000000001"
+        },
+        "schema_version": 0,
+        "class": "semantic",
+        "content": "fault fixture fact 1"
+      },
+      "schema_version": 0
+    },
+    {
+      "id": "01950000-0000-7000-8000-000000900002",
+      "seq": 1,
+      "ts": "2026-11-01T09:01:00Z",
+      "op": "retire",
+      "item_id": "01950000-0000-7000-8000-000000000001",
+      "actor": "person:dana",
+      "scope_from": null,
+      "scope_to": "team:core",
+      "decision": "allow",
+      "reason": "item 01950000-0000-7000-8000-000000000001 expired at 2026-11-01T00:01:00Z (valid_from 2026-11-01T00:00:00Z plus ttl 60s, from the item's own ttl); retired, kept in the log and the store",
+      "policy_id": "engram/retention/item-ttl",
+      "schema_version": 0
+    },
+    {
+      "id": "01950000-0000-7000-8000-000000900003",
+      "seq": 2,
+      "ts": "2026-11-01T09:02:00Z",
+      "op": "write",
+      "item_id": "01950000-0000-7000-8000-000000000002",
+      "actor": "person:dana",
+      "scope_from": null,
+      "scope_to": "team:core",
+      "decision": "allow",
+      "reason": "semantic item from source user passes the team write rule; provenance set by the plane: source user, actor person:dana",
+      "policy_id": "fixture.faults/write/team",
+      "item": {
+        "id": "01950000-0000-7000-8000-000000000002",
+        "scope": "team:core",
+        "owner": "person:dana",
+        "provenance": {
+          "kind": "user",
+          "ref": "01950000-0000-7000-8000-000000000001",
+          "hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "actor": "person:dana"
+        },
+        "confidence": 0.9,
+        "valid_from": "2026-10-01T00:00:00Z",
+        "valid_to": null,
+        "ttl": null,
+        "grants": [],
+        "version": 1,
+        "lineage": [],
+        "status": "active",
+        "store_ref": {
+          "adapter": "fake",
+          "key": "01950000-0000-7000-8000-000000000002"
+        },
+        "schema_version": 0,
+        "class": "semantic",
+        "content": "fault fixture fact 2"
+      },
+      "schema_version": 0
+    },
+    {
+      "id": "01950000-0000-7000-8000-000000900004",
+      "seq": 3,
+      "ts": "2026-11-01T09:03:00Z",
+      "op": "write",
+      "item_id": "01950000-0000-7000-8000-000000000003",
+      "actor": "person:dana",
+      "scope_from": null,
+      "scope_to": "team:core",
+      "decision": "allow",
+      "reason": "semantic item from source user passes the team write rule; provenance set by the plane: source user, actor person:dana",
+      "policy_id": "fixture.faults/write/team",
+      "item": {
+        "id": "01950000-0000-7000-8000-000000000003",
+        "scope": "team:core",
+        "owner": "person:dana",
+        "provenance": {
+          "kind": "user",
+          "ref": "engram-cli",
+          "hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "actor": "person:dana"
+        },
+        "confidence": 0.9,
+        "valid_from": "2026-10-01T00:00:00Z",
+        "valid_to": null,
+        "ttl": null,
+        "grants": [],
+        "version": 1,
+        "lineage": [
+          "01950000-0000-7000-8000-000000000099"
+        ],
+        "status": "active",
+        "store_ref": {
+          "adapter": "fake",
+          "key": "01950000-0000-7000-8000-000000000003"
+        },
+        "schema_version": 0,
+        "class": "semantic",
+        "content": "fault fixture fact 3"
+      },
+      "schema_version": 0
+    }
+  ],
+  "flags": [
+    "01950000-0000-7000-8000-000000000002",
+    "01950000-0000-7000-8000-000000000003"
+  ]
+}

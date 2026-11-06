@@ -8,7 +8,7 @@ SHELL := bash
 PNPM ?= pnpm
 UV ?= uv
 
-.PHONY: help test test-invariants test-one test-e2e test-repro lint lint-docs api api-check ui bench run h1-table fixtures thesis engram
+.PHONY: help test test-invariants test-one test-e2e test-repro lint lint-docs api api-check ui bench run h1-table fixtures fault-workspace thesis engram
 
 help: ## list targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | sed -E 's/:.*## /\t/' | expand -t 16
@@ -111,6 +111,7 @@ MEM_INV_UPSTREAM ?= .engram/upstream/mem-inv-bench
 fixtures: ## regenerate golden files and scripted cassettes; refuses without MSG=<reason>, which goes in the commit message
 	@[ -n "$(MSG)" ] || { echo "fixtures: refusing without MSG=<reason>"; exit 2; }
 	$(UV) run python research/scripts/consolidate_log.py --root fixtures/log/repo --out fixtures/log/expected
+	rm -rf fixtures/faults && node packages/core/scripts/faults.ts write fixtures/faults
 	ENGRAM_UPDATE_FIXTURES=1 $(PNPM) --filter pi-extension exec vitest run test/interception.test.ts test/retention.test.ts
 	env -u ENGRAM_OFFLINE node packages/bench/scripts/run-gatemem.ts --config fixtures/bench/gatemem/run-config.json --out .engram/bench/gatemem-record --record
 	$(UV) run python -I packages/bench/scripts/vendor-mem-inv-bench.py --upstream "$(MEM_INV_UPSTREAM)" --fetch --out fixtures/bench/mem-inv-bench
@@ -127,6 +128,11 @@ OUT ?= $(ROOT)/research/thesis/drafts
 
 thesis: ## consolidate docs/log into research/thesis/drafts; ROOT= and OUT= to run on a fixture log
 	$(UV) run python research/scripts/consolidate_log.py --root "$(ROOT)" --out "$(OUT)"
+
+fault-workspace: ## a SQLite log and policy from one fault fixture, to lint with the CLI: make fault-workspace FAULT=orphan.flag
+	@[ -n "$(FAULT)" ] || { echo "fault-workspace: give FAULT=<name> from fixtures/faults"; exit 2; }
+	rm -rf ".engram/faults/$(FAULT)"
+	node packages/core/scripts/faults.ts workspace "fixtures/faults/$(FAULT).json" ".engram/faults/$(FAULT)"
 
 engram: ## run the engram CLI: make engram ARGS="read --root <folder> --owner <id>"
 	@node packages/cli/src/main.ts $(ARGS)
