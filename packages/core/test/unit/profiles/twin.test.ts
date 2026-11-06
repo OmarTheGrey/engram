@@ -6,7 +6,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, test } from "vitest";
 import type { Actor } from "../../../src/plane.ts";
 import { parsePolicy } from "../../../src/policy/load.ts";
-import type { Grant, MemoryItem, Policy } from "../../../src/schema.ts";
+import type { Grant, Policy } from "../../../src/schema.ts";
 import { fresh, id, item } from "../plane/helpers.ts";
 
 const PROFILE = new URL("../../../../pi-package/profiles/twin.yaml", import.meta.url);
