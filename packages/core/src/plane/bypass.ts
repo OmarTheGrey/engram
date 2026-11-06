@@ -98,6 +98,6 @@ export function recordBypass(
     decision: "deny",
     reason: `${why(bypass)}; attempted: ${bypassAttempt(bypass.command)}`,
     policy_id: RULE[bypass.route ?? "command"],
-    schema_version: 0,
+    schema_version: 1,
   });
 }

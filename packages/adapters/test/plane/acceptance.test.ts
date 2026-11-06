@@ -41,7 +41,7 @@ function item(n: number, over: Partial<MemoryItem> = {}): MemoryItem {
     lineage: [],
     status: "active",
     store_ref: null,
-    schema_version: 0,
+    schema_version: 1,
     ...over,
   } as MemoryItem;
 }

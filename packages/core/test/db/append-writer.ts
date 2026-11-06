@@ -29,7 +29,7 @@ const item = (n: number): MemoryItem => ({
   lineage: [],
   status: "active",
   store_ref: { adapter: "fake", key: actor },
-  schema_version: 0,
+  schema_version: 1,
 });
 
 const db = openPostgres(url, { schema });
@@ -53,7 +53,7 @@ try {
       reason: "allowed",
       policy_id: "p/write",
       item: item(n),
-      schema_version: 0,
+      schema_version: 1,
     });
     appended++;
   }

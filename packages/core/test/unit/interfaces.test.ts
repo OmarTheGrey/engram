@@ -30,7 +30,7 @@ const POLICY: Policy = {
     procedural: { replay_k: 4, replay_n: 5 },
   },
   lints: { enabled: [], thresholds: {} },
-  schema_version: 0,
+  schema_version: 1,
 };
 
 const FINDING: LintFinding = {
@@ -41,7 +41,7 @@ const FINDING: LintFinding = {
   severity: "warn",
   message: "valid_to is in the past",
   evidence: ["valid_to=2026-01-01T00:00:00Z"],
-  schema_version: 0,
+  schema_version: 1,
 };
 
 const SKILL: MemoryItem = {
@@ -66,7 +66,7 @@ const SKILL: MemoryItem = {
   lineage: [],
   status: "candidate",
   store_ref: null,
-  schema_version: 0,
+  schema_version: 1,
 };
 
 const event = (seq: number, decision: MemoryEvent["decision"]): MemoryEvent => ({
@@ -82,7 +82,7 @@ const event = (seq: number, decision: MemoryEvent["decision"]): MemoryEvent => (
   reason: "recorded",
   policy_id: "p/write",
   item: null,
-  schema_version: 0,
+  schema_version: 1,
 });
 
 const SESSION: Session = {

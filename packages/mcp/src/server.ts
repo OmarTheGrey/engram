@@ -133,7 +133,7 @@ export function createMcpServer(options: McpOptions): Server {
           lineage: [],
           status: "active",
           store_ref: null,
-          schema_version: 0,
+          schema_version: 1,
         };
         const answer = await client.POST("/api/v1/items", { body: { actor: agent, item, at } });
         if (answer.data === undefined) return text(failure(answer).message, true);

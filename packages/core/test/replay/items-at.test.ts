@@ -36,7 +36,7 @@ function item(n: number, over: Partial<MemoryItem> = {}): MemoryItem {
     lineage: [],
     status: "active",
     store_ref: { adapter: "fake", key: id(n) },
-    schema_version: 0,
+    schema_version: 1,
     ...over,
   } as MemoryItem;
 }
@@ -46,7 +46,7 @@ const base = (n: number) => ({
   ts: `2026-10-25T09:${String(n).padStart(2, "0")}:00Z`,
   actor: "agent:pi",
   reason: "fixture",
-  schema_version: 0 as const,
+  schema_version: 1 as const,
 });
 
 /**

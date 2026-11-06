@@ -33,7 +33,7 @@ const ITEM: MemoryItem = {
   lineage: [],
   status: "active",
   store_ref: null,
-  schema_version: 0,
+  schema_version: 1,
 };
 
 const write = (n: number, actor = "agent:pi") => ({
@@ -48,7 +48,7 @@ const write = (n: number, actor = "agent:pi") => ({
   reason: "allowed",
   policy_id: "p/write",
   item: ITEM,
-  schema_version: 0 as const,
+  schema_version: 1 as const,
 });
 
 forEachBackend((backend) => {

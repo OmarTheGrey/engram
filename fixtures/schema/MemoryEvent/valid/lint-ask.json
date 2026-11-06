@@ -11,7 +11,7 @@
   "reason": "validity window has closed",
   "policy_id": "lint/expired-validity",
   "item": null,
-  "schema_version": 0,
+  "schema_version": 1,
   "usage": {
     "input_tokens": 0,
     "output_tokens": 0,

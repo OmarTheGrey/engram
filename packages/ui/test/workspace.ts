@@ -55,7 +55,7 @@ function itemOf(actor: Actor, over: Record<string, unknown>) {
     lineage: [],
     status: "active",
     store_ref: null,
-    schema_version: 0,
+    schema_version: 1,
     ...over,
   };
 }

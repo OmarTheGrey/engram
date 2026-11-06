@@ -34,6 +34,12 @@ export const arbScope = fc.oneof(
     .map(([level, id]) => `${level}:${id}`),
 );
 
+/**
+ * A claimed provenance. Its kinds stay the six of schema version 0, so the
+ * draws of every property built on it stay as they were; `external` (version
+ * 1) reaches the gate through a writer's source (arbWriter) and the targeted
+ * isolation and relearning cases of invariant 2.
+ */
 export const arbProvenance = fc.record({
   kind: fc.constantFrom("user", "document", "tool", "model", "import", "compaction"),
   ref: fc.constantFrom("doc/1", "session/2", "tool/3"),
@@ -81,7 +87,7 @@ export function arbItem(
         ttl: null,
         grants: [],
         lineage: [],
-        schema_version: 0 as const,
+        schema_version: 1 as const,
       };
       return r.class === "procedural"
         ? { ...base, class: "procedural" as const, content: { body: text || "step", tools: [] } }
@@ -106,7 +112,7 @@ export function arbEventInput(itemIds: readonly string[]): fc.Arbitrary<EventInp
     actor: arbPrincipal,
     reason: fc.constantFrom("generated", "policy rule"),
     policy_id: fc.constantFrom("p/write", "p/read", "p/retire"),
-    schema_version: fc.constant(0 as const),
+    schema_version: fc.constant(1 as const),
   };
   const changing = fc
     .record({
@@ -180,7 +186,7 @@ export const arbGrantedItem: fc.Arbitrary<MemoryItem> = fc
   .map(([item, grants]) => ({ ...item, grants }));
 
 const arbProvenanceKinds = fc.uniqueArray(
-  fc.constantFrom("user", "document", "tool", "model", "import", "compaction"),
+  fc.constantFrom("user", "document", "tool", "model", "import", "compaction", "external"),
   { maxLength: 6 },
 );
 
@@ -231,7 +237,7 @@ export const arbPolicy: fc.Arbitrary<Policy> = fc.record({
     procedural: { replay_k: 4, replay_n: 5 },
   }),
   lints: fc.constant({ enabled: [], thresholds: {} }),
-  schema_version: fc.constant(0 as const),
+  schema_version: fc.constant(1 as const),
 });
 
 /**
@@ -272,7 +278,7 @@ export const arbGatedItem: fc.Arbitrary<MemoryItem> = fc
   .map(([item, grants, valid_from]) => ({
     ...item,
     valid_from,
-    grants: ["model", "compaction"].includes(item.provenance.kind) ? [] : grants,
+    grants: ["model", "compaction", "external"].includes(item.provenance.kind) ? [] : grants,
   }));
 
 /**
@@ -311,6 +317,7 @@ export const arbWriter: fc.Arbitrary<Actor & { source?: ProvenanceKindName }> = 
       "model",
       "import",
       "compaction",
+      "external",
     ),
   },
   { requiredKeys: ["id", "level", "memberships"] },

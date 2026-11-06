@@ -44,7 +44,7 @@ function item(n: number, over: Partial<MemoryItem> = {}): MemoryItem {
     lineage: [],
     status: "active",
     store_ref: null,
-    schema_version: 0,
+    schema_version: 1,
     ...over,
   } as MemoryItem;
 }
@@ -62,7 +62,7 @@ function event(seq: number, over: Partial<MemoryEvent> = {}): MemoryEvent {
     decision: "allow",
     reason: "ok",
     policy_id: "p/write/person",
-    schema_version: 0,
+    schema_version: 1,
     ...over,
   };
 }
@@ -78,7 +78,7 @@ const explanation = (n: number, rank: number, over = {}) => ({
     valid_from: "2026-10-01T00:00:00.000Z",
     valid_to: null,
   },
-  schema_version: 0 as const,
+  schema_version: 1 as const,
   ...over,
 });
 
