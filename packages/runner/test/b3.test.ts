@@ -35,6 +35,24 @@ import { B3 } from "./paths.ts";
 /** The temporary folder every test process shares, as this file found it. */
 const SHARED_TMP = tmpdir();
 
+// This file's own temporary folder. Node's tmpdir() reads TMPDIR on POSIX and
+// TEMP or TMP on Windows on every call, so every Letta store the runner opens
+// from here (stores.ts) lands in it, and the leftover checks below see this
+// file's stores only, whatever other test processes open meanwhile. The
+// variables are restored, and the folder removed, after the file.
+const OWN_TMP = mkdtempSync(join(SHARED_TMP, "engram-b3-test-"));
+const TMP_VARS = ["TMPDIR", "TEMP", "TMP"] as const;
+const savedTmp = Object.fromEntries(TMP_VARS.map((k) => [k, process.env[k]]));
+for (const k of TMP_VARS) process.env[k] = OWN_TMP;
+afterAll(async () => {
+  for (const k of TMP_VARS) {
+    const v = savedTmp[k];
+    if (v === undefined) delete process.env[k];
+    else process.env[k] = v;
+  }
+  await rm(OWN_TMP, { recursive: true, force: true, maxRetries: 5, retryDelay: 20 });
+});
+
 /** The runner's Letta repositories now in the temporary folder. */
 const lettaFolders = () => readdirSync(tmpdir()).filter((f) => f.startsWith(LETTA_STORE_PREFIX));
 
@@ -50,6 +68,18 @@ describe("the leftover check counts only this file's Letta stores", () => {
       expect(lettaFolders().filter((f) => !before.includes(f))).toEqual([]);
     } finally {
       await rm(other, { recursive: true, force: true });
+    }
+  });
+
+  test("a Letta folder left in this file's own temp folder is still counted", async () => {
+    // The check must keep catching a real leak: a store this file opened and
+    // never closed lands where tmpdir() points.
+    const before = lettaFolders();
+    const leaked = mkdtempSync(join(tmpdir(), LETTA_STORE_PREFIX));
+    try {
+      expect(lettaFolders().filter((f) => !before.includes(f))).toHaveLength(1);
+    } finally {
+      await rm(leaked, { recursive: true, force: true });
     }
   });
 });
