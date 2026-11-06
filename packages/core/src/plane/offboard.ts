@@ -34,7 +34,7 @@ import type { StoreRef } from "../adapter.ts";
 import { appendEvent, currentItems, ERASURE_ID } from "../events.ts";
 import type { PlaneDeps } from "../plane.ts";
 import { scopeLevel } from "../policy/evaluate.ts";
-import { type MemoryEvent, type MemoryItem, Principal, Scope } from "../schema.ts";
+import { type MemoryEvent, type MemoryItem, Principal, SCHEMA_VERSION, Scope } from "../schema.ts";
 import { inWriteQueue } from "./queue.ts";
 
 export const HANDOVER_ID = "engram/offboard/handover";
@@ -118,7 +118,7 @@ async function run(
 ): Promise<DeletionReport> {
   const { db, adapter, newId } = deps;
   const { person, roles } = request;
-  const base = { ts: at, actor: actor.id, schema_version: 0 as const };
+  const base = { ts: at, actor: actor.id, schema_version: SCHEMA_VERSION as typeof SCHEMA_VERSION };
   const empty = {
     items: [],
     store_refs: [],
