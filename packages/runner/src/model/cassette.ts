@@ -37,9 +37,15 @@ import {
   type TranscriptContext,
 } from "@earendil-works/pi-ai";
 import { canonicalJson, type ModelCall, type ModelRequest, type ModelResponse } from "@engram/core";
-import { type CacheStore, type CallContext, cached, type UsageRecord } from "./cached.ts";
+import {
+  type CacheStore,
+  type CallContext,
+  cached,
+  type ScriptStep,
+  scriptedPiModel,
+  type UsageRecord,
+} from "@engram/model";
 import type { CompletesSimple } from "./pi.ts";
-import { type ScriptStep, scriptedPiModel } from "./scripted.ts";
 
 /** What a miss is answered with besides the transcript: the config's seed and the loop's options. */
 export interface AnswerCall {

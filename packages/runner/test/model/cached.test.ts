@@ -1,17 +1,13 @@
 // Acceptance for step-0 task S0.10 (ADR 0017): a second identical call makes
 // zero underlying calls, offline mode refuses a miss, and usage is recorded.
+// The code under test lives in @engram/model since ADR 0032; this file stays at
+// its path because immutable log entries cite it as evidence.
 import { mkdtempSync, readdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ModelCall, ModelRequest } from "@engram/core";
+import { cached, cacheKey, fileCache, memoryCache, OfflineMissError } from "@engram/model";
 import { describe, expect, test } from "vitest";
-import {
-  cached,
-  cacheKey,
-  fileCache,
-  memoryCache,
-  OfflineMissError,
-} from "../../src/model/cached.ts";
 
 const request: ModelRequest = {
   model: "scripted/scripted-1",

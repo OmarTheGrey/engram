@@ -36,6 +36,7 @@ import {
   type Policy,
   type PresetName,
 } from "@engram/core";
+import type { CacheStore, CallContext, ScriptStep, UsageRecord } from "@engram/model";
 import { ENGRAM_EVENT, type RecallDetails, renderRecall } from "@engram/pi-extension";
 import { z } from "zod";
 import { conditionSession, type ReadMetadata, type UngovernedStore } from "./conditions.ts";
@@ -46,9 +47,7 @@ import {
   NO_STORE,
   statedPreset,
 } from "./config.ts";
-import type { CacheStore, CallContext, UsageRecord } from "./model/cached.ts";
 import { type AnswerSource, cassettePiModel } from "./model/cassette.ts";
-import type { ScriptStep } from "./model/scripted.ts";
 import { closeStore, openStore, type StoreName } from "./stores.ts";
 
 /** Deterministic UUIDv7-shaped ids: the n-th id a run hands out. */

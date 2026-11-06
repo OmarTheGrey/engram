@@ -21,9 +21,9 @@
 // drop the schema.
 import { gatemem } from "@engram/bench";
 import { type ModelCall, UnsupportedRequestError } from "@engram/core";
+import { type CacheStore, type CallContext, cached, type UsageRecord } from "@engram/model";
 import type { LiveModels } from "./answers.ts";
 import type { RunnerConfig } from "./config.ts";
-import { type CacheStore, type CallContext, cached, type UsageRecord } from "./model/cached.ts";
 import { JUDGE_RETRY, realSleep, type Sleep, withRetry } from "./model/retry.ts";
 
 /** The one API a live judge runs on: it carries the seed and `response_format` through `samplingParams`. */

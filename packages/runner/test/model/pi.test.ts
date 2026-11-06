@@ -1,9 +1,9 @@
 // The pi-ai backed ModelCall, driven by pi-ai's faux provider: no network.
 import { createModels } from "@earendil-works/pi-ai";
 import { UnsupportedRequestError } from "@engram/core";
+import { scriptedPiModel } from "@engram/model";
 import { expect, test } from "vitest";
 import { piModelCall } from "../../src/model/pi.ts";
-import { scriptedPiModel } from "../../src/model/scripted.ts";
 
 test("sends the request through pi-ai and returns text and usage", async () => {
   const scripted = scriptedPiModel([{ text: "Tuesday" }]);

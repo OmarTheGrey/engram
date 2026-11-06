@@ -5,9 +5,9 @@
 import { join } from "node:path";
 import { estimateTokens } from "@earendil-works/pi-coding-agent";
 import { canonicalJson, loadPreset } from "@engram/core";
+import type { CacheEntry } from "@engram/model";
 import { describe, expect, test } from "vitest";
 import { builtinLiveModels } from "../../src/live.ts";
-import type { CacheEntry } from "../../src/model/cached.ts";
 import {
   callShape,
   catalogueEntry,

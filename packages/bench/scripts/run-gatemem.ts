@@ -24,7 +24,7 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
-import { type CacheStore, fileCache, memoryCache } from "@engram/runner";
+import { type CacheStore, fileCache, memoryCache } from "@engram/model";
 import { readJudgeScript, scriptedJudge } from "../src/gatemem/judge.ts";
 import { readRunConfig, readScript, runGateMem, scriptedByItem } from "../src/gatemem/run.ts";
 

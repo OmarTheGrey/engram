@@ -1,6 +1,6 @@
 import { type ModelRequest, requestHash } from "@engram/core";
 import { describe, expect, test } from "vitest";
-import { scriptedModelCall } from "../../src/model/scripted.ts";
+import { scriptedModelCall } from "../src/scripted.ts";
 
 const ask = (content: string, seed = 1): ModelRequest => ({
   model: "scripted/scripted-1",

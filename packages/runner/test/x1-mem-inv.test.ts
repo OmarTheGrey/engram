@@ -17,6 +17,7 @@ import {
 } from "@earendil-works/pi-ai";
 import { memInvBench } from "@engram/bench";
 import { loadPreset } from "@engram/core";
+import type { CacheEntry, CacheStore } from "@engram/model";
 import { afterAll, describe, expect, test } from "vitest";
 import { memInvLines } from "../scripts/run-mem-inv.ts";
 import { answersFor } from "../src/answers.ts";
@@ -36,7 +37,6 @@ import {
   runMemInvProbe,
   withNotes,
 } from "../src/mem-inv-probe.ts";
-import type { CacheEntry, CacheStore } from "../src/model/cached.ts";
 import type { StoreName } from "../src/stores.ts";
 import { X1_MEM_INV } from "./paths.ts";
 

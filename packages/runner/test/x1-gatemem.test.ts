@@ -20,6 +20,7 @@ import {
   migrate,
   openSqlite,
 } from "@engram/core";
+import type { CacheEntry, CacheStore } from "@engram/model";
 import { describe, expect, test } from "vitest";
 import { answersFor } from "../src/answers.ts";
 import { type Condition, readRunnerConfig } from "../src/config.ts";
@@ -32,7 +33,6 @@ import {
   runProbe,
   sequentialIds,
 } from "../src/gatemem-probe.ts";
-import type { CacheEntry, CacheStore } from "../src/model/cached.ts";
 import { X1_GATEMEM } from "./paths.ts";
 
 const config = readRunnerConfig(X1_GATEMEM);

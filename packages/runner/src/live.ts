@@ -26,8 +26,8 @@ import { existsSync, readdirSync } from "node:fs";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import { createModels } from "@earendil-works/pi-ai";
 import { builtinProviders } from "@earendil-works/pi-ai/providers/all";
+import { fileCache } from "@engram/model";
 import type { LiveModels } from "./answers.ts";
-import { fileCache } from "./model/cached.ts";
 import type { RunnerOptions } from "./run.ts";
 
 /** What the live guards read of a config, whatever its benchmark (GateMem, MEM-INV-Bench). */

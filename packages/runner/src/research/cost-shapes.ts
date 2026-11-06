@@ -28,9 +28,9 @@ import { fileURLToPath } from "node:url";
 import { estimateTokens } from "@earendil-works/pi-coding-agent";
 import { gatemem } from "@engram/bench";
 import type { Policy } from "@engram/core";
+import type { CacheEntry } from "@engram/model";
 import type { LiveModels } from "../answers.ts";
 import { probeInputs, sequentialIds } from "../gatemem-probe.ts";
-import type { CacheEntry } from "../model/cached.ts";
 import { SEEDED_APIS } from "../model/cassette.ts";
 import { walkLists } from "./c4-evidence.ts";
 

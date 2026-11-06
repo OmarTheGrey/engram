@@ -1,5 +1,5 @@
 import { type ModelRequest, requestHash } from "@engram/core";
-import { scriptedModelCall } from "@engram/runner";
+import { scriptedModelCall } from "@engram/model";
 import { describe, expect, test } from "vitest";
 import { ExampleAgent, LongContextAgent } from "../../src/gatemem/agents.ts";
 import { runBenchmark } from "../../src/gatemem/harness.ts";

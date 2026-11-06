@@ -11,10 +11,10 @@ import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import type { CacheEntry, CacheStore } from "@engram/model";
 import { describe, expect, test } from "vitest";
 import { CONDITIONS, readRunnerConfig, readSuite } from "../src/config.ts";
 import { readMemInvConfig, runMemInvConfig } from "../src/mem-inv-probe.ts";
-import type { CacheEntry, CacheStore } from "../src/model/cached.ts";
 import { runConfig } from "../src/run.ts";
 import { X1_GATEMEM, X1_GATEMEM_RAG, X1_MEM_INV, X1_SUITE } from "./paths.ts";
 
