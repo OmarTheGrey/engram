@@ -3049,6 +3049,56 @@
                     "to_scope"
                   ],
                   "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "op": {
+                      "type": "string",
+                      "const": "bypass"
+                    },
+                    "as": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "A key of the workload's actors."
+                    },
+                    "at": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                    },
+                    "bypass": {
+                      "type": "object",
+                      "properties": {
+                        "command": {
+                          "type": "string"
+                        },
+                        "store": {
+                          "type": "string"
+                        },
+                        "route": {
+                          "type": "string",
+                          "enum": [
+                            "command",
+                            "path",
+                            "result"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "command",
+                        "store"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "op",
+                    "as",
+                    "at",
+                    "bypass"
+                  ],
+                  "additionalProperties": false
                 }
               ]
             }
@@ -3129,7 +3179,8 @@
                         "write",
                         "read",
                         "retain",
-                        "promote"
+                        "promote",
+                        "bypass"
                       ]
                     },
                     "actor": {
@@ -3328,7 +3379,8 @@
                         "write",
                         "read",
                         "retain",
-                        "promote"
+                        "promote",
+                        "bypass"
                       ]
                     },
                     "actor": {
@@ -3516,7 +3568,8 @@
                     "write",
                     "read",
                     "retain",
-                    "promote"
+                    "promote",
+                    "bypass"
                   ]
                 },
                 "actor": {
@@ -3542,7 +3595,8 @@
                         "write",
                         "read",
                         "retain",
-                        "promote"
+                        "promote",
+                        "bypass"
                       ]
                     },
                     "actor": {
@@ -3621,7 +3675,8 @@
                         "write",
                         "read",
                         "retain",
-                        "promote"
+                        "promote",
+                        "bypass"
                       ]
                     },
                     "actor": {

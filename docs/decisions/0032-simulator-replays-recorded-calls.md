@@ -40,6 +40,13 @@ The inspector's fixture (`fixtures/workspaces/inspector/workload.json`, cards E8
 - Reads replay on a store without search (the plane's term match) unless the workload or the plane names the core pipeline, so a run recorded on Mem0's search can rank differently in the replay. The decisions do not depend on it; the returned items can.
 - A workload carries whole items and queries, so a recorded one is dogfood content when it comes from a member's session (AGENTS.md rule 12): it stays on that machine.
 
+## Amendments
+
+Made by card PX2, 2026-11-06 (branch `px2-session-replay`):
+
+- A blocked bypass is a workload step (`op: "bypass"`, replayed through `Plane.recordBypass`), so a session's replay reproduces every event it recorded. No policy decides one, so it never differs between two policies.
+- The pi extension records, in the session, one `engram.policy` custom entry with the whole policy before its first call, and one `engram.call` entry per Plane call, ahead of that call's events: the actor in full, the step, and the policy's id and version. The whole policy is recorded because its id does not pin its rules: the E2.4 retention session ran a one-slot variant of `preset.medium` under the same id. `replaySession` (packages/pi-extension/src/replay.ts) replays the calls under the recorded policy by default and compares every event with the one recorded, apart from event ids and the store refs; core's `replayWorkload` returns the replay's events for that.
+
 ## Sources
 
 - `docs/tasks/E8.9.md`, `docs/roadmap.md` (epic E8)

@@ -10,8 +10,9 @@
 // decided again under another policy (docs/log/2026-11-06-e8-9-workload-is-calls.md).
 //
 // A pi session reaches the simulator already converted into a workload by
-// packages/pi-extension (card PX2), so core needs no pi type. The
-// implementation is plane/simulate.ts.
+// packages/pi-extension (card PX2, its replay.ts), so core needs no pi type.
+// A blocked bypass is a step too, so a session's replay reproduces every event
+// it recorded; no policy decides one. The implementation is plane/simulate.ts.
 import { z } from "zod";
 import { ActorShape } from "./actor.ts";
 import { Id, JsonValue, type Policy, Scope, Timestamp } from "./schema.ts";
@@ -41,6 +42,17 @@ export const WorkloadStep = z.discriminatedUnion("op", [
     to_scope: Scope,
     review: z.boolean().optional(),
   }),
+  z.strictObject({
+    op: z.literal("bypass"),
+    as: name,
+    at: Timestamp,
+    /** A bypass a surface blocked (Plane.recordBypass, ADR 0014): decided by no policy, replayed as recorded. */
+    bypass: z.strictObject({
+      command: z.string(),
+      store: z.string(),
+      route: z.enum(["command", "path", "result"]).optional(),
+    }),
+  }),
 ]);
 
 /** A recorded workload: its actors by name and its calls in the order they were made. */
@@ -69,7 +81,7 @@ export const Workload = z
 /** What one step decided under one policy. */
 export const StepOutcome = z.strictObject({
   step: z.int().nonnegative(),
-  op: z.enum(["write", "read", "retain", "promote"]),
+  op: z.enum(["write", "read", "retain", "promote", "bypass"]),
   actor: z.string(),
   item_id: z.string().nullable(),
   decision: z.enum(["allow", "deny", "ask"]),
@@ -125,7 +137,7 @@ export const PolicyRun = z.strictObject({
 /** A step whose decision, recall or retirements differ between the two runs. */
 export const StepChange = z.strictObject({
   step: z.int().nonnegative(),
-  op: z.enum(["write", "read", "retain", "promote"]),
+  op: z.enum(["write", "read", "retain", "promote", "bypass"]),
   actor: z.string(),
   item_id: z.string().nullable(),
   baseline: StepOutcome,

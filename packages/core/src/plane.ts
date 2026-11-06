@@ -48,7 +48,7 @@ export {
   readCounts,
 } from "./plane/read-reason.ts";
 export { enforceBudget, retentionUsage } from "./plane/retention.ts";
-export { checkWorkload, runWorkload, SIMULATION_STORE } from "./plane/simulate.ts";
+export { checkWorkload, replayWorkload, runWorkload, SIMULATION_STORE } from "./plane/simulate.ts";
 export { retiredContent } from "./plane/write.ts";
 
 export interface ReadQuery {

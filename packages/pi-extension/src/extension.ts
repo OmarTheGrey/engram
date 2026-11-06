@@ -61,6 +61,7 @@ import {
   type WorkloadStep,
 } from "@engram/core";
 import { systemClock, uuidv7 } from "./ids.ts";
+import { type CallEntry, ENGRAM_CALL, ENGRAM_EVENT, ENGRAM_POLICY } from "./replay.ts";
 import {
   defuseMessage,
   isMemoryTool,
@@ -81,7 +82,7 @@ import {
   writeResultText,
 } from "./tools.ts";
 
-export const ENGRAM_EVENT = "engram.event";
+export { ENGRAM_EVENT };
 /** The rule id of a blocked store command (ADR 0014); the Plane's. */
 export const NO_BYPASS_ID = BYPASS_ID;
 
@@ -185,6 +186,26 @@ export function createEngramExtension(options: EngramExtensionOptions): Extensio
       actors: { agent, member: actor },
       steps: [...steps],
     });
+    const actorOf = { agent, member: actor } as const;
+    /**
+     * Records a Plane call before it is made: in memory_simulate's workload,
+     * and as an `engram.call` custom entry ahead of the events it appends
+     * (card PX2), so the session replays through the plane on its own.
+     */
+    let policyRecorded = false;
+    const recordCall = (step: WorkloadStep) => {
+      if (!policyRecorded) {
+        pi.appendEntry(ENGRAM_POLICY, options.policy);
+        policyRecorded = true;
+      }
+      steps.push(step);
+      const entry: CallEntry = {
+        actor: actorOf[step.as as keyof typeof actorOf],
+        step,
+        policy: { id: options.policy.id, version: options.policy.version },
+      };
+      pi.appendEntry(ENGRAM_CALL, entry);
+    };
     const withheldLogged = new Set<string>();
 
     /**
@@ -206,13 +227,17 @@ export function createEngramExtension(options: EngramExtensionOptions): Extensio
 
     const read = async (text: string): Promise<RecallDetails> => {
       const at = now();
-      steps.push({ op: "read", as: "agent", at, text });
+      recordCall({ op: "read", as: "agent", at, text });
       const result: ReadResult = await planeCall(() => plane.read(agent, { text, at }));
       const { event, filtered, items, explanations } = result;
       return recallDetails(event.id, event.policy_id, filtered, items, explanations);
     };
 
-    const bypass = (b: Bypass) => planeCall(() => plane.recordBypass(agent, b, now()));
+    const bypass = (b: Bypass) => {
+      const at = now();
+      recordCall({ op: "bypass", as: "agent", at, bypass: b });
+      return planeCall(() => plane.recordBypass(agent, b, at));
+    };
 
     /** Core decides (no-bypass.ts); the extension records what it blocks. */
     const check = (cwd: string) => ({
@@ -269,7 +294,7 @@ export function createEngramExtension(options: EngramExtensionOptions): Extensio
             at,
             modelOf(ctx),
           );
-          steps.push({ op: "write", as: "agent", at, item });
+          recordCall({ op: "write", as: "agent", at, item });
           const written = await planeCall(() => plane.write(agent, item, at));
           const { event } = written;
           let stored = written.item;
@@ -279,7 +304,7 @@ export function createEngramExtension(options: EngramExtensionOptions): Extensio
           // and the result reports the item as the sweep left it (P4-1).
           if (stored) {
             const { scope } = stored;
-            steps.push({ op: "retain", as: "member", at, scope });
+            recordCall({ op: "retain", as: "member", at, scope });
             const swept = await planeCall(() => plane.retain(actor, scope, at));
             if ([...swept.expired, ...swept.evicted].includes(stored.id))
               stored = { ...stored, status: "retired" };
@@ -358,7 +383,7 @@ export function createEngramExtension(options: EngramExtensionOptions): Extensio
         const check = await plane.checkWrite(agent, item, at);
         if (check.decision === "allow") return undefined;
         // A deny is committed here: one deny event, and nothing reaches the store.
-        steps.push({ op: "write", as: "agent", at, item });
+        recordCall({ op: "write", as: "agent", at, item });
         const { event: denied } = await planeCall(() => plane.write(agent, item, at));
         const reason = refusal(denied);
         record.addText(event.toolCallId, "memory_write", actor.id, reason, true);
@@ -390,7 +415,7 @@ export function createEngramExtension(options: EngramExtensionOptions): Extensio
       // appends nothing.
       const at = now();
       for (const scope of actor.memberships) {
-        steps.push({ op: "retain", as: "member", at, scope });
+        recordCall({ op: "retain", as: "member", at, scope });
         await planeCall(() => plane.retain(actor, scope, at));
       }
       if (options.recall === false || event.messageType !== "user") return undefined;
