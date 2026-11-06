@@ -3,7 +3,7 @@
 // folds the same rule the projection applies (applyEvent), so for every seq it
 // equals what currentItems returned right after that event was appended.
 import type { Db } from "./db/db.ts";
-import { applyEvent } from "./events.ts";
+import { applyEvent, erases } from "./events.ts";
 import type { MemoryEvent, MemoryItem } from "./schema.ts";
 
 /** Items as they stood after event `seq`, ordered by id like currentItems; empty before seq 0. */
@@ -13,6 +13,10 @@ export function itemsAt(db: Db, seq: number): MemoryItem[] {
   for (const row of rows) {
     const event = JSON.parse(String(row.body)) as MemoryEvent;
     if (!event.item_id) continue;
+    if (erases(event)) {
+      state.delete(event.item_id);
+      continue;
+    }
     const after = applyEvent(state.get(event.item_id), event);
     if (after) state.set(event.item_id, after);
   }

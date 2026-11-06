@@ -103,6 +103,7 @@ export function fresh(policy: Policy = testPolicy(), options: FakeAdapterOptions
   migrate(db);
   const adapter = counting(createFakeAdapter(options));
   let n = 0;
-  const plane = createPlane({ db, adapter, policy, newId: () => id(900_000 + ++n) });
-  return { db, adapter, plane, policy };
+  const deps = { db, adapter, policy, newId: () => id(900_000 + ++n) };
+  const plane = createPlane(deps);
+  return { db, adapter, plane, policy, deps };
 }

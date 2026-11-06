@@ -38,6 +38,15 @@ export {
   bypassAttempt,
   MAX_ATTEMPT_LENGTH,
 } from "./plane/bypass.ts";
+export {
+  type DeletionReport,
+  HANDOVER_ID,
+  OFFBOARD_MEMBERSHIP_ID,
+  OFFBOARD_REPORT_ID,
+  type OffboardRequest,
+  offboard,
+  REDACTED,
+} from "./plane/offboard.ts";
 export { inWriteQueue, NestedWriteQueueError } from "./plane/queue.ts";
 export {
   formatReadReason,
