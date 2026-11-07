@@ -12,16 +12,20 @@ import { type Actor, checkCall, InvalidCallError } from "../actor.ts";
 import { allEvents, appendEvent, currentItems } from "../events.ts";
 import { lintScope } from "../lint/det.ts";
 import type { PlaneDeps } from "../plane.ts";
-import { reachable } from "../policy/evaluate.ts";
+import { reachable, readableScope } from "../policy/evaluate.ts";
 import { type LintFinding, type MemoryEvent, type MemoryItem, Scope } from "../schema.ts";
 import { inWriteQueue } from "./queue.ts";
 
-/** The policy id of a lint refused because the actor is not a member of the scope. */
+/**
+ * The policy id of a lint refused because the actor may not read the scope:
+ * not a member of it, or a member whose level the policy's read matrix
+ * forbids from reading its level (readableScope, the gate Plane.read applies).
+ */
 export const LINT_MEMBERSHIP_ID = "engram/lint/membership";
 
 /** What a lint of one scope did (Plane.lint). */
 export interface LintReport {
-  /** `deny` when the actor is not a member of the scope; nothing was linted. */
+  /** `deny` when the actor may not read the scope; nothing was linted. */
   decision: "allow" | "deny";
   /** Every finding, in lint order then item id; empty when denied or clean. */
   findings: LintFinding[];
@@ -42,8 +46,10 @@ function retirements(
 
 /**
  * Plane.lint: lints `scope` at `at` as `actor`, in the write queue so no
- * write interleaves. A non-member is refused with one deny event (op lint,
- * no item, `engram/lint/membership`). An invalid actor, time or scope is
+ * write interleaves. An actor who may not read the scope, by membership or
+ * by the read matrix, is refused with one deny event (op lint, no item,
+ * `engram/lint/membership`), so a lint never shows ids, hashes or refs of
+ * items Plane.read would not return (invariant 1). An invalid actor, time or scope is
  * refused with InvalidCallError before the log is touched.
  */
 export function lint(
@@ -70,13 +76,15 @@ function run(deps: PlaneDeps, actor: Actor, at: string, scope: string): LintRepo
     scope_to: scope,
     schema_version: 0 as const,
   };
-  if (!actor.memberships.includes(scope)) {
+  if (!readableScope(policy, actor, scope)) {
     const denied = appendEvent(db, {
       ...base,
       id: newId(),
       item_id: null,
       decision: "deny",
-      reason: `${actor.id} is not a member of ${scope}; only a member may lint it`,
+      reason: actor.memberships.includes(scope)
+        ? `${actor.id} may not read ${scope}: the read matrix does not let a ${actor.level} reader read ${scope.split(":")[0]} scopes; only a member who may read it may lint it`
+        : `${actor.id} is not a member of ${scope} and may not read it; only a member who may read it may lint it`,
       policy_id: LINT_MEMBERSHIP_ID,
     });
     return { decision: "deny", findings: [], events: [denied] };

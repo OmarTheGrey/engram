@@ -304,6 +304,36 @@ describe("Plane.lint", () => {
     });
   });
 
+  test("refuses a member the read matrix forbids from reading the scope, as Plane.read does", async () => {
+    const { plane } = fresh(enabled(["expired-validity"]));
+    const w = await plane.write(
+      actor,
+      item(1, { scope: "person:omar", owner: "person:omar", valid_to: "2026-10-20T00:00:00Z" }),
+      AT,
+    );
+    expect(w.item).not.toBeNull();
+    // A team-level actor listed as a member of person:omar: the test policy's
+    // matrix lets a team reader read team and org scopes, never person.
+    const teamReader = {
+      id: "team:platform",
+      level: "team" as const,
+      memberships: ["person:omar", "team:platform"],
+    };
+    const read = await plane.read(teamReader, { text: "", at: AT });
+    expect(read.items.map((i) => i.id)).not.toContain(id(1));
+    const report = await plane.lint(teamReader, AT, "person:omar");
+    expect(report.decision).toBe("deny");
+    expect(report.findings).toEqual([]);
+    expect(report.events).toHaveLength(1);
+    expect(report.events[0]).toMatchObject({
+      op: "lint",
+      decision: "deny",
+      item_id: null,
+      policy_id: LINT_MEMBERSHIP_ID,
+    });
+    expect(report.events[0]?.reason).toMatch(/may not read person:omar/);
+  });
+
   test("refuses an invalid scope, actor or time before the log is touched", async () => {
     const { plane } = fresh();
     await expect(plane.lint(actor, AT, "everyone")).rejects.toBeInstanceOf(InvalidCallError);
