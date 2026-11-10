@@ -1,6 +1,6 @@
 ---
 date: 2026-11-06
-author: shady
+author: claude-agent
 type: failure
 card: L1
 chapter: limitations
