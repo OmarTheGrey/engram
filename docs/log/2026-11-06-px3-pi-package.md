@@ -1,6 +1,6 @@
 ---
 date: 2026-11-06
-author: shady
+author: claude-agent
 type: milestone
 card: PX3
 chapter: implementation

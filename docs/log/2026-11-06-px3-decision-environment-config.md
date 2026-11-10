@@ -1,6 +1,6 @@
 ---
 date: 2026-11-06
-author: shady
+author: claude-agent
 type: decision
 card: PX3
 chapter: design
