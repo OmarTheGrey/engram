@@ -122,9 +122,17 @@
       ],
       "additionalProperties": false
     },
+    "item_ids": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uuid",
+        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+      }
+    },
     "schema_version": {
       "type": "number",
-      "const": 0
+      "const": 1
     }
   },
   "required": [

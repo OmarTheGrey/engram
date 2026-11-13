@@ -40,7 +40,7 @@ promotion:
 lints:
   enabled: [expired-validity]
   thresholds: {}
-schema_version: 0
+schema_version: 1
 `;
 
 /** Replace line `n` (1-based) of the valid document. */

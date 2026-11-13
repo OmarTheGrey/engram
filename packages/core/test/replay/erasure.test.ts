@@ -37,7 +37,7 @@ const item = (n: number): MemoryItem =>
     lineage: [],
     status: "active",
     store_ref: { adapter: "fake", key: `k${n}` },
-    schema_version: 0,
+    schema_version: 1,
   }) as MemoryItem;
 
 let e = 100;
@@ -52,7 +52,7 @@ const event = (over: Partial<EventInput>): EventInput => ({
   decision: "allow",
   reason: "r",
   policy_id: "p/write/person",
-  schema_version: 0,
+  schema_version: 1,
   ...over,
 });
 

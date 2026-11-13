@@ -28,7 +28,7 @@ const levelOf = (scope: string) => (scope === "org" ? "org" : scope.split(":")[0
 export interface RetentionUsage {
   /** The seq of the event that last changed each item (recency). A missing item counts as oldest. */
   lastChanged: ReadonlyMap<string, number>;
-  /** How many explanation rows name each item: how often a read returned it (utility). */
+  /** How many read events returned each item, by their item_ids (utility). */
   reads: ReadonlyMap<string, number>;
 }
 
@@ -207,7 +207,7 @@ export function evaluateRetention(
       const why =
         rule.eviction === "recency"
           ? `evicted the oldest by last change (seq ${changed(victim)})`
-          : `evicted the least read (${reads(victim)} explanation rows; last change seq ${changed(victim)})`;
+          : `evicted the least read (${reads(victim)} reads returned it; last change seq ${changed(victim)})`;
       out.push({
         op: "evict",
         decision: "allow",

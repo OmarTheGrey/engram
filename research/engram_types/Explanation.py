@@ -24,4 +24,4 @@ class Explanation(TypedDict, closed=True):
     policy_id: str
     grants_used: list[str]
     validity: Validity
-    schema_version: Literal[0]
+    schema_version: Literal[1]

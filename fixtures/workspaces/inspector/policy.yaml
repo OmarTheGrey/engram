@@ -52,4 +52,4 @@ promotion:
 lints:
   enabled: []
   thresholds: {}
-schema_version: 0
+schema_version: 1

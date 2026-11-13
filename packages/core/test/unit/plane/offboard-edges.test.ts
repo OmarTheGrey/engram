@@ -148,7 +148,7 @@ describe("a store ref that an item outside the person scope still holds", () => 
       reason: "a version shared into the team",
       policy_id: "test/fixture",
       item: team,
-      schema_version: 0,
+      schema_version: 1,
     });
     const report = await offboard(env.deps, f.actors.dana as Actor, LEAVE, f.later);
     expect(report.erased.items).toContain(id(1));

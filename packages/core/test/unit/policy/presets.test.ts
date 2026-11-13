@@ -47,7 +47,7 @@ function item(
     lineage: [],
     status: "active",
     store_ref: null,
-    schema_version: 0,
+    schema_version: 1,
   } as MemoryItem;
 }
 
@@ -94,7 +94,7 @@ describe.each(PRESETS)("preset %s", (name: PresetName) => {
 
   test("loads, and its id names the preset", () => {
     expect(policy.id).toBe(`preset.${name}`);
-    expect(policy.schema_version).toBe(0);
+    expect(policy.schema_version).toBe(1);
   });
 
   test("opens with a comment block that states its stance", () => {

@@ -307,7 +307,7 @@ export async function writeCommand(args: string[], io: Io): Promise<number> {
     valid_from: validFrom ?? base.valid_from ?? at,
     valid_to: validTo ?? base.valid_to ?? null,
     store_ref: null,
-    schema_version: 0,
+    schema_version: 1,
   };
 
   const { conn } = session(io, values, { requireStore: true }, () => actor);

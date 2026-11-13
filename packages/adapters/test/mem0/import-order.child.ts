@@ -41,7 +41,7 @@ const item: MemoryItem = {
   lineage: [],
   status: "active",
   store_ref: null,
-  schema_version: 0,
+  schema_version: 1,
 };
 const ref = await adapter.write(item);
 await adapter.search?.("staging cluster", [item.scope]);
