@@ -57,7 +57,7 @@
 // the CLI this is only as strong as the machine it runs on.
 import { type Actor, checkCall, InvalidCallError } from "../actor.ts";
 import { isNotDeletable, type StoreRef } from "../adapter.ts";
-import { strictContentHash } from "../content-hash.ts";
+import { mergingContentHash, strictContentHash } from "../content-hash.ts";
 import { appendEvent, currentItems, ERASURE_ID, LEFT_CONTENT_CLAUSE } from "../events.ts";
 import { refItemId } from "../lint/det.ts";
 import type { PlaneDeps } from "../plane.ts";
@@ -317,10 +317,10 @@ async function run(
   const leftContent = new Map<string, Set<string>>();
   for (const i of erased) {
     if (!i.store_ref || !refused.has(refKey(i.store_ref))) continue;
-    const hashes = new Set([strictContentHash(i.content)]);
+    const hashes = new Set([mergingContentHash(i.content)]);
     try {
       const record = await adapter.read(i.store_ref);
-      if (record) hashes.add(strictContentHash(record.content));
+      if (record) hashes.add(mergingContentHash(record.content));
     } catch {
       // The store cannot read it back either; the erased versions still count.
     }
@@ -358,7 +358,7 @@ async function run(
         const event = JSON.parse(String(row.body)) as MemoryEvent;
         if (!event.item) continue;
         hashes.add(strictContentHash(event.item.content));
-        leftContent.get(id)?.add(strictContentHash(event.item.content));
+        leftContent.get(id)?.add(mergingContentHash(event.item.content));
         const source = refItemId(event.item.provenance.ref);
         if (source === null || !survivingIds.has(source)) hashes.add(event.item.provenance.hash);
         update.run(JSON.stringify({ ...event, item: redacted(event.item) }), String(row.id));

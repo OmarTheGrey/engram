@@ -11,7 +11,12 @@
 // engram/adopt/erased, decided in the write queue. A successor adopting the
 // folder unchanged is refused; edited files, a person rewriting a file after
 // erasure, and another person's own folder with the same file names adopt
-// normally.
+// normally. The refusal belongs to the erased item's own record: another
+// person's file holding the same text under another name adopts, while a
+// case, width or invisible-character edit of the erased file is still the
+// erased content (the merging hash). A read racing the offboarding and a
+// re-adoption under the same id never serves the erased version (second
+// recheck of PR #41).
 import { cp, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -19,6 +24,7 @@ import { fileURLToPath } from "node:url";
 import {
   adoptStoreItems,
   allEvents,
+  createPlane,
   currentItems,
   ERASURE_ID,
   eventsByItem,
@@ -218,5 +224,65 @@ describe("offboarding a person whose memory is an adopted Claude Code folder", (
     expect(currentItems(db).map((i) => i.id)).toEqual([first?.id]);
     const deny = report.events.find((e) => e.item_id === first?.id);
     expect(deny).toMatchObject({ decision: "deny", policy_id: STORE_FAILURE_ID });
+  });
+
+  test("another person's file whose text equals an erased file's, under another name, adopts", async () => {
+    const { root, db, deps } = await adopted();
+    await offboard(deps, dana, LEAVE, LATER);
+    const other = await mkdtemp(join(tmpdir(), "engram-offboard-erin-"));
+    dirs.push(other);
+    await cp(join(root, "project_release_freeze.md"), join(other, "lantern_freeze.md"));
+    const hers = { ...deps, adapter: createFilesAdapter({ root: other, owner: "erin" }) };
+    const report = await adoptStoreItems(hers, erin, "person:erin", LATER);
+    expect(report).toMatchObject({ allowed: 1, denied: 0 });
+    expect(allEvents(db).filter((e) => e.policy_id === ADOPT_ERASED)).toEqual([]);
+    expect(currentItems(db).filter((i) => i.scope === "person:erin")).toHaveLength(1);
+  });
+
+  test("a case, width or invisible-character edit of an erased file is still refused", async () => {
+    const { root, db, deps, items } = await adopted();
+    await offboard(deps, dana, LEAVE, LATER);
+    const body = (key: string) => String(items.find((i) => i.store_ref?.key === key)?.content);
+    await rewrite(root, "user_role.md", body("user_role.md").replace(" ", "​ "));
+    await rewrite(
+      root,
+      "project_release_freeze.md",
+      body("project_release_freeze.md").toLowerCase(),
+    );
+    await rewrite(
+      root,
+      "reference_runbook.md",
+      body("reference_runbook.md").normalize("NFKD").replace("a", "ａ"),
+    );
+    const hers = { ...deps, adapter: createFilesAdapter({ root, owner: "erin" }) };
+    const report = await adoptStoreItems(hers, erin, "person:erin", LATER);
+    expect(report).toMatchObject({ allowed: 0, denied: 4 });
+    expect(currentItems(db)).toEqual([]);
+  });
+
+  test("a read racing the offboarding and a re-adoption under the same id never serves the erased version", async () => {
+    const { root, adapter, db, deps, items } = await adopted();
+    const role = items.find((i) => i.store_ref?.key === "user_role.md");
+    const erased = String(role?.content);
+    const search = adapter.search?.bind(adapter);
+    if (!search) throw new Error("the files adapter searches");
+    let raced = false;
+    adapter.search = async (query, scopes) => {
+      const hits = await search(query, scopes);
+      if (!raced) {
+        raced = true;
+        await offboard(deps, dana, LEAVE, LATER);
+        await rewrite(root, "user_role.md", "Dana moved to the data platform team.");
+        const back = await adoptStoreItems(deps, dana, "person:dana", LATER);
+        expect(back.allowed).toBe(1);
+      }
+      return hits;
+    };
+    const { items: got, event } = await createPlane(deps).read(dana, { at: LATER, text: "Dana" });
+    const contents = got.map((i) => String(i.content));
+    expect(contents).not.toContain(erased);
+    expect(contents).toEqual(["Dana moved to the data platform team."]);
+    expect(event.item_ids).toEqual([role?.id]);
+    expect(JSON.stringify(allEvents(db))).not.toContain(erased.slice(0, 40));
   });
 });

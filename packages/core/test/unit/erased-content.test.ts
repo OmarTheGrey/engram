@@ -1,6 +1,7 @@
-// erasedStoreContent (recheck of PR #41): the content hashes an erase event
-// names for a record left in a store, which adoption refuses. Only allowed
-// erase events count; any other event naming the clause does not.
+// erasedStoreContent (rechecks of PR #41): the content hashes an item's erase
+// event names for its record left in a store, which adoption refuses for that
+// item only. Only allowed erase events count; any other event naming the
+// clause does not, and another item's erase event does not.
 import { describe, expect, test } from "vitest";
 import { migrate } from "../../src/db/migrate.ts";
 import { openSqlite } from "../../src/db/sqlite.ts";
@@ -33,10 +34,10 @@ const retire = (n: number, over: Partial<EventInput>): EventInput => ({
 });
 
 describe("erasedStoreContent", () => {
-  test("collects the hashes allowed erase events name, and nothing else", () => {
+  test("collects the hashes an item's allowed erase events name, and nothing else", () => {
     const db = openSqlite(":memory:");
     migrate(db);
-    expect(erasedStoreContent(db)).toEqual(new Set());
+    expect(erasedStoreContent(db, id(1))).toEqual(new Set());
     appendEvent(db, retire(1, { reason: `erased; ${LEFT_CONTENT_CLAUSE} (${H1}, ${H2})` }));
     appendEvent(db, retire(2, { reason: "erased with person:dana: deleted from the store" }));
     appendEvent(
@@ -47,6 +48,11 @@ describe("erasedStoreContent", () => {
       db,
       retire(4, { reason: `${LEFT_CONTENT_CLAUSE} (${H3})`, decision: "deny", policy_id: "x/y" }),
     );
-    expect(erasedStoreContent(db)).toEqual(new Set([H1, H2]));
+    expect(erasedStoreContent(db, id(1))).toEqual(new Set([H1, H2]));
+    // Another item's hashes never count for this one, even an erased one's.
+    appendEvent(db, retire(5, { reason: `erased; ${LEFT_CONTENT_CLAUSE} (${H3})` }));
+    expect(erasedStoreContent(db, id(1))).toEqual(new Set([H1, H2]));
+    expect(erasedStoreContent(db, id(5))).toEqual(new Set([H3]));
+    for (const n of [2, 3, 4]) expect(erasedStoreContent(db, id(n))).toEqual(new Set());
   });
 });

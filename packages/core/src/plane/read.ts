@@ -86,19 +86,6 @@ async function matching(
   return { order: [...order, ...share.keys()], share };
 }
 
-/**
- * The ids the projection holds now: one query with no bound parameter, so a
- * read of any size cannot exceed a backend's parameter limit.
- */
-function projectedIds(db: PlaneDeps["db"]): Set<string> {
-  return new Set(
-    db
-      .prepare("SELECT id FROM items")
-      .all()
-      .map((r) => String(r.id)),
-  );
-}
-
 export async function filteredRead(
   deps: PlaneDeps,
   actor: Actor,
@@ -122,18 +109,19 @@ export async function filteredRead(
   // Postgres). A read is not in the write queue, and its snapshot is older
   // than the store search it awaited, so an offboarding, in this process or
   // another sharing the log, may have erased items since (reviews of PR #41,
-  // cards E2.2 and E9.7). Under the lock the projection's ids are selected
-  // again and every snapshot item it no longer holds is dropped before the
-  // read filter, scoring, ranking and the read limit run. An erasure commits
-  // under the same lock, so the result, the event and its explanation rows
-  // are those of the read run serially after every erasure committed before
-  // the lock was taken: no erased item is returned, ranked against, counted
-  // or recorded. (An item rewritten meanwhile is still read at its snapshot
-  // version.)
+  // cards E2.2 and E9.7), and a store that refused the delete may even have
+  // had the record adopted again under the same id with new content. Under
+  // the lock the projection is read again, whole, and the read filter,
+  // scoring, ranking and the read limit run over that projection, never the
+  // snapshot: an erasure and an adoption commit under the same lock, so the
+  // result, the event and its explanation rows are those of the read run
+  // serially after every write committed before the lock was taken, and no
+  // erased content is returned, ranked against, counted or recorded. The
+  // snapshot only chose which scopes the store was searched in; a hit is
+  // matched to the projection by id.
   const { items, explanations, filtered, event } = db.transaction(() => {
-    const present = projectedIds(db);
-    const projected = snapshot.filter((i) => present.has(i.id));
-    const live = reach.filter((i) => present.has(i.id));
+    const projected = currentItems(db);
+    const live = projected.filter((i) => reachable(policy, actor, i));
     const outOfReach = projected.length - live.length;
     const hitRank = new Map(match?.order.map((id, r) => [id, r]));
     const candidates = core

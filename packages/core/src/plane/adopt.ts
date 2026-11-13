@@ -21,9 +21,10 @@
 // not re-gated on every read.
 //
 // Refused, with one deny event (policy_id engram/adopt/erased) naming no
-// content: a store record whose content is content an offboarding erased and
-// left in a store that refuses the plane's delete (events.ts
-// erasedStoreContent; ADR 0010, recheck of PR #41). It is decided in the
+// content: the record an offboarding erased and left in a store that refuses
+// the plane's delete, under that item's id, while it holds the erased content
+// up to the merging form (case, width and invisible characters do not make it
+// new; events.ts erasedStoreContent; ADR 0010, rechecks of PR #41). It is decided in the
 // write queue, so an adoption queued behind an offboarding sees its erase
 // events. Edited content, or another person's different file, adopts as any
 // other record does.
@@ -40,7 +41,7 @@
 // it unchanged.
 import { createHash } from "node:crypto";
 import type { Actor } from "../actor.ts";
-import { strictContentHash } from "../content-hash.ts";
+import { mergingContentHash } from "../content-hash.ts";
 import { appendEvent, currentItems, erasedStoreContent, eventsByItem } from "../events.ts";
 import { itemById } from "../items.ts";
 import type { PlaneDeps } from "../plane.ts";
@@ -167,7 +168,7 @@ export async function adoptStoreItems(
       prefix,
       suffix: note,
       refuse: (candidate) =>
-        erasedStoreContent(db).has(strictContentHash(candidate.content))
+        erasedStoreContent(db, candidate.id).has(mergingContentHash(candidate.content))
           ? {
               reason: `the store's record of item ${candidate.id} holds content erased at an offboarding and left in the store; it is not adopted again until it changes`,
               policy_id: ADOPT_ERASED_ID,

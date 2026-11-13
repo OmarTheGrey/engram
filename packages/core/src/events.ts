@@ -21,23 +21,29 @@ export const ERASURE_ID = "engram/offboard/erase";
 
 /**
  * The clause an erase event's reason carries for an item whose store record
- * was left in a store that refuses the plane's delete: the strict content
- * hashes of every version erased and of the record the store still holds.
- * Adoption refuses a store record holding one of them (recheck of PR #41).
+ * was left in a store that refuses the plane's delete: the merging content
+ * hashes (content-hash.ts, the form for a blocking rule) of every version
+ * erased and of the record the store still holds. Adoption refuses that
+ * item's record while it holds one of them (rechecks of PR #41).
  */
 export const LEFT_CONTENT_CLAUSE = "adoption refuses a store record holding the erased content";
 
-/** The erased content hashes the erase events of the log name (LEFT_CONTENT_CLAUSE). */
-export function erasedStoreContent(db: Db): Set<string> {
+/**
+ * The erased content hashes the erase events of one item name
+ * (LEFT_CONTENT_CLAUSE): the record left in the store under that id, and only
+ * it, is refused while it holds them. One indexed lookup by item id.
+ */
+export function erasedStoreContent(db: Db, itemId: string): Set<string> {
   const out = new Set<string>();
-  const clause = new RegExp(`${LEFT_CONTENT_CLAUSE} \\(([^)]*)\\)`);
-  for (const row of db
-    .prepare("SELECT body FROM events WHERE op = 'retire' AND decision = 'allow'")
-    .all()) {
-    const event = JSON.parse(String(row.body)) as MemoryEvent;
+  const open = `${LEFT_CONTENT_CLAUSE} (`;
+  for (const event of eventsByItem(db, itemId)) {
     if (!erases(event)) continue;
-    const m = clause.exec(event.reason);
-    if (m?.[1]) for (const h of m[1].split(", ")) out.add(h);
+    const start = event.reason.indexOf(open);
+    if (start < 0) continue;
+    const end = event.reason.indexOf(")", start + open.length);
+    if (end < 0) continue;
+    const list = event.reason.slice(start + open.length, end);
+    for (const h of list.split(", ")) if (h) out.add(h);
   }
   return out;
 }
