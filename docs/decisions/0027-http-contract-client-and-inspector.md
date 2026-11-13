@@ -57,3 +57,7 @@ Unblocks E8.1 to E8.6 and the MCP handshake of layer 6. A shared Postgres log is
 - `docs/decisions/0001-pi-as-base.md`, `docs/decisions/0022-other-harnesses-through-mcp.md`
 - `docs/tasks/gate-b-plan.md`, decisions 4 to 6
 - MCP specification, transports: servers must validate `Origin` on streamable HTTP and should bind to localhost when run locally
+
+Amendment made by card E8.9, 2026-11-06 (branch `e8-9-simulator`, ADR 0032, proposed):
+
+- `/simulate` takes core's `Workload` (actors and recorded calls) and an optional candidate `Policy`, and answers core's `SimReport`, both named components of `sdk/openapi.json`; it no longer answers 501. The baseline is the workspace's policy. It replays on scratch logs and stores, so like lint and distill it never opens the workspace's log, and a workload that fails its shape or names no actor for a step is 400 (`invalid_call`). `engram simulate` sends the candidate `--candidate` names, loaded as `--policy` is.

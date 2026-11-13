@@ -192,9 +192,16 @@ describe("PX1: the Engram extension on the Plane in a pi SDK session", () => {
     expect(detailsOf("call-4").explanations).toEqual(read.explanations);
   });
 
-  test("memory_simulate exists and says which card implements it", () => {
-    expect(toolResult("call-5").isError).toBe(true);
-    expect(resultText("call-5")).toContain("not implemented yet (card E8.9)");
+  test("memory_simulate replays the session's calls under the session's policy, with zero model calls", () => {
+    expect(toolResult("call-5").isError).toBe(false);
+    const report = JSON.parse(resultText("call-5"));
+    expect(report).toMatchObject({ model_calls: 0, changed: [] });
+    expect(report.baseline.policy_id).toBe(policy.id);
+    // The session's sweeps, the write, the recall and the read, in order;
+    // the write is denied as it was in the session.
+    const ops = report.baseline.outcomes.map((o: { op: string }) => o.op);
+    expect(ops).toContain("write");
+    expect(ops).toContain("read");
   });
 
   test("a store command in the bash tool is blocked as a bypass_blocked event", () => {

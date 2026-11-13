@@ -113,7 +113,11 @@ Plane
   promote(actor, itemId, toScope, at, {review?}) -> GateResult   evidence from the log, judged as a write into toScope; new version or in place (ADR 0026)
   retain(actor, scope, at) -> RetentionReport  expiry then budgets over one scope, as a member, in the write queue (ADR 0025)
   lint(scope) -> Finding[]
-  simulate(workload, policy) -> SimReport    replays a recorded workload or a pi session under a policy; zero model calls
+  simulate(workload, policy) -> SimReport    replays a recorded workload (actors and their write, read, retain and
+                                             promote calls) through the plane under its own policy and the candidate,
+                                             each on a scratch log and store; decisions, utility proxy (items reads
+                                             returned) and evictions per policy, the steps that differ; zero model
+                                             calls, the plane's own log and store untouched (card E8.9, ADR 0032)
   distill(sessions, method) -> MemoryItem[]  candidate procedural items
   explain(actor, readId) -> Explanation[]    to the actor who made the read only
 
@@ -127,11 +131,11 @@ Surfaces
                  or streamable HTTP on loopback, every call as that actor with source model; the pi extension's
                  tool definitions and memory tag; engram hook claude-code, a PreToolUse hook that blocks bypasses
   HTTP           packages/server, a Hono app over one route table (ADR 0027): /api/v1/items, /items/check, /read,
-                 /explain/{readId}, /promote, /retain, /events (visibleEvents), /policy, /lint, /simulate,
-                 /distill (501 naming L1, E8.9, D2), /bypass, /viewer, /health; a decision is 200 with its event;
+                 /explain/{readId}, /promote, /retain, /events (visibleEvents), /policy, /lint and /distill
+                 (501 naming L1 and D2), /simulate, /bypass, /viewer, /health; a decision is 200 with its event;
                  loopback Host and Origin only, JSON bodies only, no CORS, 1 MiB bodies; OpenAPI generated
                  into sdk/openapi.json, the client into sdk/ts and packages/ui/src/api
-  CLI            engram write | read | promote | explain | retain | lint | simulate, each one client call, in
+  CLI            engram write | read | promote | explain | retain | lint | simulate (--candidate), each one client call, in
                  process over app.fetch or to --server; engram serve | mcp | hook claude-code | doctor
   UI             inspector at / of engram serve, as one viewer: lanes by scope (a Plane.read), timeline (visibleEvents), explain with the read's counts (v0, E8.5 and E8.6); later diff, findings, review queue, live session via pi RPC
 ```

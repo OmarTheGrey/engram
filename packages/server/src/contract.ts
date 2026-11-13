@@ -15,7 +15,9 @@ import {
   Policy,
   ReadCounts,
   SCHEMA_VERSION,
+  SimReport,
   Timestamp,
+  Workload,
 } from "@engram/core";
 import { z } from "zod";
 
@@ -139,15 +141,21 @@ export const PolicyResponse = z.strictObject({ policy: Policy, label: z.string()
 export const LintRequest = z.strictObject({ scope: z.string() });
 export const LintResponse = z.strictObject({ findings: z.array(LintFinding) });
 
+/** Core's simulator shapes (card E8.9), under their own component names. */
+export { SimReport, Workload };
+
 export const SimulateRequest = z.strictObject({
-  workload: z.strictObject({ id: z.string(), events: z.array(MemoryEvent) }),
-  policy: Policy.optional(),
+  workload: Workload,
+  policy: Policy.optional().meta({
+    description:
+      "The candidate policy; the workspace's own policy when absent. The baseline is always the workspace's.",
+  }),
 });
 export const DistillRequest = z.strictObject({
   sessions: z.array(z.record(z.string(), JsonValue)),
   method: z.strictObject({ id: z.literal("awm"), model: z.string(), seed: z.int() }),
 });
-/** The simulator's and distiller's reports are typed by their cards (E8.9, D2). */
+/** The distiller's report is typed by its card (D2). */
 export const OpenReport = z.record(z.string(), JsonValue);
 
 export const BypassRequest = z.strictObject({
@@ -212,7 +220,9 @@ export const COMPONENTS = {
   PolicyResponse,
   LintRequest,
   LintResponse,
+  Workload,
   SimulateRequest,
+  SimReport,
   DistillRequest,
   OpenReport,
   BypassRequest,
