@@ -475,7 +475,8 @@ describe("a store that refuses the plane's delete for good", () => {
     expect((await adapter.list("person:dana")).map((i) => i.id)).toEqual([id(1)]);
     const again = await adoptStoreItems(env.deps, dana, "person:dana", f.later);
     expect(again.allowed).toBe(0);
-    expect(again.unchanged).toBe(1);
+    expect(again.denied).toBe(1);
+    expect(again.denials[0]?.policy_id).toBe("engram/adopt/erased");
     expect(currentItems(db).filter((i) => i.scope === "person:dana")).toEqual([]);
   });
 });
