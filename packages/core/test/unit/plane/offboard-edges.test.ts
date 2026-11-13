@@ -7,7 +7,7 @@
 import { readFileSync } from "node:fs";
 import { createFakeAdapter } from "@engram/adapters";
 import { describe, expect, test } from "vitest";
-import type { Adapter, StoreRef } from "../../../src/adapter.ts";
+import { type Adapter, NotDeletableError, type StoreRef } from "../../../src/adapter.ts";
 import { strictContentHash } from "../../../src/content-hash.ts";
 import type { Db } from "../../../src/db/db.ts";
 import { migrate } from "../../../src/db/migrate.ts";
@@ -24,7 +24,7 @@ import { STORE_FAILURE_ID } from "../../../src/policy/evaluate.ts";
 import { parsePolicy } from "../../../src/policy/load.ts";
 import { itemsAt } from "../../../src/replay.ts";
 import type { Grant, MemoryItem } from "../../../src/schema.ts";
-import { forEachBackend } from "../../db/backends.ts";
+import { forEachBackend, sqliteBackend } from "../../db/backends.ts";
 import { counting, id, item } from "./helpers.ts";
 
 const PROFILE = new URL("../../../../pi-package/profiles/twin.yaml", import.meta.url);
@@ -398,5 +398,145 @@ describe("a read in flight while offboarding erases", () => {
       .map((r) => String(r.item_id));
     expect(rows.filter((i) => erased.has(i))).toEqual([]);
     for (const secret of f.secrets) expect(JSON.stringify(read)).not.toContain(secret);
+  });
+
+  test("drops an item another process erased between the store search and the read's transaction", async () => {
+    // Two connections to one log file, as the CLI and `engram serve` share
+    // one. The other process commits an erasure just before this read's
+    // transaction begins: after the search, before the lock.
+    const [mine, theirs] = sqliteBackend.pair();
+    const env = await seeded(mine);
+    const { f } = env;
+    const victim = id(1);
+    let armed = true;
+    const db: Db = {
+      ...mine,
+      transaction: (fn) => {
+        if (armed) {
+          armed = false;
+          appendEvent(theirs, {
+            id: id(800_100),
+            ts: f.later,
+            op: "retire",
+            item_id: victim,
+            actor: "person:dana",
+            scope_from: "person:dana",
+            scope_to: null,
+            decision: "allow",
+            reason: "erased by another process",
+            policy_id: ERASURE_ID,
+            schema_version: 1,
+          });
+        }
+        return mine.transaction(fn);
+      },
+    };
+    const plane = createPlane({ ...env.deps, db });
+    const read = await plane.read(f.actors.dana as Actor, { text: "dana", at: f.later });
+    expect(read.items.map((i) => i.id)).not.toContain(victim);
+    expect(read.explanations.map((e) => e.item_id)).not.toContain(victim);
+    expect(read.event.item_ids).not.toContain(victim);
+    expect(read.explanations.map((e) => e.rank)).toEqual(read.items.map((_, i) => i + 1));
+    expect(read.items.length).toBeGreaterThan(0);
+  });
+});
+
+/** The store's delete refuses for good refs `refused` picks: a store the plane may not delete from. */
+function readOnlyDeletes(adapter: Adapter, refused: (ref: StoreRef) => boolean) {
+  const remove = adapter.delete.bind(adapter);
+  adapter.delete = async (ref) => {
+    if (refused(ref)) throw new NotDeletableError(`${ref.key} is read-only to the plane`);
+    return remove(ref);
+  };
+}
+
+describe("a store that refuses the plane's delete for good", () => {
+  test("still erases the item, names the ref left in the store, and re-adoption brings nothing back", async () => {
+    const env = await seeded(openSqlite(":memory:"));
+    const { db, adapter, f } = env;
+    const dana = f.actors.dana as Actor;
+    const kept = currentItems(db).find((i) => i.id === id(1)) as MemoryItem;
+    readOnlyDeletes(adapter, (ref) => ref.key === kept.store_ref?.key);
+    const report = await offboard(env.deps, dana, LEAVE, f.later);
+    expect(report.erased.items).toContain(id(1));
+    expect(report.erased.store_failures).toEqual([]);
+    expect(report.erased.left_in_store).toEqual([
+      {
+        ref: kept.store_ref,
+        error: `${kept.store_ref?.key} is read-only to the plane`,
+        items: [id(1)],
+      },
+    ]);
+    expect(report.events.filter((e) => e.decision === "deny")).toEqual([]);
+    const erase = report.events.find((e) => e.policy_id === ERASURE_ID && e.item_id === id(1));
+    expect(erase?.reason).toMatch(/left in the store/);
+    expect(JSON.stringify(allEvents(db))).not.toContain("peanuts");
+    // The store still lists it; adoption must not bring it back.
+    expect((await adapter.list("person:dana")).map((i) => i.id)).toEqual([id(1)]);
+    const again = await adoptStoreItems(env.deps, dana, "person:dana", f.later);
+    expect(again.allowed).toBe(0);
+    expect(again.unchanged).toBe(1);
+    expect(currentItems(db).filter((i) => i.scope === "person:dana")).toEqual([]);
+  });
+});
+
+describe("lint redaction at erasure reaches only evidence about erased items (review of PR #41)", () => {
+  const RELEASE = "The release checklist lives in the wiki.";
+
+  test("a duplicate finding among surviving items with the same text as an erased item stays", async () => {
+    const env = await seeded(openSqlite(":memory:"));
+    const { plane, f } = env;
+    const sam = f.actors.sam as Actor;
+    const dana = f.actors.dana as Actor;
+    for (const [n, who, scope] of [
+      [60, sam, "role:lead"],
+      [61, sam, "role:lead"],
+      [62, dana, "person:dana"],
+    ] as const) {
+      const { event } = await plane.write(
+        who,
+        item(n, { scope, owner: who.id, content: RELEASE, confidence: 0.9 }),
+        f.at,
+      );
+      expect(event.decision, event.reason).toBe("allow");
+    }
+    const lint = await plane.lint(sam, f.at, "role:lead");
+    const dup = lint.events.find((e) => e.item_id === id(61));
+    expect(dup?.reason).toContain(strictContentHash(RELEASE));
+    await offboard(env.deps, dana, LEAVE, f.later);
+    expect(allEvents(env.db).find((e) => e.id === dup?.id)?.reason).toBe(dup?.reason);
+  });
+
+  test("a source-changed finding on a surviving item citing a source an erased item also cited stays", async () => {
+    const env = await seeded(openSqlite(":memory:"));
+    const { plane, f } = env;
+    const sam = f.actors.sam as Actor;
+    const dana = f.actors.dana as Actor;
+    const OLD = "The on-call rota changes on Mondays.";
+    const cite = { kind: "user" as const, ref: id(70), hash: strictContentHash(OLD) };
+    const writes: [number, Actor, string, Partial<MemoryItem>][] = [
+      [70, sam, "role:lead", { content: OLD }],
+      [71, sam, "role:lead", { content: "Rota: Mondays.", provenance: { ...cite, actor: sam.id } }],
+      [
+        72,
+        dana,
+        "person:dana",
+        { content: "My rota note.", provenance: { ...cite, actor: dana.id } },
+      ],
+      [70, sam, "role:lead", { content: "The on-call rota changes on Tuesdays.", version: 2 }],
+    ];
+    for (const [n, who, scope, over] of writes) {
+      const { event } = await plane.write(
+        who,
+        item(n, { scope, owner: who.id, confidence: 0.9, ...over }),
+        f.at,
+      );
+      expect(event.decision, event.reason).toBe("allow");
+    }
+    const lint = await plane.lint(sam, f.at, "role:lead");
+    const changed = lint.events.find((e) => e.item_id === id(71));
+    expect(changed?.reason).toMatch(/^source-changed/);
+    await offboard(env.deps, dana, LEAVE, f.later);
+    expect(allEvents(env.db).find((e) => e.id === changed?.id)?.reason).toBe(changed?.reason);
   });
 });
