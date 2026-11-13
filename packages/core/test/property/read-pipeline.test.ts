@@ -24,7 +24,7 @@ const ADMIT_ALL = (policy: Policy): Policy => ({
   id: "admit-all",
   write: (["person", "role", "team", "org"] as const).map((scope) => ({
     scope,
-    allowed_sources: ["user", "document", "tool", "model", "import", "compaction"],
+    allowed_sources: ["user", "document", "tool", "model", "import", "compaction", "external"],
     confidence_floor: 0,
     forbidden_classes: [],
     requires_review: false,

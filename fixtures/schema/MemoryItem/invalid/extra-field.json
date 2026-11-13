@@ -30,6 +30,6 @@
     "adapter": "files",
     "key": "team/platform/deploys.md"
   },
-  "schema_version": 0,
+  "schema_version": 1,
   "mood": "ok"
 }

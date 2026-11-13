@@ -1,0 +1,93 @@
+{
+  "description": "Card E9.7's acceptance fixture, under packages/pi-package/profiles/twin.yaml: Dana holds role:lead and leaves; Sam succeeds her in the role. Dana's person scope holds notes she wrote, one her agent wrote, an episodic record and a note granted to Sam. After offboarding, Sam reads the role items, which are his to rewrite, and none of Dana's person items is in the store, the projection, a rebuilt projection, or any event's content. (A person note cannot be promoted into the role under twin: a widening needs a reviewer who can read it, and only its owner can.)",
+  "at": "2026-10-25T12:00:00.000Z",
+  "later": "2026-10-26T12:00:00.000Z",
+  "actors": {
+    "dana": {
+      "id": "person:dana",
+      "level": "person",
+      "memberships": [
+        "person:dana",
+        "role:lead",
+        "team:core"
+      ],
+      "source": "user"
+    },
+    "dana-agent": {
+      "id": "person:dana",
+      "level": "person",
+      "memberships": [
+        "person:dana",
+        "role:lead",
+        "team:core"
+      ],
+      "source": "model"
+    },
+    "sam": {
+      "id": "person:sam",
+      "level": "person",
+      "memberships": [
+        "person:sam",
+        "role:lead",
+        "team:core"
+      ],
+      "source": "user"
+    }
+  },
+  "person": [
+    {
+      "n": 1,
+      "as": "dana",
+      "content": "Dana is allergic to peanuts."
+    },
+    {
+      "n": 2,
+      "as": "dana-agent",
+      "content": "Dana prefers short status updates.",
+      "confidence": 0.5
+    },
+    {
+      "n": 3,
+      "as": "dana",
+      "class": "episodic",
+      "content": "Dana had a hard conversation with her manager today."
+    },
+    {
+      "n": 4,
+      "as": "dana",
+      "content": "Dana's review notes for Sam are in the drive.",
+      "grants": [
+        {
+          "to": "person:sam",
+          "class": "semantic",
+          "mode": "read",
+          "expires": "2027-01-01T00:00:00.000Z"
+        }
+      ]
+    },
+    {
+      "n": 5,
+      "as": "dana",
+      "content": "Dana's old desk phone is 4411."
+    }
+  ],
+  "role": [
+    {
+      "n": 6,
+      "as": "dana",
+      "content": "The lead signs off releases on Fridays."
+    },
+    {
+      "n": 7,
+      "as": "dana",
+      "content": "The lead owns the vendor escalation list."
+    }
+  ],
+  "secrets": [
+    "peanuts",
+    "short status updates",
+    "hard conversation",
+    "review notes for Sam",
+    "desk phone"
+  ]
+}

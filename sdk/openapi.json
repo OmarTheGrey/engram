@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Engram",
-    "version": "0.0.0+schema.0",
+    "version": "0.0.0+schema.1",
     "description": "The Engram control plane over HTTP (ADR 0027): every route calls the Plane; no authentication in v0, so the server answers on loopback only."
   },
   "servers": [
@@ -1205,7 +1205,8 @@
                       "tool",
                       "model",
                       "import",
-                      "compaction"
+                      "compaction",
+                      "external"
                     ]
                   },
                   "ref": {
@@ -1325,7 +1326,7 @@
               },
               "schema_version": {
                 "type": "number",
-                "const": 0
+                "const": 1
               },
               "class": {
                 "type": "string",
@@ -1401,7 +1402,8 @@
                       "tool",
                       "model",
                       "import",
-                      "compaction"
+                      "compaction",
+                      "external"
                     ]
                   },
                   "ref": {
@@ -1521,7 +1523,7 @@
               },
               "schema_version": {
                 "type": "number",
-                "const": 0
+                "const": 1
               },
               "class": {
                 "type": "string",
@@ -1691,9 +1693,17 @@
             ],
             "additionalProperties": false
           },
+          "item_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+            }
+          },
           "schema_version": {
             "type": "number",
-            "const": 0
+            "const": 1
           }
         },
         "required": [
@@ -1748,7 +1758,8 @@
                       "tool",
                       "model",
                       "import",
-                      "compaction"
+                      "compaction",
+                      "external"
                     ]
                   }
                 },
@@ -1970,7 +1981,7 @@
           },
           "schema_version": {
             "type": "number",
-            "const": 0
+            "const": 1
           }
         },
         "required": [
@@ -2099,7 +2110,7 @@
           },
           "schema_version": {
             "type": "number",
-            "const": 0
+            "const": 1
           }
         },
         "required": [
@@ -2158,7 +2169,7 @@
           },
           "schema_version": {
             "type": "number",
-            "const": 0
+            "const": 1
           }
         },
         "required": [
@@ -2235,7 +2246,8 @@
               "tool",
               "model",
               "import",
-              "compaction"
+              "compaction",
+              "external"
             ]
           }
         },
@@ -2888,7 +2900,8 @@
                     "tool",
                     "model",
                     "import",
-                    "compaction"
+                    "compaction",
+                    "external"
                   ]
                 }
               },
@@ -3837,7 +3850,7 @@
           },
           "schema_version": {
             "type": "number",
-            "const": 0
+            "const": 1
           }
         },
         "required": [

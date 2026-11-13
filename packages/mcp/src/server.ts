@@ -140,7 +140,7 @@ export function createMcpServer(options: McpOptions): Server {
           lineage: [],
           status: "active",
           store_ref: null,
-          schema_version: 0,
+          schema_version: 1,
         };
         steps.push({
           op: "write",

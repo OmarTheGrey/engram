@@ -4,7 +4,12 @@
 // PR: bump SCHEMA_VERSION, add a migration, run `make api`, update fixtures.
 import { z } from "zod";
 
-export const SCHEMA_VERSION = 0;
+/**
+ * 1 (2026-11-06): read events carry the ids they returned (`item_ids`), and
+ * provenance has the kind `external`, ranked below every other. Migration 4
+ * upgrades a version 0 log.
+ */
+export const SCHEMA_VERSION = 1;
 const schemaVersion = z.literal(SCHEMA_VERSION);
 
 /** UUIDv7, so ids sort by creation time (ADR 0003). */
@@ -19,7 +24,20 @@ export const Scope = z.string().regex(/^(?:(?:person|role|team):[A-Za-z0-9._\-/]
 /** A principal id, for example `person:omar` or `agent:pi`. */
 export const Principal = z.string().min(1);
 export const Status = z.enum(["candidate", "active", "retired"]);
-export const ProvenanceKind = z.enum(["user", "document", "tool", "model", "import", "compaction"]);
+/**
+ * Where content came from (ADR 0004). `external` is content from an untrusted
+ * outsider, such as a public web page or an inbound mail a connector ingests;
+ * it ranks below every other kind, so a tool echoing it inherits `external`.
+ */
+export const ProvenanceKind = z.enum([
+  "user",
+  "document",
+  "tool",
+  "model",
+  "import",
+  "compaction",
+  "external",
+]);
 /** Any JSON value; structured content is limited to it so storage never changes it. */
 export const JsonValue = z.json();
 /** Retention hint in seconds. */
@@ -132,6 +150,12 @@ export const MemoryEvent = z.strictObject({
   item: MemoryItem.nullable().optional(),
   /** Model usage for any call made on the plane's behalf (ADR 0017). */
   usage: Usage.optional(),
+  /**
+   * On a read: the ids of the items it returned, in rank order, so utility
+   * (how often reads returned an item, ADR 0025) replays from the log alone.
+   * Only the reader sees a read event; it names nothing the read did not return.
+   */
+  item_ids: z.array(Id).optional(),
   schema_version: schemaVersion,
 });
 

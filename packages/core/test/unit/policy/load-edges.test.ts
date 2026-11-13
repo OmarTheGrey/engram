@@ -289,7 +289,7 @@ describe("parsePolicy positions for faults found while building the value", () =
 
 describe("problems come out in document order, whatever order they are found in", () => {
   test("schema problems: the schema checks version before schema_version", () => {
-    const text = `schema_version: 1\n${VALID.replace("version: 1", "version: 0").replace("schema_version: 0\n", "")}`;
+    const text = `schema_version: 2\n${VALID.replace("version: 1", "version: 0").replace("schema_version: 1\n", "")}`;
     expect(problemsOf(text).map((p) => p.path.join("."))).toEqual(["schema_version", "version"]);
   });
 

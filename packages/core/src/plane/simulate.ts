@@ -10,8 +10,8 @@
 // and a counter, so the same workload gives the same report.
 //
 // Because the reads are replayed, a utility eviction is decided again from
-// the replayed reads' explanation rows, which a replay of the event log alone
-// cannot do (ADR 0025, finding P4-5).
+// the replayed reads' events, which carry their returned `item_ids` since
+// schema version 1 (ADR 0025, finding P4-5).
 import type { Actor } from "../actor.ts";
 import { InvalidCallError } from "../actor.ts";
 import type { Adapter, StoreRef } from "../adapter.ts";
