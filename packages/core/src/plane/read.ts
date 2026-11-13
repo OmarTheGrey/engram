@@ -86,13 +86,15 @@ async function matching(
   return { order: [...order, ...share.keys()], share };
 }
 
-/** Which of `ids` the projection holds now. */
-function stillProjected({ db }: PlaneDeps, ids: string[]): Set<string> {
-  if (ids.length === 0) return new Set();
+/**
+ * The ids the projection holds now: one query with no bound parameter, so a
+ * read of any size cannot exceed a backend's parameter limit.
+ */
+function projectedIds(db: PlaneDeps["db"]): Set<string> {
   return new Set(
     db
-      .prepare(`SELECT id FROM items WHERE id IN (${ids.map(() => "?").join(", ")})`)
-      .all(...ids)
+      .prepare("SELECT id FROM items")
+      .all()
       .map((r) => String(r.id)),
   );
 }
@@ -115,86 +117,78 @@ export async function filteredRead(
   const core = deps.retrieval?.pipeline === "core";
   const terms = queryTerms(query.text);
   const match = core ? undefined : await matching(deps, reach, scopes, query.text);
-  const outOfReach = snapshot.length - reach.length;
-  const hitRank = new Map(match?.order.map((id, r) => [id, r]));
-  const candidates = core
-    ? reach.filter((i) => matchesQuery(i, terms))
-    : match
-      ? reach.filter((i) => hitRank.has(i.id))
-      : reach;
+  // Everything from here runs in one synchronous transaction, which holds
+  // the log's write lock (BEGIN IMMEDIATE on SQLite, the advisory lock on
+  // Postgres). A read is not in the write queue, and its snapshot is older
+  // than the store search it awaited, so an offboarding, in this process or
+  // another sharing the log, may have erased items since (reviews of PR #41,
+  // cards E2.2 and E9.7). Under the lock the projection's ids are selected
+  // again and every snapshot item it no longer holds is dropped before the
+  // read filter, scoring, ranking and the read limit run. An erasure commits
+  // under the same lock, so the result, the event and its explanation rows
+  // are those of the read run serially after every erasure committed before
+  // the lock was taken: no erased item is returned, ranked against, counted
+  // or recorded. (An item rewritten meanwhile is still read at its snapshot
+  // version.)
+  const { items, explanations, filtered, event } = db.transaction(() => {
+    const present = projectedIds(db);
+    const projected = snapshot.filter((i) => present.has(i.id));
+    const live = reach.filter((i) => present.has(i.id));
+    const outOfReach = projected.length - live.length;
+    const hitRank = new Map(match?.order.map((id, r) => [id, r]));
+    const candidates = core
+      ? live.filter((i) => matchesQuery(i, terms))
+      : match
+        ? live.filter((i) => hitRank.has(i.id))
+        : live;
 
-  const counts: Record<ReadCheck, number> = {
-    scope: 0,
-    grant: 0,
-    excluded: 0,
-    "not-active": 0,
-    expired: 0,
-    "outside-validity": 0,
-  };
-  const passed = candidates.flatMap((item) => {
-    const decision = evaluateRead(policy, actor, item, at);
-    counts[decision.check]++;
-    return decision.admitted ? [{ item, decision }] : [];
-  });
-  // Relevance from the store's order ranks among the admitted store hits only,
-  // so hits the reader may not see cannot lower it (finding R5-1); an item the
-  // plane matched itself scores its share of the query terms.
-  const byHit = passed
-    .filter(({ item }) => !match?.share.has(item.id))
-    .sort((a, b) => (hitRank.get(a.item.id) ?? 0) - (hitRank.get(b.item.id) ?? 0));
-  const relevance = new Map<string, number>(match?.share);
-  byHit.forEach(({ item }, r) => {
-    relevance.set(item.id, 1 - r / byHit.length);
-  });
-  const decisionOf = new Map(passed.map(({ item, decision }) => [item.id, decision]));
-  const admitted = core
-    ? // The core pipeline over what the filter admitted: ranked, then cut.
-      retrieve(
-        passed.map(({ item }) => item),
-        query.text,
-        at,
-        deps.retrieval?.limit,
-      ).map(({ item, components: parts, total }) => ({
-        item,
-        decision: decisionOf.get(item.id) as ReturnType<typeof evaluateRead>,
-        parts,
-        total,
-      }))
-    : passed.map(({ item, decision }) => {
-        const parts = scoreComponents(item, at, match ? relevance.get(item.id) : undefined);
-        const total = Object.values(parts).reduce((a, b) => a + b, 0);
-        return { item, decision, parts, total };
-      });
-  // Candidates arrive ordered by id and the sort is stable, so ties keep id
-  // order; the core pipeline's list is already in its order.
-  if (!core) admitted.sort((a, b) => b.total - a.total);
+    const counts: Record<ReadCheck, number> = {
+      scope: 0,
+      grant: 0,
+      excluded: 0,
+      "not-active": 0,
+      expired: 0,
+      "outside-validity": 0,
+    };
+    const passed = candidates.flatMap((item) => {
+      const decision = evaluateRead(policy, actor, item, at);
+      counts[decision.check]++;
+      return decision.admitted ? [{ item, decision }] : [];
+    });
+    // Relevance from the store's order ranks among the admitted store hits
+    // only, so hits the reader may not see cannot lower it (finding R5-1); an
+    // item the plane matched itself scores its share of the query terms.
+    const byHit = passed
+      .filter(({ item }) => !match?.share.has(item.id))
+      .sort((a, b) => (hitRank.get(a.item.id) ?? 0) - (hitRank.get(b.item.id) ?? 0));
+    const relevance = new Map<string, number>(match?.share);
+    byHit.forEach(({ item }, r) => {
+      relevance.set(item.id, 1 - r / byHit.length);
+    });
+    const decisionOf = new Map(passed.map(({ item, decision }) => [item.id, decision]));
+    const admitted = core
+      ? // The core pipeline over what the filter admitted: ranked, then cut.
+        retrieve(
+          passed.map(({ item }) => item),
+          query.text,
+          at,
+          deps.retrieval?.limit,
+        ).map(({ item, components: parts, total }) => ({
+          item,
+          decision: decisionOf.get(item.id) as ReturnType<typeof evaluateRead>,
+          parts,
+          total,
+        }))
+      : passed.map(({ item, decision }) => {
+          const parts = scoreComponents(item, at, match ? relevance.get(item.id) : undefined);
+          const total = Object.values(parts).reduce((a, b) => a + b, 0);
+          return { item, decision, parts, total };
+        });
+    // Candidates arrive ordered by id and the sort is stable, so ties keep id
+    // order; the core pipeline's list is already in its order.
+    if (!core) admitted.sort((a, b) => b.total - a.total);
 
-  // Reachable candidates the filter removed: outside the validity window, not
-  // active, past their ttl (a lifecycle exclusion before any sweep, ADR
-  // 0025), or reached through a grant whose class or expiry fails.
-  const filtered =
-    counts.excluded + counts["outside-validity"] + counts["not-active"] + counts.expired;
-  // Under the core pipeline with a limit, the admitted items ranked below it.
-  const limited = core && deps.retrieval?.limit !== undefined;
-
-  // A read does not run in the write queue, and its snapshot of the
-  // projection is older than the store search it awaited, so an offboarding,
-  // in this process or another sharing the log, may have erased an admitted
-  // item since (review of PR #41, cards E2.2 and E9.7). Inside the
-  // transaction, which holds the log's write lock (BEGIN IMMEDIATE on SQLite,
-  // the advisory lock on Postgres), the admitted ids are selected again and
-  // any the projection no longer holds is dropped from the result, the event
-  // and the explanation rows, and counted out of the candidates. An erasure
-  // commits under the same lock, so none lands between this check and the
-  // append: the read never returns or records an item erased before its
-  // event. The out-of-reach count stays the snapshot's.
-  const { event, kept, explanations } = db.transaction(() => {
-    const held = stillProjected(
-      deps,
-      admitted.map((a) => a.item.id),
-    );
-    const kept = admitted.filter((a) => held.has(a.item.id));
-    const explanations: Explanation[] = kept.map(({ item, decision, parts, total }, i) => ({
+    const explanations: Explanation[] = admitted.map(({ item, decision, parts, total }, i) => ({
       item_id: item.id,
       rank: i + 1,
       score: { total, components: parts },
@@ -203,9 +197,16 @@ export async function filteredRead(
       validity: { at, valid_from: item.valid_from, valid_to: item.valid_to },
       schema_version: 1 as const,
     }));
+    // Reachable candidates the filter removed: outside the validity window,
+    // not active, past their ttl (a lifecycle exclusion before any sweep, ADR
+    // 0025), or reached through a grant whose class or expiry fails.
+    const filtered =
+      counts.excluded + counts["outside-validity"] + counts["not-active"] + counts.expired;
+    // Under the core pipeline with a limit, the admitted items ranked below it.
+    const limited = core && deps.retrieval?.limit !== undefined;
     const reason = formatReadReason({
-      returned: kept.length,
-      candidates: candidates.length - (admitted.length - kept.length),
+      returned: admitted.length,
+      candidates: candidates.length,
       filtered,
       outside_validity: counts["outside-validity"],
       not_active: counts["not-active"],
@@ -225,16 +226,16 @@ export async function filteredRead(
       decision: "allow",
       reason,
       policy_id: readRuleId(policy, actor),
-      item_ids: kept.map((a) => a.item.id),
+      item_ids: admitted.map((a) => a.item.id),
       schema_version: SCHEMA_VERSION,
     });
     const insert = db.prepare(
       "INSERT INTO explanations (read_id, rank, item_id, body) VALUES (?, ?, ?, ?)",
     );
     for (const e of explanations) insert.run(appended.id, e.rank, e.item_id, JSON.stringify(e));
-    return { event: appended, kept, explanations };
+    return { items: admitted.map((a) => a.item), explanations, filtered, event: appended };
   });
-  return { items: kept.map((a) => a.item), explanations, filtered, event };
+  return { items, explanations, filtered, event };
 }
 
 /**
