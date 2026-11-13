@@ -57,6 +57,14 @@ Made in the review fix pass of PR #38 (card L1), for the lead's acceptance:
 
 - `Plane.lint` names or describes an item outside the linted scope (a source's current hash for source-changed, a source's or lineage item's status for orphan) only when the actor could read it at the lint time by scope or by a live grant (`readableAt` in packages/core/src/policy/evaluate.ts, which shares `liveGrants` with the read filter). An item reached only by an expired grant, or one naming another class, counts as absent, as an unreachable one does. Finding N5's rule that such a grant still makes an item a read candidate is unchanged: a read reveals only a filtered count, while a lint finding would carry the item's content hash and retirement.
 
+## Amendment (2026-11-13, post-merge)
+
+Made by the post-merge integration fixes of 2026-11-13 (the review of the twelve PRs merged that day), refining the amendment above, for the lead's acceptance:
+
+- Reach decides whether a finding is raised; the linted scope decides what its evidence may say. A lint event is shown to every member of the scope it lints (`eventVisibleTo` in packages/core/src/visible.ts), not only to the actor who could reach the item, so the amendment above let a member see the content hash and retirement of an item Plane.read never returns to him. Now a finding about an item outside the linted scope carries nothing about it beyond what the linted item records itself (its provenance ref, recorded hash and lineage ids): source-changed keeps the source's id and the recorded hash and says the current hash is not shown, and orphan says of a retired item outside the scope exactly what it says of an absent one (`names no active item you can reach`), with no status and no retiring rule (packages/core/src/lint/det.ts).
+- The finding itself is still raised when the linting actor can reach the item, so a member learns one bit: that the source changed, or that the cited item is no longer active (and, for a lineage id, that it was not retired by its own supersession). That is accepted: the alternative, raising no finding about an item outside the scope, would hide a stale derivation from the very person who can fix it.
+- Tests: `packages/core/test/property/lint-leak.test.ts` (no lint event a viewer may see carries a content hash, status or retiring rule of an item outside the linted scope that Plane.read does not return to him) and `packages/core/test/unit/lint/det.test.ts`.
+
 ## Alternatives considered
 
 No alternatives were recorded beyond the recommendation.

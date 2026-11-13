@@ -147,9 +147,12 @@ describe("lint events a viewer may see", () => {
         for (const event of shown) {
           if (event.decision !== "allow") continue;
           shownFindings++;
-          // What the linted scope's own items record may be shown to its members.
+          // What the linted scope's own items hold or record (their content
+          // hash, their provenance hash) its members may be shown.
           const own = new Set(
-            projected.filter((i) => i.scope === event.scope_to).map((i) => i.provenance.hash),
+            projected
+              .filter((i) => i.scope === event.scope_to)
+              .flatMap((i) => [i.provenance.hash, strictContentHash(i.content)]),
           );
           for (const hidden of projected) {
             if (hidden.scope === event.scope_to || returned.has(hidden.id)) continue;

@@ -211,7 +211,9 @@ export interface Plane {
    * changes no item. The actor must be able to read the scope (a member
    * whose level the read matrix lets read it), else one deny event
    * (`engram/lint/membership`); an item outside the scope that a finding
-   * would name counts as absent unless the actor could read it at `at`.
+   * would name counts as absent unless the actor could read it at `at`,
+   * and even then its finding shows no current hash, status or retiring rule
+   * of it, since every member of the scope sees the event (ADR 0009).
    * Runs in the write queue. An invalid actor, time or scope is refused with
    * InvalidCallError before the log is touched.
    */
