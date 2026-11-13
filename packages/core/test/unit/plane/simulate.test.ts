@@ -6,7 +6,7 @@
 // report.
 import { readFileSync } from "node:fs";
 import { describe, expect, test } from "vitest";
-import { replayWorkload, runWorkload } from "../../../src/plane/simulate.ts";
+import { checkWorkload, replayWorkload, runWorkload } from "../../../src/plane/simulate.ts";
 import { type Actor, InvalidCallError } from "../../../src/plane.ts";
 import { loadPreset } from "../../../src/policy/load.ts";
 import type { Policy } from "../../../src/schema.ts";
@@ -276,6 +276,23 @@ describe("an invalid workload is refused before anything runs", () => {
           testPolicy(),
         ),
       ).rejects.toThrow(/invalid workload/);
+  });
+
+  test("a bypass with an empty command or store is refused naming the step (post-merge review)", () => {
+    for (const bypass of [
+      { command: "", store: "mem0" },
+      { command: "mem0 add x", store: "" },
+    ]) {
+      const workload = {
+        id: "w",
+        actors: { omar },
+        steps: [read(1, "x"), { op: "bypass", as: "omar", at: AT, bypass }],
+      };
+      expect(() => checkWorkload(workload)).toThrow(InvalidCallError);
+      expect(() => checkWorkload(workload)).toThrow(
+        bypass.command === "" ? /steps\.1\.bypass\.command/ : /steps\.1\.bypass\.store/,
+      );
+    }
   });
 
   test("a malformed step", async () => {
