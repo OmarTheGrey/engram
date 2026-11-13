@@ -19,6 +19,29 @@ const RETIRES_ITEM = new Set(["retire", "evict"]);
  */
 export const ERASURE_ID = "engram/offboard/erase";
 
+/**
+ * The clause an erase event's reason carries for an item whose store record
+ * was left in a store that refuses the plane's delete: the strict content
+ * hashes of every version erased and of the record the store still holds.
+ * Adoption refuses a store record holding one of them (recheck of PR #41).
+ */
+export const LEFT_CONTENT_CLAUSE = "adoption refuses a store record holding the erased content";
+
+/** The erased content hashes the erase events of the log name (LEFT_CONTENT_CLAUSE). */
+export function erasedStoreContent(db: Db): Set<string> {
+  const out = new Set<string>();
+  const clause = new RegExp(`${LEFT_CONTENT_CLAUSE} \\(([^)]*)\\)`);
+  for (const row of db
+    .prepare("SELECT body FROM events WHERE op = 'retire' AND decision = 'allow'")
+    .all()) {
+    const event = JSON.parse(String(row.body)) as MemoryEvent;
+    if (!erases(event)) continue;
+    const m = clause.exec(event.reason);
+    if (m?.[1]) for (const h of m[1].split(", ")) out.add(h);
+  }
+  return out;
+}
+
 /** The event erases its item: the projection and replay drop it (ERASURE_ID). */
 export function erases(event: MemoryEvent): boolean {
   return event.decision === "allow" && event.op === "retire" && event.policy_id === ERASURE_ID;

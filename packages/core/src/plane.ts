@@ -16,7 +16,12 @@ import type { Db } from "./db/db.ts";
 import type { DistillMethod, Session } from "./distill.ts";
 import { allEvents } from "./events.ts";
 
-export { ADOPT_RETRACT_ID, type AdoptReport, adoptStoreItems } from "./plane/adopt.ts";
+export {
+  ADOPT_ERASED_ID,
+  ADOPT_RETRACT_ID,
+  type AdoptReport,
+  adoptStoreItems,
+} from "./plane/adopt.ts";
 
 import { recordBypass } from "./plane/bypass.ts";
 import { type LintReport, lint } from "./plane/lint.ts";

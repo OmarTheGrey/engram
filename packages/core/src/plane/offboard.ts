@@ -39,8 +39,12 @@
 // never lets the plane delete, such as a memory file Engram did not write)
 // does not hold the item back, since no rerun would succeed: the item is
 // erased from the projection and the log, the report lists its ref under
-// left_in_store for the person to delete in the store, and adoption skips an
-// id an erase event erased, so the record left behind is not brought back.
+// left_in_store for the person to delete in the store, and its erase event
+// names the strict content hashes of every erased version and of the record
+// the store still holds, so adoption refuses that record while it holds the
+// erased content (a deny event, engram/adopt/erased) and adopts anything else
+// normally. Those hashes are the one trace of erased content the log keeps,
+// and only for records still in a store (ADR 0010, recheck of PR #41).
 //
 // The deletion report names what was erased and handed over, by id, and what
 // this call cannot reach. It carries no content. One summary event
@@ -54,7 +58,7 @@
 import { type Actor, checkCall, InvalidCallError } from "../actor.ts";
 import { isNotDeletable, type StoreRef } from "../adapter.ts";
 import { strictContentHash } from "../content-hash.ts";
-import { appendEvent, currentItems, ERASURE_ID } from "../events.ts";
+import { appendEvent, currentItems, ERASURE_ID, LEFT_CONTENT_CLAUSE } from "../events.ts";
 import { refItemId } from "../lint/det.ts";
 import type { PlaneDeps } from "../plane.ts";
 import { STORE_FAILURE_ID, scopeLevel } from "../policy/evaluate.ts";
@@ -308,6 +312,20 @@ async function run(
         policy_id: STORE_FAILURE_ID,
       }),
     );
+  // The content of each record left in the store, as the store holds it now:
+  // adoption refuses exactly these bytes (and the erased versions') later.
+  const leftContent = new Map<string, Set<string>>();
+  for (const i of erased) {
+    if (!i.store_ref || !refused.has(refKey(i.store_ref))) continue;
+    const hashes = new Set([strictContentHash(i.content)]);
+    try {
+      const record = await adapter.read(i.store_ref);
+      if (record) hashes.add(strictContentHash(record.content));
+    } catch {
+      // The store cannot read it back either; the erased versions still count.
+    }
+    leftContent.set(i.id, hashes);
+  }
   /** What happened to an erased item's bytes in the store. */
   const inStore = (i: MemoryItem) =>
     !i.store_ref
@@ -340,6 +358,7 @@ async function run(
         const event = JSON.parse(String(row.body)) as MemoryEvent;
         if (!event.item) continue;
         hashes.add(strictContentHash(event.item.content));
+        leftContent.get(id)?.add(strictContentHash(event.item.content));
         const source = refItemId(event.item.provenance.ref);
         if (source === null || !survivingIds.has(source)) hashes.add(event.item.provenance.hash);
         update.run(JSON.stringify({ ...event, item: redacted(event.item) }), String(row.id));
@@ -373,7 +392,7 @@ async function run(
           scope_from: person,
           scope_to: null,
           decision: "allow",
-          reason: `erased with ${person} at offboarding: ${inStore(i)}; removed from the projection and redacted in the log's copies`,
+          reason: `erased with ${person} at offboarding: ${inStore(i)}; removed from the projection and redacted in the log's copies${leftContent.has(i.id) ? `; ${LEFT_CONTENT_CLAUSE} (${[...(leftContent.get(i.id) as Set<string>)].sort().join(", ")})` : ""}`,
           policy_id: ERASURE_ID,
         }),
       );
@@ -403,7 +422,7 @@ async function run(
       : []),
     ...(leftInStore.length > 0
       ? [
-          `${leftInStore.length} store record${leftInStore.length === 1 ? " is" : "s are"} left in the store ${adapter.name}, which refuses the plane's delete: see left_in_store; the person deletes ${leftInStore.length === 1 ? "it" : "them"} there, and adoption does not bring ${leftInStore.length === 1 ? "it" : "them"} back`,
+          `${leftInStore.length} store record${leftInStore.length === 1 ? " is" : "s are"} left in the store ${adapter.name}, which refuses the plane's delete: see left_in_store; the person deletes ${leftInStore.length === 1 ? "it" : "them"} there; adoption refuses ${leftInStore.length === 1 ? "it" : "them"} while ${leftInStore.length === 1 ? "it holds" : "they hold"} the erased content, and the log keeps that content's hash until then`,
         ]
       : []),
     ...(failures.length > 0

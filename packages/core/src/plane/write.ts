@@ -148,6 +148,12 @@ export interface Adoption {
   prefix: string;
   /** Appended to every event's reason, such as the item's hash. */
   suffix: string;
+  /**
+   * A refusal decided in the write queue, before the gate: the reason and
+   * rule of a deny event, or null to let the gate decide. Adoption refuses a
+   * record holding content an offboarding erased (recheck of PR #41).
+   */
+  refuse?: (item: MemoryItem) => { reason: string; policy_id: string } | null;
 }
 
 /** What the gate decides about a write, before anything is committed. */
@@ -238,6 +244,20 @@ async function decideAndWrite(
       decision: "deny",
       reason: mark(decided.reason),
       policy_id: SCHEMA_ID,
+    });
+    return { item: null, event, retention: [] };
+  }
+
+  const refusal = adoption?.refuse?.(decided.item) ?? null;
+  if (refusal) {
+    const event = appendEvent(db, {
+      ...base,
+      id: newId(),
+      item_id: decided.item.id,
+      scope_to: decided.item.scope,
+      decision: "deny",
+      reason: mark(refusal.reason),
+      policy_id: refusal.policy_id,
     });
     return { item: null, event, retention: [] };
   }
