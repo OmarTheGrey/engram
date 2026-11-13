@@ -21,6 +21,10 @@ Amendments made by cards E9.2 and E9.7, 2026-11-06 (branches `e9-2-twin-profile`
 - The twin profile (`packages/pi-package/profiles/twin.yaml`, card E9.2) encodes the split: a role context reads role, team and org and never a person scope; a role scope takes no episodic records and no model or compaction content; no grant exists by default.
 - Offboarding is implemented (card E9.7, `offboard` in `packages/core/src/plane/offboard.ts`): each role scope the leaver holds is handed to its successor by one `update` event per item the leaver owns (`engram/offboard/handover`: owner becomes the successor, version plus one, rewritten to the store), and the person scope is erased (ADR 0010's amendment of the same day) with a deletion report. Reading the role stays a matter of membership, which the harness supplies. Only a user-sourced member of the person scope and of every role handed over may offboard; without authentication that holds as far as the machine does (ADR 0027).
 
+Amendments made in the review of PR #33, 2026-11-13:
+
+- A store failure while handing a role over is a decision with its own event: one `update` event of decision `deny` under `engram/write/store-failure`, naming the item and the handover, and the call throws before anything is erased. The items handed over before the failure stay the successor's, so offboarding again once the store recovers completes the handover and the erasure (`packages/core/test/unit/plane/offboard-edges.test.ts`).
+
 ## Alternatives considered
 
 No alternatives were recorded beyond the recommendation.

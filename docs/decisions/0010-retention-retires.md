@@ -21,6 +21,10 @@ Amendments made by card E9.7, 2026-11-06 (branch `e9-7-offboarding`):
 - The person-scope erasure is implemented by `offboard` (packages/core/src/plane/offboard.ts). Every item in the person scope, every version and status, is deleted from the store, its projection and explanation rows are removed, and its content, provenance ref and evidence hash are redacted in every earlier event that carries it; one `retire` event per item under `engram/offboard/erase` (events.ts `ERASURE_ID`) then removes it from the projection and from replay (`itemsAt`), so a rebuilt projection equals the incremental one and the item never comes back from the log (`packages/core/test/replay/erasure.test.ts`). The redaction is the one rewrite of the append-only log (ADR 0003): without it the log would keep what erasure deletes. The events, their ids, decisions and reasons stay, so what was decided remains auditable.
 - The deletion report names what was erased and handed over by id, the store refs deleted and any the store failed to delete, and what the call cannot reach: a store's own history (`native_history`, such as Letta's git), pi session files that mirrored the events, and backups. It carries no content. One summary event (`engram/offboard/report`) records the offboarding.
 
+Amendments made in the review of PR #33, 2026-11-13:
+
+- Erasure deletes a store ref only when no item outside the person scope holds it. A ref shared with such an item (a version of the same store record, as adoption makes) is kept in the store, since deleting it would delete that item's bytes; the erased items' copies in the log are redacted all the same, and the deletion report names how many refs were kept (`packages/core/test/unit/plane/offboard-edges.test.ts`).
+
 ## Alternatives considered
 
 No alternatives were recorded beyond the recommendation.

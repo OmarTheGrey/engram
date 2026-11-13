@@ -18,7 +18,13 @@
 // drop it too, so a log rebuilt or replayed never brings it back. The log is
 // append-only apart from this redaction, which exists so erasure is real; the
 // events themselves, their ids, decisions and reasons stay, so the audit
-// trail of what was decided is kept without what was remembered.
+// trail of what was decided is kept without what was remembered. A store ref
+// that an item outside the person scope also holds is not deleted, and the
+// report says so (review of PR #33).
+//
+// A store failure while handing a role over is denied with one event
+// (`engram/write/store-failure`) and thrown before anything is erased;
+// offboarding again completes it, since what moved is no longer the leaver's.
 //
 // The deletion report names what was erased and handed over, by id, and what
 // this call cannot reach. It carries no content. One summary event
@@ -33,7 +39,7 @@ import { type Actor, checkCall, InvalidCallError } from "../actor.ts";
 import type { StoreRef } from "../adapter.ts";
 import { appendEvent, currentItems, ERASURE_ID } from "../events.ts";
 import type { PlaneDeps } from "../plane.ts";
-import { scopeLevel } from "../policy/evaluate.ts";
+import { STORE_FAILURE_ID, scopeLevel } from "../policy/evaluate.ts";
 import { type MemoryEvent, type MemoryItem, Principal, SCHEMA_VERSION, Scope } from "../schema.ts";
 import { inWriteQueue } from "./queue.ts";
 
@@ -165,7 +171,26 @@ async function run(
     const moved: string[] = [];
     for (const item of projected.filter((i) => i.scope === scope && i.owner === person)) {
       const next = { ...item, owner: successor, version: item.version + 1 } as MemoryItem;
-      const store_ref = await adapter.write({ ...next, store_ref: null } as MemoryItem);
+      let store_ref: StoreRef;
+      try {
+        store_ref = await adapter.write({ ...next, store_ref: null } as MemoryItem);
+      } catch (e) {
+        // A decision like any other (AGENTS.md rule 3). Nothing is erased: the
+        // items handed over so far are the successor's, and offboarding again
+        // once the store recovers moves the rest, as it skips what moved.
+        appendEvent(db, {
+          ...base,
+          id: newId(),
+          op: "update",
+          item_id: item.id,
+          scope_from: scope,
+          scope_to: scope,
+          decision: "deny",
+          reason: `the handover of ${scope} to ${successor} (${HANDOVER_ID}) failed in the store: ${errorText(e)}; nothing was erased`,
+          policy_id: STORE_FAILURE_ID,
+        });
+        throw e;
+      }
       events.push(
         appendEvent(db, {
           ...base,
@@ -188,8 +213,22 @@ async function run(
   // Erasure: every version in the person scope, from the store first.
   const doomed = projected.filter((i) => i.scope === person);
   const ids = new Set(doomed.map((i) => i.id));
+  // A ref an item outside the person scope also holds (a version of the same
+  // store record, as adoption makes) stays: deleting it would delete that
+  // item's bytes from a scope the leaver does not own alone.
+  const held = new Set(
+    currentItems(db)
+      .filter((i) => !ids.has(i.id) && i.store_ref)
+      .map((i) => refKey(i.store_ref as StoreRef)),
+  );
   const refs = new Map<string, StoreRef>();
-  for (const i of doomed) if (i.store_ref) refs.set(refKey(i.store_ref), i.store_ref);
+  const shared = new Set<string>();
+  for (const i of doomed) {
+    if (!i.store_ref) continue;
+    const key = refKey(i.store_ref);
+    if (held.has(key)) shared.add(key);
+    else refs.set(key, i.store_ref);
+  }
   const deleted: StoreRef[] = [];
   const failures: DeletionReport["erased"]["store_failures"] = [];
   for (const ref of refs.values()) {
@@ -247,6 +286,11 @@ async function run(
     ...(kept > 0
       ? [
           `${kept} item${kept === 1 ? "" : "s"} the leaver owns in shared scopes are kept: they are the scope's, not the person's`,
+        ]
+      : []),
+    ...(shared.size > 0
+      ? [
+          `${shared.size} store ref${shared.size === 1 ? " is" : "s are"} kept in the store: held by an item outside ${person} as well, so deleting ${shared.size === 1 ? "it" : "them"} would delete that item; the log's copies of the erased items are redacted all the same`,
         ]
       : []),
     ...(failures.length > 0
