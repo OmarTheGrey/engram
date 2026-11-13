@@ -86,6 +86,16 @@ async function matching(
   return { order: [...order, ...share.keys()], share };
 }
 
+/** The ids the projection holds now. */
+function projectedIds({ db }: PlaneDeps): Set<string> {
+  return new Set(
+    db
+      .prepare("SELECT id FROM items")
+      .all()
+      .map((r) => String(r.id)),
+  );
+}
+
 export async function filteredRead(
   deps: PlaneDeps,
   actor: Actor,
@@ -94,9 +104,8 @@ export async function filteredRead(
   const { db, policy, newId } = deps;
   checkCall(actor, query?.at, "read");
   const { at } = query;
-  const projected = currentItems(db);
-  const reach = projected.filter((i) => reachable(policy, actor, i));
-  const outOfReach = projected.length - reach.length;
+  const snapshot = currentItems(db);
+  const reached = snapshot.filter((i) => reachable(policy, actor, i));
   // The readable scopes the actor belongs to: the store is never asked about
   // any other scope, not even one a grant reaches into (finding N1).
   const scopes = [
@@ -104,7 +113,18 @@ export async function filteredRead(
   ].sort();
   const core = deps.retrieval?.pipeline === "core";
   const terms = queryTerms(query.text);
-  const match = core ? undefined : await matching(deps, reach, scopes, query.text);
+  const match = core ? undefined : await matching(deps, reached, scopes, query.text);
+  // A read does not run in the write queue, so an offboarding may have erased
+  // items while the store was searched (post-merge review of 2026-11-13, cards
+  // E2.2 and E9.7). Every item erased since the snapshot is dropped here, as
+  // if the read had begun after the erasure; from here to the transaction
+  // that appends the read event and its explanations nothing awaits, so no
+  // erasure lands in between and the read never returns or records an item
+  // erased before its event.
+  const present = core ? undefined : projectedIds(deps);
+  const projected = present ? snapshot.filter((i) => present.has(i.id)) : snapshot;
+  const reach = present ? reached.filter((i) => present.has(i.id)) : reached;
+  const outOfReach = projected.length - reach.length;
   const hitRank = new Map(match?.order.map((id, r) => [id, r]));
   const candidates = core
     ? reach.filter((i) => matchesQuery(i, terms))
