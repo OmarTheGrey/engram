@@ -1,6 +1,6 @@
 // Acceptance for step-0 task S0.10 (ADR 0017): a second identical call makes
 // zero underlying calls, offline mode refuses a miss, and usage is recorded.
-// The code under test lives in @engram/model since ADR 0032; this file stays at
+// The code under test lives in @engram/model since ADR 0033; this file stays at
 // its path because immutable log entries cite it as evidence.
 import { mkdtempSync, readdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";

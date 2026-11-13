@@ -1,4 +1,4 @@
-// The bench and runner import cycle (backlog, Gate B; ADR 0032). Before the fix,
+// The bench and runner import cycle (backlog, Gate B; ADR 0033). Before the fix,
 // loading the runner loaded bench, which loaded the runner's index while its
 // bindings were still unset, so a top-level use of one in the other read
 // undefined (docs/log/2026-10-29-b3-failure-bench-runner-import-cycle.md).

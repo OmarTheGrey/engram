@@ -28,7 +28,7 @@ packages/server/          HTTP API over core (route table, loopback only), the w
 packages/ui/              inspector; calls the generated client
 packages/bench/           benchmark runners on the pi SDK, pinned in packages/bench/PINS.md; vendored upstream judges
 packages/runner/          experiment runner: pi SDK sessions, seeded, cached; Pi Durable behind a flag
-packages/model/           the model-call layer bench and runner share: the cached, seeded call (ADR 0017) and the scripted models; imports neither (ADR 0032)
+packages/model/           the model-call layer bench and runner share: the cached, seeded call (ADR 0017) and the scripted models; imports neither (ADR 0033)
 research/                 Python: configs/, scripts/, results/, analysis, stats, figures, thesis
 sdk/                      generated: JSON Schema, sdk/openapi.json, the TypeScript client sdk/ts (@engram/sdk); do not edit by hand
 docs/                     architecture, decisions, tasks, research, readings, deps, glossary

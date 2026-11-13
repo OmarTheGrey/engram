@@ -2,7 +2,7 @@
 
 One file per decision, `NNNN-<slug>.md`, format: context, decision, alternatives, consequences, sources. Status is one of proposed, accepted, superseded. A proposed ADR is a question with a recommended answer; accepting it is a `decision` log entry plus a status change in the same PR.
 
-Every ADR, 0001 to 0030, is accepted by the lead, and the lead is its decider. ADRs 0001 and 0020 were decided by the lead directly. ADRs 0002 to 0030 were drafted during the project (0002 to 0023 in step-0 task S0.13 on 2026-10-22, 0024 to 0030 by the Gate A and Gate B plans on 2026-10-29, recorded in `docs/log/`) and accepted by the lead on 2026-11-02 with every amendment they carry (`docs/log/2026-11-02-adrs-accepted.md`); each file is authoritative. ADR 0031 is proposed, drafted by PR 3 of `docs/tasks/prereg-v1-plan.md` for the lead's acceptance; ADR 0032 is proposed, drafted for the backlog item on the bench and runner import cycle. ADRs 0024 to 0032 have files only, no proposal below. The proposals below are kept as the record of what was decided from; they were distilled from the readings in `docs/readings/`, the gap analysis in the proposal, and checks run on 2026-10-17. Each proposal names the papers or facts that force it, the options, the recommended pick, and what it unblocks. They were accepted, amended or rejected in step 0 (see `docs/tasks/step-0.md`).
+Every ADR, 0001 to 0030, is accepted by the lead, and the lead is its decider. ADRs 0001 and 0020 were decided by the lead directly. ADRs 0002 to 0030 were drafted during the project (0002 to 0023 in step-0 task S0.13 on 2026-10-22, 0024 to 0030 by the Gate A and Gate B plans on 2026-10-29, recorded in `docs/log/`) and accepted by the lead on 2026-11-02 with every amendment they carry (`docs/log/2026-11-02-adrs-accepted.md`); each file is authoritative. ADR 0031 is proposed, drafted by PR 3 of `docs/tasks/prereg-v1-plan.md` for the lead's acceptance; ADR 0032 is reserved for card E8.9 (the simulator, PR #28), which drafts it; ADR 0033 is proposed, drafted for the backlog item on the bench and runner import cycle (numbered 0032 until 2026-11-13). ADRs 0024 to 0033 have files only, no proposal below. The proposals below are kept as the record of what was decided from; they were distilled from the readings in `docs/readings/`, the gap analysis in the proposal, and checks run on 2026-10-17. Each proposal names the papers or facts that force it, the options, the recommended pick, and what it unblocks. They were accepted, amended or rejected in step 0 (see `docs/tasks/step-0.md`).
 
 | # | Title | Status |
 |---|---|---|
@@ -37,7 +37,8 @@ Every ADR, 0001 to 0030, is accepted by the lead, and the lead is its decider. A
 | 0029 | The poisoning arm runs on MEM-INV-Bench | accepted |
 | 0030 | GateMem's principals are actors, its unrestricted relationships are memberships and read grants, read from the fields an agent may see | accepted |
 | 0031 | What C1 and C4 are on GateMem and on MEM-INV-Bench | proposed |
-| 0032 | The model-call layer (the cached call, the scripted models) is its own package, @engram/model | proposed |
+| 0032 | Reserved for card E8.9 (the simulator, PR #28) | proposed |
+| 0033 | The model-call layer (the cached call, the scripted models) is its own package, @engram/model | proposed |
 
 ---
 

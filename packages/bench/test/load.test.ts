@@ -1,4 +1,4 @@
-// The bench and runner import cycle (backlog, Gate B; ADR 0032). @engram/bench
+// The bench and runner import cycle (backlog, Gate B; ADR 0033). @engram/bench
 // must load alone in a fresh process and use its exports at module top level, and
 // it must not depend on @engram/runner again: the shared model layer lives in
 // @engram/model, which imports neither of them.
