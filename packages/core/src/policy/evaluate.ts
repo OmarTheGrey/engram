@@ -281,6 +281,34 @@ export function reachable(policy: Policy, actor: Actor, item: MemoryItem): boole
 }
 
 /**
+ * The grants on `item` that let the actor read it at `at`, as
+ * `grants[<index>]:<to>`: the policy honours grants, the grant's `to` matches
+ * the actor, its class is absent or the item's, and its expiry is absent or
+ * after `at`. Empty when none does.
+ */
+export function liveGrants(policy: Policy, actor: Actor, item: MemoryItem, at: string): string[] {
+  if (!policy.read.honour_grants) return [];
+  return item.grants.flatMap((g, i) =>
+    grantMatches(g.to, actor.id) &&
+    (g.class === undefined || g.class === item.class) &&
+    (g.expires === undefined || compareTimestamps(g.expires, at) > 0)
+      ? [`grants[${i}]:${g.to}`]
+      : [],
+  );
+}
+
+/**
+ * Could the actor read `item` at `at`, whatever its status or validity: by a
+ * readable scope, or by a live grant (liveGrants). Unlike reachable, an
+ * expired grant or one naming another class does not count. Plane.lint
+ * (card L1) uses it for the items a finding may name or describe, so a lint
+ * says nothing of an item the read filter would never admit on access.
+ */
+export function readableAt(policy: Policy, actor: Actor, item: MemoryItem, at: string): boolean {
+  return readableScope(policy, actor, item.scope) || liveGrants(policy, actor, item, at).length > 0;
+}
+
+/**
  * The read filter for one item. Only active items are read, and only before
  * their ttl runs out (ADR 0025: lifecycle is an admissibility axis, so an
  * expired item is excluded before any sweep retires it). Access is by
@@ -327,15 +355,7 @@ export function evaluateRead(
       matrixId,
     );
   } else {
-    const used = policy.read.honour_grants
-      ? item.grants.flatMap((g, i) =>
-          grantMatches(g.to, actor.id) &&
-          (g.class === undefined || g.class === item.class) &&
-          (g.expires === undefined || compareTimestamps(g.expires, at) > 0)
-            ? [`grants[${i}]:${g.to}`]
-            : [],
-        )
-      : [];
+    const used = liveGrants(policy, actor, item, at);
     access =
       used.length > 0
         ? result(true, "grant", `admitted by ${used.join(", ")}`, `${policy.id}/read/grants`, used)

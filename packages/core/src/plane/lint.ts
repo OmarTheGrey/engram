@@ -12,7 +12,7 @@ import { type Actor, checkCall, InvalidCallError } from "../actor.ts";
 import { allEvents, appendEvent, currentItems } from "../events.ts";
 import { lintScope } from "../lint/det.ts";
 import type { PlaneDeps } from "../plane.ts";
-import { reachable, readableScope } from "../policy/evaluate.ts";
+import { readableAt, readableScope } from "../policy/evaluate.ts";
 import { type LintFinding, type MemoryEvent, type MemoryItem, Scope } from "../schema.ts";
 import { inWriteQueue } from "./queue.ts";
 
@@ -96,7 +96,7 @@ function run(deps: PlaneDeps, actor: Actor, at: string, scope: string): LintRepo
       at,
       items,
       retiredBy: retirements(allEvents(db)),
-      canReach: (item) => reachable(policy, actor, item),
+      canReach: (item) => readableAt(policy, actor, item, at),
     },
     scope,
     policy.lints.enabled,

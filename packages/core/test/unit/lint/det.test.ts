@@ -334,6 +334,43 @@ describe("Plane.lint", () => {
     expect(report.events[0]?.reason).toMatch(/may not read person:omar/);
   });
 
+  test("treats a source reached only by an expired grant as out of reach, as Plane.read does", async () => {
+    // Sam's item names person:omar in a grant; omar's team item cites it as
+    // its source with a stale hash. With the grant live, source-changed may
+    // show the source's current hash; with it expired, Plane.read no longer
+    // returns the source, so the lint must say no more than if there were no
+    // grant at all (review of PR 38, the read gate covers grants too).
+    const sam = { id: "person:sam", level: "person" as const, memberships: ["person:sam"] };
+    const report = async (grants: MemoryItem["grants"]) => {
+      const { plane } = fresh(enabled(["source-changed", "orphan"]));
+      const src = item(1, { scope: "person:sam", owner: "person:sam", content: "new", grants });
+      const w = await plane.write(sam, src, AT);
+      expect(w.item, w.event.reason).not.toBeNull();
+      const cite = item(2, ref(src.id, strictContentHash("old")));
+      expect((await plane.write(actor, cite, AT)).item).not.toBeNull();
+      const r = await plane.lint(actor, AT, "team:platform");
+      return r.findings.map((f) => [f.lint_id, f.item_id, f.evidence]);
+    };
+    const grant = (expires: string) => [
+      { to: "person:omar", class: "semantic" as const, mode: "read" as const, expires },
+    ];
+    const live = await report(grant("2026-12-01T00:00:00Z"));
+    expect(live).toEqual([
+      [
+        "source-changed",
+        id(2),
+        [
+          `source ${id(1)}`,
+          `recorded ${strictContentHash("old")}`,
+          `current ${strictContentHash("new")}`,
+        ],
+      ],
+    ]);
+    const expired = await report(grant("2026-10-01T00:00:00Z"));
+    expect(JSON.stringify(expired)).not.toContain(strictContentHash("new"));
+    expect(expired).toEqual(await report([]));
+  });
+
   test("refuses an invalid scope, actor or time before the log is touched", async () => {
     const { plane } = fresh();
     await expect(plane.lint(actor, AT, "everyone")).rejects.toBeInstanceOf(InvalidCallError);

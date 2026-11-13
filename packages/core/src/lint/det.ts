@@ -49,7 +49,10 @@ export interface LintContext {
   items: ReadonlyMap<string, MemoryItem>;
   /** For each retired item, the op and policy id of the allowed event that retired it last. */
   retiredBy: ReadonlyMap<string, { op: string; policy_id: string }>;
-  /** Whether the linting actor can reach an item; one it cannot counts as absent. */
+  /**
+   * Whether the linting actor could read an item at `at` by scope or a live
+   * grant (readableAt); one it cannot counts as absent.
+   */
   canReach: (item: MemoryItem) => boolean;
 }
 
