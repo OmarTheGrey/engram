@@ -1,1 +1,3 @@
-{}
+{
+  "packages": ["../packages/pi-package"]
+}
