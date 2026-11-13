@@ -652,6 +652,19 @@ export interface components {
                 item_id: string;
                 to_scope: string;
                 review?: boolean;
+            } | {
+                /** @constant */
+                op: "bypass";
+                /** @description A key of the workload's actors. */
+                as: string;
+                /** Format: date-time */
+                at: string;
+                bypass: {
+                    command: string;
+                    store: string;
+                    /** @enum {string} */
+                    route?: "command" | "path" | "result";
+                };
             })[];
             retrieval?: {
                 /** @constant */
@@ -673,7 +686,7 @@ export interface components {
                 outcomes: {
                     step: number;
                     /** @enum {string} */
-                    op: "write" | "read" | "retain" | "promote";
+                    op: "write" | "read" | "retain" | "promote" | "bypass";
                     actor: string;
                     item_id: string | null;
                     /** @enum {string} */
@@ -711,7 +724,7 @@ export interface components {
                 outcomes: {
                     step: number;
                     /** @enum {string} */
-                    op: "write" | "read" | "retain" | "promote";
+                    op: "write" | "read" | "retain" | "promote" | "bypass";
                     actor: string;
                     item_id: string | null;
                     /** @enum {string} */
@@ -746,13 +759,13 @@ export interface components {
             changed: {
                 step: number;
                 /** @enum {string} */
-                op: "write" | "read" | "retain" | "promote";
+                op: "write" | "read" | "retain" | "promote" | "bypass";
                 actor: string;
                 item_id: string | null;
                 baseline: {
                     step: number;
                     /** @enum {string} */
-                    op: "write" | "read" | "retain" | "promote";
+                    op: "write" | "read" | "retain" | "promote" | "bypass";
                     actor: string;
                     item_id: string | null;
                     /** @enum {string} */
@@ -767,7 +780,7 @@ export interface components {
                 candidate: {
                     step: number;
                     /** @enum {string} */
-                    op: "write" | "read" | "retain" | "promote";
+                    op: "write" | "read" | "retain" | "promote" | "bypass";
                     actor: string;
                     item_id: string | null;
                     /** @enum {string} */

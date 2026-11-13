@@ -6,7 +6,7 @@
 // report.
 import { readFileSync } from "node:fs";
 import { describe, expect, test } from "vitest";
-import { runWorkload } from "../../../src/plane/simulate.ts";
+import { replayWorkload, runWorkload } from "../../../src/plane/simulate.ts";
 import { type Actor, InvalidCallError } from "../../../src/plane.ts";
 import { loadPreset } from "../../../src/policy/load.ts";
 import type { Policy } from "../../../src/schema.ts";
@@ -212,6 +212,35 @@ describe("steps", () => {
     expect(promoted).toHaveLength(1);
     expect(report.candidate.outcomes[4]?.returned).toEqual(promoted);
     expect(report.changed.map((c) => c.step)).toEqual([1]);
+  });
+
+  test("a blocked bypass replays as its bypass_blocked event under any policy (card PX2)", async () => {
+    const workload: Workload = {
+      id: "w",
+      actors: { omar },
+      steps: [
+        { op: "bypass", as: "omar", at: AT, bypass: { command: "mem0 add x", store: "mem0" } },
+      ],
+    };
+    const { run, events } = await replayWorkload(workload, testPolicy());
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ op: "bypass_blocked", decision: "deny", actor: omar.id });
+    expect(run.outcomes[0]?.policy_id).toBe(events[0]?.policy_id);
+    const other = await runWorkload(workload, loadPreset("strict"));
+    expect(other.outcomes[0]?.decision).toBe("deny");
+  });
+
+  test("replayWorkload returns the events of its scratch log, in order", async () => {
+    const { run, events } = await replayWorkload(
+      { id: "w", actors: { omar }, steps: [write(1, 1), read(2, "fact")] },
+      testPolicy(),
+    );
+    expect(events.map((e) => [e.seq, e.op])).toEqual([
+      [0, "write"],
+      [1, "read"],
+    ]);
+    expect(events[1]?.item_ids).toEqual(run.outcomes[1]?.returned);
+    expect(events[0]?.item?.store_ref?.adapter).toBe("simulation");
   });
 
   test("a sweep by a non-member is denied as on the plane", async () => {
