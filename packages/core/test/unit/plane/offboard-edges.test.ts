@@ -299,9 +299,10 @@ describe("a store failure while erasing", () => {
     // Each erase event says what happened to its item in the store.
     for (const e of appended.filter((x) => x.policy_id === ERASURE_ID))
       expect(e.reason).toMatch(/deleted from the store/);
-    // Re-adoption brings nothing back: the kept item is still projected, unchanged.
-    const adopted = await adoptStoreItems(env.deps, dana, "person:dana", f.later);
-    expect(adopted.allowed).toBe(0);
+    // Re-adoption brings no erased item back: the store lists only the kept one.
+    await adoptStoreItems(env.deps, dana, "person:dana", f.later);
+    const person = currentItems(db).filter((i) => i.scope === "person:dana");
+    expect(person.map((i) => i.id)).toEqual([id(1)]);
 
     store.down = false;
     const again = await offboard(env.deps, dana, LEAVE, f.later);

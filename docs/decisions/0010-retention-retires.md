@@ -25,6 +25,11 @@ Amendments made in the review of PR #33, 2026-11-13:
 
 - Erasure deletes a store ref only when no item outside the person scope holds it. A ref shared with such an item (a version of the same store record, as adoption makes) is kept in the store, since deleting it would delete that item's bytes; the erased items' copies in the log are redacted all the same, and the deletion report names how many refs were kept (`packages/core/test/unit/plane/offboard-edges.test.ts`).
 
+Amendments made by the post-merge integration fixes, 2026-11-13 (the review of the twelve PRs merged that day):
+
+- An item whose store ref the store fails to delete is not erased in that run: it stays in the store, the projection and the log, unredacted, with one deny event (`op` retire, `engram/write/store-failure`, the reason naming the error and `engram/offboard/erase`), and the deletion report lists it under `store_failures` with its ref. Offboarding again once the store recovers erases it. Erasing it from the log while its bytes stayed in the store let adoption bring it back with nothing recording why. Each erase event's reason now says what happened to its item in the store: deleted, kept because an item outside the person scope holds the same ref, or no store record.
+- The redaction reaches lint events (card L1), which carry an item by id only and their evidence in `reason`: every lint event about an erased item, or whose reason names an erased id or a content or evidence hash of an erased version, keeps its lint id, severity and rule, and its reason becomes `<lint_id> (<severity>): [erased]`. A lint event changes no item, so replay and a rebuilt projection are unchanged (`packages/core/test/unit/plane/offboard-edges.test.ts`, on SQLite and embedded Postgres).
+
 ## Alternatives considered
 
 No alternatives were recorded beyond the recommendation.
