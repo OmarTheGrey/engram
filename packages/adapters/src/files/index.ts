@@ -43,7 +43,12 @@ import { createHash } from "node:crypto";
 import type { Dirent } from "node:fs";
 import { lstat, mkdir, open, readdir, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
-import { type MemoryItem, MemoryItem as MemoryItemSchema, Scope } from "@engram/core";
+import {
+  type MemoryItem,
+  MemoryItem as MemoryItemSchema,
+  NotDeletableError,
+  Scope,
+} from "@engram/core";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import { type Adapter, ForeignRefError, type StoreRef } from "../contract.ts";
 import { atomicWrite, isMissing, isRecord } from "../fs-safe.ts";
@@ -100,8 +105,12 @@ export class UnsafeKeyError extends Error {
   }
 }
 
-/** A write or delete aimed at a memory file Engram did not write. */
-export class ReadOnlyItemError extends Error {
+/**
+ * A write or delete aimed at a memory file Engram did not write. A
+ * NotDeletableError, so erasure takes the refusal as permanent rather than
+ * waiting for the store to recover.
+ */
+export class ReadOnlyItemError extends NotDeletableError {
   constructor(key: string) {
     super(`files adapter: ${key} has no Engram metadata and is read-only`);
   }

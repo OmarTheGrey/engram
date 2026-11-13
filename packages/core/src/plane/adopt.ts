@@ -18,7 +18,10 @@
 // the store derives from its own bookkeeping aside, Adapter.derivedFields, so
 // touching a file is no new version), unless adoption itself retired it; and
 // an item whose last write was denied with the same hash, so a denied item is
-// not re-gated on every read.
+// not re-gated on every read; and an item whose id an offboarding erased
+// (events.ts ERASURE_ID): a store that refuses the plane's delete keeps the
+// record, and adopting it again would undo the erasure (ADR 0010, review of
+// PR #41).
 //
 // Retracted, with one retire event (policy_id engram/adopt/retract): a
 // projected item of this store and scope the store no longer lists, and a
@@ -32,7 +35,7 @@
 // it unchanged.
 import { createHash } from "node:crypto";
 import type { Actor } from "../actor.ts";
-import { appendEvent, currentItems, eventsByItem } from "../events.ts";
+import { appendEvent, currentItems, erases, eventsByItem } from "../events.ts";
 import { itemById } from "../items.ts";
 import type { PlaneDeps } from "../plane.ts";
 import type { MemoryEvent, MemoryItem } from "../schema.ts";
@@ -49,7 +52,7 @@ export interface AdoptReport {
   denied: number;
   /**
    * Listed items with no new event: held by the projection as the store has
-   * them, or denied before with the same hash.
+   * them, denied before with the same hash, or erased at offboarding.
    */
   unchanged: number;
   /** Projected items retired because the store no longer has them as the plane held them. */
@@ -134,6 +137,10 @@ export async function adoptStoreItems(
     }
     const known = itemById(db, item.id);
     const history = eventsByItem(db, item.id);
+    if (!known && history.some(erases)) {
+      report.unchanged++;
+      continue;
+    }
     const [asAdopted] = withPlaneProvenance(adopter, item);
     const derived = adapter.derivedFields?.(item) ?? [];
     if (known && comparable(known, derived) === comparable(asAdopted, derived)) {

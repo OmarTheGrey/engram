@@ -27,7 +27,12 @@ export interface Adapter {
   write(item: MemoryItem): Promise<StoreRef>;
   /** The stored item with `store_ref` set, or undefined if the key is unknown. Throws on another adapter's ref. */
   read(ref: StoreRef): Promise<MemoryItem | undefined>;
-  /** Removes the item; deleting an unknown or already deleted ref is not an error. */
+  /**
+   * Removes the item; deleting an unknown or already deleted ref is not an
+   * error. A store that will never let the plane delete this item (a record
+   * it did not write, such as a file the person keeps by hand) throws a
+   * NotDeletableError; any other error is taken as transient.
+   */
   delete(ref: StoreRef): Promise<void>;
   /** Every item stored in exactly this scope. */
   list(scope: string): Promise<MemoryItem[]>;
@@ -55,6 +60,27 @@ export interface Adapter {
 export interface StoreDiagnostic {
   key: string;
   reason: string;
+}
+
+/**
+ * The store refuses the plane's delete of this record on every attempt, not
+ * just now: it holds a record the plane may read but not remove (the files
+ * adapter's ReadOnlyItemError, a memory file Engram did not write). Erasure
+ * (offboarding) still removes the item from the projection and the log and
+ * reports the ref as left in the store for the person to delete; a transient
+ * error keeps the item back until a rerun (ADR 0010, review of PR #41).
+ */
+export class NotDeletableError extends Error {
+  /** Marks the refusal as permanent even across module copies, where instanceof fails. */
+  readonly notDeletable = true as const;
+}
+
+/** Whether `e` is a permanent delete refusal (NotDeletableError). */
+export function isNotDeletable(e: unknown): boolean {
+  return (
+    e instanceof NotDeletableError ||
+    (typeof e === "object" && e !== null && (e as { notDeletable?: unknown }).notDeletable === true)
+  );
 }
 
 export class ForeignRefError extends Error {
