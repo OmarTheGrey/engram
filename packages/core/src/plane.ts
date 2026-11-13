@@ -6,7 +6,8 @@
 // the read filter and explanations (card E2.2, plane/read.ts), both deciding
 // through the pure evaluator in policy/evaluate.ts, retention (card E2.4,
 // plane/retention.ts) through policy/retention.ts, and promotion (card E2.5,
-// plane/promote.ts) through policy/promotion.ts. Methods whose cards have
+// plane/promote.ts) through policy/promotion.ts, and the simulator (card
+// E8.9, plane/simulate.ts) over all of them. Methods whose cards have
 // not landed reject with NotImplementedYet, naming the card that implements them.
 import type { Actor } from "./actor.ts";
 import type { Adapter } from "./adapter.ts";
@@ -20,6 +21,7 @@ import { recordBypass } from "./plane/bypass.ts";
 import { promote } from "./plane/promote.ts";
 import { filteredRead, storedExplanations } from "./plane/read.ts";
 import { retain } from "./plane/retention.ts";
+import { simulate } from "./plane/simulate.ts";
 import { checkWrite, gatedWrite } from "./plane/write.ts";
 import type { Explanation, LintFinding, MemoryEvent, MemoryItem, Policy } from "./schema.ts";
 import type { SimReport, Workload } from "./simulate.ts";
@@ -38,6 +40,15 @@ export {
   bypassAttempt,
   MAX_ATTEMPT_LENGTH,
 } from "./plane/bypass.ts";
+export {
+  type DeletionReport,
+  HANDOVER_ID,
+  OFFBOARD_MEMBERSHIP_ID,
+  OFFBOARD_REPORT_ID,
+  type OffboardRequest,
+  offboard,
+  REDACTED,
+} from "./plane/offboard.ts";
 export { inWriteQueue, NestedWriteQueueError } from "./plane/queue.ts";
 export {
   formatReadReason,
@@ -46,6 +57,7 @@ export {
   readCounts,
 } from "./plane/read-reason.ts";
 export { enforceBudget, retentionUsage } from "./plane/retention.ts";
+export { checkWorkload, replayWorkload, runWorkload, SIMULATION_STORE } from "./plane/simulate.ts";
 export { retiredContent } from "./plane/write.ts";
 
 export interface ReadQuery {
@@ -192,7 +204,13 @@ export interface Plane {
   retain(actor: Actor, scope: string, at: string): Promise<RetentionReport>;
   /** Runs the enabled lints over one scope; every finding is also a `lint` event. */
   lint(scope: string): Promise<LintFinding[]>;
-  /** Replays a recorded workload under a candidate policy; zero model calls, no store I/O. */
+  /**
+   * Replays a recorded workload under this plane's policy and under a
+   * candidate one (card E8.9), each on a scratch log and store: decisions,
+   * the utility proxy and evictions per policy, and the steps that differ.
+   * Never reads or writes this plane's log or store, and calls no model. An
+   * invalid workload is refused with InvalidCallError.
+   */
   simulate(workload: Workload, policy: Policy): Promise<SimReport>;
   /** Candidate procedural items induced from sessions. */
   distill(sessions: Session[], method: DistillMethod): Promise<MemoryItem[]>;
@@ -256,9 +274,7 @@ export function createPlane(deps: PlaneDeps): Plane {
     lint: async () => {
       throw new NotImplementedYet("lint", "L1");
     },
-    simulate: async () => {
-      throw new NotImplementedYet("simulate", "E8.9");
-    },
+    simulate: (workload, policy) => simulate(deps, workload, policy),
     distill: async () => {
       throw new NotImplementedYet("distill", "D2");
     },

@@ -133,7 +133,7 @@ describe("the routes, through the generated client, on the fake store", () => {
         "returned 0 of 1 candidates; 1 filtered (1 outside the validity window, 0 not active, " +
         "0 by a grant's class or expiry); 2 projected items outside the reader's reach were not candidates",
       policy_id: "preset.medium/read/person",
-      schema_version: 0,
+      schema_version: 1,
     });
     const { data, response } = await client.POST("/api/v1/explain/{readId}", {
       params: { path: { readId: old.id } },
@@ -193,9 +193,42 @@ describe("the routes, through the generated client, on the fake store", () => {
     expect(C.PolicyResponse.parse(data).label).toBe("preset.medium v1");
   });
 
+  it("simulate: a workload replayed under the workspace's policy and a candidate, on scratch logs", async () => {
+    const { client, workspace } = testWorkspace();
+    const workload = {
+      id: "w",
+      actors: { dana: { ...dana, source: "user" as const } },
+      steps: [
+        { op: "write" as const, as: "dana", at: NOW, item: itemFor(1) },
+        { op: "read" as const, as: "dana", at: NOW },
+      ],
+    };
+    const { data, response } = await client.POST("/api/v1/simulate", {
+      body: { workload, policy: { ...workspace.policy, id: "candidate" } },
+    });
+    hit.add("simulate");
+    expect(response.status).toBe(200);
+    const report = C.SimReport.parse(data);
+    expect([report.baseline.policy_id, report.candidate.policy_id]).toEqual([
+      "preset.medium",
+      "candidate",
+    ]);
+    expect(report.baseline.utility.returned).toBe(1);
+    expect(report.changed).toEqual([]);
+    expect(workspace.plane.events(), "the workspace's own log is untouched").toEqual([]);
+  });
+
+  it("simulate: a step naming no actor of the workload is 400", async () => {
+    const { client } = testWorkspace();
+    const { error, response } = await client.POST("/api/v1/simulate", {
+      body: { workload: { id: "w", actors: {}, steps: [{ op: "read", as: "nobody", at: NOW }] } },
+    });
+    expect(response.status).toBe(400);
+    expect(C.ErrorResponse.parse(error).error.code).toBe("invalid_call");
+  });
+
   it.each([
     ["lint", "/api/v1/lint", { scope: "person:dana" }, "L1"],
-    ["simulate", "/api/v1/simulate", { workload: { id: "w", events: [] } }, "E8.9"],
     [
       "distill",
       "/api/v1/distill",

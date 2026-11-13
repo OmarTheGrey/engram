@@ -226,7 +226,7 @@ async function decideAndWrite(
     op: "write" as const,
     actor: actor.id,
     scope_from: null,
-    schema_version: 0 as const,
+    schema_version: 1 as const,
   };
 
   if (decided.kind === "schema") {

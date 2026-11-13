@@ -44,7 +44,7 @@ function item(n: number, over: Partial<MemoryItem> = {}): MemoryItem {
     lineage: [],
     status: "active",
     store_ref: null,
-    schema_version: 0,
+    schema_version: 1,
     ...over,
   } as MemoryItem;
 }
@@ -90,7 +90,7 @@ const POLICY: Policy = {
     procedural: { replay_k: 4, replay_n: 5 },
   },
   lints: { enabled: [], thresholds: {} },
-  schema_version: 0,
+  schema_version: 1,
 };
 
 const SCOPES = ["person:omar", "team:platform", "org"];
@@ -429,6 +429,12 @@ describe("leastTrusted", () => {
     expect(leastTrusted(["tool", "import"])).toBe("tool");
     expect(leastTrusted(["user", "model", "tool"])).toBe("model");
     expect(leastTrusted(["compaction", "model"])).toBe("compaction");
+  });
+
+  test("ranks external last: a tool echoing an outsider's text inherits external (schema version 1)", () => {
+    expect(leastTrusted(["tool", "external"])).toBe("external");
+    expect(leastTrusted(["external", "user"])).toBe("external");
+    expect(leastTrusted(["compaction", "external"])).toBe("external");
   });
 });
 

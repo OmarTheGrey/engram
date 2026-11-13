@@ -7,7 +7,7 @@ chapter: design
 pillar: research
 hypothesis: none
 evidence:
-  - docs/decisions/0032-shared-model-package.md
+  - docs/decisions/0033-shared-model-package.md
 supersedes: none
 ---
 

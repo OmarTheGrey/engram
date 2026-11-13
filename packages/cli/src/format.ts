@@ -1,5 +1,12 @@
 // Human-readable output. Everything printed comes from what the Plane returned.
-import type { Explanation, MemoryEvent, MemoryItem } from "@engram/core";
+import type {
+  Explanation,
+  MemoryEvent,
+  MemoryItem,
+  PolicyRun,
+  SimReport,
+  StepOutcome,
+} from "@engram/core";
 
 const n4 = (x: number) => x.toFixed(4);
 
@@ -47,3 +54,64 @@ export function decisionLines(event: MemoryEvent, item: MemoryItem | null): stri
 
 export const plural = (count: number, one: string, many = `${one}s`) =>
   `${count} ${count === 1 ? one : many}`;
+
+const policyName = (r: PolicyRun) => `${r.policy_id} v${r.policy_version}`;
+
+/** One step's outcome in a change line: its decision, and for a read what it returned. */
+function outcomeText(o: StepOutcome): string {
+  const retired = [
+    o.evicted.length > 0 ? `evicted ${o.evicted.join(", ")}` : "",
+    o.expired.length > 0 ? `expired ${o.expired.join(", ")}` : "",
+    o.asked > 0 ? plural(o.asked, "ask") : "",
+  ].filter(Boolean);
+  const head = o.op === "read" ? `returned ${o.returned.length}` : o.decision;
+  return [head, ...retired].join(", ");
+}
+
+/**
+ * The simulator's comparison (card E8.9): one table of decisions, the utility
+ * proxy and evictions for the baseline and the candidate, then every step
+ * whose outcome differs, with the candidate's rule and reason.
+ */
+export function simulationLines(report: SimReport): string[] {
+  const { baseline: b, candidate: c } = report;
+  const steps = b.outcomes.length;
+  const active = (r: PolicyRun) => Object.values(r.active).reduce((n, k) => n + k, 0);
+  const rows: [string, number | string, number | string][] = [
+    ["allow", b.totals.allow, c.totals.allow],
+    ["deny", b.totals.deny, c.totals.deny],
+    ["ask", b.totals.ask, c.totals.ask],
+    ["reads", b.utility.reads, c.utility.reads],
+    ["items returned", b.utility.returned, c.utility.returned],
+    ["reads with recall", b.utility.reads_with_recall, c.utility.reads_with_recall],
+    [
+      "mean returned per read",
+      b.utility.mean_returned.toFixed(2),
+      c.utility.mean_returned.toFixed(2),
+    ],
+    ["evicted over budget", b.evictions.evicted, c.evictions.evicted],
+    ["expired by ttl", b.evictions.expired, c.evictions.expired],
+    ["manual eviction asks", b.evictions.asked, c.evictions.asked],
+    ["active items at the end", active(b), active(c)],
+  ];
+  const width = Math.max(...rows.map(([k]) => k.length));
+  const left = Math.max(8, policyName(b).length);
+  const pad = (v: number | string, n: number) => String(v).padStart(n);
+  const lines = [
+    `workload ${report.workload_id}: ${plural(steps, "step")}, ${report.model_calls} model calls`,
+    `baseline ${policyName(b)}, candidate ${policyName(c)}`,
+    "",
+    `${"".padEnd(width)}  ${pad("baseline", left)}  candidate`,
+    ...rows.map(([k, x, y]) => `${k.padEnd(width)}  ${pad(x, left)}  ${pad(y, 9)}`),
+    "",
+    `${plural(report.changed.length, "step")} differ${report.changed.length === 1 ? "s" : ""}`,
+  ];
+  for (const d of report.changed) {
+    const what = d.item_id === null ? d.actor : `${d.actor} ${d.item_id}`;
+    lines.push(
+      `  step ${d.step} ${d.op} ${what}: ${outcomeText(d.baseline)} -> ${outcomeText(d.candidate)}`,
+      `    ${d.candidate.reason} (${d.candidate.policy_id})`,
+    );
+  }
+  return lines;
+}

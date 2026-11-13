@@ -188,7 +188,7 @@ function probeItem(id: string, at: string): MemoryItem {
     lineage: [],
     status: "active",
     store_ref: null,
-    schema_version: 0,
+    schema_version: 1,
   } as unknown as MemoryItem;
 }
 

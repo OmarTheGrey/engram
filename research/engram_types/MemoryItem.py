@@ -9,7 +9,7 @@ from .JsonValue import JsonValue
 
 
 class Provenance(TypedDict, closed=True):
-    kind: Literal["user", "document", "tool", "model", "import", "compaction"]
+    kind: Literal["user", "document", "tool", "model", "import", "compaction", "external"]
     ref: str
     hash: str
     actor: str
@@ -43,7 +43,7 @@ ProceduralItem = TypedDict(
         "lineage": list[str],
         "status": Literal["candidate", "active", "retired"],
         "store_ref": StoreRef | None,
-        "schema_version": Literal[0],
+        "schema_version": Literal[1],
         "class": Literal["procedural"],
         "content": Content,
     },
@@ -67,7 +67,7 @@ KnowledgeItem = TypedDict(
         "lineage": list[str],
         "status": Literal["candidate", "active", "retired"],
         "store_ref": StoreRef | None,
-        "schema_version": Literal[0],
+        "schema_version": Literal[1],
         "class": Literal["episodic", "semantic"],
         "content": str | dict[str, JsonValue],
     },

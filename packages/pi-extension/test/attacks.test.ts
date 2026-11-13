@@ -35,6 +35,7 @@ import {
   loadPreset,
   type MemoryEvent,
   type Plane,
+  type SimReport,
   type Workload,
 } from "@engram/core";
 import { Type } from "typebox";
@@ -499,15 +500,15 @@ describe("R7-13: explain and simulate stay within the session", () => {
     expect(sentToModel(run.scripted)).not.toContain(leadRead.items[0]?.id ?? "none");
   });
 
-  test("memory_simulate replays only this session's events", async () => {
+  test("memory_simulate replays only this session's calls", async () => {
     const { log, seeding } = await seeded();
     await seeding.read(LEAD, { text: "payroll", at: AT });
     let workload: Workload | undefined;
     const wrapPlane = (plane: Plane): Plane => ({
       ...plane,
-      simulate: async (w) => {
+      simulate: async (w, p) => {
         workload = w;
-        return { changed: [], unchanged: w.events.length } as never;
+        return plane.simulate(w, p);
       },
     });
     const ext = createEngramExtension({ ...log, policy, actor: OMAR, now: () => AT, wrapPlane });
@@ -515,16 +516,26 @@ describe("R7-13: explain and simulate stay within the session", () => {
       [ext],
       [
         call("r", "memory_read", { query: "deploys" }),
-        call("s", "memory_simulate", {}),
+        call("s", "memory_simulate", { candidate: "strict" }),
         { text: "ok" },
       ],
       ["memory_read", "memory_simulate"],
     );
     await run.session.prompt("deploys");
-    expect(workload?.events.length).toBeGreaterThan(0);
-    expect(workload?.events.every((e) => e.actor === OMAR.id)).toBe(true);
-    const mirrored = sessionEvents(run.sessionManager) as MemoryEvent[];
-    expect(workload?.events).toEqual(mirrored.slice(0, workload?.events.length));
+    // The session's own actor and calls only: its sweeps, the recall and the
+    // read, never the lead's read of payroll.
+    expect(Object.values(workload?.actors ?? {}).every((a) => a.id === OMAR.id)).toBe(true);
+    const reads = workload?.steps.filter((s) => s.op === "read") ?? [];
+    expect(reads.map((s) => (s.op === "read" ? s.text : undefined))).toEqual([
+      "deploys",
+      "deploys",
+    ]);
+    // Replayed on a scratch log, the reads find nothing the session did not write.
+    const [result] = toolResults(run.sessionManager, "s");
+    expect(result?.isError).toBe(false);
+    const report = result?.details as SimReport;
+    expect(report.candidate.policy_id).toBe("preset.strict");
+    expect(report.baseline.utility.returned).toBe(0);
   });
 });
 

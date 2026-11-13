@@ -59,7 +59,7 @@ export async function testWorkspace() {
         lineage: [],
         status: "active",
         store_ref: null,
-        schema_version: 0,
+        schema_version: 1,
       },
       NOW,
     );

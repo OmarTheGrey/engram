@@ -8,7 +8,7 @@ pillar: research
 hypothesis: none
 evidence:
   - scripts/test/tasks-and-decisions.test.ts
-  - docs/decisions/0032-shared-model-package.md
+  - docs/decisions/0033-shared-model-package.md
   - "pnpm exec vitest run scripts/test/tasks-and-decisions.test.ts"
 supersedes: none
 ---

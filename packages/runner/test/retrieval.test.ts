@@ -22,6 +22,7 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { type Adapter, createFakeAdapter, createFilesAdapter } from "@engram/adapters";
 import { gatemem } from "@engram/bench";
 import {
@@ -42,7 +43,7 @@ import { gatememMetadata, probeInputs, sequentialIds } from "../src/gatemem-prob
 import { closeStore, openStore } from "../src/stores.ts";
 
 const DATA = new URL("../../../fixtures/bench/gatemem/", import.meta.url);
-const domains = gatemem.loadDataset(DATA.pathname.replace(/^\/([A-Za-z]:)/, "$1"));
+const domains = gatemem.loadDataset(fileURLToPath(DATA));
 /** The reviewer's queries, the empty one and three topic words; each checkpoint's own question is added. */
 const QUERIES = [
   "April 17 visit oncology or infectious disease",

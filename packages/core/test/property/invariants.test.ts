@@ -146,7 +146,7 @@ const ADMIT_ALL: Policy = {
   version: 1,
   write: (["person", "role", "team", "org"] as const).map((scope) => ({
     scope,
-    allowed_sources: ["user", "document", "tool", "model", "import", "compaction"],
+    allowed_sources: ["user", "document", "tool", "model", "import", "compaction", "external"],
     confidence_floor: 0,
     forbidden_classes: [],
     requires_review: false,
@@ -158,7 +158,7 @@ const ADMIT_ALL: Policy = {
     procedural: { replay_k: 1, replay_n: 1 },
   },
   lints: { enabled: [], thresholds: {} },
-  schema_version: 0,
+  schema_version: 1,
 };
 
 const uniqueItems = fc.uniqueArray(arbGrantedItem, { selector: (i) => i.id, maxLength: 6 });
@@ -342,7 +342,7 @@ const isolationOnly: fc.Arbitrary<WriteCase> = fc
     arbPolicy,
     arbGrantedItem,
     arbWriter,
-    fc.constantFrom<MemoryItem["provenance"]["kind"]>("model", "compaction"),
+    fc.constantFrom<MemoryItem["provenance"]["kind"]>("model", "compaction", "external"),
     fc.constantFrom("role:a", "team:b", "org"),
   )
   .map(([policy, item, writer, kind, scope]) => {
@@ -413,7 +413,7 @@ const restatingCase = (hows: readonly Prior["how"][]): fc.Arbitrary<WriteCase> =
       arbPolicy,
       arbGrantedItem,
       arbWriter,
-      fc.constantFrom<MemoryItem["provenance"]["kind"]>("model", "compaction", "tool"),
+      fc.constantFrom<MemoryItem["provenance"]["kind"]>("model", "compaction", "tool", "external"),
       fc.constantFrom("person:a", "role:a", "team:b", "org"),
       fc.constantFrom(...hows),
     )
@@ -633,7 +633,7 @@ describe("invariants", () => {
               decision: "allow",
               reason: "retired before the write under test",
               policy_id: how === "own-ttl" ? "engram/retention/item-ttl" : "test/retire",
-              schema_version: 0,
+              schema_version: 1,
             });
           }
           const projected = retiredByEvent(db);
@@ -673,7 +673,7 @@ describe("invariants", () => {
             }
             if (
               item.grants.length === 0 &&
-              ["model", "compaction"].includes(actor.source ?? item.provenance.kind) &&
+              ["model", "compaction", "external"].includes(actor.source ?? item.provenance.kind) &&
               actor.memberships.includes(item.scope)
             )
               seen.isolation++;
@@ -1134,7 +1134,7 @@ function lastChanged(events: MemoryEvent[], seq: number): Map<string, number> {
 const P_SOURCES = ["person:a", "team:b"] as const;
 const P_TARGETS = ["person:a", "role:a", "team:b", "org"] as const;
 const P_ACTORS = ["person:a", "person:b", "person:c", "agent:pi"] as const;
-const KINDS = ["user", "document", "tool", "model", "import", "compaction"] as const;
+const KINDS = ["user", "document", "tool", "model", "import", "compaction", "external"] as const;
 type Kind = (typeof KINDS)[number];
 const TRUSTED: readonly Kind[] = ["user", "document", "tool"];
 const P_SOURCE_ID = "01950000-0000-7000-8000-000000000000";
@@ -1157,7 +1157,7 @@ const arbRestatement: fc.Arbitrary<Restatement> = fc.record({
   actor: fc.constantFrom(...P_ACTORS),
   kind: fc.oneof(
     { arbitrary: fc.constantFrom<Kind>("user", "document", "tool"), weight: 3 },
-    { arbitrary: fc.constantFrom<Kind>("model", "compaction", "import"), weight: 2 },
+    { arbitrary: fc.constantFrom<Kind>("model", "compaction", "import", "external"), weight: 2 },
   ),
   loud: fc.constantFrom(false, false, true),
   same: fc.oneof(
@@ -1261,9 +1261,11 @@ const arbPromotionCase = fc.record({
       // A tag character in its content: a payload no reader sees (P5-14).
       hidden: fc.constantFrom(false, false, false, false, false, false, false, true),
     })
-    // Model and compaction content lands only in person scope (ADR 0004, 0007).
+    // Model, compaction and external content lands only in person scope (ADR 0004, 0007).
     .map((s) =>
-      s.kind === "model" || s.kind === "compaction" ? { ...s, scope: "person:a" as const } : s,
+      s.kind === "model" || s.kind === "compaction" || s.kind === "external"
+        ? { ...s, scope: "person:a" as const }
+        : s,
     ),
   restatements: fc.array(arbRestatement, { maxLength: 6 }),
   promoter: fc.record({
@@ -1346,7 +1348,7 @@ async function promotionsLandOnlyWherePermitted(name: string) {
             lineage: [],
             status: "active",
             store_ref: null,
-            schema_version: 0,
+            schema_version: 1,
           }) as MemoryItem;
         const writer = (id: string, scope: string, kind: Kind): Actor => ({
           id,
@@ -1362,9 +1364,9 @@ async function promotionsLandOnlyWherePermitted(name: string) {
           status: source.status === "retired" ? "active" : source.status,
           content: source.class === "procedural" ? { body: word, tools: [] } : word,
           ttl: source.ttl,
-          // Model and compaction content carries no grants (decision D4).
+          // Model, compaction and external content carries no grants (decision D4).
           grants:
-            source.grantTo && !["model", "compaction"].includes(source.kind)
+            source.grantTo && !["model", "compaction", "external"].includes(source.kind)
               ? [
                   {
                     to: source.grantTo,
@@ -1391,7 +1393,7 @@ async function promotionsLandOnlyWherePermitted(name: string) {
             decision: "allow",
             reason: "retired before the promotion under test",
             policy_id: "test/retire",
-            schema_version: 0,
+            schema_version: 1,
           });
         for (const [n, r] of restatements.entries()) {
           const scope = r.inTarget ? target : r.inScope ? source.scope : "role:z";
@@ -1416,7 +1418,7 @@ async function promotionsLandOnlyWherePermitted(name: string) {
               decision: "allow",
               reason: "a confirmer retired before the promotion",
               policy_id: "test/retire",
-              schema_version: 0,
+              schema_version: 1,
             });
         }
         const when = addSeconds(at, after) as string;
@@ -1562,7 +1564,8 @@ async function promotionsLandOnlyWherePermitted(name: string) {
  * takes (the item's id where one is taken) and its result must not carry the
  * item's content. `read` filters; `write` and `promote` return only the
  * caller's own item; `events` is the audit log, which surfaces mirror to the
- * session record and never pass to a model.
+ * session record and never pass to a model; `simulate` replays only the
+ * workload it is given, on scratch logs and stores (card E8.9).
  */
 async function planeSurfaceLeaksNothing() {
   const SECRET = "the vault code is 4711";
@@ -1616,7 +1619,7 @@ async function planeSurfaceLeaksNothing() {
     lineage: [],
     status: "active",
     store_ref: null,
-    schema_version: 0,
+    schema_version: 1,
   } as MemoryItem;
   expect((await plane.write(owner, secret, at)).item).not.toBeNull();
   const { event: ownRead } = await plane.read(owner, { text: "vault", at });
@@ -1659,9 +1662,27 @@ async function planeSurfaceLeaksNothing() {
     await plane.recordBypass(outsider, { command: "cat x", store: "files" }, at),
   );
   expect(await rejection(plane.explain(outsider, ownRead.id))).toBeInstanceOf(ExplainDeniedError);
+  // simulate replays only the workload it is given, on scratch logs and
+  // stores (card E8.9): the outsider's own read of the secret's words finds
+  // nothing, and the real log gains no event.
+  const logged = plane.events().length;
+  leaks(
+    "simulate",
+    await plane.simulate(
+      {
+        id: "w",
+        actors: { o: outsider },
+        steps: [
+          { op: "read", as: "o", at, text: "vault" },
+          { op: "retain", as: "o", at, scope: "person:s" },
+        ],
+      },
+      policy,
+    ),
+  );
+  expect(plane.events().length, "simulate appends nothing to the real log").toBe(logged);
   for (const call of [
     () => plane.lint("person:s"),
-    () => plane.simulate({ id: "w", events: [] }, policy),
     () => plane.distill([], { id: "awm", model: "scripted/none", seed: 1 }),
   ])
     expect(
