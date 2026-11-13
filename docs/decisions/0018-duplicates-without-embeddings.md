@@ -24,6 +24,10 @@ Amendments made in the review fix pass of card E2.5, 2026-10-29 (review finding 
 
 - There are two normal forms, exported under names that say what they do (packages/core/src/content-hash.ts). The merging form (`normaliseContentMerging`, `mergingContentHash`, also the plain `normaliseContent` and `contentHash`) applies NFKC and case folding, so "10²" and "102", or "US" and "us", are one content; it serves where merging is the safe direction, the retired-content rule. The strict form (`normaliseContentStrict`, `strictContentHash`) only drops format characters and collapses whitespace; it serves where not merging is the safe direction, promotion's confirmations and duplicate check (ADR 0026). The exact duplicate lint (L1) chooses its form when it lands.
 
+Amendment made when implementing card L1, 2026-11-06 (pending the lead's review):
+
+- The exact duplicate lint uses the strict form (`strictContentHash`): an active item is flagged when an active item of the same scope and class with a smaller id (earlier, since ids are UUIDv7) has the same strict hash; the earliest is kept and not flagged. Flagging is advisory, so not merging is the safe direction: "US" and "us" stay two items, while whitespace and format characters do not separate them. Retired and candidate items are not compared. The near-duplicate form (MinHash) is not part of card L1.
+
 ## Alternatives considered
 
 No alternatives were recorded beyond the recommendation.

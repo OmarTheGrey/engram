@@ -41,7 +41,7 @@ describe("one client call per command, in process", () => {
     await run(["explain", read.read_id, "--db", db, "--owner", "dana"]);
     await run(["promote", id, "--to", "person:dana", ...store]);
     await run(["retain", "--scope", "person:dana", "--owner", "dana", "--db", db]);
-    await run(["lint", "--db", db]);
+    await run(["lint", "--scope", "person:dana", "--owner", "dana", "--db", db]);
     await run(["simulate", "--db", db]);
     expect(calls.map(([c, paths]) => [c, paths])).toEqual([
       ["write", ["POST /api/v1/items"]],
@@ -54,15 +54,42 @@ describe("one client call per command, in process", () => {
     ]);
   });
 
-  it("lint and simulate open no log: lint's 501 and simulate's scratch replay touch none", async () => {
+  it("simulate opens no log: its scratch replay touches none", async () => {
     const home = await tempDir();
-    const r = await cli(["lint"], { home });
-    expect(r.code).toBe(2);
-    expect(r.err).toBe("engram lint: not implemented yet (card L1)\n");
     const s = await cli(["simulate"], { home });
     expect(s.code).toBe(0);
     const { readdir } = await import("node:fs/promises");
     expect(await readdir(home)).toEqual([]);
+  });
+});
+
+describe("engram lint", () => {
+  it("prints each finding with its reason as a member, and refuses a non-member", async () => {
+    const dir = await tempDir();
+    const root = await tempDir();
+    const db = join(dir, "engram.db");
+    const written = await cli([
+      "write",
+      ...["--root", root, "--owner", "dana", "--db", db],
+      ...["--content", "Dana is on call this week.", "--valid-to", "2026-10-02T00:00:00.000Z"],
+      ...["--at", "2026-10-01T00:00:00.000Z"],
+    ]);
+    expect(written.code).toBe(0);
+    const linted = await cli(["lint", "--scope", "person:dana", "--owner", "dana", "--db", db]);
+    expect(linted.code).toBe(1);
+    expect(linted.out).toContain(`lint person:dana at ${NOW} as person:dana: allow, 1 finding`);
+    expect(linted.out).toMatch(
+      /lint allow \S+: expired-validity \(warn\): .*evidence: valid_to 2026-10-02T00:00:00.000Z.*\(preset\.medium\/lint\/expired-validity\)/,
+    );
+    const refused = await cli(["lint", "--scope", "person:dana", "--db", db, "--as", "person:eve"]);
+    expect(refused.code).toBe(1);
+    expect(refused.out).toContain("person:eve is not a member of person:dana");
+  });
+
+  it("needs a scope", async () => {
+    const r = await cli(["lint", "--owner", "dana"]);
+    expect(r.code).toBe(2);
+    expect(r.err).toContain("--scope");
   });
 });
 

@@ -51,6 +51,12 @@ Proposed amendment, 2026-11-02, for the lead's acceptance (PR #25, card X1, revi
 - Why: the experiment runner needs one retrieval pipeline for every condition, so that C5 is C2 plus the plane's filter. The runner's ungoverned conditions run the same pipeline (core's `retrieve`) over what the store lists, and C5 reads through a plane with this option; the read limit is 20, GateMem's RAG-Policy top_k at its pin. Since neither path uses a store's native search, the property holds on every store that lists what it holds (fake, files, Letta, Mem0, all held to `list` by the conformance suite). Tests: `packages/core/test/unit/plane/retrieve.test.ts`, `packages/core/test/property/read-pipeline.test.ts` (the plane's list is the pipeline over what its filter admits; no store is searched; unreachable items change nothing), `packages/runner/test/retrieval.test.ts`. The conformance suite, `read-leak.test.ts` and `make test-invariants` pass unchanged.
 - Cost if accepted: a plane built with the option does not use a semantic store's search (Mem0's) and ranks lexically; the option is the experiment runner's, and the product's read is unchanged. If rejected: the runner keeps the pipeline for C2 to C4 only, and C5 differs from them by retrieval as well as by the filter.
 
+## Amendment (2026-11-13)
+
+Made in the review fix pass of PR #38 (card L1), for the lead's acceptance:
+
+- `Plane.lint` names or describes an item outside the linted scope (a source's current hash for source-changed, a source's or lineage item's status for orphan) only when the actor could read it at the lint time by scope or by a live grant (`readableAt` in packages/core/src/policy/evaluate.ts, which shares `liveGrants` with the read filter). An item reached only by an expired grant, or one naming another class, counts as absent, as an unreachable one does. Finding N5's rule that such a grant still makes an item a read candidate is unchanged: a read reveals only a filtered count, while a lint finding would carry the item's content hash and retirement.
+
 ## Alternatives considered
 
 No alternatives were recorded beyond the recommendation.

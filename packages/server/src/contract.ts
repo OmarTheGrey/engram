@@ -138,8 +138,13 @@ export const EventsResponse = z.strictObject({ events: z.array(MemoryEvent) });
 
 export const PolicyResponse = z.strictObject({ policy: Policy, label: z.string() });
 
-export const LintRequest = z.strictObject({ scope: z.string() });
-export const LintResponse = z.strictObject({ findings: z.array(LintFinding) });
+export const LintRequest = z.strictObject({ actor: Actor, scope: z.string(), at });
+/** Plane.lint's LintReport (card L1): deny when the actor is not a member of the scope. */
+export const LintResponse = z.strictObject({
+  decision: z.enum(["allow", "deny"]),
+  findings: z.array(LintFinding),
+  events: z.array(MemoryEvent),
+});
 
 /** Core's simulator shapes (card E8.9), under their own component names. */
 export { SimReport, Workload };

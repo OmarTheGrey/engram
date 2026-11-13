@@ -145,7 +145,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Run the enabled lints over one scope; 501 until card L1. */
+        /** Run the policy's enabled deterministic lints over one scope as a member of it; each finding is a lint event (card L1). */
         post: operations["lint"];
         delete?: never;
         options?: never;
@@ -586,10 +586,19 @@ export interface components {
             label: string;
         };
         LintRequest: {
+            actor: components["schemas"]["Actor"];
             scope: string;
+            /**
+             * Format: date-time
+             * @description The time of the call, UTC ISO 8601; the server's clock when absent.
+             */
+            at?: string;
         };
         LintResponse: {
+            /** @enum {string} */
+            decision: "allow" | "deny";
             findings: components["schemas"]["LintFinding"][];
+            events: components["schemas"]["MemoryEvent"][];
         };
         /** @description A recorded workload (card E8.9): its actors by name and the plane calls it made, in order. Each write carries its whole item. */
         Workload: {
@@ -1526,15 +1535,6 @@ export interface operations {
             };
             /** @description an unexpected error; the body carries no internals */
             500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description the Plane method's card has not landed; the body names it */
-            501: {
                 headers: {
                     [name: string]: unknown;
                 };

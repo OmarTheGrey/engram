@@ -6,7 +6,8 @@
 // the read filter and explanations (card E2.2, plane/read.ts), both deciding
 // through the pure evaluator in policy/evaluate.ts, retention (card E2.4,
 // plane/retention.ts) through policy/retention.ts, and promotion (card E2.5,
-// plane/promote.ts) through policy/promotion.ts, and the simulator (card
+// plane/promote.ts) through policy/promotion.ts, the deterministic lints
+// (card L1, plane/lint.ts) through lint/det.ts, and the simulator (card
 // E8.9, plane/simulate.ts) over all of them. Methods whose cards have
 // not landed reject with NotImplementedYet, naming the card that implements them.
 import type { Actor } from "./actor.ts";
@@ -18,12 +19,13 @@ import { allEvents } from "./events.ts";
 export { ADOPT_RETRACT_ID, type AdoptReport, adoptStoreItems } from "./plane/adopt.ts";
 
 import { recordBypass } from "./plane/bypass.ts";
+import { type LintReport, lint } from "./plane/lint.ts";
 import { promote } from "./plane/promote.ts";
 import { filteredRead, storedExplanations } from "./plane/read.ts";
 import { retain } from "./plane/retention.ts";
 import { simulate } from "./plane/simulate.ts";
 import { checkWrite, gatedWrite } from "./plane/write.ts";
-import type { Explanation, LintFinding, MemoryEvent, MemoryItem, Policy } from "./schema.ts";
+import type { Explanation, MemoryEvent, MemoryItem, Policy } from "./schema.ts";
 import type { SimReport, Workload } from "./simulate.ts";
 
 export {
@@ -40,6 +42,7 @@ export {
   bypassAttempt,
   MAX_ATTEMPT_LENGTH,
 } from "./plane/bypass.ts";
+export { LINT_MEMBERSHIP_ID, type LintReport } from "./plane/lint.ts";
 export {
   type DeletionReport,
   HANDOVER_ID,
@@ -202,8 +205,17 @@ export interface Plane {
    * interleaves with a write. Surfaces call it; nothing runs on a timer.
    */
   retain(actor: Actor, scope: string, at: string): Promise<RetentionReport>;
-  /** Runs the enabled lints over one scope; every finding is also a `lint` event. */
-  lint(scope: string): Promise<LintFinding[]>;
+  /**
+   * Runs the deterministic lints the policy enables over one scope at `at`
+   * (card L1, ADR 0008); every finding is also one `lint` event, which
+   * changes no item. The actor must be able to read the scope (a member
+   * whose level the read matrix lets read it), else one deny event
+   * (`engram/lint/membership`); an item outside the scope that a finding
+   * would name counts as absent unless the actor could read it at `at`.
+   * Runs in the write queue. An invalid actor, time or scope is refused with
+   * InvalidCallError before the log is touched.
+   */
+  lint(actor: Actor, at: string, scope: string): Promise<LintReport>;
   /**
    * Replays a recorded workload under this plane's policy and under a
    * candidate one (card E8.9), each on a scratch log and store: decisions,
@@ -271,9 +283,7 @@ export function createPlane(deps: PlaneDeps): Plane {
     retain: async (actor, scope, at) => retain(deps, actor, scope, at),
     promote: async (actor, itemId, toScope, at, options) =>
       promote(deps, actor, itemId, toScope, at, options),
-    lint: async () => {
-      throw new NotImplementedYet("lint", "L1");
-    },
+    lint: async (actor, at, scope) => lint(deps, actor, at, scope),
     simulate: (workload, policy) => simulate(deps, workload, policy),
     distill: async () => {
       throw new NotImplementedYet("distill", "D2");
