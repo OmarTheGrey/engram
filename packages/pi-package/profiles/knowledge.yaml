@@ -21,9 +21,9 @@
 # other deterministic lints are listed for a lint-running condition (C6), as
 # in preset strict (medium and permissive do not list contradiction); the
 # loader rejects an id the lint registry does not know. Listing a lint does
-# not run it under C5, and listing is all a policy can do: duplicate runs
-# once Plane.lint lands (card L1), and contradiction only once card L3 gives
-# it a ModelCall; until then nothing finds a conflict.
+# not run it under C5, and listing is all a policy can do: duplicate (exact
+# form) runs through Plane.lint since card L1, and contradiction only once
+# card L3 gives it a ModelCall; until then no lint finds a contradiction.
 #
 # Review for promotion: team and org require review, so a write there lands
 # as a candidate, and a promotion into them asks (one gate event, decision

@@ -28,7 +28,7 @@ packages/server/          HTTP API over core (route table, loopback only), the w
 packages/ui/              inspector; calls the generated client
 packages/bench/           benchmark runners on the pi SDK, pinned in packages/bench/PINS.md; vendored upstream judges
 packages/runner/          experiment runner: pi SDK sessions, seeded, cached; Pi Durable behind a flag
-packages/model/           the model-call layer bench and runner share: the cached, seeded call (ADR 0017) and the scripted models; imports neither (ADR 0033)
+packages/model/           the model-call layer bench and runner share: the cached, seeded call (ADR 0017) and the scripted models; imports neither of them, and reaches pi-ai for the faux provider (ADR 0033)
 research/                 Python: configs/, scripts/, results/, analysis, stats, figures, thesis
 sdk/                      generated: JSON Schema, sdk/openapi.json, the TypeScript client sdk/ts (@engram/sdk); do not edit by hand
 docs/                     architecture, decisions, tasks, research, readings, deps, glossary
@@ -128,7 +128,7 @@ Cards live in `docs/tasks/<id>.md`. Each has a goal, the files you may touch, wh
 ## What not to do
 
 - Do not add a store-specific branch to `packages/core`. If a store needs special handling, it goes in its adapter behind the contract.
-- Do not import pi-ai, pi-coding-agent or pi-durable in `packages/core` or `packages/adapters`. They are reached only from `packages/pi-extension`, `packages/runner` and `packages/bench`.
+- Do not import pi-ai, pi-coding-agent or pi-durable in `packages/core` or `packages/adapters`. They are reached only from `packages/pi-extension`, `packages/pi-package`, `packages/runner`, `packages/bench` and `packages/model` (ADR 0033).
 - Do not bypass the Engram tools from inside a pi session. A direct `bash` call to a store's CLI is a write the gate never saw; the extension blocks known store commands in `user_bash` and `tool_call`.
 - Do not add a benchmark, an induction method, or a statistical test that is not in `docs/research/preregistration.md`. Propose it there first; the change is reviewed before any run.
 - Do not write retrieval ranking that cannot be explained. Every returned item carries the components of its score and the policy decision that admitted it.
