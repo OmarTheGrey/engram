@@ -11,10 +11,10 @@ evidence:
 supersedes: none
 ---
 
-**What.** An item whose store delete fails during erasure is kept, not erased, until a rerun deletes it; ADR 0010 records this, and the redaction of lint evidence, in a post-merge amendment.
+**What.** A transient store delete failure keeps the item back until a rerun; a permanent refusal (`NotDeletableError`) erases it and reports the ref under `left_in_store`. Lint evidence is redacted only when it is about an erased item, names an erased id, or holds a hash no surviving item holds. ADR 0010 records both.
 
-**Why.** Erasing the log while the bytes stay in the store is the worst state: the store still holds the memory and the plane no longer knows it. Keeping the item with a deny event leaves an auditable reason and a projected item the next offboarding finds.
+**Why.** Erasing the log while bytes stay in a store that may yet delete them hides an unfinished erasure; but waiting on a store that never deletes, such as an adopted memory file, never finishes. A hash a survivor holds stays readable in the survivor, so redacting by it protects nothing.
 
-**Result.** The other items are erased in the same run, so a failing ref holds back only the items holding it. The report's `store_failures` entries name those items, and its summary reason counts them as kept after a store failure.
+**Result.** Adoption skips an erased id, so a record left in the store does not return.
 
-**Consequence.** A store failure during handover still stops offboarding before any erasure, as before.
+**Consequence.** A deletion report with `left_in_store` asks the person to delete files by hand.

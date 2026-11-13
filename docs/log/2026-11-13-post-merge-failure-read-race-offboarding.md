@@ -16,6 +16,6 @@ supersedes: none
 
 **Why.** Card E2.2's read snapshots the projection, awaits the store's search, then appends its event outside the write queue; card E9.7's offboarding runs in the write queue and could finish in that gap.
 
-**Result.** Reproduced with a fake store whose search runs the offboarding before answering. Fixed: after the await the read keeps only items the projection still holds, and nothing awaits between that check and the transaction that appends the read event, so no item erased before the event is returned or recorded. The read reason's counts stay consistent, since the erased items are dropped before the filter runs.
+**Result.** Reproduced with a fake store whose search runs the offboarding before answering. Fixed: inside the transaction that appends the read event, which holds the log's write lock, the admitted ids are selected again and any the projection no longer holds is dropped from the result, the event and the explanation rows, and counted out of the candidates. An erasure commits under the same lock, in any process sharing the log, so none erased before the event is returned or recorded.
 
-**Consequence.** An item rewritten, not erased, during the gap is still returned at its snapshot version; that is unchanged and reveals nothing new.
+**Consequence.** An item rewritten, not erased, meanwhile is returned at its snapshot version, as before.
