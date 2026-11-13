@@ -1,0 +1,132 @@
+# Profile: twin. Twin's policy (card E9.2, ADR 0021): a memory per person,
+# split into a person scope and the role scopes the person holds.
+#
+# Person and role scopes. A person scope holds everything the person and
+# their agent remember, model and compaction content included, and no one
+# else is a member of it, so no one else reads it without a grant. A role
+# scope holds the work memory of a role (role:<id>), which is handed to a
+# successor by event (card E9.7): it takes knowledge and procedures from
+# first-hand and tool sources, never episodic records and never model or
+# compaction content (ADR 0004, 0007), so what a successor inherits is work,
+# not the holder's life. A role context reads role, team and org, never a
+# person scope: an agent acting in a role cannot carry its holder's personal
+# memory into what it does for others. A person context reads its own scope
+# and every role it holds.
+#
+# Default grants: none. Nothing in a person scope is readable by another
+# principal until its owner grants it; the gate accepts only a grant that
+# names a principal or a prefixed pattern, a class and an expiry (ADR 0021,
+# decision D4), and the read filter honours it until it expires. Model
+# content carries no grants.
+#
+# Offboarding rule set (applied by card E9.7): role scopes survive their
+# holder and pass to a successor intact, which is why they take no personal
+# classes or sources; a person scope is erased, the one hard deletion the
+# plane makes (ADR 0010), with a deletion report. Retention below retires,
+# never deletes, as everywhere else; a widening out of a person scope needs
+# a user-sourced promoter (ADR 0026, P5-3), so an agent cannot move personal
+# memory into a role.
+#
+# Team and org are kept narrow, as Twin does not govern them: first-hand
+# sources only and review. The floors, ttls, budgets and counts are proposed
+# values, reviewed before the profile governs dogfood (card E9.5).
+id: profile.twin
+version: 1
+write:
+  - scope: person
+    allowed_sources: [user, document, tool, import, model, compaction]
+    confidence_floor: 0.3
+    forbidden_classes: []
+    requires_review: false
+  - scope: role
+    allowed_sources: [user, document, tool, import]
+    confidence_floor: 0.6
+    forbidden_classes: [episodic]
+    requires_review: false
+  - scope: team
+    allowed_sources: [user, document]
+    confidence_floor: 0.7
+    forbidden_classes: [episodic]
+    requires_review: true
+  - scope: org
+    allowed_sources: [user, document]
+    confidence_floor: 0.8
+    forbidden_classes: [episodic]
+    requires_review: true
+read:
+  matrix:
+    - reader: person
+      may_read: [person, role, team, org]
+    - reader: role
+      may_read: [role, team, org]
+    - reader: team
+      may_read: [team, org]
+    - reader: org
+      may_read: [org]
+  honour_grants: true
+retention:
+  - scope: person
+    class: episodic
+    ttl: 7776000 # 90 days
+    budget: 5000
+    eviction: recency
+  - scope: person
+    class: semantic
+    ttl: null
+    budget: 2000
+    eviction: utility
+  - scope: person
+    class: procedural
+    ttl: null
+    budget: 200
+    eviction: utility
+  - scope: role
+    class: semantic
+    ttl: null
+    budget: 2000
+    eviction: utility
+  - scope: role
+    class: procedural
+    ttl: null
+    budget: 200
+    eviction: utility
+  - scope: team
+    class: semantic
+    ttl: null
+    budget: 10000
+    eviction: utility
+  - scope: team
+    class: procedural
+    ttl: null
+    budget: 500
+    eviction: utility
+  - scope: org
+    class: semantic
+    ttl: null
+    budget: null
+    eviction: manual
+  - scope: org
+    class: procedural
+    ttl: null
+    budget: null
+    eviction: manual
+promotion:
+  episodic_to_semantic:
+    confirmations: 3
+    or_review: true
+  procedural:
+    replay_k: 4
+    replay_n: 5
+lints:
+  enabled:
+    - expired-validity
+    - source-changed
+    - scope-class-mismatch
+    - missing-provenance
+    - orphan
+    - duplicate
+  thresholds:
+    near-duplicate: 0.85
+    replay-drift.success-floor: 0.7
+    replay-drift.min-trials: 10
+schema_version: 1

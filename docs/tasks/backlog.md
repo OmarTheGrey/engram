@@ -18,7 +18,7 @@ Found by the reviews of PRs #10 to #15 and left open on purpose; none blocks Gat
 | Eviction event to non-readers | the event carries the evicted item's id to a writer who cannot read the scope (kept for replay and log-session equality) | ADR 0025 amendments |
 | Whitespace payloads in promotion | trailing space and tab patterns, and U+2800, survive the strict form (review P5-19) | `docs/log/2026-10-29-gate-a-plan-done.md` |
 | CLI path spellings in pi bash | done on branch gb-pr3-surfaces (plan PR 3): words are also read as normalised paths, and `../cli` and `cli/src/main.ts` are blocked; the check now lives in core | ADR 0014 amendments |
-| Read events and utility | record the returned item ids on read events, so utility evictions replay from the log | the plan's "not now" list (next schema PR) |
+| Read events and utility | done on branch `schema-v1` (schema version 1): read events carry `item_ids`, and utility counts them | ADR 0025 amendment of 2026-11-06 |
 | Read reason grammar | core's read reason says "1 projected item outside the reader's reach were not candidates"; the verb should follow the count, changed with its parser (`formatReadReason`, `parseReadReason`) and the inspector, which reads it through them | PR 4 review (#22), outside list |
 | Schema items | `derived_from`, procedural reliability, a lifecycle-trigger field, superseding-version id in explanations, `volatility` | the plan's "not now" list |
 
@@ -40,7 +40,7 @@ Found by the review of card B3 (GateMem through the plane, ADR 0030); none block
 
 | item | what is left | where it is recorded |
 |---|---|---|
-| An untrusted-external provenance kind | no kind ranks untrusted outsiders below `tool`, so a trusted tool echoing web text stays `tool` and MEM-INV-Bench's echo channel (L-b) is not closed by inheritance; a schema change for the next schema PR | ADR 0029 amendments, `docs/log/2026-10-29-b4-trust-order-echo-stays-tool.md` |
+| An untrusted-external provenance kind | the kind `external` exists on branch `schema-v1`, ranked last; what is left is labelling MEM-INV-Bench's `web` and `inbox` channels with it (ADR 0029), which changes the poisoning arm and waits for the pre-registration | ADR 0004 amendment of 2026-11-06 |
 | Action gating | the plane gates memory, not the consequential action MEM-INV-Bench scores; under `medium` every poisoned channel is admitted | `docs/log/2026-10-29-b4-plane-gates-memory-not-action.md` |
 | Authentication for the HTTP and MCP surfaces | both listen on loopback only and take a self-asserted actor; compose gains `server` and `ui` with it | ADR 0027 |
 | No-bypass false positives | the shell check refuses a bare store name, a double-quoted commit message naming it, and any command run from inside a store root | ADR 0014 amendments |

@@ -9,7 +9,6 @@ hypothesis: none
 evidence:
   - docs/decisions/0033-shared-model-package.md
   - docs/decisions/README.md
-  - docs/decisions/0032-shared-model-package.md
   - "pnpm exec vitest run scripts/test/tasks-and-decisions.test.ts"
 supersedes: docs/log/2026-11-06-step1-decision-model-package.md
 ---
@@ -18,6 +17,6 @@ supersedes: docs/log/2026-11-06-step1-decision-model-package.md
 
 **Why.** Card E8.9's simulator PR (#28) was opened first with ADR 0032, so two PRs claimed the same number.
 
-**Result.** The ADR file, its heading, the index row and every non-log citation (AGENTS.md, CLAUDE.md, the testing convention, the backlog, the cassette README, code comments) now say 0033. The index reserves row 0032 for E8.9, and the ADR test lists 0032 and 0033 as left for the lead. The old path holds a short pointer to 0033, because the 2026-11-06 entries cite it and are immutable.
+**Result.** The ADR file, its heading, the index row and every non-log citation (AGENTS.md, CLAUDE.md, the testing convention, the backlog, the cassette README, code comments) now say 0033. The index keeps row 0032 for E8.9's simulator ADR, and the ADR test lists 0032 and 0033 as left for the lead. Before merge the two 2026-11-06 entries' evidence paths were pointed at the 0033 file in review (documentation convention rule 10), so no file is left at the old path.
 
-**Consequence.** Merge #28 first, or keep its row 0032 when resolving the index conflict.
+**Consequence.** #28 merged first; the index carries its row 0032 and this row 0033.

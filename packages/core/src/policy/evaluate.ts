@@ -39,15 +39,25 @@ export const READ_VALIDITY_ID = "engram/read/validity";
 export const READ_TTL_ID = "engram/read/ttl";
 export const RETIRED_CONTENT_ID = "engram/write/retired-content";
 
-/** Sources that are untrusted by default and cannot leave person scope at write (ADR 0004, 0007). */
-const UNTRUSTED_SOURCES: ReadonlySet<string> = new Set(["model", "compaction"]);
+/**
+ * Sources that are untrusted by default and cannot leave person scope at
+ * write (ADR 0004, 0007): what a model or a compaction derived, and what an
+ * outsider sent (`external`, schema version 1), the least trusted of all.
+ */
+const UNTRUSTED_SOURCES: ReadonlySet<string> = new Set(["model", "compaction", "external"]);
 
 /**
  * Sources that may not restate content retired in the scope (ADR 0025,
- * Bemula's relearning): what a model, a compaction or a tool produces again
- * is not a person re-establishing it. A user, document or import write may.
+ * Bemula's relearning): what a model, a compaction, a tool or an outsider
+ * produces again is not a person re-establishing it. A user, document or
+ * import write may.
  */
-const RELEARNING_SOURCES: ReadonlySet<string> = new Set(["model", "compaction", "tool"]);
+const RELEARNING_SOURCES: ReadonlySet<string> = new Set([
+  "model",
+  "compaction",
+  "tool",
+  "external",
+]);
 
 export function scopeLevel(scope: string): ScopeLevel {
   return (scope === "org" ? "org" : scope.split(":")[0]) as ScopeLevel;
@@ -281,6 +291,34 @@ export function reachable(policy: Policy, actor: Actor, item: MemoryItem): boole
 }
 
 /**
+ * The grants on `item` that let the actor read it at `at`, as
+ * `grants[<index>]:<to>`: the policy honours grants, the grant's `to` matches
+ * the actor, its class is absent or the item's, and its expiry is absent or
+ * after `at`. Empty when none does.
+ */
+export function liveGrants(policy: Policy, actor: Actor, item: MemoryItem, at: string): string[] {
+  if (!policy.read.honour_grants) return [];
+  return item.grants.flatMap((g, i) =>
+    grantMatches(g.to, actor.id) &&
+    (g.class === undefined || g.class === item.class) &&
+    (g.expires === undefined || compareTimestamps(g.expires, at) > 0)
+      ? [`grants[${i}]:${g.to}`]
+      : [],
+  );
+}
+
+/**
+ * Could the actor read `item` at `at`, whatever its status or validity: by a
+ * readable scope, or by a live grant (liveGrants). Unlike reachable, an
+ * expired grant or one naming another class does not count. Plane.lint
+ * (card L1) uses it for the items a finding may name or describe, so a lint
+ * says nothing of an item the read filter would never admit on access.
+ */
+export function readableAt(policy: Policy, actor: Actor, item: MemoryItem, at: string): boolean {
+  return readableScope(policy, actor, item.scope) || liveGrants(policy, actor, item, at).length > 0;
+}
+
+/**
  * The read filter for one item. Only active items are read, and only before
  * their ttl runs out (ADR 0025: lifecycle is an admissibility axis, so an
  * expired item is excluded before any sweep retires it). Access is by
@@ -327,15 +365,7 @@ export function evaluateRead(
       matrixId,
     );
   } else {
-    const used = policy.read.honour_grants
-      ? item.grants.flatMap((g, i) =>
-          grantMatches(g.to, actor.id) &&
-          (g.class === undefined || g.class === item.class) &&
-          (g.expires === undefined || compareTimestamps(g.expires, at) > 0)
-            ? [`grants[${i}]:${g.to}`]
-            : [],
-        )
-      : [];
+    const used = liveGrants(policy, actor, item, at);
     access =
       used.length > 0
         ? result(true, "grant", `admitted by ${used.join(", ")}`, `${policy.id}/read/grants`, used)

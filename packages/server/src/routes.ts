@@ -7,8 +7,8 @@
 //
 // A decision is a response, not an error (ADR 0027 decision 6): allow, deny
 // and ask are 200 with their event. Errors are thrown and mapped in app.ts;
-// lint, simulate and distill throw core's NotImplementedYet until their
-// cards land, which app.ts answers with 501 naming the card.
+// distill throws core's NotImplementedYet until its card lands, which
+// app.ts answers with 501 naming the card.
 import {
   adoptStoreItems,
   currentItems,
@@ -184,20 +184,23 @@ export const ROUTES: readonly Route[] = [
     id: "lint",
     method: "post",
     path: "/lint",
-    summary: "Run the enabled lints over one scope; 501 until card L1.",
+    summary:
+      "Run the policy's enabled deterministic lints over one scope as a member of it; each finding is a lint event (card L1).",
     request: C.LintRequest,
     response: C.LintResponse,
-    errors: [400, 501],
-    handler: async ({ workspace, body }) => ({ findings: await workspace.plane.lint(body.scope) }),
+    errors: [400],
+    handler: ({ workspace, body, now }) =>
+      workspace.plane.lint(body.actor, body.at ?? now(), body.scope),
   }),
   route<z.infer<typeof C.SimulateRequest>>({
     id: "simulate",
     method: "post",
     path: "/simulate",
-    summary: "Replay a workload under a policy; 501 until card E8.9.",
+    summary:
+      "Replay a recorded workload under the workspace's policy and a candidate, on scratch logs and stores; zero model calls.",
     request: C.SimulateRequest,
-    response: C.OpenReport,
-    errors: [400, 501],
+    response: C.SimReport,
+    errors: [400],
     handler: ({ workspace, body }) =>
       workspace.plane.simulate(body.workload, body.policy ?? workspace.policy),
   }),
@@ -244,6 +247,6 @@ export const ROUTES: readonly Route[] = [
     summary: "The server answers.",
     response: C.HealthResponse,
     errors: [],
-    handler: async () => ({ status: "ok", schema_version: 0 }),
+    handler: async () => ({ status: "ok", schema_version: 1 }),
   }),
 ];

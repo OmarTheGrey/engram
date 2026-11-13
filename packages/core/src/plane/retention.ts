@@ -12,11 +12,9 @@
 // surfaces pass `at`. A reason names no item, seq or count to an actor who
 // cannot read the scope (review finding P4-4).
 //
-// Limit (review finding P4-5): utility counts explanation rows, which are not
-// in the event log, so replaying the log reproduces a utility eviction as an
-// event but cannot re-decide it; nor can a rebuilt database, a pi session's
-// workload or the simulator. The next schema PR can put the returned item ids
-// on read events.
+// Utility (review finding P4-5, closed by schema version 1) counts the read
+// events that returned an item, by their `item_ids`, so a database rebuilt
+// from the log, or a log replayed elsewhere, decides a utility eviction again.
 import { type Actor, checkCall, InvalidCallError } from "../actor.ts";
 import type { Db } from "../db/db.ts";
 import { appendEvent, currentItems } from "../events.ts";
@@ -37,18 +35,19 @@ import { inWriteQueue } from "./queue.ts";
 /**
  * Recency and utility as the log records them: the seq of the event that
  * last changed each projected item (the items table keeps it, migration 2),
- * and how many explanation rows name each item (migration 3: one row per
- * item a read returned).
+ * and how many read events returned each item (their `item_ids`, schema
+ * version 1; migration 4 filled them in for older reads from the
+ * explanation rows). Both come from the event log, so a database rebuilt
+ * from it decides a utility eviction as the original did (finding P4-5).
  */
 export function retentionUsage(db: Db): RetentionUsage {
   const lastChanged = new Map<string, number>();
   for (const row of db.prepare("SELECT id, seq FROM items").all())
     if (row.seq !== null && row.seq !== undefined) lastChanged.set(String(row.id), Number(row.seq));
   const reads = new Map<string, number>();
-  for (const row of db
-    .prepare("SELECT item_id, count(*) AS n FROM explanations GROUP BY item_id")
-    .all())
-    reads.set(String(row.item_id), Number(row.n));
+  for (const row of db.prepare("SELECT body FROM events WHERE op = 'read'").all())
+    for (const id of (JSON.parse(String(row.body)) as MemoryEvent).item_ids ?? [])
+      reads.set(id, (reads.get(id) ?? 0) + 1);
   return { lastChanged, reads };
 }
 
@@ -77,7 +76,7 @@ function commit(
         decision: r.decision,
         reason: r.reason,
         policy_id: r.policy_id,
-        schema_version: 0,
+        schema_version: 1,
       }),
     ),
   );

@@ -166,6 +166,22 @@ importers:
         specifier: workspace:*
         version: link:../runner
 
+  packages/pi-package:
+    dependencies:
+      '@engram/core':
+        specifier: workspace:*
+        version: link:../core
+      '@engram/pi-extension':
+        specifier: workspace:*
+        version: link:../pi-extension
+      '@engram/server':
+        specifier: workspace:*
+        version: link:../server
+    devDependencies:
+      '@earendil-works/pi-coding-agent':
+        specifier: 1.3.0
+        version: 1.3.0(@aws-sdk/credential-provider-node@3.972.86)(@modelcontextprotocol/sdk@1.32.1(zod@4.6.7))(@smithy/signature-v4@5.7.4)(ws@8.22.0)(zod@4.6.7)
+
   packages/runner:
     dependencies:
       '@earendil-works/pi-ai':

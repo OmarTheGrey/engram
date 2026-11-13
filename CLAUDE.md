@@ -66,6 +66,8 @@ engram doctor                  log and its backend (never created by doctor), po
 engram read --root <dir> --owner <id>   a memory folder through the plane, adopted as its owner, every item explained; --store letta takes a Letta MemFS repository (or an empty folder it initialises) as --root, every write one git commit; the log is --db, else ENGRAM_DB_URL, else <home>/.engram/engram.db; engram --help lists the rest
 engram write | read | promote | explain | retain | lint | simulate   each one call of the generated client: in process over the workspace its flags name, or to the server --server <url> (or ENGRAM_SERVER_URL) names
 engram retain --scope <scope>  sweep one scope's retention as a user-sourced member: expired items retired, budgets enforced
+engram lint --scope <scope>    the policy's enabled deterministic lints over one scope as a member who may read it (the read matrix applies, as for read); each finding one lint event with its reason; exit 1 on a finding
+engram simulate --workload <file> --policy <baseline> --candidate <policy>   replay a recorded workload (actors and calls) under both policies on scratch logs and stores; prints decisions, the utility proxy and evictions side by side, --json for the report
 engram serve [--host 127.0.0.1] [--port 7313] [--as <id> --member <scope>]   the HTTP API on loopback only (no authentication yet), over the workspace flags; --as names the inspector's viewer
 engram mcp --as <id> --member <scope>   the MCP server over stdio for Claude Code and Codex, every call as that actor with source model; --http <port> serves streamable HTTP on loopback
 engram hook claude-code --root <dir>   a Claude Code PreToolUse hook: denies a Bash command naming a store and a file tool inside a store root, recording each block
@@ -74,7 +76,8 @@ make test-e2e                  layer 6: engram doctor, then a CLI smoke (write, 
 make ui                        build the inspector (Vite and React) into packages/ui/dist, which engram serve serves at / beside /api/v1; Chromium for its e2e test: pnpm exec playwright install chromium
 make test-repro                every row of research/results/MANIFEST.md rerun by its research/scripts/<name>.py from its config; fails on a sha256 that differs; ENGRAM_RESEARCH_WORKERS=<n> caps the worker processes of the H4 scripts (one per core otherwise; the bytes do not change)
                                a script needing pinned benchmark data fetches it (data, never a model) into .engram/upstream, so a fresh clone needs the network; CI does not run it
-make fixtures                  regenerate golden files and record scripted cassettes afresh; refuses without a message; clones MEM-INV-Bench at its pin into .engram/upstream when missing (network) and runs its own scorer for the goldens
+make fixtures                  regenerate golden files (the fault catalogue in fixtures/faults/ included) and record scripted cassettes afresh; refuses without a message; clones MEM-INV-Bench at its pin into .engram/upstream when missing (network) and runs its own scorer for the goldens
+make fault-workspace FAULT=<name>   a SQLite log and policy file in .engram/faults/<name>/ from fixtures/faults/<name>.json, and the engram lint command that lints it
 make thesis                    consolidate docs/log into research/thesis/drafts/ (ROOT=, OUT= to run on fixtures/log/repo)
 pi                             work in this repo with the project extension loaded
 ```
