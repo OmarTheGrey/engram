@@ -16,6 +16,7 @@ export {
   ENGRAM_POLICY,
   logFromSession,
   parseSession,
+  policyHash,
   replaySession,
   type SessionLine,
   type SessionReplay,

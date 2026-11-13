@@ -61,7 +61,7 @@ import {
   type WorkloadStep,
 } from "@engram/core";
 import { systemClock, uuidv7 } from "./ids.ts";
-import { type CallEntry, ENGRAM_CALL, ENGRAM_EVENT, ENGRAM_POLICY } from "./replay.ts";
+import { type CallEntry, ENGRAM_CALL, ENGRAM_EVENT, ENGRAM_POLICY, policyHash } from "./replay.ts";
 import {
   defuseMessage,
   isMemoryTool,
@@ -193,6 +193,7 @@ export function createEngramExtension(options: EngramExtensionOptions): Extensio
      * (card PX2), so the session replays through the plane on its own.
      */
     let policyRecorded = false;
+    const policyRef = policyHash(options.policy);
     const recordCall = (step: WorkloadStep) => {
       if (!policyRecorded) {
         pi.appendEntry(ENGRAM_POLICY, options.policy);
@@ -202,7 +203,7 @@ export function createEngramExtension(options: EngramExtensionOptions): Extensio
       const entry: CallEntry = {
         actor: actorOf[step.as as keyof typeof actorOf],
         step,
-        policy: { id: options.policy.id, version: options.policy.version },
+        policy: { id: options.policy.id, version: options.policy.version, hash: policyRef },
       };
       pi.appendEntry(ENGRAM_CALL, entry);
     };

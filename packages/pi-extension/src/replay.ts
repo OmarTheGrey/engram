@@ -1,12 +1,13 @@
 // Session custom entries and replay (card PX2, ADR 0001 decision 4). A pi
 // session the Engram extension ran in holds two kinds of custom entry:
 //
-// - `engram.policy`, once, before the first call: the policy the plane
+// - `engram.policy`, before the first call of each runtime pi starts on the
+//   session (a resume or a fork records it again): the policy the plane
 //   decides under, in full, since its id alone does not pin its rules;
 // - `engram.call`, one per Plane call the extension made, before its events:
 //   the actor in full, the call as a workload step (core's WorkloadStep,
 //   the item written, the query read, the scope swept, the bypass blocked),
-//   and the id and version of the policy;
+//   and the id, version and content hash of the policy;
 // - `engram.event`, every MemoryEvent that call appended, as the Engram log
 //   holds it.
 //
@@ -19,6 +20,7 @@
 //
 // Nothing here decides anything (AGENTS.md rule 1): it reads entries and
 // hands them to core.
+import { createHash } from "node:crypto";
 import {
   type Actor,
   appendEvent,
@@ -42,8 +44,31 @@ export interface CallEntry {
   /** The actor the call was made as; `step.as` names it in the workload. */
   actor: Actor;
   step: WorkloadStep;
-  /** The policy the plane decided under, `<id>` and its version. */
-  policy: { id: string; version: number };
+  /**
+   * The policy the plane decided under: its id, its version and the hash of
+   * its content (policyHash), since an id and version do not pin the rules.
+   */
+  policy: { id: string; version: number; hash: string };
+}
+
+/** JSON with object keys sorted, so two equal values print alike whatever their key order. */
+function canonical(value: unknown): string {
+  const sort = (v: unknown): unknown =>
+    Array.isArray(v)
+      ? v.map(sort)
+      : v && typeof v === "object"
+        ? Object.fromEntries(
+            Object.keys(v)
+              .sort()
+              .map((k) => [k, sort((v as Record<string, unknown>)[k])]),
+          )
+        : v;
+  return JSON.stringify(sort(value));
+}
+
+/** The hash of a policy's content, whatever its key order: `sha256:<hex>`. */
+export function policyHash(policy: unknown): string {
+  return `sha256:${createHash("sha256").update(canonical(policy)).digest("hex")}`;
 }
 
 /** The part of a session entry replay reads; pi's own entries carry more. */
@@ -101,20 +126,31 @@ export function sessionWorkload(entries: readonly SessionLine[], id = "session")
 
 /**
  * The policy the session's calls were decided under, from its
- * `engram.policy` entry, validated; refused when there is none, when there
- * are several, or when a call names another id or version.
+ * `engram.policy` entries, validated. Each runtime pi starts on the session
+ * (a resume, a fork) records the policy again, so the entries may repeat;
+ * each call names the content hash of its policy, so an entry edited after
+ * the calls were made, or a call made under a policy the session does not
+ * hold, is refused, and so is a session whose calls name two policies, since
+ * a replay decides under one.
  */
 export function sessionPolicy(entries: readonly SessionLine[]): Policy {
-  const recorded = custom(entries, ENGRAM_POLICY);
-  if (recorded.length !== 1)
-    throw new Error(`the session holds ${recorded.length} engram.policy entries; expected one`);
-  const policy = PolicyShape.parse(recorded[0]);
-  for (const [i, c] of sessionCalls(entries).entries())
-    if (c.policy.id !== policy.id || c.policy.version !== policy.version)
+  const recorded = new Map(custom(entries, ENGRAM_POLICY).map((p) => [policyHash(p), p]));
+  if (recorded.size === 0) throw new Error("the session holds no engram.policy entry");
+  const used = new Set<string>();
+  for (const [i, c] of sessionCalls(entries).entries()) {
+    const p = recorded.get(c.policy.hash) as Policy | undefined;
+    if (p === undefined || p.id !== c.policy.id || p.version !== c.policy.version)
       throw new Error(
-        `engram.call ${i} was decided under ${c.policy.id} v${c.policy.version}, not the session's ${policy.id} v${policy.version}`,
+        `engram.call ${i} was decided under ${c.policy.id} v${c.policy.version} ${c.policy.hash}, which no engram.policy entry of the session holds`,
       );
-  return policy;
+    used.add(c.policy.hash);
+  }
+  const hashes = used.size > 0 ? [...used] : [...recorded.keys()];
+  if (hashes.length > 1)
+    throw new Error(
+      `the session's calls were decided under ${hashes.length} policies; a replay decides under one`,
+    );
+  return PolicyShape.parse(recorded.get(hashes[0] as string));
 }
 
 /**
@@ -130,21 +166,6 @@ export function logFromSession(db: Db, entries: readonly SessionLine[]): MemoryE
       throw new Error(`event ${event.id}: the session gives seq ${seq}, the log ${appended.seq}`);
     return appended;
   });
-}
-
-/** JSON with object keys sorted, so two equal values print alike whatever their key order. */
-function canonical(value: unknown): string {
-  const sort = (v: unknown): unknown =>
-    Array.isArray(v)
-      ? v.map(sort)
-      : v && typeof v === "object"
-        ? Object.fromEntries(
-            Object.keys(v)
-              .sort()
-              .map((k) => [k, sort((v as Record<string, unknown>)[k])]),
-          )
-        : v;
-  return JSON.stringify(sort(value));
 }
 
 /** An event as a decision: the fields a replay must reproduce. */
@@ -164,21 +185,36 @@ export interface SessionReplay {
   recorded: MemoryEvent[];
   /** Where the replay's decisions differ from the recorded ones, one line each; empty when they agree. */
   differences: string[];
+  /**
+   * Null when the replay ran under the session's own policy; otherwise which
+   * policy it ran under instead, saying so when that one carries the
+   * session's id and version with other rules (an id does not pin its rules).
+   */
+  policyDifference: string | null;
 }
 
 /**
  * Replays the session's calls through the plane under `policy` (the
- * session's own when not given, from its `engram.policy` entry) and compares
- * every event's decision with the one the session recorded: op, item, actor,
- * scopes, decision, reason, rule and the item it carried, apart from event
- * ids and the store the item was written to. No model is called.
+ * session's own when not given, from its `engram.policy` entries) and
+ * compares every event's decision with the one the session recorded: op,
+ * item, actor, scopes, decision, reason, rule and the item it carried, apart
+ * from event ids and the store the item was written to. No model is called.
  */
 export async function replaySession(
   entries: readonly SessionLine[],
-  policy: Policy = sessionPolicy(entries),
+  policy?: Policy,
 ): Promise<SessionReplay> {
+  const own = sessionPolicy(entries);
+  const used = policy ?? own;
+  const name = (p: Policy) => `${p.id} v${p.version}`;
+  const policyDifference =
+    policyHash(used) === policyHash(own)
+      ? null
+      : used.id === own.id && used.version === own.version
+        ? `replayed under ${name(used)} with other rules than the session's ${name(own)}`
+        : `replayed under ${name(used)}, not the session's ${name(own)}`;
   const workload = sessionWorkload(entries);
-  const { run, events } = await replayWorkload(workload, policy);
+  const { run, events } = await replayWorkload(workload, used);
   const recorded = sessionEvents(entries);
   const differences: string[] = [];
   const n = Math.max(events.length, recorded.length);
@@ -195,5 +231,5 @@ export async function replaySession(
     const got = canonical(decisionOf(b));
     if (want !== got) differences.push(`event ${i} (${a.op}): recorded ${want}, replayed ${got}`);
   }
-  return { workload, run, events, recorded, differences };
+  return { workload, run, events, recorded, differences, policyDifference };
 }

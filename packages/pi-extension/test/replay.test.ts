@@ -5,13 +5,22 @@
 // model; every event the replay appends must carry the decision the session
 // recorded, and the session's events must rebuild the Engram log they mirror.
 import { readdirSync, readFileSync } from "node:fs";
-import { currentItems, loadPreset, MemoryEvent, migrate, openSqlite, rebuild } from "@engram/core";
+import {
+  currentItems,
+  loadPreset,
+  MemoryEvent,
+  migrate,
+  openSqlite,
+  type Policy,
+  rebuild,
+} from "@engram/core";
 import { describe, expect, test } from "vitest";
 import {
   type CallEntry,
   decisionOf,
   logFromSession,
   parseSession,
+  policyHash,
   replaySession,
   type SessionLine,
   sessionCalls,
@@ -107,4 +116,77 @@ test("a session whose calls name one actor two ways is refused", () => {
     },
   ];
   expect(() => sessionWorkload(twisted)).toThrow(/bound to two different actors/);
+});
+
+describe("the recorded policy (review of PR #32)", () => {
+  const customs = (entries: SessionLine[], type: string) =>
+    entries.filter((e) => e.type === "custom" && e.customType === type);
+  const policyEntry = (entries: SessionLine[]) =>
+    customs(entries, "engram.policy")[0] as SessionLine;
+  const withPolicyData = (entries: SessionLine[], data: unknown): SessionLine[] =>
+    entries.map((e) => (e === policyEntry(entries) ? { ...e, data } : e));
+
+  test("every call names the recorded policy's content hash", () => {
+    for (const session of SESSIONS) {
+      const entries = parseSession(read(session));
+      const hash = policyHash(policyEntry(entries).data);
+      for (const c of sessionCalls(entries)) expect(c.policy.hash).toBe(hash);
+    }
+  });
+
+  test("a resumed session, holding the same policy twice, still replays", async () => {
+    // pi recreates the extension's runtime on resume and fork, so the new
+    // runtime records the policy again ahead of its first call.
+    const entries = parseSession(read("s0-interception.jsonl"));
+    const calls = customs(entries, "engram.call");
+    const at = entries.indexOf(calls[calls.length - 1] as SessionLine);
+    const resumed = [...entries.slice(0, at), policyEntry(entries), ...entries.slice(at)];
+    expect((await replaySession(resumed)).differences).toEqual([]);
+  });
+
+  test("an engram.policy entry whose rules changed under the same id and version is refused", () => {
+    // s0's decisions do not depend on the retention ttls, so a replay alone
+    // would not notice this edit.
+    const entries = parseSession(read("s0-interception.jsonl"));
+    const data = structuredClone(policyEntry(entries).data) as Policy;
+    data.retention = data.retention.map((r) => ({ ...r, ttl: r.ttl === null ? null : r.ttl + 1 }));
+    expect(() => sessionPolicy(withPolicyData(entries, data))).toThrow(
+      /engram\.call 0 was decided under preset\.medium v1 sha256:[0-9a-f]+, which no engram\.policy entry of the session holds/,
+    );
+  });
+
+  test("a session whose calls were decided under two policies is refused", () => {
+    const entries = parseSession(read("s0-interception.jsonl"));
+    const other = loadPreset("strict");
+    const call = customs(entries, "engram.call")[0]?.data as CallEntry;
+    const twisted: SessionLine[] = [
+      ...entries,
+      { type: "custom", customType: "engram.policy", data: other },
+      {
+        type: "custom",
+        customType: "engram.call",
+        data: {
+          ...call,
+          policy: { id: other.id, version: other.version, hash: policyHash(other) },
+        },
+      },
+    ];
+    expect(() => sessionPolicy(twisted)).toThrow(/decided under 2 policies/);
+  });
+
+  test("a replay under the session's id and version with other rules says so", async () => {
+    const entries = parseSession(read("e2-4-eviction.jsonl"));
+    expect((await replaySession(entries)).policyDifference).toBeNull();
+    const { policyDifference } = await replaySession(entries, loadPreset("medium"));
+    expect(policyDifference).toMatch(/preset\.medium v1 with other rules than the session's/);
+  });
+
+  test("a replay is deterministic: the same session replays to the same events", async () => {
+    for (const session of SESSIONS) {
+      const entries = parseSession(read(session));
+      const a = await replaySession(entries);
+      const b = await replaySession(entries);
+      expect(b.events).toEqual(a.events);
+    }
+  });
 });
