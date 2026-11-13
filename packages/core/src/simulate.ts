@@ -46,10 +46,15 @@ export const WorkloadStep = z.discriminatedUnion("op", [
     op: z.literal("bypass"),
     as: name,
     at: Timestamp,
-    /** A bypass a surface blocked (Plane.recordBypass, ADR 0014): decided by no policy, replayed as recorded. */
+    /**
+     * A bypass a surface blocked (Plane.recordBypass, ADR 0014): decided by no
+     * policy, replayed as recorded. Its fields are held to recordBypass's own
+     * shape (plane/bypass.ts BypassShape), so checkWorkload refuses what the
+     * replay would refuse (post-merge review of 2026-11-13).
+     */
     bypass: z.strictObject({
-      command: z.string(),
-      store: z.string(),
+      command: z.string().min(1),
+      store: z.string().min(1),
       route: z.enum(["command", "path", "result"]).optional(),
     }),
   }),
