@@ -86,12 +86,13 @@ async function matching(
   return { order: [...order, ...share.keys()], share };
 }
 
-/** The ids the projection holds now. */
-function projectedIds({ db }: PlaneDeps): Set<string> {
+/** Which of `ids` the projection holds now. */
+function stillProjected({ db }: PlaneDeps, ids: string[]): Set<string> {
+  if (ids.length === 0) return new Set();
   return new Set(
     db
-      .prepare("SELECT id FROM items")
-      .all()
+      .prepare(`SELECT id FROM items WHERE id IN (${ids.map(() => "?").join(", ")})`)
+      .all(...ids)
       .map((r) => String(r.id)),
   );
 }
@@ -105,7 +106,7 @@ export async function filteredRead(
   checkCall(actor, query?.at, "read");
   const { at } = query;
   const snapshot = currentItems(db);
-  const reached = snapshot.filter((i) => reachable(policy, actor, i));
+  const reach = snapshot.filter((i) => reachable(policy, actor, i));
   // The readable scopes the actor belongs to: the store is never asked about
   // any other scope, not even one a grant reaches into (finding N1).
   const scopes = [
@@ -113,18 +114,8 @@ export async function filteredRead(
   ].sort();
   const core = deps.retrieval?.pipeline === "core";
   const terms = queryTerms(query.text);
-  const match = core ? undefined : await matching(deps, reached, scopes, query.text);
-  // A read does not run in the write queue, so an offboarding may have erased
-  // items while the store was searched (post-merge review of 2026-11-13, cards
-  // E2.2 and E9.7). Every item erased since the snapshot is dropped here, as
-  // if the read had begun after the erasure; from here to the transaction
-  // that appends the read event and its explanations nothing awaits, so no
-  // erasure lands in between and the read never returns or records an item
-  // erased before its event.
-  const present = core ? undefined : projectedIds(deps);
-  const projected = present ? snapshot.filter((i) => present.has(i.id)) : snapshot;
-  const reach = present ? reached.filter((i) => present.has(i.id)) : reached;
-  const outOfReach = projected.length - reach.length;
+  const match = core ? undefined : await matching(deps, reach, scopes, query.text);
+  const outOfReach = snapshot.length - reach.length;
   const hitRank = new Map(match?.order.map((id, r) => [id, r]));
   const candidates = core
     ? reach.filter((i) => matchesQuery(i, terms))
@@ -178,15 +169,6 @@ export async function filteredRead(
   // order; the core pipeline's list is already in its order.
   if (!core) admitted.sort((a, b) => b.total - a.total);
 
-  const explanations: Explanation[] = admitted.map(({ item, decision, parts, total }, i) => ({
-    item_id: item.id,
-    rank: i + 1,
-    score: { total, components: parts },
-    policy_id: decision.policy_id,
-    grants_used: decision.grants_used,
-    validity: { at, valid_from: item.valid_from, valid_to: item.valid_to },
-    schema_version: 1 as const,
-  }));
   // Reachable candidates the filter removed: outside the validity window, not
   // active, past their ttl (a lifecycle exclusion before any sweep, ADR
   // 0025), or reached through a grant whose class or expiry fails.
@@ -194,19 +176,44 @@ export async function filteredRead(
     counts.excluded + counts["outside-validity"] + counts["not-active"] + counts.expired;
   // Under the core pipeline with a limit, the admitted items ranked below it.
   const limited = core && deps.retrieval?.limit !== undefined;
-  const reason = formatReadReason({
-    returned: admitted.length,
-    candidates: candidates.length,
-    filtered,
-    outside_validity: counts["outside-validity"],
-    not_active: counts["not-active"],
-    expired: counts.expired,
-    excluded: counts.excluded,
-    ...(limited ? { cut: passed.length - admitted.length } : {}),
-    out_of_reach: outOfReach,
-  });
 
-  const event = db.transaction(() => {
+  // A read does not run in the write queue, and its snapshot of the
+  // projection is older than the store search it awaited, so an offboarding,
+  // in this process or another sharing the log, may have erased an admitted
+  // item since (review of PR #41, cards E2.2 and E9.7). Inside the
+  // transaction, which holds the log's write lock (BEGIN IMMEDIATE on SQLite,
+  // the advisory lock on Postgres), the admitted ids are selected again and
+  // any the projection no longer holds is dropped from the result, the event
+  // and the explanation rows, and counted out of the candidates. An erasure
+  // commits under the same lock, so none lands between this check and the
+  // append: the read never returns or records an item erased before its
+  // event. The out-of-reach count stays the snapshot's.
+  const { event, kept, explanations } = db.transaction(() => {
+    const held = stillProjected(
+      deps,
+      admitted.map((a) => a.item.id),
+    );
+    const kept = admitted.filter((a) => held.has(a.item.id));
+    const explanations: Explanation[] = kept.map(({ item, decision, parts, total }, i) => ({
+      item_id: item.id,
+      rank: i + 1,
+      score: { total, components: parts },
+      policy_id: decision.policy_id,
+      grants_used: decision.grants_used,
+      validity: { at, valid_from: item.valid_from, valid_to: item.valid_to },
+      schema_version: 1 as const,
+    }));
+    const reason = formatReadReason({
+      returned: kept.length,
+      candidates: candidates.length - (admitted.length - kept.length),
+      filtered,
+      outside_validity: counts["outside-validity"],
+      not_active: counts["not-active"],
+      expired: counts.expired,
+      excluded: counts.excluded,
+      ...(limited ? { cut: passed.length - admitted.length } : {}),
+      out_of_reach: outOfReach,
+    });
     const appended = appendEvent(db, {
       id: newId(),
       ts: at,
@@ -218,16 +225,16 @@ export async function filteredRead(
       decision: "allow",
       reason,
       policy_id: readRuleId(policy, actor),
-      item_ids: admitted.map((a) => a.item.id),
+      item_ids: kept.map((a) => a.item.id),
       schema_version: SCHEMA_VERSION,
     });
     const insert = db.prepare(
       "INSERT INTO explanations (read_id, rank, item_id, body) VALUES (?, ?, ?, ?)",
     );
     for (const e of explanations) insert.run(appended.id, e.rank, e.item_id, JSON.stringify(e));
-    return appended;
+    return { event: appended, kept, explanations };
   });
-  return { items: admitted.map((a) => a.item), explanations, filtered, event };
+  return { items: kept.map((a) => a.item), explanations, filtered, event };
 }
 
 /**
