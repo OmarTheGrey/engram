@@ -17,7 +17,7 @@ import { InvalidCallError } from "../actor.ts";
 import type { Adapter, StoreRef } from "../adapter.ts";
 import { migrate } from "../db/migrate.ts";
 import { openSqlite } from "../db/sqlite.ts";
-import { currentItems } from "../events.ts";
+import { allEvents, currentItems } from "../events.ts";
 import type { PlaneDeps } from "../plane.ts";
 import type { MemoryEvent, MemoryItem, Policy } from "../schema.ts";
 import {
@@ -29,6 +29,7 @@ import {
   Workload,
   type WorkloadStep,
 } from "../simulate.ts";
+import { recordBypass } from "./bypass.ts";
 import { promote } from "./promote.ts";
 import { filteredRead } from "./read.ts";
 import { retain } from "./retention.ts";
@@ -182,6 +183,20 @@ async function runStep(
         ...retirements(r.events),
       };
     }
+    case "bypass": {
+      const event = await recordBypass(deps, actor, step.bypass, step.at);
+      return {
+        ...base,
+        item_id: null,
+        decision: event.decision,
+        reason: event.reason,
+        policy_id: event.policy_id,
+        returned: [],
+        evicted: [],
+        expired: [],
+        asked: 0,
+      };
+    }
   }
 }
 
@@ -195,6 +210,20 @@ export async function runWorkload(
   policy: Policy,
   retrieval?: PlaneDeps["retrieval"],
 ): Promise<PolicyRun> {
+  return (await replayWorkload(workload, policy, retrieval)).run;
+}
+
+/**
+ * runWorkload, with the events the replay appended to its scratch log, in
+ * order (card PX2: a recorded session's events are checked against them).
+ * Their ids come from the simulation's counter and their store refs name the
+ * scratch store; every other field is what the plane decided.
+ */
+export async function replayWorkload(
+  workload: Workload,
+  policy: Policy,
+  retrieval?: PlaneDeps["retrieval"],
+): Promise<{ run: PolicyRun; events: MemoryEvent[] }> {
   const db = openSqlite(":memory:");
   try {
     migrate(db);
@@ -220,7 +249,7 @@ export async function runWorkload(
     const active: Record<string, number> = {};
     for (const item of currentItems(db))
       if (item.status === "active") active[item.scope] = (active[item.scope] ?? 0) + 1;
-    return {
+    const run: PolicyRun = {
       policy_id: policy.id,
       policy_version: policy.version,
       outcomes,
@@ -238,6 +267,7 @@ export async function runWorkload(
       },
       active,
     };
+    return { run, events: allEvents(db) };
   } finally {
     db.close();
   }
