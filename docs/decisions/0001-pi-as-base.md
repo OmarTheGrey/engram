@@ -71,3 +71,10 @@ The plane is built on pi. Concretely:
 - pi session format: https://pi.dev/docs/latest/session-format
 - Pi Durable: https://earendil.com/posts/pi-durable/
 - Pi 1.0: https://earendil.com/posts/pi-1-0/
+
+## Amendment (2026-11-13)
+
+Amendment made by card PX3 (branch `px3-pi-package`, review of PR 39):
+
+- Slash commands: the four `/engram` subcommands are one prompt template in the pi package (`packages/pi-package/prompts/engram.md`, the subcommand as `$1`), not a `registerCommand` handler. Their work is the model calling the Engram tools, so a handler would only hold command logic outside core. A subcommand that later needs code instead of a model turn moves to `registerCommand`.
+- The template finds each tool at run time instead of naming the card it waits for: `/engram lint` calls a `memory_lint` tool when the session registers one and otherwise says lint is not available, and `/engram simulate` reports what `memory_simulate` answers, passing a candidate preset when one is given. Card L1 adds lint to core, the server and the CLI but no pi tool, so `/engram lint` stays unavailable after L1 until a card adds `memory_lint` to `packages/pi-extension`.

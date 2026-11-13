@@ -83,11 +83,18 @@ beforeAll(async () => {
     ENGRAM_OFFLINE: "1",
   };
 
-  const install = spawnSync(process.execPath, [piCli, "install", packageRoot, "--local"], {
-    cwd: project,
-    env,
-    encoding: "utf8",
-  });
+  // --approve: a fresh temp project still needs a trust decision when an
+  // ancestor folder holds protected resources (an `.agents/skills` under the
+  // user's home, say), and install and RPC mode cannot prompt for one.
+  const install = spawnSync(
+    process.execPath,
+    [piCli, "install", packageRoot, "--local", "--approve"],
+    {
+      cwd: project,
+      env,
+      encoding: "utf8",
+    },
+  );
   expect(install.status, `pi install failed:\n${install.stdout}\n${install.stderr}`).toBe(0);
 
   pi = spawn(process.execPath, [piCli, "--mode", "rpc", "-a", "--no-session", "-e", probe], {
@@ -131,7 +138,8 @@ describe("pi install of the Engram pi package in a fresh project", () => {
       packages?: (string | { source: string })[];
     };
     const sources = (settings.packages ?? []).map((p) => (typeof p === "string" ? p : p.source));
-    expect(sources.map((s) => resolve(project, s))).toContain(packageRoot);
+    // A relative source resolves from the settings file's folder (pi docs/packages.md).
+    expect(sources.map((s) => resolve(project, ".pi", s))).toContain(packageRoot);
   });
 
   it("lists the /engram prompt and the engram skill from the package (RPC get_commands)", async () => {
