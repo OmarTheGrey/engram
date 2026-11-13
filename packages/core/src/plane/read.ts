@@ -26,6 +26,7 @@
 // that pipeline and cut to its limit. Without the option the read is as
 // above, unchanged.
 import { type Actor, ExplainDeniedError, UnknownReadError } from "../actor.ts";
+import { strictContentHash } from "../content-hash.ts";
 import { appendEvent, currentItems } from "../events.ts";
 import type { PlaneDeps, ReadQuery, ReadResult } from "../plane.ts";
 import {
@@ -86,6 +87,31 @@ async function matching(
   return { order: [...order, ...share.keys()], share };
 }
 
+/**
+ * The match restated against the projection read under the lock: a store
+ * hit or a term share computed on the snapshot stands only for an item whose
+ * content is unchanged since; an item whose content changed, or that is new,
+ * is matched by the plane over its current content. A record erased and
+ * adopted again under the same id therefore never matches by its erased text.
+ */
+function current(
+  searched: { order: string[]; share: Map<string, number> } | undefined,
+  snapshot: MemoryItem[],
+  live: MemoryItem[],
+  text: string | undefined,
+): { order: string[]; share: Map<string, number> } | undefined {
+  if (!searched) return undefined;
+  const before = new Map(snapshot.map((i) => [i.id, strictContentHash(i.content)]));
+  const changed = live.filter((i) => before.get(i.id) !== strictContentHash(i.content));
+  const stale = new Set(changed.map((i) => i.id));
+  const terms = (text ?? "").toLowerCase().split(/\s+/).filter(Boolean);
+  const share = new Map([...searched.share].filter(([id]) => !stale.has(id)));
+  for (const [id, s] of termShare(changed, terms)) share.set(id, s);
+  // The store's hits first, in its order, then every item the plane matched.
+  const hits = searched.order.filter((id) => !searched.share.has(id) && !stale.has(id));
+  return { order: [...hits, ...share.keys()], share };
+}
+
 export async function filteredRead(
   deps: PlaneDeps,
   actor: Actor,
@@ -103,7 +129,7 @@ export async function filteredRead(
   ].sort();
   const core = deps.retrieval?.pipeline === "core";
   const terms = queryTerms(query.text);
-  const match = core ? undefined : await matching(deps, reach, scopes, query.text);
+  const searched = core ? undefined : await matching(deps, reach, scopes, query.text);
   // Everything from here runs in one synchronous transaction, which holds
   // the log's write lock (BEGIN IMMEDIATE on SQLite, the advisory lock on
   // Postgres). A read is not in the write queue, and its snapshot is older
@@ -117,12 +143,15 @@ export async function filteredRead(
   // result, the event and its explanation rows are those of the read run
   // serially after every write committed before the lock was taken, and no
   // erased content is returned, ranked against, counted or recorded. The
-  // snapshot only chose which scopes the store was searched in; a hit is
-  // matched to the projection by id.
+  // store search and the plane's term shares ran on the snapshot's content,
+  // so a hit or share counts only for an item whose content is unchanged
+  // since; an item whose content changed or that is new is matched by the
+  // plane over its current content (final recheck of PR #41).
   const { items, explanations, filtered, event } = db.transaction(() => {
     const projected = currentItems(db);
     const live = projected.filter((i) => reachable(policy, actor, i));
     const outOfReach = projected.length - live.length;
+    const match = current(searched, snapshot, live, query.text);
     const hitRank = new Map(match?.order.map((id, r) => [id, r]));
     const candidates = core
       ? live.filter((i) => matchesQuery(i, terms))

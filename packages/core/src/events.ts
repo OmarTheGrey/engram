@@ -38,7 +38,8 @@ export function erasedStoreContent(db: Db, itemId: string): Set<string> {
   const open = `${LEFT_CONTENT_CLAUSE} (`;
   for (const event of eventsByItem(db, itemId)) {
     if (!erases(event)) continue;
-    const start = event.reason.indexOf(open);
+    // The clause ends the reason; the store's error text comes before it.
+    const start = event.reason.lastIndexOf(open);
     if (start < 0) continue;
     const end = event.reason.indexOf(")", start + open.length);
     if (end < 0) continue;

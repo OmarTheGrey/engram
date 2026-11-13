@@ -285,4 +285,29 @@ describe("offboarding a person whose memory is an adopted Claude Code folder", (
     expect(event.item_ids).toEqual([role?.id]);
     expect(JSON.stringify(allEvents(db))).not.toContain(erased.slice(0, 40));
   });
+
+  test("a racing read never matches a re-adopted record by a term only its erased text held", async () => {
+    const { root, adapter, deps } = await adopted();
+    const search = adapter.search?.bind(adapter);
+    if (!search) throw new Error("the files adapter searches");
+    const erasedOnly = "principles";
+    const before = await createPlane(deps).read(dana, { at: AT, text: erasedOnly });
+    expect(before.items.map((i) => i.store_ref?.key)).toEqual(["user_role.md"]);
+    let raced = false;
+    adapter.search = async (query, scopes) => {
+      const hits = await search(query, scopes);
+      if (!raced) {
+        raced = true;
+        await offboard(deps, dana, LEAVE, LATER);
+        await rewrite(root, "user_role.md", "Dana moved to the data platform team.");
+        await adoptStoreItems(deps, dana, "person:dana", LATER);
+      }
+      return hits;
+    };
+    const raced1 = await createPlane(deps).read(dana, { at: LATER, text: erasedOnly });
+    const after = await createPlane(deps).read(dana, { at: LATER, text: erasedOnly });
+    expect(raced1.items).toEqual([]);
+    expect(raced1.items).toEqual(after.items);
+    expect(raced1.event.item_ids).toEqual([]);
+  });
 });

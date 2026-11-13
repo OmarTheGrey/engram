@@ -54,5 +54,13 @@ describe("erasedStoreContent", () => {
     expect(erasedStoreContent(db, id(1))).toEqual(new Set([H1, H2]));
     expect(erasedStoreContent(db, id(5))).toEqual(new Set([H3]));
     for (const n of [2, 3, 4]) expect(erasedStoreContent(db, id(n))).toEqual(new Set());
+    // The store's error text comes before the clause and may echo it.
+    appendEvent(
+      db,
+      retire(6, {
+        reason: `left in the store (bad key ${LEFT_CONTENT_CLAUSE} (${H1})); ${LEFT_CONTENT_CLAUSE} (${H2})`,
+      }),
+    );
+    expect(erasedStoreContent(db, id(6))).toEqual(new Set([H2]));
   });
 });
