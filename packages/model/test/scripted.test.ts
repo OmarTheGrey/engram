@@ -1,6 +1,6 @@
 import { createModels } from "@earendil-works/pi-ai";
 import { describe, expect, test } from "vitest";
-import { scriptedPiModel } from "../../src/model/scripted.ts";
+import { scriptedPiModel } from "../src/scripted.ts";
 
 const ask = (text: string) => ({
   messages: [{ role: "user" as const, content: text, timestamp: 0 }],

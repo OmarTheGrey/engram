@@ -5,10 +5,10 @@
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { cacheKey, memoryCache } from "@engram/model";
 import { describe, expect, test } from "vitest";
 import { readRunnerConfig } from "../src/config.ts";
 import { probeContext } from "../src/gatemem-probe.ts";
-import { cacheKey, memoryCache } from "../src/model/cached.ts";
 import { runConfig, writeRunnerResult } from "../src/run.ts";
 import { EXAMPLE } from "./paths.ts";
 

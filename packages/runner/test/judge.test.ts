@@ -7,11 +7,11 @@
 import type { Api, AssistantMessage, Context, Model } from "@earendil-works/pi-ai";
 import { gatemem } from "@engram/bench";
 import { UnsupportedRequestError } from "@engram/core";
+import { type CacheEntry, type CacheStore, memoryCache } from "@engram/model";
 import { describe, expect, test } from "vitest";
 import type { LiveModels } from "../src/answers.ts";
 import { configJudge, PAPER_JUDGE_CONFIG, readRunnerConfig } from "../src/config.ts";
 import { judgeAnswer, liveJudgeCall } from "../src/judge.ts";
-import { type CacheEntry, type CacheStore, memoryCache } from "../src/model/cached.ts";
 import { runConfig } from "../src/run.ts";
 import { H1_GATEMEM, X1_GATEMEM } from "./paths.ts";
 

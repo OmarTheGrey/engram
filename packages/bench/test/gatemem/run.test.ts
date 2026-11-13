@@ -3,7 +3,7 @@ import { cpSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync }
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { fileCache, memoryCache, OfflineMissError } from "@engram/runner";
+import { fileCache, memoryCache, OfflineMissError } from "@engram/model";
 import { describe, expect, test } from "vitest";
 import { readJudgeScript, scriptedJudge } from "../../src/gatemem/judge.ts";
 import {

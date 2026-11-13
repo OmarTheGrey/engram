@@ -17,8 +17,8 @@ import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { parseArgs } from "node:util";
 import { loadPreset, PRESETS, type PresetName } from "@engram/core";
+import type { CacheEntry } from "@engram/model";
 import { builtinLiveModels } from "../src/live.ts";
-import type { CacheEntry } from "../src/model/cached.ts";
 import {
   type CallShape,
   callShape,

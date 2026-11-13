@@ -6,7 +6,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { type ModelRequest, requestHash, UnsupportedRequestError } from "@engram/core";
-import { memoryCache, OfflineMissError } from "@engram/runner";
+import { memoryCache, OfflineMissError } from "@engram/model";
 import { beforeAll, describe, expect, test } from "vitest";
 import type { ModelForItem } from "../../src/gatemem/agents.ts";
 import {

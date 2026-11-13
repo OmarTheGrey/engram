@@ -12,6 +12,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { gatemem } from "@engram/bench";
 import { loadPreset } from "@engram/core";
+import { type CacheStore, fileCache, type UsageRecord } from "@engram/model";
 import { answersFor, type LiveModels } from "./answers.ts";
 import {
   configCells,
@@ -22,7 +23,6 @@ import {
 } from "./config.ts";
 import { type ProbeResult, probeContext, runProbe } from "./gatemem-probe.ts";
 import { judgeAnswer } from "./judge.ts";
-import { type CacheStore, fileCache, type UsageRecord } from "./model/cached.ts";
 
 export type { LiveModels } from "./answers.ts";
 

@@ -7,6 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createFakeAdapter } from "@engram/adapters";
 import { allEvents, loadPreset, migrate, openSqlite, parsePolicy, presetUrl } from "@engram/core";
+import { scriptedPiModel } from "@engram/model";
 import { NO_BYPASS_ID } from "@engram/pi-extension";
 import { afterEach, describe, expect, test } from "vitest";
 import { userBash } from "../src/bash.ts";
@@ -19,7 +20,6 @@ import {
 } from "../src/conditions.ts";
 import { CONDITION_TABLE, type Condition } from "../src/config.ts";
 import { personOf, sequentialIds } from "../src/gatemem-probe.ts";
-import { scriptedPiModel } from "../src/model/scripted.ts";
 
 const AT = "2026-03-14T11:24:00.000Z";
 const SAM = personOf("billing_sam");

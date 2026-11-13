@@ -33,7 +33,7 @@
 // not ported.
 import { readFileSync } from "node:fs";
 import { type ModelCall, type ModelRequest, UnsupportedRequestError } from "@engram/core";
-import { OfflineMissError } from "@engram/runner";
+import { OfflineMissError } from "@engram/model";
 import { z } from "zod";
 import type { ModelForItem } from "./agents.ts";
 import { UntranslatableLiteral } from "./literal.ts";

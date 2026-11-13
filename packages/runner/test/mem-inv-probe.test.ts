@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { memInvBench } from "@engram/bench";
 import { loadPreset } from "@engram/core";
+import type { CacheEntry, CacheStore } from "@engram/model";
 import { describe, expect, test } from "vitest";
 import type { Condition } from "../src/config.ts";
 import { readProbeScript } from "../src/gatemem-probe.ts";
@@ -11,7 +12,6 @@ import {
   replyEnding,
   runMemInvProbe,
 } from "../src/mem-inv-probe.ts";
-import type { CacheEntry, CacheStore } from "../src/model/cached.ts";
 import { type AnswerSource, scriptedAnswers } from "../src/model/cassette.ts";
 
 const CONFIG = join(import.meta.dirname, "../../../research/configs/b4-mem-inv-probe.json");

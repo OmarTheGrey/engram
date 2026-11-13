@@ -12,7 +12,7 @@ import {
   cached,
   memoryCache,
   type UsageRecord,
-} from "@engram/runner";
+} from "@engram/model";
 import { z } from "zod";
 import { ExampleAgent, LongContextAgent, type ModelForItem } from "./agents.ts";
 import { runBenchmark } from "./harness.ts";

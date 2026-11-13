@@ -4,7 +4,7 @@
 // the same scripted responses. The port must reproduce the prompts it sent,
 // the outputs it parsed and the scores it gave.
 import { createHash } from "node:crypto";
-import { memoryCache } from "@engram/runner";
+import { memoryCache } from "@engram/model";
 import { describe, expect, test } from "vitest";
 import type { queryRequest } from "../../src/gatemem/prompt.ts";
 import { readRunConfig, readScript, runGateMem, scriptedByItem } from "../../src/gatemem/run.ts";

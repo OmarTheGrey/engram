@@ -32,6 +32,13 @@ import {
   type Policy,
   type PresetName,
 } from "@engram/core";
+import {
+  type CacheStore,
+  type CallContext,
+  cached,
+  fileCache,
+  type UsageRecord,
+} from "@engram/model";
 import { ENGRAM_EVENT, type RecallDetails, renderRecall } from "@engram/pi-extension";
 import { z } from "zod";
 import { answersFor, type LiveModels, noteAnswersFor } from "./answers.ts";
@@ -47,13 +54,6 @@ import {
   statedPreset,
 } from "./config.ts";
 import { MEMORY_BLOCK, sequentialIds } from "./gatemem-probe.ts";
-import {
-  type CacheStore,
-  type CallContext,
-  cached,
-  fileCache,
-  type UsageRecord,
-} from "./model/cached.ts";
 import { type AnswerSource, cassettePiModel } from "./model/cassette.ts";
 import { NOTE_RETRY, realSleep, type Sleep, withRetry } from "./model/retry.ts";
 import { closeStore, openStore, type StoreName } from "./stores.ts";

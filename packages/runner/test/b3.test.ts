@@ -17,6 +17,7 @@ import {
   openSqlite,
   type Policy,
 } from "@engram/core";
+import { memoryCache } from "@engram/model";
 import { afterAll, describe, expect, test } from "vitest";
 import { readRunnerConfig, STORES } from "../src/config.ts";
 import {
@@ -26,7 +27,6 @@ import {
   runProbe,
   sequentialIds,
 } from "../src/gatemem-probe.ts";
-import { memoryCache } from "../src/model/cached.ts";
 import { scriptedAnswers } from "../src/model/cassette.ts";
 import { runConfig } from "../src/run.ts";
 import { closeStore, LETTA_STORE_PREFIX, openStore } from "../src/stores.ts";

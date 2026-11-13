@@ -34,12 +34,12 @@ import {
   openSqlite,
   retrieve,
 } from "@engram/core";
+import { scriptedPiModel } from "@engram/model";
 import type { RecallDetails } from "@engram/pi-extension";
 import { afterAll, describe, expect, test } from "vitest";
 import { conditionSession, READ_LIMIT } from "../src/conditions.ts";
 import type { Condition } from "../src/config.ts";
 import { gatememMetadata, probeInputs, sequentialIds } from "../src/gatemem-probe.ts";
-import { scriptedPiModel } from "../src/model/scripted.ts";
 import { closeStore, openStore } from "../src/stores.ts";
 
 const DATA = new URL("../../../fixtures/bench/gatemem/", import.meta.url);

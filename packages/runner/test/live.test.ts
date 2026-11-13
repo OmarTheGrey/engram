@@ -18,6 +18,7 @@ import {
   fauxText,
   fauxToolCall,
 } from "@earendil-works/pi-ai";
+import { OfflineMissError } from "@engram/model";
 import { afterAll, describe, expect, test } from "vitest";
 import { readRunnerConfig } from "../src/config.ts";
 import {
@@ -27,7 +28,6 @@ import {
   replayConfig,
   replayOptions,
 } from "../src/live.ts";
-import { OfflineMissError } from "../src/model/cached.ts";
 import { runConfig } from "../src/run.ts";
 import { B3 } from "./paths.ts";
 

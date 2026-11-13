@@ -9,8 +9,8 @@ import {
   type Message,
   type Model,
 } from "@earendil-works/pi-ai";
+import { cacheKey, memoryCache, OfflineMissError } from "@engram/model";
 import { describe, expect, test } from "vitest";
-import { cacheKey, memoryCache, OfflineMissError } from "../../src/model/cached.ts";
 import {
   cassettePiModel,
   runtimeAnswers,
