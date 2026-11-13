@@ -15,8 +15,8 @@ One line per dependency: name, version, reason, licence. Added in the same PR as
 | ruff | 0.17.1 (uv.lock) | Python lint and format | MIT |
 | mypy | 2.4.0 (uv.lock) | Python type checking | MIT |
 | uv_build | >=0.10,<0.11 | build backend for the research package | MIT OR Apache-2.0 |
-| @earendil-works/pi-coding-agent | 1.3.0 | the harness the plane runs in (ADR 0001); pi-extension, and the runner's SDK sessions (card RN1) | MIT |
-| @earendil-works/pi-ai | 1.3.0 | model access and the faux provider behind the scripted model; pi-extension and runner only | MIT |
+| @earendil-works/pi-coding-agent | 1.3.0 | the harness the plane runs in (ADR 0001); pi-extension, the runner's SDK sessions (card RN1), and the pi package (card PX3; a peer dependency, the exact version for development) | MIT |
+| @earendil-works/pi-ai | 1.3.0 | model access and the faux provider behind the scripted model; pi-extension, runner and @engram/model (ADR 0033) only | MIT |
 | typebox | 1.3.27 | tool parameter schemas for pi tools, the version pi itself uses; pi-extension and the runner's ungoverned C2 and C3 tools (card RN1) | MIT |
 | zod | 4.6.7 | the schema in packages/core (ADR 0002) and its JSON Schema export; also the GateMem file loader and run config in packages/bench (card B1) and the runner config in packages/runner (card RN1) | MIT |
 | ajv | 8.20.0 | dev: validates fixtures against the generated JSON Schema (draft 2020-12) | MIT |
