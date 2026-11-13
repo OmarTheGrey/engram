@@ -4,12 +4,13 @@
 // invalid).
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { Ajv2020 } from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
 import { describe, expect, test } from "vitest";
 import { CONTRACTS, SCHEMA_VERSION, SHARED } from "../../src/schema.ts";
 
-const ROOT = new URL("../../../../", import.meta.url).pathname.replace(/^\/(\w:)/, "$1");
+const ROOT = fileURLToPath(new URL("../../../../", import.meta.url));
 const SDK = join(ROOT, "sdk", "schema");
 const FIXTURES = join(ROOT, "fixtures", "schema");
 

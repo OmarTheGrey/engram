@@ -14,9 +14,7 @@
 //
 // Utility (review finding P4-5, closed by schema version 1) counts the read
 // events that returned an item, by their `item_ids`, so a database rebuilt
-// from the log, or a log replayed elsewhere, decides a utility eviction again,
-// and so does the simulator (plane/simulate.ts, ADR 0032), which replays the
-// reads themselves.
+// from the log, or a log replayed elsewhere, decides a utility eviction again.
 import { type Actor, checkCall, InvalidCallError } from "../actor.ts";
 import type { Db } from "../db/db.ts";
 import { appendEvent, currentItems } from "../events.ts";

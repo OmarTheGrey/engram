@@ -6,12 +6,12 @@
 // of them. Nothing reads the plane's real log, projection or store: the
 // report depends only on the workload and the two policies, so it hands no
 // caller an item it could not read (invariant 1) and writes nothing a read
-// could later return. No model is called, and event ids come from a counter,
-// so the same workload gives the same report.
+// could later return. No model is called, and ids come from the step's index
+// and a counter, so the same workload gives the same report.
 //
 // Because the reads are replayed, a utility eviction is decided again from
-// the replayed reads' explanation rows, which a replay of the event log alone
-// cannot do (ADR 0025, finding P4-5).
+// the replayed reads' events, which carry their returned `item_ids` since
+// schema version 1 (ADR 0025, finding P4-5).
 import type { Actor } from "../actor.ts";
 import { InvalidCallError } from "../actor.ts";
 import type { Adapter, StoreRef } from "../adapter.ts";
@@ -70,10 +70,25 @@ function scratchStore(): Adapter {
   };
 }
 
-/** Deterministic UUIDv7s for one simulation's events: a fixed time prefix and a counter. */
-function counterIds(): () => string {
+/**
+ * Deterministic UUIDv7s for one simulation's events and promoted items: a
+ * fixed time prefix, the step's index and a counter that restarts at each
+ * step. An id depends only on the step and its place in it, not on how many
+ * events earlier steps appended, so a promotion's new item has the same id
+ * under both policies even when one of them evicted or denied more before
+ * it, and a later read returning it is not reported as changed.
+ */
+function stepIds(): { newId: () => string; startStep: (index: number) => void } {
+  let step = "0000000";
   let n = 0;
-  return () => `01900000-0000-7000-8000-${(n++).toString(16).padStart(12, "0")}`;
+  return {
+    newId: () =>
+      `01900000-${step.slice(0, 4)}-7${step.slice(4)}-8000-${(n++).toString(16).padStart(12, "0")}`,
+    startStep: (index) => {
+      step = index.toString(16).padStart(7, "0");
+      n = 0;
+    },
+  };
 }
 
 /** The outcome fields a step's events fill in. */
@@ -213,15 +228,17 @@ export async function replayWorkload(
   try {
     migrate(db);
     const reading = workload.retrieval ?? retrieval;
+    const ids = stepIds();
     const deps: PlaneDeps = {
       db,
       adapter: scratchStore(),
       policy,
-      newId: counterIds(),
+      newId: ids.newId,
       ...(reading ? { retrieval: reading } : {}),
     };
     const outcomes: StepOutcome[] = [];
     for (const [i, step] of workload.steps.entries()) {
+      ids.startStep(i);
       const actor = workload.actors[step.as] as Actor;
       outcomes.push(await runStep(deps, actor, step, i));
     }

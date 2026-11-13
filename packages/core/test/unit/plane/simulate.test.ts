@@ -182,6 +182,38 @@ describe("steps", () => {
     expect(run.outcomes[1]).toMatchObject({ op: "promote", decision: "ask", item_id: id(1) });
   });
 
+  test("a promoted item has the same id under both policies, so an earlier eviction does not mark a later read changed", async () => {
+    const member: Actor = { ...omar, memberships: ["person:omar", "team:x", "org"] };
+    const workload: Workload = {
+      id: "w",
+      actors: {
+        omar: member,
+        lea: { ...member, id: "person:lea", memberships: ["person:omar", "org"] },
+      },
+      steps: [
+        { op: "write", as: "omar", at: at(1), item: item(1, { scope: "team:x" }) },
+        { op: "write", as: "omar", at: at(2), item: item(2, { scope: "team:x" }) },
+        { ...write(3, 3, "alpha tea"), as: "omar" },
+        { op: "promote", as: "lea", at: at(4), item_id: id(3), to_scope: "org", review: true },
+        { ...read(5, "alpha"), as: "omar" },
+      ],
+    };
+    const { plane } = fresh(testPolicy());
+    const tight = testPolicy({
+      id: "tight",
+      retention: [{ scope: "team", class: "semantic", ttl: null, budget: 1, eviction: "recency" }],
+    });
+    const report = await plane.simulate(workload, tight);
+    // The candidate's budget evicts item 1 on the second write, one event more.
+    expect(report.candidate.outcomes[1]?.evicted).toEqual([id(1)]);
+    expect(report.baseline.outcomes[3]?.decision).toBe("allow");
+    expect(report.candidate.outcomes[3]?.decision).toBe("allow");
+    const promoted = report.baseline.outcomes[4]?.returned;
+    expect(promoted).toHaveLength(1);
+    expect(report.candidate.outcomes[4]?.returned).toEqual(promoted);
+    expect(report.changed.map((c) => c.step)).toEqual([1]);
+  });
+
   test("a blocked bypass replays as its bypass_blocked event under any policy (card PX2)", async () => {
     const workload: Workload = {
       id: "w",

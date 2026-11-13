@@ -53,7 +53,7 @@ Amendments made after the verification of the review fix pass, 2026-10-29 (PR 4,
 
 Amendment made by the schema version 1 PR, 2026-11-06 (branch `schema-v1`):
 
-- Finding P4-5 is closed: utility counts the read events that returned an item, by their `item_ids` (schema version 1), not the explanation rows, so a database rebuilt from the log or a log replayed elsewhere decides a utility eviction again (`packages/core/test/unit/plane/retention.test.ts`, "utility replays from the log alone"). Migration 4 filled in the ids of every older read from its explanation rows. A utility eviction's reason says how many reads returned the victim ("N reads returned it"). Counting reads is a scan of the read events, once per write that meets a utility budget; an index or a counter is left until a workload needs it.
+- Finding P4-5 is closed: utility counts the read events that returned an item, by their `item_ids` (schema version 1), not the explanation rows, so a database rebuilt from the log or a log replayed elsewhere decides a utility eviction again (`packages/core/test/unit/plane/retention.test.ts`, "utility replays from the log alone"). Migration 4 filled in the ids of every older read from its explanation rows. A utility eviction's reason says how many reads returned the victim ("N reads returned it"). Counting reads is a scan of the read events, parsing each body, once per write whose scope and class have any budget (recency or utility alike) and once per sweep; an index or a counter is left until a workload needs it.
 
 ## Alternatives considered
 

@@ -57,3 +57,11 @@ Made in the review of PR #32, 2026-11-13:
 - ADR 0025, finding P4-5 and the alternatives (utility proxy)
 - `fixtures/workspaces/inspector/workload.json`
 - `docs/log/2026-11-06-e8-9-failure-workload-of-events.md`
+
+## Amendment (2026-11-13)
+
+Amendment made in the review of PR #28 (`docs/log/2026-11-13-e8-9-review-step-ids.md`):
+
+- Decision 2's ids are not one counter over the whole replay. Each id is the step's index and a counter that restarts at each step, so it depends only on the step and its place in it. With one counter, a promotion's new item took a different id under each policy whenever an earlier step appended a different number of events (an eviction, an ask), and every later read returning that item was reported as changed although it returned the same memory.
+- A promotion's new item has a replay id, not the id the recorded run gave it, so a later step of the workload cannot name it; a promotion of a promoted item is not replayable yet.
+- Context's fourth point no longer holds after schema version 1 (PR #29): a read event carries the ids it returned, and utility counts them, so a utility eviction is decided again from the log alone too. The simulator still replays the reads, because a candidate policy may return other items than the recorded run did.
