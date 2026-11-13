@@ -3,13 +3,14 @@
 // with a `decision` log entry that cites it. OWNER_DECIDES lists any ADR left
 // for the owner to decide: ADR 0031, proposed by PR 3 of
 // docs/tasks/prereg-v1-plan.md for the lead's acceptance (ADR 0020 was the
-// last one before it), and ADR 0032, proposed by the backlog item on the bench
-// and runner import cycle.
+// last one before it), ADR 0032, reserved for card E8.9 (the simulator, PR #28),
+// and ADR 0033, proposed by the backlog item on the bench and runner import
+// cycle (numbered 0032 until 2026-11-13).
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { describe, expect, test } from "vitest";
 import { parseFrontmatter } from "../lib/frontmatter.ts";
 
-const OWNER_DECIDES = new Set<string>(["0031", "0032"]);
+const OWNER_DECIDES = new Set<string>(["0031", "0032", "0033"]);
 const ADDED_BY_ADR_0001 = ["PX1", "PX2", "PX3", "RN1", "RN2"];
 
 const roadmap = readFileSync("docs/roadmap.md", "utf8");
