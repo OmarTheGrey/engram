@@ -1,0 +1,156 @@
+{
+  "description": "Card E9.2's acceptance fixture: writes then reads through the plane under packages/pi-package/profiles/twin.yaml. Dana and Sam share team:core; Dana holds role:lead. Each write names its decision; each read, with no query so it returns everything the reader can reach, names the item numbers it must return, in any order. Grants name a class and an expiry, as the gate requires.",
+  "at": "2026-10-25T12:00:00.000Z",
+  "actors": {
+    "dana": {
+      "id": "person:dana",
+      "level": "person",
+      "memberships": [
+        "person:dana",
+        "role:lead",
+        "team:core"
+      ],
+      "source": "user"
+    },
+    "dana-agent": {
+      "id": "person:dana",
+      "level": "person",
+      "memberships": [
+        "person:dana",
+        "role:lead",
+        "team:core"
+      ],
+      "source": "model"
+    },
+    "dana-in-role": {
+      "id": "person:dana",
+      "level": "role",
+      "memberships": [
+        "person:dana",
+        "role:lead",
+        "team:core"
+      ]
+    },
+    "sam": {
+      "id": "person:sam",
+      "level": "person",
+      "memberships": [
+        "person:sam",
+        "team:core"
+      ],
+      "source": "user"
+    }
+  },
+  "writes": [
+    {
+      "n": 1,
+      "as": "dana",
+      "scope": "person:dana",
+      "content": "Dana is allergic to peanuts.",
+      "expect": "allow"
+    },
+    {
+      "n": 2,
+      "as": "dana-agent",
+      "scope": "person:dana",
+      "content": "Dana prefers short status updates.",
+      "confidence": 0.5,
+      "expect": "allow"
+    },
+    {
+      "n": 3,
+      "as": "dana",
+      "scope": "person:dana",
+      "content": "Dana's review notes for Sam are in the shared drive.",
+      "grants": [
+        {
+          "to": "person:sam",
+          "class": "semantic",
+          "mode": "read",
+          "expires": "2027-01-01T00:00:00.000Z"
+        }
+      ],
+      "expect": "allow"
+    },
+    {
+      "n": 4,
+      "as": "dana",
+      "scope": "person:dana",
+      "content": "Dana's old note for Sam about the shared drive.",
+      "grants": [
+        {
+          "to": "person:sam",
+          "class": "semantic",
+          "mode": "read",
+          "expires": "2026-10-01T00:00:00.000Z"
+        }
+      ],
+      "expect": "allow"
+    },
+    {
+      "n": 5,
+      "as": "dana",
+      "scope": "person:dana",
+      "content": "Dana lets everyone see the shared drive.",
+      "grants": [
+        {
+          "to": "person:sam",
+          "mode": "read"
+        }
+      ],
+      "expect": "deny",
+      "policy_id": "engram/write/grant"
+    },
+    {
+      "n": 6,
+      "as": "dana",
+      "scope": "role:lead",
+      "content": "The lead signs off releases in the shared drive on Fridays.",
+      "expect": "allow"
+    },
+    {
+      "n": 7,
+      "as": "dana-agent",
+      "scope": "role:lead",
+      "content": "The lead should keep the shared drive tidy.",
+      "expect": "deny",
+      "policy_id": "profile.twin/write/role"
+    },
+    {
+      "n": 8,
+      "as": "dana",
+      "scope": "role:lead",
+      "class": "episodic",
+      "content": "Dana met the shared drive vendor today.",
+      "expect": "deny",
+      "policy_id": "profile.twin/write/role"
+    }
+  ],
+  "reads": [
+    {
+      "name": "a person reads their own scope and their role",
+      "as": "dana",
+      "returns": [
+        1,
+        2,
+        3,
+        4,
+        6
+      ]
+    },
+    {
+      "name": "a cross-person read is denied: only the live grant reaches Sam",
+      "as": "sam",
+      "returns": [
+        3
+      ]
+    },
+    {
+      "name": "a role context never reads the holder's person scope",
+      "as": "dana-in-role",
+      "returns": [
+        6
+      ]
+    }
+  ]
+}
