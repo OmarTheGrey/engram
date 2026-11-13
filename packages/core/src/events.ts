@@ -12,10 +12,25 @@ const CHANGES_ITEM = new Set(["write", "update", "promote"]);
 const RETIRES_ITEM = new Set(["retire", "evict"]);
 
 /**
+ * The rule of a person-scope erasure (card E9.7, ADR 0010: the one hard
+ * deletion the plane makes). An allowed `retire` event with this policy_id
+ * removes its item from the projection, and replay removes it too, so an
+ * erased item never comes back from the log.
+ */
+export const ERASURE_ID = "engram/offboard/erase";
+
+/** The event erases its item: the projection and replay drop it (ERASURE_ID). */
+export function erases(event: MemoryEvent): boolean {
+  return event.decision === "allow" && event.op === "retire" && event.policy_id === ERASURE_ID;
+}
+
+/**
  * The projection rule, as a pure function: the state of the event's item
  * after the event, given its state before (undefined when the item is
  * unknown). The stored projection and replay (itemsAt in replay.ts) both
- * apply exactly this, so they cannot drift apart.
+ * apply exactly this, so they cannot drift apart. An erasure (`erases`) is
+ * the one event that removes an item rather than changing it; both callers
+ * check it first.
  */
 export function applyEvent(
   before: MemoryItem | undefined,
@@ -35,6 +50,10 @@ function storedItem(db: Db, id: string): MemoryItem | undefined {
 function project(db: Db, event: MemoryEvent): void {
   // checkConsistency guarantees an event carrying an item names it in item_id.
   if (!event.item_id) return;
+  if (erases(event)) {
+    db.prepare("DELETE FROM items WHERE id = ?").run(event.item_id);
+    return;
+  }
   const before = storedItem(db, event.item_id);
   const after = applyEvent(before, event);
   if (!after || after === before) return;
