@@ -54,10 +54,10 @@ describe("one client call per command, in process", () => {
     ]);
   });
 
-  it("simulate opens no log: the 501 comes before any log exists", async () => {
+  it("simulate opens no log: its scratch replay touches none", async () => {
     const home = await tempDir();
     const s = await cli(["simulate"], { home });
-    expect(s.err).toBe("engram simulate: not implemented yet (card E8.9)\n");
+    expect(s.code).toBe(0);
     const { readdir } = await import("node:fs/promises");
     expect(await readdir(home)).toEqual([]);
   });

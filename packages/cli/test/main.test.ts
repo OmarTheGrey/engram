@@ -37,10 +37,12 @@ describe("the engram binary", () => {
     expect(existsSync(join(cwd, ".engram"))).toBe(false);
   });
 
-  it("exits 2 for a command whose card has not landed", { timeout: 40_000 }, async () => {
-    const r = engram(["simulate"], await tempDir());
+  // Every command has landed (L1 and E8.9 were the last two), so exit 2 is
+  // checked on an unknown command.
+  it("exits 2 for an unknown command", { timeout: 40_000 }, async () => {
+    const r = engram(["frobnicate"], await tempDir());
     expect(r.status).toBe(2);
-    expect(r.stderr).toBe("engram simulate: not implemented yet (card E8.9)\n");
+    expect(r.stderr).toContain('unknown command "frobnicate"');
   });
 
   it("exits 1 when a write is denied", { timeout: 40_000 }, async () => {

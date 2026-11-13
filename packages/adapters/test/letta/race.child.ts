@@ -32,7 +32,7 @@ for (let n = Number(first); n < Number(first) + 8; n++) {
     lineage: [],
     status: "active",
     store_ref: null,
-    schema_version: 0,
+    schema_version: 1,
   } as MemoryItem;
   try {
     await adapter.write(item);

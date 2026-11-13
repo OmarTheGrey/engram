@@ -122,7 +122,7 @@ export async function adoptStoreItems(
       decision: "allow",
       reason,
       policy_id: ADOPT_RETRACT_ID,
-      schema_version: 0,
+      schema_version: 1,
     });
     report.retired++;
     report.retirements.push({ item_id: item.id, reason });

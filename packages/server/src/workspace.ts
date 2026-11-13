@@ -9,8 +9,8 @@
 // the store at once, so a bad flag is reported before anything else, and
 // `open()` opens and migrates the log, which a caller does before its first
 // request when it wants the log's errors printed as they are (the CLI). A
-// route whose Plane method has not landed (simulate, distill) never
-// opens it.
+// route whose Plane method has not landed (distill) never opens it, nor
+// does simulate, which replays on scratch logs of its own (card E8.9).
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -462,8 +462,8 @@ export function openLog(target: DbTarget, mustExist = false): Log {
   }
 }
 
-/** A bundled preset by name, or a policy YAML file by path. */
-export function loadPolicy(spec: string | undefined, cwd: string): Policy {
+/** A bundled preset by name, or a policy YAML file by path; `flag` names it in a usage error. */
+export function loadPolicy(spec: string | undefined, cwd: string, flag = "--policy"): Policy {
   const name = spec ?? "medium";
   if ((PRESETS as readonly string[]).includes(name)) return loadPreset(name as PresetName);
   const path = resolve(cwd, name);
@@ -472,7 +472,7 @@ export function loadPolicy(spec: string | undefined, cwd: string): Policy {
     text = readFileSync(path, "utf8");
   } catch {
     throw new UsageError(
-      `--policy ${name} is neither a preset (${PRESETS.join(", ")}) nor a readable file`,
+      `${flag} ${name} is neither a preset (${PRESETS.join(", ")}) nor a readable file`,
     );
   }
   return parsePolicy(text, name);

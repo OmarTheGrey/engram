@@ -33,7 +33,7 @@ MemoryItem
   scope           person:<id> | role:<id> | team:<id> | org
   owner           principal id
   content         text or structured payload; procedural items carry a skill body and a tool allowlist
-  provenance      { kind: user | document | tool | model | import | compaction, ref, hash, actor, session_entry_id? }
+  provenance      { kind: user | document | tool | model | import | compaction | external, ref, hash, actor, session_entry_id? }
   confidence      0..1
   valid_from, valid_to          event time; null valid_to means open
   ttl             duration | null
@@ -47,6 +47,7 @@ MemoryEvent  (append only, source of truth; item state is a projection)
   seq, ts, op (write | read | update | evict | promote | retire | lint | gate | bypass_blocked)
   item_id, actor, scope_from, scope_to, decision (allow | deny | ask), reason, policy_id
   usage? (tokens, cost) for any model call made on the plane's behalf
+  item_ids? on a read: the items it returned, in rank order (schema version 1)
 
 Policy  (typed objects, one pure evaluator; ADR 0006)
   write:      allowed source kinds per scope, confidence floor, classes forbidden per scope, requires_review per scope
@@ -92,9 +93,9 @@ Store commands are blocked in pi's `user_bash` and `tool_call` handlers wherever
 
 ## Lifecycle
 
-`candidate` to `active` to `retired` for every class. Procedural items are admitted only after replay validation passes k of n runs on held-out tasks (outcome checked, not completion); active skills carry a smoothed success rate; a drop below threshold, a changed environment hash, or a human rejection (which narrows the trigger) retires them. Retention budgets trigger `retire` events; hard deletion exists only for person-scope erasure and emits a deletion report. Retired items stay replayable and can be reinstated by event (ADR 0010, 0011).
+`candidate` to `active` to `retired` for every class. Procedural items are admitted only after replay validation passes k of n runs on held-out tasks (outcome checked, not completion); active skills carry a smoothed success rate; a drop below threshold, a changed environment hash, or a human rejection (which narrows the trigger) retires them. Retention budgets trigger `retire` events; hard deletion exists only for person-scope erasure and emits a deletion report (card E9.7: `offboard` hands the leaver's role scopes to successors, deletes the person scope's items from the store and the projection, redacts their content in the log, and appends an erasure event that replay honours). Retired items stay replayable and can be reinstated by event (ADR 0010, 0011).
 
-Retention (card E2.4, ADR 0025): the pure `evaluateRetention` decides; an item past its ttl (the tighter of its own and its rule's) is excluded at read at once (`engram/read/ttl`, counted in `filtered`) and retired by the next sweep with op `retire`; a budget overage is evicted with op `evict` in the rule's order (recency by last change, utility by how often reads returned the item, manual asks with one `evict` event of decision `ask`). `Plane.retain(actor, scope, at)` sweeps one scope as a member of it, in the write queue; it retires by ttl only in the actor's own person scope or for a user-sourced actor, so one skewed clock cannot retire shared memory. The write path runs the budget check of the written scope and class in the landing write's own queue slot, never evicting the item just written and counting no item past its ttl, and returns its events in `WriteResult.retention`. Reasons name no item to an actor who cannot read the scope. Utility counts explanation rows, which the log does not hold, so a utility eviction replays as an event but cannot be re-decided from the log. The pi extension sweeps after an allowed write and at `before_agent_start` for the session's scopes, and `engram read` before adoption; nothing runs on a timer. A `model`, `compaction` or `tool` write restating content an allowed retire or evict event retired in its scope is denied (`engram/write/retired-content`, by the normalised content hash of packages/core/src/content-hash.ts); a user, document or import write may re-admit it. The store is never written or deleted by retention.
+Retention (card E2.4, ADR 0025): the pure `evaluateRetention` decides; an item past its ttl (the tighter of its own and its rule's) is excluded at read at once (`engram/read/ttl`, counted in `filtered`) and retired by the next sweep with op `retire`; a budget overage is evicted with op `evict` in the rule's order (recency by last change, utility by how often reads returned the item, manual asks with one `evict` event of decision `ask`). `Plane.retain(actor, scope, at)` sweeps one scope as a member of it, in the write queue; it retires by ttl only in the actor's own person scope or for a user-sourced actor, so one skewed clock cannot retire shared memory. The write path runs the budget check of the written scope and class in the landing write's own queue slot, never evicting the item just written and counting no item past its ttl, and returns its events in `WriteResult.retention`. Reasons name no item to an actor who cannot read the scope. Utility counts the read events that returned an item, by their `item_ids` (schema version 1), so a utility eviction is decided again from the log alone. The pi extension sweeps after an allowed write and at `before_agent_start` for the session's scopes, and `engram read` before adoption; nothing runs on a timer. A `model`, `compaction` or `tool` write restating content an allowed retire or evict event retired in its scope is denied (`engram/write/retired-content`, by the normalised content hash of packages/core/src/content-hash.ts); a user, document or import write may re-admit it. The store is never written or deleted by retention.
 
 ## Model access
 
@@ -114,7 +115,11 @@ Plane
   promote(actor, itemId, toScope, at, {review?}) -> GateResult   evidence from the log, judged as a write into toScope; new version or in place (ADR 0026)
   retain(actor, scope, at) -> RetentionReport  expiry then budgets over one scope, as a member, in the write queue (ADR 0025)
   lint(actor, at, scope) -> LintReport     the enabled deterministic lints over one scope, as a member; one lint event per finding (card L1)
-  simulate(workload, policy) -> SimReport    replays a recorded workload or a pi session under a policy; zero model calls
+  simulate(workload, policy) -> SimReport    replays a recorded workload (actors and their write, read, retain and
+                                             promote calls) through the plane under its own policy and the candidate,
+                                             each on a scratch log and store; decisions, utility proxy (items reads
+                                             returned) and evictions per policy, the steps that differ; zero model
+                                             calls, the plane's own log and store untouched (card E8.9, ADR 0032)
   distill(sessions, method) -> MemoryItem[]  candidate procedural items
   explain(actor, readId) -> Explanation[]    to the actor who made the read only
 
@@ -129,10 +134,10 @@ Surfaces
                  tool definitions and memory tag; engram hook claude-code, a PreToolUse hook that blocks bypasses
   HTTP           packages/server, a Hono app over one route table (ADR 0027): /api/v1/items, /items/check, /read,
                  /explain/{readId}, /promote, /retain, /events (visibleEvents), /policy, /lint, /simulate,
-                 /distill (501 naming E8.9, D2), /bypass, /viewer, /health; a decision is 200 with its event;
+                 /distill (501 naming D2), /bypass, /viewer, /health; a decision is 200 with its event;
                  loopback Host and Origin only, JSON bodies only, no CORS, 1 MiB bodies; OpenAPI generated
                  into sdk/openapi.json, the client into sdk/ts and packages/ui/src/api
-  CLI            engram write | read | promote | explain | retain | lint | simulate, each one client call, in
+  CLI            engram write | read | promote | explain | retain | lint | simulate (--candidate), each one client call, in
                  process over app.fetch or to --server; engram serve | mcp | hook claude-code | doctor
   UI             inspector at / of engram serve, as one viewer: lanes by scope (a Plane.read), timeline (visibleEvents), explain with the read's counts (v0, E8.5 and E8.6); later diff, findings, review queue, live session via pi RPC
 ```

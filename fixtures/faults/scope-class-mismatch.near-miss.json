@@ -117,7 +117,7 @@
       ],
       "thresholds": {}
     },
-    "schema_version": 0
+    "schema_version": 1
   },
   "actor": {
     "id": "person:dana",
@@ -165,11 +165,11 @@
           "adapter": "fake",
           "key": "01950000-0000-7000-8000-000000000001"
         },
-        "schema_version": 0,
+        "schema_version": 1,
         "class": "episodic",
         "content": "fault fixture fact 1"
       },
-      "schema_version": 0
+      "schema_version": 1
     },
     {
       "id": "01950000-0000-7000-8000-000000900002",
@@ -205,11 +205,11 @@
           "adapter": "fake",
           "key": "01950000-0000-7000-8000-000000000002"
         },
-        "schema_version": 0,
+        "schema_version": 1,
         "class": "semantic",
         "content": "fault fixture fact 2"
       },
-      "schema_version": 0
+      "schema_version": 1
     }
   ],
   "flags": []

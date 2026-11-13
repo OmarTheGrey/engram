@@ -115,7 +115,7 @@
       ],
       "thresholds": {}
     },
-    "schema_version": 0
+    "schema_version": 1
   },
   "actor": {
     "id": "person:dana",
@@ -163,11 +163,11 @@
           "adapter": "fake",
           "key": "01950000-0000-7000-8000-000000000001"
         },
-        "schema_version": 0,
+        "schema_version": 1,
         "class": "semantic",
         "content": "The release freeze starts on Friday."
       },
-      "schema_version": 0
+      "schema_version": 1
     },
     {
       "id": "01950000-0000-7000-8000-000000900002",
@@ -203,11 +203,11 @@
           "adapter": "fake",
           "key": "01950000-0000-7000-8000-000000000002"
         },
-        "schema_version": 0,
+        "schema_version": 1,
         "class": "semantic",
         "content": "The release freeze starts on Friday."
       },
-      "schema_version": 0
+      "schema_version": 1
     },
     {
       "id": "01950000-0000-7000-8000-000000900003",
@@ -243,11 +243,11 @@
           "adapter": "fake",
           "key": "01950000-0000-7000-8000-000000000003"
         },
-        "schema_version": 0,
+        "schema_version": 1,
         "class": "episodic",
         "content": "The release freeze starts on Friday."
       },
-      "schema_version": 0
+      "schema_version": 1
     },
     {
       "id": "01950000-0000-7000-8000-000000900004",
@@ -283,11 +283,11 @@
           "adapter": "fake",
           "key": "01950000-0000-7000-8000-000000000004"
         },
-        "schema_version": 0,
+        "schema_version": 1,
         "class": "semantic",
         "content": "the release freeze starts on friday."
       },
-      "schema_version": 0
+      "schema_version": 1
     }
   ],
   "flags": []

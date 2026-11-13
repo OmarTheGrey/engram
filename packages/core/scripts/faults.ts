@@ -82,7 +82,7 @@ export const WRITE_POLICY: Policy = {
     procedural: { replay_k: 4, replay_n: 5 },
   },
   lints: { enabled: [], thresholds: {} },
-  schema_version: 0,
+  schema_version: 1,
 };
 
 function item(n: number, over: Partial<MemoryItem> = {}): MemoryItem {
@@ -102,7 +102,7 @@ function item(n: number, over: Partial<MemoryItem> = {}): MemoryItem {
     lineage: [],
     status: "active",
     store_ref: null,
-    schema_version: 0,
+    schema_version: 1,
     ...over,
   } as MemoryItem;
 }

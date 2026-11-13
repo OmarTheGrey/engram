@@ -115,7 +115,7 @@
       ],
       "thresholds": {}
     },
-    "schema_version": 0
+    "schema_version": 1
   },
   "actor": {
     "id": "person:dana",
@@ -163,11 +163,11 @@
           "adapter": "fake",
           "key": "01950000-0000-7000-8000-000000000001"
         },
-        "schema_version": 0,
+        "schema_version": 1,
         "class": "semantic",
         "content": "fault fixture fact 1"
       },
-      "schema_version": 0
+      "schema_version": 1
     },
     {
       "id": "01950000-0000-7000-8000-000000900002",
@@ -181,7 +181,7 @@
       "decision": "allow",
       "reason": "item 01950000-0000-7000-8000-000000000001 expired at 2026-11-01T00:01:00Z (valid_from 2026-11-01T00:00:00Z plus ttl 60s, from the item's own ttl); retired, kept in the log and the store",
       "policy_id": "engram/retention/item-ttl",
-      "schema_version": 0
+      "schema_version": 1
     },
     {
       "id": "01950000-0000-7000-8000-000000900003",
@@ -217,11 +217,11 @@
           "adapter": "fake",
           "key": "01950000-0000-7000-8000-000000000002"
         },
-        "schema_version": 0,
+        "schema_version": 1,
         "class": "semantic",
         "content": "fault fixture fact 2"
       },
-      "schema_version": 0
+      "schema_version": 1
     },
     {
       "id": "01950000-0000-7000-8000-000000900004",
@@ -259,11 +259,11 @@
           "adapter": "fake",
           "key": "01950000-0000-7000-8000-000000000003"
         },
-        "schema_version": 0,
+        "schema_version": 1,
         "class": "semantic",
         "content": "fault fixture fact 3"
       },
-      "schema_version": 0
+      "schema_version": 1
     }
   ],
   "flags": [

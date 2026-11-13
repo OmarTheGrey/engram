@@ -82,7 +82,7 @@ const item = (n: number, patch: Partial<MemoryItem> = {}): MemoryItem =>
     lineage: [],
     status: "active",
     store_ref: null,
-    schema_version: 0,
+    schema_version: 1,
     ...patch,
   }) as MemoryItem;
 
@@ -134,7 +134,7 @@ describe("Claude Code memory files without Engram metadata", () => {
       lineage: [],
       status: "active",
       store_ref: { adapter: "files", key: "user_role.md" },
-      schema_version: 0,
+      schema_version: 1,
     });
   });
 

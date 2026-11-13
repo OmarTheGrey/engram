@@ -6,8 +6,9 @@
 // the read filter and explanations (card E2.2, plane/read.ts), both deciding
 // through the pure evaluator in policy/evaluate.ts, retention (card E2.4,
 // plane/retention.ts) through policy/retention.ts, and promotion (card E2.5,
-// plane/promote.ts) through policy/promotion.ts, and the deterministic lints
-// (card L1, plane/lint.ts) through lint/det.ts. Methods whose cards have
+// plane/promote.ts) through policy/promotion.ts, the deterministic lints
+// (card L1, plane/lint.ts) through lint/det.ts, and the simulator (card
+// E8.9, plane/simulate.ts) over all of them. Methods whose cards have
 // not landed reject with NotImplementedYet, naming the card that implements them.
 import type { Actor } from "./actor.ts";
 import type { Adapter } from "./adapter.ts";
@@ -22,6 +23,7 @@ import { type LintReport, lint } from "./plane/lint.ts";
 import { promote } from "./plane/promote.ts";
 import { filteredRead, storedExplanations } from "./plane/read.ts";
 import { retain } from "./plane/retention.ts";
+import { simulate } from "./plane/simulate.ts";
 import { checkWrite, gatedWrite } from "./plane/write.ts";
 import type { Explanation, MemoryEvent, MemoryItem, Policy } from "./schema.ts";
 import type { SimReport, Workload } from "./simulate.ts";
@@ -41,6 +43,15 @@ export {
   MAX_ATTEMPT_LENGTH,
 } from "./plane/bypass.ts";
 export { LINT_MEMBERSHIP_ID, type LintReport } from "./plane/lint.ts";
+export {
+  type DeletionReport,
+  HANDOVER_ID,
+  OFFBOARD_MEMBERSHIP_ID,
+  OFFBOARD_REPORT_ID,
+  type OffboardRequest,
+  offboard,
+  REDACTED,
+} from "./plane/offboard.ts";
 export { inWriteQueue, NestedWriteQueueError } from "./plane/queue.ts";
 export {
   formatReadReason,
@@ -49,6 +60,7 @@ export {
   readCounts,
 } from "./plane/read-reason.ts";
 export { enforceBudget, retentionUsage } from "./plane/retention.ts";
+export { checkWorkload, runWorkload, SIMULATION_STORE } from "./plane/simulate.ts";
 export { retiredContent } from "./plane/write.ts";
 
 export interface ReadQuery {
@@ -199,12 +211,18 @@ export interface Plane {
    * changes no item. The actor must be able to read the scope (a member
    * whose level the read matrix lets read it), else one deny event
    * (`engram/lint/membership`); an item outside the scope that a finding
-   * would name counts as absent unless the actor could read it at `at`. Runs in the write queue. An invalid
-   * actor, time or scope is refused with InvalidCallError before the log is
-   * touched.
+   * would name counts as absent unless the actor could read it at `at`.
+   * Runs in the write queue. An invalid actor, time or scope is refused with
+   * InvalidCallError before the log is touched.
    */
   lint(actor: Actor, at: string, scope: string): Promise<LintReport>;
-  /** Replays a recorded workload under a candidate policy; zero model calls, no store I/O. */
+  /**
+   * Replays a recorded workload under this plane's policy and under a
+   * candidate one (card E8.9), each on a scratch log and store: decisions,
+   * the utility proxy and evictions per policy, and the steps that differ.
+   * Never reads or writes this plane's log or store, and calls no model. An
+   * invalid workload is refused with InvalidCallError.
+   */
   simulate(workload: Workload, policy: Policy): Promise<SimReport>;
   /** Candidate procedural items induced from sessions. */
   distill(sessions: Session[], method: DistillMethod): Promise<MemoryItem[]>;
@@ -266,9 +284,7 @@ export function createPlane(deps: PlaneDeps): Plane {
     promote: async (actor, itemId, toScope, at, options) =>
       promote(deps, actor, itemId, toScope, at, options),
     lint: async (actor, at, scope) => lint(deps, actor, at, scope),
-    simulate: async () => {
-      throw new NotImplementedYet("simulate", "E8.9");
-    },
+    simulate: (workload, policy) => simulate(deps, workload, policy),
     distill: async () => {
       throw new NotImplementedYet("distill", "D2");
     },

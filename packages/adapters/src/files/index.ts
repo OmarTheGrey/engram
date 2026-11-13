@@ -300,7 +300,7 @@ export function createFilesAdapter(options: FilesAdapterOptions): FilesAdapter {
       lineage: [],
       status: "active",
       store_ref: { adapter: name, key },
-      schema_version: 0,
+      schema_version: 1,
     };
   }
 

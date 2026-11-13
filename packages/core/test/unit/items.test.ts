@@ -35,7 +35,7 @@ function item(n: number, over: Partial<MemoryItem> = {}): MemoryItem {
     lineage: [],
     status: "active",
     store_ref: { adapter: "fake", key: `k${n}` },
-    schema_version: 0,
+    schema_version: 1,
     ...over,
   } as MemoryItem;
 }
@@ -54,7 +54,7 @@ function put(db: Db, it: MemoryItem, op: "write" | "update" | "promote" = "write
     reason: "allowed",
     policy_id: "p/write",
     item: it,
-    schema_version: 0,
+    schema_version: 1,
   });
 }
 
@@ -70,7 +70,7 @@ function retire(db: Db, itemId: string) {
     decision: "allow",
     reason: "superseded",
     policy_id: "p/retire",
-    schema_version: 0,
+    schema_version: 1,
   });
 }
 

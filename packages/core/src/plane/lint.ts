@@ -74,7 +74,7 @@ function run(deps: PlaneDeps, actor: Actor, at: string, scope: string): LintRepo
     actor: actor.id,
     scope_from: null,
     scope_to: scope,
-    schema_version: 0 as const,
+    schema_version: 1 as const,
   };
   if (!readableScope(policy, actor, scope)) {
     const denied = appendEvent(db, {
@@ -112,7 +112,7 @@ function run(deps: PlaneDeps, actor: Actor, at: string, scope: string): LintRepo
         reason: `${f.lint_id} (${f.severity}): ${f.message}; evidence: ${f.evidence.join("; ")}`,
         policy_id: `${policy.id}/lint/${f.lint_id}`,
       });
-      const finding: LintFinding = { id, ...f, tier: "deterministic", schema_version: 0 };
+      const finding: LintFinding = { id, ...f, tier: "deterministic", schema_version: 1 };
       return { event, finding };
     }),
   );

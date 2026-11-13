@@ -15,11 +15,12 @@ import {
   type MemoryEvent,
   type MemoryItem,
   Scope,
+  type SimReport,
 } from "@engram/core";
 import { type Connection, connect, result } from "./connect.ts";
-import { decisionLines, explanationLines, plural, preview } from "./format.ts";
+import { decisionLines, explanationLines, plural, preview, simulationLines } from "./format.ts";
 import type { Io } from "./run.ts";
-import { buildActor, checkNumber, checkTime, MEMORY_DB, UsageError } from "./setup.ts";
+import { buildActor, checkNumber, checkTime, loadPolicy, MEMORY_DB, UsageError } from "./setup.ts";
 
 type Options = NonNullable<ParseArgsConfig["options"]>;
 
@@ -314,7 +315,7 @@ export async function writeCommand(args: string[], io: Io): Promise<number> {
     valid_from: validFrom ?? base.valid_from ?? at,
     valid_to: validTo ?? base.valid_to ?? null,
     store_ref: null,
-    schema_version: 0,
+    schema_version: 1,
   };
 
   const { conn } = session(io, values, { requireStore: true }, () => actor);
@@ -516,7 +517,13 @@ export async function lintCommand(args: string[], io: Io): Promise<number> {
   }
 }
 
-/** `engram simulate [--workload <events.json>]`: one simulate call; 501 naming card E8.9 until it lands. */
+/**
+ * `engram simulate [--workload <workload.json>] [--policy <baseline>] [--candidate <policy>]`:
+ * one simulate call. The baseline is the workspace's policy; the candidate is
+ * sent in the request, loaded here like --policy (a preset or a file), so
+ * with --server the server's own policy is the baseline. Prints the
+ * comparison, or the report with --json; exit 0.
+ */
 export async function simulateCommand(args: string[], io: Io): Promise<number> {
   const { values } = parse(
     args,
@@ -525,11 +532,12 @@ export async function simulateCommand(args: string[], io: Io): Promise<number> {
       policy: STORE_OPTIONS.policy,
       json: STORE_OPTIONS.json,
       workload: { type: "string" },
+      candidate: { type: "string" },
       ...CLIENT_OPTIONS,
     },
     false,
   );
-  let workload: { id: string; events: unknown[] } = { id: "empty", events: [] };
+  let workload: unknown = { id: "empty", actors: {}, steps: [] };
   if (values.workload !== undefined) {
     try {
       workload = JSON.parse(readFileSync(resolve(io.cwd, values.workload), "utf8"));
@@ -537,13 +545,25 @@ export async function simulateCommand(args: string[], io: Io): Promise<number> {
       throw new UsageError(`--workload ${values.workload}: ${(e as Error).message}`);
     }
   }
+  const candidate =
+    values.candidate === undefined
+      ? undefined
+      : loadPolicy(values.candidate, io.cwd, "--candidate");
   const flags = { db: values.db, policy: values.policy, server: values.server };
   const conn = connect(io, flags, workspaceOf(flags, false), undefined);
   try {
-    const answer = result(
-      await conn.client.POST("/api/v1/simulate", { body: { workload: workload as never } }),
+    const report = result(
+      await conn.client.POST("/api/v1/simulate", {
+        body: { workload: workload as never, ...(candidate ? { policy: candidate } : {}) },
+      }),
     );
-    io.out(`${JSON.stringify(answer, null, 2)}\n`);
+    // The report is typed by core's SimReport (card E8.9); the client's copy is its JSON Schema.
+    const typed = report as unknown as SimReport;
+    io.out(
+      values.json
+        ? `${JSON.stringify(typed, null, 2)}\n`
+        : `${simulationLines(typed).join("\n")}\n`,
+    );
     return 0;
   } finally {
     conn.close();

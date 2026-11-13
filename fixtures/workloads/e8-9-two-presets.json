@@ -1,0 +1,230 @@
+{
+  "id": "e8-9-two-presets",
+  "description": "Card E8.9's acceptance workload: two people sharing team:core, user writes at confidences that fall between the presets' floors, a model-written note, an episodic item a 30-day ttl expires and a 90-day one keeps, a sweep forty days on, and reads that show what each preset leaves to recall. Replayed by engram simulate under two presets.",
+  "actors": {
+    "dana": {
+      "id": "person:dana",
+      "level": "person",
+      "memberships": [
+        "person:dana",
+        "team:core",
+        "org"
+      ],
+      "source": "user"
+    },
+    "dana-agent": {
+      "id": "person:dana",
+      "level": "person",
+      "memberships": [
+        "person:dana",
+        "team:core",
+        "org"
+      ],
+      "source": "model"
+    },
+    "sam": {
+      "id": "person:sam",
+      "level": "person",
+      "memberships": [
+        "person:sam",
+        "team:core",
+        "org"
+      ],
+      "source": "user"
+    }
+  },
+  "steps": [
+    {
+      "op": "write",
+      "as": "dana",
+      "at": "2026-10-01T09:00:00.000Z",
+      "item": {
+        "id": "01950000-0000-7000-8000-000000000001",
+        "class": "semantic",
+        "scope": "person:dana",
+        "owner": "person:dana",
+        "content": "Dana prefers tea in the morning.",
+        "provenance": {
+          "kind": "user",
+          "ref": "fixture/e8-9",
+          "hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "actor": "person:dana"
+        },
+        "confidence": 0.6,
+        "valid_from": "2026-10-01T09:00:00.000Z",
+        "valid_to": null,
+        "ttl": null,
+        "grants": [],
+        "version": 1,
+        "lineage": [],
+        "status": "active",
+        "store_ref": null,
+        "schema_version": 1
+      }
+    },
+    {
+      "op": "write",
+      "as": "dana",
+      "at": "2026-10-01T09:05:00.000Z",
+      "item": {
+        "id": "01950000-0000-7000-8000-000000000002",
+        "class": "semantic",
+        "scope": "team:core",
+        "owner": "person:dana",
+        "content": "The release freeze starts on Friday.",
+        "provenance": {
+          "kind": "user",
+          "ref": "fixture/e8-9",
+          "hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "actor": "person:dana"
+        },
+        "confidence": 0.75,
+        "valid_from": "2026-10-01T09:05:00.000Z",
+        "valid_to": null,
+        "ttl": null,
+        "grants": [],
+        "version": 1,
+        "lineage": [],
+        "status": "active",
+        "store_ref": null,
+        "schema_version": 1
+      }
+    },
+    {
+      "op": "write",
+      "as": "dana",
+      "at": "2026-10-01T09:10:00.000Z",
+      "item": {
+        "id": "01950000-0000-7000-8000-000000000003",
+        "class": "semantic",
+        "scope": "org",
+        "owner": "person:dana",
+        "content": "Expense reports are due on the fifth.",
+        "provenance": {
+          "kind": "user",
+          "ref": "fixture/e8-9",
+          "hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "actor": "person:dana"
+        },
+        "confidence": 0.85,
+        "valid_from": "2026-10-01T09:10:00.000Z",
+        "valid_to": null,
+        "ttl": null,
+        "grants": [],
+        "version": 1,
+        "lineage": [],
+        "status": "active",
+        "store_ref": null,
+        "schema_version": 1
+      }
+    },
+    {
+      "op": "write",
+      "as": "dana",
+      "at": "2026-10-01T09:15:00.000Z",
+      "item": {
+        "id": "01950000-0000-7000-8000-000000000004",
+        "class": "episodic",
+        "scope": "person:dana",
+        "owner": "person:dana",
+        "content": "Dana met the auditors this morning.",
+        "provenance": {
+          "kind": "user",
+          "ref": "fixture/e8-9",
+          "hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "actor": "person:dana"
+        },
+        "confidence": 0.9,
+        "valid_from": "2026-10-01T09:15:00.000Z",
+        "valid_to": null,
+        "ttl": null,
+        "grants": [],
+        "version": 1,
+        "lineage": [],
+        "status": "active",
+        "store_ref": null,
+        "schema_version": 1
+      }
+    },
+    {
+      "op": "write",
+      "as": "dana-agent",
+      "at": "2026-10-01T09:20:00.000Z",
+      "item": {
+        "id": "01950000-0000-7000-8000-000000000005",
+        "class": "semantic",
+        "scope": "person:dana",
+        "owner": "person:dana",
+        "content": "Dana might move to the platform team.",
+        "provenance": {
+          "kind": "model",
+          "ref": "fixture/e8-9",
+          "hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "actor": "person:dana"
+        },
+        "confidence": 0.4,
+        "valid_from": "2026-10-01T09:20:00.000Z",
+        "valid_to": null,
+        "ttl": null,
+        "grants": [],
+        "version": 1,
+        "lineage": [],
+        "status": "active",
+        "store_ref": null,
+        "schema_version": 1
+      }
+    },
+    {
+      "op": "write",
+      "as": "sam",
+      "at": "2026-10-02T10:00:00.000Z",
+      "item": {
+        "id": "01950000-0000-7000-8000-000000000006",
+        "class": "semantic",
+        "scope": "team:core",
+        "owner": "person:sam",
+        "content": "Sam owns the deploy checklist for the release.",
+        "provenance": {
+          "kind": "user",
+          "ref": "fixture/e8-9",
+          "hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "actor": "person:sam"
+        },
+        "confidence": 0.9,
+        "valid_from": "2026-10-02T10:00:00.000Z",
+        "valid_to": null,
+        "ttl": null,
+        "grants": [],
+        "version": 1,
+        "lineage": [],
+        "status": "active",
+        "store_ref": null,
+        "schema_version": 1
+      }
+    },
+    {
+      "op": "read",
+      "as": "sam",
+      "at": "2026-10-02T11:00:00.000Z",
+      "text": "release freeze deploy"
+    },
+    {
+      "op": "read",
+      "as": "dana",
+      "at": "2026-10-02T11:05:00.000Z",
+      "text": "expense reports"
+    },
+    {
+      "op": "retain",
+      "as": "dana",
+      "at": "2026-11-10T09:00:00.000Z",
+      "scope": "person:dana"
+    },
+    {
+      "op": "read",
+      "as": "dana",
+      "at": "2026-11-10T09:05:00.000Z",
+      "text": "dana auditors tea platform"
+    }
+  ]
+}

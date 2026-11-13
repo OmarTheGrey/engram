@@ -66,6 +66,7 @@ engram read --root <dir> --owner <id>   a memory folder through the plane, adopt
 engram write | read | promote | explain | retain | lint | simulate   each one call of the generated client: in process over the workspace its flags name, or to the server --server <url> (or ENGRAM_SERVER_URL) names
 engram retain --scope <scope>  sweep one scope's retention as a user-sourced member: expired items retired, budgets enforced
 engram lint --scope <scope>    the policy's enabled deterministic lints over one scope as a member who may read it (the read matrix applies, as for read); each finding one lint event with its reason; exit 1 on a finding
+engram simulate --workload <file> --policy <baseline> --candidate <policy>   replay a recorded workload (actors and calls) under both policies on scratch logs and stores; prints decisions, the utility proxy and evictions side by side, --json for the report
 engram serve [--host 127.0.0.1] [--port 7313] [--as <id> --member <scope>]   the HTTP API on loopback only (no authentication yet), over the workspace flags; --as names the inspector's viewer
 engram mcp --as <id> --member <scope>   the MCP server over stdio for Claude Code and Codex, every call as that actor with source model; --http <port> serves streamable HTTP on loopback
 engram hook claude-code --root <dir>   a Claude Code PreToolUse hook: denies a Bash command naming a store and a file tool inside a store root, recording each block
