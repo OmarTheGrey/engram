@@ -1,0 +1,29 @@
+{
+  "key": "a0a0c4d49eff529a2ca1509bb4f01937f884a1dfb72c0d86ffef9b78b38c19a2",
+  "context": {
+    "item": "longmemeval/f4f1d8a4_abs",
+    "condition": "C2:judge",
+    "preset": "none",
+    "store": "fake"
+  },
+  "request": {
+    "model": "scripted/judge-1",
+    "messages": [
+      {
+        "role": "user",
+        "content": "I will give you an unanswerable question, an explanation, and a response from a model. Please answer yes if the model correctly identifies the question as unanswerable. The model could say that the information is incomplete, or some other information is given but the asked information is not.\n\nQuestion: What did my dad gave me as a birthday gift?\n\nExplanation: You did not mention this information. You mentioned receiving a birthday gift from your sister, but not your dad.\n\nModel Response: The chat history does not say, so I cannot answer that.\n\nDoes the model correctly identify the question as unanswerable? Answer yes or no only."
+      }
+    ],
+    "seed": 1,
+    "temperature": 0,
+    "maxTokens": 10
+  },
+  "response": {
+    "text": "yes",
+    "usage": {
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "cost_usd": 0
+    }
+  }
+}

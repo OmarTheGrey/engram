@@ -1,0 +1,20 @@
+{
+  "name": "b5-longmemeval-plane",
+  "kind": "pipeline",
+  "benchmark": "longmemeval",
+  "data": "../../fixtures/bench/longmemeval",
+  "items": ["66f24dbb", "3d86fd0a", "0f05491a", "f4f1d8a4_abs"],
+  "conditions": ["C2", "C5"],
+  "model": "scripted/scripted-1",
+  "seeds": [1],
+  "preset": "medium",
+  "store": ["fake", "mem0", "letta"],
+  "script": "../../fixtures/bench/longmemeval/script.json",
+  "cassettes": "../../fixtures/cassettes/b5-longmemeval-plane",
+  "judge": {
+    "model": "scripted/judge-1",
+    "temperature": 0,
+    "max_tokens": 10,
+    "script": "../../fixtures/bench/longmemeval/judge-script.json"
+  }
+}

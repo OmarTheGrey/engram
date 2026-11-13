@@ -52,6 +52,12 @@ import {
   replayOptions,
 } from "../src/live.ts";
 import {
+  isLongMemEvalConfig,
+  readLongMemEvalConfig,
+  runLongMemEvalConfig,
+  writeLongMemEvalResult,
+} from "../src/longmemeval-probe.ts";
+import {
   isMemInvConfig,
   type MemInvRunnerConfig,
   readMemInvConfig,
@@ -116,8 +122,55 @@ function eventCounts(events: readonly { op: string; decision: string }[]): strin
   return [...counts].map(([k, n]) => `${k} ${n}`).join(", ");
 }
 
+/**
+ * A LongMemEval config (card B5, the engineering half): replayed from its
+ * cassettes or recorded from its script. Its live baseline waits for the
+ * pre-registration, so --live, --replay and --count are refused for it.
+ */
+async function runLongMemEval(path: string, out: string, flags: Flags): Promise<Outcome> {
+  if (flags.live || flags.replay || flags.count) {
+    console.error(
+      "run.ts: a LongMemEval config runs offline from its cassettes or with --record only; its live baseline (card B5) waits for the pre-registration",
+    );
+    return FAILED;
+  }
+  const config = readLongMemEvalConfig(path);
+  if (config.kind === "experiment") {
+    console.error(
+      `run.ts: ${config.name} is an experiment config; no LongMemEval experiment is registered`,
+    );
+    return FAILED;
+  }
+  const result = await runLongMemEvalConfig(config, { offline: !flags.record });
+  writeLongMemEvalResult(result, out);
+  const items = config.items === "all" ? "all" : `${config.items.length}`;
+  const lines = [
+    `${config.name}: ${result.rows.length} sessions (${items} items x ${config.conditions.join(", ")} x stores ${configStores(config).join(", ")} x seeds ${config.seeds.join(", ")}), model ${config.model}, preset ${config.preset}`,
+    `model calls: ${result.calls.new} new, ${result.calls.cached} from cassettes`,
+    ...result.rows.map((r) => {
+      const writes = Object.entries(r.writes)
+        .map(([d, n]) => `${d} ${n}`)
+        .join(", ");
+      return `  ${r.condition} ${r.store} seed ${r.seed} ${r.question_id} (${r.category}): writes ${writes}, stored ${r.stored}, ${r.read.length} reads, judge ${r.judge ? r.judge.label : "none"}, ${r.decisions.length} session decisions`;
+    }),
+    ...Object.entries(result.summary).map(
+      ([k, s]) =>
+        `  ${k}: ${s.judged} of ${s.sessions} judged, overall ${s.breakdown.overall.accuracy ?? "n/a"}, task-averaged ${s.breakdown.task_averaged ?? "n/a"} over ${s.breakdown.types_present} types`,
+    ),
+    runFooter(
+      config.kind,
+      false,
+      config.judge ? "the answer judge" : "no judge; the config names none",
+    ),
+    `written to ${out}`,
+  ];
+  console.log(lines.join("\n"));
+  return { code: 0, sessions: result.rows.length, calls: result.calls };
+}
+
 /** Run, replay, record or count one config into `out`. */
 async function runOne(path: string, out: string, flags: Flags): Promise<Outcome> {
+  if (isLongMemEvalConfig(path)) return runLongMemEval(path, out, flags);
   const read = readAnyConfig(path);
   let config: AnyRunnerConfig = "gatemem" in read ? read.gatemem : read.memInv;
   const named = flags.live || flags.replay;
