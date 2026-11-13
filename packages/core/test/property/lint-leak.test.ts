@@ -54,11 +54,13 @@ const arbWorld = fc
   .integer({ min: 2, max: 8 })
   .chain((n) => fc.array(arbSeed(n), { minLength: n, maxLength: n }));
 
+type Seed = ReturnType<typeof arbSeed> extends fc.Arbitrary<infer T> ? T : never;
+
 let next = 0;
 const eventId = () => id(700_000 + ++next);
 
 /** Writes the world straight into a fresh log (the gate is not under test), then lints it. */
-async function lintedWorld(world: fc.RecordValue<ReturnType<typeof arbSeed>>[]) {
+async function lintedWorld(world: Seed[]) {
   const env = fresh(testPolicy({ lints: { enabled: [...LINTS], thresholds: {} } }));
   const append = (it: MemoryItem) =>
     appendEvent(env.db, {
