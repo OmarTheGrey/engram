@@ -20,6 +20,15 @@
 // an item whose last write was denied with the same hash, so a denied item is
 // not re-gated on every read.
 //
+// Refused, with one deny event (policy_id engram/adopt/erased) naming no
+// content: the record an offboarding erased and left in a store that refuses
+// the plane's delete, under that item's id, while it holds the erased content
+// up to the merging form (case, width and invisible characters do not make it
+// new; events.ts erasedStoreContent; ADR 0010, rechecks of PR #41). It is decided in the
+// write queue, so an adoption queued behind an offboarding sees its erase
+// events. Edited content, or another person's different file, adopts as any
+// other record does.
+//
 // Retracted, with one retire event (policy_id engram/adopt/retract): a
 // projected item of this store and scope the store no longer lists, and a
 // projected item whose store version the gate just denied. So the plane never
@@ -32,12 +41,16 @@
 // it unchanged.
 import { createHash } from "node:crypto";
 import type { Actor } from "../actor.ts";
-import { appendEvent, currentItems, eventsByItem } from "../events.ts";
+import { mergingContentHash } from "../content-hash.ts";
+import { appendEvent, currentItems, erasedStoreContent, eventsByItem } from "../events.ts";
 import { itemById } from "../items.ts";
 import type { PlaneDeps } from "../plane.ts";
 import type { MemoryEvent, MemoryItem } from "../schema.ts";
 import { inWriteQueue } from "./queue.ts";
 import { gatedWrite, withPlaneProvenance } from "./write.ts";
+
+/** The policy_id of an adoption refused because the record holds content erased at offboarding. */
+export const ADOPT_ERASED_ID = "engram/adopt/erased";
 
 /** The policy_id of a retire adoption appends when the store no longer has what the plane holds. */
 export const ADOPT_RETRACT_ID = "engram/adopt/retract";
@@ -154,6 +167,13 @@ export async function adoptStoreItems(
       ref: item.store_ref,
       prefix,
       suffix: note,
+      refuse: (candidate) =>
+        erasedStoreContent(db, candidate.id).has(mergingContentHash(candidate.content))
+          ? {
+              reason: `the store's record of item ${candidate.id} holds content erased at an offboarding and left in the store; it is not adopted again until it changes`,
+              policy_id: ADOPT_ERASED_ID,
+            }
+          : null,
     });
     report.evictions.push(...retention);
     if (event.decision === "allow") {

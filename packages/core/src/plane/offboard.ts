@@ -20,11 +20,31 @@
 // events themselves, their ids, decisions and reasons stay, so the audit
 // trail of what was decided is kept without what was remembered. A store ref
 // that an item outside the person scope also holds is not deleted, and the
-// report says so (review of PR #33).
+// report says so (review of PR #33). A lint event (card L1) carries its item
+// by id only and its evidence in `reason`, so the reason of every lint event
+// about an erased item, or whose evidence names one or its content hash, is
+// redacted too, keeping its lint id, severity and rule (post-merge review of
+// 2026-11-13). Each erase event says what happened to its item in the store:
+// deleted, kept because an item outside the person scope holds the same
+// ref, or there was no store record.
 //
 // A store failure while handing a role over is denied with one event
 // (`engram/write/store-failure`) and thrown before anything is erased;
 // offboarding again completes it, since what moved is no longer the leaver's.
+// A transient store failure while deleting an item's ref leaves that item
+// unerased: it stays in the projection, unredacted, with one deny event under
+// the same rule naming it, and the report lists it under store_failures;
+// offboarding again once the store recovers erases it. The others are erased.
+// A permanent refusal (NotDeletableError, adapter.ts: a record the store
+// never lets the plane delete, such as a memory file Engram did not write)
+// does not hold the item back, since no rerun would succeed: the item is
+// erased from the projection and the log, the report lists its ref under
+// left_in_store for the person to delete in the store, and its erase event
+// names the strict content hashes of every erased version and of the record
+// the store still holds, so adoption refuses that record while it holds the
+// erased content (a deny event, engram/adopt/erased) and adopts anything else
+// normally. Those hashes are the one trace of erased content the log keeps,
+// and only for records still in a store (ADR 0010, recheck of PR #41).
 //
 // The deletion report names what was erased and handed over, by id, and what
 // this call cannot reach. It carries no content. One summary event
@@ -36,8 +56,10 @@
 // harness's and, without authentication, self-asserted (ADR 0027): through
 // the CLI this is only as strong as the machine it runs on.
 import { type Actor, checkCall, InvalidCallError } from "../actor.ts";
-import type { StoreRef } from "../adapter.ts";
-import { appendEvent, currentItems, ERASURE_ID } from "../events.ts";
+import { isNotDeletable, type StoreRef } from "../adapter.ts";
+import { mergingContentHash, strictContentHash } from "../content-hash.ts";
+import { appendEvent, currentItems, ERASURE_ID, LEFT_CONTENT_CLAUSE } from "../events.ts";
+import { refItemId } from "../lint/det.ts";
 import type { PlaneDeps } from "../plane.ts";
 import { STORE_FAILURE_ID, scopeLevel } from "../policy/evaluate.ts";
 import { type MemoryEvent, type MemoryItem, Principal, SCHEMA_VERSION, Scope } from "../schema.ts";
@@ -70,9 +92,18 @@ export interface DeletionReport {
     items: string[];
     /** The store refs deleted. */
     store_refs: StoreRef[];
-    /** Refs the store failed to delete: still in the store, to be deleted there. */
-    store_failures: { ref: StoreRef; error: string }[];
-    /** Earlier events whose copy of an erased item was redacted. */
+    /**
+     * Refs the store failed to delete, and the items holding them: those
+     * items were not erased (one deny event each); offboarding again erases them.
+     */
+    store_failures: { ref: StoreRef; error: string; items: string[] }[];
+    /**
+     * Refs the store refuses for good to let the plane delete
+     * (NotDeletableError), and the erased items holding them: the record is
+     * left in the store for the person to delete there.
+     */
+    left_in_store: { ref: StoreRef; error: string; items: string[] }[];
+    /** Earlier events whose copy of an erased item, or lint evidence about one, was redacted. */
     events_redacted: number;
     /** Explanation rows removed. */
     explanation_rows: number;
@@ -113,6 +144,15 @@ function redacted(item: MemoryItem): MemoryItem {
   } as MemoryItem;
 }
 
+/**
+ * A lint event's reason once the evidence is erased: its lint id and severity
+ * (plane/lint.ts writes `<lint_id> (<severity>): ...`), nothing else.
+ */
+function redactedLintReason(reason: string): string {
+  const head = /^(\S+) \((info|warn|error)\): /.exec(reason);
+  return head ? `${head[1]} (${head[2]}): ${REDACTED}` : REDACTED;
+}
+
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 const refKey = (r: StoreRef) => `${r.adapter}\u0000${r.key}`;
 
@@ -129,6 +169,7 @@ async function run(
     items: [],
     store_refs: [],
     store_failures: [],
+    left_in_store: [],
     events_redacted: 0,
     explanation_rows: 0,
   };
@@ -212,13 +253,13 @@ async function run(
 
   // Erasure: every version in the person scope, from the store first.
   const doomed = projected.filter((i) => i.scope === person);
-  const ids = new Set(doomed.map((i) => i.id));
+  const doomedIds = new Set(doomed.map((i) => i.id));
   // A ref an item outside the person scope also holds (a version of the same
   // store record, as adoption makes) stays: deleting it would delete that
   // item's bytes from a scope the leaver does not own alone.
   const held = new Set(
     currentItems(db)
-      .filter((i) => !ids.has(i.id) && i.store_ref)
+      .filter((i) => !doomedIds.has(i.id) && i.store_ref)
       .map((i) => refKey(i.store_ref as StoreRef)),
   );
   const refs = new Map<string, StoreRef>();
@@ -230,24 +271,96 @@ async function run(
     else refs.set(key, i.store_ref);
   }
   const deleted: StoreRef[] = [];
-  const failures: DeletionReport["erased"]["store_failures"] = [];
-  for (const ref of refs.values()) {
+  const failed = new Map<string, string>();
+  const refused = new Map<string, string>();
+  for (const [key, ref] of refs) {
     try {
       await adapter.delete(ref);
       deleted.push(ref);
     } catch (e) {
-      failures.push({ ref, error: errorText(e) });
+      (isNotDeletable(e) ? refused : failed).set(key, errorText(e));
     }
   }
+  // An item whose ref the store failed to delete is not erased this time: its
+  // bytes are still in the store, so erasing it from the log would let
+  // adoption bring it back with nothing recording what happened.
+  const keptBack = doomed.filter((i) => i.store_ref && failed.has(refKey(i.store_ref)));
+  const erased = doomed.filter((i) => !keptBack.includes(i));
+  const ids = new Set(erased.map((i) => i.id));
+  const byRef = (errors: Map<string, string>, holders: MemoryItem[]) =>
+    [...errors].map(([key, error]) => ({
+      ref: refs.get(key) as StoreRef,
+      error,
+      items: holders
+        .filter((i) => refKey(i.store_ref as StoreRef) === key)
+        .map((i) => i.id)
+        .sort(),
+    }));
+  const failures: DeletionReport["erased"]["store_failures"] = byRef(failed, keptBack);
+  const leftInStore: DeletionReport["erased"]["left_in_store"] = byRef(refused, erased);
+  for (const i of keptBack)
+    events.push(
+      appendEvent(db, {
+        ...base,
+        id: newId(),
+        op: "retire",
+        item_id: i.id,
+        scope_from: person,
+        scope_to: null,
+        decision: "deny",
+        reason: `the erasure of ${i.id} with ${person} (${ERASURE_ID}) failed in the store: ${failed.get(refKey(i.store_ref as StoreRef))}; it is kept in the store, the projection and the log, and offboarding again once the store recovers erases it`,
+        policy_id: STORE_FAILURE_ID,
+      }),
+    );
+  // The content of each record left in the store, as the store holds it now:
+  // adoption refuses exactly these bytes (and the erased versions') later.
+  const leftContent = new Map<string, Set<string>>();
+  for (const i of erased) {
+    if (!i.store_ref || !refused.has(refKey(i.store_ref))) continue;
+    const hashes = new Set([mergingContentHash(i.content)]);
+    try {
+      const record = await adapter.read(i.store_ref);
+      if (record) hashes.add(mergingContentHash(record.content));
+    } catch {
+      // The store cannot read it back either; the erased versions still count.
+    }
+    leftContent.set(i.id, hashes);
+  }
+  /** What happened to an erased item's bytes in the store. */
+  const inStore = (i: MemoryItem) =>
+    !i.store_ref
+      ? "it had no store record"
+      : shared.has(refKey(i.store_ref))
+        ? `kept in the store, whose record an item outside ${person} also holds`
+        : refused.has(refKey(i.store_ref))
+          ? `left in the store, which refuses the plane's delete (${refused.get(refKey(i.store_ref))}); the person deletes it there`
+          : "deleted from the store";
 
   const { redactedEvents, explanationRows } = db.transaction(() => {
     let redactedEvents = 0;
     let explanationRows = 0;
     const update = db.prepare("UPDATE events SET body = ? WHERE id = ?");
+    // What lint evidence about an erased item may hold: its id, and the
+    // content and evidence hashes of every version the log carries. A hash a
+    // surviving item also holds (its content or its provenance hash), or an
+    // evidence hash of a source that survives, is not the erased item's alone:
+    // it stays readable in that item, so matching it would only redact
+    // findings about surviving items (review of PR #41).
+    const surviving = currentItems(db).filter((i) => !ids.has(i.id));
+    const survivingHashes = new Set(
+      surviving.flatMap((i) => [strictContentHash(i.content), i.provenance.hash]),
+    );
+    const survivingIds = new Set(surviving.map((i) => i.id));
+    const hashes = new Set<string>();
+    for (const i of erased) hashes.add(strictContentHash(i.content));
     for (const id of ids) {
       for (const row of db.prepare("SELECT id, body FROM events WHERE item_id = ?").all(id)) {
         const event = JSON.parse(String(row.body)) as MemoryEvent;
         if (!event.item) continue;
+        hashes.add(strictContentHash(event.item.content));
+        leftContent.get(id)?.add(mergingContentHash(event.item.content));
+        const source = refItemId(event.item.provenance.ref);
+        if (source === null || !survivingIds.has(source)) hashes.add(event.item.provenance.hash);
         update.run(JSON.stringify({ ...event, item: redacted(event.item) }), String(row.id));
         redactedEvents++;
       }
@@ -255,17 +368,31 @@ async function run(
         db.prepare("DELETE FROM explanations WHERE item_id = ?").run(id).changes,
       );
     }
-    for (const id of ids)
+    hashes.delete(REDACTED_HASH);
+    const traces = [...ids, ...[...hashes].filter((h) => !survivingHashes.has(h))];
+    // Lint events (card L1) carry no item, only an id and evidence in their
+    // reason: about an erased item, or naming one, the evidence goes.
+    if (ids.size > 0)
+      for (const row of db.prepare("SELECT id, body FROM events WHERE op = 'lint'").all()) {
+        const event = JSON.parse(String(row.body)) as MemoryEvent;
+        const about = event.item_id !== null && ids.has(event.item_id);
+        if (!about && !traces.some((t) => event.reason.includes(t))) continue;
+        const reason = redactedLintReason(event.reason);
+        if (reason === event.reason) continue;
+        update.run(JSON.stringify({ ...event, reason }), String(row.id));
+        redactedEvents++;
+      }
+    for (const i of erased)
       events.push(
         appendEvent(db, {
           ...base,
           id: newId(),
           op: "retire",
-          item_id: id,
+          item_id: i.id,
           scope_from: person,
           scope_to: null,
           decision: "allow",
-          reason: `erased with ${person} at offboarding: deleted from the store, the projection and the log's copies`,
+          reason: `erased with ${person} at offboarding: ${inStore(i)}; removed from the projection and redacted in the log's copies${leftContent.has(i.id) ? `; ${LEFT_CONTENT_CLAUSE} (${[...(leftContent.get(i.id) as Set<string>)].sort().join(", ")})` : ""}`,
           policy_id: ERASURE_ID,
         }),
       );
@@ -293,13 +420,19 @@ async function run(
           `${shared.size} store ref${shared.size === 1 ? " is" : "s are"} kept in the store: held by an item outside ${person} as well, so deleting ${shared.size === 1 ? "it" : "them"} would delete that item; the log's copies of the erased items are redacted all the same`,
         ]
       : []),
+    ...(leftInStore.length > 0
+      ? [
+          `${leftInStore.length} store record${leftInStore.length === 1 ? " is" : "s are"} left in the store ${adapter.name}, which refuses the plane's delete: see left_in_store; the person deletes ${leftInStore.length === 1 ? "it" : "them"} there; adoption refuses ${leftInStore.length === 1 ? "it" : "them"} while ${leftInStore.length === 1 ? "it holds" : "they hold"} the erased content, and the log keeps that content's hash, which can confirm a guess of short content`,
+        ]
+      : []),
     ...(failures.length > 0
       ? [
-          `${failures.length} store ref${failures.length === 1 ? "" : "s"} could not be deleted: see store_failures`,
+          `${failures.length} store ref${failures.length === 1 ? "" : "s"} could not be deleted, so the ${keptBack.length} item${keptBack.length === 1 ? " holding it was" : "s holding them were"} not erased: see store_failures; offboarding again once the store recovers erases ${keptBack.length === 1 ? "it" : "them"}`,
         ]
       : []),
   ];
-  const reason = `offboarded ${person}: ${ids.size} items erased, ${handover.reduce((n, h) => n + h.items.length, 0)} handed over in ${roles.length} role scope${roles.length === 1 ? "" : "s"}`;
+  const keptClause = keptBack.length > 0 ? `${keptBack.length} kept after a store failure, ` : "";
+  const reason = `offboarded ${person}: ${ids.size} items erased, ${keptClause}${handover.reduce((n, h) => n + h.items.length, 0)} handed over in ${roles.length} role scope${roles.length === 1 ? "" : "s"}`;
   events.push(
     appendEvent(db, {
       ...base,
@@ -322,6 +455,7 @@ async function run(
       items: [...ids].sort(),
       store_refs: deleted,
       store_failures: failures,
+      left_in_store: leftInStore,
       events_redacted: redactedEvents,
       explanation_rows: explanationRows,
     },

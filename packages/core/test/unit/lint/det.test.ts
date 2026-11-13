@@ -8,7 +8,7 @@ import { describe, expect, test } from "vitest";
 import { type FaultFixture, faultFixtures, fixtureText } from "../../../scripts/faults.ts";
 import { InvalidCallError } from "../../../src/actor.ts";
 import { strictContentHash } from "../../../src/content-hash.ts";
-import { appendEvent } from "../../../src/events.ts";
+import { appendEvent, currentItems } from "../../../src/events.ts";
 import {
   duplicates,
   expiredValidity,
@@ -24,6 +24,7 @@ import {
 import { DETERMINISTIC_LINT_IDS } from "../../../src/lint.ts";
 import { LINT_MEMBERSHIP_ID } from "../../../src/plane.ts";
 import type { MemoryItem, Policy } from "../../../src/schema.ts";
+import { visibleEvents } from "../../../src/visible.ts";
 import { AT, fresh, id, item, testPolicy } from "../plane/helpers.ts";
 
 const FAULTS = join(import.meta.dirname, "../../../../../fixtures/faults");
@@ -134,7 +135,7 @@ describe("orphan", () => {
     );
     expect(f?.evidence).toEqual([
       `provenance.ref ${gone.id} names an item retired by test/x`,
-      `lineage ${id(99)} names no item you can reach`,
+      `lineage ${id(99)} names no active item you can reach`,
     ]);
   });
   test("flags a lineage id evicted, and one out of the actor's reach", () => {
@@ -336,8 +337,9 @@ describe("Plane.lint", () => {
 
   test("treats a source reached only by an expired grant as out of reach, as Plane.read does", async () => {
     // Sam's item names person:omar in a grant; omar's team item cites it as
-    // its source with a stale hash. With the grant live, source-changed may
-    // show the source's current hash; with it expired, Plane.read no longer
+    // its source with a stale hash. With the grant live, source-changed flags
+    // it but, the source being outside team:platform, withholds its current
+    // hash (post-merge review, ADR 0009); with it expired, Plane.read no longer
     // returns the source, so the lint must say no more than if there were no
     // grant at all (review of PR 38, the read gate covers grants too).
     const sam = { id: "person:sam", level: "person" as const, memberships: ["person:sam"] };
@@ -362,13 +364,90 @@ describe("Plane.lint", () => {
         [
           `source ${id(1)}`,
           `recorded ${strictContentHash("old")}`,
-          `current ${strictContentHash("new")}`,
+          "current hash not shown: the source is outside team:platform",
         ],
       ],
     ]);
+    expect(JSON.stringify(live)).not.toContain(strictContentHash("new"));
     const expired = await report(grant("2026-10-01T00:00:00Z"));
     expect(JSON.stringify(expired)).not.toContain(strictContentHash("new"));
     expect(expired).toEqual(await report([]));
+  });
+
+  describe("an item outside the linted scope (post-merge review, ADR 0009)", () => {
+    // Dana is in person:dana and team:core; Sam is in team:core only, so he
+    // sees every lint event of team:core but Plane.read never returns him
+    // Dana's person items.
+    const dana = {
+      id: "person:dana",
+      level: "person" as const,
+      memberships: ["person:dana", "team:core"],
+      source: "user" as const,
+    };
+    const sam = {
+      id: "person:sam",
+      level: "person" as const,
+      memberships: ["person:sam", "team:core"],
+      source: "user" as const,
+    };
+    const PRIVATE = "dana private salary 9000";
+    const mine = (n: number, over: Partial<MemoryItem> = {}) =>
+      item(n, { scope: "person:dana", owner: "person:dana", ...over });
+    const team = (n: number, over: Partial<MemoryItem> = {}) =>
+      item(n, { scope: "team:core", owner: "person:dana", ...over });
+
+    /** The lint events of team:core Sam may see, after Dana writes `steps` and lints. */
+    async function samSees(steps: (plane: ReturnType<typeof fresh>["plane"]) => Promise<void>) {
+      const env = fresh(enabled(["source-changed", "orphan"]));
+      await steps(env.plane);
+      const report = await env.plane.lint(dana, AT, "team:core");
+      expect(report.findings.length).toBeGreaterThan(0);
+      const read = await env.plane.read(sam, { at: AT });
+      expect(read.items.map((i) => i.id)).not.toContain(id(1));
+      return {
+        report,
+        shown: visibleEvents(sam, report.events, {
+          policy: env.policy,
+          at: AT,
+          current: (i) => currentItems(env.db).find((x) => x.id === i),
+        }),
+      };
+    }
+    const written = async (plane: ReturnType<typeof fresh>["plane"], it: MemoryItem) => {
+      const w = await plane.write(dana, it, AT);
+      expect(w.item, w.event.reason).not.toBeNull();
+    };
+
+    test("source-changed raises the finding but withholds an out-of-scope source's current hash", async () => {
+      const { report, shown } = await samSees(async (plane) => {
+        await written(plane, mine(1, { content: "dana draft" }));
+        await written(plane, team(2, ref(id(1), strictContentHash("dana draft"))));
+        await written(plane, mine(1, { content: PRIVATE, version: 2 }));
+      });
+      expect(report.findings.map((f) => [f.lint_id, f.item_id])).toEqual([
+        ["source-changed", id(2)],
+      ]);
+      expect(shown).toHaveLength(1);
+      expect(JSON.stringify(shown)).not.toContain(strictContentHash(PRIVATE));
+      expect(report.findings[0]?.evidence).toEqual([
+        `source ${id(1)}`,
+        `recorded ${strictContentHash("dana draft")}`,
+        "current hash not shown: the source is outside team:core",
+      ]);
+    });
+
+    test("orphan raises the finding but names neither the status nor the retiring rule of an out-of-scope item", async () => {
+      const { report, shown } = await samSees(async (plane) => {
+        await written(plane, mine(1, { valid_from: "2026-10-01T00:00:00Z", ttl: 60 }));
+        await plane.retain(dana, "person:dana", AT);
+        await written(plane, team(2, { lineage: [id(1)] }));
+      });
+      expect(report.findings.map((f) => [f.lint_id, f.item_id])).toEqual([["orphan", id(2)]]);
+      expect(JSON.stringify(shown)).not.toMatch(/retired/);
+      expect(report.findings[0]?.evidence).toEqual([
+        `lineage ${id(1)} names no active item you can reach`,
+      ]);
+    });
   });
 
   test("refuses an invalid scope, actor or time before the log is touched", async () => {

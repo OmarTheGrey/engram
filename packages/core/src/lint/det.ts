@@ -11,11 +11,18 @@
 //                         without `session_entry_id`, a blank ref
 //   orphan                provenance.ref naming an item that is absent, out of reach or retired, or a
 //                         lineage id naming one absent, out of reach, evicted or retired other than by
-//                         its own supersession
+//                         its own supersession; outside the linted scope, a retired one reads as absent
 //   duplicate             same scope, class and strict content hash as an earlier active item (ADR 0018)
 //
 // An item the linting actor cannot reach counts as absent, so a finding says
-// nothing about what the actor could not read (decision D5).
+// nothing about what the actor could not read (decision D5). A finding is
+// recorded as a lint event every member of the linted scope may see
+// (visible.ts), so it says nothing either about an item outside that scope
+// beyond what the linted item records itself (its provenance ref, hash and
+// lineage ids): never such an item's current content hash, its status or the
+// rule that retired it (ADR 0009, post-merge amendment of 2026-11-13). Such
+// an item may still raise a finding the linting actor can reach it for; an
+// orphan of one reads exactly as an orphan of an absent item.
 import { strictContentHash } from "../content-hash.ts";
 import { DETERMINISTIC_LINT_IDS, type DeterministicLintId } from "../lint.ts";
 import { scopeLevel } from "../policy/evaluate.ts";
@@ -106,7 +113,13 @@ export function sourceChanged(item: MemoryItem, ctx: LintContext): DetFinding | 
     "source-changed",
     item,
     `its source ${source.id} no longer hashes to the ${item.provenance.hash} recorded at write`,
-    [`source ${source.id}`, `recorded ${item.provenance.hash}`, `current ${now}`],
+    [
+      `source ${source.id}`,
+      `recorded ${item.provenance.hash}`,
+      source.scope === item.scope
+        ? `current ${now}`
+        : `current hash not shown: the source is outside ${item.scope}`,
+    ],
   );
 }
 
@@ -144,15 +157,21 @@ export function missingProvenance(item: MemoryItem, _ctx?: LintContext): DetFind
   return finding("missing-provenance", item, "its provenance cannot be traced to its origin", gaps);
 }
 
+/** What an orphan's evidence says of an item absent, out of reach, or gone outside the linted scope. */
+const UNREACHED = "names no active item you can reach";
+
 /** orphan: the ref or a lineage id names an item that is gone. */
 export function orphan(item: MemoryItem, ctx: LintContext): DetFinding | null {
   const superseded = promotionRuleId(ctx.policy, "superseded");
   const gone = (id: string, lineage: boolean): string | null => {
     const target = ctx.items.get(id);
-    if (target === undefined || !ctx.canReach(target)) return "names no item you can reach";
+    if (target === undefined || !ctx.canReach(target)) return UNREACHED;
     if (target.status !== "retired") return null;
     const by = ctx.retiredBy.get(id);
     if (lineage && by?.op === "retire" && by.policy_id === superseded) return null;
+    // Outside the linted scope its status and retiring rule are not the
+    // scope's to show: it reads as an absent item does.
+    if (target.scope !== item.scope) return UNREACHED;
     return by === undefined ? "names a retired item" : `names an item retired by ${by.policy_id}`;
   };
   const evidence: string[] = [];

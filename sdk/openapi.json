@@ -3086,10 +3086,12 @@
                       "type": "object",
                       "properties": {
                         "command": {
-                          "type": "string"
+                          "type": "string",
+                          "minLength": 1
                         },
                         "store": {
-                          "type": "string"
+                          "type": "string",
+                          "minLength": 1
                         },
                         "route": {
                           "type": "string",

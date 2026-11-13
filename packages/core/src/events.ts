@@ -19,6 +19,36 @@ const RETIRES_ITEM = new Set(["retire", "evict"]);
  */
 export const ERASURE_ID = "engram/offboard/erase";
 
+/**
+ * The clause an erase event's reason carries for an item whose store record
+ * was left in a store that refuses the plane's delete: the merging content
+ * hashes (content-hash.ts, the form for a blocking rule) of every version
+ * erased and of the record the store still holds. Adoption refuses that
+ * item's record while it holds one of them (rechecks of PR #41).
+ */
+export const LEFT_CONTENT_CLAUSE = "adoption refuses a store record holding the erased content";
+
+/**
+ * The erased content hashes the erase events of one item name
+ * (LEFT_CONTENT_CLAUSE): the record left in the store under that id, and only
+ * it, is refused while it holds them. One indexed lookup by item id.
+ */
+export function erasedStoreContent(db: Db, itemId: string): Set<string> {
+  const out = new Set<string>();
+  const open = `${LEFT_CONTENT_CLAUSE} (`;
+  for (const event of eventsByItem(db, itemId)) {
+    if (!erases(event)) continue;
+    // The clause ends the reason; the store's error text comes before it.
+    const start = event.reason.lastIndexOf(open);
+    if (start < 0) continue;
+    const end = event.reason.indexOf(")", start + open.length);
+    if (end < 0) continue;
+    const list = event.reason.slice(start + open.length, end);
+    for (const h of list.split(", ")) if (h) out.add(h);
+  }
+  return out;
+}
+
 /** The event erases its item: the projection and replay drop it (ERASURE_ID). */
 export function erases(event: MemoryEvent): boolean {
   return event.decision === "allow" && event.op === "retire" && event.policy_id === ERASURE_ID;
