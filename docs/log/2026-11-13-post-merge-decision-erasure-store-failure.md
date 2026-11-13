@@ -15,6 +15,6 @@ supersedes: none
 
 **Why.** Erasing the log while bytes stay in a store that may yet delete them hides an unfinished erasure; but waiting on a store that never deletes, such as an adopted memory file, never finishes. A hash a survivor holds stays readable in the survivor, so redacting by it protects nothing.
 
-**Result.** Adoption skips an erased id, so a record left in the store does not return.
+**Result.** Adoption refuses, with a deny event under `engram/adopt/erased`, a record holding the erased content left in the store; edits and other people's files adopt. The log keeps those content hashes.
 
-**Consequence.** A deletion report with `left_in_store` asks the person to delete files by hand.
+**Consequence.** The person deletes `left_in_store` records by hand.

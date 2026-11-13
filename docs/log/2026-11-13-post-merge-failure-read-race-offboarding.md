@@ -16,6 +16,6 @@ supersedes: none
 
 **Why.** Card E2.2's read snapshots the projection, awaits the store's search, then appends its event outside the write queue; card E9.7's offboarding runs in the write queue and could finish in that gap.
 
-**Result.** Reproduced with a fake store whose search runs the offboarding before answering. Fixed: inside the transaction that appends the read event, which holds the log's write lock, the admitted ids are selected again and any the projection no longer holds is dropped from the result, the event and the explanation rows, and counted out of the candidates. An erasure commits under the same lock, in any process sharing the log, so none erased before the event is returned or recorded.
+**Result.** Reproduced with a fake store whose search runs the offboarding before answering. Fixed: after the search, the read runs in one transaction holding the log's write lock, selects the projection's ids again with a parameter-free query, drops erased items, and only then filters, scores, ranks, cuts and appends. An erasure commits under the same lock in any process, so the read equals one run after it.
 
 **Consequence.** An item rewritten, not erased, meanwhile is returned at its snapshot version, as before.

@@ -16,6 +16,6 @@ supersedes: none
 
 **Why.** The keep-back path for failed deletes treated the files adapter's ReadOnlyItemError, thrown for every adopted Claude Code memory file, as transient, so offboarding never erased adopted files. Lint redaction matched any erased item's hash, so it erased duplicate and source-changed findings about surviving items sharing that text or source. The read's re-check ran before its transaction took the log's lock, so an erasure by another process could still land between them.
 
-**Result.** Adapter contract gains `NotDeletableError`; a permanent refusal erases and reports `left_in_store`, and adoption skips erased ids. A hash counts only when no survivor holds it. The re-check moved inside the transaction. Each fix was broken on purpose to show its test fails.
+**Result.** Adapter contract gains `NotDeletableError`; a permanent refusal erases and reports `left_in_store`. A hash counts only when no survivor holds it. The re-check moved inside the transaction. The adoption and read parts were redone after a recheck (`docs/log/2026-11-13-post-merge-failure-pr41-recheck.md`). Each fix was broken on purpose to show its test fails.
 
 **Consequence.** Tests of erasure now run over the real files adapter too.
