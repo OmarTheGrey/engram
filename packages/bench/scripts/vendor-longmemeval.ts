@@ -1,6 +1,8 @@
 // Vendors the LongMemEval fixture subset (card B5). Deterministic: the same
 // upstream files and seed always give the same bytes. Development time only;
-// it reads a local copy of the upstream files and never the network.
+// it reads a local copy of the upstream files, and reaches the network only
+// with --fetch, for the pinned files missing from that copy (refused under
+// ENGRAM_OFFLINE=1).
 //
 //   node packages/bench/scripts/vendor-longmemeval.ts --upstream <dir> --out fixtures/bench/longmemeval [--fetch]
 //
