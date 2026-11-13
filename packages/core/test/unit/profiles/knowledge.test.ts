@@ -21,7 +21,13 @@ interface Case {
   class?: MemoryItem["class"];
   confidence?: number;
   valid_to?: string;
-  expect: { decision: "allow" | "deny"; status?: MemoryItem["status"]; policy_id: string };
+  expect: {
+    decision: "allow" | "deny";
+    status?: MemoryItem["status"];
+    /** A part of the event's reason: the rule clause that decided. */
+    reason: string;
+    policy_id: string;
+  };
 }
 
 const knowledge = (): Policy => parsePolicy(readFileSync(PROFILE, "utf8"), "knowledge.yaml");
@@ -62,6 +68,7 @@ describe("acceptance (card E9.1): the fixture writes behave per policy", () => {
     const result = await plane.write({ ...writer, source: c.source }, written, AT);
     expect(result.event.decision).toBe(c.expect.decision);
     expect(result.event.policy_id).toBe(c.expect.policy_id);
+    expect(result.event.reason).toContain(c.expect.reason);
     expect(result.item?.status ?? null).toBe(c.expect.status ?? null);
   });
 });
@@ -92,7 +99,7 @@ describe("knowledge reaches org only through review", () => {
     ]);
   });
 
-  test("a person's note the model wrote cannot be promoted into org, even by a reviewer", async () => {
+  test("a person's note the model wrote cannot be promoted into org by its owner", async () => {
     const { plane } = fresh(knowledge());
     const note = item(2, {
       scope: "person:dana",
@@ -101,7 +108,32 @@ describe("knowledge reaches org only through review", () => {
     });
     await plane.write({ ...dana, source: "model" }, note, AT);
     const lifted = await plane.promote(dana, id(2), "org", AT, { review: false });
-    expect(lifted.decision).not.toBe("allow");
+    expect(lifted.decision).toBe("deny");
+    expect(lifted.event.policy_id).toBe("profile.knowledge/write/org");
+    expect(lifted.event.reason).toContain("source model is not allowed in org scope");
+    expect(lifted.item).toBeNull();
+  });
+
+  test("team knowledge from a tool, reviewed into team, cannot be promoted into org even by a reviewer", async () => {
+    // A promotion is judged as a write with the item's provenance (ADR 0026),
+    // so a tool's output that team admits never reaches org: org's first-hand
+    // rule, not source isolation, is what refuses it.
+    const team: Actor = { ...dana, memberships: [...dana.memberships, "team:core"] };
+    const reviewer: Actor = { ...lea, memberships: ["team:core", "org"] };
+    const { plane } = fresh(knowledge());
+    const output = item(4, {
+      scope: "team:core",
+      owner: dana.id,
+      content: "the build cache lives in the shared bucket",
+    });
+    await plane.write({ ...team, source: "tool" }, output, AT);
+    const reviewed = await plane.promote(reviewer, id(4), "team:core", AT, { review: true });
+    expect(reviewed.decision).toBe("allow");
+    expect(reviewed.item?.status).toBe("active");
+    const lifted = await plane.promote(reviewer, id(4), "org", AT, { review: true });
+    expect(lifted.decision).toBe("deny");
+    expect(lifted.event.policy_id).toBe("profile.knowledge/write/org");
+    expect(lifted.event.reason).toContain("source tool is not allowed in org scope");
     expect(lifted.item).toBeNull();
   });
 
