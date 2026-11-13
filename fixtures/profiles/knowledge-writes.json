@@ -1,0 +1,19 @@
+{
+  "description": "Card E9.1's acceptance fixture: writes through the plane under packages/pi-package/profiles/knowledge.yaml, by a member of every scope written to, each with the source the harness sets and the decision, landing status, rule and reason (a part of the event's reason) the profile must give. Item fields not named take the test's defaults (semantic, confidence 0.9, open validity).",
+  "writer": { "id": "person:dana", "level": "person", "memberships": ["person:dana", "role:lead", "team:core", "org"] },
+  "cases": [
+    { "name": "a person's own note, written by the agent", "scope": "person:dana", "source": "model", "confidence": 0.5, "expect": { "decision": "allow", "status": "active", "reason": "semantic item from source model passes the person write rule", "policy_id": "profile.knowledge/write/person" } },
+    { "name": "a person's episodic record", "scope": "person:dana", "source": "user", "class": "episodic", "expect": { "decision": "allow", "status": "active", "reason": "episodic item from source user passes the person write rule", "policy_id": "profile.knowledge/write/person" } },
+    { "name": "org knowledge a person states", "scope": "org", "source": "user", "expect": { "decision": "allow", "status": "candidate", "reason": "org scope requires review; stored as a candidate until promoted", "policy_id": "profile.knowledge/write/org" } },
+    { "name": "org knowledge from a cited document", "scope": "org", "source": "document", "expect": { "decision": "allow", "status": "candidate", "reason": "org scope requires review; stored as a candidate until promoted", "policy_id": "profile.knowledge/write/org" } },
+    { "name": "org knowledge from a tool's output", "scope": "org", "source": "tool", "expect": { "decision": "deny", "reason": "source tool is not allowed in org scope", "policy_id": "profile.knowledge/write/org" } },
+    { "name": "org knowledge from an import", "scope": "org", "source": "import", "expect": { "decision": "deny", "reason": "source import is not allowed in org scope", "policy_id": "profile.knowledge/write/org" } },
+    { "name": "org knowledge the model wrote", "scope": "org", "source": "model", "expect": { "decision": "deny", "reason": "source model is not allowed in org scope", "policy_id": "profile.knowledge/write/org" } },
+    { "name": "org knowledge below the floor", "scope": "org", "source": "user", "confidence": 0.75, "expect": { "decision": "deny", "reason": "confidence 0.75 is below the org floor 0.8", "policy_id": "profile.knowledge/write/org" } },
+    { "name": "an episodic record in org", "scope": "org", "source": "user", "class": "episodic", "expect": { "decision": "deny", "reason": "episodic items are forbidden in org scope", "policy_id": "profile.knowledge/write/org" } },
+    { "name": "team knowledge from a tool", "scope": "team:core", "source": "tool", "expect": { "decision": "allow", "status": "candidate", "reason": "team scope requires review; stored as a candidate until promoted", "policy_id": "profile.knowledge/write/team" } },
+    { "name": "team knowledge the model wrote", "scope": "team:core", "source": "model", "expect": { "decision": "deny", "reason": "source model is not allowed in team scope", "policy_id": "profile.knowledge/write/team" } },
+    { "name": "role knowledge a person states", "scope": "role:lead", "source": "user", "expect": { "decision": "allow", "status": "active", "reason": "semantic item from source user passes the role write rule", "policy_id": "profile.knowledge/write/role" } },
+    { "name": "an item past its validity window is still written, then never read", "scope": "role:lead", "source": "user", "valid_to": "2026-10-02T00:00:00.000Z", "expect": { "decision": "allow", "status": "active", "reason": "semantic item from source user passes the role write rule", "policy_id": "profile.knowledge/write/role" } }
+  ]
+}
