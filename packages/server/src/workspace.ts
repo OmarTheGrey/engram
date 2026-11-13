@@ -9,7 +9,7 @@
 // the store at once, so a bad flag is reported before anything else, and
 // `open()` opens and migrates the log, which a caller does before its first
 // request when it wants the log's errors printed as they are (the CLI). A
-// route whose Plane method has not landed (lint, distill) never opens it, nor
+// route whose Plane method has not landed (distill) never opens it, nor
 // does simulate, which replays on scratch logs of its own (card E8.9).
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";

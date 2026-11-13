@@ -1662,6 +1662,7 @@ async function planeSurfaceLeaksNothing() {
     await plane.recordBypass(outsider, { command: "cat x", store: "files" }, at),
   );
   expect(await rejection(plane.explain(outsider, ownRead.id))).toBeInstanceOf(ExplainDeniedError);
+  leaks("lint", await plane.lint(outsider, at, "person:s"));
   // simulate replays only the workload it is given, on scratch logs and
   // stores (card E8.9): the outsider's own read of the secret's words finds
   // nothing, and the real log gains no event.
@@ -1681,10 +1682,7 @@ async function planeSurfaceLeaksNothing() {
     ),
   );
   expect(plane.events().length, "simulate appends nothing to the real log").toBe(logged);
-  for (const call of [
-    () => plane.lint("person:s"),
-    () => plane.distill([], { id: "awm", model: "scripted/none", seed: 1 }),
-  ])
+  for (const call of [() => plane.distill([], { id: "awm", model: "scripted/none", seed: 1 })])
     expect(
       await rejection(call()),
       "an unimplemented method must be classified when it lands",

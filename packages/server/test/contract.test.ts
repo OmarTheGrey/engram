@@ -172,6 +172,28 @@ describe("the routes, through the generated client, on the fake store", () => {
     expect(C.RetentionReport.parse(other.data)).toMatchObject({ decision: "deny" });
   });
 
+  it("lint: a member gets each finding and its lint event; a non-member gets a deny event", async () => {
+    const { client } = testWorkspace();
+    await client.POST("/api/v1/items", {
+      body: {
+        actor: { ...dana, source: "user" },
+        item: itemFor(1, { valid_to: "2026-10-02T00:00:00.000Z" }),
+      },
+    });
+    const own = await client.POST("/api/v1/lint", { body: { actor: dana, scope: "person:dana" } });
+    hit.add("lint");
+    const report = C.LintResponse.parse(own.data);
+    expect(report.decision).toBe("allow");
+    expect(report.findings.map((f) => f.lint_id)).toEqual(["expired-validity"]);
+    expect(report.events[0]).toMatchObject({
+      op: "lint",
+      ts: NOW,
+      policy_id: "preset.medium/lint/expired-validity",
+    });
+    const other = await client.POST("/api/v1/lint", { body: { actor: dana, scope: "team:x" } });
+    expect(C.LintResponse.parse(other.data)).toMatchObject({ decision: "deny", findings: [] });
+  });
+
   it("events: the viewer sees its own and its member scopes' events, after a seq", async () => {
     const { client } = testWorkspace();
     await client.POST("/api/v1/items", {
@@ -228,7 +250,6 @@ describe("the routes, through the generated client, on the fake store", () => {
   });
 
   it.each([
-    ["lint", "/api/v1/lint", { scope: "person:dana" }, "L1"],
     [
       "distill",
       "/api/v1/distill",
