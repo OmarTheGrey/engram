@@ -112,6 +112,42 @@ export const MIGRATIONS: readonly Migration[] = [
       );
     `,
   },
+  {
+    id: 4,
+    name: "schema version 1: read events carry their returned item ids",
+    // Upgrades a version 0 log to schema version 1 (schema.ts): every stored
+    // event, item and explanation, and the item an event carries, says
+    // version 1; and every read event gets `item_ids`, the items it returned
+    // in rank order, from its explanation rows (migration 3 wrote one per
+    // returned item in the read's own transaction, so they are exactly what
+    // it returned). Version 1 changes no other field, so nothing else is
+    // rewritten. The `external` provenance kind is new and appears in no
+    // version 0 record.
+    up: {
+      sqlite: `
+      UPDATE events SET body = json_set(body, '$.schema_version', 1);
+      UPDATE events SET body = json_set(body, '$.item.schema_version', 1)
+        WHERE json_type(body, '$.item') = 'object';
+      UPDATE events SET body = json_set(body, '$.item_ids', json((
+          SELECT json_group_array(x.item_id ORDER BY x.rank)
+          FROM explanations x WHERE x.read_id = events.id)))
+        WHERE op = 'read';
+      UPDATE items SET body = json_set(body, '$.schema_version', 1);
+      UPDATE explanations SET body = json_set(body, '$.schema_version', 1);
+    `,
+      postgres: `
+      UPDATE events SET body = jsonb_set(body::jsonb, '{schema_version}', '1')::text;
+      UPDATE events SET body = jsonb_set(body::jsonb, '{item,schema_version}', '1')::text
+        WHERE jsonb_typeof(body::jsonb -> 'item') = 'object';
+      UPDATE events SET body = jsonb_set(body::jsonb, '{item_ids}', coalesce((
+          SELECT jsonb_agg(x.item_id ORDER BY x.rank)
+          FROM explanations x WHERE x.read_id = events.id), '[]'::jsonb))::text
+        WHERE op = 'read';
+      UPDATE items SET body = jsonb_set(body::jsonb, '{schema_version}', '1')::text;
+      UPDATE explanations SET body = jsonb_set(body::jsonb, '{schema_version}', '1')::text;
+    `,
+    },
+  },
 ];
 
 /** Applies pending migrations in id order; returns the ids it applied. */

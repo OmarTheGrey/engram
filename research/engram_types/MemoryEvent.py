@@ -29,4 +29,5 @@ class MemoryEvent(TypedDict, closed=True):
     policy_id: str
     item: NotRequired[MemoryItem | None]
     usage: NotRequired[Usage]
-    schema_version: Literal[0]
+    item_ids: NotRequired[list[str]]
+    schema_version: Literal[1]

@@ -170,6 +170,6 @@ function event(
     reason: "generated",
     policy_id: "p",
     item: c.item,
-    schema_version: 0,
+    schema_version: 1,
   };
 }

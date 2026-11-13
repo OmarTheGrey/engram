@@ -32,7 +32,7 @@ export function item(
     lineage: [],
     status: "active",
     store_ref: null,
-    schema_version: 0,
+    schema_version: 1,
     ...rest,
   } as MemoryItem;
 }
@@ -62,7 +62,7 @@ export function testPolicy(over: Partial<Policy> = {}): Policy {
       procedural: { replay_k: 4, replay_n: 5 },
     },
     lints: { enabled: [], thresholds: {} },
-    schema_version: 0,
+    schema_version: 1,
     ...over,
   };
 }
@@ -103,6 +103,7 @@ export function fresh(policy: Policy = testPolicy(), options: FakeAdapterOptions
   migrate(db);
   const adapter = counting(createFakeAdapter(options));
   let n = 0;
-  const plane = createPlane({ db, adapter, policy, newId: () => id(900_000 + ++n) });
-  return { db, adapter, plane, policy };
+  const deps = { db, adapter, policy, newId: () => id(900_000 + ++n) };
+  const plane = createPlane(deps);
+  return { db, adapter, plane, policy, deps };
 }

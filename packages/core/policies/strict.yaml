@@ -133,4 +133,4 @@ lints:
     near-duplicate: 0.8
     replay-drift.success-floor: 0.8
     replay-drift.min-trials: 10
-schema_version: 0
+schema_version: 1

@@ -144,7 +144,7 @@ export function ungovernedMemoryTools(options: {
           lineage: [],
           status: "active",
           store_ref: null,
-          schema_version: 0,
+          schema_version: 1,
         } as MemoryItem;
         await store.adapter.write(item);
         store.scopes.add(item.scope);
