@@ -145,14 +145,13 @@ from analysis.bootstrap import (
     paired_bootstrap,
     paired_item_differences,
 )
-from analysis.holm import holm
+from analysis.holm import HYPOTHESES, holm, interim_bound
 from analysis.wilson import wilson
 
 SESSIONS_SCHEMA = "h1-sessions/2"
 TABLE_SCHEMA = "h1-table/2"
 BENCHMARKS = ("gatemem", "mem-inv-bench")
 CONDITIONS = ("C2", "C3", "C4", "C5")
-HYPOTHESES = ("H1", "H2", "H3", "H4", "H5")
 FIELDS = ("benchmark", "model", "store", "preset", "condition", "item", "seed", "violation")
 OPTIONAL = (
     "exclusion",
@@ -336,7 +335,7 @@ def decide_h1(
             "others": others,
         }
     else:
-        adjusted = min(1.0, len(HYPOTHESES) * p)
+        adjusted = interim_bound(p)
         if adjusted < alpha:
             primary = "supported"
         elif p >= alpha:

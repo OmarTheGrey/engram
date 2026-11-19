@@ -36,6 +36,7 @@ from analysis import (
     wilson,
 )
 from analysis.h1 import H1Config, SchemaError, SessionRow, decide_h1
+from analysis.holm import step_down
 
 # Every item draws its own violation propensity under each condition, Beta with
 # mean `rate` and a + b = CONCENTRATION: an item-by-condition effect, so the three
@@ -276,7 +277,7 @@ def test_the_acceleration_is_the_jackknife_skewness_of_efron_and_tibshirani_eq_1
 
 def test_holm_on_the_hand_case_of_the_reading_note() -> None:
     """Wikipedia's example in the note: adjusted 0.03, 0.06, 0.06, 0.02; one and four rejected."""
-    result = holm({"H1": 0.01, "H2": 0.04, "H3": 0.03, "H4": 0.005})
+    result = step_down({"H1": 0.01, "H2": 0.04, "H3": 0.03, "H4": 0.005})
     assert {h: r.adjusted for h, r in result.items()} == pytest.approx(
         {"H1": 0.03, "H2": 0.06, "H3": 0.06, "H4": 0.02}
     )
@@ -294,12 +295,12 @@ def test_holm_over_five_hypotheses_by_hand() -> None:
 
 
 def test_holm_caps_adjusted_values_at_one() -> None:
-    result = holm({"a": 0.6, "b": 0.7, "c": 0.9})
+    result = step_down({"a": 0.6, "b": 0.7, "c": 0.9})
     assert [r.adjusted for r in result.values()] == [1.0, 1.0, 1.0]
 
 
 def test_holm_rejects_strictly_below_alpha() -> None:
-    result = holm({"a": 0.6, "b": 0.025}, alpha=0.05)
+    result = step_down({"a": 0.6, "b": 0.025}, alpha=0.05)
     assert result["b"].adjusted == pytest.approx(0.05)
     assert result["b"].rejected is False
 
