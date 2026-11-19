@@ -239,11 +239,13 @@
     "holds_by_construction": [
       "Deterministic recall and precision on the keyed labelled items (2500 of 2500 faults, 0 of 2500 near-misses flagged): each keyed subtype restates its lint's trigger, and card L2's label check fails the set unless every keyed fault is flagged and no near-miss is. They are a regression check on card L1's lints, not evidence for H3's statement that deterministic lints find seeded faults with useful precision.",
       "Deterministic recall on the unkeyed items (0 of 2000 faults): no deterministic lint is built for what makes an unkeyed item faulty, which is in its text only.",
-      "Recall on wrong-scope: no lint of either tier is built for it."
+      "Recall on wrong-scope, 0 under either tier: its labels name no lint, and a finding by a lint a label does not name gives it no credit.",
+      "Per keyed lint, recall and precision on its own labels (500 of 500 faults found, no near-miss flagged, for each of the five): the same restated triggers."
     ],
     "measured": [
-      "The findings on LongMemEval's own items (`unverified.base`) and what they do to precision (`precision_with_unverified`): how many there are is measured; whether each is real is not known until members judge card L2's audit sample."
-    ]
+      "The findings on LongMemEval's own items (`unverified.base`): how many there are is measured; whether each is real is not known until members judge card L2's audit sample, so each lint's precision on natural memory is bounded only by 0 and 1 (`natural_memory`)."
+    ],
+    "not_natural_precision": "`precision_with_unverified` pools the labelled true positives, whose number the generator's injection rate fixes, with the unverified findings; its lower end moves with `per_question` and says nothing about precision on natural memory."
   },
   "by_lint": {
     "duplicate": {
@@ -752,7 +754,7 @@
     "pooling": "Per-class figures pooled over keyed and unkeyed faults depend on the mix the generator chose (stale 2 keyed to 1 unkeyed, unsupported 2 to 1, misplaced 1 to 1, contradictory 0 to 1); report keyed and unkeyed apart.",
     "superseded": "Superseded recall measures how the model reads card L3's contradiction prompt, which asks whether two statements cannot both be true at the same time: a model may call an old value and a later one consistent, as two states at different times."
   },
-  "matching": "a tier flags a label when one of its findings lands on the label's finding_on; an item flagged that is no label's finding_on is unverified",
+  "matching": "a tier flags a label when a lint the label names (a fault's expected, a near-miss's near_miss_of) lands on its finding_on; any other finding is unverified",
   "model_run": {
     "calls": 95217,
     "labelled_units": {
@@ -784,6 +786,15 @@
     ]
   },
   "name": "h3-lint-floor",
+  "natural_memory": {
+    "duplicate": {
+      "base_findings": 967,
+      "precision": {
+        "lower": 0.0,
+        "upper": 1.0
+      }
+    }
+  },
   "overall": {
     "all": {
       "faults": 4500,
@@ -852,6 +863,7 @@
   "tier": "deterministic",
   "unverified": {
     "base": 967,
-    "injected": 0
+    "injected": 0,
+    "other_lint": 0
   }
 }

@@ -2,21 +2,27 @@
 
 The lints run in TypeScript (packages/runner/src/lint-fault-set.ts); this
 module only joins what they found with the set's labels, which never reached
-the plane. A tier flags a label when one of its findings lands on the label's
-`finding_on` (the labelled item, or for a pair the contradiction lint judges,
-the later item of the pair, card L2's decision `finding_on`), whatever lint of
-the tier found it. On the labelled items:
+the plane. A tier flags a label when a lint of that tier the label names
+lands on the label's `finding_on` (the labelled item, or for a pair the
+contradiction lint judges, the later item of the pair, card L2's decision
+`finding_on`): a fault's `expected` lints, a near-miss's `near_miss_of` lints.
+A finding by any other lint gives the label nothing (review finding L4-1). On
+the labelled items:
 
 - recall is the share of faults flagged, precision the share of flagged
   labelled items that are faults (a flagged near-miss is a false positive),
   each with its 95 percent Wilson interval (research/analysis/wilson.py);
 - per class, keyed and unkeyed apart and pooled, per subtype and per variant.
 
-An item a tier flags that is no label's `finding_on` is unverified: one of
-LongMemEval's own items (base), or an item the generator wrote that no label
-is about (a source, a counterpart). It is counted, never scored; with it, the
-labelled precision becomes a bound: at least TP / (TP + FP + U), if every
-unverified finding is false, and at most (TP + U) / (TP + FP + U).
+A finding (lint and item) no label names is unverified: on one of
+LongMemEval's own items (base), on a labelled item by a lint its label does
+not name (other_lint), or on an item the generator wrote that no label is
+about (injected: a source, a counterpart). It is counted, never scored; with
+the U unverified findings, the labelled precision becomes a bound: at least
+TP / (TP + FP + U), if every one is false, and at most (TP + U) / (TP + FP +
+U). The bound mixes TP, fixed by how many faults the generator injects, with
+U, so it says nothing about precision on natural memory; that is each lint's
+own bound on its base findings until the audit sample is judged.
 
 Per lint, only the labels about that lint count: faults it is expected to
 find and near-misses of it; its findings elsewhere (on other labelled items,
@@ -112,16 +118,31 @@ def _key(la: Label) -> str:
     return "keyed" if la["keyed"] else "unkeyed"
 
 
+def own_lints(la: Label, tier: str) -> list[str]:
+    """The lints of `tier` a label is about: a fault's expected ones, a near-miss's own."""
+    return [str(x) for x in la["expected" if la["kind"] == "fault" else "near_miss_of"][tier]]
+
+
 def hits(
     labels: Mapping[str, Sequence[Label]],
     flags: Mapping[str, Flags],
     tiers: Sequence[str],
 ) -> list[tuple[Label, bool]]:
-    """Every label, and whether `tiers` flagged its finding_on, in question then label order."""
+    """Every label, and whether a lint of `tiers` it names flagged its finding_on.
+
+    A finding by a lint the label does not name gives it no credit: a fault is
+    not found by a lint built for something else, and a near-miss is no false
+    positive of its class when another lint flags it (review finding L4-1).
+    """
     out: list[tuple[Label, bool]] = []
     for q in sorted(labels):
-        found = flagged_by(flags.get(q, {t: {} for t in TIERS}), tiers)
-        out.extend((la, str(la["finding_on"]) in found) for la in labels[q])
+        fl = flags.get(q, {t: {} for t in TIERS})
+        for la in labels[q]:
+            target = str(la["finding_on"])
+            hit = any(
+                target in fl.get(t, {}).get(lint, set()) for t in tiers for lint in own_lints(la, t)
+            )
+            out.append((la, hit))
     return out
 
 
@@ -166,13 +187,30 @@ def unverified(
     tiers: Sequence[str],
     lint: str | None = None,
 ) -> dict[str, int]:
-    """Flagged items that are no label's finding_on: base items or injected ones."""
-    out = {"base": 0, "injected": 0}
+    """Findings no label names: on base items, on labelled items by another lint, on others.
+
+    Counted per finding (lint and item). A finding is explained when a label
+    whose finding_on is its item names its lint; every other one is unverified.
+    """
+    out = {"base": 0, "other_lint": 0, "injected": 0}
     for q in sorted(set(labels) | set(flags)):
-        found = flagged_by(flags.get(q, {t: {} for t in TIERS}), tiers, lint)
-        aimed = {str(la["finding_on"]) for la in labels.get(q, [])}
-        for item in found - aimed:
-            out["base" if item in base.get(q, set()) else "injected"] += 1
+        fl = flags.get(q, {t: {} for t in TIERS})
+        mine = labels.get(q, [])
+        targets = {str(la["finding_on"]) for la in mine}
+        for t in tiers:
+            named = {(str(la["finding_on"]), x) for la in mine for x in own_lints(la, t)}
+            for name, items in sorted(fl.get(t, {}).items()):
+                if lint is not None and name != lint:
+                    continue
+                for item in items:
+                    if (item, name) in named:
+                        continue
+                    if item in base.get(q, set()):
+                        out["base"] += 1
+                    elif item in targets:
+                        out["other_lint"] += 1
+                    else:
+                        out["injected"] += 1
     return out
 
 
@@ -200,9 +238,7 @@ def tier_scores(
     u = unverified(labels, flags, base, tiers)
     overall = out["overall"]["all"]
     out["unverified"] = u
-    out["precision_with_unverified"] = bound(
-        overall["tp"], overall["fp"], u["base"] + u["injected"]
-    )
+    out["precision_with_unverified"] = bound(overall["tp"], overall["fp"], sum(u.values()))
     return out
 
 

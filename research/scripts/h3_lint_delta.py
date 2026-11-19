@@ -281,8 +281,9 @@ def build(config: Mapping[str, Any]) -> dict[str, Any]:
         "questions": len(questions),
         "labels": sum(len(ls) for ls in labels.values()),
         "calls": {"cached": calls["cached"], "new": calls["new"]},
-        "matching": "a tier flags a label when one of its findings lands on the label's "
-        "finding_on; `both` flags it when either tier does; delta is both minus deterministic",
+        "matching": "a tier flags a label when a lint the label names (a fault's expected, a "
+        "near-miss's near_miss_of) lands on its finding_on; `both` flags it when either tier "
+        "does; delta is both minus deterministic; any other finding is unverified",
         "per_seed": per_seed,
         "across_seeds": across_seeds(labels, rows, per_seed, seeds),
         "upper_bound": "Card L2's limits: every model-tier fault and near-miss is an injected "

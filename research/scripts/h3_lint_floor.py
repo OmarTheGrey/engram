@@ -181,13 +181,33 @@ def by_construction(scores: Mapping[str, Any]) -> dict[str, Any]:
             "Deterministic recall on the unkeyed items "
             f"({unkeyed['tp']} of {unkeyed['faults']} faults): no deterministic lint is built "
             "for what makes an unkeyed item faulty, which is in its text only.",
-            "Recall on wrong-scope: no lint of either tier is built for it.",
+            "Recall on wrong-scope, 0 under either tier: its labels name no lint, and a "
+            "finding by a lint a label does not name gives it no credit.",
+            "Per keyed lint, recall and precision on its own labels (500 of 500 faults found, "
+            "no near-miss flagged, for each of the five): the same restated triggers.",
         ],
         "measured": [
-            "The findings on LongMemEval's own items (`unverified.base`) and what they do to "
-            "precision (`precision_with_unverified`): how many there are is measured; whether "
-            "each is real is not known until members judge card L2's audit sample.",
+            "The findings on LongMemEval's own items (`unverified.base`): how many there are is "
+            "measured; whether each is real is not known until members judge card L2's audit "
+            "sample, so each lint's precision on natural memory is bounded only by 0 and 1 "
+            "(`natural_memory`).",
         ],
+        "not_natural_precision": "`precision_with_unverified` pools the labelled true "
+        "positives, whose number the generator's injection rate fixes, with the unverified "
+        "findings; its lower end moves with `per_question` and says nothing about precision "
+        "on natural memory.",
+    }
+
+
+def natural_memory(by_lint: Mapping[str, Any]) -> dict[str, Any]:
+    """Per lint with findings on base items: their count and the bound until the audit is judged."""
+    return {
+        lint: {
+            "base_findings": cell["elsewhere"]["base"],
+            "precision": {"lower": 0.0, "upper": 1.0},
+        }
+        for lint, cell in sorted(by_lint.items())
+        if cell["elsewhere"]["base"] > 0
     }
 
 
@@ -221,6 +241,7 @@ def compute(config: Mapping[str, Any]) -> dict[str, Any]:
     check_against_l2(scores, fault_result["label_check"])
     all_labels = [la for ls in labels.values() for la in ls]
     det_lints = lints_of(all_labels, flags.values(), "deterministic")
+    per_lint = lint_scores(labels, flags, base, "deterministic", det_lints)
     return {
         "name": config["name"],
         "hypothesis": "H3",
@@ -234,10 +255,11 @@ def compute(config: Mapping[str, Any]) -> dict[str, Any]:
         },
         "policy": "the set's lint-time policy (policy.json): preset medium without its "
         "person-scope ttl, every lint enabled; no lint model, so only card L1's lints run",
-        "matching": "a tier flags a label when one of its findings lands on the label's "
-        "finding_on; an item flagged that is no label's finding_on is unverified",
+        "matching": "a tier flags a label when a lint the label names (a fault's expected, a "
+        "near-miss's near_miss_of) lands on its finding_on; any other finding is unverified",
         **scores,
-        "by_lint": lint_scores(labels, flags, base, "deterministic", det_lints),
+        "by_lint": per_lint,
+        "natural_memory": natural_memory(per_lint),
         "by_construction": by_construction(scores),
         "limits": fault_result["limits"],
         "audit": {

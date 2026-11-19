@@ -121,7 +121,7 @@ def test_a_tier_flags_a_label_on_its_finding_on_and_scores_recall_and_labelled_p
     assert overall["recall"]["value"] == pytest.approx(1 / 3)
     lo, hi = overall["recall"]["ci"]
     assert 0 < lo < 1 / 3 < hi < 1
-    assert det["unverified"] == {"base": 2, "injected": 1}
+    assert det["unverified"] == {"base": 2, "other_lint": 0, "injected": 1}
     assert det["precision_with_unverified"] == {"unverified": 3, "lower": 0.2, "upper": 0.8}
 
 
@@ -130,10 +130,47 @@ def test_both_tiers_flag_what_either_does_and_the_superseded_finding_lands_on_th
 ):
     both = scored(["deterministic", "model"])
     assert both["by_subtype"]["superseded"]["tp"] == 1
-    assert both["by_subtype"]["orphan"]["tp"] == 1
-    assert both["overall"]["all"]["tp"] == 3
+    assert both["overall"]["all"]["tp"] == 2
+
+
+def test_a_lint_a_label_does_not_name_gives_it_no_credit_and_is_unverified() -> None:
+    both = scored(["deterministic", "model"])
+    # f2 is an orphan fault; contradiction landing on it is not the orphan lint finding it.
+    assert both["by_subtype"]["orphan"]["tp"] == 0
     model = scored(["model"])
-    assert model["unverified"] == {"base": 0, "injected": 0}
+    assert model["by_subtype"]["orphan"]["tp"] == 0
+    assert model["unverified"] == {"base": 0, "other_lint": 1, "injected": 0}
+
+
+def test_an_orphan_near_miss_flagged_only_by_unsupported_claim_is_no_false_positive() -> None:
+    labels = {"q": [label("q", "n", "near-miss", "orphan", "unsupported", True, det=["orphan"])]}
+    flags, base = lint_scores.flags_of([finding("n", "unsupported-claim", "model")])
+    s = lint_scores.tier_scores(labels, {"q": flags}, {"q": base}, ["deterministic", "model"])
+    assert s["by_subtype"]["orphan"]["fp"] == 0
+    assert s["unverified"] == {"base": 0, "other_lint": 1, "injected": 0}
+    assert s["precision_with_unverified"]["unverified"] == 1
+
+
+def test_a_wrong_scope_fault_flagged_by_contradiction_has_recall_0() -> None:
+    labels = {"q": [label("q", "w", "fault", "wrong-scope", "misplaced", False)]}
+    flags, base = lint_scores.flags_of([finding("w", "contradiction", "model")])
+    s = lint_scores.tier_scores(labels, {"q": flags}, {"q": base}, ["deterministic", "model"])
+    assert s["by_subtype"]["wrong-scope"]["recall"]["value"] == 0.0
+    assert s["by_class"]["misplaced"]["unkeyed"]["tp"] == 0
+    assert s["unverified"]["other_lint"] == 1
+
+
+def test_a_near_miss_flagged_by_a_lint_other_than_its_own_is_no_false_positive_for_that_lint() -> (
+    None
+):
+    flags, base = lint_scores.flags_of([*FINDINGS, finding("n1", "orphan")])
+    det = lint_scores.lint_scores(
+        {"q": LABELS}, {"q": flags}, {"q": base}, "deterministic", ["orphan"]
+    )
+    assert det["orphan"]["fp"] == 1
+    assert det["orphan"]["elsewhere"]["other_labels"] == 1
+    s = lint_scores.tier_scores({"q": LABELS}, {"q": flags}, {"q": base}, ["deterministic"])
+    assert s["by_subtype"]["expired-validity"]["fp"] == 0
 
 
 def test_per_lint_scores_count_only_its_own_labels_and_say_where_else_it_flagged() -> None:
@@ -197,7 +234,7 @@ def test_the_floor_on_the_fixture_set_flags_every_keyed_fault_and_nothing_else()
     s = lint_scores.tier_scores(labels, flags, base, ["deterministic"])
     assert (s["overall"]["keyed"]["tp"], s["overall"]["keyed"]["faults"]) == (100, 100)
     assert s["overall"]["unkeyed"]["tp"] == 0 and s["overall"]["all"]["fp"] == 0
-    assert s["unverified"] == {"base": 0, "injected": 0}
+    assert s["unverified"] == {"base": 0, "other_lint": 0, "injected": 0}
     runner = {"model": "prereg/M1", "seeds": [1, 2, 3]}
     run = h3_lint_floor.model_run(rows, labels, runner, "x.json")
     assert run["per_seed"] == sum(len(r["planned"]) for r in rows)
@@ -262,7 +299,11 @@ def test_seed_1_misses_both_supersessions_and_plants_one_unverified_finding(
     assert cells(fixture_delta, "1", "both", "stale", "unkeyed") == (0, 2, 0)
     assert cells(fixture_delta, "1", "both", "contradictory", "unkeyed") == (2, 2, 0)
     assert cells(fixture_delta, "1", "both", "unsupported", "all") == (6, 6, 0)
-    assert fixture_delta["per_seed"]["1"]["model"]["unverified"] == {"base": 0, "injected": 1}
+    assert fixture_delta["per_seed"]["1"]["model"]["unverified"] == {
+        "base": 0,
+        "other_lint": 0,
+        "injected": 1,
+    }
     delta = fixture_delta["per_seed"]["1"]["delta"]["by_class"]
     assert delta["stale"]["all"]["recall"] == 0.0
     assert delta["unsupported"]["all"]["recall"] == pytest.approx(1 / 3)
@@ -313,3 +354,15 @@ def test_the_audit_is_unjudged_until_a_config_names_a_judged_sheet() -> None:
     assert h3_lint_floor.audit_status(None).startswith("unjudged")
     with pytest.raises(NotImplementedError):
         h3_lint_floor.audit_status("sheet.csv")
+
+
+def test_natural_memory_is_each_lints_0_to_1_bound_on_its_base_findings() -> None:
+    flags, base = lint_scores.flags_of(FINDINGS)
+    per_lint = lint_scores.lint_scores(
+        {"q": LABELS}, {"q": flags}, {"q": base}, "deterministic", ["duplicate", "orphan"]
+    )
+    assert h3_lint_floor.natural_memory(per_lint) == {
+        "duplicate": {"base_findings": 2, "precision": {"lower": 0.0, "upper": 1.0}}
+    }
+    text = h3_lint_floor.by_construction(scored(["deterministic"]))["not_natural_precision"]
+    assert "per_question" in text
