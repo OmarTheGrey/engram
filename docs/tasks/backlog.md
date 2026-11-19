@@ -101,6 +101,16 @@ Found by the review of PR #49; they need card L2 or the lead, not more of L4.
 | Injected sentences' openers | the generator's injected sentences open with phrases LongMemEval's own turns lack ("For the record, my ...", "As it stands, my ...", "These days my ..."), so a model or a reader can tell injected items from base ones; card L2 decides whether the pools should drop or vary them (a generator change re-records the set, its hashes and L4's floor) | `docs/log/2026-11-19-l4-review-finding-l2-injected-openers.md` |
 | H3's live lint run size | the full set costs 95,217 model calls, 26,739 of each seed's 28,739 contradiction calls on no label; a subset departs from H3's stopping rule and needs an amendment, and the runner has no seeded sampler of questions; the lead decides | `docs/log/2026-11-19-l4-review-finding-live-count.md` |
 
+## Follow-ups from card B6 (2026-11-19)
+
+Found by the work on card B6 and the review of PR #51.
+
+| item | what is left | where it is recorded |
+|---|---|---|
+| LongMemEval judge in the Models section | the lead names LongMemEval's judge in the pre-registration's Models section: H2's baselines judge with the paper's model through OpenRouter, `openrouter/openai/gpt-4o-2024-08-06`, temperature 0, 10 tokens, one call per session; today only the configs and a decision entry name it, and the Models section names GateMem's judge only | `docs/log/2026-11-19-b6-decision-judge-route.md`; `research/configs/h2-longmemeval-c5-medium.json` |
+| H2 clock choice | the lead chooses how H2 treats preset medium's 90-day ttl on LongMemEval (it hides turns in 54 of 500 questions at B5's read time): keep and report with a descriptive sensitivity set (recommended, with the exact line), read at another clock, or a LongMemEval preset; decided before the tag | `docs/tasks/B6.md`; `docs/log/2026-11-19-b6-finding-clock-options-bound.md` |
+| Embedded Postgres teardown on Windows | vitest's embedded-Postgres teardown fails with `EBUSY` on Windows under load, which turns a `make test` whose tests all pass into exit 1; the teardown should retry or tolerate a busy folder | PR #51 review |
+
 ## Follow-ups from card E9.4 (2026-11-19)
 
 Found by the work on card E9.4 and the review of PR #44, and left open on purpose.
