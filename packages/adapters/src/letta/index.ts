@@ -66,6 +66,7 @@ import { isDeepStrictEqual } from "node:util";
 import {
   type MemoryItem,
   MemoryItem as MemoryItemSchema,
+  NotDeletableError,
   type StoreDiagnostic,
 } from "@engram/core";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
@@ -111,8 +112,13 @@ export interface LettaAdapter extends Adapter {
   history(ref: StoreRef): Promise<MemoryItem[]>;
 }
 
-/** A key, or a path the adapter would touch, that it refuses. */
-export class UnsafeLettaPathError extends Error {
+/**
+ * A key, or a path the adapter would touch, that it refuses. A
+ * NotDeletableError: a delete it stops is refused on every attempt, not just
+ * now, so offboarding reports the record as left in the store instead of
+ * holding the item back (card RV3, RV-ADP-5).
+ */
+export class UnsafeLettaPathError extends NotDeletableError {
   constructor(path: string, why: string) {
     super(`letta adapter: ${JSON.stringify(path)} ${why}`);
     this.name = "UnsafeLettaPathError";
@@ -127,8 +133,12 @@ export class RepositoryBusyError extends Error {
   }
 }
 
-/** A folder the adapter will not open as a MemFS repository. */
-export class NotMemfsRepositoryError extends Error {
+/**
+ * A folder the adapter will not open as a MemFS repository. A
+ * NotDeletableError for the same reason: no retry opens it (RV-ADP-5). A
+ * busy repository (RepositoryBusyError) is transient and stays a plain error.
+ */
+export class NotMemfsRepositoryError extends NotDeletableError {
   constructor(root: string, why: string) {
     super(`letta adapter: ${root} ${why}`);
     this.name = "NotMemfsRepositoryError";
