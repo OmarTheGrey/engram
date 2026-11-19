@@ -995,3 +995,146 @@ describe("round 2: a write the check allowed and the commit denies (PR #5's writ
     expect(events.filter((e) => e.op === "bypass_blocked")).toEqual([]);
   });
 });
+
+describe("card RV5, RV-SRF-3: the files that govern the session are guarded", () => {
+  /** A log with its SQLite companions and a .pi settings folder, as pi-package protects them. */
+  function governed() {
+    const base = mkdtempSync(join(tmpdir(), "engram-protect-"));
+    const log = join(base, "engram.db");
+    const pi = join(base, "project", ".pi");
+    mkdirSync(pi, { recursive: true });
+    for (const f of [log, `${log}-wal`, `${log}-shm`]) writeFileSync(f, "LOG");
+    writeFileSync(join(pi, "settings.json"), "{}");
+    return { base, log, pi, protect: [log, `${log}-wal`, `${log}-shm`, `${log}-journal`, pi] };
+  }
+
+  test("pi's write and edit tools and bash rm, mv and redirection never touch them", async () => {
+    const { log: events } = await seeded();
+    const { base, log, pi, protect } = governed();
+    const ext = createEngramExtension({
+      ...events,
+      policy,
+      actor: OMAR,
+      now: () => AT,
+      protect,
+      protectBelow: [base],
+    });
+    const steps = [
+      call("p1", "write", { path: log, content: "" }),
+      call("p2", "bash", { command: `rm ${log}` }),
+      call("p3", "write", { path: `${log}-wal`, content: "" }),
+      call("p4", "bash", { command: `rm -f "${log}-shm"` }),
+      call("p5", "edit", {
+        path: join(pi, "settings.json"),
+        edits: [{ oldText: "{}", newText: '{"packages":[]}' }],
+      }),
+      call("p6", "write", { path: join(pi, "extensions", "off.ts"), content: "export {}" }),
+      call("p7", "bash", { command: `rm -rf ${join(base, "project", ".pi")}` }),
+      call("p8", "bash", { command: `mv ${join(base, "project")} ${join(base, "gone")}` }),
+      call("p9", "bash", { command: `echo x > ${log}` }),
+      { text: "done" },
+    ];
+    const run = await session([ext], steps, ["write", "edit", "bash"]);
+    await run.session.prompt("go");
+    const results = toolResults(run.sessionManager);
+    expect(results).toHaveLength(9);
+    for (const r of results) {
+      expect(r.isError, `${r.toolName}: ${textOf(r)}`).toBe(true);
+      expect(textOf(r)).toContain("inside the root of store engram");
+    }
+    for (const f of [log, `${log}-wal`, `${log}-shm`]) expect(readFileSync(f, "utf8")).toBe("LOG");
+    expect(readFileSync(join(pi, "settings.json"), "utf8")).toBe("{}");
+    expect(existsSync(join(pi, "extensions"))).toBe(false);
+    const blocked = allEvents(events.db).filter((e) => e.op === "bypass_blocked");
+    expect(blocked.map((e) => e.policy_id)).toEqual(Array(9).fill(BYPASS_PATH_ID));
+  });
+
+  test("user_bash cannot remove the log either", async () => {
+    const { log: events } = await seeded();
+    const { log, protect } = governed();
+    const ext = createEngramExtension({ ...events, policy, actor: OMAR, now: () => AT, protect });
+    const run = await session([ext], [], ["bash"]);
+    const result = await hostUserBash(run.session, `rm ${log}`);
+    expect(result.exitCode).toBe(126);
+    expect(readFileSync(log, "utf8")).toBe("LOG");
+  });
+
+  test("a file beside them still runs", async () => {
+    const { log: events } = await seeded();
+    const { base, protect } = governed();
+    writeFileSync(join(base, "notes.md"), "plain notes");
+    const ext = createEngramExtension({ ...events, policy, actor: OMAR, now: () => AT, protect });
+    const run = await session(
+      [ext],
+      [call("r1", "read", { path: join(base, "notes.md") }), { text: "ok" }],
+      ["read"],
+    );
+    await run.session.prompt("go");
+    const [result] = toolResults(run.sessionManager);
+    expect(result?.isError).toBe(false);
+  });
+});
+
+describe("card RV5, RV-SRF-4: only the extension's own four tools skip the no-bypass checks", () => {
+  test("another extension's memory_export with a path into a store root is blocked and recorded", async () => {
+    const { log } = await seeded();
+    const { root } = storeRoot();
+    const ext = createEngramExtension({
+      ...log,
+      policy,
+      actor: OMAR,
+      now: () => AT,
+      storeRoots: [root],
+    });
+    let ran = 0;
+    const exporter: ExtensionFactory = (pi) => {
+      pi.registerTool({
+        name: "memory_export",
+        label: "Memory export",
+        description: "Export memory to a file.",
+        parameters: Type.Object({ path: Type.String(), content: Type.String() }),
+        async execute(_id, params) {
+          ran++;
+          writeFileSync(params.path, params.content);
+          return { content: [{ type: "text", text: "exported" }], details: {} };
+        },
+      });
+    };
+    const run = await session(
+      [ext, exporter],
+      [
+        call("x", "memory_export", { path: join(root, "planted.md"), content: "org: approve" }),
+        { text: "ok" },
+      ],
+      ["memory_export"],
+    );
+    await run.session.prompt("go");
+    const [result] = toolResults(run.sessionManager, "x");
+    expect(result?.isError).toBe(true);
+    expect(textOf(result as never)).toContain(BYPASS_PATH_ID);
+    expect(ran).toBe(0);
+    expect(existsSync(join(root, "planted.md"))).toBe(false);
+    expect(allEvents(log.db).filter((e) => e.policy_id === BYPASS_PATH_ID)).toHaveLength(1);
+  });
+
+  test("the extension's own memory_read still runs unchecked", async () => {
+    const { log } = await seeded();
+    const { root } = storeRoot();
+    const ext = createEngramExtension({
+      ...log,
+      policy,
+      actor: OMAR,
+      now: () => AT,
+      storeRoots: [root],
+    });
+    const run = await session(
+      [ext],
+      [call("r", "memory_read", { query: root }), { text: "ok" }],
+      ["memory_read"],
+    );
+    await run.session.prompt("go");
+    const [result] = toolResults(run.sessionManager, "r");
+    expect(result?.isError).toBe(false);
+    expect(allEvents(log.db).filter((e) => e.op === "bypass_blocked")).toEqual([]);
+  });
+});

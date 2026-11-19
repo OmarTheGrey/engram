@@ -56,3 +56,26 @@ export function packageConfig(
     actor: { id, level, memberships },
   };
 }
+
+/**
+ * The files the extension guards as governing the session (card RV5,
+ * RV-SRF-3): the log when it is a SQLite file, with its -wal, -shm and
+ * -journal files; the project's pi folder (`.pi/`: settings, extensions,
+ * prompts); and pi's own agent folder (user settings, extensions, sessions).
+ * A Postgres log or an in-memory one has no file to guard.
+ */
+export function protectedPaths(options: {
+  /** The log's SQLite path, or undefined for one that is not a file. */
+  logPath: string | undefined;
+  cwd: string;
+  /** pi's project folder name (CONFIG_DIR_NAME, `.pi`). */
+  configDir: string;
+  /** pi's agent folder (getAgentDir()). */
+  agentDir: string;
+}): string[] {
+  const log =
+    options.logPath === undefined
+      ? []
+      : ["", "-wal", "-shm", "-journal"].map((suffix) => `${options.logPath}${suffix}`);
+  return [...log, join(options.cwd, options.configDir), options.agentDir];
+}

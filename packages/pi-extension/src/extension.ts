@@ -39,6 +39,14 @@
 // word, erring towards blocking; a store name a variable, an alias or a
 // script supplies at run time is out of reach of any text check, and so is a
 // shell command that reaches a root only through a path it computes.
+//
+// Card RV5: the files that govern the session (`protect`: the log with its
+// -wal and -shm files, pi's settings) are guarded like a store root and
+// reported as store `engram`, as the Claude Code hook guards its own
+// (RV-SRF-3); and only the four tools this extension registers skip the
+// no-bypass checks, so another extension's `memory_*` tool with a path into
+// a store root is blocked like any other tool (RV-SRF-4). The sweeps before
+// each prompt are core's syncBeforeRead, at this process's clock (RV-SRF-1).
 import { createHash } from "node:crypto";
 import type { ExtensionAPI, ExtensionFactory } from "@earendil-works/pi-coding-agent";
 import {
@@ -56,6 +64,7 @@ import {
   type Policy,
   type ReadResult,
   STORE_COMMANDS,
+  syncBeforeRead,
   toolBypass,
   type Workload,
   type WorkloadStep,
@@ -64,7 +73,6 @@ import { systemClock, uuidv7 } from "./ids.ts";
 import { type CallEntry, ENGRAM_CALL, ENGRAM_EVENT, ENGRAM_POLICY, policyHash } from "./replay.ts";
 import {
   defuseMessage,
-  isMemoryTool,
   ProducedResults,
   RECALL_MESSAGE,
   type RecallDetails,
@@ -102,6 +110,16 @@ export interface EngramExtensionOptions {
   storeCommands?: readonly string[];
   /** Directories holding store files (a files adapter's root); file tools are blocked inside them. */
   storeRoots?: readonly string[];
+  /**
+   * Files and folders that govern the session: the Engram log with its
+   * SQLite companions, pi's settings and extensions (card RV5, RV-SRF-3). No
+   * tool and no shell command may touch them, and a folder holding one,
+   * strictly inside a `protectBelow` folder, is guarded too (`rm -rf .pi`).
+   * Each block is a bypass event reporting store `engram`.
+   */
+  protect?: readonly string[];
+  /** The folders a protected file's ancestors are guarded below: the project and the home folder. */
+  protectBelow?: readonly string[];
   /** Inject governed recall for each prompt in before_agent_start. Default true. */
   recall?: boolean;
   /** Wraps the Plane the extension builds; for tests, a fake around the real Plane. */
@@ -160,12 +178,23 @@ const modelOf = (ctx: { model?: { provider: string; id: string } | undefined }) 
 
 /** Shell tools whose `command` is checked for store names. */
 const SHELL_TOOLS = new Set(["bash", "powershell"]);
+/**
+ * The tools this extension registers, the governed path: the only tools the
+ * no-bypass checks pass over (card RV5, RV-SRF-4). Any other tool, whatever
+ * its name, is checked; another extension's memory_* result is still
+ * withheld from the model by the context handler (tag.ts).
+ */
+const ENGRAM_TOOLS: ReadonlySet<string> = new Set(
+  [MEMORY_WRITE, MEMORY_READ, MEMORY_EXPLAIN, MEMORY_SIMULATE].map((t): string => t.name),
+);
 
 export function createEngramExtension(options: EngramExtensionOptions): ExtensionFactory {
   const newId = options.newId ?? (() => uuidv7());
   const now = options.now ?? systemClock;
   const storeCommands = options.storeCommands ?? STORE_COMMANDS;
   const storeRoots = options.storeRoots ?? [];
+  const protect = options.protect ?? [];
+  const protectBelow = options.protectBelow ?? [];
   const { db, adapter } = options;
   const actor = options.actor;
   /** The actor of the agent's tool calls: what it writes is model content (decision D4). */
@@ -240,25 +269,39 @@ export function createEngramExtension(options: EngramExtensionOptions): Extensio
       return planeCall(() => plane.recordBypass(agent, b, at));
     };
 
-    /** Core decides (no-bypass.ts); the extension records what it blocks. */
-    const check = (cwd: string) => ({
-      cwd,
-      roots: storeRoots,
-      stores: storeCommands,
-      rootStore: adapter.name,
-    });
+    /**
+     * Core decides (no-bypass.ts); the extension records what it blocks. Two
+     * checks, as the Claude Code hook runs them: the store roots, reported as
+     * the store, and the protected files, reported as store `engram`.
+     */
+    const checks = (cwd: string) => [
+      { cwd, roots: storeRoots, stores: storeCommands, rootStore: adapter.name },
+      {
+        cwd,
+        roots: protect,
+        stores: storeCommands,
+        rootStore: "engram",
+        ancestorsBelow: protectBelow,
+      },
+    ];
 
-    /** A bypass event when `command` names a store or reaches a store root, else undefined. */
+    /** A bypass event when `command` names a store or reaches a guarded path, else undefined. */
     const shellBypass = async (command: string, cwd: string, shell?: "powershell") => {
-      // pi's powershell tool reads `\` as a path separator on every platform.
-      const found = coreShellBypass(command, { ...check(cwd), ...(shell ? { shell } : {}) });
-      return found === undefined ? undefined : bypass(found);
+      for (const check of checks(cwd)) {
+        // pi's powershell tool reads `\` as a path separator on every platform.
+        const found = coreShellBypass(command, { ...check, ...(shell ? { shell } : {}) });
+        if (found !== undefined) return bypass(found);
+      }
+      return undefined;
     };
 
-    /** A bypass event when the tool call names a path inside a store root, else undefined. */
+    /** A bypass event when the tool call names a guarded path, else undefined. */
     const pathBypass = async (toolName: string, input: Record<string, unknown>, cwd: string) => {
-      const found = toolBypass(toolName, input, check(cwd));
-      return found === undefined ? undefined : bypass(found);
+      for (const check of checks(cwd)) {
+        const found = toolBypass(toolName, input, check);
+        if (found !== undefined) return bypass(found);
+      }
+      return undefined;
     };
 
     /** Runs a memory tool's body and records the text it produced, or the error it threw. */
@@ -390,7 +433,7 @@ export function createEngramExtension(options: EngramExtensionOptions): Extensio
         record.addText(event.toolCallId, "memory_write", actor.id, reason, true);
         return { block: true, reason };
       }
-      if (isMemoryTool(event.toolName)) return undefined;
+      if (ENGRAM_TOOLS.has(event.toolName)) return undefined;
       let blocked: MemoryEvent | undefined;
       if (SHELL_TOOLS.has(event.toolName)) {
         blocked = await shellBypass(
@@ -412,13 +455,21 @@ export function createEngramExtension(options: EngramExtensionOptions): Extensio
 
     pi.on("before_agent_start", async (event) => {
       // Retention for the session's scopes before each prompt (ADR 0025): the
-      // plane has no clock, so the surfaces sweep. A sweep with nothing to do
-      // appends nothing.
+      // plane has no clock, so the surfaces sweep, through core's
+      // syncBeforeRead at this process's own clock (card RV5). Each sweep is
+      // recorded as a call before it runs; one with nothing to do appends
+      // nothing. The session adopts nothing: its calls replay on their own.
       const at = now();
-      for (const scope of actor.memberships) {
-        recordCall({ op: "retain", as: "member", at, scope });
-        await planeCall(() => plane.retain(actor, scope, at));
-      }
+      // Each sweep's events are mirrored right after its call entry (PX2).
+      const mirrored = {
+        retain: (...args: Parameters<Plane["retain"]>) => planeCall(() => plane.retain(...args)),
+      };
+      await syncBeforeRead(mirrored, {
+        reader: actor,
+        now: at,
+        sweep: actor.memberships,
+        onSweep: (_by, scope) => recordCall({ op: "retain", as: "member", at, scope }),
+      });
       if (options.recall === false || event.messageType !== "user") return undefined;
       const details = await read(event.prompt);
       if (details.items.length === 0) return undefined;

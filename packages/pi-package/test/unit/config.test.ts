@@ -1,6 +1,6 @@
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { ownerFromLogin, packageConfig } from "../../src/config.ts";
+import { ownerFromLogin, packageConfig, protectedPaths } from "../../src/config.ts";
 
 const cwd = join("work", "project");
 
@@ -59,5 +59,27 @@ describe("ownerFromLogin", () => {
   it("replaces characters a scope refuses and never returns an empty owner", () => {
     expect(ownerFromLogin("DOMAIN\\Shady Adham")).toBe("DOMAIN-Shady-Adham");
     expect(ownerFromLogin("")).toBe("local");
+  });
+});
+
+describe("protectedPaths (card RV5, RV-SRF-3)", () => {
+  const agentDir = join("home", ".pi", "agent");
+  it("guards a SQLite log with its -wal, -shm and -journal files, the project's .pi and pi's agent folder", () => {
+    const log = join("home", ".engram", "engram.db");
+    expect(protectedPaths({ logPath: log, cwd, configDir: ".pi", agentDir })).toEqual([
+      log,
+      `${log}-wal`,
+      `${log}-shm`,
+      `${log}-journal`,
+      join(cwd, ".pi"),
+      agentDir,
+    ]);
+  });
+
+  it("guards no log file when the log is not a file", () => {
+    expect(protectedPaths({ logPath: undefined, cwd, configDir: ".pi", agentDir })).toEqual([
+      join(cwd, ".pi"),
+      agentDir,
+    ]);
   });
 });
