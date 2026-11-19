@@ -27,6 +27,7 @@ import { parsePolicy } from "../../../src/policy/load.ts";
 import type { Grant, MemoryItem } from "../../../src/schema.ts";
 import { visibleEvents } from "../../../src/visible.ts";
 import { type Backend, forEachBackend } from "../../db/backends.ts";
+import { reply, scriptedLintModel } from "../../fakes/lint-model.ts";
 import { id, item } from "./helpers.ts";
 
 const PROFILE = new URL("../../../../pi-package/profiles/twin.yaml", import.meta.url);
@@ -604,6 +605,53 @@ forEachBackend((backend) => {
       expect([a.event.policy_id, b.event.policy_id]).toEqual([GRANT_CONFLICT, GRANT_CONFLICT]);
       const final = await storeMatches(env, id(1));
       expect(final.content).toBe("v2 by C");
+    });
+  });
+
+  describe("a model lint across an erasure (P50-8)", () => {
+    test("a model lint awaited while an offboarding erases its items appends no finding about them", async () => {
+      const env = setup(backend);
+      for (const [n, content] of [
+        [11, "Mira's birthday is in May."],
+        [12, "Mira's birthday is in June."],
+      ] as const)
+        expect(
+          (
+            await env.plane.write(
+              dana,
+              item(n, { scope: "person:dana", owner: dana.id, content }),
+              AT,
+            )
+          ).event.decision,
+        ).toBe("allow");
+      const scripted = scriptedLintModel(() => reply("contradiction", "different months"));
+      let release = () => {};
+      const gate = new Promise<void>((r) => {
+        release = r;
+      });
+      let arrived = () => {};
+      const there = new Promise<void>((r) => {
+        arrived = r;
+      });
+      const held: typeof scripted.call = async (request) => {
+        arrived();
+        await gate;
+        return scripted.call(request);
+      };
+      const policy = { ...twin(), lints: { enabled: ["contradiction"], thresholds: {} } };
+      const linting = createPlane({
+        ...env.depsMine,
+        policy,
+        lintModel: { call: held, model: "scripted/lint-1", seed: 1 },
+      }).lint(dana, AT, "person:dana");
+      await there;
+      await offboardTheirs(env);
+      release();
+      const report = await linting;
+      expect(report.findings).toEqual([]);
+      const lints = allEvents(env.mine).filter((e) => e.op === "lint");
+      expect(lints).toEqual([]);
+      expect(JSON.stringify(allEvents(env.mine))).not.toContain("Mira");
     });
   });
 });

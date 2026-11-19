@@ -95,6 +95,9 @@ import { adoptWrite, withPlaneProvenance } from "./write.ts";
 
 export { ADOPT_ERASED_ID, ADOPT_OFFBOARDED_ID };
 
+/** What the reason of a refusal whose record adoption deletes says (P50-2). */
+const PURGE_CLAUSE = "the record is deleted";
+
 /** The policy_id of a retire adoption appends when the store no longer has what the plane holds. */
 export const ADOPT_RETRACT_ID = "engram/adopt/retract";
 
@@ -188,7 +191,19 @@ export async function adoptStoreItems(
     }
     const note = hashNote(itemHash(item, derived));
     const lastWrite = history.filter((e) => e.op === "write").at(-1);
-    if (lastWrite?.decision === "deny" && lastWrite.reason.endsWith(note)) {
+    // A record to delete is gated again even when an earlier refusal of the
+    // same bytes stands (an erasing refusal, say), unless its delete was
+    // already tried and the store refused it for good.
+    const purgeable = erasedRefusal(deps, item)?.purge === true;
+    const triedPurge =
+      lastWrite !== undefined &&
+      [ADOPT_ERASED_ID, ADOPT_OFFBOARDED_ID].includes(lastWrite.policy_id) &&
+      lastWrite.reason.includes(PURGE_CLAUSE);
+    if (
+      lastWrite?.decision === "deny" &&
+      lastWrite.reason.endsWith(note) &&
+      (!purgeable || triedPurge)
+    ) {
       report.unchanged++;
       continue;
     }
@@ -307,7 +322,7 @@ function erasedRefusal(
   if (gone) {
     if (gone.reason.includes(LEFT_CONTENT_CLAUSE)) return null;
     return {
-      reason: `the store holds a record under the id of item ${candidate.id}, which an offboarding erased and deleted from the store; an erased id is never adopted again, and the record is deleted`,
+      reason: `the store holds a record under the id of item ${candidate.id}, which an offboarding erased and deleted from the store; an erased id is never adopted again, and ${PURGE_CLAUSE}`,
       policy_id: ADOPT_ERASED_ID,
       purge: true,
     };
@@ -316,7 +331,7 @@ function erasedRefusal(
   // since: a write that never committed, decided before the erasure.
   if (offboarded(db, candidate.scope) && !history.some((e) => e.decision === "allow"))
     return {
-      reason: `the store holds a record under item id ${candidate.id} in ${candidate.scope}, which was offboarded, and the log never recorded that id: a write that never committed; it is not adopted, and the record is deleted`,
+      reason: `the store holds a record under item id ${candidate.id} in ${candidate.scope}, which was offboarded, and the log never recorded that id: a write that never committed; it is not adopted, and ${PURGE_CLAUSE}`,
       policy_id: ADOPT_OFFBOARDED_ID,
       purge: true,
     };

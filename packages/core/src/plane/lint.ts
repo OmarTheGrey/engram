@@ -20,7 +20,9 @@
 // its own PR, AGENTS.md rule 5), so the event carries them in `reason`, and
 // its policy_id is `<policy>/lint/<lint_id>`. A finding's id is its event's id.
 import { type Actor, checkCall, InvalidCallError } from "../actor.ts";
-import { allEvents, appendEvent, currentItems } from "../events.ts";
+import { strictContentHash } from "../content-hash.ts";
+import type { Db } from "../db/db.ts";
+import { allEvents, appendEvent, currentItems, erases } from "../events.ts";
 import { type DetFinding, type LintContext, lintScope } from "../lint/det.ts";
 import {
   type ModelJudgment,
@@ -33,6 +35,7 @@ import type { ModelUsage } from "../model.ts";
 import type { PlaneDeps } from "../plane.ts";
 import { readableAt, readableScope } from "../policy/evaluate.ts";
 import { type LintFinding, type MemoryEvent, type MemoryItem, Scope } from "../schema.ts";
+import { logHead } from "./commit.ts";
 import { inWriteQueue } from "./queue.ts";
 
 /**
@@ -56,6 +59,39 @@ export interface LintReport {
    * may read the scope.
    */
   judgments?: ModelJudgment[];
+}
+
+/**
+ * `found` less every finding about an item an offboarding erased after
+ * `head`, or whose message or evidence names one, its id or the content hash
+ * of the version the lint read: the model lints are awaited between the
+ * snapshot and the commit, and an erasure's redaction (ADR 0010) would not
+ * reach a finding appended after it. Call it inside the commit's transaction.
+ */
+function withoutErased<F extends { item_id: string | null; message: string; evidence: string[] }>(
+  db: Db,
+  ctx: LintContext,
+  found: F[],
+  head: number,
+): F[] {
+  const erased = db
+    .prepare(
+      "SELECT item_id, body FROM events WHERE seq > ? AND op = 'retire' AND item_id IS NOT NULL",
+    )
+    .all(head)
+    .map((r) => JSON.parse(String(r.body)) as MemoryEvent)
+    .filter(erases)
+    .map((e) => e.item_id as string);
+  if (erased.length === 0) return found;
+  const traces = erased.flatMap((itemId) => {
+    const read = ctx.items.get(itemId);
+    return read ? [itemId, strictContentHash(read.content)] : [itemId];
+  });
+  return found.filter(
+    (f) =>
+      !(f.item_id !== null && erased.includes(f.item_id)) &&
+      !traces.some((t) => f.message.includes(t) || f.evidence.some((x) => x.includes(t))),
+  );
 }
 
 /** The event that last retired each retired item, from the log. */
@@ -149,6 +185,9 @@ async function run(deps: PlaneDeps, actor: Actor, at: string, scope: string): Pr
     });
     return { decision: "deny", findings: [], events: [denied] };
   }
+  // The head before the snapshot: an erasure committed after it, on any
+  // handle, drops the findings that name what it erased (review of PR #50).
+  const head = logHead(db);
   const ctx = lintContext(deps, actor, at);
   const found: (DetFinding & { tier: LintFinding["tier"]; usage?: ModelUsage })[] = lintScope(
     ctx,
@@ -164,7 +203,7 @@ async function run(deps: PlaneDeps, actor: Actor, at: string, scope: string): Pr
     found.push(...ran.findings.map((f) => ({ ...f, tier: "model" as const })));
   }
   const committed = db.transaction(() =>
-    found.map(({ tier, usage, ...f }) => {
+    withoutErased(db, ctx, found, head).map(({ tier, usage, ...f }) => {
       const id = newId();
       const event = appendEvent(db, {
         ...base,

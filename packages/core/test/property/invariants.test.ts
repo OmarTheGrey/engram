@@ -100,7 +100,7 @@ import type { Adapter } from "../../src/adapter.ts";
 import type { Db } from "../../src/db/db.ts";
 import { migrate } from "../../src/db/migrate.ts";
 import { openSqlite } from "../../src/db/sqlite.ts";
-import { allEvents, appendEvent, currentItems, rebuild } from "../../src/events.ts";
+import { allEvents, appendEvent, currentItems, eventsByItem, rebuild } from "../../src/events.ts";
 import { itemById } from "../../src/items.ts";
 import {
   type Actor,
@@ -601,14 +601,21 @@ describe("invariants", () => {
   const I1H =
     "invariant 1 across two handles: no reader gets an erased item back, and the store holds the projection, whatever the interleaving";
   test(I1H, async () => {
-    const seen: WalkSeen = { erased: 0, grantedReads: 0, refusedStale: 0 };
+    const seen: WalkSeen = {
+      erased: 0,
+      grantedReads: 0,
+      refusedStale: 0,
+      crashes: 0,
+      purged: 0,
+      erasedLeft: 0,
+    };
     await fc.assert(
       fc.asyncProperty(fc.scheduler(), arbWalk, (s, walk) => twoHandleWalk(s, walk, seen)),
       { numRuns: RUNS_TWO_HANDLES, seed: seedFor(I1H) },
     );
     expect(
       Object.values(seen).every((n) => n > 0),
-      `the two-handle walk needs erasures, reads a grant admitted, and stale decisions refused under the lock; it saw ${JSON.stringify(seen)}`,
+      `the two-handle walk needs erasures, reads a grant admitted, stale decisions refused under the lock, crashed writers, and records an adoption deleted; it saw ${JSON.stringify(seen)}`,
     ).toBe(true);
   }, 240_000);
 
@@ -2069,9 +2076,20 @@ const W_ID = (n: number) => `01930000-0000-7000-8000-${String(n).padStart(12, "0
 const W_POOL = [1, 2, 3, 4, 5, 6].map(W_ID);
 const W_SCOPES = ["person:dana", "role:release"];
 
+/**
+ * How a writer stops (review of PR #50, P50-2 and P50-6): not at all, by
+ * throwing at the transaction that would commit it, after its store write,
+ * or by failing its next store call after that write (a repair's).
+ */
+type Crash = "none" | "commit" | "repair";
+const arbCrash = fc.oneof(
+  { arbitrary: fc.constant<Crash>("none"), weight: 3 },
+  { arbitrary: fc.constantFrom<Crash>("commit", "repair"), weight: 1 },
+);
+
 type WalkOp =
-  | { kind: "write"; pick: number; grant: boolean; episodic: boolean }
-  | { kind: "grant"; pick: number; add: boolean }
+  | { kind: "write"; pick: number; grant: boolean; episodic: boolean; crash: Crash }
+  | { kind: "grant"; pick: number; add: boolean; crash: Crash }
   | { kind: "promote"; pick: number }
   | { kind: "retain" }
   | { kind: "adopt"; scope: number }
@@ -2085,6 +2103,7 @@ const arbWalkOp: fc.Arbitrary<WalkOp> = fc.oneof(
       pick: fc.nat(5),
       grant: fc.boolean(),
       episodic: fc.boolean(),
+      crash: arbCrash,
     }),
     weight: 4,
   },
@@ -2093,6 +2112,7 @@ const arbWalkOp: fc.Arbitrary<WalkOp> = fc.oneof(
       kind: fc.constant("grant" as const),
       pick: fc.nat(5),
       add: fc.boolean(),
+      crash: arbCrash,
     }),
     weight: 3,
   },
@@ -2102,8 +2122,33 @@ const arbWalkOp: fc.Arbitrary<WalkOp> = fc.oneof(
   { arbitrary: fc.record({ kind: fc.constant("read" as const) }), weight: 2 },
 );
 
+/**
+ * A short walk aimed at a crashed writer racing an erasure: one handle
+ * writes a person item and rewrites it (or changes its grant), crashing at
+ * the commit or at the repair; the other offboards, sometimes after an
+ * operation of its own (P50-2).
+ */
+const arbCrashRace = fc
+  .tuple(
+    fc.nat(3),
+    fc.boolean(),
+    fc.constantFrom<Crash>("commit", "repair"),
+    fc.array(arbWalkOp, { maxLength: 1 }),
+    fc.boolean(),
+  )
+  .map(([pick, viaGrant, crash, before, onA]) => {
+    const racer: WalkOp[] = [
+      { kind: "write", pick, grant: false, episodic: false, crash: "none" },
+      viaGrant
+        ? { kind: "grant", pick, add: true, crash }
+        : { kind: "write", pick, grant: true, episodic: false, crash },
+    ];
+    const eraser: WalkOp[] = [...before, { kind: "offboard" }];
+    return onA ? ([racer, eraser] as const) : ([eraser, racer] as const);
+  });
+
 /** Two handles' operation lists, the offboarding inserted once into one of them. */
-const arbWalk = fc
+const arbAnyWalk = fc
   .tuple(
     fc.array(arbWalkOp, { minLength: 1, maxLength: 6 }),
     fc.array(arbWalkOp, { minLength: 1, maxLength: 6 }),
@@ -2117,11 +2162,20 @@ const arbWalk = fc
     return onA ? ([ops, b] as const) : ([a, ops] as const);
   });
 
+const arbWalk = fc.oneof(
+  { arbitrary: arbAnyWalk, weight: 3 },
+  { arbitrary: arbCrashRace, weight: 1 },
+);
+
 /** What the walk saw, for its guards. */
 interface WalkSeen {
   erased: number;
   grantedReads: number;
   refusedStale: number;
+  crashes: number;
+  purged: number;
+  /** Walks that ended with an erased id's record in the store, for the next adoption to delete. */
+  erasedLeft: number;
 }
 
 async function twoHandleWalk(
@@ -2132,26 +2186,55 @@ async function twoHandleWalk(
   const policy = parsePolicy(readFileSync(TWIN_PROFILE, "utf8"), "twin.yaml");
   const base = openSqlite(":memory:");
   migrate(base);
+  /** One handle's crash plan for the operation it runs now. */
+  interface Plan {
+    crash: Crash;
+    wrote: boolean;
+    failTransaction: boolean;
+  }
+  const crashed = () => new Error("simulated crash of the writer");
+  let crashes = 0;
   /** A handle: its own Db object, so its own write queue, over the one log. */
-  const handle = (): Db => ({
+  const handle = (plan: Plan): Db => ({
     dialect: base.dialect,
     exec: (sql) => base.exec(sql),
     prepare: (sql) => base.prepare(sql),
-    transaction: (fn) => base.transaction(fn),
+    transaction: (fn) => {
+      if (plan.failTransaction) {
+        plan.failTransaction = false;
+        crashes++;
+        throw crashed();
+      }
+      return base.transaction(fn);
+    },
     close: () => {},
   });
   const store = createFakeAdapter({ search: false, history: false });
-  const yielding = (name: string): Adapter => {
+  const yielding = (name: string, plan: Plan): Adapter => {
     const pass = (label: string) => s.schedule(Promise.resolve(label), label);
+    /** A repair's store call, after the operation's first write, fails once. */
+    const failRepair = () => {
+      if (plan.crash !== "repair" || !plan.wrote) return;
+      plan.crash = "none";
+      crashes++;
+      throw crashed();
+    };
     return Object.assign(Object.create(store) as Adapter, {
       write: async (it: MemoryItem) => {
         await pass(`${name} write ${it.id} v${it.version}`);
+        failRepair();
         const ref = await store.write(it);
         await pass(`${name} wrote ${it.id}`);
+        if (!plan.wrote && plan.crash === "commit") {
+          plan.crash = "none";
+          plan.failTransaction = true;
+        }
+        plan.wrote = true;
         return ref;
       },
       delete: async (ref: { adapter: string; key: string }) => {
         await pass(`${name} delete ${ref.key}`);
+        failRepair();
         await store.delete(ref);
         await pass(`${name} deleted ${ref.key}`);
       },
@@ -2173,88 +2256,108 @@ async function twoHandleWalk(
   const written = new Map<string, Set<string>>();
   const reads: { seq: number; ids: string[] }[] = [];
   const refusals: MemoryEvent[] = [];
-  const deps = (name: string, from: number): PlaneDeps => ({
-    db: handle(),
-    adapter: yielding(name),
-    policy,
-    newId: () => `01940000-0000-7000-8000-${String(from + ++n).padStart(12, "0")}`,
-  });
+  const plans = new Map<PlaneDeps, Plan>();
+  const deps = (name: string, from: number): PlaneDeps => {
+    const plan: Plan = { crash: "none", wrote: false, failTransaction: false };
+    const d: PlaneDeps = {
+      db: handle(plan),
+      adapter: yielding(name, plan),
+      policy,
+      newId: () => `01940000-0000-7000-8000-${String(from + ++n).padStart(12, "0")}`,
+    };
+    plans.set(d, plan);
+    return d;
+  };
   const run = async (d: PlaneDeps, ops: readonly WalkOp[]) => {
     const plane = createPlane(d);
+    const plan = plans.get(d) as Plan;
     for (const op of ops) {
-      if (op.kind === "write") {
-        const itemId = W_POOL[op.pick] as string;
-        const scope = op.pick < 4 ? "person:dana" : "role:release";
-        const cls = op.episodic && scope === "person:dana" ? "episodic" : "semantic";
-        const held = itemById(d.db, itemId);
-        const token = `zq${++tokens}x`;
-        written.set(itemId, (written.get(itemId) ?? new Set()).add(token));
-        const r = await plane.write(
-          W_DANA,
-          {
-            id: itemId,
-            class: held?.class ?? cls,
-            scope,
-            owner: held?.owner ?? W_DANA.id,
-            content: `Dana's note ${token}`,
-            provenance: {
-              kind: "user",
-              ref: "doc/1",
-              hash: `sha256:${"0".repeat(64)}`,
-              actor: W_DANA.id,
-            },
-            confidence: 0.9,
-            valid_from: "2026-10-01T00:00:00Z",
-            valid_to: null,
-            ttl: null,
-            grants: op.grant
-              ? [{ to: W_SAM.id, class: held?.class ?? cls, mode: "read", expires: W_UNTIL }]
-              : (held?.grants ?? []),
-            version: (held?.version ?? 0) + 1,
-            lineage: [],
-            status: "active",
-            store_ref: null,
-            schema_version: 1,
-          } as MemoryItem,
-          W_AT,
-        );
-        refusals.push(r.event);
-      } else if (op.kind === "grant") {
-        const itemId = W_POOL[op.pick] as string;
-        const held = itemById(d.db, itemId);
-        const grant = {
-          to: W_SAM.id,
-          class: held?.class ?? "semantic",
-          mode: "read" as const,
-          expires: W_UNTIL,
-        };
-        const r = await plane.changeGrants(
-          W_DANA,
-          itemId,
-          op.add ? { add: [grant] } : { remove: [held?.grants[0] ?? grant] },
-          W_AT,
-        );
-        refusals.push(r.event);
-      } else if (op.kind === "promote") {
-        const r = await plane.promote(W_HR, W_POOL[op.pick] as string, "person:dana", W_AT, {
-          review: true,
-        });
-        refusals.push(...r.events);
-      } else if (op.kind === "retain") {
-        await plane.retain(W_DANA, "person:dana", W_LATER);
-      } else if (op.kind === "adopt") {
-        await adoptStoreItems(d, W_DANA, W_SCOPES[op.scope] as string, W_AT);
-      } else if (op.kind === "read") {
-        const r = await plane.read(W_SAM, { at: W_LATER });
-        reads.push({ seq: r.event.seq, ids: r.items.map((i) => i.id) });
-      } else {
-        await offboard(
-          d,
-          W_HR,
-          { person: "person:dana", roles: [{ scope: "role:release", successor: "person:lee" }] },
-          W_AT,
-        );
+      plan.crash = op.kind === "write" || op.kind === "grant" ? op.crash : "none";
+      plan.wrote = false;
+      plan.failTransaction = false;
+      try {
+        await step(plane, d, op);
+      } catch (e) {
+        // A crashed writer stops; anything else fails the walk.
+        if (!(e instanceof Error && e.message === crashed().message)) throw e;
       }
+      plan.crash = "none";
+      plan.failTransaction = false;
+    }
+  };
+  const step = async (plane: Plane, d: PlaneDeps, op: WalkOp) => {
+    if (op.kind === "write") {
+      const itemId = W_POOL[op.pick] as string;
+      const scope = op.pick < 4 ? "person:dana" : "role:release";
+      const cls = op.episodic && scope === "person:dana" ? "episodic" : "semantic";
+      const held = itemById(d.db, itemId);
+      const token = `zq${++tokens}x`;
+      written.set(itemId, (written.get(itemId) ?? new Set()).add(token));
+      const r = await plane.write(
+        W_DANA,
+        {
+          id: itemId,
+          class: held?.class ?? cls,
+          scope,
+          owner: held?.owner ?? W_DANA.id,
+          content: `Dana's note ${token}`,
+          provenance: {
+            kind: "user",
+            ref: "doc/1",
+            hash: `sha256:${"0".repeat(64)}`,
+            actor: W_DANA.id,
+          },
+          confidence: 0.9,
+          valid_from: "2026-10-01T00:00:00Z",
+          valid_to: null,
+          ttl: null,
+          grants: op.grant
+            ? [{ to: W_SAM.id, class: held?.class ?? cls, mode: "read", expires: W_UNTIL }]
+            : (held?.grants ?? []),
+          version: (held?.version ?? 0) + 1,
+          lineage: [],
+          status: "active",
+          store_ref: null,
+          schema_version: 1,
+        } as MemoryItem,
+        W_AT,
+      );
+      refusals.push(r.event);
+    } else if (op.kind === "grant") {
+      const itemId = W_POOL[op.pick] as string;
+      const held = itemById(d.db, itemId);
+      const grant = {
+        to: W_SAM.id,
+        class: held?.class ?? "semantic",
+        mode: "read" as const,
+        expires: W_UNTIL,
+      };
+      const r = await plane.changeGrants(
+        W_DANA,
+        itemId,
+        op.add ? { add: [grant] } : { remove: [held?.grants[0] ?? grant] },
+        W_AT,
+      );
+      refusals.push(r.event);
+    } else if (op.kind === "promote") {
+      const r = await plane.promote(W_HR, W_POOL[op.pick] as string, "person:dana", W_AT, {
+        review: true,
+      });
+      refusals.push(...r.events);
+    } else if (op.kind === "retain") {
+      await plane.retain(W_DANA, "person:dana", W_LATER);
+    } else if (op.kind === "adopt") {
+      await adoptStoreItems(d, W_DANA, W_SCOPES[op.scope] as string, W_AT);
+    } else if (op.kind === "read") {
+      const r = await plane.read(W_SAM, { at: W_LATER });
+      reads.push({ seq: r.event.seq, ids: r.items.map((i) => i.id) });
+    } else {
+      await offboard(
+        d,
+        W_HR,
+        { person: "person:dana", roles: [{ scope: "role:release", successor: "person:lee" }] },
+        W_AT,
+      );
     }
   };
   await s.waitFor(Promise.all([run(deps("A", 100_000), opsA), run(deps("B", 200_000), opsB)]));
@@ -2265,6 +2368,12 @@ async function twoHandleWalk(
     if (e.decision === "allow" && e.policy_id === "engram/offboard/erase" && e.item_id)
       erasedAt.set(e.item_id, e.seq);
   seen.erased += erasedAt.size;
+  seen.crashes += crashes;
+  seen.purged += log.filter(
+    (e) =>
+      ["engram/adopt/erased", "engram/adopt/offboarded"].includes(e.policy_id) &&
+      e.reason.includes("the record is deleted"),
+  ).length;
   seen.refusedStale += refusals.filter((e) =>
     /\/conflict$|^engram\/offboard\/erasing$/.test(e.policy_id),
   ).length;
@@ -2277,8 +2386,10 @@ async function twoHandleWalk(
         `read at seq ${r.seq} returned ${itemId}, erased at seq ${erasedAt.get(itemId)}`,
       ).toBe(true);
   }
-  // The store holds what the projection holds, item by item.
-  const listed = (await Promise.all(W_SCOPES.map((sc) => store.list(sc)))).flat();
+  // The store holds what the projection holds, item by item, unless a writer
+  // crashed: its bytes stay in the store, never projected (decision D6),
+  // until the next adoption gates or deletes them.
+  const listing = async () => (await Promise.all(W_SCOPES.map((sc) => store.list(sc)))).flat();
   // As adoption compares them: a retirement changes only the projection (ADR
   // 0010: retention and supersession never touch the store), and adoption
   // records a plane-written record again as import without writing the
@@ -2286,7 +2397,7 @@ async function twoHandleWalk(
   // packages/adapters/test/plane/grants-files.test.ts); nothing else may.
   const unsourced = (i: MemoryItem | undefined) =>
     i && { ...i, status: null, provenance: { ...i.provenance, kind: null, actor: null } };
-  for (const held of currentItems(base)) {
+  for (const held of crashes > 0 ? [] : currentItems(base)) {
     if (!held.store_ref) continue;
     expect(unsourced(await store.read(held.store_ref)), `the store's record of ${held.id}`).toEqual(
       unsourced(held),
@@ -2297,16 +2408,28 @@ async function twoHandleWalk(
   const erasedOnly = [...erasedAt.keys()].flatMap((itemId) =>
     [...(written.get(itemId) ?? [])].filter((t) => !survivingText.includes(t)),
   );
-  const check = async (when: string) => {
+  const check = async (when: string, adopted: boolean) => {
+    // A crashed writer's bytes are gone only once an adoption has run (P50-2).
+    const storeToo = adopted || crashes === 0;
+    const listed = await listing();
     for (const itemId of erasedAt.keys()) {
       expect(itemById(base, itemId), `${when}: erased ${itemId} projected`).toBeUndefined();
-      expect(
-        listed.some((i) => i.id === itemId),
-        `${when}: erased ${itemId} in the store`,
-      ).toBe(false);
+      if (storeToo)
+        expect(
+          listed.some((i) => i.id === itemId),
+          `${when}: erased ${itemId} in the store`,
+        ).toBe(false);
     }
-    const text = JSON.stringify([allEvents(base), await store.list("person:dana")]);
+    const text = JSON.stringify([allEvents(base), storeToo ? listed : []]);
     for (const t of erasedOnly) expect(text, `${when}: erased content ${t}`).not.toContain(t);
+    // After an adoption, every record the store holds is one the log allowed:
+    // in an offboarded person scope a write that never committed is deleted.
+    if (adopted)
+      for (const i of listed)
+        expect(
+          eventsByItem(base, i.id).some((e) => e.decision === "allow"),
+          `${when}: the store holds ${i.id}, which the log never allowed`,
+        ).toBe(true);
     for (const reader of [W_SAM, W_DANA]) {
       const r = await createPlane({ ...deps("C", 300_000), adapter: store }).read(reader, {
         at: W_LATER,
@@ -2315,11 +2438,13 @@ async function twoHandleWalk(
         expect(erasedAt.has(it.id), `${when}: ${reader.id} read erased ${it.id}`).toBe(false);
     }
   };
-  await check("after the walk");
+  const left = await listing();
+  if ([...erasedAt.keys()].some((itemId) => left.some((i) => i.id === itemId))) seen.erasedLeft++;
+  await check("after the walk", false);
   rebuild(base);
-  await check("after a rebuild");
+  await check("after a rebuild", false);
   for (const scope of W_SCOPES)
     await adoptStoreItems({ ...deps("C", 300_000), adapter: store }, W_DANA, scope, W_LATER);
-  await check("after another adoption");
+  await check("after another adoption", true);
   base.close();
 }
