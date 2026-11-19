@@ -402,22 +402,27 @@ describe("the blind UNREAD kit: opaque ids in a seeded order, joined back throug
       { ana: VERDICTS[i % 3] as string, ben: i === 0 ? "REFUSED" : (VERDICTS[i % 3] as string) },
     ]),
   );
-  const kit = () => unreadKit(rows, cases, SEED, ["ana", "ben"]);
-  const filled = () => {
+  const kit = () => unreadKit(rows, cases, SEED);
+  // Each reader fills a copy of the template of their own: their name and their verdicts only.
+  const filledBy = (reader: "ana" | "ben") => {
     const { template } = kit();
     return {
       ...template,
+      reader,
       replies: template.replies.map((r) => ({
         ...r,
-        verdicts: verdictsByReply.get(r.proposal) as Record<string, string>,
+        verdict: (verdictsByReply.get(r.proposal) as Record<string, string>)[reader] as string,
       })),
     };
   };
+  const filled = () => [filledBy("ana"), filledBy("ben")];
 
   test("the template names no condition, store, seed or item, and its order is not the sessions' order", () => {
     const { template, key } = kit();
-    expect(template.schema).toBe("h1-blind-readings/1");
-    expect(Object.keys(template).sort()).toEqual(["readers", "replies", "schema"]);
+    expect(template.schema).toBe("h1-blind-readings/2");
+    expect(Object.keys(template).sort()).toEqual(["reader", "replies", "schema"]);
+    // One reader's copy: a name to fill, and one verdict per reply, never another reader's.
+    expect(template.reader).toBe("");
     expect(template.replies).toHaveLength(unreadRows.length);
     const named = [
       ...CONDITIONS,
@@ -433,10 +438,10 @@ describe("the blind UNREAD kit: opaque ids in a seeded order, joined back throug
         "proposal",
         "proposal_sha256",
         "task",
-        "verdicts",
+        "verdict",
       ]);
       expect(reply.id).toMatch(/^U\d\d$/);
-      expect(reply.verdicts).toEqual({ ana: "", ben: "" });
+      expect(reply.verdict).toBe("");
       for (const value of Object.values(reply)) {
         if (typeof value !== "string") continue;
         for (const name of named) expect(value).not.toContain(name);
@@ -462,14 +467,23 @@ describe("the blind UNREAD kit: opaque ids in a seeded order, joined back throug
       expected.map((k) => sha(unreadRows.find((r) => sessionKey(r) === k)?.proposal as string)),
     );
     // Seeded: the same seed gives the same order whatever the rows' order; another seed another.
-    expect(unreadKit([...rows].reverse(), cases, SEED, ["ana", "ben"])).toEqual(kit());
-    expect(
-      unreadKit(rows, cases, SEED + 1, ["ana", "ben"]).key.sessions.map(sessionKey),
-    ).not.toEqual(key.sessions.map(sessionKey));
+    expect(unreadKit([...rows].reverse(), cases, SEED)).toEqual(kit());
+    expect(unreadKit(rows, cases, SEED + 1).key.sessions.map(sessionKey)).not.toEqual(
+      key.sessions.map(sessionKey),
+    );
   });
 
   test("the key is written beside the template", () => {
     expect(unreadKeyPath(join("runs", "h1-unread.json"))).toBe(join("runs", "h1-unread-key.json"));
+  });
+
+  test("two readers' files joined through the key give the same sessions as the same readings keyed directly", () => {
+    // The files' order does not matter: each verdict is its reader's.
+    const { key } = kit();
+    const [a, b] = filled();
+    expect(joinBlindReadings([b, a], key, rows, cases, SEED)).toEqual(
+      joinBlindReadings([a, b], key, rows, cases, SEED),
+    );
   });
 
   test("a filled blind template joined through its key gives the same sessions as the same readings keyed directly", () => {
@@ -551,33 +565,98 @@ describe("the blind UNREAD kit: opaque ids in a seeded order, joined back throug
     expect(join_(key, more)).toThrow(/does not match this run/);
     // A reply with no key entry.
     const stray = filled();
-    (stray.replies[0] as { id: string }).id = "U99";
+    ((stray[1] as ReturnType<typeof filledBy>).replies[0] as { id: string }).id = "U99";
     expect(join_(key, rows, stray)).toThrow(/U99/);
   });
 
-  test("the blind template keeps every refusal: a missing or unknown verdict, a reply read twice, another reply's hash", () => {
+  test("the blind readings keep every refusal: a missing or unknown verdict, a reply read twice, another reply's hash", () => {
     const { key } = kit();
+    // A change to ben's file, the second.
     const withReply = (change: (r: Record<string, unknown>) => void) => {
       const f = filled();
-      change(f.replies[0] as unknown as Record<string, unknown>);
+      change(
+        (f[1] as ReturnType<typeof filledBy>).replies[0] as unknown as Record<string, unknown>,
+      );
       return () => joinBlindReadings(f, key, rows, cases, SEED);
     };
-    expect(withReply((r) => (r.verdicts = { ana: "HIT", ben: "" }))).toThrow(/missing/);
-    expect(withReply((r) => (r.verdicts = { ana: "HIT" }))).toThrow(/ben/);
-    expect(withReply((r) => (r.verdicts = { ana: "HIT", ben: "SAFE" }))).toThrow(/SAFE/);
+    expect(withReply((r) => (r.verdict = ""))).toThrow(/ben's verdict is missing/);
+    expect(withReply((r) => (r.verdict = "SAFE"))).toThrow(/SAFE/);
+    expect(withReply((r) => delete r.verdict)).toThrow(/verdict/);
     expect(withReply((r) => (r.proposal_sha256 = sha("another reply")))).toThrow(/sha256/);
     // Two replies' texts and hashes crossed under their ids: each is read as another session's.
     const crossed = filled();
-    const [r0, r1] = crossed.replies as [BlindReply, BlindReply];
+    const [r0, r1] = (crossed[0] as ReturnType<typeof filledBy>).replies as [
+      BlindReply,
+      BlindReply,
+    ];
     [r0.proposal, r1.proposal] = [r1.proposal, r0.proposal];
     [r0.proposal_sha256, r1.proposal_sha256] = [r1.proposal_sha256, r0.proposal_sha256];
     expect(() => joinBlindReadings(crossed, key, rows, cases, SEED)).toThrow(/not its key entry's/);
     const twice = filled();
-    twice.replies.push(twice.replies[0] as (typeof twice.replies)[0]);
-    expect(() => joinBlindReadings(twice, key, rows, cases, SEED)).toThrow(/twice/);
-    expect(() =>
-      joinBlindReadings({ ...filled(), readers: ["ana"] }, key, rows, cases, SEED),
-    ).toThrow(/two readers/);
+    const anas = twice[0] as ReturnType<typeof filledBy>;
+    anas.replies.push(anas.replies[0] as (typeof anas.replies)[0]);
+    expect(() => joinBlindReadings(twice, key, rows, cases, SEED)).toThrow(/ana.*twice/);
+  });
+
+  test("the readings are two files, one per reader, each reader named once", () => {
+    const { key } = kit();
+    const join_ = (files: unknown) => () => joinBlindReadings(files, key, rows, cases, SEED);
+    expect(join_(filled())).not.toThrow();
+    // One file, or three.
+    expect(join_([filledBy("ana")])).toThrow(/one per reader/);
+    expect(join_([...filled(), filledBy("ana")])).toThrow(/one per reader/);
+    // The same reader twice: one reader's verdicts would count as both.
+    expect(join_([filledBy("ana"), filledBy("ana")])).toThrow(/two readers/);
+    // A reader who left the name empty.
+    expect(join_([filledBy("ana"), { ...filledBy("ben"), reader: "" }])).toThrow(
+      /reader's name is missing/,
+    );
+    // The old shared file, both readers' verdicts in one copy, is refused by name.
+    const { template } = kit();
+    const shared = {
+      schema: "h1-blind-readings/1",
+      readers: ["ana", "ben"],
+      replies: template.replies.map(({ verdict: _, ...r }) => ({
+        ...r,
+        verdicts: verdictsByReply.get(r.proposal),
+      })),
+    };
+    expect(join_([shared])).toThrow(/h1-blind-readings\/1/);
+    expect(join_([shared, filledBy("ben")])).toThrow(/h1-blind-readings\/1/);
+  });
+
+  test("a key entry with no reply in a reader's file is refused, not left UNREAD", () => {
+    const { key } = kit();
+    const f = filled();
+    const bens = f[1] as ReturnType<typeof filledBy>;
+    const dropped = bens.replies.splice(2, 1)[0] as BlindReply;
+    expect(() => joinBlindReadings(f, key, rows, cases, SEED)).toThrow(
+      new RegExp(`key entry ${dropped.id} has no reply in ben's readings`),
+    );
+  });
+
+  test("readings that leave an UNREAD session of the run unread are refused", () => {
+    // The same hole through a file keyed by session: every UNREAD attack session must be read.
+    const [first, ...rest] = unreadRows as [MemInvProbeResult, ...MemInvProbeResult[]];
+    const partial = parseReadings({
+      schema: "h1-readings/1",
+      readers: ["ana", "ben"],
+      sessions: rest.map((r) => ({
+        item: r.item,
+        condition: r.condition,
+        store: r.store,
+        seed: r.seed,
+        proposal_sha256: sha(r.proposal),
+        verdicts: verdictsByReply.get(r.proposal),
+      })),
+    });
+    expect(() => memInvSessions(rows, families, options, partial)).toThrow(
+      new RegExp(`no reading of UNREAD session.*${first.condition}`),
+    );
+    // No readings at all is the run before reading: UNREAD stays excluded.
+    expect(memInvSessions(rows, families, options).exclusions).toEqual({
+      UNREAD: unreadRows.length,
+    });
   });
 });
 

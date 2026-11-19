@@ -9,8 +9,8 @@
 //       --config research/configs/h1-gatemem.json --run .engram/runs/h1-gatemem-live \
 //       --config research/configs/h1-mem-inv.json --run .engram/runs/h1-mem-inv-live \
 //       --table-config research/configs/h1-table.json [--gate-by-action] \
-//       [--readings <filled template> --readings-key <key>] \
-//       [--unread-out <file> [--readers <a>,<b>]] --out .engram/runs/h1-sessions.jsonl
+//       [--readings <a's copy>,<b's copy> --readings-key <key>] \
+//       [--unread-out <file>] --out .engram/runs/h1-sessions.jsonl
 //
 // `make h1-table` runs exactly this, then research/scripts/h1_table.py. The
 // sessions name the config's model: for an H1 experiment config the
@@ -21,18 +21,20 @@
 // MEM-INV-Bench's UNREAD sessions do not score until two members read them
 // (upstream's score.py), and they are not shown the condition (decision
 // sheet item 14).
-// --unread-out writes the blind template (`h1-blind-readings/1`): each UNREAD
+// --unread-out writes the blind template (`h1-blind-readings/2`): each UNREAD
 // attack session's reply under an opaque id, in an order the H1 table
-// config's seed (--table-config) shuffles, with the case's task and values
-// and empty verdicts, and no condition, store, seed or item. Beside it,
-// `<name>-key.json` holds the key from id to session; the readers are not
-// given it. Both hold model replies or point at them: keep them under
-// .engram/. The readers fill a copy of the template, and --readings with
-// --readings-key joins it back through the key, which must be the key this
-// run and seed give. A readings file keyed by session (`h1-readings/1`) is
-// applied as it is. --readings and --unread-out may not name the same file:
-// the template a reading was filled in is never overwritten by the run that
-// reads it (`make h1-table READINGS=` passes no --unread-out).
+// config's seed (--table-config) shuffles, with the case's task and values,
+// an empty verdict and an empty reader's name, and no condition, store, seed
+// or item. Beside it, `<name>-key.json` holds the key from id to session; the
+// readers are not given it. Both hold model replies or point at them: keep
+// them under .engram/. Each reader fills a copy of their own, so neither sees
+// the other's verdicts, and --readings <a's copy>,<b's copy> with
+// --readings-key joins the two back through the key, which must be the key
+// this run and seed give; a key entry with no reply in either copy is
+// refused. A readings file keyed by session (`h1-readings/1`) is applied as
+// it is. --readings and --unread-out may not name the same file: the template
+// a reading was filled in is never overwritten by the run that reads it
+// (`make h1-table READINGS=` passes no --unread-out).
 //
 // GateMem's utility checkpoints become sessions of kind `utility`, for the
 // table's MGS only; --gate-by-action is recorded on every session
@@ -122,7 +124,7 @@ function tableSeed(path: string | undefined): number {
 }
 
 const USAGE =
-  "usage: h1-sessions.ts (--config <runner config> --run <run dir>)... [--table-config <H1 table config>] [--gate-by-action] [--readings <file> [--readings-key <key>]] [--unread-out <file> [--readers <a>,<b>]] --out <sessions.jsonl>";
+  "usage: h1-sessions.ts (--config <runner config> --run <run dir>)... [--table-config <H1 table config>] [--gate-by-action] [--readings <a's copy>,<b's copy> --readings-key <key> | --readings <h1-readings/1 file>] [--unread-out <file>] --out <sessions.jsonl>";
 
 function main(): number {
   const { values } = parseArgs({
@@ -135,7 +137,6 @@ function main(): number {
       readings: { type: "string" },
       "readings-key": { type: "string" },
       "unread-out": { type: "string" },
-      readers: { type: "string", default: "reader1,reader2" },
       out: { type: "string" },
     },
   });
@@ -150,14 +151,17 @@ function main(): number {
     return 2;
   }
   const unreadOut = values["unread-out"];
-  if (
-    values.readings !== undefined &&
-    unreadOut !== undefined &&
-    resolve(values.readings) === resolve(unreadOut)
-  ) {
-    throw new Error(
-      `--readings and --unread-out name the same file (${unreadOut}): writing the template would overwrite the readings`,
-    );
+  const readingsPaths =
+    values.readings === undefined ? [] : values.readings.split(",").filter((p) => p !== "");
+  if (values.readings !== undefined && readingsPaths.length === 0) {
+    throw new Error("--readings names no file");
+  }
+  for (const path of readingsPaths) {
+    if (unreadOut !== undefined && resolve(path) === resolve(unreadOut)) {
+      throw new Error(
+        `--readings and --unread-out name the same file (${unreadOut}): writing the template would overwrite the readings`,
+      );
+    }
   }
   const loaded = configs.map((configPath, i) =>
     loadRun(configPath, runs[i] as string, values["gate-by-action"] === true),
@@ -170,9 +174,12 @@ function main(): number {
   );
 
   let readings: ReadonlyMap<string, Reading> = new Map();
-  if (values.readings !== undefined) {
-    const value = readJson(values.readings, "readings file");
-    if ((value as { schema?: unknown }).schema === "h1-blind-readings/1") {
+  if (readingsPaths.length > 0) {
+    const files = readingsPaths.map((path) => readJson(path, "readings file"));
+    const blind = files.some((v) =>
+      String((v as { schema?: unknown }).schema).startsWith("h1-blind-readings/"),
+    );
+    if (blind) {
       const keyPath = values["readings-key"];
       if (keyPath === undefined) {
         throw new Error(
@@ -185,14 +192,19 @@ function main(): number {
         );
       }
       readings = joinBlindReadings(
-        value,
+        files,
         readJson(keyPath, "key"),
         memInvRows,
         cases,
         tableSeed(values["table-config"]),
       );
     } else {
-      readings = parseReadings(value);
+      if (files.length !== 1) {
+        throw new Error(
+          `--readings names ${files.length} files: a readings file keyed by session (h1-readings/1) is one file`,
+        );
+      }
+      readings = parseReadings(files[0]);
       if (values["readings-key"] !== undefined) {
         console.error(
           "h1-sessions: readings keyed by session (h1-readings/1): the key is not used",
@@ -225,18 +237,12 @@ function main(): number {
   console.error(`h1-sessions: ${lines.length} sessions written to ${values.out}`);
 
   if (unreadOut !== undefined) {
-    const readers = (values.readers ?? "").split(",").filter(Boolean);
-    const { template, key } = unreadKit(
-      memInvRows,
-      cases,
-      tableSeed(values["table-config"]),
-      readers,
-    );
+    const { template, key } = unreadKit(memInvRows, cases, tableSeed(values["table-config"]));
     const keyPath = unreadKeyPath(unreadOut);
     writeFileSync(unreadOut, `${JSON.stringify(template, null, 2)}\n`);
     writeFileSync(keyPath, `${JSON.stringify(key, null, 2)}\n`);
     console.error(
-      `h1-sessions: ${template.replies.length} UNREAD replies to read, blind, written to ${unreadOut}; their key, which the readers are not given, to ${keyPath}`,
+      `h1-sessions: ${template.replies.length} UNREAD replies to read, blind, written to ${unreadOut} (each of the two readers fills a copy of their own); their key, which the readers are not given, to ${keyPath}`,
     );
   }
   return 0;
