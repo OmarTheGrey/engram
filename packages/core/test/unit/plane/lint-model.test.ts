@@ -193,3 +193,49 @@ describe("planModelLints", () => {
     ).toEqual([]);
   });
 });
+
+describe("what the model is sent of a source reached only through a grant (review L3-3)", () => {
+  // Sources in person:sam, which Omar is not a member of: only a live grant
+  // naming him, for the source's class, lets the lint read one.
+  const source = (n: number, content: string, grants: MemoryItem["grants"]) =>
+    item(n, { content, scope: "person:sam", owner: "person:sam", grants });
+  const live = source(11, "Sam's live note.", [
+    { to: "person:omar", class: "semantic", mode: "read", expires: "2026-12-01T00:00:00Z" },
+  ]);
+  const expired = source(12, "Sam's expired note.", [
+    { to: "person:omar", class: "semantic", mode: "read", expires: "2026-10-01T00:00:00Z" },
+  ]);
+  const otherClass = source(13, "Sam's episodic-only note.", [
+    { to: "person:omar", class: "episodic", mode: "read", expires: "2026-12-01T00:00:00Z" },
+  ]);
+  const otherReader = source(14, "Sam's note for Dana.", [
+    { to: "person:dana", class: "semantic", mode: "read", expires: "2026-12-01T00:00:00Z" },
+  ]);
+  const none = source(15, "Sam's private note.", []);
+  const cites = (n: number, src: MemoryItem) =>
+    item(n, {
+      content: `A claim about ${src.id}.`,
+      provenance: {
+        kind: "user",
+        ref: src.id,
+        hash: strictContentHash(src.content),
+        actor: "person:omar",
+      },
+    });
+
+  test("only the live grant's source reaches a request; the others are never sent", async () => {
+    const model = scriptedLintModel(() => reply("supported"));
+    const sources = [live, expired, otherClass, otherReader, none];
+    const { plane } = seeded(
+      [...sources, ...sources.map((s, i) => cites(21 + i, s))],
+      enabled(["unsupported-claim"]),
+      { call: model.call, model: "scripted/lint-1", seed: 1 },
+    );
+    const report = await plane.lint(ACTOR, AT, "team:platform");
+    expect(report.judgments?.map((j) => [j.item_id, j.other_id])).toEqual([[id(21), live.id]]);
+    const sent = JSON.stringify(model.requests);
+    expect(sent).toContain("Sam's live note.");
+    for (const hidden of [expired, otherClass, otherReader, none])
+      expect(sent).not.toContain(String(hidden.content));
+  });
+});
