@@ -17,7 +17,12 @@
 // `.claude/settings.local.json`, and the user's `~/.claude/settings.json`,
 // `~/.claude/settings.local.json` and `~/.claude.json` (R3-14), together with
 // any folder holding one of them strictly inside the project or the home
-// folder (`rm -rf .claude`, `rm -rf ~/.engram`: R3-13).
+// folder (`rm -rf .claude`, `rm -rf ~/.engram`: R3-13). With `--server` the
+// hook cannot see the log the server writes (card RV5, finding RV-SRF-9):
+// `--db` names the server's workspace and is refused, so the default path was
+// protected instead of the real one. `--protect <file>` names it (and any
+// other file to guard), with the same SQLite companions; docs/dogfood.md has
+// members pass the log `engram serve --db` names.
 import { join, resolve } from "node:path";
 import {
   claudeCodeHook,
@@ -49,6 +54,7 @@ export async function hookCommand(args: string[], io: Io): Promise<number> {
       db: STORE_OPTIONS.db,
       policy: STORE_OPTIONS.policy,
       root: { type: "string", multiple: true },
+      protect: { type: "string", multiple: true },
       as: { type: "string" },
       ...CLIENT_OPTIONS,
     },
@@ -81,12 +87,14 @@ export async function hookCommand(args: string[], io: Io): Promise<number> {
     const project = resolve(io.cwd, io.env.CLAUDE_PROJECT_DIR || input.cwd || ".");
     const roots = (values.root ?? []).map((r) => resolve(project, r));
     const target = dbTarget(values.db, { cwd: project, home: io.home, env: io.env });
+    const sqliteFiles = (path: string) =>
+      ["", "-wal", "-shm", "-journal"].map((suffix) => `${path}${suffix}`);
     const log =
-      target.backend === "sqlite" && target.path !== MEMORY_DB
-        ? ["", "-wal", "-shm", "-journal"].map((suffix) => `${target.path}${suffix}`)
-        : [];
+      target.backend === "sqlite" && target.path !== MEMORY_DB ? sqliteFiles(target.path) : [];
+    const named = (values.protect ?? []).flatMap((f) => sqliteFiles(resolve(project, f)));
     const protect = [
       ...log,
+      ...named,
       join(project, ".mcp.json"),
       join(project, ".claude", "settings.json"),
       join(project, ".claude", "settings.local.json"),
@@ -122,7 +130,6 @@ export async function hookCommand(args: string[], io: Io): Promise<number> {
         ...scope,
         client: conn.client,
         actor,
-        now: io.now,
       });
       if (decision !== null) print(decision);
       return 0;

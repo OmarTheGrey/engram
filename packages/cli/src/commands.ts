@@ -17,7 +17,7 @@ import {
   Scope,
   type SimReport,
 } from "@engram/core";
-import { type Connection, connect, result } from "./connect.ts";
+import { type Connection, connect, result, serverOf } from "./connect.ts";
 import { decisionLines, explanationLines, plural, preview, simulationLines } from "./format.ts";
 import type { Io } from "./run.ts";
 import { buildActor, checkNumber, checkTime, loadPolicy, MEMORY_DB, UsageError } from "./setup.ts";
@@ -61,6 +61,22 @@ export function parse<O extends Options>(args: string[], options: O, positionals
   } catch (e) {
     throw new UsageError((e as Error).message);
   }
+}
+
+/**
+ * The time of a call that is not a read (card RV5, finding RV-SRF-2). A
+ * server stamps every event from its own clock, so over --server (or
+ * ENGRAM_SERVER_URL) `--at` is refused. In process the CLI is the server
+ * (ADR 0027 decision 3), and `--at` sets its clock for this one call.
+ */
+function callClock(values: { at?: string | undefined; server?: string | undefined }, io: Io) {
+  const given = checkTime("--at", values.at);
+  if (given !== undefined && serverOf(io, values) !== undefined)
+    throw new UsageError(
+      "--at sets the time of the call, which a server stamps from its own clock; only engram read takes --at with --server (the time its validity windows are judged at)",
+    );
+  const at = given ?? io.now();
+  return { at, io: given === undefined ? io : { ...io, now: () => given } };
 }
 
 interface WorkspaceFlags {
@@ -155,7 +171,10 @@ export async function readCommand(args: string[], io: Io): Promise<number> {
     { ...STORE_OPTIONS, ...ACTOR_OPTIONS, ...CLIENT_OPTIONS },
     true,
   );
-  const at = checkTime("--at", values.at) ?? io.now();
+  // A read's --at is the time its validity windows are judged at, in process
+  // and over --server alike; the read happens at the server's clock, which
+  // is also when the store owner's sweep runs (card RV5, RV-SRF-1 and 2).
+  const validAt = checkTime("--at", values.at);
   const { conn, actor } = session(io, values, { requireStore: true, readOnlyStore: true }, () =>
     buildActor(values, values.owner),
   );
@@ -163,7 +182,11 @@ export async function readCommand(args: string[], io: Io): Promise<number> {
     const text = positionals.join(" ") || undefined;
     // One call: the server's read route sweeps and adopts the store as its
     // owner first (retention before adoption, ADR 0025 and decision D8).
-    const answer = result(await conn.client.POST("/api/v1/read", { body: { actor, text, at } }));
+    const answer = result(
+      await conn.client.POST("/api/v1/read", {
+        body: { actor, text, ...(validAt === undefined ? {} : { at: validAt }) },
+      }),
+    );
     const r = answer as unknown as {
       items: MemoryItem[];
       explanations: { item_id: string; rank: number }[] & Parameters<typeof explanationLines>[0][];
@@ -187,6 +210,7 @@ export async function readCommand(args: string[], io: Io): Promise<number> {
       } | null;
     };
     const readId = r.event.id;
+    const at = r.event.ts;
     const rows = r.items.map((item, i) => ({ item, explanation: r.explanations[i] }));
     const sync = r.sync;
 
@@ -199,6 +223,7 @@ export async function readCommand(args: string[], io: Io): Promise<number> {
           {
             read_id: readId,
             at,
+            valid_at: validAt ?? null,
             actor,
             policy: r.policy,
             store: sync ? { name: sync.store.name, root: sync.store.root } : null,
@@ -226,7 +251,9 @@ export async function readCommand(args: string[], io: Io): Promise<number> {
       return 0;
     }
 
-    const lines = [`read ${readId} at ${at} as ${actor.id} (${actor.level}) under ${r.policy}`];
+    const lines = [
+      `read ${readId} at ${at}${validAt === undefined ? "" : `, validity windows at ${validAt}`} as ${actor.id} (${actor.level}) under ${r.policy}`,
+    ];
     if (sync) {
       const a = sync.adoption;
       lines.push(
@@ -273,7 +300,8 @@ export async function writeCommand(args: string[], io: Io): Promise<number> {
     { ...STORE_OPTIONS, ...ACTOR_OPTIONS, ...WRITE_OPTIONS, ...CLIENT_OPTIONS },
     false,
   );
-  const at = checkTime("--at", values.at) ?? io.now();
+  const clock = callClock(values, io);
+  const { at } = clock;
   const confidence = checkNumber("--confidence", values.confidence);
   const validFrom = checkTime("--valid-from", values["valid-from"]);
   const validTo = checkTime("--valid-to", values["valid-to"]);
@@ -319,9 +347,9 @@ export async function writeCommand(args: string[], io: Io): Promise<number> {
     schema_version: 1,
   };
 
-  const { conn } = session(io, values, { requireStore: true }, () => actor);
+  const { conn } = session(clock.io, values, { requireStore: true }, () => actor);
   try {
-    const answer = result(await conn.client.POST("/api/v1/items", { body: { actor, item, at } }));
+    const answer = result(await conn.client.POST("/api/v1/items", { body: { actor, item } }));
     const { item: stored, event } = answer as unknown as {
       item: MemoryItem | null;
       event: MemoryEvent;
@@ -360,13 +388,13 @@ export async function promoteCommand(args: string[], io: Io): Promise<number> {
     throw new UsageError(
       `--to ${values.to} is not a scope (person:<id>, role:<id>, team:<id> or org)`,
     );
-  const at = checkTime("--at", values.at) ?? io.now();
+  const clock = callClock(values, io);
   const actor = buildActor(values, values.owner, "user");
-  const { conn } = session(io, values, { requireStore: true }, () => actor);
+  const { conn } = session(clock.io, values, { requireStore: true }, () => actor);
   try {
     const answer = result(
       await conn.client.POST("/api/v1/promote", {
-        body: { actor, item_id: itemId, to: values.to, review: values.review === true, at },
+        body: { actor, item_id: itemId, to: values.to, review: values.review === true },
       }),
     );
     const { decision, event, events, item } = answer as unknown as {
@@ -451,12 +479,17 @@ export async function retainCommand(args: string[], io: Io): Promise<number> {
     false,
   );
   if (values.scope === undefined) throw new UsageError("give the scope with --scope <scope>");
-  const at = checkTime("--at", values.at) ?? io.now();
+  const { at, io: callIo } = callClock(values, io);
   const actor = buildActor(values, values.owner, "user");
-  const { conn } = session(io, values, { requireStore: false, readOnlyStore: true }, () => actor);
+  const { conn } = session(
+    callIo,
+    values,
+    { requireStore: false, readOnlyStore: true },
+    () => actor,
+  );
   try {
     const answer = result(
-      await conn.client.POST("/api/v1/retain", { body: { actor, scope: values.scope, at } }),
+      await conn.client.POST("/api/v1/retain", { body: { actor, scope: values.scope } }),
     );
     const report = answer as unknown as {
       decision: "allow" | "deny";
@@ -491,12 +524,17 @@ export async function lintCommand(args: string[], io: Io): Promise<number> {
     false,
   );
   if (values.scope === undefined) throw new UsageError("give the scope with --scope <scope>");
-  const at = checkTime("--at", values.at) ?? io.now();
+  const { at, io: callIo } = callClock(values, io);
   const actor = buildActor(values, values.owner, "user");
-  const { conn } = session(io, values, { requireStore: false, readOnlyStore: true }, () => actor);
+  const { conn } = session(
+    callIo,
+    values,
+    { requireStore: false, readOnlyStore: true },
+    () => actor,
+  );
   try {
     const answer = result(
-      await conn.client.POST("/api/v1/lint", { body: { actor, scope: values.scope, at } }),
+      await conn.client.POST("/api/v1/lint", { body: { actor, scope: values.scope } }),
     );
     const report = answer as unknown as {
       decision: "allow" | "deny";

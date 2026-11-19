@@ -39,7 +39,10 @@ actor options (read, write, promote, explain, retain, lint):
   --as <principal>            who acts (default person:<owner>)
   --level <level>             person, role, team or org (default the actor's own level)
   --member <scope>            a scope the actor belongs to; repeatable (default the actor's scope)
-  --at <iso time>             the time of the read or write (default now)
+  --at <iso time>             read: the time validity windows are judged at; the read and
+                              the owner's sweep run at the server's clock. Any other
+                              command: the time of the call, in process only (a server
+                              stamps its own); default now
 
 write options:
   --content <text>            the item's content
@@ -89,6 +92,8 @@ mcp options:
 hook claude-code options:
   --root <folder>             a store root file tools may not touch; repeatable
   --as <principal>            who the block events are recorded as (default agent:claude-code)
+  --protect <file>            a file no tool may touch, with its -wal, -shm and -journal files;
+                              repeatable; with --server, name the log engram serve writes
   --server <url> or --db and --policy, as for the other commands
   reads the hook's JSON on stdin; a block answers permissionDecision deny with the reason
 
