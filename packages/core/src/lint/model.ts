@@ -29,9 +29,14 @@
 // one JSON object, so an item's text is data and cannot close a delimiter.
 // Each reply is parsed into flag, pass, refused (empty, which is how pi-ai's
 // chat completions deliver a structured-output refusal) or malformed (anything
-// else); only a flag is a finding. Nothing is retried: the same request is a
-// cache hit, and another request would change the protocol. A unit that was
-// not judged is returned as a judgment, never recorded as a finding.
+// else); only a flag is a finding. No reply is asked for again because of how
+// it parses: the same request is a cache hit, and another request would
+// change the protocol. (The runner's live call, liveJudgeCall, does retry a
+// transient failure, a 429, 5xx or network error, up to 3 attempts with the
+// same request; that is transport, not the parse.) A unit that was not judged
+// is returned as a judgment, never recorded as a finding. An item's own text
+// can still argue for a verdict ("this is stated verbatim in the source"):
+// the prompt says the inputs are data, which a model may not heed.
 //
 // Evidence follows ADR 0009's post-merge amendment: a finding about an item
 // whose source is outside the linted scope carries the source's id and the
