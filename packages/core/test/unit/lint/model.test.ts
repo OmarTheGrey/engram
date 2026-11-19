@@ -5,26 +5,33 @@
 // pass, refused or malformed; and a finding's evidence says nothing about an
 // item outside the linted scope beyond what the linted item records itself
 // (ADR 0009, post-merge amendment of 2026-11-13).
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, test } from "vitest";
+import { type FaultFixture, faultFixtures, fixtureText } from "../../../scripts/faults.ts";
 import { strictContentHash } from "../../../src/content-hash.ts";
+import { appendEvent } from "../../../src/events.ts";
 import type { LintContext } from "../../../src/lint/det.ts";
 import {
   CONTRADICTION_NEIGHBOURS,
   contradictionPairs,
   isModelLint,
   LINT_PROMPTS,
+  LINT_VERDICTS,
   MODEL_LINT_SETTINGS,
+  type ModelLintSetup,
   modelLintUnits,
   parseLintReply,
   REASON_LIMIT,
   runModelLints,
   unsupportedClaimUnits,
 } from "../../../src/lint/model.ts";
-import { MODEL_LINT_IDS } from "../../../src/lint.ts";
+import { MODEL_LINT_IDS, type ModelLintId } from "../../../src/lint.ts";
 import type { ModelRequest } from "../../../src/model.ts";
+import { createPlane } from "../../../src/plane.ts";
 import type { MemoryItem } from "../../../src/schema.ts";
 import { reply, scriptedLintModel, USAGE } from "../../fakes/lint-model.ts";
-import { AT, id, item, testPolicy } from "../plane/helpers.ts";
+import { AT, fresh, id, item, testPolicy } from "../plane/helpers.ts";
 
 const SETUP = { model: "scripted/lint-1", seed: 7 };
 
@@ -412,4 +419,58 @@ describe("runModelLints", () => {
       }),
     ).rejects.toThrow("offline miss");
   });
+});
+
+const MODEL_FAULTS = join(import.meta.dirname, "../../../../../fixtures/faults/model");
+const modelFixtureFiles = readdirSync(MODEL_FAULTS)
+  .filter((f) => f.endsWith(".json"))
+  .sort();
+
+describe("the model fault catalogue", () => {
+  test("has a flag and a near-miss fixture for every model lint", () => {
+    expect(modelFixtureFiles).toEqual(
+      MODEL_LINT_IDS.flatMap((l) => [`${l}.flag.json`, `${l}.near-miss.json`]).sort(),
+    );
+  });
+
+  test("is what packages/core/scripts/faults.ts generates (make fixtures)", async () => {
+    const built = await faultFixtures();
+    for (const file of modelFixtureFiles)
+      expect(readFileSync(join(MODEL_FAULTS, file), "utf8").replaceAll("\r\n", "\n"), file).toBe(
+        fixtureText(built[`model/${file.replace(/\.json$/, "")}`] as FaultFixture),
+      );
+  });
+
+  for (const file of modelFixtureFiles) {
+    const f = JSON.parse(readFileSync(join(MODEL_FAULTS, file), "utf8")) as FaultFixture;
+    const lint = f.lint_id as ModelLintId;
+    const load = (call: ModelLintSetup["call"]) => {
+      const base = fresh(f.policy);
+      for (const { seq: _seq, ...e } of f.events) appendEvent(base.db, e);
+      return createPlane({ ...base.deps, lintModel: { call, model: "scripted/lint-1", seed: 1 } });
+    };
+
+    test(`${lint} sends exactly the declared units over ${file}, chosen without a model`, async () => {
+      const pass = async () => ({ text: reply(LINT_VERDICTS[lint][1]), usage: USAGE });
+      const report = await load(pass).lint(f.actor, f.at, f.scope);
+      expect(report.judgments?.map((j) => j.unit)).toEqual(f.units?.map((u) => u.unit));
+      expect(report.findings).toEqual([]);
+    });
+
+    test(`${lint} with a correct judge ${f.kind === "flag" ? "flags" : "does not flag"} ${file}`, async () => {
+      // The plane sends the units in the declared order (the test above);
+      // each is answered with its declared verdict, by its place.
+      const declared = f.units ?? [];
+      let n = 0;
+      const judge = async () => {
+        const verdict = declared[n++]?.verdict === "flag" ? 0 : 1;
+        return { text: reply(LINT_VERDICTS[lint][verdict]), usage: USAGE };
+      };
+      const report = await load(judge).lint(f.actor, f.at, f.scope);
+      expect([...new Set(report.findings.map((x) => x.item_id))]).toEqual(f.flags);
+      expect(report.findings.every((x) => x.lint_id === lint && x.tier === "model")).toBe(true);
+      if (f.kind === "flag") expect(f.flags.length).toBeGreaterThan(0);
+      else expect(f.flags).toEqual([]);
+    });
+  }
 });
