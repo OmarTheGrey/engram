@@ -96,6 +96,33 @@ if (process.platform === "win32") {
   }
 }
 
+// Review fix pass, RV3-2: the escaped spelling Git Bash turns into a UNC path,
+// for every loopback host (the old `\\localhost` included), from a cwd that
+// names no root, so no bare word of the path reaches the root by itself.
+describe.runIf(process.platform === "win32")("escaped UNC spellings in Bash (RV3-2)", () => {
+  const away = mkdtempSync(join(tmpdir(), "engram-hook-away-"));
+  it.each([
+    "localhost",
+    "127.0.0.1",
+    "127.1",
+    "?\\UNC\\localhost",
+    ".\\UNC\\localhost",
+    "?\\UNC\\127.0.0.1",
+    "[::1]",
+    "0--1.ipv6-literal.net",
+  ])("blocks echo into the store through \\\\%s", (host) => {
+    const path = join(root, "bare.md");
+    const share = `\\\\${host}\\${path[0]}$${path.slice(2)}`;
+    const command = `echo x > ${share.replaceAll("\\", "\\\\")}`;
+    const found = hookBypass(
+      { hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: { command }, cwd: away },
+      { ...SCOPE, cwd: away },
+    );
+    expect(found?.store).toBe("files");
+    expect(found?.route).toBe("path");
+  });
+});
+
 describe("which calls the hook blocks", () => {
   it.each(BLOCKED)("%s %j is a bypass of %s", (tool, input, store, route) => {
     const found = hookBypass(call(tool, input), SCOPE);

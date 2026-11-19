@@ -18,12 +18,23 @@ import {
 /**
  * A loopback share or a device path inside a shell command, for shellBypass:
  * the spellings uncDrivePath maps, with or without the device namespace's
- * `\\?\UNC\` or `\\.\UNC\` (card RV3, RV-ADP-7).
+ * `\\?\UNC\` or `\\.\UNC\` (card RV3, RV-ADP-7). Any run of separators
+ * stands for one, and the share's `$` may be escaped (`\$`), because a posix
+ * shell reads `\\` as one backslash: the command text that reaches
+ * `\\localhost\C$\x` from Git Bash, Claude Code's Bash tool on Windows, is
+ * `\\\\localhost\\C$\\x` (review fix pass, RV3-2).
  */
 const UNC_WORD = new RegExp(
-  String.raw`[\\/]{2}(?:[?.][\\/]unc[\\/])?(?:${LOOPBACK_HOST}|\?|\.)[\\/][a-zA-Z][$:][^\s'"|;&<>()]*`,
+  String.raw`[\\/]{2,}(?:[?.][\\/]+unc[\\/]+)?(?:${LOOPBACK_HOST}|\?|\.)[\\/]+[a-zA-Z]\\*[$:][^\s'"|;&<>()]*`,
   "gi",
 );
+
+/** A UNC_WORD match as the path it names: `\\` first, one `\` per run of separators, `\$` as `$`. */
+const asUncPath = (word: string) =>
+  `\\\\${word
+    .replace(/^[\\/]+/, "")
+    .replace(/\\+\$/, () => "$")
+    .replace(/[\\/]+/g, "\\")}`;
 
 import { blockedStoreCommand, commandWords, STORE_COMMANDS } from "./no-bypass/shell.ts";
 import type { Bypass } from "./plane.ts";
@@ -385,8 +396,10 @@ export function shellBypass(command: string, check: BypassCheck): Bypass | undef
   }
   const path = { command, store: check.rootStore, route: "path" as const };
   const words = pathCheckWords(command, 0, true, check.shell ?? "posix");
-  for (const unc of command.matchAll(UNC_WORD))
-    if (uncDrivePath(unc[0]) !== undefined) words.push(unc[0]);
+  for (const unc of command.matchAll(UNC_WORD)) {
+    const word = asUncPath(unc[0]);
+    if (uncDrivePath(word) !== undefined) words.push(word);
+  }
   for (const word of words) {
     if (reaches(word, check, false)) return path;
     if (globReachesRoot(word, check.cwd, check.roots)) return path;

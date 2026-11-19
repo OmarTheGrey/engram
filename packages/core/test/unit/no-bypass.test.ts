@@ -321,6 +321,30 @@ describe("card RV3: more spellings of this machine and of Letta Code", () => {
     },
   );
 
+  // Review fix pass, RV3-2: a posix shell (Git Bash, Claude Code's Bash tool
+  // on Windows) reads `\\` as one backslash, so the command text that reaches
+  // `\\localhost\C$\...` doubles every backslash. `$` before a backslash stays
+  // a literal `$`, and an escaped `\$` is one too.
+  const escaped = (s: string) => s.replaceAll("\\", "\\\\");
+  it.runIf(process.platform === "win32").each(["\\\\localhost\\", ...PREFIXES])(
+    "blocks the escaped posix spelling of %s from a cwd that names no root (RV3-2)",
+    (prefix) => {
+      const away = { ...check, cwd: mkdtempSync(join(tmpdir(), "engram-nobypass-away-")) };
+      const target = via(prefix, join(root, "bare.md"));
+      expect(shellBypass(`echo x > ${escaped(target)}`, away)?.route).toBe("path");
+      expect(shellBypass(`cat ${escaped(target).replace("$", "\\$")}`, away)?.route).toBe("path");
+      expect(shellBypass(`cat "${escaped(target)}"`, away)?.route).toBe("path");
+    },
+  );
+
+  it.each(["\\\\fileserver\\C$\\memory\\x.md", "\\\\?\\UNC\\fileserver\\C$\\memory\\x.md"])(
+    "leaves another machine's share alone in its escaped posix spelling %s",
+    (path) => {
+      const away = { ...check, cwd: mkdtempSync(join(tmpdir(), "engram-nobypass-away-")) };
+      expect(shellBypass(`cat ${escaped(path)}`, away)).toBeUndefined();
+    },
+  );
+
   it.each([
     "npx @letta-ai/letta-code",
     "npx -y @letta-ai/letta-code@0.34.66 memory list",
