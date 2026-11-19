@@ -85,20 +85,34 @@
 // character payload (never promoted, P5-14); restatements are sometimes by
 // the item's own author; reviewers who confirmed are refused (P5-16); and a
 // guard requires a refusal that only retired confirmers caused (P5-17).
+//
+// Invariant 1 also runs across two handles over one log and one store (card
+// E2.6, ADR 0007's amendment of 2026-11-19; a `decision` log entry records
+// the change): a walk of two handles' operations, an offboarding among them,
+// under every interleaving a scheduler picks at the store's calls, after
+// which no erased item is read, projected, rebuilt, stored or adopted again,
+// and the store holds what the projection holds. See twoHandleWalk.
+import { readFileSync } from "node:fs";
 import { createFakeAdapter } from "@engram/adapters";
 import fc from "fast-check";
 import { describe, expect, test } from "vitest";
+import type { Adapter } from "../../src/adapter.ts";
+import type { Db } from "../../src/db/db.ts";
 import { migrate } from "../../src/db/migrate.ts";
 import { openSqlite } from "../../src/db/sqlite.ts";
 import { allEvents, appendEvent, currentItems, rebuild } from "../../src/events.ts";
+import { itemById } from "../../src/items.ts";
 import {
   type Actor,
   adoptStoreItems,
   createPlane,
   ExplainDeniedError,
   NotImplementedYet,
+  offboard,
   type Plane,
+  type PlaneDeps,
 } from "../../src/plane.ts";
+import { parsePolicy } from "../../src/policy/load.ts";
 import { itemsAt } from "../../src/replay.ts";
 import type { Grant, MemoryEvent, MemoryItem, Policy } from "../../src/schema.ts";
 import { addSeconds, compareTimestamps } from "../../src/time.ts";
@@ -128,6 +142,8 @@ import {
 } from "./oracle.ts";
 
 const RUNS = 1000;
+/** The two-handle walk opens a log per run and interleaves two operation lists: fewer runs. */
+const RUNS_TWO_HANDLES = 300;
 
 function freshPlane(policy: Policy, search = true) {
   const db = openSqlite(":memory:");
@@ -581,6 +597,20 @@ describe("invariants", () => {
       `the run must admit by scope and by grant, exclude by scope and by a grant's terms, meet a grant expiring at the read time, and meet an item readable but for its ttl; it saw ${JSON.stringify(seen)}`,
     ).toBe(true);
   }, 120_000);
+
+  const I1H =
+    "invariant 1 across two handles: no reader gets an erased item back, and the store holds the projection, whatever the interleaving";
+  test(I1H, async () => {
+    const seen: WalkSeen = { erased: 0, grantedReads: 0, refusedStale: 0 };
+    await fc.assert(
+      fc.asyncProperty(fc.scheduler(), arbWalk, (s, walk) => twoHandleWalk(s, walk, seen)),
+      { numRuns: RUNS_TWO_HANDLES, seed: seedFor(I1H) },
+    );
+    expect(
+      Object.values(seen).every((n) => n > 0),
+      `the two-handle walk needs erasures, reads a grant admitted, and stale decisions refused under the lock; it saw ${JSON.stringify(seen)}`,
+    ).toBe(true);
+  }, 240_000);
 
   const I2 = "invariant 2: no write lands in a scope whose policy forbids its class or source";
   test(I2, async () => {
@@ -1998,4 +2028,298 @@ async function planeSurfaceLeaksNothing() {
   const lifted = await plane.promote(owner, secret.id, "person:s", at, { review: false });
   expect(lifted.decision).toBe("allow");
   expect(lifted.item?.lineage[0]).toBe(secret.id);
+}
+
+// Invariant 1 across two handles (card E2.6; a `decision` log entry records
+// the change). Two handles share one log and one store, each with its own
+// write queue, as two processes do; the store yields to a fast-check
+// scheduler before and after every call, so the walk explores the
+// interleavings of the two handles' operations at every store call. Dana
+// writes and rewrites person and role items (some carrying a live grant to
+// Sam), changes their grants, has a reviewer promote her episodic items,
+// sweeps, adopts the store, and Sam reads; once, on either handle, at any
+// point, a colleague offboards her, erasing person:dana and handing
+// role:release to Lee. Whatever the interleaving: no read whose event follows
+// an item's erasure returns it; afterwards no erased id is in the projection,
+// a rebuild, the store or a read, before or after another adoption; no event
+// and no store record holds content written only to erased ids; and the
+// store holds exactly what the projection holds for every projected item.
+// Guards require erasures, reads that returned a granted item, and stale
+// decisions refused under the lock (a conflict or erasing refusal).
+
+const TWIN_PROFILE = new URL("../../../pi-package/profiles/twin.yaml", import.meta.url);
+const W_AT = "2026-11-19T10:00:00Z";
+const W_LATER = "2026-11-19T11:00:00Z";
+const W_UNTIL = "2026-12-19T00:00:00Z";
+const W_DANA: Actor = {
+  id: "person:dana",
+  level: "person",
+  memberships: ["person:dana", "role:release"],
+  source: "user",
+};
+const W_HR: Actor = {
+  id: "person:hr",
+  level: "person",
+  memberships: ["person:hr", "person:dana", "role:release"],
+  source: "user",
+};
+const W_SAM: Actor = { id: "person:sam", level: "person", memberships: ["person:sam"] };
+const W_ID = (n: number) => `01930000-0000-7000-8000-${String(n).padStart(12, "0")}`;
+/** Dana's person items 1 to 4 and role items 5 and 6. */
+const W_POOL = [1, 2, 3, 4, 5, 6].map(W_ID);
+const W_SCOPES = ["person:dana", "role:release"];
+
+type WalkOp =
+  | { kind: "write"; pick: number; grant: boolean; episodic: boolean }
+  | { kind: "grant"; pick: number; add: boolean }
+  | { kind: "promote"; pick: number }
+  | { kind: "retain" }
+  | { kind: "adopt"; scope: number }
+  | { kind: "read" }
+  | { kind: "offboard" };
+
+const arbWalkOp: fc.Arbitrary<WalkOp> = fc.oneof(
+  {
+    arbitrary: fc.record({
+      kind: fc.constant("write" as const),
+      pick: fc.nat(5),
+      grant: fc.boolean(),
+      episodic: fc.boolean(),
+    }),
+    weight: 4,
+  },
+  {
+    arbitrary: fc.record({
+      kind: fc.constant("grant" as const),
+      pick: fc.nat(5),
+      add: fc.boolean(),
+    }),
+    weight: 3,
+  },
+  { arbitrary: fc.record({ kind: fc.constant("promote" as const), pick: fc.nat(3) }), weight: 1 },
+  { arbitrary: fc.record({ kind: fc.constant("retain" as const) }), weight: 1 },
+  { arbitrary: fc.record({ kind: fc.constant("adopt" as const), scope: fc.nat(1) }), weight: 2 },
+  { arbitrary: fc.record({ kind: fc.constant("read" as const) }), weight: 2 },
+);
+
+/** Two handles' operation lists, the offboarding inserted once into one of them. */
+const arbWalk = fc
+  .tuple(
+    fc.array(arbWalkOp, { minLength: 1, maxLength: 6 }),
+    fc.array(arbWalkOp, { minLength: 1, maxLength: 6 }),
+    fc.boolean(),
+    fc.nat(6),
+  )
+  .map(([a, b, onA, at]) => {
+    const into = onA ? a : b;
+    const ops = [...into];
+    ops.splice(Math.min(at, ops.length), 0, { kind: "offboard" });
+    return onA ? ([ops, b] as const) : ([a, ops] as const);
+  });
+
+/** What the walk saw, for its guards. */
+interface WalkSeen {
+  erased: number;
+  grantedReads: number;
+  refusedStale: number;
+}
+
+async function twoHandleWalk(
+  s: fc.Scheduler,
+  [opsA, opsB]: readonly [WalkOp[], WalkOp[]],
+  seen: WalkSeen,
+): Promise<void> {
+  const policy = parsePolicy(readFileSync(TWIN_PROFILE, "utf8"), "twin.yaml");
+  const base = openSqlite(":memory:");
+  migrate(base);
+  /** A handle: its own Db object, so its own write queue, over the one log. */
+  const handle = (): Db => ({
+    dialect: base.dialect,
+    exec: (sql) => base.exec(sql),
+    prepare: (sql) => base.prepare(sql),
+    transaction: (fn) => base.transaction(fn),
+    close: () => {},
+  });
+  const store = createFakeAdapter({ search: false, history: false });
+  const yielding = (name: string): Adapter => {
+    const pass = (label: string) => s.schedule(Promise.resolve(label), label);
+    return Object.assign(Object.create(store) as Adapter, {
+      write: async (it: MemoryItem) => {
+        await pass(`${name} write ${it.id} v${it.version}`);
+        const ref = await store.write(it);
+        await pass(`${name} wrote ${it.id}`);
+        return ref;
+      },
+      delete: async (ref: { adapter: string; key: string }) => {
+        await pass(`${name} delete ${ref.key}`);
+        await store.delete(ref);
+        await pass(`${name} deleted ${ref.key}`);
+      },
+      list: async (scope: string) => {
+        await pass(`${name} list ${scope}`);
+        const listed = await store.list(scope);
+        await pass(`${name} listed ${scope}`);
+        return listed;
+      },
+      read: async (ref: { adapter: string; key: string }) => {
+        await pass(`${name} read ${ref.key}`);
+        return store.read(ref);
+      },
+    });
+  };
+  let n = 0;
+  let tokens = 0;
+  /** Every content token written under each item id. */
+  const written = new Map<string, Set<string>>();
+  const reads: { seq: number; ids: string[] }[] = [];
+  const refusals: MemoryEvent[] = [];
+  const deps = (name: string, from: number): PlaneDeps => ({
+    db: handle(),
+    adapter: yielding(name),
+    policy,
+    newId: () => `01940000-0000-7000-8000-${String(from + ++n).padStart(12, "0")}`,
+  });
+  const run = async (d: PlaneDeps, ops: readonly WalkOp[]) => {
+    const plane = createPlane(d);
+    for (const op of ops) {
+      if (op.kind === "write") {
+        const itemId = W_POOL[op.pick] as string;
+        const scope = op.pick < 4 ? "person:dana" : "role:release";
+        const cls = op.episodic && scope === "person:dana" ? "episodic" : "semantic";
+        const held = itemById(d.db, itemId);
+        const token = `zq${++tokens}x`;
+        written.set(itemId, (written.get(itemId) ?? new Set()).add(token));
+        const r = await plane.write(
+          W_DANA,
+          {
+            id: itemId,
+            class: held?.class ?? cls,
+            scope,
+            owner: held?.owner ?? W_DANA.id,
+            content: `Dana's note ${token}`,
+            provenance: {
+              kind: "user",
+              ref: "doc/1",
+              hash: `sha256:${"0".repeat(64)}`,
+              actor: W_DANA.id,
+            },
+            confidence: 0.9,
+            valid_from: "2026-10-01T00:00:00Z",
+            valid_to: null,
+            ttl: null,
+            grants: op.grant
+              ? [{ to: W_SAM.id, class: held?.class ?? cls, mode: "read", expires: W_UNTIL }]
+              : (held?.grants ?? []),
+            version: (held?.version ?? 0) + 1,
+            lineage: [],
+            status: "active",
+            store_ref: null,
+            schema_version: 1,
+          } as MemoryItem,
+          W_AT,
+        );
+        refusals.push(r.event);
+      } else if (op.kind === "grant") {
+        const itemId = W_POOL[op.pick] as string;
+        const held = itemById(d.db, itemId);
+        const grant = {
+          to: W_SAM.id,
+          class: held?.class ?? "semantic",
+          mode: "read" as const,
+          expires: W_UNTIL,
+        };
+        const r = await plane.changeGrants(
+          W_DANA,
+          itemId,
+          op.add ? { add: [grant] } : { remove: [held?.grants[0] ?? grant] },
+          W_AT,
+        );
+        refusals.push(r.event);
+      } else if (op.kind === "promote") {
+        const r = await plane.promote(W_HR, W_POOL[op.pick] as string, "person:dana", W_AT, {
+          review: true,
+        });
+        refusals.push(...r.events);
+      } else if (op.kind === "retain") {
+        await plane.retain(W_DANA, "person:dana", W_LATER);
+      } else if (op.kind === "adopt") {
+        await adoptStoreItems(d, W_DANA, W_SCOPES[op.scope] as string, W_AT);
+      } else if (op.kind === "read") {
+        const r = await plane.read(W_SAM, { at: W_LATER });
+        reads.push({ seq: r.event.seq, ids: r.items.map((i) => i.id) });
+      } else {
+        await offboard(
+          d,
+          W_HR,
+          { person: "person:dana", roles: [{ scope: "role:release", successor: "person:lee" }] },
+          W_AT,
+        );
+      }
+    }
+  };
+  await s.waitFor(Promise.all([run(deps("A", 100_000), opsA), run(deps("B", 200_000), opsB)]));
+
+  const log = allEvents(base);
+  const erasedAt = new Map<string, number>();
+  for (const e of log)
+    if (e.decision === "allow" && e.policy_id === "engram/offboard/erase" && e.item_id)
+      erasedAt.set(e.item_id, e.seq);
+  seen.erased += erasedAt.size;
+  seen.refusedStale += refusals.filter((e) =>
+    /\/conflict$|^engram\/offboard\/erasing$/.test(e.policy_id),
+  ).length;
+  // A read committed after an item's erasure never returns it.
+  for (const r of reads) {
+    if (r.ids.length > 0) seen.grantedReads++;
+    for (const itemId of r.ids)
+      expect(
+        (erasedAt.get(itemId) ?? Number.POSITIVE_INFINITY) > r.seq,
+        `read at seq ${r.seq} returned ${itemId}, erased at seq ${erasedAt.get(itemId)}`,
+      ).toBe(true);
+  }
+  // The store holds what the projection holds, item by item.
+  const listed = (await Promise.all(W_SCOPES.map((sc) => store.list(sc)))).flat();
+  // As adoption compares them: a retirement changes only the projection (ADR
+  // 0010: retention and supersession never touch the store), and adoption
+  // records a plane-written record again as import without writing the
+  // store, so the provenance's kind and actor may differ (the finding of
+  // packages/adapters/test/plane/grants-files.test.ts); nothing else may.
+  const unsourced = (i: MemoryItem | undefined) =>
+    i && { ...i, status: null, provenance: { ...i.provenance, kind: null, actor: null } };
+  for (const held of currentItems(base)) {
+    if (!held.store_ref) continue;
+    expect(unsourced(await store.read(held.store_ref)), `the store's record of ${held.id}`).toEqual(
+      unsourced(held),
+    );
+  }
+  const surviving = currentItems(base);
+  const survivingText = JSON.stringify(surviving);
+  const erasedOnly = [...erasedAt.keys()].flatMap((itemId) =>
+    [...(written.get(itemId) ?? [])].filter((t) => !survivingText.includes(t)),
+  );
+  const check = async (when: string) => {
+    for (const itemId of erasedAt.keys()) {
+      expect(itemById(base, itemId), `${when}: erased ${itemId} projected`).toBeUndefined();
+      expect(
+        listed.some((i) => i.id === itemId),
+        `${when}: erased ${itemId} in the store`,
+      ).toBe(false);
+    }
+    const text = JSON.stringify([allEvents(base), await store.list("person:dana")]);
+    for (const t of erasedOnly) expect(text, `${when}: erased content ${t}`).not.toContain(t);
+    for (const reader of [W_SAM, W_DANA]) {
+      const r = await createPlane({ ...deps("C", 300_000), adapter: store }).read(reader, {
+        at: W_LATER,
+      });
+      for (const it of r.items)
+        expect(erasedAt.has(it.id), `${when}: ${reader.id} read erased ${it.id}`).toBe(false);
+    }
+  };
+  await check("after the walk");
+  rebuild(base);
+  await check("after a rebuild");
+  for (const scope of W_SCOPES)
+    await adoptStoreItems({ ...deps("C", 300_000), adapter: store }, W_DANA, scope, W_LATER);
+  await check("after another adoption");
+  base.close();
 }
