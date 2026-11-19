@@ -61,6 +61,7 @@ describe("adopting a Claude Code memory folder", () => {
       allowed: 4,
       denied: 0,
       unchanged: 0,
+      deferred: 0,
       retired: 0,
       denials: [],
       retirements: [],

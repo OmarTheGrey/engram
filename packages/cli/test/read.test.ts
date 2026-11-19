@@ -174,6 +174,7 @@ describe("engram read", () => {
       allowed: 4,
       denied: 0,
       unchanged: 0,
+      deferred: 0,
       retired: 0,
     });
   });

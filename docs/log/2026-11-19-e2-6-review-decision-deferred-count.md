@@ -19,4 +19,4 @@ supersedes: docs/log/2026-11-19-e2-6-decision-stale-listing.md
 
 **Result.** `make api-check` passes after `make api`; the CLI's output is unchanged when nothing is deferred, so its tests stand.
 
-**Consequence.** A client reading AdoptReport sees one more field.
+**Consequence.** A client reading AdoptReport sees one more field; two tests that compared the whole report (`packages/cli/test/read.test.ts`, `packages/adapters/test/plane/adopt-files.test.ts`) now expect `deferred: 0`.
