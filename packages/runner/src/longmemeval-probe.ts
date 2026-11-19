@@ -31,7 +31,13 @@ import {
   type Policy,
   type PresetName,
 } from "@engram/core";
-import { type CacheStore, type CallContext, fileCache, type UsageRecord } from "@engram/model";
+import {
+  type CacheStore,
+  type CallContext,
+  cached,
+  fileCache,
+  type UsageRecord,
+} from "@engram/model";
 import { ENGRAM_EVENT, type RecallDetails, renderRecall } from "@engram/pi-extension";
 import { z } from "zod";
 import { answersFor, type LiveModels } from "./answers.ts";
@@ -57,10 +63,16 @@ import {
   USAGE_FILE,
   writeJsonl,
 } from "./journal.ts";
-import { cachedJudgeCall, liveJudgeCall } from "./judge.ts";
+import { failedAttempt, liveJudgeCall, paidFailures } from "./judge.ts";
 import type { SessionDecision } from "./mem-inv-probe.ts";
 import { type AnswerSource, cassettePiModel, sessionFailure } from "./model/cassette.ts";
-import { JUDGE_RETRY, type RetryPolicy, type Sleep } from "./model/retry.ts";
+import {
+  JUDGE_RETRY,
+  type RetryPolicy,
+  realSleep,
+  retrySession,
+  type Sleep,
+} from "./model/retry.ts";
 import { closeStore, openStore, type StoreName } from "./stores.ts";
 
 /** The conditions built on LongMemEval: the ungoverned baseline and the enforced one. */
@@ -391,6 +403,8 @@ export interface LongMemEvalRunnerOptions {
   onRow?: (row: LongMemEvalProbeResult) => void;
   /** How a transient failure's retry waits; a real wait unless a test injects one. */
   sleep?: Sleep;
+  /** The outer session retry (review RV1-6); run.ts RunnerOptions.sessionRetry. */
+  sessionRetry?: RetryPolicy;
 }
 
 /**
@@ -403,6 +417,7 @@ function judgeInner(
   judge: NonNullable<ReturnType<typeof longMemEvalJudge>>,
   questionId: string,
   live: LiveModels | undefined,
+  liveOptions: Parameters<typeof liveJudgeCall>[1] = {},
 ): ModelCall {
   if (judge.model.startsWith("scripted/")) {
     const script = JSON.parse(
@@ -410,7 +425,7 @@ function judgeInner(
     ) as longMemEval.JudgeScript;
     return longMemEval.scriptedJudge(script, questionId);
   }
-  if (live) return liveJudgeCall(live);
+  if (live) return liveJudgeCall(live, liveOptions);
   return async (request) => {
     throw new Error(`no live judge ${request.model} to answer a cache miss`);
   };
@@ -441,19 +456,30 @@ export async function runLongMemEvalConfig(
         for (const seed of config.seeds) {
           if (sink.done({ item: `longmemeval/${item}`, condition, store, seed })) continue;
           if (!sink.proceed()) break sessions;
+          const judgeContext = longMemEvalJudgeContext({
+            questionId: item,
+            condition,
+            preset: config.preset,
+            store,
+          });
           const judged = judge
             ? {
-                call: cachedJudgeCall(judgeInner(judge, item, options.live), {
-                  cache,
-                  context: longMemEvalJudgeContext({
-                    questionId: item,
-                    condition,
-                    preset: config.preset,
-                    store,
-                  }),
-                  ...(options.offline === undefined ? {} : { offline: options.offline }),
-                  onUsage: sink.onUsage,
-                }),
+                // A judge call that failed is never recorded (review RV1-1); its usage is.
+                call: cached(
+                  paidFailures(
+                    judgeInner(judge, item, options.live, {
+                      sleep: options.sleep,
+                      onFailedAttempt: failedAttempt(judgeContext, sink.onUsage),
+                    }),
+                    { context: judgeContext, onUsage: sink.onUsage },
+                  ),
+                  {
+                    cache,
+                    context: judgeContext,
+                    ...(options.offline === undefined ? {} : { offline: options.offline }),
+                    onUsage: sink.onUsage,
+                  },
+                ),
                 settings: {
                   model: judge.model,
                   seed,
@@ -463,25 +489,30 @@ export async function runLongMemEvalConfig(
               }
             : undefined;
           sink.commit(
-            await runLongMemEvalProbe({
-              question,
-              condition,
-              seed,
-              model: config.model,
-              preset: config.preset,
-              policy,
-              store,
-              cache,
-              answers: answersFor(config, item, condition, options.live),
-              judge: judged,
-              ...(config.read_limit === undefined ? {} : { readLimit: config.read_limit }),
-              ...(options.offline === undefined ? {} : { offline: options.offline }),
-              onUsage: sink.onUsage,
-              // The answer path retries a transient failure as the judge does (RV-EXP-1).
-              retry: JUDGE_RETRY,
-              ...(options.sleep === undefined ? {} : { sleep: options.sleep }),
-              ...(config.turn_limit === undefined ? {} : { turnLimit: config.turn_limit }),
-            }),
+            await retrySession(
+              () =>
+                runLongMemEvalProbe({
+                  question,
+                  condition,
+                  seed,
+                  model: config.model,
+                  preset: config.preset,
+                  policy,
+                  store,
+                  cache,
+                  answers: answersFor(config, item, condition, options.live),
+                  judge: judged,
+                  ...(config.read_limit === undefined ? {} : { readLimit: config.read_limit }),
+                  ...(options.offline === undefined ? {} : { offline: options.offline }),
+                  onUsage: sink.onUsage,
+                  // The answer path retries a transient failure as the judge does (RV-EXP-1).
+                  retry: JUDGE_RETRY,
+                  ...(options.sleep === undefined ? {} : { sleep: options.sleep }),
+                  ...(config.turn_limit === undefined ? {} : { turnLimit: config.turn_limit }),
+                }),
+              options.sessionRetry,
+              options.sleep ?? realSleep,
+            ),
           );
         }
       }

@@ -12,6 +12,7 @@
 // finish_reason: ...") and any other status are not retried, as upstream
 // does not retry them.
 import type { AssistantMessage } from "@earendil-works/pi-ai";
+import { TransientCallError, type UsageRecord } from "@engram/model";
 
 export interface RetryPolicy {
   /** How many times the call is made at most, the first included. */
@@ -70,6 +71,8 @@ export async function withRetry(
   once: () => Promise<AssistantMessage>,
   policy: RetryPolicy,
   sleep: Sleep,
+  /** Told of each reply that is retried (not the last), so its usage reaches the ledger (RV1-3). */
+  onRetried?: (reply: AssistantMessage) => void,
 ): Promise<{ reply: AssistantMessage; attempts: number }> {
   for (let attempt = 1; ; attempt++) {
     const reply = await once();
@@ -78,6 +81,49 @@ export async function withRetry(
       attempt < policy.attempts &&
       isTransient(reply.errorMessage, policy);
     if (!retry) return { reply, attempts: attempt };
+    onRetried?.(reply);
     await sleep(policy.delayMs(attempt - 1));
+  }
+}
+
+/** A failed attempt's usage as a ledger record: paid, and never a cassette (card RV1, review RV1-3). */
+export function attemptUsage(key: string, model: string, reply: AssistantMessage): UsageRecord {
+  return {
+    key,
+    model,
+    hit: false,
+    input_tokens: reply.usage.input,
+    output_tokens: reply.usage.output,
+    cost_usd: reply.usage.cost.total,
+  };
+}
+
+/**
+ * The outer session retry of a live run (card RV1, review RV1-6): a session
+ * that stopped on a TransientCallError (its call's own retry exhausted) is run
+ * again from the start after these waits, its recorded calls replayed from
+ * the cassettes, so it is out of every cache key. Six runs of the session in
+ * all, waiting 30 s, 1, 2, 4 and 5 minutes: an outage of about 12 minutes
+ * is waited out. Neither upstream client honours Retry-After, nor does this.
+ */
+export const SESSION_RETRY: RetryPolicy = {
+  attempts: 6,
+  statuses: [],
+  delayMs: (i) => Math.min(30 * 2 ** i, 300) * 1000,
+};
+
+/** `session` run until it does not stop on a TransientCallError, at most `policy.attempts` times. */
+export async function retrySession<T>(
+  session: () => Promise<T>,
+  policy: RetryPolicy | undefined,
+  sleep: Sleep,
+): Promise<T> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await session();
+    } catch (e) {
+      if (!(e instanceof TransientCallError) || !policy || attempt >= policy.attempts) throw e;
+      await sleep(policy.delayMs(attempt - 1));
+    }
   }
 }

@@ -33,7 +33,7 @@
 // not ported.
 import { readFileSync } from "node:fs";
 import { type ModelCall, type ModelRequest, UnsupportedRequestError } from "@engram/core";
-import { OfflineMissError } from "@engram/model";
+import { OfflineMissError, TransientCallError } from "@engram/model";
 import { z } from "zod";
 import type { ModelForItem } from "./agents.ts";
 import { UntranslatableLiteral } from "./literal.ts";
@@ -272,12 +272,15 @@ export async function judgeOne(
       });
       if (result.parseOk) break;
     } catch (e) {
-      // Stop rather than retry: a missing cassette, a request the ModelCall
+      // Stop rather than retry: a missing cassette, a call that failed for a
+      // transient reason after its retry (never recorded; a resume makes it
+      // again, card RV1 review RV1-1), a request the ModelCall
       // refuses (retrying without the schema would change the protocol), or
       // a reply the port cannot read as upstream does (the answer path stops
       // on it too; judging the next attempt's reply would change the verdict).
       if (
         e instanceof OfflineMissError ||
+        e instanceof TransientCallError ||
         e instanceof UnsupportedRequestError ||
         e instanceof UntranslatableLiteral
       )

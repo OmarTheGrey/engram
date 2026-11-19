@@ -41,13 +41,22 @@ import {
   type CacheStore,
   type CallContext,
   cached,
+  cacheKey,
   OfflineMissError,
   type ScriptStep,
   scriptedPiModel,
+  TransientCallError,
   type UsageRecord,
 } from "@engram/model";
 import type { CompletesSimple } from "./pi.ts";
-import { type RetryPolicy, realSleep, type Sleep, withRetry } from "./retry.ts";
+import {
+  attemptUsage,
+  isTransient,
+  type RetryPolicy,
+  realSleep,
+  type Sleep,
+  withRetry,
+} from "./retry.ts";
 
 /** What a miss is answered with besides the transcript: the config's seed and the loop's options. */
 export interface AnswerCall {
@@ -312,13 +321,26 @@ export function cassettePiModel(options: CassetteModelOptions) {
           { messages: transcript.messages },
           { seed: options.seed, ...(stream === undefined ? {} : { stream }) },
         );
+      // Every failed attempt was paid for: its usage goes to the ledger,
+      // though no cassette holds it (card RV1, review RV1-3).
+      const paid = (failed: AssistantMessage) =>
+        options.onUsage?.(attemptUsage(cacheKey(options.context, request), options.model, failed));
       const { reply, attempts } = options.retry
-        ? await withRetry(once, options.retry, options.sleep ?? realSleep)
+        ? await withRetry(once, options.retry, options.sleep ?? realSleep, paid)
         : { reply: await once(), attempts: 1 };
       if (reply.stopReason === "error" || reply.stopReason === "aborted") {
-        throw new Error(
-          `model call failed${attempts > 1 ? ` after ${attempts} attempts` : ""}: ${reply.errorMessage ?? reply.stopReason}`,
-        );
+        paid(reply);
+        const message = `model call failed${attempts > 1 ? ` after ${attempts} attempts` : ""}: ${reply.errorMessage ?? reply.stopReason}`;
+        // A transient failure that outlasted the retry stops the session
+        // unrecorded; an outer retry or a resume makes the call again.
+        if (
+          reply.stopReason === "error" &&
+          options.retry &&
+          isTransient(reply.errorMessage, options.retry)
+        ) {
+          throw new TransientCallError(message);
+        }
+        throw new Error(message);
       }
       return {
         text: encode(reply),

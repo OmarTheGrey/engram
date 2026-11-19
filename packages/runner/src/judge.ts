@@ -19,18 +19,34 @@
 // on any other API is refused before it is called (UnsupportedRequestError),
 // which stops the judge as the port does rather than send an unseeded call or
 // drop the schema.
+
+import type { AssistantMessage } from "@earendil-works/pi-ai";
 import { gatemem } from "@engram/bench";
-import { type ModelCall, type ModelUsage, UnsupportedRequestError } from "@engram/core";
+import {
+  type ModelCall,
+  type ModelRequest,
+  type ModelUsage,
+  UnsupportedRequestError,
+} from "@engram/core";
 import {
   type CachedOptions,
   type CacheStore,
   type CallContext,
   cached,
+  cacheKey,
+  TransientCallError,
   type UsageRecord,
 } from "@engram/model";
 import type { LiveModels } from "./answers.ts";
 import type { RunnerConfig } from "./config.ts";
-import { JUDGE_RETRY, realSleep, type Sleep, withRetry } from "./model/retry.ts";
+import {
+  attemptUsage,
+  isTransient,
+  JUDGE_RETRY,
+  realSleep,
+  type Sleep,
+  withRetry,
+} from "./model/retry.ts";
 
 /** The one API a live judge runs on: it carries the seed and `response_format` through `samplingParams`. */
 export const SEEDED_JUDGE_API = "openai-completions";
@@ -42,13 +58,24 @@ export const SEEDED_JUDGE_API = "openai-completions";
  * of min(2^i, 10) seconds); a call that still fails, or fails otherwise,
  * throws, and the port's judgeOne records the failed attempt and goes on to
  * its next one, as upstream's scoring does with the router's error (PR #25
- * review round 3, V-4). The failure is a JudgeCallFailed, which
- * cachedJudgeCall records as a cassette entry (card RV1, RV-EXP-3), so a
- * replay fails the same attempt the same way. The reply is not stripped
+ * review round 3, V-4). A failure that is not transient (a 400, a 401) is a
+ * JudgeCallFailed, which GateMem's judge records as a cassette entry
+ * (cachedJudgeCall, card RV1, RV-EXP-3), so a replay fails the same attempt
+ * the same way. A transient failure that outlasted the retry is a
+ * TransientCallError, never recorded: it stops the run, and a resume makes
+ * the call again (review RV1-1). Each failed attempt's usage goes to
+ * `onFailedAttempt`, so the ledger holds what was paid (review RV1-3). The
+ * reply is not stripped
  * here: the port's parser strips it as upstream's provider does, and a test
  * holds a padded verdict to the stripped one's row.
  */
-export function liveJudgeCall(models: LiveModels, options: { sleep?: Sleep } = {}): ModelCall {
+export function liveJudgeCall(
+  models: LiveModels,
+  options: {
+    sleep?: Sleep | undefined;
+    onFailedAttempt?: ((request: ModelRequest, reply: AssistantMessage) => void) | undefined;
+  } = {},
+): ModelCall {
   return async (request) => {
     const [provider = "", ...rest] = request.model.split("/");
     const model = models.getModel(provider, rest.join("/"));
@@ -93,11 +120,20 @@ export function liveJudgeCall(models: LiveModels, options: { sleep?: Sleep } = {
         ),
       JUDGE_RETRY,
       options.sleep ?? realSleep,
+      (failed) => options.onFailedAttempt?.(request, failed),
     );
     if (reply.stopReason === "error" || reply.stopReason === "aborted") {
       const message = `judge call failed after ${attempts} ${attempts === 1 ? "attempt" : "attempts"}: ${reply.errorMessage ?? reply.stopReason}`;
-      // An aborted call was not answered: nothing is recorded, the run stops.
-      if (reply.stopReason === "aborted") throw new Error(message);
+      // An aborted call was not answered, and a transient failure may pass:
+      // neither is recorded, and the run stops (review RV1-1).
+      if (reply.stopReason === "aborted") {
+        options.onFailedAttempt?.(request, reply);
+        throw new Error(message);
+      }
+      if (isTransient(reply.errorMessage, JUDGE_RETRY)) {
+        options.onFailedAttempt?.(request, reply);
+        throw new TransientCallError(message);
+      }
       throw new JudgeCallFailed(message, {
         input_tokens: reply.usage.input,
         output_tokens: reply.usage.output,
@@ -133,8 +169,42 @@ export class JudgeCallFailed extends Error {
 export const FAILED_CALL_MARK = "\u0000engram/failed-call\u0000";
 
 /**
- * A judge or lint call through the cache (ADR 0017) that records a failed
- * call as well as an answered one (card RV1, RV-EXP-3): a JudgeCallFailed
+ * A judge or lint call that is not recorded when it fails (LongMemEval's
+ * judge, the lints: review RV1-1): a JudgeCallFailed from `inner` was paid
+ * for, so its usage goes to `onUsage` under the call's key, and it is thrown
+ * on, stopping the run as before.
+ */
+export function paidFailures(
+  inner: ModelCall,
+  options: { context: CallContext; onUsage?: ((usage: UsageRecord) => void) | undefined },
+): ModelCall {
+  return async (request) => {
+    try {
+      return await inner(request);
+    } catch (e) {
+      if (e instanceof JudgeCallFailed) {
+        options.onUsage?.({
+          key: cacheKey(options.context, request),
+          model: request.model,
+          hit: false,
+          ...e.usage,
+        });
+      }
+      throw e;
+    }
+  };
+}
+
+/** The ledger record of a failed live attempt, under the call's cache key (review RV1-3). */
+export const failedAttempt =
+  (context: CallContext, onUsage: ((usage: UsageRecord) => void) | undefined) =>
+  (request: ModelRequest, reply: AssistantMessage) =>
+    onUsage?.(attemptUsage(cacheKey(context, request), request.model, reply));
+
+/**
+ * GateMem's judge call through the cache (ADR 0017), which records a call
+ * that failed for good as well as an answered one (card RV1, RV-EXP-3), since
+ * GateMem's judgeOne goes on to its next attempt: a JudgeCallFailed
  * from `inner` is stored as a cassette entry holding FAILED_CALL_MARK and
  * its message, and whenever that entry is read, recorded or replayed, the
  * same JudgeCallFailed is thrown. A replay therefore fails the same attempt
@@ -173,6 +243,8 @@ export interface JudgeSpec {
   live?: LiveModels | undefined;
   offline?: boolean | undefined;
   onUsage?: ((usage: UsageRecord) => void) | undefined;
+  /** How the live judge's retry waits; a real wait unless a test injects one. */
+  sleep?: Sleep | undefined;
 }
 
 /** One probe's answer judged as GateMem judges it, every call through the cache. */
@@ -183,7 +255,10 @@ export async function judgeAnswer(spec: JudgeSpec): Promise<gatemem.JudgeRow> {
         spec.checkpoint.checkpoint_id,
       )
     : spec.live
-      ? liveJudgeCall(spec.live)
+      ? liveJudgeCall(spec.live, {
+          sleep: spec.sleep,
+          onFailedAttempt: failedAttempt(spec.context, spec.onUsage),
+        })
       : async (request) => {
           throw new Error(`no live judge ${request.model} to answer a cache miss`);
         };
