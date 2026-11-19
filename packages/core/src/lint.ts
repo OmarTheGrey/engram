@@ -25,6 +25,7 @@ export const DETERMINISTIC_LINT_IDS = [
 ] as const;
 export type DeterministicLintId = (typeof DETERMINISTIC_LINT_IDS)[number];
 export const MODEL_LINT_IDS = ["contradiction", "unsupported-claim"] as const;
+export type ModelLintId = (typeof MODEL_LINT_IDS)[number];
 export const LINT_IDS = [...DETERMINISTIC_LINT_IDS, ...MODEL_LINT_IDS] as const;
 export type LintId = (typeof LINT_IDS)[number];
 

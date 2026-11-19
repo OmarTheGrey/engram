@@ -15,6 +15,7 @@ import type { Adapter } from "./adapter.ts";
 import type { Db } from "./db/db.ts";
 import type { DistillMethod, Session } from "./distill.ts";
 import { allEvents } from "./events.ts";
+import type { ModelLintSetup } from "./lint/model.ts";
 
 export {
   ADOPT_ERASED_ID,
@@ -212,8 +213,11 @@ export interface Plane {
   retain(actor: Actor, scope: string, at: string): Promise<RetentionReport>;
   /**
    * Runs the deterministic lints the policy enables over one scope at `at`
-   * (card L1, ADR 0008); every finding is also one `lint` event, which
-   * changes no item. The actor must be able to read the scope (a member
+   * (card L1, ADR 0008), then, when the plane has a lint model, the
+   * model-based ones it enables (card L3); every finding is also one `lint`
+   * event, which changes no item, and a model finding's event carries the
+   * call's usage. The report's `judgments` list every unit the model lints
+   * sent, refusals and malformed replies included. The actor must be able to read the scope (a member
    * whose level the read matrix lets read it), else one deny event
    * (`engram/lint/membership`); an item outside the scope that a finding
    * would name counts as absent unless the actor could read it at `at`,
@@ -278,6 +282,12 @@ export interface PlaneDeps {
    * 0009, proposed amendment of 2026-11-02).
    */
   retrieval?: { pipeline: "core"; limit?: number };
+  /**
+   * The model-based lints' model (card L3): the injected ModelCall (AGENTS.md
+   * rule 4), the `provider/model-id` it names and the config's seed. Unset,
+   * Plane.lint runs the deterministic lints only, whatever the policy enables.
+   */
+  lintModel?: ModelLintSetup;
 }
 
 export function createPlane(deps: PlaneDeps): Plane {
