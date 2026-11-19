@@ -51,16 +51,30 @@ export {
   bypassAttempt,
   MAX_ATTEMPT_LENGTH,
 } from "./plane/bypass.ts";
+export {
+  type Basis,
+  basisNow,
+  ERASING_ID,
+  erasureBegunSince,
+  erasureOpen,
+  lastErasure,
+  logHead,
+  staleness,
+  touchedSince,
+} from "./plane/commit.ts";
 export { LINT_MEMBERSHIP_ID, type LintReport, planModelLints } from "./plane/lint.ts";
 export {
   type DeletionReport,
+  HANDOVER_CONFLICT_ID,
   HANDOVER_ID,
+  OFFBOARD_BEGIN_ID,
   OFFBOARD_MEMBERSHIP_ID,
   OFFBOARD_REPORT_ID,
   type OffboardRequest,
   offboard,
   REDACTED,
 } from "./plane/offboard.ts";
+export { PROMOTE_CONFLICT_ID } from "./plane/promote.ts";
 export { inWriteQueue, NestedWriteQueueError } from "./plane/queue.ts";
 export {
   formatReadReason,
@@ -70,7 +84,7 @@ export {
 } from "./plane/read-reason.ts";
 export { enforceBudget, retentionUsage } from "./plane/retention.ts";
 export { checkWorkload, replayWorkload, runWorkload, SIMULATION_STORE } from "./plane/simulate.ts";
-export { retiredContent } from "./plane/write.ts";
+export { retiredContent, WRITE_CONFLICT_ID, WRITE_ERASED_ID } from "./plane/write.ts";
 
 export interface ReadQuery {
   text?: string;

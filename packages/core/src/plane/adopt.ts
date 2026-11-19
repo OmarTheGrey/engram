@@ -29,6 +29,19 @@
 // events. Edited content, or another person's different file, adopts as any
 // other record does.
 //
+// Across db handles (card E2.6, plane/commit.ts), each record's decision and
+// its event are one transaction under the log's lock, in the write queue.
+// The listing may be older than what the log holds: a record whose item the
+// log changed after the listing began (any write, update, promote, retire or
+// evict event, of any decision), or whose person scope an offboarding began
+// erasing since, is left to the next adoption with no event, and so is the
+// retraction of such an item. Into a person scope an offboarding is erasing
+// nothing is adopted (engram/offboard/erasing), and a record under the id of
+// an item an offboarding erased is refused (engram/adopt/erased) unless the
+// erasure left that record in a store that refuses the plane's delete and
+// it has changed since: anything else under that id is a store write that was
+// in flight during the erasure, or a restored copy.
+//
 // Retracted, with one retire event (policy_id engram/adopt/retract): a
 // projected item of this store and scope the store no longer lists, and a
 // projected item whose store version the gate just denied. So the plane never
@@ -42,12 +55,19 @@
 import { createHash } from "node:crypto";
 import type { Actor } from "../actor.ts";
 import { mergingContentHash } from "../content-hash.ts";
-import { appendEvent, currentItems, erasedStoreContent, eventsByItem } from "../events.ts";
+import {
+  appendEvent,
+  currentItems,
+  erasedStoreContent,
+  eventsByItem,
+  LEFT_CONTENT_CLAUSE,
+} from "../events.ts";
 import { itemById } from "../items.ts";
 import type { PlaneDeps } from "../plane.ts";
 import type { MemoryEvent, MemoryItem } from "../schema.ts";
+import { erasureBegunSince, lastErasure, logHead, touchedSince } from "./commit.ts";
 import { inWriteQueue } from "./queue.ts";
-import { gatedWrite, withPlaneProvenance } from "./write.ts";
+import { adoptWrite, withPlaneProvenance } from "./write.ts";
 
 /** The policy_id of an adoption refused because the record holds content erased at offboarding. */
 export const ADOPT_ERASED_ID = "engram/adopt/erased";
@@ -110,7 +130,13 @@ export async function adoptStoreItems(
   const { db, adapter, newId } = deps;
   const adopter: Actor = { ...actor, source: "import" };
   const prefix = `adopted from store ${adapter.name}: `;
+  // The log's head before the store is listed: a change the log records
+  // after it may postdate what the listing shows (card E2.6).
+  const head = logHead(db);
   const listed = await adapter.list(scope);
+  /** The listing is older than a change the log holds for this item or its scope: leave it to the next. */
+  const stale = (itemId: string, itemScope: string, since = head) =>
+    touchedSince(db, itemId, since) || erasureBegunSince(db, itemScope, since);
   const report: AdoptReport = {
     listed: listed.length,
     allowed: 0,
@@ -163,18 +189,18 @@ export async function adoptStoreItems(
       continue;
     }
 
-    const { event, retention } = await gatedWrite(deps, adopter, item, at, {
+    const adopted = await adoptWrite(deps, adopter, item, at, {
       ref: item.store_ref,
       prefix,
       suffix: note,
-      refuse: (candidate) =>
-        erasedStoreContent(db, candidate.id).has(mergingContentHash(candidate.content))
-          ? {
-              reason: `the store's record of item ${candidate.id} holds content erased at an offboarding and left in the store; it is not adopted again until it changes`,
-              policy_id: ADOPT_ERASED_ID,
-            }
-          : null,
+      listed: head,
+      refuse: (candidate) => erasedRefusal(deps, candidate),
     });
+    if (adopted === null) {
+      report.unchanged++;
+      continue;
+    }
+    const { event, retention } = adopted;
     report.evictions.push(...retention);
     if (event.decision === "allow") {
       report.allowed++;
@@ -184,30 +210,67 @@ export async function adoptStoreItems(
     report.denials.push({ item_id: item.id, reason: event.reason, policy_id: event.policy_id });
     // In the write queue, like every change to items; the projection is
     // read again there, so a write that landed meanwhile is respected.
-    await inWriteQueue(db, () => {
-      const held = itemById(db, item.id);
-      if (held && held.status !== "retired")
-        retire(
-          held,
-          `the store's version of item ${held.id} was denied (${event.policy_id}); the plane retires the version it held, which the store no longer has`,
-        );
-    });
+    await inWriteQueue(db, () =>
+      db.transaction(() => {
+        const held = itemById(db, item.id);
+        // Changed since this adoption's own deny, by another handle: leave it.
+        if (held && held.status !== "retired" && !stale(held.id, held.scope, event.seq))
+          retire(
+            held,
+            `the store's version of item ${held.id} was denied (${event.policy_id}); the plane retires the version it held, which the store no longer has`,
+          );
+      }),
+    );
   }
 
   const present = new Set(listed.map((i) => i.id));
   const unreadable = new Map((adapter.diagnostics?.() ?? []).map((d) => [d.key, d.reason]));
-  await inWriteQueue(db, () => {
-    for (const held of currentItems(db)) {
-      if (held.scope !== scope || held.status === "retired" || present.has(held.id)) continue;
-      if (held.store_ref?.adapter !== adapter.name) continue;
-      const diagnostic = unreadable.get(held.store_ref.key);
-      retire(
-        held,
-        diagnostic === undefined
-          ? `item ${held.id} is no longer in store ${adapter.name} scope ${scope}; the plane retires its projected version`
-          : `store ${adapter.name} can no longer read item ${held.id} (${held.store_ref.key}): ${diagnostic}; the plane retires its projected version, which the store no longer holds in a readable form`,
-      );
-    }
-  });
+  await inWriteQueue(db, () =>
+    db.transaction(() => {
+      for (const held of currentItems(db)) {
+        if (held.scope !== scope || held.status === "retired" || present.has(held.id)) continue;
+        if (held.store_ref?.adapter !== adapter.name) continue;
+        // Written or changed since the listing, which may predate it.
+        if (stale(held.id, held.scope)) continue;
+        const diagnostic = unreadable.get(held.store_ref.key);
+        retire(
+          held,
+          diagnostic === undefined
+            ? `item ${held.id} is no longer in store ${adapter.name} scope ${scope}; the plane retires its projected version`
+            : `store ${adapter.name} can no longer read item ${held.id} (${held.store_ref.key}): ${diagnostic}; the plane retires its projected version, which the store no longer holds in a readable form`,
+        );
+      }
+    }),
+  );
   return report;
+}
+
+/**
+ * Why adoption refuses the store's record of `candidate`, or null: it holds
+ * an erased item's id and the projection does not hold that id. When the
+ * erasure left the record in a store that refuses the plane's delete, the
+ * record is refused while it holds the erased content (the merging hashes the
+ * erase event names; rechecks of PR #41), and adopted once it changes. When
+ * the erasure deleted the record, or there was none, a record under that id
+ * can only be a store write that was in flight when the person was erased,
+ * or a restored copy, so it is refused whatever it holds (card E2.6): an
+ * erased id is never adopted again. Neither reason names content.
+ */
+function erasedRefusal(
+  deps: PlaneDeps,
+  candidate: MemoryItem,
+): { reason: string; policy_id: string } | null {
+  const { db } = deps;
+  if (erasedStoreContent(db, candidate.id).has(mergingContentHash(candidate.content)))
+    return {
+      reason: `the store's record of item ${candidate.id} holds content erased at an offboarding and left in the store; it is not adopted again until it changes`,
+      policy_id: ADOPT_ERASED_ID,
+    };
+  if (itemById(db, candidate.id)) return null;
+  const gone = lastErasure(db, candidate.id);
+  if (!gone || gone.reason.includes(LEFT_CONTENT_CLAUSE)) return null;
+  return {
+    reason: `the store holds a record under the id of item ${candidate.id}, which an offboarding erased and deleted from the store; an erased id is never adopted again`,
+    policy_id: ADOPT_ERASED_ID,
+  };
 }

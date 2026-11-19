@@ -22,7 +22,18 @@
 // ask, one `gate` event and no item. On deny, one `promote` event. A store
 // failure after an allow appends one deny event naming it and rethrows, as a
 // write does (decision D6).
+//
+// Across db handles (card E2.6, plane/commit.ts): a promotion out of or into
+// a person scope an offboarding is erasing is refused at once
+// (engram/offboard/erasing), and the allow is appended only if, under the
+// log's lock, nothing changed the source and no offboarding began erasing
+// either scope since the decision. Otherwise the promotion is refused
+// (engram/promote/conflict): the record it wrote is put back as the log has
+// it (the new version's record deleted; an in-place rewrite replaced by the
+// projected item, or deleted when the item is gone or being erased), and the
+// deny event is appended once the store holds that.
 import { type Actor, checkCall, InvalidCallError } from "../actor.ts";
+import type { StoreRef } from "../adapter.ts";
 import { strictContentHash } from "../content-hash.ts";
 import { allEvents, appendEvent, currentItems } from "../events.ts";
 import { itemById, lineage } from "../items.ts";
@@ -35,9 +46,13 @@ import {
   promotionRuleId,
 } from "../policy/promotion.ts";
 import { Id, type MemoryEvent, type MemoryItem, Scope } from "../schema.ts";
+import { basisNow, ERASING_ID, erasingReason, erasureOpen, settle, staleness } from "./commit.ts";
 import { inWriteQueue } from "./queue.ts";
 import { enforceBudget } from "./retention.ts";
 import { refProblem, retiredContent } from "./write.ts";
+
+/** The rule of a promotion refused because its decision went stale before its commit (card E2.6). */
+export const PROMOTE_CONFLICT_ID = "engram/promote/conflict";
 
 /** Every allowed write of `item`'s content in its scope, in log order (ADR 0026, item 2). */
 export function confirmationsOf(deps: PlaneDeps, item: MemoryItem): Confirmation[] {
@@ -128,6 +143,8 @@ async function decideAndCommit(
 ): Promise<GateResult> {
   const { db, adapter, newId, policy } = deps;
   const base = { ts: at, actor: actor.id, schema_version: 1 as const };
+  // The head before the projection is read (commit.ts).
+  const basis = basisNow(db, [itemId], []);
   const item = itemById(db, itemId);
 
   if (!item) {
@@ -186,62 +203,110 @@ async function decideAndCommit(
     return { decision: event.decision, item: null, event, events: [event] };
   }
 
+  // An allowed promotion is shown to someone who may see the source, so the
+  // reason may name the scope.
+  const erasing = [item.scope, toScope].find((s) => erasureOpen(db, s));
+  if (erasing) {
+    const event = appendEvent(db, {
+      ...common,
+      id: newId(),
+      op: "promote",
+      decision: "deny",
+      reason: erasingReason(erasing),
+      policy_id: ERASING_ID,
+    });
+    return { decision: "deny", item: null, event, events: [event] };
+  }
+  const decided = { ...basis, scopes: [...new Set([item.scope, toScope])] };
+
   const fresh = d.transition === "new-version";
   const toStore: MemoryItem = {
     ...d.promoted,
     id: fresh ? newId() : item.id,
     store_ref: null,
   } as MemoryItem;
-  let stored: MemoryItem;
-  let committed: MemoryEvent[];
-  try {
-    const store_ref = await adapter.write(toStore);
-    // Only the source and its own lineage may share the new version's ref:
-    // the confirming items its lineage also names are not versions (P5-10).
-    const problem = refProblem(
-      deps,
-      fresh ? ({ ...toStore, lineage: [item.id] } as MemoryItem) : toStore,
-      store_ref,
-      false,
-    );
-    if (problem) throw new Error(problem);
-    stored = { ...toStore, store_ref };
-    committed = db.transaction(() => {
-      const promoted = appendEvent(db, {
-        ...common,
-        id: newId(),
-        op: "promote",
-        decision: "allow",
-        item_id: stored.id,
-        item: stored,
-      });
-      if (!fresh) return [promoted];
-      const retired = appendEvent(db, {
-        ...base,
-        id: newId(),
-        op: "retire",
-        item_id: item.id,
-        scope_from: item.scope,
-        scope_to: toScope,
-        decision: "allow",
-        reason: `superseded by ${stored.id}, its promotion to a ${stored.class} item in ${toScope}`,
-        policy_id: promotionRuleId(policy, "superseded"),
-      });
-      return [promoted, retired];
-    });
-  } catch (e) {
+  const failed = (problem: string) =>
     appendEvent(db, {
       ...common,
       id: newId(),
       op: "promote",
       decision: "deny",
       policy_id: STORE_FAILURE_ID,
-      reason: `the gate allowed the promotion (${d.policy_id}) but the store failed: ${e instanceof Error ? e.message : String(e)}`,
+      reason: `the gate allowed the promotion (${d.policy_id}) but the store failed: ${problem}`,
     });
+  let stored: MemoryItem;
+  let ref: StoreRef;
+  let outcome: { stale: string } | { committed: MemoryEvent[]; retention: MemoryEvent[] };
+  try {
+    ref = await adapter.write(toStore);
+    stored = { ...toStore, store_ref: ref };
+    const written = stored;
+    outcome = db.transaction(() => {
+      const stale = staleness(db, decided);
+      if (stale) return { stale };
+      // Only the source and its own lineage may share the new version's ref:
+      // the confirming items its lineage also names are not versions (P5-10).
+      const problem = refProblem(
+        deps,
+        fresh ? ({ ...toStore, lineage: [item.id] } as MemoryItem) : toStore,
+        ref,
+        false,
+      );
+      if (problem) throw new Error(problem);
+      const promoted = appendEvent(db, {
+        ...common,
+        id: newId(),
+        op: "promote",
+        decision: "allow",
+        item_id: written.id,
+        item: written,
+      });
+      const committed = [promoted];
+      if (fresh)
+        committed.push(
+          appendEvent(db, {
+            ...base,
+            id: newId(),
+            op: "retire",
+            item_id: item.id,
+            scope_from: item.scope,
+            scope_to: toScope,
+            decision: "allow",
+            reason: `superseded by ${written.id}, its promotion to a ${written.class} item in ${toScope}`,
+            policy_id: promotionRuleId(policy, "superseded"),
+          }),
+        );
+      // In the same transaction as the promotion: no other change, on this
+      // handle or another, lands in between.
+      const retention = enforceBudget(deps, actor, written.scope, written.class, at, written.id);
+      return { committed, retention };
+    });
+  } catch (e) {
+    failed(e instanceof Error ? e.message : String(e));
     throw e;
   }
-  // Still in this promotion's queue slot: no other change lands in between.
-  const retention = enforceBudget(deps, actor, stored.scope, stored.class, at, stored.id);
+  if ("stale" in outcome) {
+    const why = outcome.stale;
+    try {
+      const event = await settle(deps, stored.id, ref, () =>
+        appendEvent(db, {
+          ...common,
+          id: newId(),
+          op: "promote",
+          decision: "deny",
+          policy_id: PROMOTE_CONFLICT_ID,
+          reason: `the gate allowed the promotion (${d.policy_id}) but ${why}, before it was committed; the decision no longer stands, so the promotion is refused and the store is put back as the log has it`,
+        }),
+      );
+      return { decision: "deny", item: null, event, events: [event] };
+    } catch (e) {
+      failed(
+        `the promotion was refused (${PROMOTE_CONFLICT_ID}: ${why}) and the store could not be put back: ${e instanceof Error ? e.message : String(e)}`,
+      );
+      throw e;
+    }
+  }
+  const { committed, retention } = outcome;
   const [event] = committed as [MemoryEvent, ...MemoryEvent[]];
   // The event is the audit record; the item goes back only to a promoter
   // who can read where it landed (P5-7).

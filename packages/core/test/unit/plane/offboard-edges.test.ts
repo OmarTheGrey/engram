@@ -18,6 +18,7 @@ import {
   adoptStoreItems,
   createPlane,
   HANDOVER_ID,
+  OFFBOARD_BEGIN_ID,
   offboard,
 } from "../../../src/plane.ts";
 import { STORE_FAILURE_ID } from "../../../src/policy/evaluate.ts";
@@ -97,9 +98,12 @@ describe("a store failure while handing a role over", () => {
     await expect(offboard(env.deps, f.actors.dana as Actor, LEAVE, f.later)).rejects.toThrow(
       /store unreachable/,
     );
+    // The erasure's mark (card E2.6), then the handover's refusal: the person
+    // scope stays frozen until an offboarding completes.
     const appended = allEvents(db).slice(n);
-    expect(appended).toHaveLength(1);
-    const [event] = appended;
+    expect(appended).toHaveLength(2);
+    const [mark, event] = appended;
+    expect(mark).toMatchObject({ policy_id: OFFBOARD_BEGIN_ID, item_id: null, decision: "allow" });
     expect(event?.decision).toBe("deny");
     expect(event?.policy_id).toBe(STORE_FAILURE_ID);
     expect(event?.item_id).toBe(id(6));

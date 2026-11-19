@@ -6,16 +6,24 @@
 // stored item. A denial appends one event with its reason and policy_id and
 // never reaches the adapter. A store failure after an allow appends one deny
 // event naming it and rethrows, so a store write never happens without an
-// event (decision D6). With `adoption`, an allowed item is recorded at the
-// store_ref the store already holds it under instead of being written, and
-// every event's reason is marked as an adoption from that store (plane/adopt.ts,
-// decision D8); that ref goes through the same checks as one the adapter
+// event (decision D6). Adoption (`adoptWrite`, plane/adopt.ts, decision D8)
+// records an allowed item at the store_ref the store already holds it under
+// instead of writing it, and marks every event's reason as an adoption from
+// that store; that ref goes through the same checks as one the adapter
 // returns, and a ref that cannot be recorded leaves the store-failure event.
 //
-// After a landing write, in the same queue slot, the budget check of the
-// written scope and class runs (card E2.4, ADR 0025): so no write sequence
-// leaves a scope over a recency or utility budget, and a manual rule's
-// overage is asked about once per write that leaves it over.
+// Across db handles (card E2.6, commit.ts): the decision is checked again in
+// the transaction that commits it. If the item changed, or an offboarding
+// began erasing its person scope, since the decision, the write is refused
+// (engram/write/conflict) and the store is put back as the log has it. A
+// write the gate allows is also refused by the plane into a person scope an
+// offboarding is erasing (engram/offboard/erasing), and under an id an
+// offboarding erased (engram/write/erased).
+//
+// After a landing write, in the transaction that commits it, the budget
+// check of the written scope and class runs (card E2.4, ADR 0025): so no
+// write sequence leaves a scope over a recency or utility budget, and a
+// manual rule's overage is asked about once per write that leaves it over.
 import { z } from "zod";
 import { type Actor, checkCall } from "../actor.ts";
 import type { StoreRef } from "../adapter.ts";
@@ -27,10 +35,27 @@ import type { PlaneDeps, WriteCheckResult, WriteResult } from "../plane.ts";
 import { evaluateWrite, SCHEMA_ID, STORE_FAILURE_ID } from "../policy/evaluate.ts";
 import { ITEM_TTL_ID } from "../policy/retention.ts";
 import { Id, MemoryItem, Scope } from "../schema.ts";
+import {
+  type Basis,
+  ERASING_ID,
+  erasingReason,
+  erasureBegunSince,
+  erasureOpen,
+  lastErasure,
+  logHead,
+  settle,
+  staleness,
+  touchedSince,
+} from "./commit.ts";
 import { inWriteQueue } from "./queue.ts";
 import { enforceBudget } from "./retention.ts";
 
 export { checkCall };
+
+/** The rule of a write refused because its decision went stale before its commit (card E2.6). */
+export const WRITE_CONFLICT_ID = "engram/write/conflict";
+/** The rule of a write refused because its id belongs to an item an offboarding erased (card E2.6). */
+export const WRITE_ERASED_ID = "engram/write/erased";
 
 const StoreRefShape = z.object({ adapter: z.string().min(1), key: z.string().min(1) });
 
@@ -149,9 +174,19 @@ export interface Adoption {
   /** Appended to every event's reason, such as the item's hash. */
   suffix: string;
   /**
-   * A refusal decided in the write queue, before the gate: the reason and
+   * The log's head when the store was listed (commit.ts `logHead`). An item
+   * the log changed after it, or whose person scope an offboarding began
+   * erasing after it, is not adopted from that listing (card E2.6): the
+   * listing may predate that change, or show a store write in flight, so the
+   * next adoption reads the store again.
+   */
+  listed: number;
+  /**
+   * A refusal decided under the log's lock, before the gate: the reason and
    * rule of a deny event, or null to let the gate decide. Adoption refuses a
-   * record holding content an offboarding erased (recheck of PR #41).
+   * record holding content an offboarding erased (recheck of PR #41), and
+   * any other record under an erased id whose record the erasure deleted
+   * (card E2.6).
    */
   refuse?: (item: MemoryItem) => { reason: string; policy_id: string } | null;
 }
@@ -160,20 +195,68 @@ export interface Adoption {
 type Decided =
   | { kind: "schema"; item_id: string | null; scope_to: string | null; reason: string }
   | {
+      /** Refused by the plane after the gate allowed: the scope is being erased, or the id was. */
+      kind: "refused";
+      item: MemoryItem;
+      reason: string;
+      policy_id: string;
+      provenanceNote: string;
+    }
+  | {
       kind: "evaluated";
       item: MemoryItem;
       decision: ReturnType<typeof evaluateWrite>;
       provenanceNote: string;
+      /** What the decision rested on, for the check under the lock (commit.ts). */
+      basis: Basis;
     };
+
+/**
+ * Why the plane refuses a write the gate allowed, or null (card E2.6): the
+ * item, as written or as projected, is in a person scope an offboarding is
+ * erasing; or, for a write that is not an adoption, its id belongs to an
+ * item an offboarding erased and the projection no longer holds. An erased
+ * id is never used again; a new memory takes a new id. The reason names the
+ * erased scope only to a member of it (finding N3).
+ */
+function planeRefusal(
+  db: Db,
+  actor: Actor,
+  item: MemoryItem,
+  existing: MemoryItem | undefined,
+  adopting: boolean,
+): { reason: string; policy_id: string } | null {
+  const scopes = [...new Set([item.scope, ...(existing ? [existing.scope] : [])])];
+  const erasing = scopes.find((s) => erasureOpen(db, s));
+  if (erasing) return { reason: erasingReason(erasing), policy_id: ERASING_ID };
+  if (adopting || existing) return null;
+  const gone = lastErasure(db, item.id);
+  if (!gone) return null;
+  const scope = gone.scope_from;
+  return {
+    reason:
+      scope !== null && actor.memberships.includes(scope)
+        ? `item id ${item.id} belonged to an item erased with ${scope} at an offboarding; an erased id is never used again, so a new memory takes a new id`
+        : "the item id is held by an item you cannot access",
+    policy_id: WRITE_ERASED_ID,
+  };
+}
 
 /**
  * The gate's decision on a write, pure: the call is checked (throwing
  * InvalidCallError), the item validated, its provenance set and the policy
- * evaluated against the projected item of the same id. Nothing is written
- * and no event appended; `gatedWrite` commits this decision and
+ * evaluated against the projected item of the same id; an allowed write is
+ * then refused when the plane must refuse it (planeRefusal). Nothing is
+ * written and no event appended; `gatedWrite` commits this decision and
  * `checkWrite` only reports it (decision D12).
  */
-function decideWrite(deps: PlaneDeps, actor: Actor, input: MemoryItem, at: string): Decided {
+function decideWrite(
+  deps: PlaneDeps,
+  actor: Actor,
+  input: MemoryItem,
+  at: string,
+  adopting = false,
+): Decided {
   checkCall(actor, at, "write");
   const parsed = MemoryItem.safeParse(input);
   if (!parsed.success) {
@@ -188,15 +271,30 @@ function decideWrite(deps: PlaneDeps, actor: Actor, input: MemoryItem, at: strin
     };
   }
   const [item, provenanceNote] = withPlaneProvenance(actor, parsed.data);
+  // The head first: a change appended after it, even before the projection is
+  // read below, then counts as a change since the decision (commit.ts).
+  const head = logHead(deps.db);
+  const existing = itemById(deps.db, item.id);
   const decision = evaluateWrite(
     deps.policy,
     actor,
     item,
-    itemById(deps.db, item.id),
+    existing,
     retiredContent(deps.db, item.scope),
     at,
   );
-  return { kind: "evaluated", item, decision, provenanceNote };
+  if (decision.decision === "allow") {
+    const refused = planeRefusal(deps.db, actor, item, existing, adopting);
+    if (refused) return { kind: "refused", item, ...refused, provenanceNote };
+  }
+  const scopes = [...new Set([item.scope, ...(existing ? [existing.scope] : [])])];
+  return {
+    kind: "evaluated",
+    item,
+    decision,
+    provenanceNote,
+    basis: { head, items: [item.id], scopes },
+  };
 }
 
 /** The decision, reason and rule a write would get now, without committing it (decision D12). */
@@ -209,6 +307,12 @@ export function checkWrite(
   const decided = decideWrite(deps, actor, input, at);
   if (decided.kind === "schema")
     return { decision: "deny", reason: decided.reason, policy_id: SCHEMA_ID };
+  if (decided.kind === "refused")
+    return {
+      decision: "deny",
+      reason: `${decided.reason}; ${decided.provenanceNote}`,
+      policy_id: decided.policy_id,
+    };
   const { decision, provenanceNote } = decided;
   return {
     decision: decision.decision,
@@ -217,25 +321,27 @@ export function checkWrite(
   };
 }
 
-async function decideAndWrite(
+const writeBase = (actor: Actor, at: string) => ({
+  ts: at,
+  op: "write" as const,
+  actor: actor.id,
+  scope_from: null,
+  schema_version: 1 as const,
+});
+
+/**
+ * Appends the event of a decision that writes nothing: a schema denial, a
+ * plane refusal or a gate denial. Returns null for an allowed decision.
+ */
+function appendRefusal(
   deps: PlaneDeps,
   actor: Actor,
-  input: MemoryItem,
+  decided: Decided,
   at: string,
-  adoption?: Adoption,
-): Promise<WriteResult> {
-  const { db, adapter, newId } = deps;
-  const decided = decideWrite(deps, actor, input, at);
-  const mark = (reason: string) =>
-    adoption ? `${adoption.prefix}${reason}${adoption.suffix}` : reason;
-  const base = {
-    ts: at,
-    op: "write" as const,
-    actor: actor.id,
-    scope_from: null,
-    schema_version: 1 as const,
-  };
-
+  mark: (reason: string) => string,
+): WriteResult | null {
+  const { db, newId } = deps;
+  const base = writeBase(actor, at);
   if (decided.kind === "schema") {
     const event = appendEvent(db, {
       ...base,
@@ -248,64 +354,111 @@ async function decideAndWrite(
     });
     return { item: null, event, retention: [] };
   }
-
-  const refusal = adoption?.refuse?.(decided.item) ?? null;
-  if (refusal) {
+  if (decided.kind === "refused") {
     const event = appendEvent(db, {
       ...base,
       id: newId(),
       item_id: decided.item.id,
       scope_to: decided.item.scope,
       decision: "deny",
-      reason: mark(refusal.reason),
-      policy_id: refusal.policy_id,
+      reason: mark(`${decided.reason}; ${decided.provenanceNote}`),
+      policy_id: decided.policy_id,
     });
     return { item: null, event, retention: [] };
   }
-
   const { item, decision, provenanceNote } = decided;
-  const common = {
+  // The evaluator gives a status exactly when it allows.
+  if (decision.status !== null) return null;
+  const event = appendEvent(db, {
     ...base,
+    id: newId(),
     item_id: item.id,
     scope_to: item.scope,
     decision: decision.decision,
     reason: mark(`${decision.reason}; ${provenanceNote}`),
     policy_id: decision.policy_id,
-  };
-  // The evaluator gives a status exactly when it allows.
-  if (decision.status === null) {
-    return { item: null, event: appendEvent(db, { ...common, id: newId() }), retention: [] };
-  }
+  });
+  return { item: null, event, retention: [] };
+}
 
+async function decideAndWrite(
+  deps: PlaneDeps,
+  actor: Actor,
+  input: MemoryItem,
+  at: string,
+): Promise<WriteResult> {
+  const { db, adapter, newId } = deps;
+  const decided = decideWrite(deps, actor, input, at);
+  const refused = appendRefusal(deps, actor, decided, at, (r) => r);
+  if (refused || decided.kind !== "evaluated") return refused as WriteResult;
+
+  const { item, decision, provenanceNote, basis } = decided;
+  const common = {
+    ...writeBase(actor, at),
+    item_id: item.id,
+    scope_to: item.scope,
+    decision: decision.decision,
+    reason: `${decision.reason}; ${provenanceNote}`,
+    policy_id: decision.policy_id,
+  };
   // The store gets the item as it will stand, with the gate's status; the
   // caller's store_ref is never trusted, the adapter's is recorded.
-  const toStore: MemoryItem = { ...item, status: decision.status, store_ref: null };
+  const toStore: MemoryItem = { ...item, status: decision.status, store_ref: null } as MemoryItem;
   const failed = (problem: string) =>
     appendEvent(db, {
       ...common,
       id: newId(),
       decision: "deny",
       policy_id: STORE_FAILURE_ID,
-      reason: mark(
-        `the gate allowed the write (${decision.policy_id}) but ${adoption ? "the store's ref cannot be recorded" : "the store failed"}: ${problem}; ${provenanceNote}`,
-      ),
+      reason: `the gate allowed the write (${decision.policy_id}) but the store failed: ${problem}; ${provenanceNote}`,
     });
-  let stored: MemoryItem;
-  let event: WriteResult["event"];
+  let ref: StoreRef;
+  let outcome:
+    | { stale: string }
+    | { stored: MemoryItem; event: WriteResult["event"]; retention: WriteResult["retention"] };
   try {
-    const store_ref = adoption ? adoption.ref : await adapter.write(toStore);
-    const problem = refProblem(deps, item, store_ref, adoption !== undefined);
-    if (problem) throw new Error(problem);
-    stored = { ...toStore, store_ref };
-    event = appendEvent(db, { ...common, id: newId(), item: stored });
+    ref = await adapter.write(toStore);
+    // Under the log's lock: the decision must still stand (commit.ts), the
+    // ref must be recordable, and the budget check of the written scope and
+    // class runs in the same transaction, so no write, on this handle or
+    // another, lands between the write and its evictions. The item just
+    // written is never its own victim (review finding P4-1).
+    outcome = db.transaction(() => {
+      const stale = staleness(db, basis);
+      if (stale) return { stale };
+      const problem = refProblem(deps, item, ref, false);
+      if (problem) throw new Error(problem);
+      const stored = { ...toStore, store_ref: ref };
+      const event = appendEvent(db, { ...common, id: newId(), item: stored });
+      const retention = enforceBudget(deps, actor, stored.scope, stored.class, at, stored.id);
+      return { stored, event, retention };
+    });
   } catch (e) {
     failed(errorText(e));
     throw e;
   }
-  // Still in this write's queue slot: no other write lands in between.
-  // The item just written is never its own victim (review finding P4-1);
-  // the result is the item as it stands after the slot all the same.
-  const retention = enforceBudget(deps, actor, stored.scope, stored.class, at, stored.id);
+  if ("stale" in outcome) {
+    const why = outcome.stale;
+    try {
+      const event = await settle(deps, item.id, ref, () =>
+        appendEvent(db, {
+          ...common,
+          id: newId(),
+          decision: "deny",
+          policy_id: WRITE_CONFLICT_ID,
+          reason: `the gate allowed the write (${decision.policy_id}) but ${why}, before it was committed; the decision no longer stands, so the write is refused and the store is put back as the log has it; ${provenanceNote}`,
+        }),
+      );
+      return { item: null, event, retention: [] };
+    } catch (e) {
+      failed(
+        `the write was refused (${WRITE_CONFLICT_ID}: ${why}) and the store could not be put back: ${errorText(e)}`,
+      );
+      throw e;
+    }
+  }
+  const { stored, event, retention } = outcome;
+  // The result is the item as it stands after the slot.
   return { item: itemById(db, stored.id) ?? stored, event, retention };
 }
 
@@ -315,12 +468,102 @@ async function decideAndWrite(
  * concurrent writes of one id cannot both pass the membership, owner and
  * version checks against a projection that no longer holds by the time they
  * land (finding N2 of the second review). A write that fails does not stall
- * the queue. Reads are not queued: a read takes the projection once,
- * synchronously, and sees each write either wholly or not at all. Writers in
- * another process sharing the same log file are not serialised by this
- * (ADR 0007's amendments). The queue is plane/queue.ts, shared with
- * Plane.retain and any other call that changes items.
+ * the queue. Reads are not queued: a read takes the projection under the
+ * log's lock. A writer on another handle sharing the same log is ordered by
+ * the log's lock instead: the write's decision is checked again in the
+ * transaction that commits it, and a stale one is refused (card E2.6,
+ * commit.ts). The queue is plane/queue.ts, shared with Plane.retain and any
+ * other call that changes items.
  */
-export function gatedWrite(...args: Parameters<typeof decideAndWrite>): Promise<WriteResult> {
-  return inWriteQueue(args[0].db, () => decideAndWrite(...args));
+export function gatedWrite(
+  deps: PlaneDeps,
+  actor: Actor,
+  input: MemoryItem,
+  at: string,
+): Promise<WriteResult> {
+  return inWriteQueue(deps.db, () => decideAndWrite(deps, actor, input, at));
+}
+
+/**
+ * Adoption's write (plane/adopt.ts, decision D8): the store already holds the
+ * item, so nothing is written to it, and the whole decision and its commit
+ * run in one transaction, under the log's lock, in the write queue: no
+ * writer on any handle lands between them. Returns null, appending nothing,
+ * when the listing is older than a change the log holds for the item
+ * (`adoption.listed`); the next adoption reads the store again.
+ */
+export function adoptWrite(
+  deps: PlaneDeps,
+  actor: Actor,
+  input: MemoryItem,
+  at: string,
+  adoption: Adoption,
+): Promise<WriteResult | null> {
+  const { db, newId } = deps;
+  const mark = (reason: string) => `${adoption.prefix}${reason}${adoption.suffix}`;
+  const commit = (): WriteResult | null | { error: Error } => {
+    const listedId = validOrNull(input, "id", Id);
+    const listedScope = validOrNull(input, "scope", Scope);
+    if (listedId !== null && touchedSince(db, listedId, adoption.listed)) return null;
+    if (listedScope !== null && erasureBegunSince(db, listedScope, adoption.listed)) return null;
+    const decided = decideWrite(deps, actor, input, at, true);
+    if (decided.kind !== "schema") {
+      const refusal = adoption.refuse?.(decided.item) ?? null;
+      if (refusal) {
+        const event = appendEvent(db, {
+          ...writeBase(actor, at),
+          id: newId(),
+          item_id: decided.item.id,
+          scope_to: decided.item.scope,
+          decision: "deny",
+          reason: mark(refusal.reason),
+          policy_id: refusal.policy_id,
+        });
+        return { item: null, event, retention: [] };
+      }
+    }
+    const refused = appendRefusal(deps, actor, decided, at, mark);
+    if (refused || decided.kind !== "evaluated") return refused;
+    const { item, decision, provenanceNote } = decided;
+    const common = {
+      ...writeBase(actor, at),
+      item_id: item.id,
+      scope_to: item.scope,
+      reason: mark(`${decision.reason}; ${provenanceNote}`),
+    };
+    const problem = refProblem(deps, item, adoption.ref, true);
+    if (problem) {
+      appendEvent(db, {
+        ...common,
+        id: newId(),
+        decision: "deny",
+        policy_id: STORE_FAILURE_ID,
+        reason: mark(
+          `the gate allowed the write (${decision.policy_id}) but the store's ref cannot be recorded: ${problem}; ${provenanceNote}`,
+        ),
+      });
+      return { error: new Error(problem) };
+    }
+    const stored = {
+      ...item,
+      status: decision.status,
+      store_ref: adoption.ref,
+    } as MemoryItem;
+    const event = appendEvent(db, {
+      ...common,
+      id: newId(),
+      decision: "allow",
+      policy_id: decision.policy_id,
+      item: stored,
+    });
+    const retention = enforceBudget(deps, actor, stored.scope, stored.class, at, stored.id);
+    return { item: itemById(db, stored.id) ?? stored, event, retention };
+  };
+  return inWriteQueue(db, () => {
+    // The store-failure event is committed; the error is thrown after, as a
+    // write's is (decision D6).
+    const out = db.transaction(commit);
+    if (out && "error" in out) throw out.error;
+    return out;
+  });
 }

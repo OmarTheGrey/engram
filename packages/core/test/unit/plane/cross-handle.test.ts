@@ -303,7 +303,7 @@ forEachBackend((backend) => {
       await d.arrived;
       const w = await env.plane.write(
         dana,
-        { ...seeded, version: 2, grants: [toSam], store_ref: null },
+        { ...seeded, version: 2, grants: [toSam], store_ref: null } as MemoryItem,
         AT,
       );
       expect(w.event).toMatchObject({ decision: "deny", policy_id: ERASING });
@@ -327,7 +327,7 @@ forEachBackend((backend) => {
       const w = env.a.pause("write");
       const pending = env.plane.write(
         dana,
-        { ...seeded, version: 2, grants: [toSam], store_ref: null },
+        { ...seeded, version: 2, grants: [toSam], store_ref: null } as MemoryItem,
         AT,
       );
       await w.arrived;
@@ -336,7 +336,7 @@ forEachBackend((backend) => {
       const r = await pending;
       expect(r.item).toBeNull();
       expect(r.event).toMatchObject({ decision: "deny", policy_id: WRITE_CONFLICT });
-      expect(r.event.reason).toMatch(/erased|removed/);
+      expect(r.event.reason).toMatch(/erased or removed/);
       await nothingErasedReturns(env);
     });
 
@@ -381,9 +381,9 @@ forEachBackend((backend) => {
       expect(r.event.policy_id).toBe(PROMOTE_CONFLICT);
       expect(await env.store.list("person:dana")).toEqual([]);
       rebuild(env.mine);
-      expect(allEvents(env.mine).filter((e) => e.op === "promote" && e.decision === "allow")).toEqual(
-        [],
-      );
+      expect(
+        allEvents(env.mine).filter((e) => e.op === "promote" && e.decision === "allow"),
+      ).toEqual([]);
       expect(JSON.stringify(allEvents(env.mine))).not.toContain("Mira");
     });
 
@@ -404,7 +404,11 @@ forEachBackend((backend) => {
       const env = setup(backend);
       const seeded = await seedPerson(env);
       // Dana edits the record by hand, so adoption gates it again.
-      await env.store.write({ ...seeded, content: `${SECRET} Edited.`, store_ref: null });
+      await env.store.write({
+        ...seeded,
+        content: `${SECRET} Edited.`,
+        store_ref: null,
+      } as MemoryItem);
       env.hook.onNextTransaction(() => {
         appendEvent(env.theirs, {
           id: env.newTheirsId(),
@@ -517,7 +521,11 @@ forEachBackend((backend) => {
     test("R6: a grant change held while the other handle adopts a hand-edited record leaves the store and the projection alike", async () => {
       const env = setup(backend);
       const seeded = await seedPerson(env);
-      await env.store.write({ ...seeded, content: "Dana edited this.", store_ref: null });
+      await env.store.write({
+        ...seeded,
+        content: "Dana edited this.",
+        store_ref: null,
+      } as MemoryItem);
       const w = env.a.pause("write");
       const pending = env.plane.changeGrants(dana, id(1), { add: [toSam] }, AT);
       await w.arrived;
@@ -620,9 +628,9 @@ forEachBackend((backend) => {
       const l = env.a.pause("list", "after");
       const adopting = adoptStoreItems(env.depsMine, dana, "person:dana", LATER);
       await l.arrived;
-      expect(
-        (await env.planeTheirs.changeGrants(dana, id(1), { add: [toSam] }, AT)).decision,
-      ).toBe("allow");
+      expect((await env.planeTheirs.changeGrants(dana, id(1), { add: [toSam] }, AT)).decision).toBe(
+        "allow",
+      );
       l.release();
       await adopting;
       const now = await storeMatches(env, id(1));
@@ -662,7 +670,12 @@ forEachBackend((backend) => {
       await w.arrived;
       const rewrite = await env.planeTheirs.write(
         dana,
-        { ...seeded, version: 2, content: "Dana's sister lives in Oslo.", store_ref: null },
+        {
+          ...seeded,
+          version: 2,
+          content: "Dana's sister lives in Oslo.",
+          store_ref: null,
+        } as MemoryItem,
         AT,
       );
       expect(rewrite.event.decision).toBe("allow");
@@ -678,13 +691,18 @@ forEachBackend((backend) => {
       const w = env.a.pause("write");
       const pending = env.plane.write(
         dana,
-        { ...seeded, version: 2, content: "Dana's sister lives in Oslo.", store_ref: null },
+        {
+          ...seeded,
+          version: 2,
+          content: "Dana's sister lives in Oslo.",
+          store_ref: null,
+        } as MemoryItem,
         AT,
       );
       await w.arrived;
-      expect(
-        (await env.planeTheirs.changeGrants(dana, id(1), { add: [toSam] }, AT)).decision,
-      ).toBe("allow");
+      expect((await env.planeTheirs.changeGrants(dana, id(1), { add: [toSam] }, AT)).decision).toBe(
+        "allow",
+      );
       w.release();
       const r = await pending;
       expect(r.item).toBeNull();

@@ -50,6 +50,24 @@
 // this call cannot reach. It carries no content. One summary event
 // (`engram/offboard/report`) records the offboarding in the log.
 //
+// Across db handles (card E2.6, plane/commit.ts). The erasure is marked
+// before any store record is deleted: one event (engram/offboard/begin),
+// appended in the transaction that reads what will be erased and handed
+// over, opens it, and the report event closes it. While it is open, every
+// write, grant change, promotion and adoption into the person scope is
+// refused (engram/offboard/erasing), and one decided before the mark finds
+// the mark under the log's lock and deletes what it wrote. So a store write
+// for an erased item either lands before the erasure deletes the record, and
+// is deleted with it, or lands after, and is deleted by its own writer. If
+// offboarding stops between the mark and the report (a crash, a store failure
+// during handover), the person scope stays frozen until offboarding runs
+// again and completes. Each handover is checked under the lock like any
+// store-then-log commit: if the item changed on another handle since it was
+// read, the handover of that version is refused (engram/offboard/conflict),
+// the store is put back as the log has it, and the item is handed over again
+// as it now stands, so an owner's change made meanwhile, such as a grant
+// removal, is kept.
+//
 // Who may offboard: a user-sourced actor who is a member of the person scope
 // and of every role scope handed over, else one deny event
 // (`engram/offboard/membership`) and nothing changes. Memberships are the
@@ -59,16 +77,29 @@ import { type Actor, checkCall, InvalidCallError } from "../actor.ts";
 import { isNotDeletable, type StoreRef } from "../adapter.ts";
 import { mergingContentHash, strictContentHash } from "../content-hash.ts";
 import { appendEvent, currentItems, ERASURE_ID, LEFT_CONTENT_CLAUSE } from "../events.ts";
+import { itemById } from "../items.ts";
 import { refItemId } from "../lint/det.ts";
 import type { PlaneDeps } from "../plane.ts";
 import { STORE_FAILURE_ID, scopeLevel } from "../policy/evaluate.ts";
 import { type MemoryEvent, type MemoryItem, Principal, SCHEMA_VERSION, Scope } from "../schema.ts";
+import {
+  type Basis,
+  logHead,
+  OFFBOARD_BEGIN_ID,
+  OFFBOARD_REPORT_ID,
+  settle,
+  staleness,
+} from "./commit.ts";
 import { inWriteQueue } from "./queue.ts";
 
 export const HANDOVER_ID = "engram/offboard/handover";
+/** The rule of a handover refused because its item changed on another handle meanwhile (card E2.6). */
+export const HANDOVER_CONFLICT_ID = "engram/offboard/conflict";
 export const OFFBOARD_MEMBERSHIP_ID = "engram/offboard/membership";
-export const OFFBOARD_REPORT_ID = "engram/offboard/report";
-export { ERASURE_ID };
+export { ERASURE_ID, OFFBOARD_BEGIN_ID, OFFBOARD_REPORT_ID };
+
+/** How many times one item's handover is decided again after a conflict before it is left. */
+const HANDOVER_ATTEMPTS = 4;
 
 /** What an erased item's content and evidence become in the log. */
 export const REDACTED = "[erased]";
@@ -204,49 +235,115 @@ async function run(
   }
 
   const events: MemoryEvent[] = [];
-  const projected = currentItems(db);
+  // The mark: what will be erased and handed over is read, and the erasure
+  // marked as begun, in one transaction, before any store record is touched.
+  const { projected, begun } = db.transaction(() => {
+    const projected = currentItems(db);
+    const erasing = projected.filter((i) => i.scope === person).length;
+    const handing = roles.map((r) => `${r.scope} to ${r.successor}`).join(", ");
+    const begun = appendEvent(db, {
+      ...base,
+      id: newId(),
+      op: "retire",
+      item_id: null,
+      scope_from: person,
+      scope_to: null,
+      decision: "allow",
+      reason: `offboarding of ${person} begun: ${erasing} item${erasing === 1 ? "" : "s"} to erase${handing ? `, handing over ${handing}` : ""}; until it completes, nothing in ${person} may change`,
+      policy_id: OFFBOARD_BEGIN_ID,
+    });
+    return { projected, begun };
+  });
+  events.push(begun);
 
   // Handover: the leaver's items in each role become the successor's.
   const handover: DeletionReport["handover"] = [];
   for (const { scope, successor } of roles) {
     const moved: string[] = [];
-    for (const item of projected.filter((i) => i.scope === scope && i.owner === person)) {
-      const next = { ...item, owner: successor, version: item.version + 1 } as MemoryItem;
-      let store_ref: StoreRef;
-      try {
-        store_ref = await adapter.write({ ...next, store_ref: null } as MemoryItem);
-      } catch (e) {
-        // A decision like any other (AGENTS.md rule 3). Nothing is erased: the
-        // items handed over so far are the successor's, and offboarding again
-        // once the store recovers moves the rest, as it skips what moved.
-        appendEvent(db, {
-          ...base,
-          id: newId(),
-          op: "update",
-          item_id: item.id,
-          scope_from: scope,
-          scope_to: scope,
-          decision: "deny",
-          reason: `the handover of ${scope} to ${successor} (${HANDOVER_ID}) failed in the store: ${errorText(e)}; nothing was erased`,
-          policy_id: STORE_FAILURE_ID,
+    for (const first of projected.filter((i) => i.scope === scope && i.owner === person)) {
+      let item: MemoryItem | undefined = first;
+      let basis: Basis = { head: begun.seq, items: [first.id], scopes: [scope] };
+      for (let attempt = 0; item && attempt < HANDOVER_ATTEMPTS; attempt++) {
+        const current: MemoryItem = item;
+        const next = { ...current, owner: successor, version: current.version + 1 } as MemoryItem;
+        const storeFailed = (problem: string) =>
+          // A decision like any other (AGENTS.md rule 3). Nothing is erased:
+          // the items handed over so far are the successor's, and offboarding
+          // again once the store recovers moves the rest, as it skips what moved.
+          appendEvent(db, {
+            ...base,
+            id: newId(),
+            op: "update",
+            item_id: current.id,
+            scope_from: scope,
+            scope_to: scope,
+            decision: "deny",
+            reason: `the handover of ${scope} to ${successor} (${HANDOVER_ID}) failed in the store: ${problem}; nothing was erased`,
+            policy_id: STORE_FAILURE_ID,
+          });
+        let store_ref: StoreRef;
+        try {
+          store_ref = await adapter.write({ ...next, store_ref: null } as MemoryItem);
+        } catch (e) {
+          storeFailed(errorText(e));
+          throw e;
+        }
+        const ref = store_ref;
+        const decided = basis;
+        const out: { stale: string } | { event: MemoryEvent } = db.transaction(() => {
+          const stale = staleness(db, decided);
+          if (stale) return { stale };
+          return {
+            event: appendEvent(db, {
+              ...base,
+              id: newId(),
+              op: "update",
+              item_id: current.id,
+              scope_from: scope,
+              scope_to: scope,
+              decision: "allow",
+              reason: `${scope} handed over from ${person} to ${successor} at offboarding`,
+              policy_id: HANDOVER_ID,
+              item: { ...next, store_ref: ref },
+            }),
+          };
         });
-        throw e;
+        if ("event" in out) {
+          events.push(out.event);
+          moved.push(current.id);
+          break;
+        }
+        // Stale: the store is put back as the log has it, the refusal
+        // recorded, and the item decided again as it now stands.
+        try {
+          events.push(
+            await settle(deps, current.id, ref, () =>
+              appendEvent(db, {
+                ...base,
+                id: newId(),
+                op: "update",
+                item_id: current.id,
+                scope_from: scope,
+                scope_to: scope,
+                decision: "deny",
+                reason: `the handover of ${current.id} in ${scope} to ${successor} was decided on version ${current.version}, but ${out.stale}; that handover is refused, the store is put back as the log has it, and the item is handed over as it now stands if the leaver still owns it`,
+                policy_id: HANDOVER_CONFLICT_ID,
+              }),
+            ),
+          );
+        } catch (e) {
+          storeFailed(
+            `the handover was refused (${HANDOVER_CONFLICT_ID}: ${out.stale}) and the store could not be put back: ${errorText(e)}`,
+          );
+          throw e;
+        }
+        const again: { head: number; now: MemoryItem | undefined } = db.transaction(() => ({
+          head: logHead(db),
+          now: itemById(db, current.id),
+        }));
+        item = again.now?.scope === scope && again.now.owner === person ? again.now : undefined;
+        basis = { head: again.head, items: [current.id], scopes: [scope] };
       }
-      events.push(
-        appendEvent(db, {
-          ...base,
-          id: newId(),
-          op: "update",
-          item_id: item.id,
-          scope_from: scope,
-          scope_to: scope,
-          decision: "allow",
-          reason: `${scope} handed over from ${person} to ${successor} at offboarding`,
-          policy_id: HANDOVER_ID,
-          item: { ...next, store_ref },
-        }),
-      );
-      moved.push(item.id);
     }
     handover.push({ scope, successor, items: moved });
   }
@@ -285,8 +382,7 @@ async function run(
   // bytes are still in the store, so erasing it from the log would let
   // adoption bring it back with nothing recording what happened.
   const keptBack = doomed.filter((i) => i.store_ref && failed.has(refKey(i.store_ref)));
-  const erased = doomed.filter((i) => !keptBack.includes(i));
-  const ids = new Set(erased.map((i) => i.id));
+  const toErase = doomed.filter((i) => !keptBack.includes(i));
   const byRef = (errors: Map<string, string>, holders: MemoryItem[]) =>
     [...errors].map(([key, error]) => ({
       ref: refs.get(key) as StoreRef,
@@ -297,7 +393,6 @@ async function run(
         .sort(),
     }));
   const failures: DeletionReport["erased"]["store_failures"] = byRef(failed, keptBack);
-  const leftInStore: DeletionReport["erased"]["left_in_store"] = byRef(refused, erased);
   for (const i of keptBack)
     events.push(
       appendEvent(db, {
@@ -315,7 +410,7 @@ async function run(
   // The content of each record left in the store, as the store holds it now:
   // adoption refuses exactly these bytes (and the erased versions') later.
   const leftContent = new Map<string, Set<string>>();
-  for (const i of erased) {
+  for (const i of toErase) {
     if (!i.store_ref || !refused.has(refKey(i.store_ref))) continue;
     const hashes = new Set([mergingContentHash(i.content)]);
     try {
@@ -336,7 +431,13 @@ async function run(
           ? `left in the store, which refuses the plane's delete (${refused.get(refKey(i.store_ref))}); the person deletes it there`
           : "deleted from the store";
 
-  const { redactedEvents, explanationRows } = db.transaction(() => {
+  const { erased, redactedEvents, explanationRows } = db.transaction(() => {
+    // Erased: what was read at the mark and the projection still holds, as
+    // it holds it now. Nothing in the person scope can have changed since
+    // the mark but a retirement (no store write); an item a concurrent
+    // offboarding on another handle erased already is gone.
+    const erased = toErase.flatMap((i) => itemById(db, i.id) ?? []);
+    const ids = new Set(erased.map((i) => i.id));
     let redactedEvents = 0;
     let explanationRows = 0;
     const update = db.prepare("UPDATE events SET body = ? WHERE id = ?");
@@ -396,8 +497,10 @@ async function run(
           policy_id: ERASURE_ID,
         }),
       );
-    return { redactedEvents, explanationRows };
+    return { erased, redactedEvents, explanationRows };
   });
+  const ids = new Set(erased.map((i) => i.id));
+  const leftInStore: DeletionReport["erased"]["left_in_store"] = byRef(refused, erased);
 
   const kept = projected.filter(
     (i) => i.owner === person && i.scope !== person && !roles.some((r) => r.scope === i.scope),
