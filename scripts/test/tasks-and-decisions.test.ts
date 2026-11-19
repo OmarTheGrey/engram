@@ -1,16 +1,15 @@
 // Acceptance for step-0 task S0.13: every roadmap card and every card added by
 // ADR 0001 has a file under docs/tasks/, and every ADR in the index is decided
 // with a `decision` log entry that cites it. OWNER_DECIDES lists any ADR left
-// for the owner to decide: ADR 0031, proposed by PR 3 of
-// docs/tasks/prereg-v1-plan.md for the lead's acceptance (ADR 0020 was the
-// last one before it), ADR 0032, proposed by card E8.9, and ADR 0033,
-// proposed by the backlog item on the bench and runner import cycle (numbered
-// 0032 until 2026-11-13).
+// for the owner to decide. It is empty: the lead accepted ADRs 0031 to 0033,
+// the last proposed ones, on 2026-11-19
+// (docs/log/2026-11-19-lead-decision-adrs-accepted.md), so every ADR in the
+// index must be decided and cited by a decision entry.
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { describe, expect, test } from "vitest";
 import { parseFrontmatter } from "../lib/frontmatter.ts";
 
-const OWNER_DECIDES = new Set<string>(["0031", "0032", "0033"]);
+const OWNER_DECIDES = new Set<string>([]);
 const ADDED_BY_ADR_0001 = ["PX1", "PX2", "PX3", "RN1", "RN2"];
 
 const roadmap = readFileSync("docs/roadmap.md", "utf8");
