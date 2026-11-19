@@ -7,7 +7,7 @@ chapter: implementation
 pillar: research
 hypothesis: H3
 evidence:
-  - packages/bench/src/faults/reach.ts
+  - "git show b59a1f7~2:packages/bench/src/faults/reach.ts"
   - packages/bench/scripts/fault-set-check.ts
   - packages/bench/test/faults/generate.test.ts
   - "git show origin/l3-model-lints:packages/core/src/lint/model.ts"

@@ -7,7 +7,7 @@ chapter: design
 pillar: research
 hypothesis: H3
 evidence:
-  - packages/bench/src/faults/reach.ts
+  - "git show b59a1f7~2:packages/bench/src/faults/reach.ts"
 supersedes: none
 ---
 

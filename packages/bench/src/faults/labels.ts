@@ -136,7 +136,7 @@ const Lints = z.strictObject({
  * note cites, or the turn a rewrite changed. `finding_on` is the item a
  * finding of those lints lands on: the labelled item, except for a pair the
  * contradiction lint judges, where card L3 flags the later item of the pair
- * by id (packages/core/src/lint/model.ts on branch l3-model-lints), naming the
+ * by id (contradictionPairs, packages/core/src/lint/model.ts), naming the
  * earlier. A conflict's restatement is written after its first statement, so
  * it is the later and is flagged itself; a superseded statement is the
  * earlier of its pair, so the finding lands on the later update, with the

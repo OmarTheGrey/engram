@@ -12,4 +12,4 @@ One row per results file. A results file exists only if `research/scripts/<scrip
 | research/results/h1-cost.json | research/configs/h1-cost.json | research/scripts/h1_cost.py | 2c503aa | f147daf74c9bbec665b067ed0dc47eec97b25d5af7b8862ba582b0e7938c37fb | none |
 | research/results/h4-holm-levels.json | research/configs/h4-holm-levels.json | research/scripts/h4_holm_levels.py | 9a0d185 | dcacf0c9ce70c8f6fd3055a6461ab542bdd51839dc0fea561e029372b7ed45d4 | none |
 | research/results/h1-refusal-leaks.json | research/configs/h1-refusal-leaks.json | research/scripts/h1_refusal_leaks.py | 2c503aa | d7e9f3d0a54f9cce348c71fc9389b5bb150c05afeb5751588a40623be19405ed | none |
-| research/results/h3-fault-set.json | research/configs/h3-fault-set.json | research/scripts/h3_fault_set.py | b616e4a | babaf4468325e2cb563fc999c56bb0627976e2e72edd22be7793335daf25b1b6 | none |
+| research/results/h3-fault-set.json | research/configs/h3-fault-set.json | research/scripts/h3_fault_set.py | b59a1f7 | a274701dea70711537d54a556e15bf24dc9ee849b2fad4de741e97c051da199a | none |
