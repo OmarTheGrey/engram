@@ -163,7 +163,7 @@ Built by card RV1 (the repository review's RV-EXP-1 to -5 and -10) with proposed
 | Turn limit | the runner caps a session at the config's `turn_limit` and excludes a capped session under the reason `turn limit`; the lead sets the value (proposed: 8 model calls per session in every experiment config, twice the cost estimate's high case) and the exclusion rule (proposed: excluded, counted per condition beside the other exclusions), and words it into the pre-registration | `docs/log/2026-11-19-rv1-decision-turn-limit-default.md`; `docs/log/2026-11-19-rv1-decision-turn-limit-not-keyed.md` |
 | Spend ceiling | the runner stops at the config's `spend_ceiling_usd`, per provider, and keeps the completed subset; the lead sets each experiment config's value (proposed: 1.25 times the run's high cost estimate for the named model) once decision sheet item 1 names the models | `docs/log/2026-11-19-rv1-decision-spend-ceiling-default.md` |
 | Deterministic answer failure | a deterministic failure of the answer model (a 400, for example a C1 prompt over the model's context limit) stops a live run for good, with no record and no exclusion reason; the lead decides how such a session is excluded, or the configs are checked against each model's context limit before the tag | `docs/log/2026-11-19-rv1-finding-answer-400-stops.md` |
-| Concurrent writers | two processes writing the same `--out` folder interleave their rows; a lock file in the folder would guard it (a card) | `docs/log/2026-11-19-rv1-finding-concurrent-writers.md` |
+| Concurrent writers | done by card RV6: a run journal holds `run.lock` in its folder and a second writer is refused | `docs/log/2026-11-19-rv1-finding-concurrent-writers.md`; `docs/log/2026-11-20-rv6-run-lock.md` |
 | Capped utility sessions | a capped GateMem utility session leaves MGS's U with no count, since h1-sessions/2 allows no exclusion on a utility row; the lead decides whether the H1 table counts them per condition | `docs/log/2026-11-19-rv1-review-failure-4-utility-gap.md` |
 | v1's condition wording | v1 does not describe C3's identity and instruction sentences or C4's instruction sentence; the proposed lines are in the finding, for the lead's text | `docs/log/2026-11-19-rv1-finding-v1-condition-wording.md` |
 
@@ -178,3 +178,15 @@ From the repository review of the surfaces (findings RV-SRF-1 to RV-SRF-9); each
 | The owner is self-asserted | a caller claiming the store owner's id is the owner to `syncBeforeRead`, as to every route, until authentication | ADR 0025 and ADR 0027, amendments proposed by RV5 |
 | A person's restatement of retired agent content | adoption's kind floor (card RV4, fix pass 2) refuses a person's own new file that repeats an agent item already retired, even one retired by its ttl; exempt ttl retirements or accept the cost | ADR 0004, amendment proposed by RV4 |
 | Denied store hits in a capped search | a store hit whose record diverged from the projection is dropped and matched over the projection, but still takes one of a capped store's hits (Mem0, 20) | ADR 0004, amendment proposed by RV4 |
+
+## Follow-ups from card RV6 (2026-11-20)
+
+Built by card RV6 (the design review's RV-DES-9, -10 and -11); each needs the lead, or a card, before the tag.
+
+| item | what is left | where it is recorded |
+|---|---|---|
+| OpenRouter upstreams | the runner pins an upstream per config (`openrouter_provider.answer` and `.judge`, OpenRouter's `order`, `only` and `allow_fallbacks`) and records what served each call either way; the lead names the upstreams for M1 and the GPT-4o judge in the H1 configs before the tag, or leaves routing free and reports the recorded mix | `docs/log/2026-11-20-rv6-openrouter-upstream.md`; `docs/log/2026-11-20-rv6-finding-pi-ai-openrouter-routing.md` |
+| The B1 tolerance | proposed: U, A and F each within 1.96 sqrt(p(1-p)/50) plus 3 points of the paper's Medical, GPT-5.4, Long-Context row, on 150 Medical checkpoints; the lead sets it, then a small card adds the script that computes the three rates (Eqs. 10 to 12) from the run and the band | `docs/log/2026-11-20-rv6-decision-b1-tolerance.md` |
+| The smoke run's pass rule | proposed: every session a row, a replay with zero new calls, the upstreams printed, no exclusion | `docs/log/2026-11-20-rv6-decision-smoke-subset.md` |
+| B1's sampling | the runner's C1 sends no temperature, while upstream's reference agent runs at 0.2; a C1 temperature (a C1 cache key change) or a live path for the B1 harness would match it | `docs/log/2026-11-20-rv6-finding-b1-sampling.md` |
+| Shard count and ceilings | the lead picks n for H1 (estimate: 4 shards, about 13 hours to 2 days) and sets each arm's `spend_ceiling_usd` as the whole run's, which each shard divides by n | `docs/log/2026-11-20-rv6-finding-h1-wall-time.md`; `docs/log/2026-11-20-rv6-decision-shard-ceiling.md` |
