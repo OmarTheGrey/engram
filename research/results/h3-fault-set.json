@@ -1,0 +1,340 @@
+{
+  "audit": {
+    "directory": ".engram/faults/h3-fault-set-audit",
+    "draw_sha256": "35b391ee43d2f27ef766ea5e21148bc61eef0943dd3436848c0d578a4c9a5bb8",
+    "findings": {
+      "duplicate": 967
+    },
+    "per_lint": 50,
+    "sampled": {
+      "duplicate": 50
+    },
+    "seed": 20261120
+  },
+  "base": {
+    "assistant_turns_model_named": 124334,
+    "missing_provenance_as_b5_writes_it": 124334,
+    "past_medium_ttl": {
+      "questions": 54,
+      "turns": 11122
+    },
+    "turns": 246750
+  },
+  "benchmark": "longmemeval",
+  "by_class": {
+    "contradictory": {
+      "keyed": {
+        "fault": 0,
+        "near-miss": 0
+      },
+      "unkeyed": {
+        "fault": 500,
+        "near-miss": 500
+      }
+    },
+    "misplaced": {
+      "keyed": {
+        "fault": 500,
+        "near-miss": 500
+      },
+      "unkeyed": {
+        "fault": 500,
+        "near-miss": 500
+      }
+    },
+    "stale": {
+      "keyed": {
+        "fault": 1000,
+        "near-miss": 1000
+      },
+      "unkeyed": {
+        "fault": 500,
+        "near-miss": 500
+      }
+    },
+    "unsupported": {
+      "keyed": {
+        "fault": 1000,
+        "near-miss": 1000
+      },
+      "unkeyed": {
+        "fault": 500,
+        "near-miss": 500
+      }
+    }
+  },
+  "by_lint": {
+    "deterministic": {
+      "expired-validity": {
+        "keyed": {
+          "fault": 500,
+          "near-miss": 500
+        },
+        "unkeyed": {
+          "fault": 0,
+          "near-miss": 0
+        }
+      },
+      "missing-provenance": {
+        "keyed": {
+          "fault": 500,
+          "near-miss": 500
+        },
+        "unkeyed": {
+          "fault": 0,
+          "near-miss": 0
+        }
+      },
+      "orphan": {
+        "keyed": {
+          "fault": 500,
+          "near-miss": 500
+        },
+        "unkeyed": {
+          "fault": 0,
+          "near-miss": 0
+        }
+      },
+      "scope-class-mismatch": {
+        "keyed": {
+          "fault": 500,
+          "near-miss": 500
+        },
+        "unkeyed": {
+          "fault": 0,
+          "near-miss": 0
+        }
+      },
+      "source-changed": {
+        "keyed": {
+          "fault": 500,
+          "near-miss": 500
+        },
+        "unkeyed": {
+          "fault": 0,
+          "near-miss": 0
+        }
+      }
+    },
+    "model": {
+      "contradiction": {
+        "keyed": {
+          "fault": 0,
+          "near-miss": 0
+        },
+        "unkeyed": {
+          "fault": 1000,
+          "near-miss": 1000
+        }
+      },
+      "unsupported-claim": {
+        "keyed": {
+          "fault": 0,
+          "near-miss": 0
+        },
+        "unkeyed": {
+          "fault": 500,
+          "near-miss": 500
+        }
+      }
+    },
+    "none": {
+      "fault": 500,
+      "near-miss": 500
+    }
+  },
+  "by_subtype": {
+    "conflict": {
+      "class": "contradictory",
+      "expected": {
+        "deterministic": [],
+        "model": [
+          "contradiction"
+        ]
+      },
+      "fault": 500,
+      "keyed": false,
+      "near-miss": 500
+    },
+    "expired-validity": {
+      "class": "stale",
+      "expected": {
+        "deterministic": [
+          "expired-validity"
+        ],
+        "model": []
+      },
+      "fault": 500,
+      "keyed": true,
+      "near-miss": 500
+    },
+    "forbidden-class": {
+      "class": "misplaced",
+      "expected": {
+        "deterministic": [
+          "scope-class-mismatch"
+        ],
+        "model": []
+      },
+      "fault": 500,
+      "keyed": true,
+      "near-miss": 500
+    },
+    "missing-provenance": {
+      "class": "unsupported",
+      "expected": {
+        "deterministic": [
+          "missing-provenance"
+        ],
+        "model": []
+      },
+      "fault": 500,
+      "keyed": true,
+      "near-miss": 500
+    },
+    "orphan": {
+      "class": "unsupported",
+      "expected": {
+        "deterministic": [
+          "orphan"
+        ],
+        "model": []
+      },
+      "fault": 500,
+      "keyed": true,
+      "near-miss": 500
+    },
+    "source-changed": {
+      "class": "stale",
+      "expected": {
+        "deterministic": [
+          "source-changed"
+        ],
+        "model": []
+      },
+      "fault": 500,
+      "keyed": true,
+      "near-miss": 500
+    },
+    "superseded": {
+      "class": "stale",
+      "expected": {
+        "deterministic": [],
+        "model": [
+          "contradiction"
+        ]
+      },
+      "fault": 500,
+      "keyed": false,
+      "near-miss": 500
+    },
+    "unsupported-claim": {
+      "class": "unsupported",
+      "expected": {
+        "deterministic": [],
+        "model": [
+          "unsupported-claim"
+        ]
+      },
+      "fault": 500,
+      "keyed": false,
+      "near-miss": 500
+    },
+    "wrong-scope": {
+      "class": "misplaced",
+      "expected": {
+        "deterministic": [],
+        "model": []
+      },
+      "fault": 500,
+      "keyed": false,
+      "near-miss": 500
+    }
+  },
+  "by_tier": {
+    "contradictory": {
+      "deterministic_only": 0,
+      "model": 500,
+      "none": 0
+    },
+    "misplaced": {
+      "deterministic_only": 500,
+      "model": 0,
+      "none": 500
+    },
+    "stale": {
+      "deterministic_only": 1000,
+      "model": 500,
+      "none": 0
+    },
+    "unsupported": {
+      "deterministic_only": 1000,
+      "model": 500,
+      "none": 0
+    }
+  },
+  "data": {
+    "dataset": "https://huggingface.co/datasets/xiaowu0162/longmemeval-cleaned",
+    "file": "longmemeval_s_cleaned.json",
+    "revision": "98d7416c24c778c2fee6e6f3006e7a073259d48f",
+    "sha256": "d6f21ea9d60a0d56f34a05b609c79c88a451d2ae03597821ea3d5a9678c3a442"
+  },
+  "events": 261250,
+  "generator": "packages/bench/src/faults/generate.ts",
+  "hypothesis": "H3",
+  "label_check": {
+    "keyed_faults": 2500,
+    "keyed_faults_flagged": 2500,
+    "model_faults": 1500,
+    "model_faults_sent": 1500,
+    "model_labels_not_sent_under_medium": {
+      "unsupported-claim": 45
+    },
+    "model_near_misses": 1500,
+    "model_near_misses_sent": 1500,
+    "near_misses_flagged": 0,
+    "states": 500,
+    "unexpected_findings_on_injected_items": 0,
+    "unlabelled_findings_on_base_items": {
+      "duplicate": 967
+    }
+  },
+  "labels": {
+    "fault": 4500,
+    "near-miss": 4500,
+    "total": 9000
+  },
+  "limits": {
+    "can_tell": [
+      "A regression check on card L1's deterministic lints: each keyed subtype restates its lint's trigger, with its near-miss one millisecond, one whitespace run, one class or one provenance field away, so deterministic recall and precision on the labelled items are 1.0 by construction while the lints are correct.",
+      "Model-tier accuracy on clean, pre-paired cases, as an upper bound: every model-tier fault and near-miss is an injected template sentence that card L3's planning is checked to send, so it leaves out the pair-selection misses natural prose causes.",
+      "Gaps: no lint of either tier is built for wrong-scope (500 faults), and the deterministic tier finds no unkeyed fault."
+    ],
+    "cannot_tell": [
+      "How common these faults are: the set holds one fault and one near-miss of each subtype per question by design.",
+      "Real-world recall: the faults are templates, not natural failures.",
+      "Precision on natural memory without the audit: findings on LongMemEval's own items are counted (label_check.unlabelled_findings_on_base_items) but unverified until members judge the audit sample."
+    ],
+    "differs_from_b5_b6_x10": [
+      "Assistant turns name a model (longmemeval/assistant); as B5 writes them, card L1's missing-provenance lint would flag 124334 of 246750 turns.",
+      "The policy is preset medium without the person-scope ttl; under medium, 11122 turns in 54 questions are past its 90-day ttl at the read time.",
+      "Under preset medium with every lint enabled, card L3's planning would not send 0 of 2000 labelled contradiction units; 45 of 1000 labelled unsupported-claim units, because an item or its source is past the ttl."
+    ],
+    "pooling": "Per-class figures pooled over keyed and unkeyed faults depend on the mix the generator chose (stale 2 keyed to 1 unkeyed, unsupported 2 to 1, misplaced 1 to 1, contradictory 0 to 1); report keyed and unkeyed apart.",
+    "superseded": "Superseded recall measures how the model reads card L3's contradiction prompt, which asks whether two statements cannot both be true at the same time: a model may call an old value and a later one consistent, as two states at different times."
+  },
+  "name": "h3-fault-set",
+  "per_question": 1,
+  "questions": 500,
+  "seed": 20261119,
+  "set": {
+    "directory": ".engram/faults/h3-fault-set",
+    "sha256": {
+      "base-findings.jsonl": "72a80102fda45964b5fb7e3425ba16cc192a00e403bf39fc25340851dc52327d",
+      "labels.jsonl": "c3adc5cfb25730200206d81b248f6a0902cac5ed47640250153994567785072b",
+      "policy.json": "5521a588b9abde9a3b641761c7bc4d1d89fe00c668a1ca913532c06d5a03c3e5",
+      "states.jsonl": "8d6822767eb1f51f436518e14a9c37817bc17becbf103085369ab48197560dbc",
+      "stats.jsonl": "9a7fcda66030a770e1f79ece8dd125c63e2128b30ee24bf77c39a2e475031c30"
+    }
+  }
+}

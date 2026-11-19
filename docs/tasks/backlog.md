@@ -81,3 +81,13 @@ Found by the review of PR #45 and left open on purpose; neither blocks card L4.
 |---|---|---|
 | Events to members who may not read | `eventVisibleTo` (packages/core/src/visible.ts) shows an event to any member of its scope, even one the read matrix stops from reading that scope; model lint reasons now restate in-scope content, so this matters more | `docs/log/2026-11-19-l3-finding-event-visible-to-unreadable-members.md` |
 | Model lints hold the write queue | `Plane.lint` keeps the write queue locked while the model answers; settle it before a server injects a lint model | `docs/log/2026-11-19-l3-finding-lint-holds-write-queue.md` |
+
+## Follow-ups from card L2's review (2026-11-19)
+
+Found by the review of PR #46; they need the lead or card L4, not more of L2.
+
+| item | what is left | where it is recorded |
+|---|---|---|
+| Contradiction prompt and updates | card L3's contradiction prompt asks whether two statements "cannot both be true at the same time", so a model may judge an old value and a later update of the same attribute consistent; the lead or card L4 decides whether the prompt should treat a later update of the same attribute as a contradiction (a prompt change is a new cassette and an amendment) | `docs/log/2026-11-19-l2-review-finding-superseded-prompt.md` |
+| H3's deterministic claim | on the seeded-fault set, deterministic recall and precision hold by construction; the lead decides whether H3 measures deterministic precision on natural memory through the audit sample and keeps seeded recall as a regression check, before the tag | `docs/log/2026-11-19-l2-review-finding-h3-wording.md` |
+| B5's assistant model | B5's `turnItem` writes assistant turns with no model, which L1's missing-provenance lint flags; the lead decides for B6 and X10 whether B5 names the model or C6 leaves missing-provenance out on LongMemEval | `docs/log/2026-11-19-l2-review-finding-b5-assistant-model.md` |

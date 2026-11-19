@@ -126,6 +126,7 @@ fixtures: ## regenerate golden files and scripted cassettes; refuses without MSG
 	$(UV) run python -I packages/bench/scripts/vendor-mem-inv-bench.py --upstream "$(MEM_INV_UPSTREAM)" --fetch --out fixtures/bench/mem-inv-bench
 	$(UV) run python -I packages/bench/scripts/upstream-mem-inv-golden.py --upstream "$(MEM_INV_UPSTREAM)" --fixtures fixtures/bench/mem-inv-bench --out fixtures/bench/mem-inv-bench/upstream-golden.json
 	env -u ENGRAM_OFFLINE node packages/bench/scripts/vendor-longmemeval.ts --upstream "$(LONGMEMEVAL_UPSTREAM)" --fetch --out fixtures/bench/longmemeval
+	node packages/bench/scripts/fault-set.ts --data fixtures/bench/longmemeval/questions.jsonl --config research/configs/h3-fault-set.json --out fixtures/fault-sets/longmemeval
 	for name in $(RUNNER_FIXTURES); do \
 	  rm -rf "fixtures/cassettes/$$name"; \
 	  env -u ENGRAM_OFFLINE node packages/runner/scripts/run.ts --config "research/configs/$$name.json" --out ".engram/runs/$$name" --record; \
