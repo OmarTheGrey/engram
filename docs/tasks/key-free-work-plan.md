@@ -1,6 +1,6 @@
 # Plan: the work that can be done now, before the lead's answers and a key
 
-Status: proposed 2026-11-19 by the orchestrating session on the lead's instruction ("we want to do any and all work that can be done now rather than later (starting with a 3 pr plan) or is waiting on me, and then give me a list of items that absolutely need me"). Each PR follows AGENTS.md and the two conventions, one card per PR (rule 10).
+Status: proposed 2026-11-19 by the orchestrating session (wave 2 and the repository review added the same day, sections 7 and 8) on the lead's instruction ("we want to do any and all work that can be done now rather than later (starting with a 3 pr plan) or is waiting on me, and then give me a list of items that absolutely need me"). Each PR follows AGENTS.md and the two conventions, one card per PR (rule 10).
 
 ## 1. Where the repository stands
 
@@ -64,6 +64,52 @@ Files: `packages/ui/` (the grants editor, person versus role lanes), the server 
 - **D1**: the session recorder for H5.
 - Backlog follow-ups that need no decision, one card each: Letta's delete refusals as `NotDeletableError`, a surface for deletion reports, `memory_lint` in the pi extension, and offboarding as a Plane method under the invariants.
 - **After the lead's answers:** the answers PR (section 7 of `docs/tasks/prereg-v1-plan.md`), then the tag.
+
+## 7. Wave 2: three PRs, after wave 1 merges
+
+Added on 2026-11-19 on the lead's instruction ("plan the next 3 prs too and implement them after these, then do a comprehensive review of the repo"). Each PR starts when its dependency merges.
+
+### PR 4. L4: lint precision and recall (after L2 and L3)
+
+Files: a runner or bench entry point that runs `Plane.lint` over the fault set, `research/scripts/`, `research/configs/` and `research/results/h3-*`.
+
+- **The deterministic floor.** A rule-9 result on the full 500-question set: precision and recall per class and per subtype, keyed and unkeyed apart, with Wilson intervals from `research/analysis/`.
+- **The model-based delta.** Its config and its call count are built now; its numbers come from the live run once the key exists. A replay of the fixture set from scripted cassettes proves the pipeline, and its numbers are never a result.
+- **What the set can show.** The result and its log entries state what the set can and cannot show. L2's review says how far each subtype is defined independently of the lint that finds it.
+- **Acceptance.** The result regenerates under `make test-repro`, and `make test` passes.
+
+### PR 5. E9.5's kit: the twin dogfood, ready to run (after E9.4)
+
+Files: `docs/dogfood.md`, a violation-report script with its tests, and card E9.5.
+
+- **The procedure.** What each of the three members does for the two weeks: run `engram serve` under the twin profile over their own Claude Code memory, and use the inspector.
+- **The violation report.** It reads the member's own log on the member's own machine, replays it through the invariants' oracle, and prints aggregate counts only: reads, grants, denials and violations. Rule 12 applies: dogfood content never leaves the member's machine. A violation is either of:
+  - a read that returned an item the oracle says the reader could not read;
+  - a grant change the oracle says should have been refused.
+- **Tests.** On two synthetic logs: one with zero violations, and one with a planted violation that the report must find.
+- **Acceptance.** On the synthetic logs, the report shows reads, grants and zero violations, and it finds the planted one.
+
+### PR 6. B6's engineering half: LongMemEval's enforced baseline (after L2)
+
+Files: `packages/bench/src/longmemeval/`, `research/configs/`, `research/scripts/` and `research/results/h2-*`.
+
+- **The baseline configs.** Two configs on the cleaned S split at its pin, one ungoverned and one enforced at preset medium. Both are counted with `COUNT=1` and priced with the existing cost code. A fixture-size config replays from cassettes.
+- **The clock question L2 found.** Under medium's 90-day ttl, about 11,122 turns in 54 questions are past their validity at read time, so enforcement hides them for a reason unrelated to governance. The PR measures this per question as a rule-9 result. It then sets out the options and a recommendation for the lead: which clock the plane reads at, and whether a benchmark preset should differ from medium.
+- **Acceptance.** Both configs count offline, and the fixture probe replays with zero new calls.
+
+## 8. The repository review (after wave 2)
+
+A review of the whole repository by independent reviewers, one per area, each finding verified before it is fixed. The areas, each checked against its reference:
+
+| area | checked against |
+|---|---|
+| core's plane and policy | the ADRs and the invariants |
+| adapters and stores | the contract |
+| runner, bench and research | the pre-registration |
+| the surfaces: CLI, server, MCP, pi extension, inspector | rule 1 |
+| design gaps | the architecture and the gates |
+
+Findings that change behaviour become backlog cards, fixed one card per PR, worst first. Findings that need the lead go to the lead's list. The review and every fix are logged.
 
 ## 6. What needs the lead
 
