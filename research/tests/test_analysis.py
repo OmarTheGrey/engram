@@ -501,6 +501,8 @@ def test_the_h1_table_is_not_supported_when_enforcement_is_planted_worse(tmp_pat
     [
         (0.004, None, None, "supported", "bound"),
         (0.02, None, None, "undecided", "bound"),
+        # 4p = 0.044 is below alpha, 5p = 0.055 is not: only the bound of five keeps it undecided.
+        (0.011, None, None, "undecided", "bound"),
         (0.2, None, None, "not supported", "bound"),
         (0.004, None, -0.01, "not supported", "bound"),
         (0.004, None, 0.0, "supported", "bound"),
@@ -521,6 +523,14 @@ def test_the_h1_decision_by_hand(
     decision, holm_part = decide_h1(p, others, secondary_high)
     assert decision["h1"] == h1
     assert holm_part["method"] == method
+
+
+@pytest.mark.parametrize("p", [0.001, 0.004, 0.009, 0.011, 0.02, 0.15])
+def test_the_h1_bound_multiplies_by_the_five_hypotheses(p: float) -> None:
+    # Before H2 to H5 report, Holm's adjusted value for H1 is bounded by 5p (capped at 1).
+    _, holm_part = decide_h1(p, None, None)
+    assert holm_part["adjusted"] == pytest.approx(min(1.0, 5 * p))
+    assert holm_part["p"] == p
 
 
 def test_the_results_schema_refuses_an_unknown_field_and_a_repeated_session(
