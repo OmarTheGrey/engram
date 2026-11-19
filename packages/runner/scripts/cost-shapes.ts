@@ -9,10 +9,14 @@
 //       --cassettes fixtures/cassettes/x1-h1-gatemem --cassettes fixtures/cassettes/x1-h1-mem-inv \
 //       --judge scripted/judge-1 \
 //       --prompts full=.engram/upstream/gatemem/bench/data --prompts fixture=fixtures/bench/gatemem \
-//       [--preset medium] --models openrouter/openai/gpt-4o,... --out <file.json>
+//       [--longmemeval full=.engram/upstream/longmemeval/data/longmemeval_s_cleaned.json \
+//        --longmemeval fixture=fixtures/bench/longmemeval] \
+//       [--preset medium] [--read-limit 20] --models openrouter/openai/gpt-4o,... --out <file.json>
 //
 // The output names each cassette directory by its last path part and each
-// prompt set by its label, and holds no path or time.
+// prompt set by its label, and holds no path or time. `--longmemeval` (card
+// B6) adds LongMemEval's prompt and read sizes per question under
+// `longmemeval`, for research/scripts/h2_longmemeval_cost.py.
 import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { parseArgs } from "node:util";
@@ -25,6 +29,7 @@ import {
   catalogueEntry,
   catalogueSnapshot,
   gatememPromptChars,
+  longMemEvalPromptChars,
   sessionShapes,
 } from "../src/research/cost-shapes.ts";
 
@@ -51,25 +56,33 @@ function main(): number {
       cassettes: { type: "string", multiple: true },
       judge: { type: "string" },
       prompts: { type: "string", multiple: true },
+      longmemeval: { type: "string", multiple: true },
+      "read-limit": { type: "string" },
       models: { type: "string" },
       preset: { type: "string", default: "medium" },
       out: { type: "string" },
     },
   });
-  const prompts = (values.prompts ?? []).map((p) => {
-    const at = p.indexOf("=");
-    return at > 0 ? [p.slice(0, at), p.slice(at + 1)] : undefined;
-  });
+  const labelled = (list: string[] | undefined) =>
+    (list ?? []).map((p) => {
+      const at = p.indexOf("=");
+      return at > 0 ? [p.slice(0, at), p.slice(at + 1)] : undefined;
+    });
+  const prompts = labelled(values.prompts);
+  const lme = labelled(values.longmemeval);
   const preset = values.preset as PresetName;
+  const readLimit = values["read-limit"] === undefined ? undefined : Number(values["read-limit"]);
   if (
     !values.out ||
     !values.cassettes?.length ||
     !values.models ||
     prompts.includes(undefined) ||
+    lme.includes(undefined) ||
+    (readLimit !== undefined && !(Number.isInteger(readLimit) && readLimit > 0)) ||
     !PRESETS.includes(preset)
   ) {
     console.error(
-      "usage: cost-shapes.ts (--cassettes <dir>)... [--judge <model>] (--prompts <label>=<gatemem data dir>)... [--preset medium] --models <m1,m2,...> --out <file.json>",
+      "usage: cost-shapes.ts (--cassettes <dir>)... [--judge <model>] (--prompts <label>=<gatemem data dir>)... (--longmemeval <label>=<longmemeval data>)... [--preset medium] [--read-limit 20] --models <m1,m2,...> --out <file.json>",
     );
     return 2;
   }
@@ -84,6 +97,16 @@ function main(): number {
         gatememPromptChars(dir, loadPreset(preset)),
       ]),
     ),
+    ...(lme.length === 0
+      ? {}
+      : {
+          longmemeval: Object.fromEntries(
+            (lme as [string, string][]).map(([label, path]) => [
+              label,
+              longMemEvalPromptChars(path, loadPreset(preset), readLimit),
+            ]),
+          ),
+        }),
     catalogue: values.models
       .split(",")
       .filter(Boolean)
