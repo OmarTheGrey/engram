@@ -25,6 +25,10 @@ Amendments made in the review of PR #33, 2026-11-13, accepted by the lead on 202
 
 - A store failure while handing a role over is a decision with its own event: one `update` event of decision `deny` under `engram/write/store-failure`, naming the item and the handover, and the call throws before anything is erased. The items handed over before the failure stay the successor's, so offboarding again once the store recovers completes the handover and the erasure (`packages/core/test/unit/plane/offboard-edges.test.ts`).
 
+Amendments made by card RV4, 2026-11-20 (branch `rv4`; proposed, for the lead's acceptance):
+
+- Decision D4 ("model content carries no grants") now holds through adoption: adoption keeps an agent-written item `model` (ADR 0004's amendment of card RV4), so the owner's grant on it is refused after any number of adoptions; before, the re-adoption after every plane write over the files adapter raised it to `import` and the gate accepted the grant (finding of card E9.5). The twin dogfood's report still counts a grant on a raised item as a violation, and a raise under `watch.provenance_raised`, which is 0 on its realistic synthetic log (`packages/core/test/unit/dogfood-report.test.ts`).
+
 ## Alternatives considered
 
 No alternatives were recorded beyond the recommendation.

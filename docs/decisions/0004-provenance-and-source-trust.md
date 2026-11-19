@@ -33,6 +33,10 @@ Amendments made by the schema version 1 PR, 2026-11-06 (branch `schema-v1`):
 - The gate treats it as it treats model and compaction content: it carries no grants, cannot leave person scope without a gate pass (`engram/write/source-isolation`), cannot restate retired content (ADR 0025) and never confirms a promotion (ADR 0026). No bundled preset lists it in `allowed_sources`, so until a policy does, every `external` write is denied as a source the rule does not allow.
 - The kinds a harness sets are unchanged: no surface labels anything `external` yet. Mapping MEM-INV-Bench's `web` and `inbox` channels to it (ADR 0029, now `document`) changes the poisoning arm and is its own PR, after the pre-registration decides it.
 
+Amendments made by card RV4, 2026-11-20 (branch `rv4`; proposed, for the lead's acceptance):
+
+- Decision D8 narrowed: adoption never raises trust (backlog row "Adoption raises trust", found by card E9.5). A record whose content and provenance are as the plane holds them for its id keeps the plane's provenance, so a record the plane wrote is no new version and is not adopted again as `import` (backlog row "Re-adoption of plane writes"). Any other record, new to the plane or edited in the store, is recorded with the adopter as actor and the least trusted kind (the order of `leastTrusted`, `packages/core/src/policy/promotion.ts`) among the record's own claim, the plane's item of that id, and `import`. So an agent's `model` item stays `model` however often it is adopted, a record edited by hand is `import` at most, and a record whose frontmatter claims a more trusted kind than the plane holds gets the plane's. The reviewer proposed `leastTrusted([known.kind, "import"])`; the record's own claim is added because it can only lower the kind (`packages/core/src/plane/write.ts`, `adoptedItem`; `packages/adapters/test/plane/rv4-files.test.ts`).
+
 ## Alternatives considered
 
 (a) A `provenance` object: `{kind, ref, hash, actor, session_entry_id, model?}` with `kind` in {user, document, tool, model, import, compaction}. (b) A free-text source string.
