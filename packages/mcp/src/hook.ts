@@ -47,7 +47,6 @@ export interface HookOptions extends HookScope {
   client: EngramClient;
   /** Who block events are recorded as; its source is set to `model`. */
   actor: Actor;
-  now: () => string;
 }
 
 /** What Claude Code sends a PreToolUse hook (the fields this hook reads). */
@@ -131,7 +130,8 @@ export async function claudeCodeHook(
   const actor: Actor = { ...options.actor, source: "model" };
   try {
     const answer = await options.client.POST("/api/v1/bypass", {
-      body: { actor, bypass: found, at: options.now() },
+      // No time: the server stamps the event from its own clock (card RV5).
+      body: { actor, bypass: found },
     });
     const event = answer.data?.event;
     return hookDeny(

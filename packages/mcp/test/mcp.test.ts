@@ -179,7 +179,17 @@ describe("over streamable HTTP", () => {
 
   it("refuses a foreign Origin and a rebound Host", async () => {
     if (server === undefined) throw new Error("the previous test starts the server");
-    const body = JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" });
+    // An initialize request: a request with no session must start one (card RV5).
+    const body = JSON.stringify({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "initialize",
+      params: {
+        protocolVersion: "2025-06-18",
+        capabilities: {},
+        clientInfo: { name: "t", version: "0" },
+      },
+    });
     const headers = {
       "content-type": "application/json",
       accept: "application/json, text/event-stream",

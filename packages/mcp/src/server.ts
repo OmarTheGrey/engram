@@ -18,6 +18,11 @@
 // not see the harness's context, so reads are governed, not filtered out of
 // what the model already holds (condition C7).
 //
+// Time (card RV5, finding RV-SRF-2): requests carry no time; the server
+// stamps each event from its own clock, and memory_simulate's workload
+// records each call at the ts its event got. `now` dates a written item's
+// validity only.
+//
 // The low-level Server is used, not McpServer, because the tools' input
 // schemas are the shared TypeBox (JSON Schema) definitions, which McpServer
 // would want restated in Zod.
@@ -53,7 +58,7 @@ export interface McpOptions {
   client: EngramClient;
   /** Who every call is made as; its source is set to `model` here, whatever it says. */
   actor: Actor;
-  /** The time of each call, ISO 8601 UTC. */
+  /** The valid_from of each item written, ISO 8601 UTC; events are stamped by the server. */
   now: () => string;
   /** A fresh UUIDv7 for each item written. */
   newId: () => string;
@@ -142,24 +147,23 @@ export function createMcpServer(options: McpOptions): Server {
           store_ref: null,
           schema_version: 1,
         };
-        steps.push({
-          op: "write",
-          as: "agent",
-          at,
-          item: item as Extract<WorkloadStep, { op: "write" }>["item"],
-        });
-        const answer = await client.POST("/api/v1/items", { body: { actor: agent, item, at } });
+        const answer = await client.POST("/api/v1/items", { body: { actor: agent, item } });
         if (answer.data === undefined) return text(failure(answer).message, true);
         const { item: stored, event } = answer.data as unknown as {
           item: MemoryItem | null;
           event: MemoryEvent;
         };
+        steps.push({
+          op: "write",
+          as: "agent",
+          at: event.ts,
+          item: item as Extract<WorkloadStep, { op: "write" }>["item"],
+        });
         return stored ? text(writeResultText(stored)) : text(refusal(event), true);
       }
       case "memory_read": {
-        steps.push({ op: "read", as: "agent", at, text: String(args.query) });
         const answer = await client.POST("/api/v1/read", {
-          body: { actor: agent, text: String(args.query), at },
+          body: { actor: agent, text: String(args.query) },
         });
         if (answer.data === undefined) return text(failure(answer).message, true);
         const r = answer.data as unknown as {
@@ -168,6 +172,7 @@ export function createMcpServer(options: McpOptions): Server {
           filtered: number;
           event: MemoryEvent;
         };
+        steps.push({ op: "read", as: "agent", at: r.event.ts, text: String(args.query) });
         // The read event's reason counts items out of reach; it is kept from the model.
         return text(
           tagRecall(
