@@ -46,13 +46,21 @@ import {
   promotionRuleId,
 } from "../policy/promotion.ts";
 import { Id, type MemoryEvent, type MemoryItem, Scope } from "../schema.ts";
-import { basisNow, ERASING_ID, erasingReason, erasureOpen, settle, staleness } from "./commit.ts";
+import {
+  basisNow,
+  ERASING_ID,
+  erasingReason,
+  erasureOpen,
+  ownBytes,
+  PROMOTE_CONFLICT_ID,
+  settle,
+  staleness,
+} from "./commit.ts";
 import { inWriteQueue } from "./queue.ts";
 import { enforceBudget } from "./retention.ts";
 import { refProblem, retiredContent } from "./write.ts";
 
-/** The rule of a promotion refused because its decision went stale before its commit (card E2.6). */
-export const PROMOTE_CONFLICT_ID = "engram/promote/conflict";
+export { PROMOTE_CONFLICT_ID };
 
 /** Every allowed write of `item`'s content in its scope, in log order (ADR 0026, item 2). */
 export function confirmationsOf(deps: PlaneDeps, item: MemoryItem): Confirmation[] {
@@ -242,7 +250,7 @@ async function decideAndCommit(
     stored = { ...toStore, store_ref: ref };
     const written = stored;
     outcome = db.transaction(() => {
-      const stale = staleness(db, decided);
+      const stale = staleness(db, decided, ownBytes(deps, written));
       if (stale) return { stale };
       // Only the source and its own lineage may share the new version's ref:
       // the confirming items its lineage also names are not versions (P5-10).
@@ -288,7 +296,8 @@ async function decideAndCommit(
   if ("stale" in outcome) {
     const why = outcome.stale;
     try {
-      const event = await settle(deps, stored.id, ref, () =>
+      const stale = { wrote: stored, head: basis.head, actor: actor.id, at };
+      const event = await settle(deps, stored.id, ref, stale, () =>
         appendEvent(db, {
           ...common,
           id: newId(),

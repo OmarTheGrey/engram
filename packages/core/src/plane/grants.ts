@@ -36,7 +36,15 @@ import type { GrantResult, PlaneDeps } from "../plane.ts";
 import { readableScope, STORE_FAILURE_ID } from "../policy/evaluate.ts";
 import { evaluateGrantChange, GRANT_CONFLICT_ID, type GrantChange } from "../policy/grants.ts";
 import { Grant, Id, type MemoryItem, SCHEMA_VERSION } from "../schema.ts";
-import { basisNow, ERASING_ID, erasingReason, erasureOpen, settle, staleness } from "./commit.ts";
+import {
+  basisNow,
+  ERASING_ID,
+  erasingReason,
+  erasureOpen,
+  ownBytes,
+  settle,
+  staleness,
+} from "./commit.ts";
 import { inWriteQueue } from "./queue.ts";
 import { refProblem } from "./write.ts";
 
@@ -119,7 +127,7 @@ async function decideAndCommit(
   }
   const ref = stored.store_ref as NonNullable<MemoryItem["store_ref"]>;
   const committed = db.transaction(() => {
-    const stale = staleness(db, decided);
+    const stale = staleness(db, decided, ownBytes(deps, stored));
     if (stale) return { stale };
     return {
       event: appendEvent(db, {
@@ -135,7 +143,8 @@ async function decideAndCommit(
   if ("stale" in committed) {
     const why = `${committed.stale}, while the grant change was being stored; the decision was made on a version that no longer stands, so the change is refused and the store is put back as the log has it`;
     try {
-      const event = await settle(deps, itemId, ref, () =>
+      const staleWrite = { wrote: stored, head: basis.head, actor: actor.id, at };
+      const event = await settle(deps, itemId, ref, staleWrite, () =>
         appendEvent(db, {
           ...common,
           id: newId(),

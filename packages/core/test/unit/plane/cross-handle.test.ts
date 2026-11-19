@@ -469,7 +469,7 @@ forEachBackend((backend) => {
   });
 
   describe("an erased id", () => {
-    test("a record under an erased id that reappears in the store (a write that was in flight, a restored copy) is never adopted", async () => {
+    test("a record under an erased id that reappears in the store (a write that was in flight, a restored copy) is never adopted, and deleted", async () => {
       const env = setup(backend);
       const seeded = await seedPerson(env);
       await offboardTheirs(env);
@@ -480,9 +480,10 @@ forEachBackend((backend) => {
       expect(report.denials[0]?.reason).not.toContain("Mira");
       expect(itemById(env.mine, id(1))).toBeUndefined();
       expect((await env.plane.read(dana, { at: LATER })).items).toEqual([]);
-      // Denied once for that record; the next adoption appends nothing.
+      // Refused once and deleted (review of PR #50, P50-2): the next adoption finds nothing.
+      expect(await env.store.list("person:dana")).toEqual([]);
       const n = allEvents(env.mine).length;
-      expect((await adoptStoreItems(env.depsMine, dana, "person:dana", LATER)).unchanged).toBe(1);
+      expect((await adoptStoreItems(env.depsMine, dana, "person:dana", LATER)).listed).toBe(0);
       expect(allEvents(env.mine)).toHaveLength(n);
     });
 

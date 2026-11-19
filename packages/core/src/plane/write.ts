@@ -43,17 +43,16 @@ import {
   erasureOpen,
   lastErasure,
   logHead,
+  ownBytes,
   settle,
   staleness,
   touchedSince,
+  WRITE_CONFLICT_ID,
 } from "./commit.ts";
 import { inWriteQueue } from "./queue.ts";
 import { enforceBudget } from "./retention.ts";
 
-export { checkCall };
-
-/** The rule of a write refused because its decision went stale before its commit (card E2.6). */
-export const WRITE_CONFLICT_ID = "engram/write/conflict";
+export { checkCall, WRITE_CONFLICT_ID };
 /** The rule of a write refused because its id belongs to an item an offboarding erased (card E2.6). */
 export const WRITE_ERASED_ID = "engram/write/erased";
 
@@ -188,7 +187,7 @@ export interface Adoption {
    * any other record under an erased id whose record the erasure deleted
    * (card E2.6).
    */
-  refuse?: (item: MemoryItem) => { reason: string; policy_id: string } | null;
+  refuse?: (item: MemoryItem) => { reason: string; policy_id: string; purge?: boolean } | null;
 }
 
 /** What the gate decides about a write, before anything is committed. */
@@ -424,7 +423,7 @@ async function decideAndWrite(
     // another, lands between the write and its evictions. The item just
     // written is never its own victim (review finding P4-1).
     outcome = db.transaction(() => {
-      const stale = staleness(db, basis);
+      const stale = staleness(db, basis, ownBytes(deps, { ...toStore, store_ref: ref }));
       if (stale) return { stale };
       const problem = refProblem(deps, item, ref, false);
       if (problem) throw new Error(problem);
@@ -440,7 +439,13 @@ async function decideAndWrite(
   if ("stale" in outcome) {
     const why = outcome.stale;
     try {
-      const event = await settle(deps, item.id, ref, () =>
+      const stale = {
+        wrote: { ...toStore, store_ref: ref },
+        head: basis.head,
+        actor: actor.id,
+        at,
+      };
+      const event = await settle(deps, item.id, ref, stale, () =>
         appendEvent(db, {
           ...common,
           id: newId(),

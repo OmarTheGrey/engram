@@ -524,6 +524,7 @@ export interface components {
             allowed: number;
             denied: number;
             unchanged: number;
+            deferred: number;
             retired: number;
             denials: {
                 item_id: string;

@@ -66,7 +66,11 @@
 // read, the handover of that version is refused (engram/offboard/conflict),
 // the store is put back as the log has it, and the item is handed over again
 // as it now stands, so an owner's change made meanwhile, such as a grant
-// removal, is kept.
+// removal, is kept. After the last attempt an item still the leaver's is left
+// with one deny event (engram/offboard/not-handed-over), listed in the
+// report's not_reached and counted in its reason (review of PR #50, P50-3).
+// The report's reason names the begin mark it closes, so a second
+// offboarding's report never closes the first one's mark (P50-5).
 //
 // Who may offboard: a user-sourced actor who is a member of the person scope
 // and of every role scope handed over, else one deny event
@@ -84,19 +88,22 @@ import { STORE_FAILURE_ID, scopeLevel } from "../policy/evaluate.ts";
 import { type MemoryEvent, type MemoryItem, Principal, SCHEMA_VERSION, Scope } from "../schema.ts";
 import {
   type Basis,
+  closesClause,
+  HANDOVER_CONFLICT_ID,
   logHead,
   OFFBOARD_BEGIN_ID,
   OFFBOARD_REPORT_ID,
+  ownBytes,
   settle,
   staleness,
 } from "./commit.ts";
 import { inWriteQueue } from "./queue.ts";
 
 export const HANDOVER_ID = "engram/offboard/handover";
-/** The rule of a handover refused because its item changed on another handle meanwhile (card E2.6). */
-export const HANDOVER_CONFLICT_ID = "engram/offboard/conflict";
+/** The rule of the deny left for an item whose handover conflicted on every attempt (P50-3). */
+export const NOT_HANDED_OVER_ID = "engram/offboard/not-handed-over";
 export const OFFBOARD_MEMBERSHIP_ID = "engram/offboard/membership";
-export { ERASURE_ID, OFFBOARD_BEGIN_ID, OFFBOARD_REPORT_ID };
+export { ERASURE_ID, HANDOVER_CONFLICT_ID, OFFBOARD_BEGIN_ID, OFFBOARD_REPORT_ID };
 
 /** How many times one item's handover is decided again after a conflict before it is left. */
 const HANDOVER_ATTEMPTS = 4;
@@ -258,6 +265,7 @@ async function run(
 
   // Handover: the leaver's items in each role become the successor's.
   const handover: DeletionReport["handover"] = [];
+  const notHanded: { scope: string; successor: string; item: string }[] = [];
   for (const { scope, successor } of roles) {
     const moved: string[] = [];
     for (const first of projected.filter((i) => i.scope === scope && i.owner === person)) {
@@ -291,7 +299,11 @@ async function run(
         const ref = store_ref;
         const decided = basis;
         const out: { stale: string } | { event: MemoryEvent } = db.transaction(() => {
-          const stale = staleness(db, decided);
+          const stale = staleness(
+            db,
+            decided,
+            ownBytes(deps, { ...next, store_ref: ref } as MemoryItem),
+          );
           if (stale) return { stale };
           return {
             event: appendEvent(db, {
@@ -315,9 +327,16 @@ async function run(
         }
         // Stale: the store is put back as the log has it, the refusal
         // recorded, and the item decided again as it now stands.
+        const last = attempt === HANDOVER_ATTEMPTS - 1;
+        const stale = {
+          wrote: { ...next, store_ref: ref } as MemoryItem,
+          head: decided.head,
+          actor: actor.id,
+          at,
+        };
         try {
           events.push(
-            await settle(deps, current.id, ref, () =>
+            await settle(deps, current.id, ref, stale, () =>
               appendEvent(db, {
                 ...base,
                 id: newId(),
@@ -326,7 +345,7 @@ async function run(
                 scope_from: scope,
                 scope_to: scope,
                 decision: "deny",
-                reason: `the handover of ${current.id} in ${scope} to ${successor} was decided on version ${current.version}, but ${out.stale}; that handover is refused, the store is put back as the log has it, and the item is handed over as it now stands if the leaver still owns it`,
+                reason: `the handover of ${current.id} in ${scope} to ${successor} was decided on version ${current.version}, but ${out.stale}; that handover is refused and the store is put back as the log has it; ${last ? `this was attempt ${HANDOVER_ATTEMPTS} of ${HANDOVER_ATTEMPTS}, so no further attempt is made` : "the item is handed over again as it now stands if the leaver still owns it"}`,
                 policy_id: HANDOVER_CONFLICT_ID,
               }),
             ),
@@ -343,6 +362,23 @@ async function run(
         }));
         item = again.now?.scope === scope && again.now.owner === person ? again.now : undefined;
         basis = { head: again.head, items: [current.id], scopes: [scope] };
+        if (last && item) {
+          // Still the leaver's after every attempt: left, and said so.
+          events.push(
+            appendEvent(db, {
+              ...base,
+              id: newId(),
+              op: "update",
+              item_id: current.id,
+              scope_from: scope,
+              scope_to: scope,
+              decision: "deny",
+              reason: `${current.id} in ${scope} was not handed over to ${successor}: it changed on another handle of this log during each of ${HANDOVER_ATTEMPTS} attempts; it stays ${person}'s, and offboarding again hands it over`,
+              policy_id: NOT_HANDED_OVER_ID,
+            }),
+          );
+          notHanded.push({ scope, successor, item: current.id });
+        }
       }
     }
     handover.push({ scope, successor, items: moved });
@@ -528,6 +564,10 @@ async function run(
           `${leftInStore.length} store record${leftInStore.length === 1 ? " is" : "s are"} left in the store ${adapter.name}, which refuses the plane's delete: see left_in_store; the person deletes ${leftInStore.length === 1 ? "it" : "them"} there; adoption refuses ${leftInStore.length === 1 ? "it" : "them"} while ${leftInStore.length === 1 ? "it holds" : "they hold"} the erased content, and the log keeps that content's hash, which can confirm a guess of short content`,
         ]
       : []),
+    ...notHanded.map(
+      (n) =>
+        `${n.item} in ${n.scope} was not handed over to ${n.successor}: it kept changing on another handle (${NOT_HANDED_OVER_ID}); it stays the leaver's until offboarding runs again`,
+    ),
     ...(failures.length > 0
       ? [
           `${failures.length} store ref${failures.length === 1 ? "" : "s"} could not be deleted, so the ${keptBack.length} item${keptBack.length === 1 ? " holding it was" : "s holding them were"} not erased: see store_failures; offboarding again once the store recovers erases ${keptBack.length === 1 ? "it" : "them"}`,
@@ -535,7 +575,8 @@ async function run(
       : []),
   ];
   const keptClause = keptBack.length > 0 ? `${keptBack.length} kept after a store failure, ` : "";
-  const reason = `offboarded ${person}: ${ids.size} items erased, ${keptClause}${handover.reduce((n, h) => n + h.items.length, 0)} handed over in ${roles.length} role scope${roles.length === 1 ? "" : "s"}`;
+  const leftClause = notHanded.length > 0 ? `, ${notHanded.length} not handed over` : "";
+  const reason = `offboarded ${person}: ${ids.size} items erased, ${keptClause}${handover.reduce((n, h) => n + h.items.length, 0)} handed over in ${roles.length} role scope${roles.length === 1 ? "" : "s"}${leftClause}`;
   events.push(
     appendEvent(db, {
       ...base,
@@ -545,7 +586,7 @@ async function run(
       scope_from: person,
       scope_to: null,
       decision: "allow",
-      reason,
+      reason: `${reason}; ${closesClause(begun.id)}`,
       policy_id: OFFBOARD_REPORT_ID,
     }),
   );

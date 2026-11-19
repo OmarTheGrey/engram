@@ -178,6 +178,7 @@ export async function readCommand(args: string[], io: Io): Promise<number> {
           allowed: number;
           denied: number;
           unchanged: number;
+          deferred: number;
           retired: number;
           denials: { item_id: string; reason: string; policy_id: string }[];
           retirements: { item_id: string; reason: string }[];
@@ -233,7 +234,7 @@ export async function readCommand(args: string[], io: Io): Promise<number> {
         `retention: ${sync.retention.expired.length} expired, ${sync.retention.evicted.length} evicted`,
         ...sync.retention.events.map(eventLine),
         `imported ${a.allowed + a.denied} of ${plural(a.listed, "memory", "memories")}: ` +
-          `${a.allowed} allowed, ${a.denied} denied, ${a.unchanged} already in the log`,
+          `${a.allowed} allowed, ${a.denied} denied, ${a.unchanged} already in the log${a.deferred > 0 ? `, ${a.deferred} left to the next adoption` : ""}`,
         ...a.denials.map((d) => `  denied ${d.item_id}: ${d.reason} (${d.policy_id})`),
         ...a.retirements.map((x) => `  retired ${x.item_id}: ${x.reason}`),
         ...a.evictions.map(

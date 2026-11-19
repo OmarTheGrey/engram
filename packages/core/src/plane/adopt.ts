@@ -42,6 +42,17 @@
 // it has changed since: anything else under that id is a store write that was
 // in flight during the erasure, or a restored copy.
 //
+// Review fix pass of PR #50 (P50-2). Such a record is also deleted from the
+// store, once the deny event is committed, so a writer that threw or crashed
+// between its store write and its commit, or whose repair failed, leaves no
+// erased content behind for good. So is a record in an offboarded person
+// scope (one with a completed offboarding and none open) under an id the log
+// never allowed: a write that never committed (engram/adopt/offboarded). A
+// failed delete appends a store-failure deny, so the next adoption tries
+// again; a store that refuses the delete for good leaves the record refused.
+// A listed record left to the next adoption because the log changed it since
+// the listing is counted under `deferred` (P50-7).
+//
 // Retracted, with one retire event (policy_id engram/adopt/retract): a
 // projected item of this store and scope the store no longer lists, and a
 // projected item whose store version the gate just denied. So the plane never
@@ -52,8 +63,8 @@
 // store has since changed into something unreadable. An item retired by
 // anything else (an owner, eviction) is not brought back while the store has
 // it unchanged.
-import { createHash } from "node:crypto";
 import type { Actor } from "../actor.ts";
+import { isNotDeletable } from "../adapter.ts";
 import { mergingContentHash } from "../content-hash.ts";
 import {
   appendEvent,
@@ -64,13 +75,25 @@ import {
 } from "../events.ts";
 import { itemById } from "../items.ts";
 import type { PlaneDeps } from "../plane.ts";
+import { STORE_FAILURE_ID } from "../policy/evaluate.ts";
 import type { MemoryEvent, MemoryItem } from "../schema.ts";
-import { erasureBegunSince, lastErasure, logHead, touchedSince } from "./commit.ts";
+import {
+  ADOPT_ERASED_ID,
+  ADOPT_OFFBOARDED_ID,
+  ADOPTION_PREFIX,
+  comparable,
+  erasureBegunSince,
+  hashNote,
+  itemHash,
+  lastErasure,
+  logHead,
+  offboarded,
+  touchedSince,
+} from "./commit.ts";
 import { inWriteQueue } from "./queue.ts";
 import { adoptWrite, withPlaneProvenance } from "./write.ts";
 
-/** The policy_id of an adoption refused because the record holds content erased at offboarding. */
-export const ADOPT_ERASED_ID = "engram/adopt/erased";
+export { ADOPT_ERASED_ID, ADOPT_OFFBOARDED_ID };
 
 /** The policy_id of a retire adoption appends when the store no longer has what the plane holds. */
 export const ADOPT_RETRACT_ID = "engram/adopt/retract";
@@ -85,6 +108,11 @@ export interface AdoptReport {
    * them, or denied before with the same hash.
    */
   unchanged: number;
+  /**
+   * Listed items left to the next adoption, with no event, because the log
+   * changed them, or began erasing their scope, after the store was listed.
+   */
+  deferred: number;
   /** Projected items retired because the store no longer has them as the plane held them. */
   retired: number;
   denials: { item_id: string; reason: string; policy_id: string }[];
@@ -96,31 +124,6 @@ export interface AdoptReport {
   evictions: MemoryEvent[];
 }
 
-/** JSON with sorted keys, so equal items compare equal whatever their key order. */
-const canonical = (v: unknown): string =>
-  JSON.stringify(v, (_k, x) =>
-    x && typeof x === "object" && !Array.isArray(x)
-      ? Object.fromEntries(Object.entries(x).sort(([a], [b]) => (a < b ? -1 : 1)))
-      : x,
-  );
-
-/**
- * What adoption compares: the item without its status (the gate may land it
- * as a candidate) and without the fields the store derived rather than
- * stored (Adapter.derivedFields), so touching a file is no new version.
- */
-const comparable = (item: MemoryItem, derived: readonly (keyof MemoryItem)[]) => {
-  const out: Record<string, unknown> = { ...item, status: null };
-  for (const field of derived) out[field] = null;
-  return canonical(out);
-};
-
-/** The hash a deny event records: of the store's item as listed, compared as above. */
-const itemHash = (item: MemoryItem, derived: readonly (keyof MemoryItem)[]) =>
-  `sha256:${createHash("sha256").update(comparable(item, derived)).digest("hex")}`;
-
-const hashNote = (hash: string) => `; store item ${hash}`;
-
 export async function adoptStoreItems(
   deps: PlaneDeps,
   actor: Actor,
@@ -129,7 +132,7 @@ export async function adoptStoreItems(
 ): Promise<AdoptReport> {
   const { db, adapter, newId } = deps;
   const adopter: Actor = { ...actor, source: "import" };
-  const prefix = `adopted from store ${adapter.name}: `;
+  const prefix = `${ADOPTION_PREFIX}${adapter.name}: `;
   // The log's head before the store is listed: a change the log records
   // after it may postdate what the listing shows (card E2.6).
   const head = logHead(db);
@@ -142,6 +145,7 @@ export async function adoptStoreItems(
     allowed: 0,
     denied: 0,
     unchanged: 0,
+    deferred: 0,
     retired: 0,
     denials: [],
     retirements: [],
@@ -189,15 +193,20 @@ export async function adoptStoreItems(
       continue;
     }
 
+    let purge = false;
     const adopted = await adoptWrite(deps, adopter, item, at, {
       ref: item.store_ref,
       prefix,
       suffix: note,
       listed: head,
-      refuse: (candidate) => erasedRefusal(deps, candidate),
+      refuse: (candidate) => {
+        const refusal = erasedRefusal(deps, candidate);
+        purge = refusal?.purge === true;
+        return refusal;
+      },
     });
     if (adopted === null) {
-      report.unchanged++;
+      report.deferred++;
       continue;
     }
     const { event, retention } = adopted;
@@ -208,6 +217,32 @@ export async function adoptStoreItems(
     }
     report.denied++;
     report.denials.push({ item_id: item.id, reason: event.reason, policy_id: event.policy_id });
+    if (purge) {
+      // The refusal is committed; now the record goes. A transient failure
+      // is one more deny, so the next adoption tries again.
+      const ref = item.store_ref;
+      try {
+        await adapter.delete(ref);
+      } catch (e) {
+        if (!isNotDeletable(e))
+          await inWriteQueue(db, () =>
+            appendEvent(db, {
+              id: newId(),
+              ts: at,
+              op: "write",
+              item_id: item.id,
+              actor: adopter.id,
+              scope_from: null,
+              scope_to: item.scope,
+              decision: "deny",
+              reason: `${prefix}the record refused under ${event.policy_id} could not be deleted from the store: ${e instanceof Error ? e.message : String(e)}; the next adoption tries again`,
+              policy_id: STORE_FAILURE_ID,
+              schema_version: 1,
+            }),
+          );
+      }
+      continue;
+    }
     // In the write queue, like every change to items; the projection is
     // read again there, so a write that landed meanwhile is respected.
     await inWriteQueue(db, () =>
@@ -259,7 +294,7 @@ export async function adoptStoreItems(
 function erasedRefusal(
   deps: PlaneDeps,
   candidate: MemoryItem,
-): { reason: string; policy_id: string } | null {
+): { reason: string; policy_id: string; purge?: boolean } | null {
   const { db } = deps;
   if (erasedStoreContent(db, candidate.id).has(mergingContentHash(candidate.content)))
     return {
@@ -267,10 +302,23 @@ function erasedRefusal(
       policy_id: ADOPT_ERASED_ID,
     };
   if (itemById(db, candidate.id)) return null;
+  const history = eventsByItem(db, candidate.id);
   const gone = lastErasure(db, candidate.id);
-  if (!gone || gone.reason.includes(LEFT_CONTENT_CLAUSE)) return null;
-  return {
-    reason: `the store holds a record under the id of item ${candidate.id}, which an offboarding erased and deleted from the store; an erased id is never adopted again`,
-    policy_id: ADOPT_ERASED_ID,
-  };
+  if (gone) {
+    if (gone.reason.includes(LEFT_CONTENT_CLAUSE)) return null;
+    return {
+      reason: `the store holds a record under the id of item ${candidate.id}, which an offboarding erased and deleted from the store; an erased id is never adopted again, and the record is deleted`,
+      policy_id: ADOPT_ERASED_ID,
+      purge: true,
+    };
+  }
+  // A record no allowed event ever recorded, in a person scope offboarded
+  // since: a write that never committed, decided before the erasure.
+  if (offboarded(db, candidate.scope) && !history.some((e) => e.decision === "allow"))
+    return {
+      reason: `the store holds a record under item id ${candidate.id} in ${candidate.scope}, which was offboarded, and the log never recorded that id: a write that never committed; it is not adopted, and the record is deleted`,
+      policy_id: ADOPT_OFFBOARDED_ID,
+      purge: true,
+    };
+  return null;
 }

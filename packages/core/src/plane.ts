@@ -20,6 +20,7 @@ import type { ModelLintSetup } from "./lint/model.ts";
 
 export {
   ADOPT_ERASED_ID,
+  ADOPT_OFFBOARDED_ID,
   ADOPT_RETRACT_ID,
   type AdoptReport,
   adoptStoreItems,
@@ -52,6 +53,7 @@ export {
   MAX_ATTEMPT_LENGTH,
 } from "./plane/bypass.ts";
 export {
+  ADOPT_WITHDRAWN_ID,
   type Basis,
   basisNow,
   ERASING_ID,
@@ -67,6 +69,7 @@ export {
   type DeletionReport,
   HANDOVER_CONFLICT_ID,
   HANDOVER_ID,
+  NOT_HANDED_OVER_ID,
   OFFBOARD_BEGIN_ID,
   OFFBOARD_MEMBERSHIP_ID,
   OFFBOARD_REPORT_ID,
