@@ -99,6 +99,13 @@ export function grantAllowed(g: Grant): boolean {
   return colon > 0 && g.to.length - 1 - (colon + 1) > 0;
 }
 
+/** Two grants alike in every field, the expiries compared as instants (card E9.4). */
+export function grantsAlike(a: Grant, b: Grant): boolean {
+  if (a.to !== b.to || a.class !== b.class || a.mode !== b.mode) return false;
+  if (a.expires === undefined || b.expires === undefined) return a.expires === b.expires;
+  return compareTimestamps(a.expires, b.expires) === 0;
+}
+
 /** The provenance kind the plane evaluates: the harness's source when it sets one. */
 export const effectiveKind = (actor: Actor, item: MemoryItem) =>
   actor.source ?? item.provenance.kind;
@@ -113,7 +120,9 @@ export const effectiveKind = (actor: Actor, item: MemoryItem) =>
  * no write is, and no policy field lifts the rule, so no policy allows it.
  * A model, compaction or tool write may not restate the content of an item
  * that an allowed retire or evict event retired in the same scope (ADR 0025,
- * review finding P4-3); `retiredByEvent` lists those items.
+ * review finding P4-3); `retiredByEvent` lists those items. A write may not
+ * carry one grant twice (card E9.4, review finding M1 of PR #44): two grants
+ * are one when every field matches, the expiry as an instant.
  */
 export function writeForbidden(
   policy: Policy,
@@ -135,6 +144,8 @@ export function writeForbidden(
     return true;
   if (item.grants.length > 0 && untrusted) return true;
   if (!item.grants.every(grantAllowed)) return true;
+  if (item.grants.some((g, i) => item.grants.slice(0, i).some((h) => grantsAlike(g, h))))
+    return true;
   if (untrusted && level(item.scope) !== "person") return true;
   const rule = policy.write.find((r) => r.scope === level(item.scope));
   if (!rule) return false;

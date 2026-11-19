@@ -85,6 +85,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/grants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add or remove grants on one item as its owner (card E9.4, ADR 0034); 200 with the decision's update event. */
+        post: operations["changeGrants"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/retain": {
         parameters: {
             query?: never;
@@ -558,6 +575,25 @@ export interface components {
             item: components["schemas"]["MemoryItem"] | null;
             event: components["schemas"]["MemoryEvent"];
             events: components["schemas"]["MemoryEvent"][];
+        };
+        GrantRequest: {
+            actor: components["schemas"]["Actor"];
+            item_id: string;
+            /** @description Grants to add. Each must name a principal or a prefixed pattern, a class and an expiry after the call's time (ADR 0021, decision D4); the plane decides, and refuses one with a deny event. */
+            add?: components["schemas"]["Grant"][];
+            /** @description Grants to remove, each exactly as the item carries it. */
+            remove?: components["schemas"]["Grant"][];
+            /**
+             * Format: date-time
+             * @description The time of the call, UTC ISO 8601; the server's clock when absent.
+             */
+            at?: string;
+        };
+        GrantResponse: {
+            /** @enum {string} */
+            decision: "allow" | "deny";
+            item: components["schemas"]["MemoryItem"] | null;
+            event: components["schemas"]["MemoryEvent"];
         };
         RetainRequest: {
             actor: components["schemas"]["Actor"];
@@ -1196,6 +1232,93 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GateResponse"];
+                };
+            };
+            /** @description the request fails its schema, or the plane refused the call (InvalidCallError) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description the Host or Origin is not this loopback server's, or the actor may not explain this read */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description no such route, or the read id names no read event */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description the body is over the size limit */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description the body is not application/json */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description an unexpected error; the body carries no internals */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description the workspace has no store */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    changeGrants: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GrantRequest"];
+            };
+        };
+        responses: {
+            /** @description the result; a policy decision of any kind is 200 with its event */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GrantResponse"];
                 };
             };
             /** @description the request fails its schema, or the plane refused the call (InvalidCallError) */

@@ -1,9 +1,11 @@
-// The inspector's fixture workspace (cards E8.5 and E8.6), built at test time
-// from fixtures/workspaces/inspector/: its policy, and a workload of writes and
+// The inspector's fixture workspaces, built at test time: fixtures/workspaces/
+// inspector/ (cards E8.5 and E8.6) with its own policy, and fixtures/
+// workspaces/twin/ (card E9.4) under the twin profile itself
+// (packages/pi-package/profiles/twin.yaml). Each is a workload of writes and
 // reads with fixed item ids and times, each step one call of the generated
 // client bound to the app in process. Event ids come from a counter, so the
 // log is the same on every run. The UI's tests and the layer 6 Playwright
-// test (test/e2e/inspector.e2e.test.ts) share it.
+// tests (test/e2e/inspector.e2e.test.ts, test/e2e/twin.e2e.test.ts) share them.
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { createFakeAdapter } from "@engram/adapters";
@@ -19,6 +21,12 @@ export { builtUi, type Listening, listen, UI_DIST } from "@engram/server";
 export const FIXTURE_DIR = fileURLToPath(
   new URL("../../../fixtures/workspaces/inspector/", import.meta.url),
 );
+export const TWIN_DIR = fileURLToPath(
+  new URL("../../../fixtures/workspaces/twin/", import.meta.url),
+);
+export const TWIN_PROFILE = fileURLToPath(
+  new URL("../../pi-package/profiles/twin.yaml", import.meta.url),
+);
 export const PORT = 7313;
 export const BASE = `http://127.0.0.1:${PORT}`;
 
@@ -33,8 +41,8 @@ export interface Workload {
   steps: Step[];
 }
 
-export const workload = (): Workload =>
-  JSON.parse(readFileSync(`${FIXTURE_DIR}workload.json`, "utf8")) as Workload;
+export const workload = (dir = FIXTURE_DIR): Workload =>
+  JSON.parse(readFileSync(`${dir}workload.json`, "utf8")) as Workload;
 
 /** An item as the fixture names it, with every other field at its plain default. */
 function itemOf(actor: Actor, over: Record<string, unknown>) {
@@ -65,10 +73,16 @@ export function clientOf(app: { fetch: (r: Request) => Response | Promise<Respon
   return createEngramClient({ baseUrl: BASE, fetch: async (r) => app.fetch(r) });
 }
 
-/** The workspace after the fixture's workload, with each read's response by actor name. */
-export async function inspectorWorkspace() {
-  const w = workload();
-  const policy = parsePolicy(readFileSync(`${FIXTURE_DIR}policy.yaml`, "utf8"), "policy.yaml");
+/** The inspector's fixture workspace (cards E8.5 and E8.6). */
+export const inspectorWorkspace = () => fixtureWorkspace(FIXTURE_DIR, `${FIXTURE_DIR}policy.yaml`);
+
+/** The twin screens' fixture workspace (card E9.4), under the twin profile. */
+export const twinWorkspace = () => fixtureWorkspace(TWIN_DIR, TWIN_PROFILE);
+
+/** The workspace after a fixture's workload, with each read's response by actor name. */
+export async function fixtureWorkspace(dir: string, policyFile: string) {
+  const w = workload(dir);
+  const policy = parsePolicy(readFileSync(policyFile, "utf8"), policyFile);
   const db = openSqlite(":memory:");
   migrate(db);
   let n = 0;

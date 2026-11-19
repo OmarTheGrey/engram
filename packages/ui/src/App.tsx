@@ -7,24 +7,44 @@
 // its event records. Another actor's read shows its event and the line that
 // only its reader may explain it. Every call goes through the generated
 // client (data.ts); the logic of each view is in view.ts.
+//
+// The twin screens (card E9.4): the lanes are grouped into the viewer's
+// person scope, its role scopes, the team and org scopes it is a member of,
+// and what it reached through a grant; each item lists its grants, and in a
+// scope the viewer is a member of, the grants editor adds or removes one
+// through Plane.changeGrants. The plane decides; the editor shows the
+// decision and its event's rule and reason, and the lanes and timeline are
+// read again, so the change's update event appears on the timeline.
 import { type ReactNode, useEffect, useMemo, useState } from "react";
-import type { Actor, EngramClient, MemoryEvent } from "./api/index.ts";
-import { fetchExplain, fetchViewer, type Inspection, inspect } from "./data.ts";
+import type { Actor, EngramClient, Grant, MemoryEvent } from "./api/index.ts";
+import { changeGrants, fetchExplain, fetchViewer, type Inspection, inspect } from "./data.ts";
 import {
+  EMPTY_DRAFT,
   type ExplainView,
   eventDetail,
   filterEvents,
   filterOptions,
   formatMemberships,
+  GRANT_CLASSES,
+  GRANT_MODES,
+  type GrantDraft,
+  type GrantOutcome,
+  grantFrom,
+  grantLabel,
+  grantOutcome,
   keepSelection,
   type Lane,
+  type LaneItem,
   LEVELS,
+  laneGroups,
   NO_FILTER,
   scopeText,
   score,
   type TimelineFilter,
   viewerFrom,
 } from "./view.ts";
+
+type GrantChangeRequest = { add?: Grant[]; remove?: Grant[] };
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
@@ -39,6 +59,10 @@ export function App({ client }: { client: EngramClient }) {
   // the new viewer may see it (keepSelection); the filters reset.
   const [selected, setSelected] = useState<MemoryEvent | null>(null);
   const [explain, setExplain] = useState<ExplainView | null>(null);
+  // A grant change reads the lanes and the timeline again (card E9.4); its
+  // decision stays on screen until the viewer changes.
+  const [reload, setReload] = useState(0);
+  const [outcome, setOutcome] = useState<GrantOutcome | null>(null);
 
   useEffect(() => {
     let live = true;
@@ -57,12 +81,20 @@ export function App({ client }: { client: EngramClient }) {
     };
   }, [client]);
 
+  // A new viewer resets the timeline's filters and clears a grant decision.
+  const chooseViewer = (next: Actor) => {
+    setOutcome(null);
+    setFilter(NO_FILTER);
+    setViewer(next);
+  };
+
   useEffect(() => {
     if (viewer === null) return;
     let live = true;
+    // The read is again on every change of viewer and after every grant change.
+    void reload;
     setInspection(null);
     setError(null);
-    setFilter(NO_FILTER);
     inspect(client, viewer)
       .then((i) => {
         if (!live) return;
@@ -73,7 +105,7 @@ export function App({ client }: { client: EngramClient }) {
     return () => {
       live = false;
     };
-  }, [client, viewer]);
+  }, [client, viewer, reload]);
 
   useEffect(() => {
     setExplain(null);
@@ -91,7 +123,7 @@ export function App({ client }: { client: EngramClient }) {
     <div className="app">
       <header>
         <h1>Engram inspector</h1>
-        {ready && <ViewerPicker viewer={viewer} onChange={setViewer} />}
+        {ready && <ViewerPicker viewer={viewer} onChange={chooseViewer} />}
       </header>
       {error !== null && (
         <p className="error" role="alert">
@@ -103,7 +135,21 @@ export function App({ client }: { client: EngramClient }) {
       )}
       {inspection !== null && (
         <main>
-          <Lanes lanes={inspection.lanes} readId={inspection.read.event.id} />
+          <Lanes
+            lanes={inspection.lanes}
+            readId={inspection.read.event.id}
+            policy={inspection.read.policy}
+            outcome={outcome}
+            onGrant={(itemId, change) => {
+              if (viewer === null) return;
+              changeGrants(client, viewer, itemId, change)
+                .then((r) => {
+                  setOutcome(grantOutcome(itemId, r));
+                  setReload((n) => n + 1);
+                })
+                .catch((e) => setError(message(e)));
+            }}
+          />
           <Timeline
             events={inspection.events}
             filter={filter}
@@ -182,38 +228,220 @@ function ViewerPicker({
   );
 }
 
-function Lanes({ lanes, readId }: { lanes: Lane[]; readId: string }) {
+function Lanes({
+  lanes,
+  readId,
+  policy,
+  outcome,
+  onGrant,
+}: {
+  lanes: Lane[];
+  readId: string;
+  policy: string;
+  outcome: GrantOutcome | null;
+  onGrant: (itemId: string, change: GrantChangeRequest) => void;
+}) {
+  const groups = useMemo(() => laneGroups(lanes), [lanes]);
   return (
     <section className="lanes">
       <h2>Scope lanes</h2>
       <p className="muted">
         What the viewer may read now, from one read through the plane (read{" "}
-        <code data-testid="lanes-read">{readId}</code>).
+        <code data-testid="lanes-read">{readId}</code>) under policy{" "}
+        <code data-testid="lanes-policy">{policy}</code>.
       </p>
-      <div className="lane-row">
-        {lanes.map((lane) => (
-          <div className="lane" key={lane.scope} data-testid="lane" data-scope={lane.scope}>
-            <h3>
-              {lane.scope}{" "}
-              <span className="muted">{lane.member ? "member" : "through a grant"}</span>
-            </h3>
-            {lane.items.length === 0 && <p className="muted">nothing to read</p>}
-            {lane.items.map((item) => (
-              <article key={item.id} className="card" data-testid="lane-item" data-id={item.id}>
-                <p>{item.content}</p>
-                <dl>
-                  <Pair term="class">{item.class}</Pair>
-                  <Pair term="status">{item.status}</Pair>
-                  <Pair term="provenance">{item.provenance}</Pair>
-                  <Pair term="validity">{item.validity}</Pair>
-                  <Pair term="rank">{item.rank ?? "-"}</Pair>
-                </dl>
-              </article>
-            ))}
-          </div>
-        ))}
-      </div>
+      {groups.map((group) => (
+        <div className="lane-group" key={group.key} data-testid="lane-group" data-group={group.key}>
+          <h3>{group.title}</h3>
+          <p className="muted lane-group-note">{group.note}</p>
+          {group.lanes.length === 0 ? (
+            <p className="muted" data-testid="lane-group-empty">
+              The viewer is a member of no {group.key === "role" ? "role" : "person"} scope.
+            </p>
+          ) : (
+            <div className="lane-row">
+              {group.lanes.map((lane) => (
+                <LaneView key={lane.scope} lane={lane} outcome={outcome} onGrant={onGrant} />
+              ))}
+            </div>
+          )}
+        </div>
+      ))}
     </section>
+  );
+}
+
+function LaneView({
+  lane,
+  outcome,
+  onGrant,
+}: {
+  lane: Lane;
+  outcome: GrantOutcome | null;
+  onGrant: (itemId: string, change: GrantChangeRequest) => void;
+}) {
+  return (
+    <div className="lane" data-testid="lane" data-scope={lane.scope} data-kind={lane.kind}>
+      <h4>
+        {lane.scope} <span className="muted">{lane.member ? "member" : "through a grant"}</span>
+      </h4>
+      {lane.items.length === 0 && <p className="muted">nothing to read</p>}
+      {lane.items.map((item) => (
+        <article key={item.id} className="card" data-testid="lane-item" data-id={item.id}>
+          <p>{item.content}</p>
+          <dl>
+            <Pair term="class">{item.class}</Pair>
+            <Pair term="status">{item.status}</Pair>
+            <Pair term="owner">{item.owner}</Pair>
+            <Pair term="provenance">{item.provenance}</Pair>
+            <Pair term="validity">{item.validity}</Pair>
+            <Pair term="rank">{item.rank ?? "-"}</Pair>
+          </dl>
+          <Grants
+            item={item}
+            editable={lane.member}
+            outcome={outcome?.itemId === item.id ? outcome : null}
+            onGrant={onGrant}
+          />
+        </article>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * An item's grants, and in a scope the viewer is a member of the editor that
+ * adds or removes one. Which change is allowed is the plane's decision.
+ */
+function Grants({
+  item,
+  editable,
+  outcome,
+  onGrant,
+}: {
+  item: LaneItem;
+  editable: boolean;
+  outcome: GrantOutcome | null;
+  onGrant: (itemId: string, change: GrantChangeRequest) => void;
+}) {
+  return (
+    <div className="grants" data-testid="grants">
+      <p className="muted">
+        Grants
+        {item.grantsShown === "yours" && (
+          <span data-testid="grants-yours">
+            {" "}
+            naming you only; its owner {item.owner} sees all of them
+          </span>
+        )}
+      </p>
+      {item.grants.length === 0 ? (
+        <p className="muted" data-testid="grants-none">
+          none: only members of its scope read it
+        </p>
+      ) : (
+        <ul>
+          {item.grants.map((g) => (
+            <li key={grantLabel(g)} data-testid="grant" data-to={g.to}>
+              {grantLabel(g)}{" "}
+              {editable && (
+                <button
+                  type="button"
+                  data-testid="grant-remove"
+                  onClick={() => onGrant(item.id, { remove: [g] })}
+                >
+                  Remove
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      {editable && <GrantForm onAdd={(g) => onGrant(item.id, { add: [g] })} />}
+      {outcome !== null && (
+        <p
+          data-testid="grant-outcome"
+          data-decision={outcome.decision}
+          data-event={outcome.eventId}
+        >
+          <span className={`decision ${outcome.decision}`}>{outcome.decision}</span>{" "}
+          <code data-testid="grant-outcome-policy">{outcome.policyId}</code>: {outcome.reason}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function GrantForm({ onAdd }: { onAdd: (grant: Grant) => void }) {
+  const [draft, setDraft] = useState<GrantDraft>(EMPTY_DRAFT);
+  const [problem, setProblem] = useState<string | null>(null);
+  const set = (key: keyof GrantDraft) => (value: string) => setDraft({ ...draft, [key]: value });
+  return (
+    <details data-testid="grant-add">
+      <summary>Add a grant</summary>
+      <form
+        className="grant-form"
+        onSubmit={(e) => {
+          e.preventDefault();
+          const grant = grantFrom(draft);
+          if (typeof grant === "string") return setProblem(grant);
+          setProblem(null);
+          onAdd(grant);
+        }}
+      >
+        <label>
+          To
+          <input
+            data-testid="grant-to"
+            placeholder="person:sam"
+            value={draft.to}
+            onChange={(e) => set("to")(e.target.value)}
+          />
+        </label>
+        <label>
+          Class
+          <select
+            data-testid="grant-class"
+            value={draft.class}
+            onChange={(e) => set("class")(e.target.value)}
+          >
+            <option value="">none</option>
+            {GRANT_CLASSES.map((c) => (
+              <option key={c}>{c}</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Mode
+          <select
+            data-testid="grant-mode"
+            value={draft.mode}
+            onChange={(e) => set("mode")(e.target.value)}
+          >
+            {GRANT_MODES.map((m) => (
+              <option key={m}>{m}</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Expires (UTC)
+          <input
+            data-testid="grant-expires"
+            placeholder="2026-12-01"
+            value={draft.expires}
+            onChange={(e) => set("expires")(e.target.value)}
+          />
+        </label>
+        <button type="submit" data-testid="grant-submit">
+          Grant
+        </button>
+        {problem !== null && (
+          <span className="error" data-testid="grant-problem">
+            {problem}
+          </span>
+        )}
+      </form>
+    </details>
   );
 }
 

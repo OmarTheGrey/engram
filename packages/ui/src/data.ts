@@ -1,13 +1,16 @@
-// What the inspector asks the server (cards E8.5 and E8.6), every call through
+// What the inspector asks the server (cards E8.5, E8.6 and E9.4), every call through
 // the generated client (ADR 0027 decision 2) and none to anything else. The
 // lanes are a Plane.read as the viewer (POST /read), so they pass the read
 // filter and leave a read event (AGENTS.md rule 2); the timeline is the
 // events the server's visibleEvents gives the viewer (POST /events); explain
-// is Plane.explain as the viewer (POST /explain/{readId}).
+// is Plane.explain as the viewer (POST /explain/{readId}); a grant change is
+// Plane.changeGrants as the viewer (POST /grants).
 import type {
   Actor,
   EngramClient,
   ExplainResponse,
+  Grant,
+  GrantResponse,
   MemoryEvent,
   ReadResponse,
 } from "./api/index.ts";
@@ -82,6 +85,27 @@ export async function fetchExplain(
   if (response.status === 403) return explainView(viewer, event, null, contents);
   if (data === undefined) fail(response, error);
   return explainView(viewer, event, data satisfies ExplainResponse, contents);
+}
+
+/**
+ * A grant change on one item as the viewer (card E9.4): Plane.changeGrants
+ * through POST /grants, which decides it and records one update event either
+ * way. The inspector is a person at a screen, so the viewer acts with source
+ * `user`, as `engram write` does; like the viewer itself it is self-asserted
+ * until authentication (ADR 0027 decision 5). A deny is a response, not an
+ * error.
+ */
+export async function changeGrants(
+  client: EngramClient,
+  viewer: Actor,
+  itemId: string,
+  change: { add?: Grant[]; remove?: Grant[] },
+): Promise<GrantResponse> {
+  const { data, error, response } = await client.POST("/api/v1/grants", {
+    body: { actor: { ...viewer, source: "user" }, item_id: itemId, ...change },
+  });
+  if (data === undefined) fail(response, error);
+  return data;
 }
 
 export interface Inspection {

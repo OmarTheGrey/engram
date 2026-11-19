@@ -1,0 +1,186 @@
+// Grant changes on the plane (card E9.4, ADR 0034, proposed). The pure gate
+// (policy/grants.ts) decides; this file checks the call, then decides and
+// commits in one slot of the write queue, so a change is judged against the
+// projection the previous change left.
+//
+// Every decision is one `update` event with its reason and policy id
+// (AGENTS.md rule 3). On allow, the item becomes a new version in place, as
+// a promotion's status change or an offboarding's handover does (ADR 0005,
+// decision D1): same id, version plus one, the new grants, rewritten to the
+// store through the adapter, and the event carries the stored item, so
+// replay rebuilds it. Content, provenance, validity and status are untouched.
+// A store failure after the gate allowed is one deny event under
+// engram/write/store-failure; a transient failure is rethrown, as a write's
+// is (decision D6), while a store that refuses for good to rewrite the record
+// (NotDeletableError, such as a Claude Code memory file the files adapter
+// holds read-only) is a deny decision returned to the caller, since no retry
+// would succeed. A grant change runs no budget check: it changes no count.
+//
+// The write queue orders calls over one db handle only; another handle on
+// the same log (another process) may erase or change the item while the store
+// write is in flight (review finding C1 of PR #44). So the event is committed
+// in one transaction, which holds the log's write lock (BEGIN IMMEDIATE on
+// SQLite, the advisory lock on Postgres), and the item is read again there,
+// as the read path does since PR #41. If it is gone, or no longer the item
+// the decision was made on, the decision is stale: one deny event under
+// engram/grant/conflict, and the store is put back, the rewritten record
+// deleted when the item is gone and the projected item written back
+// otherwise. An offboarding and an adoption commit under the same lock, so a
+// change never brings erased content back.
+import { type Actor, checkCall, InvalidCallError } from "../actor.ts";
+import { isNotDeletable } from "../adapter.ts";
+import { appendEvent } from "../events.ts";
+import { itemById } from "../items.ts";
+import type { GrantResult, PlaneDeps } from "../plane.ts";
+import { readableScope, STORE_FAILURE_ID } from "../policy/evaluate.ts";
+import { evaluateGrantChange, GRANT_CONFLICT_ID, type GrantChange } from "../policy/grants.ts";
+import { Grant, Id, type MemoryItem, SCHEMA_VERSION } from "../schema.ts";
+import { inWriteQueue } from "./queue.ts";
+import { refProblem } from "./write.ts";
+
+const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
+
+/** The change, checked: two lists of well-formed grants, not both empty. */
+function checkChange(change: unknown): GrantChange {
+  const bad = (what: string) => new InvalidCallError(`Plane.changeGrants: ${what}`);
+  if (typeof change !== "object" || change === null) throw bad("the change is not an object");
+  const out: GrantChange = {};
+  for (const key of ["add", "remove"] as const) {
+    const list = (change as Record<string, unknown>)[key];
+    if (list === undefined) continue;
+    if (!Array.isArray(list)) throw bad(`${key} is not a list`);
+    out[key] = list.map((g, i) => {
+      const parsed = Grant.safeParse(g);
+      if (!parsed.success)
+        throw bad(
+          `${key}[${i}] is not a grant: ${parsed.error.issues.map((x) => `${x.path.join(".") || "grant"}: ${x.message}`).join("; ")}`,
+        );
+      return parsed.data;
+    });
+  }
+  if ((out.add?.length ?? 0) + (out.remove?.length ?? 0) === 0)
+    throw bad("the change adds and removes nothing");
+  return out;
+}
+
+async function decideAndCommit(
+  deps: PlaneDeps,
+  actor: Actor,
+  itemId: string,
+  change: GrantChange,
+  at: string,
+): Promise<GrantResult> {
+  const { db, adapter, newId, policy } = deps;
+  const item = itemById(db, itemId);
+  const d = evaluateGrantChange(policy, actor, itemId, item, change, at);
+  const scope = d.visible && item ? item.scope : null;
+  const common = {
+    ts: at,
+    op: "update" as const,
+    actor: actor.id,
+    item_id: itemId,
+    scope_from: scope,
+    scope_to: scope,
+    schema_version: SCHEMA_VERSION as typeof SCHEMA_VERSION,
+  };
+  const refuse = (reason: string, policy_id: string): GrantResult => ({
+    decision: "deny",
+    item: null,
+    event: appendEvent(db, { ...common, id: newId(), decision: "deny", reason, policy_id }),
+  });
+  if (d.decision === "deny" || d.grants === null || !item) return refuse(d.reason, d.policy_id);
+
+  const next = {
+    ...item,
+    grants: d.grants,
+    version: item.version + 1,
+    store_ref: null,
+  } as MemoryItem;
+  let stored: MemoryItem;
+  try {
+    const store_ref = await adapter.write(next);
+    const problem = refProblem(deps, next, store_ref, false);
+    if (problem) throw new Error(problem);
+    stored = { ...next, store_ref };
+  } catch (e) {
+    const failed = refuse(
+      `the gate allowed the grant change (${d.policy_id}) but the store ${adapter.name} ${isNotDeletable(e) ? "refuses to rewrite the record" : "failed"}: ${errorText(e)}; the grants are unchanged`,
+      STORE_FAILURE_ID,
+    );
+    if (isNotDeletable(e)) return failed;
+    throw e;
+  }
+  const decidedOn = JSON.stringify(item);
+  const committed = db.transaction(() => {
+    const now = itemById(db, itemId);
+    if (now && JSON.stringify(now) === decidedOn)
+      return {
+        now,
+        event: appendEvent(db, {
+          ...common,
+          id: newId(),
+          decision: "allow",
+          reason: d.reason,
+          policy_id: d.policy_id,
+          item: stored,
+        }),
+      };
+    const why = now
+      ? `item ${itemId} changed on another handle of this log (version ${item.version} to ${now.version}) while the grant change was being stored; the decision was made on a version that no longer stands, so the change is refused and the store is given the projected version back`
+      : `item ${itemId} was erased or removed on another handle of this log while the grant change was being stored; the change is refused and the store record it rewrote is deleted`;
+    return {
+      now,
+      event: appendEvent(db, {
+        ...common,
+        id: newId(),
+        decision: "deny",
+        reason: why,
+        policy_id: GRANT_CONFLICT_ID,
+      }),
+    };
+  });
+  const { now, event } = committed;
+  if (event.decision === "deny") {
+    // Put the store back as the log has it, outside the lock (adapters are
+    // asynchronous). A failure is one more deny event, and rethrown.
+    try {
+      if (now) await adapter.write({ ...now, store_ref: null } as MemoryItem);
+      else await adapter.delete(stored.store_ref as NonNullable<MemoryItem["store_ref"]>);
+    } catch (e) {
+      refuse(
+        `after the grant change's conflict (${GRANT_CONFLICT_ID}) the store ${adapter.name} could not be put back (${now ? "writing the projected version" : "deleting the rewritten record"}): ${errorText(e)}`,
+        STORE_FAILURE_ID,
+      );
+      throw e;
+    }
+    return { decision: "deny", item: null, event };
+  }
+  // The owner is a member of the scope; the item goes back only if the read
+  // matrix also lets its level read the scope, as for a promotion (P5-7).
+  return {
+    decision: "allow",
+    item: readableScope(policy, actor, stored.scope) ? stored : null,
+    event,
+  };
+}
+
+/**
+ * Plane.changeGrants. The call is checked (actor, time, item id and the
+ * change) before the log is touched; then the decide-and-commit runs in one
+ * slot of the write queue.
+ */
+export function changeGrants(
+  deps: PlaneDeps,
+  actor: Actor,
+  itemId: string,
+  change: GrantChange,
+  at: string,
+): Promise<GrantResult> {
+  checkCall(actor, at, "changeGrants");
+  if (!Id.safeParse(itemId).success)
+    throw new InvalidCallError(
+      `Plane.changeGrants: invalid item id ${JSON.stringify(itemId)}; expected a UUIDv7`,
+    );
+  const checked = checkChange(change);
+  return inWriteQueue(deps.db, () => decideAndCommit(deps, actor, itemId, checked, at));
+}

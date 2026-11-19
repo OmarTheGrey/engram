@@ -100,7 +100,7 @@ import {
   type Plane,
 } from "../../src/plane.ts";
 import { itemsAt } from "../../src/replay.ts";
-import type { MemoryEvent, MemoryItem, Policy } from "../../src/schema.ts";
+import type { Grant, MemoryEvent, MemoryItem, Policy } from "../../src/schema.ts";
 import { addSeconds, compareTimestamps } from "../../src/time.ts";
 import {
   arbActor,
@@ -116,6 +116,7 @@ import {
 } from "../generators.ts";
 import {
   budgetVictims,
+  grantsAlike,
   pastTtl,
   patternCovers,
   promotionPermitted,
@@ -767,7 +768,8 @@ describe("invariants", () => {
   const I5 =
     "invariant 5: after any write sequence no scope holds more active items of a class than its budget, every retire or evict event carries a reason and a policy id, and replay reproduces them";
   test(I5, async () => {
-    const seen = {
+    /** What a walk saw: each walk counts its own (verification finding V-6 of PR #44). */
+    const counters = () => ({
       recency: 0,
       utility: 0,
       utilityByReads: 0,
@@ -779,222 +781,391 @@ describe("invariants", () => {
       adopted: 0,
       memberDenied: 0,
       ttlLeftToUser: 0,
-    };
-    await fc.assert(
-      fc.asyncProperty(arbBudgetPolicy, arbSteps, async (policy, steps) => {
-        const { db, adapter, plane, under, newId } = freshPlane(policy);
-        /** How many times a read returned each item: the oracle's own count. */
-        const reads = new Map<string, number>();
-        const ruleFor = (p: Policy, scope: string, cls: MemoryItem["class"]) =>
-          p.retention.find((r) => r.scope === levelOf(scope) && r.class === cls);
-        const shown = (events: MemoryEvent[]) =>
-          events.map((e) => `${e.op}/${e.decision} ${e.item_id}: ${e.reason}`).join("; ");
+      grantChanged: 0,
+      grantAdmitted: 0,
+      refusedAfterRemoval: 0,
+      refusedForClass: 0,
+      refusedForExpiry: 0,
+      reclassed: 0,
+    });
+    const first = counters();
+    const second = counters();
+    const walk = (seen: ReturnType<typeof counters>) => async (policy: Policy, steps: Step[]) => {
+      const { db, adapter, plane, under, newId } = freshPlane(policy);
+      /** How many times a read returned each item: the oracle's own count. */
+      const reads = new Map<string, number>();
+      const ruleFor = (p: Policy, scope: string, cls: MemoryItem["class"]) =>
+        p.retention.find((r) => r.scope === levelOf(scope) && r.class === cls);
+      const shown = (events: MemoryEvent[]) =>
+        events.map((e) => `${e.op}/${e.decision} ${e.item_id}: ${e.reason}`).join("; ");
 
-        /** Checks one write's budget check, `slot`, against the oracle at its write event. */
-        const checkWrite = (w: MemoryEvent, slot: MemoryEvent[]) => {
-          const it = w.item as MemoryItem;
-          const after = itemsAt(db, w.seq);
-          const active = after.filter(
-            (x) =>
-              x.scope === it.scope &&
-              x.class === it.class &&
-              x.status === "active" &&
-              !pastTtl(policy, x, w.ts),
-          );
-          const rule = ruleFor(policy, it.scope, it.class);
-          const changed = lastChanged(allEvents(db), w.seq);
-          const expected =
-            rule && rule.budget !== null
-              ? budgetVictims(rule.eviction, rule.budget, active, changed, reads, it.id)
-              : [];
-          const got = slot.map((e) => [e.op, e.decision, e.item_id]);
-          const why = `${shown(slot)} after writing ${it.id} (${it.class} in ${it.scope}) under ${JSON.stringify(rule)}`;
-          if (expected === "ask") {
-            seen.manual++;
-            expect(got, `a manual overage asks once: ${why}`).toEqual([["evict", "ask", null]]);
-            return;
+      /** Checks one write's budget check, `slot`, against the oracle at its write event. */
+      const checkWrite = (w: MemoryEvent, slot: MemoryEvent[]) => {
+        const it = w.item as MemoryItem;
+        const after = itemsAt(db, w.seq);
+        const active = after.filter(
+          (x) =>
+            x.scope === it.scope &&
+            x.class === it.class &&
+            x.status === "active" &&
+            !pastTtl(policy, x, w.ts),
+        );
+        const rule = ruleFor(policy, it.scope, it.class);
+        const changed = lastChanged(allEvents(db), w.seq);
+        const expected =
+          rule && rule.budget !== null
+            ? budgetVictims(rule.eviction, rule.budget, active, changed, reads, it.id)
+            : [];
+        const got = slot.map((e) => [e.op, e.decision, e.item_id]);
+        const why = `${shown(slot)} after writing ${it.id} (${it.class} in ${it.scope}) under ${JSON.stringify(rule)}`;
+        if (expected === "ask") {
+          seen.manual++;
+          expect(got, `a manual overage asks once: ${why}`).toEqual([["evict", "ask", null]]);
+          return;
+        }
+        expect(got, `the budget check evicts exactly the oracle's victims: ${why}`).toEqual(
+          expected.map((v) => ["evict", "allow", v]),
+        );
+        if (expected.length > 0 && rule) {
+          seen[rule.eviction === "recency" ? "recency" : "utility"]++;
+          if (rule.eviction === "utility") {
+            const byAge = budgetVictims("recency", rule.budget ?? 0, active, changed, reads, it.id);
+            if (JSON.stringify(byAge) !== JSON.stringify(expected)) seen.utilityByReads++;
           }
-          expect(got, `the budget check evicts exactly the oracle's victims: ${why}`).toEqual(
-            expected.map((v) => ["evict", "allow", v]),
-          );
-          if (expected.length > 0 && rule) {
-            seen[rule.eviction === "recency" ? "recency" : "utility"]++;
-            if (rule.eviction === "utility") {
-              const byAge = budgetVictims(
-                "recency",
-                rule.budget ?? 0,
-                active,
-                changed,
-                reads,
-                it.id,
-              );
-              if (JSON.stringify(byAge) !== JSON.stringify(expected)) seen.utilityByReads++;
-            }
-          }
-        };
+        }
+      };
 
-        /** Checks one sweep's events against the oracle, given the log before it. */
-        const checkSweep = (
-          p: Policy,
-          actor: Actor,
-          scope: string,
-          at: string,
-          before: number,
-          events: MemoryEvent[],
-        ) => {
-          const got = events.map((e) => [e.op, e.decision, e.item_id]);
-          if (!actor.memberships.includes(scope)) {
-            seen.memberDenied++;
-            expect(got, "a non-member's sweep is one deny").toEqual([["retire", "deny", null]]);
-            return;
-          }
-          const log = allEvents(db).filter((e) => e.seq <= before);
-          const state = before < 0 ? [] : itemsAt(db, before);
-          const changed = lastChanged(log, before);
-          const byTtl =
-            (scope.split(":")[0] === "person" && scope === actor.id) || actor.source === "user";
-          const expected: (string | null)[][] = [];
-          for (const cls of ["episodic", "semantic", "procedural"] as const) {
-            const own = state.filter((x) => x.scope === scope && x.class === cls);
-            const expired = own.filter((x) => x.status !== "retired" && pastTtl(p, x, at));
-            if (byTtl) for (const x of expired) expected.push(["retire", "allow", x.id]);
-            else if (expired.length > 0) seen.ttlLeftToUser++;
-            const active = own.filter((x) => x.status === "active" && !pastTtl(p, x, at));
-            const rule = ruleFor(p, scope, cls);
-            if (!rule || rule.budget === null) continue;
-            const victims = budgetVictims(rule.eviction, rule.budget, active, changed, reads);
-            if (victims === "ask") {
-              // Asked once per state: not again while nothing in the class changed.
-              const policyId = `${p.id}/retention/${levelOf(scope)}/${cls}`;
-              const asked = log
-                .filter(
-                  (e) =>
-                    e.op === "evict" &&
-                    e.decision === "ask" &&
-                    e.scope_to === scope &&
-                    e.policy_id === policyId,
-                )
-                .at(-1)?.seq;
-              const latest = Math.max(-1, ...own.map((x) => changed.get(x.id) ?? -1));
-              if (asked === undefined || latest > asked) expected.push(["evict", "ask", null]);
-              continue;
-            }
-            for (const v of victims) expected.push(["evict", "allow", v]);
-          }
-          expect(
-            got,
-            `the sweep of ${scope} by ${actor.id} (${actor.source}) at ${at}: ${shown(events)}`,
-          ).toEqual(expected);
-          seen.swept += events.filter((e) => e.op === "retire").length;
-          seen.sweepEvicted += events.filter(
-            (e) => e.op === "evict" && e.decision === "allow",
-          ).length;
-        };
-
-        for (const [i, step] of steps.entries()) {
-          const at = stepTime(i);
-          const start = allEvents(db).length;
-          if (step.kind === "read") {
-            const { explanations } = await plane.read(WRITER5, { text: step.text, at });
-            for (const e of explanations) reads.set(e.item_id, (reads.get(e.item_id) ?? 0) + 1);
+      /** Checks one sweep's events against the oracle, given the log before it. */
+      const checkSweep = (
+        p: Policy,
+        actor: Actor,
+        scope: string,
+        at: string,
+        before: number,
+        events: MemoryEvent[],
+      ) => {
+        const got = events.map((e) => [e.op, e.decision, e.item_id]);
+        if (!actor.memberships.includes(scope)) {
+          seen.memberDenied++;
+          expect(got, "a non-member's sweep is one deny").toEqual([["retire", "deny", null]]);
+          return;
+        }
+        const log = allEvents(db).filter((e) => e.seq <= before);
+        const state = before < 0 ? [] : itemsAt(db, before);
+        const changed = lastChanged(log, before);
+        const byTtl =
+          (scope.split(":")[0] === "person" && scope === actor.id) || actor.source === "user";
+        const expected: (string | null)[][] = [];
+        for (const cls of ["episodic", "semantic", "procedural"] as const) {
+          const own = state.filter((x) => x.scope === scope && x.class === cls);
+          const expired = own.filter((x) => x.status !== "retired" && pastTtl(p, x, at));
+          if (byTtl) for (const x of expired) expected.push(["retire", "allow", x.id]);
+          else if (expired.length > 0) seen.ttlLeftToUser++;
+          const active = own.filter((x) => x.status === "active" && !pastTtl(p, x, at));
+          const rule = ruleFor(p, scope, cls);
+          if (!rule || rule.budget === null) continue;
+          const victims = budgetVictims(rule.eviction, rule.budget, active, changed, reads);
+          if (victims === "ask") {
+            // Asked once per state: not again while nothing in the class changed.
+            const policyId = `${p.id}/retention/${levelOf(scope)}/${cls}`;
+            const asked = log
+              .filter(
+                (e) =>
+                  e.op === "evict" &&
+                  e.decision === "ask" &&
+                  e.scope_to === scope &&
+                  e.policy_id === policyId,
+              )
+              .at(-1)?.seq;
+            const latest = Math.max(-1, ...own.map((x) => changed.get(x.id) ?? -1));
+            if (asked === undefined || latest > asked) expected.push(["evict", "ask", null]);
             continue;
           }
-          if (step.kind === "retain") {
-            const p = step.tight ? tightened(policy) : policy;
-            const actor = SWEEPERS[step.who];
-            const report = await under(p).retain(actor, step.scope, at);
-            checkSweep(p, actor, step.scope, at, start - 1, report.events);
-            continue;
+          for (const v of victims) expected.push(["evict", "allow", v]);
+        }
+        expect(
+          got,
+          `the sweep of ${scope} by ${actor.id} (${actor.source}) at ${at}: ${shown(events)}`,
+        ).toEqual(expected);
+        seen.swept += events.filter((e) => e.op === "retire").length;
+        seen.sweepEvicted += events.filter(
+          (e) => e.op === "evict" && e.decision === "allow",
+        ).length;
+      };
+
+      /**
+       * Grant changes (card E9.4, review finding I2 of PR #44): the items an
+       * allowed removal left with no grant naming the grantee, so a later
+       * read by the grantee should not return them.
+       */
+      const removedFrom = new Set<string>();
+      /** The oracle's own replay of the allowed events: each item as the last one left it. */
+      const replayed = () => {
+        const state = new Map<string, MemoryItem>();
+        for (const e of allEvents(db)) {
+          if (e.decision !== "allow" || e.item_id === null) continue;
+          if (e.item) state.set(e.item_id, e.item);
+          else if (e.op === "retire" || e.op === "evict") {
+            const was = state.get(e.item_id);
+            if (was) state.set(e.item_id, { ...was, status: "retired" });
           }
-          if (step.kind === "adopt") {
-            // An item already in the store, never written through the plane.
-            const stored = { ...step.item, valid_from: at, store_ref: null } as MemoryItem;
-            await adapter.write(stored);
-            const owner: Actor = { id: WRITER5.id, level: "person", memberships: [stored.scope] };
-            const deps = { db, adapter, policy, newId };
-            const report = await adoptStoreItems(deps, owner, stored.scope, at);
-            const added = allEvents(db).slice(start);
-            for (const [k, w] of added.entries()) {
-              if (w.op !== "write" || w.decision !== "allow") continue;
-              if (w.item_id === stored.id) seen.adopted++;
-              const slot: MemoryEvent[] = [];
-              for (const e of added.slice(k + 1)) {
-                if (e.op !== "evict") break;
-                slot.push(e);
-              }
-              checkWrite(w, slot);
-            }
-            expect(report.evictions.map((e) => e.id)).toEqual(
-              added.filter((e) => e.op === "evict").map((e) => e.id),
-            );
-            continue;
-          }
-          // One write, or a batch of writes and a sweep called together.
-          const writes = step.kind === "write" ? [step.item] : step.items;
-          if (writes.length > 1) seen.concurrent++;
-          const held = new Set(currentItems(db).map((x) => x.id));
-          const calls = writes.map((w) => plane.write(WRITER5, { ...w, valid_from: at }, at));
-          const sweep =
-            step.kind === "batch" && step.sweep ? plane.retain(WRITER5, step.sweep, at) : undefined;
-          const results = await Promise.all(calls);
-          const report = await sweep;
+        }
+        return state;
+      };
+      const coversGrantee = (gs: readonly Grant[]) =>
+        gs.some((g) => patternCovers(g.to, GRANTEE5.id));
+
+      for (const [i, step] of steps.entries()) {
+        const at = stepTime(i);
+        const start = allEvents(db).length;
+        if (step.kind === "read") {
+          const reader = step.as === "grantee" ? GRANTEE5 : WRITER5;
+          const { items, explanations } = await plane.read(reader, { text: step.text, at });
+          for (const e of explanations) reads.set(e.item_id, (reads.get(e.item_id) ?? 0) + 1);
+          const state = replayed();
           const log = allEvents(db);
-          for (const result of results) {
-            if (result.event.decision !== "allow") {
-              expect(result.retention, "a denied write runs no budget check").toEqual([]);
-              continue;
+          for (const it of items) {
+            const was = state.get(it.id);
+            expect(was, `read returned ${it.id}, which no allowed event left`).toBeDefined();
+            expect(was?.status, `read returned ${it.id}, not active in the replay`).toBe("active");
+            expect(
+              readable(policy, reader, was as MemoryItem, at),
+              `${reader.id} read ${it.id}, which the oracle's replay does not let it read at ${at}`,
+            ).toBe(true);
+            // The item's grants are those of the latest allowed event for it in the
+            // oracle's replay, so no grant comes back once removed (V-7), and every
+            // change of its grants, or of its class while it carried grants, was its
+            // owner's write or grant change (I1, V-4).
+            expect(
+              it.grants,
+              `${it.id} returned with grants its latest event does not carry`,
+            ).toEqual((was as MemoryItem).grants);
+            let before: MemoryItem | undefined;
+            for (const e of log) {
+              if (e.decision !== "allow" || e.item?.id !== it.id) continue;
+              const prev = before?.grants ?? [];
+              const changed =
+                prev.length !== e.item.grants.length ||
+                !e.item.grants.every((g) => prev.some((h) => grantsAlike(g, h))) ||
+                (before !== undefined && before.class !== e.item.class && prev.length > 0);
+              if (changed)
+                expect(
+                  e.actor === e.item.owner &&
+                    (e.op === "write" ||
+                      (e.op === "update" && e.policy_id === "engram/grant/change")),
+                  `event ${e.seq} changed what the grants of ${it.id} admit, by ${e.actor} (${e.op}, ${e.policy_id}), not its owner's write or grant change`,
+                ).toBe(true);
+              before = e.item;
             }
-            if (held.has(result.event.item_id ?? "")) seen.reused++;
-            // The slot's events follow its write event directly: nothing interleaved.
-            const at0 = log.findIndex((e) => e.id === result.event.id);
-            expect(
-              log.slice(at0 + 1, at0 + 1 + result.retention.length).map((e) => e.id),
-              "a write's budget check runs in its own queue slot",
-            ).toEqual(result.retention.map((e) => e.id));
-            checkWrite(result.event, result.retention);
           }
-          if (report && step.kind === "batch" && step.sweep) {
-            // The sweep was queued last: it ran after every write's slot.
-            const first = report.events[0]?.seq ?? log.length;
-            checkSweep(policy, WRITER5, step.sweep, at, first - 1, report.events);
+          if (reader === GRANTEE5) {
+            if (explanations.some((e) => e.policy_id.endsWith("/read/grants")))
+              seen.grantAdmitted++;
+            const returned = new Set(items.map((x) => x.id));
+            for (const id of removedFrom)
+              if (state.get(id)?.status === "active" && !returned.has(id))
+                seen.refusedAfterRemoval++;
+            // Items the read matched, active and in their window, that a grant names
+            // the grantee on, refused for the grant's class or its expiry (V-5).
+            for (const x of state.values()) {
+              if (returned.has(x.id) || x.status !== "active" || wordOf(x) !== step.text) continue;
+              if (pastTtl(policy, x, at) || compareTimestamps(x.valid_from, at) > 0) continue;
+              if (readable(policy, GRANTEE5, x, at)) continue;
+              const naming = x.grants.filter((g) => patternCovers(g.to, GRANTEE5.id));
+              const live = (g: Grant) =>
+                g.expires === undefined || compareTimestamps(at, g.expires) < 0;
+              if (naming.some((g) => live(g) && g.class !== undefined && g.class !== x.class))
+                seen.refusedForClass++;
+              if (naming.some((g) => !live(g) && (g.class === undefined || g.class === x.class)))
+                seen.refusedForExpiry++;
+            }
           }
+          continue;
         }
-
-        const state = currentItems(db);
-        const lastAt = stepTime(steps.length - 1);
-        for (const rule of policy.retention) {
-          if (rule.budget === null || rule.eviction === "manual") continue;
-          for (const scope of I5_SCOPES.filter((s) => levelOf(s) === rule.scope)) {
-            const live = state.filter(
-              (x) =>
-                x.scope === scope &&
-                x.class === rule.class &&
-                x.status === "active" &&
-                !pastTtl(policy, x, lastAt),
-            ).length;
-            expect(
-              live,
-              `${scope} holds ${live} active ${rule.class} items not past their ttl, budget ${rule.budget}`,
-            ).toBeLessThanOrEqual(rule.budget);
+        if (step.kind === "reclass") {
+          // A rewrite that changes an item's class, its grants as they are (V-4).
+          const actor = GRANTERS[step.who];
+          const live = currentItems(db).filter((x) => x.status !== "retired");
+          const target = live[step.pick % Math.max(1, live.length)];
+          if (!target || target.class === step.to) continue;
+          const word = wordOf(target);
+          const rewritten = {
+            ...target,
+            class: step.to,
+            content: step.to === "procedural" ? { body: word, tools: [] } : word,
+            version: target.version + 1,
+            store_ref: null,
+          } as MemoryItem;
+          const result = await plane.write(actor, rewritten, at);
+          if (result.event.decision !== "allow") continue;
+          if (target.grants.length > 0) {
+            expect(actor, "only the owner changes the class of an item carrying grants").toBe(
+              WRITER5,
+            );
+            seen.reclassed++;
           }
+          checkWrite(result.event, result.retention);
+          continue;
         }
-        const log = allEvents(db);
-        for (const e of log.filter((x) => x.op === "retire" || x.op === "evict")) {
-          expect(e.reason, `event ${e.seq} has a reason`).not.toBe("");
-          expect(e.policy_id, `event ${e.seq} names a retention or adoption rule`).toMatch(
-            /^(budgeted(-tight)?\/retention\/(person|team)\/(episodic|semantic|procedural)|engram\/retention\/(item-ttl|membership)|engram\/adopt\/retract)$/,
+        if (step.kind === "grant") {
+          const actor = GRANTERS[step.who];
+          // The item: one the walk holds, chosen by the step's pick, or a pool id it does not hold.
+          // A removal prefers an item that carries a grant, so removals that land are common.
+          const live = currentItems(db).filter((x) => x.status !== "retired");
+          const granted = live.filter((x) => x.grants.length > 0);
+          const held = step.remove && granted.length > 0 ? granted : live;
+          const target = held.length > 0 ? held[step.pick % held.length] : undefined;
+          const targetId = target?.id ?? (POOL[step.pick % POOL.length] as string);
+          const cls = target?.class ?? "semantic";
+          const other = cls === "semantic" ? "episodic" : "semantic";
+          const add = step.add.map(
+            (g): Grant => ({
+              to: g.to,
+              class: g.ownClass ? cls : other,
+              mode: "read",
+              expires: stepTime(i + g.lasts),
+            }),
           );
-          if (e.decision === "allow") expect(e.item_id).not.toBeNull();
+          const remove = step.remove && target?.grants[0] ? [target.grants[0]] : [];
+          if (add.length + remove.length === 0) continue;
+          const result = await plane.changeGrants(actor, targetId, { add, remove }, at);
+          expect(allEvents(db).slice(start), "a grant change is one event").toEqual([result.event]);
+          if (result.decision !== "allow") continue;
+          expect(actor, "only the owner, user-sourced, changes grants").toBe(WRITER5);
+          seen.grantChanged++;
+          const now = currentItems(db).find((x) => x.id === targetId);
+          if (now && coversGrantee(now.grants)) removedFrom.delete(targetId);
+          else if (now && remove.length > 0 && coversGrantee(remove)) removedFrom.add(targetId);
+          continue;
         }
-        rebuild(db);
-        expect(currentItems(db), "replay reproduces every retirement").toEqual(state);
-        if (log.length > 0) expect(itemsAt(db, log.length - 1)).toEqual(state);
-      }),
-      { numRuns: RUNS, seed: seedFor(I5) },
-    );
+        if (step.kind === "retain") {
+          const p = step.tight ? tightened(policy) : policy;
+          const actor = SWEEPERS[step.who];
+          const report = await under(p).retain(actor, step.scope, at);
+          checkSweep(p, actor, step.scope, at, start - 1, report.events);
+          continue;
+        }
+        if (step.kind === "adopt") {
+          // An item already in the store, never written through the plane.
+          const stored = { ...step.item, valid_from: at, store_ref: null } as MemoryItem;
+          await adapter.write(stored);
+          const owner: Actor = { id: WRITER5.id, level: "person", memberships: [stored.scope] };
+          const deps = { db, adapter, policy, newId };
+          const report = await adoptStoreItems(deps, owner, stored.scope, at);
+          const added = allEvents(db).slice(start);
+          for (const [k, w] of added.entries()) {
+            if (w.op !== "write" || w.decision !== "allow") continue;
+            if (w.item_id === stored.id) seen.adopted++;
+            const slot: MemoryEvent[] = [];
+            for (const e of added.slice(k + 1)) {
+              if (e.op !== "evict") break;
+              slot.push(e);
+            }
+            checkWrite(w, slot);
+          }
+          expect(report.evictions.map((e) => e.id)).toEqual(
+            added.filter((e) => e.op === "evict").map((e) => e.id),
+          );
+          continue;
+        }
+        // One write, or a batch of writes and a sweep called together.
+        const writes = step.kind === "write" ? [step.item] : step.items;
+        if (writes.length > 1) seen.concurrent++;
+        const held = new Set(currentItems(db).map((x) => x.id));
+        const calls = writes.map((w) => plane.write(WRITER5, { ...w, valid_from: at }, at));
+        const sweep =
+          step.kind === "batch" && step.sweep ? plane.retain(WRITER5, step.sweep, at) : undefined;
+        const results = await Promise.all(calls);
+        const report = await sweep;
+        const log = allEvents(db);
+        for (const result of results) {
+          if (result.event.decision !== "allow") {
+            expect(result.retention, "a denied write runs no budget check").toEqual([]);
+            continue;
+          }
+          if (held.has(result.event.item_id ?? "")) seen.reused++;
+          // The slot's events follow its write event directly: nothing interleaved.
+          const at0 = log.findIndex((e) => e.id === result.event.id);
+          expect(
+            log.slice(at0 + 1, at0 + 1 + result.retention.length).map((e) => e.id),
+            "a write's budget check runs in its own queue slot",
+          ).toEqual(result.retention.map((e) => e.id));
+          checkWrite(result.event, result.retention);
+        }
+        if (report && step.kind === "batch" && step.sweep) {
+          // The sweep was queued last: it ran after every write's slot.
+          const first = report.events[0]?.seq ?? log.length;
+          checkSweep(policy, WRITER5, step.sweep, at, first - 1, report.events);
+        }
+      }
+
+      const state = currentItems(db);
+      const lastAt = stepTime(steps.length - 1);
+      for (const rule of policy.retention) {
+        if (rule.budget === null || rule.eviction === "manual") continue;
+        for (const scope of I5_SCOPES.filter((s) => levelOf(s) === rule.scope)) {
+          const live = state.filter(
+            (x) =>
+              x.scope === scope &&
+              x.class === rule.class &&
+              x.status === "active" &&
+              !pastTtl(policy, x, lastAt),
+          ).length;
+          expect(
+            live,
+            `${scope} holds ${live} active ${rule.class} items not past their ttl, budget ${rule.budget}`,
+          ).toBeLessThanOrEqual(rule.budget);
+        }
+      }
+      const log = allEvents(db);
+      for (const e of log.filter((x) => x.op === "retire" || x.op === "evict")) {
+        expect(e.reason, `event ${e.seq} has a reason`).not.toBe("");
+        expect(e.policy_id, `event ${e.seq} names a retention or adoption rule`).toMatch(
+          /^(budgeted(-tight)?\/retention\/(person|team)\/(episodic|semantic|procedural)|engram\/retention\/(item-ttl|membership)|engram\/adopt\/retract)$/,
+        );
+        if (e.decision === "allow") expect(e.item_id).not.toBeNull();
+      }
+      rebuild(db);
+      expect(currentItems(db), "replay reproduces every retirement").toEqual(state);
+      if (log.length > 0) expect(itemsAt(db, log.length - 1)).toEqual(state);
+    };
+    await fc.assert(fc.asyncProperty(arbBudgetPolicy, arbSteps, walk(first)), {
+      numRuns: RUNS,
+      seed: seedFor(I5),
+    });
+    const {
+      grantChanged,
+      grantAdmitted,
+      refusedAfterRemoval,
+      refusedForClass,
+      refusedForExpiry,
+      reclassed,
+      ...budgets
+    } = first;
     expect(
-      Object.values(seen).every((n) => n > 0),
-      `invariant 5 needs evictions by recency and by utility (some where reads, not age, chose the victim), a manual ask, a sweep that retired an expired item and one that evicted, a rewrite of a held id, a concurrent batch, an adopted item, a refused non-member sweep, and expired shared items a session left to a user; it saw ${JSON.stringify(seen)}`,
+      Object.values(budgets).every((n) => n > 0),
+      `invariant 5 needs evictions by recency and by utility (some where reads, not age, chose the victim), a manual ask, a sweep that retired an expired item and one that evicted, a rewrite of a held id, a concurrent batch, an adopted item, a refused non-member sweep, and expired shared items a session left to a user; it saw ${JSON.stringify(first)}`,
+    ).toBe(true);
+    // The same walk with grant changes, writes carrying grants (of another class
+    // than their item's too), class-changing rewrites and reads by a grantee,
+    // under a policy that honours grants (card E9.4, review finding I2 and
+    // verification finding V-5 of PR #44). Its own steps, seed and counters, so
+    // the walk above draws exactly as it always has and is judged by its own.
+    await fc.assert(fc.asyncProperty(arbBudgetPolicy.map(honouring), arbGrantSteps, walk(second)), {
+      numRuns: RUNS,
+      seed: seedFor(`${I5}, grant changes`),
+    });
+    const grants = {
+      grantChanged: second.grantChanged,
+      grantAdmitted: second.grantAdmitted,
+      refusedAfterRemoval: second.refusedAfterRemoval,
+      refusedForClass: second.refusedForClass,
+      refusedForExpiry: second.refusedForExpiry,
+      reclassed: second.reclassed,
+    };
+    expect(
+      Object.values(grants).every((n) => n > 0),
+      `invariant 5's grant walk needs allowed grant changes, reads a changed grant admitted, reads refused after a removal, for a grant's class and for its expiry, and class changes of items carrying grants; it saw ${JSON.stringify(second)}`,
     ).toBe(true);
   }, 240_000);
 });
@@ -1018,6 +1189,23 @@ const SWEEPERS = {
   user: WRITER5,
   session: { id: "person:a", level: "person", memberships: [...I5_SCOPES] } as Actor,
   outsider: { id: "person:z", level: "person", memberships: ["person:z"] } as Actor,
+} as const;
+/** A reader with no scope of the walk's: it reads only what a grant admits (card E9.4). */
+const GRANTEE5: Actor = { id: "person:g", level: "person", memberships: ["person:g"] } as Actor;
+/**
+ * Who asks for a grant change: the owner of every walk item, user-sourced; a
+ * co-holder, a user-sourced member of both scopes who owns none of them; and
+ * the owner's agent, model-sourced. Only the first may change a grant.
+ */
+const GRANTERS = {
+  owner: WRITER5,
+  coholder: {
+    id: "person:c",
+    level: "person",
+    memberships: [...I5_SCOPES],
+    source: "user",
+  } as Actor,
+  agent: { ...WRITER5, source: "model" } as Actor,
 } as const;
 /** Step i runs i seconds after a fixed start, so a ttl of a few seconds runs out mid-sequence. */
 const stepTime = (i: number) => addSeconds("2026-10-25T12:00:00Z", i) as string;
@@ -1058,7 +1246,24 @@ const arbBudgetPolicy: fc.Arbitrary<Policy> = fc
 type Step =
   | { kind: "write"; item: MemoryItem }
   | { kind: "batch"; items: MemoryItem[]; sweep: string | null }
-  | { kind: "read"; text: string }
+  | { kind: "read"; text: string; as?: "writer" | "grantee" }
+  | {
+      /** A rewrite changing the class of a held item (verification finding V-4 of PR #44). */
+      kind: "reclass";
+      who: "owner" | "coholder";
+      pick: number;
+      to: MemoryItem["class"];
+    }
+  | {
+      kind: "grant";
+      who: keyof typeof GRANTERS;
+      /** Which held item, modulo how many the walk holds when the step runs. */
+      pick: number;
+      /** To the grantee or a pattern covering it; of the item's class or not; lasting `lasts` steps (expired when not positive). */
+      add: { to: string; ownClass: boolean; lasts: number }[];
+      /** Remove the item's first grant, when it has one. */
+      remove: boolean;
+    }
   | { kind: "retain"; scope: string; who: keyof typeof SWEEPERS; tight: boolean }
   | { kind: "adopt"; item: MemoryItem };
 
@@ -1119,6 +1324,87 @@ const arbStep: fc.Arbitrary<Step> = fc.oneof(
   },
 );
 const arbSteps = fc.array(arbStep, { minLength: 1, maxLength: 14 });
+
+/** The budget policy honouring grants, for the walk with grant changes. */
+const honouring = (p: Policy): Policy => ({ ...p, read: { ...p.read, honour_grants: true } });
+
+/**
+ * Invariant 5's steps with grant changes and reads by the grantee (card E9.4,
+ * review finding I2 of PR #44): a grant change asked by the owner, a
+ * co-holder or the owner's agent, on an item the walk holds, adding a grant
+ * to the grantee (or a pattern covering it) of the item's class or not,
+ * expired or lasting a few steps, and removing a grant the item carries.
+ */
+const arbGrantStep: fc.Arbitrary<Step> = fc
+  .record({
+    who: fc.constantFrom<keyof typeof GRANTERS>("owner", "owner", "owner", "coholder", "agent"),
+    pick: fc.nat({ max: 15 }),
+    add: fc.array(
+      fc.record({
+        to: fc.constantFrom(GRANTEE5.id, "person:g*"),
+        ownClass: fc.constantFrom(true, true, true, false),
+        lasts: fc.constantFrom(0, 3, 30),
+      }),
+      { maxLength: 1 },
+    ),
+    remove: fc.boolean(),
+  })
+  .map((g): Step => ({ kind: "grant", ...g }));
+/** An item's word: its text, or a procedure's body. */
+const wordOf = (x: MemoryItem) =>
+  typeof x.content === "string"
+    ? x.content
+    : String((x.content as { body?: unknown }).body ?? JSON.stringify(x.content));
+
+/**
+ * A write carrying grants to the grantee or another principal, of any class
+ * (another class than the item's included, which a first write may carry),
+ * expiring at a step of the walk (verification finding V-5 of PR #44).
+ */
+const arbGrantedWrite: fc.Arbitrary<Step> = fc
+  .tuple(
+    arbI5Item,
+    fc.array(
+      fc.record({
+        to: fc.constantFrom(GRANTEE5.id, "person:g*", "person:z"),
+        class: fc.constantFrom<MemoryItem["class"]>("episodic", "semantic", "procedural"),
+        mode: fc.constant("read" as const),
+        at: fc.nat({ max: 16 }),
+      }),
+      { minLength: 1, maxLength: 2 },
+    ),
+  )
+  .map(
+    ([item, gs]): Step => ({
+      kind: "write",
+      item: {
+        ...item,
+        grants: gs.map(({ at, ...g }) => ({ ...g, expires: stepTime(at) as string })),
+      } as MemoryItem,
+    }),
+  );
+const arbReclass: fc.Arbitrary<Step> = fc
+  .record({
+    who: fc.constantFrom<"owner" | "coholder">("owner", "owner", "coholder"),
+    pick: fc.nat({ max: 15 }),
+    to: fc.constantFrom<MemoryItem["class"]>("episodic", "semantic", "procedural"),
+  })
+  .map((r): Step => ({ kind: "reclass", ...r }));
+const arbGrantSteps = fc.array(
+  fc.oneof(
+    { arbitrary: arbStep, weight: 6 },
+    { arbitrary: arbGrantStep, weight: 2 },
+    { arbitrary: arbGrantedWrite, weight: 2 },
+    { arbitrary: arbReclass, weight: 1 },
+    {
+      arbitrary: fc
+        .constantFrom(...WORDS)
+        .map((text): Step => ({ kind: "read", text, as: "grantee" })),
+      weight: 2,
+    },
+  ),
+  { minLength: 1, maxLength: 14 },
+);
 
 /** The seq of the last allowed event that changed each item, up to and including `seq`. */
 function lastChanged(events: MemoryEvent[], seq: number): Map<string, number> {
@@ -1565,7 +1851,9 @@ async function promotionsLandOnlyWherePermitted(name: string) {
  * item's content. `read` filters; `write` and `promote` return only the
  * caller's own item; `events` is the audit log, which surfaces mirror to the
  * session record and never pass to a model; `simulate` replays only the
- * workload it is given, on scratch logs and stores (card E8.9).
+ * workload it is given, on scratch logs and stores (card E8.9);
+ * `changeGrants` refuses an outsider in the same words for a hidden and an
+ * unknown item, naming no scope, and returns no item (card E9.4, ADR 0034).
  */
 async function planeSurfaceLeaksNothing() {
   const SECRET = "the vault code is 4711";
@@ -1578,6 +1866,7 @@ async function planeSurfaceLeaksNothing() {
   };
   const { plane } = freshPlane(policy);
   expect(Object.keys(plane).sort(), "a new Plane method must be classified here").toEqual([
+    "changeGrants",
     "checkWrite",
     "distill",
     "events",
@@ -1663,6 +1952,21 @@ async function planeSurfaceLeaksNothing() {
   );
   expect(await rejection(plane.explain(outsider, ownRead.id))).toBeInstanceOf(ExplainDeniedError);
   leaks("lint", await plane.lint(outsider, at, "person:s"));
+  // A grant the outsider asks for on the secret: refused, no item, no scope,
+  // and the same words as for an id that names nothing (card E9.4).
+  const grant = {
+    to: outsider.id,
+    class: "episodic" as const,
+    mode: "read" as const,
+    expires: "2027-01-01T00:00:00Z",
+  };
+  const granted = await plane.changeGrants(outsider, secret.id, { add: [grant] }, at);
+  leaks("changeGrants", granted);
+  expect(granted.item).toBeNull();
+  expect([granted.event.scope_from, granted.event.scope_to]).toEqual([null, null]);
+  const unknown = "01960000-0000-7000-8000-000000000009";
+  const nothing = await plane.changeGrants(outsider, unknown, { add: [grant] }, at);
+  expect(granted.event.reason).toBe(nothing.event.reason.replace(unknown, secret.id));
   // simulate replays only the workload it is given, on scratch logs and
   // stores (card E8.9): the outsider's own read of the secret's words finds
   // nothing, and the real log gains no event.

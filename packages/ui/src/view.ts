@@ -1,14 +1,17 @@
-// The inspector's view logic (cards E8.5 and E8.6; plan
+// The inspector's view logic (cards E8.5, E8.6 and E9.4; plan
 // docs/tasks/gate-b-plan.md, decision 5): pure functions from what the API
 // returned to what each view shows. No policy is decided here (AGENTS.md
 // rule 1): lanes are what Plane.read returned to the viewer, the timeline is
-// what visibleEvents gave, and the explain view's counts are core's
-// readCounts, carried by the explain route. These functions only group,
-// filter what is already visible, and label.
+// what visibleEvents gave, the explain view's counts are core's readCounts,
+// carried by the explain route, and a grant change is decided by the plane
+// (Plane.changeGrants), whose decision the grants editor shows. These
+// functions only group, filter what is already visible, read a form, and label.
 import type {
   Actor,
   ExplainResponse,
   Explanation,
+  Grant,
+  GrantResponse,
   MemoryEvent,
   MemoryItem,
   ReadCounts,
@@ -50,14 +53,44 @@ export interface LaneItem {
   validity: string;
   rank: number | null;
   admittedBy: string | null;
+  owner: string;
+  /**
+   * The grants the lanes show (card E9.4): every grant the item carries when
+   * the viewer is its owner, otherwise only those naming the viewer (review
+   * finding M2 of PR #44). The read returns them all; the inspector does not
+   * show one grantee who else may read the item.
+   */
+  grants: Grant[];
+  /** Whether `grants` is every grant on the item, or only the viewer's own. */
+  grantsShown: "all" | "yours";
+}
+
+/** Does a grant's `to` name `viewerId`: exactly, or by a prefix ending in `*`. Display only. */
+export const namesViewer = (to: string, viewerId: string) =>
+  to.endsWith("*") ? viewerId.startsWith(to.slice(0, -1)) : to === viewerId;
+
+/** The grants to show `viewerId` on an item `owner` owns: all to the owner, its own to anyone else. */
+export function shownGrants(
+  grants: readonly Grant[],
+  owner: string,
+  viewerId: string,
+): { grants: Grant[]; grantsShown: "all" | "yours" } {
+  if (owner === viewerId) return { grants: [...grants], grantsShown: "all" };
+  return { grants: grants.filter((g) => namesViewer(g.to, viewerId)), grantsShown: "yours" };
 }
 
 export interface Lane {
   scope: string;
+  /** The scope's level, read from its name: `person:<id>`, `role:<id>`, `team:<id>` or `org`. */
+  kind: Level;
   /** Whether the viewer is a member of the scope; otherwise it was reached through a grant. */
   member: boolean;
   items: LaneItem[];
 }
+
+/** A scope's level, from its name. */
+export const scopeKind = (scope: string): Level =>
+  (scope === "org" ? "org" : scope.split(":")[0]) as Level;
 
 export const contentText = (item: Pick<MemoryItem, "content">) =>
   typeof item.content === "string" ? item.content : JSON.stringify(item.content);
@@ -75,15 +108,17 @@ export function validityText(validity: { valid_from: string; valid_to: string | 
  * from (reached through a grant), sorted; items in the read's rank order.
  * Only the items the read returned appear: nothing is added from elsewhere.
  */
-export function buildLanes(viewer: Pick<Actor, "memberships">, read: ReadResponse): Lane[] {
+export function buildLanes(viewer: Pick<Actor, "id" | "memberships">, read: ReadResponse): Lane[] {
   const byId = new Map(read.explanations.map((e) => [e.item_id, e]));
   const lanes = new Map<string, Lane>();
-  for (const scope of viewer.memberships) lanes.set(scope, { scope, member: true, items: [] });
+  for (const scope of viewer.memberships)
+    lanes.set(scope, { scope, kind: scopeKind(scope), member: true, items: [] });
   const ranked = [...read.items].sort(
     (a, b) => (byId.get(a.id)?.rank ?? Infinity) - (byId.get(b.id)?.rank ?? Infinity),
   );
   const others = [...new Set(ranked.map((i) => i.scope).filter((s) => !lanes.has(s)))].sort();
-  for (const scope of others) lanes.set(scope, { scope, member: false, items: [] });
+  for (const scope of others)
+    lanes.set(scope, { scope, kind: scopeKind(scope), member: false, items: [] });
   for (const item of ranked) {
     const e = byId.get(item.id);
     lanes.get(item.scope)?.items.push({
@@ -95,10 +130,136 @@ export function buildLanes(viewer: Pick<Actor, "memberships">, read: ReadRespons
       validity: validityText(item),
       rank: e?.rank ?? null,
       admittedBy: e?.policy_id ?? null,
+      owner: item.owner,
+      ...shownGrants(item.grants, item.owner, viewer.id),
     });
   }
   return [...lanes.values()];
 }
+
+// Person versus role lanes (card E9.4, the twin profile, ADR 0021).
+
+export type LaneGroupKey = "person" | "role" | "shared" | "granted";
+
+export interface LaneGroup {
+  key: LaneGroupKey;
+  title: string;
+  /** What the group holds, in one line. */
+  note: string;
+  lanes: Lane[];
+}
+
+/**
+ * The lanes in the twin's groups: the viewer's person scope, the role scopes
+ * it holds, the team and org scopes it is a member of, and the scopes it
+ * reached only through a grant. The person and role groups are always
+ * shown, empty or not, since the split is what the twin profile is about;
+ * the other two only when they hold a lane. Lane order within a group is
+ * buildLanes' order.
+ */
+export function laneGroups(lanes: readonly Lane[]): LaneGroup[] {
+  const of = (key: LaneGroupKey) =>
+    lanes.filter((l) =>
+      key === "granted"
+        ? !l.member
+        : l.member && (key === "shared" ? l.kind === "team" || l.kind === "org" : l.kind === key),
+    );
+  const groups: LaneGroup[] = [
+    {
+      key: "person",
+      title: "Person scope",
+      note: "The viewer's own memory: no one else reads it without a grant.",
+      lanes: of("person"),
+    },
+    {
+      key: "role",
+      title: "Role scopes",
+      note: "The work memory of each role the viewer holds, handed to a successor at offboarding.",
+      lanes: of("role"),
+    },
+    {
+      key: "shared",
+      title: "Team and org",
+      note: "Shared scopes the viewer is a member of.",
+      lanes: of("shared"),
+    },
+    {
+      key: "granted",
+      title: "Through a grant",
+      note: "Items in scopes the viewer is not a member of, admitted by a live grant naming it.",
+      lanes: of("granted"),
+    },
+  ];
+  return groups.filter((g) => g.key === "person" || g.key === "role" || g.lanes.length > 0);
+}
+
+// The grants editor (card E9.4).
+
+export const GRANT_CLASSES = ["episodic", "semantic", "procedural"] as const;
+export const GRANT_MODES = ["read", "read_write"] as const;
+
+/** The add-grant form as typed: an empty class or expiry means none. */
+export interface GrantDraft {
+  to: string;
+  class: string;
+  mode: string;
+  expires: string;
+}
+
+export const EMPTY_DRAFT: GrantDraft = { to: "", class: "semantic", mode: "read", expires: "" };
+
+const DATE = /^\d{4}-\d{2}-\d{2}$/;
+const INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;
+
+/**
+ * The grant a draft names, or why it names none. Only the form is read here:
+ * a date becomes midnight UTC, a timestamp must be UTC with a Z, and an empty
+ * class or expiry is left out. Whether the grant is acceptable (a principal
+ * or a prefixed pattern, a class, an expiry in the future) is the plane's
+ * decision, recorded as an event either way; the editor shows it.
+ */
+export function grantFrom(draft: GrantDraft): Grant | string {
+  const to = draft.to.trim();
+  if (to === "") return "a grant names who it is for, such as person:sam";
+  if (draft.class !== "" && !(GRANT_CLASSES as readonly string[]).includes(draft.class))
+    return `unknown class ${draft.class}`;
+  if (!(GRANT_MODES as readonly string[]).includes(draft.mode)) return `unknown mode ${draft.mode}`;
+  const typed = draft.expires.trim();
+  let expires: string | undefined;
+  if (typed === "") expires = undefined;
+  else if (DATE.test(typed)) expires = `${typed}T00:00:00Z`;
+  else if (INSTANT.test(typed)) expires = typed;
+  else return "the expiry is a UTC date (2026-12-01) or timestamp (2026-12-01T00:00:00Z)";
+  return {
+    to,
+    ...(draft.class === "" ? {} : { class: draft.class as NonNullable<Grant["class"]> }),
+    mode: draft.mode as Grant["mode"],
+    ...(expires === undefined ? {} : { expires }),
+  };
+}
+
+/** A grant as the editor lists it. */
+export function grantLabel(g: Grant): string {
+  const until = g.expires === undefined ? "no expiry" : `until ${g.expires}`;
+  return `${g.to}: ${g.class ?? "any class"}, ${g.mode}, ${until}`;
+}
+
+/** What the editor says about the plane's decision on a change. */
+export interface GrantOutcome {
+  itemId: string;
+  decision: GrantResponse["decision"];
+  policyId: string;
+  reason: string;
+  eventId: string;
+}
+
+export const grantOutcome = (itemId: string, r: GrantResponse): GrantOutcome => ({
+  itemId,
+  decision: r.decision,
+  policyId: r.event.policy_id,
+  reason: r.event.reason,
+  eventId: r.event.id,
+});
 
 // The timeline (card E8.5).
 

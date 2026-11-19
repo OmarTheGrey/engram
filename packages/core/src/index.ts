@@ -33,6 +33,7 @@ export {
 } from "./plane/retrieve.ts";
 export * from "./plane.ts";
 export * from "./policy/evaluate.ts";
+export * from "./policy/grants.ts";
 export * from "./policy/load.ts";
 export * from "./policy/promotion.ts";
 export * from "./policy/retention.ts";

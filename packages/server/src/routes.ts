@@ -139,6 +139,23 @@ export const ROUTES: readonly Route[] = [
         review: body.review === true,
       }),
   }),
+  route<z.infer<typeof C.GrantRequest>>({
+    id: "changeGrants",
+    method: "post",
+    path: "/grants",
+    summary:
+      "Add or remove grants on one item as its owner (card E9.4, ADR 0034); 200 with the decision's update event.",
+    request: C.GrantRequest,
+    response: C.GrantResponse,
+    errors: [400, 503],
+    handler: ({ workspace, body, now }) =>
+      workspace.plane.changeGrants(
+        body.actor,
+        body.item_id,
+        { add: body.add, remove: body.remove },
+        body.at ?? now(),
+      ),
+  }),
   route<z.infer<typeof C.RetainRequest>>({
     id: "retain",
     method: "post",

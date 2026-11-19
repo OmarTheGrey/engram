@@ -82,6 +82,8 @@ Both are checked at the boundary, both are the basis of H1, and every denial is 
 
 Adoption is the write path for what a store already holds, such as a Claude Code memory folder written before the plane governed it (`adoptStoreItems`, packages/core/src/plane/adopt.ts; ADR 0007, decision D8). The plane lists the store's items in one scope and runs each through step 3 as the store's owner with source `import`, recording an allowed item at the store_ref it already has without writing it; every adoption event's reason starts "adopted from store <name>: ". An item the projection already holds as the store has it is skipped, and so is a denied item whose hash, recorded in its deny event, is unchanged. When the store no longer lists a projected item of that scope, or the gate denies the store's new version of it, the plane retires the projected item with one retire event (`engram/adopt/retract`), so a read never returns content the store no longer has; when the store reports the entry as unreadable (`Adapter.diagnostics`, such as a file whose frontmatter no longer parses), the retire reason says so and names the store's diagnostic. Fields the store derives from its own bookkeeping rather than stores (`Adapter.derivedFields`, such as the files adapter's modification-time `valid_from`) are left out of the comparison and the deny hash, so touching a file adds no event. `engram read` adopts the folder before every read.
 
+Grant changes (card E9.4, ADR 0034, proposed) are a governed write of their own: `Plane.changeGrants(actor, itemId, { add, remove }, at)` lets only the item's owner, user-sourced and a member of its scope, add or remove a grant on an item that is not retired. Every added grant passes the write gate's grant rule (`engram/write/grant`) and must not have expired; a removal names a grant the item carries. The pure gate is `packages/core/src/policy/grants.ts`. Every decision is one `update` event; an allowed change (`engram/grant/change`) is a new version in place (same id, version plus one, only the grants changed), rewritten to the store, and a store that refuses for good to rewrite the record (a Claude Code memory file, read-only in the files adapter) is a deny decision under `engram/write/store-failure`. The event is committed under the log's lock with the item read again, so a change decided on a version another process has since changed or erased is one deny event (`engram/grant/conflict`) and the store is put back. That covers the grant change being the slow side only: an offboarding on another handle deletes the store records before it commits its erasure, and a grant change, a rewrite or a handover committing in that window can leave erased content behind, the cross-handle gap of ADR 0007 (decision N2) that card E2.6 closes for every store-then-log path. What a grant being added may be is one check, `grantDefect` (packages/core/src/policy/evaluate.ts), on both paths: a rewrite through `Plane.write` that changes an item's grants, or the class of an item carrying grants, is held to the same owner and source rules (import allowed, for the owner's own store record). So on those paths a grant reads as its owner's consent; a first write may still name another owner (ADR 0006), which the backlog records. The read path returns every grant on an item; the inspector shows a viewer who is not its owner only the grants naming it.
+
 ## Read path
 
 1. An agent calls `memory_read`, or pi assembles context before a model call.
@@ -115,6 +117,7 @@ Plane
   write(actor, itemIn, at) -> WriteResult    policy and provenance, then the adapter, then the event carrying store_ref; at is the injected time
   read(actor, query) -> ReadResult           search in readable member scopes, match granted items, filter, explanation, event
   promote(actor, itemId, toScope, at, {review?}) -> GateResult   evidence from the log, judged as a write into toScope; new version or in place (ADR 0026)
+  changeGrants(actor, itemId, {add?, remove?}, at) -> GrantResult   the owner's grant change, one update event, a new version in place (card E9.4, ADR 0034)
   retain(actor, scope, at) -> RetentionReport  expiry then budgets over one scope, as a member, in the write queue (ADR 0025)
   lint(actor, at, scope) -> LintReport     the enabled deterministic lints over one scope, as a member, then the enabled model-based
                                              ones when the plane has a lint model (card L3); one lint event per finding (card L1)
@@ -136,13 +139,16 @@ Surfaces
                  or streamable HTTP on loopback, every call as that actor with source model; the pi extension's
                  tool definitions and memory tag; engram hook claude-code, a PreToolUse hook that blocks bypasses
   HTTP           packages/server, a Hono app over one route table (ADR 0027): /api/v1/items, /items/check, /read,
-                 /explain/{readId}, /promote, /retain, /events (visibleEvents), /policy, /lint, /simulate,
+                 /explain/{readId}, /promote, /grants, /retain, /events (visibleEvents), /policy, /lint, /simulate,
                  /distill (501 naming D2), /bypass, /viewer, /health; a decision is 200 with its event;
                  loopback Host and Origin only, JSON bodies only, no CORS, 1 MiB bodies; OpenAPI generated
                  into sdk/openapi.json, the client into sdk/ts and packages/ui/src/api
   CLI            engram write | read | promote | explain | retain | lint | simulate (--candidate), each one client call, in
                  process over app.fetch or to --server; engram serve | mcp | hook claude-code | doctor
-  UI             inspector at / of engram serve, as one viewer: lanes by scope (a Plane.read), timeline (visibleEvents), explain with the read's counts (v0, E8.5 and E8.6); later diff, findings, review queue, live session via pi RPC
+  UI             inspector at / of engram serve, as one viewer: lanes by scope (a Plane.read), timeline (visibleEvents), explain with the read's counts (v0, E8.5 and E8.6);
+                 the twin screens (E9.4): lanes grouped into the viewer's person scope, its role scopes, team and org, and
+                 what it reached through a grant, each item's grants, and a grants editor over /grants in member scopes;
+                 later diff, findings, review queue, live session via pi RPC
 ```
 
 ## Repository layout
