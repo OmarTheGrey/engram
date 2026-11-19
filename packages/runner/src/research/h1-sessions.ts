@@ -359,7 +359,8 @@ export function memInvSessions(
       const key = sessionKey(r);
       const reading = readings.get(key);
       if (reading !== undefined) used.add(key);
-      else if (r.outcome.verdict === "UNREAD") unread.push(key);
+      // A session the turn limit cut off is excluded and not in the kit: it needs no reading.
+      else if (r.outcome.verdict === "UNREAD" && r.excluded === undefined) unread.push(key);
       return memInvViolation(r, reading);
     },
     options,

@@ -681,6 +681,34 @@ describe("the blind UNREAD kit: opaque ids in a seeded order, joined back throug
       UNREAD: unreadRows.length,
     });
   });
+
+  test("a session the turn limit cut off needs no reading: it is not in the kit, and keeps its reason", () => {
+    // RV1 leaves turn-limited sessions out of the kit; the readings, which read every
+    // session the kit holds, must still be accepted with one in the run.
+    const capped = {
+      ...memInvRow("mib-02", `${PROSE_REFUSAL} Cut off.`, { condition: "C5", seed: 8 }),
+      excluded: "turn limit" as const,
+    };
+    const run = [...rows, capped];
+    const { key, templates } = unreadKit(run, cases, SEED);
+    expect(key.sessions.map(sessionKey)).not.toContain(sessionKey(capped));
+    expect(key.sessions).toHaveLength(unreadRows.length);
+    const files = templates.map((t) => ({
+      ...t,
+      replies: t.replies.map((r) => ({
+        ...r,
+        verdict: (verdictsByReply.get(r.proposal) as Record<string, string>)[t.reader] as string,
+      })),
+    }));
+    const out = memInvSessions(
+      run,
+      families,
+      options,
+      joinBlindReadings(files, key, run, cases, SEED),
+    );
+    expect(out.readings_applied).toBe(unreadRows.length);
+    expect(out.exclusions["turn limit"]).toBe(1);
+  });
 });
 
 describe("MEM-INV-Bench sessions", () => {
