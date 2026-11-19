@@ -32,6 +32,14 @@ Amendments made in the review fix pass of PR 3 (findings R3-1, R3-2, R3-6, R3-8,
 - The hook's default actor is `agent:claude-code` with no memberships, so its block events are visible only to that id; the fixture passes `--as person:dana`, so the session owner sees them in the timeline (R3-8).
 - `--root` and a relative `--db` resolve against `$CLAUDE_PROJECT_DIR`, else the input's `cwd`, else the hook's cwd, and the fixture names its root as `${CLAUDE_PROJECT_DIR}/memory` in exec form (R3-10).
 
+Amendments proposed by card RV5, 2026-11-20 (findings RV-SRF-6 to RV-SRF-9 of the repository review of the surfaces). Status: proposed, for the lead's acceptance; drafted by the card's agent.
+
+- RV-SRF-6: `engram mcp --http` keeps one server per MCP session (the SDK's stateful streamable HTTP pattern: an initialize request with no `mcp-session-id` starts one, later requests name it, an unknown id is 404, at most 64 sessions are kept and the oldest is closed past that). Before, the stateless transport built a server per request, so memory_simulate replayed an empty workload. Session ids are random UUIDs; they identify a session and authenticate nothing (ADR 0027 decision 4, loopback only).
+- RV-SRF-7: over stdio, when the client's input ends, the calls already received are answered before the server closes (up to 30 seconds). Before, their replies were dropped though their writes had committed.
+- RV-SRF-8: the hook records every block as source `model` whatever source its actor was given; a test now holds it (`packages/mcp/test/hook.test.ts`).
+- RV-SRF-9: `engram hook claude-code --protect <file>` (repeatable) guards a file with its `-wal`, `-shm` and `-journal` files. With `--server` the hook takes no `--db`, so it protected the default log, not the one `engram serve --db` names; a member serving another log passes it here (`docs/dogfood.md`). Asking the server for its log path (in `/health`) was not taken: it would tell any loopback caller where the log lives.
+- The hook sends no time with a block (ADR 0027, amendment of RV5).
+
 ## Alternatives considered
 
 No alternatives were recorded beyond the recommendation.
