@@ -12,6 +12,11 @@
 // surfaces pass `at`. A reason names no item, seq or count to an actor who
 // cannot read the scope (review finding P4-4).
 //
+// Each decision is read and committed in one transaction, under the log's
+// lock (card E2.6): a writer or an offboarding on another handle of the same
+// log, which the write queue does not order, cannot commit between what a
+// sweep or a budget check reads and what it appends.
+//
 // Utility (review finding P4-5, closed by schema version 1) counts the read
 // events that returned an item, by their `item_ids`, so a database rebuilt
 // from the log, or a log replayed elsewhere, decides a utility eviction again.
@@ -137,12 +142,14 @@ export function enforceBudget(
 ): MemoryEvent[] {
   // No budget for this scope level and class: nothing to read or decide.
   if ((retentionRule(deps.policy, scope, cls)?.budget ?? null) === null) return [];
-  const items = currentItems(deps.db).filter((i) => i.scope === scope && i.class === cls);
-  const retirements = decide(deps, actor, scope, at, items, {
-    expiry: false,
-    ...(protect === undefined ? {} : { protect }),
+  return deps.db.transaction(() => {
+    const items = currentItems(deps.db).filter((i) => i.scope === scope && i.class === cls);
+    const retirements = decide(deps, actor, scope, at, items, {
+      expiry: false,
+      ...(protect === undefined ? {} : { protect }),
+    });
+    return retirements.length === 0 ? [] : commit(deps, actor, scope, at, retirements);
   });
-  return retirements.length === 0 ? [] : commit(deps, actor, scope, at, retirements);
 }
 
 /**
@@ -168,7 +175,7 @@ export function retain(
     throw new InvalidCallError(
       `Plane.retain: invalid scope ${JSON.stringify(scope)}; expected person:<id>, role:<id>, team:<id> or org`,
     );
-  return inWriteQueue(deps.db, () => sweep(deps, actor, scope, at));
+  return inWriteQueue(deps.db, () => deps.db.transaction(() => sweep(deps, actor, scope, at)));
 }
 
 function sweep(deps: PlaneDeps, actor: Actor, scope: string, at: string): RetentionReport {

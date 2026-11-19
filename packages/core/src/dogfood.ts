@@ -19,6 +19,19 @@
 //   (`grantsChanged`) in a way the oracle refuses (`grantChangeProblem`: who
 //   widened them, and what was added; ADR 0021, D4 and ADR 0034).
 //
+// Card E2.6's events (ADR 0007's amendment): the offboarding's begin mark,
+// the conflict, erasing and not-handed-over denies, and adoption's deletions
+// change no item, so the replay passes over them and counts them by rule
+// (each a fixed id naming nothing). A withdrawal (`engram/adopt/withdrawn`)
+// puts an item back as it stood before an adoption the withdrawal names: the
+// replay takes it as it takes any allowed change, the oracle accepts it only
+// when the named event is an adoption of that item and the item put back is
+// that item as it stood just before it (`withdrawalProblem`, verification
+// finding V-4 of PR #50), and it is never counted as a narrowing by someone
+// other than the owner. A narrowing (`engram/adopt/narrowed`) may only remove
+// grants (`narrowingProblem`); the plane's recovery makes it, so it is not
+// counted under `watch.narrowed` either.
+//
 // Who read is known by id only: the log does not record an actor's level or
 // memberships. The member declares the actor they ran as (the flags they
 // gave `engram serve`, `engram mcp` and the CLI), and the report prints that
@@ -30,13 +43,18 @@ import { createHash } from "node:crypto";
 import type { Actor } from "./actor.ts";
 import {
   addedGrants,
+  type Earlier,
   grantChangeProblem,
   grantsChanged,
   grantsWiden,
+  NARROWED_RULE,
+  narrowingProblem,
   priorVersion,
   readable,
   replayEvent,
   UNTRUSTED_KINDS,
+  WITHDRAWN_RULE,
+  withdrawalProblem,
   withinValidity,
 } from "./oracle.ts";
 import {
@@ -111,7 +129,9 @@ export function defaultActor(id: string): Actor {
 /** Every rule id core names under `engram/` (a test checks the list against the source). */
 export const ENGRAM_RULES: readonly string[] = [
   "engram/adopt/erased",
+  "engram/adopt/narrowed",
   "engram/adopt/retract",
+  "engram/adopt/withdrawn",
   "engram/bypass/foreign-result",
   "engram/bypass/store-command",
   "engram/bypass/store-path",
@@ -123,10 +143,16 @@ export const ENGRAM_RULES: readonly string[] = [
   "engram/grant/status",
   "engram/grant/unchanged",
   "engram/lint/membership",
+  "engram/offboard/begin",
+  "engram/offboard/conflict",
   "engram/offboard/erase",
+  "engram/offboard/erasing",
   "engram/offboard/handover",
   "engram/offboard/membership",
+  "engram/offboard/not-handed-over",
   "engram/offboard/report",
+  "engram/offboard/swept",
+  "engram/promote/conflict",
   "engram/promote/duplicate",
   "engram/promote/expired",
   "engram/promote/hidden-text",
@@ -142,7 +168,9 @@ export const ENGRAM_RULES: readonly string[] = [
   "engram/retention/item-ttl",
   "engram/retention/membership",
   "engram/retention/sweep",
+  "engram/write/conflict",
   "engram/write/default-deny",
+  "engram/write/erased",
   "engram/write/grant",
   "engram/write/membership",
   "engram/write/retired-content",
@@ -270,6 +298,8 @@ export function dogfoodReport(
   };
   /** Items some allowed version of which held untrusted content. */
   const held = new Set<string>();
+  /** Every event of the log so far, with its item's state just before it, for judging a withdrawal (card E2.6). */
+  const seen = new Map<string, Earlier>();
 
   for (const e of [...events].sort((a, b) => a.seq - b.seq)) {
     r.events++;
@@ -306,6 +336,26 @@ export function dogfoodReport(
       }
     }
 
+    // The plane's own recovery events are judged whatever they do to the
+    // grants: a withdrawal or a narrowing that changes content, removes
+    // nothing or names no adoption is a violation (verification pass 3, V3-4).
+    const recovery =
+      e.decision === "allow" &&
+      e.item !== undefined &&
+      (e.policy_id === WITHDRAWN_RULE || e.policy_id === NARROWED_RULE);
+    if (recovery && e.item) {
+      const before = priorVersion(state, e);
+      const problem =
+        e.policy_id === WITHDRAWN_RULE
+          ? withdrawalProblem(e, (id) => seen.get(id))
+          : narrowingProblem(before, e);
+      if (problem !== undefined) {
+        r.violations.grant_change++;
+        details.push(
+          `${e.op} event ${e.seq} at ${e.ts} by ${e.actor} (${e.policy_id}) on ${e.item.id}: ${problem}`,
+        );
+      }
+    }
     if (e.decision === "allow" && e.item) {
       const item = e.item;
       const before = priorVersion(state, e);
@@ -320,7 +370,11 @@ export function dogfoodReport(
         r.grants.changes++;
         r.grants.added += addedGrants(before?.grants ?? [], item.grants).length;
         r.grants.removed += addedGrants(item.grants, before?.grants ?? []).length;
-        const problem = grantChangeProblem(policy, actorFor(e.actor), before, e, heldBefore);
+        const problem = recovery
+          ? undefined
+          : grantChangeProblem(policy, actorFor(e.actor), before, e, heldBefore, (id) =>
+              seen.get(id),
+            );
         if (problem !== undefined) {
           r.violations.grant_change++;
           details.push(
@@ -331,10 +385,13 @@ export function dogfoodReport(
           const ownChange =
             e.actor === owner &&
             (e.op === "write" || (e.op === "update" && e.policy_id === "engram/grant/change"));
-          if (!ownChange) r.watch.narrowed++;
+          // A withdrawal puts back an earlier version: not a narrowing by another.
+          if (!ownChange && e.policy_id !== WITHDRAWN_RULE && e.policy_id !== NARROWED_RULE)
+            r.watch.narrowed++;
         }
       }
     }
+    seen.set(e.id, { event: e, before: e.item_id === null ? undefined : state.get(e.item_id) });
     replayEvent(state, e);
   }
 

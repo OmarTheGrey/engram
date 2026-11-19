@@ -18,15 +18,16 @@
 //
 // The write queue orders calls over one db handle only; another handle on
 // the same log (another process) may erase or change the item while the store
-// write is in flight (review finding C1 of PR #44). So the event is committed
-// in one transaction, which holds the log's write lock (BEGIN IMMEDIATE on
-// SQLite, the advisory lock on Postgres), and the item is read again there,
-// as the read path does since PR #41. If it is gone, or no longer the item
-// the decision was made on, the decision is stale: one deny event under
-// engram/grant/conflict, and the store is put back, the rewritten record
-// deleted when the item is gone and the projected item written back
-// otherwise. An offboarding and an adoption commit under the same lock, so a
-// change never brings erased content back.
+// write is in flight (review finding C1 of PR #44), and an offboarding may be
+// erasing its person scope. So a change into a person scope an offboarding is
+// erasing is refused at once (engram/offboard/erasing), and the event is
+// committed in one transaction, which holds the log's write lock, after the
+// decision is checked there (card E2.6, plane/commit.ts): if anything changed
+// the item, or an offboarding began erasing its scope, since the decision,
+// the decision is stale. The store is then put back as the log has it (the
+// rewritten record deleted when the item is gone or being erased, the
+// projected item written back otherwise), and one deny event under
+// engram/grant/conflict is appended once it is.
 import { type Actor, checkCall, InvalidCallError } from "../actor.ts";
 import { isNotDeletable } from "../adapter.ts";
 import { appendEvent } from "../events.ts";
@@ -35,6 +36,15 @@ import type { GrantResult, PlaneDeps } from "../plane.ts";
 import { readableScope, STORE_FAILURE_ID } from "../policy/evaluate.ts";
 import { evaluateGrantChange, GRANT_CONFLICT_ID, type GrantChange } from "../policy/grants.ts";
 import { Grant, Id, type MemoryItem, SCHEMA_VERSION } from "../schema.ts";
+import {
+  basisNow,
+  ERASING_ID,
+  erasingReason,
+  erasureOpen,
+  ownBytes,
+  settle,
+  staleness,
+} from "./commit.ts";
 import { inWriteQueue } from "./queue.ts";
 import { refProblem } from "./write.ts";
 
@@ -71,6 +81,8 @@ async function decideAndCommit(
   at: string,
 ): Promise<GrantResult> {
   const { db, adapter, newId, policy } = deps;
+  // The head before the projection is read (commit.ts).
+  const basis = basisNow(db, [itemId], []);
   const item = itemById(db, itemId);
   const d = evaluateGrantChange(policy, actor, itemId, item, change, at);
   const scope = d.visible && item ? item.scope : null;
@@ -89,6 +101,9 @@ async function decideAndCommit(
     event: appendEvent(db, { ...common, id: newId(), decision: "deny", reason, policy_id }),
   });
   if (d.decision === "deny" || d.grants === null || !item) return refuse(d.reason, d.policy_id);
+  // Only a member who may read the item gets here, so the reason may name its scope.
+  if (erasureOpen(db, item.scope)) return refuse(erasingReason(item.scope), ERASING_ID);
+  const decided = { ...basis, scopes: [item.scope] };
 
   const next = {
     ...item,
@@ -110,51 +125,44 @@ async function decideAndCommit(
     if (isNotDeletable(e)) return failed;
     throw e;
   }
-  const decidedOn = JSON.stringify(item);
+  const ref = stored.store_ref as NonNullable<MemoryItem["store_ref"]>;
   const committed = db.transaction(() => {
-    const now = itemById(db, itemId);
-    if (now && JSON.stringify(now) === decidedOn)
-      return {
-        now,
-        event: appendEvent(db, {
-          ...common,
-          id: newId(),
-          decision: "allow",
-          reason: d.reason,
-          policy_id: d.policy_id,
-          item: stored,
-        }),
-      };
-    const why = now
-      ? `item ${itemId} changed on another handle of this log (version ${item.version} to ${now.version}) while the grant change was being stored; the decision was made on a version that no longer stands, so the change is refused and the store is given the projected version back`
-      : `item ${itemId} was erased or removed on another handle of this log while the grant change was being stored; the change is refused and the store record it rewrote is deleted`;
+    const stale = staleness(db, decided, ownBytes(deps, stored));
+    if (stale) return { stale };
     return {
-      now,
       event: appendEvent(db, {
         ...common,
         id: newId(),
-        decision: "deny",
-        reason: why,
-        policy_id: GRANT_CONFLICT_ID,
+        decision: "allow",
+        reason: d.reason,
+        policy_id: d.policy_id,
+        item: stored,
       }),
     };
   });
-  const { now, event } = committed;
-  if (event.decision === "deny") {
-    // Put the store back as the log has it, outside the lock (adapters are
-    // asynchronous). A failure is one more deny event, and rethrown.
+  if ("stale" in committed) {
+    const why = `${committed.stale}, while the grant change was being stored; the decision was made on a version that no longer stands, so the change is refused and the store is put back as the log has it`;
     try {
-      if (now) await adapter.write({ ...now, store_ref: null } as MemoryItem);
-      else await adapter.delete(stored.store_ref as NonNullable<MemoryItem["store_ref"]>);
+      const staleWrite = { wrote: stored, head: basis.head, actor: actor.id, at };
+      const event = await settle(deps, itemId, ref, staleWrite, (note) =>
+        appendEvent(db, {
+          ...common,
+          id: newId(),
+          decision: "deny",
+          reason: `${why}${note}`,
+          policy_id: GRANT_CONFLICT_ID,
+        }),
+      );
+      return { decision: "deny", item: null, event };
     } catch (e) {
       refuse(
-        `after the grant change's conflict (${GRANT_CONFLICT_ID}) the store ${adapter.name} could not be put back (${now ? "writing the projected version" : "deleting the rewritten record"}): ${errorText(e)}`,
+        `after the grant change's conflict (${GRANT_CONFLICT_ID}: ${committed.stale}) the store ${adapter.name} could not be put back: ${errorText(e)}`,
         STORE_FAILURE_ID,
       );
       throw e;
     }
-    return { decision: "deny", item: null, event };
   }
+  const { event } = committed;
   // The owner is a member of the scope; the item goes back only if the read
   // matrix also lets its level read the scope, as for a promotion (P5-7).
   return {

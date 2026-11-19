@@ -71,6 +71,7 @@ export const AdoptReport = z.strictObject({
   allowed: z.int().nonnegative(),
   denied: z.int().nonnegative(),
   unchanged: z.int().nonnegative(),
+  deferred: z.int().nonnegative(),
   retired: z.int().nonnegative(),
   denials: z.array(
     z.strictObject({ item_id: z.string(), reason: z.string(), policy_id: z.string() }),

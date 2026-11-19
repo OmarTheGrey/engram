@@ -576,6 +576,68 @@ function sameApartFromGrants(a: MemoryItem, b: MemoryItem): boolean {
 }
 
 /**
+ * The rule of the event by which a stale writer withdraws an adoption of its
+ * own bytes and puts its item back as it stood before (card E2.6, review of
+ * PR #50, ADR 0007): the oracle names it by its string, as it names every
+ * rule, importing nothing from the plane.
+ */
+export const WITHDRAWN_RULE = "engram/adopt/withdrawn";
+/** The rule of the plane removing grants an adoption of stale bytes reintroduced (card E2.6, V-3). */
+export const NARROWED_RULE = "engram/adopt/narrowed";
+/** How every adoption event's reason begins (plane/adopt.ts). */
+const ADOPTION_REASON = "adopted from store ";
+/** How a withdrawal names the adoption it withdraws (plane/commit.ts, `withdrawsClause`). */
+const WITHDRAWS = /withdraws the adoption at event (\S+?)(?= |$|;|\))/;
+
+/** An earlier event of the log, and its item's state just before it, as the oracle's replay had it. */
+export interface Earlier {
+  event: MemoryEvent;
+  before: MemoryItem | undefined;
+}
+
+/**
+ * Why a withdrawal (`engram/adopt/withdrawn`) should not stand, or undefined
+ * (card E2.6, verification finding V-4 of PR #50): it must name the event it
+ * withdraws, that event must be an adoption of the same item, and the item it
+ * puts back must be that item as it stood just before that adoption, in
+ * everything but the version (which a withdrawal raises) and the store ref.
+ */
+export function withdrawalProblem(
+  e: MemoryEvent,
+  lookup: (eventId: string) => Earlier | undefined,
+): string | undefined {
+  const named = WITHDRAWS.exec(e.reason)?.[1];
+  if (named === undefined) return "a withdrawal that names no adoption it withdraws";
+  const earlier = lookup(named);
+  if (!earlier || earlier.event.item_id !== e.item_id)
+    return "a withdrawal naming no earlier event of its item";
+  if (!(earlier.event.op === "write" && earlier.event.reason.startsWith(ADOPTION_REASON)))
+    return "a withdrawal of an event that is not an adoption";
+  if (!e.item || !earlier.before) return "a withdrawal that puts back no version";
+  const strip = ({ version: _v, store_ref: _r, ...rest }: MemoryItem) => rest;
+  return sameStrictContent(strip(earlier.before), strip(e.item))
+    ? undefined
+    : "a withdrawal that puts back something other than the item as it stood before the adoption";
+}
+
+/**
+ * Why a narrowing (`engram/adopt/narrowed`) should not stand, or undefined:
+ * it may only remove grants from the item as it stood before it, and change
+ * nothing else but the version (V-3).
+ */
+export function narrowingProblem(
+  before: MemoryItem | undefined,
+  e: MemoryEvent,
+): string | undefined {
+  if (!e.item || !before) return "a narrowing of an item no allowed event left";
+  if (!sameApartFromGrants(before, e.item)) return "a narrowing that changes more than grants";
+  if (addedGrants(before.grants, e.item.grants).length > 0) return "a narrowing that adds a grant";
+  if (addedGrants(e.item.grants, before.grants).length === 0)
+    return "a narrowing that removes no grant";
+  return undefined;
+}
+
+/**
  * Why the allowed event `e`, which changes what its item's grants admit
  * (`grantsChanged`), should have been refused, or undefined when the oracle
  * permits it (ADR 0021, decision D4; ADR 0034, decisions 2, 3 and 6; review
@@ -605,9 +667,15 @@ export function grantChangeProblem(
   before: MemoryItem | undefined,
   e: MemoryEvent,
   heldUntrusted: boolean,
+  lookup: (eventId: string) => Earlier | undefined = () => undefined,
 ): string | undefined {
   const item = e.item;
   if (e.decision !== "allow" || !item) return undefined;
+  // A withdrawal puts back the item as it stood before an adoption it names:
+  // that version's change, judged when it was made, not a new one; a
+  // narrowing only removes grants (card E2.6, V-3 and V-4).
+  if (e.policy_id === WITHDRAWN_RULE) return withdrawalProblem(e, lookup);
+  if (e.policy_id === NARROWED_RULE) return narrowingProblem(before, e);
   const kind = item.provenance.kind;
   const added = addedGrants(before?.grants ?? [], item.grants);
   const widens = grantsWiden(before, item);
