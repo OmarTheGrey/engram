@@ -16,6 +16,6 @@ supersedes: none
 
 **Why.** Card E2.6's acceptance asks that each reproduction be a test that fails on main and passes after the fix.
 
-**Result.** On main 13 of 20 orderings per backend fail (R1, R5, R6, R7, R8, R14 and the R9 control pass); all 22 per backend pass on branch e2-6. Each of eight mutations of the fix fails its test on both backends.
+**Result.** On main 15 of 22 tests per backend fail (R1, R5, R6, R7, R8, R14 and the R9 control pass); all 22 per backend pass on branch e2-6. Each of eight mutations of the fix fails its test on both backends.
 
 **Consequence.** None.
