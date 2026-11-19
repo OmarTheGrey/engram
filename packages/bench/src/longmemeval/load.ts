@@ -1,24 +1,53 @@
-// Typed loader for the vendored LongMemEval subset: questions.jsonl in a
-// fixture directory, one upstream question record per line (card B5).
-import { readFileSync } from "node:fs";
+// Typed loader for LongMemEval questions (cards B5 and B6): a fixture
+// directory's questions.jsonl, one upstream question record per line (B5's
+// vendored subset); upstream's cleaned file as it is published, one JSON
+// array (`longmemeval_s_cleaned.json`, the S split B6's experiment configs
+// name); or a JSON Lines file (a research script's part of that file).
+import { readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { Question } from "./schema.ts";
 
-/** Every question of `dir`/questions.jsonl, in file order; throws on a line the schema refuses or a repeated id. */
-export function loadQuestions(dir: string): Question[] {
-  const path = join(dir, "questions.jsonl");
+/** Each record parsed by the schema, ids unique; `where(i)` names record i in an error. */
+function parsed(records: readonly unknown[], where: (i: number) => string): Question[] {
   const seen = new Set<string>();
-  return readFileSync(path, "utf8")
+  return records.map((record, i) => {
+    const result = Question.safeParse(record);
+    if (!result.success) throw new Error(`${where(i)}: ${result.error.message}`);
+    if (seen.has(result.data.question_id))
+      throw new Error(`${where(i)}: repeated question id ${result.data.question_id}`);
+    seen.add(result.data.question_id);
+    return result.data;
+  });
+}
+
+/** The non-blank lines of a JSON Lines file with their line numbers, parsed. */
+function jsonLines(path: string): { records: unknown[]; lines: number[] } {
+  const records: unknown[] = [];
+  const lines: number[] = [];
+  readFileSync(path, "utf8")
     .split("\n")
-    .flatMap((line, i) => {
-      if (line.trim() === "") return [];
-      const parsed = Question.safeParse(JSON.parse(line));
-      if (!parsed.success) throw new Error(`${path}:${i + 1}: ${parsed.error.message}`);
-      if (seen.has(parsed.data.question_id))
-        throw new Error(`${path}:${i + 1}: repeated question id ${parsed.data.question_id}`);
-      seen.add(parsed.data.question_id);
-      return [parsed.data];
+    .forEach((line, i) => {
+      if (line.trim() === "") return;
+      records.push(JSON.parse(line));
+      lines.push(i + 1);
     });
+  return { records, lines };
+}
+
+/**
+ * Every question at `path`, in file order: a directory's questions.jsonl, a
+ * `.json` file holding one array, or a `.jsonl` file. Throws on a record the
+ * schema refuses or a repeated id, naming the line (or the array index).
+ */
+export function loadQuestions(path: string): Question[] {
+  if (statSync(path).isDirectory()) return loadQuestions(join(path, "questions.jsonl"));
+  if (path.endsWith(".json")) {
+    const all = JSON.parse(readFileSync(path, "utf8")) as unknown;
+    if (!Array.isArray(all)) throw new Error(`${path}: a LongMemEval file holds one array`);
+    return parsed(all, (i) => `${path}[${i}]`);
+  }
+  const { records, lines } = jsonLines(path);
+  return parsed(records, (i) => `${path}:${lines[i]}`);
 }
 
 /** One question by id. */
