@@ -3,14 +3,33 @@
 // `lint` event. The lints themselves are pure (lint/det.ts); this file reads
 // their inputs from the log and appends their findings. A lint event changes
 // no item: applyEvent ignores op `lint`, so the projection and its replay are
-// the same with or without them. Model-based lints (card L3) are not run here.
+// the same with or without them.
+//
+// The model-based lints (card L3, lint/model.ts) run here too, after the
+// deterministic ones, when the plane was built with a lint model
+// (PlaneDeps.lintModel: the injected ModelCall, its model and the config's
+// seed); without one they do not run, whatever the policy enables. Their
+// findings are recorded exactly as the deterministic ones, with the call's
+// usage on the event (ADR 0017), and every unit they sent is returned in the
+// report's `judgments`, refusals and malformed replies included, which are not
+// findings and append no event. The calls are made inside the lint's queue
+// slot, one at a time, and nothing is appended until every call has returned,
+// so a failed call leaves the log as it was.
 //
 // MemoryEvent has no lint_id, severity or evidence field (a schema change is
 // its own PR, AGENTS.md rule 5), so the event carries them in `reason`, and
 // its policy_id is `<policy>/lint/<lint_id>`. A finding's id is its event's id.
 import { type Actor, checkCall, InvalidCallError } from "../actor.ts";
 import { allEvents, appendEvent, currentItems } from "../events.ts";
-import { lintScope } from "../lint/det.ts";
+import { type DetFinding, type LintContext, lintScope } from "../lint/det.ts";
+import {
+  type ModelJudgment,
+  type ModelLintSetup,
+  type ModelLintUnit,
+  modelLintUnits,
+  runModelLints,
+} from "../lint/model.ts";
+import type { ModelUsage } from "../model.ts";
 import type { PlaneDeps } from "../plane.ts";
 import { readableAt, readableScope } from "../policy/evaluate.ts";
 import { type LintFinding, type MemoryEvent, type MemoryItem, Scope } from "../schema.ts";
@@ -31,6 +50,12 @@ export interface LintReport {
   findings: LintFinding[];
   /** Every event the call appended: one `lint` per finding, or the one deny. */
   events: MemoryEvent[];
+  /**
+   * Every unit the model-based lints sent and what its reply said (card L3),
+   * in run order; present only when the plane has a lint model and the actor
+   * may read the scope.
+   */
+  judgments?: ModelJudgment[];
 }
 
 /** The event that last retired each retired item, from the log. */
@@ -42,6 +67,41 @@ function retirements(
     if ((e.op === "retire" || e.op === "evict") && e.decision === "allow" && e.item_id !== null)
       by.set(e.item_id, { op: e.op, policy_id: e.policy_id });
   return by;
+}
+
+/** What the lints read, as `actor` at `at`: the projection, the retirements and the actor's reach. */
+function lintContext(
+  deps: Pick<PlaneDeps, "db" | "policy">,
+  actor: Actor,
+  at: string,
+): LintContext {
+  const { db, policy } = deps;
+  return {
+    policy,
+    at,
+    items: new Map<string, MemoryItem>(currentItems(db).map((i) => [i.id, i])),
+    retiredBy: retirements(allEvents(db)),
+    canReach: (item: MemoryItem) => readableAt(policy, actor, item, at),
+  };
+}
+
+/**
+ * The units Plane.lint's model-based lints would send over `scope` at `at`
+ * as `actor` under the policy's `lints.enabled`, with `model` and `seed`
+ * (card L3): what a count of a lint run's calls counts. Calls no model,
+ * appends nothing and does not queue; an actor who may not read the scope
+ * would be refused, so it gets none.
+ */
+export function planModelLints(
+  deps: Pick<PlaneDeps, "db" | "policy">,
+  actor: Actor,
+  at: string,
+  scope: string,
+  setup: Omit<ModelLintSetup, "call">,
+): ModelLintUnit[] {
+  checkCall(actor, at, "lint");
+  if (!readableScope(deps.policy, actor, scope)) return [];
+  return modelLintUnits(lintContext(deps, actor, at), scope, deps.policy.lints.enabled, setup);
 }
 
 /**
@@ -66,7 +126,7 @@ export function lint(
   return inWriteQueue(deps.db, () => run(deps, actor, at, scope));
 }
 
-function run(deps: PlaneDeps, actor: Actor, at: string, scope: string): LintReport {
+async function run(deps: PlaneDeps, actor: Actor, at: string, scope: string): Promise<LintReport> {
   const { db, newId, policy } = deps;
   const base = {
     ts: at,
@@ -89,20 +149,22 @@ function run(deps: PlaneDeps, actor: Actor, at: string, scope: string): LintRepo
     });
     return { decision: "deny", findings: [], events: [denied] };
   }
-  const items = new Map<string, MemoryItem>(currentItems(db).map((i) => [i.id, i]));
-  const found = lintScope(
-    {
-      policy,
-      at,
-      items,
-      retiredBy: retirements(allEvents(db)),
-      canReach: (item) => readableAt(policy, actor, item, at),
-    },
+  const ctx = lintContext(deps, actor, at);
+  const found: (DetFinding & { tier: LintFinding["tier"]; usage?: ModelUsage })[] = lintScope(
+    ctx,
     scope,
     policy.lints.enabled,
-  );
+  ).map((f) => ({ ...f, tier: "deterministic" }));
+  let judgments: ModelJudgment[] | undefined;
+  if (deps.lintModel !== undefined) {
+    const { call, model, seed } = deps.lintModel;
+    const units = modelLintUnits(ctx, scope, policy.lints.enabled, { model, seed });
+    const ran = await runModelLints(units, call);
+    judgments = ran.judgments;
+    found.push(...ran.findings.map((f) => ({ ...f, tier: "model" as const })));
+  }
   const committed = db.transaction(() =>
-    found.map((f) => {
+    found.map(({ tier, usage, ...f }) => {
       const id = newId();
       const event = appendEvent(db, {
         ...base,
@@ -111,8 +173,9 @@ function run(deps: PlaneDeps, actor: Actor, at: string, scope: string): LintRepo
         decision: "allow",
         reason: `${f.lint_id} (${f.severity}): ${f.message}; evidence: ${f.evidence.join("; ")}`,
         policy_id: `${policy.id}/lint/${f.lint_id}`,
+        ...(usage === undefined ? {} : { usage }),
       });
-      const finding: LintFinding = { id, ...f, tier: "deterministic", schema_version: 1 };
+      const finding: LintFinding = { id, ...f, tier, schema_version: 1 };
       return { event, finding };
     }),
   );
@@ -120,5 +183,6 @@ function run(deps: PlaneDeps, actor: Actor, at: string, scope: string): LintRepo
     decision: "allow",
     findings: committed.map((c) => c.finding),
     events: committed.map((c) => c.event),
+    ...(judgments === undefined ? {} : { judgments }),
   };
 }

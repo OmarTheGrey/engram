@@ -1,0 +1,7 @@
+{
+  "name": "l3-variance-fixture",
+  "kind": "pipeline",
+  "hypothesis": "H3",
+  "runner_config": "research/configs/l3-lint-fixture.json",
+  "model": null
+}

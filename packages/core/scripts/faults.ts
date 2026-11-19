@@ -5,6 +5,15 @@
 // timed), the policy the lint runs under, and the item ids it must flag,
 // declared here by hand, never computed by the lints.
 //
+// The model-based lints (card L3) have theirs under `model/`: the same
+// shape, plus `units`, every unit the lint must send (chosen without a model)
+// with the verdict a correct judge gives it, also declared by hand. A flag
+// fixture's flags are what a correct judge flags; a near-miss holds items the
+// lint must not send at all (another class, scope or status, outside their
+// validity, a source changed or out of reach) beside units a correct judge
+// passes. These fixtures are also card L3's pilot set
+// (research/configs/l3-pilot.json) until card L2's seeded-fault set lands.
+//
 //   node packages/core/scripts/faults.ts write <dir>           regenerate fixtures/faults (make fixtures)
 //   node packages/core/scripts/faults.ts workspace <fixture> <dir>   a SQLite log and policy file to lint with the CLI
 //
@@ -12,7 +21,7 @@
 // fixture's events are written under WRITE_POLICY (everything allowed) and
 // linted under its own `policy`.
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { createFakeAdapter } from "@engram/adapters";
 import type { Actor } from "../src/actor.ts";
@@ -20,13 +29,13 @@ import { strictContentHash } from "../src/content-hash.ts";
 import { migrate } from "../src/db/migrate.ts";
 import { openSqlite } from "../src/db/sqlite.ts";
 import { appendEvent } from "../src/events.ts";
-import type { DeterministicLintId } from "../src/lint.ts";
+import type { LintId } from "../src/lint.ts";
 import { createPlane, type Plane } from "../src/plane.ts";
 import type { MemoryEvent, MemoryItem, Policy } from "../src/schema.ts";
 
 export interface FaultFixture {
   description: string;
-  lint_id: DeterministicLintId;
+  lint_id: LintId;
   kind: "flag" | "near-miss";
   /** The policy the lint runs under. */
   policy: Policy;
@@ -37,6 +46,11 @@ export interface FaultFixture {
   events: MemoryEvent[];
   /** The items the lint must flag, by id; empty for a near-miss. */
   flags: string[];
+  /**
+   * A model-based lint's units (lint/model.ts), in the order it sends them,
+   * each with the verdict a correct judge gives: `flag` or `pass`.
+   */
+  units?: { unit: string; verdict: "flag" | "pass" }[];
 }
 
 export const LINT_AT = "2026-11-06T12:00:00Z";
@@ -109,13 +123,14 @@ function item(n: number, over: Partial<MemoryItem> = {}): MemoryItem {
 
 interface Spec {
   description: string;
-  lint_id: DeterministicLintId;
+  lint_id: LintId;
   kind: "flag" | "near-miss";
   scope?: string;
   /** The lint-time policy, from WRITE_POLICY with this lint enabled. */
   policy?: (p: Policy) => Policy;
   steps: (plane: Plane) => Promise<void>;
   flags: string[];
+  units?: { unit: string; verdict: "flag" | "pass" }[];
 }
 
 async function written(plane: Plane, actor: Actor, it: MemoryItem, at: string): Promise<void> {
@@ -124,6 +139,39 @@ async function written(plane: Plane, actor: Actor, it: MemoryItem, at: string): 
 }
 
 const SOURCE_TEXT = "The release freeze starts on Friday.";
+
+const SAM: Actor = {
+  id: "person:sam",
+  level: "person",
+  memberships: ["person:sam", "team:other"],
+  source: "user",
+};
+
+/** An item deriving from `source` (its ref and the strict hash of its content). */
+const from = (source: MemoryItem, n: number, content: string, over: Partial<MemoryItem> = {}) =>
+  item(n, {
+    content,
+    provenance: {
+      kind: "user",
+      ref: source.id,
+      hash: strictContentHash(source.content),
+      actor: "person:dana",
+    },
+    ...over,
+  } as Partial<MemoryItem>);
+
+const pair = (a: number, b: number, verdict: "flag" | "pass") => ({
+  unit: `contradiction:${fid(a)}+${fid(b)}`,
+  verdict,
+});
+const claimUnit = (n: number, verdict: "flag" | "pass") => ({
+  unit: `unsupported-claim:${fid(n)}`,
+  verdict,
+});
+
+const INCIDENT =
+  "Incident 42: the payment service failed for 20 minutes on Tuesday because a certificate expired.";
+const ROTA = "The on-call rota changes every Monday at 09:00.";
 
 const SPECS: Record<string, Spec> = {
   "expired-validity.flag": {
@@ -364,10 +412,200 @@ const SPECS: Record<string, Spec> = {
   },
 };
 
+/** The model-based lints' fixtures (card L3), by path under fixtures/faults without `.json`. */
+const MODEL_SPECS: Record<string, Spec> = {
+  "model/contradiction.flag": {
+    description:
+      "Two pairs of active semantic items in team:core that cannot both hold (a freeze starting on Friday and on Monday, a database on Postgres and never on Postgres) beside an unrelated item: the later item of each pair is flagged; the unrelated item shares no term and is never sent.",
+    lint_id: "contradiction",
+    kind: "flag",
+    steps: async (p) => {
+      await written(p, DANA, item(1, { content: SOURCE_TEXT }), T(0));
+      await written(p, DANA, item(2, { content: "The staging database runs Postgres 16." }), T(1));
+      await written(p, DANA, item(3, { content: "The release freeze starts on Monday." }), T(2));
+      await written(
+        p,
+        DANA,
+        item(4, { content: "The staging database runs MySQL 8 and has never run Postgres." }),
+        T(3),
+      );
+      await written(p, DANA, item(5, { content: "Dana reviews every schema migration." }), T(4));
+    },
+    flags: [fid(3), fid(4)],
+    units: [
+      pair(1, 2, "pass"),
+      pair(1, 3, "flag"),
+      pair(1, 4, "pass"),
+      pair(2, 3, "pass"),
+      pair(2, 4, "flag"),
+      pair(3, 4, "pass"),
+    ],
+  },
+  "model/contradiction.near-miss": {
+    description:
+      "Active semantic items in team:core that share terms and agree (when a freeze starts and ends, two databases on two Postgres versions): none flagged. Items that would contradict them are never sent: an episodic one, one in person:dana, one past its validity, one not yet valid, and one retired by its ttl.",
+    lint_id: "contradiction",
+    kind: "near-miss",
+    steps: async (p) => {
+      await written(p, DANA, item(1, { content: SOURCE_TEXT }), T(0));
+      await written(
+        p,
+        DANA,
+        item(2, { content: "The release freeze ends on the following Wednesday." }),
+        T(1),
+      );
+      await written(p, DANA, item(3, { content: "The staging database runs Postgres 16." }), T(2));
+      await written(
+        p,
+        DANA,
+        item(4, { content: "The production database runs Postgres 15." }),
+        T(3),
+      );
+      await written(
+        p,
+        DANA,
+        item(5, { content: "The release freeze starts on Monday.", class: "episodic" }),
+        T(4),
+      );
+      await written(
+        p,
+        DANA,
+        item(6, { content: "The staging database runs MySQL 8.", scope: "person:dana" }),
+        T(5),
+      );
+      await written(
+        p,
+        DANA,
+        item(7, {
+          content: "The release freeze starts on Sunday.",
+          valid_to: "2026-11-02T00:00:00Z",
+        }),
+        T(6),
+      );
+      await written(
+        p,
+        DANA,
+        item(8, {
+          content: "The release freeze starts on Saturday.",
+          valid_from: "2026-11-07T00:00:00Z",
+        }),
+        T(7),
+      );
+      await written(
+        p,
+        DANA,
+        item(9, {
+          content: "The release freeze starts on Thursday.",
+          valid_from: "2026-11-01T00:00:00Z",
+          ttl: 60,
+        }),
+        T(8),
+      );
+      await p.retain(DANA, "team:core", T(9));
+    },
+    flags: [],
+    units: [
+      pair(1, 2, "pass"),
+      pair(1, 3, "pass"),
+      pair(1, 4, "pass"),
+      pair(2, 3, "pass"),
+      pair(2, 4, "pass"),
+      pair(3, 4, "pass"),
+    ],
+  },
+  "model/unsupported-claim.flag": {
+    description:
+      "Claims derived from item sources, still as recorded, that assert what their source does not (a different cause, an extra fact, the opposite of a source in person:dana): flagged; a claim its source does support is sent and not flagged.",
+    lint_id: "unsupported-claim",
+    kind: "flag",
+    steps: async (p) => {
+      const incident = item(1, { content: INCIDENT });
+      const rota = item(3, { content: ROTA });
+      const laptop = item(5, { content: "Dana's laptop runs Linux.", scope: "person:dana" });
+      await written(p, DANA, incident, T(0));
+      await written(
+        p,
+        DANA,
+        from(
+          incident,
+          2,
+          "The payment service outage on Tuesday was caused by a database failover.",
+        ),
+        T(1),
+      );
+      await written(p, DANA, rota, T(2));
+      await written(
+        p,
+        DANA,
+        from(
+          rota,
+          4,
+          "The on-call rota changes every Monday at 09:00, and on-call engineers are paid double.",
+        ),
+        T(3),
+      );
+      await written(p, DANA, laptop, T(4));
+      await written(p, DANA, from(laptop, 6, "Dana's laptop runs Windows."), T(5));
+      await written(
+        p,
+        DANA,
+        from(incident, 7, "A certificate expiry took the payment service down on Tuesday."),
+        T(6),
+      );
+    },
+    flags: [fid(2), fid(4), fid(6)],
+    units: [claimUnit(2, "flag"), claimUnit(4, "flag"), claimUnit(6, "flag"), claimUnit(7, "pass")],
+  },
+  "model/unsupported-claim.near-miss": {
+    description:
+      "A claim its source supports: sent and not flagged. Claims never sent: one whose source changed since it was recorded, one citing a source in team:other that Dana cannot reach, one whose ref names no item, and a procedural one.",
+    lint_id: "unsupported-claim",
+    kind: "near-miss",
+    steps: async (p) => {
+      const incident = item(1, { content: INCIDENT });
+      const theirs = item(4, {
+        content: "Sam's team ships on Thursdays.",
+        scope: "team:other",
+        owner: "person:sam",
+        provenance: { kind: "user", ref: "engram-cli", hash: ZERO, actor: "person:sam" },
+      });
+      await written(p, DANA, incident, T(0));
+      await written(
+        p,
+        DANA,
+        from(incident, 2, "A certificate expiry took the payment service down on Tuesday."),
+        T(1),
+      );
+      await written(
+        p,
+        DANA,
+        from(incident, 3, "The payment service failed because of a database failover.", {
+          provenance: { kind: "user", ref: fid(1), hash: ZERO, actor: "person:dana" },
+        }),
+        T(2),
+      );
+      await written(p, SAM, theirs, T(3));
+      await written(p, DANA, from(theirs, 5, "Sam's team ships on Fridays."), T(4));
+      await written(p, DANA, item(6, { content: "The payment service is written in Go." }), T(5));
+      await written(
+        p,
+        DANA,
+        from(incident, 7, "", {
+          class: "procedural",
+          content: { body: "Restart the payment service after a database failover.", tools: [] },
+        } as Partial<MemoryItem>),
+        T(6),
+      );
+    },
+    flags: [],
+    units: [claimUnit(2, "pass")],
+  },
+};
+
 /** Every fault fixture, by file name without `.json`. */
 export async function faultFixtures(): Promise<Record<string, FaultFixture>> {
   const out: Record<string, FaultFixture> = {};
-  for (const [name, spec] of Object.entries(SPECS)) {
+  for (const [name, spec] of Object.entries({ ...SPECS, ...MODEL_SPECS })) {
     const db = openSqlite(":memory:");
     migrate(db);
     let n = 0;
@@ -389,6 +627,7 @@ export async function faultFixtures(): Promise<Record<string, FaultFixture>> {
       at: LINT_AT,
       events: plane.events(),
       flags: spec.flags,
+      ...(spec.units === undefined ? {} : { units: spec.units }),
     };
     db.close();
   }
@@ -401,9 +640,10 @@ export const fixtureText = (f: FaultFixture) => `${JSON.stringify(f, null, 2)}\n
 async function main(argv: string[]): Promise<void> {
   const [mode, a, b] = argv;
   if (mode === "write" && a) {
-    mkdirSync(a, { recursive: true });
-    for (const [name, f] of Object.entries(await faultFixtures()))
+    for (const [name, f] of Object.entries(await faultFixtures())) {
+      mkdirSync(dirname(join(a, `${name}.json`)), { recursive: true });
       writeFileSync(join(a, `${name}.json`), fixtureText(f));
+    }
     return;
   }
   if (mode === "workspace" && a && b) {

@@ -72,3 +72,12 @@ Found by the reviews of PRs #28 to #39 before they merged (`docs/log/2026-11-13-
 | Letta delete refusals | the Letta adapter's `UnsafeLettaPathError` and `NotMemfsRepositoryError` are plain errors, not `NotDeletableError`, so offboarding keeps such an item back as a transient failure on every rerun; the adapter should mark the permanent ones | ADR 0010, post-merge amendment of 2026-11-13; `docs/log/2026-11-13-post-merge-failure-pr41-recheck.md` |
 | Deletion report surfaces | no CLI command or server route reads a deletion report's `left_in_store`, so the person is not shown which store records to delete by hand | ADR 0010, post-merge amendment of 2026-11-13 |
 | ADRs for the lead | ADR 0018's amendment made when implementing card L1 (2026-11-06: the exact duplicate lint's strict form) awaits the lead's review. Everything else this row held was accepted on 2026-11-19 (ADRs 0031 to 0033 and the amendments of 2026-11-02 and 2026-11-13) | `docs/decisions/0018-duplicates-without-embeddings.md`; `docs/log/2026-11-19-lead-decision-adrs-accepted.md` |
+
+## Follow-ups from card L3's review (2026-11-19)
+
+Found by the review of PR #45 and left open on purpose; neither blocks card L4.
+
+| item | what is left | where it is recorded |
+|---|---|---|
+| Events to members who may not read | `eventVisibleTo` (packages/core/src/visible.ts) shows an event to any member of its scope, even one the read matrix stops from reading that scope; model lint reasons now restate in-scope content, so this matters more | `docs/log/2026-11-19-l3-finding-event-visible-to-unreadable-members.md` |
+| Model lints hold the write queue | `Plane.lint` keeps the write queue locked while the model answers; settle it before a server injects a lint model | `docs/log/2026-11-19-l3-finding-lint-holds-write-queue.md` |

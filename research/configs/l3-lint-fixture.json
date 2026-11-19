@@ -1,0 +1,11 @@
+{
+  "name": "l3-lint-fixture",
+  "kind": "pipeline",
+  "benchmark": "lint-faults",
+  "data": "../../fixtures/faults/model",
+  "items": "all",
+  "model": "scripted/lint-1",
+  "seeds": [1, 2, 3],
+  "script": "../../fixtures/lint/l3-script.json",
+  "cassettes": "../../fixtures/cassettes/l3-lint-fixture"
+}

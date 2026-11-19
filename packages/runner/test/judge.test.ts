@@ -97,9 +97,10 @@ describe("the answer judge (J1)", () => {
     const reply = await call(gatemem.judgeRequest("judge this", 1, settings));
     expect(reply.text).toBe(VERDICT);
     expect(asked).toHaveLength(1);
-    expect(asked[0]?.context.messages).toEqual([
-      { role: "user", content: "judge this", timestamp: 0 },
-    ]);
+    // The whole context: GateMem's judge sends no system prompt (review L3-7).
+    expect(asked[0]?.context).toEqual({
+      messages: [{ role: "user", content: "judge this", timestamp: 0 }],
+    });
     expect(asked[0]?.options).toEqual({
       temperature: 0,
       maxTokens: 4096,

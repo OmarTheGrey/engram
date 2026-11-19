@@ -8,7 +8,7 @@ SHELL := bash
 PNPM ?= pnpm
 UV ?= uv
 
-.PHONY: help test test-invariants test-one test-e2e test-repro lint lint-docs api api-check ui bench run h1-table fixtures fault-workspace thesis engram
+.PHONY: help test test-invariants test-one test-e2e test-repro lint lint-docs api api-check ui bench run h1-table l3-variance fixtures fault-workspace thesis engram
 
 help: ## list targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | sed -E 's/:.*## /\t/' | expand -t 16
@@ -99,6 +99,9 @@ h1-table: ## after H1's two live runs (make run CONFIG=research/configs/h1-gatem
 	node packages/runner/scripts/h1-sessions.ts --config research/configs/h1-gatemem.json --run .engram/runs/h1-gatemem-live --config research/configs/h1-mem-inv.json --run .engram/runs/h1-mem-inv-live --table-config research/configs/$(H1_TABLE).json $(if $(filter 1,$(GATE_BY_ACTION)),--gate-by-action) $(if $(READINGS),--readings "$(READINGS)" --readings-key "$(READINGS_KEY)",$(if $(H1_SUFFIX),,--unread-out .engram/runs/h1-unread.json)) --out .engram/runs/h1-sessions$(H1_SUFFIX).jsonl
 	$(UV) run python research/scripts/h1_table.py --config research/configs/$(H1_TABLE).json --out research/results/$(H1_TABLE).json
 
+l3-variance: ## after the L3 pilot's live run (make run CONFIG=research/configs/l3-pilot.json MODEL=<provider/model> LIVE=1) and its model named in research/configs/l3-variance.json: the model-based lints' spread across seeds 1 to 3 (outcomes, item precision and recall, unit agreement), replayed offline from that run's cassettes, into research/results/l3-variance.json; FIXTURE=1 runs it on the scripted fixture run (research/configs/l3-variance-fixture.json) into .engram/l3-variance-fixture.json, not a result
+	$(UV) run python research/scripts/l3_variance.py $(if $(filter 1,$(FIXTURE)),--config research/configs/l3-variance-fixture.json --out .engram/l3-variance-fixture.json,--config research/configs/l3-variance.json --out research/results/l3-variance.json)
+
 # Runner configs whose cassettes are fixtures, recorded from their scripted model by `make fixtures`.
 RUNNER_FIXTURES := rn1-gatemem-probe
 RUNNER_FIXTURES += b3-gatemem-plane
@@ -107,6 +110,7 @@ RUNNER_FIXTURES += x1-h1-gatemem
 RUNNER_FIXTURES += x1-h1-gatemem-rag
 RUNNER_FIXTURES += x1-h1-mem-inv
 RUNNER_FIXTURES += b5-longmemeval-plane
+RUNNER_FIXTURES += l3-lint-fixture
 
 # MEM-INV-Bench at its pinned commit (card B4); the vendoring clones it here when missing.
 MEM_INV_UPSTREAM ?= .engram/upstream/mem-inv-bench

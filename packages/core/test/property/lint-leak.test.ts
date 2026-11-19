@@ -7,14 +7,23 @@
 // four scopes, citing each other by provenance ref and lineage, some retired
 // under assorted rules, some granted to the viewer; a linter who reaches
 // three of the scopes lints each, and every lint event the viewer may see is
-// checked against what Plane.read returned to the viewer.
+// checked against what Plane.read returned to the viewer. The second property
+// runs the model-based lints (card L3) over the same worlds with a scripted
+// model that flags every unit and quotes everything it was sent in its
+// reason: no event the viewer may see carries the content of an item outside
+// the linted scope that Plane.read does not return to him, and an event about
+// a source outside the scope carries no usage, whose input tokens would give
+// the source's length.
 import fc from "fast-check";
 import { describe, expect, test } from "vitest";
 import type { Actor } from "../../src/actor.ts";
 import { strictContentHash } from "../../src/content-hash.ts";
 import { appendEvent, currentItems } from "../../src/events.ts";
+import type { ModelLintSetup } from "../../src/lint/model.ts";
+import { createPlane } from "../../src/plane.ts";
 import type { MemoryEvent, MemoryItem } from "../../src/schema.ts";
 import { visibleEvents } from "../../src/visible.ts";
+import { reply, scriptedLintModel } from "../fakes/lint-model.ts";
 import { seedFor } from "../generators.ts";
 import { AT, fresh, id, item, testPolicy } from "../unit/plane/helpers.ts";
 
@@ -60,8 +69,16 @@ let next = 0;
 const eventId = () => id(700_000 + ++next);
 
 /** Writes the world straight into a fresh log (the gate is not under test), then lints it. */
-async function lintedWorld(world: Seed[]) {
-  const env = fresh(testPolicy({ lints: { enabled: [...LINTS], thresholds: {} } }));
+async function lintedWorld(
+  world: Seed[],
+  lints: readonly string[] = LINTS,
+  lintModel?: ModelLintSetup,
+) {
+  const base = fresh(testPolicy({ lints: { enabled: [...lints], thresholds: {} } }));
+  const env = {
+    ...base,
+    plane: createPlane({ ...base.deps, ...(lintModel === undefined ? {} : { lintModel }) }),
+  };
   const append = (it: MemoryItem) =>
     appendEvent(env.db, {
       id: eventId(),
@@ -115,10 +132,10 @@ async function lintedWorld(world: Seed[]) {
         schema_version: 1,
       });
   });
-  const lints: MemoryEvent[] = [];
+  const events: MemoryEvent[] = [];
   for (const scope of LINTER.memberships)
-    lints.push(...(await env.plane.lint(LINTER, AT, scope)).events);
-  return { env, lints };
+    events.push(...(await env.plane.lint(LINTER, AT, scope)).events);
+  return { env, lints: events };
 }
 
 const LINTS = [
@@ -172,5 +189,59 @@ describe("lint events a viewer may see", () => {
     );
     // The worlds raise findings the viewer sees, so the property is not vacuous.
     expect(shownFindings).toBeGreaterThan(0);
+  });
+});
+
+describe("model lint events a viewer may see", () => {
+  const name =
+    "carry no content of an out-of-scope item Plane.read does not return, whatever the model says";
+  test(name, async () => {
+    let shownFindings = 0;
+    let hiddenReasons = 0;
+    // Flags every unit and quotes all it was sent, the way a model's reason may.
+    const model = scriptedLintModel((lint, input) =>
+      reply(
+        lint === "contradiction" ? "contradiction" : "unsupported",
+        `it said ${JSON.stringify(input)}`,
+      ),
+    );
+    const setup = { call: model.call, model: "scripted/lint-1", seed: 1 };
+    await fc.assert(
+      fc.asyncProperty(arbWorld, async (world) => {
+        const { env, lints } = await lintedWorld(
+          world,
+          ["contradiction", "unsupported-claim"],
+          setup,
+        );
+        const read = await env.plane.read(VIEWER, { at: AT });
+        const returned = new Set(read.items.map((i) => i.id));
+        const projected = currentItems(env.db);
+        const shown = visibleEvents(VIEWER, lints, {
+          policy: env.policy,
+          at: AT,
+          current: (itemId) => projected.find((i) => i.id === itemId),
+        });
+        for (const event of shown) {
+          if (event.decision !== "allow") continue;
+          shownFindings++;
+          if (event.reason.includes("reason not shown")) {
+            hiddenReasons++;
+            // Its usage would carry the source's length (review L3-2).
+            expect(event.usage, event.reason).toBeUndefined();
+          }
+          const own = new Set(
+            projected.filter((i) => i.scope === event.scope_to).map((i) => String(i.content)),
+          );
+          for (const hidden of projected) {
+            if (hidden.scope === event.scope_to || returned.has(hidden.id)) continue;
+            if (own.has(String(hidden.content))) continue;
+            expect(event.reason, hidden.id).not.toContain(String(hidden.content));
+          }
+        }
+      }),
+      { numRuns: RUNS, seed: seedFor(name) },
+    );
+    expect(shownFindings).toBeGreaterThan(0);
+    expect(hiddenReasons).toBeGreaterThan(0);
   });
 });
