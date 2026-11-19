@@ -1,6 +1,6 @@
 # Dogfood
 
-Two records, both counts only: no memory content, file name, path, item id, query or name leaves a member's machine (AGENTS.md rule 12; rule 7 of `docs/conventions/documentation.md`).
+Two records, both counts only: no memory content, file name, path, item id or query leaves a member's machine (AGENTS.md rule 12; rule 7 of `docs/conventions/documentation.md`).
 
 1. **The twin dogfood (card E9.5)**: each member runs a twin over their own Claude Code memory for two weeks, then runs the violation report and sends the team its counts. Gate D asks that the Knowledge and Twin profiles "run on dogfood data with zero recorded violations" (`docs/roadmap.md`).
 2. **The Gate A record**: each member's Claude Code memory read through the plane once with `engram read` (below the twin dogfood).
