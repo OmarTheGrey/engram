@@ -17,3 +17,8 @@ export const X1_MEM_INV = join(configs, "x1-h1-mem-inv.json");
 /** H1's full-size experiment configs (plan decision 6). */
 export const H1_GATEMEM = join(configs, "h1-gatemem.json");
 export const H1_MEM_INV = join(configs, "h1-mem-inv.json");
+
+/** Card B6: LongMemEval's baselines at preset medium (H2), and their fixture-size probe. */
+export const H2_LONGMEMEVAL_C2 = join(configs, "h2-longmemeval-c2.json");
+export const H2_LONGMEMEVAL_C5 = join(configs, "h2-longmemeval-c5-medium.json");
+export const B6_FIXTURE = join(configs, "b6-longmemeval-fixture.json");

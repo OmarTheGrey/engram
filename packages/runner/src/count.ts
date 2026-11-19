@@ -4,12 +4,15 @@
 // the pinned GateMem full set first when an experiment config's data is
 // missing), and counts the sessions per condition, store and seed. No model
 // is called and no cassette is read or written: nothing here opens the
-// config's cassette directory.
+// config's cassette directory. LongMemEval's S split (card B6) is not fetched
+// here: card L2's research script fetches it, and a missing file is refused
+// with the command that does.
 //
 // The item kinds (GateMem's query types, MEM-INV-Bench's families and
-// laundering channels) are hidden labels (strip.ts in each benchmark); they
-// are counted here for the protocol's sizes and reach no session.
-import { gatemem, memInvBench } from "@engram/bench";
+// laundering channels, LongMemEval's categories) are hidden labels (strip.ts
+// in each benchmark); they are counted here for the protocol's sizes and
+// reach no session.
+import { gatemem, longMemEval, memInvBench } from "@engram/bench";
 import {
   type AnyRunnerConfig,
   type Condition,
@@ -19,8 +22,13 @@ import {
   configStores,
   type NO_STORE,
 } from "./config.ts";
+import { longMemEvalJudge } from "./longmemeval-probe.ts";
 import { gatememItems } from "./run.ts";
 import type { StoreName } from "./stores.ts";
+
+/** The command that fetches LongMemEval's cleaned S split at the pin into .engram/upstream (data only). */
+export const LONGMEMEVAL_FETCH =
+  "uv run python research/scripts/h2_longmemeval_ttl.py --config research/configs/h2-longmemeval-ttl.json --fetch-only";
 
 /** The data a config names is not the pinned data its kind requires. */
 export class UnpinnedData extends Error {
@@ -64,6 +72,18 @@ export async function ensurePinnedData(
       const found = memInvBench.checkMemInvData(config.data);
       return { ...found, detail: "cases.jsonl against the fixture manifest's line hashes" };
     }
+    if (config.benchmark === "longmemeval") {
+      // The S split is fetched by the research scripts (card L2's
+      // ensure_pinned_file), never here: COUNT names the command that does.
+      const found = longMemEval.checkLongMemEvalData(config.data);
+      return {
+        ...found,
+        detail:
+          found.set === "fixture"
+            ? "questions.jsonl against the fixture manifest's line hashes"
+            : `the S split by its pinned sha256; fetch it at the pin with ${LONGMEMEVAL_FETCH}`,
+      };
+    }
     throw new UnpinnedData(`config ${config.name}: no pinned data known for ${config.benchmark}`);
   };
   const found = await check();
@@ -100,7 +120,11 @@ export interface SessionCount {
   }[];
   per_condition: Partial<Record<Condition, number>>;
   sessions: number;
-  /** The answer judge (GateMem, J1): one to three calls per session, upstream's attempts. */
+  /**
+   * The answer judge: on GateMem (J1) one to three calls per session,
+   * upstream's attempts; on LongMemEval one per session, as upstream's
+   * evaluate_qa.py makes one.
+   */
   judge?: { model: string; calls_min: number; calls_max: number };
   /** MEM-INV-Bench's agent notes, one call each before the sessions (P3-4). */
   note_calls: number;
@@ -133,6 +157,19 @@ function itemsOf(config: AnyRunnerConfig): { ids: string[]; kinds: string[]; not
       notes: 0,
     };
   }
+  if (config.benchmark === "longmemeval") {
+    const questions = longMemEval.loadQuestions(config.data);
+    const ids = configItems(
+      config,
+      questions.map((q) => q.question_id),
+    );
+    const byId = new Map(questions.map((q) => [q.question_id, q]));
+    return {
+      ids,
+      kinds: ids.map((id) => longMemEval.categoryOf(byId.get(id) as longMemEval.Question)),
+      notes: 0,
+    };
+  }
   const cases = memInvBench.loadCases(config.data);
   const ids = configItems(
     config,
@@ -160,10 +197,18 @@ export async function countConfig(
 ): Promise<SessionCount> {
   const data = await ensurePinnedData(config, options);
   const { ids, kinds, notes } = itemsOf(config);
-  const judge = config.benchmark === "gatemem" ? configJudge(config) : undefined;
+  const judge =
+    config.benchmark === "gatemem"
+      ? configJudge(config)
+      : config.benchmark === "longmemeval"
+        ? longMemEvalJudge(config)
+        : undefined;
+  // GateMem's judge makes up to three attempts per session; LongMemEval's makes one.
+  const attempts = config.benchmark === "gatemem" ? 3 : 1;
   const cells = configCells(config).flatMap(({ condition, store }) =>
     config.seeds.map((seed) => ({ condition, store, seed, sessions: ids.length })),
   );
+  const sessions = cells.reduce((n, c) => n + c.sessions, 0);
   const per_condition: SessionCount["per_condition"] = {};
   for (const c of cells)
     per_condition[c.condition] = (per_condition[c.condition] ?? 0) + c.sessions;
@@ -181,15 +226,9 @@ export async function countConfig(
     seeds: [...config.seeds],
     cells,
     per_condition,
-    sessions: cells.reduce((n, c) => n + c.sessions, 0),
+    sessions,
     ...(judge
-      ? {
-          judge: {
-            model: judge.model,
-            calls_min: cells.reduce((n, c) => n + c.sessions, 0),
-            calls_max: 3 * cells.reduce((n, c) => n + c.sessions, 0),
-          },
-        }
+      ? { judge: { model: judge.model, calls_min: sessions, calls_max: attempts * sessions } }
       : {}),
     note_calls: notes,
   };
@@ -209,7 +248,9 @@ export function countLines(count: SessionCount): string[] {
     ...count.cells.map((c) => `  ${c.condition} ${c.store} seed ${c.seed}: ${c.sessions} sessions`),
     ...(count.judge
       ? [
-          `judge ${count.judge.model}: ${count.judge.calls_min} to ${count.judge.calls_max} calls (one to three attempts per session)`,
+          count.judge.calls_min === count.judge.calls_max
+            ? `judge ${count.judge.model}: ${count.judge.calls_min} calls (one per session, as upstream's evaluate_qa.py)`
+            : `judge ${count.judge.model}: ${count.judge.calls_min} to ${count.judge.calls_max} calls (one to three attempts per session)`,
         ]
       : []),
     ...(count.note_calls > 0

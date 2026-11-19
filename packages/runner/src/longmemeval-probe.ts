@@ -12,9 +12,11 @@
 //
 // Only C2 and C5 are built here: card B5 asks for the ungoverned baseline and
 // card B6 for the enforced one. C1 (long context), C3 and C4 are not built on
-// LongMemEval. The live baseline on the primary model waits for the
-// pre-registration (AGENTS.md); a pipeline config runs a scripted model and a
-// scripted judge, and its numbers are not results.
+// LongMemEval. A pipeline config runs a scripted model and a scripted judge,
+// and its numbers are not results. H2's experiment configs (card B6,
+// research/configs/h2-longmemeval-*.json) run on the primary model and the
+// paper's judge through OpenRouter, live or replayed (scripts/run.ts); no live
+// run happens before the pre-registration is tagged (AGENTS.md).
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -51,6 +53,7 @@ import {
   statedPreset,
 } from "./config.ts";
 import { MEMORY_BLOCK, sequentialIds } from "./gatemem-probe.ts";
+import { liveJudgeCall } from "./judge.ts";
 import type { SessionDecision } from "./mem-inv-probe.ts";
 import { type AnswerSource, cassettePiModel } from "./model/cassette.ts";
 import { closeStore, openStore, type StoreName } from "./stores.ts";
@@ -345,10 +348,16 @@ export interface LongMemEvalRunnerOptions {
   live?: LiveModels;
 }
 
-/** The judge's uncached call for one question: the script's reply for a scripted judge; otherwise none here. */
+/**
+ * The judge's uncached call for one question: the script's reply for a
+ * scripted judge; the live judge of a live run (judge.ts liveJudgeCall:
+ * seeded chat completions, refused on an API that takes no seed); otherwise
+ * none, so a miss is an error.
+ */
 function judgeInner(
   judge: NonNullable<ReturnType<typeof longMemEvalJudge>>,
   questionId: string,
+  live: LiveModels | undefined,
 ): ModelCall {
   if (judge.model.startsWith("scripted/")) {
     const script = JSON.parse(
@@ -356,10 +365,9 @@ function judgeInner(
     ) as longMemEval.JudgeScript;
     return longMemEval.scriptedJudge(script, questionId);
   }
+  if (live) return liveJudgeCall(live);
   return async (request) => {
-    throw new Error(
-      `no live judge ${request.model} to answer a cache miss: the live LongMemEval baseline waits for the pre-registration`,
-    );
+    throw new Error(`no live judge ${request.model} to answer a cache miss`);
   };
 }
 
@@ -385,7 +393,7 @@ export async function runLongMemEvalConfig(
         for (const seed of config.seeds) {
           const judged = judge
             ? {
-                call: cached(judgeInner(judge, item), {
+                call: cached(judgeInner(judge, item, options.live), {
                   cache,
                   context: longMemEvalJudgeContext({
                     questionId: item,

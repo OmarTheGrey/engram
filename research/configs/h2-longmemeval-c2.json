@@ -1,0 +1,15 @@
+{
+  "name": "h2-longmemeval-c2",
+  "kind": "experiment",
+  "benchmark": "longmemeval",
+  "data": "../../.engram/upstream/longmemeval/data/longmemeval_s_cleaned.json",
+  "items": "all",
+  "conditions": ["C2"],
+  "model": "prereg/M1",
+  "seeds": [1, 2, 3],
+  "preset": "medium",
+  "store": "mem0",
+  "cassettes": "../../.engram/runs/h2-longmemeval-c2/cassettes",
+  "read_limit": 20,
+  "judge": { "model": "openrouter/openai/gpt-4o-2024-08-06", "temperature": 0, "max_tokens": 10 }
+}
