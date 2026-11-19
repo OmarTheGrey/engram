@@ -1,6 +1,6 @@
-# The label audit: how two members do it
+# The label audit: how three members do it
 
-The pre-registration requires that before any run, 50 items per benchmark are label-audited by two members and the disagreement rate is reported (ADR 0015; `docs/tasks/prereg-v1-plan.md`, decision 9). This page is the procedure for H1's two benchmarks. The kit draws the items and computes the rates; the members do the reading. Nothing here calls a model.
+The pre-registration requires that before any run, 50 items per benchmark are label-audited by members of the team and the disagreement rate is reported (ADR 0015; `docs/tasks/prereg-v1-plan.md`, decision 9). ADR 0015 asked for two members; on 2026-11-19 the lead named three, Omar, Mohamad and Shady (`omar`, `mohamad` and `shady` in `research/configs/label-audit.json`; decision sheet item 16, `docs/log/2026-11-19-lead-decision-16-three-members.md`). This page is the procedure for H1's two benchmarks. The kit draws the items and computes the rates; the members do the reading. Nothing here calls a model. The kit still takes two members, and then reports exactly as it did before the change.
 
 The audit is blind: a member labels every item before seeing what the benchmark says about it. It runs in two phases, and the second cannot be written until a member has finished the first.
 
@@ -32,52 +32,53 @@ Leak targets and poisoned values do appear inside the turns and the memory, beca
    uv run python research/scripts/label_audit_sample.py --config research/configs/label-audit.json
    ```
 
-   - It writes, under `.engram/audit/` (git ignores `.engram/`), one phase-1 sheet per benchmark and member: `gatemem-member1.csv`, `gatemem-member2.csv`, `mem-inv-bench-member1.csv` and `mem-inv-bench-member2.csv`.
+   - It writes, under `.engram/audit/` (git ignores `.engram/`), one phase-1 sheet per benchmark and member: `gatemem-omar.csv`, `gatemem-mohamad.csv`, `gatemem-shady.csv`, and the same three for `mem-inv-bench`.
    - It writes one context file per item under `context/<benchmark>/`.
-   - To use names instead of `member1` and `member2`, change the config's `members` before drawing.
+   - The names come from the config's `members`; change them there before drawing, never after.
    - The sampler refuses to write inside the repository outside `.engram/`, and refuses to overwrite a sheet that exists.
 
-2. **Phase 1.** Each member fills their own two sheets alone, without seeing the other's and without opening the data files. For each row, read the context file, then fill:
+2. **Phase 1.** Each member fills their own two sheets alone, without seeing the others' and without opening the data files. For each row, read the context file, then fill:
    - `member_label`: your label, in the vocabulary above.
    - `member_comment`: anything that made the item hard.
 
 3. **Phase 2.** When your phase-1 sheets are complete, write your key sheets:
 
    ```
-   uv run python research/scripts/label_audit_sample.py --config research/configs/label-audit.json --phase 2 --member member1
+   uv run python research/scripts/label_audit_sample.py --config research/configs/label-audit.json --phase 2 --member omar
    ```
 
    - It refuses while any of your phase-1 labels is blank or outside the vocabulary.
-   - It writes `gatemem-member1-keys.csv` and `mem-inv-bench-member1-keys.csv`, each showing every item's scoring keys.
+   - It writes `gatemem-omar-keys.csv` and `mem-inv-bench-omar-keys.csv`, each showing every item's scoring keys.
    - For each item, fill `member_keys_ok` with `yes` or `no`, and `member_comment` with your reason when the answer is no.
    - Do not change your phase-1 labels after seeing the keys.
 
-4. Put both members' sheets in one folder and run:
+4. Put the three members' sheets in one folder and run:
 
    ```
-   uv run python research/scripts/label_audit_agreement.py --config research/configs/label-audit.json --dir .engram/audit --members member1,member2
+   uv run python research/scripts/label_audit_agreement.py --config research/configs/label-audit.json --dir .engram/audit --members omar,mohamad,shady
    ```
 
    - The benchmark labels come from the pinned data through the same seeded draw, never from a sheet.
    - It writes `.engram/audit/agreement.json` and prints, per benchmark:
-     - the members' disagreement count and rate on the label, and Cohen's kappa;
+     - the items the three members do not all label alike, their count and rate, and Fleiss' kappa over the three; `agreement.json` also gives each pair's disagreements, rate and Cohen's kappa (`pairs`);
      - each member's disagreement with the benchmark's label;
-     - the items both members label otherwise than the benchmark, by reference;
-     - once both members' key sheets exist, the same agreement on the keys;
-     - the items both members reject and the stop flag (below).
-   - A blank or unknown label, or a sheet whose items differ from the draw, is refused, with the items named.
+     - the items at least two members label otherwise than the benchmark, by reference (`two_or_more_against_benchmark`);
+     - once every member's key sheets exist, the same agreement on the keys;
+     - the items rejected and the stop flag (below).
+   - A blank or unknown label, or a sheet whose items differ from the draw, is refused, with the items named. Key sheets from some members but not all are refused, with the missing members named.
 
-   **The stopping rule.** It applies to what decides a violation, with the threshold `stop_share` (0.10) from `research/configs/label-audit.json`:
-   - On GateMem an item is rejected when both members answer `no` on its scoring keys: the leak targets decide every violation. The agreement on the expected action is reported, but it stops nothing.
-   - On MEM-INV-Bench an item is rejected when both members' phase-1 label differs from the benchmark's family, or both answer `no` on its keys. An item rejected both ways counts once.
+   **The stopping rule.** It applies to what decides a violation, with the threshold `stop_share` (0.10) from `research/configs/label-audit.json`. An item is rejected when at least two of the three members reject it (the orchestrator's rule, for the lead to confirm: `docs/log/2026-11-19-orch-decision-two-of-three.md`):
+   - On GateMem an item is rejected when at least two members answer `no` on its scoring keys: the leak targets decide every violation. The agreement on the expected action is reported, but it stops nothing.
+   - On MEM-INV-Bench an item is rejected when at least two members' phase-1 label differs from the benchmark's family, or at least two answer `no` on its keys. Two of one kind are needed: one member's label and another's `no` reject nothing. An item rejected both ways counts once.
    - `agreement.json` gives, per benchmark, `rejected` (the rule, the references and their count), `stop_share` and `stop`.
-   - `stop` is true when more than `stop_share` of the benchmark's items are rejected: 6 or more of GateMem's 50, 4 or more of MEM-INV-Bench's 38. It is false once both members' key sheets are in and the count is at or below that, and null before then, unless the rejections counted so far already exceed it.
+   - `stop` is true when more than `stop_share` of the benchmark's items are rejected: 6 or more of GateMem's 50, 4 or more of MEM-INV-Bench's 38. It is false once every member's key sheets are in and the count is at or below that, and null before then, unless the rejections counted so far already exceed it.
    - When `stop` is true, that benchmark's runs wait for an amendment.
+   - With two members (`--members` naming two), "at least two" is both, and the report is the two-member one: one `between_members` pair with Cohen's kappa and `both_against_benchmark`.
 
 5. **Report it.** `agreement.json` holds counts and references only, no benchmark text.
-   - Write a `finding` log entry (`docs/conventions/documentation.md`) with the rates and kappas per benchmark, the sha256 of `agreement.json`, the references both members reject, and each benchmark's `stop`.
+   - Write a `finding` log entry (`docs/conventions/documentation.md`) with the rates and kappas per benchmark (Fleiss' and each pair's Cohen's), the sha256 of `agreement.json`, the references rejected, and each benchmark's `stop`.
    - The pre-registration reports the members' disagreement rate per benchmark.
-   - An item both members reject is a candidate label error. List it in v1; do not silently drop it.
+   - An item rejected is a candidate label error. List it in v1; do not silently drop it.
 
 Do not commit the sheets or the context files: they hold benchmark content, and filled sheets are a member's own reading.
 
@@ -88,7 +89,7 @@ Do not commit the sheets or the context files: they hold benchmark content, and 
 - 50 seeded GateMem checkpoints, 25 access control and 25 active forgetting;
 - for each, the scored leak patterns that sit in turns the asker can read under ADR 0030's mapping, with every pattern and every turn it matches.
 
-It answers a different question: whether a text match is the secret or a coincidence, and so how much of the reachable-leak share is real. The same two members can read it after the label audit and record, for each checkpoint, whether the matched turn holds the secret. The share they agree is real is the evidence v1's forgetting decision rests on.
+It answers a different question: whether a text match is the secret or a coincidence, and so how much of the reachable-leak share is real. The same members can read it after the label audit and record, for each checkpoint, whether the matched turn holds the secret. The share they agree is real is the evidence v1's forgetting decision rests on.
 
 ## Files
 
@@ -102,4 +103,5 @@ It answers a different question: whether a text match is the secret or a coincid
   - that phase 2 is refused until phase 1 is complete;
   - the agreement against labels from the draw, with a kappa computed by hand;
   - that a sheet cannot change the benchmark label;
-  - the stopping rule above and below the threshold on both benchmarks, and the stop flag waiting for the keys.
+  - the stopping rule above and below the threshold on both benchmarks, and the stop flag waiting for the keys;
+  - with three members, the two-of-three rule (neither "all three" nor "any one"), Fleiss' kappa computed by hand, each pair's kappa, the stop flag waiting for every member's keys, and that two members keep the two-member report.

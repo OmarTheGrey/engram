@@ -3,7 +3,7 @@
   "kind": "audit-kit",
   "hypothesis": "H1",
   "seed": 20261103,
-  "members": ["member1", "member2"],
+  "members": ["omar", "mohamad", "shady"],
   "stop_share": 0.1,
   "out": ".engram/audit",
   "gatemem": {

@@ -1,14 +1,19 @@
-"""The label audit's agreement: two members' filled sheets as disagreement rates and Cohen's kappa.
+"""The label audit's agreement: two or three members' sheets as disagreement rates and kappas.
 
 Usage:
     uv run python research/scripts/label_audit_agreement.py \\
         --config research/configs/label-audit.json --dir .engram/audit \\
-        --members <first>,<second> [--out .engram/audit/agreement.json]
+        --members <first>,<second>[,<third>] [--out .engram/audit/agreement.json]
+
+The lead named three members on 2026-11-19 (decision sheet item 16, changed:
+`docs/log/2026-11-19-lead-decision-16-three-members.md`). With two members
+the report is exactly what it was for two; what three change is said at the
+end of this docstring.
 
 The benchmark labels come from the pinned data through the sampler's own
 seeded draw (research/scripts/label_audit_sample.py `draw`), never from a
 sheet a member can edit (review of PR 4's part A, P4A-3). For each
-benchmark of the draw, from the two members' blind phase-1 sheets
+benchmark of the draw, from the members' blind phase-1 sheets
 (`<benchmark>-<member>.csv`):
 
 - `label`: each member's own label of the item, in the benchmark's own
@@ -19,7 +24,7 @@ benchmark of the draw, from the two members' blind phase-1 sheets
   the items both members label otherwise than the benchmark (the candidate
   label errors), by reference.
 
-and, once both members' phase-2 sheets exist (`<benchmark>-<member>-keys.csv`):
+and, once every member's phase-2 sheets exist (`<benchmark>-<member>-keys.csv`):
 
 - `keys_ok`: yes or no, whether the benchmark's scoring keys are the right
   ones. Reported: disagreements, rate and kappa between the members, and
@@ -41,6 +46,20 @@ violation:
   once both members' key sheets are in; null before that, unless the
   rejections counted so far already exceed the threshold.
 
+With three members (the orchestrator's rule, for the lead to confirm:
+`docs/log/2026-11-19-orch-decision-two-of-three.md`), "both" reads "at
+least two of the three" throughout. An item is rejected when at least two
+members answer no on its keys, or, on MEM-INV-Bench, when at least two label
+it otherwise than the family; two of one kind are needed, so one member's
+label and another's no reject nothing. The candidate label errors are
+`two_or_more_against_benchmark`. Each `between_members` then gives the items
+the three do not all label alike (`disagreements`, `rate`), Fleiss' kappa
+over the three (`fleiss_kappa`) and each pair's disagreements, rate and
+Cohen's kappa (`pairs`, keyed `<a>/<b>`). `stop_share` and its counts are
+unchanged; `stop` stays null until every member's key sheets exist, unless
+the rejections already pass the threshold, and some but not all members'
+key sheets are refused.
+
 The pre-registration reports the members' disagreement rate (ADR 0015). The
 output holds counts and references only, no benchmark text, and is written
 byte-stable. A blank or unknown label, or a sheet whose items differ from
@@ -53,6 +72,7 @@ import argparse
 import csv
 from collections import Counter
 from collections.abc import Mapping, Sequence
+from itertools import combinations
 from pathlib import Path
 from typing import Any
 
@@ -60,6 +80,8 @@ from scripts.label_audit_sample import AuditItem, draw, phase_1_labels
 from scripts.results_io import REPO, load_config, write_result
 
 YES_NO = ("yes", "no")
+# An item is rejected when at least this many members reject it: both of two, two of three.
+REJECT_QUORUM = 2
 
 
 def cohen_kappa(first: Sequence[str], second: Sequence[str]) -> float | None:
@@ -73,12 +95,43 @@ def cohen_kappa(first: Sequence[str], second: Sequence[str]) -> float | None:
     return (observed - chance) / (1.0 - chance)
 
 
+def fleiss_kappa(columns: Sequence[Sequence[str]]) -> float | None:
+    """Fleiss' kappa, one list of labels per rater; None when chance agreement is 1."""
+    raters, n = len(columns), len(columns[0])
+    per_item = [Counter(column[k] for column in columns) for k in range(n)]
+    pairs = raters * (raters - 1)
+    agreeing = [(sum(c * c for c in counts.values()) - raters) / pairs for counts in per_item]
+    observed = sum(agreeing) / n
+    totals: Counter[str] = Counter()
+    for counts in per_item:
+        totals.update(counts)
+    chance = sum((c / (n * raters)) ** 2 for c in totals.values())
+    if chance >= 1.0:
+        return None
+    return (observed - chance) / (1.0 - chance)
+
+
 def _pair(a: Sequence[str], b: Sequence[str]) -> dict[str, Any]:
     disagreements = sum(1 for x, y in zip(a, b, strict=True) if x != y)
     return {
         "disagreements": disagreements,
         "rate": disagreements / len(a),
         "kappa": cohen_kappa(a, b),
+    }
+
+
+def _between(values: Mapping[str, Sequence[str]], members: Sequence[str]) -> dict[str, Any]:
+    """Two members: their pair. Three: the items not labelled alike, Fleiss' kappa, every pair."""
+    if len(members) == 2:
+        return _pair(values[members[0]], values[members[1]])
+    columns = [values[m] for m in members]
+    n = len(columns[0])
+    split = sum(1 for k in range(n) if len({column[k] for column in columns}) > 1)
+    return {
+        "disagreements": split,
+        "rate": split / n,
+        "fleiss_kappa": fleiss_kappa(columns),
+        "pairs": {f"{a}/{b}": _pair(values[a], values[b]) for a, b in combinations(members, 2)},
     }
 
 
@@ -117,23 +170,38 @@ def compare(
     keys_paths = {m: directory / f"{benchmark}-{m}-keys.csv" for m in members}
     present = [p.exists() for p in keys_paths.values()]
     if any(present) and not all(present):
-        raise ValueError(f"{benchmark}: only one member's key sheet exists")
+        if len(members) == 2:
+            raise ValueError(f"{benchmark}: only one member's key sheet exists")
+        have = ", ".join(m for m, p in keys_paths.items() if p.exists())
+        missing = ", ".join(m for m, p in keys_paths.items() if not p.exists())
+        raise ValueError(f"{benchmark}: key sheets exist for {have} but not for {missing}")
     keys_ok = None
-    both_no: set[str] = set()
+    keys_no: set[str] = set()
     if all(present):
         ok = {m: _keys_ok(p, refs) for m, p in keys_paths.items()}
         keys_ok = {
-            "between_members": _pair(ok[members[0]], ok[members[1]]),
+            "between_members": _between(ok, members),
             "no": {m: ok[m].count("no") for m in members},
         }
-        both_no = {r for k, r in enumerate(refs) if all(ok[m][k] == "no" for m in members)}
-    both_against = [r for k, r in enumerate(refs) if all(labels[m][k] != truth[k] for m in members)]
-    if benchmark == "mem-inv-bench":
-        rule = "both members label otherwise than the family, or both answer no on the keys"
-        rejected_set = both_no | set(both_against)
+        keys_no = {
+            r for k, r in enumerate(refs) if sum(ok[m][k] == "no" for m in members) >= REJECT_QUORUM
+        }
+    against_truth = [
+        r
+        for k, r in enumerate(refs)
+        if sum(labels[m][k] != truth[k] for m in members) >= REJECT_QUORUM
+    ]
+    if len(members) == 2:
+        who, again, errors = "both members", "both", "both_against_benchmark"
     else:
-        rule = "both members answer no on the keys"
-        rejected_set = both_no
+        who, again = "at least two of the three members", "at least two"
+        errors = "two_or_more_against_benchmark"
+    if benchmark == "mem-inv-bench":
+        rule = f"{who} label otherwise than the family, or {again} answer no on the keys"
+        rejected_set = keys_no | set(against_truth)
+    else:
+        rule = f"{who} answer no on the keys"
+        rejected_set = keys_no
     rejected = [r for r in refs if r in rejected_set]
     over = len(rejected) > stop_share * len(refs)
     stop: bool | None = over if all(present) else (True if over else None)
@@ -141,9 +209,9 @@ def compare(
         "items": len(refs),
         "members": list(members),
         "label": {
-            "between_members": _pair(labels[members[0]], labels[members[1]]),
+            "between_members": _between(labels, members),
             "against_benchmark": {m: against(m) for m in members},
-            "both_against_benchmark": both_against,
+            errors: against_truth,
         },
         "keys_ok": keys_ok,
         "rejected": {"rule": rule, "refs": rejected, "count": len(rejected)},
@@ -159,9 +227,9 @@ def compare_dir(
     *,
     stop_share: float,
 ) -> dict[str, Any]:
-    """Every benchmark of the draw, from the two members' sheets in `directory`."""
-    if len(members) != 2 or len(set(members)) != 2:
-        raise ValueError("the audit compares exactly two members")
+    """Every benchmark of the draw, from the two or three members' sheets in `directory`."""
+    if len(members) not in (2, 3) or len(set(members)) != len(members):
+        raise ValueError("the audit compares two or three distinct members")
     if not 0.0 < stop_share < 1.0:
         raise ValueError("stop_share must lie in (0, 1)")
     return {
@@ -174,7 +242,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--config", type=Path, required=True)
     parser.add_argument("--dir", type=Path)
-    parser.add_argument("--members", required=True, help="two member names, comma separated")
+    parser.add_argument(
+        "--members", required=True, help="two or three member names, comma separated"
+    )
     parser.add_argument("--out", type=Path)
     args = parser.parse_args(argv)
     config = load_config(args.config)
@@ -185,9 +255,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     write_result(out, result)
     for benchmark, r in result.items():
         b = r["label"]["between_members"]
+        if len(members) == 2:
+            agree, reject = f"kappa {b['kappa']}", "both reject"
+        else:
+            agree, reject = f"Fleiss' kappa {b['fleiss_kappa']}", "two or more reject"
         print(
             f"label-audit: {benchmark}: {r['items']} items, members disagree on "
-            f"{b['disagreements']} ({b['rate']:.3f}), kappa {b['kappa']}; both reject "
+            f"{b['disagreements']} ({b['rate']:.3f}), {agree}; {reject} "
             f"{r['rejected']['count']}, stop {r['stop']}"
         )
     print(f"label-audit: written to {out}")

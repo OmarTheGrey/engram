@@ -12,8 +12,12 @@ reject more than `stop_share` of its items, on GateMem by answering no on
 the keys, on MEM-INV-Bench by labelling otherwise than the family or
 answering no on the keys. Each phase-1 context must equal what an agent sees,
 rebuilt here from the data (P4V-2); a MEM-INV-Bench context shows each
-entry's text alone, not its channel (D6). These tests use planted GateMem
-checkpoints and the vendored MEM-INV-Bench cases.
+entry's text alone, not its channel (D6). With three members (decision sheet
+item 16 as the lead changed it, 2026-11-19) an item is rejected when at
+least two of the three reject it, and the agreement gives each pair's Cohen's
+kappa and Fleiss' kappa over the three; two members keep the two-member
+report. These tests use planted GateMem checkpoints and the vendored
+MEM-INV-Bench cases.
 """
 
 from __future__ import annotations
@@ -101,7 +105,9 @@ def test_the_phase_1_order_mixes_both_kinds_by_a_seed() -> None:
     assert [i.item for i in again] == [i.item for i in items]
 
 
-def phase_1(tmp_path: Path) -> tuple[dict[str, list[sample.AuditItem]], Path]:
+def phase_1(
+    tmp_path: Path, members: tuple[str, ...] = ("ana", "ben")
+) -> tuple[dict[str, list[sample.AuditItem]], Path]:
     checkpoints, episodes = planted_gatemem()
     draw = {
         "gatemem": sample.gatemem_items(checkpoints, episodes, per_kind=25, seed=7),
@@ -109,7 +115,7 @@ def phase_1(tmp_path: Path) -> tuple[dict[str, list[sample.AuditItem]], Path]:
             {"fixtures": "fixtures/bench/mem-inv-bench", "cases": "full/cases.jsonl"}, seed=7
         ),
     }
-    sample.write_phase_1(draw, ["ana", "ben"], tmp_path)
+    sample.write_phase_1(draw, list(members), tmp_path)
     return draw, tmp_path
 
 
@@ -424,3 +430,130 @@ def test_the_stop_flag_waits_for_both_members_keys(tmp_path: Path) -> None:
     assert result["gatemem"]["stop"] is None
     assert result["mem-inv-bench"]["rejected"]["count"] == 4
     assert result["mem-inv-bench"]["stop"] is True
+
+
+# Three members (the lead's answer to decision sheet item 16, 2026-11-19): an item is
+# rejected when at least two of the three reject it; Cohen's kappa per pair, Fleiss' over all.
+THREE = ("ana", "ben", "cy")
+
+
+def test_the_config_names_the_three_members_the_lead_chose() -> None:
+    config = load_config(REPO / "research/configs/label-audit.json")
+    assert config["members"] == ["omar", "mohamad", "shady"]
+
+
+def test_fleiss_kappa_by_hand() -> None:
+    # Items (a, a, a), (a, a, b), (b, b, b), (a, b, b), one list per member.
+    columns = [["a", "a", "b", "a"], ["a", "a", "b", "b"], ["a", "b", "b", "b"]]
+    # Per item P_i = (sum n_ij^2 - 3) / 6: 1, 1/3, 1, 1/3, mean 2/3; p_a = p_b = 1/2, P_e = 1/2.
+    assert agreement.fleiss_kappa(columns) == pytest.approx((2 / 3 - 1 / 2) / (1 - 1 / 2))
+    assert agreement.fleiss_kappa(columns) == pytest.approx(1 / 3)
+    assert agreement.fleiss_kappa([["yes"] * 4] * 3) is None
+    assert agreement.fleiss_kappa([["a", "b", "a"]] * 3) == pytest.approx(1.0)
+
+
+def flip(families: dict[str, str]) -> Any:
+    return lambda ref: "legit" if families[ref] == "attack" else "attack"
+
+
+def test_three_members_reject_an_item_when_at_least_two_of_them_reject_it(tmp_path: Path) -> None:
+    draw, out = phase_1(tmp_path, THREE)
+    other = flip({i.ref: i.label for i in draw["mem-inv-bench"]})
+    # MEM-INV-Bench family labels: M01 flipped by one member, M02 by two, M03 by all three;
+    # M07 by ana alone, whose key ben rejects alone: one of each is not two of either.
+    flipped = {"ana": {"M01", "M02", "M03", "M07"}, "ben": {"M02", "M03"}, "cy": {"M03"}}
+    # Keys: G01 and M04 one no, G02 and M05 two, G03 and M06 all three.
+    no = {
+        "ana": {"G01", "G02", "G03", "M06"},
+        "ben": {"G02", "G03", "M05", "M06", "M07"},
+        "cy": {"G03", "M04", "M05", "M06"},
+    }
+    for member in THREE:
+        fill(
+            out, draw, member, lambda i, m=member: other(i.ref) if i.ref in flipped[m] else i.label
+        )
+        fill_keys(out, draw, member, no[member])
+    result = agreement.compare_dir(out, list(THREE), draw, stop_share=STOP_SHARE)
+    g, m = result["gatemem"], result["mem-inv-bench"]
+    # Not "all three" (only G03, M03 and M06) and not "any one" (G01, M01, M04 and M07 too).
+    assert g["rejected"]["refs"] == ["G02", "G03"]
+    assert m["rejected"]["refs"] == ["M02", "M03", "M05", "M06"]
+    assert g["rejected"]["rule"] == "at least two of the three members answer no on the keys"
+    assert m["rejected"]["rule"] == (
+        "at least two of the three members label otherwise than the family, "
+        "or at least two answer no on the keys"
+    )
+    assert m["label"]["two_or_more_against_benchmark"] == ["M02", "M03"]
+    # GateMem's 2 of 50 stay below the threshold; MEM-INV-Bench's 4 of 38 stop.
+    assert g["stop"] is False and m["stop"] is True
+    assert g["members"] == list(THREE)
+    # The members' agreement: items they do not all label alike, Fleiss' kappa, each pair's kappa.
+    between = m["label"]["between_members"]
+    assert between["disagreements"] == 3  # M01, M02 and M07; all three flip M03 alike
+    assert between["rate"] == 3 / 38
+    labels = {
+        m: [other(i.ref) if i.ref in flipped[m] else i.label for i in draw["mem-inv-bench"]]
+        for m in THREE
+    }
+    assert between["fleiss_kappa"] == pytest.approx(
+        agreement.fleiss_kappa([labels[x] for x in THREE])
+    )
+    assert sorted(between["pairs"]) == ["ana/ben", "ana/cy", "ben/cy"]
+    assert between["pairs"]["ana/cy"]["disagreements"] == 3
+    assert between["pairs"]["ana/cy"]["kappa"] == pytest.approx(
+        agreement.cohen_kappa(labels["ana"], labels["cy"])
+    )
+    assert g["keys_ok"]["no"] == {"ana": 3, "ben": 2, "cy": 1}
+    assert g["keys_ok"]["between_members"]["disagreements"] == 2  # G01 and G02
+    assert sorted(g["keys_ok"]["between_members"]["pairs"]) == ["ana/ben", "ana/cy", "ben/cy"]
+    assert json.loads(json.dumps(result)) == result
+
+
+def test_three_members_stop_on_the_same_counts(tmp_path: Path) -> None:
+    gatemem_refs = [f"G{n:02d}" for n in range(1, 51)]
+    for name, rejected, stop in (("a", 5, False), ("b", 6, True)):
+        draw, out = phase_1(tmp_path / name, THREE)
+        for member in THREE:
+            fill(out, draw, member, lambda item: item.label)
+            # Two of the three answer no on the first `rejected` keys; cy accepts every key.
+            fill_keys(out, draw, member, set() if member == "cy" else set(gatemem_refs[:rejected]))
+        result = agreement.compare_dir(out, list(THREE), draw, stop_share=STOP_SHARE)
+        assert result["gatemem"]["rejected"]["count"] == rejected
+        assert result["gatemem"]["stop"] is stop
+        assert result["gatemem"]["stop_share"] == 0.10
+
+
+def test_with_three_members_stop_waits_for_every_members_keys(tmp_path: Path) -> None:
+    draw, out = phase_1(tmp_path, THREE)
+    for member in THREE:
+        fill(out, draw, member, lambda item: item.label)
+    result = agreement.compare_dir(out, list(THREE), draw, stop_share=STOP_SHARE)
+    assert result["gatemem"]["stop"] is None and result["mem-inv-bench"]["stop"] is None
+    assert result["gatemem"]["keys_ok"] is None
+    fill_keys(out, draw, "ana", set())
+    fill_keys(out, draw, "ben", set())
+    with pytest.raises(ValueError, match="not for cy"):
+        agreement.compare_dir(out, list(THREE), draw, stop_share=STOP_SHARE)
+    fill_keys(out, draw, "cy", set())
+    result = agreement.compare_dir(out, list(THREE), draw, stop_share=STOP_SHARE)
+    assert result["gatemem"]["stop"] is False
+
+
+def test_the_audit_takes_two_or_three_distinct_members(tmp_path: Path) -> None:
+    draw, out = phase_1(tmp_path, ("ana", "ben", "cy", "dee"))
+    for members in (["ana"], ["ana", "ben", "cy", "dee"], ["ana", "ana"], ["ana", "ben", "ben"]):
+        with pytest.raises(ValueError, match="two or three distinct members"):
+            agreement.compare_dir(out, members, draw, stop_share=STOP_SHARE)
+
+
+def test_two_members_keep_the_two_member_report(tmp_path: Path) -> None:
+    """With two members nothing of the three-member report appears (the lead's change keeps it)."""
+    draw, out = phase_1(tmp_path)
+    for member in ("ana", "ben"):
+        fill(out, draw, member, lambda item: item.label)
+        fill_keys(out, draw, member, set())
+    g = agreement.compare_dir(out, ["ana", "ben"], draw, stop_share=STOP_SHARE)["gatemem"]
+    assert set(g["label"]) == {"between_members", "against_benchmark", "both_against_benchmark"}
+    assert set(g["label"]["between_members"]) == {"disagreements", "rate", "kappa"}
+    assert set(g["keys_ok"]["between_members"]) == {"disagreements", "rate", "kappa"}
+    assert g["rejected"]["rule"] == "both members answer no on the keys"
