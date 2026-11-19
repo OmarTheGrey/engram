@@ -173,3 +173,16 @@ def test_the_live_pilot_refuses_until_its_model_is_named(tmp_path: Path) -> None
         l3_variance.build(config)
     with pytest.raises(ValueError, match="pipeline config"):
         l3_variance.build({**load_config(FIXTURE_CONFIG), "model": "openrouter/x"})
+
+
+def test_a_scripted_run_is_never_written_under_research_results() -> None:
+    target = REPO / "research/results/zz-l3-probe.json"
+    assert not target.exists()
+    with pytest.raises(SystemExit, match="scripted"):
+        l3_variance.main(["--config", str(FIXTURE_CONFIG), "--out", str(target)])
+    assert not target.exists()
+    # Another spelling of the same folder is refused too.
+    roundabout = str(REPO / "research" / ".." / "research" / "results" / "zz.json")
+    with pytest.raises(SystemExit, match="scripted"):
+        l3_variance.main(["--config", str(FIXTURE_CONFIG), "--out", roundabout])
+    assert not (REPO / "research/results/zz.json").exists()

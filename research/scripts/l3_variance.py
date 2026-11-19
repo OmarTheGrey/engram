@@ -28,7 +28,8 @@ carry each fault fixture's labels beside what the lints found:
 
 A rate with a zero denominator at a seed is null there and left out of the
 spread. The run must have made zero new model calls; the script checks
-usage.json and refuses otherwise.
+usage.json and refuses otherwise. A scripted run (a pipeline config) is never
+written under research/results: its numbers are not results.
 """
 
 from __future__ import annotations
@@ -196,7 +197,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--config", type=Path, required=True)
     parser.add_argument("--out", type=Path, required=True)
     args = parser.parse_args(argv)
-    write_result(args.out, build(load_config(args.config)))
+    result = build(load_config(args.config))
+    results = (REPO / "research" / "results").resolve()
+    if result["scripted"] and args.out.resolve().is_relative_to(results):
+        raise SystemExit(
+            f"{args.out} is under research/results, and this run is a scripted model's: its"
+            " numbers are not results (AGENTS.md rule 9); write it elsewhere, such as .engram/"
+        )
+    write_result(args.out, result)
     return 0
 
 
