@@ -8,7 +8,8 @@
 // plane/retention.ts) through policy/retention.ts, and promotion (card E2.5,
 // plane/promote.ts) through policy/promotion.ts, the deterministic lints
 // (card L1, plane/lint.ts) through lint/det.ts, and the simulator (card
-// E8.9, plane/simulate.ts) over all of them. Methods whose cards have
+// E8.9, plane/simulate.ts) over all of them, and grant changes (card E9.4,
+// plane/grants.ts) through policy/grants.ts. Methods whose cards have
 // not landed reject with NotImplementedYet, naming the card that implements them.
 import type { Actor } from "./actor.ts";
 import type { Adapter } from "./adapter.ts";
@@ -25,12 +26,14 @@ export {
 } from "./plane/adopt.ts";
 
 import { recordBypass } from "./plane/bypass.ts";
+import { changeGrants } from "./plane/grants.ts";
 import { type LintReport, lint } from "./plane/lint.ts";
 import { promote } from "./plane/promote.ts";
 import { filteredRead, storedExplanations } from "./plane/read.ts";
 import { retain } from "./plane/retention.ts";
 import { simulate } from "./plane/simulate.ts";
 import { checkWrite, gatedWrite } from "./plane/write.ts";
+import type { GrantChange } from "./policy/grants.ts";
 import type { Explanation, MemoryEvent, MemoryItem, Policy } from "./schema.ts";
 import type { SimReport, Workload } from "./simulate.ts";
 
@@ -166,6 +169,19 @@ export interface GateResult {
   events: MemoryEvent[];
 }
 
+/** The outcome of a grant change (card E9.4, ADR 0034). */
+export interface GrantResult {
+  decision: "allow" | "deny";
+  /**
+   * The item as it stands after the change, its new version; null when the
+   * change was denied, or when the read matrix does not let the owner's
+   * level read the item's scope.
+   */
+  item: MemoryItem | null;
+  /** The decision's one `update` event. */
+  event: MemoryEvent;
+}
+
 /** How a promotion is asked for (ADR 0026). */
 export interface PromoteOptions {
   /**
@@ -203,6 +219,18 @@ export interface Plane {
     at: string,
     options?: PromoteOptions,
   ): Promise<GateResult>;
+  /**
+   * Adds or removes grants on one item (card E9.4, ADR 0034). Only the
+   * item's owner, user-sourced and a member of its scope, may; every added
+   * grant must pass the write gate's grant rule (a principal or a prefixed
+   * pattern, a class, an expiry; none on model or compaction content) and
+   * not have expired. Every decision is one `update` event; an allowed
+   * change is a new version in place (same id, version plus one) rewritten
+   * to the store. Runs in the write queue. An invalid actor, time, item id or
+   * change (malformed grants, or nothing to add or remove) is refused with
+   * InvalidCallError before the log is touched.
+   */
+  changeGrants(actor: Actor, itemId: string, change: GrantChange, at: string): Promise<GrantResult>;
   /**
    * Sweeps one scope (ADR 0025): retires items past their ttl, then evicts
    * any budget overage in the rule's order, each one event; items stay in
@@ -301,6 +329,8 @@ export function createPlane(deps: PlaneDeps): Plane {
     promote: async (actor, itemId, toScope, at, options) =>
       promote(deps, actor, itemId, toScope, at, options),
     lint: async (actor, at, scope) => lint(deps, actor, at, scope),
+    changeGrants: async (actor, itemId, change, at) =>
+      changeGrants(deps, actor, itemId, change, at),
     simulate: (workload, policy) => simulate(deps, workload, policy),
     distill: async () => {
       throw new NotImplementedYet("distill", "D2");
