@@ -29,8 +29,17 @@
 // order. Neither path writes Mem0's home folder (MEM0_DIR or ~/.mem0).
 //
 // A file vector store (`dbPath` ending in `.db`) gets a sibling file
-// `<name>_entities.db`: Mem0 links the entities it finds in each memory text
-// into a second collection, kept beside the first.
+// `<name>_entities.db` for Mem0's entity collection, made the first time Mem0
+// opens it: a search whose query names an entity reads it, and a delete
+// removes the memory's links from it. Mem0 (mem0ai 3.3.1) links entities only when an update changes a
+// memory's text; an add with `infer: false`, which is every first write
+// here, links none (card RV3, RV-ADP-10, read from mem0ai's
+// `addToVectorStore`, `createMemory` and `updateMemory`). So the entity boost
+// in a search sees only items rewritten with new content.
+//
+// A ref is Mem0's memory id, so a delete then a rewrite of one item id lands
+// under a new ref (ADR 0013, amendment of card RV3): the plane keeps the ref
+// the latest write returned.
 //
 // History is not offered: Mem0's history table records memory text only, not
 // the metadata that carries the MemoryItem, so it cannot return versions.

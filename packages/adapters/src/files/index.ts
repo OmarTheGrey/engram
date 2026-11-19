@@ -1,13 +1,24 @@
 // The files adapter (card A3, ADR 0013): a folder of Markdown in the Claude
 // Code auto-memory layout. One memory per file, YAML frontmatter with Claude
-// Code's `name`, `description` and `metadata.type`, the body after it, and a
-// MEMORY.md index with one `- [Title](file.md) - hook` line per memory.
+// Code's `name`, `description` and `metadata.type`, and the body after it.
 //
 // An item the plane writes is `<id>.md`: the body is its content and the
 // frontmatter adds every other item field under the one key `engram`, so a
-// read returns the exact item. A file with no `engram` key is a memory Claude
-// Code (or a person) wrote; it lists as a read-only item with the defaults in
-// `importedItem` below. This adapter does file I/O. No item field comes from
+// read returns the exact item. An Engram file is tied to its name: one whose
+// `engram.id` is not its file name (a copy, a rename, a file written by hand)
+// is refused, so one id never lists twice (card RV3, RV-ADP-1). A file with
+// no `engram` key is a memory Claude Code (or a person) wrote; it lists as a
+// read-only item with the defaults in `importedItem` below, under an id
+// derived from the folder and the file name (`importedItemId`), so two
+// folders' files of one name are two items (RV-ADP-2).
+//
+// MEMORY.md is Claude Code's alone (RV-ADP-3). Claude Code loads its first
+// 200 lines into every session by itself, outside the plane's read filter,
+// so the adapter never lists an Engram item there, never reads it and never
+// changes it. Engram's item files are reached only through the plane, or by
+// a file tool, which the no-bypass hook blocks inside the folder (ADR 0014).
+//
+// This adapter does file I/O. No item field comes from
 // the clock: an imported item's valid_from comes from the options or the
 // file's mtime. Only the folder lock reads the wall clock (see below). An
 // mtime-derived valid_from is reported by `derivedFields`, so adoption does
@@ -18,31 +29,31 @@
 //   directly inside the root: a symlink, junction, directory or device, and a
 //   hard link (a file with more than one name, any of which may be outside
 //   the root; the link count cannot say which), is skipped by list and search
-//   and refused by read, write and delete. MEMORY.md is held to the same rule.
+//   and refused by read, write and delete. MEMORY.md is never touched.
 // - Let one malformed file break the folder: list and search skip it and
 //   report it through `diagnostics()`; a read of it still throws.
 // - Depend on the file system's case rules: keys match directory entries
 //   exactly, item ids must be lowercase, and a write is refused when a file
 //   whose name differs only in case exists.
-// - Leave half a write: MEMORY.md is checked before the item file is
-//   written, and if the index update still fails, the item file is removed
-//   (or its previous bytes restored), so a write or delete that rejects
-//   leaves the folder as it was.
-// - Lose MEMORY.md lines to another adapter instance or process: every write
-//   and delete holds the lock file `.engram.lock` in the root, and temporary
-//   files have unique names.
+// - Leave half a write: an item file is replaced by one atomic rename.
+// - Race another adapter instance or process: every write and delete holds
+//   the lock file `.engram.lock` in the root, and temporary files have unique
+//   names. A temporary file (`.<key>.<pid>.<n>.engram-tmp`) found while the
+//   lock is held is a crashed writer's, since every writer holds the lock
+//   while its own exists; the first write or delete of an instance removes
+//   them (RV-ADP-10).
+// - Take a refusal no retry can change for a transient failure: a delete
+//   refused for an unsafe key, a file that is not a regular file with one
+//   name, a file that does not hold a valid Engram item, or a memory Claude
+//   Code wrote throws a NotDeletableError (RV-ADP-5).
 //
 // The lock (pid, host, token and time of its holder; stale when its pid is
 // dead on this machine or it is older than LOCK_STALE_MS) is shared with the
 // Letta adapter and documented in ../lock.ts.
-//
-// Engram's own index lines separate the link from the hook with " - "
-// (repository content avoids the em dash). Lines Claude Code wrote, which
-// may use an em dash, are left exactly as they are.
 import { createHash } from "node:crypto";
-import type { Dirent } from "node:fs";
-import { lstat, mkdir, open, readdir, readFile, rm } from "node:fs/promises";
-import { join } from "node:path";
+import { type Dirent, realpathSync } from "node:fs";
+import { lstat, mkdir, open, readdir, rm } from "node:fs/promises";
+import { join, resolve } from "node:path";
 import {
   type MemoryItem,
   MemoryItem as MemoryItemSchema,
@@ -98,10 +109,26 @@ export interface FilesAdapter extends Adapter {
   derivedFields(item: MemoryItem): (keyof MemoryItem)[];
 }
 
-/** A store_ref key that is not a plain Markdown file name, or not a regular file, inside the root. */
-export class UnsafeKeyError extends Error {
+/**
+ * A store_ref key that is not a plain Markdown file name, or not a regular
+ * file with one name, inside the root. A NotDeletableError: a delete aimed at
+ * it is refused on every attempt, not just now (RV-ADP-5).
+ */
+export class UnsafeKeyError extends NotDeletableError {
   constructor(key: string, why = "is not a memory file name inside the root") {
     super(`files adapter: key ${JSON.stringify(key)} ${why}`);
+  }
+}
+
+/**
+ * A memory file whose frontmatter does not parse or that does not hold a
+ * valid item, or an Engram file naming another item than its file name. A
+ * NotDeletableError: the plane never removes a file it cannot read as its
+ * own (RV-ADP-5).
+ */
+export class UnreadableItemError extends NotDeletableError {
+  constructor(key: string, why: string) {
+    super(`files adapter: ${key} ${why}`);
   }
 }
 
@@ -116,8 +143,11 @@ export class ReadOnlyItemError extends NotDeletableError {
   }
 }
 
+/** Claude Code's index: never an item, never read or changed (RV-ADP-3). */
 const INDEX = "MEMORY.md";
 const LOCK = ".engram.lock";
+/** A temporary file atomicWrite names (../fs-safe.ts): `.<key>.<pid>.<n>.engram-tmp`. */
+const TEMP = /^\..+\.\d+\.\d+\.engram-tmp$/;
 const NOT_REGULAR =
   "is not a regular file inside the root; symlinks, directories and devices are never followed";
 const HARD_LINKED =
@@ -126,12 +156,40 @@ const CLAUDE_TYPES = ["user", "feedback", "project", "reference"] as const;
 type ContentFormat = "text" | "json" | "skill";
 
 /**
- * The id of an imported file: a UUIDv7 derived from the file key alone, so it
- * survives edits to the file. Its time field is zero, so imported items sort
- * before every item the plane wrote; the other 74 bits come from sha256(key).
+ * The folder as imported ids name it: its real path where it exists, else the
+ * resolved one, without case on Windows, so two spellings of one folder give
+ * one identity and two folders never share one.
  */
-export function importedItemId(key: string): string {
-  const h = createHash("sha256").update(`engram/files/${key}`).digest("hex");
+export function folderIdentity(root: string): string {
+  return realIdentity(root) ?? caseless(resolve(root));
+}
+
+const caseless = (path: string) => (process.platform === "win32" ? path.toLowerCase() : path);
+
+/** The folder's identity from its real path; undefined while it does not exist or cannot be read. */
+function realIdentity(root: string): string | undefined {
+  try {
+    return caseless(realpathSync.native(resolve(root)));
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * The id of an imported file: a UUIDv7 derived from its folder and its file
+ * name, so it survives edits to the file, and one file name in two folders
+ * (two members' `user_role.md`) is two items (card RV3, RV-ADP-2). Its time
+ * field is zero, so imported items sort before every item the plane wrote;
+ * the other 74 bits come from sha256 of the folder's identity
+ * (`folderIdentity`) and the key. Moving the folder changes the ids of its
+ * imported files.
+ */
+export function importedItemId(root: string, key: string): string {
+  return idOf(folderIdentity(root), key);
+}
+
+function idOf(folder: string, key: string): string {
+  const h = createHash("sha256").update(`engram/files/${folder}\u0000${key}`).digest("hex");
   const variant = ((Number.parseInt(h.slice(3, 4), 16) & 0x3) | 0x8).toString(16);
   return `00000000-0000-7${h.slice(0, 3)}-${variant}${h.slice(4, 7)}-${h.slice(7, 19)}`;
 }
@@ -180,7 +238,7 @@ const textOf = (content: MemoryItem["content"]) =>
 /**
  * Claude Code's `name`: the first non-empty line of the content, without
  * heading marks, at most 60 code points (a surrogate pair is never split) and
- * always well-formed UTF-16, so MEMORY.md never gains a replacement character.
+ * always well-formed UTF-16, so the frontmatter never gains a replacement character.
  */
 function titleOf(item: MemoryItem): string {
   const line = textOf(item.content)
@@ -236,8 +294,6 @@ function serialise(item: MemoryItem): string {
 interface Loaded {
   item: MemoryItem;
   engram: boolean;
-  /** The file's bytes, to restore them if a later step of a write or delete fails. */
-  bytes: Buffer;
 }
 
 export function createFilesAdapter(options: FilesAdapterOptions): FilesAdapter {
@@ -248,13 +304,27 @@ export function createFilesAdapter(options: FilesAdapterOptions): FilesAdapter {
     throw new Error(`files adapter: owner ${JSON.stringify(options.owner)} is not a person id`);
   }
   const confidence = options.importConfidence ?? 0.5;
+  /**
+   * The folder's identity, kept once its real path is known: never a
+   * resolved path taken while the folder did not exist yet, which could
+   * differ from the real one through a junction or symlink (review fix pass,
+   * RV3-6). Moving the folder while an instance is open keeps the old ids
+   * until the instance is reopened.
+   */
+  let folderId: string | undefined;
+  const importedId = (key: string) => {
+    folderId ??= realIdentity(root);
+    return idOf(folderId ?? folderIdentity(root), key);
+  };
   let lastDiagnostics: FileDiagnostic[] = [];
+  /** Whether this instance has removed crashed writers' temporary files yet. */
+  let swept = false;
   /** Keys whose valid_from the latest load took from the file's modification time. */
   const mtimeDerived = new Set<string>();
 
   // Writes and deletes run one at a time within this instance, and hold the
-  // folder's lock file against other instances and processes, so MEMORY.md's
-  // read-modify-write never interleaves.
+  // folder's lock file against other instances and processes, so a write's
+  // checks of the folder and its rename never interleave with another's.
   let tail: Promise<unknown> = Promise.resolve();
   const serial = <T>(fn: () => Promise<T>): Promise<T> => {
     const run = tail.then(fn, fn);
@@ -272,7 +342,16 @@ export function createFilesAdapter(options: FilesAdapterOptions): FilesAdapter {
   });
   const locked = async <T>(fn: () => Promise<T>): Promise<T> => {
     await mkdir(root, { recursive: true });
-    return lock(fn);
+    return lock(async () => {
+      if (!swept) {
+        // Every writer holds the lock while its temporary file exists, so one
+        // present now belongs to a writer that crashed (RV-ADP-10).
+        for (const e of await entries())
+          if (e.isFile() && TEMP.test(e.name)) await rm(join(root, e.name), { force: true });
+        swept = true;
+      }
+      return fn();
+    });
   };
 
   const keyOf = (ref: StoreRef) => {
@@ -287,7 +366,7 @@ export function createFilesAdapter(options: FilesAdapterOptions): FilesAdapter {
       : undefined;
     const type = CLAUDE_TYPES.find((t) => t === declared) ?? "untyped";
     return {
-      id: importedItemId(key),
+      id: importedId(key),
       // Every Claude Code type is a standing fact or rule, none an event record
       // or a replay-validated procedure, so all four import as semantic.
       class: "semantic",
@@ -316,14 +395,23 @@ export function createFilesAdapter(options: FilesAdapterOptions): FilesAdapter {
   function engramItem(key: string, engram: unknown, body: string): unknown {
     if (!isRecord(engram)) return engram;
     const { content_format: format, tools, ...fields } = engram;
+    // An Engram file is named by its item id: a copy or a rename is refused,
+    // as the Letta adapter's parseItem refuses one (RV-ADP-1).
+    if (`${String(fields.id)}.md` !== key) {
+      throw new UnreadableItemError(
+        key,
+        `holds Engram item ${JSON.stringify(fields.id)}, not the item its name says; an Engram file is named by its item id, so a copy or a rename of one is not read`,
+      );
+    }
     let content: unknown = body;
     if (format === "skill") content = { body, tools };
     else if (format === "json") {
       try {
         content = JSON.parse(body);
       } catch (e) {
-        throw new Error(
-          `files adapter: ${key} has a JSON body that does not parse: ${(e as Error).message}`,
+        throw new UnreadableItemError(
+          key,
+          `has a JSON body that does not parse: ${(e as Error).message}`,
         );
       }
     }
@@ -383,7 +471,7 @@ export function createFilesAdapter(options: FilesAdapterOptions): FilesAdapter {
     try {
       meta = front === undefined ? undefined : parseYaml(front);
     } catch (e) {
-      throw new Error(`files adapter: ${key} has unreadable frontmatter: ${(e as Error).message}`);
+      throw new UnreadableItemError(key, `has unreadable frontmatter: ${(e as Error).message}`);
     }
     const engram = isRecord(meta) && "engram" in meta;
     if (!engram && options.importValidFrom === undefined) mtimeDerived.add(key);
@@ -394,9 +482,9 @@ export function createFilesAdapter(options: FilesAdapterOptions): FilesAdapter {
         : importedItem(key, bytes, mtime, meta, body);
     const parsed = MemoryItemSchema.safeParse(candidate);
     if (!parsed.success) {
-      throw new Error(`files adapter: ${key} does not hold a valid item: ${parsed.error.message}`);
+      throw new UnreadableItemError(key, `does not hold a valid item: ${parsed.error.message}`);
     }
-    return { item: parsed.data, engram, bytes };
+    return { item: parsed.data, engram };
   }
 
   async function load(key: string): Promise<Loaded | undefined> {
@@ -421,67 +509,6 @@ export function createFilesAdapter(options: FilesAdapterOptions): FilesAdapter {
     }
     lastDiagnostics = skipped;
     return items;
-  }
-
-  /** Refuses MEMORY.md unless it is missing or a regular file with one name. */
-  async function checkIndex() {
-    let info: Awaited<ReturnType<typeof lstat>>;
-    try {
-      info = await lstat(join(root, INDEX));
-    } catch (e) {
-      if (isMissing(e)) return;
-      throw e;
-    }
-    if (!info.isFile()) throw new UnsafeKeyError(INDEX, NOT_REGULAR);
-    if (info.nlink > 1) throw new UnsafeKeyError(INDEX, HARD_LINKED);
-  }
-
-  /** Puts `line` in place of the index line linking `key`, or removes it when `line` is undefined. */
-  async function updateIndex(key: string, line: string | undefined) {
-    const path = join(root, INDEX);
-    let text = "";
-    try {
-      await checkIndex();
-      text = await readFile(path, "utf8");
-    } catch (e) {
-      if (!isMissing(e)) throw e;
-    }
-    const eol = text.includes("\r\n") ? "\r\n" : "\n";
-    const lines = text === "" ? [] : text.replace(/\r?\n$/, "").split(/\r?\n/);
-    // A link to the same file in other case is the same file on a case-insensitive system.
-    const target = `](${key.toLowerCase()})`;
-    const links = (l: string) => l.startsWith("- [") && l.toLowerCase().includes(target);
-    const at = lines.findIndex(links);
-    const kept = lines.filter((l) => !links(l));
-    if (line !== undefined) kept.splice(at >= 0 ? at : kept.length, 0, line);
-    await atomicWrite(path, root, INDEX, kept.length ? `${kept.join(eol)}${eol}` : "");
-  }
-
-  /**
-   * Runs the index update of a write or delete that has already changed the
-   * item file; if it fails, puts the item file back as it was (`previous`
-   * bytes, or no file) and rethrows, so the folder is left unchanged.
-   */
-  async function allOrNothing(
-    key: string,
-    previous: Buffer | undefined,
-    update: () => Promise<void>,
-  ) {
-    try {
-      await update();
-    } catch (e) {
-      const path = join(root, key);
-      try {
-        if (previous) await atomicWrite(path, root, key, previous);
-        else await rm(path, { force: true, maxRetries: 10, retryDelay: 10 });
-      } catch (undo) {
-        throw new Error(
-          `files adapter: updating ${INDEX} failed (${(e as Error).message}) and restoring ${key} failed too (${(undo as Error).message})`,
-          { cause: e },
-        );
-      }
-      throw e;
-    }
   }
 
   const adapter: FilesAdapter = {
@@ -510,7 +537,7 @@ export function createFilesAdapter(options: FilesAdapterOptions): FilesAdapter {
           }
           const folder = await entries();
           const imported = folder.find(
-            (e) => isMemoryFile(e.name) && importedItemId(e.name) === item.id,
+            (e) => isMemoryFile(e.name) && importedId(e.name) === item.id,
           );
           if (imported) throw new ReadOnlyItemError(imported.name);
           const twin = folder.find((e) => e.name !== key && e.name.toLowerCase() === key);
@@ -523,12 +550,8 @@ export function createFilesAdapter(options: FilesAdapterOptions): FilesAdapter {
           const same = folder.find((e) => e.name === key);
           const previous = same ? await loadEntry(same) : undefined;
           if (previous && !previous.engram) throw new ReadOnlyItemError(key);
-          await checkIndex();
           const ref: StoreRef = { adapter: name, key };
           await atomicWrite(join(root, key), root, key, serialise({ ...item, store_ref: ref }));
-          await allOrNothing(key, previous?.bytes, () =>
-            updateIndex(key, `- [${titleOf(item)}](${key}) - ${hookOf(item)}`),
-          );
           return ref;
         }),
       );
@@ -543,9 +566,7 @@ export function createFilesAdapter(options: FilesAdapterOptions): FilesAdapter {
           const loaded = await load(key);
           if (!loaded) return;
           if (!loaded.engram) throw new ReadOnlyItemError(key);
-          await checkIndex();
-          await rm(join(root, key), { force: true });
-          await allOrNothing(key, loaded.bytes, () => updateIndex(key, undefined));
+          await rm(join(root, key), { force: true, maxRetries: 10, retryDelay: 10 });
         }),
       );
     },

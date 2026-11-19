@@ -1,11 +1,11 @@
 // Card A3: the files adapter's own behaviour beyond the conformance suite.
 // Claude Code memory files without Engram metadata list as read-only items
 // with documented defaults; Engram items are Markdown files whose frontmatter
-// keeps Claude Code's fields; MEMORY.md stays in step; paths stay inside root.
+// keeps Claude Code's fields; MEMORY.md is never touched (card RV3, RV-ADP-3;
+// test/files/rv3.test.ts); paths stay inside root.
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
-  chmod,
   cp,
   link,
   lstat,
@@ -87,8 +87,11 @@ const item = (n: number, patch: Partial<MemoryItem> = {}): MemoryItem =>
   }) as MemoryItem;
 
 const sha256 = (bytes: Buffer) => `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
-const indexLines = async (root: string) =>
-  (await readFile(join(root, "MEMORY.md"), "utf8")).split("\n").filter(Boolean);
+/** Claude Code's `name` in an item file's frontmatter. */
+const nameOf = async (root: string, key: string) => {
+  const [, front] = (await readFile(join(root, key), "utf8")).split(/^---\n|\n---\n/m);
+  return (parseYaml(front as string) as { name: string }).name;
+};
 
 describe("Claude Code memory files without Engram metadata", () => {
   test("the fixture folder lists as one valid item per memory file in the owner's person scope", async () => {
@@ -112,7 +115,7 @@ describe("Claude Code memory files without Engram metadata", () => {
     const role = items.find((i) => i.store_ref?.key === "user_role.md");
     const bytes = await readFile(join(FIXTURE, "user_role.md"));
     expect(role).toEqual({
-      id: importedItemId("user_role.md"),
+      id: importedItemId(FIXTURE, "user_role.md"),
       class: "semantic",
       scope: "person:dana",
       owner: "person:dana",
@@ -275,39 +278,7 @@ describe("Engram items as Markdown files", () => {
     const adapter = createFilesAdapter({ root, owner: "omar" });
     await adapter.write(item(5));
     await adapter.write(item(5, { version: 2, content: "v2" }));
-    expect((await readdir(root)).sort()).toEqual([
-      "01920000-0000-7000-8000-000000000005.md",
-      "MEMORY.md",
-    ]);
-  });
-});
-
-describe("MEMORY.md index", () => {
-  test("a write adds one index line linking the file, a rewrite replaces it", async () => {
-    const root = await tempDir();
-    const adapter = createFilesAdapter({ root, owner: "omar" });
-    const ref = await adapter.write(item(1));
-    await adapter.write(item(1, { version: 2, content: "Deploy notes go in English now." }));
-    expect(await indexLines(root)).toEqual([
-      `- [Deploy notes go in English now.](${ref.key}) - semantic memory in person:omar, version 2`,
-    ]);
-  });
-
-  test("a delete removes the item's line and keeps the lines Claude Code wrote", async () => {
-    const root = await fixtureCopy();
-    const before = await indexLines(root);
-    const adapter = createFilesAdapter({ root, owner: "dana", importValidFrom: VALID_FROM });
-    const ref = await adapter.write(item(6, { scope: "person:dana" }));
-    expect(await indexLines(root)).toHaveLength(before.length + 1);
-    await adapter.delete(ref);
-    expect(await indexLines(root)).toEqual(before);
-  });
-
-  test("concurrent writes each get exactly one index line", async () => {
-    const root = await tempDir();
-    const adapter = createFilesAdapter({ root, owner: "omar" });
-    await Promise.all([1, 2, 3, 4, 5].map((n) => adapter.write(item(n))));
-    expect(await indexLines(root)).toHaveLength(5);
+    expect((await readdir(root)).sort()).toEqual(["01920000-0000-7000-8000-000000000005.md"]);
   });
 });
 
@@ -332,9 +303,6 @@ describe("store_ref keys", () => {
     await expect(pending).rejects.toThrow();
   });
 });
-
-/** U+2014, built at run time: repository text never contains the character itself. */
-const EM_DASH = String.fromCodePoint(0x2014);
 
 const isUnavailable = (e: unknown) =>
   ["EPERM", "EACCES", "ENOSYS", "ENOTSUP"].includes((e as NodeJS.ErrnoException).code ?? "");
@@ -456,39 +424,27 @@ describe("case-insensitive file systems (review finding R4-5)", () => {
     expect(await adapter.read({ adapter: "files", key: "USER_ROLE.md" })).toBeUndefined();
     expect(await adapter.read({ adapter: "files", key: "user_role.md" })).toBeDefined();
   });
-
-  test("an index line linking the item's file in other case is replaced, not duplicated", async () => {
-    const root = await tempDir();
-    const id = item(11).id;
-    await writeFile(join(root, "MEMORY.md"), `- [Old](${id.toUpperCase()}.MD) - stale\n`);
-    const adapter = createFilesAdapter({ root, owner: "omar" });
-    const ref = await adapter.write(item(11));
-    expect(await indexLines(root)).toEqual([
-      `- [Omar prefers deploy notes in Arabic.](${ref.key}) - semantic memory in person:omar, version 1`,
-    ]);
-  });
 });
 
 describe("two adapter instances on one folder (review finding R4-6)", () => {
-  test("concurrent writes through two instances keep every index line and every file", async () => {
+  test("concurrent writes through two instances keep every file", async () => {
     const root = await tempDir();
     const a = createFilesAdapter({ root, owner: "omar" });
     const b = createFilesAdapter({ root, owner: "omar" });
     const ns = Array.from({ length: 12 }, (_, n) => n + 1);
     const refs = await Promise.all(ns.map((n) => (n % 2 ? a : b).write(item(n))));
-    expect(await indexLines(root)).toHaveLength(ns.length);
-    expect((await readdir(root)).sort()).toEqual([...refs.map((r) => r.key), "MEMORY.md"].sort());
+    expect((await readdir(root)).sort()).toEqual(refs.map((r) => r.key).sort());
+    expect(await a.list("person:omar")).toHaveLength(ns.length);
   });
 
-  test("concurrent deletes through two instances remove every index line", async () => {
+  test("concurrent deletes through two instances remove every file", async () => {
     const root = await tempDir();
     const a = createFilesAdapter({ root, owner: "omar" });
     const b = createFilesAdapter({ root, owner: "omar" });
     const refs = [];
     for (const n of [1, 2, 3, 4, 5, 6]) refs.push(await a.write(item(n)));
     await Promise.all(refs.map((ref, n) => (n % 2 ? a : b).delete(ref)));
-    expect(await indexLines(root)).toEqual([]);
-    expect(await readdir(root)).toEqual(["MEMORY.md"]);
+    expect(await readdir(root)).toEqual([]);
   });
 });
 
@@ -526,80 +482,6 @@ describe("hard links (review round 2, V4 defect 1)", () => {
     await expect(inRoot.delete({ adapter: "files", key })).rejects.toBeInstanceOf(UnsafeKeyError);
     expect(await readFile(target, "utf8")).toBe(before);
     expect((await stat(join(root, key))).nlink).toBe(2);
-  });
-
-  test("a write is refused when MEMORY.md is a hard link, and nothing is written", async () => {
-    const root = await tempDir();
-    const outside = await tempDir();
-    await writeFile(join(outside, "index.md"), "- [Outside](outside.md) - theirs\n");
-    await link(join(outside, "index.md"), join(root, "MEMORY.md"));
-    const adapter = createFilesAdapter({ root, owner: "omar" });
-    await expect(adapter.write(item(9))).rejects.toBeInstanceOf(UnsafeKeyError);
-    expect(await readdir(root)).toEqual(["MEMORY.md"]);
-    expect(await readFile(join(outside, "index.md"), "utf8")).toBe(
-      "- [Outside](outside.md) - theirs\n",
-    );
-  });
-});
-
-describe("a write is all or nothing (review round 2, V4 defect 2)", () => {
-  test("MEMORY.md as a directory: the write is refused and no item file is left", async () => {
-    const root = await tempDir();
-    await mkdir(join(root, "MEMORY.md"));
-    const adapter = createFilesAdapter({ root, owner: "omar" });
-    await expect(adapter.write(item(20))).rejects.toBeInstanceOf(UnsafeKeyError);
-    expect(await readdir(root)).toEqual(["MEMORY.md"]);
-  });
-
-  test("MEMORY.md as a symlink: the write is refused, no item file is left, the target is untouched", async ({
-    skip,
-  }) => {
-    const root = await tempDir();
-    const outside = await tempDir();
-    await writeFile(join(outside, "index.md"), "outside index\n");
-    try {
-      await symlink(join(outside, "index.md"), join(root, "MEMORY.md"), "file");
-    } catch (e) {
-      if (isUnavailable(e)) return skip("symlinks are unavailable here");
-      throw e;
-    }
-    const adapter = createFilesAdapter({ root, owner: "omar" });
-    await expect(adapter.write(item(21))).rejects.toBeInstanceOf(UnsafeKeyError);
-    expect(await readdir(root)).toEqual(["MEMORY.md"]);
-    expect(await readFile(join(outside, "index.md"), "utf8")).toBe("outside index\n");
-  });
-
-  test("a rewrite refused for its MEMORY.md never touches the item file", async () => {
-    const root = await tempDir();
-    const adapter = createFilesAdapter({ root, owner: "omar" });
-    const ref = await adapter.write(item(24));
-    const before = await stat(join(root, ref.key), { bigint: true });
-    await rm(join(root, "MEMORY.md"));
-    await mkdir(join(root, "MEMORY.md"));
-    await expect(adapter.write(item(24, { version: 2, content: "v2" }))).rejects.toBeInstanceOf(
-      UnsafeKeyError,
-    );
-    const after = await stat(join(root, ref.key), { bigint: true });
-    expect([after.ino, after.mtimeNs]).toEqual([before.ino, before.mtimeNs]);
-  });
-
-  test("an index update that fails after the checks removes a new item file and restores a rewritten one", async () => {
-    const root = await tempDir();
-    const adapter = createFilesAdapter({ root, owner: "omar" });
-    const ref = await adapter.write(item(22));
-    const before = await readFile(join(root, ref.key), "utf8");
-    const index = join(root, "MEMORY.md");
-    // Read-only: on Windows the rename over it fails, elsewhere reading it does.
-    await chmod(index, 0o000);
-    try {
-      await expect(adapter.write(item(23))).rejects.toThrow();
-      await expect(adapter.write(item(22, { version: 2, content: "v2" }))).rejects.toThrow();
-    } finally {
-      await chmod(index, 0o644);
-    }
-    expect((await readdir(root)).sort()).toEqual([ref.key, "MEMORY.md"]);
-    expect(await readFile(join(root, ref.key), "utf8")).toBe(before);
-    expect(await adapter.read(ref)).toEqual({ ...item(22), store_ref: ref });
   });
 });
 
@@ -767,7 +649,7 @@ describe("the folder lock (review round 2, V4 defect 3)", () => {
     firstGoes.open();
     await Promise.all([firstWrite, secondWrite]);
     expect(secondAcquired).toBe(true);
-    expect(await indexLines(root)).toHaveLength(2);
+    expect(await first.list("person:omar")).toHaveLength(2);
     expect(await readdir(root)).not.toContain(".engram.lock");
   });
 
@@ -783,16 +665,13 @@ describe("the folder lock (review round 2, V4 defect 3)", () => {
   });
 });
 
-describe("titles and the index format (review findings R4-10, R4-13, R4-15)", () => {
+describe("titles (review findings R4-10, R4-13, R4-15)", () => {
   test("a title cut at 60 characters never splits a surrogate pair", async () => {
     const root = await tempDir();
     const adapter = createFilesAdapter({ root, owner: "omar" });
     const content = `${"a".repeat(59)}\u{1F680}rest of the line`;
     const ref = await adapter.write(item(12, { content }));
-    const [line] = await indexLines(root);
-    expect(line).toBe(
-      `- [${"a".repeat(59)}\u{1F680}...](${ref.key}) - semantic memory in person:omar, version 1`,
-    );
+    expect(await nameOf(root, ref.key)).toBe(`${"a".repeat(59)}\u{1F680}...`);
     expect(await readFile(join(root, ref.key), "utf8")).not.toContain("�");
   });
 
@@ -802,9 +681,6 @@ describe("titles and the index format (review findings R4-10, R4-13, R4-15)", ()
     const content = "Broken \ud800 pair";
     const ref = await adapter.write(item(13, { content }));
     expect((await adapter.read(ref))?.content).toBe(content);
-    expect(await indexLines(root)).toEqual([
-      `- [Broken � pair](${ref.key}) - semantic memory in person:omar, version 1`,
-    ]);
     // YAML would escape a lone surrogate as \ud800 and hand it back to Claude
     // Code; the title is made well-formed first, so the name holds U+FFFD.
     // (The body is stored as JSON, which escapes the surrogate on purpose.)
@@ -818,21 +694,5 @@ describe("titles and the index format (review findings R4-10, R4-13, R4-15)", ()
     const adapter = createFilesAdapter({ root: FIXTURE, owner: "dana" });
     expect(adapter.capabilities.native_search).toBe(false);
     expect(adapter.search).toBeTypeOf("function");
-  });
-
-  test("Engram's index lines use a hyphen separator; a Claude Code line with an em dash is kept as written", async () => {
-    const root = await tempDir();
-    const theirs = `- [Release freeze](project_release_freeze.md) ${EM_DASH} no deploys in December`;
-    await writeFile(join(root, "MEMORY.md"), `${theirs}\n`);
-    const adapter = createFilesAdapter({ root, owner: "omar" });
-    const ref = await adapter.write(item(14));
-    const lines = await indexLines(root);
-    expect(lines[0]).toBe(theirs);
-    expect(lines[1]).toBe(
-      `- [Omar prefers deploy notes in Arabic.](${ref.key}) - semantic memory in person:omar, version 1`,
-    );
-    expect(lines[1]).not.toContain(EM_DASH);
-    await adapter.delete(ref);
-    expect(await indexLines(root)).toEqual([theirs]);
   });
 });

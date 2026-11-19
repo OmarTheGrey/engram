@@ -11,8 +11,10 @@ export {
   type FileDiagnostic,
   type FilesAdapter,
   type FilesAdapterOptions,
+  folderIdentity,
   importedItemId,
   ReadOnlyItemError,
+  UnreadableItemError,
   UnsafeKeyError,
 } from "./files/index.ts";
 export { checkMemfsRoot, deferLettaAdapter } from "./letta/deferred.ts";

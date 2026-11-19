@@ -267,3 +267,90 @@ describe("shellBypass and toolBypass", () => {
     expect(shellBypass("ls", check)).toBeUndefined();
   });
 });
+
+describe("card RV3: more spellings of this machine and of Letta Code", () => {
+  const cwd = mkdtempSync(join(tmpdir(), "engram-nobypass-rv3-"));
+  const root = join(cwd, "memory");
+  mkdirSync(root);
+  const check = { cwd, roots: [root], rootStore: "files" };
+  /** `path` on this machine through a loopback host's admin share. */
+  const via = (prefix: string, path: string) => `${prefix}${path[0]}$${path.slice(2)}`;
+  const PREFIXES = [
+    "\\\\?\\UNC\\localhost\\",
+    "\\\\.\\UNC\\localhost\\",
+    "\\\\?\\UNC\\127.0.0.1\\",
+    "\\\\[::1]\\",
+    "\\\\[0:0:0:0:0:0:0:1]\\",
+    "\\\\0--1.ipv6-literal.net\\",
+    "\\\\127.1\\",
+    "\\\\127.0.0.2\\",
+  ];
+
+  it.each(PREFIXES)("reads %s as this machine's drive (RV-ADP-7)", (prefix) => {
+    expect(uncDrivePath(via(prefix, "C:\\x\\y"))).toBe("C:\\x\\y");
+  });
+
+  it.each([
+    "\\\\fileserver\\C$\\x",
+    "\\\\?\\UNC\\fileserver\\C$\\x",
+    "\\\\128.0.0.1\\C$\\x",
+    "\\\\[::2]\\C$\\x",
+  ])("leaves another machine's share %s alone", (path) => {
+    expect(uncDrivePath(path)).toBeUndefined();
+  });
+
+  it.runIf(process.platform === "win32").each(PREFIXES)(
+    "blocks a file tool through %s (RV-ADP-7)",
+    (prefix) => {
+      const target = via(prefix, join(root, "a.md"));
+      expect(toolBypass("Read", { file_path: target }, check)?.route).toBe("path");
+      expect(toolBypass("Write", { file_path: target, content: "x" }, check)?.route).toBe("path");
+    },
+  );
+
+  it.runIf(process.platform === "win32").each(PREFIXES)(
+    "blocks a shell command through %s from a cwd that names no root (RV-ADP-7)",
+    (prefix) => {
+      // Away from the root's parent, so no bare word of the path reaches the root by itself.
+      const away = { ...check, cwd: mkdtempSync(join(tmpdir(), "engram-nobypass-away-")) };
+      const target = via(prefix, join(root, "a.md"));
+      expect(shellBypass(`type ${target}`, away)?.route).toBe("path");
+      expect(shellBypass(`Get-Content "${target}"`, { ...away, shell: "powershell" })?.route).toBe(
+        "path",
+      );
+    },
+  );
+
+  // Review fix pass, RV3-2: a posix shell (Git Bash, Claude Code's Bash tool
+  // on Windows) reads `\\` as one backslash, so the command text that reaches
+  // `\\localhost\C$\...` doubles every backslash. `$` before a backslash stays
+  // a literal `$`, and an escaped `\$` is one too.
+  const escaped = (s: string) => s.replaceAll("\\", "\\\\");
+  it.runIf(process.platform === "win32").each(["\\\\localhost\\", ...PREFIXES])(
+    "blocks the escaped posix spelling of %s from a cwd that names no root (RV3-2)",
+    (prefix) => {
+      const away = { ...check, cwd: mkdtempSync(join(tmpdir(), "engram-nobypass-away-")) };
+      const target = via(prefix, join(root, "bare.md"));
+      expect(shellBypass(`echo x > ${escaped(target)}`, away)?.route).toBe("path");
+      expect(shellBypass(`cat ${escaped(target).replace("$", "\\$")}`, away)?.route).toBe("path");
+      expect(shellBypass(`cat "${escaped(target)}"`, away)?.route).toBe("path");
+    },
+  );
+
+  it.each(["\\\\fileserver\\C$\\memory\\x.md", "\\\\?\\UNC\\fileserver\\C$\\memory\\x.md"])(
+    "leaves another machine's share alone in its escaped posix spelling %s",
+    (path) => {
+      const away = { ...check, cwd: mkdtempSync(join(tmpdir(), "engram-nobypass-away-")) };
+      expect(shellBypass(`cat ${escaped(path)}`, away)).toBeUndefined();
+    },
+  );
+
+  it.each([
+    "npx @letta-ai/letta-code",
+    "npx -y @letta-ai/letta-code@0.34.66 memory list",
+    "pnpm dlx @letta-ai/letta-code",
+    "bunx @letta-ai/letta-code@latest",
+  ])("blocks Letta Code's package spec in %s (RV-ADP-8)", (command) => {
+    expect(blockedStoreCommand(command, STORE_COMMANDS)).toBe("letta");
+  });
+});
