@@ -39,21 +39,33 @@
 // an allowed event, or a deny the plane appends because a store write may
 // have happened without its decision standing (a conflict, a store failure,
 // an adoption's purge of a record); a gate's deny changes nothing and does
-// not count (P50-4). Each begin mark is closed by its own report only
-// (P50-5). And settling withdraws an adoption that recorded this writer's own
+// not count (P50-4). A report closes the begin mark it names (P50-5; see
+// below for the marks open when that one was appended). And settling withdraws an adoption that recorded this writer's own
 // stale bytes: when the log's only changes to the item since the decision are
 // adoptions that started with one of those bytes, the item is put back as it
 // stood before them, by one allowed event (engram/adopt/withdrawn), so a
 // stale write never comes back as the owner's import (P50-1, ordering RV8).
+//
+// Verification of that pass (V-1 to V-10). The rule recovery follows: a
+// committed decision by the owner is never undone by the plane's own
+// recovery, and when the plane cannot tell whose bytes are whose it narrows,
+// never widens. So a withdrawal happens only while the adopted stale bytes
+// are still the item's last allowed change (the projection holds them as
+// adopted); once anything has been built on them, the plane instead removes
+// the grants the adoption reintroduced that the version before it lacked, by
+// one allowed event (engram/adopt/narrowed), and the writer's deny names
+// them. Every version recovery writes is one above the item's current one.
+// A report closes its own begin mark and every mark that was open when that
+// mark was appended, so a rerun after a stopped offboarding reopens the scope.
 import { createHash } from "node:crypto";
 import type { StoreRef } from "../adapter.ts";
 import type { Db } from "../db/db.ts";
 import { appendEvent, applyEvent, erases, eventsByItem } from "../events.ts";
 import { itemById } from "../items.ts";
 import type { PlaneDeps } from "../plane.ts";
-import { STORE_FAILURE_ID, scopeLevel } from "../policy/evaluate.ts";
+import { STORE_FAILURE_ID, sameGrant, scopeLevel } from "../policy/evaluate.ts";
 import { GRANT_CONFLICT_ID } from "../policy/grants.ts";
-import type { MemoryEvent, MemoryItem } from "../schema.ts";
+import type { Grant, MemoryEvent, MemoryItem } from "../schema.ts";
 
 /** The rule of the event that marks an offboarding's erasure as begun (card E2.6). */
 export const OFFBOARD_BEGIN_ID = "engram/offboard/begin";
@@ -69,14 +81,15 @@ export const PROMOTE_CONFLICT_ID = "engram/promote/conflict";
 export const HANDOVER_CONFLICT_ID = "engram/offboard/conflict";
 /** The rule of an adoption refused, and its record deleted, because it holds an erased id (ADR 0010). */
 export const ADOPT_ERASED_ID = "engram/adopt/erased";
-/**
- * The rule of an adoption refused, and its record deleted, because the record
- * lies in an offboarded person scope under an id the log never allowed: a
- * write that never committed (review of PR #50, P50-2).
- */
-export const ADOPT_OFFBOARDED_ID = "engram/adopt/offboarded";
 /** The rule of an adoption a stale writer withdraws: it recorded that writer's own bytes (P50-1). */
 export const ADOPT_WITHDRAWN_ID = "engram/adopt/withdrawn";
+/**
+ * The rule of the plane removing grants an adoption of a stale writer's bytes
+ * reintroduced, once something was built on that adoption (V-3).
+ */
+export const ADOPT_NARROWED_ID = "engram/adopt/narrowed";
+/** The rule of a record an offboarding deleted from its person scope's store at the end (V-1, V-5). */
+export const OFFBOARD_SWEPT_ID = "engram/offboard/swept";
 /** How every adoption event's reason begins (plane/adopt.ts). */
 export const ADOPTION_PREFIX = "adopted from store ";
 
@@ -91,7 +104,6 @@ const COUNTED_DENIES = new Set([
   HANDOVER_CONFLICT_ID,
   STORE_FAILURE_ID,
   ADOPT_ERASED_ID,
-  ADOPT_OFFBOARDED_ID,
 ]);
 
 /** JSON with sorted keys, so equal items compare equal whatever their key order. */
@@ -171,17 +183,25 @@ function marks(db: Db, scope: string): MemoryEvent[] {
 
 /**
  * An offboarding began erasing `scope` and has not completed: its items may
- * not change. Each begin mark is closed by the report naming it
- * (closesClause); a report written before that clause existed closes every
- * mark before it.
+ * not change. A report closes the begin mark it names (closesClause) and
+ * every mark that was open when that one was appended, so a rerun after an
+ * offboarding that stopped after its mark (a crash, a store failure during
+ * handover) closes the stopped one too (V-1); a report written before that
+ * clause existed closes every mark before it. A mark appended after the
+ * named one stays open until its own report.
  */
 export function erasureOpen(db: Db, scope: string): boolean {
   if (scopeLevel(scope) !== "person") return false;
   const open = new Set<string>();
+  const openAt = new Map<string, Set<string>>();
   for (const e of marks(db, scope)) {
-    if (e.policy_id === OFFBOARD_BEGIN_ID) open.add(e.id);
-    else if (!e.reason.includes(closesClause(""))) open.clear();
-    else for (const id of [...open]) if (e.reason.includes(closesClause(id))) open.delete(id);
+    if (e.policy_id === OFFBOARD_BEGIN_ID) {
+      open.add(e.id);
+      openAt.set(e.id, new Set(open));
+    } else if (!e.reason.includes(closesClause(""))) open.clear();
+    else
+      for (const [begin, then] of openAt)
+        if (e.reason.includes(closesClause(begin))) for (const id of then) open.delete(id);
   }
   return open.size > 0;
 }
@@ -194,12 +214,17 @@ export function erasureBegunSince(db: Db, scope: string, head: number): boolean 
   );
 }
 
-/** Whether `scope` was offboarded at least once and no offboarding of it is open. */
-export function offboarded(db: Db, scope: string): boolean {
+/**
+ * The latest event that took `itemId`'s record out of its person scope for
+ * good: an erasure, or an offboarding's sweep of a record the log never
+ * allowed (OFFBOARD_SWEPT_ID). Adoption refuses and deletes a record under
+ * such an id.
+ */
+export function lastRemoval(db: Db, itemId: string): MemoryEvent | null {
   return (
-    scopeLevel(scope) === "person" &&
-    marks(db, scope).some((e) => e.policy_id === OFFBOARD_REPORT_ID) &&
-    !erasureOpen(db, scope)
+    eventsByItem(db, itemId)
+      .filter((e) => erases(e) || e.policy_id === OFFBOARD_SWEPT_ID)
+      .at(-1) ?? null
   );
 }
 
@@ -299,18 +324,32 @@ export const ownBytes =
     e.reason.startsWith(ADOPTION_PREFIX) &&
     sameAsWritten(deps, e, wrote);
 
+/** What a stale writer's settling does to the log besides its deny (V-2, V-3). */
+type Recovery =
+  | {
+      kind: "withdraw";
+      own: MemoryEvent;
+      /** The item as it stood before the adoption, at a version above the current; null when it did not exist. */
+      restored: MemoryItem | null;
+    }
+  | { kind: "narrow"; own: MemoryEvent; removed: Grant[]; narrowed: MemoryItem };
+
 /**
- * The adoption a stale writer withdraws, or null (P50-1): the first adoption
- * event about `itemId` after the writer's decision that concerned the very
- * bytes it wrote (an allow recording them, or a deny of them), when every
- * allowed change to the item since is an adoption's. The item is restored as
- * it stood before that event; undefined when it did not exist then.
+ * What a stale writer does about an adoption of its own bytes, or null (P50-1,
+ * V-2, V-3). The adoption is the first adoption event about `itemId` after the
+ * writer's decision that concerned the very bytes it wrote: an allow
+ * recording them, or a deny of them that a retraction followed.
+ *
+ * - While those bytes are still the item's last allowed change (the
+ *   projection holds the adopted item, or the retraction that followed the
+ *   deny), the adoption is withdrawn: the item is put back as it stood before
+ *   it, at a version above the current one.
+ * - Once anything else has changed the item since, nothing is put back over
+ *   that change. Instead the grants the adoption reintroduced, those its item
+ *   carried that the version before it lacked, are removed where the item
+ *   still carries them: the plane narrows, never widens.
  */
-function ownAdoption(
-  deps: PlaneDeps,
-  itemId: string,
-  stale: StaleWrite,
-): { event: MemoryEvent; before: MemoryItem | undefined } | null {
+function recovery(deps: PlaneDeps, itemId: string, stale: StaleWrite): Recovery | null {
   const history = eventsByItem(deps.db, itemId);
   const own = history.find(
     (e) =>
@@ -320,47 +359,78 @@ function ownAdoption(
       sameAsWritten(deps, e, stale.wrote),
   );
   if (!own) return null;
-  const later = history.filter((e) => e.seq >= own.seq && e.decision === "allow");
-  if (!later.every((e) => e.reason.startsWith(ADOPTION_PREFIX))) return null;
+  const now = itemById(deps.db, itemId);
+  if (!now) return null;
   let before: MemoryItem | undefined;
   for (const e of history) {
     if (e.seq >= own.seq) break;
     before = erases(e) ? undefined : applyEvent(before, e);
   }
-  return { event: own, before };
+  const later = history.filter((e) => e.seq > own.seq && e.decision === "allow");
+  const untouched =
+    own.decision === "allow"
+      ? later.length === 0 && canonical(now) === canonical(own.item)
+      : later.length === 1 && later[0]?.policy_id === ADOPT_RETRACT_POLICY;
+  if (untouched)
+    return {
+      kind: "withdraw",
+      own,
+      restored: before ? ({ ...before, version: now.version + 1 } as MemoryItem) : null,
+    };
+  if (own.decision !== "allow" || !own.item) return null;
+  const had = before?.grants ?? [];
+  const reintroduced = own.item.grants.filter((g) => !had.some((h) => sameGrant(g, h)));
+  const removed = now.grants.filter((g) => reintroduced.some((r) => sameGrant(g, r)));
+  if (removed.length === 0) return null;
+  return {
+    kind: "narrow",
+    own,
+    removed,
+    narrowed: {
+      ...now,
+      grants: now.grants.filter((g) => !removed.some((r) => sameGrant(g, r))),
+      version: now.version + 1,
+    } as MemoryItem,
+  };
 }
+
+/** The retraction adoption appends when it denies the store's version (plane/adopt.ts). */
+const ADOPT_RETRACT_POLICY = "engram/adopt/retract";
+
+/** The clause a withdrawal's reason carries, naming the adoption it withdraws (V-4). */
+export const withdrawsClause = (eventId: string) => `withdraws the adoption at event ${eventId}`;
 
 /**
  * Puts the store record `ref`, written for `itemId` on a decision that went
  * stale, back to what the log holds, then runs `confirm` in the transaction
  * that finds the item unchanged since that state was read (step 4 above):
- * `confirm` appends the deny event. When an adoption recorded the stale
- * bytes, or retired the item over them (ownAdoption), the log is put back
- * too, by one withdrawal event before the deny. Throws the store's error, or
- * an Error when the item kept changing for SETTLE_ROUNDS rounds; the caller
- * records either as a store failure.
+ * `confirm` appends the deny event, its reason ending with the note it is
+ * given. When an adoption recorded the stale bytes (recovery), the log is
+ * mended first in that transaction: one withdrawal while nothing was built on
+ * the adoption, or one narrowing that removes the grants it reintroduced, which
+ * the note names. Throws the store's error, or an Error when the item kept
+ * changing for SETTLE_ROUNDS rounds; the caller records either as a store
+ * failure.
  */
 export async function settle<T>(
   deps: PlaneDeps,
   itemId: string,
   ref: StoreRef,
   stale: StaleWrite,
-  confirm: () => T,
+  confirm: (note: string) => T,
 ): Promise<T> {
   const { db, adapter, newId } = deps;
   for (let round = 0; round < SETTLE_ROUNDS; round++) {
-    const { head, desired, withdraw } = db.transaction(() => {
+    const { head, desired, mend } = db.transaction(() => {
       const head = logHead(db);
       const desired = wanted(db, itemId, ref);
-      const own = desired ? ownAdoption(deps, itemId, stale) : null;
-      if (!own) return { head, desired, withdraw: null };
-      const restored = own.before
-        ? ({
-            ...own.before,
-            version: Math.max(own.before.version, desired?.version ?? 0),
-          } as MemoryItem)
-        : null;
-      return { head, desired: restored, withdraw: { own, restored } };
+      const mend = desired ? recovery(deps, itemId, stale) : null;
+      if (!mend) return { head, desired, mend: null };
+      return {
+        head,
+        desired: mend.kind === "withdraw" ? mend.restored : mend.narrowed,
+        mend,
+      };
     });
     let written: StoreRef | null = null;
     if (desired) written = await adapter.write({ ...desired, store_ref: null } as MemoryItem);
@@ -368,29 +438,46 @@ export async function settle<T>(
     const settled = db.transaction(() => {
       if (touchedSince(db, itemId, head)) return null;
       if (desired && erasureBegunSince(db, desired.scope, head)) return null;
-      if (withdraw) {
+      let note = "";
+      if (mend) {
         const now = itemById(db, itemId) as MemoryItem;
-        const why = `the adoption at event ${withdraw.own.event.id} recorded bytes a stale write of item ${itemId} had put in the store before that write was refused`;
-        appendEvent(db, {
+        const base = {
           id: newId(),
           ts: stale.at,
-          op: withdraw.restored ? "update" : "retire",
           item_id: itemId,
           actor: stale.actor,
           scope_from: now.scope,
           scope_to: now.scope,
-          decision: "allow",
-          reason: withdraw.restored
-            ? `${why}; the adoption is withdrawn and the item restored as it stood before it, at version ${withdraw.restored.version}`
-            : `${why}; the item did not exist before it, so the adopted item is retired`,
-          policy_id: ADOPT_WITHDRAWN_ID,
-          ...(withdraw.restored
-            ? { item: { ...withdraw.restored, store_ref: written ?? withdraw.restored.store_ref } }
-            : {}),
-          schema_version: 1,
-        });
+          decision: "allow" as const,
+          schema_version: 1 as const,
+        };
+        const why = `the adoption at event ${mend.own.id} recorded bytes a stale write of item ${itemId} had put in the store before that write was refused`;
+        if (mend.kind === "withdraw") {
+          appendEvent(db, {
+            ...base,
+            op: mend.restored ? "update" : "retire",
+            reason: mend.restored
+              ? `${why}; nothing changed the item since, so this ${withdrawsClause(mend.own.id)} and puts the item back as it stood before it, at version ${mend.restored.version}`
+              : `${why}; nothing changed the item since, and it did not exist before, so this ${withdrawsClause(mend.own.id)} and retires the adopted item`,
+            policy_id: ADOPT_WITHDRAWN_ID,
+            ...(mend.restored
+              ? { item: { ...mend.restored, store_ref: written ?? mend.restored.store_ref } }
+              : {}),
+          });
+          note = `; ${withdrawsClause(mend.own.id)} (${ADOPT_WITHDRAWN_ID})`;
+        } else {
+          const names = mend.removed.map((g) => `the grant to ${g.to}`).join(", ");
+          appendEvent(db, {
+            ...base,
+            op: "update",
+            reason: `${why}, and the item has changed since, so nothing is put back over that change; the plane removed ${names}, which that adoption reintroduced (the version before it did not carry ${mend.removed.length === 1 ? "it" : "them"}), at version ${mend.narrowed.version}`,
+            policy_id: ADOPT_NARROWED_ID,
+            item: { ...mend.narrowed, store_ref: written ?? mend.narrowed.store_ref },
+          });
+          note = `; the plane removed ${names}, which an adoption of this write's bytes had reintroduced (${ADOPT_NARROWED_ID})`;
+        }
       }
-      return { value: confirm() };
+      return { value: confirm(note) };
     });
     if (settled) return settled.value;
   }

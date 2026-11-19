@@ -144,12 +144,12 @@ async function decideAndCommit(
     const why = `${committed.stale}, while the grant change was being stored; the decision was made on a version that no longer stands, so the change is refused and the store is put back as the log has it`;
     try {
       const staleWrite = { wrote: stored, head: basis.head, actor: actor.id, at };
-      const event = await settle(deps, itemId, ref, staleWrite, () =>
+      const event = await settle(deps, itemId, ref, staleWrite, (note) =>
         appendEvent(db, {
           ...common,
           id: newId(),
           decision: "deny",
-          reason: why,
+          reason: `${why}${note}`,
           policy_id: GRANT_CONFLICT_ID,
         }),
       );

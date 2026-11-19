@@ -80,8 +80,15 @@
 import { type Actor, checkCall, InvalidCallError } from "../actor.ts";
 import { isNotDeletable, type StoreRef } from "../adapter.ts";
 import { mergingContentHash, strictContentHash } from "../content-hash.ts";
-import { appendEvent, currentItems, ERASURE_ID, LEFT_CONTENT_CLAUSE } from "../events.ts";
-import { itemById } from "../items.ts";
+import {
+  appendEvent,
+  currentItems,
+  ERASURE_ID,
+  erases,
+  eventsByItem,
+  LEFT_CONTENT_CLAUSE,
+} from "../events.ts";
+import { itemById, itemsByStoreRef } from "../items.ts";
 import { refItemId } from "../lint/det.ts";
 import type { PlaneDeps } from "../plane.ts";
 import { STORE_FAILURE_ID, scopeLevel } from "../policy/evaluate.ts";
@@ -93,6 +100,7 @@ import {
   logHead,
   OFFBOARD_BEGIN_ID,
   OFFBOARD_REPORT_ID,
+  OFFBOARD_SWEPT_ID,
   ownBytes,
   settle,
   staleness,
@@ -103,7 +111,13 @@ export const HANDOVER_ID = "engram/offboard/handover";
 /** The rule of the deny left for an item whose handover conflicted on every attempt (P50-3). */
 export const NOT_HANDED_OVER_ID = "engram/offboard/not-handed-over";
 export const OFFBOARD_MEMBERSHIP_ID = "engram/offboard/membership";
-export { ERASURE_ID, HANDOVER_CONFLICT_ID, OFFBOARD_BEGIN_ID, OFFBOARD_REPORT_ID };
+export {
+  ERASURE_ID,
+  HANDOVER_CONFLICT_ID,
+  OFFBOARD_BEGIN_ID,
+  OFFBOARD_REPORT_ID,
+  OFFBOARD_SWEPT_ID,
+};
 
 /** How many times one item's handover is decided again after a conflict before it is left. */
 const HANDOVER_ATTEMPTS = 4;
@@ -336,7 +350,7 @@ async function run(
         };
         try {
           events.push(
-            await settle(deps, current.id, ref, stale, () =>
+            await settle(deps, current.id, ref, stale, (note) =>
               appendEvent(db, {
                 ...base,
                 id: newId(),
@@ -345,7 +359,7 @@ async function run(
                 scope_from: scope,
                 scope_to: scope,
                 decision: "deny",
-                reason: `the handover of ${current.id} in ${scope} to ${successor} was decided on version ${current.version}, but ${out.stale}; that handover is refused and the store is put back as the log has it; ${last ? `this was attempt ${HANDOVER_ATTEMPTS} of ${HANDOVER_ATTEMPTS}, so no further attempt is made` : "the item is handed over again as it now stands if the leaver still owns it"}`,
+                reason: `the handover of ${current.id} in ${scope} to ${successor} was decided on version ${current.version}, but ${out.stale}; that handover is refused and the store is put back as the log has it; ${last ? `this was attempt ${HANDOVER_ATTEMPTS} of ${HANDOVER_ATTEMPTS}, so no further attempt is made` : "the item is handed over again as it now stands if the leaver still owns it"}${note}`,
                 policy_id: HANDOVER_CONFLICT_ID,
               }),
             ),
@@ -538,6 +552,53 @@ async function run(
   const ids = new Set(erased.map((i) => i.id));
   const leftInStore: DeletionReport["erased"]["left_in_store"] = byRef(refused, erased);
 
+  // The sweep (verification of PR #50, V-1 and V-5): what the person scope's
+  // store still holds that no projected item holds, under an id the log never
+  // allowed (a write that never committed: a writer that crashed, or one
+  // decided before an earlier offboarding stopped) or under an erased id
+  // whose record the erasure deleted, is deleted now, one event each, before
+  // the report reopens the scope. A record written after the report is the
+  // person's again and is adopted as any other.
+  let swept = 0;
+  let sweepFailed = 0;
+  for (const record of await adapter.list(person)) {
+    if (!record.store_ref || itemById(db, record.id)) continue;
+    // A ref an item outside the person scope holds stays (review of PR #33).
+    if (itemsByStoreRef(db, record.store_ref).length > 0) continue;
+    const history = eventsByItem(db, record.id);
+    const gone = history.filter(erases).at(-1);
+    if (gone?.reason.includes(LEFT_CONTENT_CLAUSE)) continue;
+    if (!gone && history.some((e) => e.decision === "allow")) continue;
+    let failure: string | null = null;
+    try {
+      await adapter.delete(record.store_ref);
+    } catch (e) {
+      failure = isNotDeletable(e)
+        ? `the store refuses the delete for good (${errorText(e)}); the record stays there, and adoption refuses it`
+        : `the delete failed (${errorText(e)}); the record stays there, and adoption refuses it and deletes it`;
+    }
+    const what = gone
+      ? `a record under the id of item ${record.id}, which this or an earlier offboarding of ${person} erased`
+      : `a record under item id ${record.id}, which no allowed event of the log ever recorded: a write that never committed`;
+    events.push(
+      appendEvent(db, {
+        ...base,
+        id: newId(),
+        op: "retire",
+        item_id: record.id,
+        scope_from: person,
+        scope_to: null,
+        decision: failure ? "deny" : "allow",
+        reason: failure
+          ? `${what}, left in the store, was to be deleted at offboarding, but ${failure}`
+          : `${what}, left in the store, was deleted at offboarding`,
+        policy_id: OFFBOARD_SWEPT_ID,
+      }),
+    );
+    if (failure) sweepFailed++;
+    else swept++;
+  }
+
   const kept = projected.filter(
     (i) => i.owner === person && i.scope !== person && !roles.some((r) => r.scope === i.scope),
   ).length;
@@ -564,6 +625,11 @@ async function run(
           `${leftInStore.length} store record${leftInStore.length === 1 ? " is" : "s are"} left in the store ${adapter.name}, which refuses the plane's delete: see left_in_store; the person deletes ${leftInStore.length === 1 ? "it" : "them"} there; adoption refuses ${leftInStore.length === 1 ? "it" : "them"} while ${leftInStore.length === 1 ? "it holds" : "they hold"} the erased content, and the log keeps that content's hash, which can confirm a guess of short content`,
         ]
       : []),
+    ...(swept + sweepFailed > 0
+      ? [
+          `${swept + sweepFailed} record${swept + sweepFailed === 1 ? "" : "s"} left in the store of ${person} under an erased id or one the log never recorded ${swept + sweepFailed === 1 ? "was" : "were"} swept (${OFFBOARD_SWEPT_ID}): ${swept} deleted, ${sweepFailed} the store would not delete, which adoption refuses`,
+        ]
+      : []),
     ...notHanded.map(
       (n) =>
         `${n.item} in ${n.scope} was not handed over to ${n.successor}: it kept changing on another handle (${NOT_HANDED_OVER_ID}); it stays the leaver's until offboarding runs again`,
@@ -575,7 +641,9 @@ async function run(
       : []),
   ];
   const keptClause = keptBack.length > 0 ? `${keptBack.length} kept after a store failure, ` : "";
-  const leftClause = notHanded.length > 0 ? `, ${notHanded.length} not handed over` : "";
+  const leftClause =
+    (notHanded.length > 0 ? `, ${notHanded.length} not handed over` : "") +
+    (swept + sweepFailed > 0 ? `, ${swept + sweepFailed} left records swept` : "");
   const reason = `offboarded ${person}: ${ids.size} items erased, ${keptClause}${handover.reduce((n, h) => n + h.items.length, 0)} handed over in ${roles.length} role scope${roles.length === 1 ? "" : "s"}${leftClause}`;
   events.push(
     appendEvent(db, {

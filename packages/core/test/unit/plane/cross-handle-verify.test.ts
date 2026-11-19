@@ -549,7 +549,7 @@ forEachBackend((backend) => {
       expect(itemById(env.mine, id(1))).toBeUndefined();
     });
 
-    test("V8b: new ids in role and team scopes after an erasure are adopted", async () => {
+    test("V8b: new ids in role and team scopes after an erasure are judged by the gate, never deleted", async () => {
       const env = setup(backend);
       await seedPerson(env);
       await offboardTheirs(env);
@@ -560,7 +560,9 @@ forEachBackend((backend) => {
         item(31, { scope: "team:x", owner: lee.id, content: "Lee team note." }),
       );
       expect((await adoptStoreItems(env.depsMine, lee, "role:release", LATER)).allowed).toBe(1);
-      expect((await adoptStoreItems(env.depsMine, lee, "team:x", LATER)).allowed).toBe(1);
+      // The twin profile's team rule takes no import: refused by the gate, never deleted.
+      const team = await adoptStoreItems(env.depsMine, lee, "team:x", LATER);
+      expect(team.denials.map((d) => d.policy_id)).toEqual(["profile.twin/write/team"]);
       expect(await env.store.list("role:release")).toHaveLength(1);
       expect(await env.store.list("team:x")).toHaveLength(1);
     });

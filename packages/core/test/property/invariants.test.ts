@@ -2371,8 +2371,9 @@ async function twoHandleWalk(
   seen.crashes += crashes;
   seen.purged += log.filter(
     (e) =>
-      ["engram/adopt/erased", "engram/adopt/offboarded"].includes(e.policy_id) &&
-      e.reason.includes("the record is deleted"),
+      (e.policy_id === "engram/adopt/erased" &&
+        e.reason.includes("the plane deletes the record from the store")) ||
+      (e.policy_id === "engram/offboard/swept" && e.decision === "allow"),
   ).length;
   seen.refusedStale += refusals.filter((e) =>
     /\/conflict$|^engram\/offboard\/erasing$/.test(e.policy_id),

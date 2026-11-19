@@ -42,14 +42,19 @@
 // it has changed since: anything else under that id is a store write that was
 // in flight during the erasure, or a restored copy.
 //
-// Review fix pass of PR #50 (P50-2). Such a record is also deleted from the
-// store, once the deny event is committed, so a writer that threw or crashed
-// between its store write and its commit, or whose repair failed, leaves no
-// erased content behind for good. So is a record in an offboarded person
-// scope (one with a completed offboarding and none open) under an id the log
-// never allowed: a write that never committed (engram/adopt/offboarded). A
-// failed delete appends a store-failure deny, so the next adoption tries
-// again; a store that refuses the delete for good leaves the record refused.
+// Review fix pass of PR #50 (P50-2), as the verification of that pass left
+// it (V-5, V-9, V-10). Such a record is also deleted from the store, once the
+// deny event is committed, so a writer that threw or crashed between its
+// store write and its commit, or whose repair failed, leaves no erased
+// content behind for good. So is a record under an id an offboarding's sweep
+// took out of the store (engram/offboard/swept). A record that appears in an
+// offboarded person scope after its report, under an id the log never
+// recorded, is the person's again and adopted as any other (V-5): the sweep
+// at the end of the offboarding deleted what was left before the report. The
+// deny says the plane deletes the record; when the delete fails, one
+// store-failure deny says how, and later adoptions retry the delete quietly,
+// recording only a different outcome: an error that changed, or the delete
+// succeeding (V-9, V-10).
 // A listed record left to the next adoption because the log changed it since
 // the listing is counted under `deferred` (P50-7).
 //
@@ -73,30 +78,28 @@ import {
   eventsByItem,
   LEFT_CONTENT_CLAUSE,
 } from "../events.ts";
-import { itemById } from "../items.ts";
+import { itemById, itemsByStoreRef } from "../items.ts";
 import type { PlaneDeps } from "../plane.ts";
 import { STORE_FAILURE_ID } from "../policy/evaluate.ts";
 import type { MemoryEvent, MemoryItem } from "../schema.ts";
 import {
   ADOPT_ERASED_ID,
-  ADOPT_OFFBOARDED_ID,
   ADOPTION_PREFIX,
   comparable,
   erasureBegunSince,
   hashNote,
   itemHash,
-  lastErasure,
+  lastRemoval,
   logHead,
-  offboarded,
   touchedSince,
 } from "./commit.ts";
 import { inWriteQueue } from "./queue.ts";
 import { adoptWrite, withPlaneProvenance } from "./write.ts";
 
-export { ADOPT_ERASED_ID, ADOPT_OFFBOARDED_ID };
+export { ADOPT_ERASED_ID };
 
-/** What the reason of a refusal whose record adoption deletes says (P50-2). */
-const PURGE_CLAUSE = "the record is deleted";
+/** What the reason of a refusal whose record adoption deletes says (P50-2, V-10). */
+export const PURGE_CLAUSE = "the plane deletes the record from the store";
 
 /** The policy_id of a retire adoption appends when the store no longer has what the plane holds. */
 export const ADOPT_RETRACT_ID = "engram/adopt/retract";
@@ -143,6 +146,54 @@ export async function adoptStoreItems(
   /** The listing is older than a change the log holds for this item or its scope: leave it to the next. */
   const stale = (itemId: string, itemScope: string, since = head) =>
     touchedSince(db, itemId, since) || erasureBegunSince(db, itemScope, since);
+  /**
+   * Deletes the record whose purge `policy` decided, and records what
+   * happened unless it repeats `previous`, the last event about these bytes:
+   * a failure as one store-failure deny naming how (V-10), a success after a
+   * failure as one more event saying so. A first success adds nothing: the
+   * refusal already said the plane deletes the record.
+   */
+  const purgeOutcome = async (
+    item: MemoryItem,
+    policy: string,
+    note: string,
+    previous: MemoryEvent | null | undefined,
+  ) => {
+    let outcome: { reason: string; policy_id: string } | null = null;
+    try {
+      await adapter.delete(item.store_ref as NonNullable<MemoryItem["store_ref"]>);
+      if (previous?.policy_id === STORE_FAILURE_ID)
+        outcome = {
+          reason: `${prefix}the record refused under ${policy} was deleted from the store on a later try${note}`,
+          policy_id: policy,
+        };
+    } catch (e) {
+      const err = e instanceof Error ? e.message : String(e);
+      outcome = {
+        reason: isNotDeletable(e)
+          ? `${prefix}the record refused under ${policy} stays in the store, which refuses the delete for good (${err}); it stays refused${note}`
+          : `${prefix}the record refused under ${policy} could not be deleted from the store (${err}); later adoptions try again${note}`,
+        policy_id: STORE_FAILURE_ID,
+      };
+    }
+    if (!outcome || outcome.reason === previous?.reason) return;
+    const recorded = outcome;
+    await inWriteQueue(db, () =>
+      appendEvent(db, {
+        id: newId(),
+        ts: at,
+        op: "write",
+        item_id: item.id,
+        actor: adopter.id,
+        scope_from: null,
+        scope_to: item.scope,
+        decision: "deny",
+        reason: recorded.reason,
+        policy_id: recorded.policy_id,
+        schema_version: 1,
+      }),
+    );
+  };
   const report: AdoptReport = {
     listed: listed.length,
     allowed: 0,
@@ -191,19 +242,28 @@ export async function adoptStoreItems(
     }
     const note = hashNote(itemHash(item, derived));
     const lastWrite = history.filter((e) => e.op === "write").at(-1);
-    // A record to delete is gated again even when an earlier refusal of the
-    // same bytes stands (an erasing refusal, say), unless its delete was
-    // already tried and the store refused it for good.
     const purgeable = erasedRefusal(deps, item)?.purge === true;
-    const triedPurge =
-      lastWrite !== undefined &&
-      [ADOPT_ERASED_ID, ADOPT_OFFBOARDED_ID].includes(lastWrite.policy_id) &&
-      lastWrite.reason.includes(PURGE_CLAUSE);
-    if (
+    // The purge of these bytes was decided already: retry the delete, and
+    // record only a new outcome (V-9).
+    const decided =
+      purgeable &&
       lastWrite?.decision === "deny" &&
       lastWrite.reason.endsWith(note) &&
-      (!purgeable || triedPurge)
-    ) {
+      (lastWrite.policy_id === ADOPT_ERASED_ID || lastWrite.policy_id === STORE_FAILURE_ID) &&
+      history.some(
+        (e) =>
+          e.policy_id === ADOPT_ERASED_ID &&
+          e.reason.endsWith(note) &&
+          e.reason.includes(PURGE_CLAUSE),
+      );
+    if (decided) {
+      await purgeOutcome(item, ADOPT_ERASED_ID, note, lastWrite);
+      report.unchanged++;
+      continue;
+    }
+    // A record to delete is gated again even when an earlier refusal of the
+    // same bytes stands (an erasing refusal, say).
+    if (lastWrite?.decision === "deny" && lastWrite.reason.endsWith(note) && !purgeable) {
       report.unchanged++;
       continue;
     }
@@ -233,29 +293,8 @@ export async function adoptStoreItems(
     report.denied++;
     report.denials.push({ item_id: item.id, reason: event.reason, policy_id: event.policy_id });
     if (purge) {
-      // The refusal is committed; now the record goes. A transient failure
-      // is one more deny, so the next adoption tries again.
-      const ref = item.store_ref;
-      try {
-        await adapter.delete(ref);
-      } catch (e) {
-        if (!isNotDeletable(e))
-          await inWriteQueue(db, () =>
-            appendEvent(db, {
-              id: newId(),
-              ts: at,
-              op: "write",
-              item_id: item.id,
-              actor: adopter.id,
-              scope_from: null,
-              scope_to: item.scope,
-              decision: "deny",
-              reason: `${prefix}the record refused under ${event.policy_id} could not be deleted from the store: ${e instanceof Error ? e.message : String(e)}; the next adoption tries again`,
-              policy_id: STORE_FAILURE_ID,
-              schema_version: 1,
-            }),
-          );
-      }
+      // The refusal is committed; now the record goes.
+      await purgeOutcome(item, event.policy_id, note, null);
       continue;
     }
     // In the write queue, like every change to items; the projection is
@@ -317,23 +356,19 @@ function erasedRefusal(
       policy_id: ADOPT_ERASED_ID,
     };
   if (itemById(db, candidate.id)) return null;
-  const history = eventsByItem(db, candidate.id);
-  const gone = lastErasure(db, candidate.id);
-  if (gone) {
-    if (gone.reason.includes(LEFT_CONTENT_CLAUSE)) return null;
+  const gone = lastRemoval(db, candidate.id);
+  if (!gone || gone.reason.includes(LEFT_CONTENT_CLAUSE)) return null;
+  // A record whose ref a projected item holds (a version shared out of the
+  // person scope, review of PR #33) is refused, never deleted: deleting it
+  // would delete that item's bytes.
+  if (candidate.store_ref && itemsByStoreRef(db, candidate.store_ref).length > 0)
     return {
-      reason: `the store holds a record under the id of item ${candidate.id}, which an offboarding erased and deleted from the store; an erased id is never adopted again, and ${PURGE_CLAUSE}`,
+      reason: `the store holds a record under the id of item ${candidate.id}, which an offboarding took out of its person scope (${gone.policy_id}); an item outside that scope holds the same record, so it is refused and kept`,
       policy_id: ADOPT_ERASED_ID,
-      purge: true,
     };
-  }
-  // A record no allowed event ever recorded, in a person scope offboarded
-  // since: a write that never committed, decided before the erasure.
-  if (offboarded(db, candidate.scope) && !history.some((e) => e.decision === "allow"))
-    return {
-      reason: `the store holds a record under item id ${candidate.id} in ${candidate.scope}, which was offboarded, and the log never recorded that id: a write that never committed; it is not adopted, and ${PURGE_CLAUSE}`,
-      policy_id: ADOPT_OFFBOARDED_ID,
-      purge: true,
-    };
-  return null;
+  return {
+    reason: `the store holds a record under the id of item ${candidate.id}, which an offboarding took out of the store (${gone.policy_id}); that id is never adopted again, and ${PURGE_CLAUSE}`,
+    policy_id: ADOPT_ERASED_ID,
+    purge: true,
+  };
 }

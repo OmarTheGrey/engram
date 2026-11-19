@@ -297,14 +297,14 @@ async function decideAndCommit(
     const why = outcome.stale;
     try {
       const stale = { wrote: stored, head: basis.head, actor: actor.id, at };
-      const event = await settle(deps, stored.id, ref, stale, () =>
+      const event = await settle(deps, stored.id, ref, stale, (note) =>
         appendEvent(db, {
           ...common,
           id: newId(),
           op: "promote",
           decision: "deny",
           policy_id: PROMOTE_CONFLICT_ID,
-          reason: `the gate allowed the promotion (${d.policy_id}) but ${why}, before it was committed; the decision no longer stands, so the promotion is refused and the store is put back as the log has it`,
+          reason: `the gate allowed the promotion (${d.policy_id}) but ${why}, before it was committed; the decision no longer stands, so the promotion is refused and the store is put back as the log has it${note}`,
         }),
       );
       return { decision: "deny", item: null, event, events: [event] };

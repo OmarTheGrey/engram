@@ -445,13 +445,13 @@ async function decideAndWrite(
         actor: actor.id,
         at,
       };
-      const event = await settle(deps, item.id, ref, stale, () =>
+      const event = await settle(deps, item.id, ref, stale, (note) =>
         appendEvent(db, {
           ...common,
           id: newId(),
           decision: "deny",
           policy_id: WRITE_CONFLICT_ID,
-          reason: `the gate allowed the write (${decision.policy_id}) but ${why}, before it was committed; the decision no longer stands, so the write is refused and the store is put back as the log has it; ${provenanceNote}`,
+          reason: `the gate allowed the write (${decision.policy_id}) but ${why}, before it was committed; the decision no longer stands, so the write is refused and the store is put back as the log has it; ${provenanceNote}${note}`,
         }),
       );
       return { item: null, event, retention: [] };

@@ -23,10 +23,14 @@
 // the conflict, erasing and not-handed-over denies, and adoption's deletions
 // change no item, so the replay passes over them and counts them by rule
 // (each a fixed id naming nothing). A withdrawal (`engram/adopt/withdrawn`)
-// puts an item back as an earlier allowed event left it: the replay takes it
-// as it takes any allowed change, the oracle judges it only as a restoration
-// of an earlier version (`restoresEarlier`), and it is never counted as a
-// narrowing by someone other than the owner.
+// puts an item back as it stood before an adoption the withdrawal names: the
+// replay takes it as it takes any allowed change, the oracle accepts it only
+// when the named event is an adoption of that item and the item put back is
+// that item as it stood just before it (`withdrawalProblem`, verification
+// finding V-4 of PR #50), and it is never counted as a narrowing by someone
+// other than the owner. A narrowing (`engram/adopt/narrowed`) may only remove
+// grants (`narrowingProblem`); the plane's recovery makes it, so it is not
+// counted under `watch.narrowed` either.
 //
 // Who read is known by id only: the log does not record an actor's level or
 // memberships. The member declares the actor they ran as (the flags they
@@ -39,9 +43,11 @@ import { createHash } from "node:crypto";
 import type { Actor } from "./actor.ts";
 import {
   addedGrants,
+  type Earlier,
   grantChangeProblem,
   grantsChanged,
   grantsWiden,
+  NARROWED_RULE,
   priorVersion,
   readable,
   replayEvent,
@@ -121,7 +127,7 @@ export function defaultActor(id: string): Actor {
 /** Every rule id core names under `engram/` (a test checks the list against the source). */
 export const ENGRAM_RULES: readonly string[] = [
   "engram/adopt/erased",
-  "engram/adopt/offboarded",
+  "engram/adopt/narrowed",
   "engram/adopt/retract",
   "engram/adopt/withdrawn",
   "engram/bypass/foreign-result",
@@ -143,6 +149,7 @@ export const ENGRAM_RULES: readonly string[] = [
   "engram/offboard/membership",
   "engram/offboard/not-handed-over",
   "engram/offboard/report",
+  "engram/offboard/swept",
   "engram/promote/conflict",
   "engram/promote/duplicate",
   "engram/promote/expired",
@@ -289,8 +296,8 @@ export function dogfoodReport(
   };
   /** Items some allowed version of which held untrusted content. */
   const held = new Set<string>();
-  /** Every version allowed events made of each item, for judging a withdrawal (card E2.6). */
-  const versions = new Map<string, MemoryItem[]>();
+  /** Every event of the log so far, with its item's state just before it, for judging a withdrawal (card E2.6). */
+  const seen = new Map<string, Earlier>();
 
   for (const e of [...events].sort((a, b) => a.seq - b.seq)) {
     r.events++;
@@ -341,13 +348,8 @@ export function dogfoodReport(
         r.grants.changes++;
         r.grants.added += addedGrants(before?.grants ?? [], item.grants).length;
         r.grants.removed += addedGrants(item.grants, before?.grants ?? []).length;
-        const problem = grantChangeProblem(
-          policy,
-          actorFor(e.actor),
-          before,
-          e,
-          heldBefore,
-          versions.get(item.id) ?? [],
+        const problem = grantChangeProblem(policy, actorFor(e.actor), before, e, heldBefore, (id) =>
+          seen.get(id),
         );
         if (problem !== undefined) {
           r.violations.grant_change++;
@@ -360,13 +362,12 @@ export function dogfoodReport(
             e.actor === owner &&
             (e.op === "write" || (e.op === "update" && e.policy_id === "engram/grant/change"));
           // A withdrawal puts back an earlier version: not a narrowing by another.
-          if (!ownChange && e.policy_id !== WITHDRAWN_RULE) r.watch.narrowed++;
+          if (!ownChange && e.policy_id !== WITHDRAWN_RULE && e.policy_id !== NARROWED_RULE)
+            r.watch.narrowed++;
         }
       }
-      versions.set(item.id, [...(versions.get(item.id) ?? []), item]);
     }
-    if (e.decision === "allow" && e.op === "retire" && e.policy_id === "engram/offboard/erase")
-      versions.delete(e.item_id as string);
+    seen.set(e.id, { event: e, before: e.item_id === null ? undefined : state.get(e.item_id) });
     replayEvent(state, e);
   }
 

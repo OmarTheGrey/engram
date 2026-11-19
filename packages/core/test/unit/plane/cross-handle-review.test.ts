@@ -38,7 +38,7 @@ const SECRET = "Dana's sister is Mira.";
 const WRITE_CONFLICT = "engram/write/conflict";
 const GRANT_CONFLICT = "engram/grant/conflict";
 const HANDOVER_CONFLICT = "engram/offboard/conflict";
-const ERASING = "engram/offboard/erasing";
+const _ERASING = "engram/offboard/erasing";
 
 const dana: Actor = {
   id: "person:dana",
@@ -320,7 +320,12 @@ forEachBackend((backend) => {
       ]);
     });
 
-    test("RV1b: a second offboarding's report does not close the first one's mark while it is still erasing", async () => {
+    // Superseded by the verification of PR #50 (V-1): a report closes every
+    // mark open when its own was appended, so the scope reopens at the second
+    // report. What the first offboarding still deletes is only what it read
+    // at its own mark, so a write after the second report stands, and nothing
+    // erased returns.
+    test("RV1b: after a second offboarding's report, a write stands while the first offboarding finishes, and nothing erased returns", async () => {
       const env = setup(backend);
       await seedPerson(env);
       const d = env.b.pause("delete", "after");
@@ -334,11 +339,13 @@ forEachBackend((backend) => {
         item(5, { scope: "person:dana", owner: dana.id, content: "Mira visits in May." }),
         AT,
       );
-      expect(w.event).toMatchObject({ decision: "deny", policy_id: ERASING });
+      expect(w.event.decision).toBe("allow");
       d.release();
       await slow;
-      expect(itemById(env.mine, id(5))).toBeUndefined();
-      expect(await env.store.list("person:dana")).toEqual([]);
+      expect((await storeMatches(env, id(5))).content).toBe("Mira visits in May.");
+      expect(itemById(env.mine, id(1))).toBeUndefined();
+      expect((await env.store.list("person:dana")).map((i) => i.id)).toEqual([id(5)]);
+      expect(JSON.stringify(allEvents(env.mine))).not.toContain(SECRET);
     });
 
     test("RV2: a handover whose item changes on every attempt gives up after four with a deny, and the report says so", async () => {
@@ -407,10 +414,16 @@ forEachBackend((backend) => {
       });
       w.release();
       await expect(pending).rejects.toThrow(/simulated crash/);
+      // The offboarding's sweep deleted the record before its report
+      // (verification of PR #50, V-1 and V-5), so the next adoption finds nothing.
+      expect(
+        allEvents(env.mine).filter(
+          (e) => e.item_id === id(5) && e.policy_id === "engram/offboard/swept",
+        ),
+      ).toHaveLength(1);
       const report = await adoptStoreItems(env.depsMine, dana, "person:dana", LATER);
       expect(report.allowed).toBe(0);
-      expect(report.denials.map((d) => d.policy_id)).toEqual(["engram/adopt/offboarded"]);
-      expect(report.denials[0]?.reason).not.toContain("Mira");
+      expect(report.denials).toEqual([]);
       expect(await env.store.list("person:dana")).toEqual([]);
       expect(itemById(env.mine, id(5))).toBeUndefined();
       expect((await env.plane.read(sam, { at: LATER })).items).toEqual([]);

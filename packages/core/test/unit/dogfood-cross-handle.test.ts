@@ -162,18 +162,16 @@ async function crossHandleLog() {
   expect((await adopting).deferred).toBe(1);
   expect((await planeA.read(SAM, { at: LATER })).items).toEqual([]);
 
-  // The offboarding: its mark, the erasure and the report.
+  // A crashed write's record, left in the store, then the offboarding: its
+  // mark, the erasure, the sweep that deletes the crashed record, the report.
+  await store.write(note(ID(7), "Mira's new address."));
   const report = await offboard(depsB, HR, { person: "person:dana", roles: [] }, LATER);
   expect(report.erased.items).toEqual([fact.id]);
 
-  // A crashed write's record and a restored copy under the erased id: deleted.
-  await store.write(note(ID(7), "Mira's new address."));
+  // A restored copy under the erased id: refused and deleted by adoption.
   await store.write({ ...fact, version: 3 } as MemoryItem);
   const purge = await adoptStoreItems(depsA, DANA, "person:dana", LATER);
-  expect(purge.denials.map((d) => d.policy_id).sort()).toEqual([
-    "engram/adopt/erased",
-    "engram/adopt/offboarded",
-  ]);
+  expect(purge.denials.map((d) => d.policy_id)).toEqual(["engram/adopt/erased"]);
   expect(await store.list("person:dana")).toEqual([]);
   expect((await planeA.read(DANA, { at: LATER })).items).toEqual([]);
   return { base, policy, newId, fact };
@@ -189,7 +187,7 @@ describe("the violation report over card E2.6's events", () => {
       "engram/offboard/begin",
       "engram/offboard/report",
       "engram/adopt/erased",
-      "engram/adopt/offboarded",
+      "engram/offboard/swept",
     ])
       expect(
         events.some((e) => e.policy_id === rule),
@@ -206,7 +204,7 @@ describe("the violation report over card E2.6's events", () => {
     expect(report.denials.other ?? 0).toBe(0);
     expect(report.denials["engram/write/conflict"]).toBe(1);
     expect(report.denials["engram/adopt/erased"]).toBe(1);
-    expect(report.denials["engram/adopt/offboarded"]).toBe(1);
+    expect(report.by_op.retire?.allow).toBeGreaterThan(0);
     base.close();
   });
 
