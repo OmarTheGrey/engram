@@ -353,18 +353,18 @@ function templateOf(pool: readonly ((a: string, v: string) => string)[], content
   });
 }
 
-const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /** The attribute and value a template of `pool` wrote into `text`, a qualifier aside; or null. */
 function parse(
   pool: readonly ((a: string, v: string) => string)[],
   text: string,
 ): [string, string] | null {
-  const bare = text.replace(new RegExp(`, (${QUALIFIERS.map(escape).join("|")})\\.$`), ".");
+  const bare = text.replace(new RegExp(`, (${QUALIFIERS.map(escapeRegExp).join("|")})\\.$`), ".");
   for (const t of pool) {
     const [head, tail] = t("\u0000A", "\u0000V").split("\u0000A") as [string, string];
     const [mid, end] = tail.split("\u0000V") as [string, string];
-    const m = new RegExp(`^${escape(head)}(.+?)${escape(mid)}(.+)${escape(end)}$`).exec(bare);
+    const m = new RegExp(`^${escapeRegExp(head)}(.+?)${escapeRegExp(mid)}(.+)${escapeRegExp(end)}$`).exec(bare);
     if (m) return [m[1] as string, m[2] as string];
   }
   return null;
