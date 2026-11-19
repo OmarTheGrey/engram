@@ -49,6 +49,7 @@ import {
   quote,
   restatement,
   statement,
+  unchanged,
   update,
   WORK,
   workStatement,
@@ -382,12 +383,10 @@ export async function faultState(
             );
             const j = pick(later(i), rand, "later anchor");
             place(i, userFact(key("first"), statement(f.attribute, v1)));
-            if (fault) place(j, userFact(key("then"), update(f.attribute, v2)));
-            else {
-              const g = take(personal, "personal");
-              const [w] = values(g) as [string];
-              place(j, userFact(key("then"), update(g.attribute, w)));
-            }
+            // The near-miss's update keeps the value: it shares the attribute's
+            // words, so card L3's contradiction lint pairs and judges it too.
+            const then = fault ? update(f.attribute, v2) : unchanged(f.attribute, v1);
+            place(j, userFact(key("then"), then));
             mark(key("first"), subtype, kind, [key("then")]);
             break;
           }

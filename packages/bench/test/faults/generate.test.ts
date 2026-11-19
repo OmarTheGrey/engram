@@ -24,6 +24,7 @@ import {
   writePolicy,
 } from "../../src/faults/generate.ts";
 import { FAULT_CLASSES, SUBTYPE_IDS, SUBTYPES } from "../../src/faults/labels.ts";
+import { modelReach } from "../../src/faults/reach.ts";
 import { historyWrites, readTime, USER } from "../../src/longmemeval/plane.ts";
 import { visibleQuestion } from "../../src/longmemeval/strip.ts";
 import { questions } from "../longmemeval/fixture.ts";
@@ -209,6 +210,51 @@ describe("the seeded-fault generator", () => {
   });
 });
 
+describe("the model tier of card L3 over the set (its rules, no model called)", () => {
+  test("a finding is expected on the labelled item, or on the later update of a supersession", async () => {
+    const set = await fixtureSet();
+    for (const l of set.labels)
+      expect(l.finding_on, `${l.subtype} ${l.kind}`).toBe(
+        l.subtype === "superseded" ? l.related[0] : l.item_id,
+      );
+  });
+
+  test("every contradiction label is a pair the lint sends, flagged on its later item", async () => {
+    const set = await fixtureSet();
+    for (const state of set.states) {
+      const reach = modelReach(state, set.policy);
+      const mine = set.labels.filter(
+        (l) =>
+          l.question_id === state.question_id &&
+          [...l.expected.model, ...l.near_miss_of.model].includes("contradiction"),
+      );
+      expect(mine).toHaveLength(4);
+      for (const l of mine) {
+        const pair = [l.item_id, ...l.related].sort();
+        expect(pair, `${l.subtype} ${l.kind}`).toHaveLength(2);
+        expect(reach.pairs.has(pair.join("+")), `${state.question_id} ${l.subtype} ${l.kind}`).toBe(
+          true,
+        );
+        expect(l.finding_on).toBe(pair[1]);
+      }
+    }
+  });
+
+  test("every unsupported-claim label is a claim the lint sends; a gone or changed source is left to L1", async () => {
+    const set = await fixtureSet();
+    for (const state of set.states) {
+      const reach = modelReach(state, set.policy);
+      const mine = set.labels.filter((l) => l.question_id === state.question_id);
+      const of = (subtype: string, kind: string) =>
+        mine.find((l) => l.subtype === subtype && l.kind === kind)?.item_id ?? "";
+      for (const kind of ["fault", "near-miss"])
+        expect(reach.claims.has(of("unsupported-claim", kind)), kind).toBe(true);
+      expect(reach.claims.has(of("source-changed", "fault"))).toBe(false);
+      expect(reach.claims.has(of("orphan", "fault"))).toBe(false);
+    }
+  });
+});
+
 describe("the deterministic lints of card L1 over the set (Plane.lint)", () => {
   test("flag every keyed fault by its expected lint and no near-miss by the lint it is a near-miss of", async () => {
     const set = await fixtureSet();
@@ -242,12 +288,16 @@ describe("the deterministic lints of card L1 over the set (Plane.lint)", () => {
       checkState(
         await lintState(state, set.policy),
         set.labels.filter((l) => l.question_id === state.question_id),
+        modelReach(state, set.policy),
         c,
       );
     expect(c.states).toBe(views.length);
     expect(c.keyed_faults).toBe(views.length * 5);
+    expect(c.model_faults).toBe(views.length * 3);
+    expect(c.model_near_misses).toBe(views.length * 3);
     expect(checksPass(c)).toBe(true);
     expect(checksPass({ ...c, near_misses_flagged: 1 })).toBe(false);
+    expect(checksPass({ ...c, model_faults_sent: c.model_faults - 1 })).toBe(false);
   });
 
   test("find no unkeyed fault: what makes it faulty is only in item text", async () => {

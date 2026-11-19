@@ -55,7 +55,7 @@ export const SUBTYPES = {
     lints: { deterministic: [], model: ["contradiction"] },
     fault:
       "an active statement that a later active update of the same attribute supersedes in its text only, with no valid_to",
-    nearMiss: "the same statement, with the later update about another attribute",
+    nearMiss: "the same statement, with a later update saying the value is unchanged",
   },
   conflict: {
     class: "contradictory",
@@ -119,9 +119,14 @@ const Lints = z.strictObject({
  * near-miss); `near_miss_of` are the lints it must not trigger (a near-miss's
  * subtype lints; empty for a fault). `related` are the other items the label
  * is about: the counterpart of a contradiction or supersession, the source a
- * note cites, or the turn a rewrite changed. A pairwise lint may report its
- * finding on either item of a pair, so a scorer decides whether a finding on
- * a related item counts.
+ * note cites, or the turn a rewrite changed. `finding_on` is the item a
+ * finding of those lints lands on: the labelled item, except for a pair the
+ * contradiction lint judges, where card L3 flags the later item of the pair
+ * by id (packages/core/src/lint/model.ts on branch l3-model-lints), naming the
+ * earlier. A conflict's restatement is written after its first statement, so
+ * it is the later and is flagged itself; a superseded statement is the
+ * earlier of its pair, so the finding lands on the later update, with the
+ * superseded statement as its evidence.
  */
 export const FaultLabel = z.strictObject({
   question_id: z.string().min(1),
@@ -134,6 +139,7 @@ export const FaultLabel = z.strictObject({
   expected: Lints,
   near_miss_of: Lints,
   related: z.array(z.string().min(1)),
+  finding_on: z.string().min(1),
 });
 export type FaultLabel = z.infer<typeof FaultLabel>;
 
@@ -152,6 +158,10 @@ export function label(
   related: string[],
 ): FaultLabel {
   const spec = SUBTYPES[subtype];
+  const pairwise = (spec.lints.model as readonly string[]).includes("contradiction");
+  if (pairwise && related.length !== 1)
+    throw new Error(`label: a ${subtype} label names one counterpart, not ${related.length}`);
+  const later = pairwise && (related[0] as string) > item.id ? (related[0] as string) : item.id;
   return {
     question_id,
     item_id: item.id,
@@ -163,5 +173,6 @@ export function label(
     expected: kind === "fault" ? lintsOf(subtype) : none(),
     near_miss_of: kind === "near-miss" ? lintsOf(subtype) : none(),
     related,
+    finding_on: later,
   };
 }

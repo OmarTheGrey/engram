@@ -202,6 +202,23 @@ def by_subtype(labels: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     return out
 
 
+def by_tier(labels: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    """Per class: faults a model lint should find, those only a deterministic one should, none."""
+    out: dict[str, Any] = {}
+    for c in CLASSES:
+        faults = [la for la in labels if la["class"] == c and la["kind"] == "fault"]
+        model = sum(1 for la in faults if la["expected"]["model"])
+        det_only = sum(
+            1 for la in faults if la["expected"]["deterministic"] and not la["expected"]["model"]
+        )
+        out[c] = {
+            "model": model,
+            "deterministic_only": det_only,
+            "none": len(faults) - model - det_only,
+        }
+    return out
+
+
 def by_lint(labels: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     """Per tier and lint: faults expecting it, near-misses it must not flag, by keyed."""
     out: dict[str, Any] = {}
@@ -260,6 +277,7 @@ def summarise(
         "by_class": by_class(labels),
         "by_subtype": by_subtype(labels),
         "by_lint": by_lint(labels),
+        "by_tier": by_tier(labels),
     }
 
 

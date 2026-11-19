@@ -2,8 +2,11 @@
 // L1, run by Plane.lint over every state under the set's lint-time policy:
 // every keyed fault is flagged by the lint its label expects, no near-miss by
 // the lint it is a near-miss of, and no lint a subtype expects flags an item
-// no fault label names. It checks the labels; it is not card L4's precision
-// and recall, and the model tier is not run.
+// no fault label names. For the model tier no model is called: every label
+// about a model-based lint must be a unit card L3's lint would send (a pair
+// the contradiction lint judges, a claim the unsupported-claim lint judges;
+// src/faults/reach.ts), or its recall is zero by construction. It checks the
+// labels; it is not card L4's precision and recall.
 //
 //   node packages/bench/scripts/fault-set-check.ts --set <dir> [--out <file>]
 //
@@ -24,6 +27,7 @@ import {
 } from "@engram/core";
 import type { FaultState } from "../src/faults/generate.ts";
 import { type FaultLabel, SUBTYPE_IDS, SUBTYPES } from "../src/faults/labels.ts";
+import { type ModelReach, modelReach } from "../src/faults/reach.ts";
 
 /** Plane.lint of every scope of one state, over a fresh log holding its events. */
 export async function lintState(state: FaultState, policy: Policy): Promise<LintFinding[]> {
@@ -81,6 +85,12 @@ export interface CheckCounts {
   unkeyed_labels_flagged: number;
   /** Findings of `duplicate`, which no subtype measures: LongMemEval's own repeated turns. */
   duplicate_findings: number;
+  /** Faults a model-based lint is expected to find, and of them those it would judge. */
+  model_faults: number;
+  model_faults_sent: number;
+  /** Near-misses of a model-based lint, and of them those it would judge. */
+  model_near_misses: number;
+  model_near_misses_sent: number;
 }
 
 export const emptyCounts = (): CheckCounts => ({
@@ -91,6 +101,10 @@ export const emptyCounts = (): CheckCounts => ({
   unlabelled_measured_findings: 0,
   unkeyed_labels_flagged: 0,
   duplicate_findings: 0,
+  model_faults: 0,
+  model_faults_sent: 0,
+  model_near_misses: 0,
+  model_near_misses_sent: 0,
 });
 
 /** Whether the labels agree with the deterministic lints. */
@@ -98,12 +112,24 @@ export const checksPass = (c: CheckCounts) =>
   c.keyed_faults_flagged === c.keyed_faults &&
   c.near_misses_flagged === 0 &&
   c.unlabelled_measured_findings === 0 &&
-  c.unkeyed_labels_flagged === 0;
+  c.unkeyed_labels_flagged === 0 &&
+  c.model_faults_sent === c.model_faults &&
+  c.model_near_misses_sent === c.model_near_misses;
+
+/** Whether card L3's lint would judge every model-based lint a label is about. */
+export function sentToModel(l: FaultLabel, reach: ModelReach): boolean {
+  return [...l.expected.model, ...l.near_miss_of.model].every((lint) =>
+    lint === "contradiction"
+      ? reach.pairs.has([l.item_id, ...l.related].sort().join("+"))
+      : reach.claims.has(l.item_id),
+  );
+}
 
 /** The checks over one state's findings and labels, added into `c`. */
 export function checkState(
   findings: readonly LintFinding[],
   labels: readonly FaultLabel[],
+  reach: ModelReach,
   c: CheckCounts,
 ): void {
   const on = (id: string) => findings.filter((f) => f.item_id === id).map((f) => f.lint_id);
@@ -117,6 +143,14 @@ export function checkState(
     }
     if (l.near_miss_of.deterministic.some((x) => flagged.includes(x))) c.near_misses_flagged++;
     if (!l.keyed && flagged.some((x) => x !== "duplicate")) c.unkeyed_labels_flagged++;
+    if (l.expected.model.length > 0) {
+      c.model_faults++;
+      if (sentToModel(l, reach)) c.model_faults_sent++;
+    }
+    if (l.near_miss_of.model.length > 0) {
+      c.model_near_misses++;
+      if (sentToModel(l, reach)) c.model_near_misses_sent++;
+    }
   }
   for (const f of findings) {
     if (f.lint_id === "duplicate") c.duplicate_findings++;
@@ -147,7 +181,8 @@ async function main(): Promise<number> {
   const c = emptyCounts();
   for await (const line of jsonLines(join(dir, "states.jsonl"))) {
     const state = JSON.parse(line) as FaultState;
-    checkState(await lintState(state, policy), labels.get(state.question_id) ?? [], c);
+    const mine = labels.get(state.question_id) ?? [];
+    checkState(await lintState(state, policy), mine, modelReach(state, policy), c);
   }
   const text = `${JSON.stringify(c, null, 2)}\n`;
   if (values.out) writeFileSync(values.out, text);

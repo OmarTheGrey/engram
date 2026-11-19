@@ -188,6 +188,9 @@ export const statement = (attribute: string, value: string) => `My ${attribute} 
 /** What the user says when a value has changed since an earlier statement. */
 export const update = (attribute: string, value: string) =>
   `Update: my ${attribute} is now ${value}.`;
+/** What the user says when a value has not changed since an earlier statement. */
+export const unchanged = (attribute: string, value: string) =>
+  `Update: my ${attribute} is still ${value}.`;
 /** What the user says to restate a value in the same breath. */
 export const restatement = (attribute: string, value: string) =>
   `To be clear, my ${attribute} is ${value}.`;

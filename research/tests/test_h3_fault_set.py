@@ -112,6 +112,17 @@ def test_the_lint_counts_name_the_expiry_lint_on_keyed_faults_only() -> None:
     assert lints["none"] == {"fault": 20, "near-miss": 20}
 
 
+def test_the_tier_counts_say_which_faults_only_the_deterministic_lints_can_find() -> None:
+    labels = h3_fault_set.read_jsonl(FIXTURE / "labels.jsonl")
+    n = 20
+    assert h3_fault_set.by_tier(labels) == {
+        "stale": {"model": n, "deterministic_only": 2 * n, "none": 0},
+        "contradictory": {"model": n, "deterministic_only": 0, "none": 0},
+        "misplaced": {"model": 0, "deterministic_only": n, "none": n},
+        "unsupported": {"model": n, "deterministic_only": 2 * n, "none": 0},
+    }
+
+
 def test_a_subtype_whose_labels_disagree_is_refused() -> None:
     labels = h3_fault_set.read_jsonl(FIXTURE / "labels.jsonl")
     broken = [dict(labels[0], keyed=not labels[0]["keyed"]), *labels[1:]]
