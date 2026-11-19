@@ -2,46 +2,68 @@
 // member's own event log, replayed on the member's own machine, judged by the
 // invariants' oracle (./oracle.ts), never by the evaluator, and reduced to
 // aggregate counts. Rule 12 of AGENTS.md: dogfood content never leaves the
-// member's machine, so the report holds counts, fixed keys, rule ids of the
-// bundled shape and the policy's hash; never content, an item id, a
-// principal or a scope. `details` names the violations for the member alone
-// (printed to stderr by scripts/dogfood-report.ts with --detail, never sent).
+// member's machine, so the report holds counts, fixed keys, rule ids from a
+// fixed list, the shape of the declared actor and the policy's hash; never
+// content, an item id, a principal or a scope. `details` names the
+// violations for the member alone (printed to stderr by
+// scripts/dogfood-report.ts with --detail, never sent).
 //
 // A violation is either:
 //
 // - a read that returned an item the reader could not read at that time: the
 //   item, as the allowed events before the read leave it in the oracle's own
-//   replay, is missing, not active, or not `readable` by the reader at the
-//   read's time (invariant 1, as invariant 5's grant walk judges a read);
+//   replay, is missing, not active, not `readable` by the reader at the
+//   read's time (invariant 1), or outside its validity window
+//   (`withinValidity`, review finding E95-2 of PR #48);
 // - an allowed event that changed what an item's grants admit
-//   (`grantsChanged`) and was not the owner's grant change or the owner's own
-//   user- or import-sourced write (`grantChangePermitted`, ADR 0034).
+//   (`grantsChanged`) in a way the oracle refuses (`grantChangeProblem`: who
+//   widened them, and what was added; ADR 0021, D4 and ADR 0034).
 //
 // Who read is known by id only: the log does not record an actor's level or
-// memberships. The member declares the actors they ran as (the flags they
-// gave `engram serve`, `engram mcp` and the CLI); any other principal is
-// judged as the CLI builds an actor from `--as` alone (its own scope, its
-// level; `buildActor` in packages/cli/src/setup.ts).
+// memberships. The member declares the actor they ran as (the flags they
+// gave `engram serve`, `engram mcp` and the CLI), and the report prints that
+// actor's shape (`declared`) so a reader of the report can see whether it
+// was the member's own scope alone (review finding E95-5); any other
+// principal is judged as the CLI builds an actor from `--as` alone (its own
+// scope, its level; `buildActor` in packages/cli/src/setup.ts).
 import { createHash } from "node:crypto";
 import type { Actor } from "./actor.ts";
 import {
-  grantChangePermitted,
-  grantsAlike,
+  addedGrants,
+  grantChangeProblem,
   grantsChanged,
+  grantsWiden,
   priorVersion,
   readable,
   replayEvent,
   UNTRUSTED_KINDS,
+  withinValidity,
 } from "./oracle.ts";
-import type { Grant, MemoryEvent, MemoryItem, Policy } from "./schema.ts";
-import { Scope } from "./schema.ts";
+import {
+  type MemoryEvent,
+  MemoryEvent as MemoryEventSchema,
+  type MemoryItem,
+  type Policy,
+  Scope,
+  ScopeLevel,
+} from "./schema.ts";
 
-export const REPORT_FORMAT = "engram-dogfood-report/1";
+export const REPORT_FORMAT = "engram-dogfood-report/2";
 
 export interface DogfoodReport {
   report: typeof REPORT_FORMAT;
   /** sha256 of the policy the log was judged under, so members can check they ran the same one. */
   policy_sha256: string;
+  /**
+   * The shape of the actor the member declared, without names: its level,
+   * how many memberships it has at each level, and whether it is exactly its
+   * own scope (`--member person:<you>` alone, or none).
+   */
+  declared: {
+    level: string;
+    memberships_by_level: Record<string, number>;
+    own_scope_only: boolean;
+  };
   events: number;
   /** Distinct UTC days with an event, and the days from the first event's day to the last's. */
   days_with_events: number;
@@ -59,19 +81,21 @@ export interface DogfoodReport {
   writes: { allowed: number; denied: number };
   /** Allowed events that changed what an item's grants admit, and the grants they added and removed. */
   grants: { changes: number; added: number; removed: number };
-  /** Denied events by rule id; a rule id of another shape is counted under `other`. */
+  /** Denied events by rule id; a rule id outside the fixed list is counted under `other`. */
   denials: Record<string, number>;
   asks: number;
   bypass_blocked: number;
   violations: { read: number; grant_change: number; total: number };
   /**
-   * Not violations by the two kinds above, counted for the lead (finding of
-   * card E9.5): allowed events that raised an item's provenance from an
-   * untrusted kind (model, compaction, external) to a trusted one, as the
-   * files adapter's re-adoption does, and grants added to an item that once
-   * held untrusted content, which the gate refuses only by the current kind.
+   * Not violations, counted for the lead: allowed events that raised an
+   * item's provenance from an untrusted kind (model, compaction, external)
+   * to a trusted one, as the files adapter's re-adoption does (a grant on
+   * such an item is a violation), and grant changes that only narrowed what
+   * the grants admit, made by someone other than the owner's grant change or
+   * write (a promotion carrying a grant its new class switches off, review
+   * finding E95-4).
    */
-  watch: { provenance_raised: number; granted_after_raise: number };
+  watch: { provenance_raised: number; narrowed: number };
 }
 
 /**
@@ -84,9 +108,76 @@ export function defaultActor(id: string): Actor {
   return { id, level, memberships: [id] };
 }
 
-/** A rule id of the bundled shape (`engram/...`, `preset.<name>/...`, `profile.<name>/...`), else `other`. */
-const RULE = /^(?:engram|preset\.[a-z]+|profile\.[a-z]+)(?:\/[a-z0-9-]+){1,4}$/;
-const ruleName = (policyId: string) => (RULE.test(policyId) ? policyId : "other");
+/** Every rule id core names under `engram/` (a test checks the list against the source). */
+export const ENGRAM_RULES: readonly string[] = [
+  "engram/adopt/erased",
+  "engram/adopt/retract",
+  "engram/bypass/foreign-result",
+  "engram/bypass/store-command",
+  "engram/bypass/store-path",
+  "engram/grant/change",
+  "engram/grant/conflict",
+  "engram/grant/expired",
+  "engram/grant/owner",
+  "engram/grant/source",
+  "engram/grant/status",
+  "engram/grant/unchanged",
+  "engram/lint/membership",
+  "engram/offboard/erase",
+  "engram/offboard/handover",
+  "engram/offboard/membership",
+  "engram/offboard/report",
+  "engram/promote/duplicate",
+  "engram/promote/expired",
+  "engram/promote/hidden-text",
+  "engram/promote/membership",
+  "engram/promote/no-evidence",
+  "engram/promote/not-candidate",
+  "engram/promote/reviewer",
+  "engram/promote/widening-source",
+  "engram/read/default-deny",
+  "engram/read/status",
+  "engram/read/ttl",
+  "engram/read/validity",
+  "engram/retention/item-ttl",
+  "engram/retention/membership",
+  "engram/retention/sweep",
+  "engram/write/default-deny",
+  "engram/write/grant",
+  "engram/write/membership",
+  "engram/write/retired-content",
+  "engram/write/schema",
+  "engram/write/source-isolation",
+  "engram/write/store-failure",
+  "engram/write/version",
+];
+
+const PROMOTION_RULES = ["episodic-to-semantic", "review", "procedural", "superseded"];
+const CLASSES = ["episodic", "semantic", "procedural"];
+
+/**
+ * The rule ids the report may print (review finding E95-12): core's
+ * `engram/...` ids, and the ids a bundled policy (`profile.<name>` or
+ * `preset.<name>`) builds from its own fields: write and read per level, read
+ * through grants, retention per level and class, promotion, and each enabled
+ * lint. Any other id is counted as `other`, since a policy of another name
+ * could carry anything in its id.
+ */
+export function printableRules(policy: Policy): Set<string> {
+  const out = new Set(ENGRAM_RULES);
+  if (!/^(?:profile|preset)\.[a-z]+$/.test(policy.id)) return out;
+  const p = policy.id;
+  for (const level of ScopeLevel.options) {
+    out.add(`${p}/write/${level}`);
+    out.add(`${p}/read/${level}`);
+    for (const c of CLASSES) out.add(`${p}/retention/${level}/${c}`);
+  }
+  out.add(`${p}/read/grants`);
+  for (const rule of PROMOTION_RULES) out.add(`${p}/promotion/${rule}`);
+  for (const lint of policy.lints.enabled)
+    if (/^[a-z0-9-]+$/.test(lint)) out.add(`${p}/lint/${lint}`);
+  return out;
+}
 
 /** JSON with object keys sorted at every depth. */
 function canonical(v: unknown): string {
@@ -99,16 +190,29 @@ function canonical(v: unknown): string {
   return JSON.stringify(v);
 }
 
-/** The grants of `b` that `a` lacks, counted as multisets. */
-function missingFrom(a: readonly Grant[], b: readonly Grant[]): number {
-  const left = [...a];
-  let n = 0;
-  for (const g of b) {
-    const k = left.findIndex((h) => grantsAlike(g, h));
-    if (k === -1) n++;
-    else left.splice(k, 1);
+/**
+ * Each stored row parsed and checked against the `MemoryEvent` schema
+ * (review finding E95-8): the events that parse, and the seq of each row
+ * that does not. Never the parser's message, which can quote the row.
+ */
+export function parseEventRows(rows: readonly { seq: unknown; body: unknown }[]): {
+  events: MemoryEvent[];
+  bad: number[];
+} {
+  const events: MemoryEvent[] = [];
+  const bad: number[] = [];
+  for (const row of rows) {
+    let parsed: ReturnType<typeof MemoryEventSchema.safeParse>;
+    try {
+      parsed = MemoryEventSchema.safeParse(JSON.parse(String(row.body)));
+    } catch {
+      bad.push(Number(row.seq));
+      continue;
+    }
+    if (parsed.success && parsed.data.seq === Number(row.seq)) events.push(parsed.data);
+    else bad.push(Number(row.seq));
   }
-  return n;
+  return { events, bad };
 }
 
 const bump = (m: Record<string, number>, k: string) => {
@@ -117,10 +221,23 @@ const bump = (m: Record<string, number>, k: string) => {
 const dayNumber = (ts: string) =>
   Math.floor(Date.parse(`${ts.slice(0, 10)}T00:00:00Z`) / 86_400_000);
 
+/** The declared actor's shape, without names. */
+function shapeOf(actor: Actor | undefined): DogfoodReport["declared"] {
+  const byLevel: Record<string, number> = { org: 0, person: 0, role: 0, team: 0 };
+  for (const m of actor?.memberships ?? [])
+    bump(byLevel, m === "org" ? "org" : (m.split(":")[0] ?? "other"));
+  const own =
+    actor !== undefined &&
+    actor.memberships.length === 1 &&
+    actor.memberships[0] === actor.id &&
+    actor.level === defaultActor(actor.id).level;
+  return { level: actor?.level ?? "none", memberships_by_level: byLevel, own_scope_only: own };
+}
+
 /**
- * The report of `events` (a whole log, in seq order) under `policy`, with the
- * actors the member declares; `details` names each violation, for the member
- * alone.
+ * The report of `events` (a whole log, parsed, in seq order) under `policy`,
+ * with the actors the member declares (the first is the member's);
+ * `details` names each violation, for the member alone.
  */
 export function dogfoodReport(
   events: readonly MemoryEvent[],
@@ -128,6 +245,8 @@ export function dogfoodReport(
   declared: readonly Actor[],
 ): { report: DogfoodReport; details: string[] } {
   const actors = new Map(declared.map((a) => [a.id, a]));
+  const actorFor = (id: string) => actors.get(id) ?? defaultActor(id);
+  const rules = printableRules(policy);
   const scopeOnly: Policy = { ...policy, read: { ...policy.read, honour_grants: false } };
   const state = new Map<string, MemoryItem>();
   const details: string[] = [];
@@ -135,6 +254,7 @@ export function dogfoodReport(
   const r: DogfoodReport = {
     report: REPORT_FORMAT,
     policy_sha256: createHash("sha256").update(canonical(policy)).digest("hex"),
+    declared: shapeOf(declared[0]),
     events: 0,
     days_with_events: 0,
     span_days: 0,
@@ -146,17 +266,17 @@ export function dogfoodReport(
     asks: 0,
     bypass_blocked: 0,
     violations: { read: 0, grant_change: 0, total: 0 },
-    watch: { provenance_raised: 0, granted_after_raise: 0 },
+    watch: { provenance_raised: 0, narrowed: 0 },
   };
   /** Items some allowed version of which held untrusted content. */
-  const once = new Set<string>();
+  const held = new Set<string>();
 
   for (const e of [...events].sort((a, b) => a.seq - b.seq)) {
     r.events++;
     days.add(dayNumber(e.ts));
     r.by_op[e.op] ??= {};
     bump(r.by_op[e.op] as Record<string, number>, e.decision);
-    if (e.decision === "deny") bump(r.denials, ruleName(e.policy_id));
+    if (e.decision === "deny") bump(r.denials, rules.has(e.policy_id) ? e.policy_id : "other");
     if (e.decision === "ask") r.asks++;
     if (e.op === "bypass_blocked") r.bypass_blocked++;
     if (e.op === "write" && e.decision !== "ask")
@@ -164,9 +284,8 @@ export function dogfoodReport(
 
     if (e.op === "read" && e.decision === "allow") {
       r.reads.events++;
-      const reader = actors.get(e.actor);
-      r.reads[reader ? "as_declared" : "as_others"]++;
-      const actor = reader ?? defaultActor(e.actor);
+      r.reads[actors.has(e.actor) ? "as_declared" : "as_others"]++;
+      const actor = actorFor(e.actor);
       for (const id of e.item_ids ?? []) {
         r.reads.items_returned++;
         const was = state.get(id);
@@ -176,8 +295,10 @@ export function dogfoodReport(
             : was.status !== "active"
               ? `it was ${was.status}`
               : !readable(policy, actor, was, e.ts)
-                ? "the reader's scope and grants exclude it"
-                : undefined;
+                ? "the reader's scope and live grants exclude it"
+                : !withinValidity(was, e.ts)
+                  ? "it was outside its validity window"
+                  : undefined;
         if (why !== undefined) {
           r.violations.read++;
           details.push(`read event ${e.seq} at ${e.ts} by ${e.actor} returned ${id}: ${why}`);
@@ -186,22 +307,31 @@ export function dogfoodReport(
     }
 
     if (e.decision === "allow" && e.item) {
+      const item = e.item;
       const before = priorVersion(state, e);
-      const untrusted = UNTRUSTED_KINDS.includes(e.item.provenance.kind);
+      const untrusted = UNTRUSTED_KINDS.includes(item.provenance.kind);
+      const heldBefore =
+        before !== undefined &&
+        (held.has(before.id) || UNTRUSTED_KINDS.includes(before.provenance.kind));
       if (before && UNTRUSTED_KINDS.includes(before.provenance.kind) && !untrusted)
         r.watch.provenance_raised++;
-      if (untrusted || (before && once.has(before.id))) once.add(e.item.id);
-      if (grantsChanged(before, e.item)) {
-        const added = missingFrom(before?.grants ?? [], e.item.grants);
-        if (added > 0 && once.has(e.item.id) && !untrusted) r.watch.granted_after_raise++;
+      if (untrusted || heldBefore) held.add(item.id);
+      if (grantsChanged(before, item)) {
         r.grants.changes++;
-        r.grants.added += added;
-        r.grants.removed += missingFrom(e.item.grants, before?.grants ?? []);
-        if (!grantChangePermitted(before, e)) {
+        r.grants.added += addedGrants(before?.grants ?? [], item.grants).length;
+        r.grants.removed += addedGrants(item.grants, before?.grants ?? []).length;
+        const problem = grantChangeProblem(policy, actorFor(e.actor), before, e, heldBefore);
+        if (problem !== undefined) {
           r.violations.grant_change++;
           details.push(
-            `${e.op} event ${e.seq} at ${e.ts} by ${e.actor} (${e.policy_id}) changed what the grants of ${e.item.id} admit; only its owner may, by a grant change or a user- or import-sourced write`,
+            `${e.op} event ${e.seq} at ${e.ts} by ${e.actor} (${e.policy_id}) on ${item.id}: ${problem}`,
           );
+        } else if (!grantsWiden(before, item)) {
+          const owner = before?.owner ?? item.owner;
+          const ownChange =
+            e.actor === owner &&
+            (e.op === "write" || (e.op === "update" && e.policy_id === "engram/grant/change"));
+          if (!ownChange) r.watch.narrowed++;
         }
       }
     }
