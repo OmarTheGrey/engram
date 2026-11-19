@@ -60,6 +60,11 @@ describe.skipIf(skip !== undefined)("the twin screens on the twin fixture worksp
   const updatesAfter = (seq: number) =>
     fixture.workspace.plane.events().filter((e) => e.op === "update" && e.seq > seq);
   const lastSeq = () => fixture.workspace.plane.events().at(-1)?.seq ?? -1;
+  /** The grants the editor lists on an item, as `to` values (review M4). */
+  const listed = (itemId: string) =>
+    card(itemId)
+      .getByTestId("grant")
+      .evaluateAll((gs) => gs.map((g) => g.getAttribute("data-to")));
 
   /**
    * Adds a grant on an item through the editor and waits for the plane's
@@ -164,7 +169,8 @@ describe.skipIf(skip !== undefined)("the twin screens on the twin fixture worksp
     ).toEqual(["person:sam"]);
   });
 
-  it("records a grant the plane refuses as a deny event, shown with its rule", async () => {
+  it("records a grant the plane refuses as a deny event, shown with its rule, and lists the grants unchanged", async () => {
+    const before = await Promise.all([ONE, SIX, FOUR].map((i) => listed(i as string)));
     const noExpiry = await addGrant(ONE as string, "person:lee", "");
     expect(noExpiry).toMatchObject({ decision: "deny", policy_id: "engram/write/grant" });
     const outcome = card(ONE as string).getByTestId("grant-outcome");
@@ -185,6 +191,19 @@ describe.skipIf(skip !== undefined)("the twin screens on the twin fixture worksp
         .getByTestId("grant-outcome")
         .textContent(),
     ).toContain("only its owner person:lee");
+    // Each refusal left the grants the editor lists as they were (review M4).
+    expect(await Promise.all([ONE, SIX, FOUR].map((i) => listed(i as string)))).toEqual(before);
+  });
+
+  it("lists every grant to the owner, which a grantee sees only its own of (review M2)", async () => {
+    const event = await addGrant(ONE as string, "person:lee", "2026-12-19");
+    expect(event).toMatchObject({ decision: "allow", policy_id: "engram/grant/change" });
+    await expect.poll(() => listed(ONE as string)).toEqual(["person:sam", "person:lee"]);
+    expect(
+      await card(ONE as string)
+        .getByTestId("grants-yours")
+        .count(),
+    ).toBe(0);
   });
 
   it("records a grant removed in the editor as one update event, and the item lists none", async () => {
@@ -209,6 +228,13 @@ describe.skipIf(skip !== undefined)("the twin screens on the twin fixture worksp
       .toContain("person:sam");
     await page.locator('[data-testid="lane-group"][data-group="granted"]').waitFor();
     expect(await laneItems("granted")).toEqual([ONE]);
+    // Item one also carries a grant to lee, which sam is not shown (review M2).
+    expect(await listed(ONE as string)).toEqual(["person:sam"]);
+    expect(
+      await card(ONE as string)
+        .getByTestId("grants-yours")
+        .textContent(),
+    ).toContain("person:dana sees all of them");
     expect(await laneItems("person")).toEqual([FIVE]);
     expect(
       await page

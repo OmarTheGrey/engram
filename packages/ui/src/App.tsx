@@ -326,7 +326,15 @@ function Grants({
 }) {
   return (
     <div className="grants" data-testid="grants">
-      <p className="muted">Grants</p>
+      <p className="muted">
+        Grants
+        {item.grantsShown === "yours" && (
+          <span data-testid="grants-yours">
+            {" "}
+            naming you only; its owner {item.owner} sees all of them
+          </span>
+        )}
+      </p>
       {item.grants.length === 0 ? (
         <p className="muted" data-testid="grants-none">
           none: only members of its scope read it

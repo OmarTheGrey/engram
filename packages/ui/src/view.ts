@@ -54,8 +54,29 @@ export interface LaneItem {
   rank: number | null;
   admittedBy: string | null;
   owner: string;
-  /** The grants the item carries, as the read returned it (card E9.4). */
+  /**
+   * The grants the lanes show (card E9.4): every grant the item carries when
+   * the viewer is its owner, otherwise only those naming the viewer (review
+   * finding M2 of PR #44). The read returns them all; the inspector does not
+   * show one grantee who else may read the item.
+   */
   grants: Grant[];
+  /** Whether `grants` is every grant on the item, or only the viewer's own. */
+  grantsShown: "all" | "yours";
+}
+
+/** Does a grant's `to` name `viewerId`: exactly, or by a prefix ending in `*`. Display only. */
+export const namesViewer = (to: string, viewerId: string) =>
+  to.endsWith("*") ? viewerId.startsWith(to.slice(0, -1)) : to === viewerId;
+
+/** The grants to show `viewerId` on an item `owner` owns: all to the owner, its own to anyone else. */
+export function shownGrants(
+  grants: readonly Grant[],
+  owner: string,
+  viewerId: string,
+): { grants: Grant[]; grantsShown: "all" | "yours" } {
+  if (owner === viewerId) return { grants: [...grants], grantsShown: "all" };
+  return { grants: grants.filter((g) => namesViewer(g.to, viewerId)), grantsShown: "yours" };
 }
 
 export interface Lane {
@@ -87,7 +108,7 @@ export function validityText(validity: { valid_from: string; valid_to: string | 
  * from (reached through a grant), sorted; items in the read's rank order.
  * Only the items the read returned appear: nothing is added from elsewhere.
  */
-export function buildLanes(viewer: Pick<Actor, "memberships">, read: ReadResponse): Lane[] {
+export function buildLanes(viewer: Pick<Actor, "id" | "memberships">, read: ReadResponse): Lane[] {
   const byId = new Map(read.explanations.map((e) => [e.item_id, e]));
   const lanes = new Map<string, Lane>();
   for (const scope of viewer.memberships)
@@ -110,7 +131,7 @@ export function buildLanes(viewer: Pick<Actor, "memberships">, read: ReadRespons
       rank: e?.rank ?? null,
       admittedBy: e?.policy_id ?? null,
       owner: item.owner,
-      grants: item.grants,
+      ...shownGrants(item.grants, item.owner, viewer.id),
     });
   }
   return [...lanes.values()];

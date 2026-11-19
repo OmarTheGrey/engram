@@ -15,6 +15,7 @@ import {
   type Lane,
   laneGroups,
   scopeKind,
+  shownGrants,
 } from "../src/view.ts";
 import { twinWorkspace } from "./workspace.ts";
 
@@ -97,6 +98,57 @@ describe("a grant change from the inspector", () => {
         .slice(before)
         .map((e) => e.decision),
     ).toEqual(["deny", "deny"]);
+  });
+
+  it("leaves the grants the lanes show unchanged when the plane refuses it (review M4)", async () => {
+    const { client, viewer } = await twinWorkspace();
+    const shown = async () =>
+      (await inspect(client, viewer)).lanes
+        .flatMap((l) => l.items)
+        .map((i) => [i.id, i.grants] as const);
+    const before = await shown();
+    const { expires: _e, ...noExpiry } = toSam;
+    const refused: [string, Grant][] = [
+      [TWO as string, noExpiry],
+      [TWO as string, { ...toSam, expires: "2026-11-01T00:00:00Z" }],
+      [SIX as string, toSam],
+      [FOUR as string, toSam],
+    ];
+    for (const [target, grant] of refused)
+      expect((await changeGrants(client, viewer, target, { add: [grant] })).decision).toBe("deny");
+    expect(await shown()).toEqual(before);
+  });
+});
+
+describe("the grants a viewer is shown (review M2)", () => {
+  it("are all of them for the owner, and only the viewer's own for a grantee", async () => {
+    const { client, viewer, workload } = await twinWorkspace();
+    const toLee: Grant = { ...toSam, to: "person:lee" };
+    expect((await changeGrants(client, viewer, TWO as string, { add: [toLee] })).decision).toBe(
+      "allow",
+    );
+    const two = async (who: Actor) =>
+      (await inspect(client, who)).lanes.flatMap((l) => l.items).find((i) => i.id === TWO);
+    expect(await two(viewer)).toMatchObject({
+      grantsShown: "all",
+      grants: [expect.objectContaining({ to: "person:sam" }), toLee],
+    });
+    const sam = workload.actors.sam as Actor;
+    const samsView = await two(sam);
+    expect(samsView?.grantsShown).toBe("yours");
+    expect(samsView?.grants.map((g) => g.to)).toEqual(["person:sam"]);
+  });
+
+  it("count a prefixed pattern covering the viewer as its own", () => {
+    const grants: Grant[] = [{ ...toSam, to: "person:s*" }, { ...toSam, to: "person:lee" }, toSam];
+    expect(shownGrants(grants, "person:dana", "person:sam").grants.map((g) => g.to)).toEqual([
+      "person:s*",
+      "person:sam",
+    ]);
+    expect(shownGrants(grants, "person:dana", "person:dana")).toEqual({
+      grants,
+      grantsShown: "all",
+    });
   });
 });
 
