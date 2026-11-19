@@ -79,11 +79,22 @@ const BLOCKED: [string, Record<string, unknown>, string, string | undefined][] =
   ["Bash", { command: "rm .engram/engram.db" }, "engram", "path"],
   ["Bash", { command: "cat .claude/settings*.json" }, "engram", "path"],
 ];
-if (process.platform === "win32")
+if (process.platform === "win32") {
   BLOCKED.push(
     ["Read", { file_path: unc(join(root, "a.md")) }, "files", "path"],
     ["Bash", { command: `type ${unc(join(root, "a.md"))}` }, "files", "path"],
   );
+  // Card RV3, RV-ADP-7: the device namespace's UNC prefix and IPv6's loopback names.
+  for (const host of ["?\\UNC\\localhost", ".\\UNC\\localhost", "[::1]", "0--1.ipv6-literal.net"]) {
+    const path = join(root, "a.md");
+    const share = `\\\\${host}\\${path[0]}$${path.slice(2)}`;
+    BLOCKED.push(
+      ["Write", { file_path: share, content: "x" }, "files", "path"],
+      ["Bash", { command: `type ${share}` }, "files", "path"],
+      ["PowerShell", { command: `Get-Content '${share}'` }, "files", "path"],
+    );
+  }
+}
 
 describe("which calls the hook blocks", () => {
   it.each(BLOCKED)("%s %j is a bypass of %s", (tool, input, store, route) => {

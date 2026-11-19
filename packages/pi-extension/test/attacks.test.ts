@@ -672,6 +672,38 @@ describe.runIf(process.platform === "win32")(
       }
       expect(sentToModel(run.scripted)).not.toContain(FILE_SECRET);
     });
+
+    // Card RV3, RV-ADP-7: the loopback UNC spellings the review found getting past the check.
+    test("bash and pi's file tools are blocked through \\\\?\\UNC\\, \\\\.\\UNC\\ and IPv6 loopback shares", async () => {
+      const { log } = await seeded();
+      const { root } = storeRoot();
+      const ext = createEngramExtension({
+        ...log,
+        policy,
+        actor: OMAR,
+        now: () => AT,
+        storeRoots: [root],
+      });
+      const file = join(root, "a.md");
+      const hosts = ["?\\UNC\\localhost", ".\\UNC\\localhost", "[::1]", "0--1.ipv6-literal.net"];
+      const shares = hosts.map((h) => `\\\\${h}\\${file[0]}$${file.slice(2)}`);
+      const steps = [
+        ...shares.flatMap((s, i) => [
+          call(`r${i}`, "read", { path: s }),
+          call(`b${i}`, "bash", { command: `cat '${s}'` }),
+        ]),
+        { text: "done" },
+      ];
+      const run = await session([ext], steps, ["bash", "read"]);
+      await run.session.prompt("go");
+      const results = toolResults(run.sessionManager);
+      expect(results).toHaveLength(shares.length * 2);
+      for (const r of results) {
+        expect(r.isError, `${r.toolName}: ${textOf(r)}`).toBe(true);
+        expect(textOf(r)).toContain(BYPASS_PATH_ID);
+      }
+      expect(sentToModel(run.scripted)).not.toContain(FILE_SECRET);
+    });
   },
 );
 

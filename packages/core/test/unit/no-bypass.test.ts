@@ -267,3 +267,57 @@ describe("shellBypass and toolBypass", () => {
     expect(shellBypass("ls", check)).toBeUndefined();
   });
 });
+
+describe("card RV3: more spellings of this machine and of Letta Code", () => {
+  const cwd = mkdtempSync(join(tmpdir(), "engram-nobypass-rv3-"));
+  const root = join(cwd, "memory");
+  mkdirSync(root);
+  const check = { cwd, roots: [root], rootStore: "files" };
+  /** `path` on this machine through a loopback host's admin share. */
+  const via = (prefix: string, path: string) => `${prefix}${path[0]}$${path.slice(2)}`;
+  const PREFIXES = [
+    "\\\\?\\UNC\\localhost\\",
+    "\\\\.\\UNC\\localhost\\",
+    "\\\\?\\UNC\\127.0.0.1\\",
+    "\\\\[::1]\\",
+    "\\\\[0:0:0:0:0:0:0:1]\\",
+    "\\\\0--1.ipv6-literal.net\\",
+    "\\\\127.1\\",
+    "\\\\127.0.0.2\\",
+  ];
+
+  it.each(PREFIXES)("reads %s as this machine's drive (RV-ADP-7)", (prefix) => {
+    expect(uncDrivePath(via(prefix, "C:\\x\\y"))).toBe("C:\\x\\y");
+  });
+
+  it.each([
+    "\\\\fileserver\\C$\\x",
+    "\\\\?\\UNC\\fileserver\\C$\\x",
+    "\\\\128.0.0.1\\C$\\x",
+    "\\\\[::2]\\C$\\x",
+  ])("leaves another machine's share %s alone", (path) => {
+    expect(uncDrivePath(path)).toBeUndefined();
+  });
+
+  it.runIf(process.platform === "win32").each(PREFIXES)(
+    "blocks a file tool and a shell command through %s (RV-ADP-7)",
+    (prefix) => {
+      const target = via(prefix, join(root, "a.md"));
+      expect(toolBypass("Read", { file_path: target }, check)?.route).toBe("path");
+      expect(toolBypass("Write", { file_path: target, content: "x" }, check)?.route).toBe("path");
+      expect(shellBypass(`type ${target}`, check)?.route).toBe("path");
+      expect(shellBypass(`Get-Content "${target}"`, { ...check, shell: "powershell" })?.route).toBe(
+        "path",
+      );
+    },
+  );
+
+  it.each([
+    "npx @letta-ai/letta-code",
+    "npx -y @letta-ai/letta-code@0.34.66 memory list",
+    "pnpm dlx @letta-ai/letta-code",
+    "bunx @letta-ai/letta-code@latest",
+  ])("blocks Letta Code's package spec in %s (RV-ADP-8)", (command) => {
+    expect(blockedStoreCommand(command, STORE_COMMANDS)).toBe("letta");
+  });
+});

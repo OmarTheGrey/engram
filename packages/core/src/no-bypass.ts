@@ -7,7 +7,24 @@
 // Plane.recordBypass. The text and path rules and their limits are in
 // no-bypass/shell.ts and no-bypass/paths.ts.
 import { resolve, sep } from "node:path";
-import { ancestorOfRoot, storeRootOf, toolPaths, uncDrivePath } from "./no-bypass/paths.ts";
+import {
+  ancestorOfRoot,
+  LOOPBACK_HOST,
+  storeRootOf,
+  toolPaths,
+  uncDrivePath,
+} from "./no-bypass/paths.ts";
+
+/**
+ * A loopback share or a device path inside a shell command, for shellBypass:
+ * the spellings uncDrivePath maps, with or without the device namespace's
+ * `\\?\UNC\` or `\\.\UNC\` (card RV3, RV-ADP-7).
+ */
+const UNC_WORD = new RegExp(
+  String.raw`[\\/]{2}(?:[?.][\\/]unc[\\/])?(?:${LOOPBACK_HOST}|\?|\.)[\\/][a-zA-Z][$:][^\s'"|;&<>()]*`,
+  "gi",
+);
+
 import { blockedStoreCommand, commandWords, STORE_COMMANDS } from "./no-bypass/shell.ts";
 import type { Bypass } from "./plane.ts";
 
@@ -368,9 +385,7 @@ export function shellBypass(command: string, check: BypassCheck): Bypass | undef
   }
   const path = { command, store: check.rootStore, route: "path" as const };
   const words = pathCheckWords(command, 0, true, check.shell ?? "posix");
-  for (const unc of command.matchAll(
-    /[\\/]{2}(?:localhost|127\.0\.0\.1|\?|\.)[\\/][a-zA-Z][$:][^\s'"|;&<>()]*/gi,
-  ))
+  for (const unc of command.matchAll(UNC_WORD))
     if (uncDrivePath(unc[0]) !== undefined) words.push(unc[0]);
   for (const word of words) {
     if (reaches(word, check, false)) return path;

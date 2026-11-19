@@ -236,8 +236,15 @@ function globPattern(name: string): RegExp | undefined {
  * (from a sibling package) and `cli/src/main.ts` under any prefix. The cost:
  * any other folder named `cli` beside the cwd, and any `cli/src/main.ts`, is
  * refused too.
+ *
+ * Letta Code's CLI, whose command is `letta`, is also reached as its npm
+ * package `@letta-ai/letta-code` (`npx @letta-ai/letta-code`, `pnpm dlx`,
+ * with or without a version), a word that does not read as `letta` (card
+ * RV3, RV-ADP-8; the name and its `letta` binary checked against the npm
+ * registry's metadata on 2026-11-19).
  */
 const ROUTES: Readonly<Record<string, readonly RegExp[]>> = {
+  letta: [/(^|[^a-z0-9])@letta-ai\/letta-code(@|$)/],
   engram: [
     /(^|[^a-z0-9])@engram\/cli(@|$)/,
     /(^|\/)packages\/cli(\/|$)/,

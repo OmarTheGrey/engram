@@ -76,15 +76,34 @@ export function shellDrivePath(path: string): string | undefined {
 }
 
 /**
+ * The names of this machine's loopback address in a UNC path: `localhost`,
+ * any 127.0.0.0/8 address (in full or short dotted form, `127.1`), IPv6's
+ * `[::1]` (any spelling of its zeros) and its UNC literal
+ * `0--1.ipv6-literal.net` (card RV3, RV-ADP-7). The machine's network name
+ * or another address of it is not here (ADR 0014's stated limit).
+ */
+export const LOOPBACK_HOST =
+  "(?:localhost|127(?:\\.\\d{1,3}){1,3}|\\[(?:0{0,4}:){1,7}:?0{0,3}1\\]|(?:0{0,4}-){1,7}-?0{0,3}1\\.ipv6-literal\\.net)";
+
+/** `\\?\UNC\` and `\\.\UNC\`: the device namespace's spelling of `\\`. */
+const DEVICE_UNC = /^[\\/]{2}[?.][\\/]unc[\\/]/i;
+
+/** A drive through a loopback share or a device prefix, after DEVICE_UNC is read as `\\`. */
+const UNC_DRIVE = new RegExp(
+  `^[\\\\/]{2}(?:${LOOPBACK_HOST}|\\?|\\.)[\\\\/]([a-zA-Z])[$:](?:[\\\\/](.*))?$`,
+  "i",
+);
+
+/**
  * A Windows path through the machine's own admin share or a device prefix
- * (`\\localhost\C$\x`, `\\127.0.0.1\C$\x`, `\\?\C:\x`, `\\.\C:\x`) as the
- * drive path it names, else undefined (review finding R3-7). Another host's
- * share is another machine, and is not mapped.
+ * (`\\localhost\C$\x`, `\\127.0.0.1\C$\x`, `\\[::1]\C$\x`,
+ * `\\0--1.ipv6-literal.net\C$\x`, `\\?\C:\x`, `\\.\C:\x`, and the device
+ * namespace's `\\?\UNC\localhost\C$\x` and `\\.\UNC\localhost\C$\x`) as the
+ * drive path it names, else undefined (review finding R3-7; card RV3,
+ * RV-ADP-7). Another host's share is another machine, and is not mapped.
  */
 export function uncDrivePath(path: string): string | undefined {
-  const m = /^[\\/]{2}(?:localhost|127\.0\.0\.1|\?|\.)[\\/]([a-zA-Z])[$:](?:[\\/](.*))?$/i.exec(
-    path,
-  );
+  const m = UNC_DRIVE.exec(path.replace(DEVICE_UNC, "\\\\"));
   if (!m) return undefined;
   return `${(m[1] as string).toUpperCase()}:\\${(m[2] ?? "").replace(/\//g, "\\")}`;
 }
