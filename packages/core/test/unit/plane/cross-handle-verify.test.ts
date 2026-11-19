@@ -644,6 +644,9 @@ forEachBackend((backend) => {
       await d.arrived;
       w2.release();
       expect((await stale).event.policy_id).toBe(GRANT_CONFLICT);
+      // The erasure has not committed yet: the repair that landed after the
+      // offboarding began is deleted by its own writer, not left for later.
+      expect(await env.store.list("person:dana")).toEqual([]);
       d.release();
       await off;
       await nothingErasedReturns(env);

@@ -69,8 +69,13 @@
 // removal, is kept. After the last attempt an item still the leaver's is left
 // with one deny event (engram/offboard/not-handed-over), listed in the
 // report's not_reached and counted in its reason (review of PR #50, P50-3).
-// The report's reason names the begin mark it closes, so a second
-// offboarding's report never closes the first one's mark (P50-5).
+// The report's reason names this offboarding's begin mark, and closes it and
+// every mark that was open when it was appended (verification of PR #50,
+// V-1): a rerun after an offboarding that stopped after its mark reopens the
+// scope. Before the report, the sweep deletes what the person scope's store
+// still holds under an id the log never allowed or an erased id
+// (engram/offboard/swept, V-1 and V-5); a record written after the report is
+// the person's again.
 //
 // Who may offboard: a user-sourced actor who is a member of the person scope
 // and of every role scope handed over, else one deny event

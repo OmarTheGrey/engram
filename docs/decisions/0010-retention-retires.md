@@ -37,7 +37,11 @@ Amendments made by card E2.6, 2026-11-19 (branch `e2-6`; proposed, for the lead'
 
 - Offboarding marks its erasure before deleting any store record (one `engram/offboard/begin` event, closed by the report event), and until the report closes it nothing in the person scope may change (`engram/offboard/erasing`); a writer on another handle whose decision preceded the mark deletes what it wrote (ADR 0007's amendment of the same date). The erasure commits what the mark read that the projection still holds. A crash between the mark and the report leaves the person scope frozen until offboarding runs again.
 - An erased id is never written or adopted again (`engram/write/erased`, `engram/adopt/erased`), except a record the erasure left in a store that refuses the plane's delete, which adoption takes again once its content changes, as before.
-- Review fix pass of PR #50: adoption also deletes such a record from the store, after committing its refusal, and a record in an offboarded person scope under an id the log never allowed (`engram/adopt/offboarded`), so a writer that crashed between its store write and its commit during an offboarding leaves no content behind past the next adoption. The one hard deletion is therefore complete once the erasure's report is appended and the scope's store has been adopted once.
+- Review fix pass of PR #50, as its verification left it (V-1, V-5): the offboarding itself, before its report, deletes from its person scope's store every record no projected item holds under an id the log never allowed or an erased id whose record it deleted (`engram/offboard/swept`), and adoption refuses and deletes a record under an erased or swept id that reappears later. A record that appears after the report under an id the log never recorded is the person's again: the plane accepts a write into an offboarded person scope, and adoption accepts that record alike. Whether a completed offboarding should instead refuse every later write into the person scope is a policy question for the lead (open question below). A report closes every mark open when its own mark was appended, so a rerun after a stopped offboarding completes it. The one hard deletion is complete once the report is appended.
+
+## Open questions for the lead
+
+- Should a person scope that a completed offboarding erased refuse every later write and adoption, so the scope stays empty unless the person is re-added? Card E2.6 treats a later write and a later record alike and accepts both.
 
 ## Alternatives considered
 
