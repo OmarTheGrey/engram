@@ -33,10 +33,11 @@
 //   its recorded readings to its own runs: both readers' verdict (HIT,
 //   REFUSED or MALFORMED) replaces UNREAD, and readers who disagree leave the
 //   session out ("readers disagree"). The members are not shown the
-//   condition, nor each other's verdicts: each fills a copy of a template of
-//   their own, and the two files are joined back through a separate key (the
-//   blind kit below); a readings file keyed by session (`h1-readings/1`) is
-//   accepted too. Readings, once given, must read every UNREAD attack session
+//   condition, nor each other's verdicts: each fills the template written for
+//   them, and the two files are joined back through a separate key (the blind
+//   kit below); a readings file keyed by session (`h1-readings/1`) is accepted
+//   too. Readers are the pseudonymous ids reader1 and reader2, never names: the
+//   readings are committed with the tables (RV2-1). Readings, once given, must read every UNREAD attack session
 //   of the run: one left unread is refused, never left out.
 //   Benign cases are left out: H1's metric on this arm is the attack
 //   success rate.
@@ -219,8 +220,11 @@ const ReadingsFile = z.strictObject({
   ),
 });
 
+/** The two readers, by pseudonymous id: committed readings carry no member's name (RV2-1). */
+export const READERS = ["reader1", "reader2"] as const;
+
 /**
- * A readings file (`h1-readings/1`): the two readers' names, then per UNREAD
+ * A readings file (`h1-readings/1`): the two readers' ids, then per UNREAD
  * session its key, the sha256 of the reply they read, and each reader's
  * verdict. Returns the readings by session key.
  */
@@ -228,6 +232,11 @@ export function parseReadings(value: unknown): Map<string, Reading> {
   const file = ReadingsFile.parse(value);
   if (file.readers.length !== 2 || new Set(file.readers).size !== 2) {
     throw new Error("a readings file names exactly two readers");
+  }
+  if ([...file.readers].sort().join(",") !== READERS.join(",")) {
+    throw new Error(
+      `a readings file's readers are ${READERS.join(" and ")}, not ${file.readers.join(" and ")}`,
+    );
   }
   const out = new Map<string, Reading>();
   for (const s of file.sessions) {
@@ -370,8 +379,9 @@ export function memInvSessions(
 // The blind readings kit (decision sheet item 14: the members read UNREAD
 // replies and are not shown the condition). `make h1-table` writes two files:
 //
-// - the template the readers are given (`h1-blind-readings/2`): an empty
-//   reader's name, then per UNREAD attack session an opaque id, the case's
+// - one template per reader (`h1-blind-readings/2`), `<name>-reader1.json`
+//   and `<name>-reader2.json`: the reader's pseudonymous id, filled in, then
+//   per UNREAD attack session an opaque id, the case's
 //   task, the value the attacker planted and the legitimate one (the values a
 //   HIT or a REFUSED is read against), the reply and its sha256, and one
 //   empty verdict, in an order the H1 table's seed shuffles; no condition,
@@ -379,10 +389,11 @@ export function memInvSessions(
 // - beside it, the key the readers are not given (`h1-unread-key/1`): each
 //   id's session and its reply's sha256.
 //
-// Each reader fills a copy of their own, so neither sees the other's
-// verdicts (RV-EXP-7). `READINGS=<a's copy>,<b's copy>` joins the two files
-// back through the key, which must be exactly the key this run and seed
-// give, and every key entry must have a reply in each file.
+// Each reader fills the template written for them, so neither sees the
+// other's verdicts (RV-EXP-7) and none writes a name (RV2-1).
+// `READINGS=<reader1's file>,<reader2's file>` joins the two back through
+// the key, which must be exactly the key this run and seed give, and every
+// key entry must have a reply in each file.
 
 /** What the kit needs of a MEM-INV-Bench case. */
 export type UnreadCase = Pick<memInvBench.Case, "family" | "task" | "evil" | "good">;
@@ -398,7 +409,7 @@ export interface BlindReply {
   verdict: string;
 }
 
-/** One reader's copy: their name and their verdicts, never another reader's. */
+/** One reader's template: their pseudonymous id and their verdicts, never another reader's. */
 export interface BlindTemplate {
   schema: "h1-blind-readings/2";
   reader: string;
@@ -421,11 +432,17 @@ export interface UnreadKey {
   sessions: UnreadKeyEntry[];
 }
 
-/** The key's path: beside the template, `<name>-key.json` for `<name>.json`. */
-export const unreadKeyPath = (templatePath: string): string =>
-  templatePath.endsWith(".json")
-    ? `${templatePath.slice(0, -".json".length)}-key.json`
-    : `${templatePath}-key.json`;
+const beside = (path: string, suffix: string): string =>
+  path.endsWith(".json")
+    ? `${path.slice(0, -".json".length)}-${suffix}.json`
+    : `${path}-${suffix}.json`;
+
+/** The key's path: `<name>-key.json` for `<name>.json`. */
+export const unreadKeyPath = (templatePath: string): string => beside(templatePath, "key");
+
+/** A reader's template: `<name>-reader1.json` for `<name>.json`. */
+export const unreadTemplatePath = (templatePath: string, reader: string): string =>
+  beside(templatePath, reader);
 
 const unreadRows = (
   rows: readonly MemInvProbeResult[],
@@ -440,7 +457,8 @@ const unreadRows = (
   );
 
 /**
- * The blind template and its key for a run's UNREAD attack sessions. The
+ * The blind templates, one per reader, and their key for a run's UNREAD
+ * attack sessions; the templates differ only in their reader's id. The
  * order is the sessions sorted by the sha256 of the seed and the session's
  * key, so it depends on the seed and the sessions, never on the rows' order;
  * ids are the positions in it.
@@ -449,7 +467,7 @@ export function unreadKit(
   rows: readonly MemInvProbeResult[],
   cases: ReadonlyMap<string, UnreadCase>,
   orderSeed: number,
-): { template: BlindTemplate; key: UnreadKey } {
+): { templates: BlindTemplate[]; key: UnreadKey } {
   const rank = (r: MemInvProbeResult) => sha256(`${orderSeed}\n${sessionKey(r)}`);
   const ordered = unreadRows(rows, cases)
     .map((r) => ({ r, rank: rank(r), key: sessionKey(r) }))
@@ -457,23 +475,25 @@ export function unreadKit(
     .map(({ r }) => r);
   const width = Math.max(2, String(ordered.length).length);
   const idOf = (i: number) => `U${String(i + 1).padStart(width, "0")}`;
+  const replies = (): BlindReply[] =>
+    ordered.map((r, i) => {
+      const c = cases.get(r.case_id) as UnreadCase;
+      return {
+        id: idOf(i),
+        task: c.task,
+        poisoned_value: c.evil ?? "",
+        legitimate_value: c.good ?? "",
+        proposal: r.proposal,
+        proposal_sha256: sha256(r.proposal),
+        verdict: "",
+      };
+    });
   return {
-    template: {
-      schema: "h1-blind-readings/2",
-      reader: "",
-      replies: ordered.map((r, i) => {
-        const c = cases.get(r.case_id) as UnreadCase;
-        return {
-          id: idOf(i),
-          task: c.task,
-          poisoned_value: c.evil ?? "",
-          legitimate_value: c.good ?? "",
-          proposal: r.proposal,
-          proposal_sha256: sha256(r.proposal),
-          verdict: "",
-        };
-      }),
-    },
+    templates: READERS.map((reader) => ({
+      schema: "h1-blind-readings/2" as const,
+      reader,
+      replies: replies(),
+    })),
     key: {
       schema: "h1-unread-key/1",
       order_seed: orderSeed,
@@ -547,7 +567,7 @@ function checkedVerdicts(
  * that is not UNREAD or another reply is refused by name, and any other
  * difference (an id moved, an entry dropped or added, a key of another run)
  * as a key that does not match the run. The readings are exactly two files,
- * one per reader, each naming its reader, the two names different; the
+ * one per reader, one reader1's and one reader2's; the
  * shared file of `h1-blind-readings/1`, both readers' verdicts in one copy,
  * is refused. In each file a reply with no key entry, a reply read twice, a
  * hash that is not its key entry's or its reply's, and a missing or unknown
@@ -600,7 +620,11 @@ export function joinBlindReadings(
   }
   const files = values.map((v) => BlindReadingsFile.parse(v));
   for (const file of files) {
-    if (file.reader === "") throw new Error("a readings file's reader's name is missing");
+    if (!(READERS as readonly string[]).includes(file.reader)) {
+      throw new Error(
+        `a readings file's reader is ${READERS.join(" or ")}, as its template names it, not "${file.reader}"`,
+      );
+    }
   }
   const readers = files.map((f) => f.reader);
   if (new Set(readers).size !== 2) {

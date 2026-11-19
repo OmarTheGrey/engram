@@ -9,7 +9,7 @@
 //       --config research/configs/h1-gatemem.json --run .engram/runs/h1-gatemem-live \
 //       --config research/configs/h1-mem-inv.json --run .engram/runs/h1-mem-inv-live \
 //       --table-config research/configs/h1-table.json [--gate-by-action] \
-//       [--readings <a's copy>,<b's copy> --readings-key <key>] \
+//       [--readings <reader1's file>,<reader2's file> --readings-key <key>] \
 //       [--unread-out <file>] --out .engram/runs/h1-sessions.jsonl
 //
 // `make h1-table` runs exactly this, then research/scripts/h1_table.py. The
@@ -21,20 +21,23 @@
 // MEM-INV-Bench's UNREAD sessions do not score until two members read them
 // (upstream's score.py), and they are not shown the condition (decision
 // sheet item 14).
-// --unread-out writes the blind template (`h1-blind-readings/2`): each UNREAD
-// attack session's reply under an opaque id, in an order the H1 table
-// config's seed (--table-config) shuffles, with the case's task and values,
-// an empty verdict and an empty reader's name, and no condition, store, seed
-// or item. Beside it, `<name>-key.json` holds the key from id to session; the
-// readers are not given it. Both hold model replies or point at them: keep
-// them under .engram/. Each reader fills a copy of their own, so neither sees
-// the other's verdicts, and --readings <a's copy>,<b's copy> with
-// --readings-key joins the two back through the key, which must be the key
-// this run and seed give; a key entry with no reply in either copy is
-// refused. A readings file keyed by session (`h1-readings/1`) is applied as
-// it is. --readings and --unread-out may not name the same file: the template
-// a reading was filled in is never overwritten by the run that reads it
-// (`make h1-table READINGS=` passes no --unread-out).
+// --unread-out <name>.json writes the blind templates (`h1-blind-readings/2`),
+// one per reader, `<name>-reader1.json` and `<name>-reader2.json`: the
+// reader's pseudonymous id, filled in, then each UNREAD attack session's
+// reply under an opaque id, in an order the H1 table config's seed
+// (--table-config) shuffles, with the case's task and values and an empty
+// verdict, and no condition, store, seed or item. Beside them,
+// `<name>-key.json` holds the key from id to session; the readers are not
+// given it. All hold model replies or point at them: keep them under
+// .engram/. Each reader fills the template written for them, so neither
+// sees the other's verdicts and no member's name is written (RV2-1), and
+// --readings <reader1's file>,<reader2's file> with --readings-key joins the
+// two back through the key, which must be the key this run and seed give; a
+// key entry with no reply in one reader's file is refused. A readings file
+// keyed by session (`h1-readings/1`) is applied as it is. --readings may not
+// name a file --unread-out would write: a filled template is never
+// overwritten by the run that reads it (`make h1-table READINGS=` passes no
+// --unread-out).
 //
 // GateMem's utility checkpoints become sessions of kind `utility`, for the
 // table's MGS only; --gate-by-action is recorded on every session
@@ -56,9 +59,11 @@ import {
   joinBlindReadings,
   memInvSessions,
   parseReadings,
+  READERS,
   type Reading,
   unreadKeyPath,
   unreadKit,
+  unreadTemplatePath,
 } from "../src/research/h1-sessions.ts";
 
 const readJson = (path: string, what: string): unknown => {
@@ -124,7 +129,7 @@ function tableSeed(path: string | undefined): number {
 }
 
 const USAGE =
-  "usage: h1-sessions.ts (--config <runner config> --run <run dir>)... [--table-config <H1 table config>] [--gate-by-action] [--readings <a's copy>,<b's copy> --readings-key <key> | --readings <h1-readings/1 file>] [--unread-out <file>] --out <sessions.jsonl>";
+  "usage: h1-sessions.ts (--config <runner config> --run <run dir>)... [--table-config <H1 table config>] [--gate-by-action] [--readings <reader1's file>,<reader2's file> --readings-key <key> | --readings <h1-readings/1 file>] [--unread-out <file>] --out <sessions.jsonl>";
 
 function main(): number {
   const { values } = parseArgs({
@@ -156,10 +161,18 @@ function main(): number {
   if (values.readings !== undefined && readingsPaths.length === 0) {
     throw new Error("--readings names no file");
   }
+  const written =
+    unreadOut === undefined
+      ? []
+      : [
+          unreadOut,
+          ...READERS.map((r) => unreadTemplatePath(unreadOut, r)),
+          unreadKeyPath(unreadOut),
+        ].map((p) => resolve(p));
   for (const path of readingsPaths) {
-    if (unreadOut !== undefined && resolve(path) === resolve(unreadOut)) {
+    if (written.includes(resolve(path))) {
       throw new Error(
-        `--readings and --unread-out name the same file (${unreadOut}): writing the template would overwrite the readings`,
+        `--readings and --unread-out name the same file (${path}): writing the templates would overwrite the readings`,
       );
     }
   }
@@ -237,12 +250,15 @@ function main(): number {
   console.error(`h1-sessions: ${lines.length} sessions written to ${values.out}`);
 
   if (unreadOut !== undefined) {
-    const { template, key } = unreadKit(memInvRows, cases, tableSeed(values["table-config"]));
+    const { templates, key } = unreadKit(memInvRows, cases, tableSeed(values["table-config"]));
+    const paths = templates.map((t) => unreadTemplatePath(unreadOut, t.reader));
+    templates.forEach((t, i) => {
+      writeFileSync(paths[i] as string, `${JSON.stringify(t, null, 2)}\n`);
+    });
     const keyPath = unreadKeyPath(unreadOut);
-    writeFileSync(unreadOut, `${JSON.stringify(template, null, 2)}\n`);
     writeFileSync(keyPath, `${JSON.stringify(key, null, 2)}\n`);
     console.error(
-      `h1-sessions: ${template.replies.length} UNREAD replies to read, blind, written to ${unreadOut} (each of the two readers fills a copy of their own); their key, which the readers are not given, to ${keyPath}`,
+      `h1-sessions: ${templates[0]?.replies.length ?? 0} UNREAD replies to read, blind, written for each reader to ${paths.join(" and ")}; their key, which the readers are not given, to ${keyPath}`,
     );
   }
   return 0;
