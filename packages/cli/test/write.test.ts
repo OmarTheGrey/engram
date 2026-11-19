@@ -141,7 +141,8 @@ describe("engram write", () => {
     expect((await readdir(root)).sort()).toEqual(
       ["MEMORY.md", `${ID}.md`, ...FIXTURE_FILES].sort(),
     );
-    expect(await readFile(join(root, "MEMORY.md"), "utf8")).toContain(`(${ID}.md)`);
+    // Claude Code's index is never touched: Engram items stay out of it (card RV3, RV-ADP-3).
+    expect(await readFile(join(root, "MEMORY.md"), "utf8")).not.toContain(ID);
   });
 
   it("denies an item that fails the schema under the schema rule", async () => {
