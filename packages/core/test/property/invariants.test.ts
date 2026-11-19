@@ -611,6 +611,7 @@ describe("invariants", () => {
       offboardCrashes: 0,
       removalsKept: 0,
       recoveries: 0,
+      derivedChecked: 0,
       purged: 0,
       erasedLeft: 0,
     };
@@ -2102,6 +2103,8 @@ const arbCrash = fc.oneof(
 
 type WalkOp =
   | { kind: "write"; pick: number; grant: boolean; episodic: boolean; crash: Crash }
+  /** A new role item derived from a person item: a fresh id whose lineage names it (V4-3). */
+  | { kind: "derive"; from: number; crash: Crash }
   | { kind: "grant"; pick: number; add: boolean; crash: Crash }
   | { kind: "promote"; pick: number; crash: Crash }
   | { kind: "retain" }
@@ -2137,6 +2140,14 @@ const arbWalkOp: fc.Arbitrary<WalkOp> = fc.oneof(
       crash: arbCrash,
     }),
     weight: 1,
+  },
+  {
+    arbitrary: fc.record({
+      kind: fc.constant("derive" as const),
+      from: fc.nat(3),
+      crash: arbCrash,
+    }),
+    weight: 2,
   },
   { arbitrary: fc.record({ kind: fc.constant("retain" as const) }), weight: 1 },
   { arbitrary: fc.record({ kind: fc.constant("adopt" as const), scope: fc.nat(1) }), weight: 2 },
@@ -2238,6 +2249,8 @@ interface WalkSeen {
   removalsKept: number;
   /** Withdrawals and narrowings the walk judged against the owner's later decisions. */
   recoveries: number;
+  /** Allowed events of items whose lineage names an erased id, judged (V4-3). */
+  derivedChecked: number;
   purged: number;
   /** Walks that ended with an erased id's record in the store, for the next adoption to delete. */
   erasedLeft: number;
@@ -2332,6 +2345,7 @@ async function twoHandleWalk(
   };
   let n = 0;
   let tokens = 0;
+  let derived = 0;
   /** Every content token written under each item id. */
   const written = new Map<string, Set<string>>();
   const reads: { seq: number; ids: string[] }[] = [];
@@ -2353,7 +2367,7 @@ async function twoHandleWalk(
     const plan = plans.get(d) as Plan;
     for (const op of ops) {
       plan.crash =
-        op.kind === "write" || op.kind === "grant" || op.kind === "promote"
+        op.kind === "write" || op.kind === "grant" || op.kind === "promote" || op.kind === "derive"
           ? op.crash
           : op.kind === "offboard" && op.crash !== "none"
             ? `offboard-${op.crash}`
@@ -2401,6 +2415,36 @@ async function twoHandleWalk(
             : (held?.grants ?? []),
           version: (held?.version ?? 0) + 1,
           lineage: [],
+          status: "active",
+          store_ref: null,
+          schema_version: 1,
+        } as MemoryItem,
+        W_AT,
+      );
+      refusals.push(r.event);
+    } else if (op.kind === "derive") {
+      const source = W_POOL[op.from] as string;
+      const r = await plane.write(
+        W_DANA,
+        {
+          id: W_ID(1000 + ++derived),
+          class: "semantic",
+          scope: "role:release",
+          owner: W_DANA.id,
+          content: `Dana's derived note zq${++tokens}x`,
+          provenance: {
+            kind: "user",
+            ref: "doc/1",
+            hash: `sha256:${"0".repeat(64)}`,
+            actor: W_DANA.id,
+          },
+          confidence: 0.9,
+          valid_from: "2026-10-01T00:00:00Z",
+          valid_to: null,
+          ttl: null,
+          grants: [],
+          version: 1,
+          lineage: [source],
           status: "active",
           store_ref: null,
           schema_version: 1,
@@ -2495,6 +2539,18 @@ async function twoHandleWalk(
     i && { ...i, status: null, provenance: { ...i.provenance, kind: null, actor: null } };
   for (const held of crashes > 0 ? [] : currentItems(base)) {
     if (!held.store_ref) continue;
+    // A withdrawn adoption of a write that never existed before retires the
+    // item and deletes its record: the stale bytes are gone (V-2).
+    const last = eventsByItem(base, held.id)
+      .filter((e) => e.decision === "allow")
+      .at(-1);
+    if (last?.policy_id === "engram/adopt/withdrawn" && held.status === "retired") {
+      expect(
+        await store.read(held.store_ref),
+        `the withdrawn record of ${held.id}`,
+      ).toBeUndefined();
+      continue;
+    }
     expect(unsourced(await store.read(held.store_ref)), `the store's record of ${held.id}`).toEqual(
       unsourced(held),
     );
@@ -2585,6 +2641,31 @@ async function twoHandleWalk(
   };
   removalsStand("after the walk");
   /**
+   * Content traced to erased content by lineage never lands after the
+   * erasure (V3-1, V4-1): every allowed event of an item whose lineage names
+   * an erased id came before that id's erasure. A derived item committed
+   * before stays, as the scope's, and its later versions (an adoption of
+   * its own record, say) are its own.
+   */
+  const lineageStands = (when: string) => {
+    const firsts = new Set<string>();
+    for (const e of allEvents(base)) {
+      if (e.decision !== "allow" || !e.item) continue;
+      if (firsts.has(e.item.id)) continue;
+      firsts.add(e.item.id);
+      for (const ancestor of e.item.lineage) {
+        const at = erasedAt.get(ancestor);
+        if (at === undefined) continue;
+        seen.derivedChecked++;
+        expect(
+          e.seq < at,
+          `${when}: ${e.policy_id} at ${e.seq} lands ${e.item.id}, whose lineage names ${ancestor}, erased at ${at}`,
+        ).toBe(true);
+      }
+    }
+  };
+  lineageStands("after the walk");
+  /**
    * The plane's own recovery against the owner's later decisions (V-2, V3-3):
    * a withdrawal happens only while nothing but adoptions changed the item
    * since the adoption it names, and a narrowing never takes away a grant an
@@ -2651,5 +2732,6 @@ async function twoHandleWalk(
     await adoptStoreItems({ ...deps("C", 300_000), adapter: store }, W_DANA, scope, W_LATER);
   await check("after another adoption", true);
   removalsStand("after another adoption");
+  lineageStands("after another adoption");
   base.close();
 }
