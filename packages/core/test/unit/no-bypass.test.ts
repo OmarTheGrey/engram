@@ -300,13 +300,22 @@ describe("card RV3: more spellings of this machine and of Letta Code", () => {
   });
 
   it.runIf(process.platform === "win32").each(PREFIXES)(
-    "blocks a file tool and a shell command through %s (RV-ADP-7)",
+    "blocks a file tool through %s (RV-ADP-7)",
     (prefix) => {
       const target = via(prefix, join(root, "a.md"));
       expect(toolBypass("Read", { file_path: target }, check)?.route).toBe("path");
       expect(toolBypass("Write", { file_path: target, content: "x" }, check)?.route).toBe("path");
-      expect(shellBypass(`type ${target}`, check)?.route).toBe("path");
-      expect(shellBypass(`Get-Content "${target}"`, { ...check, shell: "powershell" })?.route).toBe(
+    },
+  );
+
+  it.runIf(process.platform === "win32").each(PREFIXES)(
+    "blocks a shell command through %s from a cwd that names no root (RV-ADP-7)",
+    (prefix) => {
+      // Away from the root's parent, so no bare word of the path reaches the root by itself.
+      const away = { ...check, cwd: mkdtempSync(join(tmpdir(), "engram-nobypass-away-")) };
+      const target = via(prefix, join(root, "a.md"));
+      expect(shellBypass(`type ${target}`, away)?.route).toBe("path");
+      expect(shellBypass(`Get-Content "${target}"`, { ...away, shell: "powershell" })?.route).toBe(
         "path",
       );
     },
