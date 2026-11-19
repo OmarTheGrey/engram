@@ -31,7 +31,7 @@ CI runs layers 1 to 5 and 7 on every PR, and 6 on main and nightly. Layer 8's `m
 
 Invariant 1's oracle also excludes an item past its ttl, and invariant 2's forbids a model, compaction or tool write restating content an allowed retire or evict event retired in its scope (ADR 0025). Invariant 2 also runs promotions (card E2.5, ADR 0026): one that lands was asked for by an actor who can read the item and is a member of its scope (or its owner in the owner's person scope: a read grant never moves an item), of an item not retired, not past its ttl and free of hidden characters, by a user-sourced actor when the scope changes, with no active item of the promoted class already holding the content in the target, and with the evidence ADR 0026 asks for (k distinct actors with trusted sources among items still active, or a reviewer who is user-sourced, a member of the target, not the owner, not an author of any version and not a confirmer); its item is one a write could land in the target. The oracle judges all of this from its own scan of the events. Invariant 1 also checks that no Plane method other than `read` hands an item to an actor who cannot read it, a promoter included.
 
-This file is owned by the lead. Changing it needs a second reviewer and a `decision` log entry. It never has a skip.
+This file is owned by the lead. Changing it needs a second reviewer and a `decision` log entry. It never has a skip. Its oracles live in `packages/core/src/oracle.ts` since card E9.5, so the twin dogfood's violation report (`packages/core/src/dogfood.ts`) judges a member's log with the same oracle; `packages/core/test/property/oracle.ts` re-exports them, and they are the lead's with the file.
 
 ## Fakes, not mocks
 

@@ -8,7 +8,7 @@ SHELL := bash
 PNPM ?= pnpm
 UV ?= uv
 
-.PHONY: help test test-invariants test-one test-e2e test-repro lint lint-docs api api-check ui bench run h1-table l3-variance h3-lint-delta fixtures fault-workspace thesis engram
+.PHONY: help test test-invariants test-one test-e2e test-repro lint lint-docs api api-check ui bench run h1-table l3-variance h3-lint-delta fixtures fault-workspace thesis engram dogfood-report
 
 help: ## list targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | sed -E 's/:.*## /\t/' | expand -t 16
@@ -149,6 +149,9 @@ fault-workspace: ## a SQLite log and policy from one fault fixture, to lint with
 	@[ -n "$(FAULT)" ] || { echo "fault-workspace: give FAULT=<name> from fixtures/faults"; exit 2; }
 	rm -rf ".engram/faults/$(FAULT)"
 	node packages/core/scripts/faults.ts workspace "fixtures/faults/$(FAULT).json" ".engram/faults/$(FAULT)"
+
+dogfood-report: ## the twin dogfood's violation report over your own log, counts only: make dogfood-report ARGS="--as person:<you>"
+	@node packages/core/scripts/dogfood-report.ts $(ARGS)
 
 engram: ## run the engram CLI: make engram ARGS="read --root <folder> --owner <id>"
 	@node packages/cli/src/main.ts $(ARGS)

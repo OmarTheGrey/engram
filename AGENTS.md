@@ -81,6 +81,7 @@ make test-repro                every row of research/results/MANIFEST.md rerun b
                                a script needing pinned benchmark data fetches it (data, never a model) into .engram/upstream, so a fresh clone needs the network; CI does not run it
 make fixtures                  regenerate golden files (the fault catalogue in fixtures/faults/ and the fixture-size LongMemEval fault set in fixtures/fault-sets/longmemeval/ included) and record scripted cassettes afresh; refuses without a message; clones MEM-INV-Bench at its pin into .engram/upstream when missing (network) and runs its own scorer for the goldens
 make fault-workspace FAULT=<name>   a SQLite log and policy file in .engram/faults/<name>/ from fixtures/faults/<name>.json, and the engram lint command that lints it
+make dogfood-report ARGS="--as person:<you> [--member <scope>]... [--db <log>] [--detail]"   the twin dogfood's violation report (card E9.5, docs/dogfood.md): your own SQLite log replayed through the invariants' oracle, aggregate counts only on stdout (safe to send; AGENTS.md rule 12), under the twin profile unless --policy; exit 1 on a violation; --detail names each violation on stderr, for you alone
 make thesis                    consolidate docs/log into research/thesis/drafts/ (ROOT=, OUT= to run on fixtures/log/repo)
 pi                             work in this repo with the project extension loaded
 ```
