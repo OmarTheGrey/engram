@@ -468,6 +468,44 @@ forEachBackend((backend) => {
     });
   });
 
+  describe("an erased id", () => {
+    test("a record under an erased id that reappears in the store (a write that was in flight, a restored copy) is never adopted", async () => {
+      const env = setup(backend);
+      const seeded = await seedPerson(env);
+      await offboardTheirs(env);
+      await env.store.write({ ...seeded, version: 2, store_ref: null } as MemoryItem);
+      const report = await adoptStoreItems(env.depsMine, dana, "person:dana", LATER);
+      expect(report).toMatchObject({ allowed: 0, denied: 1 });
+      expect(report.denials[0]?.policy_id).toBe("engram/adopt/erased");
+      expect(report.denials[0]?.reason).not.toContain("Mira");
+      expect(itemById(env.mine, id(1))).toBeUndefined();
+      expect((await env.plane.read(dana, { at: LATER })).items).toEqual([]);
+      // Denied once for that record; the next adoption appends nothing.
+      const n = allEvents(env.mine).length;
+      expect((await adoptStoreItems(env.depsMine, dana, "person:dana", LATER)).unchanged).toBe(1);
+      expect(allEvents(env.mine)).toHaveLength(n);
+    });
+
+    test("a write under an erased id is refused, and the refusal names the erased scope only to its members", async () => {
+      const env = setup(backend);
+      const seeded = await seedPerson(env);
+      await offboardTheirs(env);
+      const again = { ...seeded, version: 1, store_ref: null } as MemoryItem;
+      const r = await env.plane.write(dana, again, LATER);
+      expect(r.item).toBeNull();
+      expect(r.event).toMatchObject({ decision: "deny", policy_id: "engram/write/erased" });
+      expect(r.event.reason).toMatch(/erased with person:dana/);
+      expect((await env.plane.checkWrite(dana, again, LATER)).policy_id).toBe("engram/write/erased");
+      const outsider: Actor = { ...lee, memberships: ["person:lee", "team:x"] };
+      const elsewhere = { ...again, scope: "team:x", owner: lee.id } as MemoryItem;
+      const o = await env.plane.write(outsider, elsewhere, LATER);
+      expect(o.event.policy_id).toBe("engram/write/erased");
+      expect(o.event.reason).not.toMatch(/person:dana/);
+      expect(await env.store.list("person:dana")).toEqual([]);
+      expect(itemById(env.mine, id(1))).toBeUndefined();
+    });
+  });
+
   describe("a committed decision on another handle", () => {
     test("R4: a handover held at its store write while the owner removes a grant keeps the removal and hands over the new version", async () => {
       const env = setup(backend);
