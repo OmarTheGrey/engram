@@ -14,7 +14,10 @@ import {
   mkdtemp,
   readdir,
   readFile,
+  realpath,
+  rename,
   rm,
+  symlink,
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -146,6 +149,62 @@ describe("RV-ADP-2: an imported file's id names its folder and its file", () => 
     expect(importedItemId(join(root, "x", ".."), "user_role.md")).toBe(
       importedItemId(root, "user_role.md"),
     );
+  });
+});
+
+describe("review fix pass, RV3-6: the folder's identity is its real path once it exists", () => {
+  test("an adapter opened on a folder that does not exist yet, through a junction, ids by the real folder", async ({
+    skip,
+  }) => {
+    const real = await tempDir();
+    const parent = await tempDir();
+    const junction = join(parent, "via");
+    try {
+      await symlink(real, junction, "junction");
+    } catch (e) {
+      if (
+        ["EPERM", "EACCES", "ENOSYS", "ENOTSUP"].includes((e as NodeJS.ErrnoException).code ?? "")
+      )
+        return skip("junctions and symlinks are unavailable here");
+      throw e;
+    }
+    const root = join(junction, "memory");
+    const adapter = createFilesAdapter({ root, owner: "dana", importValidFrom: VALID_FROM });
+    // Used before the folder exists: nothing listed, nothing to name.
+    expect(await adapter.list("person:dana")).toEqual([]);
+    expect(importedItemId(root, "user_role.md")).toBe(importedItemId(root, "user_role.md"));
+    await adapter.write(item(20));
+    await writeFile(
+      join(root, "user_role.md"),
+      "---\nname: role\n---\nDana is a backend engineer.\n",
+    );
+    const [role] = (await adapter.list("person:dana")).filter(
+      (i) => i.store_ref?.key === "user_role.md",
+    );
+    expect(role?.id).toBe(importedItemId(join(real, "memory"), "user_role.md"));
+    expect(role?.id).toBe(importedItemId(await realpath(root), "user_role.md"));
+  });
+});
+
+describe("review fix pass, RV3-4: a case-only rename of an item file", () => {
+  test("blocks rewrites of the item until the file is renamed back", async () => {
+    const root = await tempDir();
+    const adapter = createFilesAdapter({ root, owner: "dana" });
+    const hex = { id: "01920000-0000-7000-8000-00000000abcd" };
+    const ref = await adapter.write(item(21, hex));
+    const upper = ref.key.toUpperCase().replace(/\.MD$/, ".md");
+    await rename(join(root, ref.key), join(root, `${ref.key}.tmp`));
+    await rename(join(root, `${ref.key}.tmp`), join(root, upper));
+    await expect(
+      adapter.write(item(21, { ...hex, version: 2, content: "v2" })),
+    ).rejects.toBeInstanceOf(UnsafeKeyError);
+    // The renamed file is not read as the item: its name says another id.
+    expect(await adapter.list("person:dana")).toEqual([]);
+    expect(adapter.diagnostics().map((d) => d.key)).toEqual([upper]);
+    await rename(join(root, upper), join(root, `${ref.key}.tmp`));
+    await rename(join(root, `${ref.key}.tmp`), join(root, ref.key));
+    await adapter.write(item(21, { ...hex, version: 2, content: "v2" }));
+    expect((await adapter.read(ref))?.content).toBe("v2");
   });
 });
 

@@ -161,13 +161,18 @@ type ContentFormat = "text" | "json" | "skill";
  * one identity and two folders never share one.
  */
 export function folderIdentity(root: string): string {
-  let path = resolve(root);
+  return realIdentity(root) ?? caseless(resolve(root));
+}
+
+const caseless = (path: string) => (process.platform === "win32" ? path.toLowerCase() : path);
+
+/** The folder's identity from its real path; undefined while it does not exist or cannot be read. */
+function realIdentity(root: string): string | undefined {
   try {
-    path = realpathSync.native(path);
+    return caseless(realpathSync.native(resolve(root)));
   } catch {
-    // missing or unreadable: the resolved path
+    return undefined;
   }
-  return process.platform === "win32" ? path.toLowerCase() : path;
 }
 
 /**
@@ -299,11 +304,17 @@ export function createFilesAdapter(options: FilesAdapterOptions): FilesAdapter {
     throw new Error(`files adapter: owner ${JSON.stringify(options.owner)} is not a person id`);
   }
   const confidence = options.importConfidence ?? 0.5;
-  /** The folder's identity, taken at first use (the folder may not exist before). */
+  /**
+   * The folder's identity, kept once its real path is known: never a
+   * resolved path taken while the folder did not exist yet, which could
+   * differ from the real one through a junction or symlink (review fix pass,
+   * RV3-6). Moving the folder while an instance is open keeps the old ids
+   * until the instance is reopened.
+   */
   let folderId: string | undefined;
   const importedId = (key: string) => {
-    folderId ??= folderIdentity(root);
-    return idOf(folderId, key);
+    folderId ??= realIdentity(root);
+    return idOf(folderId ?? folderIdentity(root), key);
   };
   let lastDiagnostics: FileDiagnostic[] = [];
   /** Whether this instance has removed crashed writers' temporary files yet. */

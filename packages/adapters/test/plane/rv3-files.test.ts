@@ -5,7 +5,7 @@
 // name, adopted into one log, never retire each other's items. RV-ADP-3: an
 // item the plane retired leaves no line in the folder's MEMORY.md, which
 // Claude Code loads into every session outside the plane's read filter.
-import { copyFile, cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { copyFile, cp, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -183,6 +183,44 @@ describe("RV-ADP-2 through the plane: two members' folders in one log", () => {
     expect(currentItems(shared.db).map((i) => [i.scope, i.status, i.content])).toEqual([
       ["person:dana", "active", "Dana is a backend engineer."],
     ]);
+  });
+
+  // Review fix pass, RV3-1: a moved folder gives its files new imported ids
+  // at the same refs. Core refuses a second item at a ref, a retired holder
+  // included (packages/core/src/plane/write.ts, refProblem), before adoption
+  // retires what the store no longer lists, so every adoption of the moved
+  // folder fails closed: one deny event, nothing retired or adopted from the
+  // new place. Moving the folder back recovers. The core fix waits on card
+  // E2.6 (backlog row "Adoption after a folder move", card RV4).
+  test("a moved folder is refused on every adoption, and the log keeps what it had", async () => {
+    const shared = logOf();
+    const parent = await tempDir("engram-rv3-move-");
+    const before = join(parent, "a");
+    const after = join(parent, "b");
+    await cp(FIXTURE, before, { recursive: true });
+    const opts = { owner: "dana", importValidFrom: "2026-10-01T00:00:00Z" };
+    const aDeps = { ...shared, adapter: createFilesAdapter({ root: before, ...opts }) };
+    expect((await adoptStoreItems(aDeps, dana, "person:dana", AT)).allowed).toBe(4);
+    const held = currentItems(shared.db);
+    const events = allEvents(shared.db).length;
+    await rename(before, after);
+    const bDeps = { ...shared, adapter: createFilesAdapter({ root: after, ...opts }) };
+    for (let k = 0; k < 2; k++)
+      await expect(adoptStoreItems(bDeps, dana, "person:dana", AT)).rejects.toThrow(
+        "two item ids get two refs",
+      );
+    // Each refused adoption leaves one deny event (AGENTS.md rule 3) and changes nothing else.
+    const added = allEvents(shared.db).slice(events);
+    expect(added.map((e) => [e.op, e.decision, e.policy_id])).toEqual([
+      ["write", "deny", "engram/write/store-failure"],
+      ["write", "deny", "engram/write/store-failure"],
+    ]);
+    for (const e of added) expect(e.reason).toContain("cannot be recorded");
+    expect(currentItems(shared.db)).toEqual(held);
+    // Moving it back is the way out short of a new log: the old ids return.
+    await rename(after, before);
+    const back = await adoptStoreItems(aDeps, dana, "person:dana", AT);
+    expect(back).toMatchObject({ allowed: 0, denied: 0, retired: 0, unchanged: 4 });
   });
 });
 
