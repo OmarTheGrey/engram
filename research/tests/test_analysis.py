@@ -533,6 +533,13 @@ def test_the_h1_bound_multiplies_by_the_five_hypotheses(p: float) -> None:
     assert holm_part["p"] == p
 
 
+def test_the_h1_bound_is_capped_at_one() -> None:
+    # 5p = 1.5 is no probability: the bound stops at 1 (review RV2-4).
+    decision, holm_part = decide_h1(0.3, None, None)
+    assert holm_part["adjusted"] == 1.0
+    assert decision["primary"] == "not supported"
+
+
 def test_the_results_schema_refuses_an_unknown_field_and_a_repeated_session(
     tmp_path: Path,
 ) -> None:
