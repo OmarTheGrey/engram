@@ -768,7 +768,8 @@ describe("invariants", () => {
   const I5 =
     "invariant 5: after any write sequence no scope holds more active items of a class than its budget, every retire or evict event carries a reason and a policy id, and replay reproduces them";
   test(I5, async () => {
-    const seen = {
+    /** What a walk saw: each walk counts its own (verification finding V-6 of PR #44). */
+    const counters = () => ({
       recency: 0,
       utility: 0,
       utilityByReads: 0,
@@ -783,8 +784,13 @@ describe("invariants", () => {
       grantChanged: 0,
       grantAdmitted: 0,
       refusedAfterRemoval: 0,
-    };
-    const walk = async (policy: Policy, steps: Step[]) => {
+      refusedForClass: 0,
+      refusedForExpiry: 0,
+      reclassed: 0,
+    });
+    const first = counters();
+    const second = counters();
+    const walk = (seen: ReturnType<typeof counters>) => async (policy: Policy, steps: Step[]) => {
       const { db, adapter, plane, under, newId } = freshPlane(policy);
       /** How many times a read returned each item: the oracle's own count. */
       const reads = new Map<string, number>();
@@ -926,21 +932,31 @@ describe("invariants", () => {
               readable(policy, reader, was as MemoryItem, at),
               `${reader.id} read ${it.id}, which the oracle's replay does not let it read at ${at}`,
             ).toBe(true);
-            // Every grant came from the original gated write or an owner's allowed change.
-            for (const g of it.grants)
-              expect(
-                log.some(
-                  (e) =>
-                    e.decision === "allow" &&
-                    e.item?.id === it.id &&
-                    e.item.grants.some((h) => grantsAlike(g, h)) &&
+            // The item's grants are those of the latest allowed event for it in the
+            // oracle's replay, so no grant comes back once removed (V-7), and every
+            // change of its grants, or of its class while it carried grants, was its
+            // owner's write or grant change (I1, V-4).
+            expect(
+              it.grants,
+              `${it.id} returned with grants its latest event does not carry`,
+            ).toEqual((was as MemoryItem).grants);
+            let before: MemoryItem | undefined;
+            for (const e of log) {
+              if (e.decision !== "allow" || e.item?.id !== it.id) continue;
+              const prev = before?.grants ?? [];
+              const changed =
+                prev.length !== e.item.grants.length ||
+                !e.item.grants.every((g) => prev.some((h) => grantsAlike(g, h))) ||
+                (before !== undefined && before.class !== e.item.class && prev.length > 0);
+              if (changed)
+                expect(
+                  e.actor === e.item.owner &&
                     (e.op === "write" ||
-                      (e.op === "update" &&
-                        e.policy_id === "engram/grant/change" &&
-                        e.actor === it.owner)),
-                ),
-                `grant ${JSON.stringify(g)} on ${it.id} came from no write and no owner's change`,
-              ).toBe(true);
+                      (e.op === "update" && e.policy_id === "engram/grant/change")),
+                  `event ${e.seq} changed what the grants of ${it.id} admit, by ${e.actor} (${e.op}, ${e.policy_id}), not its owner's write or grant change`,
+                ).toBe(true);
+              before = e.item;
+            }
           }
           if (reader === GRANTEE5) {
             if (explanations.some((e) => e.policy_id.endsWith("/read/grants")))
@@ -949,7 +965,46 @@ describe("invariants", () => {
             for (const id of removedFrom)
               if (state.get(id)?.status === "active" && !returned.has(id))
                 seen.refusedAfterRemoval++;
+            // Items the read matched, active and in their window, that a grant names
+            // the grantee on, refused for the grant's class or its expiry (V-5).
+            for (const x of state.values()) {
+              if (returned.has(x.id) || x.status !== "active" || wordOf(x) !== step.text) continue;
+              if (pastTtl(policy, x, at) || compareTimestamps(x.valid_from, at) > 0) continue;
+              if (readable(policy, GRANTEE5, x, at)) continue;
+              const naming = x.grants.filter((g) => patternCovers(g.to, GRANTEE5.id));
+              const live = (g: Grant) =>
+                g.expires === undefined || compareTimestamps(at, g.expires) < 0;
+              if (naming.some((g) => live(g) && g.class !== undefined && g.class !== x.class))
+                seen.refusedForClass++;
+              if (naming.some((g) => !live(g) && (g.class === undefined || g.class === x.class)))
+                seen.refusedForExpiry++;
+            }
           }
+          continue;
+        }
+        if (step.kind === "reclass") {
+          // A rewrite that changes an item's class, its grants as they are (V-4).
+          const actor = GRANTERS[step.who];
+          const live = currentItems(db).filter((x) => x.status !== "retired");
+          const target = live[step.pick % Math.max(1, live.length)];
+          if (!target || target.class === step.to) continue;
+          const word = wordOf(target);
+          const rewritten = {
+            ...target,
+            class: step.to,
+            content: step.to === "procedural" ? { body: word, tools: [] } : word,
+            version: target.version + 1,
+            store_ref: null,
+          } as MemoryItem;
+          const result = await plane.write(actor, rewritten, at);
+          if (result.event.decision !== "allow") continue;
+          if (target.grants.length > 0) {
+            expect(actor, "only the owner changes the class of an item carrying grants").toBe(
+              WRITER5,
+            );
+            seen.reclassed++;
+          }
+          checkWrite(result.event, result.retention);
           continue;
         }
         if (step.kind === "grant") {
@@ -1074,20 +1129,43 @@ describe("invariants", () => {
       expect(currentItems(db), "replay reproduces every retirement").toEqual(state);
       if (log.length > 0) expect(itemsAt(db, log.length - 1)).toEqual(state);
     };
-    await fc.assert(fc.asyncProperty(arbBudgetPolicy, arbSteps, walk), {
+    await fc.assert(fc.asyncProperty(arbBudgetPolicy, arbSteps, walk(first)), {
       numRuns: RUNS,
       seed: seedFor(I5),
     });
-    // The same walk with grant changes and reads by a grantee, under a policy
-    // that honours grants (card E9.4, review finding I2 of PR #44). Its own
-    // steps and seed, so the walk above draws exactly as it always has.
-    await fc.assert(fc.asyncProperty(arbBudgetPolicy.map(honouring), arbGrantSteps, walk), {
+    const {
+      grantChanged,
+      grantAdmitted,
+      refusedAfterRemoval,
+      refusedForClass,
+      refusedForExpiry,
+      reclassed,
+      ...budgets
+    } = first;
+    expect(
+      Object.values(budgets).every((n) => n > 0),
+      `invariant 5 needs evictions by recency and by utility (some where reads, not age, chose the victim), a manual ask, a sweep that retired an expired item and one that evicted, a rewrite of a held id, a concurrent batch, an adopted item, a refused non-member sweep, and expired shared items a session left to a user; it saw ${JSON.stringify(first)}`,
+    ).toBe(true);
+    // The same walk with grant changes, writes carrying grants (of another class
+    // than their item's too), class-changing rewrites and reads by a grantee,
+    // under a policy that honours grants (card E9.4, review finding I2 and
+    // verification finding V-5 of PR #44). Its own steps, seed and counters, so
+    // the walk above draws exactly as it always has and is judged by its own.
+    await fc.assert(fc.asyncProperty(arbBudgetPolicy.map(honouring), arbGrantSteps, walk(second)), {
       numRuns: RUNS,
       seed: seedFor(`${I5}, grant changes`),
     });
+    const grants = {
+      grantChanged: second.grantChanged,
+      grantAdmitted: second.grantAdmitted,
+      refusedAfterRemoval: second.refusedAfterRemoval,
+      refusedForClass: second.refusedForClass,
+      refusedForExpiry: second.refusedForExpiry,
+      reclassed: second.reclassed,
+    };
     expect(
-      Object.values(seen).every((n) => n > 0),
-      `invariant 5 needs evictions by recency and by utility (some where reads, not age, chose the victim), a manual ask, a sweep that retired an expired item and one that evicted, a rewrite of a held id, a concurrent batch, an adopted item, a refused non-member sweep, expired shared items a session left to a user, a read a changed grant admitted, and a read refused after a grant's removal; it saw ${JSON.stringify(seen)}`,
+      Object.values(grants).every((n) => n > 0),
+      `invariant 5's grant walk needs allowed grant changes, reads a changed grant admitted, reads refused after a removal, for a grant's class and for its expiry, and class changes of items carrying grants; it saw ${JSON.stringify(second)}`,
     ).toBe(true);
   }, 240_000);
 });
@@ -1169,6 +1247,13 @@ type Step =
   | { kind: "write"; item: MemoryItem }
   | { kind: "batch"; items: MemoryItem[]; sweep: string | null }
   | { kind: "read"; text: string; as?: "writer" | "grantee" }
+  | {
+      /** A rewrite changing the class of a held item (verification finding V-4 of PR #44). */
+      kind: "reclass";
+      who: "owner" | "coholder";
+      pick: number;
+      to: MemoryItem["class"];
+    }
   | {
       kind: "grant";
       who: keyof typeof GRANTERS;
@@ -1265,10 +1350,52 @@ const arbGrantStep: fc.Arbitrary<Step> = fc
     remove: fc.boolean(),
   })
   .map((g): Step => ({ kind: "grant", ...g }));
+/** An item's word: its text, or a procedure's body. */
+const wordOf = (x: MemoryItem) =>
+  typeof x.content === "string"
+    ? x.content
+    : String((x.content as { body?: unknown }).body ?? JSON.stringify(x.content));
+
+/**
+ * A write carrying grants to the grantee or another principal, of any class
+ * (another class than the item's included, which a first write may carry),
+ * expiring at a step of the walk (verification finding V-5 of PR #44).
+ */
+const arbGrantedWrite: fc.Arbitrary<Step> = fc
+  .tuple(
+    arbI5Item,
+    fc.array(
+      fc.record({
+        to: fc.constantFrom(GRANTEE5.id, "person:g*", "person:z"),
+        class: fc.constantFrom<MemoryItem["class"]>("episodic", "semantic", "procedural"),
+        mode: fc.constant("read" as const),
+        at: fc.nat({ max: 16 }),
+      }),
+      { minLength: 1, maxLength: 2 },
+    ),
+  )
+  .map(
+    ([item, gs]): Step => ({
+      kind: "write",
+      item: {
+        ...item,
+        grants: gs.map(({ at, ...g }) => ({ ...g, expires: stepTime(at) as string })),
+      } as MemoryItem,
+    }),
+  );
+const arbReclass: fc.Arbitrary<Step> = fc
+  .record({
+    who: fc.constantFrom<"owner" | "coholder">("owner", "owner", "coholder"),
+    pick: fc.nat({ max: 15 }),
+    to: fc.constantFrom<MemoryItem["class"]>("episodic", "semantic", "procedural"),
+  })
+  .map((r): Step => ({ kind: "reclass", ...r }));
 const arbGrantSteps = fc.array(
   fc.oneof(
     { arbitrary: arbStep, weight: 6 },
     { arbitrary: arbGrantStep, weight: 2 },
+    { arbitrary: arbGrantedWrite, weight: 2 },
+    { arbitrary: arbReclass, weight: 1 },
     {
       arbitrary: fc
         .constantFrom(...WORDS)
