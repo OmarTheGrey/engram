@@ -7,15 +7,15 @@ chapter: implementation
 pillar: research
 hypothesis: H3
 evidence:
-  - fixtures/bench/longmemeval-faults/README.md
-  - fixtures/bench/longmemeval-faults/labels.jsonl
+  - fixtures/fault-sets/longmemeval/README.md
+  - fixtures/fault-sets/longmemeval/labels.jsonl
   - packages/bench/scripts/fault-set.ts
   - packages/bench/test/faults/fixture.test.ts
-  - "node packages/bench/scripts/fault-set-check.ts --set fixtures/bench/longmemeval-faults"
+  - "node packages/bench/scripts/fault-set-check.ts --set fixtures/fault-sets/longmemeval"
 supersedes: none
 ---
 
-**What.** A fixture-size fault set, the generator run on B5's vendored 20-question subset under H3's seed and count, committed in `fixtures/bench/longmemeval-faults/` and regenerated only by `make fixtures`.
+**What.** A fixture-size fault set, the generator run on B5's vendored 20-question subset under H3's seed and count, committed in `fixtures/fault-sets/longmemeval/` and regenerated only by `make fixtures`.
 
 **Why.** The plan asks for a set built from B5's committed subset to back the tests, so the full split is never needed offline or in CI.
 

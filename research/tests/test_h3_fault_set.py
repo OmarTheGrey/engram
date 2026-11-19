@@ -3,7 +3,7 @@
 `make test-repro` rebuilds the full set from the pinned S split; these tests
 check what needs neither the split nor node: the pin the config names, the
 fetch guard, the split into worker ranges, and the counts on the committed
-fixture-size set (fixtures/bench/longmemeval-faults/).
+fixture-size set (fixtures/fault-sets/longmemeval/).
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ from scripts import h3_fault_set
 from scripts.results_io import REPO, load_config
 
 CONFIG = REPO / "research" / "configs" / "h3-fault-set.json"
-FIXTURE = REPO / "fixtures" / "bench" / "longmemeval-faults"
+FIXTURE = REPO / "fixtures" / "fault-sets" / "longmemeval"
 PINNED = REPO / "packages" / "bench" / "src" / "longmemeval" / "pinned.ts"
 SUBTYPES = 9
 

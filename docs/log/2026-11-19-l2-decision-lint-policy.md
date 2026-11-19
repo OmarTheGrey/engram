@@ -9,7 +9,7 @@ hypothesis: H3
 evidence:
   - packages/bench/src/faults/generate.ts
   - packages/core/policies/medium.yaml
-  - fixtures/bench/longmemeval-faults/policy.json
+  - fixtures/fault-sets/longmemeval/policy.json
 supersedes: none
 ---
 

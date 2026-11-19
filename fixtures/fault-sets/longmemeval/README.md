@@ -5,7 +5,7 @@ The seeded-fault generator (`packages/bench/src/faults/`) run on the vendored Lo
 Regenerated only by `make fixtures`:
 
 ```
-node packages/bench/scripts/fault-set.ts --data fixtures/bench/longmemeval/questions.jsonl --config research/configs/h3-fault-set.json --out fixtures/bench/longmemeval-faults
+node packages/bench/scripts/fault-set.ts --data fixtures/bench/longmemeval/questions.jsonl --config research/configs/h3-fault-set.json --out fixtures/fault-sets/longmemeval
 ```
 
 | file | what it holds |

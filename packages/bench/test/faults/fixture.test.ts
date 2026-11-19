@@ -1,4 +1,4 @@
-// Card L2: the committed fixture-size fault set (fixtures/bench/longmemeval-faults/)
+// Card L2: the committed fixture-size fault set (fixtures/fault-sets/longmemeval/)
 // is what the generator writes for B5's vendored subset under the seed and
 // count of H3's config, research/configs/h3-fault-set.json. `make fixtures`
 // regenerates it with packages/bench/scripts/fault-set.ts.
@@ -13,7 +13,7 @@ import { visibleQuestion } from "../../src/longmemeval/strip.ts";
 import { FIXTURE } from "../longmemeval/fixture.ts";
 
 const REPO = fileURLToPath(new URL("../../../../", import.meta.url));
-const SET = join(REPO, "fixtures/bench/longmemeval-faults");
+const SET = join(REPO, "fixtures/fault-sets/longmemeval");
 const config = JSON.parse(readFileSync(join(REPO, "research/configs/h3-fault-set.json"), "utf8"));
 const committed = (name: string) => readFileSync(join(SET, name), "utf8");
 const lines = (values: readonly unknown[]) => values.map((v) => `${JSON.stringify(v)}\n`).join("");
