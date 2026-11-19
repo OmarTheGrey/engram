@@ -26,6 +26,7 @@
 //   engram/read/ttl                 past its ttl: a lifecycle exclusion before any sweep (ADR 0025)
 import type { Actor } from "../actor.ts";
 import { contentHash } from "../content-hash.ts";
+import { canonicalJson } from "../model.ts";
 import type { Grant, MemoryItem, Policy, ScopeLevel } from "../schema.ts";
 import { compareTimestamps } from "../time.ts";
 import { itemExpiry } from "./retention.ts";
@@ -46,6 +47,8 @@ export const GRANT_OWNER_ID = "engram/grant/owner";
 export const GRANT_SOURCE_ID = "engram/grant/source";
 export const GRANT_EXPIRED_ID = "engram/grant/expired";
 export const GRANT_UNCHANGED_ID = "engram/grant/unchanged";
+/** A rewrite that moves an item to another scope by anyone but its owner (card RV7, RV-CORE-2). */
+export const WRITE_MOVE_ID = "engram/write/move";
 
 /**
  * Sources that are untrusted by default and cannot leave person scope at
@@ -118,6 +121,12 @@ export function sameGrants(a: readonly Grant[], b: readonly Grant[]): boolean {
     left.splice(k, 1);
   }
   return true;
+}
+
+/** `item` is `existing` with only its status and version changed: the promotion gate's in-place transition. */
+function onlyStatusAndVersion(item: MemoryItem, existing: MemoryItem): boolean {
+  const rest = ({ status: _s, version: _v, ...other }: MemoryItem) => canonicalJson(other);
+  return rest(item) === rest(existing);
 }
 
 /** A grant as a reason names it. */
@@ -210,6 +219,17 @@ export interface WriteDecision {
  * grant change's would. Every grant, kept or added, passes the write gate's
  * grant rule (D4), and a first write or a grant change carries each grant
  * once; a first write's grants are judged no further (see the loop).
+ *
+ * The owner's rules (card RV7, core review findings RV-CORE-1 and 2; the
+ * amendments of ADRs 0006 and 0034): a rewrite that moves an item to another
+ * scope is its owner's only (`engram/write/move`), so no co-holder takes an
+ * item out of the owner's reach; and a rewrite of an item carrying grants,
+ * live or expired, is its owner's only, whatever it changes
+ * (`engram/grant/owner`), since a grant reads as the owner's consent to what
+ * the item says. The one exception is the promotion gate's in-place
+ * transition (`promotion`), which a reviewer who is not the owner makes and
+ * which changes nothing but the status and the version; it is exempt only
+ * when the item is exactly that.
  */
 export function evaluateWrite(
   policy: Policy,
@@ -218,6 +238,7 @@ export function evaluateWrite(
   existing: MemoryItem | undefined,
   retired: ReadonlyMap<string, string>,
   at?: string,
+  options: { promotion?: boolean } = {},
 ): WriteDecision {
   const level = scopeLevel(item.scope);
   const policy_id = `${policy.id}/write/${level}`;
@@ -263,6 +284,16 @@ export function evaluateWrite(
           `a rewrite of ${item.id} at version ${item.version} is below the projected version ${existing.version}`,
         WRITE_VERSION_ID,
       );
+    // Only the owner moves an item (RV-CORE-2): membership of both scopes is
+    // not enough, or a co-holder could take the owner's item out of the
+    // owner's reach, and with it the owner's control of its grants.
+    if (item.scope !== existing.scope && actor.id !== existing.owner)
+      return deny(
+        "version",
+        opaque ??
+          `a rewrite of ${item.id} moves it from ${existing.scope} to ${item.scope}: only its owner ${existing.owner} may move it`,
+        WRITE_MOVE_ID,
+      );
   }
   const kind = item.provenance.kind;
   const prior = existing?.grants ?? [];
@@ -293,6 +324,21 @@ export function evaluateWrite(
         `a rewrite of ${item.id} ${what}: only its owner${named} may change the grants of ${item.id}`,
         GRANT_OWNER_ID,
       );
+  } else if (
+    existing &&
+    prior.length > 0 &&
+    actor.id !== existing.owner &&
+    !(options.promotion && onlyStatusAndVersion(item, existing))
+  ) {
+    // A grant is the owner's consent to what the item says (RV-CORE-1): a
+    // rewrite keeping the grants is the owner's too, or a grantee would read
+    // another member's text under the owner's name.
+    const named = readableScope(policy, actor, existing.scope) ? ` ${existing.owner}` : "";
+    return deny(
+      "grant",
+      `a rewrite of ${item.id} keeps its grants, which are its owner's consent to what it says: only its owner${named} may rewrite an item carrying grants`,
+      GRANT_OWNER_ID,
+    );
   }
   for (const [i, grant] of item.grants.entries()) {
     const problem = grantProblem(grant, kind);

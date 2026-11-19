@@ -432,6 +432,11 @@ export function evaluatePromotion(
     promoted,
     transition === "in-place" ? item : undefined,
     retired,
+    undefined,
+    // An in-place promotion changes only the status and the version, so a
+    // reviewer who is not the owner may make it on an item carrying grants
+    // (card RV7: the owner's rule of RV-CORE-1 exempts exactly this).
+    { promotion: transition === "in-place" },
   );
   if (write.decision === "deny")
     return deny("write", `as a write into ${target}: ${write.reason}`, write.policy_id);
