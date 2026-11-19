@@ -4,9 +4,7 @@
 // Plane.lint, never computed from them.
 import { createFakeAdapter } from "@engram/adapters";
 import {
-  appendEvent,
   createPlane,
-  type LintFinding,
   type MemoryEvent,
   type MemoryItem,
   migrate,
@@ -14,6 +12,7 @@ import {
   type Policy,
 } from "@engram/core";
 import { describe, expect, test } from "vitest";
+import { checkState, checksPass, emptyCounts, lintState } from "../../scripts/fault-set-check.ts";
 import {
   type FaultSet,
   faultState,
@@ -57,25 +56,6 @@ function finalItems(events: readonly MemoryEvent[]): Map<string, MemoryItem> {
   const out = new Map<string, MemoryItem>();
   for (const e of events) if (e.item && e.decision === "allow") out.set(e.item.id, e.item);
   return out;
-}
-
-/** Plane.lint of every fault scope of one state, under the lint-time policy. */
-async function lintState(state: FaultSet["states"][number], policy: Policy) {
-  const db = openSqlite(":memory:");
-  migrate(db);
-  for (const { seq: _seq, ...e } of state.events) appendEvent(db, e);
-  let n = 0;
-  const plane = createPlane({
-    db,
-    adapter: createFakeAdapter(),
-    policy,
-    newId: () => `01970000-0000-7000-8000-${String(++n).padStart(12, "0")}`,
-  });
-  const findings: LintFinding[] = [];
-  for (const scope of state.scopes)
-    findings.push(...(await plane.lint(state.actor, state.at, scope)).findings);
-  db.close();
-  return findings;
 }
 
 describe("the seeded-fault generator", () => {
@@ -253,6 +233,21 @@ describe("the deterministic lints of card L1 over the set (Plane.lint)", () => {
         ).toContain(f.lint_id);
       }
     }
+  });
+
+  test("the set check counts every keyed fault flagged, and nothing else", async () => {
+    const set = await fixtureSet();
+    const c = emptyCounts();
+    for (const state of set.states)
+      checkState(
+        await lintState(state, set.policy),
+        set.labels.filter((l) => l.question_id === state.question_id),
+        c,
+      );
+    expect(c.states).toBe(views.length);
+    expect(c.keyed_faults).toBe(views.length * 5);
+    expect(checksPass(c)).toBe(true);
+    expect(checksPass({ ...c, near_misses_flagged: 1 })).toBe(false);
   });
 
   test("find no unkeyed fault: what makes it faulty is only in item text", async () => {

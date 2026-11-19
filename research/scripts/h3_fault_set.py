@@ -19,6 +19,13 @@ lint-time policy; under .engram/, never committed), and writes only counts
 and the sha256 of each set file. The counts per class are split by keyed and
 unkeyed (H3, docs/research/preregistration.md). The bytes do not depend on
 the worker count (ENGRAM_RESEARCH_WORKERS).
+
+`label_check` is packages/bench/scripts/fault-set-check.ts over the joined
+set: card L1's deterministic lints, run by Plane.lint on every state, must
+flag every keyed fault by the lint its label expects, no near-miss by the
+lint it is a near-miss of, and nothing else with a lint the set measures; the
+script fails when they do not. It checks the labels; card L4 measures the
+lints.
 """
 
 from __future__ import annotations
@@ -38,11 +45,13 @@ from typing import Any
 from scripts.results_io import REPO, load_config, run_node, sha256_file, workers, write_result
 
 ENTRY = "packages/bench/scripts/fault-set.ts"
+CHECK = "packages/bench/scripts/fault-set-check.ts"
 GENERATOR = "packages/bench/src/faults/generate.ts"
 SET_FILES = ("policy.json", "states.jsonl", "labels.jsonl", "stats.jsonl")
 JOINED = ("states.jsonl", "labels.jsonl", "stats.jsonl")
 CLASSES = ("stale", "contradictory", "misplaced", "unsupported")
 KINDS = ("fault", "near-miss")
+MAX_PARTS = 16
 
 
 def data_url(data: Mapping[str, Any]) -> str:
@@ -93,24 +102,29 @@ def split(count: int, parts: int) -> list[tuple[int, int]]:
 
 
 def build_set(data: Path, config: Mapping[str, Any], target: Path) -> None:
-    """Run the generator over the data in parallel parts; join them in question order."""
+    """Run the generator over the data in parallel parts; join them in question order.
+
+    At most MAX_PARTS node processes run at once, whatever the core count, to
+    bound memory on a shared machine; the parts are written before any runs,
+    so the parsed split is dropped first.
+    """
     questions = json.loads(data.read_text(encoding="utf-8"))
-    ranges = split(len(questions), workers(len(questions)))
+    ranges = split(len(questions), workers(min(len(questions), MAX_PARTS)))
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
+        for part, (lo, hi) in enumerate(ranges):
+            with (root / f"part-{part}.jsonl").open("w", encoding="utf-8", newline="\n") as chunk:
+                for q in questions[lo:hi]:
+                    chunk.write(json.dumps(q, ensure_ascii=False) + "\n")
+        del questions
 
         def run(part: int) -> Path:
-            lo, hi = ranges[part]
-            chunk = root / f"part-{part}.jsonl"
-            with chunk.open("w", encoding="utf-8", newline="\n") as f:
-                for q in questions[lo:hi]:
-                    f.write(json.dumps(q, ensure_ascii=False) + "\n")
             out = root / f"part-{part}"
             run_node(
                 [
                     ENTRY,
                     "--data",
-                    str(chunk),
+                    str(root / f"part-{part}.jsonl"),
                     "--seed",
                     str(int(config["seed"])),
                     "--per-question",
@@ -249,11 +263,21 @@ def summarise(
     }
 
 
+def label_check(target: Path) -> dict[str, Any]:
+    """The deterministic lints over the set, counted by the check script; it fails on a mismatch."""
+    with tempfile.TemporaryDirectory() as tmp:
+        out = Path(tmp) / "check.json"
+        run_node([CHECK, "--set", str(target), "--out", str(out)])
+        result: dict[str, Any] = json.loads(out.read_text(encoding="utf-8"))
+    return result
+
+
 def compute(config: Mapping[str, Any]) -> dict[str, Any]:
     data = dict(config["data"])
     path = ensure_pinned_file(data, fetch=bool(config.get("fetch", False)))
     target = REPO / str(config["set"])
     build_set(path, config, target)
+    check = label_check(target)
     labels = read_jsonl(target / "labels.jsonl")
     stats = read_jsonl(target / "stats.jsonl")
     return {
@@ -269,6 +293,7 @@ def compute(config: Mapping[str, Any]) -> dict[str, Any]:
             "sha256": {name: sha256_file(target / name) for name in SET_FILES},
         },
         **summarise(labels, stats),
+        "label_check": check,
     }
 
 
