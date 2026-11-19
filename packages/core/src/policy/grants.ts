@@ -11,6 +11,7 @@
 //   engram/grant/status      the item is retired
 //   engram/grant/expired     an added grant has expired already
 //   engram/grant/unchanged   a removal names a grant the item does not carry, or an addition one it does
+//   engram/grant/conflict    the item changed or was erased on another handle of the log before the commit (plane/grants.ts)
 //   engram/write/grant       an added grant the write gate refuses (ADR 0021, decision D4)
 import type { Actor } from "../actor.ts";
 import type { Grant, MemoryItem, Policy } from "../schema.ts";
@@ -23,6 +24,7 @@ export const GRANT_SOURCE_ID = "engram/grant/source";
 export const GRANT_STATUS_ID = "engram/grant/status";
 export const GRANT_EXPIRED_ID = "engram/grant/expired";
 export const GRANT_UNCHANGED_ID = "engram/grant/unchanged";
+export const GRANT_CONFLICT_ID = "engram/grant/conflict";
 
 /** What a grant change asks for: grants to add and grants to remove, each as the item carries it. */
 export interface GrantChange {

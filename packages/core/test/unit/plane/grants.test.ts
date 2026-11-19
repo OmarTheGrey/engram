@@ -7,14 +7,23 @@
 // in place (same id, version plus one), rewritten to the store. Under the
 // twin profile (card E9.2), over the fake store, through the real Plane.
 import { readFileSync } from "node:fs";
+import { createFakeAdapter } from "@engram/adapters";
 import { describe, expect, test } from "vitest";
-import { NotDeletableError } from "../../../src/adapter.ts";
+import { type Adapter, NotDeletableError } from "../../../src/adapter.ts";
+import { migrate } from "../../../src/db/migrate.ts";
 import { currentItems, rebuild } from "../../../src/events.ts";
 import { itemById } from "../../../src/items.ts";
-import { type Actor, InvalidCallError } from "../../../src/plane.ts";
+import {
+  type Actor,
+  createPlane,
+  InvalidCallError,
+  offboard,
+  type PlaneDeps,
+} from "../../../src/plane.ts";
 import { STORE_FAILURE_ID, WRITE_GRANT_ID } from "../../../src/policy/evaluate.ts";
 import {
   GRANT_CHANGE_ID,
+  GRANT_CONFLICT_ID,
   GRANT_EXPIRED_ID,
   GRANT_OWNER_ID,
   GRANT_SOURCE_ID,
@@ -24,6 +33,7 @@ import {
 import { parsePolicy } from "../../../src/policy/load.ts";
 import type { Grant, MemoryItem } from "../../../src/schema.ts";
 import { visibleEvents } from "../../../src/visible.ts";
+import { sqliteBackend } from "../../db/backends.ts";
 import { fresh, id, item } from "./helpers.ts";
 
 const PROFILE = new URL("../../../../pi-package/profiles/twin.yaml", import.meta.url);
@@ -294,5 +304,96 @@ describe("the store", () => {
     expect(result.event).toMatchObject({ op: "update", policy_id: STORE_FAILURE_ID });
     expect(result.event.reason).toContain("read-only record");
     expect(itemById(env.db, id(1))).toMatchObject({ version: 1, grants: [] });
+  });
+});
+
+// Review finding C1 of PR #44: the write queue orders calls within one db
+// handle only. Another handle on the same log (another process) may erase or
+// change the item while this change's store write is in flight; the commit
+// then re-reads the item under the log's lock and refuses a stale decision.
+describe("a grant change racing another handle on the same log", () => {
+  /** Two handles on one log file and one store; `mine`'s store writes wait for `release`. */
+  async function racing() {
+    const [mine, theirs] = sqliteBackend.pair();
+    migrate(mine);
+    const store = createFakeAdapter();
+    let n = 0;
+    const policy = twin();
+    const depsTheirs: PlaneDeps = {
+      db: theirs,
+      adapter: store,
+      policy,
+      newId: () => id(700_000 + ++n),
+    };
+    let held: Promise<void> | null = null;
+    let release = () => {};
+    const gated: Adapter = Object.assign(Object.create(store) as Adapter, {
+      write: async (it: MemoryItem) => {
+        if (held) await held;
+        return store.write(it);
+      },
+    });
+    const depsMine: PlaneDeps = {
+      db: mine,
+      adapter: gated,
+      policy,
+      newId: () => id(800_000 + ++n),
+    };
+    const plane = createPlane(depsMine);
+    const write = async (it: MemoryItem) =>
+      expect((await plane.write(dana, it, AT)).event.decision).toBe("allow");
+    await write(
+      item(1, { scope: "person:dana", owner: dana.id, content: "Dana's sister is Mira." }),
+    );
+    const hold = () => {
+      held = new Promise<void>((r) => {
+        release = () => {
+          held = null;
+          r();
+        };
+      });
+    };
+    return { mine, store, plane, depsTheirs, hold, release: () => release() };
+  }
+
+  test("an erasure committed meanwhile wins: one conflict deny event, the store record deleted, nothing readable", async () => {
+    const { mine, store, plane, depsTheirs, hold, release } = await racing();
+    const ref = itemById(mine, id(1))?.store_ref as NonNullable<MemoryItem["store_ref"]>;
+    hold();
+    const pending = plane.changeGrants(dana, id(1), { add: [toSam] }, AT);
+    await new Promise((r) => setTimeout(r, 0));
+    const report = await offboard(depsTheirs, dana, { person: "person:dana", roles: [] }, AT);
+    expect(report.erased.items).toEqual([id(1)]);
+    release();
+    const result = await pending;
+
+    expect(result).toMatchObject({ decision: "deny", item: null });
+    expect(result.event).toMatchObject({ op: "update", policy_id: GRANT_CONFLICT_ID });
+    expect(result.event.reason).toContain("erased");
+    expect(itemById(mine, id(1))).toBeUndefined();
+    rebuild(mine);
+    expect(itemById(mine, id(1))).toBeUndefined();
+    expect(await store.read(ref)).toBeUndefined();
+    expect((await plane.read(sam, { at: LATER })).items).toEqual([]);
+    expect(JSON.stringify(plane.events())).not.toContain("Mira");
+  });
+
+  test("another grant change committed meanwhile wins: one conflict deny event, the store holds the projection", async () => {
+    const { mine, store, plane, depsTheirs, hold, release } = await racing();
+    hold();
+    const pending = plane.changeGrants(dana, id(1), { add: [toSam] }, AT);
+    await new Promise((r) => setTimeout(r, 0));
+    const toLee = { ...toSam, to: "person:lee" };
+    const theirs = await createPlane(depsTheirs).changeGrants(dana, id(1), { add: [toLee] }, AT);
+    expect(theirs.decision).toBe("allow");
+    release();
+    const result = await pending;
+
+    expect(result).toMatchObject({ decision: "deny", item: null });
+    expect(result.event).toMatchObject({ op: "update", policy_id: GRANT_CONFLICT_ID });
+    const now = itemById(mine, id(1));
+    expect(now).toMatchObject({ version: 2, grants: [toLee] });
+    expect(await store.read(now?.store_ref as NonNullable<MemoryItem["store_ref"]>)).toEqual(now);
+    expect((await plane.read(sam, { at: LATER })).items).toEqual([]);
   });
 });
