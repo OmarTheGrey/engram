@@ -79,7 +79,7 @@ Found by the review of PR #45 and left open on purpose; neither blocks card L4.
 
 | item | what is left | where it is recorded |
 |---|---|---|
-| Events to members who may not read | `eventVisibleTo` (packages/core/src/visible.ts) shows an event to any member of its scope, even one the read matrix stops from reading that scope; model lint reasons now restate in-scope content, so this matters more | `docs/log/2026-11-19-l3-finding-event-visible-to-unreadable-members.md` |
+| Events to members who may not read | done on branch rv7 (card RV7, RV-CORE-4): `eventVisibleTo` (packages/core/src/visible.ts) shows an event to a member of its scope only when the read matrix lets the member read that scope, and to its maker | `docs/log/2026-11-19-l3-finding-event-visible-to-unreadable-members.md`; `docs/log/2026-11-20-rv7-events-follow-the-read-matrix.md` |
 | Model lints hold the write queue | `Plane.lint` keeps the write queue locked while the model answers; settle it before a server injects a lint model | `docs/log/2026-11-19-l3-finding-lint-holds-write-queue.md` |
 
 ## Follow-ups from card L2's review (2026-11-19)

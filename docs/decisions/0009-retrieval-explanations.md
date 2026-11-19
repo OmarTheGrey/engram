@@ -65,6 +65,12 @@ Made by the post-merge integration fixes of 2026-11-13 (the review of the twelve
 - The finding itself is still raised when the linting actor can reach the item, so a member learns one bit: that the source changed, or that the cited item is no longer active (and, for a lineage id, that it was not retired by its own supersession). That is accepted: the alternative, raising no finding about an item outside the scope, would hide a stale derivation from the very person who can fix it.
 - Tests: `packages/core/test/property/lint-leak.test.ts` (no lint event a viewer may see carries a content hash, status or retiring rule of an item outside the linted scope that Plane.read does not return to him) and `packages/core/test/unit/lint/det.test.ts`.
 
+## Amendment (2026-11-20)
+
+Made by card RV7 (branch `rv7`, core review finding RV-CORE-4). Status: proposed, for the lead's acceptance:
+
+- The amendment above showed a lint event to every member of the scope it lints. A member whose level the read matrix stops from reading that scope (a role context that is a member of a person scope, under the twin profile) then saw the scope's write events and a duplicate lint's reason, whose strict content hash can confirm a guess at short content, while Plane.read returned it nothing. Now an event is shown to a member of a scope it names only when the read matrix lets the member's level read that scope (`eventVisibleTo` in packages/core/src/visible.ts calls `readableScope`); the event's maker still sees it. So a lint finding reaches exactly the members who may read the linted scope, and the evidence rule above applies among them. Tests: `packages/core/test/property/visible-events.test.ts` (the oracle's member cases now follow the read matrix; the review's twin repro on the real Plane) and `packages/core/test/unit/visible.test.ts`.
+
 ## Alternatives considered
 
 No alternatives were recorded beyond the recommendation.

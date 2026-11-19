@@ -5,7 +5,11 @@
 //
 // Which events: an event is shown to the viewer who made it (`event.actor` is
 // the viewer's id), and to a member of a scope it names, its source scope or
-// its target scope. An event that names no scope is shown only to its maker:
+// its target scope, whose level the read matrix lets the viewer read
+// (`readableScope`; card RV7, core review finding RV-CORE-4): a role context
+// that is a member of a person scope reads none of it (ADR 0021), so it sees
+// none of its events either, whose ids, actors and lint reasons (a content
+// hash) would tell it what the read withholds. An event that names no scope is shown only to its maker:
 // every read (scope_from and scope_to are null: a read spans the reader's
 // reach, and its reason counts items out of that reach, decision D5), every
 // bypass_blocked event, and a write denied by the schema rule before a valid
@@ -24,7 +28,7 @@
 // version since retired, expired or moved out of reach is not shown. An event
 // whose item is withheld keeps every other field.
 import type { Actor } from "./actor.ts";
-import { evaluateRead } from "./policy/evaluate.ts";
+import { evaluateRead, readableScope } from "./policy/evaluate.ts";
 import type { MemoryEvent, MemoryItem, Policy } from "./schema.ts";
 
 /** What the item rule needs: the policy, the time, and the projected item of an id. */
@@ -36,11 +40,11 @@ export interface EventView {
   current: (itemId: string) => MemoryItem | undefined;
 }
 
-/** Whether `viewer` may see `event` at all (see the module comment). */
-export function eventVisibleTo(viewer: Pick<Actor, "id" | "memberships">, event: MemoryEvent) {
+/** Whether `viewer` may see `event` at all under `policy` (see the module comment). */
+export function eventVisibleTo(viewer: Actor, event: MemoryEvent, policy: Policy) {
   if (event.actor === viewer.id) return true;
-  const member = (scope: string | null) => scope !== null && viewer.memberships.includes(scope);
-  return member(event.scope_from) || member(event.scope_to);
+  const reads = (scope: string | null) => scope !== null && readableScope(policy, viewer, scope);
+  return reads(event.scope_from) || reads(event.scope_to);
 }
 
 /** Whether the read filter would return `item` to `viewer` at `view.at`, as carried and as it stands now. */
@@ -61,7 +65,7 @@ export function visibleEvents(
   view: EventView,
 ): MemoryEvent[] {
   return events
-    .filter((event) => eventVisibleTo(viewer, event))
+    .filter((event) => eventVisibleTo(viewer, event, view.policy))
     .map((event) => {
       if (!event.item || itemVisibleTo(viewer, event.item, view)) return event;
       const { item: _withheld, ...rest } = event;

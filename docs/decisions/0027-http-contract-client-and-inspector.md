@@ -41,6 +41,8 @@ Amendments made by cards E8.5 and E8.6, 2026-10-29 (branch `gb-pr4-inspector`, P
 - Each load of the lanes is one read as the viewer at the server's clock, so it appends a read event the timeline then shows (decision 5 accepts this: a read that left no event would bypass rule 2).
 - Layer 6 drives Chromium through the `playwright` library (1.64.1) from vitest; `pnpm exec playwright install chromium` provides the browser, and the e2e workflow installs it with its system libraries.
 
+Amendment made by card RV7, 2026-11-20 (branch `rv7`, core review finding RV-CORE-4). Status: proposed, for the lead's acceptance: `visibleEvents` shows an event to a member of its source or target scope only when the read matrix lets the member's level read that scope (`readableScope`), and to its maker as before. Membership alone no longer decides: a member the matrix stops from reading a scope sees none of its events, where the amendment of PR 3 above showed them with the item withheld. The route's description in `packages/server/src/routes.ts` ("those in its member scopes") still says membership; card RV5 edits that file, and the words follow when it lands.
+
 ## Alternatives considered
 
 - `@hono/zod-openapi` or Fastify with a Zod type provider: a second schema layer pinned to its own Zod range; the table plus `z.toJSONSchema` is a few dozen lines over the contracts core already exports.

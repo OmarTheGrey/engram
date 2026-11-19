@@ -1,16 +1,21 @@
 // visibleEvents leaks nothing (plan decision 5; review findings R3-4 and
-// R3-12). The oracle is independent of the implementation: each event is
-// built from a case drawn first (the viewer's own; another actor's naming a
-// member scope as source or as target; another actor's naming only scopes the
-// viewer is not a member of; another actor's naming no scope), so whether it
-// must be shown is known by construction. Every event carries an item, and
+// R3-12; core review finding RV-CORE-4 of card RV7). The oracle is
+// independent of the implementation: each event is built from a case drawn
+// first (the viewer's own; another actor's naming, as source or as target, a
+// member scope whose level the read matrix lets the viewer read; another
+// actor's naming only scopes the viewer may not read, a member scope the
+// matrix stops included; another actor's naming no scope), so whether it must
+// be shown is known by construction. Every event carries an item, and
 // a returned item must be one the viewer could read now: active in the
 // projection and as carried, inside its validity window, and in a scope the
 // read matrix lets the viewer read as a member, or reached by a grant naming it.
+
+import { readFileSync } from "node:fs";
 import fc from "fast-check";
 import { describe, expect, test } from "vitest";
 import type { Actor } from "../../src/actor.ts";
-import type { MemoryEvent, MemoryItem } from "../../src/schema.ts";
+import { parsePolicy } from "../../src/policy/load.ts";
+import type { MemoryEvent, MemoryItem, Policy } from "../../src/schema.ts";
 import { visibleEvents } from "../../src/visible.ts";
 import {
   arbGrantedItem,
@@ -20,6 +25,7 @@ import {
   SCOPE_LEVELS,
   seedFor,
 } from "../generators.ts";
+import { fresh, id, item } from "../unit/plane/helpers.ts";
 import { patternCovers } from "./oracle.ts";
 
 const RUNS = 1000;
@@ -42,9 +48,17 @@ const arbViewer: fc.Arbitrary<Actor> = fc.record({
   memberships: fc.uniqueArray(fc.constantFrom(...SCOPES), { maxLength: SCOPES.length - 1 }),
 });
 
+/** The viewer's member scopes whose level its read matrix row lets it read. */
+const readableScopes = (viewer: Actor, policy: Policy) => {
+  const row = policy.read.matrix.find((r) => r.reader === viewer.level);
+  return viewer.memberships.filter((s) =>
+    (row?.may_read ?? []).includes(level(s) as Policy["read"]["matrix"][number]["reader"]),
+  );
+};
+
 /** One event of a given case for `viewer`, with an item and the projection's version of it. */
-function arbCase(viewer: Actor) {
-  const inside = viewer.memberships;
+function arbCase(viewer: Actor, policy: Policy) {
+  const inside = readableScopes(viewer, policy);
   const outside = SCOPES.filter((s) => !inside.includes(s));
   const pick = (from: string[]) => fc.constantFrom(...(from as [string, ...string[]]));
   const orNull = (from: string[]) => fc.option(pick(from), { nil: null });
@@ -84,7 +98,7 @@ const arbWorld = fc.tuple(arbViewer, arbPolicy, arbTimestamp).chain(([viewer, po
     viewer: fc.constant(viewer),
     policy: fc.constant(policy),
     at: fc.constant(at),
-    cases: fc.array(arbCase(viewer), { maxLength: 25 }),
+    cases: fc.array(arbCase(viewer, policy), { maxLength: 25 }),
   }),
 );
 
@@ -108,6 +122,8 @@ function readable(
 describe("visibleEvents", () => {
   const name = "shows exactly the events the case says, in log order";
   test(name, () => {
+    // Foreign events naming a member scope the read matrix stops (RV-CORE-4).
+    let stopped = 0;
     fc.assert(
       fc.property(arbWorld, ({ viewer, policy, at, cases }) => {
         const log = cases.map((c, seq) => event(c, seq));
@@ -115,8 +131,14 @@ describe("visibleEvents", () => {
         expect(shown.map((e) => e.seq)).toEqual(
           cases.flatMap((c, seq) => (SHOWN[c.case] ? [seq] : [])),
         );
+        for (const c of cases)
+          if (c.case === "foreign" && c.scopes.some((x) => x && viewer.memberships.includes(x)))
+            stopped++;
       }),
       { numRuns: RUNS, seed: seedFor(name) },
+    );
+    expect(stopped, "foreign events naming a member scope the matrix stops").toBeGreaterThan(
+      RUNS / 10,
     );
   });
 
@@ -173,3 +195,47 @@ function event(
     schema_version: 1,
   };
 }
+
+// The core review's repro (RV-CORE-4, card RV7) on the real Plane under the
+// twin profile: a role context that is a member of a person scope reads none
+// of it (ADR 0021), so it sees none of its events either, a duplicate lint's
+// content hash included (ADR 0009's amendment of 2026-11-13).
+describe("a member the read matrix stops sees no event of the scope (RV-CORE-4)", () => {
+  const PROFILE = new URL("../../../pi-package/profiles/twin.yaml", import.meta.url);
+  const twin = () => parsePolicy(readFileSync(PROFILE, "utf8"), "twin.yaml");
+  const AT = "2026-11-20T10:00:00Z";
+  const omar: Actor = {
+    id: "person:omar",
+    level: "person",
+    memberships: ["person:omar", "role:x"],
+    source: "user",
+  } as Actor;
+  const roleContext: Actor = {
+    id: "agent:omar-role",
+    level: "role",
+    memberships: ["person:omar", "role:x"],
+  };
+
+  test("no write or lint event of person:omar reaches the role context; the maker sees its own", async () => {
+    const env = fresh(twin());
+    const note = (n: number) =>
+      item(n, { scope: "person:omar", owner: omar.id, content: "The safe code is 4711." });
+    expect((await env.plane.write(omar, note(1), AT)).event.decision).toBe("allow");
+    expect((await env.plane.write(omar, note(2), AT)).event.decision).toBe("allow");
+    const lint = await env.plane.lint(omar, AT, "person:omar");
+    const dup = lint.events.find((e) => e.reason.includes("strict content hash"));
+    expect(dup, "the duplicate lint names a content hash").toBeDefined();
+    expect((await env.plane.read(roleContext, { at: AT })).items).toEqual([]);
+    const view = { policy: env.policy, at: AT, current: () => undefined };
+    const events = env.plane.events();
+    const seen = visibleEvents(roleContext, events, view);
+    expect(
+      seen.filter((e) => e.scope_to === "person:omar" || e.scope_from === "person:omar"),
+    ).toEqual([]);
+    expect(seen.map((e) => e.op)).toEqual(["read"]);
+    // The maker still sees its own events, and a reader of the scope sees them all.
+    const own = visibleEvents(omar, events, view).map((e) => e.item_id);
+    expect(own).toEqual(expect.arrayContaining([id(1), id(2)]));
+    expect(own.length).toBe(events.filter((e) => e.op !== "read" || e.actor === omar.id).length);
+  });
+});
