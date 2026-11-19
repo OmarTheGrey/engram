@@ -149,3 +149,13 @@ Found by the repository review of the adapters and by the work on card RV3; card
 | Adoption after a folder move | moving an adopted files folder gives its files new imported ids at the same refs; core's `refProblem` (`packages/core/src/plane/write.ts`) counts retired holders too, so every adoption and every `engram read` of the moved folder fails closed with one deny event (moving it back recovers). The fix: adoption retires a holder of the same ref whose id is the same file's imported id under an older folder identity. Card RV4 takes it after card E2.6 (PR #50), which rewrites `write.ts` and `adopt.ts` | ADR 0013, amendment of card RV3; `packages/adapters/test/plane/rv3-files.test.ts`; `docs/log/2026-11-19-rv3-review-failure-rv3-1-folder-move.md` |
 | One log, two files folders | core keys a ref by adapter name and file name, and every surface names the files store `files`, so a second folder adopted into the same log is refused; a surface flag for the adapter name, or refs that name the folder, would allow it | `docs/log/2026-11-19-rv3-finding-one-log-two-folders.md` |
 | Retired titles in Letta's index | the Letta adapter's `engram/MEMORY.md` keeps a line with the title of every item, retired ones included, which an agent opening the index reads; drop the title, or the line of a retired item | ADR 0028, amendment of card RV3; `docs/log/2026-11-19-rv3-finding-letta-index-keeps-retired-titles.md` |
+
+## Follow-ups from card RV1 (2026-11-19)
+
+Built by card RV1 (the repository review's RV-EXP-1 to -5 and -10) with proposed values; each needs the lead before the tag.
+
+| item | what is left | where it is recorded |
+|---|---|---|
+| Turn limit | the runner caps a session at the config's `turn_limit` and excludes a capped session under the reason `turn limit`; the lead sets the value (proposed: 8 model calls per session in every experiment config, twice the cost estimate's high case) and the exclusion rule (proposed: excluded, counted per condition beside the other exclusions), and words it into the pre-registration | `docs/log/2026-11-19-rv1-decision-turn-limit-default.md`; `docs/log/2026-11-19-rv1-decision-turn-limit-not-keyed.md` |
+| Spend ceiling | the runner stops at the config's `spend_ceiling_usd`, per provider, and keeps the completed subset; the lead sets each experiment config's value (proposed: 1.25 times the run's high cost estimate for the named model) once decision sheet item 1 names the models | `docs/log/2026-11-19-rv1-decision-spend-ceiling-default.md` |
+| v1's condition wording | v1 does not describe C3's identity and instruction sentences or C4's instruction sentence; the proposed lines are in the finding, for the lead's text | `docs/log/2026-11-19-rv1-finding-v1-condition-wording.md` |

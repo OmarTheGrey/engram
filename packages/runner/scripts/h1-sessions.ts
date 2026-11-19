@@ -44,6 +44,7 @@ import { parseArgs } from "node:util";
 import { memInvBench } from "@engram/bench";
 import { configJudge, readRunnerConfig } from "../src/config.ts";
 import type { ProbeResult } from "../src/gatemem-probe.ts";
+import { forEachJsonl } from "../src/journal.ts";
 import { isMemInvConfig, type MemInvProbeResult, readMemInvConfig } from "../src/mem-inv-probe.ts";
 import {
   answerModels,
@@ -58,11 +59,22 @@ import {
   unreadKit,
 } from "../src/research/h1-sessions.ts";
 
-const readJsonl = <T>(path: string): T[] =>
-  readFileSync(path, "utf8")
-    .split("\n")
-    .filter((l) => l.trim() !== "")
-    .map((l) => JSON.parse(l) as T);
+/**
+ * A run's results.jsonl, one line at a time (card RV1, RV-EXP-2: at H1's
+ * size the file is too large to read as one string), each row as `keep`
+ * leaves it.
+ */
+const readJsonl = <T>(path: string, keep: (row: T) => T = (row) => row): T[] => {
+  const rows: T[] = [];
+  forEachJsonl<T>(path, (row) => rows.push(keep(row)));
+  return rows;
+};
+
+/** What the H1 conversion reads of a GateMem row: its session, score, judge and exclusion. */
+const gatememRow = (r: ProbeResult): ProbeResult => {
+  const { tool_calls: _t, output: _o, decisions: _d, events: _e, ...kept } = r;
+  return kept as ProbeResult;
+};
 
 const readJson = (path: string, what: string): unknown => {
   if (!existsSync(path)) throw new Error(`no ${what} at ${path}`);
@@ -109,7 +121,7 @@ function loadRun(configPath: string, run: string, gateByAction: boolean): Loaded
         rows: readJsonl<MemInvProbeResult>(results),
         cases: memInvBench.loadCases(config.data),
       }
-    : { kind: "gatemem", run, options, rows: readJsonl<ProbeResult>(results) };
+    : { kind: "gatemem", run, options, rows: readJsonl<ProbeResult>(results, gatememRow) };
 }
 
 /** The H1 table config's seed, which orders the blind template. */

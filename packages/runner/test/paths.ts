@@ -22,3 +22,6 @@ export const H1_MEM_INV = join(configs, "h1-mem-inv.json");
 export const H2_LONGMEMEVAL_C2 = join(configs, "h2-longmemeval-c2.json");
 export const H2_LONGMEMEVAL_C5 = join(configs, "h2-longmemeval-c5-medium.json");
 export const B6_FIXTURE = join(configs, "b6-longmemeval-fixture.json");
+
+/** Card B4: one MEM-INV-Bench case under C5 and C2. */
+export const B4 = join(configs, "b4-mem-inv-probe.json");
