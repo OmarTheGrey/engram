@@ -238,6 +238,28 @@
       "near-miss": 500
     }
   },
+  "by_tier": {
+    "contradictory": {
+      "deterministic_only": 0,
+      "model": 500,
+      "none": 0
+    },
+    "misplaced": {
+      "deterministic_only": 500,
+      "model": 0,
+      "none": 500
+    },
+    "stale": {
+      "deterministic_only": 1000,
+      "model": 500,
+      "none": 0
+    },
+    "unsupported": {
+      "deterministic_only": 1000,
+      "model": 500,
+      "none": 0
+    }
+  },
   "data": {
     "dataset": "https://huggingface.co/datasets/xiaowu0162/longmemeval-cleaned",
     "file": "longmemeval_s_cleaned.json",
@@ -251,6 +273,10 @@
     "duplicate_findings": 968,
     "keyed_faults": 2500,
     "keyed_faults_flagged": 2500,
+    "model_faults": 1500,
+    "model_faults_sent": 1500,
+    "model_near_misses": 1500,
+    "model_near_misses_sent": 1500,
     "near_misses_flagged": 0,
     "states": 500,
     "unkeyed_labels_flagged": 0,
@@ -268,9 +294,9 @@
   "set": {
     "directory": ".engram/faults/h3-fault-set",
     "sha256": {
-      "labels.jsonl": "b32d09711496d319f4c8653f43e5f97224d116bc118dc1e8aefe51894efe40aa",
+      "labels.jsonl": "232ee959901dbbb86649ca7166e172db5c695455690cdd859b658b564ec6ff99",
       "policy.json": "5521a588b9abde9a3b641761c7bc4d1d89fe00c668a1ca913532c06d5a03c3e5",
-      "states.jsonl": "0a9a237351616b9da84c81fa8fb6594907d87d984fc77275e25e50f4a22df5b3",
+      "states.jsonl": "eb88da37dc289bcd72547d56958a52a5ca051f912ff2e6494f21d8f357c32de7",
       "stats.jsonl": "db0403477e5052582851c1092fd7bd5cb5bf4e834a418c870dab1bd2a2793e74"
     }
   }
