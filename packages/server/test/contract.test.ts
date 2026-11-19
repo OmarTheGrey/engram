@@ -159,6 +159,57 @@ describe("the routes, through the generated client, on the fake store", () => {
     expect(body.event.op).toBe("promote");
   });
 
+  it("changeGrants: the owner's grant change is 200 with its update event and the new version", async () => {
+    const { client } = testWorkspace();
+    const owner = { ...dana, source: "user" as const };
+    await client.POST("/api/v1/items", { body: { actor: owner, item: itemFor(1) } });
+    const grant = {
+      to: "person:eve",
+      class: "semantic" as const,
+      mode: "read" as const,
+      expires: "2026-12-01T00:00:00Z",
+    };
+    const { data, response } = await client.POST("/api/v1/grants", {
+      body: { actor: owner, item_id: id(501), add: [grant] },
+    });
+    hit.add("changeGrants");
+    expect(response.status).toBe(200);
+    const body = C.GrantResponse.parse(data);
+    expect(body.decision).toBe("allow");
+    expect(body.event).toMatchObject({
+      op: "update",
+      decision: "allow",
+      policy_id: "engram/grant/change",
+      ts: NOW,
+    });
+    expect(body.item).toMatchObject({ version: 2, grants: [grant] });
+    const read = await client.POST("/api/v1/read", { body: { actor: eve } });
+    expect(C.ReadResponse.parse(read.data).items.map((i) => i.id)).toEqual([id(501)]);
+  });
+
+  it("changeGrants: a change the gate refuses is 200 with its deny event", async () => {
+    const { client } = testWorkspace();
+    const owner = { ...dana, source: "user" as const };
+    await client.POST("/api/v1/items", { body: { actor: owner, item: itemFor(1) } });
+    const { data, response } = await client.POST("/api/v1/grants", {
+      body: { actor: owner, item_id: id(501), add: [{ to: "*", mode: "read" }] },
+    });
+    expect(response.status).toBe(200);
+    const body = C.GrantResponse.parse(data);
+    expect(body).toMatchObject({ decision: "deny", item: null });
+    expect(body.event).toMatchObject({ op: "update", policy_id: "engram/write/grant" });
+  });
+
+  it("changeGrants: a change with nothing to add or remove is 400, with no event", async () => {
+    const { client, workspace } = testWorkspace();
+    const { response, error } = await client.POST("/api/v1/grants", {
+      body: { actor: { ...dana, source: "user" }, item_id: id(501) },
+    });
+    expect(response.status).toBe(400);
+    expect(error).toMatchObject({ error: { code: "invalid_call" } });
+    expect(workspace.plane.events()).toEqual([]);
+  });
+
   it("retain: a member sweeps its scope; a non-member gets a deny event", async () => {
     const { client } = testWorkspace();
     const own = await client.POST("/api/v1/retain", {

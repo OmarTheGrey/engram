@@ -8,6 +8,7 @@ import {
   ActorShape,
   CONTRACTS,
   Explanation,
+  Grant,
   JsonValue,
   LintFinding,
   MemoryEvent,
@@ -125,6 +126,25 @@ export const GateResponse = z.strictObject({
   events: z.array(MemoryEvent),
 });
 
+export const GrantRequest = z.strictObject({
+  actor: Actor,
+  item_id: z.string(),
+  add: z.array(Grant).optional().meta({
+    description:
+      "Grants to add. Each must name a principal or a prefixed pattern, a class and an expiry after the call's time (ADR 0021, decision D4); the plane decides, and refuses one with a deny event.",
+  }),
+  remove: z.array(Grant).optional().meta({
+    description: "Grants to remove, each exactly as the item carries it.",
+  }),
+  at,
+});
+
+export const GrantResponse = z.strictObject({
+  decision: z.enum(["allow", "deny"]),
+  item: MemoryItem.nullable(),
+  event: MemoryEvent,
+});
+
 export const RetainRequest = z.strictObject({ actor: Actor, scope: z.string(), at });
 
 export const EventsRequest = z.strictObject({
@@ -219,6 +239,8 @@ export const COMPONENTS = {
   ReadCounts,
   PromoteRequest,
   GateResponse,
+  GrantRequest,
+  GrantResponse,
   RetainRequest,
   EventsRequest,
   EventsResponse,
