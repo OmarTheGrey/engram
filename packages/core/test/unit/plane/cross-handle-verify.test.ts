@@ -801,12 +801,30 @@ forEachBackend((backend) => {
       const env = setup(backend);
       await seedPerson(env);
       await offboardTheirs(env);
-      const w = await env.plane.write(
-        lee,
-        item(40, { scope: "team:x", owner: lee.id, content: SECRET, lineage: [id(1)] }),
-        LATER,
+      const derived = item(40, {
+        scope: "team:x",
+        owner: lee.id,
+        content: SECRET,
+        lineage: [id(1)],
+      });
+      // Refused at the decision, before any store write: the pi extension's
+      // tool_call check gives the same refusal (decision D12).
+      expect((await env.plane.checkWrite(lee, derived, LATER)).policy_id).toBe(
+        "engram/write/erased",
       );
+      const writes: string[] = [];
+      const counted = createPlane({
+        ...env.depsMine,
+        adapter: Object.assign(Object.create(env.depsMine.adapter) as Adapter, {
+          write: async (it: MemoryItem) => {
+            writes.push(it.id);
+            return env.depsMine.adapter.write(it);
+          },
+        }),
+      });
+      const w = await counted.write(lee, derived, LATER);
       expect(w.event).toMatchObject({ decision: "deny", policy_id: "engram/write/erased" });
+      expect(writes).toEqual([]);
       expect(await env.store.list("team:x")).toEqual([]);
     });
 

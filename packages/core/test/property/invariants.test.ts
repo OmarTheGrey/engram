@@ -2231,10 +2231,37 @@ const arbStaleRace = fc
     return pair;
   });
 
+/**
+ * A short walk aimed at content derived from a person item racing its
+ * erasure (V3-1, V4-1, V4-3): one handle writes the item, then derives new
+ * role items from it, some crashing; the other offboards, before or after
+ * an operation of its own.
+ */
+const arbDeriveRace = fc
+  .tuple(
+    fc.nat(3),
+    fc.array(fc.constantFrom<Crash>("commit", "commit", "repair", "none"), {
+      minLength: 2,
+      maxLength: 4,
+    }),
+    fc.array(arbWalkOp, { maxLength: 1 }),
+    fc.boolean(),
+  )
+  .map(([from, crashes, before, onA]) => {
+    const writer: WalkOp[] = [
+      { kind: "write", pick: from, grant: false, episodic: false, crash: "none" },
+      ...crashes.map((crash): WalkOp => ({ kind: "derive", from, crash })),
+    ];
+    const eraser: WalkOp[] = [...before, { kind: "offboard", crash: "none" }];
+    const pair: [WalkOp[], WalkOp[]] = onA ? [writer, eraser] : [eraser, writer];
+    return pair;
+  });
+
 const arbWalk = fc.oneof(
   { arbitrary: arbAnyWalk, weight: 3 },
-  { arbitrary: arbCrashRace, weight: 1 },
+  { arbitrary: arbCrashRace, weight: 2 },
   { arbitrary: arbStaleRace, weight: 1 },
+  { arbitrary: arbDeriveRace, weight: 3 },
 );
 
 /** What the walk saw, for its guards. */
@@ -2724,7 +2751,14 @@ async function twoHandleWalk(
   };
   recoveryKeepsOwnerDecisions("after the walk");
   const left = await listing();
-  if ([...erasedAt.keys()].some((itemId) => left.some((i) => i.id === itemId))) seen.erasedLeft++;
+  // An erased id's record, or one whose lineage names an erased id, left for
+  // the next adoption to delete.
+  if (
+    [...erasedAt.keys()].some((itemId) =>
+      left.some((i) => i.id === itemId || (i.lineage.includes(itemId) && !itemById(base, i.id))),
+    )
+  )
+    seen.erasedLeft++;
   await check("after the walk", false);
   rebuild(base);
   await check("after a rebuild", false);
