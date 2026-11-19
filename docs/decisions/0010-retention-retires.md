@@ -33,6 +33,11 @@ Amendments made by the post-merge integration fixes, 2026-11-13 (the review of t
 - Each erase event's reason says what happened to its item in the store: deleted, left in the store that refuses the plane's delete, kept because an item outside the person scope holds the same ref, or no store record.
 - The redaction reaches lint events (card L1), which carry an item by id only and their evidence in `reason`. A lint event is redacted when it is about an erased item (its `item_id`), or when its reason names an erased id, or holds a content or evidence hash of an erased version that no surviving item also holds (as its content hash or its provenance hash). An erased item's evidence hash of a source that survives is never matched. A hash a survivor holds stays readable in that survivor, so redacting by it protected nothing and erased findings about surviving items (review of PR #41). A redacted lint event keeps its lint id, severity and rule, and its reason becomes `<lint_id> (<severity>): [erased]`. A lint event changes no item, so replay and a rebuilt projection are unchanged (`packages/core/test/unit/plane/offboard-edges.test.ts`, on SQLite and embedded Postgres).
 
+Amendments made by card E2.6, 2026-11-19 (branch `e2-6`; proposed, for the lead's acceptance):
+
+- Offboarding marks its erasure before deleting any store record (one `engram/offboard/begin` event, closed by the report event), and until the report closes it nothing in the person scope may change (`engram/offboard/erasing`); a writer on another handle whose decision preceded the mark deletes what it wrote (ADR 0007's amendment of the same date). The erasure commits what the mark read that the projection still holds. A crash between the mark and the report leaves the person scope frozen until offboarding runs again.
+- An erased id is never written or adopted again (`engram/write/erased`, `engram/adopt/erased`), except a record the erasure left in a store that refuses the plane's delete, which adoption takes again once its content changes, as before.
+
 ## Alternatives considered
 
 No alternatives were recorded beyond the recommendation.
