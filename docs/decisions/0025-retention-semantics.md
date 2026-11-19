@@ -51,7 +51,7 @@ Amendments made after the verification of the review fix pass, 2026-10-29 (PR 4,
 - Finding P4-16: the write queue refuses only real nesting: a call made from a slot's async context while that slot still runs. A timer or listener created in a slot that fires after it ended queues normally (ADR 0007's amendment).
 - Finding P4-17: the pi extension's report of an item its post-write sweep retired is now tested.
 
-Amendment made by the schema version 1 PR, 2026-11-06 (branch `schema-v1`):
+Amendment made by the schema version 1 PR, 2026-11-06 (branch `schema-v1`), its sentence on when reads are counted corrected in that PR's review of 2026-11-13 (`docs/log/2026-11-13-schema-v1-review.md`), accepted by the lead on 2026-11-19:
 
 - Finding P4-5 is closed: utility counts the read events that returned an item, by their `item_ids` (schema version 1), not the explanation rows, so a database rebuilt from the log or a log replayed elsewhere decides a utility eviction again (`packages/core/test/unit/plane/retention.test.ts`, "utility replays from the log alone"). Migration 4 filled in the ids of every older read from its explanation rows. A utility eviction's reason says how many reads returned the victim ("N reads returned it"). Counting reads is a scan of the read events, parsing each body, once per write whose scope and class have any budget (recency or utility alike) and once per sweep; an index or a counter is left until a workload needs it.
 

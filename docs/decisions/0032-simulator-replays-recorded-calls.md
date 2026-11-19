@@ -1,7 +1,7 @@
 # ADR 0032: The simulator replays recorded calls through the plane on scratch logs
 
-Status: proposed, 2026-11-06 (card E8.9, branch `e8-9-simulator`)
-Deciders: drafted by card E8.9; for the lead's acceptance
+Status: accepted, 2026-11-19 (proposed 2026-11-06 by card E8.9, branch `e8-9-simulator`)
+Deciders: Omar (lead)
 Supersedes: nothing; it replaces the `Workload` and `SimReport` stubs card E0.3 declared in `packages/core/src/simulate.ts`.
 
 ## Context
@@ -47,7 +47,7 @@ Made by card PX2, 2026-11-06 (branch `px2-session-replay`):
 - A blocked bypass is a workload step (`op: "bypass"`, replayed through `Plane.recordBypass`), so a session's replay reproduces every event it recorded. No policy decides one, so it never differs between two policies.
 - The pi extension records, in the session, one `engram.policy` custom entry with the whole policy before its first call, and one `engram.call` entry per Plane call, ahead of that call's events: the actor in full, the step, and the policy's id and version. The whole policy is recorded because its id does not pin its rules: the E2.4 retention session ran a one-slot variant of `preset.medium` under the same id. `replaySession` (packages/pi-extension/src/replay.ts) replays the calls under the recorded policy by default and compares every event with the one recorded, apart from event ids and the store refs; core's `replayWorkload` returns the replay's events for that.
 
-Made in the review of PR #32, 2026-11-13:
+Made in the review of PR #32, 2026-11-13, accepted by the lead on 2026-11-19:
 
 - Each `engram.call` also names the hash of its policy's content (`policyHash`, sha256 of the policy's JSON with sorted keys), since an id and version do not pin the rules. pi recreates the extension on a resume or a fork, so the new runtime records `engram.policy` again: the entries may repeat. `sessionPolicy` refuses a call whose hash no `engram.policy` entry holds (an entry edited after the fact) and a session whose calls name two policies, since a replay decides under one. `replaySession` reports `policyDifference` when it runs under a policy other than the session's, saying so when that one carries the session's id and version with other rules.
 
@@ -60,7 +60,7 @@ Made in the review of PR #32, 2026-11-13:
 
 ## Amendment (2026-11-13)
 
-Amendment made in the review of PR #28 (`docs/log/2026-11-13-e8-9-review-step-ids.md`):
+Amendment made in the review of PR #28 (`docs/log/2026-11-13-e8-9-review-step-ids.md`), accepted by the lead on 2026-11-19:
 
 - Decision 2's ids are not one counter over the whole replay. Each id is the step's index and a counter that restarts at each step, so it depends only on the step and its place in it. With one counter, a promotion's new item took a different id under each policy whenever an earlier step appended a different number of events (an eviction, an ask), and every later read returning that item was reported as changed although it returned the same memory.
 - A promotion's new item has a replay id, not the id the recorded run gave it, so a later step of the workload cannot name it; a promotion of a promoted item is not replayable yet.

@@ -1,7 +1,7 @@
 # ADR 0033: The model-call layer is its own package, @engram/model
 
-Status: proposed, 2026-11-06 (numbered 0032 until 2026-11-13, renumbered because card E8.9's simulator ADR, PR #28, took 0032 first)
-Deciders: drafted by the agent working the backlog item "`@engram/bench` and `@engram/runner` import each other" (step 1 of the lead's delegation list, owner Shady); for the lead's acceptance
+Status: accepted, 2026-11-19 (proposed 2026-11-06; numbered 0032 until 2026-11-13, renumbered because card E8.9's simulator ADR, PR #28, took 0032 first)
+Deciders: Omar (lead)
 Supersedes: nothing; it settles the backlog item's open choice ("a package both import, or into core where they are types").
 
 ## Context
