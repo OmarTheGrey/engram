@@ -191,6 +191,18 @@ def by_construction(scores: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def audit_status(sheet: Any) -> str:
+    """What the result says of the audit: until a config names a judged sheet, it is unjudged."""
+    if sheet is not None:
+        raise NotImplementedError(
+            "reading a judged audit sheet is a later card's: name it in the config then"
+        )
+    return (
+        "unjudged: the config names no judged audit sheet, so precision with the base-item "
+        "findings is a bound, not a number"
+    )
+
+
 def compute(config: Mapping[str, Any]) -> dict[str, Any]:
     fault_config = load_config(REPO / str(config["fault_set"]["config"]))
     fault_result = load_config(REPO / str(config["fault_set"]["result"]))
@@ -231,8 +243,7 @@ def compute(config: Mapping[str, Any]) -> dict[str, Any]:
         "audit": {
             "directory": fault_result["audit"]["directory"],
             "sampled": fault_result["audit"]["sampled"],
-            "status": "unjudged: no member has filled the sheet, so precision on natural "
-            "memory is a bound, not a number",
+            "status": audit_status(config.get("audit_sheet")),
         },
         "model_run": model_run(rows, labels, runner, runner_path),
     }

@@ -306,3 +306,10 @@ def test_the_live_delta_refuses_until_its_model_is_named() -> None:
     assert config["fault_set_result"] == "research/results/h3-fault-set.json"
     with pytest.raises(SystemExit, match="set `model`"):
         h3_lint_delta.build(config)
+
+
+def test_the_audit_is_unjudged_until_a_config_names_a_judged_sheet() -> None:
+    assert load_config(FLOOR_CONFIG)["audit_sheet"] is None
+    assert h3_lint_floor.audit_status(None).startswith("unjudged")
+    with pytest.raises(NotImplementedError):
+        h3_lint_floor.audit_status("sheet.csv")

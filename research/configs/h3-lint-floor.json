@@ -6,5 +6,6 @@
     "config": "research/configs/h3-fault-set.json",
     "result": "research/results/h3-fault-set.json"
   },
-  "model_run": "research/configs/h3-lint-model.json"
+  "model_run": "research/configs/h3-lint-model.json",
+  "audit_sheet": null
 }
