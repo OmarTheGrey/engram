@@ -1,6 +1,8 @@
 # Pre-registration v1: the decisions for the lead
 
-Each item below is one decision v1 needs from the lead before the tag. Each gives the question, the recommendation that v1's draft (`docs/research/preregistration.md`) already carries, marked "(recommended; decision sheet item N)", the evidence, the alternatives and what each costs, and what changes if you choose otherwise. Write your answer on the item's last line. When every item is answered, the steps before the tag are in section 7 of `docs/tasks/prereg-v1-plan.md`.
+Each item below is one decision v1 needs from the lead before the tag. Each gives the question, the recommendation that v1's draft (`docs/research/preregistration.md`) carried, marked "(recommended; decision sheet item N)", the evidence, the alternatives and what each costs, and what changes if you choose otherwise. The lead's answer is on the item's last line. When every item is answered, the steps before the tag are in section 7 of `docs/tasks/prereg-v1-plan.md`.
+
+The lead answered the sheet on 2026-11-19. He accepted the recommendation of 24 of the 27 answer lines as written, and with them ADR 0009's amendment of 2026-11-02 and ADR 0031 (item 6). He changed item 16: three members audit, Omar, Mohamad and Shady, and an item is rejected when at least two of the three reject it. Items 1 (the three models) and 20 (the utility checkpoints) stay open, because they drive the OpenRouter spend, which is undecided: the lead asked for the cheapest approach to be planned, a cost result for it follows, and he answers both after it. Each answer is a `decision` entry under `docs/log/` dated 2026-11-19. What remains before the tag: the answers to items 1 and 20, then the three members' label audit (item 16), whose rates and rejected items a short PR writes into v1 with its version line; the tag follows that PR (section 7 of `docs/tasks/prereg-v1-plan.md`).
 
 Evidence is cited as a results file with the first eight characters of its sha256 in `research/results/MANIFEST.md`, or a log entry, or an ADR. Every number here comes from one of them.
 
@@ -28,7 +30,7 @@ Evidence is cited as a results file with the first eight characters of its sha25
 
 **If changed.** The Models table and the cost sentence of v1 change; `research/configs/h1-gatemem.json` and `h1-mem-inv.json` name the slot `prereg/M1`, so no config changes, and the live command names the model.
 
-**Lead:** accept | change to ...
+**Lead:** open (2026-11-19): the spend is undecided; a cheapest-approach cost result follows, and the lead answers after it
 
 ## 2. The store H1 runs on
 
@@ -45,7 +47,7 @@ Evidence is cited as a results file with the first eight characters of its sha25
 
 **If changed.** The `store` field of `research/configs/h1-gatemem.json`, `h1-mem-inv.json` and `h1-table.json` (a test holds the three together) and of the count test; the store is part of the cache key, so each store's sessions are their own samples.
 
-**Lead:** accept | change to ...
+**Lead:** accept (2026-11-19)
 
 ## 3. C4's verdict source on GateMem
 
@@ -59,7 +61,7 @@ Evidence is cited as a results file with the first eight characters of its sha25
 
 **If changed.** `c4_verdicts` in `research/configs/h1-gatemem.json`, C4's row of v1's Conditions, and C4's cache keys.
 
-**Lead:** accept | change to ...
+**Lead:** accept (2026-11-19)
 
 ## 4. C4's list on GateMem: the walk
 
@@ -78,7 +80,7 @@ Evidence is cited as a results file with the first eight characters of its sha25
 
 **If changed.** ADR 0031 is superseded by a new ADR, the runner's C4 read changes and the H1 cassettes do not exist yet, so only the fixture suite is re-recorded.
 
-**Lead:** accept | change to ...
+**Lead:** accept (2026-11-19)
 
 ## 5. The read limit
 
@@ -92,7 +94,7 @@ Evidence is cited as a results file with the first eight characters of its sha25
 
 **If changed.** `read_limit` in both H1 configs and v1's shared-retrieval paragraph; the H1 table is unaffected.
 
-**Lead:** accept | change to ...
+**Lead:** accept (2026-11-19)
 
 ## 6. ADR 0009's proposed amendment and ADR 0031
 
@@ -106,7 +108,7 @@ Evidence is cited as a results file with the first eight characters of its sha25
 
 **If changed.** v1's Conditions section, and the code it names.
 
-**Lead:** accept | change to ...
+**Lead:** accept (2026-11-19)
 
 ## 7. MEM-INV-Bench's C4 carries no verdict
 
@@ -120,7 +122,7 @@ Evidence is cited as a results file with the first eight characters of its sha25
 
 **If changed.** C4's MEM-INV-Bench session and its cassettes; under strict a verdict would vary, which matters only if item 11 changes.
 
-**Lead:** accept | change to ...
+**Lead:** accept (2026-11-19)
 
 ## 8. The MEM-INV-Bench agent note's seed
 
@@ -134,7 +136,7 @@ Evidence is cited as a results file with the first eight characters of its sha25
 
 **If changed.** The note writer in `packages/runner/src/mem-inv-probe.ts` and v1's Seeds note.
 
-**Lead:** accept | change to ...
+**Lead:** accept (2026-11-19)
 
 ## 9. GateMem's forgetting checkpoints in H1
 
@@ -152,7 +154,7 @@ Evidence is cited as a results file with the first eight characters of its sha25
 
 **If changed.** v1's Benchmarks row and H1's test, and one line of `research/configs/h1-table.json`: `"gatemem_primary"` names the primary set (now `"access"`; also `"forgetting"` or access and forgetting together), and the table reports the other two sets as secondary, unadjusted, with only the primary set's p-value entering Holm. No code changes either way (`docs/log/2026-11-03-pr4a-r1-decision-gatemem-sets.md`).
 
-**Lead:** accept | change to ...
+**Lead:** accept (2026-11-19)
 
 ## 10. Checkpoints where a plain refusal scores as a leak
 
@@ -166,7 +168,7 @@ Evidence is cited as a results file with the first eight characters of its sha25
 
 **If changed.** H1's analysis line, and the `sensitivity` entry of `research/configs/h1-table.json`, which names `research/results/h1-refusal-leaks.json` (`d7e9f3d0`): the 41 checkpoint ids (29 access control, 12 forgetting), computed by the reach's own scoring function; the table hashes that file and reruns the primary set without them. No code changes either way.
 
-**Lead:** accept | change to ...
+**Lead:** accept (2026-11-19)
 
 ## 11. The poisoning arm's preset
 
@@ -180,7 +182,7 @@ Evidence is cited as a results file with the first eight characters of its sha25
 
 **If changed.** `preset` in `research/configs/h1-mem-inv.json` and H1's stopping rule.
 
-**Lead:** accept | change to ...
+**Lead:** accept (2026-11-19)
 
 ## 12. H4's margin, size, test and Holm input
 
@@ -201,7 +203,7 @@ A benchmark split with fewer than 761 items uses all of them; below 761 the leve
 
 **If changed.** H4's Test and Stopping rule and the Models section's fixed subsets.
 
-**Lead:** accept | change to ...
+**Lead:** accept (2026-11-19)
 
 ## 13. The statistics departures from v0.2's text
 
@@ -219,7 +221,7 @@ v0.2 named the method; `research/analysis/` had to settle these details. Each wa
 
 **If changed.** `research/analysis/bootstrap.py` (`paired_bootstrap`) and its tests change before the tag. v1's Statistics section follows.
 
-**Lead:** accept | change to ...
+**Lead:** accept (2026-11-19)
 
 ### 13b. Exclusions and pairing
 
@@ -233,7 +235,7 @@ v0.2 named the method; `research/analysis/` had to settle these details. Each wa
 
 **If changed.** `research/analysis/bootstrap.py` (`paired_item_differences`), `research/analysis/h1.py` and their tests change before the tag. v1's Statistics section follows.
 
-**Lead:** accept | change to ...
+**Lead:** accept (2026-11-19)
 
 ### 13c. Ties
 
@@ -247,7 +249,7 @@ v0.2 named the method; `research/analysis/` had to settle these details. Each wa
 
 **If changed.** `research/analysis/bootstrap.py` (`TOLERANCE`, `bca_interval`) and its tests change before the tag. v1's Statistics section follows.
 
-**Lead:** accept | change to ...
+**Lead:** accept (2026-11-19)
 
 ### 13d. H1 read alone: the Holm bound and "undecided"
 
@@ -261,7 +263,7 @@ v0.2 named the method; `research/analysis/` had to settle these details. Each wa
 
 **If changed.** `research/analysis/h1.py` (`decide_h1`) and its tests change before the tag. v1's Statistics section follows.
 
-**Lead:** accept | change to ...
+**Lead:** accept (2026-11-19)
 
 ### 13e. Wilson on items, with fractional successes
 
@@ -275,7 +277,7 @@ v0.2 named the method; `research/analysis/` had to settle these details. Each wa
 
 **If changed.** `research/analysis/wilson.py`, its call in `research/analysis/h1.py` and their tests change before the tag. v1's Statistics section follows.
 
-**Lead:** accept | change to ...
+**Lead:** accept (2026-11-19)
 
 ### 13f. H4's test: two one-sided score tests
 
@@ -289,7 +291,7 @@ v0.2 named the method; `research/analysis/` had to settle these details. Each wa
 
 **If changed.** `research/analysis/equivalence.py` and its tests change before the tag, and `research/results/h4-power.json` and `research/results/h4-holm-levels.json`, computed with it, are regenerated. v1's Statistics section follows.
 
-**Lead:** accept | change to ...
+**Lead:** accept (2026-11-19)
 
 ### 13g. H4's Holm input, and the multiplicity wording
 
@@ -303,7 +305,7 @@ v0.2 named the method; `research/analysis/` had to settle these details. Each wa
 
 **If changed.** `research/analysis/equivalence.py` (`intersection_union_p`) and its tests change before the tag, and so does the power table's joint-power target. v1's Statistics section follows.
 
-**Lead:** accept | change to ...
+**Lead:** accept (2026-11-19)
 
 ### 13h. H4's items that lose a seed
 
@@ -317,7 +319,7 @@ v0.2 named the method; `research/analysis/` had to settle these details. Each wa
 
 **If changed.** `complete_item_differences` in `research/analysis/equivalence.py` and its tests change before the tag. v1's Statistics section follows.
 
-**Lead:** accept | change to ...
+**Lead:** accept (2026-11-19)
 
 ## 14. The per-item violation on each arm
 
@@ -349,7 +351,7 @@ Reading UNREAD replies after the run is a human step between the live run and th
 
 **If changed.** H1's metric line; deciding on the gate-by-action reading needs the table code changed (`decides` and the decision block follow `gate_by_action`), while reading with the condition visible needs none (the readers are given the key as well).
 
-**Lead:** accept | change to ...
+**Lead:** accept (2026-11-19)
 
 ## 15. MPBench to the candidates, MEM-INV-Bench pinned
 
@@ -363,7 +365,7 @@ Reading UNREAD replies after the run is a human step between the live run and th
 
 **If changed.** The PINS move is reverted, and the Benchmarks table and H1 change back.
 
-**Lead:** accept | change to ...
+**Lead:** accept (2026-11-19)
 
 ## 16. The label-audit procedure
 
@@ -377,7 +379,9 @@ Reading UNREAD replies after the run is a human step between the live run and th
 
 **If changed.** v1's label-audit sentence.
 
-**Lead:** accept | change to ...
+**As changed (2026-11-19).** Three members audit: Omar, Mohamad and Shady (`omar`, `mohamad` and `shady` in `research/configs/label-audit.json`). The two-phase procedure is unchanged. "Both members" in the stopping rule reads "at least two of the three": on GateMem an item is rejected when at least two answer no on its scoring keys; on MEM-INV-Bench when at least two give a blind label that differs from the benchmark's family, or at least two answer no on its keys. `stop_share` stays 0.10 with the same counts (6 or more of 50, 4 or more of 38), and `stop` stays null until every member's key sheets exist unless the rejections already pass the threshold. The agreement reports Cohen's kappa for each pair of members and Fleiss' kappa over the three. The two-of-three rule and the kappas are the orchestrator's choice, for the lead to confirm (`docs/log/2026-11-19-orch-decision-two-of-three.md`); the kit is `research/scripts/label_audit_agreement.py`, and with two members it reports as before.
+
+**Lead:** change to three members, Omar, Mohamad and Shady; an item is rejected when at least two of the three reject it (2026-11-19)
 
 ## 17. The MANIFEST commit column
 
@@ -391,7 +395,7 @@ Reading UNREAD replies after the run is a human step between the live run and th
 
 **If changed.** Only how rows are written; `make test-repro` does not read the column.
 
-**Lead:** accept | change to ...
+**Lead:** accept (2026-11-19)
 
 ## 18. When the poisoning arm contradicts H1
 
@@ -407,7 +411,7 @@ Under medium (item 11) this arm compares presentation, not enforcement: C5's rea
 
 **If changed.** H1's analysis line and `decide_h1`.
 
-**Lead:** accept | change to ...
+**Lead:** accept (2026-11-19)
 
 ## 19. The judge through OpenRouter
 
@@ -421,7 +425,7 @@ Under medium (item 11) this arm compares presentation, not enforcement: C5's rea
 
 **If changed.** The judge block of `research/configs/h1-gatemem.json` and v1's Models section.
 
-**Lead:** accept | change to ...
+**Lead:** accept (2026-11-19)
 
 ## 20. GateMem's utility checkpoints in H1's run
 
@@ -438,4 +442,4 @@ Under medium (item 11) this arm compares presentation, not enforcement: C5's rea
 
 **If changed.** Dropping them changes `items` of `research/configs/h1-gatemem.json` and H1's stopping rule; U as `utility_ok` alone changes `_part_outcome` in `research/analysis/h1.py` and its tests, and v1's MGS line.
 
-**Lead:** accept | change to ...
+**Lead:** open (2026-11-19): the spend is undecided; a cheapest-approach cost result follows, and the lead answers after it
