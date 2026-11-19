@@ -9,7 +9,7 @@ import type { Actor } from "../../../src/actor.ts";
 import { strictContentHash } from "../../../src/content-hash.ts";
 import { appendEvent, currentItems } from "../../../src/events.ts";
 import type { ModelLintSetup } from "../../../src/lint/model.ts";
-import { createPlane } from "../../../src/plane.ts";
+import { createPlane, planModelLints } from "../../../src/plane.ts";
 import type { MemoryItem, Policy } from "../../../src/schema.ts";
 import { reply, scriptedLintModel, USAGE } from "../../fakes/lint-model.ts";
 import { AT, fresh, id, item, testPolicy } from "./helpers.ts";
@@ -161,5 +161,35 @@ describe("Plane.lint with a lint model", () => {
     await expect(plane.lint(ACTOR, AT, "team:platform")).rejects.toThrow("offline: no cassette");
     expect(plane.events()).toEqual(before);
     expect(currentItems(db)).toEqual(items);
+  });
+});
+
+describe("planModelLints", () => {
+  test("lists the units Plane.lint would send, calling no model and appending nothing", async () => {
+    const model = scriptedLintModel(() => reply("consistent"));
+    const policy = enabled(["contradiction", "unsupported-claim"]);
+    const { db, plane } = seeded([friday, monday, claim], policy, {
+      call: model.call,
+      model: "scripted/lint-1",
+      seed: 2,
+    });
+    const before = plane.events();
+    const planned = planModelLints({ db, policy }, ACTOR, AT, "team:platform", {
+      model: "scripted/lint-1",
+      seed: 2,
+    });
+    expect(plane.events()).toEqual(before);
+    expect(model.requests).toEqual([]);
+    const report = await plane.lint(ACTOR, AT, "team:platform");
+    expect(planned.map((u) => u.unit)).toEqual(report.judgments?.map((j) => j.unit));
+    expect(model.requests).toEqual(planned.map((u) => u.request));
+  });
+  test("plans nothing for an actor who may not read the scope", () => {
+    const policy = enabled(["contradiction"]);
+    const { db } = seeded([friday, monday], policy);
+    const outsider: Actor = { ...ACTOR, memberships: ["person:omar"] };
+    expect(
+      planModelLints({ db, policy }, outsider, AT, "team:platform", { model: "m/x", seed: 1 }),
+    ).toEqual([]);
   });
 });

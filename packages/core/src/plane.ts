@@ -48,7 +48,7 @@ export {
   bypassAttempt,
   MAX_ATTEMPT_LENGTH,
 } from "./plane/bypass.ts";
-export { LINT_MEMBERSHIP_ID, type LintReport } from "./plane/lint.ts";
+export { LINT_MEMBERSHIP_ID, type LintReport, planModelLints } from "./plane/lint.ts";
 export {
   type DeletionReport,
   HANDOVER_ID,

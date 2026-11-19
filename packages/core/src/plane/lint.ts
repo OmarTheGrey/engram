@@ -21,8 +21,14 @@
 // its policy_id is `<policy>/lint/<lint_id>`. A finding's id is its event's id.
 import { type Actor, checkCall, InvalidCallError } from "../actor.ts";
 import { allEvents, appendEvent, currentItems } from "../events.ts";
-import { type DetFinding, lintScope } from "../lint/det.ts";
-import { type ModelJudgment, modelLintUnits, runModelLints } from "../lint/model.ts";
+import { type DetFinding, type LintContext, lintScope } from "../lint/det.ts";
+import {
+  type ModelJudgment,
+  type ModelLintSetup,
+  type ModelLintUnit,
+  modelLintUnits,
+  runModelLints,
+} from "../lint/model.ts";
 import type { ModelUsage } from "../model.ts";
 import type { PlaneDeps } from "../plane.ts";
 import { readableAt, readableScope } from "../policy/evaluate.ts";
@@ -61,6 +67,41 @@ function retirements(
     if ((e.op === "retire" || e.op === "evict") && e.decision === "allow" && e.item_id !== null)
       by.set(e.item_id, { op: e.op, policy_id: e.policy_id });
   return by;
+}
+
+/** What the lints read, as `actor` at `at`: the projection, the retirements and the actor's reach. */
+function lintContext(
+  deps: Pick<PlaneDeps, "db" | "policy">,
+  actor: Actor,
+  at: string,
+): LintContext {
+  const { db, policy } = deps;
+  return {
+    policy,
+    at,
+    items: new Map<string, MemoryItem>(currentItems(db).map((i) => [i.id, i])),
+    retiredBy: retirements(allEvents(db)),
+    canReach: (item: MemoryItem) => readableAt(policy, actor, item, at),
+  };
+}
+
+/**
+ * The units Plane.lint's model-based lints would send over `scope` at `at`
+ * as `actor` under the policy's `lints.enabled`, with `model` and `seed`
+ * (card L3): what a count of a lint run's calls counts. Calls no model,
+ * appends nothing and does not queue; an actor who may not read the scope
+ * would be refused, so it gets none.
+ */
+export function planModelLints(
+  deps: Pick<PlaneDeps, "db" | "policy">,
+  actor: Actor,
+  at: string,
+  scope: string,
+  setup: Omit<ModelLintSetup, "call">,
+): ModelLintUnit[] {
+  checkCall(actor, at, "lint");
+  if (!readableScope(deps.policy, actor, scope)) return [];
+  return modelLintUnits(lintContext(deps, actor, at), scope, deps.policy.lints.enabled, setup);
 }
 
 /**
@@ -108,14 +149,7 @@ async function run(deps: PlaneDeps, actor: Actor, at: string, scope: string): Pr
     });
     return { decision: "deny", findings: [], events: [denied] };
   }
-  const items = new Map<string, MemoryItem>(currentItems(db).map((i) => [i.id, i]));
-  const ctx = {
-    policy,
-    at,
-    items,
-    retiredBy: retirements(allEvents(db)),
-    canReach: (item: MemoryItem) => readableAt(policy, actor, item, at),
-  };
+  const ctx = lintContext(deps, actor, at);
   const found: (DetFinding & { tier: LintFinding["tier"]; usage?: ModelUsage })[] = lintScope(
     ctx,
     scope,
