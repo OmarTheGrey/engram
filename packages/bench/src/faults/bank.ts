@@ -183,28 +183,61 @@ export const WORK: readonly Fact[] = [
   { attribute: "expense approver", values: ["Dana", "Marcus", "Leila", "Owen"] },
 ];
 
-/** What the user says about their own life, as a semantic item. */
-export const statement = (attribute: string, value: string) => `My ${attribute} is ${value}.`;
-/** What the user says when a value has changed since an earlier statement. */
-export const update = (attribute: string, value: string) =>
-  `Update: my ${attribute} is now ${value}.`;
-/** What the user says when a value has not changed since an earlier statement. */
-export const unchanged = (attribute: string, value: string) =>
-  `Update: my ${attribute} is still ${value}.`;
-/** What the user says to restate a value in the same breath. */
-export const restatement = (attribute: string, value: string) =>
-  `To be clear, my ${attribute} is ${value}.`;
+/** A sentence about one attribute and value. */
+export type Template = (attribute: string, value: string) => string;
+
+/** What the user says about their own life, as a semantic item: the first statement of a pair. */
+export const STATEMENTS: readonly Template[] = [
+  (a, v) => `My ${a} is ${v}.`,
+  (a, v) => `Just so you know, my ${a} is ${v}.`,
+  (a, v) => `For the record, my ${a} is ${v}.`,
+];
+/** The plain statement: STATEMENTS[0]. */
+export const statement: Template = (a, v) => `My ${a} is ${v}.`;
+/**
+ * What the user says about an attribute again, later or in the same breath,
+ * with no cue of whether the value changed: a supersession, a conflict and
+ * their near-misses all draw from these, so only the value tells them apart.
+ */
+export const RESTATEMENTS: readonly Template[] = [
+  (a, v) => `These days my ${a} is ${v}.`,
+  (a, v) => `Right now my ${a} is ${v}.`,
+  (a, v) => `My ${a} is ${v} at the moment.`,
+  (a, v) => `To be clear, my ${a} is ${v}.`,
+  (a, v) => `As it stands, my ${a} is ${v}.`,
+];
 /** A statement bounded in time; `until` is a date, `YYYY-MM-DD`. */
 export const bounded = (attribute: string, value: string, until: string) =>
   `Until ${until}, my ${attribute} is ${value}.`;
 /** What the user mentions in passing, as an episodic item. */
-export const aside = (attribute: string, value: string) =>
-  `By the way, my ${attribute} is ${value}.`;
+export const ASIDES: readonly Template[] = [
+  (a, v) => `By the way, my ${a} is ${v}.`,
+  (a, v) => `Oh, and my ${a} is ${v}.`,
+  (a, v) => `Side note: my ${a} is ${v}.`,
+];
+/** The plain aside: ASIDES[0]. */
+export const aside: Template = (a, v) => `By the way, my ${a} is ${v}.`;
 /** What the user says about their work. */
 export const workStatement = (attribute: string, value: string) =>
   `At work, our ${attribute} is ${value}.`;
-/** A note a model extracts about the user. */
-export const note = (attribute: string, value: string) => `The user's ${attribute} is ${value}.`;
+/** A note a model extracts about the user, in several wordings of the same claim. */
+export const NOTES: readonly Template[] = [
+  (a, v) => `The user's ${a} is ${v}.`,
+  (a, v) => `According to the user, their ${a} is ${v}.`,
+  (a, v) => `The user says their ${a} is ${v}.`,
+];
+/** The plain note: NOTES[0]. */
+export const note: Template = (a, v) => `The user's ${a} is ${v}.`;
+/** Qualifiers that bound a statement; a claim that drops or adds one says more than its source. */
+export const QUALIFIERS = [
+  "at least for now",
+  "on weekdays",
+  "for the next few weeks",
+  "most of the time",
+] as const;
+/** A sentence with a qualifier after its value. */
+export const qualified = (sentence: string, qualifier: string) =>
+  `${sentence.replace(/\.$/, "")}, ${qualifier}.`;
 /** A note a model extracts by quoting the user. */
 export const quote = (excerpt: string) => `The user said: "${excerpt}"`;
 

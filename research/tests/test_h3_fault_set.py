@@ -128,3 +128,72 @@ def test_a_subtype_whose_labels_disagree_is_refused() -> None:
     broken = [dict(labels[0], keyed=not labels[0]["keyed"]), *labels[1:]]
     with pytest.raises(ValueError, match="disagree"):
         h3_fault_set.by_subtype(broken)
+
+
+def _findings(lints: dict[str, int]) -> list[dict[str, object]]:
+    return [
+        {
+            "question_id": f"q{i}",
+            "item_id": f"i{i}",
+            "lint_id": lint,
+            "message": "m",
+            "evidence": [],
+            "content": "c",
+            "cited": {},
+        }
+        for lint, n in lints.items()
+        for i in range(n)
+    ]
+
+
+def test_the_audit_draw_takes_per_lint_of_each_lint_or_all_and_is_seeded() -> None:
+    findings = _findings({"duplicate": 120, "orphan": 7})
+    a = h3_fault_set.draw(findings, 50, 3)
+    assert a == h3_fault_set.draw(findings, 50, 3)
+    assert a != h3_fault_set.draw(findings, 50, 4)
+    assert [r["lint_id"] for r in a].count("duplicate") == 50
+    assert [r["lint_id"] for r in a].count("orphan") == 7
+    assert len({(r["question_id"], r["lint_id"]) for r in a}) == len(a)
+    assert a[0]["reference"] == "duplicate-01"
+
+
+def test_the_audit_sample_is_written_only_under_engram_and_never_overwrites_a_sheet(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(h3_fault_set, "REPO", tmp_path)
+    with pytest.raises(ValueError, match=r"under .engram"):
+        h3_fault_set.write_audit(
+            _findings({"duplicate": 3}), {"per_lint": 2, "seed": 1, "out": "audit"}
+        )
+    audit = {"per_lint": 2, "seed": 1, "out": ".engram/audit"}
+    first = h3_fault_set.write_audit(_findings({"duplicate": 3}), audit)
+    assert first["sampled"] == {"duplicate": 2} and first["findings"] == {"duplicate": 3}
+    sheet = tmp_path / ".engram" / "audit" / "sheet.csv"
+    sheet.write_text("filled by a member\n", encoding="utf-8")
+    again = h3_fault_set.write_audit(_findings({"duplicate": 3}), audit)
+    assert sheet.read_text(encoding="utf-8") == "filled by a member\n"
+    assert again["draw_sha256"] == first["draw_sha256"]
+
+
+def test_the_limits_name_what_the_set_can_and_cannot_tell_and_the_mix() -> None:
+    labels = h3_fault_set.read_jsonl(FIXTURE / "labels.jsonl")
+    stats = h3_fault_set.read_jsonl(FIXTURE / "stats.jsonl")
+    summary = h3_fault_set.summarise(labels, stats)
+    check = {"model_labels_not_sent_under_medium": {"unsupported-claim": 2}}
+    limits = h3_fault_set.limits(summary, check)
+    assert set(limits) == {
+        "can_tell",
+        "cannot_tell",
+        "pooling",
+        "differs_from_b5_b6_x10",
+        "superseded",
+    }
+    assert "regression check" in limits["can_tell"][0]
+    assert "upper bound" in limits["can_tell"][1]
+    assert "2 keyed to 1 unkeyed" in limits["pooling"]
+    assert "2 of 40 labelled unsupported-claim units" in limits["differs_from_b5_b6_x10"][2]
+    assert "0 of 80 labelled contradiction units" in limits["differs_from_b5_b6_x10"][2]
+    assert (
+        str(summary["base"]["missing_provenance_as_b5_writes_it"])
+        in limits["differs_from_b5_b6_x10"][0]
+    )

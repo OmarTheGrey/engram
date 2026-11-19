@@ -25,6 +25,8 @@ export interface SubtypeSpec {
   /** What a fault of this subtype is, and what its near-miss is. */
   fault: string;
   nearMiss: string;
+  /** The ways the generator builds a fault and its near-miss of this subtype, one chosen per pair by the seed. */
+  variants: readonly string[];
 }
 
 /**
@@ -37,8 +39,10 @@ export const SUBTYPES = {
     class: "stale",
     keyed: true,
     lints: { deterministic: ["expired-validity"], model: [] },
-    fault: "an active semantic statement bounded in time whose valid_to is before the lint time",
-    nearMiss: "the same, with valid_to thirty days after the lint time",
+    fault:
+      "an active semantic statement whose validity ends exactly at the lint time: valid_to equal to it, or valid_from plus its ttl equal to it",
+    nearMiss: "the same, ending one millisecond after the lint time",
+    variants: ["valid_to", "ttl"],
   },
   "source-changed": {
     class: "stale",
@@ -48,14 +52,16 @@ export const SUBTYPES = {
       "a model note quoting a user turn, whose turn was later rewritten with a sentence added, so its recorded hash no longer matches",
     nearMiss:
       "the same, with the turn rewritten in whitespace only, which the strict hash collapses",
+    variants: [],
   },
   superseded: {
     class: "stale",
     keyed: false,
     lints: { deterministic: [], model: ["contradiction"] },
     fault:
-      "an active statement that a later active update of the same attribute supersedes in its text only, with no valid_to",
-    nearMiss: "the same statement, with a later update saying the value is unchanged",
+      "an active statement that a later active restatement of the same attribute with another value supersedes in its text only, with no valid_to and no cue word; card L3's contradiction prompt asks whether two statements can both be true at the same time, so its recall here measures whether the model reads an old value and a later one as a contradiction",
+    nearMiss: "the same statement, with a later restatement of the same value in other words",
+    variants: [],
   },
   conflict: {
     class: "contradictory",
@@ -64,6 +70,7 @@ export const SUBTYPES = {
     fault:
       "an active restatement giving another value of the attribute an active statement gave at the same moment",
     nearMiss: "the same restatement, giving the same value",
+    variants: [],
   },
   "forbidden-class": {
     class: "misplaced",
@@ -72,6 +79,7 @@ export const SUBTYPES = {
     fault:
       "an episodic work statement in the role scope, written before the policy forbade episodic items there",
     nearMiss: "the same statement as a semantic item, which the role scope still allows",
+    variants: [],
   },
   "wrong-scope": {
     class: "misplaced",
@@ -80,6 +88,7 @@ export const SUBTYPES = {
     fault:
       "a semantic statement about the user's own life in the role scope, which is for work; no lint of either tier is built to find it",
     nearMiss: "a semantic work statement in the role scope",
+    variants: [],
   },
   "missing-provenance": {
     class: "unsupported",
@@ -87,6 +96,7 @@ export const SUBTYPES = {
     lints: { deterministic: ["missing-provenance"], model: [] },
     fault: "a model note quoting a user turn whose provenance names no model",
     nearMiss: "the same, naming its model",
+    variants: [],
   },
   orphan: {
     class: "unsupported",
@@ -94,15 +104,19 @@ export const SUBTYPES = {
     lints: { deterministic: ["orphan"], model: [] },
     fault:
       "a model note whose provenance ref names a user aside that its own ttl retired by the next retention sweep",
-    nearMiss: "the same, whose aside's ttl runs past the lint time, so it is still active",
+    nearMiss:
+      "the same, whose aside's validity ends one millisecond after the lint time, so it is still active",
+    variants: [],
   },
   "unsupported-claim": {
     class: "unsupported",
     keyed: false,
     lints: { deterministic: [], model: ["unsupported-claim"] },
     fault:
-      "a model note with complete provenance naming a user aside, stating a value of another attribute the aside never mentions",
-    nearMiss: "the same, stating the aside's own attribute and value",
+      "a model note with complete provenance naming a user aside, claiming what the aside does not say: another attribute it never mentions, another value of its attribute, its claim without the aside's qualifier, or its claim with a qualifier the aside does not have",
+    nearMiss:
+      "the same, restating the aside's attribute, value and qualifier, if any, in other words",
+    variants: ["other-attribute", "other-value", "qualifier-dropped", "qualifier-added"],
   },
 } as const satisfies Record<string, SubtypeSpec>;
 export type Subtype = keyof typeof SUBTYPES;
@@ -140,6 +154,8 @@ export const FaultLabel = z.strictObject({
   near_miss_of: Lints,
   related: z.array(z.string().min(1)),
   finding_on: z.string().min(1),
+  /** Which of the subtype's variants built this pair, or null for a subtype with one way. */
+  variant: z.string().min(1).nullable(),
 });
 export type FaultLabel = z.infer<typeof FaultLabel>;
 
@@ -156,6 +172,7 @@ export function label(
   kind: FaultLabel["kind"],
   item: { id: string; scope: string },
   related: string[],
+  variant: string | null = null,
 ): FaultLabel {
   const spec = SUBTYPES[subtype];
   const pairwise = (spec.lints.model as readonly string[]).includes("contradiction");
@@ -174,5 +191,6 @@ export function label(
     near_miss_of: kind === "near-miss" ? lintsOf(subtype) : none(),
     related,
     finding_on: later,
+    variant,
   };
 }

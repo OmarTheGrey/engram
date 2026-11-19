@@ -13,5 +13,10 @@
   "fetch": true,
   "seed": 20261119,
   "per_question": 1,
-  "set": ".engram/faults/h3-fault-set"
+  "set": ".engram/faults/h3-fault-set",
+  "audit": {
+    "per_lint": 50,
+    "seed": 20261120,
+    "out": ".engram/faults/h3-fault-set-audit"
+  }
 }

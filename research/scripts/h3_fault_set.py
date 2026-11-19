@@ -21,16 +21,28 @@ unkeyed (H3, docs/research/preregistration.md). The bytes do not depend on
 the worker count (ENGRAM_RESEARCH_WORKERS).
 
 `label_check` is packages/bench/scripts/fault-set-check.ts over the joined
-set: card L1's deterministic lints, run by Plane.lint on every state, must
-flag every keyed fault by the lint its label expects, no near-miss by the
-lint it is a near-miss of, and nothing else with a lint the set measures; the
-script fails when they do not. It checks the labels; card L4 measures the
-lints.
+set. Deterministic tier: card L1's lints, run by Plane.lint on every state,
+must flag every keyed fault by the lint its label expects, no near-miss by the
+lint it is a near-miss of, and no item the generator wrote with any lint its
+label does not expect; a finding on one of LongMemEval's own items is counted
+per lint (`unlabelled_findings_on_base_items`), never failed. Model tier, no
+model called: every model-tier fault and near-miss must be a unit card L3's
+planning (planModelLints) would send, and the labelled units preset medium
+would not send are counted. The script fails when the labels disagree. It
+checks the labels; card L4 measures the lints.
+
+`audit` is a seeded sample of the findings on base items, `per_lint` of each
+lint, written for a member to judge real or false (the label-audit kit's
+pattern): `draw.json` (rewritten, hashed here) and the context files are under
+the config's `audit.out`, beside a sheet `sheet.csv` written only when absent,
+so a filled sheet is never overwritten. They hold LongMemEval text, under
+.engram/ only. `limits` states what the set can and cannot tell the thesis.
 """
 
 from __future__ import annotations
 
 import argparse
+import csv
 import hashlib
 import json
 import os
@@ -42,12 +54,14 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+
 from scripts.results_io import REPO, load_config, run_node, sha256_file, workers, write_result
 
 ENTRY = "packages/bench/scripts/fault-set.ts"
 CHECK = "packages/bench/scripts/fault-set-check.ts"
 GENERATOR = "packages/bench/src/faults/generate.ts"
-SET_FILES = ("policy.json", "states.jsonl", "labels.jsonl", "stats.jsonl")
+SET_FILES = ("policy.json", "states.jsonl", "labels.jsonl", "stats.jsonl", "base-findings.jsonl")
 JOINED = ("states.jsonl", "labels.jsonl", "stats.jsonl")
 CLASSES = ("stale", "contradictory", "misplaced", "unsupported")
 KINDS = ("fault", "near-miss")
@@ -267,6 +281,9 @@ def summarise(
         "base": {
             "turns": sum(int(s["turns"]) for s in stats),
             "assistant_turns_model_named": sum(int(s["assistant_turns"]) for s in stats),
+            "missing_provenance_as_b5_writes_it": sum(
+                int(s["b5_missing_provenance"]) for s in stats
+            ),
             "past_medium_ttl": {
                 "turns": sum(int(s["past_medium_ttl"]) for s in stats),
                 "questions": sum(1 for s in stats if int(s["past_medium_ttl"]) > 0),
@@ -282,12 +299,135 @@ def summarise(
 
 
 def label_check(target: Path) -> dict[str, Any]:
-    """The deterministic lints over the set, counted by the check script; it fails on a mismatch."""
+    """Both tiers over the set, counted by the check script; it fails on a mismatch.
+
+    Writes the findings on base items to `base-findings.jsonl` in the set.
+    """
     with tempfile.TemporaryDirectory() as tmp:
         out = Path(tmp) / "check.json"
-        run_node([CHECK, "--set", str(target), "--out", str(out)])
+        run_node(
+            [
+                CHECK,
+                "--set",
+                str(target),
+                "--out",
+                str(out),
+                "--findings",
+                str(target / "base-findings.jsonl"),
+            ]
+        )
         result: dict[str, Any] = json.loads(out.read_text(encoding="utf-8"))
     return result
+
+
+SHEET_FIELDS = ("reference", "lint_id", "context", "real_or_false", "comment")
+
+
+def draw(findings: Sequence[Mapping[str, Any]], per_lint: int, seed: int) -> list[dict[str, Any]]:
+    """`per_lint` findings of each lint (all, if fewer), in a seeded order, named <lint>-01, ...."""
+    rng = np.random.default_rng(seed)
+    out: list[dict[str, Any]] = []
+    for lint in sorted({str(f["lint_id"]) for f in findings}):
+        mine = [f for f in findings if f["lint_id"] == lint]
+        order = rng.permutation(len(mine))[:per_lint]
+        for k, i in enumerate(order):
+            f = mine[int(i)]
+            out.append(
+                {
+                    "reference": f"{lint}-{k + 1:02d}",
+                    "lint_id": lint,
+                    "question_id": f["question_id"],
+                    "item_id": f["item_id"],
+                }
+            )
+    return out
+
+
+def write_audit(findings: Sequence[Mapping[str, Any]], audit: Mapping[str, Any]) -> dict[str, Any]:
+    """The audit sample of base-item findings under `audit.out`; its counts and draw hash."""
+    picked = draw(findings, int(audit["per_lint"]), int(audit["seed"]))
+    out = REPO / str(audit["out"])
+    if not str(audit["out"]).startswith(".engram/"):
+        raise ValueError("the audit sample holds LongMemEval text: write it under .engram/ only")
+    (out / "context").mkdir(parents=True, exist_ok=True)
+    by_key = {(f["question_id"], f["item_id"], f["lint_id"]): f for f in findings}
+    for row in picked:
+        f = by_key[(row["question_id"], row["item_id"], row["lint_id"])]
+        context = {k: f[k] for k in ("lint_id", "message", "evidence", "content", "cited")}
+        write_result(out / "context" / f"{row['reference']}.json", context)
+    write_result(out / "draw.json", picked)
+    sheet = out / "sheet.csv"
+    if not sheet.exists():
+        with sheet.open("w", encoding="utf-8", newline="") as handle:
+            writer = csv.writer(handle, lineterminator="\n")
+            writer.writerow(SHEET_FIELDS)
+            for row in picked:
+                ctx = f"context/{row['reference']}.json"
+                writer.writerow([row["reference"], row["lint_id"], ctx, "", ""])
+    return {
+        "per_lint": int(audit["per_lint"]),
+        "seed": int(audit["seed"]),
+        "directory": str(audit["out"]),
+        "findings": _counts(str(f["lint_id"]) for f in findings),
+        "sampled": _counts(str(r["lint_id"]) for r in picked),
+        "draw_sha256": sha256_file(out / "draw.json"),
+    }
+
+
+MIX = "stale 2 keyed to 1 unkeyed, unsupported 2 to 1, misplaced 1 to 1, contradictory 0 to 1"
+
+
+def limits(summary: Mapping[str, Any], check: Mapping[str, Any]) -> dict[str, Any]:
+    """What the set can and cannot tell the thesis (review findings L2-1, L2-3, L2-4)."""
+    base = summary["base"]
+    by_lint = summary["by_lint"]["model"]
+    total = {
+        lint: sum(by_lint[lint][k][kind] for k in ("keyed", "unkeyed") for kind in KINDS)
+        for lint in by_lint
+    }
+    unsent = check["model_labels_not_sent_under_medium"]
+    medium = "; ".join(
+        f"{unsent.get(lint, 0)} of {total[lint]} labelled {lint} units" for lint in sorted(total)
+    )
+    wrong_scope = summary["by_subtype"]["wrong-scope"]["fault"]
+    return {
+        "can_tell": [
+            "A regression check on card L1's deterministic lints: each keyed subtype restates its "
+            "lint's trigger, with its near-miss one millisecond, one whitespace run, one class or "
+            "one provenance field away, so deterministic recall and precision on the labelled "
+            "items are 1.0 by construction while the lints are correct.",
+            "Model-tier accuracy on clean, pre-paired cases, as an upper bound: every model-tier "
+            "fault and near-miss is an injected template sentence that card L3's planning is "
+            "checked to send, so it leaves out the pair-selection misses natural prose causes.",
+            f"Gaps: no lint of either tier is built for wrong-scope ({wrong_scope} faults), "
+            "and the "
+            "deterministic tier finds no unkeyed fault.",
+        ],
+        "cannot_tell": [
+            "How common these faults are: the set holds one fault and one near-miss of each "
+            "subtype per question by design.",
+            "Real-world recall: the faults are templates, not natural failures.",
+            "Precision on natural memory without the audit: findings on LongMemEval's own items "
+            "are counted (label_check.unlabelled_findings_on_base_items) but unverified until "
+            "members judge the audit sample.",
+        ],
+        "pooling": "Per-class figures pooled over keyed and unkeyed faults depend on the mix the "
+        f"generator chose ({MIX}); report keyed and unkeyed apart.",
+        "differs_from_b5_b6_x10": [
+            "Assistant turns name a model (longmemeval/assistant); as B5 writes them, card L1's "
+            f"missing-provenance lint would flag {base['missing_provenance_as_b5_writes_it']} of "
+            f"{base['turns']} turns.",
+            "The policy is preset medium without the person-scope ttl; under medium, "
+            f"{base['past_medium_ttl']['turns']} turns in {base['past_medium_ttl']['questions']} "
+            "questions are past its 90-day ttl at the read time.",
+            "Under preset medium with every lint enabled, card L3's planning would not send "
+            f"{medium}, because an item or its source is past the ttl.",
+        ],
+        "superseded": "Superseded recall measures how the model reads card L3's contradiction "
+        "prompt, which asks whether two statements cannot both be true at the same time: a "
+        "model may call an old value and a later one consistent, as two states at different "
+        "times.",
+    }
 
 
 def compute(config: Mapping[str, Any]) -> dict[str, Any]:
@@ -298,6 +438,8 @@ def compute(config: Mapping[str, Any]) -> dict[str, Any]:
     check = label_check(target)
     labels = read_jsonl(target / "labels.jsonl")
     stats = read_jsonl(target / "stats.jsonl")
+    summary = summarise(labels, stats)
+    audit = write_audit(read_jsonl(target / "base-findings.jsonl"), config["audit"])
     return {
         "name": config["name"],
         "hypothesis": "H3",
@@ -310,8 +452,10 @@ def compute(config: Mapping[str, Any]) -> dict[str, Any]:
             "directory": str(config["set"]),
             "sha256": {name: sha256_file(target / name) for name in SET_FILES},
         },
-        **summarise(labels, stats),
+        **summary,
         "label_check": check,
+        "audit": audit,
+        "limits": limits(summary, check),
     }
 
 

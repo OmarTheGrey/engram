@@ -32,6 +32,7 @@ import {
   loadPreset,
   type MemoryEvent,
   type MemoryItem,
+  missingProvenance,
   type Plane,
   type Policy,
   strictContentHash,
@@ -39,22 +40,24 @@ import {
 import { readTime, turnActor, turnItem, USER } from "../longmemeval/plane.ts";
 import type { VisibleQuestion, VisibleTurn } from "../longmemeval/strip.ts";
 import {
-  aside,
+  ASIDES,
   bounded,
   EDITS,
   excerpt,
   type Fact,
-  note,
+  NOTES,
   PERSONAL,
+  QUALIFIERS,
+  qualified,
   quote,
-  restatement,
+  RESTATEMENTS,
+  STATEMENTS,
   statement,
-  unchanged,
-  update,
+  type Template,
   WORK,
   workStatement,
 } from "./bank.ts";
-import { type FaultLabel, label, SUBTYPE_IDS, type Subtype } from "./labels.ts";
+import { type FaultLabel, label, SUBTYPE_IDS, SUBTYPES, type Subtype } from "./labels.ts";
 
 /** The user's role scope (ADR 0021): where the user's work memory lives beside their person scope. */
 export const ROLE_SCOPE = "role:user";
@@ -67,7 +70,6 @@ export const NOTE_MODEL = "engram/note-extractor";
 /** Who lints the state: the user, a member of both their scopes. */
 export const LINT_ACTOR: Actor = { id: USER, level: "person", memberships: [USER, ROLE_SCOPE] };
 
-const DAY_MS = 86_400_000;
 /** Injected writes after one anchor turn are this far apart. */
 const STEP_MS = 50;
 /** An anchor needs this much time before the lint time, so every write it carries lands before it. */
@@ -131,6 +133,12 @@ export interface StateStats {
   assistant_turns: number;
   /** Base turns past preset medium's own person-scope ttl at the lint time, which this set's policy drops. */
   past_medium_ttl: number;
+  /**
+   * Base turns L1's missing-provenance lint would flag as B5 writes them (an
+   * assistant turn names no model); the generator names one, so they are
+   * natural findings the set's state does not show.
+   */
+  b5_missing_provenance: number;
   /** Events in the state's log. */
   events: number;
 }
@@ -251,6 +259,8 @@ export async function faultState(
   const rand = stream(opts.seed, view.question_id);
   const at = readTime(view);
   const atMs = Date.parse(at);
+  /** A ttl in seconds long enough that an item written at `t` can end at or after the lint time. */
+  const ttlTo = (t: number) => Math.ceil((atMs - t) / 1000) + 1;
   const base: BaseWrite[] = view.sessions.flatMap((s, si) =>
     s.turns.map((turn, ti) => {
       const position = { session: si, turn: ti, date: s.date };
@@ -275,19 +285,40 @@ export async function faultState(
     return f;
   };
   const values = (f: Fact) => shuffled(f.values, rand);
+  // Two turns can share a first sentence; quoting both would make two notes
+  // with one text, a real duplicate (review finding L2-2), so an excerpt
+  // already quoted is skipped.
+  const quoted = new Set<string>();
   const sourceTurn = () => {
-    const i = userTurns.shift();
-    if (i === undefined)
-      throw new Error(`fault generator: ${view.question_id} has too few user turns to quote`);
-    return i;
+    for (;;) {
+      const i = userTurns.shift();
+      if (i === undefined)
+        throw new Error(`fault generator: ${view.question_id} has too few user turns to quote`);
+      const e = excerpt((base[i] as BaseWrite).turn.content);
+      if (quoted.has(e)) continue;
+      quoted.add(e);
+      return i;
+    }
   };
+  const said = (pool: readonly Template[], f: Fact, v: string) =>
+    pick(pool, rand, "template")(f.attribute, v);
 
   const ops = new Map<number, Op[]>();
   const place = (anchor: number, op: Op) => ops.set(anchor, [...(ops.get(anchor) ?? []), op]);
-  const marks: { key: string; subtype: Subtype; kind: FaultLabel["kind"]; related: string[] }[] =
-    [];
-  const mark = (key: string, subtype: Subtype, kind: FaultLabel["kind"], related: string[]) =>
-    marks.push({ key, subtype, kind, related });
+  const marks: {
+    key: string;
+    subtype: Subtype;
+    kind: FaultLabel["kind"];
+    related: string[];
+    variant: string | null;
+  }[] = [];
+  const mark = (
+    key: string,
+    subtype: Subtype,
+    kind: FaultLabel["kind"],
+    related: string[],
+    variant: string | null = null,
+  ) => marks.push({ key, subtype, kind, related, variant });
   const baseKey = (i: number) => `base/${i}`;
 
   const userFact = (key: string, content: string, over: Partial<Knowledge> = {}): WriteOp => ({
@@ -335,27 +366,37 @@ export async function faultState(
   for (let r = 0; r < opts.perQuestion; r++) {
     const k = (subtype: Subtype, kind: string, part: string) => `${subtype}/${r}/${kind}/${part}`;
     for (const subtype of SUBTYPE_IDS) {
+      const variants: readonly string[] = SUBTYPES[subtype].variants;
+      const variant = variants.length > 0 ? pick(variants, rand, "variant") : null;
       for (const kind of ["fault", "near-miss"] as const) {
         const fault = kind === "fault";
         const key = (part: string) => k(subtype, kind, part);
         switch (subtype) {
           case "expired-validity": {
+            // At the boundary (review finding L2-1): the fault's validity ends
+            // exactly at the lint time, which L1 counts as ended (valid_to not
+            // after it; past ttl at it); the near-miss's one millisecond later.
             const f = take(personal, "personal");
             const [v] = values(f) as [string];
+            const end = fault ? atMs : atMs + 1;
+            const text = said(STATEMENTS, f, v);
             place(pick(anchors, rand, "anchor"), {
               kind: "write",
               key: key("item"),
               actor: USER_WRITER,
               build: (ctx) => {
-                const from = Date.parse(ctx.at);
-                const to = fault ? from + Math.floor((atMs - from) / 2) : atMs + 30 * DAY_MS;
-                const until = iso(to).slice(0, 10);
-                return userFact(key("item"), bounded(f.attribute, v, until), {
-                  valid_to: iso(to),
+                if (variant === "valid_to")
+                  return userFact(key("item"), bounded(f.attribute, v, iso(end).slice(0, 10)), {
+                    valid_to: iso(end),
+                  }).build(ctx);
+                const ttl = ttlTo(Date.parse(ctx.at));
+                return userFact(key("item"), text, {
+                  ttl,
+                  valid_from: iso(end - ttl * 1000),
                 }).build(ctx);
               },
             });
-            mark(key("item"), subtype, kind, []);
+            mark(key("item"), subtype, kind, [], variant);
             break;
           }
           case "source-changed": {
@@ -382,11 +423,12 @@ export async function faultState(
               "anchor",
             );
             const j = pick(later(i), rand, "later anchor");
-            place(i, userFact(key("first"), statement(f.attribute, v1)));
-            // The near-miss's update keeps the value: it shares the attribute's
-            // words, so card L3's contradiction lint pairs and judges it too.
-            const then = fault ? update(f.attribute, v2) : unchanged(f.attribute, v1);
-            place(j, userFact(key("then"), then));
+            // No cue word (review finding L2-1): the later restatement comes
+            // from the same pool for a fault and its near-miss, so only the
+            // value tells them apart. It shares the attribute's words, so card
+            // L3's contradiction lint pairs and judges it.
+            place(i, userFact(key("first"), said(STATEMENTS, f, v1)));
+            place(j, userFact(key("then"), said(RESTATEMENTS, f, fault ? v2 : v1)));
             mark(key("first"), subtype, kind, [key("then")]);
             break;
           }
@@ -394,8 +436,8 @@ export async function faultState(
             const f = take(personal, "personal");
             const [v1, v2] = values(f) as [string, string];
             const i = pick(anchors, rand, "anchor");
-            place(i, userFact(key("first"), statement(f.attribute, v1)));
-            place(i, userFact(key("again"), restatement(f.attribute, fault ? v2 : v1)));
+            place(i, userFact(key("first"), said(STATEMENTS, f, v1)));
+            place(i, userFact(key("again"), said(RESTATEMENTS, f, fault ? v2 : v1)));
             mark(key("again"), subtype, kind, [key("first")]);
             break;
           }
@@ -439,29 +481,50 @@ export async function faultState(
               key: key("aside"),
               actor: USER_WRITER,
               build: (ctx) => {
-                const ttl = fault
-                  ? SHORT_TTL
-                  : Math.ceil((atMs - Date.parse(ctx.at)) / 1000) + 30 * 86_400;
-                return userFact(key("aside"), aside(f.attribute, v), {
+                // The near-miss's aside stays valid until one millisecond
+                // after the lint time (review finding L2-1).
+                const ttl = fault ? SHORT_TTL : ttlTo(Date.parse(ctx.at));
+                const from = fault ? ctx.at : iso(atMs + 1 - ttl * 1000);
+                return userFact(key("aside"), said(ASIDES, f, v), {
                   class: "episodic",
                   ttl,
+                  valid_from: from,
                 }).build(ctx);
               },
             });
-            place(i, noteOf(key("note"), key("aside"), note(f.attribute, v), true));
+            place(i, noteOf(key("note"), key("aside"), said(NOTES, f, v), true));
             if (fault) place(i, { kind: "sweep", after: key("aside") });
             mark(key("note"), subtype, kind, [key("aside")]);
             break;
           }
           case "unsupported-claim": {
+            // Four ways a claim says more than its source (review finding
+            // L2-1); the near-miss restates the aside, qualifier and all, in
+            // a note's other words.
             const f = take(personal, "personal");
-            const [v] = values(f) as [string];
+            const [v1, v2] = values(f) as [string, string];
+            const q = pick(QUALIFIERS, rand, "qualifier");
+            const sourceQualified = variant === "qualifier-dropped";
+            const sourceText = said(ASIDES, f, v1);
             const i = pick(anchors, rand, "anchor");
-            place(i, userFact(key("aside"), aside(f.attribute, v), { class: "episodic" }));
-            const g = fault ? take(personal, "personal") : f;
-            const [w] = fault ? (values(g) as [string]) : [v];
-            place(i, noteOf(key("note"), key("aside"), note(g.attribute, w), true));
-            mark(key("note"), subtype, kind, [key("aside")]);
+            place(
+              i,
+              userFact(key("aside"), sourceQualified ? qualified(sourceText, q) : sourceText, {
+                class: "episodic",
+              }),
+            );
+            let claim: string;
+            if (!fault) {
+              const restated = said(NOTES, f, v1);
+              claim = sourceQualified ? qualified(restated, q) : restated;
+            } else if (variant === "other-attribute") {
+              const g = take(personal, "personal");
+              claim = said(NOTES, g, (values(g) as [string])[0]);
+            } else if (variant === "other-value") claim = said(NOTES, f, v2);
+            else if (variant === "qualifier-dropped") claim = said(NOTES, f, v1);
+            else claim = qualified(said(NOTES, f, v1), q);
+            place(i, noteOf(key("note"), key("aside"), claim, true));
+            mark(key("note"), subtype, kind, [key("aside")], variant);
             break;
           }
         }
@@ -488,6 +551,7 @@ export async function faultState(
   };
   const medium = loadPreset("medium");
   let pastTtl = 0;
+  let b5Missing = 0;
   let calls = 0;
   const toolRef = () => `memory_write:${++calls}`;
   try {
@@ -498,6 +562,7 @@ export async function faultState(
           ? { ...turn, provenance: { ...turn.provenance, model: ASSISTANT_MODEL } }
           : turn;
       if (isExpired(medium, it, at)) pastTtl++;
+      if (missingProvenance(turn) !== null) b5Missing++;
       await land(turnActor(b.turn), it, b.at, baseKey(i));
       timeOfKey.set(baseKey(i), timeOf(i));
       for (const [slot, op] of (ops.get(i) ?? []).entries()) {
@@ -531,6 +596,7 @@ export async function faultState(
         m.kind,
         item(m.key),
         m.related.map((r) => item(r).id),
+        m.variant,
       ),
     );
     return {
@@ -547,6 +613,7 @@ export async function faultState(
         turns: base.length,
         assistant_turns: base.filter((b) => b.turn.role === "assistant").length,
         past_medium_ttl: pastTtl,
+        b5_missing_provenance: b5Missing,
         events: events.length,
       },
     };

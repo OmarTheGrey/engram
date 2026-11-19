@@ -12,7 +12,15 @@ import {
   type Policy,
 } from "@engram/core";
 import { describe, expect, test } from "vitest";
-import { checkState, checksPass, emptyCounts, lintState } from "../../scripts/fault-set-check.ts";
+import {
+  checkState,
+  checksPass,
+  emptyCounts,
+  inspectState,
+  isBaseItem,
+  modelUnits,
+} from "../../scripts/fault-set-check.ts";
+import { ASIDES, NOTES, QUALIFIERS, RESTATEMENTS, STATEMENTS } from "../../src/faults/bank.ts";
 import {
   type FaultSet,
   faultState,
@@ -24,9 +32,8 @@ import {
   writePolicy,
 } from "../../src/faults/generate.ts";
 import { FAULT_CLASSES, SUBTYPE_IDS, SUBTYPES } from "../../src/faults/labels.ts";
-import { modelReach } from "../../src/faults/reach.ts";
 import { historyWrites, readTime, USER } from "../../src/longmemeval/plane.ts";
-import { visibleQuestion } from "../../src/longmemeval/strip.ts";
+import { type VisibleQuestion, visibleQuestion } from "../../src/longmemeval/strip.ts";
 import { questions } from "../longmemeval/fixture.ts";
 
 const open: PlaneFactory = (policy, newId) => {
@@ -182,7 +189,7 @@ describe("the seeded-fault generator", () => {
           owner: it?.owner,
           confidence: it?.confidence,
           valid_to: it?.valid_to === null ? null : "set",
-          ttl: it?.ttl,
+          ttl: it?.ttl === null ? null : "set",
           version: it?.version,
           lineage: it?.lineage.length,
           "provenance.kind": it?.provenance.kind,
@@ -222,7 +229,7 @@ describe("the model tier of card L3 over the set (its rules, no model called)", 
   test("every contradiction label is a pair the lint sends, flagged on its later item", async () => {
     const set = await fixtureSet();
     for (const state of set.states) {
-      const reach = modelReach(state, set.policy);
+      const reach = modelUnits(state, set.policy);
       const mine = set.labels.filter(
         (l) =>
           l.question_id === state.question_id &&
@@ -243,7 +250,7 @@ describe("the model tier of card L3 over the set (its rules, no model called)", 
   test("every unsupported-claim label is a claim the lint sends; a gone or changed source is left to L1", async () => {
     const set = await fixtureSet();
     for (const state of set.states) {
-      const reach = modelReach(state, set.policy);
+      const reach = modelUnits(state, set.policy);
       const mine = set.labels.filter((l) => l.question_id === state.question_id);
       const of = (subtype: string, kind: string) =>
         mine.find((l) => l.subtype === subtype && l.kind === kind)?.item_id ?? "";
@@ -256,10 +263,10 @@ describe("the model tier of card L3 over the set (its rules, no model called)", 
 });
 
 describe("the deterministic lints of card L1 over the set (Plane.lint)", () => {
-  test("flag every keyed fault by its expected lint and no near-miss by the lint it is a near-miss of", async () => {
+  test("flag every keyed fault by its expected lint, no near-miss, and no injected item no label expects", async () => {
     const set = await fixtureSet();
     for (const state of set.states) {
-      const findings = await lintState(state, set.policy);
+      const { findings, items } = await inspectState(state, set.policy);
       const mine = set.labels.filter((l) => l.question_id === state.question_id);
       for (const l of mine) {
         const on = findings.filter((f) => f.item_id === l.item_id).map((f) => f.lint_id);
@@ -268,11 +275,12 @@ describe("the deterministic lints of card L1 over the set (Plane.lint)", () => {
         for (const lint of l.near_miss_of.deterministic)
           expect(on, `${state.question_id} ${l.subtype} near-miss`).not.toContain(lint);
       }
-      // Every finding of a lint a subtype expects is on a fault that expects it:
-      // the base state is clean for the lints the set measures.
-      const measured = new Set(SUBTYPE_IDS.flatMap((s) => SUBTYPES[s].lints.deterministic));
-      for (const f of findings.filter((x) => measured.has(x.lint_id as never))) {
-        const l = mine.find((x) => x.item_id === f.item_id);
+      // Every finding of every lint on an item the generator wrote is one a label expects;
+      // findings on LongMemEval's own items are counted, not failed (natural memory).
+      for (const f of findings) {
+        const it = items.get(f.item_id) as MemoryItem;
+        if (isBaseItem(it)) continue;
+        const l = mine.find((x) => x.finding_on === f.item_id);
         expect(
           l?.expected.deterministic,
           `${state.question_id} ${f.lint_id} on ${f.item_id}`,
@@ -281,14 +289,13 @@ describe("the deterministic lints of card L1 over the set (Plane.lint)", () => {
     }
   });
 
-  test("the set check counts every keyed fault flagged, and nothing else", async () => {
+  test("the set check counts every keyed fault flagged, base findings apart, and fails on an unexpected one", async () => {
     const set = await fixtureSet();
     const c = emptyCounts();
     for (const state of set.states)
       checkState(
-        await lintState(state, set.policy),
+        await inspectState(state, set.policy),
         set.labels.filter((l) => l.question_id === state.question_id),
-        modelReach(state, set.policy),
         c,
       );
     expect(c.states).toBe(views.length);
@@ -297,18 +304,201 @@ describe("the deterministic lints of card L1 over the set (Plane.lint)", () => {
     expect(c.model_near_misses).toBe(views.length * 3);
     expect(checksPass(c)).toBe(true);
     expect(checksPass({ ...c, near_misses_flagged: 1 })).toBe(false);
+    expect(checksPass({ ...c, unexpected_findings_on_injected_items: 1 })).toBe(false);
     expect(checksPass({ ...c, model_faults_sent: c.model_faults - 1 })).toBe(false);
+    // A finding on a base item is a count, never a failure.
+    expect(checksPass({ ...c, unlabelled_findings_on_base_items: { duplicate: 3 } })).toBe(true);
+  });
+
+  test("a finding on an injected item no label expects is counted as unexpected", async () => {
+    const set = await fixtureSet();
+    const state = set.states[0] as FaultSet["states"][number];
+    const check = await inspectState(state, set.policy);
+    const support = set.labels.find(
+      (l) => l.question_id === state.question_id && l.subtype === "conflict",
+    )?.related[0] as string;
+    const c = emptyCounts();
+    const forged = {
+      id: "01970000-0000-7000-8000-000000009999",
+      tier: "deterministic",
+      severity: "warn",
+      message: "forged",
+      evidence: [],
+      schema_version: 1,
+      item_id: support,
+      lint_id: "duplicate",
+    };
+    const mine = set.labels.filter((l) => l.question_id === state.question_id);
+    checkState({ ...check, findings: [...check.findings, forged as never] }, mine, c);
+    expect(c.unexpected_findings_on_injected_items).toBe(1);
   });
 
   test("find no unkeyed fault: what makes it faulty is only in item text", async () => {
     const set = await fixtureSet();
     for (const state of set.states) {
-      const findings = await lintState(state, set.policy);
-      const flagged = new Set(
-        findings.filter((f) => f.lint_id !== "duplicate").map((f) => f.item_id),
-      );
+      const { findings } = await inspectState(state, set.policy);
+      const flagged = new Set(findings.map((f) => f.item_id));
       for (const l of set.labels.filter((x) => x.question_id === state.question_id && !x.keyed))
         expect(flagged.has(l.item_id), `${l.subtype} ${l.kind}`).toBe(false);
     }
+  });
+});
+
+/** The index of the template of `pool` that wrote `content`, or -1. */
+function templateOf(pool: readonly ((a: string, v: string) => string)[], content: string): number {
+  return pool.findIndex((t) => {
+    const [head, tail] = t("\u0000A", "\u0000V").split("\u0000A") as [string, string];
+    const [mid, end] = tail.split("\u0000V") as [string, string];
+    return content.startsWith(head) && content.endsWith(end) && content.includes(mid);
+  });
+}
+
+const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/** The attribute and value a template of `pool` wrote into `text`, a qualifier aside; or null. */
+function parse(
+  pool: readonly ((a: string, v: string) => string)[],
+  text: string,
+): [string, string] | null {
+  const bare = text.replace(new RegExp(`, (${QUALIFIERS.map(escape).join("|")})\\.$`), ".");
+  for (const t of pool) {
+    const [head, tail] = t("\u0000A", "\u0000V").split("\u0000A") as [string, string];
+    const [mid, end] = tail.split("\u0000V") as [string, string];
+    const m = new RegExp(`^${escape(head)}(.+?)${escape(mid)}(.+)${escape(end)}$`).exec(bare);
+    if (m) return [m[1] as string, m[2] as string];
+  }
+  return null;
+}
+
+describe("the hardened near-misses (review L2-1, L2-2)", () => {
+  test("a validity ends exactly at the lint time for a fault and one millisecond after it for a near-miss, by valid_to and by ttl", async () => {
+    const set = await fixtureSet();
+    const seen = new Set<string>();
+    for (const state of set.states) {
+      const items = finalItems(state.events);
+      const at = Date.parse(state.at);
+      const end = (it: MemoryItem) =>
+        it.valid_to !== null
+          ? Date.parse(it.valid_to)
+          : Date.parse(it.valid_from) + (it.ttl as number) * 1000;
+      for (const l of set.labels.filter((x) => x.question_id === state.question_id)) {
+        if (l.subtype === "expired-validity") {
+          const it = items.get(l.item_id) as MemoryItem;
+          seen.add(l.variant as string);
+          expect(
+            l.variant === "ttl" ? it.ttl !== null && it.valid_to === null : it.valid_to !== null,
+          ).toBe(true);
+          expect(end(it) - at, `${l.variant} ${l.kind}`).toBe(l.kind === "fault" ? 0 : 1);
+        }
+        if (l.subtype === "orphan" && l.kind === "near-miss") {
+          const source = items.get(l.related[0] as string) as MemoryItem;
+          expect(end(source) - at).toBe(1);
+        }
+      }
+    }
+    expect(seen).toEqual(new Set(["valid_to", "ttl"]));
+  });
+
+  test("a supersession and a conflict differ from their near-misses only by the value, in templates the seed picks", async () => {
+    const set = await fixtureSet();
+    const used = { fault: new Set<number>(), "near-miss": new Set<number>() };
+    for (const state of set.states) {
+      const items = finalItems(state.events);
+      for (const l of set.labels.filter(
+        (x) =>
+          x.question_id === state.question_id &&
+          (x.subtype === "superseded" || x.subtype === "conflict"),
+      )) {
+        const [first, then] = [l.item_id, ...l.related]
+          .map((id) => items.get(id) as MemoryItem)
+          .sort((a, b) => (a.id < b.id ? -1 : 1)) as [MemoryItem, MemoryItem];
+        expect(String(then.content)).not.toMatch(/update:|\bstill\b/i);
+        expect(
+          templateOf(STATEMENTS, String(first.content)),
+          String(first.content),
+        ).toBeGreaterThanOrEqual(0);
+        const t = templateOf(RESTATEMENTS, String(then.content));
+        expect(t, String(then.content)).toBeGreaterThanOrEqual(0);
+        used[l.kind].add(t);
+      }
+    }
+    expect(used.fault.size).toBeGreaterThan(1);
+    expect(used["near-miss"].size).toBeGreaterThan(1);
+  });
+
+  test("an unsupported claim is another attribute, another value, or a qualifier dropped or added; its near-miss restates the aside", async () => {
+    const set = await fixtureSet();
+    const seen = new Set<string>();
+    for (const state of set.states) {
+      const items = finalItems(state.events);
+      for (const l of set.labels.filter(
+        (x) => x.question_id === state.question_id && x.subtype === "unsupported-claim",
+      )) {
+        const claim = String((items.get(l.item_id) as MemoryItem).content);
+        const source = String((items.get(l.related[0] as string) as MemoryItem).content);
+        const q = (text: string) => QUALIFIERS.find((x) => text.endsWith(`, ${x}.`));
+        const c = parse(NOTES, claim);
+        const s = parse(ASIDES, source);
+        expect(c, claim).not.toBeNull();
+        expect(s, source).not.toBeNull();
+        seen.add(l.variant as string);
+        const why = `${l.variant} ${l.kind}: ${source} / ${claim}`;
+        if (l.kind === "near-miss") expect([c, q(claim)], why).toEqual([s, q(source)]);
+        else if (l.variant === "other-attribute") expect(c?.[0], why).not.toBe(s?.[0]);
+        else if (l.variant === "other-value")
+          expect([c?.[0] === s?.[0], c?.[1] === s?.[1]], why).toEqual([true, false]);
+        else {
+          expect(c, why).toEqual(s);
+          const dropped = l.variant === "qualifier-dropped";
+          expect([q(source) !== undefined, q(claim) !== undefined], why).toEqual([
+            dropped,
+            !dropped,
+          ]);
+        }
+      }
+    }
+    expect(seen).toEqual(new Set(SUBTYPES["unsupported-claim"].variants));
+  });
+
+  test("a pair's variant is recorded on both its labels, and only subtypes with variants have one", async () => {
+    const set = await fixtureSet();
+    for (const l of set.labels) {
+      const variants: readonly string[] = SUBTYPES[l.subtype].variants;
+      if (variants.length === 0) expect(l.variant).toBeNull();
+      else expect(variants).toContain(l.variant);
+    }
+  });
+
+  test("no turn is quoted twice, even when two turns share their first sentence", async () => {
+    const shared = "Hi, I have a quick question about my plans for the weekend.";
+    const view: VisibleQuestion = {
+      question_id: "shared-first-sentence",
+      question: "What did I ask?",
+      question_date: "2023/05/30 (Tue) 10:00",
+      sessions: [0, 1, 2, 3].map((d) => ({
+        date: `2023/05/2${d} (Mon) 09:00`,
+        turns: [0, 1, 2, 3, 4, 5].flatMap((t) => [
+          {
+            role: "user" as const,
+            content:
+              t < 4
+                ? `${shared} Turn ${d}.${t}.`
+                : `Session ${d} turn ${t} asks about something else.`,
+          },
+          { role: "assistant" as const, content: `Answer ${d}.${t}.` },
+        ]),
+      })),
+    };
+    const { state, labels } = await faultState(view, { seed: SEED, perQuestion: 1 }, open);
+    const items = finalItems(state.events);
+    const quotes = labels
+      .filter((l) => l.subtype === "source-changed" || l.subtype === "missing-provenance")
+      .map((l) => String((items.get(l.item_id) as MemoryItem).content));
+    expect(quotes).toHaveLength(4);
+    expect(new Set(quotes).size).toBe(4);
+    expect(quotes.filter((q) => q.includes(shared)).length).toBeLessThanOrEqual(1);
+    const c = emptyCounts();
+    checkState(await inspectState(state, lintPolicy()), labels, c);
+    expect(c.unexpected_findings_on_injected_items).toBe(0);
   });
 });
