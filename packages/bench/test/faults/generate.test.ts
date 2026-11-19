@@ -364,7 +364,9 @@ function parse(
   for (const t of pool) {
     const [head, tail] = t("\u0000A", "\u0000V").split("\u0000A") as [string, string];
     const [mid, end] = tail.split("\u0000V") as [string, string];
-    const m = new RegExp(`^${escapeRegExp(head)}(.+?)${escapeRegExp(mid)}(.+)${escapeRegExp(end)}$`).exec(bare);
+    const m = new RegExp(
+      `^${escapeRegExp(head)}(.+?)${escapeRegExp(mid)}(.+)${escapeRegExp(end)}$`,
+    ).exec(bare);
     if (m) return [m[1] as string, m[2] as string];
   }
   return null;
