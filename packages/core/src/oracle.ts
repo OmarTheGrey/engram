@@ -444,3 +444,95 @@ export function promotionPermitted(
   if (source.class === "procedural" && source.status === "candidate") return false;
   return reviewed;
 }
+
+// Card E9.5: the oracle's own replay of a log, and its reading of who may
+// change what an item's grants admit, for the twin dogfood's violation
+// report (src/dogfood.ts). Written apart from events.ts and policy/.
+
+/** The provenance kinds `writeForbidden` reads as untrusted: never granted, never outside person scope. */
+export const UNTRUSTED_KINDS: readonly MemoryItem["provenance"]["kind"][] = [
+  "model",
+  "compaction",
+  "external",
+];
+
+/**
+ * The oracle's own replay of one event onto `state`, by item id: an allowed
+ * write, update or promote sets its item; an allowed retire or evict retires
+ * it; an allowed erasure (an offboarding's `engram/offboard/erase`, ADR 0010)
+ * removes it. Any other event, and every denial, changes nothing.
+ */
+export function replayEvent(state: Map<string, MemoryItem>, e: MemoryEvent): void {
+  if (e.decision !== "allow" || e.item_id === null) return;
+  if ((e.op === "write" || e.op === "update" || e.op === "promote") && e.item) {
+    state.set(e.item_id, e.item);
+    return;
+  }
+  if (e.op !== "retire" && e.op !== "evict") return;
+  if (e.op === "retire" && e.policy_id === "engram/offboard/erase") {
+    state.delete(e.item_id);
+    return;
+  }
+  const was = state.get(e.item_id);
+  if (was) state.set(e.item_id, { ...was, status: "retired" });
+}
+
+/**
+ * The version an allowed event's item changes: the item of the same id in
+ * `state`, or, for a promotion's new version under a fresh id, the source
+ * its lineage names first (ADR 0026), whose grants it carries.
+ */
+export function priorVersion(
+  state: ReadonlyMap<string, MemoryItem>,
+  e: MemoryEvent,
+): MemoryItem | undefined {
+  if (!e.item) return undefined;
+  const same = state.get(e.item.id);
+  if (same || e.op !== "promote") return same;
+  const source = e.item.lineage[0];
+  return source === undefined ? undefined : state.get(source);
+}
+
+/** The grants of `b` pair one to one with those of `a`, alike (`grantsAlike`). */
+function sameGrants(a: readonly Grant[], b: readonly Grant[]): boolean {
+  if (a.length !== b.length) return false;
+  const left = [...a];
+  for (const g of b) {
+    const k = left.findIndex((h) => grantsAlike(g, h));
+    if (k === -1) return false;
+    left.splice(k, 1);
+  }
+  return true;
+}
+
+/**
+ * Does `after` change what its item's grants admit, given the version before
+ * it (undefined for a new item)? When its grants differ from the version
+ * before as multisets (none before a new item), or when its class differs
+ * while the version before carried grants: a grant admits reads of its own
+ * class only, so a class change switches a grant on or off (ADR 0034,
+ * decision 6, findings I1 and V-4 of PR #44).
+ */
+export function grantsChanged(before: MemoryItem | undefined, after: MemoryItem): boolean {
+  const prev = before?.grants ?? [];
+  if (!sameGrants(prev, after.grants)) return true;
+  return before !== undefined && prev.length > 0 && before.class !== after.class;
+}
+
+/**
+ * May the allowed event `e` change what its item's grants admit, given the
+ * version before it? Only its owner may (the version before's owner; a new
+ * item's owner as written, ADR 0006): by a grant change
+ * (`engram/grant/change`, user-sourced at the gate, ADR 0034, decision 2;
+ * the event does not record the source), or by the owner's own write that
+ * the log records as user or import sourced (decision 6). No other operation
+ * changes grants: not a handover, a promotion or a retirement.
+ */
+export function grantChangePermitted(before: MemoryItem | undefined, e: MemoryEvent): boolean {
+  if (e.decision !== "allow" || !e.item) return true;
+  const owner = before?.owner ?? e.item.owner;
+  if (e.actor !== owner) return false;
+  if (e.op === "write")
+    return e.item.provenance.kind === "user" || e.item.provenance.kind === "import";
+  return e.op === "update" && e.policy_id === "engram/grant/change";
+}
