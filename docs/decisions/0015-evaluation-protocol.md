@@ -32,6 +32,10 @@ Amendments made by the Gate B plan, 2026-10-29 (`docs/tasks/gate-b-plan.md`, dec
 
 - The poisoning arm runs on MEM-INV-Bench, chosen and dated 2026-10-29 (ADR 0029), since MPBench has no release; it is registered when the pre-registration leaves the backlog.
 
+Amendment, 2026-11-19, accepted by the lead (his answer to decision sheet item 16 of `docs/research/prereg-v1-decisions.md`):
+
+- H1's label audit is done by three members, Omar, Mohamad and Shady, not two (`research/configs/label-audit.json`; `docs/log/2026-11-19-lead-decision-16-three-members.md`). An item is rejected when at least two of the three reject it, and the agreement reports Cohen's kappa for each pair of members and Fleiss' kappa over the three (`research/scripts/label_audit_agreement.py`, `docs/research/label-audit.md`). The two-of-three rule and the kappas are the orchestrator's, for the lead to confirm (`docs/log/2026-11-19-orch-decision-two-of-three.md`). The stopping threshold is unchanged: a benchmark's runs wait for an amendment when more than 10 percent of its audited items are rejected.
+
 ## Alternatives considered
 
 No alternatives were recorded beyond the recommendation.
