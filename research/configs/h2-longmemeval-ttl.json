@@ -1,0 +1,18 @@
+{
+  "name": "h2-longmemeval-ttl",
+  "kind": "measurement",
+  "hypothesis": "H2",
+  "benchmark": "longmemeval",
+  "data": {
+    "path": ".engram/upstream/longmemeval/data/longmemeval_s_cleaned.json",
+    "dataset": "https://huggingface.co/datasets/xiaowu0162/longmemeval-cleaned",
+    "revision": "98d7416c24c778c2fee6e6f3006e7a073259d48f",
+    "file": "longmemeval_s_cleaned.json",
+    "sha256": "d6f21ea9d60a0d56f34a05b609c79c88a451d2ae03597821ea3d5a9678c3a442"
+  },
+  "fetch": true,
+  "presets": ["medium", "strict", "permissive"],
+  "primary": { "preset": "medium", "clock": "read_time" },
+  "real_time": "2026-11-19T00:00:00.000Z",
+  "l2": "research/results/h3-fault-set.json"
+}

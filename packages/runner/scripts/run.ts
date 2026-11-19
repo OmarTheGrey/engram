@@ -15,8 +15,8 @@
 // pi-ai's built-in providers and record into a new cassette directory outside
 // the committed fixtures (src/live.ts); refused under ENGRAM_OFFLINE=1. With
 // --replay --model <provider/model-id> (`REPLAY=1`), the same directory is
-// replayed, offline allowed, every miss an error. Both serve GateMem and
-// MEM-INV-Bench configs alike (card X1, plan decision 5). No live run
+// replayed, offline allowed, every miss an error. Both serve GateMem,
+// MEM-INV-Bench (card X1, plan decision 5) and LongMemEval (card B6) configs. No live run
 // happens before the pre-registration is tagged (`prereg-v1`): it is the
 // lead's step once the primary model is named and its key supplied.
 //
@@ -71,6 +71,8 @@ import {
 } from "../src/live.ts";
 import {
   isLongMemEvalConfig,
+  type LongMemEvalRunnerOptions,
+  longMemEvalJudge,
   readLongMemEvalConfig,
   runLongMemEvalConfig,
   writeLongMemEvalResult,
@@ -141,30 +143,54 @@ function eventCounts(events: readonly { op: string; decision: string }[]): strin
 }
 
 /**
- * A LongMemEval config (card B5, the engineering half): replayed from its
- * cassettes or recorded from its script. Its live baseline waits for the
- * pre-registration, so --live, --replay and --count are refused for it.
+ * A LongMemEval config (card B5, the engineering half; card B6). A pipeline
+ * config replays its cassettes or records them from its script (--record).
+ * An experiment config (H2's baselines, research/configs/h2-longmemeval-*.json)
+ * runs on a named model (--live), replays that run (--replay), or is counted
+ * (--count), as H1's do; the live run is the lead's step once the
+ * pre-registration is tagged and the key supplied.
  */
 async function runLongMemEval(path: string, out: string, flags: Flags): Promise<Outcome> {
-  if (flags.live || flags.replay || flags.count) {
+  let config = readLongMemEvalConfig(path);
+  const named = flags.live || flags.replay;
+  if (flags.count) return countOne(config, out);
+  if (config.kind === "experiment" && !named) {
     console.error(
-      "run.ts: a LongMemEval config runs offline from its cassettes or with --record only; its live baseline (card B5) waits for the pre-registration",
+      `run.ts: ${config.name} is an experiment config: it runs on a named model (MODEL=<provider/model> LIVE=1), replays that run (MODEL=<provider/model> REPLAY=1), or is counted (COUNT=1)`,
     );
     return FAILED;
   }
-  const config = readLongMemEvalConfig(path);
-  if (config.kind === "experiment") {
-    console.error(
-      `run.ts: ${config.name} is an experiment config; no LongMemEval experiment is registered`,
-    );
-    return FAILED;
+  let options: LongMemEvalRunnerOptions = { offline: !flags.record };
+  if (named) {
+    const request = {
+      model: flags.model as string,
+      repo: REPO,
+      ...(flags.cassettes === undefined ? {} : { cassettes: resolve(flags.cassettes) }),
+    };
+    try {
+      // The guards first, so a refused run reads no data and creates no folder.
+      config = flags.live ? liveConfig(config, request) : replayConfig(config, request);
+      if (config.kind === "experiment") await ensurePinnedData(config);
+      options = flags.live ? liveOptions(config, builtinLiveModels()) : replayOptions(config);
+    } catch (e) {
+      if (e instanceof LiveRunRefused) {
+        console.error(e.message);
+        return FAILED;
+      }
+      throw e;
+    }
   }
-  const result = await runLongMemEvalConfig(config, { offline: !flags.record });
+  const how = flags.live
+    ? ` (recorded into ${config.cassettes})`
+    : flags.replay
+      ? ` (replayed from ${config.cassettes})`
+      : "";
+  const result = await runLongMemEvalConfig(config, options);
   writeLongMemEvalResult(result, out);
   const items = config.items === "all" ? "all" : `${config.items.length}`;
   const lines = [
     `${config.name}: ${result.rows.length} sessions (${items} items x ${config.conditions.join(", ")} x stores ${configStores(config).join(", ")} x seeds ${config.seeds.join(", ")}), model ${config.model}, preset ${config.preset}`,
-    `model calls: ${result.calls.new} new, ${result.calls.cached} from cassettes`,
+    `model calls: ${result.calls.new} new, ${result.calls.cached} from cassettes${how}`,
     ...result.rows.map((r) => {
       const writes = Object.entries(r.writes)
         .map(([d, n]) => `${d} ${n}`)
@@ -177,8 +203,8 @@ async function runLongMemEval(path: string, out: string, flags: Flags): Promise<
     ),
     runFooter(
       config.kind,
-      false,
-      config.judge ? "the answer judge" : "no judge; the config names none",
+      named,
+      longMemEvalJudge(config) ? "the answer judge" : "no judge; the config names none",
     ),
     `written to ${out}`,
   ];
@@ -329,6 +355,18 @@ async function runFaultSet(path: string, out: string, flags: Flags): Promise<Out
   return { code: 0, sessions: result.rows.length, calls: result.calls };
 }
 
+/** COUNT=1: the config's sessions into count.json in `out`; no model, no cassette. */
+async function countOne(config: AnyRunnerConfig, out: string): Promise<Outcome> {
+  const counted = await countConfig(config, { fetch: true, log: (l) => console.log(l) });
+  // Paths relative to the repository, so count.json names no machine.
+  const dir = relative(REPO, counted.data.dir).replaceAll("\\", "/");
+  const count = { ...counted, data: { ...counted.data, dir } };
+  mkdirSync(out, { recursive: true });
+  writeFileSync(join(out, "count.json"), `${JSON.stringify(count, null, 2)}\n`);
+  console.log([...countLines(count), `written to ${join(out, "count.json")}`].join("\n"));
+  return { code: 0, sessions: count.sessions, calls: { new: 0, cached: 0 } };
+}
+
 /** Run, replay, record or count one config into `out`. */
 async function runOne(path: string, out: string, flags: Flags): Promise<Outcome> {
   if (isLongMemEvalConfig(path)) return runLongMemEval(path, out, flags);
@@ -338,16 +376,7 @@ async function runOne(path: string, out: string, flags: Flags): Promise<Outcome>
   let config: AnyRunnerConfig = "gatemem" in read ? read.gatemem : read.memInv;
   const named = flags.live || flags.replay;
 
-  if (flags.count) {
-    const counted = await countConfig(config, { fetch: true, log: (l) => console.log(l) });
-    // Paths relative to the repository, so count.json names no machine.
-    const dir = relative(REPO, counted.data.dir).replaceAll("\\", "/");
-    const count = { ...counted, data: { ...counted.data, dir } };
-    mkdirSync(out, { recursive: true });
-    writeFileSync(join(out, "count.json"), `${JSON.stringify(count, null, 2)}\n`);
-    console.log([...countLines(count), `written to ${join(out, "count.json")}`].join("\n"));
-    return { code: 0, sessions: count.sessions, calls: { new: 0, cached: 0 } };
-  }
+  if (flags.count) return countOne(config, out);
   if (config.kind === "experiment" && !named) {
     console.error(
       `run.ts: ${config.name} is an experiment config: it runs on a named model (MODEL=<provider/model> LIVE=1), replays that run (MODEL=<provider/model> REPLAY=1), or is counted (COUNT=1)`,

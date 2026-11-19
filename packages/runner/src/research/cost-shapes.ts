@@ -16,6 +16,10 @@
 // - `gatememPromptChars`: the system and user prompt a GateMem probe sends,
 //   per checkpoint (gatemem-probe.ts `probeInputs`), so the prompt part of a
 //   fixture session can be scaled to the full set's.
+// - `longMemEvalPromptChars`: the same per LongMemEval question (card B6, for
+//   research/scripts/h2_longmemeval_cost.py): the reader prompt a probe sends
+//   (longmemeval-probe.ts), the judge prompt with an empty answer, and what
+//   C2's and C5's reads show for the question's own text.
 // - `catalogueEntry`: a candidate model as pi-ai's built-in catalogue at the
 //   pinned version resolves it (live.ts `builtinLiveModels`, the resolver a
 //   live run uses), its prices per million tokens, and whether the runner's
@@ -26,11 +30,12 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { estimateTokens } from "@earendil-works/pi-coding-agent";
-import { gatemem } from "@engram/bench";
-import type { Policy } from "@engram/core";
+import { gatemem, longMemEval } from "@engram/bench";
+import { evaluateRead, type MemoryItem, type Policy, retrieve } from "@engram/core";
 import type { CacheEntry } from "@engram/model";
 import type { LiveModels } from "../answers.ts";
-import { probeInputs, sequentialIds } from "../gatemem-probe.ts";
+import { READ_LIMIT } from "../conditions.ts";
+import { MEMORY_BLOCK, probeInputs, sequentialIds } from "../gatemem-probe.ts";
 import { SEEDED_APIS } from "../model/cassette.ts";
 import { walkLists } from "./c4-evidence.ts";
 
@@ -221,6 +226,58 @@ export function gatememPromptChars(
       };
     }),
   );
+}
+
+/**
+ * Per LongMemEval question (card B6): the characters of the system and user
+ * prompt a probe sends (the reader template with the memory placeholder,
+ * longmemeval-probe.ts); the history's turns and their characters; the
+ * characters of the judge's prompt with an empty answer (prompt.ts
+ * `renderJudgePrompt`, which holds the answer, as upstream's judge sees it);
+ * and, per condition, how many items its read shows for the question's own
+ * text and their characters. C2 is the shared pipeline's top `readLimit` of
+ * every turn (conditions.ts ungovernedRead); C5 is the same pipeline over the
+ * turns core's evaluateRead admits under `policy` at B5's read time, which is
+ * what C5's plane returns with the core pipeline (its candidates are the
+ * reachable items holding a query term, filtered, then ranked and cut; the
+ * test holds the two equal). The items are B5's (plane.ts historyWrites) from
+ * the visible question; the category is a label, read only to group sizes.
+ */
+export function longMemEvalPromptChars(
+  path: string,
+  policy: Policy,
+  readLimit: number = READ_LIMIT,
+): {
+  question_id: string;
+  category: string;
+  chars: number;
+  turns: number;
+  turn_chars: number;
+  judge_chars: number;
+  shown: Record<"C2" | "C5", { items: number; chars: number }>;
+}[] {
+  const text = (i: MemoryItem) => (typeof i.content === "string" ? i.content : "");
+  return longMemEval.loadQuestions(path).map((q) => {
+    const view = longMemEval.visibleQuestion(q);
+    const items = longMemEval.historyWrites(view, sequentialIds()).map((w) => w.item);
+    const at = longMemEval.readTime(view);
+    const reader = longMemEval.userActor();
+    const admitted = items.filter((i) => evaluateRead(policy, reader, i, at).admitted);
+    const shown = (list: MemoryItem[]) => {
+      const top = retrieve(list, view.question, at, readLimit);
+      return { items: top.length, chars: top.reduce((n, r) => n + text(r.item).length, 0) };
+    };
+    const { system, user } = longMemEval.renderReaderPrompt(view, MEMORY_BLOCK);
+    return {
+      question_id: q.question_id,
+      category: longMemEval.categoryOf(q),
+      chars: system.length + user.length,
+      turns: items.length,
+      turn_chars: items.reduce((n, i) => n + text(i).length, 0),
+      judge_chars: longMemEval.renderJudgePrompt(q, "").length,
+      shown: { C2: shown(items), C5: shown(admitted) },
+    };
+  });
 }
 
 export interface CatalogueEntry {

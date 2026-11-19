@@ -2,11 +2,16 @@
 // PR 4, part A, deliverable 1): token estimates of each cassette call, the
 // calls grouped into sessions, the GateMem prompt sizes, and the candidate
 // models as pi-ai's catalogue and the runner's seeded-API rule see them.
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { estimateTokens } from "@earendil-works/pi-coding-agent";
-import { canonicalJson, loadPreset } from "@engram/core";
+import { createFakeAdapter } from "@engram/adapters";
+import { longMemEval } from "@engram/bench";
+import { canonicalJson, createPlane, loadPreset, migrate, openSqlite } from "@engram/core";
 import type { CacheEntry } from "@engram/model";
 import { describe, expect, test } from "vitest";
+import { sequentialIds } from "../../src/gatemem-probe.ts";
 import { builtinLiveModels } from "../../src/live.ts";
 import {
   callShape,
@@ -14,6 +19,7 @@ import {
   catalogueSnapshot,
   decodeMessage,
   gatememPromptChars,
+  longMemEvalPromptChars,
   sessionShapes,
 } from "../../src/research/cost-shapes.ts";
 
@@ -224,5 +230,78 @@ describe("the candidate models, as pi-ai 1.3.0's catalogue and the runner see th
       generated_at: "2026-10-15T19:00:55.287Z",
       openrouter_sha256: "d303cf8e4ad2cfd322ea5fc8c9e617d46b21d36d9ebe0454be26ae92d91440aa",
     });
+  });
+});
+
+// Card B6: LongMemEval's prompt and read sizes for H2's cost table.
+describe("LongMemEval's prompt and read sizes", () => {
+  const FIXTURE = join(REPO, "fixtures/bench/longmemeval");
+
+  test("C5's list is what C5's plane returns for the question, through Plane.write and the core read", async () => {
+    const policy = loadPreset("medium");
+    const sizes = longMemEvalPromptChars(FIXTURE, policy, 20);
+    expect(sizes).toHaveLength(20);
+    for (const q of longMemEval.loadQuestions(FIXTURE)) {
+      const view = longMemEval.visibleQuestion(q);
+      const newId = sequentialIds();
+      const db = openSqlite(":memory:");
+      migrate(db);
+      const adapter = createFakeAdapter();
+      const plane = createPlane({ db, adapter, policy, newId });
+      await longMemEval.writePhase(plane, view, newId);
+      const core = createPlane({
+        db,
+        adapter,
+        policy,
+        newId,
+        retrieval: { pipeline: "core", limit: 20 },
+      });
+      const read = await core.read(longMemEval.userActor(), {
+        text: view.question,
+        at: longMemEval.readTime(view),
+      });
+      const chars = read.items.reduce((n, i) => n + String(i.content).length, 0);
+      const s = sizes.find((x) => x.question_id === q.question_id);
+      expect(s?.shown.C5).toEqual({ items: read.items.length, chars });
+      expect(s?.shown.C2.items).toBeGreaterThanOrEqual(s?.shown.C5.items ?? 0);
+      expect(s?.judge_chars).toBe(longMemEval.renderJudgePrompt(q, "").length);
+      db.close();
+    }
+  });
+
+  test("C5's list leaves out the turns past preset medium's ttl at B5's read time; C2's keeps them", () => {
+    const turns = (answer = false) => [
+      {
+        role: "user",
+        content: "I graduated with a degree in Business Administration.",
+        has_answer: answer,
+      },
+      { role: "assistant", content: "Congratulations on your degree." },
+    ];
+    const question = {
+      question_id: "q-clock",
+      question_type: "single-session-user",
+      question: "What degree did I graduate with?",
+      answer: "Business Administration",
+      question_date: "2023/05/10 (Wed) 12:00",
+      haystack_dates: [
+        "2023/02/08 (Wed) 12:00",
+        "2023/04/06 (Thu) 12:00",
+        "2023/05/05 (Fri) 12:00",
+      ],
+      haystack_session_ids: ["answer_q_1", "s_2", "s_3"],
+      haystack_sessions: [turns(true), turns(), turns()],
+      answer_session_ids: ["answer_q_1"],
+    };
+    const file = join(mkdtempSync(join(tmpdir(), "engram-lme-sizes-")), "q.jsonl");
+    writeFileSync(
+      file,
+      `${JSON.stringify(question)}
+`,
+    );
+    const [s] = longMemEvalPromptChars(file, loadPreset("medium"), 20);
+    expect(s?.shown.C2.items).toBe(6);
+    expect(s?.shown.C5.items).toBe(4);
+    expect(s?.turns).toBe(6);
   });
 });

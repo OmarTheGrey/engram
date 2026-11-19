@@ -1,10 +1,16 @@
+import { createHash } from "node:crypto";
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, test } from "vitest";
 import { CATEGORIES, PER_CATEGORY, selectQuestions } from "../../scripts/vendor-longmemeval.ts";
 import { findQuestion, loadQuestions } from "../../src/longmemeval/load.ts";
-import { checkLongMemEvalData } from "../../src/longmemeval/pinned.ts";
+import {
+  checkLongMemEvalData,
+  LONGMEMEVAL_S,
+  LONGMEMEVAL_UPSTREAM,
+} from "../../src/longmemeval/pinned.ts";
 import { categoryOf, isAbstention } from "../../src/longmemeval/schema.ts";
 import { FIXTURE, questions } from "./fixture.ts";
 
@@ -50,5 +56,57 @@ describe("the vendored LongMemEval subset", () => {
 
   test("findQuestion names a missing id", () => {
     expect(() => findQuestion(questions, "nope")).toThrow("no LongMemEval question nope");
+  });
+});
+
+// Card B6: the experiment configs read upstream's cleaned S split as it is
+// published, one JSON array (longmemeval_s_cleaned.json), and a research
+// script's parts as JSON Lines files.
+describe("the loader on a data file, and the pinned S split", () => {
+  const records = readFileSync(join(FIXTURE, "questions.jsonl"), "utf8")
+    .split("\n")
+    .filter((l) => l.trim() !== "")
+    .map((l) => JSON.parse(l) as unknown);
+
+  test("reads a JSON array file and a JSON Lines file as the directory form reads them", () => {
+    const dir = mkdtempSync(join(tmpdir(), "engram-lme-"));
+    writeFileSync(join(dir, "s.json"), JSON.stringify(records));
+    writeFileSync(join(dir, "part.jsonl"), records.map((r) => `${JSON.stringify(r)}\n`).join(""));
+    const ids = questions.map((q) => q.question_id);
+    expect(loadQuestions(join(dir, "s.json")).map((q) => q.question_id)).toEqual(ids);
+    expect(loadQuestions(join(dir, "part.jsonl")).map((q) => q.question_id)).toEqual(ids);
+  });
+
+  test("a JSON array file is refused on a record the schema refuses, naming its index", () => {
+    const dir = mkdtempSync(join(tmpdir(), "engram-lme-"));
+    writeFileSync(join(dir, "s.json"), JSON.stringify([records[0], { question_id: "x" }]));
+    expect(() => loadQuestions(join(dir, "s.json"))).toThrow(/s\.json\[1\]/);
+  });
+
+  test("a file is the full set only when its sha256 is the pinned S split's", () => {
+    const dir = mkdtempSync(join(tmpdir(), "engram-lme-"));
+    const file = join(dir, "s.json");
+    writeFileSync(file, JSON.stringify(records));
+    const digest = createHash("sha256").update(readFileSync(file)).digest("hex");
+    expect(checkLongMemEvalData(file).set).toBe("unpinned");
+    expect(checkLongMemEvalData(file, { sSha256: digest })).toEqual({
+      set: "full",
+      commit: LONGMEMEVAL_UPSTREAM.dataset_revision,
+    });
+    expect(checkLongMemEvalData(join(dir, "missing.json")).set).toBe("unpinned");
+  });
+
+  test("the S split's pinned hash is the one card L2's fault-set config checks the file against", () => {
+    const config = JSON.parse(
+      readFileSync(
+        fileURLToPath(new URL("../../../../research/configs/h3-fault-set.json", import.meta.url)),
+        "utf8",
+      ),
+    ) as { data: { file: string; sha256: string; revision: string } };
+    expect(config.data).toMatchObject({
+      file: LONGMEMEVAL_S.file,
+      sha256: LONGMEMEVAL_S.sha256,
+      revision: LONGMEMEVAL_UPSTREAM.dataset_revision,
+    });
   });
 });

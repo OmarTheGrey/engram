@@ -1,0 +1,47 @@
+{
+  "name": "h2-longmemeval-cost",
+  "kind": "measurement",
+  "hypothesis": "H2",
+  "benchmark": "longmemeval",
+  "preset": "medium",
+  "read_limit": 20,
+  "arms": {
+    "c2": { "config": "research/configs/h2-longmemeval-c2.json", "condition": "C2" },
+    "c5-medium": { "config": "research/configs/h2-longmemeval-c5-medium.json", "condition": "C5" }
+  },
+  "cassettes": "fixtures/cassettes/b5-longmemeval-plane",
+  "fixture_data": "fixtures/bench/longmemeval",
+  "fixture_judge": "scripted/judge-1",
+  "data": {
+    "path": ".engram/upstream/longmemeval/data/longmemeval_s_cleaned.json",
+    "dataset": "https://huggingface.co/datasets/xiaowu0162/longmemeval-cleaned",
+    "revision": "98d7416c24c778c2fee6e6f3006e7a073259d48f",
+    "file": "longmemeval_s_cleaned.json",
+    "sha256": "d6f21ea9d60a0d56f34a05b609c79c88a451d2ae03597821ea3d5a9678c3a442"
+  },
+  "fetch": true,
+  "candidates_from": "research/configs/h1-cost.json",
+  "estimates": {
+    "low": {
+      "token_scale": 1.0,
+      "extra_read_turns": 0,
+      "reasoning_tokens_per_call": { "off_honoured": 0, "off_ignored": 256 }
+    },
+    "high": {
+      "token_scale": 1.333333,
+      "extra_read_turns": 2,
+      "reasoning_tokens_per_call": { "off_honoured": 1024, "off_ignored": 4096 }
+    }
+  },
+  "assumptions": [
+    "The sizes are the two baseline configs as COUNT=1 counts them: 500 questions of the cleaned S split, one condition each, three seeds, store Mem0; the judge makes one call per session, as upstream's evaluate_qa.py does, and HTTP retries are not counted.",
+    "Tokens are pi's own estimate, characters over four (pi-coding-agent estimateTokens); the high estimate counts three characters per token (token_scale 4/3) for JSON, ids and non-English text.",
+    "The fixture cassettes (B5's, on the oracle subset, store Mem0) fix one memory read and one answer per session; the high estimate lets a live model make two more reads, each repeating the session so far and a read as large as the first.",
+    "Memory per read on the full set: the question's own text as the query, the shared pipeline's top 20 (C2 over every turn; C5 over the turns preset medium admits at B5's read time, so the turns its 90-day ttl hides are not shown: research/results/h2-longmemeval-ttl.json). A live model writes its own query, which may match more or fewer turns.",
+    "Tokens per item are the fixture reads', moved by the difference between the S split's characters per shown item and the fixture's, over four; the reader prompt and the judge's prompt move from the fixture questions' size to the S split's mean the same way.",
+    "Answers and the judge's verdict are as long as the scripted ones; a live answer may be longer, and it is in the judge's prompt, which the high estimate's token scale covers only in part.",
+    "The runner asks for thinking off (packages/runner/src/conditions.ts); what pi-ai 1.3.0 then sends each candidate is as research/results/h1-cost.json states it. Reasoning output tokens per answer call, where off is honoured: 0 (low) and 1,024 (high); where it is ignored: 256 (low, a floor assumed, not measured) and 4,096 (high). None for the judge (GPT-4o has no reasoning). Each candidate reports what 1,000 reasoning tokens per answer call cost.",
+    "The candidates are H1's (research/configs/h1-cost.json), since decision sheet item 1, the three models, is open; the judge is the paper's model, gpt-4o-2024-08-06, through OpenRouter's seeded chat completions.",
+    "No prompt caching, batch discount or provider minimum is assumed; prices are list prices from the catalogue, not a quote, and a price the script flags as a likely catalogue anomaly is used as listed."
+  ]
+}
