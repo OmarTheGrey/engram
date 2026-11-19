@@ -88,7 +88,8 @@ dict:
   C5): its item count `n`, the (item, seed) sessions dropped because either
   condition excluded or lacked them, mean difference, BCa and percentile
   intervals, one-sided p-value, z0 and acceleration. Only the tested contrast
-  enters a decision.
+  enters a decision. Table version 3 adds `effect` to each contrast, its
+  effect sizes, proposed and not registered (`analysis.effects`, card X4).
 - `primary`, `holm` and `decision`: see `decide_h1`; in the main table
   only.
 - `gate_by_action`: the config's setting, which every session must share:
@@ -145,11 +146,12 @@ from analysis.bootstrap import (
     paired_bootstrap,
     paired_item_differences,
 )
+from analysis.effects import relative_reduction
 from analysis.holm import HYPOTHESES, holm, interim_bound
 from analysis.wilson import wilson
 
 SESSIONS_SCHEMA = "h1-sessions/2"
-TABLE_SCHEMA = "h1-table/2"
+TABLE_SCHEMA = "h1-table/3"
 BENCHMARKS = ("gatemem", "mem-inv-bench")
 CONDITIONS = ("C2", "C3", "C4", "C5")
 FIELDS = ("benchmark", "model", "store", "preset", "condition", "item", "seed", "violation")
@@ -442,6 +444,13 @@ def _rates_and_contrasts(
                     "tested": name == config.tested,
                     "seeds_dropped": len(either) - len(kept),
                     **asdict(result),
+                    "effect": relative_reduction(
+                        first,
+                        second,
+                        seed=_seed_for(config.seed, benchmark, model, name, "effect", tag),
+                        resamples=config.resamples,
+                        confidence=config.confidence,
+                    ),
                 }
             )
 
