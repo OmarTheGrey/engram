@@ -106,6 +106,26 @@ describe("parseLintReply", () => {
         reason: null,
       });
   });
+  test("adversarial replies, as the parser is pre-registered to read them (review L3-6)", () => {
+    const parse = (text: string) => parseLintReply("contradiction", text).outcome;
+    // Extra fields are accepted.
+    expect(parse(JSON.stringify({ verdict: "contradiction", reason: "r", confidence: 0.2 }))).toBe(
+      "flag",
+    );
+    // A flag embedded in prose is malformed.
+    expect(parse(`The answer is ${reply("contradiction")}`)).toBe("malformed");
+    // Two JSON objects are malformed.
+    expect(parse(`${reply("contradiction")}\n${reply("consistent")}`)).toBe("malformed");
+    // With a duplicated verdict key the last one wins, as JSON.parse reads it.
+    expect(parse('{"verdict": "consistent", "verdict": "contradiction", "reason": "r"}')).toBe(
+      "flag",
+    );
+    expect(parse('{"verdict": "contradiction", "verdict": "consistent", "reason": "r"}')).toBe(
+      "pass",
+    );
+    // Text after a code fence is malformed.
+    expect(parse(`\`\`\`json\n${reply("contradiction")}\n\`\`\`\nI am sure.`)).toBe("malformed");
+  });
   test("a missing or non-text reason is kept as none; a long one is collapsed and clipped", () => {
     expect(parseLintReply("contradiction", JSON.stringify({ verdict: "consistent" }))).toEqual({
       outcome: "pass",
