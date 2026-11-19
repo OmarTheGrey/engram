@@ -19,9 +19,10 @@ carry each fault fixture's labels beside what the lints found:
   malformed), item-level true and false positives and false negatives against
   the fixture's flags (item level: a labelled item flagged through the wrong
   pair, say a contradiction with an item it agrees with, still counts as a
-  true positive; the unit accuracy below is judged per pair), precision, recall, the flag rate among judged units,
-  the unjudged rate (refused or malformed among units) and the unit accuracy
-  (judged units whose verdict is the fixture's declared one);
+  true positive; the unit accuracy below is judged per pair), precision,
+  recall, the flag rate among judged units, the unjudged rate (refused or
+  malformed among units) and the unit accuracy (judged units whose verdict is
+  the fixture's declared one);
 - across seeds, for each of those rates: the seeds it is defined at, its
   mean, sample standard deviation, minimum and maximum (the seed spread the
   pre-registration's Statistics section asks to report);
