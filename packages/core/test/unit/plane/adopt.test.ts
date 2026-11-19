@@ -292,7 +292,9 @@ describe("adoptStoreItems", () => {
 
   test("an item whose store_ref another item holds leaves a store-failure event and throws", async () => {
     const { deps, adapter, db } = await seeded();
-    // An unrelated item already recorded at item 1's ref.
+    // An unrelated item already recorded at item 1's ref, in another scope:
+    // so the store did not re-key it (a holder in the adopted scope that the
+    // store no longer lists is retired instead, card RV4).
     appendEvent(db, {
       id: id(800_002),
       ts: AT,
@@ -300,11 +302,11 @@ describe("adoptStoreItems", () => {
       item_id: id(7),
       actor: "person:omar",
       scope_from: null,
-      scope_to: "person:omar",
+      scope_to: "team:platform",
       decision: "allow",
       reason: "seeded",
       policy_id: "test/seed",
-      item: { ...item(7, { scope: "person:omar" }), store_ref: ref(1) },
+      item: { ...item(7, { scope: "team:platform" }), store_ref: ref(1) },
       schema_version: 1,
     });
 

@@ -186,13 +186,10 @@ describe("RV-ADP-2 through the plane: two members' folders in one log", () => {
   });
 
   // Review fix pass, RV3-1: a moved folder gives its files new imported ids
-  // at the same refs. Core refuses a second item at a ref, a retired holder
-  // included (packages/core/src/plane/write.ts, refProblem), before adoption
-  // retires what the store no longer lists, so every adoption of the moved
-  // folder fails closed: one deny event, nothing retired or adopted from the
-  // new place. Moving the folder back recovers. The core fix waits on card
-  // E2.6 (backlog row "Adoption after a folder move", card RV4).
-  test("a moved folder is refused on every adoption, and the log keeps what it had", async () => {
+  // at the same refs. Until card RV4 every adoption of the moved folder
+  // failed closed; now the moved files adopt under their new ids and the old
+  // ids retire (packages/adapters/test/plane/rv4-files.test.ts, defect 3).
+  test("a moved folder adopts under its new ids, and moving it back restores the old ones", async () => {
     const shared = logOf();
     const parent = await tempDir("engram-rv3-move-");
     const before = join(parent, "a");
@@ -201,26 +198,14 @@ describe("RV-ADP-2 through the plane: two members' folders in one log", () => {
     const opts = { owner: "dana", importValidFrom: "2026-10-01T00:00:00Z" };
     const aDeps = { ...shared, adapter: createFilesAdapter({ root: before, ...opts }) };
     expect((await adoptStoreItems(aDeps, dana, "person:dana", AT)).allowed).toBe(4);
-    const held = currentItems(shared.db);
-    const events = allEvents(shared.db).length;
     await rename(before, after);
     const bDeps = { ...shared, adapter: createFilesAdapter({ root: after, ...opts }) };
-    for (let k = 0; k < 2; k++)
-      await expect(adoptStoreItems(bDeps, dana, "person:dana", AT)).rejects.toThrow(
-        "two item ids get two refs",
-      );
-    // Each refused adoption leaves one deny event (AGENTS.md rule 3) and changes nothing else.
-    const added = allEvents(shared.db).slice(events);
-    expect(added.map((e) => [e.op, e.decision, e.policy_id])).toEqual([
-      ["write", "deny", "engram/write/store-failure"],
-      ["write", "deny", "engram/write/store-failure"],
-    ]);
-    for (const e of added) expect(e.reason).toContain("cannot be recorded");
-    expect(currentItems(shared.db)).toEqual(held);
-    // Moving it back is the way out short of a new log: the old ids return.
+    const moved = await adoptStoreItems(bDeps, dana, "person:dana", AT);
+    expect(moved).toMatchObject({ allowed: 4, denied: 0, retired: 4 });
     await rename(after, before);
     const back = await adoptStoreItems(aDeps, dana, "person:dana", AT);
-    expect(back).toMatchObject({ allowed: 0, denied: 0, retired: 0, unchanged: 4 });
+    expect(back).toMatchObject({ allowed: 4, denied: 0, retired: 4 });
+    expect(currentItems(shared.db).filter((i) => i.status === "active")).toHaveLength(4);
   });
 });
 

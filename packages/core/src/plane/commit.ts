@@ -310,12 +310,23 @@ export interface StaleWrite {
 const sameAsWritten = (deps: PlaneDeps, event: MemoryEvent, wrote: MemoryItem) => {
   const derived = deps.adapter.derivedFields?.(wrote) ?? [];
   if (event.decision === "allow" && event.item) {
+    // Adoption sets the provenance, and drops every grant the plane had not
+    // recorded for the id (card RV4): an adoption of a writer's bytes keeps
+    // a subset of the grants it wrote.
     const strip = (i: MemoryItem) =>
       comparable(
-        { ...i, provenance: { ...i.provenance, kind: "import", actor: "" } } as MemoryItem,
+        {
+          ...i,
+          provenance: { ...i.provenance, kind: "import", actor: "" },
+          grants: [],
+        } as MemoryItem,
         derived,
       );
-    return strip(event.item) === strip(wrote);
+    const adopted = event.item;
+    return (
+      strip(adopted) === strip(wrote) &&
+      adopted.grants.every((g) => wrote.grants.some((h) => sameGrant(g, h)))
+    );
   }
   return event.reason.endsWith(hashNote(itemHash(wrote, derived)));
 };

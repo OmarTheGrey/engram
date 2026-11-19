@@ -32,11 +32,13 @@ import type { Db } from "../db/db.ts";
 import { appendEvent } from "../events.ts";
 import { itemById, itemsByStoreRef } from "../items.ts";
 import type { PlaneDeps, WriteCheckResult, WriteResult } from "../plane.ts";
-import { evaluateWrite, SCHEMA_ID, STORE_FAILURE_ID } from "../policy/evaluate.ts";
+import { evaluateWrite, SCHEMA_ID, STORE_FAILURE_ID, sameGrant } from "../policy/evaluate.ts";
+import { leastTrusted } from "../policy/promotion.ts";
 import { ITEM_TTL_ID } from "../policy/retention.ts";
 import { Id, MemoryItem, Scope } from "../schema.ts";
 import {
   type Basis,
+  canonical,
   ERASING_ID,
   erasingReason,
   erasureBegunSince,
@@ -128,32 +130,72 @@ export function withPlaneProvenance(actor: Actor, item: MemoryItem): [MemoryItem
   ];
 }
 
+/**
+ * The item as adoption records it (card RV4): adoption never raises trust,
+ * and never widens what an item's grants admit.
+ *
+ * - Provenance. A record whose content and provenance are as the plane
+ *   holds them for its id keeps the plane's provenance: the store holds what
+ *   the plane wrote. Any other record (new to the plane, or edited in the
+ *   store) is recorded as the adopter's, of the least trusted kind among
+ *   what the record claims, what the plane holds for its id, and `import`
+ *   (ADR 0004). So an agent's `model` item stays `model`, and a record
+ *   edited by hand is `import` at most, never more trusted than it was.
+ * - Grants. A grant is kept only when the plane's item of that id carries
+ *   the same grant (sameGrant): one an allowed event recorded and nothing
+ *   removed since. A grant the plane never recorded for that id, in a record
+ *   dropped into the store or edited there, is dropped, and the reason names
+ *   each grantee. The plane narrows, never widens (RV-ADP-4).
+ */
+export function adoptedItem(
+  actor: Actor,
+  item: MemoryItem,
+  known: MemoryItem | undefined,
+): [MemoryItem, string] {
+  const kept = known ? item.grants.filter((g) => known.grants.some((h) => sameGrant(g, h))) : [];
+  const dropped = item.grants.filter((g) => !kept.includes(g));
+  const asHeld =
+    known !== undefined &&
+    canonical(item.content) === canonical(known.content) &&
+    canonical(item.provenance) === canonical(known.provenance);
+  const kind = leastTrusted([
+    item.provenance.kind,
+    ...(known ? [known.provenance.kind] : []),
+    "import",
+  ]);
+  const provenance = asHeld ? known.provenance : { ...item.provenance, kind, actor: actor.id };
+  const provenanceNote = asHeld
+    ? `provenance kept as the plane holds it for item ${item.id}: kind ${provenance.kind}, actor ${provenance.actor}`
+    : `provenance set by adoption: kind ${kind}, the least trusted of the record's claim${known ? ", the plane's item of that id" : ""} and import; actor ${actor.id}`;
+  const grantNote =
+    dropped.length === 0
+      ? ""
+      : `; adoption dropped ${dropped.map((g) => `the grant to ${g.to}`).join(", ")}, which the plane never recorded for item ${item.id} (${known ? "its item there does not carry it" : "it holds no item of that id"}); the plane narrows, never widens`;
+  return [{ ...item, provenance, grants: kept } as MemoryItem, `${provenanceNote}${grantNote}`];
+}
+
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 /**
  * Why the ref an adapter returned cannot be recorded for `item`, or null. It
  * must be a well-formed ref of this adapter, and no unrelated item may hold
  * it: only the item itself and the versions its lineage reaches share a ref
- * (decision D1, finding R5-14).
+ * (decision D1, finding R5-14). A holder in `vacated` is one adoption
+ * retires in the same transaction: the store no longer lists it, and lists
+ * `item` at its ref instead (card RV4).
  */
 export function refProblem(
   deps: PlaneDeps,
   item: MemoryItem,
   ref: StoreRef,
   adopted: boolean,
+  vacated: ReadonlySet<string> = new Set(),
 ): string | null {
   if (!StoreRefShape.safeParse(ref).success)
     return `the store returned a malformed ref ${JSON.stringify(ref)}`;
   if (ref.adapter !== deps.adapter.name)
     return `the store ${deps.adapter.name} returned a ref of adapter ${ref.adapter}`;
-  const related = new Set([item.id]);
-  const queue = [...item.lineage];
-  for (let id = queue.shift(); id !== undefined; id = queue.shift()) {
-    if (related.has(id)) continue;
-    related.add(id);
-    queue.push(...(itemById(deps.db, id)?.lineage ?? []));
-  }
-  const other = itemsByStoreRef(deps.db, ref).find((h) => !related.has(h.id));
+  const other = refHolders(deps, item, ref).find((h) => !vacated.has(h.id));
   // The adapter contract gives two item ids two refs (the conformance suite's
   // "two item ids are two items under two refs"), so only a non-conforming
   // store gets here. After a write the plane cannot undo it and names what it
@@ -164,6 +206,21 @@ export function refProblem(
     ? `the store lists item ${item.id} at a ref ${held}; nothing was written`
     : `the store returned a ref ${held}: the bytes it wrote for item ${item.id} at that ref ` +
         `are orphaned, never projected, and may have replaced item ${other.id}'s record in the store`;
+}
+
+/**
+ * The projected items, of any status, that hold `ref` and are neither `item`
+ * itself nor a version its lineage reaches (decision D1).
+ */
+export function refHolders(deps: PlaneDeps, item: MemoryItem, ref: StoreRef): MemoryItem[] {
+  const related = new Set([item.id]);
+  const queue = [...item.lineage];
+  for (let id = queue.shift(); id !== undefined; id = queue.shift()) {
+    if (related.has(id)) continue;
+    related.add(id);
+    queue.push(...(itemById(deps.db, id)?.lineage ?? []));
+  }
+  return itemsByStoreRef(deps.db, ref).filter((h) => !related.has(h.id));
 }
 
 /** What adoption (plane/adopt.ts) adds to a gated write. */
@@ -190,6 +247,18 @@ export interface Adoption {
    * (card E2.6).
    */
   refuse?: (item: MemoryItem) => { reason: string; policy_id: string; purge?: boolean } | null;
+  /**
+   * Whether the store has vacated `holder`, an unrelated projected item at
+   * the ref the store lists the adopted record under: the store no longer
+   * lists `holder` at all, so it re-keyed the record (a moved files folder
+   * gives a file a new id). When every unrelated holder is vacated, the ref
+   * is recordable, and each one still active is retired through `retract` in
+   * the transaction that records the adoption (card RV4). Without it, any
+   * unrelated holder fails closed (refProblem).
+   */
+  vacated?: (holder: MemoryItem) => boolean;
+  /** Appends the retirement of a vacated holder, `by` the item the store now lists at its ref. */
+  retract?: (holder: MemoryItem, by: MemoryItem) => void;
 }
 
 /** What the gate decides about a write, before anything is committed. */
@@ -278,11 +347,16 @@ function decideWrite(
       reason: `the item fails the schema: ${problems}`,
     };
   }
-  const [item, provenanceNote] = withPlaneProvenance(actor, parsed.data);
   // The head first: a change appended after it, even before the projection is
   // read below, then counts as a change since the decision (commit.ts).
   const head = logHead(deps.db);
-  const existing = itemById(deps.db, item.id);
+  const existing = itemById(deps.db, parsed.data.id);
+  // Adoption records the store's record without raising its trust or
+  // widening its grants (card RV4); every other write takes the plane's
+  // provenance from its harness-set source.
+  const [item, provenanceNote] = adopting
+    ? adoptedItem(actor, parsed.data, existing)
+    : withPlaneProvenance(actor, parsed.data);
   const decision = evaluateWrite(
     deps.policy,
     actor,
@@ -556,7 +630,21 @@ export function adoptWrite(
       scope_to: item.scope,
       reason: mark(`${decision.reason}; ${provenanceNote}`),
     };
-    const problem = refProblem(deps, item, adoption.ref, true);
+    // Unrelated holders of the ref that the store no longer lists were
+    // re-keyed by the store: they are retired here, before the adoption is
+    // recorded, so the ref is recordable (card RV4). A holder the log changed
+    // since the listing leaves this record to the next adoption.
+    const holders = refHolders(deps, item, adoption.ref);
+    const vacated = adoption.vacated;
+    const vacating = holders.length > 0 && vacated !== undefined && holders.every(vacated);
+    if (vacating && holders.some((h) => touchedSince(db, h.id, adoption.listed))) return null;
+    const problem = refProblem(
+      deps,
+      item,
+      adoption.ref,
+      true,
+      new Set(vacating ? holders.map((h) => h.id) : []),
+    );
     if (problem) {
       appendEvent(db, {
         ...common,
@@ -574,6 +662,8 @@ export function adoptWrite(
       status: decision.status,
       store_ref: adoption.ref,
     } as MemoryItem;
+    if (vacating)
+      for (const h of holders) if (h.status !== "retired") adoption.retract?.(h, stored);
     const event = appendEvent(db, {
       ...common,
       id: newId(),

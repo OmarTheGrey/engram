@@ -51,6 +51,24 @@ export function erasedStoreContent(db: Db, itemId: string): Set<string> {
   return out;
 }
 
+/**
+ * The merging content hashes erasedStoreContent names for every item an
+ * offboarding of `scope` erased or swept and left in a store (card RV4):
+ * what adoption refuses in that scope under any id, since a store may give
+ * a record it kept a new id (a moved files folder re-keys its files).
+ */
+export function erasedScopeContent(db: Db, scope: string): Set<string> {
+  const out = new Set<string>();
+  const ids = db
+    .prepare(
+      "SELECT DISTINCT item_id FROM events WHERE scope_from = ? AND op = 'retire' AND item_id IS NOT NULL",
+    )
+    .all(scope)
+    .map((r) => String(r.item_id));
+  for (const id of ids) for (const h of erasedStoreContent(db, id)) out.add(h);
+  return out;
+}
+
 /** The event erases its item: the projection and replay drop it (ERASURE_ID). */
 export function erases(event: MemoryEvent): boolean {
   return event.decision === "allow" && event.op === "retire" && event.policy_id === ERASURE_ID;

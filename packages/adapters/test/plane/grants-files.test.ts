@@ -8,9 +8,11 @@
 // it is one deny event (engram/write/store-failure) returned as a decision,
 // with the file and the item unchanged.
 //
-// A finding on the way (not caused by grants): an item the plane wrote with
-// source user is re-adopted once by the next adoption of the folder, as
-// import; see twinFolder.
+// A finding on the way (not caused by grants), fixed by card RV4: an item
+// the plane wrote with source user was re-adopted once by the next adoption
+// of the folder, as import. Adoption now keeps the provenance the plane holds
+// for a record the store holds as written, so it appends nothing; see
+// twinFolder.
 import { cp, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -99,11 +101,12 @@ async function twinFolder() {
     AT,
   );
   expect(event.decision).toBe("allow");
-  // The first adoption after a plane write re-adopts that item once, its
-  // provenance kind becoming import (adoption compares provenance as the
-  // adopter would set it); this predates grant changes and is logged as a
-  // finding of card E9.4. Settled here, so the tests see only the grants.
-  expect((await adoptStoreItems(deps, dana, "person:dana", AT)).allowed).toBe(1);
+  // Before card RV4 the first adoption after a plane write re-adopted that
+  // item once as import (a finding of card E9.4). Now the store holds what
+  // the plane wrote, so adoption leaves it, and its provenance, as they are.
+  const settled = await adoptStoreItems(deps, dana, "person:dana", AT);
+  expect(settled).toMatchObject({ allowed: 0, denied: 0, retired: 0, unchanged: 5 });
+  expect(itemById(db, OWN)?.provenance).toMatchObject({ kind: "user", actor: dana.id });
   return { root, db, deps, plane, imported };
 }
 

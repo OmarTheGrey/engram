@@ -20,6 +20,7 @@ import type { ModelLintSetup } from "./lint/model.ts";
 
 export {
   ADOPT_ERASED_ID,
+  ADOPT_REKEYED_ID,
   ADOPT_RETRACT_ID,
   type AdoptReport,
   adoptStoreItems,

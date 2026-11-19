@@ -74,6 +74,7 @@ import { mergingContentHash } from "../content-hash.ts";
 import {
   appendEvent,
   currentItems,
+  erasedScopeContent,
   erasedStoreContent,
   eventsByItem,
   LEFT_CONTENT_CLAUSE,
@@ -85,6 +86,7 @@ import type { MemoryEvent, MemoryItem } from "../schema.ts";
 import {
   ADOPT_ERASED_ID,
   ADOPTION_PREFIX,
+  canonical,
   comparable,
   erasureBegunSince,
   hashNote,
@@ -95,9 +97,17 @@ import {
   touchedSince,
 } from "./commit.ts";
 import { inWriteQueue } from "./queue.ts";
-import { adoptWrite, withPlaneProvenance } from "./write.ts";
+import { adoptedItem, adoptWrite, refHolders } from "./write.ts";
 
 export { ADOPT_ERASED_ID };
+
+/**
+ * The policy_id of a refusal of a record the store re-keyed (card RV4): it
+ * sits at the ref of an item retired by anything but adoption's own
+ * retraction, and holds that item's content, so adopting it would bring a
+ * retired item back under a new id.
+ */
+export const ADOPT_REKEYED_ID = "engram/adopt/rekeyed";
 
 /** What the reason of a refusal whose record adoption deletes says (P50-2, V-10). */
 export const PURGE_CLAUSE = "the plane deletes the record from the store";
@@ -225,6 +235,10 @@ export async function adoptStoreItems(
     report.retired++;
     report.retirements.push({ item_id: item.id, reason });
   };
+  const present = new Set(listed.map((i) => i.id));
+  /** A projected item of this store and scope that the listing does not hold: the store vacated it. */
+  const vacated = (held: MemoryItem) =>
+    held.scope === scope && held.store_ref?.adapter === adapter.name && !present.has(held.id);
 
   for (const item of listed) {
     if (!item.store_ref) {
@@ -232,7 +246,7 @@ export async function adoptStoreItems(
     }
     const known = itemById(db, item.id);
     const history = eventsByItem(db, item.id);
-    const [asAdopted] = withPlaneProvenance(adopter, item);
+    const [asAdopted] = adoptedItem(adopter, item, known);
     const derived = adapter.derivedFields?.(item) ?? [];
     if (known && comparable(known, derived) === comparable(asAdopted, derived)) {
       const retracted = history.at(-1)?.policy_id === ADOPT_RETRACT_ID;
@@ -276,10 +290,16 @@ export async function adoptStoreItems(
       suffix: note,
       listed: head,
       refuse: (candidate) => {
-        const refusal = erasedRefusal(deps, candidate);
+        const refusal = erasedRefusal(deps, candidate) ?? rekeyedRefusal(deps, candidate, vacated);
         purge = refusal?.purge === true;
         return refusal;
       },
+      vacated,
+      retract: (held, by) =>
+        retire(
+          held,
+          `store ${adapter.name} now lists item ${by.id} at the ref of item ${held.id} (${held.store_ref?.key}) and no longer lists item ${held.id}: the store gave its record a new id (a moved folder does); the plane retires its projected version`,
+        ),
     });
     if (adopted === null) {
       report.deferred++;
@@ -313,7 +333,6 @@ export async function adoptStoreItems(
     );
   }
 
-  const present = new Set(listed.map((i) => i.id));
   const unreadable = new Map((adapter.diagnostics?.() ?? []).map((d) => [d.key, d.reason]));
   await inWriteQueue(db, () =>
     db.transaction(() => {
@@ -334,6 +353,39 @@ export async function adoptStoreItems(
   );
   return report;
 }
+
+/**
+ * Why adoption refuses a record the store re-keyed, or null (card RV4). The
+ * record sits at the ref of a projected item the store no longer lists
+ * (`vacated`), which was retired by anything but adoption's own retraction
+ * (an owner, a ttl, an eviction), and it holds that item's content: it is
+ * that retired item under a new id, so it is not brought back while it
+ * holds that content, as the retired item itself is not (adopt.ts header).
+ * Edited, it adopts as any other record.
+ */
+function rekeyedRefusal(
+  deps: PlaneDeps,
+  candidate: MemoryItem,
+  vacated: (held: MemoryItem) => boolean,
+): { reason: string; policy_id: string; purge?: boolean } | null {
+  if (!candidate.store_ref || itemById(deps.db, candidate.id)) return null;
+  for (const held of refHolders(deps, candidate, candidate.store_ref)) {
+    if (held.status !== "retired" || !vacated(held)) continue;
+    if (canonical(held.content) !== canonical(candidate.content)) continue;
+    const last = eventsByItem(deps.db, held.id)
+      .filter((e) => e.decision === "allow" && RETIRING_OPS.has(e.op))
+      .at(-1);
+    if (last?.policy_id === ADOPT_RETRACT_ID) continue;
+    return {
+      reason: `the store lists item ${candidate.id} at the ref of item ${held.id}, which it no longer lists and which was retired (${last?.policy_id ?? "written retired"}); the record holds that item's content under a new id, so it is not brought back until it changes`,
+      policy_id: ADOPT_REKEYED_ID,
+    };
+  }
+  return null;
+}
+
+/** The allowed events that change or retire an item (the projection's own ops). */
+const RETIRING_OPS = new Set(["write", "update", "promote", "retire", "evict"]);
 
 /**
  * Why adoption refuses the store's record of `candidate`, or null: it holds
@@ -357,6 +409,14 @@ function erasedRefusal(
       policy_id: ADOPT_ERASED_ID,
     };
   if (itemById(db, candidate.id)) return null;
+  // The same content under an id the plane never held, in a scope an
+  // offboarding erased it from and left it in the store: a store that gave
+  // the record it kept a new id, such as a moved folder (card RV4).
+  if (erasedScopeContent(db, candidate.scope).has(mergingContentHash(candidate.content)))
+    return {
+      reason: `the store's record of item ${candidate.id} holds content erased from ${candidate.scope} at an offboarding and left in the store under another id; it is not adopted again until it changes`,
+      policy_id: ADOPT_ERASED_ID,
+    };
   const own = lastRemoval(db, candidate.id);
   // A record whose lineage names an erased or swept id carries content traced
   // to it, whatever scope it lies in (verification pass 3 of PR #50, V3-1).

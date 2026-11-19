@@ -110,8 +110,9 @@ export interface DogfoodReport {
   /**
    * Not violations, counted for the lead: allowed events that raised an
    * item's provenance from an untrusted kind (model, compaction, external)
-   * to a trusted one, as the files adapter's re-adoption does (a grant on
-   * such an item is a violation), and grant changes that only narrowed what
+   * to a trusted one (a grant on such an item is a violation), which
+   * adoption no longer does since card RV4, so any count here is a finding
+   * for the lead; and grant changes that only narrowed what
    * the grants admit, made by someone other than the owner's grant change or
    * write (a promotion carrying a grant its new class switches off, review
    * finding E95-4).
@@ -133,6 +134,7 @@ export function defaultActor(id: string): Actor {
 export const ENGRAM_RULES: readonly string[] = [
   "engram/adopt/erased",
   "engram/adopt/narrowed",
+  "engram/adopt/rekeyed",
   "engram/adopt/retract",
   "engram/adopt/withdrawn",
   "engram/bypass/foreign-result",
