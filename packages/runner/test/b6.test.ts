@@ -87,7 +87,7 @@ describe("B6's experiment configs", () => {
         expect(existsSync(cassettes)).toBe(false);
       } else {
         await expect(countConfig({ ...config, cassettes })).rejects.toThrow(
-          /h2_longmemeval_ttl\.py --fetch-only/,
+          /h2_longmemeval_ttl\.py --config research\/configs\/h2-longmemeval-ttl\.json --fetch-only/,
         );
       }
     }
