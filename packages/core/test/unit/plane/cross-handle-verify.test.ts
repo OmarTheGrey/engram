@@ -13,7 +13,13 @@ import { type Adapter, NotDeletableError, type StoreRef } from "../../../src/ada
 import type { Db } from "../../../src/db/db.ts";
 import { migrate } from "../../../src/db/migrate.ts";
 import { dogfoodReport } from "../../../src/dogfood.ts";
-import { allEvents, appendEvent, eventsByItem, rebuild } from "../../../src/events.ts";
+import {
+  allEvents,
+  appendEvent,
+  currentItems,
+  eventsByItem,
+  rebuild,
+} from "../../../src/events.ts";
 import { itemById } from "../../../src/items.ts";
 import { erasureOpen } from "../../../src/plane/commit.ts";
 import {
@@ -679,5 +685,282 @@ forEachBackend((backend) => {
         expect((await pending).event.policy_id).toBe(GRANT_CONFLICT);
         await storeMatches(env, id(1));
       });
+  });
+});
+
+const withTimeout = <T>(p: Promise<T>, ms: number, what: string) =>
+  Promise.race([
+    p,
+    new Promise<never>((_, rej) => setTimeout(() => rej(new Error(`timeout: ${what}`)), ms)),
+  ]);
+
+/** A reviewer of Dana's person scope who is also in the team: a promotion to team:x needs one. */
+const REVIEWER: Actor = {
+  id: "person:rev",
+  level: "person",
+  memberships: ["person:rev", "person:dana", "team:x"],
+  source: "user",
+};
+
+/** Dana's stale rewrite of `role`, decided now, its bytes landed and held before its commit. */
+async function staleBytesLanded(env: Env, role: MemoryItem, content: string) {
+  const before = env.a.pause("write", "before");
+  const stale = env.plane.write(
+    dana,
+    { ...role, version: role.version + 1, content, store_ref: null } as MemoryItem,
+    AT,
+  );
+  await before.arrived;
+  return {
+    stale,
+    land: async () => {
+      const after = env.a.pause("write", "after");
+      before.release();
+      await after.arrived;
+      return after;
+    },
+  };
+}
+
+forEachBackend((backend) => {
+  describe("verification pass 3 of PR #50", () => {
+    test("Q2a: a crashed promotion of an erased item to a fresh id in the person scope is refused and deleted by adoption", async () => {
+      const env = setup(backend);
+      expect(
+        (
+          await env.plane.write(
+            dana,
+            item(1, { scope: "person:dana", owner: dana.id, content: SECRET, class: "episodic" }),
+            AT,
+          )
+        ).event.decision,
+      ).toBe("allow");
+      const before = env.a.pause("write", "before");
+      const p = env.plane.promote(hr, id(1), "person:dana", AT, { review: true });
+      p.catch(() => {});
+      await withTimeout(before.arrived, 3000, "the promotion never reached the store");
+      expect((await offboardTheirs(env)).decision).toBe("allow");
+      env.hook.onNextTransaction(() => {
+        throw new Error("simulated crash at commit");
+      });
+      before.release();
+      await expect(p).rejects.toThrow(/simulated crash/);
+      const report = await adoptStoreItems(env.depsMine, dana, "person:dana", LATER);
+      expect(report.allowed).toBe(0);
+      expect(report.denials.map((d) => d.policy_id)).toEqual(["engram/adopt/erased"]);
+      expect(await env.store.list("person:dana")).toEqual([]);
+      expect(JSON.stringify(currentItems(env.mine))).not.toContain("Mira");
+      expect((await env.plane.read(dana, { at: LATER })).items).toEqual([]);
+    });
+
+    test("Q2b: a crashed promotion of a person item to the team scope, landing after the erasure, is refused and deleted by adoption", async () => {
+      const env = setup(backend);
+      await seedPerson(env);
+      const before = env.a.pause("write", "before");
+      const p = env.plane.promote(REVIEWER, id(1), "team:x", AT, { review: true });
+      p.catch(() => {});
+      const got = await Promise.race([
+        before.arrived.then(() => "arrived"),
+        p.then((r) => `decided ${r.decision} ${r.event.policy_id}`),
+      ]);
+      expect(got).toBe("arrived");
+      await offboardTheirs(env);
+      env.hook.onNextTransaction(() => {
+        throw new Error("simulated crash at commit");
+      });
+      before.release();
+      await expect(p).rejects.toThrow(/simulated crash/);
+      const report = await adoptStoreItems(env.depsMine, lee, "team:x", LATER);
+      expect(report.allowed).toBe(0);
+      expect(report.denials.map((d) => d.policy_id)).toEqual(["engram/adopt/erased"]);
+      expect(await env.store.list("team:x")).toEqual([]);
+      expect(JSON.stringify(currentItems(env.mine))).not.toContain("Mira");
+    });
+
+    test("Q2c: the same crash landing before the sweep is swept from the team scope by the offboarding", async () => {
+      const env = setup(backend);
+      await seedPerson(env);
+      const after = env.a.pause("write", "after");
+      const p = env.plane.promote(REVIEWER, id(1), "team:x", AT, { review: true });
+      p.catch(() => {});
+      await withTimeout(after.arrived, 3000, "the promotion never reached the store");
+      env.hook.onNextTransaction(() => {
+        throw new Error("simulated crash at commit");
+      });
+      after.release();
+      await expect(p).rejects.toThrow(/simulated crash/);
+      expect(await env.store.list("team:x")).toHaveLength(1);
+      await offboardTheirs(env);
+      expect(await env.store.list("team:x")).toEqual([]);
+      expect(
+        allEvents(env.mine).filter((e) => e.policy_id === "engram/offboard/swept"),
+      ).toHaveLength(1);
+    });
+
+    test("Q2d: a write whose lineage names an erased item is refused", async () => {
+      const env = setup(backend);
+      await seedPerson(env);
+      await offboardTheirs(env);
+      const w = await env.plane.write(
+        lee,
+        item(40, { scope: "team:x", owner: lee.id, content: SECRET, lineage: [id(1)] }),
+        LATER,
+      );
+      expect(w.event).toMatchObject({ decision: "deny", policy_id: "engram/write/erased" });
+      expect(await env.store.list("team:x")).toEqual([]);
+    });
+
+    test("Q1/Q4: an overlapping offboarding's sweep never deletes a write committed meanwhile", async () => {
+      const env = setup(backend);
+      await seedPerson(env);
+      const listA = env.b.pause("list", "before");
+      const A = offboardTheirs(env);
+      await withTimeout(listA.arrived, 3000, "A never reached its sweep");
+      expect(erasureOpen(env.mine, "person:dana")).toBe(true);
+      expect(
+        (await offboard(env.depsMine, hr, { person: "person:dana", roles: [] }, AT)).decision,
+      ).toBe("allow");
+      const wAfter = env.a.pause("write", "after");
+      const W = env.plane.write(
+        dana,
+        item(30, { scope: "person:dana", owner: dana.id, content: "Fresh after rehire." }),
+        LATER,
+      );
+      await withTimeout(wAfter.arrived, 3000, "W never reached the store");
+      const delA = env.b.pause("delete", "before");
+      listA.release();
+      await withTimeout(delA.arrived, 3000, "A never deleted");
+      wAfter.release();
+      expect((await W).event.decision).toBe("allow");
+      delA.release();
+      await A;
+      expect((await storeMatches(env, id(30))).status).toBe("active");
+      expect(
+        eventsByItem(env.mine, id(30)).filter((e) => e.policy_id === "engram/offboard/swept"),
+      ).toEqual([]);
+    });
+
+    test("V3-5: a report closes only the marks open when its own began: A begins, B begins, A reports, and the scope stays frozen", async () => {
+      const env = setup(backend);
+      await seedPerson(env);
+      const listA = env.b.pause("list", "before");
+      const A = offboardTheirs(env);
+      await withTimeout(listA.arrived, 3000, "A never reached its sweep");
+      const listB = env.a.pause("list", "before");
+      const B = offboard(env.depsMine, hr, { person: "person:dana", roles: [] }, AT);
+      await withTimeout(listB.arrived, 3000, "B never reached its sweep");
+      listA.release();
+      await A;
+      expect(erasureOpen(env.mine, "person:dana")).toBe(true);
+      const w = await env.planeTheirs.write(
+        dana,
+        item(31, { scope: "person:dana", owner: dana.id, content: "Too early." }),
+        LATER,
+      );
+      expect(w.event).toMatchObject({ decision: "deny", policy_id: "engram/offboard/erasing" });
+      listB.release();
+      await B;
+      expect(erasureOpen(env.mine, "person:dana")).toBe(false);
+    });
+
+    test("Q3b: a narrowing keeps a grant the owner removed and then deliberately added again after the adoption", async () => {
+      const env = setup(backend);
+      const role = await seedRole(env, [toSam]);
+      const { stale, land } = await staleBytesLanded(env, role, "The release train leaves at 4.");
+      expect(
+        (await env.planeTheirs.changeGrants(dana, role.id, { remove: [toSam] }, AT)).decision,
+      ).toBe("allow");
+      const after = await land();
+      await adoptStoreItems(env.depsTheirs, dana, "role:release", AT);
+      // The owner removes the reintroduced grant, then grants Sam again on purpose.
+      expect(
+        (await env.planeTheirs.changeGrants(dana, role.id, { remove: [toSam] }, AT)).decision,
+      ).toBe("allow");
+      expect(
+        (await env.planeTheirs.changeGrants(dana, role.id, { add: [toSam] }, AT)).decision,
+      ).toBe("allow");
+      after.release();
+      expect((await stale).event.policy_id).toBe(WRITE_CONFLICT);
+      const now = await storeMatches(env, role.id);
+      expect(now.grants).toEqual([toSam]);
+      expect(
+        eventsByItem(env.mine, role.id).filter((e) => e.policy_id === "engram/adopt/narrowed"),
+      ).toEqual([]);
+    });
+
+    test("Q3: planted narrowings and withdrawals that change content or add grants are each a violation", async () => {
+      const env = setup(backend);
+      const role = await seedRole(env, [toSam]);
+      const now = itemById(env.mine, role.id) as MemoryItem;
+      const plant = (policy_id: string, it: MemoryItem, reason = "planted") =>
+        appendEvent(env.mine, {
+          id: env.newTheirsId(),
+          ts: LATER,
+          op: "update",
+          item_id: role.id,
+          actor: "person:mallory",
+          scope_from: now.scope,
+          scope_to: now.scope,
+          decision: "allow",
+          reason,
+          policy_id,
+          item: it,
+          schema_version: 1,
+        });
+      const count = () =>
+        dogfoodReport(allEvents(env.mine), env.depsMine.policy, [dana, hr, sam, lee]).report
+          .violations.grant_change;
+      plant("engram/adopt/narrowed", {
+        ...now,
+        version: now.version + 1,
+        content: "planted content",
+      } as MemoryItem);
+      expect(count()).toBe(1);
+      plant("engram/adopt/narrowed", {
+        ...now,
+        version: now.version + 2,
+        content: "planted content",
+      } as MemoryItem);
+      expect(count()).toBe(2);
+      plant("engram/adopt/narrowed", {
+        ...now,
+        version: now.version + 3,
+        content: "planted content",
+        grants: [toSam, toLee],
+      } as MemoryItem);
+      expect(count()).toBe(3);
+      plant(
+        "engram/adopt/withdrawn",
+        {
+          ...now,
+          version: now.version + 4,
+          content: "anything",
+          grants: [toSam, toLee],
+        } as MemoryItem,
+        "planted withdrawal naming nothing",
+      );
+      expect(count()).toBe(4);
+    });
+
+    test("V3-7: a record the sweep could not delete for good is adopted again once the person edits it", async () => {
+      const env = setup(backend);
+      await seedPerson(env);
+      await env.store.write(item(9, { scope: "person:dana", owner: dana.id, content: "Left." }));
+      const adapter: Adapter = Object.assign(Object.create(env.depsTheirs.adapter) as Adapter, {
+        delete: async (ref: StoreRef) => {
+          if (ref.key === id(9)) throw new NotDeletableError("read-only memory file");
+          return env.depsTheirs.adapter.delete(ref);
+        },
+      });
+      await offboard({ ...env.depsTheirs, adapter }, hr, { person: "person:dana", roles: [] }, AT);
+      const first = await adoptStoreItems(env.depsMine, dana, "person:dana", LATER);
+      expect(first.allowed).toBe(0);
+      await env.store.write(
+        item(9, { scope: "person:dana", owner: dana.id, content: "Edited after leaving." }),
+      );
+      const again = await adoptStoreItems(env.depsMine, dana, "person:dana", LATER);
+      expect(again.allowed).toBe(1);
+      expect(itemById(env.mine, id(9))?.content).toBe("Edited after leaving.");
+    });
   });
 });
