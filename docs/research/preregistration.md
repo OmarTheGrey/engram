@@ -140,7 +140,7 @@ The analysis code is this section, executable: `research/analysis/` (the bootstr
 
 ## Proposed amendments, not yet registered
 
-- HaluMem (roadmap card B8) for H3's per-operation error rate: not pinned, so not part of v1.
+- HaluMem (roadmap card B8) for H3's per-operation error rate: not pinned, so not part of v1. Checked on 2026-11-19: CC-BY-NC-ND-4.0 on its code and its data (`packages/bench/PINS.md`, candidates); the lead decided the same day to leave it unregistered.
 - MPBench for H1's poisoning arm beside MEM-INV-Bench, if it is released before card X3 starts (ADR 0029, decision 4): a candidate in `packages/bench/PINS.md`, not pinned.
 
 ## Versions
