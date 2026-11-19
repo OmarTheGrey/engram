@@ -964,3 +964,77 @@ forEachBackend((backend) => {
     });
   });
 });
+
+forEachBackend((backend) => {
+  describe("verification pass 4 of PR #50", () => {
+    test("P8: a derived team write decided before the mark and committed after the offboarding is refused, and its record deleted", async () => {
+      const env = setup(backend);
+      await seedPerson(env, [toLee]);
+      const before = env.a.pause("write", "before");
+      const w = env.plane.write(
+        lee,
+        item(50, { scope: "team:x", owner: lee.id, content: SECRET, lineage: [id(1)] }),
+        AT,
+      );
+      await withTimeout(before.arrived, 3000, "the write never reached the store");
+      expect((await offboardTheirs(env)).decision).toBe("allow");
+      before.release();
+      const r = await w;
+      expect(r.item).toBeNull();
+      expect(r.event).toMatchObject({ decision: "deny", policy_id: "engram/write/erased" });
+      expect(await env.store.list("team:x")).toEqual([]);
+      expect(itemById(env.mine, id(50))).toBeUndefined();
+      expect((await env.plane.read(lee, { at: LATER })).items).toEqual([]);
+      expect(JSON.stringify(currentItems(env.mine))).not.toContain("Mira");
+    });
+
+    test("P8b: the same write landing before the sweep and committing between the sweep's delete and its check is refused", async () => {
+      const env = setup(backend);
+      await seedPerson(env, [toLee]);
+      const after = env.a.pause("write", "after");
+      const w = env.plane.write(
+        lee,
+        item(51, { scope: "team:x", owner: lee.id, content: SECRET, lineage: [id(1)] }),
+        AT,
+      );
+      await withTimeout(after.arrived, 3000, "the write never reached the store");
+      const del = env.b.pause("delete", "after");
+      const off = offboardTheirs(env);
+      await withTimeout(del.arrived, 3000, "no erasure delete");
+      const del2 = env.b.pause("delete", "after");
+      del.release();
+      await Promise.race([del2.arrived, off]);
+      after.release();
+      const r = await w;
+      expect(r.event).toMatchObject({ decision: "deny", policy_id: "engram/write/erased" });
+      del2.release();
+      await off;
+      expect(await env.store.list("team:x")).toEqual([]);
+      expect(itemById(env.mine, id(51))).toBeUndefined();
+      expect(JSON.stringify(currentItems(env.mine))).not.toContain("Mira");
+    });
+
+    test("V4-4: a lineage naming a swept id is refused at a write and at adoption", async () => {
+      const env = setup(backend);
+      await seedPerson(env);
+      // A never-committed record the offboarding sweeps.
+      await env.store.write(item(9, { scope: "person:dana", owner: dana.id, content: "Left." }));
+      await offboardTheirs(env);
+      expect(
+        eventsByItem(env.mine, id(9)).filter((e) => e.policy_id === "engram/offboard/swept"),
+      ).toHaveLength(1);
+      const w = await env.plane.write(
+        lee,
+        item(52, { scope: "team:x", owner: lee.id, content: "Copied.", lineage: [id(9)] }),
+        LATER,
+      );
+      expect(w.event).toMatchObject({ decision: "deny", policy_id: "engram/write/erased" });
+      await env.store.write(
+        item(53, { scope: "role:release", owner: lee.id, content: "Copied.", lineage: [id(9)] }),
+      );
+      const report = await adoptStoreItems(env.depsMine, lee, "role:release", LATER);
+      expect(report.denials.map((d) => d.policy_id)).toEqual(["engram/adopt/erased"]);
+      expect(await env.store.list("role:release")).toEqual([]);
+    });
+  });
+});
