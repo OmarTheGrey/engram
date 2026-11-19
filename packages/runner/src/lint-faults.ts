@@ -44,7 +44,7 @@ import { z } from "zod";
 import type { LiveModels } from "./answers.ts";
 import { NO_STORE } from "./config.ts";
 import { sequentialIds } from "./gatemem-probe.ts";
-import { liveJudgeCall } from "./judge.ts";
+import { failedAttempt, liveJudgeCall, paidFailures } from "./judge.ts";
 
 export const LINT_BENCHMARK = "lint-faults";
 
@@ -208,12 +208,16 @@ export interface LintRunnerOptions {
 }
 
 /** The uncached lint call: the script for a scripted model, a live model when given, else none. */
-function innerCall(config: LintRunnerConfig, live: LiveModels | undefined): ModelCall {
+function innerCall(
+  config: LintRunnerConfig,
+  live: LiveModels | undefined,
+  liveOptions: Parameters<typeof liveJudgeCall>[1] = {},
+): ModelCall {
   if (config.model.startsWith("scripted/"))
     return scriptedLintCall(
       LintScript.parse(JSON.parse(readFileSync(config.script as string, "utf8"))),
     );
-  if (live) return liveJudgeCall(live);
+  if (live) return liveJudgeCall(live, liveOptions);
   return async (request) => {
     throw new Error(`no live model ${request.model} to answer a cache miss`);
   };
@@ -255,8 +259,8 @@ export async function runLintConfig(
 ): Promise<LintRunnerResult> {
   const fixtures = loadFaultFixtures(config);
   const cache = options.cache ?? fileCache(config.cassettes);
-  const inner = innerCall(config, options.live);
   const usage: UsageRecord[] = [];
+  const onUsage = (u: UsageRecord) => usage.push(u);
   const rows: LintRow[] = [];
   for (const loaded of fixtures) {
     const f = loaded.fixture;
@@ -270,12 +274,21 @@ export async function runLintConfig(
           policy: f.policy,
           newId: sequentialIds(),
           lintModel: {
-            call: cached(inner, {
-              cache,
-              context: lintContext(loaded),
-              ...(options.offline === undefined ? {} : { offline: options.offline }),
-              onUsage: (u) => usage.push(u),
-            }),
+            // A lint call that failed is never recorded (review RV1-1); its usage is.
+            call: cached(
+              paidFailures(
+                innerCall(config, options.live, {
+                  onFailedAttempt: failedAttempt(lintContext(loaded), onUsage),
+                }),
+                { context: lintContext(loaded), onUsage },
+              ),
+              {
+                cache,
+                context: lintContext(loaded),
+                ...(options.offline === undefined ? {} : { offline: options.offline }),
+                onUsage,
+              },
+            ),
             model: config.model,
             seed,
           },

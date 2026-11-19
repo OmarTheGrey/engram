@@ -207,6 +207,66 @@ describe("the answer judge (J1)", () => {
     expect(refused.asked).toHaveLength(1);
   });
 
+  test("a judge attempt that failed for good is recorded: attempt 1 fails with a 400, attempt 2 judges, and the replay makes zero calls (card RV1, RV-EXP-3)", async () => {
+    const config = readRunnerConfig(X1_GATEMEM);
+    const domain = gatemem
+      .loadDataset(config.data)
+      .find((d) =>
+        d.checkpoints.some((c) => c.checkpoint_id === config.items[0]),
+      ) as gatemem.Domain;
+    const checkpoint = domain.checkpoints.find(
+      (c) => c.checkpoint_id === config.items[0],
+    ) as gatemem.Checkpoint;
+    const { models, asked } = scriptedModels("openai-completions", [
+      { error: "400 Bad Request: invalid response_format" },
+      { text: VERDICT },
+    ]);
+    const cache = recordingCache();
+    const spec = {
+      judge: { ...PAPER_JUDGE_CONFIG },
+      checkpoint,
+      output: { action: "refuse", answer: "No.", answer_structured: {} },
+      seed: 1,
+      context: {
+        item: `gatemem/${checkpoint.checkpoint_id}`,
+        condition: "C2",
+        preset: "none",
+        store: "fake",
+      },
+      cache,
+    };
+    const usage: { hit: boolean }[] = [];
+    const row = await judgeAnswer({
+      ...spec,
+      live: models,
+      offline: false,
+      onUsage: (u) => usage.push(u),
+    });
+    expect(asked).toHaveLength(2);
+    expect(row.judge.attempts).toEqual([
+      {
+        attempt: 1,
+        structured: true,
+        parse_ok: false,
+        error: "judge call failed after 1 attempt: 400 Bad Request: invalid response_format",
+      },
+      { attempt: 2, structured: true, parse_ok: true, parse_mode: "json" },
+    ]);
+    // Both calls are cassette entries, the failure as well as the verdict.
+    expect(cache.entries).toHaveLength(2);
+    expect(usage.map((u) => u.hit)).toEqual([false, false]);
+
+    const replayed: { hit: boolean }[] = [];
+    const replay = await judgeAnswer({
+      ...spec,
+      offline: true,
+      onUsage: (u) => replayed.push(u),
+    });
+    expect(replay).toEqual(row);
+    expect(replayed.map((u) => u.hit)).toEqual([true, true]);
+    expect(asked).toHaveLength(2);
+  });
+
   test("a verdict with surrounding whitespace is judged as the stripped one, as upstream's provider strips it (V-4)", async () => {
     const config = readRunnerConfig(X1_GATEMEM);
     const domain = gatemem

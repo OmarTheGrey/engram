@@ -45,7 +45,7 @@ import { z } from "zod";
 import type { LiveModels } from "./answers.ts";
 import { NO_STORE } from "./config.ts";
 import { sequentialIds } from "./gatemem-probe.ts";
-import { liveJudgeCall } from "./judge.ts";
+import { failedAttempt, liveJudgeCall, paidFailures } from "./judge.ts";
 import { LintScript, scriptedLintCall } from "./lint-faults.ts";
 
 export const FAULT_SET_BENCHMARK = "fault-set";
@@ -359,12 +359,16 @@ export interface FaultSetRunOptions {
 }
 
 /** The uncached lint call: the script for a scripted model, a live model when given, else none. */
-function innerCall(config: FaultSetLintConfig, live: LiveModels | undefined): ModelCall {
+function innerCall(
+  config: FaultSetLintConfig,
+  live: LiveModels | undefined,
+  liveOptions: Parameters<typeof liveJudgeCall>[1] = {},
+): ModelCall {
   if (config.model.startsWith("scripted/"))
     return scriptedLintCall(
       LintScript.parse(JSON.parse(readFileSync(config.script as string, "utf8"))),
     );
-  if (live) return liveJudgeCall(live);
+  if (live) return liveJudgeCall(live, liveOptions);
   return async (request) => {
     throw new Error(`no live model ${request.model} to answer a cache miss`);
   };
@@ -387,19 +391,27 @@ export async function runFaultSetConfig(
   await checkSetHashes(config);
   const policy = readSetPolicy(config.data);
   const cache = options.cache ?? fileCache(config.cassettes);
-  const inner = innerCall(config, options.live);
   const usage: UsageRecord[] = [];
   const rows: ModelRow[] = [];
   const seen = new Set<string>();
   for await (const state of readSetStates(config.data, { questions: config.questions })) {
     seen.add(state.question_id);
     for (const seed of config.seeds) {
-      const call = cached(inner, {
-        cache,
-        context: faultSetContext(state.question_id, policy),
-        ...(options.offline === undefined ? {} : { offline: options.offline }),
-        onUsage: (u) => usage.push(u),
-      });
+      // A lint call that failed is never recorded (review RV1-1); its usage is.
+      const context = faultSetContext(state.question_id, policy);
+      const onUsage = (u: UsageRecord) => usage.push(u);
+      const call = cached(
+        paidFailures(
+          innerCall(config, options.live, { onFailedAttempt: failedAttempt(context, onUsage) }),
+          { context, onUsage },
+        ),
+        {
+          cache,
+          context,
+          ...(options.offline === undefined ? {} : { offline: options.offline }),
+          onUsage,
+        },
+      );
       rows.push(await lintFaultStateWithModel(state, policy, { call, model: config.model, seed }));
     }
   }

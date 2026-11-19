@@ -53,9 +53,26 @@ import {
   statedPreset,
 } from "./config.ts";
 import { MEMORY_BLOCK, sequentialIds } from "./gatemem-probe.ts";
-import { liveJudgeCall } from "./judge.ts";
+import {
+  callCounts,
+  RESULTS_FILE,
+  type RunJournal,
+  SessionSink,
+  type Stopped,
+  SUMMARY_FILE,
+  USAGE_FILE,
+  writeJsonl,
+} from "./journal.ts";
+import { failedAttempt, liveJudgeCall, paidFailures } from "./judge.ts";
 import type { SessionDecision } from "./mem-inv-probe.ts";
-import { type AnswerSource, cassettePiModel } from "./model/cassette.ts";
+import { type AnswerSource, cassettePiModel, sessionFailure } from "./model/cassette.ts";
+import {
+  JUDGE_RETRY,
+  type RetryPolicy,
+  realSleep,
+  retrySession,
+  type Sleep,
+} from "./model/retry.ts";
 import { closeStore, openStore, type StoreName } from "./stores.ts";
 
 /** The conditions built on LongMemEval: the ungoverned baseline and the enforced one. */
@@ -162,6 +179,8 @@ export interface LongMemEvalProbeResult {
   /** The judge's verdict, or null when the config runs no judge. */
   judge: { reply: string; label: boolean } | null;
   decisions: SessionDecision[];
+  /** `turn limit` when the session asked for a model call past the config's turn_limit (RV-EXP-5); left out of the summary. */
+  excluded?: "turn limit";
 }
 
 export interface LongMemEvalProbeSpec {
@@ -179,6 +198,12 @@ export interface LongMemEvalProbeSpec {
   offline?: boolean;
   onUsage?: (usage: UsageRecord) => void;
   readLimit?: number;
+  /** How a transient failure of the answer model is retried (RV-EXP-1): the benchmark client's policy. */
+  retry?: RetryPolicy;
+  /** How the retry waits; a real wait unless a test injects one. */
+  sleep?: Sleep;
+  /** The most model calls the session may make (RV-EXP-5); a session that asks for more is excluded. */
+  turnLimit?: number;
 }
 
 const textOf = (content: unknown): string =>
@@ -264,6 +289,9 @@ async function probeOn(
     answers: spec.answers(),
     ...(spec.offline === undefined ? {} : { offline: spec.offline }),
     ...(spec.onUsage === undefined ? {} : { onUsage: spec.onUsage }),
+    ...(spec.retry === undefined ? {} : { retry: spec.retry }),
+    ...(spec.sleep === undefined ? {} : { sleep: spec.sleep }),
+    ...(spec.turnLimit === undefined ? {} : { turnLimit: spec.turnLimit }),
   });
   const { system, user } = longMemEval.renderReaderPrompt(view, MEMORY_BLOCK);
   const { session, sessionManager } = await conditionSession({
@@ -282,7 +310,8 @@ async function probeOn(
   });
   try {
     await session.prompt(user);
-    if (cassette.errors.length > 0) throw cassette.errors[0];
+    const failure = sessionFailure(session.messages, cassette);
+    if (failure !== undefined) throw failure;
     const messages = session.messages;
     const toolCalls = messages.flatMap((m) =>
       m.role === "assistant"
@@ -309,14 +338,16 @@ async function probeOn(
       const { op, decision, policy_id, reason } = e.data as SessionDecision;
       return [{ op, decision, policy_id, reason }];
     });
-    const verdict = spec.judge
-      ? await longMemEval.judgeAnswer(
-          spec.judge.call,
-          spec.question,
-          hypothesis,
-          spec.judge.settings,
-        )
-      : null;
+    // A session the turn limit cut off is excluded, and not judged (RV-EXP-5).
+    const verdict =
+      spec.judge && !cassette.capped
+        ? await longMemEval.judgeAnswer(
+            spec.judge.call,
+            spec.question,
+            hypothesis,
+            spec.judge.settings,
+          )
+        : null;
     return {
       item: `longmemeval/${view.question_id}`,
       question_id: view.question_id,
@@ -331,6 +362,7 @@ async function probeOn(
       hypothesis,
       judge: verdict ? { reply: verdict.reply, label: verdict.label } : null,
       decisions,
+      ...(cassette.capped ? { excluded: "turn limit" as const } : {}),
     };
   } finally {
     session.dispose();
@@ -347,7 +379,17 @@ export interface LongMemEvalRunnerResult {
     string,
     { sessions: number; judged: number; breakdown: longMemEval.CategoryBreakdown }
   >;
+  /** The sessions the run holds, a resumed run's earlier ones included (run.ts RunnerResult). */
+  sessions: number;
+  /** The sessions an earlier invocation finished, which this one skipped. */
+  resumed: number;
+  /** Per condition, the sessions left out of the summary by reason (a turn limit, RV-EXP-5), when any. */
+  excluded?: Record<string, Record<string, number>>;
+  /** Why the run stopped before its last session (a spend ceiling, RV-EXP-4, H2's stopping rule), when it did. */
+  stopped?: Stopped;
+  /** This invocation's calls. */
   calls: { new: number; cached: number };
+  /** The cost ledger, a journal's earlier invocations included. */
   usage: UsageRecord[];
 }
 
@@ -355,6 +397,14 @@ export interface LongMemEvalRunnerOptions {
   cache?: CacheStore;
   offline?: boolean;
   live?: LiveModels;
+  /** Where rows go as each session ends, and a resumed run's finished sessions come from (journal.ts). */
+  journal?: RunJournal;
+  /** Told of each row as its session ends. */
+  onRow?: (row: LongMemEvalProbeResult) => void;
+  /** How a transient failure's retry waits; a real wait unless a test injects one. */
+  sleep?: Sleep;
+  /** The outer session retry (review RV1-6); run.ts RunnerOptions.sessionRetry. */
+  sessionRetry?: RetryPolicy;
 }
 
 /**
@@ -367,6 +417,7 @@ function judgeInner(
   judge: NonNullable<ReturnType<typeof longMemEvalJudge>>,
   questionId: string,
   live: LiveModels | undefined,
+  liveOptions: Parameters<typeof liveJudgeCall>[1] = {},
 ): ModelCall {
   if (judge.model.startsWith("scripted/")) {
     const script = JSON.parse(
@@ -374,7 +425,7 @@ function judgeInner(
     ) as longMemEval.JudgeScript;
     return longMemEval.scriptedJudge(script, questionId);
   }
-  if (live) return liveJudgeCall(live);
+  if (live) return liveJudgeCall(live, liveOptions);
   return async (request) => {
     throw new Error(`no live judge ${request.model} to answer a cache miss`);
   };
@@ -387,32 +438,48 @@ export async function runLongMemEvalConfig(
   const questions = longMemEval.loadQuestions(config.data);
   const policy = loadPreset(config.preset);
   const cache = options.cache ?? fileCache(config.cassettes);
-  const usage: UsageRecord[] = [];
-  const rows: LongMemEvalProbeResult[] = [];
+  const sink = new SessionSink<LongMemEvalProbeResult>({
+    journal: options.journal,
+    ceiling: config.spend_ceiling_usd,
+    onRow: options.onRow,
+  });
   const stores = configStores(config);
   const judge = longMemEvalJudge(config);
   const items = configItems(
     config,
     questions.map((q) => q.question_id),
   );
-  for (const item of items) {
+  sessions: for (const item of items) {
     const question = longMemEval.findQuestion(questions, item);
     for (const store of stores) {
       for (const condition of config.conditions) {
         for (const seed of config.seeds) {
+          if (sink.done({ item: `longmemeval/${item}`, condition, store, seed })) continue;
+          if (!sink.proceed()) break sessions;
+          const judgeContext = longMemEvalJudgeContext({
+            questionId: item,
+            condition,
+            preset: config.preset,
+            store,
+          });
           const judged = judge
             ? {
-                call: cached(judgeInner(judge, item, options.live), {
-                  cache,
-                  context: longMemEvalJudgeContext({
-                    questionId: item,
-                    condition,
-                    preset: config.preset,
-                    store,
-                  }),
-                  ...(options.offline === undefined ? {} : { offline: options.offline }),
-                  onUsage: (u) => usage.push(u),
-                }),
+                // A judge call that failed is never recorded (review RV1-1); its usage is.
+                call: cached(
+                  paidFailures(
+                    judgeInner(judge, item, options.live, {
+                      sleep: options.sleep,
+                      onFailedAttempt: failedAttempt(judgeContext, sink.onUsage),
+                    }),
+                    { context: judgeContext, onUsage: sink.onUsage },
+                  ),
+                  {
+                    cache,
+                    context: judgeContext,
+                    ...(options.offline === undefined ? {} : { offline: options.offline }),
+                    onUsage: sink.onUsage,
+                  },
+                ),
                 settings: {
                   model: judge.model,
                   seed,
@@ -421,60 +488,114 @@ export async function runLongMemEvalConfig(
                 },
               }
             : undefined;
-          rows.push(
-            await runLongMemEvalProbe({
-              question,
-              condition,
-              seed,
-              model: config.model,
-              preset: config.preset,
-              policy,
-              store,
-              cache,
-              answers: answersFor(config, item, condition, options.live),
-              judge: judged,
-              ...(config.read_limit === undefined ? {} : { readLimit: config.read_limit }),
-              ...(options.offline === undefined ? {} : { offline: options.offline }),
-              onUsage: (u) => usage.push(u),
-            }),
+          sink.commit(
+            await retrySession(
+              () =>
+                runLongMemEvalProbe({
+                  question,
+                  condition,
+                  seed,
+                  model: config.model,
+                  preset: config.preset,
+                  policy,
+                  store,
+                  cache,
+                  answers: answersFor(config, item, condition, options.live),
+                  judge: judged,
+                  ...(config.read_limit === undefined ? {} : { readLimit: config.read_limit }),
+                  ...(options.offline === undefined ? {} : { offline: options.offline }),
+                  onUsage: sink.onUsage,
+                  // The answer path retries a transient failure as the judge does (RV-EXP-1).
+                  retry: JUDGE_RETRY,
+                  ...(options.sleep === undefined ? {} : { sleep: options.sleep }),
+                  ...(config.turn_limit === undefined ? {} : { turnLimit: config.turn_limit }),
+                }),
+              options.sessionRetry,
+              options.sleep ?? realSleep,
+            ),
           );
         }
       }
     }
   }
+  const cell = (store: string, condition: string) =>
+    stores.length === 1 ? condition : `${condition}@${store}`;
+  const sessionsBy = new Map<string, number>();
+  const labelled = new Map<string, { question: longMemEval.Question; label: boolean }[]>();
+  const excluded: NonNullable<LongMemEvalRunnerResult["excluded"]> = {};
+  sink.forEachRow((r) => {
+    const key = cell(r.store, r.condition);
+    if (r.excluded !== undefined) {
+      const reasons = excluded[key] ?? {};
+      excluded[key] = reasons;
+      reasons[r.excluded] = (reasons[r.excluded] ?? 0) + 1;
+      return;
+    }
+    sessionsBy.set(key, (sessionsBy.get(key) ?? 0) + 1);
+    if (r.judge) {
+      const list = labelled.get(key) ?? [];
+      list.push({
+        question: longMemEval.findQuestion(questions, r.question_id),
+        label: r.judge.label,
+      });
+      labelled.set(key, list);
+    }
+  });
   const summary: LongMemEvalRunnerResult["summary"] = {};
   for (const store of stores) {
     for (const condition of config.conditions) {
-      const mine = rows.filter((r) => r.condition === condition && r.store === store);
-      const labelled = mine.flatMap((r) =>
-        r.judge
-          ? [{ question: longMemEval.findQuestion(questions, r.question_id), label: r.judge.label }]
-          : [],
-      );
-      summary[stores.length === 1 ? condition : `${condition}@${store}`] = {
-        sessions: mine.length,
-        judged: labelled.length,
-        breakdown: longMemEval.categoryBreakdown(labelled),
+      const key = cell(store, condition);
+      const mine = labelled.get(key) ?? [];
+      summary[key] = {
+        sessions: sessionsBy.get(key) ?? 0,
+        judged: mine.length,
+        breakdown: longMemEval.categoryBreakdown(mine),
       };
     }
   }
-  return {
+  const result: LongMemEvalRunnerResult = {
     config: config.name,
-    rows,
+    rows: sink.rows,
     summary,
-    calls: { new: usage.filter((u) => !u.hit).length, cached: usage.filter((u) => u.hit).length },
-    usage,
+    sessions: sink.sessions,
+    resumed: sink.resumed,
+    ...(Object.keys(excluded).length > 0 ? { excluded } : {}),
+    ...(sink.stopped ? { stopped: sink.stopped } : {}),
+    calls: callCounts(sink.usage),
+    usage: sink.ledger,
   };
+  if (options.journal) {
+    options.journal.writeJson(SUMMARY_FILE, longMemEvalSummaryFile(result));
+    options.journal.writeJson(USAGE_FILE, {
+      config: result.config,
+      calls: callCounts(result.usage),
+      usage: result.usage,
+    });
+  }
+  return result;
 }
+
+/** summary.json: the summary, and the exclusions and the stop when there are any. */
+const longMemEvalSummaryFile = ({
+  config,
+  summary,
+  excluded,
+  stopped,
+}: LongMemEvalRunnerResult) => ({
+  config,
+  summary,
+  ...(excluded ? { excluded } : {}),
+  ...(stopped ? { stopped } : {}),
+});
 
 /** results.jsonl, summary.json and usage.json, as the other runners write them. */
 export function writeLongMemEvalResult(result: LongMemEvalRunnerResult, out: string): void {
   mkdirSync(out, { recursive: true });
+  writeJsonl(join(out, RESULTS_FILE), result.rows);
+  const { config, calls, usage } = result;
   writeFileSync(
-    join(out, "results.jsonl"),
-    result.rows.map((r) => `${JSON.stringify(r)}\n`).join(""),
+    join(out, SUMMARY_FILE),
+    `${JSON.stringify(longMemEvalSummaryFile(result), null, 2)}\n`,
   );
-  const { config, summary, calls, usage } = result;
-  writeFileSync(join(out, "summary.json"), `${JSON.stringify({ config, summary }, null, 2)}\n`);
   writeFileSync(join(out, "usage.json"), `${JSON.stringify({ config, calls, usage }, null, 2)}\n`);
 }

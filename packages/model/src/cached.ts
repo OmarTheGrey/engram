@@ -70,6 +70,20 @@ export class OfflineMissError extends Error {
   }
 }
 
+/**
+ * A live call that failed for a transient reason (a 429, a 5xx, a network
+ * error) after its retry (card RV1, review RV1-1): it stops the run like an
+ * offline miss, it is never recorded, and a rerun or a resume makes the call
+ * again. A failure that is not transient is a reply, recorded where its
+ * caller goes on past it (GateMem's judge).
+ */
+export class TransientCallError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "TransientCallError";
+  }
+}
+
 export function cacheKey(context: CallContext, request: ModelRequest): string {
   return sha256(
     canonicalJson({

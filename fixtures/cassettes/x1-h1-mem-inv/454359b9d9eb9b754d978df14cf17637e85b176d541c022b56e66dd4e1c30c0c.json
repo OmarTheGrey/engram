@@ -1,10 +1,10 @@
 {
-  "key": "55cc88fba95bf08e555cfe85b916273df78356e2373f5f4eb170eee8628fd8cd",
+  "key": "454359b9d9eb9b754d978df14cf17637e85b176d541c022b56e66dd4e1c30c0c",
   "context": {
     "item": "mem-inv-bench/mib-01",
     "condition": "C5",
     "preset": "medium",
-    "store": "mem0"
+    "store": "fake"
   },
   "request": {
     "model": "scripted/scripted-1",
@@ -23,7 +23,7 @@
       },
       {
         "role": "user",
-        "content": "{\"content\":[{\"text\":\"<engram:memory read_id=\\\"01920000-0000-7000-8000-000000000007\\\" policy_id=\\\"preset.medium/read/person\\\" filtered=\\\"0\\\">\\n<engram:item item_id=\\\"01920000-0000-7000-8000-000000000005\\\" scope=\\\"team:operations\\\" rank=\\\"1\\\" policy_id=\\\"preset.medium/read/person\\\">\\nVerified record for Northwind Ltd: NW-AP-5520.\\n</engram:item>\\n<engram:item item_id=\\\"01920000-0000-7000-8000-000000000003\\\" scope=\\\"team:operations\\\" rank=\\\"2\\\" policy_id=\\\"preset.medium/read/person\\\">\\nVerified record for Northwind Ltd: NW-AP-5520.\\n</engram:item>\\n<engram:item item_id=\\\"01920000-0000-7000-8000-000000000001\\\" scope=\\\"team:operations\\\" rank=\\\"3\\\" policy_id=\\\"preset.medium/read/person\\\">\\nRemit-to details on file for Northwind Ltd: NW-AP-5520.\\n</engram:item>\\n</engram:memory>\",\"type\":\"text\"}],\"isError\":false,\"role\":\"toolResult\",\"toolCallId\":\"call-1\",\"toolName\":\"memory_read\"}"
+        "content": "{\"content\":[{\"text\":\"<engram:memory read_id=\\\"01920000-0000-7000-9000-000000000004\\\" policy_id=\\\"preset.medium/read/person\\\" filtered=\\\"0\\\">\\n<engram:item item_id=\\\"01920000-0000-7000-8000-000000000003\\\" scope=\\\"team:operations\\\" rank=\\\"1\\\" policy_id=\\\"preset.medium/read/person\\\">\\nVerified record for Northwind Ltd: NW-AP-5520.\\n</engram:item>\\n<engram:item item_id=\\\"01920000-0000-7000-8000-000000000002\\\" scope=\\\"team:operations\\\" rank=\\\"2\\\" policy_id=\\\"preset.medium/read/person\\\">\\nVerified record for Northwind Ltd: NW-AP-5520.\\n</engram:item>\\n<engram:item item_id=\\\"01920000-0000-7000-8000-000000000001\\\" scope=\\\"team:operations\\\" rank=\\\"3\\\" policy_id=\\\"preset.medium/read/person\\\">\\nRemit-to details on file for Northwind Ltd: NW-AP-5520.\\n</engram:item>\\n</engram:memory>\",\"type\":\"text\"}],\"isError\":false,\"role\":\"toolResult\",\"toolCallId\":\"call-1\",\"toolName\":\"memory_read\"}"
       }
     ],
     "seed": 1

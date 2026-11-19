@@ -6,7 +6,11 @@
 // entry point (runMemInvMain) had no caller and no experiment guard and is
 // gone (PR #25 review, P3-9): run.ts is the one way in.
 import { type AnyRunnerConfig, configStores } from "../src/config.ts";
-import type { MemInvRunnerConfig, MemInvRunnerResult } from "../src/mem-inv-probe.ts";
+import type {
+  MemInvProbeResult,
+  MemInvRunnerConfig,
+  MemInvRunnerResult,
+} from "../src/mem-inv-probe.ts";
 
 /**
  * The last line before `written to`: what the run's numbers are, by the
@@ -21,7 +25,25 @@ export function runFooter(kind: AnyRunnerConfig["kind"], named: boolean, scored:
     : `pipeline config: scripted model (${scored}); these are not results`;
 }
 
-/** What run.ts prints for a MEM-INV-Bench run: every session's verdict and the plane's part in it. */
+/** What run.ts prints for one MEM-INV-Bench session: its verdict and the plane's part in it. */
+export function memInvRowLines(r: MemInvProbeResult): string[] {
+  return [
+    `  ${r.condition} ${r.store} seed ${r.seed} ${r.case_id}: verdict ${r.outcome.verdict} (bucket ${r.outcome.bucket}), attack success ${r.outcome.attack_success}, ${r.stored} stored, ${r.decisions.length} session plane decisions${r.excluded ? `, excluded (${r.excluded})` : ""}`,
+    ...r.writes.map(
+      (w) =>
+        `    write ${w.entry_id} ${w.channel} as ${w.actor} (${w.kind}) into ${w.scope}: ${w.decision}${w.policy_id ? ` ${w.policy_id}` : ""}`,
+    ),
+    ...r.decisions
+      .filter((d) => d.op === "read")
+      .map((d) => `    action-time read: ${d.decision} ${d.policy_id}: ${d.reason}`),
+  ];
+}
+
+/**
+ * What run.ts prints for a MEM-INV-Bench run: its sessions, calls and notes,
+ * the result's in-memory rows (a journaled run prints each as it ends,
+ * memInvRowLines), and the footer.
+ */
 export function memInvLines(
   config: MemInvRunnerConfig,
   result: MemInvRunnerResult,
@@ -31,23 +53,14 @@ export function memInvLines(
 ): string[] {
   const items = config.items === "all" ? "all" : `${config.items.length}`;
   return [
-    `${config.name}: ${result.rows.length} sessions (${items} cases x ${config.conditions.join(", ")} x stores ${configStores(config).join(", ")} x seeds ${config.seeds.join(", ")}), model ${config.model}, preset ${config.preset}`,
+    `${config.name}: ${result.sessions} sessions (${items} cases x ${config.conditions.join(", ")} x stores ${configStores(config).join(", ")} x seeds ${config.seeds.join(", ")}), model ${config.model}, preset ${config.preset}`,
     `model calls: ${result.calls.new} new, ${result.calls.cached} from cassettes${how}`,
     ...(result.notes.written > 0
       ? [
           `agent notes: ${result.notes.written} written by the model under test, ${result.notes.fell_back} fell back to the raw input`,
         ]
       : []),
-    ...result.rows.flatMap((r) => [
-      `  ${r.condition} ${r.store} seed ${r.seed} ${r.case_id}: verdict ${r.outcome.verdict} (bucket ${r.outcome.bucket}), attack success ${r.outcome.attack_success}, ${r.stored} stored, ${r.decisions.length} session plane decisions`,
-      ...r.writes.map(
-        (w) =>
-          `    write ${w.entry_id} ${w.channel} as ${w.actor} (${w.kind}) into ${w.scope}: ${w.decision}${w.policy_id ? ` ${w.policy_id}` : ""}`,
-      ),
-      ...r.decisions
-        .filter((d) => d.op === "read")
-        .map((d) => `    action-time read: ${d.decision} ${d.policy_id}: ${d.reason}`),
-    ]),
+    ...result.rows.flatMap(memInvRowLines),
     runFooter(
       config.kind,
       live,

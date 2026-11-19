@@ -30,6 +30,9 @@ import { fileCache } from "@engram/model";
 import type { LiveModels } from "./answers.ts";
 import type { RunnerOptions } from "./run.ts";
 
+/** What a live run or a replay sets of any runner's options: the cassettes, offline, and the live models. */
+export type LiveRunOptions = Pick<RunnerOptions, "cache" | "offline" | "live">;
+
 /** What the live guards read of a config, whatever its benchmark (GateMem, MEM-INV-Bench). */
 export interface LiveRunConfig {
   name: string;
@@ -142,7 +145,7 @@ export function liveOptions(
   config: LiveRunConfig,
   live: LiveModels,
   env: NodeJS.ProcessEnv = process.env,
-): RunnerOptions {
+): LiveRunOptions {
   if (offline(env)) {
     throw new LiveRunRefused("ENGRAM_OFFLINE=1 is set, and a live run reaches a model");
   }
@@ -150,6 +153,6 @@ export function liveOptions(
 }
 
 /** The runner options of a replay: the config's cassettes only, every miss an error. */
-export function replayOptions(config: LiveRunConfig): RunnerOptions {
+export function replayOptions(config: LiveRunConfig): LiveRunOptions {
   return { cache: fileCache(config.cassettes), offline: true };
 }

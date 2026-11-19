@@ -30,6 +30,14 @@
 // a model, or --count; it is never recorded from a script. A suite (a config
 // with `suite`, such as research/configs/x1-h1-probe.json) runs each member
 // config into --out/<member name>, with the same flags, and prints the total.
+//
+// Every session run (GateMem, MEM-INV-Bench, LongMemEval) is journaled into
+// --out (card RV1, src/journal.ts): each row is appended to results.jsonl as
+// its session ends, each call's usage to usage.jsonl as it returns, and each
+// row is printed as it ends. A run that crashes or stops keeps them; with
+// --resume (`RESUME=1`) a rerun of the same config into the same --out skips
+// the sessions it holds and goes on. A run that stops at the config's
+// spend_ceiling_usd exits 3, its summary that of the completed sessions.
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -43,6 +51,8 @@ import {
   readSuite,
 } from "../src/config.ts";
 import { countConfig, countLines, ensurePinnedData, UnpinnedData } from "../src/count.ts";
+import type { ProbeResult } from "../src/gatemem-probe.ts";
+import { JournalMismatch, RunJournal, runFingerprint, type Stopped } from "../src/journal.ts";
 import {
   countFaultSetConfig,
   type FaultSetRunOptions,
@@ -63,6 +73,7 @@ import {
 } from "../src/lint-faults.ts";
 import {
   builtinLiveModels,
+  type LiveRunOptions,
   LiveRunRefused,
   liveConfig,
   liveOptions,
@@ -71,21 +82,20 @@ import {
 } from "../src/live.ts";
 import {
   isLongMemEvalConfig,
-  type LongMemEvalRunnerOptions,
+  type LongMemEvalProbeResult,
   longMemEvalJudge,
   readLongMemEvalConfig,
   runLongMemEvalConfig,
-  writeLongMemEvalResult,
 } from "../src/longmemeval-probe.ts";
 import {
   isMemInvConfig,
   type MemInvRunnerConfig,
   readMemInvConfig,
   runMemInvConfig,
-  writeMemInvResult,
 } from "../src/mem-inv-probe.ts";
-import { type RunnerOptions, runConfig, writeRunnerResult } from "../src/run.ts";
-import { memInvLines, runFooter } from "./run-mem-inv.ts";
+import { SESSION_RETRY } from "../src/model/retry.ts";
+import { EVENTS_FILE, type RunnerOptions, runConfig } from "../src/run.ts";
+import { memInvLines, memInvRowLines, runFooter } from "./run-mem-inv.ts";
 
 const REPO = fileURLToPath(new URL("../../../", import.meta.url));
 
@@ -94,6 +104,8 @@ interface Flags {
   live: boolean;
   replay: boolean;
   count: boolean;
+  /** Continue the run already in --out (card RV1). */
+  resume: boolean;
   model?: string | undefined;
   cassettes?: string | undefined;
 }
@@ -105,6 +117,55 @@ interface Outcome {
 }
 
 const FAILED: Outcome = { code: 2, sessions: 0, calls: { new: 0, cached: 0 } };
+
+/** The exit code of a run that stopped at its spend ceiling: its completed sessions are kept. */
+const STOPPED = 3;
+
+/** The journal of a session run into `out` (card RV1): afresh, or resumed with --resume. */
+function openJournal(
+  out: string,
+  config: AnyRunnerConfig,
+  flags: Flags,
+  sidecar?: string,
+): RunJournal {
+  return RunJournal.open(out, {
+    identity: { config: config.name, fingerprint: runFingerprint(config) },
+    resume: flags.resume,
+    ...(sidecar === undefined ? {} : { sidecar }),
+  });
+}
+
+/** What a journaled run says about what it kept and why it stopped, if it did. */
+function journalLines(result: {
+  sessions: number;
+  resumed: number;
+  stopped?: Stopped | undefined;
+}): string[] {
+  return [
+    ...(result.resumed > 0
+      ? [
+          `resumed: ${result.resumed} sessions an earlier invocation finished were kept, not run again`,
+        ]
+      : []),
+    ...(result.stopped
+      ? [
+          `stopped at the spend ceiling: provider ${result.stopped.provider} spent ${result.stopped.spent_usd} USD of ${result.stopped.ceiling_usd}; ${result.sessions} sessions completed, and the summary is theirs; raise spend_ceiling_usd and rerun with RESUME=1 to go on`,
+        ]
+      : []),
+  ];
+}
+
+/** One GateMem session as it ends. */
+const gatememRowLine = (r: ProbeResult) =>
+  `  ${r.condition} ${r.store} seed ${r.seed} ${r.checkpoint_id}: action ${r.output.action} (correct ${r.score.action_correct}), answer leak ${r.score.privacy_leak ?? r.score.deletion_leak}, context leak ${r.score.privacy_context_leak ?? r.score.deletion_context_leak}${judged(r.judge)}, ${r.decisions.length} session decisions, plane log ${eventCounts(r.events)}${r.excluded ? `, excluded (${r.excluded})` : ""}`;
+
+/** One LongMemEval session as it ends. */
+function longMemEvalRowLine(r: LongMemEvalProbeResult): string {
+  const writes = Object.entries(r.writes)
+    .map(([d, n]) => `${d} ${n}`)
+    .join(", ");
+  return `  ${r.condition} ${r.store} seed ${r.seed} ${r.question_id} (${r.category}): writes ${writes}, stored ${r.stored}, ${r.read.length} reads, judge ${r.judge ? r.judge.label : "none"}, ${r.decisions.length} session decisions${r.excluded ? `, excluded (${r.excluded})` : ""}`;
+}
 
 /** The config at `path`, of whichever benchmark it names. */
 function readAnyConfig(path: string): { gatemem: RunnerConfig } | { memInv: MemInvRunnerConfig } {
@@ -160,7 +221,7 @@ async function runLongMemEval(path: string, out: string, flags: Flags): Promise<
     );
     return FAILED;
   }
-  let options: LongMemEvalRunnerOptions = { offline: !flags.record };
+  let options: LiveRunOptions = { offline: !flags.record };
   if (named) {
     const request = {
       model: flags.model as string,
@@ -185,18 +246,23 @@ async function runLongMemEval(path: string, out: string, flags: Flags): Promise<
     : flags.replay
       ? ` (replayed from ${config.cassettes})`
       : "";
-  const result = await runLongMemEvalConfig(config, options);
-  writeLongMemEvalResult(result, out);
+  const journal = openJournal(out, config, flags);
+  let result: Awaited<ReturnType<typeof runLongMemEvalConfig>>;
+  try {
+    result = await runLongMemEvalConfig(config, {
+      ...options,
+      journal,
+      ...(flags.live ? { sessionRetry: SESSION_RETRY } : {}),
+      onRow: (r) => console.log(longMemEvalRowLine(r)),
+    });
+  } finally {
+    journal.close();
+  }
   const items = config.items === "all" ? "all" : `${config.items.length}`;
   const lines = [
-    `${config.name}: ${result.rows.length} sessions (${items} items x ${config.conditions.join(", ")} x stores ${configStores(config).join(", ")} x seeds ${config.seeds.join(", ")}), model ${config.model}, preset ${config.preset}`,
+    `${config.name}: ${result.sessions} sessions (${items} items x ${config.conditions.join(", ")} x stores ${configStores(config).join(", ")} x seeds ${config.seeds.join(", ")}), model ${config.model}, preset ${config.preset}`,
     `model calls: ${result.calls.new} new, ${result.calls.cached} from cassettes${how}`,
-    ...result.rows.map((r) => {
-      const writes = Object.entries(r.writes)
-        .map(([d, n]) => `${d} ${n}`)
-        .join(", ");
-      return `  ${r.condition} ${r.store} seed ${r.seed} ${r.question_id} (${r.category}): writes ${writes}, stored ${r.stored}, ${r.read.length} reads, judge ${r.judge ? r.judge.label : "none"}, ${r.decisions.length} session decisions`;
-    }),
+    ...journalLines(result),
     ...Object.entries(result.summary).map(
       ([k, s]) =>
         `  ${k}: ${s.judged} of ${s.sessions} judged, overall ${s.breakdown.overall.accuracy ?? "n/a"}, task-averaged ${s.breakdown.task_averaged ?? "n/a"} over ${s.breakdown.types_present} types`,
@@ -209,7 +275,7 @@ async function runLongMemEval(path: string, out: string, flags: Flags): Promise<
     `written to ${out}`,
   ];
   console.log(lines.join("\n"));
-  return { code: 0, sessions: result.rows.length, calls: result.calls };
+  return { code: result.stopped ? STOPPED : 0, sessions: result.sessions, calls: result.calls };
 }
 
 /**
@@ -384,7 +450,7 @@ async function runOne(path: string, out: string, flags: Flags): Promise<Outcome>
     return FAILED;
   }
 
-  let options: RunnerOptions = { offline: !flags.record };
+  let options: LiveRunOptions = { offline: !flags.record };
   if (named) {
     const request = {
       model: flags.model as string,
@@ -414,22 +480,42 @@ async function runOne(path: string, out: string, flags: Flags): Promise<Outcome>
       : "";
   if ("memInv" in read) {
     const memInv = config as MemInvRunnerConfig;
-    const result = await runMemInvConfig(memInv, options);
-    writeMemInvResult(result, out);
-    console.log(memInvLines(memInv, result, out, how, named).join("\n"));
-    return { code: 0, sessions: result.rows.length, calls: result.calls };
+    const journal = openJournal(out, memInv, flags);
+    let result: Awaited<ReturnType<typeof runMemInvConfig>>;
+    try {
+      result = await runMemInvConfig(memInv, {
+        ...options,
+        journal,
+        ...(flags.live ? { sessionRetry: SESSION_RETRY } : {}),
+        onRow: (r) => console.log(memInvRowLines(r).join("\n")),
+      });
+    } finally {
+      journal.close();
+    }
+    const lines = memInvLines(memInv, result, out, how, named);
+    lines.splice(-2, 0, ...journalLines(result));
+    console.log(lines.join("\n"));
+    return { code: result.stopped ? STOPPED : 0, sessions: result.sessions, calls: result.calls };
   }
   const gm = config as RunnerConfig;
-  const result = await runConfig(gm, options);
-  writeRunnerResult(result, out);
+  const journal = openJournal(out, gm, flags, EVENTS_FILE);
+  let result: Awaited<ReturnType<typeof runConfig>>;
+  try {
+    const gatememOptions: RunnerOptions = {
+      ...options,
+      journal,
+      ...(flags.live ? { sessionRetry: SESSION_RETRY } : {}),
+      onRow: (r) => console.log(gatememRowLine(r)),
+    };
+    result = await runConfig(gm, gatememOptions);
+  } finally {
+    journal.close();
+  }
   const items = gm.items === "all" ? "all" : `${gm.items.length}`;
   const lines = [
-    `${gm.name}: ${result.rows.length} sessions (${items} items x ${gm.conditions.join(", ")} x stores ${configStores(gm).join(", ")} x seeds ${gm.seeds.join(", ")}), model ${gm.model}, preset ${gm.preset}`,
+    `${gm.name}: ${result.sessions} sessions (${items} items x ${gm.conditions.join(", ")} x stores ${configStores(gm).join(", ")} x seeds ${gm.seeds.join(", ")}), model ${gm.model}, preset ${gm.preset}`,
     `model calls: ${result.calls.new} new, ${result.calls.cached} from cassettes${how}`,
-    ...result.rows.map(
-      (r) =>
-        `  ${r.condition} ${r.store} seed ${r.seed} ${r.checkpoint_id}: action ${r.output.action} (correct ${r.score.action_correct}), answer leak ${r.score.privacy_leak ?? r.score.deletion_leak}, context leak ${r.score.privacy_context_leak ?? r.score.deletion_context_leak}${judged(r.judge)}, ${r.decisions.length} session decisions, plane log ${eventCounts(r.events)}`,
-    ),
+    ...journalLines(result),
     runFooter(
       gm.kind,
       named,
@@ -440,7 +526,7 @@ async function runOne(path: string, out: string, flags: Flags): Promise<Outcome>
     `written to ${out}`,
   ];
   console.log(lines.join("\n"));
-  return { code: 0, sessions: result.rows.length, calls: result.calls };
+  return { code: result.stopped ? STOPPED : 0, sessions: result.sessions, calls: result.calls };
 }
 
 async function main(): Promise<number> {
@@ -452,13 +538,14 @@ async function main(): Promise<number> {
       live: { type: "boolean", default: false },
       replay: { type: "boolean", default: false },
       count: { type: "boolean", default: false },
+      resume: { type: "boolean", default: false },
       model: { type: "string" },
       cassettes: { type: "string" },
     },
   });
   if (!values.config || !values.out) {
     console.error(
-      "usage: run.ts --config <runner-config.json> --out <dir> [--record | --count | (--live | --replay) --model <provider/model-id> [--cassettes <dir>]]",
+      "usage: run.ts --config <runner-config.json> --out <dir> [--record | --count | (--live | --replay) --model <provider/model-id> [--cassettes <dir>]] [--resume]",
     );
     return 2;
   }
@@ -467,6 +554,7 @@ async function main(): Promise<number> {
     live: values.live === true,
     replay: values.replay === true,
     count: values.count === true,
+    resume: values.resume === true,
     model: values.model,
     cassettes: values.cassettes,
   };
@@ -479,6 +567,10 @@ async function main(): Promise<number> {
     console.error(
       "run.ts: --model and --cassettes go with --live or --replay, and both need --model",
     );
+    return 2;
+  }
+  if (flags.resume && flags.count) {
+    console.error("run.ts: --resume continues a session run; --count runs none");
     return 2;
   }
   if (flags.record && process.env.ENGRAM_OFFLINE === "1") {
@@ -505,7 +597,7 @@ async function main(): Promise<number> {
     );
     return 0;
   } catch (e) {
-    if (e instanceof UnpinnedData) {
+    if (e instanceof UnpinnedData || e instanceof JournalMismatch) {
       console.error(`run.ts: ${e.message}`);
       return 2;
     }

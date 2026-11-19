@@ -8,7 +8,7 @@ SHELL := bash
 PNPM ?= pnpm
 UV ?= uv
 
-.PHONY: help test test-invariants test-one test-e2e test-repro lint lint-docs api api-check ui bench run h1-table l3-variance h3-lint-delta fixtures fault-workspace thesis engram dogfood-report
+.PHONY: help test test-invariants test-scale test-one test-e2e test-repro lint lint-docs api api-check ui bench run h1-table l3-variance h3-lint-delta fixtures fault-workspace thesis engram dogfood-report
 
 help: ## list targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | sed -E 's/:.*## /\t/' | expand -t 16
@@ -19,6 +19,9 @@ test: ## layers 1 to 5 and 7 (vitest) and research tests (pytest)
 
 test-invariants: ## the five invariants against the real Plane, with counterexample and seed (issue #1)
 	ENGRAM_INVARIANTS=1 $(PNPM) --filter core exec vitest run test/property/invariants.test.ts
+
+test-scale: ## card RV1: H1's GateMem results at full size (26,616 rows, about 540 million characters) written and read back a line at a time; slow, writes about half a gigabyte to the temp folder
+	ENGRAM_SCALE=1 $(PNPM) --filter runner exec vitest run test/scale.test.ts
 
 test-one: ## one test file with its seed printed: make test-one T=<path>
 	@[ -n "$(T)" ] || { echo "usage: make test-one T=<path>"; exit 2; }
@@ -85,9 +88,9 @@ endif
 
 RUN_OUT ?= .engram/runs/$(basename $(notdir $(CONFIG)))
 
-run: ## replay a runner config as pi SDK sessions from its cassettes; a miss is an error: make run CONFIG=research/configs/rn1-gatemem-probe.json; MODEL=<provider/model> LIVE=1 runs it live into new cassettes under .engram/runs, REPLAY=1 replays those offline; COUNT=1 checks its data against the pin and counts its sessions, calling no model
+run: ## replay a runner config as pi SDK sessions from its cassettes; a miss is an error: make run CONFIG=research/configs/rn1-gatemem-probe.json; MODEL=<provider/model> LIVE=1 runs it live into new cassettes under .engram/runs, REPLAY=1 replays those offline; COUNT=1 checks its data against the pin and counts its sessions, calling no model; each row is written as its session ends, and RESUME=1 continues the run already in the output folder (card RV1); a live run reruns a session a transient outage stopped, waiting up to about 12 minutes, before it stops and needs RESUME=1; a run stopped at its spend_ceiling_usd exits 3
 	@[ -n "$(CONFIG)" ] || { echo "usage: make run CONFIG=<runner config>"; exit 2; }
-	node packages/runner/scripts/run.ts --config "$(CONFIG)" --out "$(RUN_OUT)$(if $(filter 1,$(LIVE) $(REPLAY)),-live)$(if $(filter 1,$(COUNT)),-count)" $(if $(filter 1,$(LIVE)),--live --model "$(MODEL)") $(if $(filter 1,$(REPLAY)),--replay --model "$(MODEL)") $(if $(filter 1,$(COUNT)),--count)
+	node packages/runner/scripts/run.ts --config "$(CONFIG)" --out "$(RUN_OUT)$(if $(filter 1,$(LIVE) $(REPLAY)),-live)$(if $(filter 1,$(COUNT)),-count)" $(if $(filter 1,$(LIVE)),--live --model "$(MODEL)") $(if $(filter 1,$(REPLAY)),--replay --model "$(MODEL)") $(if $(filter 1,$(COUNT)),--count) $(if $(filter 1,$(RESUME)),--resume)
 
 # The key from the blind UNREAD template's ids to H1's sessions; make h1-table writes it beside the template.
 READINGS_KEY ?= .engram/runs/h1-unread-key.json

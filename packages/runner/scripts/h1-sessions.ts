@@ -45,6 +45,7 @@ import { memInvBench } from "@engram/bench";
 import { configJudge, readRunnerConfig } from "../src/config.ts";
 import type { ProbeResult } from "../src/gatemem-probe.ts";
 import { isMemInvConfig, type MemInvProbeResult, readMemInvConfig } from "../src/mem-inv-probe.ts";
+import { gatememRow, readJsonl } from "../src/research/h1-rows.ts";
 import {
   answerModels,
   type Conversion,
@@ -57,12 +58,6 @@ import {
   unreadKeyPath,
   unreadKit,
 } from "../src/research/h1-sessions.ts";
-
-const readJsonl = <T>(path: string): T[] =>
-  readFileSync(path, "utf8")
-    .split("\n")
-    .filter((l) => l.trim() !== "")
-    .map((l) => JSON.parse(l) as T);
 
 const readJson = (path: string, what: string): unknown => {
   if (!existsSync(path)) throw new Error(`no ${what} at ${path}`);
@@ -109,7 +104,7 @@ function loadRun(configPath: string, run: string, gateByAction: boolean): Loaded
         rows: readJsonl<MemInvProbeResult>(results),
         cases: memInvBench.loadCases(config.data),
       }
-    : { kind: "gatemem", run, options, rows: readJsonl<ProbeResult>(results) };
+    : { kind: "gatemem", run, options, rows: readJsonl<ProbeResult>(results, gatememRow) };
 }
 
 /** The H1 table config's seed, which orders the blind template. */
