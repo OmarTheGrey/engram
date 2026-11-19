@@ -194,6 +194,7 @@ function decideWrite(deps: PlaneDeps, actor: Actor, input: MemoryItem, at: strin
     item,
     itemById(deps.db, item.id),
     retiredContent(deps.db, item.scope),
+    at,
   );
   return { kind: "evaluated", item, decision, provenanceNote };
 }

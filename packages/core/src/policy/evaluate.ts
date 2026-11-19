@@ -10,7 +10,11 @@
 //   <policy id>/read/grants         admission through a grant on the item
 //   engram/write/membership         the writer is not a member of the item's scope (decision D4)
 //   engram/write/version            a rewrite lowers the version or changes the owner (D4)
-//   engram/write/grant              a grant the gate refuses (D4, ADR 0021, ADR 0004)
+//   engram/write/grant              a grant the gate refuses (D4, ADR 0021, ADR 0004), or one naming another class than the item's
+//   engram/grant/owner              a rewrite changing the grants by anyone but the owner (ADR 0034, review I1)
+//   engram/grant/source             a rewrite changing the grants by an actor neither user- nor import-sourced
+//   engram/grant/expired            a grant added after it expired (ADR 0034)
+//   engram/grant/unchanged          a grant the item already carries, added again
 //   engram/write/source-isolation   model and compaction content stays in person scope (ADR 0004, 0007)
 //   engram/write/retired-content    a model, compaction or tool write restates content retired in its scope (ADR 0025)
 //   engram/write/default-deny       no write rule for the item's scope level (D6)
@@ -38,6 +42,10 @@ export const READ_STATUS_ID = "engram/read/status";
 export const READ_VALIDITY_ID = "engram/read/validity";
 export const READ_TTL_ID = "engram/read/ttl";
 export const RETIRED_CONTENT_ID = "engram/write/retired-content";
+export const GRANT_OWNER_ID = "engram/grant/owner";
+export const GRANT_SOURCE_ID = "engram/grant/source";
+export const GRANT_EXPIRED_ID = "engram/grant/expired";
+export const GRANT_UNCHANGED_ID = "engram/grant/unchanged";
 
 /**
  * Sources that are untrusted by default and cannot leave person scope at
@@ -91,6 +99,66 @@ export function grantProblem(grant: Grant, kind: MemoryItem["provenance"]["kind"
   return null;
 }
 
+/** Two grants are one when every field is equal, the expiry compared as an instant. */
+export function sameGrant(a: Grant, b: Grant): boolean {
+  const expiry =
+    a.expires === undefined || b.expires === undefined
+      ? a.expires === b.expires
+      : compareTimestamps(a.expires, b.expires) === 0;
+  return a.to === b.to && a.class === b.class && a.mode === b.mode && expiry;
+}
+
+/** The same grants, each as often, in any order. */
+export function sameGrants(a: readonly Grant[], b: readonly Grant[]): boolean {
+  if (a.length !== b.length) return false;
+  const left = [...b];
+  for (const g of a) {
+    const k = left.findIndex((h) => sameGrant(g, h));
+    if (k === -1) return false;
+    left.splice(k, 1);
+  }
+  return true;
+}
+
+/** A grant as a reason names it. */
+export function grantText(g: Grant): string {
+  return `grant to ${g.to} (class ${g.class ?? "any"}, mode ${g.mode}, expires ${g.expires ?? "never"})`;
+}
+
+/**
+ * Why a grant being added to `item` is refused, and under which rule, or
+ * null: the one check both paths that add a grant run (Plane.write and
+ * Plane.changeGrants; review finding M1 of PR #44). The write gate's grant
+ * rule (grantProblem, decision D4); a class other than the item's, which
+ * could never admit a read; with `at`, an expiry at or before it; and a
+ * grant `alongside` already holds.
+ */
+export function grantDefect(
+  grant: Grant,
+  item: MemoryItem,
+  alongside: readonly Grant[],
+  at?: string,
+): { problem: string; policy_id: string } | null {
+  const problem = grantProblem(grant, item.provenance.kind);
+  if (problem) return { problem, policy_id: WRITE_GRANT_ID };
+  if (grant.class !== undefined && grant.class !== item.class)
+    return {
+      problem: `${grantText(grant)} names class ${grant.class}, but the item is ${item.class}: it would never admit a read`,
+      policy_id: WRITE_GRANT_ID,
+    };
+  if (at !== undefined && grant.expires !== undefined && compareTimestamps(grant.expires, at) <= 0)
+    return {
+      problem: `the ${grantText(grant)} has expired by ${at}; it would never admit a read`,
+      policy_id: GRANT_EXPIRED_ID,
+    };
+  if (alongside.some((h) => sameGrant(grant, h)))
+    return {
+      problem: `item ${item.id} already carries the ${grantText(grant)}`,
+      policy_id: GRANT_UNCHANGED_ID,
+    };
+  return null;
+}
+
 export type WriteCheck =
   | "admit"
   | "review"
@@ -133,6 +201,14 @@ export interface WriteDecision {
  * retired item in the item's scope to that item's id. The provenance judged
  * is the item's; the plane sets it from the actor's source first
  * (plane/write.ts).
+ *
+ * Grants (ADR 0034, review findings I1 and M1 of PR #44): a rewrite whose
+ * grants differ from the projected item's is a grant change, so only the
+ * owner may make it, user-sourced, or import-sourced (the owner's own store
+ * record adopted); every grant it adds passes grantDefect at `at`, as a
+ * grant change's would. Every grant, kept or added, passes the write gate's
+ * grant rule (D4), and a first write or a grant change carries each grant
+ * once; a first write's grants are judged no further (see the loop).
  */
 export function evaluateWrite(
   policy: Policy,
@@ -140,6 +216,7 @@ export function evaluateWrite(
   item: MemoryItem,
   existing: MemoryItem | undefined,
   retired: ReadonlyMap<string, string>,
+  at?: string,
 ): WriteDecision {
   const level = scopeLevel(item.scope);
   const policy_id = `${policy.id}/write/${level}`;
@@ -187,9 +264,47 @@ export function evaluateWrite(
       );
   }
   const kind = item.provenance.kind;
+  const prior = existing?.grants ?? [];
+  const changesGrants = existing !== undefined && !sameGrants(item.grants, prior);
+  if (changesGrants && existing) {
+    // The membership check above passed, so the actor may learn the owner
+    // only if it may read the item's scope (as finding N3 keeps it).
+    const named = readableScope(policy, actor, existing.scope) ? ` ${existing.owner}` : "";
+    if (actor.source !== "user" && actor.source !== "import")
+      return deny(
+        "grant",
+        `a rewrite of ${item.id} changes its grants, which is its owner's consent, given by the person: ${actor.id} is ${actor.source === undefined ? "not user-sourced" : `${actor.source}-sourced`}`,
+        GRANT_SOURCE_ID,
+      );
+    if (actor.id !== existing.owner)
+      return deny(
+        "grant",
+        `a rewrite of ${item.id} changes its grants: only its owner${named} may change the grants of ${item.id}`,
+        GRANT_OWNER_ID,
+      );
+  }
   for (const [i, grant] of item.grants.entries()) {
     const problem = grantProblem(grant, kind);
     if (problem) return deny("grant", `grants[${i}]: ${problem}`, WRITE_GRANT_ID);
+    const earlier = item.grants.slice(0, i);
+    // A first write, and a rewrite that changes the grants, carry each grant
+    // once (review M1 of PR #44); a rewrite keeping the grants as they are
+    // is judged as before.
+    if ((existing === undefined || changesGrants) && earlier.some((h) => sameGrant(grant, h)))
+      return deny(
+        "grant",
+        `grants[${i}]: the ${grantText(grant)} is already among the item's grants`,
+        GRANT_UNCHANGED_ID,
+      );
+    // Only a grant a rewrite adds is judged further: keeping one the item
+    // already carries is no grant change. A first write keeps the write
+    // gate's grant rule alone: an already expired grant is one the twin
+    // profile's fixture writes on purpose (fixtures/profiles/twin-reads.json),
+    // and a grant of another class is one the read filter's tests write and a
+    // promotion's new version may carry from its source (M1 of PR #44).
+    if (!changesGrants || prior.some((h) => sameGrant(grant, h))) continue;
+    const defect = grantDefect(grant, item, earlier, at);
+    if (defect) return deny("grant", `grants[${i}]: ${defect.problem}`, defect.policy_id);
   }
 
   const rule = policy.write.find((r) => r.scope === level);
