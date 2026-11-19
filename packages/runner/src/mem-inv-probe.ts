@@ -54,8 +54,18 @@ import {
   statedPreset,
 } from "./config.ts";
 import { MEMORY_BLOCK, sequentialIds } from "./gatemem-probe.ts";
-import { type AnswerSource, cassettePiModel } from "./model/cassette.ts";
-import { NOTE_RETRY, realSleep, type Sleep, withRetry } from "./model/retry.ts";
+import {
+  callCounts,
+  RESULTS_FILE,
+  type RunJournal,
+  SessionSink,
+  type Stopped,
+  SUMMARY_FILE,
+  USAGE_FILE,
+  writeJsonl,
+} from "./journal.ts";
+import { type AnswerSource, cassettePiModel, sessionFailure } from "./model/cassette.ts";
+import { NOTE_RETRY, type RetryPolicy, realSleep, type Sleep, withRetry } from "./model/retry.ts";
 import { closeStore, openStore, type StoreName } from "./stores.ts";
 
 /**
@@ -130,6 +140,8 @@ export interface MemInvProbeResult {
   proposal: string;
   outcome: memInvBench.Outcome;
   decisions: SessionDecision[];
+  /** `turn limit` when the session asked for a model call past the config's turn_limit (RV-EXP-5); left out of the summary. */
+  excluded?: "turn limit";
 }
 
 export interface MemInvProbeSpec {
@@ -146,6 +158,12 @@ export interface MemInvProbeSpec {
   onUsage?: (usage: UsageRecord) => void;
   /** How many items a read returns in every condition (READ_LIMIT unless given). */
   readLimit?: number;
+  /** How a transient failure of the answer model is retried (RV-EXP-1): the benchmark client's policy. */
+  retry?: RetryPolicy;
+  /** How the retry waits; a real wait unless a test injects one. */
+  sleep?: Sleep;
+  /** The most model calls the session may make (RV-EXP-5); a session that asks for more is excluded. */
+  turnLimit?: number;
 }
 
 /** The cache context of a probe; C2 states and enforces no policy, so its preset is `none`. */
@@ -223,7 +241,12 @@ export function replyEnding(message: { stopReason: string; errorMessage?: string
 async function writeMemory(
   spec: MemInvProbeSpec,
   view: memInvBench.VisibleCase,
-  deps: { store: UngovernedStore; db: ReturnType<typeof openSqlite>; newId: () => string },
+  deps: {
+    store: UngovernedStore;
+    db: ReturnType<typeof openSqlite>;
+    newId: () => string;
+    eventId: () => string;
+  },
 ): Promise<{ writes: EntryDecision[]; metadata: ReadMetadata }> {
   const describe = (entry: memInvBench.MemoryEntry) => {
     const w = memInvBench.CHANNEL_WRITERS[entry.channel];
@@ -245,7 +268,9 @@ async function writeMemory(
       db: deps.db,
       adapter: deps.store.adapter,
       policy: spec.policy,
-      newId: deps.newId,
+      // The plane's events take their own counter, so the entries' item ids
+      // are the same under C5 as under C2 to C4 (card RV1, RV-EXP-10).
+      newId: deps.eventId,
     });
     const writes = await memInvBench.writePhase(plane, view, deps.newId);
     for (const w of writes) if (w.result.item) deps.store.scopes.add(w.result.item.scope);
@@ -285,11 +310,16 @@ export async function runMemInvProbe(spec: MemInvProbeSpec): Promise<MemInvProbe
 
 async function memInvProbeOn(spec: MemInvProbeSpec, adapter: Adapter): Promise<MemInvProbeResult> {
   const view = memInvBench.visibleCase(spec.case);
+  // Items and the plane's events count separately (RV-EXP-10): the case's
+  // entries are items 1 to n in every condition, and under C5 the plane's
+  // write and read events, and an item the model writes through the plane,
+  // take their ids from the event counter.
   const newId = sequentialIds();
+  const eventId = sequentialIds("9");
   const store: UngovernedStore = { adapter, scopes: new Set() };
   const db = openSqlite(":memory:");
   migrate(db);
-  const { writes, metadata } = await writeMemory(spec, view, { store, db, newId });
+  const { writes, metadata } = await writeMemory(spec, view, { store, db, newId, eventId });
   const stored = (await Promise.all([...store.scopes].map((s) => store.adapter.list(s)))).reduce(
     (n, l) => n + l.length,
     0,
@@ -305,6 +335,9 @@ async function memInvProbeOn(spec: MemInvProbeSpec, adapter: Adapter): Promise<M
     answers: spec.answers(),
     ...(spec.offline === undefined ? {} : { offline: spec.offline }),
     ...(spec.onUsage === undefined ? {} : { onUsage: spec.onUsage }),
+    ...(spec.retry === undefined ? {} : { retry: spec.retry }),
+    ...(spec.sleep === undefined ? {} : { sleep: spec.sleep }),
+    ...(spec.turnLimit === undefined ? {} : { turnLimit: spec.turnLimit }),
   });
   const { system, user } = memInvBench.renderProposalPrompt(view, MEMORY_BLOCK);
   const { session, sessionManager } = await conditionSession({
@@ -317,14 +350,15 @@ async function memInvProbeOn(spec: MemInvProbeSpec, adapter: Adapter): Promise<M
     policy: spec.policy,
     store,
     db,
-    newId,
+    newId: CONDITION_TABLE[spec.condition].memory === "plane" ? eventId : newId,
     now: () => memInvBench.phaseTimes(view).action,
     ...(spec.readLimit === undefined ? {} : { readLimit: spec.readLimit }),
     ...(CONDITION_TABLE[spec.condition].metadata ? { metadata } : {}),
   });
   try {
     await session.prompt(user);
-    if (cassette.errors.length > 0) throw cassette.errors[0];
+    const failure = sessionFailure(session.messages, cassette);
+    if (failure !== undefined) throw failure;
     const messages = session.messages;
     const toolCalls = messages.flatMap((m) =>
       m.role === "assistant"
@@ -365,6 +399,7 @@ async function memInvProbeOn(spec: MemInvProbeSpec, adapter: Adapter): Promise<M
       proposal,
       outcome: memInvBench.scoreProposal(spec.case, proposal, ending),
       decisions,
+      ...(cassette.capped ? { excluded: "turn limit" as const } : {}),
     };
   } finally {
     session.dispose();
@@ -386,7 +421,17 @@ export interface MemInvRunnerResult {
   >;
   /** The agent notes written before the sessions, and how many fell back to the raw input (V-4). */
   notes: { written: number; fell_back: number };
+  /** The sessions the run holds, a resumed run's earlier ones included (run.ts RunnerResult). */
+  sessions: number;
+  /** The sessions an earlier invocation finished, which this one skipped. */
+  resumed: number;
+  /** Per condition, the sessions left out of the summary by reason (a turn limit, RV-EXP-5), when any. */
+  excluded?: Record<string, Record<string, number>>;
+  /** Why the run stopped before its last session (a spend ceiling, RV-EXP-4), when it did. */
+  stopped?: Stopped;
+  /** This invocation's calls. */
   calls: { new: number; cached: number };
+  /** The cost ledger, a journal's earlier invocations included. */
   usage: UsageRecord[];
 }
 
@@ -395,6 +440,12 @@ export interface MemInvRunnerOptions {
   offline?: boolean;
   /** Where misses of a non-scripted model go (a live run, live.ts). Without it such a miss is an error. */
   live?: LiveModels;
+  /** Where rows go as each session ends, and a resumed run's finished sessions come from (journal.ts). */
+  journal?: RunJournal;
+  /** Told of each row as its session ends. */
+  onRow?: (row: MemInvProbeResult) => void;
+  /** How a transient failure's retry waits (answers and notes); a real wait unless a test injects one. */
+  sleep?: Sleep;
 }
 
 /**
@@ -540,29 +591,43 @@ export async function runMemInvConfig(
   const cases = memInvBench.loadCases(config.data);
   const policy = loadPreset(config.preset);
   const cache = options.cache ?? fileCache(config.cassettes);
-  const usage: UsageRecord[] = [];
-  const rows: MemInvProbeResult[] = [];
+  const sink = new SessionSink<MemInvProbeResult>({
+    journal: options.journal,
+    ceiling: config.spend_ceiling_usd,
+    onRow: options.onRow,
+  });
   const notes: NoteOutcome[] = [];
   const stores = configStores(config);
   const items = configItems(
     config,
     cases.map((c) => c.case_id),
   );
-  for (const item of items) {
+  sessions: for (const item of items) {
+    const keys = stores.flatMap((store) =>
+      config.conditions.flatMap((condition) =>
+        config.seeds.map((seed) => ({ item: `mem-inv-bench/${item}`, condition, store, seed })),
+      ),
+    );
+    if (keys.some((k) => !sink.done(k)) && !sink.proceed()) break;
     // The agent's own note is written once per case by the model under test,
-    // before any session, and every condition, store and seed shares it.
+    // before any session, and every condition, store and seed shares it. A
+    // resumed run writes it again from its cassette (no new call), so the
+    // notes count is the uninterrupted run's.
     const c = await withNotes(memInvBench.findCase(cases, item), {
       config,
       cache,
       live: options.live,
       offline: options.offline,
-      onUsage: (u) => usage.push(u),
+      onUsage: sink.onUsage,
       onNote: (n) => notes.push(n),
+      ...(options.sleep === undefined ? {} : { sleep: options.sleep }),
     });
     for (const store of stores) {
       for (const condition of config.conditions) {
         for (const seed of config.seeds) {
-          rows.push(
+          if (sink.done({ item: `mem-inv-bench/${item}`, condition, store, seed })) continue;
+          if (!sink.proceed()) break sessions;
+          sink.commit(
             await runMemInvProbe({
               case: c,
               condition,
@@ -575,7 +640,11 @@ export async function runMemInvConfig(
               answers: answersFor(config, item, condition, options.live),
               ...(config.read_limit === undefined ? {} : { readLimit: config.read_limit }),
               ...(options.offline === undefined ? {} : { offline: options.offline }),
-              onUsage: (u) => usage.push(u),
+              onUsage: sink.onUsage,
+              // MEM-INV-Bench's driver.call retries a transient failure (RV-EXP-1).
+              retry: NOTE_RETRY,
+              ...(options.sleep === undefined ? {} : { sleep: options.sleep }),
+              ...(config.turn_limit === undefined ? {} : { turnLimit: config.turn_limit }),
             }),
           );
         }
@@ -583,27 +652,58 @@ export async function runMemInvConfig(
     }
   }
   const summary: MemInvRunnerResult["summary"] = {};
+  const excluded: NonNullable<MemInvRunnerResult["excluded"]> = {};
+  const cell = (store: string, condition: string) =>
+    stores.length === 1 ? condition : `${condition}@${store}`;
   for (const store of stores) {
     for (const condition of config.conditions) {
-      const mine = rows.filter((r) => r.condition === condition && r.store === store);
-      const verdicts: Record<string, number> = {};
-      for (const r of mine) verdicts[r.outcome.verdict] = (verdicts[r.outcome.verdict] ?? 0) + 1;
-      summary[stores.length === 1 ? condition : `${condition}@${store}`] = {
-        sessions: mine.length,
-        attack_success: mine.filter((r) => r.outcome.attack_success).length,
-        verdicts,
-      };
+      summary[cell(store, condition)] = { sessions: 0, attack_success: 0, verdicts: {} };
     }
   }
-  return {
+  sink.forEachRow((r) => {
+    const key = cell(r.store, r.condition);
+    if (r.excluded !== undefined) {
+      const reasons = excluded[key] ?? {};
+      excluded[key] = reasons;
+      reasons[r.excluded] = (reasons[r.excluded] ?? 0) + 1;
+      return;
+    }
+    const s = summary[key] as MemInvRunnerResult["summary"][string];
+    s.sessions++;
+    if (r.outcome.attack_success) s.attack_success++;
+    s.verdicts[r.outcome.verdict] = (s.verdicts[r.outcome.verdict] ?? 0) + 1;
+  });
+  const result: MemInvRunnerResult = {
     config: config.name,
-    rows,
+    rows: sink.rows,
     summary,
     notes: { written: notes.length, fell_back: notes.filter((n) => n.fell_back).length },
-    calls: { new: usage.filter((u) => !u.hit).length, cached: usage.filter((u) => u.hit).length },
-    usage,
+    sessions: sink.sessions,
+    resumed: sink.resumed,
+    ...(Object.keys(excluded).length > 0 ? { excluded } : {}),
+    ...(sink.stopped ? { stopped: sink.stopped } : {}),
+    calls: callCounts(sink.usage),
+    usage: sink.ledger,
   };
+  if (options.journal) {
+    options.journal.writeJson(SUMMARY_FILE, memInvSummaryFile(result));
+    options.journal.writeJson(USAGE_FILE, {
+      config: result.config,
+      calls: callCounts(result.usage),
+      usage: result.usage,
+    });
+  }
+  return result;
 }
+
+/** summary.json: the summary and the notes, and the exclusions and the stop when there are any. */
+const memInvSummaryFile = ({ config, summary, notes, excluded, stopped }: MemInvRunnerResult) => ({
+  config,
+  summary,
+  notes,
+  ...(excluded ? { excluded } : {}),
+  ...(stopped ? { stopped } : {}),
+});
 
 /**
  * results.jsonl and summary.json, the same whether a run recorded its calls or
@@ -611,14 +711,8 @@ export async function runMemInvConfig(
  */
 export function writeMemInvResult(result: MemInvRunnerResult, out: string): void {
   mkdirSync(out, { recursive: true });
-  writeFileSync(
-    join(out, "results.jsonl"),
-    result.rows.map((r) => `${JSON.stringify(r)}\n`).join(""),
-  );
-  const { config, summary, notes, calls, usage } = result;
-  writeFileSync(
-    join(out, "summary.json"),
-    `${JSON.stringify({ config, summary, notes }, null, 2)}\n`,
-  );
+  writeJsonl(join(out, RESULTS_FILE), result.rows);
+  const { config, calls, usage } = result;
+  writeFileSync(join(out, SUMMARY_FILE), `${JSON.stringify(memInvSummaryFile(result), null, 2)}\n`);
   writeFileSync(join(out, "usage.json"), `${JSON.stringify({ config, calls, usage }, null, 2)}\n`);
 }

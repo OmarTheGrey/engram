@@ -126,6 +126,26 @@ export const RunnerConfig = z.strictObject({
    */
   read_limit: z.number().int().positive().optional(),
   /**
+   * The most model calls one session may make (card RV1, RV-EXP-5): the
+   * call past it is not made, and the session is excluded under its own
+   * reason (`turn limit`). Unset, no limit. It is not part of any cache key,
+   * since no call's request depends on it: a config with no limit keeps its
+   * keys, and raising the limit replays the calls already made. The value
+   * is the lead's, before the tag (proposed: 8).
+   */
+  turn_limit: z.number().int().positive().optional(),
+  /**
+   * The spend ceiling per provider in US dollars (card RV1, RV-EXP-4; H2's
+   * stopping rule): before each session the run's usage ledger is summed by
+   * provider over its paid calls, and when any provider has reached the
+   * ceiling the run stops, keeping the sessions it completed and reporting
+   * them as the completed subset. Unset, no ceiling. A session started under
+   * the ceiling finishes, so a run can pass it by one session's cost. It is
+   * not part of the run's fingerprint: raising it and resuming continues a
+   * stopped run. The value is the lead's.
+   */
+  spend_ceiling_usd: z.number().positive().optional(),
+  /**
    * The answer judge, as GateMem scores its access, forgetting and utility
    * checkpoints (card B1's port, packages/bench gatemem/judge.ts): a model,
    * its temperature and output limit, and for a scripted judge its replies

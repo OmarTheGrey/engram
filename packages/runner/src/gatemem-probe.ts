@@ -47,13 +47,19 @@ import {
   NO_STORE,
   statedPreset,
 } from "./config.ts";
-import { type AnswerSource, cassettePiModel } from "./model/cassette.ts";
+import { type AnswerSource, cassettePiModel, sessionFailure } from "./model/cassette.ts";
+import type { RetryPolicy, Sleep } from "./model/retry.ts";
 import { closeStore, openStore, type StoreName } from "./stores.ts";
 
-/** Deterministic UUIDv7-shaped ids: the n-th id a run hands out. */
-export const sequentialIds = () => {
+/**
+ * Deterministic UUIDv7-shaped ids: the n-th id a run hands out. `variant`
+ * is the fourth group's first digit (an RFC 9562 variant digit, 8 to b), so
+ * two counters of one session never hand out the same id (card RV1,
+ * RV-EXP-10: MEM-INV-Bench's items and the plane's events).
+ */
+export const sequentialIds = (variant: "8" | "9" = "8") => {
   let n = 0;
-  return () => `01920000-0000-7000-8000-${String(++n).padStart(12, "0")}`;
+  return () => `01920000-0000-7000-${variant}000-${String(++n).padStart(12, "0")}`;
 };
 
 /** A plain person actor (RN1's placeholder actor; the probe uses the B3 mapping's). */
@@ -121,6 +127,12 @@ export interface ProbeResult {
   events: LoggedEvent[];
   /** GateMem's judge's verdict on the answer, when the config has a judge (run.ts, J1). */
   judge?: gatemem.JudgeRow;
+  /**
+   * Why the session is left out of the summaries, when it is: `turn limit`,
+   * a session that asked for a model call past the config's turn_limit
+   * (RV-EXP-5). Its answer is what it had when it was cut off.
+   */
+  excluded?: "turn limit";
 }
 
 export interface ProbeSpec {
@@ -143,6 +155,12 @@ export interface ProbeSpec {
   c4Verdicts?: C4VerdictSource;
   /** How many items a read returns in every condition (READ_LIMIT unless given). */
   readLimit?: number;
+  /** How a transient failure of the answer model is retried (RV-EXP-1): the benchmark client's policy. */
+  retry?: RetryPolicy;
+  /** How the retry waits; a real wait unless a test injects one. */
+  sleep?: Sleep;
+  /** The most model calls the session may make (RV-EXP-5); a session that asks for more is excluded. */
+  turnLimit?: number;
 }
 
 /** Where the memory comes from in this prompt: the tools, in every condition but C1. */
@@ -433,6 +451,9 @@ async function probeOn(spec: ProbeSpec, adapter: Adapter | undefined): Promise<P
     answers: spec.answers(),
     ...(spec.offline === undefined ? {} : { offline: spec.offline }),
     ...(spec.onUsage === undefined ? {} : { onUsage: spec.onUsage }),
+    ...(spec.retry === undefined ? {} : { retry: spec.retry }),
+    ...(spec.sleep === undefined ? {} : { sleep: spec.sleep }),
+    ...(spec.turnLimit === undefined ? {} : { turnLimit: spec.turnLimit }),
   });
   const { session, sessionManager } = await conditionSession({
     condition: spec.condition,
@@ -453,7 +474,8 @@ async function probeOn(spec: ProbeSpec, adapter: Adapter | undefined): Promise<P
   });
   try {
     await session.prompt(user);
-    if (cassette.errors.length > 0) throw cassette.errors[0];
+    const failure = sessionFailure(session.messages, cassette);
+    if (failure !== undefined) throw failure;
     const { output: read, toolCalls } = sessionOutput(session);
     // C1's memory is its prompt's long context, as GateMem's agent reports it.
     const output = longContext
@@ -475,6 +497,7 @@ async function probeOn(spec: ProbeSpec, adapter: Adapter | undefined): Promise<P
       score: gatemem.scoreOne(checkpoint, output),
       decisions: sessionDecisions(sessionManager),
       events: plane ? plane.events().map(logged) : [],
+      ...(cassette.capped ? { excluded: "turn limit" as const } : {}),
     };
   } finally {
     session.dispose();

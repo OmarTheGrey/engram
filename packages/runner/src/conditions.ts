@@ -419,7 +419,14 @@ export async function conditionSession(spec: ConditionSessionSpec): Promise<Cond
     modelRuntime,
     resourceLoader,
     sessionManager,
-    settingsManager: SettingsManager.inMemory({ compaction: { enabled: false } }),
+    // pi's own auto-retry is off (card RV1, RV-EXP-1): the session's model
+    // retries a transient failure itself, once per call, with the benchmark
+    // client's policy and an injected wait (model/cassette.ts), so a retry
+    // happens in one place and a test never waits on a real timer.
+    settingsManager: SettingsManager.inMemory({
+      compaction: { enabled: false },
+      retry: { enabled: false },
+    }),
     tools: CONDITION_TABLE[spec.condition].memory === "context" ? [] : [...MEMORY_TOOL_NAMES],
   });
   return { session, sessionManager };

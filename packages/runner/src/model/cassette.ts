@@ -41,11 +41,13 @@ import {
   type CacheStore,
   type CallContext,
   cached,
+  OfflineMissError,
   type ScriptStep,
   scriptedPiModel,
   type UsageRecord,
 } from "@engram/model";
 import type { CompletesSimple } from "./pi.ts";
+import { type RetryPolicy, realSleep, type Sleep, withRetry } from "./retry.ts";
 
 /** What a miss is answered with besides the transcript: the config's seed and the loop's options. */
 export interface AnswerCall {
@@ -248,13 +250,37 @@ export interface CassetteModelOptions {
   /** Refuse misses; unset means ENGRAM_OFFLINE=1 decides (see `cached`). */
   offline?: boolean;
   onUsage?: (usage: UsageRecord) => void;
+  /**
+   * How a miss whose answer failed for a transient reason is retried (card
+   * RV1, RV-EXP-1): the benchmark's own client's policy. Only the final reply
+   * is recorded, so the retry never moves a cache key. No retry when unset.
+   */
+  retry?: RetryPolicy;
+  /** How the retry waits; a real wait unless a test injects one. */
+  sleep?: Sleep;
+  /**
+   * The most model calls the session may make (card RV1, RV-EXP-5): the
+   * call after the last one is never made, nothing is recorded for it, and
+   * `capped` is set. Hits count as calls, so a replay caps where the run
+   * did. Not part of any cache key: no call's request depends on it.
+   */
+  turnLimit?: number;
+}
+
+/** The session asked for a call past its turn limit (RV-EXP-5); the call is not made. */
+export class TurnLimitReached extends Error {
+  constructor(limit: number) {
+    super(`turn limit reached: the session made its ${limit} model calls`);
+    this.name = "TurnLimitReached";
+  }
 }
 
 /**
  * A pi-ai provider and model for a session, answering every call through the
  * cache. `errors` holds what made a call fail (an offline miss, an exhausted
- * script), since the agent loop turns a provider error into an assistant
- * message rather than a rejection.
+ * script, a transient failure that outlasted the retry), since the agent loop
+ * turns a provider error into an assistant message rather than a rejection.
+ * `capped` is set when the session asked for a call past its turn limit.
  */
 export function cassettePiModel(options: CassetteModelOptions) {
   const [provider, ...rest] = options.model.split("/");
@@ -265,9 +291,15 @@ export function cassettePiModel(options: CassetteModelOptions) {
     models: [{ id, reasoning: false }],
   });
   const errors: unknown[] = [];
+  const state = { capped: false, calls: 0 };
   const respond: FauxResponseFactory = async (transcript: TranscriptContext, stream) => {
     // The faux provider consumes one queued step per call; queue the next.
     faux.appendResponses([respond]);
+    if (options.turnLimit !== undefined && state.calls >= options.turnLimit) {
+      state.capped = true;
+      throw new TurnLimitReached(options.turnLimit);
+    }
+    state.calls++;
     const request = transcriptRequest(transcript, {
       model: options.model,
       seed: options.seed,
@@ -275,12 +307,18 @@ export function cassettePiModel(options: CassetteModelOptions) {
       ...(stream === undefined ? {} : { stream }),
     });
     const inner: ModelCall = async () => {
-      const reply = await options.answers(
-        { messages: transcript.messages },
-        { seed: options.seed, ...(stream === undefined ? {} : { stream }) },
-      );
+      const once = () =>
+        options.answers(
+          { messages: transcript.messages },
+          { seed: options.seed, ...(stream === undefined ? {} : { stream }) },
+        );
+      const { reply, attempts } = options.retry
+        ? await withRetry(once, options.retry, options.sleep ?? realSleep)
+        : { reply: await once(), attempts: 1 };
       if (reply.stopReason === "error" || reply.stopReason === "aborted") {
-        throw new Error(`model call failed: ${reply.errorMessage ?? reply.stopReason}`);
+        throw new Error(
+          `model call failed${attempts > 1 ? ` after ${attempts} attempts` : ""}: ${reply.errorMessage ?? reply.stopReason}`,
+        );
       }
       return {
         text: encode(reply),
@@ -305,5 +343,34 @@ export function cassettePiModel(options: CassetteModelOptions) {
     }
   };
   faux.setResponses([respond]);
-  return { provider: faux.provider, model: faux.getModel(), errors };
+  return {
+    provider: faux.provider,
+    model: faux.getModel(),
+    errors,
+    get capped() {
+      return state.capped;
+    },
+  };
+}
+
+/**
+ * What ended a session in failure, judged on its final assistant message
+ * (card RV1, RV-EXP-1): an error the session recovered from (a later call
+ * succeeded and the session went on to its answer) is not a failure, and a
+ * turn limit is not one either (the probe excludes that session). An offline
+ * miss always is: a replay that missed a call did not replay the run.
+ */
+export function sessionFailure(
+  messages: readonly { role: string; stopReason?: string; errorMessage?: string }[],
+  cassette: { errors: readonly unknown[]; capped: boolean },
+): unknown {
+  const miss = cassette.errors.find((e) => e instanceof OfflineMissError);
+  if (miss !== undefined) return miss;
+  if (cassette.capped) return undefined;
+  const final = [...messages].reverse().find((m) => m.role === "assistant");
+  if (final?.stopReason !== "error" && final?.stopReason !== "aborted") return undefined;
+  return (
+    cassette.errors.at(-1) ??
+    new Error(`model call failed: ${final.errorMessage ?? final.stopReason}`)
+  );
 }
