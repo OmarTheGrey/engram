@@ -14,7 +14,14 @@ import { retrieve } from "../../src/plane/retrieve.ts";
 import { type Actor, createPlane } from "../../src/plane.ts";
 import { evaluateRead, reachable } from "../../src/policy/evaluate.ts";
 import type { MemoryItem, Policy } from "../../src/schema.ts";
-import { arbActor, arbGatedItem, arbInstant, arbPolicy, seedFor } from "../generators.ts";
+import { compareTimestamps } from "../../src/time.ts";
+import {
+  arbActor,
+  arbGatedItemWithValidTo,
+  arbInstant,
+  arbPolicy,
+  seedFor,
+} from "../generators.ts";
 import { item, testPolicy } from "../unit/plane/helpers.ts";
 
 const RUNS = 300;
@@ -80,7 +87,8 @@ const scenario = fc
       .tuple(arbPolicy, fc.nat(3))
       .map(([p, k]) => (k > 0 ? { ...p, read: { ...p.read, honour_grants: true } } : p)),
     reader: arbActor,
-    pool: fc.uniqueArray(arbGatedItem, { selector: (i) => i.id, maxLength: 8 }),
+    // A validity window that ends half the time (card RV7, RV-CORE-7).
+    pool: fc.uniqueArray(arbGatedItemWithValidTo, { selector: (i) => i.id, maxLength: 8 }),
     at: arbInstant,
     limit: fc.constantFrom<number | undefined>(undefined, 1, 2, 3),
   })
@@ -89,18 +97,29 @@ const scenario = fc
     // Half the reads happen after every item became valid, so that the
     // validity window does not filter nearly everything.
     fc
-      .tuple(fc.subarray([...new Set(s.pool.map((i) => i.scope))]), fc.boolean())
-      .map(([scopes, late]) => ({
-        ...s,
-        at:
+      .tuple(fc.subarray([...new Set(s.pool.map((i) => i.scope))]), fc.boolean(), fc.nat(3))
+      .map(([scopes, late, ends]) => {
+        const at =
           late && s.pool.length > 0
             ? s.pool.map((i) => i.valid_from).reduce((a, b) => (a > b ? a : b))
-            : s.at,
-        reader: {
-          ...s.reader,
-          memberships: [...new Set([...s.reader.memberships, ...scopes])],
-        },
-      })),
+            : s.at;
+        // A quarter of the reads happen at the very end of one item's window
+        // (RV-CORE-7), which the window excludes.
+        const last = s.pool.length - 1;
+        const pool =
+          ends === 0 && last >= 0
+            ? s.pool.map((i, k) => (k === last ? { ...i, valid_to: at } : i))
+            : s.pool;
+        return {
+          ...s,
+          pool,
+          at,
+          reader: {
+            ...s.reader,
+            memberships: [...new Set([...s.reader.memberships, ...scopes])],
+          },
+        };
+      }),
   )
   .chain((s) => {
     const words = s.pool.flatMap((i) => textOf(i).split(/\s+/).filter(Boolean));
@@ -119,7 +138,7 @@ describe("a plane built with the core retrieval pipeline", () => {
   const NAME =
     "returns the pipeline over what its filter admits, searches no store, and ignores what the reader cannot reach";
   test(NAME, async () => {
-    const seen = { returned: 0, capped: 0, hidden: 0 };
+    const seen = { returned: 0, capped: 0, hidden: 0, endsAtRead: 0 };
     await fc.assert(
       fc.asyncProperty(scenario, async ({ s, text }) => {
         const { policy, reader, pool, at, limit } = s;
@@ -138,6 +157,14 @@ describe("a plane built with the core retrieval pipeline", () => {
           expected.map((r) => ({ total: r.total, components: r.components })),
         );
         expect(searched).toEqual([]);
+        // Judged without the implementation (RV-CORE-7): a returned item is
+        // inside its window, which excludes its end, at full precision.
+        for (const it of read.items) {
+          expect(compareTimestamps(it.valid_from, at)).toBeLessThanOrEqual(0);
+          if (it.valid_to !== null) expect(compareTimestamps(it.valid_to, at)).toBeGreaterThan(0);
+        }
+        if (projection.some((x) => x.valid_to !== null && compareTimestamps(x.valid_to, at) === 0))
+          seen.endsAtRead++;
         if (read.items.length > 0) seen.returned++;
         if (limit !== undefined && retrieve(admitted, text, at).length > limit) seen.capped++;
         // The same read with the unreachable items gone returns the same.
@@ -155,6 +182,7 @@ describe("a plane built with the core retrieval pipeline", () => {
     expect(seen.returned, "reads that returned items").toBeGreaterThan(RUNS / 30);
     expect(seen.capped, "reads the limit cut").toBeGreaterThan(0);
     expect(seen.hidden, "reads with unreachable items").toBeGreaterThan(RUNS / 4);
+    expect(seen.endsAtRead, "reads at the very end of an item's window").toBeGreaterThan(0);
   }, 120_000);
 
   // Random policies filter most items, so the ranking and the cut are seldom
