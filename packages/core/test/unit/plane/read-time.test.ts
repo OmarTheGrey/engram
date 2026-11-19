@@ -73,3 +73,36 @@ describe("a read's valid_at", () => {
     expect(plane.events()).toHaveLength(1);
   });
 });
+
+describe("RV-CORE-3: an access decision is never judged before the log's head", () => {
+  it("a read named at a time before the last read cannot reopen an expired grant (the review's repro)", async () => {
+    const { plane, policy } = fresh();
+    const granted = item(4, {
+      scope: "person:omar",
+      grants: [
+        { to: "person:sam", mode: "read", class: "semantic", expires: "2026-12-19T00:00:00Z" },
+      ],
+    });
+    await plane.write(OMAR, granted, "2026-11-01T00:00:00Z");
+    const late = await plane.read(SAM, { at: "2027-01-10T00:00:00Z" });
+    expect(late.items).toEqual([]);
+    // Appended after it, named a month earlier: before RV5 it returned the item.
+    const early = await plane.read(SAM, { at: "2026-11-19T00:00:00Z" });
+    expect(early.items).toEqual([]);
+    expect(early.event.ts).toBe("2027-01-10T00:00:00Z");
+    // The named time is kept as history, apart from ts.
+    expect(readValidAt(early.event)).toBe("2026-11-19T00:00:00Z");
+    const ts = plane.events().map((e) => e.ts);
+    expect([...ts].sort()).toEqual(ts);
+    const { report } = dogfoodReport(plane.events(), policy, [SAM]);
+    expect(report.violations.total).toBe(0);
+  });
+
+  it("a read at or after the head is judged at its own time, and records no history", async () => {
+    const { plane } = fresh();
+    await plane.write(OMAR, item(5), "2026-11-01T00:00:00Z");
+    const r = await plane.read(OMAR, { at: "2026-11-02T00:00:00Z" });
+    expect(r.event.ts).toBe("2026-11-02T00:00:00Z");
+    expect(readValidAt(r.event)).toBeNull();
+  });
+});

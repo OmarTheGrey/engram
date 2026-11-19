@@ -30,6 +30,9 @@ import { changeGrants } from "./plane/grants.ts";
 import { type LintReport, lint } from "./plane/lint.ts";
 import { promote } from "./plane/promote.ts";
 import { filteredRead, storedExplanations } from "./plane/read.ts";
+
+export { accessTime } from "./plane/read.ts";
+
 import { retain } from "./plane/retention.ts";
 import { simulate } from "./plane/simulate.ts";
 import { checkWrite, gatedWrite } from "./plane/write.ts";

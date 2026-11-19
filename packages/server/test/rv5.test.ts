@@ -136,3 +136,24 @@ describe("RV-SRF-2: the server stamps ts from its own clock; at is a read's vali
     expect(body.event.ts).toBe(NOW);
   });
 });
+
+describe("RV-CORE-3: the timeline is never judged before the log's head", () => {
+  it("/events withholds an item past its ttl at the log's head, even at an earlier server clock", async () => {
+    const { workspace } = testWorkspace();
+    // Thirty days from October 1: expired from October 31.
+    const item = itemFor(1, { ttl: 30 * 86_400 });
+    await clientAt(workspace, "2026-10-02T00:00:00.000Z").POST("/api/v1/items", {
+      body: { actor: user, item },
+    });
+    // The log's head: dana's read on November 15.
+    await clientAt(workspace, "2026-11-15T00:00:00.000Z").POST("/api/v1/read", {
+      body: { actor: dana },
+    });
+    // A server whose clock reads October 15, before the head.
+    const early = clientAt(workspace, "2026-10-15T00:00:00.000Z");
+    const { data } = await early.POST("/api/v1/events", { body: { actor: dana } });
+    const write = C.EventsResponse.parse(data).events.find((e) => e.op === "write");
+    expect(write).toBeDefined();
+    expect(write?.item).toBeUndefined();
+  });
+});

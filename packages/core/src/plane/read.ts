@@ -37,6 +37,7 @@ import {
   readRuleId,
 } from "../policy/evaluate.ts";
 import { type Explanation, type MemoryItem, SCHEMA_VERSION } from "../schema.ts";
+import { compareTimestamps } from "../time.ts";
 import { formatReadReason } from "./read-reason.ts";
 import { matchesQuery, queryTerms, retrieve, scoreComponents } from "./retrieve.ts";
 import { checkCall } from "./write.ts";
@@ -119,11 +120,13 @@ export async function filteredRead(
 ): Promise<ReadResult> {
   const { db, policy, newId } = deps;
   checkCall(actor, query?.at, "read");
-  const { at } = query;
-  // The time validity windows are judged at (card RV5, finding RV-SRF-2):
-  // the reader's, when it names one; everything else is judged at `at`.
+  const requested = query.at;
+  // The time validity windows are judged at (card RV5, findings RV-SRF-2
+  // and RV-CORE-3): the reader's `valid_at` when it names one, else the time
+  // it asked to read at. Access (status, ttl, grants), scoring and the
+  // event's ts are judged at accessTime below, never before the log's head.
   if (query.valid_at !== undefined) checkCall(actor, query.valid_at, "read (valid_at)");
-  const validAt = query.valid_at ?? at;
+  const validAt = query.valid_at ?? requested;
   const snapshot = currentItems(db);
   const reach = snapshot.filter((i) => reachable(policy, actor, i));
   // The readable scopes the actor belongs to: the store is never asked about
@@ -152,6 +155,8 @@ export async function filteredRead(
   // since; an item whose content changed or that is new is matched by the
   // plane over its current content (final recheck of PR #41).
   const { items, explanations, filtered, event } = db.transaction(() => {
+    // Under the log's lock: the head cannot move before this read is appended.
+    const at = accessTime(db, requested);
     const projected = currentItems(db);
     const live = projected.filter((i) => reachable(policy, actor, i));
     const outOfReach = projected.length - live.length;
@@ -237,7 +242,7 @@ export async function filteredRead(
         ...(limited ? { cut: passed.length - admitted.length } : {}),
         out_of_reach: outOfReach,
       },
-      query.valid_at,
+      compareTimestamps(validAt, at) === 0 ? undefined : validAt,
     );
     const appended = appendEvent(db, {
       id: newId(),
@@ -260,6 +265,21 @@ export async function filteredRead(
     return { items: admitted.map((a) => a.item), explanations, filtered, event: appended };
   });
   return { items, explanations, filtered, event };
+}
+
+/**
+ * The time an access decision is judged at (card RV5, finding RV-CORE-3;
+ * ADR 0005 and ADR 0027, amendments proposed by RV5): `at`, unless the log
+ * already holds a later event, in which case that event's ts. A grant's
+ * expiry or a ttl the log has passed cannot be reopened by naming an earlier
+ * time, and the log's timestamps never run backwards at a read. The time a
+ * caller names is history at most, which a read takes as its `valid_at`.
+ */
+export function accessTime(db: PlaneDeps["db"], at: string): string {
+  const row = db.prepare("SELECT body FROM events ORDER BY seq DESC LIMIT 1").get();
+  if (row === undefined) return at;
+  const head = (JSON.parse(String(row.body)) as { ts?: unknown }).ts;
+  return typeof head === "string" && compareTimestamps(head, at) > 0 ? head : at;
 }
 
 /**

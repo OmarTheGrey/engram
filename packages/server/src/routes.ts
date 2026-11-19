@@ -11,6 +11,7 @@
 // app.ts answers with 501 naming the card.
 import {
   type Actor,
+  accessTime,
   currentItems,
   eventById,
   type MemoryItem,
@@ -196,7 +197,8 @@ export const ROUTES: readonly Route[] = [
       const items = new Map(currentItems(workspace.deps.db).map((i) => [i.id, i]));
       const view = {
         policy: workspace.policy,
-        at: now(),
+        // Never before the log's head (card RV5, RV-CORE-3), as a read is judged.
+        at: accessTime(workspace.deps.db, now()),
         current: (id: string) => items.get(id),
       };
       return { events: visibleEvents(body.actor, events, view) };
