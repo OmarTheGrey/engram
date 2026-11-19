@@ -53,6 +53,7 @@ import {
   erasureOpen,
   ownBytes,
   PROMOTE_CONFLICT_ID,
+  removedAncestor,
   settle,
   staleness,
 } from "./commit.ts";
@@ -252,6 +253,14 @@ async function decideAndCommit(
     outcome = db.transaction(() => {
       const stale = staleness(db, decided, ownBytes(deps, written));
       if (stale) return { stale };
+      // A new version whose lineage names an id an offboarding took out after
+      // the decision (verification pass 4 of PR #50, V4-1): its source is
+      // checked above; the ancestors it carries over are checked here.
+      const ancestor = fresh ? removedAncestor(db, written) : null;
+      if (ancestor)
+        return {
+          stale: `its lineage names item ${ancestor}, which an offboarding took out after the decision`,
+        };
       // Only the source and its own lineage may share the new version's ref:
       // the confirming items its lineage also names are not versions (P5-10).
       const problem = refProblem(

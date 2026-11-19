@@ -210,6 +210,8 @@ type Decided =
       provenanceNote: string;
       /** What the decision rested on, for the check under the lock (commit.ts). */
       basis: Basis;
+      /** The item id was new at the decision: its lineage is checked again at the commit (V4-1). */
+      isNew: boolean;
     };
 
 /**
@@ -300,6 +302,7 @@ function decideWrite(
     decision,
     provenanceNote,
     basis: { head, items: [item.id], scopes },
+    isNew: existing === undefined,
   };
 }
 
@@ -398,7 +401,7 @@ async function decideAndWrite(
   const refused = appendRefusal(deps, actor, decided, at, (r) => r);
   if (refused || decided.kind !== "evaluated") return refused as WriteResult;
 
-  const { item, decision, provenanceNote, basis } = decided;
+  const { item, decision, provenanceNote, basis, isNew } = decided;
   const common = {
     ...writeBase(actor, at),
     item_id: item.id,
@@ -420,7 +423,7 @@ async function decideAndWrite(
     });
   let ref: StoreRef;
   let outcome:
-    | { stale: string }
+    | { stale: string; policy_id: string }
     | { stored: MemoryItem; event: WriteResult["event"]; retention: WriteResult["retention"] };
   try {
     ref = await adapter.write(toStore);
@@ -431,7 +434,16 @@ async function decideAndWrite(
     // written is never its own victim (review finding P4-1).
     outcome = db.transaction(() => {
       const stale = staleness(db, basis, ownBytes(deps, { ...toStore, store_ref: ref }));
-      if (stale) return { stale };
+      if (stale) return { stale, policy_id: WRITE_CONFLICT_ID };
+      // A new item whose lineage names an id an offboarding took out after
+      // the decision carries content traced to erased content: refused here
+      // as at the decision (verification pass 4 of PR #50, V4-1).
+      const ancestor = isNew ? removedAncestor(db, item) : null;
+      if (ancestor)
+        return {
+          stale: `its lineage names item ${ancestor}, which an offboarding took out after the decision`,
+          policy_id: WRITE_ERASED_ID,
+        };
       const problem = refProblem(deps, item, ref, false);
       if (problem) throw new Error(problem);
       const stored = { ...toStore, store_ref: ref };
@@ -445,6 +457,7 @@ async function decideAndWrite(
   }
   if ("stale" in outcome) {
     const why = outcome.stale;
+    const refusedUnder = outcome.policy_id;
     try {
       const stale = {
         wrote: { ...toStore, store_ref: ref },
@@ -457,14 +470,14 @@ async function decideAndWrite(
           ...common,
           id: newId(),
           decision: "deny",
-          policy_id: WRITE_CONFLICT_ID,
+          policy_id: refusedUnder,
           reason: `the gate allowed the write (${decision.policy_id}) but ${why}, before it was committed; the decision no longer stands, so the write is refused and the store is put back as the log has it; ${provenanceNote}${note}`,
         }),
       );
       return { item: null, event, retention: [] };
     } catch (e) {
       failed(
-        `the write was refused (${WRITE_CONFLICT_ID}: ${why}) and the store could not be put back: ${errorText(e)}`,
+        `the write was refused (${refusedUnder}: ${why}) and the store could not be put back: ${errorText(e)}`,
       );
       throw e;
     }
