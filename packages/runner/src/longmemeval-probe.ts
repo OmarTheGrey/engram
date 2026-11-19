@@ -80,6 +80,15 @@ export const LongMemEvalRunnerConfig = RunnerConfig.extend({
   .refine((c) => c.c4_verdicts === undefined, {
     message: "c4_verdicts is GateMem's; C4 is not built on LongMemEval",
     path: ["c4_verdicts"],
+  })
+  // The paper's judge id (PAPER_JUDGE, openai/gpt-4o-2024-08-06) is served on
+  // the OpenAI Responses API, which takes no seed, so a live run would refuse
+  // it (ADR 0017); an experiment names its judge, which reaches the same model
+  // through OpenRouter's seeded chat completions (review P6-5).
+  .refine((c) => c.kind !== "experiment" || c.judge !== undefined, {
+    message:
+      "an experiment on LongMemEval names its judge: the paper's id is on an API that takes no seed; use openrouter/openai/gpt-4o-2024-08-06, temperature 0, max_tokens 10",
+    path: ["judge"],
   });
 export type LongMemEvalRunnerConfig = z.infer<typeof LongMemEvalRunnerConfig>;
 

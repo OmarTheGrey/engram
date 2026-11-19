@@ -93,6 +93,21 @@ describe("B6's experiment configs", () => {
     }
   }, 120_000);
 
+  test("an experiment config without a judge is refused at load, naming the seeded OpenRouter judge (review P6-5)", () => {
+    const raw = JSON.parse(readFileSync(H2_LONGMEMEVAL_C5, "utf8"));
+    delete raw.judge;
+    const file = join(fresh(), "no-judge.json");
+    writeFileSync(file, JSON.stringify(raw));
+    expect(() => readLongMemEvalConfig(file)).toThrow(
+      /an experiment on LongMemEval names its judge.*openrouter\/openai\/gpt-4o-2024-08-06/,
+    );
+    const out = join(fresh(), "out");
+    const run = runScript(["--config", file, "--out", out, "--count"], { ENGRAM_OFFLINE: "1" });
+    expect(run.status).not.toBe(0);
+    expect(run.stderr).toMatch(/names its judge/);
+    expect(existsSync(out)).toBe(false);
+  }, 30_000);
+
   test("an experiment on the fixture subset is refused: it takes only the pinned S split", async () => {
     const config = { ...readLongMemEvalConfig(H2_LONGMEMEVAL_C5), data: FIXTURE_DATA };
     await expect(countConfig(config)).rejects.toThrow(UnpinnedData);
