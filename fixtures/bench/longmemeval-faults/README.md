@@ -15,6 +15,8 @@ node packages/bench/scripts/fault-set.ts --data fixtures/bench/longmemeval/quest
 | `labels.jsonl` | one label per injected fault or near-miss: its item, scope, class, subtype, whether it is keyed, the lints of each tier `expected` to flag it, the lints it is a near-miss of, and the `related` items it is about |
 | `stats.jsonl` | per question: B5's turns, the assistant turns whose model the generator names, the turns past preset medium's own ttl at the lint time, and the events |
 
-To lint a state, append its events to a fresh log (`appendEvent`, without `seq`), build a plane over it with `policy.json`, and call `Plane.lint(actor, at, scope)` for each scope. The labels never appear in a state; a scorer joins them by `question_id` and `item_id`.
+To lint a state, append its events to a fresh log (`appendEvent`, without `seq`), build a plane over it with `policy.json`, and call `Plane.lint(actor, at, scope)` for each scope; `packages/bench/scripts/fault-set-check.ts` does so and checks the labels against the deterministic lints. The labels never appear in a state; a scorer joins them by `question_id` and `item_id`.
+
+Split the JSON Lines files on the newline byte only: LongMemEval's text holds U+2028, which `JSON.stringify` leaves raw and `node:readline` (or Python's `str.splitlines`) treats as a line end.
 
 Content: LongMemEval's turns are upstream's (MIT licence, Copyright (c) 2024 Di Wu; see `fixtures/bench/longmemeval/UPSTREAM-LICENSE`). Every injected sentence and value is invented (`packages/bench/src/faults/bank.ts`).
