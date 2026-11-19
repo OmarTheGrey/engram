@@ -231,7 +231,23 @@ describe("shellBypass and toolBypass", () => {
     expect(shellBypass("mv .claude x", guard)?.route).toBe("path");
     expect(toolBypass("Bash", { path: join(cwd, ".claude") }, guard)?.route).toBe("path");
     expect(shellBypass("ls", guard)).toBeUndefined();
-    expect(shellBypass("rm -rf .claude", { ...guard, ancestorsBelow: undefined })).toBeUndefined();
+    expect(shellBypass("mv .claude x", { ...guard, ancestorsBelow: undefined })).toBeUndefined();
+    // As a store root, a recursive walk over a folder holding it is a hit (card RV7, RV-CORE-5).
+    expect(shellBypass("rm -rf .claude", { ...guard, ancestorsBelow: undefined })?.route).toBe(
+      "path",
+    );
+    // A walk over the project itself is no hit for a protected file (R3-13's folders below).
+    expect(shellBypass("grep -rn x .", guard)).toBeUndefined();
+  });
+
+  it.each([
+    "cd sub && cat ../memory/a.md",
+    "pushd sub; cat ../memory/a.md",
+    "grep -r secret .",
+    "find . -name a.md -exec cat {} +",
+    "Get-ChildItem -Recurse .",
+  ])("follows a cd and judges a walk over the root's folder: blocks %s (RV-CORE-5)", (command) => {
+    expect(shellBypass(command, check)?.route).toBe("path");
   });
 
   it.each(["echo hello", "ls *.ts", "cat src/memory.ts"])("leaves %s alone", (command) => {

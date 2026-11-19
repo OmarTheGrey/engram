@@ -134,6 +134,21 @@ function within(child: string, parent: string): boolean {
   return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
 }
 
+/**
+ * `path` with a leading `~`, `~/` or `~user` read as the folder it names, or
+ * undefined when it has none. `~user` is taken as the folder named `user`
+ * beside `home` (`/home/u` for `~u` when home is `/home/me`), the usual
+ * layout; a user whose home folder lies elsewhere is not found (card RV7,
+ * core review finding RV-CORE-5; ADR 0014's amendment). `~+` and `~-` are not read.
+ */
+export function expandHome(path: string, home: string = homedir()): string | undefined {
+  if (path === "~" || path.startsWith("~/") || path.startsWith("~\\"))
+    return join(home, path.slice(1));
+  const m = /^~([A-Za-z0-9._][A-Za-z0-9._-]*)(?:[\\/](.*))?$/.exec(path);
+  if (!m) return undefined;
+  return join(dirname(home), m[1] as string, m[2] ?? "");
+}
+
 /** Every absolute path a tool's path argument may reach: as pi's tools resolve it, and as written. */
 function resolveToolPath(path: string, cwd: string, home: string = homedir()): string[] {
   const out = new Set<string>();
@@ -148,6 +163,9 @@ function resolveToolPath(path: string, cwd: string, home: string = homedir()): s
     }
     if (p === "~" || p.startsWith("~/") || p.startsWith("~\\")) p = join(home, p.slice(1));
     out.add(resolve(cwd, p));
+    // A shell reads `~user` as that user's home (RV-CORE-5); pi's tools do not.
+    const named = p.startsWith("~") ? expandHome(p, home) : undefined;
+    if (named !== undefined) out.add(resolve(named));
     const drive = process.platform === "win32" ? shellDrivePath(p) : undefined;
     if (drive !== undefined) out.add(resolve(drive));
     const unc = process.platform === "win32" ? uncDrivePath(p) : undefined;

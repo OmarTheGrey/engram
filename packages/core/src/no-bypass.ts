@@ -6,9 +6,11 @@
 // claude-code`, a PreToolUse hook). The surface records what it blocks with
 // Plane.recordBypass. The text and path rules and their limits are in
 // no-bypass/shell.ts and no-bypass/paths.ts.
+import { homedir } from "node:os";
 import { resolve, sep } from "node:path";
 import {
   ancestorOfRoot,
+  expandHome,
   LOOPBACK_HOST,
   storeRootOf,
   toolPaths,
@@ -400,11 +402,118 @@ export function shellBypass(command: string, check: BypassCheck): Bypass | undef
     const word = asUncPath(unc[0]);
     if (uncDrivePath(word) !== undefined) words.push(word);
   }
-  for (const word of words) {
-    if (reaches(word, check, false)) return path;
-    if (globReachesRoot(word, check.cwd, check.roots)) return path;
+  // A protected file's folders are judged by ancestorOfRoot, below the given
+  // folders only (R3-13), so a walk over the project is no hit for them.
+  const recursive = check.ancestorsBelow === undefined && walksTree(words);
+  for (const cwd of workingDirs(command, check)) {
+    const at = { ...check, cwd };
+    for (const word of words) {
+      if (reaches(word, at, recursive)) return path;
+      if (globReachesRoot(word, cwd, check.roots)) return path;
+    }
   }
   return undefined;
+}
+
+/** Commands that change the folder later words are read from: `cd`, `pushd`, and their PowerShell and cmd names. */
+const CD_WORD = String.raw`(?:cd|pushd|chdir|set-location|sl)`;
+/** Where a command word may start in the raw text: its start, after a separator, a quote, a backtick or a paren. */
+const CD_START = String.raw`(?:^|[\s;&|("'\x60])`;
+/** One shell word as written: double-quoted, single-quoted, or a run up to a separator. */
+const RAW_WORD = String.raw`("[^"]*"|'[^']*'|[^\s;&|()"'\x60]+)`;
+/** `cd dir`, options (`-P`, cmd's `/d`) skipped: the target is the group. */
+const CD_TARGET = new RegExp(
+  `${CD_START}${CD_WORD}\\s+(?:(?:-[A-Za-z]+|/d)\\s+)*${RAW_WORD}`,
+  "gi",
+);
+/** A bare `cd`, which goes to the home folder. */
+const CD_HOME = new RegExp(`${CD_START}${CD_WORD}(?=\\s*(?:$|[;&|)\\n]))`, "gi");
+/** `-C dir` (git, make, tar) and `--directory dir` or `--directory=dir` (make, tar). */
+const DIR_OPTION = new RegExp(`\\s(?:-C|--directory)(?:=|\\s+)${RAW_WORD}`, "g");
+/** How many folders one command may be read from, at most. */
+const MAX_DIRS = 32;
+
+/**
+ * Every folder a word of `command` may be resolved against (card RV7, core
+ * review finding RV-CORE-5): the cwd, and every folder a `cd`, `pushd`,
+ * `-C` or `--directory` in it names, each resolved against the cwd and
+ * every folder named before it, so `cd .. && cat mem/a.md` and `cd /a; cd b`
+ * are followed; a bare `cd` adds the home folder. The text is read as
+ * written, quotes and nested scripts included, erring towards blocking:
+ * a word is checked against folders the command may never enter.
+ */
+function workingDirs(command: string, check: BypassCheck): string[] {
+  const home = check.home ?? homedir();
+  // A single-quoted commit message never runs, so a `cd` inside one moves
+  // nothing (`git commit -m '$(cd memory)'`); its words are checked as before.
+  const text = command.replace(/(?:-m|--message)(?:=|\s+)'[^']*'/g, " ");
+  const named: { at: number; dir: string }[] = [];
+  for (const re of [CD_TARGET, DIR_OPTION])
+    for (const m of text.matchAll(re))
+      named.push({ at: m.index ?? 0, dir: (m[1] as string).replace(/^["']|["']$/g, "") });
+  for (const m of text.matchAll(CD_HOME)) named.push({ at: m.index ?? 0, dir: home });
+  named.sort((a, b) => a.at - b.at);
+  const dirs = [check.cwd];
+  for (const { dir } of named) {
+    const target = expandHome(dir, home) ?? dir;
+    for (const base of [...dirs]) {
+      if (dirs.length >= MAX_DIRS) break;
+      const next = resolve(base, target);
+      if (!dirs.includes(next)) dirs.push(next);
+    }
+  }
+  return dirs;
+}
+
+/** Commands that always walk the trees their paths name. */
+const WALKERS = new Set(["find", "rg", "ag", "ack", "fd", "tree", "du", "tar", "rsync"]);
+/**
+ * Commands that walk a tree under a flag, with the short flag letters that
+ * make them do so (PowerShell's `-r` included); the long forms
+ * `--recursive`, `-Recurse` (any prefix of at least `-rec`) and cp's
+ * `--archive` count too.
+ */
+const WALK_FLAGS: Readonly<Record<string, string>> = {
+  grep: "rR",
+  egrep: "rR",
+  fgrep: "rR",
+  cp: "rRa",
+  scp: "r",
+  rm: "rR",
+  ls: "R",
+  chmod: "R",
+  chown: "R",
+  chgrp: "R",
+  zip: "r",
+  diff: "r",
+  "get-childitem": "r",
+  gci: "r",
+  dir: "r",
+  "remove-item": "r",
+  "copy-item": "r",
+};
+
+/**
+ * Whether `command`'s words include a command that walks a directory tree
+ * (RV-CORE-5): then every word is also a hit when a root lies inside the
+ * folder it names (`grep -r x ~`, `find .. -name a.md`, `cp -r ~ /tmp`), as
+ * for pi's grep and find tools. Judged over the whole command, not per
+ * segment, erring towards blocking. A walk with no path, from the folder
+ * holding a root (`find`, `rg x`), is not seen: ADR 0014's stated limit.
+ */
+function walksTree(words: readonly string[]): boolean {
+  const names = words.map((w) =>
+    (w.split(/[\\/]/).pop() ?? "").toLowerCase().replace(/\.exe$/, ""),
+  );
+  if (names.some((n) => WALKERS.has(n))) return true;
+  const flagged = names.filter((n) => WALK_FLAGS[n] !== undefined);
+  if (flagged.length === 0) return false;
+  return words.some((w) => {
+    if (/^--(?:recursive|archive)$/i.test(w) || /^-rec(?:u(?:r(?:s(?:e)?)?)?)?$/i.test(w))
+      return true;
+    if (!/^-[A-Za-z]+$/.test(w)) return false;
+    return flagged.some((n) => [...(WALK_FLAGS[n] as string)].some((l) => w.includes(l)));
+  });
 }
 
 /**

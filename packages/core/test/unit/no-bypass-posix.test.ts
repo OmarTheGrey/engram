@@ -31,3 +31,51 @@ describe("under a posix path module", () => {
     expect(shellBypass("git commit -m 'fix memory leak'", check)).toBeUndefined();
   });
 });
+
+// Core review finding RV-CORE-5 (card RV7): a path a `cd`, `pushd` or `-C`
+// makes relative, a recursive walk over an ancestor of a root, and `~user`.
+describe("paths a command reaches from another folder (RV-CORE-5)", () => {
+  const away = { cwd: "/home/u/proj", roots: ["/home/u/mem"], rootStore: "files", home: "/home/u" };
+  it.each([
+    "cd .. && cat mem/a.md",
+    "cd /home/u; cat mem/a.md",
+    "cd ..\ncat mem/a.md",
+    "pushd .. && cat mem/a.md",
+    "cd ~ && cat mem/a.md",
+    "cd && cat mem/a.md",
+    'bash -c "cd .. && cat mem/a.md"',
+    "cd /home && cd u && cat mem/a.md",
+    "tar cf - -C /home/u mem",
+    "git -C .. show HEAD:mem/a.md",
+    "make --directory=.. -f mem/Makefile",
+    "grep -r secret /home/u",
+    "grep -rn secret ..",
+    "rg secret /home/u",
+    "find /home/u -name a.md -exec cat {} +",
+    "find .. -name a.md",
+    "cp -r /home/u /tmp/x",
+    "rsync -a /home/u/ /tmp/x",
+    "ls -R ..",
+    "du -a ~",
+    "cat ~u/mem/a.md",
+    "cat ~u/mem",
+  ])("blocks %s", (command) => {
+    expect(shellBypass(command, away)?.route).toBe("path");
+  });
+
+  it.each([
+    "cd src && cat a.md",
+    "cd .. && ls proj",
+    "grep -r secret src",
+    "grep -rn secret .",
+    "find . -name '*.ts'",
+    "ls -lrt ..",
+    "cat ~/notes.md",
+    "cat ~v/mem/a.md",
+    "tar cf x.tar src",
+    "cat ../notes.md",
+    "git -C . commit -m 'mem: tidy'",
+  ])("leaves %s alone", (command) => {
+    expect(shellBypass(command, away)).toBeUndefined();
+  });
+});
