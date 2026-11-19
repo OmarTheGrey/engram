@@ -45,6 +45,12 @@ export {
   UnknownReadError,
 } from "./actor.ts";
 export {
+  type BeforeRead,
+  type BeforeReadReport,
+  type ReadStore,
+  syncBeforeRead,
+} from "./plane/before-read.ts";
+export {
   BYPASS_ID,
   BYPASS_PATH_ID,
   BYPASS_RESULT_ID,
@@ -85,6 +91,7 @@ export {
   parseReadReason,
   ReadCounts,
   readCounts,
+  readValidAt,
 } from "./plane/read-reason.ts";
 export { enforceBudget, retentionUsage } from "./plane/retention.ts";
 export { checkWorkload, replayWorkload, runWorkload, SIMULATION_STORE } from "./plane/simulate.ts";
@@ -92,8 +99,19 @@ export { retiredContent, WRITE_CONFLICT_ID, WRITE_ERASED_ID } from "./plane/writ
 
 export interface ReadQuery {
   text?: string;
-  /** The time validity windows and grant expiry are evaluated at; injected, never read from a clock. */
+  /**
+   * The read's time: its event's `ts`, and the time status, ttl, grant expiry
+   * and scoring are judged at; injected, never read from a clock. A surface
+   * passes its own clock here (card RV5, finding RV-SRF-2).
+   */
   at: string;
+  /**
+   * The time validity windows are judged at, when the reader asks what was
+   * true at another time; `at` when absent. It changes nothing else: what
+   * grants and ttls have closed at `at` stays closed. Recorded in the read
+   * event's reason (readValidAt), since the event has no field for it.
+   */
+  valid_at?: string;
 }
 
 export interface WriteResult {

@@ -120,6 +120,10 @@ export async function filteredRead(
   const { db, policy, newId } = deps;
   checkCall(actor, query?.at, "read");
   const { at } = query;
+  // The time validity windows are judged at (card RV5, finding RV-SRF-2):
+  // the reader's, when it names one; everything else is judged at `at`.
+  if (query.valid_at !== undefined) checkCall(actor, query.valid_at, "read (valid_at)");
+  const validAt = query.valid_at ?? at;
   const snapshot = currentItems(db);
   const reach = snapshot.filter((i) => reachable(policy, actor, i));
   // The readable scopes the actor belongs to: the store is never asked about
@@ -168,7 +172,7 @@ export async function filteredRead(
       "outside-validity": 0,
     };
     const passed = candidates.flatMap((item) => {
-      const decision = evaluateRead(policy, actor, item, at);
+      const decision = evaluateRead(policy, actor, item, at, validAt);
       counts[decision.check]++;
       return decision.admitted ? [{ item, decision }] : [];
     });
@@ -211,7 +215,7 @@ export async function filteredRead(
       score: { total, components: parts },
       policy_id: decision.policy_id,
       grants_used: decision.grants_used,
-      validity: { at, valid_from: item.valid_from, valid_to: item.valid_to },
+      validity: { at: validAt, valid_from: item.valid_from, valid_to: item.valid_to },
       schema_version: 1 as const,
     }));
     // Reachable candidates the filter removed: outside the validity window,
@@ -221,17 +225,20 @@ export async function filteredRead(
       counts.excluded + counts["outside-validity"] + counts["not-active"] + counts.expired;
     // Under the core pipeline with a limit, the admitted items ranked below it.
     const limited = core && deps.retrieval?.limit !== undefined;
-    const reason = formatReadReason({
-      returned: admitted.length,
-      candidates: candidates.length,
-      filtered,
-      outside_validity: counts["outside-validity"],
-      not_active: counts["not-active"],
-      expired: counts.expired,
-      excluded: counts.excluded,
-      ...(limited ? { cut: passed.length - admitted.length } : {}),
-      out_of_reach: outOfReach,
-    });
+    const reason = formatReadReason(
+      {
+        returned: admitted.length,
+        candidates: candidates.length,
+        filtered,
+        outside_validity: counts["outside-validity"],
+        not_active: counts["not-active"],
+        expired: counts.expired,
+        excluded: counts.excluded,
+        ...(limited ? { cut: passed.length - admitted.length } : {}),
+        out_of_reach: outOfReach,
+      },
+      query.valid_at,
+    );
     const appended = appendEvent(db, {
       id: newId(),
       ts: at,

@@ -14,7 +14,9 @@
 //   item, as the allowed events before the read leave it in the oracle's own
 //   replay, is missing, not active, not `readable` by the reader at the
 //   read's time (invariant 1), or outside its validity window
-//   (`withinValidity`, review finding E95-2 of PR #48);
+//   (`withinValidity`, review finding E95-2 of PR #48) at the time the
+//   reader named for it, else the read's time (card RV5: the read's ts is
+//   the server's own clock, and a requested time moves the window only);
 // - an allowed event that changed what an item's grants admit
 //   (`grantsChanged`) in a way the oracle refuses (`grantChangeProblem`: who
 //   widened them, and what was added; ADR 0021, D4 and ADR 0034).
@@ -57,6 +59,7 @@ import {
   withdrawalProblem,
   withinValidity,
 } from "./oracle.ts";
+import { readValidAt } from "./plane/read-reason.ts";
 import {
   type MemoryEvent,
   MemoryEvent as MemoryEventSchema,
@@ -316,6 +319,10 @@ export function dogfoodReport(
       r.reads.events++;
       r.reads[actors.has(e.actor) ? "as_declared" : "as_others"]++;
       const actor = actorFor(e.actor);
+      // Validity windows at the time the reader named, if it named one (card
+      // RV5, finding RV-SRF-2); scope, grants and ttl at the read's ts, the
+      // server's own clock, whatever the reader named.
+      const validAt = readValidAt(e) ?? e.ts;
       for (const id of e.item_ids ?? []) {
         r.reads.items_returned++;
         const was = state.get(id);
@@ -326,7 +333,7 @@ export function dogfoodReport(
               ? `it was ${was.status}`
               : !readable(policy, actor, was, e.ts)
                 ? "the reader's scope and live grants exclude it"
-                : !withinValidity(was, e.ts)
+                : !withinValidity(was, validAt)
                   ? "it was outside its validity window"
                   : undefined;
         if (why !== undefined) {
