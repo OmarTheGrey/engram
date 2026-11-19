@@ -11,7 +11,9 @@
 // runs the model-based lints (card L3) over the same worlds with a scripted
 // model that flags every unit and quotes everything it was sent in its
 // reason: no event the viewer may see carries the content of an item outside
-// the linted scope that Plane.read does not return to him.
+// the linted scope that Plane.read does not return to him, and an event about
+// a source outside the scope carries no usage, whose input tokens would give
+// the source's length.
 import fc from "fast-check";
 import { describe, expect, test } from "vitest";
 import type { Actor } from "../../src/actor.ts";
@@ -222,7 +224,11 @@ describe("model lint events a viewer may see", () => {
         for (const event of shown) {
           if (event.decision !== "allow") continue;
           shownFindings++;
-          if (event.reason.includes("reason not shown")) hiddenReasons++;
+          if (event.reason.includes("reason not shown")) {
+            hiddenReasons++;
+            // Its usage would carry the source's length (review L3-2).
+            expect(event.usage, event.reason).toBeUndefined();
+          }
           const own = new Set(
             projected.filter((i) => i.scope === event.scope_to).map((i) => String(i.content)),
           );

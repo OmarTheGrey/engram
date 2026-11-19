@@ -276,6 +276,45 @@ describe("unsupportedClaimUnits", () => {
   });
 });
 
+describe("unsupportedClaimUnits and time (review L3-4)", () => {
+  // AT is 2026-10-25T12:00:00Z. A claim or source no longer held at the lint
+  // time is the expired-validity lint's finding, and Plane.read no longer
+  // returns it (ADR 0025): nothing about it is sent.
+  const src = item(1, { content: "The certificate expired on Tuesday." });
+  const units = (items: MemoryItem[]) =>
+    unsupportedClaimUnits(ctx(items), "team:platform", SETUP).map((u) => u.item_id);
+
+  test("a held claim of a held source is sent", () => {
+    expect(units([src, derived(2, src, "A failover caused it.")])).toEqual([id(2)]);
+  });
+  test("a claim past its ttl sends nothing", () => {
+    const claim = derived(2, src, "A failover caused it.", {
+      valid_from: "2026-10-25T11:00:00Z",
+      ttl: 60,
+    });
+    expect(units([src, claim])).toEqual([]);
+  });
+  test("a claim past its validity sends nothing", () => {
+    expect(units([src, derived(2, src, "A failover caused it.", { valid_to: AT })])).toEqual([]);
+  });
+  test("a claim not yet valid sends nothing", () => {
+    const claim = derived(2, src, "A failover caused it.", { valid_from: "2026-10-26T00:00:00Z" });
+    expect(units([src, claim])).toEqual([]);
+  });
+  test("a source past its validity sends nothing", () => {
+    const old = item(1, { content: "The certificate expired on Tuesday.", valid_to: AT });
+    expect(units([old, derived(2, old, "A failover caused it.")])).toEqual([]);
+  });
+  test("a source past its ttl sends nothing", () => {
+    const old = item(1, {
+      content: "The certificate expired on Tuesday.",
+      valid_from: "2026-10-25T11:00:00Z",
+      ttl: 60,
+    });
+    expect(units([old, derived(2, old, "A failover caused it.")])).toEqual([]);
+  });
+});
+
 describe("modelLintUnits", () => {
   test("runs only the enabled model lints, contradiction first, and ignores other ids", () => {
     const src = item(1, { content: "the freeze starts friday" });
@@ -390,6 +429,11 @@ describe("runModelLints", () => {
       ],
     ]);
     expect(JSON.stringify(out.findings[1])).not.toContain("Linux");
+    // The usage of a call about a source outside the scope gives its length: kept off the
+    // finding (review L3-2), kept in the judgment.
+    expect(out.findings[0]?.usage).toEqual(USAGE);
+    expect(out.findings[1]).not.toHaveProperty("usage");
+    expect(out.judgments[1]?.usage).toEqual(USAGE);
   });
 
   test("calls the model one unit at a time, in unit order", async () => {

@@ -13,12 +13,14 @@
 //                      Jaccard share of their terms, runs of letters and digits),
 //                      ties by id. A "contradiction" verdict flags the later
 //                      item of the pair by id, naming the earlier.
-//   unsupported-claim  an active episodic or semantic item of the linted scope
-//                      whose provenance ref names another item the actor can
-//                      reach, active, whose content still has the strict hash
-//                      the claim recorded; an "unsupported" verdict flags the
-//                      claim. A source that is gone or changed is the orphan and
-//                      source-changed lints' finding, not a model call.
+//   unsupported-claim  an active episodic or semantic item of the linted scope,
+//                      held at the lint time, whose provenance ref names another
+//                      item the actor can reach, active, held at the lint time,
+//                      whose content still has the strict hash the claim
+//                      recorded; an "unsupported" verdict flags the claim. A
+//                      source that is gone, changed or expired is the orphan,
+//                      source-changed and expired-validity lints' finding, not a
+//                      model call, and an expired claim is expired-validity's.
 //
 // Every request is fixed but for its inputs, model and seed: the system
 // prompt, temperature 0, a token limit, and a strict JSON schema for the reply
@@ -157,8 +159,14 @@ export interface ModelJudgment {
   usage: ModelUsage;
 }
 
-/** A model-based finding before the plane gives it an id, with the usage of the call behind it. */
-export type ModelFinding = DetFinding & { usage: ModelUsage };
+/**
+ * A model-based finding before the plane gives it an id, with the usage of
+ * the call behind it, except when the finding's source is outside the linted
+ * scope: every member of the scope sees the event, and the call's input
+ * tokens would tell them the source's length (review L3-2). The judgment
+ * keeps the usage either way.
+ */
+export type ModelFinding = DetFinding & { usage?: ModelUsage };
 
 const byId = (a: MemoryItem, b: MemoryItem) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 
@@ -259,13 +267,19 @@ export function unsupportedClaimUnits(
   setup: Omit<ModelLintSetup, "call">,
 ): ModelLintUnit[] {
   const claims = [...ctx.items.values()]
-    .filter((i) => i.scope === scope && i.status === "active" && i.class !== "procedural")
+    .filter(
+      (i) =>
+        i.scope === scope && i.status === "active" && i.class !== "procedural" && heldAt(i, ctx),
+    )
     .sort(byId);
   const out: ModelLintUnit[] = [];
   for (const claim of claims) {
     const id = refItemId(claim.provenance.ref);
     const source = id === null ? undefined : ctx.items.get(id);
     if (source === undefined || source.id === claim.id || source.status !== "active") continue;
+    // A source no longer held is expired-validity's finding, and Plane.read no
+    // longer returns it (ADR 0025): its text is not sent (review L3-4).
+    if (!heldAt(source, ctx)) continue;
     if (!ctx.canReach(source)) continue;
     if (strictContentHash(source.content) !== claim.provenance.hash) continue;
     out.push({
@@ -363,7 +377,7 @@ function findingOf(unit: ModelLintUnit, parsed: LintReply, usage: ModelUsage): M
     severity: MODEL_LINT_SEVERITY["unsupported-claim"],
     message: `its content is not supported by its source ${unit.other_id}, as ${by} judged it`,
     evidence: [`source ${unit.other_id}`, `recorded ${unit.recorded}`, model, reason],
-    usage,
+    ...(unit.other_in_scope ? { usage } : {}),
   };
 }
 
