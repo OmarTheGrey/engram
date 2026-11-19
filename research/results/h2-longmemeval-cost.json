@@ -1,0 +1,942 @@
+{
+  "assumptions": [
+    "The sizes are the two baseline configs as COUNT=1 counts them: 500 questions of the cleaned S split, one condition each, three seeds, store Mem0; the judge makes one call per session, as upstream's evaluate_qa.py does, and HTTP retries are not counted.",
+    "Tokens are pi's own estimate, characters over four (pi-coding-agent estimateTokens); the high estimate counts three characters per token (token_scale 4/3) for JSON, ids and non-English text.",
+    "The fixture cassettes (B5's, on the oracle subset, store Mem0) fix one memory read and one answer per session; the high estimate lets a live model make two more reads, each repeating the session so far and a read as large as the first.",
+    "Memory per read on the full set: the question's own text as the query, the shared pipeline's top 20 (C2 over every turn; C5 over the turns preset medium admits at B5's read time, so the turns its 90-day ttl hides are not shown: research/results/h2-longmemeval-ttl.json). A live model writes its own query, which may match more or fewer turns.",
+    "Tokens per item are the fixture reads', moved by the difference between the S split's characters per shown item and the fixture's, over four; the reader prompt and the judge's prompt move from the fixture questions' size to the S split's mean the same way.",
+    "Answers and the judge's verdict are as long as the scripted ones; a live answer may be longer, and it is in the judge's prompt, which the high estimate's token scale covers only in part.",
+    "The runner asks for thinking off (packages/runner/src/conditions.ts); what pi-ai 1.3.0 then sends each candidate is as research/results/h1-cost.json states it. Reasoning output tokens per answer call, where off is honoured: 0 (low) and 1,024 (high); where it is ignored: 256 (low, a floor assumed, not measured) and 4,096 (high). None for the judge (GPT-4o has no reasoning). Each candidate reports what 1,000 reasoning tokens per answer call cost.",
+    "The candidates are H1's (research/configs/h1-cost.json), since decision sheet item 1, the three models, is open; the judge is the paper's model, gpt-4o-2024-08-06, through OpenRouter's seeded chat completions.",
+    "No prompt caching, batch discount or provider minimum is assumed; prices are list prices from the catalogue, not a quote, and a price the script flags as a likely catalogue anomaly is used as listed."
+  ],
+  "benchmark": "longmemeval",
+  "candidates": [
+    {
+      "accepted": true,
+      "api": "openai-completions",
+      "cache_read_per_million": 0.1,
+      "can_turn_reasoning_off": false,
+      "candidate": true,
+      "cost": {
+        "c2": {
+          "high": 491.441543,
+          "low": 39.561957
+        },
+        "c5-medium": {
+          "high": 494.256206,
+          "low": 39.91379
+        }
+      },
+      "found": true,
+      "input_per_million": 2,
+      "maker": "OpenAI",
+      "model": "openrouter/openai/gpt-6.1-sol",
+      "off_effort": null,
+      "output_per_million": 10,
+      "price_anomaly": null,
+      "reasoning": true,
+      "reasoning_cost_per_1000_tokens_per_call": {
+        "high": 120.0,
+        "low": 60.0
+      },
+      "tier": "large",
+      "total_with_judge": {
+        "high": 987.518064,
+        "low": 80.840982
+      },
+      "why_not": null
+    },
+    {
+      "accepted": true,
+      "api": "openai-completions",
+      "cache_read_per_million": 0.01,
+      "can_turn_reasoning_off": true,
+      "candidate": true,
+      "cost": {
+        "c2": {
+          "high": 15.356077,
+          "low": 1.594098
+        },
+        "c5-medium": {
+          "high": 15.49681,
+          "low": 1.611689
+        }
+      },
+      "found": true,
+      "input_per_million": 0.1,
+      "maker": "OpenAI",
+      "model": "openrouter/openai/gpt-6-luna",
+      "off_effort": "none",
+      "output_per_million": 0.5,
+      "price_anomaly": null,
+      "reasoning": true,
+      "reasoning_cost_per_1000_tokens_per_call": {
+        "high": 6.0,
+        "low": 3.0
+      },
+      "tier": "small",
+      "total_with_judge": {
+        "high": 32.673202,
+        "low": 4.571024
+      },
+      "why_not": null
+    },
+    {
+      "accepted": true,
+      "api": "openai-completions",
+      "cache_read_per_million": 0.2,
+      "can_turn_reasoning_off": true,
+      "candidate": true,
+      "cost": {
+        "c2": {
+          "high": 319.645543,
+          "low": 31.952457
+        },
+        "c5-medium": {
+          "high": 322.460206,
+          "low": 32.30429
+        }
+      },
+      "found": true,
+      "input_per_million": 2,
+      "maker": "OpenAI",
+      "model": "openrouter/openai/gpt-5.6-terra",
+      "off_effort": "none",
+      "output_per_million": 12,
+      "price_anomaly": null,
+      "reasoning": true,
+      "reasoning_cost_per_1000_tokens_per_call": {
+        "high": 144.0,
+        "low": 72.0
+      },
+      "tier": "reference: MEM-INV-Bench's recorded study",
+      "total_with_judge": {
+        "high": 643.926063,
+        "low": 65.621982
+      },
+      "why_not": null
+    },
+    {
+      "accepted": true,
+      "api": "openai-completions",
+      "cache_read_per_million": 1.25,
+      "can_turn_reasoning_off": true,
+      "candidate": true,
+      "cost": {
+        "c2": {
+          "high": 306.806929,
+          "low": 39.764321
+        },
+        "c5-medium": {
+          "high": 310.325257,
+          "low": 40.204112
+        }
+      },
+      "found": true,
+      "input_per_million": 2.5,
+      "maker": "OpenAI",
+      "model": "openrouter/openai/gpt-4o",
+      "off_effort": null,
+      "output_per_million": 10,
+      "price_anomaly": null,
+      "reasoning": false,
+      "reasoning_cost_per_1000_tokens_per_call": null,
+      "tier": "reference: GateMem's judge",
+      "total_with_judge": {
+        "high": 618.952501,
+        "low": 81.333669
+      },
+      "why_not": null
+    },
+    {
+      "accepted": true,
+      "api": "openai-completions",
+      "cache_read_per_million": 0.1,
+      "can_turn_reasoning_off": false,
+      "candidate": true,
+      "cost": {
+        "c2": {
+          "high": 491.441543,
+          "low": 39.561957
+        },
+        "c5-medium": {
+          "high": 494.256206,
+          "low": 39.91379
+        }
+      },
+      "found": true,
+      "input_per_million": 2,
+      "maker": "Google",
+      "model": "openrouter/google/gemini-4-argon",
+      "off_effort": null,
+      "output_per_million": 10,
+      "price_anomaly": null,
+      "reasoning": true,
+      "reasoning_cost_per_1000_tokens_per_call": {
+        "high": 120.0,
+        "low": 60.0
+      },
+      "tier": "large",
+      "total_with_judge": {
+        "high": 987.518064,
+        "low": 80.840982
+      },
+      "why_not": null
+    },
+    {
+      "accepted": true,
+      "api": "openai-completions",
+      "cache_read_per_million": 0.075,
+      "can_turn_reasoning_off": false,
+      "candidate": true,
+      "cost": {
+        "c2": {
+          "high": 184.290579,
+          "low": 14.835734
+        },
+        "c5-medium": {
+          "high": 185.346077,
+          "low": 14.967671
+        }
+      },
+      "found": true,
+      "input_per_million": 0.75,
+      "maker": "Google",
+      "model": "openrouter/google/gemini-3.8-flash",
+      "off_effort": null,
+      "output_per_million": 3.75,
+      "price_anomaly": null,
+      "reasoning": true,
+      "reasoning_cost_per_1000_tokens_per_call": {
+        "high": 45.0,
+        "low": 22.5
+      },
+      "tier": "small",
+      "total_with_judge": {
+        "high": 371.45697,
+        "low": 31.168641
+      },
+      "why_not": null
+    },
+    {
+      "accepted": true,
+      "api": "openai-completions",
+      "cache_read_per_million": 0.022,
+      "can_turn_reasoning_off": true,
+      "candidate": true,
+      "cost": {
+        "c2": {
+          "high": 93.084269,
+          "low": 10.474516
+        },
+        "c5-medium": {
+          "high": 94.013108,
+          "low": 10.590621
+        }
+      },
+      "found": true,
+      "input_per_million": 0.66,
+      "maker": "DeepSeek",
+      "model": "openrouter/deepseek/deepseek-v4-pro-0813",
+      "off_effort": "none",
+      "output_per_million": 1.98,
+      "price_anomaly": null,
+      "reasoning": true,
+      "reasoning_cost_per_1000_tokens_per_call": {
+        "high": 23.76,
+        "low": 11.88
+      },
+      "tier": "large",
+      "total_with_judge": {
+        "high": 188.917692,
+        "low": 22.430372
+      },
+      "why_not": null
+    },
+    {
+      "accepted": true,
+      "api": "openai-completions",
+      "cache_read_per_million": 0.0054,
+      "can_turn_reasoning_off": true,
+      "candidate": true,
+      "cost": {
+        "c2": {
+          "high": 5.212804,
+          "low": 0.116185
+        },
+        "c5-medium": {
+          "high": 5.220911,
+          "low": 0.117198
+        }
+      },
+      "found": true,
+      "input_per_million": 0.00576,
+      "maker": "DeepSeek",
+      "model": "openrouter/deepseek/deepseek-v4.1-flash",
+      "off_effort": "none",
+      "output_per_million": 0.72,
+      "price_anomaly": "likely a catalogue anomaly: the input price is 1.07 times the cache-read price and the output price is 125 times the input price",
+      "reasoning": true,
+      "reasoning_cost_per_1000_tokens_per_call": {
+        "high": 8.64,
+        "low": 4.32
+      },
+      "tier": "small",
+      "total_with_judge": {
+        "high": 12.25403,
+        "low": 1.598619
+      },
+      "why_not": null
+    },
+    {
+      "accepted": true,
+      "api": "openai-completions",
+      "cache_read_per_million": 0.25,
+      "can_turn_reasoning_off": false,
+      "candidate": true,
+      "cost": {
+        "c2": {
+          "high": 392.665543,
+          "low": 36.348957
+        },
+        "c5-medium": {
+          "high": 395.480206,
+          "low": 36.700789
+        }
+      },
+      "found": true,
+      "input_per_million": 2,
+      "maker": "Qwen",
+      "model": "openrouter/qwen/qwen3.8-max-0902",
+      "off_effort": null,
+      "output_per_million": 6,
+      "price_anomaly": null,
+      "reasoning": true,
+      "reasoning_cost_per_1000_tokens_per_call": {
+        "high": 72.0,
+        "low": 36.0
+      },
+      "tier": "large",
+      "total_with_judge": {
+        "high": 789.966064,
+        "low": 74.414982
+      },
+      "why_not": null
+    },
+    {
+      "accepted": true,
+      "api": "openai-completions",
+      "cache_read_per_million": 0.016,
+      "can_turn_reasoning_off": true,
+      "candidate": true,
+      "cost": {
+        "c2": {
+          "high": 21.280756,
+          "low": 2.381277
+        },
+        "c5-medium": {
+          "high": 21.491855,
+          "low": 2.407664
+        }
+      },
+      "found": true,
+      "input_per_million": 0.15,
+      "maker": "Qwen",
+      "model": "openrouter/qwen/qwen3.8-flash",
+      "off_effort": "none",
+      "output_per_million": 0.47,
+      "price_anomaly": null,
+      "reasoning": true,
+      "reasoning_cost_per_1000_tokens_per_call": {
+        "high": 5.64,
+        "low": 2.82
+      },
+      "tier": "small",
+      "total_with_judge": {
+        "high": 44.592926,
+        "low": 6.154177
+      },
+      "why_not": null
+    },
+    {
+      "accepted": true,
+      "api": "openai-completions",
+      "cache_read_per_million": 0.07,
+      "can_turn_reasoning_off": true,
+      "candidate": true,
+      "cost": {
+        "c2": {
+          "high": 96.218105,
+          "low": 10.793688
+        },
+        "c5-medium": {
+          "high": 97.17509,
+          "low": 10.913311
+        }
+      },
+      "found": true,
+      "input_per_million": 0.68,
+      "maker": "Mistral",
+      "model": "openrouter/mistralai/mistral-large-4-0",
+      "off_effort": "none",
+      "output_per_million": 2.09,
+      "price_anomaly": null,
+      "reasoning": true,
+      "reasoning_cost_per_1000_tokens_per_call": {
+        "high": 25.08,
+        "low": 12.54
+      },
+      "tier": "large",
+      "total_with_judge": {
+        "high": 195.213509,
+        "low": 23.072235
+      },
+      "why_not": null
+    },
+    {
+      "accepted": true,
+      "api": "openai-completions",
+      "cache_read_per_million": 0.015,
+      "can_turn_reasoning_off": true,
+      "candidate": true,
+      "cost": {
+        "c2": {
+          "high": 22.094816,
+          "low": 2.385859
+        },
+        "c5-medium": {
+          "high": 22.305915,
+          "low": 2.412247
+        }
+      },
+      "found": true,
+      "input_per_million": 0.15,
+      "maker": "Mistral",
+      "model": "openrouter/mistralai/mistral-small-2603",
+      "off_effort": "none",
+      "output_per_million": 0.6,
+      "price_anomaly": null,
+      "reasoning": true,
+      "reasoning_cost_per_1000_tokens_per_call": {
+        "high": 7.2,
+        "low": 3.6
+      },
+      "tier": "small",
+      "total_with_judge": {
+        "high": 46.221046,
+        "low": 6.163342
+      },
+      "why_not": null
+    },
+    {
+      "accepted": true,
+      "api": "openai-completions",
+      "cache_read_per_million": 0.2,
+      "can_turn_reasoning_off": false,
+      "candidate": true,
+      "cost": {
+        "c2": {
+          "high": 982.883086,
+          "low": 79.123913
+        },
+        "c5-medium": {
+          "high": 988.512412,
+          "low": 79.827579
+        }
+      },
+      "found": true,
+      "input_per_million": 4,
+      "maker": "Meta",
+      "model": "openrouter/meta/muse-wonder",
+      "off_effort": null,
+      "output_per_million": 20,
+      "price_anomaly": null,
+      "reasoning": true,
+      "reasoning_cost_per_1000_tokens_per_call": {
+        "high": 240.0,
+        "low": 120.0
+      },
+      "tier": "large",
+      "total_with_judge": {
+        "high": 1973.215813,
+        "low": 160.316728
+      },
+      "why_not": null
+    },
+    {
+      "accepted": true,
+      "api": "openai-completions",
+      "cache_read_per_million": 0.04,
+      "can_turn_reasoning_off": false,
+      "candidate": true,
+      "cost": {
+        "c2": {
+          "high": 66.308031,
+          "low": 5.693318
+        },
+        "c5-medium": {
+          "high": 66.730231,
+          "low": 5.746093
+        }
+      },
+      "found": true,
+      "input_per_million": 0.3,
+      "maker": "Meta",
+      "model": "openrouter/meta/muse-glimmer-30b",
+      "off_effort": null,
+      "output_per_million": 1.2,
+      "price_anomaly": null,
+      "reasoning": true,
+      "reasoning_cost_per_1000_tokens_per_call": {
+        "high": 14.4,
+        "low": 7.2
+      },
+      "tier": "small",
+      "total_with_judge": {
+        "high": 134.858577,
+        "low": 12.804648
+      },
+      "why_not": null
+    },
+    {
+      "accepted": false,
+      "api": "anthropic-messages",
+      "cache_read_per_million": 0.1,
+      "can_turn_reasoning_off": null,
+      "candidate": true,
+      "cost": null,
+      "found": true,
+      "input_per_million": 2,
+      "maker": "Anthropic",
+      "model": "openrouter/anthropic/claude-sonnet-5.5",
+      "off_effort": null,
+      "output_per_million": 10,
+      "price_anomaly": null,
+      "reasoning": true,
+      "reasoning_cost_per_1000_tokens_per_call": null,
+      "tier": "large",
+      "why_not": null
+    },
+    {
+      "accepted": false,
+      "api": "anthropic-messages",
+      "cache_read_per_million": 0.01,
+      "can_turn_reasoning_off": null,
+      "candidate": true,
+      "cost": null,
+      "found": true,
+      "input_per_million": 0.1,
+      "maker": "Anthropic",
+      "model": "openrouter/anthropic/claude-haiku-5.5",
+      "off_effort": null,
+      "output_per_million": 0.5,
+      "price_anomaly": null,
+      "reasoning": true,
+      "reasoning_cost_per_1000_tokens_per_call": null,
+      "tier": "small",
+      "why_not": null
+    },
+    {
+      "accepted": true,
+      "api": "openai-completions",
+      "cache_read_per_million": 0.05,
+      "can_turn_reasoning_off": false,
+      "candidate": false,
+      "cost": {
+        "c2": {
+          "high": 245.720772,
+          "low": 19.780978
+        },
+        "c5-medium": {
+          "high": 247.128103,
+          "low": 19.956895
+        }
+      },
+      "found": true,
+      "input_per_million": 1,
+      "maker": "Anthropic",
+      "model": "openrouter/anthropic/claude-sonnet-5.5:batch",
+      "off_effort": null,
+      "output_per_million": 5,
+      "price_anomaly": null,
+      "reasoning": true,
+      "reasoning_cost_per_1000_tokens_per_call": {
+        "high": 60.0,
+        "low": 30.0
+      },
+      "tier": "large, batch variant",
+      "total_with_judge": {
+        "high": 494.669189,
+        "low": 41.103109
+      },
+      "why_not": "the catalogue names it \"(batch)\" at half the interactive price; whether OpenRouter serves it as synchronous chat completions, and passes the seed, cannot be checked without a call"
+    },
+    {
+      "accepted": true,
+      "api": "openai-completions",
+      "cache_read_per_million": 0.005,
+      "can_turn_reasoning_off": true,
+      "candidate": false,
+      "cost": {
+        "c2": {
+          "high": 7.678039,
+          "low": 0.797049
+        },
+        "c5-medium": {
+          "high": 7.748405,
+          "low": 0.805845
+        }
+      },
+      "found": true,
+      "input_per_million": 0.05,
+      "maker": "Anthropic",
+      "model": "openrouter/anthropic/claude-haiku-5.5:batch",
+      "off_effort": "none",
+      "output_per_million": 0.25,
+      "price_anomaly": null,
+      "reasoning": true,
+      "reasoning_cost_per_1000_tokens_per_call": {
+        "high": 3.0,
+        "low": 1.5
+      },
+      "tier": "small, batch variant",
+      "total_with_judge": {
+        "high": 17.246758,
+        "low": 2.96813
+      },
+      "why_not": "the catalogue names it \"(batch)\" at half the interactive price; whether OpenRouter serves it as synchronous chat completions, and passes the seed, cannot be checked without a call"
+    },
+    {
+      "accepted": true,
+      "api": "openai-completions",
+      "cache_read_per_million": 0.1,
+      "can_turn_reasoning_off": false,
+      "candidate": false,
+      "cost": {
+        "c2": {
+          "high": 491.441543,
+          "low": 39.561957
+        },
+        "c5-medium": {
+          "high": 494.256206,
+          "low": 39.91379
+        }
+      },
+      "found": true,
+      "input_per_million": 2,
+      "maker": "Anthropic",
+      "model": "openrouter/~anthropic/claude-sonnet-latest",
+      "off_effort": null,
+      "output_per_million": 10,
+      "price_anomaly": null,
+      "reasoning": true,
+      "reasoning_cost_per_1000_tokens_per_call": {
+        "high": 120.0,
+        "low": 60.0
+      },
+      "tier": "large, floating alias",
+      "total_with_judge": {
+        "high": 987.518064,
+        "low": 80.840982
+      },
+      "why_not": "a floating alias (\"Latest\"): the model behind it can change during the run, so H1 could not name the model it ran on"
+    },
+    {
+      "accepted": true,
+      "api": "openai-completions",
+      "cache_read_per_million": 0.01,
+      "can_turn_reasoning_off": true,
+      "candidate": false,
+      "cost": {
+        "c2": {
+          "high": 15.356077,
+          "low": 1.594098
+        },
+        "c5-medium": {
+          "high": 15.49681,
+          "low": 1.611689
+        }
+      },
+      "found": true,
+      "input_per_million": 0.1,
+      "maker": "Anthropic",
+      "model": "openrouter/~anthropic/claude-haiku-latest",
+      "off_effort": "none",
+      "output_per_million": 0.5,
+      "price_anomaly": null,
+      "reasoning": true,
+      "reasoning_cost_per_1000_tokens_per_call": {
+        "high": 6.0,
+        "low": 3.0
+      },
+      "tier": "small, floating alias",
+      "total_with_judge": {
+        "high": 32.673202,
+        "low": 4.571024
+      },
+      "why_not": "a floating alias (\"Latest\"): the model behind it can change during the run, so H1 could not name the model it ran on"
+    }
+  ],
+  "data": {
+    "dataset": "https://huggingface.co/datasets/xiaowu0162/longmemeval-cleaned",
+    "file": "longmemeval_s_cleaned.json",
+    "revision": "98d7416c24c778c2fee6e6f3006e7a073259d48f",
+    "sha256": "d6f21ea9d60a0d56f34a05b609c79c88a451d2ae03597821ea3d5a9678c3a442"
+  },
+  "estimates": {
+    "high": {
+      "extra_read_turns": 2,
+      "reasoning_tokens_per_call": {
+        "off_honoured": 1024,
+        "off_ignored": 4096
+      },
+      "token_scale": 1.333333
+    },
+    "low": {
+      "extra_read_turns": 0,
+      "reasoning_tokens_per_call": {
+        "off_honoured": 0,
+        "off_ignored": 256
+      },
+      "token_scale": 1.0
+    }
+  },
+  "hypothesis": "H2",
+  "inputs": {
+    "candidates_from": "research/configs/h1-cost.json",
+    "cassettes": "fixtures/cassettes/b5-longmemeval-plane",
+    "fixture_data": "fixtures/bench/longmemeval"
+  },
+  "judge": {
+    "accepted": true,
+    "api": "openai-completions",
+    "cost": {
+      "judge_c2": {
+        "high": 0.910157,
+        "low": 0.682618
+      },
+      "judge_c5-medium": {
+        "high": 0.910157,
+        "low": 0.682618
+      }
+    },
+    "input_per_million": 2.5,
+    "model": "openrouter/openai/gpt-4o-2024-08-06",
+    "output_per_million": 10,
+    "reasoning": false
+  },
+  "measured": {
+    "c2": {
+      "condition": "C2",
+      "fixture": {
+        "answer_out": 5.75,
+        "call_in": 17.75,
+        "call_out": 17.75,
+        "prompt": 232.25,
+        "read_items": 14.0,
+        "read_tokens": 2791.0,
+        "sessions": 4,
+        "text_chars_per_item": 687.75,
+        "tokens_per_item": 199.357143
+      },
+      "full_set": {
+        "high": {
+          "calls": 4,
+          "input": 61125.401143,
+          "output": 59.0
+        },
+        "item_tokens_delta": 301.0774,
+        "items_per_read": 20.0,
+        "low": {
+          "calls": 2,
+          "input": 10509.818857,
+          "output": 23.5
+        },
+        "prompt_delta": 9.439,
+        "sessions": 1500,
+        "text_chars_per_item": 1892.0596
+      }
+    },
+    "c5-medium": {
+      "condition": "C5",
+      "fixture": {
+        "answer_out": 5.75,
+        "call_in": 17.75,
+        "call_out": 17.75,
+        "prompt": 232.25,
+        "read_items": 14.0,
+        "read_tokens": 2945.25,
+        "sessions": 4,
+        "text_chars_per_item": 687.75,
+        "tokens_per_item": 210.375
+      },
+      "full_set": {
+        "high": {
+          "calls": 4,
+          "input": 61829.067,
+          "output": 59.0
+        },
+        "item_tokens_delta": 301.037551,
+        "items_per_read": 19.8,
+        "low": {
+          "calls": 2,
+          "input": 10627.0965,
+          "output": 23.5
+        },
+        "prompt_delta": 9.439,
+        "sessions": 1500,
+        "text_chars_per_item": 1891.900202
+      }
+    },
+    "fixture_questions": [
+      "0f05491a",
+      "3d86fd0a",
+      "66f24dbb",
+      "f4f1d8a4_abs"
+    ],
+    "full_set": {
+      "questions": 500,
+      "turn_chars_per_question": 489303.29,
+      "turns": 246750
+    },
+    "judge": {
+      "calls": 1,
+      "input": 178.0315,
+      "output": 1.0,
+      "prompt_chars_fixture": 554.0,
+      "prompt_chars_full_set": 689.126
+    },
+    "prompt_chars_fixture": 339.25,
+    "prompt_chars_full_set": 377.006,
+    "store": "mem0"
+  },
+  "name": "h2-longmemeval-cost",
+  "preset": "medium",
+  "prices": {
+    "generated_at": "2026-10-15T19:00:55.287Z",
+    "openrouter_sha256": "d303cf8e4ad2cfd322ea5fc8c9e617d46b21d36d9ebe0454be26ae92d91440aa",
+    "package": "@earendil-works/pi-ai",
+    "provider": "openrouter",
+    "unit": "US dollars per million tokens (pi-ai catalogue cost.input, cost.output)",
+    "version": "1.3.0"
+  },
+  "sizes": {
+    "c2": {
+      "config": "h2-longmemeval-c2",
+      "item_kinds": {
+        "knowledge-update": 72,
+        "knowledge-update+abstention": 6,
+        "multi-session": 121,
+        "multi-session+abstention": 12,
+        "single-session-assistant": 56,
+        "single-session-preference": 30,
+        "single-session-user": 64,
+        "single-session-user+abstention": 6,
+        "temporal-reasoning": 127,
+        "temporal-reasoning+abstention": 6
+      },
+      "items": 500,
+      "judge": {
+        "calls_max": 1500,
+        "calls_min": 1500,
+        "model": "openrouter/openai/gpt-4o-2024-08-06"
+      },
+      "per_condition": {
+        "C2": 1500
+      },
+      "seeds": [
+        1,
+        2,
+        3
+      ],
+      "sessions": 1500,
+      "stores": [
+        "mem0"
+      ]
+    },
+    "c5-medium": {
+      "config": "h2-longmemeval-c5-medium",
+      "item_kinds": {
+        "knowledge-update": 72,
+        "knowledge-update+abstention": 6,
+        "multi-session": 121,
+        "multi-session+abstention": 12,
+        "single-session-assistant": 56,
+        "single-session-preference": 30,
+        "single-session-user": 64,
+        "single-session-user+abstention": 6,
+        "temporal-reasoning": 127,
+        "temporal-reasoning+abstention": 6
+      },
+      "items": 500,
+      "judge": {
+        "calls_max": 1500,
+        "calls_min": 1500,
+        "model": "openrouter/openai/gpt-4o-2024-08-06"
+      },
+      "per_condition": {
+        "C5": 1500
+      },
+      "seeds": [
+        1,
+        2,
+        3
+      ],
+      "sessions": 1500,
+      "stores": [
+        "mem0"
+      ]
+    }
+  },
+  "tokens": {
+    "c2": {
+      "high": {
+        "calls": 6000.0,
+        "input": 122250771.723014,
+        "output": 117999.9705
+      },
+      "low": {
+        "calls": 3000.0,
+        "input": 15764728.285714,
+        "output": 35250.0
+      }
+    },
+    "c5-medium": {
+      "high": {
+        "calls": 6000.0,
+        "input": 123658103.085467,
+        "output": 117999.9705
+      },
+      "low": {
+        "calls": 3000.0,
+        "input": 15940644.75,
+        "output": 35250.0
+      }
+    },
+    "judge_c2": {
+      "high": {
+        "calls": 1500.0,
+        "input": 356062.910984,
+        "output": 1999.9995
+      },
+      "low": {
+        "calls": 1500.0,
+        "input": 267047.25,
+        "output": 1500.0
+      }
+    },
+    "judge_c5-medium": {
+      "high": {
+        "calls": 1500.0,
+        "input": 356062.910984,
+        "output": 1999.9995
+      },
+      "low": {
+        "calls": 1500.0,
+        "input": 267047.25,
+        "output": 1500.0
+      }
+    }
+  }
+}

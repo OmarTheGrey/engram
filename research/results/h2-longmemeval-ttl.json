@@ -1,0 +1,1367 @@
+{
+  "benchmark": "longmemeval",
+  "by_preset": {
+    "medium": {
+      "last_session": {
+        "by_category": {
+          "knowledge-update": {
+            "losing_evidence": 26,
+            "losing_evidence_session_turns": 26,
+            "questions": 72,
+            "with_hidden_turns": 33
+          },
+          "knowledge-update+abstention": {
+            "losing_evidence": 0,
+            "losing_evidence_session_turns": 1,
+            "questions": 6,
+            "with_hidden_turns": 1
+          },
+          "multi-session": {
+            "losing_evidence": 0,
+            "losing_evidence_session_turns": 0,
+            "questions": 121,
+            "with_hidden_turns": 0
+          },
+          "multi-session+abstention": {
+            "losing_evidence": 0,
+            "losing_evidence_session_turns": 0,
+            "questions": 12,
+            "with_hidden_turns": 0
+          },
+          "single-session-assistant": {
+            "losing_evidence": 0,
+            "losing_evidence_session_turns": 0,
+            "questions": 56,
+            "with_hidden_turns": 0
+          },
+          "single-session-preference": {
+            "losing_evidence": 0,
+            "losing_evidence_session_turns": 0,
+            "questions": 30,
+            "with_hidden_turns": 0
+          },
+          "single-session-user": {
+            "losing_evidence": 0,
+            "losing_evidence_session_turns": 0,
+            "questions": 64,
+            "with_hidden_turns": 0
+          },
+          "single-session-user+abstention": {
+            "losing_evidence": 0,
+            "losing_evidence_session_turns": 0,
+            "questions": 6,
+            "with_hidden_turns": 0
+          },
+          "temporal-reasoning": {
+            "losing_evidence": 2,
+            "losing_evidence_session_turns": 4,
+            "questions": 127,
+            "with_hidden_turns": 8
+          },
+          "temporal-reasoning+abstention": {
+            "losing_evidence": 0,
+            "losing_evidence_session_turns": 0,
+            "questions": 6,
+            "with_hidden_turns": 0
+          }
+        },
+        "by_cause": {
+          "expired": 6938,
+          "not_active": 0,
+          "outside_validity": 0
+        },
+        "evidence_session_turns_hidden": 362,
+        "evidence_turns_hidden": 28,
+        "hidden_turns": 6938,
+        "oldest_turn_age_days_max": 304.180683,
+        "questions_losing_all_evidence": 0,
+        "questions_losing_evidence": 28,
+        "questions_losing_evidence_session_turns": 31,
+        "questions_with_hidden_turns": 42,
+        "share_losing_evidence": 0.056,
+        "share_with_hidden_turns": 0.084
+      },
+      "read_time": {
+        "by_category": {
+          "knowledge-update": {
+            "losing_evidence": 28,
+            "losing_evidence_session_turns": 28,
+            "questions": 72,
+            "with_hidden_turns": 35
+          },
+          "knowledge-update+abstention": {
+            "losing_evidence": 0,
+            "losing_evidence_session_turns": 1,
+            "questions": 6,
+            "with_hidden_turns": 1
+          },
+          "multi-session": {
+            "losing_evidence": 0,
+            "losing_evidence_session_turns": 0,
+            "questions": 121,
+            "with_hidden_turns": 0
+          },
+          "multi-session+abstention": {
+            "losing_evidence": 0,
+            "losing_evidence_session_turns": 0,
+            "questions": 12,
+            "with_hidden_turns": 0
+          },
+          "single-session-assistant": {
+            "losing_evidence": 0,
+            "losing_evidence_session_turns": 0,
+            "questions": 56,
+            "with_hidden_turns": 0
+          },
+          "single-session-preference": {
+            "losing_evidence": 0,
+            "losing_evidence_session_turns": 0,
+            "questions": 30,
+            "with_hidden_turns": 0
+          },
+          "single-session-user": {
+            "losing_evidence": 0,
+            "losing_evidence_session_turns": 0,
+            "questions": 64,
+            "with_hidden_turns": 0
+          },
+          "single-session-user+abstention": {
+            "losing_evidence": 0,
+            "losing_evidence_session_turns": 0,
+            "questions": 6,
+            "with_hidden_turns": 0
+          },
+          "temporal-reasoning": {
+            "losing_evidence": 10,
+            "losing_evidence_session_turns": 12,
+            "questions": 127,
+            "with_hidden_turns": 18
+          },
+          "temporal-reasoning+abstention": {
+            "losing_evidence": 0,
+            "losing_evidence_session_turns": 0,
+            "questions": 6,
+            "with_hidden_turns": 0
+          }
+        },
+        "by_cause": {
+          "expired": 11122,
+          "not_active": 0,
+          "outside_validity": 0
+        },
+        "evidence_session_turns_hidden": 522,
+        "evidence_turns_hidden": 43,
+        "hidden_turns": 11122,
+        "oldest_turn_age_days_max": 311.709028,
+        "questions_losing_all_evidence": 5,
+        "questions_losing_evidence": 38,
+        "questions_losing_evidence_session_turns": 41,
+        "questions_with_hidden_turns": 54,
+        "share_losing_evidence": 0.076,
+        "share_with_hidden_turns": 0.108
+      },
+      "real_time": {
+        "by_category": {
+          "knowledge-update": {
+            "losing_evidence": 72,
+            "losing_evidence_session_turns": 72,
+            "questions": 72,
+            "with_hidden_turns": 72
+          },
+          "knowledge-update+abstention": {
+            "losing_evidence": 0,
+            "losing_evidence_session_turns": 6,
+            "questions": 6,
+            "with_hidden_turns": 6
+          },
+          "multi-session": {
+            "losing_evidence": 121,
+            "losing_evidence_session_turns": 121,
+            "questions": 121,
+            "with_hidden_turns": 121
+          },
+          "multi-session+abstention": {
+            "losing_evidence": 4,
+            "losing_evidence_session_turns": 12,
+            "questions": 12,
+            "with_hidden_turns": 12
+          },
+          "single-session-assistant": {
+            "losing_evidence": 56,
+            "losing_evidence_session_turns": 56,
+            "questions": 56,
+            "with_hidden_turns": 56
+          },
+          "single-session-preference": {
+            "losing_evidence": 30,
+            "losing_evidence_session_turns": 30,
+            "questions": 30,
+            "with_hidden_turns": 30
+          },
+          "single-session-user": {
+            "losing_evidence": 64,
+            "losing_evidence_session_turns": 64,
+            "questions": 64,
+            "with_hidden_turns": 64
+          },
+          "single-session-user+abstention": {
+            "losing_evidence": 0,
+            "losing_evidence_session_turns": 6,
+            "questions": 6,
+            "with_hidden_turns": 6
+          },
+          "temporal-reasoning": {
+            "losing_evidence": 127,
+            "losing_evidence_session_turns": 127,
+            "questions": 127,
+            "with_hidden_turns": 127
+          },
+          "temporal-reasoning+abstention": {
+            "losing_evidence": 5,
+            "losing_evidence_session_turns": 6,
+            "questions": 6,
+            "with_hidden_turns": 6
+          }
+        },
+        "by_cause": {
+          "expired": 246750,
+          "not_active": 0,
+          "outside_validity": 0
+        },
+        "evidence_session_turns_hidden": 10960,
+        "evidence_turns_hidden": 896,
+        "hidden_turns": 246750,
+        "oldest_turn_age_days_max": 2025.623611,
+        "questions_losing_all_evidence": 479,
+        "questions_losing_evidence": 479,
+        "questions_losing_evidence_session_turns": 500,
+        "questions_with_hidden_turns": 500,
+        "share_losing_evidence": 0.958,
+        "share_with_hidden_turns": 1.0
+      }
+    },
+    "permissive": {
+      "last_session": {
+        "by_category": {
+          "knowledge-update": {
+            "losing_evidence": 0,
+            "losing_evidence_session_turns": 0,
+            "questions": 72,
+            "with_hidden_turns": 0
+          },
+          "knowledge-update+abstention": {
+            "losing_evidence": 0,
+            "losing_evidence_session_turns": 0,
+            "questions": 6,
+            "with_hidden_turns": 0
+          },
+          "multi-session": {
+            "losing_evidence": 0,
+            "losing_evidence_session_turns": 0,
+            "questions": 121,
+            "with_hidden_turns": 0
+          },
+          "multi-session+abstention": {
+            "losing_evidence": 0,
+            "losing_evidence_session_turns": 0,
+            "questions": 12,
+            "with_hidden_turns": 0
+          },
+          "single-session-assistant": {
+            "losing_evidence": 0,
+            "losing_evidence_session_turns": 0,
+            "questions": 56,
+            "with_hidden_turns": 0
+          },
+          "single-session-preference": {
+            "losing_evidence": 0,
+            "losing_evidence_session_turns": 0,
+            "questions": 30,
+            "with_hidden_turns": 0
+          },
+          "single-session-user": {
+            "losing_evidence": 0,
+            "losing_evidence_session_turns": 0,
+            "questions": 64,
+            "with_hidden_turns": 0
+          },
+          "single-session-user+abstention": {
+            "losing_evidence": 0,
+            "losing_evidence_session_turns": 0,
+            "questions": 6,
+            "with_hidden_turns": 0
+          },
+          "temporal-reasoning": {
+            "losing_evidence": 0,
+            "losing_evidence_session_turns": 0,
+            "questions": 127,
+            "with_hidden_turns": 0
+          },
+          "temporal-reasoning+abstention": {
+            "losing_evidence": 0,
+            "losing_evidence_session_turns": 0,
+            "questions": 6,
+            "with_hidden_turns": 0
+          }
+        },
+        "by_cause": {
+          "expired": 0,
+          "not_active": 0,
+          "outside_validity": 0
+        },
+        "evidence_session_turns_hidden": 0,
+        "evidence_turns_hidden": 0,
+        "hidden_turns": 0,
+        "oldest_turn_age_days_max": 304.180683,
+        "questions_losing_all_evidence": 0,
+        "questions_losing_evidence": 0,
+        "questions_losing_evidence_session_turns": 0,
+        "questions_with_hidden_turns": 0,
+        "share_losing_evidence": 0.0,
+        "share_with_hidden_turns": 0.0
+      },
+      "read_time": {
+        "by_category": {
+          "knowledge-update": {
+            "losing_evidence": 0,
+            "losing_evidence_session_turns": 0,
+            "questions": 72,
+            "with_hidden_turns": 0
+          },
+          "knowledge-update+abstention": {
+            "losing_evidence": 0,
+            "losing_evidence_session_turns": 0,
+            "questions": 6,
+            "with_hidden_turns": 0
+          },
+          "multi-session": {
+            "losing_evidence": 0,
+            "losing_evidence_session_turns": 0,
+            "questions": 121,
+            "with_hidden_turns": 0
+          },
+          "multi-session+abstention": {
+            "losing_evidence": 0,
+            "losing_evidence_session_turns": 0,
+            "questions": 12,
+            "with_hidden_turns": 0
+          },
+          "single-session-assistant": {
+            "losing_evidence": 0,
+            "losing_evidence_session_turns": 0,
+            "questions": 56,
+            "with_hidden_turns": 0
+          },
+          "single-session-preference": {
+            "losing_evidence": 0,
+            "losing_evidence_session_turns": 0,
+            "questions": 30,
+            "with_hidden_turns": 0
+          },
+          "single-session-user": {
+            "losing_evidence": 0,
+            "losing_evidence_session_turns": 0,
+            "questions": 64,
+            "with_hidden_turns": 0
+          },
+          "single-session-user+abstention": {
+            "losing_evidence": 0,
+            "losing_evidence_session_turns": 0,
+            "questions": 6,
+            "with_hidden_turns": 0
+          },
+          "temporal-reasoning": {
+            "losing_evidence": 0,
+            "losing_evidence_session_turns": 0,
+            "questions": 127,
+            "with_hidden_turns": 0
+          },
+          "temporal-reasoning+abstention": {
+            "losing_evidence": 0,
+            "losing_evidence_session_turns": 0,
+            "questions": 6,
+            "with_hidden_turns": 0
+          }
+        },
+        "by_cause": {
+          "expired": 0,
+          "not_active": 0,
+          "outside_validity": 0
+        },
+        "evidence_session_turns_hidden": 0,
+        "evidence_turns_hidden": 0,
+        "hidden_turns": 0,
+        "oldest_turn_age_days_max": 311.709028,
+        "questions_losing_all_evidence": 0,
+        "questions_losing_evidence": 0,
+        "questions_losing_evidence_session_turns": 0,
+        "questions_with_hidden_turns": 0,
+        "share_losing_evidence": 0.0,
+        "share_with_hidden_turns": 0.0
+      },
+      "real_time": {
+        "by_category": {
+          "knowledge-update": {
+            "losing_evidence": 0,
+            "losing_evidence_session_turns": 0,
+            "questions": 72,
+            "with_hidden_turns": 0
+          },
+          "knowledge-update+abstention": {
+            "losing_evidence": 0,
+            "losing_evidence_session_turns": 0,
+            "questions": 6,
+            "with_hidden_turns": 0
+          },
+          "multi-session": {
+            "losing_evidence": 0,
+            "losing_evidence_session_turns": 0,
+            "questions": 121,
+            "with_hidden_turns": 0
+          },
+          "multi-session+abstention": {
+            "losing_evidence": 0,
+            "losing_evidence_session_turns": 0,
+            "questions": 12,
+            "with_hidden_turns": 0
+          },
+          "single-session-assistant": {
+            "losing_evidence": 0,
+            "losing_evidence_session_turns": 0,
+            "questions": 56,
+            "with_hidden_turns": 0
+          },
+          "single-session-preference": {
+            "losing_evidence": 0,
+            "losing_evidence_session_turns": 0,
+            "questions": 30,
+            "with_hidden_turns": 0
+          },
+          "single-session-user": {
+            "losing_evidence": 0,
+            "losing_evidence_session_turns": 0,
+            "questions": 64,
+            "with_hidden_turns": 0
+          },
+          "single-session-user+abstention": {
+            "losing_evidence": 0,
+            "losing_evidence_session_turns": 0,
+            "questions": 6,
+            "with_hidden_turns": 0
+          },
+          "temporal-reasoning": {
+            "losing_evidence": 0,
+            "losing_evidence_session_turns": 0,
+            "questions": 127,
+            "with_hidden_turns": 0
+          },
+          "temporal-reasoning+abstention": {
+            "losing_evidence": 0,
+            "losing_evidence_session_turns": 0,
+            "questions": 6,
+            "with_hidden_turns": 0
+          }
+        },
+        "by_cause": {
+          "expired": 0,
+          "not_active": 0,
+          "outside_validity": 0
+        },
+        "evidence_session_turns_hidden": 0,
+        "evidence_turns_hidden": 0,
+        "hidden_turns": 0,
+        "oldest_turn_age_days_max": 2025.623611,
+        "questions_losing_all_evidence": 0,
+        "questions_losing_evidence": 0,
+        "questions_losing_evidence_session_turns": 0,
+        "questions_with_hidden_turns": 0,
+        "share_losing_evidence": 0.0,
+        "share_with_hidden_turns": 0.0
+      }
+    },
+    "strict": {
+      "last_session": {
+        "by_category": {
+          "knowledge-update": {
+            "losing_evidence": 40,
+            "losing_evidence_session_turns": 41,
+            "questions": 72,
+            "with_hidden_turns": 70
+          },
+          "knowledge-update+abstention": {
+            "losing_evidence": 0,
+            "losing_evidence_session_turns": 1,
+            "questions": 6,
+            "with_hidden_turns": 4
+          },
+          "multi-session": {
+            "losing_evidence": 0,
+            "losing_evidence_session_turns": 0,
+            "questions": 121,
+            "with_hidden_turns": 0
+          },
+          "multi-session+abstention": {
+            "losing_evidence": 0,
+            "losing_evidence_session_turns": 0,
+            "questions": 12,
+            "with_hidden_turns": 0
+          },
+          "single-session-assistant": {
+            "losing_evidence": 0,
+            "losing_evidence_session_turns": 0,
+            "questions": 56,
+            "with_hidden_turns": 0
+          },
+          "single-session-preference": {
+            "losing_evidence": 0,
+            "losing_evidence_session_turns": 0,
+            "questions": 30,
+            "with_hidden_turns": 0
+          },
+          "single-session-user": {
+            "losing_evidence": 0,
+            "losing_evidence_session_turns": 0,
+            "questions": 64,
+            "with_hidden_turns": 0
+          },
+          "single-session-user+abstention": {
+            "losing_evidence": 0,
+            "losing_evidence_session_turns": 0,
+            "questions": 6,
+            "with_hidden_turns": 0
+          },
+          "temporal-reasoning": {
+            "losing_evidence": 13,
+            "losing_evidence_session_turns": 16,
+            "questions": 127,
+            "with_hidden_turns": 58
+          },
+          "temporal-reasoning+abstention": {
+            "losing_evidence": 0,
+            "losing_evidence_session_turns": 0,
+            "questions": 6,
+            "with_hidden_turns": 0
+          }
+        },
+        "by_cause": {
+          "expired": 22386,
+          "not_active": 0,
+          "outside_validity": 0
+        },
+        "evidence_session_turns_hidden": 800,
+        "evidence_turns_hidden": 61,
+        "hidden_turns": 22386,
+        "oldest_turn_age_days_max": 304.180683,
+        "questions_losing_all_evidence": 2,
+        "questions_losing_evidence": 53,
+        "questions_losing_evidence_session_turns": 58,
+        "questions_with_hidden_turns": 132,
+        "share_losing_evidence": 0.106,
+        "share_with_hidden_turns": 0.264
+      },
+      "read_time": {
+        "by_category": {
+          "knowledge-update": {
+            "losing_evidence": 44,
+            "losing_evidence_session_turns": 45,
+            "questions": 72,
+            "with_hidden_turns": 71
+          },
+          "knowledge-update+abstention": {
+            "losing_evidence": 0,
+            "losing_evidence_session_turns": 1,
+            "questions": 6,
+            "with_hidden_turns": 4
+          },
+          "multi-session": {
+            "losing_evidence": 0,
+            "losing_evidence_session_turns": 0,
+            "questions": 121,
+            "with_hidden_turns": 0
+          },
+          "multi-session+abstention": {
+            "losing_evidence": 0,
+            "losing_evidence_session_turns": 0,
+            "questions": 12,
+            "with_hidden_turns": 0
+          },
+          "single-session-assistant": {
+            "losing_evidence": 0,
+            "losing_evidence_session_turns": 0,
+            "questions": 56,
+            "with_hidden_turns": 0
+          },
+          "single-session-preference": {
+            "losing_evidence": 0,
+            "losing_evidence_session_turns": 0,
+            "questions": 30,
+            "with_hidden_turns": 0
+          },
+          "single-session-user": {
+            "losing_evidence": 0,
+            "losing_evidence_session_turns": 0,
+            "questions": 64,
+            "with_hidden_turns": 0
+          },
+          "single-session-user+abstention": {
+            "losing_evidence": 0,
+            "losing_evidence_session_turns": 0,
+            "questions": 6,
+            "with_hidden_turns": 0
+          },
+          "temporal-reasoning": {
+            "losing_evidence": 33,
+            "losing_evidence_session_turns": 38,
+            "questions": 127,
+            "with_hidden_turns": 73
+          },
+          "temporal-reasoning+abstention": {
+            "losing_evidence": 0,
+            "losing_evidence_session_turns": 0,
+            "questions": 6,
+            "with_hidden_turns": 0
+          }
+        },
+        "by_cause": {
+          "expired": 34688,
+          "not_active": 0,
+          "outside_validity": 0
+        },
+        "evidence_session_turns_hidden": 1380,
+        "evidence_turns_hidden": 108,
+        "hidden_turns": 34688,
+        "oldest_turn_age_days_max": 311.709028,
+        "questions_losing_all_evidence": 22,
+        "questions_losing_evidence": 77,
+        "questions_losing_evidence_session_turns": 84,
+        "questions_with_hidden_turns": 148,
+        "share_losing_evidence": 0.154,
+        "share_with_hidden_turns": 0.296
+      },
+      "real_time": {
+        "by_category": {
+          "knowledge-update": {
+            "losing_evidence": 72,
+            "losing_evidence_session_turns": 72,
+            "questions": 72,
+            "with_hidden_turns": 72
+          },
+          "knowledge-update+abstention": {
+            "losing_evidence": 0,
+            "losing_evidence_session_turns": 6,
+            "questions": 6,
+            "with_hidden_turns": 6
+          },
+          "multi-session": {
+            "losing_evidence": 121,
+            "losing_evidence_session_turns": 121,
+            "questions": 121,
+            "with_hidden_turns": 121
+          },
+          "multi-session+abstention": {
+            "losing_evidence": 4,
+            "losing_evidence_session_turns": 12,
+            "questions": 12,
+            "with_hidden_turns": 12
+          },
+          "single-session-assistant": {
+            "losing_evidence": 56,
+            "losing_evidence_session_turns": 56,
+            "questions": 56,
+            "with_hidden_turns": 56
+          },
+          "single-session-preference": {
+            "losing_evidence": 30,
+            "losing_evidence_session_turns": 30,
+            "questions": 30,
+            "with_hidden_turns": 30
+          },
+          "single-session-user": {
+            "losing_evidence": 64,
+            "losing_evidence_session_turns": 64,
+            "questions": 64,
+            "with_hidden_turns": 64
+          },
+          "single-session-user+abstention": {
+            "losing_evidence": 0,
+            "losing_evidence_session_turns": 6,
+            "questions": 6,
+            "with_hidden_turns": 6
+          },
+          "temporal-reasoning": {
+            "losing_evidence": 127,
+            "losing_evidence_session_turns": 127,
+            "questions": 127,
+            "with_hidden_turns": 127
+          },
+          "temporal-reasoning+abstention": {
+            "losing_evidence": 5,
+            "losing_evidence_session_turns": 6,
+            "questions": 6,
+            "with_hidden_turns": 6
+          }
+        },
+        "by_cause": {
+          "expired": 246750,
+          "not_active": 0,
+          "outside_validity": 0
+        },
+        "evidence_session_turns_hidden": 10960,
+        "evidence_turns_hidden": 896,
+        "hidden_turns": 246750,
+        "oldest_turn_age_days_max": 2025.623611,
+        "questions_losing_all_evidence": 479,
+        "questions_losing_evidence": 479,
+        "questions_losing_evidence_session_turns": 500,
+        "questions_with_hidden_turns": 500,
+        "share_losing_evidence": 0.958,
+        "share_with_hidden_turns": 1.0
+      }
+    }
+  },
+  "clocks": {
+    "last_session": "the time of the history's last turn",
+    "read_time": "B5's read time (packages/bench/src/longmemeval/plane.ts readTime): the question's date, or the last turn's time when a session is dated after the question",
+    "real_time": "the config's fixed instant, standing for the wall clock of a live run, which reads later still, so a live run hides at least this much"
+  },
+  "data": {
+    "dataset": "https://huggingface.co/datasets/xiaowu0162/longmemeval-cleaned",
+    "file": "longmemeval_s_cleaned.json",
+    "revision": "98d7416c24c778c2fee6e6f3006e7a073259d48f",
+    "sha256": "d6f21ea9d60a0d56f34a05b609c79c88a451d2ae03597821ea3d5a9678c3a442"
+  },
+  "entry": "packages/runner/scripts/longmemeval-clock.ts",
+  "evidence_session_turns": 10960,
+  "evidence_turns": 896,
+  "hypothesis": "H2",
+  "l2_check": {
+    "equal": true,
+    "file": "research/results/h3-fault-set.json",
+    "l2_past_medium_ttl": {
+      "questions": 54,
+      "turns": 11122
+    },
+    "plane_read_expired": {
+      "questions": 54,
+      "turns": 11122
+    },
+    "sha256": "a274701dea70711537d54a556e15bf24dc9ee849b2fad4de741e97c051da199a"
+  },
+  "name": "h2-longmemeval-ttl",
+  "primary": {
+    "clock": "read_time",
+    "preset": "medium",
+    "questions": [
+      {
+        "category": "knowledge-update",
+        "evidence_session_turns": 24,
+        "evidence_session_turns_hidden": 12,
+        "evidence_turns": 2,
+        "evidence_turns_hidden": 1,
+        "hidden_turns": 97,
+        "oldest_turn_age_days": 132.23125,
+        "question_id": "01493427",
+        "turns": 487
+      },
+      {
+        "category": "knowledge-update",
+        "evidence_session_turns": 24,
+        "evidence_session_turns_hidden": 12,
+        "evidence_turns": 2,
+        "evidence_turns_hidden": 1,
+        "hidden_turns": 64,
+        "oldest_turn_age_days": 183.095833,
+        "question_id": "031748ae",
+        "turns": 494
+      },
+      {
+        "category": "knowledge-update",
+        "evidence_session_turns": 24,
+        "evidence_session_turns_hidden": 0,
+        "evidence_turns": 2,
+        "evidence_turns_hidden": 0,
+        "hidden_turns": 34,
+        "oldest_turn_age_days": 109.881377,
+        "question_id": "06db6396",
+        "turns": 479
+      },
+      {
+        "category": "knowledge-update",
+        "evidence_session_turns": 24,
+        "evidence_session_turns_hidden": 12,
+        "evidence_turns": 2,
+        "evidence_turns_hidden": 1,
+        "hidden_turns": 124,
+        "oldest_turn_age_days": 136.020185,
+        "question_id": "07741c44",
+        "turns": 513
+      },
+      {
+        "category": "knowledge-update",
+        "evidence_session_turns": 24,
+        "evidence_session_turns_hidden": 0,
+        "evidence_turns": 2,
+        "evidence_turns_hidden": 0,
+        "hidden_turns": 24,
+        "oldest_turn_age_days": 103.592361,
+        "question_id": "08e075c7",
+        "turns": 484
+      },
+      {
+        "category": "temporal-reasoning",
+        "evidence_session_turns": 32,
+        "evidence_session_turns_hidden": 10,
+        "evidence_turns": 3,
+        "evidence_turns_hidden": 1,
+        "hidden_turns": 115,
+        "oldest_turn_age_days": 175.303472,
+        "question_id": "0bc8ad92",
+        "turns": 443
+      },
+      {
+        "category": "temporal-reasoning",
+        "evidence_session_turns": 34,
+        "evidence_session_turns_hidden": 12,
+        "evidence_turns": 1,
+        "evidence_turns_hidden": 0,
+        "hidden_turns": 84,
+        "oldest_turn_age_days": 159.161111,
+        "question_id": "0bc8ad93",
+        "turns": 486
+      },
+      {
+        "category": "knowledge-update",
+        "evidence_session_turns": 22,
+        "evidence_session_turns_hidden": 12,
+        "evidence_turns": 2,
+        "evidence_turns_hidden": 1,
+        "hidden_turns": 260,
+        "oldest_turn_age_days": 209.729896,
+        "question_id": "0ddfec37",
+        "turns": 483
+      },
+      {
+        "category": "knowledge-update",
+        "evidence_session_turns": 20,
+        "evidence_session_turns_hidden": 10,
+        "evidence_turns": 2,
+        "evidence_turns_hidden": 1,
+        "hidden_turns": 151,
+        "oldest_turn_age_days": 136.241667,
+        "question_id": "10e09553",
+        "turns": 472
+      },
+      {
+        "category": "knowledge-update",
+        "evidence_session_turns": 24,
+        "evidence_session_turns_hidden": 12,
+        "evidence_turns": 2,
+        "evidence_turns_hidden": 1,
+        "hidden_turns": 180,
+        "oldest_turn_age_days": 119.256944,
+        "question_id": "18bc8abd",
+        "turns": 436
+      },
+      {
+        "category": "knowledge-update",
+        "evidence_session_turns": 24,
+        "evidence_session_turns_hidden": 12,
+        "evidence_turns": 2,
+        "evidence_turns_hidden": 1,
+        "hidden_turns": 267,
+        "oldest_turn_age_days": 217.916725,
+        "question_id": "2133c1b5",
+        "turns": 523
+      },
+      {
+        "category": "knowledge-update+abstention",
+        "evidence_session_turns": 24,
+        "evidence_session_turns_hidden": 12,
+        "evidence_turns": 0,
+        "evidence_turns_hidden": 0,
+        "hidden_turns": 182,
+        "oldest_turn_age_days": 217.230683,
+        "question_id": "2133c1b5_abs",
+        "turns": 476
+      },
+      {
+        "category": "knowledge-update",
+        "evidence_session_turns": 24,
+        "evidence_session_turns_hidden": 12,
+        "evidence_turns": 2,
+        "evidence_turns_hidden": 1,
+        "hidden_turns": 362,
+        "oldest_turn_age_days": 250.996655,
+        "question_id": "2698e78f",
+        "turns": 478
+      },
+      {
+        "category": "knowledge-update",
+        "evidence_session_turns": 24,
+        "evidence_session_turns_hidden": 0,
+        "evidence_turns": 2,
+        "evidence_turns_hidden": 0,
+        "hidden_turns": 176,
+        "oldest_turn_age_days": 112.641667,
+        "question_id": "26bdc477",
+        "turns": 498
+      },
+      {
+        "category": "temporal-reasoning",
+        "evidence_session_turns": 22,
+        "evidence_session_turns_hidden": 12,
+        "evidence_turns": 2,
+        "evidence_turns_hidden": 1,
+        "hidden_turns": 427,
+        "oldest_turn_age_days": 140.461111,
+        "question_id": "2ebe6c90",
+        "turns": 485
+      },
+      {
+        "category": "temporal-reasoning",
+        "evidence_session_turns": 22,
+        "evidence_session_turns_hidden": 22,
+        "evidence_turns": 2,
+        "evidence_turns_hidden": 2,
+        "hidden_turns": 498,
+        "oldest_turn_age_days": 298.354167,
+        "question_id": "370a8ff4",
+        "turns": 498
+      },
+      {
+        "category": "knowledge-update",
+        "evidence_session_turns": 24,
+        "evidence_session_turns_hidden": 12,
+        "evidence_turns": 2,
+        "evidence_turns_hidden": 1,
+        "hidden_turns": 268,
+        "oldest_turn_age_days": 215.271528,
+        "question_id": "41698283",
+        "turns": 476
+      },
+      {
+        "category": "knowledge-update",
+        "evidence_session_turns": 24,
+        "evidence_session_turns_hidden": 0,
+        "evidence_turns": 2,
+        "evidence_turns_hidden": 0,
+        "hidden_turns": 4,
+        "oldest_turn_age_days": 96.786111,
+        "question_id": "4b24c848",
+        "turns": 514
+      },
+      {
+        "category": "knowledge-update",
+        "evidence_session_turns": 24,
+        "evidence_session_turns_hidden": 12,
+        "evidence_turns": 2,
+        "evidence_turns_hidden": 1,
+        "hidden_turns": 404,
+        "oldest_turn_age_days": 311.709028,
+        "question_id": "50635ada",
+        "turns": 531
+      },
+      {
+        "category": "knowledge-update",
+        "evidence_session_turns": 22,
+        "evidence_session_turns_hidden": 10,
+        "evidence_turns": 2,
+        "evidence_turns_hidden": 1,
+        "hidden_turns": 136,
+        "oldest_turn_age_days": 143.857639,
+        "question_id": "59524333",
+        "turns": 528
+      },
+      {
+        "category": "knowledge-update",
+        "evidence_session_turns": 20,
+        "evidence_session_turns_hidden": 0,
+        "evidence_turns": 2,
+        "evidence_turns_hidden": 0,
+        "hidden_turns": 119,
+        "oldest_turn_age_days": 110.249306,
+        "question_id": "5c40ec5b",
+        "turns": 479
+      },
+      {
+        "category": "temporal-reasoning",
+        "evidence_session_turns": 10,
+        "evidence_session_turns_hidden": 10,
+        "evidence_turns": 1,
+        "evidence_turns_hidden": 1,
+        "hidden_turns": 445,
+        "oldest_turn_age_days": 120.9625,
+        "question_id": "5e1b23de",
+        "turns": 445
+      },
+      {
+        "category": "knowledge-update",
+        "evidence_session_turns": 22,
+        "evidence_session_turns_hidden": 10,
+        "evidence_turns": 2,
+        "evidence_turns_hidden": 1,
+        "hidden_turns": 183,
+        "oldest_turn_age_days": 122.938889,
+        "question_id": "603deb26",
+        "turns": 472
+      },
+      {
+        "category": "knowledge-update",
+        "evidence_session_turns": 24,
+        "evidence_session_turns_hidden": 12,
+        "evidence_turns": 2,
+        "evidence_turns_hidden": 1,
+        "hidden_turns": 142,
+        "oldest_turn_age_days": 173.303472,
+        "question_id": "6071bd76",
+        "turns": 482
+      },
+      {
+        "category": "knowledge-update",
+        "evidence_session_turns": 24,
+        "evidence_session_turns_hidden": 0,
+        "evidence_turns": 2,
+        "evidence_turns_hidden": 0,
+        "hidden_turns": 115,
+        "oldest_turn_age_days": 102.538194,
+        "question_id": "6aeb4375",
+        "turns": 468
+      },
+      {
+        "category": "knowledge-update",
+        "evidence_session_turns": 22,
+        "evidence_session_turns_hidden": 12,
+        "evidence_turns": 2,
+        "evidence_turns_hidden": 1,
+        "hidden_turns": 56,
+        "oldest_turn_age_days": 111.055706,
+        "question_id": "7a87bd0c",
+        "turns": 506
+      },
+      {
+        "category": "knowledge-update",
+        "evidence_session_turns": 24,
+        "evidence_session_turns_hidden": 12,
+        "evidence_turns": 2,
+        "evidence_turns_hidden": 1,
+        "hidden_turns": 301,
+        "oldest_turn_age_days": 227.585417,
+        "question_id": "7e974930",
+        "turns": 502
+      },
+      {
+        "category": "knowledge-update",
+        "evidence_session_turns": 24,
+        "evidence_session_turns_hidden": 12,
+        "evidence_turns": 2,
+        "evidence_turns_hidden": 1,
+        "hidden_turns": 200,
+        "oldest_turn_age_days": 158.752083,
+        "question_id": "852ce960",
+        "turns": 396
+      },
+      {
+        "category": "knowledge-update",
+        "evidence_session_turns": 24,
+        "evidence_session_turns_hidden": 12,
+        "evidence_turns": 2,
+        "evidence_turns_hidden": 1,
+        "hidden_turns": 209,
+        "oldest_turn_age_days": 274.563889,
+        "question_id": "89941a93",
+        "turns": 528
+      },
+      {
+        "category": "knowledge-update",
+        "evidence_session_turns": 24,
+        "evidence_session_turns_hidden": 12,
+        "evidence_turns": 3,
+        "evidence_turns_hidden": 2,
+        "hidden_turns": 324,
+        "oldest_turn_age_days": 146.6375,
+        "question_id": "8fb83627",
+        "turns": 485
+      },
+      {
+        "category": "knowledge-update",
+        "evidence_session_turns": 24,
+        "evidence_session_turns_hidden": 12,
+        "evidence_turns": 2,
+        "evidence_turns_hidden": 1,
+        "hidden_turns": 85,
+        "oldest_turn_age_days": 150.4125,
+        "question_id": "945e3d21",
+        "turns": 489
+      },
+      {
+        "category": "knowledge-update",
+        "evidence_session_turns": 22,
+        "evidence_session_turns_hidden": 12,
+        "evidence_turns": 2,
+        "evidence_turns_hidden": 1,
+        "hidden_turns": 106,
+        "oldest_turn_age_days": 143.765405,
+        "question_id": "9bbe84a2",
+        "turns": 459
+      },
+      {
+        "category": "knowledge-update",
+        "evidence_session_turns": 24,
+        "evidence_session_turns_hidden": 0,
+        "evidence_turns": 2,
+        "evidence_turns_hidden": 0,
+        "hidden_turns": 22,
+        "oldest_turn_age_days": 101.239583,
+        "question_id": "b01defab",
+        "turns": 503
+      },
+      {
+        "category": "temporal-reasoning",
+        "evidence_session_turns": 48,
+        "evidence_session_turns_hidden": 0,
+        "evidence_turns": 5,
+        "evidence_turns_hidden": 0,
+        "hidden_turns": 12,
+        "oldest_turn_age_days": 96.459028,
+        "question_id": "b46e15ed",
+        "turns": 478
+      },
+      {
+        "category": "knowledge-update",
+        "evidence_session_turns": 22,
+        "evidence_session_turns_hidden": 10,
+        "evidence_turns": 2,
+        "evidence_turns_hidden": 1,
+        "hidden_turns": 333,
+        "oldest_turn_age_days": 221.420139,
+        "question_id": "ba61f0b9",
+        "turns": 454
+      },
+      {
+        "category": "knowledge-update",
+        "evidence_session_turns": 24,
+        "evidence_session_turns_hidden": 12,
+        "evidence_turns": 2,
+        "evidence_turns_hidden": 1,
+        "hidden_turns": 112,
+        "oldest_turn_age_days": 116.49375,
+        "question_id": "c4ea545c",
+        "turns": 490
+      },
+      {
+        "category": "knowledge-update",
+        "evidence_session_turns": 24,
+        "evidence_session_turns_hidden": 12,
+        "evidence_turns": 2,
+        "evidence_turns_hidden": 1,
+        "hidden_turns": 118,
+        "oldest_turn_age_days": 121.369572,
+        "question_id": "db467c8c",
+        "turns": 475
+      },
+      {
+        "category": "knowledge-update",
+        "evidence_session_turns": 24,
+        "evidence_session_turns_hidden": 12,
+        "evidence_turns": 2,
+        "evidence_turns_hidden": 1,
+        "hidden_turns": 219,
+        "oldest_turn_age_days": 155.81875,
+        "question_id": "e493bb7c",
+        "turns": 506
+      },
+      {
+        "category": "knowledge-update",
+        "evidence_session_turns": 24,
+        "evidence_session_turns_hidden": 12,
+        "evidence_turns": 2,
+        "evidence_turns_hidden": 1,
+        "hidden_turns": 187,
+        "oldest_turn_age_days": 141.630613,
+        "question_id": "e61a7584",
+        "turns": 496
+      },
+      {
+        "category": "knowledge-update",
+        "evidence_session_turns": 24,
+        "evidence_session_turns_hidden": 12,
+        "evidence_turns": 2,
+        "evidence_turns_hidden": 1,
+        "hidden_turns": 297,
+        "oldest_turn_age_days": 164.985417,
+        "question_id": "e66b632c",
+        "turns": 506
+      },
+      {
+        "category": "knowledge-update",
+        "evidence_session_turns": 24,
+        "evidence_session_turns_hidden": 12,
+        "evidence_turns": 2,
+        "evidence_turns_hidden": 1,
+        "hidden_turns": 172,
+        "oldest_turn_age_days": 146.950694,
+        "question_id": "f685340e",
+        "turns": 424
+      },
+      {
+        "category": "knowledge-update",
+        "evidence_session_turns": 24,
+        "evidence_session_turns_hidden": 12,
+        "evidence_turns": 2,
+        "evidence_turns_hidden": 1,
+        "hidden_turns": 303,
+        "oldest_turn_age_days": 208.022917,
+        "question_id": "f9e8c073",
+        "turns": 504
+      },
+      {
+        "category": "temporal-reasoning",
+        "evidence_session_turns": 22,
+        "evidence_session_turns_hidden": 0,
+        "evidence_turns": 2,
+        "evidence_turns_hidden": 0,
+        "hidden_turns": 34,
+        "oldest_turn_age_days": 99.197222,
+        "question_id": "gpt4_1916e0ea",
+        "turns": 533
+      },
+      {
+        "category": "temporal-reasoning",
+        "evidence_session_turns": 24,
+        "evidence_session_turns_hidden": 12,
+        "evidence_turns": 2,
+        "evidence_turns_hidden": 1,
+        "hidden_turns": 342,
+        "oldest_turn_age_days": 255.821528,
+        "question_id": "gpt4_21adecb5",
+        "turns": 511
+      },
+      {
+        "category": "temporal-reasoning",
+        "evidence_session_turns": 24,
+        "evidence_session_turns_hidden": 24,
+        "evidence_turns": 2,
+        "evidence_turns_hidden": 2,
+        "hidden_turns": 486,
+        "oldest_turn_age_days": 178.3125,
+        "question_id": "gpt4_4929293a",
+        "turns": 486
+      },
+      {
+        "category": "temporal-reasoning",
+        "evidence_session_turns": 22,
+        "evidence_session_turns_hidden": 22,
+        "evidence_turns": 2,
+        "evidence_turns_hidden": 2,
+        "hidden_turns": 520,
+        "oldest_turn_age_days": 130.595833,
+        "question_id": "gpt4_4ef30696",
+        "turns": 520
+      },
+      {
+        "category": "temporal-reasoning",
+        "evidence_session_turns": 22,
+        "evidence_session_turns_hidden": 0,
+        "evidence_turns": 2,
+        "evidence_turns_hidden": 0,
+        "hidden_turns": 156,
+        "oldest_turn_age_days": 105.166667,
+        "question_id": "gpt4_4fc4f797",
+        "turns": 472
+      },
+      {
+        "category": "temporal-reasoning",
+        "evidence_session_turns": 12,
+        "evidence_session_turns_hidden": 12,
+        "evidence_turns": 1,
+        "evidence_turns_hidden": 1,
+        "hidden_turns": 565,
+        "oldest_turn_age_days": 151.7875,
+        "question_id": "gpt4_6dc9b45b",
+        "turns": 565
+      },
+      {
+        "category": "temporal-reasoning",
+        "evidence_session_turns": 34,
+        "evidence_session_turns_hidden": 0,
+        "evidence_turns": 3,
+        "evidence_turns_hidden": 0,
+        "hidden_turns": 87,
+        "oldest_turn_age_days": 113.180556,
+        "question_id": "gpt4_7ca326fa",
+        "turns": 516
+      },
+      {
+        "category": "temporal-reasoning",
+        "evidence_session_turns": 36,
+        "evidence_session_turns_hidden": 0,
+        "evidence_turns": 3,
+        "evidence_turns_hidden": 0,
+        "hidden_turns": 262,
+        "oldest_turn_age_days": 108.55,
+        "question_id": "gpt4_7f6b06db",
+        "turns": 558
+      },
+      {
+        "category": "temporal-reasoning",
+        "evidence_session_turns": 72,
+        "evidence_session_turns_hidden": 24,
+        "evidence_turns": 6,
+        "evidence_turns_hidden": 2,
+        "hidden_turns": 347,
+        "oldest_turn_age_days": 148.283333,
+        "question_id": "gpt4_a1b77f9c",
+        "turns": 498
+      },
+      {
+        "category": "temporal-reasoning",
+        "evidence_session_turns": 22,
+        "evidence_session_turns_hidden": 0,
+        "evidence_turns": 2,
+        "evidence_turns_hidden": 0,
+        "hidden_turns": 24,
+        "oldest_turn_age_days": 90.548611,
+        "question_id": "gpt4_ec93e27f",
+        "turns": 516
+      },
+      {
+        "category": "temporal-reasoning",
+        "evidence_session_turns": 54,
+        "evidence_session_turns_hidden": 10,
+        "evidence_turns": 5,
+        "evidence_turns_hidden": 1,
+        "hidden_turns": 220,
+        "oldest_turn_age_days": 133.221528,
+        "question_id": "gpt4_f420262c",
+        "turns": 495
+      },
+      {
+        "category": "temporal-reasoning",
+        "evidence_session_turns": 58,
+        "evidence_session_turns_hidden": 12,
+        "evidence_turns": 3,
+        "evidence_turns_hidden": 0,
+        "hidden_turns": 162,
+        "oldest_turn_age_days": 125.397917,
+        "question_id": "gpt4_f420262d",
+        "turns": 454
+      }
+    ]
+  },
+  "questions": 500,
+  "questions_without_evidence_turns": 21,
+  "real_time": "2026-11-19T00:00:00.000Z",
+  "rows_sha256": "b44d863c24f26de263ac11607496215bc4c60de1473968d6dc57d8307fb456fd",
+  "turns": 246750,
+  "writes": {
+    "medium": {
+      "allow": 246750
+    },
+    "permissive": {
+      "allow": 246750
+    },
+    "strict": {
+      "allow": 246750
+    }
+  }
+}

@@ -1,7 +1,6 @@
 # Results manifest
 
 One row per results file. A results file exists only if `research/scripts/<script>` regenerates it from `<config>`; `make test-repro` reruns each script and compares the sha256. Measurement entries in `docs/log/` must cite a file listed here, and `make thesis` rejects one whose hash does not match.
-
 | file | config | script | commit | sha256 | figure |
 |---|---|---|---|---|---|
 | research/results/h1-gatemem-reach.json | research/configs/h1-gatemem-reach.json | research/scripts/h1_gatemem_reach.py | 2c503aa | 9607555c3c9dcdee4917e10374c902589750ce0972a51f459c7294177792c4dd | none |
@@ -14,3 +13,5 @@ One row per results file. A results file exists only if `research/scripts/<scrip
 | research/results/h1-refusal-leaks.json | research/configs/h1-refusal-leaks.json | research/scripts/h1_refusal_leaks.py | 2c503aa | d7e9f3d0a54f9cce348c71fc9389b5bb150c05afeb5751588a40623be19405ed | none |
 | research/results/h3-fault-set.json | research/configs/h3-fault-set.json | research/scripts/h3_fault_set.py | b59a1f7 | a274701dea70711537d54a556e15bf24dc9ee849b2fad4de741e97c051da199a | none |
 | research/results/h3-lint-floor.json | research/configs/h3-lint-floor.json | research/scripts/h3_lint_floor.py | 1897c40 | 354da5711ed36526b59051f3477bdf97bb4ff2b74fcf691982157fab9aef25a9 | none |
+| research/results/h2-longmemeval-ttl.json | research/configs/h2-longmemeval-ttl.json | research/scripts/h2_longmemeval_ttl.py | 1cee40b | 412941154b27162d6c55236c13ac6e609595d62c37010bb12eb842e43bde428a | none |
+| research/results/h2-longmemeval-cost.json | research/configs/h2-longmemeval-cost.json | research/scripts/h2_longmemeval_cost.py | 1cee40b | 529b1450b56f154202543ad7aa045eee61e2c56cce5ed7c0169b934ec91a1cb8 | none |
