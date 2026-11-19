@@ -11,7 +11,8 @@
 //                      sharing at least one term; each item is paired with its
 //                      CONTRADICTION_NEIGHBOURS nearest by term overlap (the
 //                      Jaccard share of their terms, runs of letters and digits),
-//                      ties by id. A "contradiction" verdict flags the later
+//                      ties to the items that follow it in id order, wrapping
+//                      round, so newer items get the same share of pairs. A "contradiction" verdict flags the later
 //                      item of the pair by id, naming the earlier.
 //   unsupported-claim  an active episodic or semantic item of the linted scope,
 //                      held at the lint time, whose provenance ref names another
@@ -222,15 +223,17 @@ export function contradictionPairs(ctx: LintContext, scope: string): [MemoryItem
   const terms = new Map(held.map((i) => [i.id, lintTerms(i)]));
   const hashes = new Map(held.map((i) => [i.id, strictContentHash(i.content)]));
   const pairs = new Map<string, [MemoryItem, MemoryItem]>();
-  for (const i of held) {
+  const n = held.length;
+  for (const [at, i] of held.entries()) {
     const near = held
-      .filter((j) => j.id !== i.id && hashes.get(j.id) !== hashes.get(i.id))
-      .map((j) => ({
+      .map((j, k) => ({
         j,
+        // How far j follows i in id order, wrapping round: the tie-break.
+        ahead: (k - at + n) % n,
         share: jaccard(terms.get(i.id) as Set<string>, terms.get(j.id) as Set<string>),
       }))
-      .filter((x) => x.share > 0)
-      .sort((x, y) => y.share - x.share || byId(x.j, y.j))
+      .filter((x) => x.j.id !== i.id && hashes.get(x.j.id) !== hashes.get(i.id) && x.share > 0)
+      .sort((x, y) => y.share - x.share || x.ahead - y.ahead)
       .slice(0, CONTRADICTION_NEIGHBOURS);
     for (const { j } of near) {
       const pair: [MemoryItem, MemoryItem] = byId(i, j) < 0 ? [i, j] : [j, i];

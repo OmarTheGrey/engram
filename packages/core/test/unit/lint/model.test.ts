@@ -211,7 +211,7 @@ describe("contradictionPairs", () => {
       [id(3), id(4)],
     ]);
   });
-  test(`keeps each item's ${CONTRADICTION_NEIGHBOURS} nearest by term overlap, ties by id`, () => {
+  test(`keeps each item's ${CONTRADICTION_NEIGHBOURS} nearest by term overlap`, () => {
     // Item n (2 to 8) shares "x" and 9 - n terms of its own with item 1, and
     // only "x" with the others: item 1's nearest are items 2 to 6, while
     // items 7 and 8, small, are nearer each other than item 1.
@@ -227,6 +227,32 @@ describe("contradictionPairs", () => {
     for (const [a, b] of pairs) expect((a as string) < (b as string)).toBe(true);
     expect(pairs).toEqual([...pairs].sort());
     expect(new Set(pairs.map((p) => p.join())).size).toBe(pairs.length);
+  });
+});
+
+describe("contradictionPairs on ties (review L3-5)", () => {
+  // Items that all share one term and nothing else are equally near: ties
+  // go to the items that follow in id order, wrapping round, so a newer item
+  // has the same share of pairs as an older one.
+  const tied = (n: number) =>
+    Array.from({ length: n }, (_, k) => item(k + 1, { content: `shared own${k + 1}` }));
+  const degrees = (items: MemoryItem[]) => {
+    const pairs = contradictionPairs(ctx(items), "team:platform");
+    const out = new Map<string, number>();
+    for (const [a, b] of pairs) for (const x of [a.id, b.id]) out.set(x, (out.get(x) ?? 0) + 1);
+    return { pairs: pairs.map(([a, b]) => [a.id, b.id]), degrees: items.map((i) => out.get(i.id)) };
+  };
+
+  test("nine equally near items: the newest are paired with each other too", () => {
+    const { pairs } = degrees(tied(9));
+    expect(pairs).toContainEqual([id(6), id(7)]);
+    expect(pairs).toContainEqual([id(8), id(9)]);
+    expect(pairs).toHaveLength(36);
+  });
+  test(`thirteen equally near items: every item is in exactly ${2 * CONTRADICTION_NEIGHBOURS} pairs`, () => {
+    const { pairs, degrees: d } = degrees(tied(13));
+    expect(d).toEqual(Array(13).fill(2 * CONTRADICTION_NEIGHBOURS));
+    expect(pairs).toHaveLength(13 * CONTRADICTION_NEIGHBOURS);
   });
 });
 
