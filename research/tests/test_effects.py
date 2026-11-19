@@ -124,3 +124,40 @@ def test_every_contrast_of_the_h1_table_carries_its_effect_sizes(tmp_path: Path)
         assert effect["difference"] == pytest.approx(contrast["mean"], abs=1e-12)
         assert effect["low"] <= effect["relative_reduction"] <= effect["high"]
     assert table["primary"]["effect"]["relative_reduction"] == pytest.approx(0.8, abs=0.12)
+
+
+# Review fix pass (PR #57), X4-2: the interval against a direct item-index bootstrap.
+
+
+def direct_interval(
+    a: list[Session], b: list[Session], *, seed: int, resamples: int, confidence: float
+) -> tuple[float, float]:
+    """The textbook bootstrap: draw item indices with replacement, ratio of the resample's rates."""
+    _, x, y = paired_rates(a, b)
+    rng = np.random.default_rng(seed)
+    star_a = np.empty(resamples)
+    star_b = np.empty(resamples)
+    for start in range(0, resamples, 10_000):
+        idx = rng.integers(0, x.size, size=(min(10_000, resamples - start), x.size))
+        star_a[start : start + idx.shape[0]] = x[idx].mean(axis=1)
+        star_b[start : start + idx.shape[0]] = y[idx].mean(axis=1)
+    keep = star_a > 0
+    ratios = 1.0 - star_b[keep] / star_a[keep]
+    tail = (1.0 - confidence) / 2.0
+    low, high = np.quantile(ratios, [tail, 1.0 - tail])
+    return float(low), float(high)
+
+
+@pytest.mark.parametrize("confidence", [0.95, 0.90])
+def test_the_interval_agrees_with_a_direct_item_index_bootstrap(confidence: float) -> None:
+    """Both endpoints within 0.01 of a 200,000-resample direct bootstrap (Monte Carlo tolerance).
+
+    The endpoints of the two 95 percent intervals sit about 0.05 from the 90
+    percent ones on this sample, and dividing by the observed rate instead of
+    each resample's moves them by more than 0.02, so either slip fails here.
+    """
+    c4, c5 = planted(21, 80, 0.3), planted(22, 80, 0.1)
+    effect = relative_reduction(c4, c5, seed=23, resamples=100_000, confidence=confidence)
+    low, high = direct_interval(c4, c5, seed=24, resamples=200_000, confidence=confidence)
+    assert effect["low"] == pytest.approx(low, abs=0.01)
+    assert effect["high"] == pytest.approx(high, abs=0.01)

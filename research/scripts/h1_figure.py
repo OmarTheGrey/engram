@@ -18,7 +18,11 @@ The figure is SVG written by hand, not by a plotting library, so it is
 byte-stable by construction: fixed element order, no ids but fixed ones,
 coordinates and numbers in fixed formats, no time, no absolute path, a fixed
 font stack, and the table's sha256 in its `desc` (AGENTS.md rule 9). A
-figure drawn from fixture or planted data never goes into research/results/.
+figure drawn from fixture or planted data never goes into research/results/:
+`main` refuses an output there unless the table is research/results/h1-table.json,
+both paths resolved (`check_destination`). The table must be `h1-table/3`,
+which carries the effect block; the relative reduction is labelled "not
+registered" beside the registered numbers.
 """
 
 from __future__ import annotations
@@ -36,6 +40,9 @@ from scripts.results_io import REPO, load_config, sha256_file
 CONDITIONS = ("C2", "C3", "C4", "C5")
 ARMS = (("gatemem", "GateMem"), ("mem-inv-bench", "MEM-INV-Bench"))
 TESTED = "C4-C5"
+TABLE_SCHEMA = "h1-table/3"
+RESULTS = "research/results"
+COMMITTED_TABLE = "research/results/h1-table.json"
 
 WIDTH = 760
 ROW = 250
@@ -175,7 +182,9 @@ def _arm(table: Mapping[str, Any], benchmark: str, label: str, y0: float) -> lis
             f'<circle cx="{_n(x)}" cy="{_n(ry(rate))}" r="4.5" fill="{colour}" '
             f'stroke="{SURFACE}" stroke-width="2"/>'
         )
-        out.append(_text(x + 9.0, ry(rate) + 4.0, _v(rate), size=10, fill=INK))
+        # A point within 8 px of the axis takes its label above it, clear of the axis line.
+        label_y = ry(rate) - 8.0 if PLOT_BOTTOM - ry(rate) < 8.0 else ry(rate) + 4.0
+        out.append(_text(x + 9.0, label_y, _v(rate), size=10, fill=INK))
         out.append(
             _text(x, PLOT_BOTTOM + 30.0, f"n = {row['items']}", size=9, anchor="middle", fill=INK_2)
         )
@@ -211,7 +220,7 @@ def _arm(table: Mapping[str, Any], benchmark: str, label: str, y0: float) -> lis
     effect = contrast.get("effect")
     if effect is not None:
         lines.append(
-            f"relative reduction {_v(effect['relative_reduction'], 2)} "
+            f"relative reduction (not registered) {_v(effect['relative_reduction'], 2)} "
             f"[{_v(effect['low'], 2)}, {_v(effect['high'], 2)}]"
         )
     for k, body in enumerate(lines):
@@ -233,6 +242,11 @@ def _caption(table: Mapping[str, Any]) -> str:
 
 def render(table: Mapping[str, Any], source: str, digest: str) -> str:
     """The figure's SVG text for an H1 table (see the module docstring)."""
+    if table.get("schema") != TABLE_SCHEMA:
+        raise ValueError(
+            f"the figure draws an {TABLE_SCHEMA} table, not {table.get('schema')!r}: "
+            "an older table has no effect block"
+        )
     arms = [(b, label) for b, label in ARMS if _arm_rows(table, b)]
     if not arms:
         raise ValueError("the table has no rate on the primary model")
@@ -261,6 +275,22 @@ def render(table: Mapping[str, Any], source: str, digest: str) -> str:
     return "\n".join(out) + "\n"
 
 
+def check_destination(out: Path, table: Path) -> None:
+    """Refuse a figure under research/results/ unless it is drawn from the committed H1 table.
+
+    Both paths are resolved (`..` and symlinks) before they are compared, so
+    a planted or fixture table cannot reach research/results/ by a detour
+    (review finding X4-1; AGENTS.md rule 9).
+    """
+    results = (REPO / RESULTS).resolve()
+    if not out.resolve().is_relative_to(results):
+        return
+    if table.resolve() != (REPO / COMMITTED_TABLE).resolve():
+        raise ValueError(
+            f"a figure under {RESULTS}/ is drawn only from {COMMITTED_TABLE}, not from {table}"
+        )
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--config", type=Path, required=True)
@@ -269,6 +299,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     config = load_config(args.config)
     source = str(config["table"])
     path = REPO / source
+    check_destination(args.out, path)
     table = json.loads(path.read_text(encoding="utf-8"))
     args.out.parent.mkdir(parents=True, exist_ok=True)
     with args.out.open("w", encoding="utf-8", newline="\n") as f:

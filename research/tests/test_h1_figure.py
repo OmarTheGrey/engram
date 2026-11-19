@@ -16,7 +16,7 @@ import numpy as np
 import pytest
 
 from scripts import h1_figure, h1_table
-from scripts.results_io import sha256_file
+from scripts.results_io import REPO, sha256_file
 
 SVG = "{http://www.w3.org/2000/svg}"
 RATES = {"C2": 0.40, "C3": 0.30, "C4": 0.25, "C5": 0.05}
@@ -111,7 +111,7 @@ def test_the_figure_shows_each_arms_rates_and_the_tested_contrast(tmp_path: Path
             f"{tested['method']}"
         ) in words
         assert (
-            f"relative reduction {effect['relative_reduction']:.2f} "
+            f"relative reduction (not registered) {effect['relative_reduction']:.2f} "
             f"[{effect['low']:.2f}, {effect['high']:.2f}]"
         ) in words
     caption = words[-1]
@@ -187,3 +187,90 @@ def test_a_table_with_no_rate_on_the_primary_model_is_refused() -> None:
             "t.json",
             "0" * 64,
         )
+
+
+# Review fix pass (PR #57): X4-1, X4-3, X4-6.
+
+
+def test_a_planted_tables_figure_is_refused_under_research_results(tmp_path: Path) -> None:
+    """X4-1: only the committed H1 table may draw into research/results/; nothing is written."""
+    table = planted_table(tmp_path, {"gatemem": 60})
+    config = tmp_path / "figure.json"
+    config.write_text(json.dumps({"name": "h1-figure", "table": str(table)}), encoding="utf-8")
+    for out in (
+        REPO / "research" / "results" / "x4-review-refused.svg",
+        REPO / "research" / "scripts" / ".." / "results" / "x4-review-refused.svg",
+    ):
+        try:
+            with pytest.raises(ValueError, match="research/results"):
+                h1_figure.main(["--config", str(config), "--out", str(out)])
+            assert not out.resolve().exists()
+        finally:
+            out.resolve().unlink(missing_ok=True)
+
+
+def test_the_destination_rule_resolves_dot_dot_on_both_paths() -> None:
+    results = REPO / "research" / "results"
+    committed = results / "h1-table.json"
+    # Under research/results/, only the committed table is accepted.
+    h1_figure.check_destination(results / "h1-figure.svg", committed)
+    h1_figure.check_destination(
+        results / "h1-figure.svg",
+        REPO / "research" / "configs" / ".." / "results" / "h1-table.json",
+    )
+    with pytest.raises(ValueError):
+        h1_figure.check_destination(
+            results / "h1-figure.svg", results / "h1-table-gate-by-action.json"
+        )
+    with pytest.raises(ValueError):
+        h1_figure.check_destination(
+            REPO / "research" / "x" / ".." / "results" / "f.svg", REPO / "t.json"
+        )
+    # Outside research/results/, any table may be drawn (tests, fixtures, a scratch look).
+    h1_figure.check_destination(REPO / ".engram" / "h1.svg", REPO / "t.json")
+
+
+def test_a_table_of_another_schema_is_refused() -> None:
+    """X4-3: an h1-table/2 table has no effect block; refused, not drawn without it."""
+    with pytest.raises(ValueError, match="h1-table/3"):
+        h1_figure.render(
+            {
+                "schema": "h1-table/2",
+                "primary_model": "m",
+                "store": "s",
+                "rates": [],
+                "contrasts": [],
+            },
+            "t.json",
+            "0" * 64,
+        )
+
+
+def test_a_rate_at_the_axis_is_labelled_above_its_point() -> None:
+    """X4-6: a rate of exactly 0 draws its label above the point, clear of the axis line."""
+    table = {
+        "schema": "h1-table/3",
+        "primary_model": "m",
+        "store": "s",
+        "decides": False,
+        "rates": [
+            {
+                "benchmark": "gatemem",
+                "model": "m",
+                "condition": c,
+                "rate": r,
+                "wilson_low": 0.0,
+                "wilson_high": max(r, 0.1),
+                "items": 10,
+            }
+            for c, r in (("C4", 0.3), ("C5", 0.0))
+        ],
+        "contrasts": [],
+    }
+    root = ET.fromstring(h1_figure.render(table, "t.json", "0" * 64))
+    labels = {t.text: float(t.get("y", "0")) for t in root.iter(f"{SVG}text")}
+    circles = [float(c.get("cy", "0")) for c in root.iter(f"{SVG}circle")]
+    assert labels["0.000"] <= h1_figure.PLOT_BOTTOM - 8.0
+    assert labels["0.000"] < max(circles)
+    # A rate well above the axis keeps its label beside the point.
+    assert labels["0.300"] == pytest.approx(min(circles) + 4.0)

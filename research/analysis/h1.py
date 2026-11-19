@@ -130,6 +130,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -322,6 +323,8 @@ def decide_h1(
     enforcement violated more than instruction; it is "absent" when that arm
     has no contrast.
     """
+    if secondary_high is not None and not math.isfinite(secondary_high):
+        raise ValueError(f"the secondary arm's interval end is {secondary_high}, not a number")
     others = dict(other_primary_p or {})
     if others and set(others) != set(HYPOTHESES[1:]):
         raise ValueError(

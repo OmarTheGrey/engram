@@ -89,3 +89,27 @@ def test_the_interim_read_out_never_disagrees_with_the_final_one(
     final, _ = decide_h1(p, dict(zip(HYPOTHESES[1:], others, strict=True)), None)
     if interim["primary"] != "undecided":
         assert final["primary"] == interim["primary"]
+
+
+# Review fix pass (PR #57): X4-5 and the NaN secondary bound.
+
+NOT_FINITE = [float("nan"), float("inf"), float("-inf")]
+
+
+@pytest.mark.parametrize("bad", NOT_FINITE)
+def test_holm_refuses_a_p_value_that_is_not_finite(bad: float) -> None:
+    with pytest.raises(ValueError):
+        holm({**FIVE, "H3": bad})
+
+
+@pytest.mark.parametrize("bad", NOT_FINITE)
+def test_the_interim_bound_refuses_a_p_value_that_is_not_finite(bad: float) -> None:
+    with pytest.raises(ValueError):
+        interim_bound(bad)
+
+
+@pytest.mark.parametrize("bad", NOT_FINITE)
+def test_decide_h1_refuses_a_secondary_bound_that_is_not_finite(bad: float) -> None:
+    """A NaN interval end would read as "does not contradict"; it is refused instead."""
+    with pytest.raises(ValueError, match="secondary"):
+        decide_h1(0.001, None, bad)
