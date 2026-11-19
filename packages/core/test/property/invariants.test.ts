@@ -102,6 +102,7 @@ import { migrate } from "../../src/db/migrate.ts";
 import { openSqlite } from "../../src/db/sqlite.ts";
 import { allEvents, appendEvent, currentItems, eventsByItem, rebuild } from "../../src/events.ts";
 import { itemById } from "../../src/items.ts";
+import { erasureOpen } from "../../src/plane/commit.ts";
 import {
   type Actor,
   adoptStoreItems,
@@ -112,6 +113,7 @@ import {
   type Plane,
   type PlaneDeps,
 } from "../../src/plane.ts";
+import { sameGrant } from "../../src/policy/evaluate.ts";
 import { parsePolicy } from "../../src/policy/load.ts";
 import { itemsAt } from "../../src/replay.ts";
 import type { Grant, MemoryEvent, MemoryItem, Policy } from "../../src/schema.ts";
@@ -606,6 +608,8 @@ describe("invariants", () => {
       grantedReads: 0,
       refusedStale: 0,
       crashes: 0,
+      offboardCrashes: 0,
+      removalsKept: 0,
       purged: 0,
       erasedLeft: 0,
     };
@@ -2081,7 +2085,7 @@ const W_SCOPES = ["person:dana", "role:release"];
  * throwing at the transaction that would commit it, after its store write,
  * or by failing its next store call after that write (a repair's).
  */
-type Crash = "none" | "commit" | "repair";
+type Crash = "none" | "commit" | "repair" | "offboard";
 const arbCrash = fc.oneof(
   { arbitrary: fc.constant<Crash>("none"), weight: 3 },
   { arbitrary: fc.constantFrom<Crash>("commit", "repair"), weight: 1 },
@@ -2094,7 +2098,8 @@ type WalkOp =
   | { kind: "retain" }
   | { kind: "adopt"; scope: number }
   | { kind: "read" }
-  | { kind: "offboard" };
+  /** With `crash`, the offboarding stops after its mark (its sweep's listing fails), and is run again. */
+  | { kind: "offboard"; crash: boolean };
 
 const arbWalkOp: fc.Arbitrary<WalkOp> = fc.oneof(
   {
@@ -2143,7 +2148,7 @@ const arbCrashRace = fc
         ? { kind: "grant", pick, add: true, crash }
         : { kind: "write", pick, grant: true, episodic: false, crash },
     ];
-    const eraser: WalkOp[] = [...before, { kind: "offboard" }];
+    const eraser: WalkOp[] = [...before, { kind: "offboard", crash: false }];
     return onA ? ([racer, eraser] as const) : ([eraser, racer] as const);
   });
 
@@ -2154,11 +2159,12 @@ const arbAnyWalk = fc
     fc.array(arbWalkOp, { minLength: 1, maxLength: 6 }),
     fc.boolean(),
     fc.nat(6),
+    fc.boolean(),
   )
-  .map(([a, b, onA, at]) => {
+  .map(([a, b, onA, at, crash]) => {
     const into = onA ? a : b;
     const ops = [...into];
-    ops.splice(Math.min(at, ops.length), 0, { kind: "offboard" });
+    ops.splice(Math.min(at, ops.length), 0, { kind: "offboard", crash });
     return onA ? ([ops, b] as const) : ([a, ops] as const);
   });
 
@@ -2173,6 +2179,10 @@ interface WalkSeen {
   grantedReads: number;
   refusedStale: number;
   crashes: number;
+  /** Offboardings that stopped after their mark and were run again (V-1). */
+  offboardCrashes: number;
+  /** Committed grant removals the walk checked at its end (V-2, V-3). */
+  removalsKept: number;
   purged: number;
   /** Walks that ended with an erased id's record in the store, for the next adoption to delete. */
   erasedLeft: number;
@@ -2240,6 +2250,11 @@ async function twoHandleWalk(
       },
       list: async (scope: string) => {
         await pass(`${name} list ${scope}`);
+        if (plan.crash === "offboard") {
+          plan.crash = "none";
+          crashes++;
+          throw crashed();
+        }
         const listed = await store.list(scope);
         await pass(`${name} listed ${scope}`);
         return listed;
@@ -2272,7 +2287,12 @@ async function twoHandleWalk(
     const plane = createPlane(d);
     const plan = plans.get(d) as Plan;
     for (const op of ops) {
-      plan.crash = op.kind === "write" || op.kind === "grant" ? op.crash : "none";
+      plan.crash =
+        op.kind === "write" || op.kind === "grant"
+          ? op.crash
+          : op.kind === "offboard" && op.crash
+            ? "offboard"
+            : "none";
       plan.wrote = false;
       plan.failTransaction = false;
       try {
@@ -2352,12 +2372,19 @@ async function twoHandleWalk(
       const r = await plane.read(W_SAM, { at: W_LATER });
       reads.push({ seq: r.event.seq, ids: r.items.map((i) => i.id) });
     } else {
-      await offboard(
-        d,
-        W_HR,
-        { person: "person:dana", roles: [{ scope: "role:release", successor: "person:lee" }] },
-        W_AT,
-      );
+      const request = {
+        person: "person:dana",
+        roles: [{ scope: "role:release", successor: "person:lee" }],
+      };
+      try {
+        await offboard(d, W_HR, request, W_AT);
+      } catch (e) {
+        if (!(e instanceof Error && e.message === crashed().message)) throw e;
+        // Stopped after its mark: the person scope stays frozen until a rerun.
+        seen.offboardCrashes++;
+        expect(erasureOpen(base, "person:dana"), "frozen after a stopped offboarding").toBe(true);
+        await offboard(d, W_HR, request, W_AT);
+      }
     }
   };
   await s.waitFor(Promise.all([run(deps("A", 100_000), opsA), run(deps("B", 200_000), opsB)]));
@@ -2439,6 +2466,55 @@ async function twoHandleWalk(
         expect(erasedAt.has(it.id), `${when}: ${reader.id} read erased ${it.id}`).toBe(false);
     }
   };
+  // Every offboarding completed, the stopped ones by their rerun (V-1).
+  expect(erasureOpen(base, "person:dana"), "an offboarding's mark left open").toBe(false);
+  /**
+   * A committed grant removal survives the plane's own recovery (V-2, V-3):
+   * for every grant an owner's grant change removed, if the item carries it
+   * at the end, an event after that removal brought it back deliberately: a
+   * grant change, a write of the plane's that is not an adoption, or an
+   * adoption of bytes their own writer then committed.
+   */
+  const removalsStand = (when: string) => {
+    for (const e of allEvents(base)) {
+      if (e.decision !== "allow" || e.policy_id !== "engram/grant/change" || !e.item) continue;
+      const history = eventsByItem(base, e.item_id as string).filter((x) => x.decision === "allow");
+      const before = [...history].reverse().find((x) => x.seq < e.seq && x.item)?.item;
+      const now = itemById(base, e.item_id as string);
+      if (!before || !now) continue;
+      for (const g of before.grants) {
+        if (e.item.grants.some((h) => sameGrant(g, h))) continue;
+        seen.removalsKept++;
+        if (!now.grants.some((h) => sameGrant(g, h))) continue;
+        // Carried at the end: find the event after the removal that brought it back.
+        let had = false;
+        let back: MemoryEvent | undefined;
+        for (const x of history.filter((y) => y.seq > e.seq)) {
+          const has: boolean = x.item ? x.item.grants.some((h) => sameGrant(g, h)) : had;
+          if (has && !had) back = x;
+          had = has;
+        }
+        const deliberate =
+          back !== undefined &&
+          (back.policy_id === "engram/grant/change" ||
+            (back.op === "write" && !back.reason.startsWith("adopted from store ")) ||
+            (back.reason.startsWith("adopted from store ") &&
+              history.some(
+                (y) =>
+                  y.seq > (back as MemoryEvent).seq &&
+                  y.op === "write" &&
+                  !y.reason.startsWith("adopted from store ") &&
+                  y.item?.content === back?.item?.content &&
+                  y.item?.version === back?.item?.version,
+              )));
+        expect(
+          deliberate,
+          `${when}: the grant to ${g.to} that ${e.id} removed from ${e.item_id} is back, through ${back?.policy_id} at ${back?.seq}`,
+        ).toBe(true);
+      }
+    }
+  };
+  removalsStand("after the walk");
   const left = await listing();
   if ([...erasedAt.keys()].some((itemId) => left.some((i) => i.id === itemId))) seen.erasedLeft++;
   await check("after the walk", false);
@@ -2447,5 +2523,6 @@ async function twoHandleWalk(
   for (const scope of W_SCOPES)
     await adoptStoreItems({ ...deps("C", 300_000), adapter: store }, W_DANA, scope, W_LATER);
   await check("after another adoption", true);
+  removalsStand("after another adoption");
   base.close();
 }
