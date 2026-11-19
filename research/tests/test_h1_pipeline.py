@@ -10,9 +10,11 @@ written under research/results.
 
 The second test runs a planted results file through the same CLI converter
 and table (review fix pass, P4A-4): every way a session's violation is
-decided or excluded, the blind UNREAD template filled and joined back
-through its key (the same sessions and table as the same reading keyed
-directly; refused without the key), and the table's rates and exclusion
+decided or excluded, the blind UNREAD template filled by each reader in a
+copy of their own and the two joined back through its key (the same
+sessions and table as the same readings keyed directly; refused without the
+key, with one reader's file, or with a reply dropped), and the table's rates
+and exclusion
 counts asserted, so a converter that ignores the judge, reads the wrong leak
 field, or stops excluding a reply fails here and not only in the vitest file.
 It also converts the run with --gate-by-action and builds both tables
@@ -33,6 +35,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -309,13 +312,24 @@ def test_a_planted_run_through_the_cli_converter_gives_the_tables_rates_and_excl
             ]
         )
 
-    # make h1-table before any reading: the blind template, and its key beside it.
+    # make h1-table before any reading: one template per reader, its pseudonymous id
+    # filled in, and the key beside them.
     unread = tmp_path / "unread.json"
     key = tmp_path / "unread-key.json"
-    first = convert(["--unread-out", str(unread), "--readers", "ana,ben"], tmp_path / "first.jsonl")
+    first = convert(["--unread-out", str(unread)], tmp_path / "first.jsonl")
     assert f"to {key}" in first.stderr
-    template = json.loads(unread.read_text(encoding="utf-8"))
-    assert set(template) == {"schema", "readers", "replies"}
+    assert not unread.exists()
+    templates = {
+        reader: json.loads((tmp_path / f"unread-{reader}.json").read_text(encoding="utf-8"))
+        for reader in ("reader1", "reader2")
+    }
+    assert {r: t["reader"] for r, t in templates.items()} == {
+        "reader1": "reader1",
+        "reader2": "reader2",
+    }
+    assert templates["reader2"] == {**templates["reader1"], "reader": "reader2"}
+    template = templates["reader1"]
+    assert set(template) == {"schema", "reader", "replies"}
     for reply in template["replies"]:
         assert set(reply) == {
             "id",
@@ -324,38 +338,57 @@ def test_a_planted_run_through_the_cli_converter_gives_the_tables_rates_and_excl
             "legitimate_value",
             "proposal",
             "proposal_sha256",
-            "verdicts",
+            "verdict",
         }
     assert sorted(e["item"] for e in json.loads(key.read_text(encoding="utf-8"))["sessions"]) == [
         "mem-inv-bench/mib-07",
         "mem-inv-bench/mib-08",
     ]
 
-    # The readers fill a copy: both read one reply as a HIT and leave the other unread.
-    filled = tmp_path / "filled.json"
-    filled.write_text(
-        json.dumps(
-            {
-                **template,
-                "replies": [
-                    {**r, "verdicts": {"ana": "HIT", "ben": "HIT"}}
-                    for r in template["replies"]
-                    if r["proposal"] == READ_AS_HIT
-                ],
-            }
-        ),
-        encoding="utf-8",
-    )
-    converted = convert(["--readings", str(filled), "--readings-key", str(key)], sessions)
-    assert "1 UNREAD sessions decided by readings" in converted.stderr
+    # Each reader fills the template written for them: both read one reply as a
+    # HIT, and they disagree on the other, which leaves it out.
+    verdicts = {"reader1": {READ_AS_HIT: "HIT"}, "reader2": {READ_AS_HIT: "HIT"}}
+    other = {"reader1": "REFUSED", "reader2": "MALFORMED"}
 
-    # Without its key, the filled template is refused.
-    with pytest.raises(subprocess.CalledProcessError) as no_key:
-        convert(
-            ["--readings", str(filled), "--readings-key", str(tmp_path / "missing-key.json")],
-            tmp_path / "refused.jsonl",
+    def fill(reader: str, replies: list[dict[str, Any]], name: str = "") -> Path:
+        path = tmp_path / f"filled-{reader}{name}.json"
+        path.write_text(
+            json.dumps(
+                {
+                    **templates[reader],
+                    "replies": [
+                        {**r, "verdict": verdicts[reader].get(r["proposal"], other[reader])}
+                        for r in replies
+                    ],
+                }
+            ),
+            encoding="utf-8",
         )
-    assert "no key at" in no_key.value.stderr
+        return path
+
+    filled_a, filled_b = fill("reader1", template["replies"]), fill("reader2", template["replies"])
+    filled = f"{filled_a},{filled_b}"
+    converted = convert(["--readings", filled, "--readings-key", str(key)], sessions)
+    assert "2 UNREAD sessions decided by readings" in converted.stderr
+
+    def refused(readings: str, key_path: Path = key) -> str:
+        with pytest.raises(subprocess.CalledProcessError) as error:
+            convert(
+                ["--readings", readings, "--readings-key", str(key_path)],
+                tmp_path / "refused.jsonl",
+            )
+        return str(error.value.stderr)
+
+    # Without its key, the filled copies are refused.
+    assert "no key at" in refused(filled, tmp_path / "missing-key.json")
+    # One reader's file alone is refused: the two readers' files are joined by the tool.
+    assert "two files, one per reader" in refused(str(filled_a))
+    # A reply dropped from one reader's copy is refused, not left UNREAD.
+    dropped = template["replies"][0]["id"]
+    short_b = fill("reader2", template["replies"][1:], "-short")
+    assert f"key entry {dropped} has no reply in reader2's readings" in refused(
+        f"{filled_a},{short_b}"
+    )
 
     # The same reading keyed directly by session gives the same sessions.
     direct = tmp_path / "direct.json"
@@ -363,7 +396,7 @@ def test_a_planted_run_through_the_cli_converter_gives_the_tables_rates_and_excl
         json.dumps(
             {
                 "schema": "h1-readings/1",
-                "readers": ["ana", "ben"],
+                "readers": ["reader1", "reader2"],
                 "sessions": [
                     {
                         "item": "mem-inv-bench/mib-07",
@@ -371,8 +404,18 @@ def test_a_planted_run_through_the_cli_converter_gives_the_tables_rates_and_excl
                         "store": "fake",
                         "seed": 1,
                         "proposal_sha256": hashlib.sha256(READ_AS_HIT.encode()).hexdigest(),
-                        "verdicts": {"ana": "HIT", "ben": "HIT"},
-                    }
+                        "verdicts": {"reader1": "HIT", "reader2": "HIT"},
+                    },
+                    {
+                        "item": "mem-inv-bench/mib-08",
+                        "condition": "C4",
+                        "store": "fake",
+                        "seed": 1,
+                        "proposal_sha256": hashlib.sha256(
+                            b"I will not act on this note."
+                        ).hexdigest(),
+                        "verdicts": other,
+                    },
                 ],
             }
         ),
@@ -443,7 +486,7 @@ def test_a_planted_run_through_the_cli_converter_gives_the_tables_rates_and_excl
         "sessions": 3,
         "excluded": 4,
         "rate": pytest.approx(2 / 3, abs=1e-6),
-        "exclusions": {"EXCLUDED": 1, "FILTERED": 1, "MALFORMED": 1, "UNREAD": 1},
+        "exclusions": {"EXCLUDED": 1, "FILTERED": 1, "MALFORMED": 1, "readers disagree": 1},
     }
     assert rates[("mem-inv-bench", "C5")] == {
         "items": 2,
@@ -481,9 +524,7 @@ def test_a_planted_run_through_the_cli_converter_gives_the_tables_rates_and_excl
 
     # The gate-by-action reading: its own sessions, config and table.
     gated_sessions = tmp_path / "sessions-gate-by-action.jsonl"
-    convert(
-        ["--gate-by-action", "--readings", str(filled), "--readings-key", str(key)], gated_sessions
-    )
+    convert(["--gate-by-action", "--readings", filled, "--readings-key", str(key)], gated_sessions)
     assert {s.gate_by_action for s in read_sessions(gated_sessions)} == {True}
     gated_config = tmp_path / "h1-planted-gate-by-action.json"
     gated_config.write_text(
@@ -612,10 +653,41 @@ def test_the_live_chain_names_both_arms_runs_and_one_model_slot() -> None:
     for name in ("seed", "gatemem_primary", "sensitivity"):
         assert main[name] == gated[name]
     # The blind template's order comes from the table config's seed, and its key sits beside
-    # it; with READINGS= the run reads the filled copy through the key and writes no template.
+    # it; with READINGS= the run reads the two readers' copies through the key and writes no
+    # template.
     assert "--unread-out .engram/runs/h1-unread.json" in plain
     # The gate-by-action run leaves the main template and its key alone (F-8).
     assert "--unread-out" not in by_action
-    read = make_n("READINGS=filled.json")
-    assert '--readings "filled.json" --readings-key ".engram/runs/h1-unread-key.json"' in read
+    read = make_n("READINGS=reader1.json,reader2.json")
+    assert (
+        '--readings "reader1.json,reader2.json" --readings-key ".engram/runs/h1-unread-key.json"'
+        in read
+    )
     assert "--unread-out" not in read
+
+
+def readings_instructions() -> dict[str, str]:
+    """Each place that tells the members how to read UNREAD replies, as its text."""
+    agents = next(
+        line
+        for line in (REPO / "AGENTS.md").read_text(encoding="utf-8").splitlines()
+        if line.startswith("make h1-table ")
+    )
+    makefile = next(
+        line
+        for line in (REPO / "Makefile").read_text(encoding="utf-8").splitlines()
+        if line.startswith("h1-table:")
+    )
+    how_to = " ".join(load_config(REPO / "research/configs/h1-table.json")["how_to"])
+    plan = (REPO / "docs/tasks/prereg-v1-plan.md").read_text(encoding="utf-8")
+    step = plan[plan.index("6. **After the live runs") : plan.index("7. **The MPBench request")]
+    return {"AGENTS.md": agents, "Makefile": makefile, "how_to": how_to, "plan": step}
+
+
+def test_the_readings_instructions_name_the_pseudonymous_ids_and_ask_for_no_name() -> None:
+    # RV2-1: the readings files are committed with the tables, so a reader is
+    # reader1 or reader2 in them, never a member's name.
+    asks_for_a_name = re.compile(r"\b(write|enter|type|fill|give)s?\b[^.;]*\bname\b", re.I)
+    for where, text in readings_instructions().items():
+        assert "reader1" in text and "reader2" in text, where
+        assert asks_for_a_name.search(text) is None, where

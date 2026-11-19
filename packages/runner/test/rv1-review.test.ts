@@ -320,10 +320,13 @@ describe("the turn-limit exclusion in H1's converter (RV1-2)", () => {
   test("a capped UNREAD session never goes to the readers", () => {
     const cases = new Map(CASES.map((c) => [c.case_id, c]));
     expect(memInvRow(UNREAD).outcome.verdict).toBe("UNREAD");
-    expect(unreadKit([memInvRow(UNREAD)], cases, 1, ["a", "b"]).template.replies).toHaveLength(1);
-    expect(
-      unreadKit([memInvRow(UNREAD, "turn limit")], cases, 1, ["a", "b"]).template.replies,
-    ).toEqual([]);
+    // Card RV2's kit: one template per reader (reader1, reader2) and the key.
+    const kept = unreadKit([memInvRow(UNREAD)], cases, 1);
+    expect(kept.templates.map((t) => t.replies.length)).toEqual([1, 1]);
+    expect(kept.key.sessions).toHaveLength(1);
+    const capped = unreadKit([memInvRow(UNREAD, "turn limit")], cases, 1);
+    expect(capped.templates.map((t) => t.replies)).toEqual([[], []]);
+    expect(capped.key.sessions).toEqual([]);
   });
 });
 
