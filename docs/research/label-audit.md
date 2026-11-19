@@ -1,6 +1,6 @@
 # The label audit: how three members do it
 
-The pre-registration requires that before any run, 50 items per benchmark are label-audited by members of the team and the disagreement rate is reported (ADR 0015; `docs/tasks/prereg-v1-plan.md`, decision 9). ADR 0015 asked for two members; on 2026-11-19 the lead named three, Omar, Mohamad and Shady (`omar`, `mohamad` and `shady` in `research/configs/label-audit.json`; decision sheet item 16, `docs/log/2026-11-19-lead-decision-16-three-members.md`). This page is the procedure for H1's two benchmarks. The kit draws the items and computes the rates; the members do the reading. Nothing here calls a model. The kit still takes two members, and then reports exactly as it did before the change.
+The pre-registration requires that before any run, 50 items per benchmark are label-audited by members of the team and the disagreement rate is reported (ADR 0015; `docs/tasks/prereg-v1-plan.md`, decision 9). ADR 0015 first asked for two members; on 2026-11-19 the lead named three, Omar, Mohamad and Shady (`omar`, `mohamad` and `shady` in `research/configs/label-audit.json`; decision sheet item 16, `docs/log/2026-11-19-lead-decision-16-three-members.md`). This page is the procedure for H1's two benchmarks. The kit draws the items and computes the rates; the members do the reading. Nothing here calls a model. The agreement script compares the members the config names (two or three), refuses a `--members` list that names others, and with two members reports exactly as it did before the change.
 
 The audit is blind: a member labels every item before seeing what the benchmark says about it. It runs in two phases, and the second cannot be written until a member has finished the first.
 
@@ -55,8 +55,10 @@ Leak targets and poisoned values do appear inside the turns and the memory, beca
 4. Put the three members' sheets in one folder and run:
 
    ```
-   uv run python research/scripts/label_audit_agreement.py --config research/configs/label-audit.json --dir .engram/audit --members omar,mohamad,shady
+   uv run python research/scripts/label_audit_agreement.py --config research/configs/label-audit.json --dir .engram/audit
    ```
+
+   - The members are the config's (`omar`, `mohamad` and `shady`). `--members` may name them again, in any order; a list that names other members, or only some of them, is refused, so a three-member audit is never reported on two.
 
    - The benchmark labels come from the pinned data through the same seeded draw, never from a sheet.
    - It writes `.engram/audit/agreement.json` and prints, per benchmark:
@@ -67,13 +69,13 @@ Leak targets and poisoned values do appear inside the turns and the memory, beca
      - the items rejected and the stop flag (below).
    - A blank or unknown label, or a sheet whose items differ from the draw, is refused, with the items named. Key sheets from some members but not all are refused, with the missing members named.
 
-   **The stopping rule.** It applies to what decides a violation, with the threshold `stop_share` (0.10) from `research/configs/label-audit.json`. An item is rejected when at least two of the three members reject it (the orchestrator's rule, for the lead to confirm: `docs/log/2026-11-19-orch-decision-two-of-three.md`):
+   **The stopping rule.** It applies to what decides a violation, with the threshold `stop_share` (0.10) from `research/configs/label-audit.json`. An item is rejected when at least two of the three members reject it (the orchestrator's choice, awaiting the lead's confirmation: `docs/log/2026-11-19-orch-decision-two-of-three.md`):
    - On GateMem an item is rejected when at least two members answer `no` on its scoring keys: the leak targets decide every violation. The agreement on the expected action is reported, but it stops nothing.
    - On MEM-INV-Bench an item is rejected when at least two members' phase-1 label differs from the benchmark's family, or at least two answer `no` on its keys. Two of one kind are needed: one member's label and another's `no` reject nothing. An item rejected both ways counts once.
    - `agreement.json` gives, per benchmark, `rejected` (the rule, the references and their count), `stop_share` and `stop`.
    - `stop` is true when more than `stop_share` of the benchmark's items are rejected: 6 or more of GateMem's 50, 4 or more of MEM-INV-Bench's 38. It is false once every member's key sheets are in and the count is at or below that, and null before then, unless the rejections counted so far already exceed it.
    - When `stop` is true, that benchmark's runs wait for an amendment.
-   - With two members (`--members` naming two), "at least two" is both, and the report is the two-member one: one `between_members` pair with Cohen's kappa and `both_against_benchmark`.
+   - With a config that names two members, "at least two" is both, and the report is the two-member one: one `between_members` pair with Cohen's kappa and `both_against_benchmark`.
 
 5. **Report it.** `agreement.json` holds counts and references only, no benchmark text.
    - Write a `finding` log entry (`docs/conventions/documentation.md`) with the rates and kappas per benchmark (Fleiss' and each pair's Cohen's), the sha256 of `agreement.json`, the references rejected, and each benchmark's `stop`.

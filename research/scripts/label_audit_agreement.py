@@ -3,7 +3,11 @@
 Usage:
     uv run python research/scripts/label_audit_agreement.py \\
         --config research/configs/label-audit.json --dir .engram/audit \\
-        --members <first>,<second>[,<third>] [--out .engram/audit/agreement.json]
+        [--members <first>,<second>[,<third>]] [--out .engram/audit/agreement.json]
+
+`--members` defaults to the config's `members`; a set other than the
+config's is refused, naming both (review of PR #43, P43-5), so a
+three-member audit cannot be reported on two of its members.
 
 The lead named three members on 2026-11-19 (decision sheet item 16, changed:
 `docs/log/2026-11-19-lead-decision-16-three-members.md`). With two members
@@ -243,13 +247,20 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--config", type=Path, required=True)
     parser.add_argument("--dir", type=Path)
     parser.add_argument(
-        "--members", required=True, help="two or three member names, comma separated"
+        "--members",
+        help="two or three member names, comma separated; the config's members by default",
     )
     parser.add_argument("--out", type=Path)
     args = parser.parse_args(argv)
     config = load_config(args.config)
     directory = args.dir if args.dir is not None else REPO / str(config["out"])
-    members = [m for m in str(args.members).split(",") if m]
+    configured = [str(m) for m in config["members"]]
+    members = configured if args.members is None else [m for m in str(args.members).split(",") if m]
+    if sorted(members) != sorted(configured):
+        raise ValueError(
+            f"--members names {', '.join(members)}, but the config's members are "
+            f"{', '.join(configured)}"
+        )
     result = compare_dir(directory, members, draw(config), stop_share=float(config["stop_share"]))
     out = args.out if args.out is not None else directory / "agreement.json"
     write_result(out, result)

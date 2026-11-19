@@ -12,11 +12,13 @@ reject more than `stop_share` of its items, on GateMem by answering no on
 the keys, on MEM-INV-Bench by labelling otherwise than the family or
 answering no on the keys. Each phase-1 context must equal what an agent sees,
 rebuilt here from the data (P4V-2); a MEM-INV-Bench context shows each
-entry's text alone, not its channel (D6). With three members (decision sheet
-item 16 as the lead changed it, 2026-11-19) an item is rejected when at
+entry's text alone, not its channel (D6). The lead named three members on
+2026-11-19 (decision sheet item 16). With three, an item is rejected when at
 least two of the three reject it, and the agreement gives each pair's Cohen's
-kappa and Fleiss' kappa over the three; two members keep the two-member
-report. These tests use planted GateMem checkpoints and the vendored
+kappa and Fleiss' kappa over the three: the orchestrator's choice, awaiting
+the lead's confirmation (docs/log/2026-11-19-orch-decision-two-of-three.md).
+Two members keep the two-member report, and the CLI takes its members from
+the config. These tests use planted GateMem checkpoints and the vendored
 MEM-INV-Bench cases.
 """
 
@@ -338,6 +340,7 @@ def test_the_cli_takes_stop_share_from_its_config(tmp_path: Path) -> None:
         # MEM-INV-Bench alone: the vendored cases need no fetch.
         config = {k: v for k, v in real.items() if k != "gatemem"}
         config["stop_share"] = share
+        config["members"] = ["ana", "ben"]
         config_path = where / "label-audit.json"
         config_path.write_text(json.dumps(config), encoding="utf-8")
         drawn = sample.draw(config)
@@ -432,8 +435,10 @@ def test_the_stop_flag_waits_for_both_members_keys(tmp_path: Path) -> None:
     assert result["mem-inv-bench"]["stop"] is True
 
 
-# Three members (the lead's answer to decision sheet item 16, 2026-11-19): an item is
-# rejected when at least two of the three reject it; Cohen's kappa per pair, Fleiss' over all.
+# Three members, as the lead named on 2026-11-19 (decision sheet item 16). The rule that an
+# item is rejected when at least two of the three reject it, and Cohen's kappa per pair with
+# Fleiss' over all, are the orchestrator's choice, awaiting the lead's confirmation
+# (docs/log/2026-11-19-orch-decision-two-of-three.md).
 THREE = ("ana", "ben", "cy")
 
 
@@ -547,7 +552,7 @@ def test_the_audit_takes_two_or_three_distinct_members(tmp_path: Path) -> None:
 
 
 def test_two_members_keep_the_two_member_report(tmp_path: Path) -> None:
-    """With two members nothing of the three-member report appears (the lead's change keeps it)."""
+    """With two members nothing of the three-member report appears, as before the change."""
     draw, out = phase_1(tmp_path)
     for member in ("ana", "ben"):
         fill(out, draw, member, lambda item: item.label)
@@ -557,3 +562,37 @@ def test_two_members_keep_the_two_member_report(tmp_path: Path) -> None:
     assert set(g["label"]["between_members"]) == {"disagreements", "rate", "kappa"}
     assert set(g["keys_ok"]["between_members"]) == {"disagreements", "rate", "kappa"}
     assert g["rejected"]["rule"] == "both members answer no on the keys"
+
+
+def cli_audit(tmp_path: Path, members: list[str]) -> tuple[Path, Path]:
+    """A MEM-INV-Bench-only config naming `members`, with every member's phase-1 sheets filled."""
+    real = load_config(REPO / "research/configs/label-audit.json")
+    config = {k: v for k, v in real.items() if k != "gatemem"}
+    config["members"] = members
+    config_path = tmp_path / "label-audit.json"
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+    drawn = sample.draw(config)
+    sample.write_phase_1(drawn, members, tmp_path)
+    for member in members:
+        fill(tmp_path, drawn, member, lambda item: item.label)
+    return config_path, tmp_path / "agreement.json"
+
+
+def test_the_cli_refuses_members_other_than_the_configs(tmp_path: Path) -> None:
+    """Review P43-5: a three-member config with two members passed must not report on two."""
+    config_path, out = cli_audit(tmp_path, list(THREE))
+    argv = ["--config", str(config_path), "--dir", str(tmp_path), "--out", str(out)]
+    with pytest.raises(ValueError, match=r"ana, ben.*ana, ben, cy"):
+        agreement.main([*argv, "--members", "ana,ben"])
+    assert not out.exists()
+    # The same members in another order are the config's set and are accepted.
+    assert agreement.main([*argv, "--members", "cy,ana,ben"]) == 0
+
+
+def test_the_cli_takes_its_members_from_the_config_by_default(tmp_path: Path) -> None:
+    config_path, out = cli_audit(tmp_path, list(THREE))
+    argv = ["--config", str(config_path), "--dir", str(tmp_path), "--out", str(out)]
+    assert agreement.main(argv) == 0
+    result = json.loads(out.read_text(encoding="utf-8"))
+    assert result["mem-inv-bench"]["members"] == list(THREE)
+    assert "fleiss_kappa" in result["mem-inv-bench"]["label"]["between_members"]
