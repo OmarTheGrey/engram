@@ -495,7 +495,9 @@ forEachBackend((backend) => {
       expect(r.item).toBeNull();
       expect(r.event).toMatchObject({ decision: "deny", policy_id: "engram/write/erased" });
       expect(r.event.reason).toMatch(/erased with person:dana/);
-      expect((await env.plane.checkWrite(dana, again, LATER)).policy_id).toBe("engram/write/erased");
+      expect((await env.plane.checkWrite(dana, again, LATER)).policy_id).toBe(
+        "engram/write/erased",
+      );
       const outsider: Actor = { ...lee, memberships: ["person:lee", "team:x"] };
       const elsewhere = { ...again, scope: "team:x", owner: lee.id } as MemoryItem;
       const o = await env.plane.write(outsider, elsewhere, LATER);
