@@ -19,6 +19,6 @@ supersedes: none
 
 **Why.** H3 measures lint precision and recall on this set; precision needs near-misses, and L4 needs to know which lint of each tier should find each fault.
 
-**Result.** A label names class, subtype, keyed or not, the lints of each tier expected to flag it, the lints a near-miss must not trigger, and related items. Ten tests pass, among them: no label word reaches any event; a fault and its near-miss differ only in the subtype's key; Plane.lint flags every keyed fault and nothing else it measures. Mutation checks: dropping the assistant model, or really editing a near-miss source, fails a test.
+**Result.** A label names class, subtype, keyed or not, the lints of each tier expected to flag it, the lints a near-miss must not trigger, and related items. Thirteen tests pass, among them: no label word reaches any event; a fault and its near-miss differ only in the subtype's key; Plane.lint flags every keyed fault and nothing else it measures. Mutation checks: dropping the assistant model, or really editing a near-miss source, fails a test.
 
 **Consequence.** L4 scores both tiers on these labels.
