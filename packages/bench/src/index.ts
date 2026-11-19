@@ -1,4 +1,5 @@
 // Benchmark runners on the pi SDK, pinned in PINS.md.
+export * as faults from "./faults/index.ts";
 export * as gatemem from "./gatemem/index.ts";
 export * as longMemEval from "./longmemeval/index.ts";
 export * as memInvBench from "./mem-inv-bench/index.ts";
