@@ -203,7 +203,8 @@ export interface WriteDecision {
  * (plane/write.ts).
  *
  * Grants (ADR 0034, review findings I1 and M1 of PR #44): a rewrite whose
- * grants differ from the projected item's is a grant change, so only the
+ * grants differ from the projected item's, or that changes the class of an
+ * item carrying grants (verification finding V-4), is a grant change, so only the
  * owner may make it, user-sourced, or import-sourced (the owner's own store
  * record adopted); every grant it adds passes grantDefect at `at`, as a
  * grant change's would. Every grant, kept or added, passes the write gate's
@@ -265,21 +266,31 @@ export function evaluateWrite(
   }
   const kind = item.provenance.kind;
   const prior = existing?.grants ?? [];
-  const changesGrants = existing !== undefined && !sameGrants(item.grants, prior);
+  // A grant admits a read only of its own class, so a class change of an item
+  // carrying grants switches what they admit: it is a grant change too
+  // (verification finding V-4 of PR #44).
+  const reclasses =
+    existing !== undefined &&
+    item.class !== existing.class &&
+    (item.grants.length > 0 || prior.length > 0);
+  const changesGrants = existing !== undefined && (reclasses || !sameGrants(item.grants, prior));
   if (changesGrants && existing) {
     // The membership check above passed, so the actor may learn the owner
     // only if it may read the item's scope (as finding N3 keeps it).
     const named = readableScope(policy, actor, existing.scope) ? ` ${existing.owner}` : "";
+    const what = reclasses
+      ? `changes its class from ${existing.class} to ${item.class} while it carries grants, which changes what they admit`
+      : "changes its grants";
     if (actor.source !== "user" && actor.source !== "import")
       return deny(
         "grant",
-        `a rewrite of ${item.id} changes its grants, which is its owner's consent, given by the person: ${actor.id} is ${actor.source === undefined ? "not user-sourced" : `${actor.source}-sourced`}`,
+        `a rewrite of ${item.id} ${what}, which is its owner's consent, given by the person: ${actor.id} is ${actor.source === undefined ? "not user-sourced" : `${actor.source}-sourced`}`,
         GRANT_SOURCE_ID,
       );
     if (actor.id !== existing.owner)
       return deny(
         "grant",
-        `a rewrite of ${item.id} changes its grants: only its owner${named} may change the grants of ${item.id}`,
+        `a rewrite of ${item.id} ${what}: only its owner${named} may change the grants of ${item.id}`,
         GRANT_OWNER_ID,
       );
   }
@@ -302,7 +313,16 @@ export function evaluateWrite(
     // profile's fixture writes on purpose (fixtures/profiles/twin-reads.json),
     // and a grant of another class is one the read filter's tests write and a
     // promotion's new version may carry from its source (M1 of PR #44).
-    if (!changesGrants || prior.some((h) => sameGrant(grant, h))) continue;
+    // A class change judges every grant it keeps against the new class: one
+    // naming another class would never admit a read (V-4).
+    const kept = prior.some((h) => sameGrant(grant, h));
+    if (reclasses && kept && grant.class !== undefined && grant.class !== item.class)
+      return deny(
+        "grant",
+        `grants[${i}]: ${grantText(grant)} names class ${grant.class}, but the item becomes ${item.class}: it would never admit a read; remove it first`,
+        WRITE_GRANT_ID,
+      );
+    if (!changesGrants || kept) continue;
     const defect = grantDefect(grant, item, earlier, at);
     if (defect) return deny("grant", `grants[${i}]: ${defect.problem}`, defect.policy_id);
   }

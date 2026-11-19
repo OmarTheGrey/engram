@@ -190,3 +190,61 @@ describe("M1: one rule for what a grant may be, on both paths", () => {
     expect(more.event).toMatchObject({ decision: "deny", policy_id: "engram/grant/expired" });
   });
 });
+
+// Verification finding V-4 of PR #44: a grant of another class than its item
+// admits no read until the item's class changes to it, so a class change of an
+// item carrying grants switches what they admit. It is a grant change: the
+// owner's only, and every grant is judged against the new class.
+describe("V-4: a rewrite that changes the class of an item carrying grants is a grant change", () => {
+  const dormant: Grant = { ...toZed, class: "procedural" };
+  const asSkill = (it: MemoryItem) =>
+    rewrite(it, {
+      class: "procedural",
+      content: { body: "Run the release.", tools: [] },
+    } as Partial<MemoryItem>);
+
+  /** Dana's role item 8, semantic, carrying `grants`. */
+  async function roleItem(grants: Grant[]) {
+    const env = fresh(twin());
+    const it = item(8, { scope: ROLE, owner: dana.id, content: "Run the release.", grants });
+    expect((await env.plane.write(dana, it, AT)).event.decision).toBe("allow");
+    return { env, it: itemById(env.db, id(8)) as MemoryItem };
+  }
+
+  test("a co-holder's class change that would switch a dormant grant on is denied", async () => {
+    const { env, it } = await roleItem([dormant]);
+    expect((await env.plane.read(zed, { at: LATER })).items).toEqual([]);
+    const r = await env.plane.write(lee, asSkill(it), LATER);
+    expect(r.event).toMatchObject({ decision: "deny", policy_id: GRANT_OWNER_ID });
+    expect(r.event.reason).toContain("class");
+    expect(itemById(env.db, id(8))).toEqual(it);
+    expect((await env.plane.read(zed, { at: LATER })).items).toEqual([]);
+  });
+
+  test("a co-holder's class change that would switch a live grant off is denied", async () => {
+    const { env, it } = await roleItem([toZed]);
+    expect((await env.plane.read(zed, { at: LATER })).items.map((i) => i.id)).toEqual([id(8)]);
+    const r = await env.plane.write(lee, asSkill(it), LATER);
+    expect(r.event).toMatchObject({ decision: "deny", policy_id: GRANT_OWNER_ID });
+    expect((await env.plane.read(zed, { at: LATER })).items.map((i) => i.id)).toEqual([id(8)]);
+  });
+
+  test("the owner's class change lands when every grant fits the new class, and the grant then admits", async () => {
+    const { env, it } = await roleItem([dormant]);
+    const r = await env.plane.write(dana, asSkill(it), LATER);
+    expect(r.event.decision).toBe("allow");
+    expect((await env.plane.read(zed, { at: LATER })).items.map((i) => i.id)).toEqual([id(8)]);
+  });
+
+  test("the owner's class change is refused while a grant names the old class", async () => {
+    const { env, it } = await roleItem([toZed]);
+    const r = await env.plane.write(dana, asSkill(it), LATER);
+    expect(r.event).toMatchObject({ decision: "deny", policy_id: WRITE_GRANT_ID });
+    expect(r.event.reason).toContain("never admit a read");
+  });
+
+  test("a co-holder's class change of an item carrying no grant is judged as before", async () => {
+    const { env, it } = await roleItem([]);
+    expect((await env.plane.write(lee, asSkill(it), LATER)).event.decision).toBe("allow");
+  });
+});
