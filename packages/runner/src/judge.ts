@@ -20,8 +20,14 @@
 // which stops the judge as the port does rather than send an unseeded call or
 // drop the schema.
 import { gatemem } from "@engram/bench";
-import { type ModelCall, UnsupportedRequestError } from "@engram/core";
-import { type CacheStore, type CallContext, cached, type UsageRecord } from "@engram/model";
+import { type ModelCall, type ModelUsage, UnsupportedRequestError } from "@engram/core";
+import {
+  type CachedOptions,
+  type CacheStore,
+  type CallContext,
+  cached,
+  type UsageRecord,
+} from "@engram/model";
 import type { LiveModels } from "./answers.ts";
 import type { RunnerConfig } from "./config.ts";
 import { JUDGE_RETRY, realSleep, type Sleep, withRetry } from "./model/retry.ts";
@@ -36,7 +42,9 @@ export const SEEDED_JUDGE_API = "openai-completions";
  * of min(2^i, 10) seconds); a call that still fails, or fails otherwise,
  * throws, and the port's judgeOne records the failed attempt and goes on to
  * its next one, as upstream's scoring does with the router's error (PR #25
- * review round 3, V-4). Nothing failed is cached. The reply is not stripped
+ * review round 3, V-4). The failure is a JudgeCallFailed, which
+ * cachedJudgeCall records as a cassette entry (card RV1, RV-EXP-3), so a
+ * replay fails the same attempt the same way. The reply is not stripped
  * here: the port's parser strips it as upstream's provider does, and a test
  * holds a padded verdict to the stripped one's row.
  */
@@ -87,9 +95,14 @@ export function liveJudgeCall(models: LiveModels, options: { sleep?: Sleep } = {
       options.sleep ?? realSleep,
     );
     if (reply.stopReason === "error" || reply.stopReason === "aborted") {
-      throw new Error(
-        `judge call failed after ${attempts} ${attempts === 1 ? "attempt" : "attempts"}: ${reply.errorMessage ?? reply.stopReason}`,
-      );
+      const message = `judge call failed after ${attempts} ${attempts === 1 ? "attempt" : "attempts"}: ${reply.errorMessage ?? reply.stopReason}`;
+      // An aborted call was not answered: nothing is recorded, the run stops.
+      if (reply.stopReason === "aborted") throw new Error(message);
+      throw new JudgeCallFailed(message, {
+        input_tokens: reply.usage.input,
+        output_tokens: reply.usage.output,
+        cost_usd: reply.usage.cost.total,
+      });
     }
     return {
       text: reply.content.flatMap((c) => (c.type === "text" ? [c.text] : [])).join(""),
@@ -99,6 +112,54 @@ export function liveJudgeCall(models: LiveModels, options: { sleep?: Sleep } = {
         cost_usd: reply.usage.cost.total,
       },
     };
+  };
+}
+
+/**
+ * A live judge or lint call the provider answered with a failure, after the
+ * retry (RV-EXP-3): a reply as much as a verdict is, recorded and replayed.
+ */
+export class JudgeCallFailed extends Error {
+  readonly usage: ModelUsage;
+
+  constructor(message: string, usage: ModelUsage) {
+    super(message);
+    this.name = "JudgeCallFailed";
+    this.usage = usage;
+  }
+}
+
+/** What a cassette holds for a failed call: this mark, then the failure's message. */
+export const FAILED_CALL_MARK = "\u0000engram/failed-call\u0000";
+
+/**
+ * A judge or lint call through the cache (ADR 0017) that records a failed
+ * call as well as an answered one (card RV1, RV-EXP-3): a JudgeCallFailed
+ * from `inner` is stored as a cassette entry holding FAILED_CALL_MARK and
+ * its message, and whenever that entry is read, recorded or replayed, the
+ * same JudgeCallFailed is thrown. A replay therefore fails the same attempt
+ * the live run failed, GateMem's judgeOne goes on to its next attempt in
+ * both, and a live rerun never pays for the call again. Any other error
+ * (an offline miss, a refused request, an aborted call) is not recorded.
+ */
+export function cachedJudgeCall(inner: ModelCall, options: CachedOptions): ModelCall {
+  const recording: ModelCall = async (request) => {
+    try {
+      return await inner(request);
+    } catch (e) {
+      if (e instanceof JudgeCallFailed) {
+        return { text: `${FAILED_CALL_MARK}${e.message}`, usage: e.usage };
+      }
+      throw e;
+    }
+  };
+  const call = cached(recording, options);
+  return async (request) => {
+    const response = await call(request);
+    if (response.text.startsWith(FAILED_CALL_MARK)) {
+      throw new JudgeCallFailed(response.text.slice(FAILED_CALL_MARK.length), response.usage);
+    }
+    return response;
   };
 }
 
@@ -126,7 +187,7 @@ export async function judgeAnswer(spec: JudgeSpec): Promise<gatemem.JudgeRow> {
       : async (request) => {
           throw new Error(`no live judge ${request.model} to answer a cache miss`);
         };
-  const call = cached(inner, {
+  const call = cachedJudgeCall(inner, {
     cache: spec.cache,
     context: spec.context,
     ...(spec.offline === undefined ? {} : { offline: spec.offline }),

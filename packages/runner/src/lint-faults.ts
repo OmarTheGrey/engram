@@ -33,18 +33,12 @@ import {
   Policy,
   planModelLints,
 } from "@engram/core";
-import {
-  type CacheStore,
-  type CallContext,
-  cached,
-  fileCache,
-  type UsageRecord,
-} from "@engram/model";
+import { type CacheStore, type CallContext, fileCache, type UsageRecord } from "@engram/model";
 import { z } from "zod";
 import type { LiveModels } from "./answers.ts";
 import { NO_STORE } from "./config.ts";
 import { sequentialIds } from "./gatemem-probe.ts";
-import { liveJudgeCall } from "./judge.ts";
+import { cachedJudgeCall, liveJudgeCall } from "./judge.ts";
 
 export const LINT_BENCHMARK = "lint-faults";
 
@@ -270,7 +264,7 @@ export async function runLintConfig(
           policy: f.policy,
           newId: sequentialIds(),
           lintModel: {
-            call: cached(inner, {
+            call: cachedJudgeCall(inner, {
               cache,
               context: lintContext(loaded),
               ...(options.offline === undefined ? {} : { offline: options.offline }),

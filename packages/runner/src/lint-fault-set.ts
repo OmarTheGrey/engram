@@ -34,18 +34,12 @@ import {
   Policy,
   planModelLints,
 } from "@engram/core";
-import {
-  type CacheStore,
-  type CallContext,
-  cached,
-  fileCache,
-  type UsageRecord,
-} from "@engram/model";
+import { type CacheStore, type CallContext, fileCache, type UsageRecord } from "@engram/model";
 import { z } from "zod";
 import type { LiveModels } from "./answers.ts";
 import { NO_STORE } from "./config.ts";
 import { sequentialIds } from "./gatemem-probe.ts";
-import { liveJudgeCall } from "./judge.ts";
+import { cachedJudgeCall, liveJudgeCall } from "./judge.ts";
 import { LintScript, scriptedLintCall } from "./lint-faults.ts";
 
 export const FAULT_SET_BENCHMARK = "fault-set";
@@ -394,7 +388,7 @@ export async function runFaultSetConfig(
   for await (const state of readSetStates(config.data, { questions: config.questions })) {
     seen.add(state.question_id);
     for (const seed of config.seeds) {
-      const call = cached(inner, {
+      const call = cachedJudgeCall(inner, {
         cache,
         context: faultSetContext(state.question_id, policy),
         ...(options.offline === undefined ? {} : { offline: options.offline }),
