@@ -13,19 +13,17 @@ import { describe, expect, test } from "vitest";
 import type { Adapter, StoreRef } from "../../../src/adapter.ts";
 import type { Db } from "../../../src/db/db.ts";
 import { migrate } from "../../../src/db/migrate.ts";
-import { allEvents, appendEvent, ERASURE_ID, eventsByItem, rebuild } from "../../../src/events.ts";
+import { allEvents, appendEvent, eventsByItem, rebuild } from "../../../src/events.ts";
 import { itemById } from "../../../src/items.ts";
 import {
   type Actor,
   adoptStoreItems,
   createPlane,
-  HANDOVER_ID,
   offboard,
   type PlaneDeps,
 } from "../../../src/plane.ts";
 import { parsePolicy } from "../../../src/policy/load.ts";
 import type { Grant, MemoryItem } from "../../../src/schema.ts";
-import { visibleEvents } from "../../../src/visible.ts";
 import { type Backend, forEachBackend } from "../../db/backends.ts";
 import { reply, scriptedLintModel } from "../../fakes/lint-model.ts";
 import { id, item } from "./helpers.ts";
@@ -39,7 +37,6 @@ const SECRET = "Dana's sister is Mira.";
 
 const WRITE_CONFLICT = "engram/write/conflict";
 const GRANT_CONFLICT = "engram/grant/conflict";
-const PROMOTE_CONFLICT = "engram/promote/conflict";
 const HANDOVER_CONFLICT = "engram/offboard/conflict";
 const ERASING = "engram/offboard/erasing";
 
