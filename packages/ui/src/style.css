@@ -139,6 +139,53 @@ aside {
   padding: 8px;
 }
 
+.lane-group {
+  margin-bottom: 12px;
+}
+
+.lane-group-note {
+  margin: 0 0 8px;
+}
+
+h4 {
+  font-size: 13px;
+  margin: 0 0 8px;
+}
+
+.grants {
+  margin-top: 8px;
+  border-top: 1px solid var(--line);
+  padding-top: 6px;
+  font-size: 12px;
+}
+
+.grants p {
+  margin: 0 0 4px;
+}
+
+.grants ul {
+  margin: 0 0 6px;
+  padding-left: 16px;
+  overflow-wrap: anywhere;
+}
+
+.grant-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.grant-form input {
+  width: 120px;
+}
+
+summary {
+  cursor: pointer;
+  color: var(--accent);
+}
+
 .card {
   background: var(--bg);
   border: 1px solid var(--line);

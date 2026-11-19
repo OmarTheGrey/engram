@@ -1,0 +1,56 @@
+{
+  "description": "The twin screens' fixture workspace (card E9.4), under the twin profile (packages/pi-package/profiles/twin.yaml, card E9.2): dana's person scope and the release-manager role she holds with lee, one item already granted to sam, one written by dana's agent (model content, which carries no grants), and sam's own person scope. Run through the generated client in process by packages/ui/test/workspace.ts; event ids come from a counter and every call names its time.",
+  "now": "2026-11-19T12:00:00.000Z",
+  "viewer": "dana",
+  "actors": {
+    "dana": { "id": "person:dana", "level": "person", "memberships": ["person:dana", "role:release-manager"], "source": "user" },
+    "danas-agent": { "id": "person:dana", "level": "person", "memberships": ["person:dana", "role:release-manager"], "source": "model" },
+    "lee": { "id": "person:lee", "level": "person", "memberships": ["person:lee", "role:release-manager"], "source": "user" },
+    "sam": { "id": "person:sam", "level": "person", "memberships": ["person:sam"], "source": "user" }
+  },
+  "steps": [
+    {
+      "op": "write",
+      "as": "dana",
+      "at": "2026-11-18T09:00:00.000Z",
+      "item": { "id": "01970000-0000-7000-8000-000000000001", "scope": "person:dana", "content": "Dana's sister Mira visits in December.", "valid_from": "2026-11-01T00:00:00.000Z" }
+    },
+    {
+      "op": "write",
+      "as": "dana",
+      "at": "2026-11-18T09:05:00.000Z",
+      "item": {
+        "id": "01970000-0000-7000-8000-000000000002",
+        "scope": "person:dana",
+        "content": "Dana prefers written standups.",
+        "valid_from": "2026-11-01T00:00:00.000Z",
+        "grants": [{ "to": "person:sam", "class": "semantic", "mode": "read", "expires": "2026-12-31T00:00:00.000Z" }]
+      }
+    },
+    {
+      "op": "write",
+      "as": "dana",
+      "at": "2026-11-18T09:10:00.000Z",
+      "item": { "id": "01970000-0000-7000-8000-000000000003", "scope": "role:release-manager", "content": "The release train leaves at 15:00 UTC on Thursdays.", "valid_from": "2026-11-01T00:00:00.000Z" }
+    },
+    {
+      "op": "write",
+      "as": "lee",
+      "at": "2026-11-18T09:15:00.000Z",
+      "item": { "id": "01970000-0000-7000-8000-000000000004", "scope": "role:release-manager", "content": "Hotfixes need two approvals.", "valid_from": "2026-11-01T00:00:00.000Z" }
+    },
+    {
+      "op": "write",
+      "as": "sam",
+      "at": "2026-11-18T09:20:00.000Z",
+      "item": { "id": "01970000-0000-7000-8000-000000000005", "scope": "person:sam", "content": "Sam is learning Portuguese.", "valid_from": "2026-11-01T00:00:00.000Z" }
+    },
+    {
+      "op": "write",
+      "as": "danas-agent",
+      "at": "2026-11-18T09:25:00.000Z",
+      "item": { "id": "01970000-0000-7000-8000-000000000006", "scope": "person:dana", "content": "Dana sounded tired in the morning call.", "valid_from": "2026-11-18T00:00:00.000Z" }
+    },
+    { "op": "read", "as": "sam", "at": "2026-11-18T10:00:00.000Z" }
+  ]
+}
