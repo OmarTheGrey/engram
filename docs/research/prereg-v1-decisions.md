@@ -2,7 +2,7 @@
 
 Each item below is one decision v1 needs from the lead before the tag. Each gives the question, the recommendation that v1's draft (`docs/research/preregistration.md`) carried, marked "(recommended; decision sheet item N)", the evidence, the alternatives and what each costs, and what changes if you choose otherwise. The lead's answer is on the item's last line. When every item is answered, the steps before the tag are in section 7 of `docs/tasks/prereg-v1-plan.md`.
 
-The lead answered the sheet on 2026-11-19. He accepted the recommendation of 24 of the 27 answer lines as written, and with them ADR 0009's amendment of 2026-11-02 and ADR 0031 (item 6). He changed item 16: three members audit, Omar, Mohamad and Shady, and an item is rejected when at least two of the three reject it. Items 1 (the three models) and 20 (the utility checkpoints) stay open, because they drive the OpenRouter spend, which is undecided: the lead asked for the cheapest approach to be planned, a cost result for it follows, and he answers both after it. Each answer is a `decision` entry under `docs/log/` dated 2026-11-19. What remains before the tag: the answers to items 1 and 20, then the three members' label audit (item 16), whose rates and rejected items a short PR writes into v1 with its version line; the tag follows that PR (section 7 of `docs/tasks/prereg-v1-plan.md`).
+The lead answered the sheet on 2026-11-19. He accepted the recommendation of 24 of the 27 answer lines as written, and with them ADR 0009's amendment of 2026-11-02 and ADR 0031 (item 6). He changed item 16: three members audit, Omar, Mohamad and Shady. How three members' answers reject an item (at least two of the three) and which kappas are reported are the orchestrator's choice, awaiting the lead's confirmation (`docs/log/2026-11-19-orch-decision-two-of-three.md`). Items 1 (the three models) and 20 (the utility checkpoints) stay open, because they drive the OpenRouter spend, which is undecided; the cheapest-approach plan is left for later. Each answer is a `decision` entry under `docs/log/` dated 2026-11-19. What remains before the tag: the answers to items 1 and 20, and the three members' label audit (item 16), whose rates and rejected items a short PR writes into v1 with its version line; the tag follows that PR (section 7 of `docs/tasks/prereg-v1-plan.md`).
 
 Evidence is cited as a results file with the first eight characters of its sha256 in `research/results/MANIFEST.md`, or a log entry, or an ADR. Every number here comes from one of them.
 
@@ -30,7 +30,7 @@ Evidence is cited as a results file with the first eight characters of its sha25
 
 **If changed.** The Models table and the cost sentence of v1 change; `research/configs/h1-gatemem.json` and `h1-mem-inv.json` name the slot `prereg/M1`, so no config changes, and the live command names the model.
 
-**Lead:** open (2026-11-19): the spend is undecided; a cheapest-approach cost result follows, and the lead answers after it
+**Lead:** open (2026-11-19): the OpenRouter spend is undecided; the cheapest-approach plan is left for later
 
 ## 2. The store H1 runs on
 
@@ -379,9 +379,9 @@ Reading UNREAD replies after the run is a human step between the live run and th
 
 **If changed.** v1's label-audit sentence.
 
-**As changed (2026-11-19).** Three members audit: Omar, Mohamad and Shady (`omar`, `mohamad` and `shady` in `research/configs/label-audit.json`). The two-phase procedure is unchanged. "Both members" in the stopping rule reads "at least two of the three": on GateMem an item is rejected when at least two answer no on its scoring keys; on MEM-INV-Bench when at least two give a blind label that differs from the benchmark's family, or at least two answer no on its keys. `stop_share` stays 0.10 with the same counts (6 or more of 50, 4 or more of 38), and `stop` stays null until every member's key sheets exist unless the rejections already pass the threshold. The agreement reports Cohen's kappa for each pair of members and Fleiss' kappa over the three. The two-of-three rule and the kappas are the orchestrator's choice, for the lead to confirm (`docs/log/2026-11-19-orch-decision-two-of-three.md`); the kit is `research/scripts/label_audit_agreement.py`, and with two members it reports as before.
+**As changed (2026-11-19).** Three members audit: Omar, Mohamad and Shady (`omar`, `mohamad` and `shady` in `research/configs/label-audit.json`). The two-phase procedure is unchanged. The rest of this paragraph is the orchestrator's choice, awaiting the lead's confirmation. "Both members" in the stopping rule reads "at least two of the three": on GateMem an item is rejected when at least two answer no on its scoring keys; on MEM-INV-Bench when at least two give a blind label that differs from the benchmark's family, or at least two answer no on its keys. `stop_share` stays 0.10 with the same counts (6 or more of 50, 4 or more of 38), and `stop` stays null until every member's key sheets exist unless the rejections already pass the threshold. The agreement reports Cohen's kappa for each pair of members and Fleiss' kappa over the three. The two-of-three rule and the kappas are the orchestrator's choice, for the lead to confirm (`docs/log/2026-11-19-orch-decision-two-of-three.md`); the kit is `research/scripts/label_audit_agreement.py`, and with two members it reports as before.
 
-**Lead:** change to three members, Omar, Mohamad and Shady; an item is rejected when at least two of the three reject it (2026-11-19)
+**Lead:** change to three members, Omar, Mohamad and Shady (2026-11-19)
 
 ## 17. The MANIFEST commit column
 
@@ -442,4 +442,4 @@ Under medium (item 11) this arm compares presentation, not enforcement: C5's rea
 
 **If changed.** Dropping them changes `items` of `research/configs/h1-gatemem.json` and H1's stopping rule; U as `utility_ok` alone changes `_part_outcome` in `research/analysis/h1.py` and its tests, and v1's MGS line.
 
-**Lead:** open (2026-11-19): the spend is undecided; a cheapest-approach cost result follows, and the lead answers after it
+**Lead:** open (2026-11-19): the OpenRouter spend is undecided; the cheapest-approach plan is left for later

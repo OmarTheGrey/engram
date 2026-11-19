@@ -13,7 +13,7 @@ evidence:
 supersedes: none
 ---
 
-**What.** The lead decided not to send the MPBench request (`docs/research/mpbench-request.md`).
+**What.** The MPBench request (`docs/research/mpbench-request.md`) is not sent; the lead left that default standing on 2026-11-19.
 
 **Why.** Section 7's step 7 of `docs/tasks/prereg-v1-plan.md` left the request to the lead "if still wanted"; H1's poisoning arm runs on MEM-INV-Bench (ADR 0029, decision sheet item 15).
 

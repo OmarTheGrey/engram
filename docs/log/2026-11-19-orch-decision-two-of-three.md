@@ -10,7 +10,7 @@ evidence:
   - research/scripts/label_audit_agreement.py
   - research/tests/test_label_audit.py
   - docs/research/label-audit.md
-supersedes: none
+supersedes: docs/log/2026-11-03-pr4-f2-decision-audit-stop.md
 ---
 
 **What.** With three auditors an item is rejected when at least two of the three reject it, and the agreement reports Cohen's kappa for each pair of members and Fleiss' kappa over the three; this is the orchestrator's rule, for the lead to confirm.
