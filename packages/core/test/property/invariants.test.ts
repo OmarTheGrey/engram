@@ -610,6 +610,7 @@ describe("invariants", () => {
       crashes: 0,
       offboardCrashes: 0,
       removalsKept: 0,
+      recoveries: 0,
       purged: 0,
       erasedLeft: 0,
     };
@@ -2085,7 +2086,15 @@ const W_SCOPES = ["person:dana", "role:release"];
  * throwing at the transaction that would commit it, after its store write,
  * or by failing its next store call after that write (a repair's).
  */
-type Crash = "none" | "commit" | "repair" | "offboard";
+type Crash =
+  | "none"
+  | "commit"
+  | "repair"
+  | "offboard-list"
+  | "offboard-erase"
+  | "offboard-handover";
+/** Where an offboarding stops after its mark: at its sweep's listing, its erasure's commit, or a handover's store write. */
+type OffboardCrash = "none" | "list" | "erase" | "handover";
 const arbCrash = fc.oneof(
   { arbitrary: fc.constant<Crash>("none"), weight: 3 },
   { arbitrary: fc.constantFrom<Crash>("commit", "repair"), weight: 1 },
@@ -2094,12 +2103,12 @@ const arbCrash = fc.oneof(
 type WalkOp =
   | { kind: "write"; pick: number; grant: boolean; episodic: boolean; crash: Crash }
   | { kind: "grant"; pick: number; add: boolean; crash: Crash }
-  | { kind: "promote"; pick: number }
+  | { kind: "promote"; pick: number; crash: Crash }
   | { kind: "retain" }
   | { kind: "adopt"; scope: number }
   | { kind: "read" }
-  /** With `crash`, the offboarding stops after its mark (its sweep's listing fails), and is run again. */
-  | { kind: "offboard"; crash: boolean };
+  /** With `crash`, the offboarding stops after its mark, and is run again (V-1, V3-6). */
+  | { kind: "offboard"; crash: OffboardCrash };
 
 const arbWalkOp: fc.Arbitrary<WalkOp> = fc.oneof(
   {
@@ -2121,7 +2130,14 @@ const arbWalkOp: fc.Arbitrary<WalkOp> = fc.oneof(
     }),
     weight: 3,
   },
-  { arbitrary: fc.record({ kind: fc.constant("promote" as const), pick: fc.nat(3) }), weight: 1 },
+  {
+    arbitrary: fc.record({
+      kind: fc.constant("promote" as const),
+      pick: fc.nat(3),
+      crash: arbCrash,
+    }),
+    weight: 1,
+  },
   { arbitrary: fc.record({ kind: fc.constant("retain" as const) }), weight: 1 },
   { arbitrary: fc.record({ kind: fc.constant("adopt" as const), scope: fc.nat(1) }), weight: 2 },
   { arbitrary: fc.record({ kind: fc.constant("read" as const) }), weight: 2 },
@@ -2148,7 +2164,7 @@ const arbCrashRace = fc
         ? { kind: "grant", pick, add: true, crash }
         : { kind: "write", pick, grant: true, episodic: false, crash },
     ];
-    const eraser: WalkOp[] = [...before, { kind: "offboard", crash: false }];
+    const eraser: WalkOp[] = [...before, { kind: "offboard", crash: "none" }];
     return onA ? ([racer, eraser] as const) : ([eraser, racer] as const);
   });
 
@@ -2159,7 +2175,7 @@ const arbAnyWalk = fc
     fc.array(arbWalkOp, { minLength: 1, maxLength: 6 }),
     fc.boolean(),
     fc.nat(6),
-    fc.boolean(),
+    fc.constantFrom<OffboardCrash>("none", "none", "list", "erase", "handover"),
   )
   .map(([a, b, onA, at, crash]) => {
     const into = onA ? a : b;
@@ -2168,9 +2184,46 @@ const arbAnyWalk = fc
     return onA ? ([ops, b] as const) : ([a, ops] as const);
   });
 
+/**
+ * A short walk aimed at a stale write adopted and then built on (V-2, V-3,
+ * V3-3): one handle grants a role item and rewrites it keeping the grant;
+ * the other removes the grant, adopts the role scope, and then changes the
+ * item (a rewrite, or the grant added again), or does not; the offboarding
+ * follows on either handle.
+ */
+const arbStaleRace = fc
+  .tuple(
+    fc.constantFrom<WalkOp>(
+      { kind: "write", pick: 4, grant: false, episodic: false, crash: "none" },
+      { kind: "grant", pick: 4, add: true, crash: "none" },
+      { kind: "read" },
+    ),
+    fc.boolean(),
+  )
+  .map(([after, onA]) => {
+    // The writer yields at its adoption's listing, then decides its rewrite
+    // on whatever the owner has committed by then.
+    const writer: WalkOp[] = [
+      { kind: "adopt", scope: 1 },
+      { kind: "write", pick: 4, grant: false, episodic: false, crash: "none" },
+    ];
+    const owner: WalkOp[] = [
+      { kind: "write", pick: 4, grant: true, episodic: false, crash: "none" },
+      { kind: "grant", pick: 4, add: false, crash: "none" },
+      { kind: "adopt", scope: 1 },
+      after,
+    ];
+    const offboard: WalkOp = { kind: "offboard", crash: "none" };
+    const pair: [WalkOp[], WalkOp[]] = onA
+      ? [[...writer, offboard], owner]
+      : [writer, [...owner, offboard]];
+    return pair;
+  });
+
 const arbWalk = fc.oneof(
   { arbitrary: arbAnyWalk, weight: 3 },
   { arbitrary: arbCrashRace, weight: 1 },
+  { arbitrary: arbStaleRace, weight: 1 },
 );
 
 /** What the walk saw, for its guards. */
@@ -2183,6 +2236,8 @@ interface WalkSeen {
   offboardCrashes: number;
   /** Committed grant removals the walk checked at its end (V-2, V-3). */
   removalsKept: number;
+  /** Withdrawals and narrowings the walk judged against the owner's later decisions. */
+  recoveries: number;
   purged: number;
   /** Walks that ended with an erased id's record in the store, for the next adoption to delete. */
   erasedLeft: number;
@@ -2239,6 +2294,11 @@ async function twoHandleWalk(
           plan.crash = "none";
           plan.failTransaction = true;
         }
+        if (plan.crash === "offboard-handover") {
+          plan.crash = "none";
+          crashes++;
+          throw crashed();
+        }
         plan.wrote = true;
         return ref;
       },
@@ -2246,11 +2306,16 @@ async function twoHandleWalk(
         await pass(`${name} delete ${ref.key}`);
         failRepair();
         await store.delete(ref);
+        // The erasure's commit, which follows the first deletions, fails.
+        if (plan.crash === "offboard-erase") {
+          plan.crash = "none";
+          plan.failTransaction = true;
+        }
         await pass(`${name} deleted ${ref.key}`);
       },
       list: async (scope: string) => {
         await pass(`${name} list ${scope}`);
-        if (plan.crash === "offboard") {
+        if (plan.crash === "offboard-list") {
           plan.crash = "none";
           crashes++;
           throw crashed();
@@ -2288,10 +2353,10 @@ async function twoHandleWalk(
     const plan = plans.get(d) as Plan;
     for (const op of ops) {
       plan.crash =
-        op.kind === "write" || op.kind === "grant"
+        op.kind === "write" || op.kind === "grant" || op.kind === "promote"
           ? op.crash
-          : op.kind === "offboard" && op.crash
-            ? "offboard"
+          : op.kind === "offboard" && op.crash !== "none"
+            ? `offboard-${op.crash}`
             : "none";
       plan.wrote = false;
       plan.failTransaction = false;
@@ -2382,6 +2447,9 @@ async function twoHandleWalk(
         if (!(e instanceof Error && e.message === crashed().message)) throw e;
         // Stopped after its mark: the person scope stays frozen until a rerun.
         seen.offboardCrashes++;
+        const plan = plans.get(d) as Plan;
+        plan.crash = "none";
+        plan.failTransaction = false;
         expect(erasureOpen(base, "person:dana"), "frozen after a stopped offboarding").toBe(true);
         await offboard(d, W_HR, request, W_AT);
       }
@@ -2433,9 +2501,10 @@ async function twoHandleWalk(
   }
   const surviving = currentItems(base);
   const survivingText = JSON.stringify(surviving);
-  const erasedOnly = [...erasedAt.keys()].flatMap((itemId) =>
-    [...(written.get(itemId) ?? [])].filter((t) => !survivingText.includes(t)),
-  );
+  // Every token written under an erased id: none may survive anywhere, under
+  // any id (verification pass 3, V3-1: content under a fresh id).
+  void survivingText;
+  const erasedOnly = [...erasedAt.keys()].flatMap((itemId) => [...(written.get(itemId) ?? [])]);
   const check = async (when: string, adopted: boolean) => {
     // A crashed writer's bytes are gone only once an adoption has run (P50-2).
     const storeToo = adopted || crashes === 0;
@@ -2515,6 +2584,64 @@ async function twoHandleWalk(
     }
   };
   removalsStand("after the walk");
+  /**
+   * The plane's own recovery against the owner's later decisions (V-2, V3-3):
+   * a withdrawal happens only while nothing but adoptions changed the item
+   * since the adoption it names, and a narrowing never takes away a grant an
+   * owner's grant change added after that adoption.
+   */
+  const recoveryKeepsOwnerDecisions = (when: string) => {
+    const log2 = allEvents(base);
+    for (const r of log2) {
+      if (r.decision !== "allow") continue;
+      if (r.policy_id !== "engram/adopt/withdrawn" && r.policy_id !== "engram/adopt/narrowed")
+        continue;
+      const named = /the adoption at event (\S+?)(?= |;|,|$)/.exec(r.reason)?.[1];
+      const adoption = log2.find((e) => e.id === named);
+      expect(adoption, `${when}: ${r.policy_id} ${r.id} names no event`).toBeDefined();
+      const between = log2.filter(
+        (e) =>
+          e.item_id === r.item_id &&
+          e.decision === "allow" &&
+          e.seq > (adoption as MemoryEvent).seq &&
+          e.seq < r.seq,
+      );
+      if (r.policy_id === "engram/adopt/withdrawn") {
+        expect(
+          between.every((e) => e.reason.startsWith("adopted from store ")),
+          `${when}: withdrawal ${r.id} put a version back over a later change`,
+        ).toBe(true);
+        seen.recoveries++;
+        continue;
+      }
+      const before = [...log2]
+        .reverse()
+        .find(
+          (e) => e.seq < r.seq && e.item_id === r.item_id && e.item && e.decision === "allow",
+        )?.item;
+      const removed = (before?.grants ?? []).filter(
+        (g) => !(r.item?.grants ?? []).some((h) => sameGrant(g, h)),
+      );
+      for (const g of removed)
+        expect(
+          between.some(
+            (e) =>
+              e.policy_id === "engram/grant/change" &&
+              e.item?.grants.some((h) => sameGrant(g, h)) &&
+              !log2
+                .filter(
+                  (x) =>
+                    x.item_id === r.item_id && x.decision === "allow" && x.item && x.seq < e.seq,
+                )
+                .at(-1)
+                ?.item?.grants.some((h) => sameGrant(g, h)),
+          ),
+          `${when}: narrowing ${r.id} took away the grant to ${g.to} an owner added after the adoption`,
+        ).toBe(false);
+      seen.recoveries++;
+    }
+  };
+  recoveryKeepsOwnerDecisions("after the walk");
   const left = await listing();
   if ([...erasedAt.keys()].some((itemId) => left.some((i) => i.id === itemId))) seen.erasedLeft++;
   await check("after the walk", false);
