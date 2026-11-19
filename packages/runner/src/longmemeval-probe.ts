@@ -73,6 +73,7 @@ import {
   retrySession,
   type Sleep,
 } from "./model/retry.ts";
+import type { Shard } from "./shard.ts";
 import { closeStore, openStore, type StoreName } from "./stores.ts";
 
 /** The conditions built on LongMemEval: the ungoverned baseline and the enforced one. */
@@ -395,6 +396,12 @@ export interface LongMemEvalRunnerResult {
 
 export interface LongMemEvalRunnerOptions {
   cache?: CacheStore;
+  /**
+   * Run only this shard's items (card RV6, shard.ts): the i-th of n
+   * contiguous blocks of the config's items, every condition, store and
+   * seed of each. No cache key depends on it.
+   */
+  shard?: Shard;
   offline?: boolean;
   live?: LiveModels;
   /** Where rows go as each session ends, and a resumed run's finished sessions come from (journal.ts). */
@@ -448,6 +455,7 @@ export async function runLongMemEvalConfig(
   const items = configItems(
     config,
     questions.map((q) => q.question_id),
+    options.shard,
   );
   sessions: for (const item of items) {
     const question = longMemEval.findQuestion(questions, item);

@@ -24,6 +24,7 @@ import {
 } from "./config.ts";
 import { longMemEvalJudge } from "./longmemeval-probe.ts";
 import { gatememItems } from "./run.ts";
+import { type Shard, shardLabel } from "./shard.ts";
 import type { StoreName } from "./stores.ts";
 
 /** The command that fetches LongMemEval's cleaned S split at the pin into .engram/upstream (data only). */
@@ -128,6 +129,8 @@ export interface SessionCount {
   judge?: { model: string; calls_min: number; calls_max: number };
   /** MEM-INV-Bench's agent notes, one call each before the sessions (P3-4). */
   note_calls: number;
+  /** The shard counted (card RV6), when one was named: `i/n`. */
+  shard?: string;
 }
 
 const tally = (labels: readonly string[]) => {
@@ -144,10 +147,13 @@ const GATEMEM_KIND: Readonly<Record<string, string>> = {
 };
 
 /** The items a config runs, with their hidden kind labels (for counting only). */
-function itemsOf(config: AnyRunnerConfig): { ids: string[]; kinds: string[]; notes: number } {
+function itemsOf(
+  config: AnyRunnerConfig,
+  shard: Shard | undefined,
+): { ids: string[]; kinds: string[]; notes: number } {
   if (config.benchmark === "gatemem") {
     const domains = gatemem.loadDataset(config.data);
-    const ids = configItems(config, gatememItems(domains));
+    const ids = configItems(config, gatememItems(domains), shard);
     const typeOf = new Map(
       domains.flatMap((d) => d.checkpoints.map((c) => [c.checkpoint_id, c.query_type] as const)),
     );
@@ -162,6 +168,7 @@ function itemsOf(config: AnyRunnerConfig): { ids: string[]; kinds: string[]; not
     const ids = configItems(
       config,
       questions.map((q) => q.question_id),
+      shard,
     );
     const byId = new Map(questions.map((q) => [q.question_id, q]));
     return {
@@ -174,6 +181,7 @@ function itemsOf(config: AnyRunnerConfig): { ids: string[]; kinds: string[]; not
   const ids = configItems(
     config,
     cases.map((c) => c.case_id),
+    shard,
   );
   const byId = new Map(cases.map((c) => [c.case_id, c]));
   return {
@@ -193,10 +201,10 @@ function itemsOf(config: AnyRunnerConfig): { ids: string[]; kinds: string[]; not
 /** What the config would run: sessions per condition, store and seed. No model, no cassette. */
 export async function countConfig(
   config: AnyRunnerConfig,
-  options: { fetch?: boolean; log?: (line: string) => void } = {},
+  options: { fetch?: boolean; log?: (line: string) => void; shard?: Shard } = {},
 ): Promise<SessionCount> {
   const data = await ensurePinnedData(config, options);
-  const { ids, kinds, notes } = itemsOf(config);
+  const { ids, kinds, notes } = itemsOf(config, options.shard);
   const judge =
     config.benchmark === "gatemem"
       ? configJudge(config)
@@ -231,6 +239,7 @@ export async function countConfig(
       ? { judge: { model: judge.model, calls_min: sessions, calls_max: attempts * sessions } }
       : {}),
     note_calls: notes,
+    ...(options.shard ? { shard: shardLabel(options.shard) } : {}),
   };
 }
 
@@ -242,6 +251,7 @@ export function countLines(count: SessionCount): string[] {
   return [
     `${count.config}: ${count.kind} config, benchmark ${count.benchmark}, model ${count.model}, preset ${count.preset}`,
     `data ${count.data.dir}: the pinned ${count.data.set === "full" ? "full set" : "fixture subset"} at ${count.data.commit.slice(0, 7)}`,
+    ...(count.shard ? [`shard ${count.shard}: this shard's items only`] : []),
     `items: ${count.items} (${kinds})`,
     `sessions: ${count.sessions} = ${count.items} items x ${count.cells.length / count.seeds.length} condition-store cells (${count.conditions.join(", ")} on ${count.stores.join(", ")}${count.conditions.includes("C1") ? "; C1 once, with no store" : ""}) x ${count.seeds.length} seeds (${count.seeds.join(", ")})`,
     ...Object.entries(count.per_condition).map(([c, n]) => `  ${c}: ${n} sessions`),

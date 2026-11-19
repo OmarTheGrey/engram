@@ -38,10 +38,21 @@
 // --resume (`RESUME=1`) a rerun of the same config into the same --out skips
 // the sessions it holds and goes on. A run that stops at the config's
 // spend_ceiling_usd exits 3, its summary that of the completed sessions.
+//
+// With --shard i/n (`SHARD=i/n`, card RV6, src/shard.ts) a GateMem,
+// MEM-INV-Bench or LongMemEval config runs only the i-th of n contiguous
+// blocks of its items, into `<out>-shard-<i>-of-<n>`, against the same
+// cassettes; n of them can run at once. Each stops at the config's
+// spend_ceiling_usd divided by n. --merge n (`MERGE=n`) joins the n shard
+// folders of `<out>` into `<out>`, refusing a missing, unfinished, running
+// or overlapping shard and shards of another config, and rewrites the
+// summary from the merged rows; no model is called and no session runs.
+// One process at a time writes an output folder (run.lock).
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
+import type { UsageRecord } from "@engram/model";
 import {
   type AnyRunnerConfig,
   configStores,
@@ -52,7 +63,7 @@ import {
 } from "../src/config.ts";
 import { countConfig, countLines, ensurePinnedData, UnpinnedData } from "../src/count.ts";
 import type { ProbeResult } from "../src/gatemem-probe.ts";
-import { JournalMismatch, RunJournal, runFingerprint, type Stopped } from "../src/journal.ts";
+import { JournalMismatch, type Stopped } from "../src/journal.ts";
 import {
   countFaultSetConfig,
   type FaultSetRunOptions,
@@ -95,6 +106,16 @@ import {
 } from "../src/mem-inv-probe.ts";
 import { SESSION_RETRY } from "../src/model/retry.ts";
 import { EVENTS_FILE, type RunnerOptions, runConfig } from "../src/run.ts";
+import {
+  openRunJournal,
+  parseShard,
+  type Shard,
+  ShardRefused,
+  sealMerge,
+  shardConfig,
+  shardDir,
+  shardLabel,
+} from "../src/shard.ts";
 import { memInvLines, memInvRowLines, runFooter } from "./run-mem-inv.ts";
 
 const REPO = fileURLToPath(new URL("../../../", import.meta.url));
@@ -108,6 +129,10 @@ interface Flags {
   resume: boolean;
   model?: string | undefined;
   cassettes?: string | undefined;
+  /** Run only this shard of the config's items, into its own folder (card RV6). */
+  shard?: Shard | undefined;
+  /** Merge this many shard folders into --out (card RV6). */
+  merge?: number | undefined;
 }
 
 interface Outcome {
@@ -121,18 +146,34 @@ const FAILED: Outcome = { code: 2, sessions: 0, calls: { new: 0, cached: 0 } };
 /** The exit code of a run that stopped at its spend ceiling: its completed sessions are kept. */
 const STOPPED = 3;
 
-/** The journal of a session run into `out` (card RV1): afresh, or resumed with --resume. */
-function openJournal(
-  out: string,
-  config: AnyRunnerConfig,
-  flags: Flags,
-  sidecar?: string,
-): RunJournal {
-  return RunJournal.open(out, {
-    identity: { config: config.name, fingerprint: runFingerprint(config) },
+/**
+ * The journal of a session run into `out` (card RV1): afresh, or resumed
+ * with --resume; a shard's; or a merge's (card RV6, src/shard.ts).
+ */
+const openJournal = (out: string, config: AnyRunnerConfig, flags: Flags, sidecar?: string) =>
+  openRunJournal(out, config, {
     resume: flags.resume,
+    ...(flags.shard ? { shard: flags.shard } : {}),
+    ...(flags.merge === undefined ? {} : { merge: flags.merge }),
     ...(sidecar === undefined ? {} : { sidecar }),
   });
+
+/** What a session run's runner takes from the shard flags (card RV6). */
+const shardOptions = (flags: Flags) => (flags.shard ? { shard: flags.shard } : {});
+
+/** The lines a shard or a merge adds to a session run's report. */
+function shardLines(flags: Flags, out: string): string[] {
+  if (flags.shard) {
+    return [
+      `shard ${shardLabel(flags.shard)}: this shard's items only; merge the ${flags.shard.count} shards with MERGE=${flags.shard.count}`,
+    ];
+  }
+  if (flags.merge !== undefined) {
+    return [
+      `merged ${flags.merge} shards (${shardDir(out, { index: 1, count: flags.merge })} to ${shardDir(out, { index: flags.merge, count: flags.merge })}); no session was run`,
+    ];
+  }
+  return [];
 }
 
 /** What a journaled run says about what it kept and why it stopped, if it did. */
@@ -140,8 +181,25 @@ function journalLines(result: {
   sessions: number;
   resumed: number;
   stopped?: Stopped | undefined;
+  usage?: readonly UsageRecord[];
 }): string[] {
+  // The upstreams OpenRouter served the run's calls from (card RV6), by model.
+  const served = new Map<string, number>();
+  for (const u of result.usage ?? []) {
+    if (u.upstream !== undefined) {
+      const k = `${u.model} from ${u.upstream}`;
+      served.set(k, (served.get(k) ?? 0) + 1);
+    }
+  }
   return [
+    ...(served.size > 0
+      ? [
+          `served by: ${[...served]
+            .sort(([a], [b]) => (a < b ? -1 : 1))
+            .map(([k, n]) => `${k} ${n}`)
+            .join(", ")}`,
+        ]
+      : []),
     ...(result.resumed > 0
       ? [
           `resumed: ${result.resumed} sessions an earlier invocation finished were kept, not run again`,
@@ -212,9 +270,9 @@ function eventCounts(events: readonly { op: string; decision: string }[]): strin
  * pre-registration is tagged and the key supplied.
  */
 async function runLongMemEval(path: string, out: string, flags: Flags): Promise<Outcome> {
-  let config = readLongMemEvalConfig(path);
+  let config = shardConfig(readLongMemEvalConfig(path), flags.shard);
   const named = flags.live || flags.replay;
-  if (flags.count) return countOne(config, out);
+  if (flags.count) return countOne(config, out, flags.shard);
   if (config.kind === "experiment" && !named) {
     console.error(
       `run.ts: ${config.name} is an experiment config: it runs on a named model (MODEL=<provider/model> LIVE=1), replays that run (MODEL=<provider/model> REPLAY=1), or is counted (COUNT=1)`,
@@ -252,9 +310,11 @@ async function runLongMemEval(path: string, out: string, flags: Flags): Promise<
     result = await runLongMemEvalConfig(config, {
       ...options,
       journal,
+      ...shardOptions(flags),
       ...(flags.live ? { sessionRetry: SESSION_RETRY } : {}),
       onRow: (r) => console.log(longMemEvalRowLine(r)),
     });
+    sealMerge(journal);
   } finally {
     journal.close();
   }
@@ -262,7 +322,8 @@ async function runLongMemEval(path: string, out: string, flags: Flags): Promise<
   const lines = [
     `${config.name}: ${result.sessions} sessions (${items} items x ${config.conditions.join(", ")} x stores ${configStores(config).join(", ")} x seeds ${config.seeds.join(", ")}), model ${config.model}, preset ${config.preset}`,
     `model calls: ${result.calls.new} new, ${result.calls.cached} from cassettes${how}`,
-    ...journalLines(result),
+    ...shardLines(flags, out),
+    ...journalLines(flags.merge === undefined ? result : { ...result, resumed: 0 }),
     ...Object.entries(result.summary).map(
       ([k, s]) =>
         `  ${k}: ${s.judged} of ${s.sessions} judged, overall ${s.breakdown.overall.accuracy ?? "n/a"}, task-averaged ${s.breakdown.task_averaged ?? "n/a"} over ${s.breakdown.types_present} types`,
@@ -421,9 +482,13 @@ async function runFaultSet(path: string, out: string, flags: Flags): Promise<Out
   return { code: 0, sessions: result.rows.length, calls: result.calls };
 }
 
-/** COUNT=1: the config's sessions into count.json in `out`; no model, no cassette. */
-async function countOne(config: AnyRunnerConfig, out: string): Promise<Outcome> {
-  const counted = await countConfig(config, { fetch: true, log: (l) => console.log(l) });
+/** COUNT=1: the config's sessions (a shard's, with SHARD=) into count.json in `out`; no model, no cassette. */
+async function countOne(config: AnyRunnerConfig, out: string, shard?: Shard): Promise<Outcome> {
+  const counted = await countConfig(config, {
+    fetch: true,
+    log: (l) => console.log(l),
+    ...(shard ? { shard } : {}),
+  });
   // Paths relative to the repository, so count.json names no machine.
   const dir = relative(REPO, counted.data.dir).replaceAll("\\", "/");
   const count = { ...counted, data: { ...counted.data, dir } };
@@ -436,13 +501,25 @@ async function countOne(config: AnyRunnerConfig, out: string): Promise<Outcome> 
 /** Run, replay, record or count one config into `out`. */
 async function runOne(path: string, out: string, flags: Flags): Promise<Outcome> {
   if (isLongMemEvalConfig(path)) return runLongMemEval(path, out, flags);
+  if (
+    (flags.shard || flags.merge !== undefined) &&
+    (isLintConfig(path) || isFaultSetConfig(path))
+  ) {
+    console.error(
+      "run.ts: SHARD= and MERGE= split a GateMem, MEM-INV-Bench or LongMemEval session run; a lint config is not split",
+    );
+    return FAILED;
+  }
   if (isLintConfig(path)) return runLint(path, out, flags);
   if (isFaultSetConfig(path)) return runFaultSet(path, out, flags);
   const read = readAnyConfig(path);
-  let config: AnyRunnerConfig = "gatemem" in read ? read.gatemem : read.memInv;
+  let config: AnyRunnerConfig = shardConfig(
+    "gatemem" in read ? read.gatemem : read.memInv,
+    flags.shard,
+  );
   const named = flags.live || flags.replay;
 
-  if (flags.count) return countOne(config, out);
+  if (flags.count) return countOne(config, out, flags.shard);
   if (config.kind === "experiment" && !named) {
     console.error(
       `run.ts: ${config.name} is an experiment config: it runs on a named model (MODEL=<provider/model> LIVE=1), replays that run (MODEL=<provider/model> REPLAY=1), or is counted (COUNT=1)`,
@@ -486,14 +563,21 @@ async function runOne(path: string, out: string, flags: Flags): Promise<Outcome>
       result = await runMemInvConfig(memInv, {
         ...options,
         journal,
+        ...shardOptions(flags),
         ...(flags.live ? { sessionRetry: SESSION_RETRY } : {}),
         onRow: (r) => console.log(memInvRowLines(r).join("\n")),
       });
+      sealMerge(journal);
     } finally {
       journal.close();
     }
     const lines = memInvLines(memInv, result, out, how, named);
-    lines.splice(-2, 0, ...journalLines(result));
+    lines.splice(
+      -2,
+      0,
+      ...shardLines(flags, out),
+      ...journalLines(flags.merge === undefined ? result : { ...result, resumed: 0 }),
+    );
     console.log(lines.join("\n"));
     return { code: result.stopped ? STOPPED : 0, sessions: result.sessions, calls: result.calls };
   }
@@ -504,10 +588,12 @@ async function runOne(path: string, out: string, flags: Flags): Promise<Outcome>
     const gatememOptions: RunnerOptions = {
       ...options,
       journal,
+      ...shardOptions(flags),
       ...(flags.live ? { sessionRetry: SESSION_RETRY } : {}),
       onRow: (r) => console.log(gatememRowLine(r)),
     };
     result = await runConfig(gm, gatememOptions);
+    sealMerge(journal);
   } finally {
     journal.close();
   }
@@ -515,7 +601,8 @@ async function runOne(path: string, out: string, flags: Flags): Promise<Outcome>
   const lines = [
     `${gm.name}: ${result.sessions} sessions (${items} items x ${gm.conditions.join(", ")} x stores ${configStores(gm).join(", ")} x seeds ${gm.seeds.join(", ")}), model ${gm.model}, preset ${gm.preset}`,
     `model calls: ${result.calls.new} new, ${result.calls.cached} from cassettes${how}`,
-    ...journalLines(result),
+    ...shardLines(flags, out),
+    ...journalLines(flags.merge === undefined ? result : { ...result, resumed: 0 }),
     runFooter(
       gm.kind,
       named,
@@ -541,13 +628,30 @@ async function main(): Promise<number> {
       resume: { type: "boolean", default: false },
       model: { type: "string" },
       cassettes: { type: "string" },
+      shard: { type: "string" },
+      merge: { type: "string" },
     },
   });
   if (!values.config || !values.out) {
     console.error(
-      "usage: run.ts --config <runner-config.json> --out <dir> [--record | --count | (--live | --replay) --model <provider/model-id> [--cassettes <dir>]] [--resume]",
+      "usage: run.ts --config <runner-config.json> --out <dir> [--record | --count | (--live | --replay) --model <provider/model-id> [--cassettes <dir>]] [--resume] [--shard i/n | --merge n]",
     );
     return 2;
+  }
+  let shard: Shard | undefined;
+  let merge: number | undefined;
+  try {
+    if (values.shard !== undefined) shard = parseShard(values.shard);
+  } catch (e) {
+    console.error(`run.ts: ${(e as Error).message}`);
+    return 2;
+  }
+  if (values.merge !== undefined) {
+    merge = Number(values.merge);
+    if (!/^\d+$/.test(values.merge) || merge < 1) {
+      console.error(`run.ts: --merge ${values.merge}: the number of shards is a positive integer`);
+      return 2;
+    }
   }
   const flags: Flags = {
     record: values.record === true,
@@ -557,6 +661,8 @@ async function main(): Promise<number> {
     resume: values.resume === true,
     model: values.model,
     cassettes: values.cassettes,
+    shard,
+    merge,
   };
   if ([flags.record, flags.live, flags.replay, flags.count].filter(Boolean).length > 1) {
     console.error("run.ts: --record, --live, --replay and --count are exclusive");
@@ -573,12 +679,32 @@ async function main(): Promise<number> {
     console.error("run.ts: --resume continues a session run; --count runs none");
     return 2;
   }
+  if (flags.shard && flags.merge !== undefined) {
+    console.error("run.ts: --shard runs one shard; --merge joins them: name one");
+    return 2;
+  }
+  if (flags.merge !== undefined && (flags.record || flags.live || flags.count || flags.resume)) {
+    console.error(
+      "run.ts: --merge reads finished shards and runs no session: it goes alone, or with --replay --model for a live run's shards",
+    );
+    return 2;
+  }
+  if (flags.record && flags.shard) {
+    console.error("run.ts: --record is make fixtures' whole run; it is not sharded");
+    return 2;
+  }
   if (flags.record && process.env.ENGRAM_OFFLINE === "1") {
     console.error("run.ts: --record with ENGRAM_OFFLINE=1 would record nothing; drop one");
     return 2;
   }
+  // A shard writes its own folder beside the merged one.
+  const out = flags.shard ? shardDir(values.out, flags.shard) : values.out;
   try {
-    if (!isSuite(values.config)) return (await runOne(values.config, values.out, flags)).code;
+    if (!isSuite(values.config)) return (await runOne(values.config, out, flags)).code;
+    if (flags.shard || flags.merge !== undefined) {
+      console.error("run.ts: a suite is not sharded; shard each member config");
+      return 2;
+    }
     const suite = readSuite(values.config);
     let sessions = 0;
     const calls = { new: 0, cached: 0 };
@@ -597,7 +723,7 @@ async function main(): Promise<number> {
     );
     return 0;
   } catch (e) {
-    if (e instanceof UnpinnedData || e instanceof JournalMismatch) {
+    if (e instanceof UnpinnedData || e instanceof JournalMismatch || e instanceof ShardRefused) {
       console.error(`run.ts: ${e.message}`);
       return 2;
     }

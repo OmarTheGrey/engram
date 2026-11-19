@@ -2,6 +2,7 @@
 // seeded API for the answer model, and a scripted judge or lint model, each
 // reporting a set cost per call as a live provider does. Nothing here
 // reaches the network.
+import { createHash } from "node:crypto";
 import type { Api, AssistantMessage, Context, Model } from "@earendil-works/pi-ai";
 import {
   createModels,
@@ -35,7 +36,14 @@ export const usage = (cost: number): AssistantMessage["usage"] => ({
  * came back; with `loop`, a memory_read every time. Each reply costs `cost`.
  */
 export function fauxLive(
-  options: { failures?: string[]; cost?: number; loop?: boolean; answer?: string } = {},
+  options: {
+    failures?: string[];
+    cost?: number;
+    loop?: boolean;
+    answer?: string;
+    /** Tool call ids from the session's user messages rather than at random (card RV6). */
+    stableIds?: boolean;
+  } = {},
 ) {
   const faux = fauxProvider({
     api: "openai-completions",
@@ -53,9 +61,14 @@ export function fauxLive(
     const last = context.messages.at(-1);
     return last?.role === "toolResult" && !options.loop
       ? fauxAssistantMessage(fauxText(options.answer ?? ANSWER))
-      : fauxAssistantMessage(fauxToolCall("memory_read", { query: "Monsoon" }), {
-          stopReason: "toolUse",
-        });
+      : fauxAssistantMessage(
+          fauxToolCall(
+            "memory_read",
+            { query: "Monsoon" },
+            options.stableIds ? { id: stableId(context) } : {},
+          ),
+          { stopReason: "toolUse" },
+        );
   };
   faux.setResponses(Array.from({ length: 256 }, () => step));
   const inner = createModels();
@@ -70,6 +83,17 @@ export function fauxLive(
   };
   return { models, state };
 }
+
+/**
+ * A tool call id that depends only on the session's user messages, so the
+ * same session gets the same id in any process (pi-ai's faux provider draws
+ * one at random, as a live model's ids are its own).
+ */
+const stableId = (context: Context): string =>
+  `tool-${createHash("sha256")
+    .update(JSON.stringify(context.messages.flatMap((m) => (m.role === "user" ? [m.content] : []))))
+    .digest("hex")
+    .slice(0, 16)}`;
 
 /** One reply of the judge or lint model: its text, or a failure with pi-ai's error message. */
 export type JudgeReply = { text: string } | { error: string };
