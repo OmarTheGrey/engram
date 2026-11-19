@@ -1,0 +1,277 @@
+{
+  "base": {
+    "assistant_turns_model_named": 124334,
+    "past_medium_ttl": {
+      "questions": 54,
+      "turns": 11122
+    },
+    "turns": 246750
+  },
+  "benchmark": "longmemeval",
+  "by_class": {
+    "contradictory": {
+      "keyed": {
+        "fault": 0,
+        "near-miss": 0
+      },
+      "unkeyed": {
+        "fault": 500,
+        "near-miss": 500
+      }
+    },
+    "misplaced": {
+      "keyed": {
+        "fault": 500,
+        "near-miss": 500
+      },
+      "unkeyed": {
+        "fault": 500,
+        "near-miss": 500
+      }
+    },
+    "stale": {
+      "keyed": {
+        "fault": 1000,
+        "near-miss": 1000
+      },
+      "unkeyed": {
+        "fault": 500,
+        "near-miss": 500
+      }
+    },
+    "unsupported": {
+      "keyed": {
+        "fault": 1000,
+        "near-miss": 1000
+      },
+      "unkeyed": {
+        "fault": 500,
+        "near-miss": 500
+      }
+    }
+  },
+  "by_lint": {
+    "deterministic": {
+      "expired-validity": {
+        "keyed": {
+          "fault": 500,
+          "near-miss": 500
+        },
+        "unkeyed": {
+          "fault": 0,
+          "near-miss": 0
+        }
+      },
+      "missing-provenance": {
+        "keyed": {
+          "fault": 500,
+          "near-miss": 500
+        },
+        "unkeyed": {
+          "fault": 0,
+          "near-miss": 0
+        }
+      },
+      "orphan": {
+        "keyed": {
+          "fault": 500,
+          "near-miss": 500
+        },
+        "unkeyed": {
+          "fault": 0,
+          "near-miss": 0
+        }
+      },
+      "scope-class-mismatch": {
+        "keyed": {
+          "fault": 500,
+          "near-miss": 500
+        },
+        "unkeyed": {
+          "fault": 0,
+          "near-miss": 0
+        }
+      },
+      "source-changed": {
+        "keyed": {
+          "fault": 500,
+          "near-miss": 500
+        },
+        "unkeyed": {
+          "fault": 0,
+          "near-miss": 0
+        }
+      }
+    },
+    "model": {
+      "contradiction": {
+        "keyed": {
+          "fault": 0,
+          "near-miss": 0
+        },
+        "unkeyed": {
+          "fault": 1000,
+          "near-miss": 1000
+        }
+      },
+      "unsupported-claim": {
+        "keyed": {
+          "fault": 0,
+          "near-miss": 0
+        },
+        "unkeyed": {
+          "fault": 500,
+          "near-miss": 500
+        }
+      }
+    },
+    "none": {
+      "fault": 500,
+      "near-miss": 500
+    }
+  },
+  "by_subtype": {
+    "conflict": {
+      "class": "contradictory",
+      "expected": {
+        "deterministic": [],
+        "model": [
+          "contradiction"
+        ]
+      },
+      "fault": 500,
+      "keyed": false,
+      "near-miss": 500
+    },
+    "expired-validity": {
+      "class": "stale",
+      "expected": {
+        "deterministic": [
+          "expired-validity"
+        ],
+        "model": []
+      },
+      "fault": 500,
+      "keyed": true,
+      "near-miss": 500
+    },
+    "forbidden-class": {
+      "class": "misplaced",
+      "expected": {
+        "deterministic": [
+          "scope-class-mismatch"
+        ],
+        "model": []
+      },
+      "fault": 500,
+      "keyed": true,
+      "near-miss": 500
+    },
+    "missing-provenance": {
+      "class": "unsupported",
+      "expected": {
+        "deterministic": [
+          "missing-provenance"
+        ],
+        "model": []
+      },
+      "fault": 500,
+      "keyed": true,
+      "near-miss": 500
+    },
+    "orphan": {
+      "class": "unsupported",
+      "expected": {
+        "deterministic": [
+          "orphan"
+        ],
+        "model": []
+      },
+      "fault": 500,
+      "keyed": true,
+      "near-miss": 500
+    },
+    "source-changed": {
+      "class": "stale",
+      "expected": {
+        "deterministic": [
+          "source-changed"
+        ],
+        "model": []
+      },
+      "fault": 500,
+      "keyed": true,
+      "near-miss": 500
+    },
+    "superseded": {
+      "class": "stale",
+      "expected": {
+        "deterministic": [],
+        "model": [
+          "contradiction"
+        ]
+      },
+      "fault": 500,
+      "keyed": false,
+      "near-miss": 500
+    },
+    "unsupported-claim": {
+      "class": "unsupported",
+      "expected": {
+        "deterministic": [],
+        "model": [
+          "unsupported-claim"
+        ]
+      },
+      "fault": 500,
+      "keyed": false,
+      "near-miss": 500
+    },
+    "wrong-scope": {
+      "class": "misplaced",
+      "expected": {
+        "deterministic": [],
+        "model": []
+      },
+      "fault": 500,
+      "keyed": false,
+      "near-miss": 500
+    }
+  },
+  "data": {
+    "dataset": "https://huggingface.co/datasets/xiaowu0162/longmemeval-cleaned",
+    "file": "longmemeval_s_cleaned.json",
+    "revision": "98d7416c24c778c2fee6e6f3006e7a073259d48f",
+    "sha256": "d6f21ea9d60a0d56f34a05b609c79c88a451d2ae03597821ea3d5a9678c3a442"
+  },
+  "events": 261250,
+  "generator": "packages/bench/src/faults/generate.ts",
+  "hypothesis": "H3",
+  "label_check": {
+    "duplicate_findings": 968,
+    "keyed_faults": 2500,
+    "keyed_faults_flagged": 2500,
+    "near_misses_flagged": 0,
+    "states": 500,
+    "unkeyed_labels_flagged": 0,
+    "unlabelled_measured_findings": 0
+  },
+  "labels": {
+    "fault": 4500,
+    "near-miss": 4500,
+    "total": 9000
+  },
+  "name": "h3-fault-set",
+  "per_question": 1,
+  "questions": 500,
+  "seed": 20261119,
+  "set": {
+    "directory": ".engram/faults/h3-fault-set",
+    "sha256": {
+      "labels.jsonl": "b32d09711496d319f4c8653f43e5f97224d116bc118dc1e8aefe51894efe40aa",
+      "policy.json": "5521a588b9abde9a3b641761c7bc4d1d89fe00c668a1ca913532c06d5a03c3e5",
+      "states.jsonl": "0a9a237351616b9da84c81fa8fb6594907d87d984fc77275e25e50f4a22df5b3",
+      "stats.jsonl": "db0403477e5052582851c1092fd7bd5cb5bf4e834a418c870dab1bd2a2793e74"
+    }
+  }
+}
