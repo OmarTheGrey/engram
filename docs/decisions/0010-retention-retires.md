@@ -37,6 +37,7 @@ Amendments made by card E2.6, 2026-11-19 (branch `e2-6`; proposed, for the lead'
 
 - Offboarding marks its erasure before deleting any store record (one `engram/offboard/begin` event, closed by the report event), and until the report closes it nothing in the person scope may change (`engram/offboard/erasing`); a writer on another handle whose decision preceded the mark deletes what it wrote (ADR 0007's amendment of the same date). The erasure commits what the mark read that the projection still holds. A crash between the mark and the report leaves the person scope frozen until offboarding runs again.
 - An erased id is never written or adopted again (`engram/write/erased`, `engram/adopt/erased`), except a record the erasure left in a store that refuses the plane's delete, which adoption takes again once its content changes, as before.
+- Review fix pass of PR #50: adoption also deletes such a record from the store, after committing its refusal, and a record in an offboarded person scope under an id the log never allowed (`engram/adopt/offboarded`), so a writer that crashed between its store write and its commit during an offboarding leaves no content behind past the next adoption. The one hard deletion is therefore complete once the erasure's report is appended and the scope's store has been adopted once.
 
 ## Alternatives considered
 
