@@ -58,6 +58,9 @@ export function liveJudgeCall(models: LiveModels, options: { sleep?: Sleep } = {
         models.completeSimple(
           model,
           {
+            // The lint calls (card L3) carry a system prompt; GateMem's judge
+            // sends none, so its requests are unchanged.
+            ...(request.system === undefined ? {} : { systemPrompt: request.system }),
             messages: request.messages.map((m) => ({
               role: "user" as const,
               content: m.content,

@@ -1,0 +1,10 @@
+{
+  "name": "l3-pilot",
+  "kind": "experiment",
+  "benchmark": "lint-faults",
+  "data": "../../fixtures/faults/model",
+  "items": "all",
+  "model": "prereg/M1",
+  "seeds": [1, 2, 3],
+  "cassettes": "../../.engram/runs/l3-pilot/cassettes"
+}

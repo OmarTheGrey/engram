@@ -1,0 +1,150 @@
+{
+  "_comment": "Card L3's scripted lint model (research/configs/l3-lint-fixture.json): a reply per input the lints send over fixtures/faults/model, for every seed or the seeds named. The seed-specific replies plant a miss, a false flag, a malformed reply and a refusal, so the variance script has a spread to report; a pipeline check, never a result.",
+  "replies": [
+    {
+      "input": {
+        "A": "The release freeze starts on Friday.",
+        "B": "The staging database runs Postgres 16."
+      },
+      "reply": "{\"verdict\": \"consistent\", \"reason\": \"They are about different things.\"}"
+    },
+    {
+      "input": {
+        "A": "The release freeze starts on Friday.",
+        "B": "The release freeze starts on Monday."
+      },
+      "reply": "```json\n{\"verdict\": \"contradiction\", \"reason\": \"The freeze cannot start on both Friday and Monday.\"}\n```"
+    },
+    {
+      "input": {
+        "A": "The release freeze starts on Friday.",
+        "B": "The staging database runs MySQL 8 and has never run Postgres."
+      },
+      "reply": "{\"verdict\": \"consistent\", \"reason\": \"They are about different things.\"}"
+    },
+    {
+      "input": {
+        "A": "The staging database runs Postgres 16.",
+        "B": "The release freeze starts on Monday."
+      },
+      "reply": "{\"verdict\": \"consistent\", \"reason\": \"They are about different things.\"}"
+    },
+    {
+      "input": {
+        "A": "The staging database runs Postgres 16.",
+        "B": "The staging database runs MySQL 8 and has never run Postgres."
+      },
+      "reply": "{\"verdict\": \"contradiction\", \"reason\": \"The database cannot run Postgres 16 and never have run Postgres.\"}"
+    },
+    {
+      "input": {
+        "A": "The staging database runs Postgres 16.",
+        "B": "The staging database runs MySQL 8 and has never run Postgres."
+      },
+      "reply": "{\"verdict\": \"consistent\", \"reason\": \"Both describe the staging database.\"}",
+      "seeds": [
+        2
+      ]
+    },
+    {
+      "input": {
+        "A": "The release freeze starts on Monday.",
+        "B": "The staging database runs MySQL 8 and has never run Postgres."
+      },
+      "reply": "{\"verdict\": \"consistent\", \"reason\": \"They are about different things.\"}"
+    },
+    {
+      "input": {
+        "A": "The release freeze starts on Friday.",
+        "B": "The release freeze ends on the following Wednesday."
+      },
+      "reply": "{\"verdict\": \"consistent\", \"reason\": \"One says when the freeze starts, the other when it ends.\"}"
+    },
+    {
+      "input": {
+        "A": "The release freeze starts on Friday.",
+        "B": "The release freeze ends on the following Wednesday."
+      },
+      "reply": "{\"verdict\": \"contradiction\", \"reason\": \"The freeze dates disagree.\"}",
+      "seeds": [
+        3
+      ]
+    },
+    {
+      "input": {
+        "A": "The release freeze starts on Friday.",
+        "B": "The production database runs Postgres 15."
+      },
+      "reply": "{\"verdict\": \"consistent\", \"reason\": \"They are about different things.\"}"
+    },
+    {
+      "input": {
+        "A": "The release freeze ends on the following Wednesday.",
+        "B": "The staging database runs Postgres 16."
+      },
+      "reply": "{\"verdict\": \"consistent\", \"reason\": \"They are about different things.\"}"
+    },
+    {
+      "input": {
+        "A": "The release freeze ends on the following Wednesday.",
+        "B": "The production database runs Postgres 15."
+      },
+      "reply": "{\"verdict\": \"consistent\", \"reason\": \"They are about different things.\"}"
+    },
+    {
+      "input": {
+        "A": "The release freeze ends on the following Wednesday.",
+        "B": "The production database runs Postgres 15."
+      },
+      "reply": "These two statements are consistent.",
+      "seeds": [
+        1
+      ]
+    },
+    {
+      "input": {
+        "A": "The staging database runs Postgres 16.",
+        "B": "The production database runs Postgres 15."
+      },
+      "reply": "{\"verdict\": \"consistent\", \"reason\": \"They describe two databases.\"}"
+    },
+    {
+      "input": {
+        "claim": "The payment service outage on Tuesday was caused by a database failover.",
+        "source": "Incident 42: the payment service failed for 20 minutes on Tuesday because a certificate expired."
+      },
+      "reply": "{\"verdict\": \"unsupported\", \"reason\": \"The source names an expired certificate, not a database failover.\"}"
+    },
+    {
+      "input": {
+        "claim": "The on-call rota changes every Monday at 09:00, and on-call engineers are paid double.",
+        "source": "The on-call rota changes every Monday at 09:00."
+      },
+      "reply": "{\"verdict\": \"unsupported\", \"reason\": \"The source says nothing about pay.\"}"
+    },
+    {
+      "input": {
+        "claim": "The on-call rota changes every Monday at 09:00, and on-call engineers are paid double.",
+        "source": "The on-call rota changes every Monday at 09:00."
+      },
+      "reply": "",
+      "seeds": [
+        3
+      ]
+    },
+    {
+      "input": {
+        "claim": "Dana's laptop runs Windows.",
+        "source": "Dana's laptop runs Linux."
+      },
+      "reply": "{\"verdict\": \"unsupported\", \"reason\": \"The source says the laptop runs Linux.\"}"
+    },
+    {
+      "input": {
+        "claim": "A certificate expiry took the payment service down on Tuesday.",
+        "source": "Incident 42: the payment service failed for 20 minutes on Tuesday because a certificate expired."
+      },
+      "reply": "{\"verdict\": \"supported\", \"reason\": \"The source says a certificate expired and the service failed on Tuesday.\"}"
+    }
+  ]
+}
