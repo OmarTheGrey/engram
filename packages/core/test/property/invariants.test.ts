@@ -1565,7 +1565,9 @@ async function promotionsLandOnlyWherePermitted(name: string) {
  * item's content. `read` filters; `write` and `promote` return only the
  * caller's own item; `events` is the audit log, which surfaces mirror to the
  * session record and never pass to a model; `simulate` replays only the
- * workload it is given, on scratch logs and stores (card E8.9).
+ * workload it is given, on scratch logs and stores (card E8.9);
+ * `changeGrants` refuses an outsider in the same words for a hidden and an
+ * unknown item, naming no scope, and returns no item (card E9.4, ADR 0034).
  */
 async function planeSurfaceLeaksNothing() {
   const SECRET = "the vault code is 4711";
@@ -1578,6 +1580,7 @@ async function planeSurfaceLeaksNothing() {
   };
   const { plane } = freshPlane(policy);
   expect(Object.keys(plane).sort(), "a new Plane method must be classified here").toEqual([
+    "changeGrants",
     "checkWrite",
     "distill",
     "events",
@@ -1663,6 +1666,21 @@ async function planeSurfaceLeaksNothing() {
   );
   expect(await rejection(plane.explain(outsider, ownRead.id))).toBeInstanceOf(ExplainDeniedError);
   leaks("lint", await plane.lint(outsider, at, "person:s"));
+  // A grant the outsider asks for on the secret: refused, no item, no scope,
+  // and the same words as for an id that names nothing (card E9.4).
+  const grant = {
+    to: outsider.id,
+    class: "episodic" as const,
+    mode: "read" as const,
+    expires: "2027-01-01T00:00:00Z",
+  };
+  const granted = await plane.changeGrants(outsider, secret.id, { add: [grant] }, at);
+  leaks("changeGrants", granted);
+  expect(granted.item).toBeNull();
+  expect([granted.event.scope_from, granted.event.scope_to]).toEqual([null, null]);
+  const unknown = "01960000-0000-7000-8000-000000000009";
+  const nothing = await plane.changeGrants(outsider, unknown, { add: [grant] }, at);
+  expect(granted.event.reason).toBe(nothing.event.reason.replace(unknown, secret.id));
   // simulate replays only the workload it is given, on scratch logs and
   // stores (card E8.9): the outsider's own read of the secret's words finds
   // nothing, and the real log gains no event.
