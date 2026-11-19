@@ -576,6 +576,24 @@ function sameApartFromGrants(a: MemoryItem, b: MemoryItem): boolean {
 }
 
 /**
+ * The rule of the event by which a stale writer withdraws an adoption of its
+ * own bytes and puts its item back as it stood before (card E2.6, review of
+ * PR #50, ADR 0007): the oracle names it by its string, as it names every
+ * rule, importing nothing from the plane.
+ */
+export const WITHDRAWN_RULE = "engram/adopt/withdrawn";
+
+/**
+ * Whether `item` is one of the `earlier` versions the log held of it, put
+ * back: equal in everything, grants included, but the version (which a
+ * restoration does not lower) and the store ref.
+ */
+export function restoresEarlier(earlier: readonly MemoryItem[], item: MemoryItem): boolean {
+  const strip = ({ version: _v, store_ref: _r, ...rest }: MemoryItem) => rest;
+  return earlier.some((v) => sameStrictContent(strip(v), strip(item)));
+}
+
+/**
  * Why the allowed event `e`, which changes what its item's grants admit
  * (`grantsChanged`), should have been refused, or undefined when the oracle
  * permits it (ADR 0021, decision D4; ADR 0034, decisions 2, 3 and 6; review
@@ -605,9 +623,17 @@ export function grantChangeProblem(
   before: MemoryItem | undefined,
   e: MemoryEvent,
   heldUntrusted: boolean,
+  earlier: readonly MemoryItem[] = [],
 ): string | undefined {
   const item = e.item;
   if (e.decision !== "allow" || !item) return undefined;
+  // A withdrawal puts back a version an allowed event made before, by
+  // whoever's stale write the withdrawn adoption recorded: it is that
+  // version's change, judged when it was made, not a new one (card E2.6).
+  if (e.policy_id === WITHDRAWN_RULE)
+    return restoresEarlier(earlier, item)
+      ? undefined
+      : "a withdrawal that puts back no version the log held before";
   const kind = item.provenance.kind;
   const added = addedGrants(before?.grants ?? [], item.grants);
   const widens = grantsWiden(before, item);

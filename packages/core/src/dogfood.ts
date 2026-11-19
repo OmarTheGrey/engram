@@ -19,6 +19,15 @@
 //   (`grantsChanged`) in a way the oracle refuses (`grantChangeProblem`: who
 //   widened them, and what was added; ADR 0021, D4 and ADR 0034).
 //
+// Card E2.6's events (ADR 0007's amendment): the offboarding's begin mark,
+// the conflict, erasing and not-handed-over denies, and adoption's deletions
+// change no item, so the replay passes over them and counts them by rule
+// (each a fixed id naming nothing). A withdrawal (`engram/adopt/withdrawn`)
+// puts an item back as an earlier allowed event left it: the replay takes it
+// as it takes any allowed change, the oracle judges it only as a restoration
+// of an earlier version (`restoresEarlier`), and it is never counted as a
+// narrowing by someone other than the owner.
+//
 // Who read is known by id only: the log does not record an actor's level or
 // memberships. The member declares the actor they ran as (the flags they
 // gave `engram serve`, `engram mcp` and the CLI), and the report prints that
@@ -37,6 +46,7 @@ import {
   readable,
   replayEvent,
   UNTRUSTED_KINDS,
+  WITHDRAWN_RULE,
   withinValidity,
 } from "./oracle.ts";
 import {
@@ -111,7 +121,9 @@ export function defaultActor(id: string): Actor {
 /** Every rule id core names under `engram/` (a test checks the list against the source). */
 export const ENGRAM_RULES: readonly string[] = [
   "engram/adopt/erased",
+  "engram/adopt/offboarded",
   "engram/adopt/retract",
+  "engram/adopt/withdrawn",
   "engram/bypass/foreign-result",
   "engram/bypass/store-command",
   "engram/bypass/store-path",
@@ -123,10 +135,15 @@ export const ENGRAM_RULES: readonly string[] = [
   "engram/grant/status",
   "engram/grant/unchanged",
   "engram/lint/membership",
+  "engram/offboard/begin",
+  "engram/offboard/conflict",
   "engram/offboard/erase",
+  "engram/offboard/erasing",
   "engram/offboard/handover",
   "engram/offboard/membership",
+  "engram/offboard/not-handed-over",
   "engram/offboard/report",
+  "engram/promote/conflict",
   "engram/promote/duplicate",
   "engram/promote/expired",
   "engram/promote/hidden-text",
@@ -142,7 +159,9 @@ export const ENGRAM_RULES: readonly string[] = [
   "engram/retention/item-ttl",
   "engram/retention/membership",
   "engram/retention/sweep",
+  "engram/write/conflict",
   "engram/write/default-deny",
+  "engram/write/erased",
   "engram/write/grant",
   "engram/write/membership",
   "engram/write/retired-content",
@@ -270,6 +289,8 @@ export function dogfoodReport(
   };
   /** Items some allowed version of which held untrusted content. */
   const held = new Set<string>();
+  /** Every version allowed events made of each item, for judging a withdrawal (card E2.6). */
+  const versions = new Map<string, MemoryItem[]>();
 
   for (const e of [...events].sort((a, b) => a.seq - b.seq)) {
     r.events++;
@@ -320,7 +341,14 @@ export function dogfoodReport(
         r.grants.changes++;
         r.grants.added += addedGrants(before?.grants ?? [], item.grants).length;
         r.grants.removed += addedGrants(item.grants, before?.grants ?? []).length;
-        const problem = grantChangeProblem(policy, actorFor(e.actor), before, e, heldBefore);
+        const problem = grantChangeProblem(
+          policy,
+          actorFor(e.actor),
+          before,
+          e,
+          heldBefore,
+          versions.get(item.id) ?? [],
+        );
         if (problem !== undefined) {
           r.violations.grant_change++;
           details.push(
@@ -331,10 +359,14 @@ export function dogfoodReport(
           const ownChange =
             e.actor === owner &&
             (e.op === "write" || (e.op === "update" && e.policy_id === "engram/grant/change"));
-          if (!ownChange) r.watch.narrowed++;
+          // A withdrawal puts back an earlier version: not a narrowing by another.
+          if (!ownChange && e.policy_id !== WITHDRAWN_RULE) r.watch.narrowed++;
         }
       }
+      versions.set(item.id, [...(versions.get(item.id) ?? []), item]);
     }
+    if (e.decision === "allow" && e.op === "retire" && e.policy_id === "engram/offboard/erase")
+      versions.delete(e.item_id as string);
     replayEvent(state, e);
   }
 
