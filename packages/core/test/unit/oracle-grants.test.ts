@@ -1,14 +1,31 @@
 // The oracle's replay and its reading of grant changes (card E9.5), which the
 // twin dogfood's violation report judges a member's log with
 // (packages/core/src/oracle.ts). Hand-built items and events, no Plane.
+
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, test } from "vitest";
+import type { Actor } from "../../src/actor.ts";
 import {
-  grantChangePermitted,
+  grantChangeProblem,
   grantsChanged,
+  grantsWiden,
   priorVersion,
   replayEvent,
+  withinValidity,
 } from "../../src/oracle.ts";
+import { parsePolicy } from "../../src/policy/load.ts";
 import type { Grant, MemoryEvent, MemoryItem } from "../../src/schema.ts";
+
+const TWIN = parsePolicy(
+  readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), "../../../pi-package/profiles/twin.yaml"),
+    "utf8",
+  ),
+  "twin.yaml",
+);
+const DANA: Actor = { id: "person:dana", level: "person", memberships: ["person:dana"] };
 
 const id = (n: number) => `01980000-0000-7000-8000-${String(n).padStart(12, "0")}`;
 const toSam: Grant = {
@@ -95,42 +112,143 @@ describe("grantsChanged", () => {
   });
 });
 
-describe("grantChangePermitted", () => {
+describe("grantChangeProblem", () => {
   const before = item();
   const granted = item({ grants: [toSam], version: 2 });
+  const change = (over: Partial<MemoryEvent> = {}, it: MemoryItem = granted) =>
+    event({ op: "update", policy_id: "engram/grant/change", item: it, ...over });
+  const judge = (e: MemoryEvent, prior: MemoryItem | undefined = before, held = false) =>
+    grantChangeProblem(TWIN, DANA, prior, e, held);
 
-  test("the owner's grant change event", () => {
-    const e = event({ op: "update", policy_id: "engram/grant/change", item: granted });
-    expect(grantChangePermitted(before, e)).toBe(true);
-    expect(grantChangePermitted(before, { ...e, actor: "person:sam" })).toBe(false);
+  test("the owner's grant change event, and no one else's", () => {
+    expect(judge(change())).toBeUndefined();
+    expect(judge(change({ actor: "person:sam" }))).toMatch(/other than its owner/);
   });
 
   test("the owner's own write, user or import sourced, and no other", () => {
     const write = (kind: MemoryItem["provenance"]["kind"], actor = "person:dana") =>
       event({ actor, item: { ...granted, provenance: { ...granted.provenance, kind } } });
-    expect(grantChangePermitted(before, write("user"))).toBe(true);
-    expect(grantChangePermitted(before, write("import"))).toBe(true);
-    expect(grantChangePermitted(before, write("model"))).toBe(false);
-    expect(grantChangePermitted(before, write("tool"))).toBe(false);
-    expect(grantChangePermitted(before, write("user", "person:lee"))).toBe(false);
+    expect(judge(write("user"))).toBeUndefined();
+    expect(judge(write("import"))).toBeUndefined();
+    expect(judge(write("model"))).toMatch(/recorded as model/);
+    expect(judge(write("tool"))).toMatch(/recorded as tool/);
+    expect(judge(write("user", "person:lee"))).toMatch(/other than its owner/);
   });
 
-  test("the owner is the prior version's, not the one the event names", () => {
+  test("the owner is the prior version's; a first write is judged as a write by its writer", () => {
     const stolen = event({ actor: "person:lee", item: { ...granted, owner: "person:lee" } });
-    expect(grantChangePermitted(before, stolen)).toBe(false);
-    // A first write is judged by the owner it names (ADR 0006).
-    expect(grantChangePermitted(undefined, stolen)).toBe(true);
+    expect(judge(stolen)).toMatch(/other than its owner/);
+    // A first write names its owner (ADR 0006), but the writer must be a member of the scope.
+    const lee: Actor = { id: "person:lee", level: "person", memberships: ["person:lee"] };
+    expect(grantChangeProblem(TWIN, lee, undefined, stolen, false)).toMatch(/forbids/);
+    expect(
+      grantChangeProblem(TWIN, DANA, undefined, event({ item: granted }), false),
+    ).toBeUndefined();
   });
 
-  test("any other operation that changes grants is not permitted", () => {
-    const handover = event({ op: "update", policy_id: "engram/offboard/handover", item: granted });
+  test("a handover or a promotion that widens is not permitted; one that narrows is", () => {
+    const handover = change({ policy_id: "engram/offboard/handover" });
     const promotion = event({
       op: "promote",
       policy_id: "profile.twin/promotion/review",
       item: granted,
     });
-    expect(grantChangePermitted(before, handover)).toBe(false);
-    expect(grantChangePermitted(before, promotion)).toBe(false);
+    expect(judge(handover)).toMatch(/update event/);
+    expect(judge(promotion)).toMatch(/promote event/);
+    // The plane's promotion of an episodic item: the new semantic version keeps an episodic grant, switched off.
+    const episodic = item({ class: "episodic", grants: [{ ...toSam, class: "episodic" }] });
+    const promoted = { ...episodic, id: id(2), class: "semantic" as const, lineage: [id(1)] };
+    const byReviewer = event({
+      op: "promote",
+      actor: "person:lee",
+      item_id: id(2),
+      item: promoted,
+    });
+    expect(grantsChanged(episodic, promoted)).toBe(true);
+    expect(grantsWiden(episodic, promoted)).toBe(false);
+    expect(grantChangeProblem(TWIN, DANA, episodic, byReviewer, false)).toBeUndefined();
+  });
+
+  test("what a grant change adds: the gate's grant rule, the item's class, unexpired, once", () => {
+    for (const g of [
+      { ...toSam, to: "person:*" },
+      { ...toSam, to: "*" },
+      { to: "person:sam", mode: "read" } as Grant,
+      { to: "person:sam", class: "semantic", mode: "read" } as Grant,
+    ])
+      expect(judge(change({}, item({ grants: [g] })))).toMatch(/gate refuses/);
+    expect(judge(change({}, item({ grants: [{ ...toSam, class: "episodic" }] })))).toMatch(
+      /another class/,
+    );
+    expect(
+      judge(change({}, item({ grants: [{ ...toSam, expires: "2026-11-01T00:00:00Z" }] }))),
+    ).toMatch(/expired/);
+    expect(judge(change({}, item({ grants: [toSam, toSam] })))).toMatch(/twice/);
+    expect(judge(change({}, item({ grants: [{ ...toSam, to: "person:sa*" }] })))).toBeUndefined();
+  });
+
+  test("no grant on untrusted content, or on an item that once held it", () => {
+    const model = { ...granted, provenance: { ...granted.provenance, kind: "model" as const } };
+    expect(judge(change({}, model), { ...before, provenance: model.provenance })).toMatch(
+      /model content/,
+    );
+    expect(judge(change(), before, true)).toMatch(/held untrusted/);
+    // A removal from such an item is not an addition.
+    expect(judge(change({}, item({ version: 3 })), granted, true)).toBeUndefined();
+  });
+
+  test("a grant change touches only an active item's grants and version", () => {
+    expect(judge(change(), { ...before, status: "retired" })).toMatch(/retired item/);
+    expect(grantChangeProblem(TWIN, DANA, undefined, change(), false)).toMatch(
+      /no allowed event left/,
+    );
+    expect(judge(change({}, { ...granted, content: "another fact" } as MemoryItem))).toMatch(
+      /more than grants/,
+    );
+  });
+
+  test("a class change keeps no grant of another class", () => {
+    const g = { ...toSam, class: "semantic" as const };
+    const reclassed = item({ class: "episodic", grants: [g], version: 3 });
+    expect(judge(event({ item: reclassed }), item({ grants: [g] }))).toMatch(
+      /across a class change/,
+    );
+  });
+});
+
+describe("grantsWiden and withinValidity", () => {
+  test("longer expiry, a new principal and a class change switching a grant on widen", () => {
+    const g = toSam;
+    expect(
+      grantsWiden(
+        item({ grants: [g] }),
+        item({ grants: [{ ...g, expires: "2027-01-01T00:00:00Z" }] }),
+      ),
+    ).toBe(true);
+    expect(
+      grantsWiden(
+        item({ grants: [g] }),
+        item({ grants: [{ ...g, expires: "2026-12-01T00:00:00Z" }] }),
+      ),
+    ).toBe(false);
+    expect(grantsWiden(item({ grants: [g] }), item({ grants: [g, toLee] }))).toBe(true);
+    expect(grantsWiden(item({ grants: [g] }), item())).toBe(false);
+    const dormant = { ...g, class: "episodic" as const };
+    expect(
+      grantsWiden(item({ grants: [dormant] }), item({ class: "episodic", grants: [dormant] })),
+    ).toBe(true);
+    expect(grantsWiden(item({ grants: [{ ...g, to: "person:sa*" }] }), item({ grants: [g] }))).toBe(
+      false,
+    );
+  });
+
+  test("valid_from <= at < valid_to", () => {
+    const it = item({ valid_from: "2026-11-01T00:00:00Z", valid_to: "2026-11-10T00:00:00Z" });
+    expect(withinValidity(it, "2026-10-31T23:59:59Z")).toBe(false);
+    expect(withinValidity(it, "2026-11-01T00:00:00Z")).toBe(true);
+    expect(withinValidity(it, "2026-11-09T23:59:59.999Z")).toBe(true);
+    expect(withinValidity(it, "2026-11-10T00:00:00Z")).toBe(false);
+    expect(withinValidity(item(), "2099-01-01T00:00:00Z")).toBe(true);
   });
 });
 
