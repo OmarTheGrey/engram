@@ -10,11 +10,12 @@
 // distill throws core's NotImplementedYet until its card lands, which
 // app.ts answers with 501 naming the card.
 import {
-  adoptStoreItems,
+  type Actor,
   currentItems,
   eventById,
   type MemoryItem,
   readCounts,
+  syncBeforeRead,
   visibleEvents,
 } from "@engram/core";
 import type { z } from "zod";
@@ -27,7 +28,11 @@ export interface RouteContext<Req> {
   workspace: Workspace;
   body: Req;
   params: Record<string, string>;
-  /** The call's time: the request's `at`, else the server's clock. */
+  /**
+   * The server's clock: the time of every call and its events' ts. A request
+   * names no time of its own (card RV5, finding RV-SRF-2); a read's `at` is
+   * only the time its validity windows are judged at.
+   */
   now: () => string;
 }
 
@@ -51,16 +56,27 @@ const route = <Req>(r: Route<Req>): Route => r as unknown as Route;
 
 const policyLabel = (w: Workspace) => `${w.policy.id} v${w.policy.version}`;
 
-/** The store owner's sweep and adoption before a read, as `engram read` has always run them. */
-async function syncStore(workspace: Workspace, at: string) {
+/**
+ * What runs before a read (core's syncBeforeRead, card RV5, finding
+ * RV-SRF-1): the store owner's sweep when the owner reads, at the server's
+ * clock, and the adoption of the store's own memories; core decides what the
+ * reader is shown, and the route only shapes it.
+ */
+async function syncStore(workspace: Workspace, reader: Actor, now: string) {
   const { store } = workspace;
   if (store === null) return null;
-  const owner = storeOwner(store.owner);
-  // Retention first (ADR 0025): the plane has no clock, so the surface sweeps;
-  // then the folder's own memories are adopted as its owner (decision D8).
-  const retention = await workspace.plane.retain(owner, store.scope, at);
-  const adoption = await adoptStoreItems(workspace.deps, owner, store.scope, at);
-  return { store: { name: store.name, root: store.root, scope: store.scope }, retention, adoption };
+  const { forReader } = await syncBeforeRead(workspace.plane, {
+    reader,
+    now,
+    store: { deps: workspace.deps, scope: store.scope, owner: storeOwner(store.owner) },
+  });
+  const [sweep] = forReader.sweeps;
+  if (sweep === undefined || forReader.adoption === null) return null;
+  return {
+    store: { name: store.name, root: store.root, scope: store.scope },
+    retention: sweep.report,
+    adoption: forReader.adoption,
+  };
 }
 
 export const ROUTES: readonly Route[] = [
@@ -73,7 +89,7 @@ export const ROUTES: readonly Route[] = [
     response: C.WriteResponse,
     errors: [400, 503],
     handler: ({ workspace, body, now }) =>
-      workspace.plane.write(body.actor, body.item as unknown as MemoryItem, body.at ?? now()),
+      workspace.plane.write(body.actor, body.item as unknown as MemoryItem, now()),
   }),
   route<z.infer<typeof C.WriteRequest>>({
     id: "checkWrite",
@@ -84,29 +100,28 @@ export const ROUTES: readonly Route[] = [
     response: C.CheckResponse,
     errors: [400],
     handler: ({ workspace, body, now }) =>
-      workspace.plane.checkWrite(body.actor, body.item as unknown as MemoryItem, body.at ?? now()),
+      workspace.plane.checkWrite(body.actor, body.item as unknown as MemoryItem, now()),
   }),
   route<z.infer<typeof C.ReadRequest>>({
     id: "read",
     method: "post",
     path: "/read",
     summary:
-      "Read through the plane as the actor: the store's owner sweeps and adopts first when the workspace has a store; every returned item is explained.",
+      "Read through the plane as the actor at the server's clock, validity windows at `at` when given: with a store, its owner's sweep when the owner reads and the adoption of its memories run first; every returned item is explained.",
     request: C.ReadRequest,
     response: C.ReadResponse,
     errors: [400],
     handler: async ({ workspace, body, now }) => {
-      const at = body.at ?? now();
-      const sync = await syncStore(workspace, at);
-      const result = await workspace.plane.read(body.actor, { text: body.text, at });
+      const at = now();
       // The sync report is the owner's own sweep and adoption (item ids,
-      // reasons, a content hash); only the owner gets it back (finding R3-3).
-      const owner = workspace.store === null ? null : storeOwner(workspace.store.owner).id;
-      return {
-        ...result,
-        sync: body.actor.id === owner ? sync : null,
-        policy: policyLabel(workspace),
-      };
+      // reasons, a content hash); core gives it to the owner only (R3-3).
+      const sync = await syncStore(workspace, body.actor, at);
+      const result = await workspace.plane.read(body.actor, {
+        text: body.text,
+        at,
+        ...(body.at === undefined ? {} : { valid_at: body.at }),
+      });
+      return { ...result, sync, policy: policyLabel(workspace) };
     },
   }),
   route<z.infer<typeof C.ExplainRequest>>({
@@ -135,7 +150,7 @@ export const ROUTES: readonly Route[] = [
     response: C.GateResponse,
     errors: [400, 503],
     handler: ({ workspace, body, now }) =>
-      workspace.plane.promote(body.actor, body.item_id, body.to, body.at ?? now(), {
+      workspace.plane.promote(body.actor, body.item_id, body.to, now(), {
         review: body.review === true,
       }),
   }),
@@ -153,7 +168,7 @@ export const ROUTES: readonly Route[] = [
         body.actor,
         body.item_id,
         { add: body.add, remove: body.remove },
-        body.at ?? now(),
+        now(),
       ),
   }),
   route<z.infer<typeof C.RetainRequest>>({
@@ -164,8 +179,7 @@ export const ROUTES: readonly Route[] = [
     request: C.RetainRequest,
     response: C.RetentionReport,
     errors: [400],
-    handler: ({ workspace, body, now }) =>
-      workspace.plane.retain(body.actor, body.scope, body.at ?? now()),
+    handler: ({ workspace, body, now }) => workspace.plane.retain(body.actor, body.scope, now()),
   }),
   route<z.infer<typeof C.EventsRequest>>({
     id: "events",
@@ -182,7 +196,7 @@ export const ROUTES: readonly Route[] = [
       const items = new Map(currentItems(workspace.deps.db).map((i) => [i.id, i]));
       const view = {
         policy: workspace.policy,
-        at: body.at ?? now(),
+        at: now(),
         current: (id: string) => items.get(id),
       };
       return { events: visibleEvents(body.actor, events, view) };
@@ -206,8 +220,7 @@ export const ROUTES: readonly Route[] = [
     request: C.LintRequest,
     response: C.LintResponse,
     errors: [400],
-    handler: ({ workspace, body, now }) =>
-      workspace.plane.lint(body.actor, body.at ?? now(), body.scope),
+    handler: ({ workspace, body, now }) => workspace.plane.lint(body.actor, now(), body.scope),
   }),
   route<z.infer<typeof C.SimulateRequest>>({
     id: "simulate",
@@ -245,7 +258,7 @@ export const ROUTES: readonly Route[] = [
     response: C.EventResponse,
     errors: [400],
     handler: async ({ workspace, body, now }) => ({
-      event: await workspace.plane.recordBypass(body.actor, body.bypass, body.at ?? now()),
+      event: await workspace.plane.recordBypass(body.actor, body.bypass, now()),
     }),
   }),
   route({
