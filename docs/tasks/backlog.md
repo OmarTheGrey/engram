@@ -92,6 +92,15 @@ Found by the review of PR #46; they need the lead or card L4, not more of L2.
 | H3's deterministic claim | on the seeded-fault set, deterministic recall and precision hold by construction; the lead decides whether H3 measures deterministic precision on natural memory through the audit sample and keeps seeded recall as a regression check, before the tag | `docs/log/2026-11-19-l2-review-finding-h3-wording.md` |
 | B5's assistant model | B5's `turnItem` writes assistant turns with no model, which L1's missing-provenance lint flags; the lead decides for B6 and X10 whether B5 names the model or C6 leaves missing-provenance out on LongMemEval | `docs/log/2026-11-19-l2-review-finding-b5-assistant-model.md` |
 
+## Follow-ups from card L4's review (2026-11-19)
+
+Found by the review of PR #49; they need card L2 or the lead, not more of L4.
+
+| item | what is left | where it is recorded |
+|---|---|---|
+| Injected sentences' openers | the generator's injected sentences open with phrases LongMemEval's own turns lack ("For the record, my ...", "As it stands, my ...", "These days my ..."), so a model or a reader can tell injected items from base ones; card L2 decides whether the pools should drop or vary them (a generator change re-records the set, its hashes and L4's floor) | `docs/log/2026-11-19-l4-review-finding-l2-injected-openers.md` |
+| H3's live lint run size | the full set costs 95,217 model calls, 26,739 of each seed's 28,739 contradiction calls on no label; a subset departs from H3's stopping rule and needs an amendment, and the runner has no seeded sampler of questions; the lead decides | `docs/log/2026-11-19-l4-review-finding-live-count.md` |
+
 ## Follow-ups from card E9.4 (2026-11-19)
 
 Found by the work on card E9.4 and the review of PR #44, and left open on purpose.

@@ -1,0 +1,7 @@
+{
+  "name": "h3-lint-delta-fixture",
+  "kind": "pipeline",
+  "hypothesis": "H3",
+  "runner_config": "research/configs/h3-lint-model-fixture.json",
+  "model": null
+}

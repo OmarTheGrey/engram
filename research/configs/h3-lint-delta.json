@@ -1,0 +1,8 @@
+{
+  "name": "h3-lint-delta",
+  "kind": "measurement",
+  "hypothesis": "H3",
+  "runner_config": "research/configs/h3-lint-model.json",
+  "model": null,
+  "fault_set_result": "research/results/h3-fault-set.json"
+}

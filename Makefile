@@ -8,7 +8,7 @@ SHELL := bash
 PNPM ?= pnpm
 UV ?= uv
 
-.PHONY: help test test-invariants test-one test-e2e test-repro lint lint-docs api api-check ui bench run h1-table l3-variance fixtures fault-workspace thesis engram
+.PHONY: help test test-invariants test-one test-e2e test-repro lint lint-docs api api-check ui bench run h1-table l3-variance h3-lint-delta fixtures fault-workspace thesis engram
 
 help: ## list targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | sed -E 's/:.*## /\t/' | expand -t 16
@@ -102,6 +102,9 @@ h1-table: ## after H1's two live runs (make run CONFIG=research/configs/h1-gatem
 l3-variance: ## after the L3 pilot's live run (make run CONFIG=research/configs/l3-pilot.json MODEL=<provider/model> LIVE=1) and its model named in research/configs/l3-variance.json: the model-based lints' spread across seeds 1 to 3 (outcomes, item precision and recall, unit agreement), replayed offline from that run's cassettes, into research/results/l3-variance.json; FIXTURE=1 runs it on the scripted fixture run (research/configs/l3-variance-fixture.json) into .engram/l3-variance-fixture.json, not a result
 	$(UV) run python research/scripts/l3_variance.py $(if $(filter 1,$(FIXTURE)),--config research/configs/l3-variance-fixture.json --out .engram/l3-variance-fixture.json,--config research/configs/l3-variance.json --out research/results/l3-variance.json)
 
+h3-lint-delta: ## after H3's live model-lint run (make run CONFIG=research/configs/h3-lint-model.json MODEL=<provider/model> LIVE=1) and its model named in research/configs/h3-lint-delta.json: what card L3's model lints add to the deterministic floor per class, keyed and unkeyed apart, per seed and across seeds, replayed offline from that run's cassettes, into research/results/h3-lint-delta.json; FIXTURE=1 runs it on the scripted fixture run (research/configs/h3-lint-delta-fixture.json) into .engram/h3-lint-delta-fixture.json, not a result
+	$(UV) run python research/scripts/h3_lint_delta.py $(if $(filter 1,$(FIXTURE)),--config research/configs/h3-lint-delta-fixture.json --out .engram/h3-lint-delta-fixture.json,--config research/configs/h3-lint-delta.json --out research/results/h3-lint-delta.json)
+
 # Runner configs whose cassettes are fixtures, recorded from their scripted model by `make fixtures`.
 RUNNER_FIXTURES := rn1-gatemem-probe
 RUNNER_FIXTURES += b3-gatemem-plane
@@ -111,6 +114,7 @@ RUNNER_FIXTURES += x1-h1-gatemem-rag
 RUNNER_FIXTURES += x1-h1-mem-inv
 RUNNER_FIXTURES += b5-longmemeval-plane
 RUNNER_FIXTURES += l3-lint-fixture
+RUNNER_FIXTURES += h3-lint-model-fixture
 
 # MEM-INV-Bench at its pinned commit (card B4); the vendoring clones it here when missing.
 MEM_INV_UPSTREAM ?= .engram/upstream/mem-inv-bench
@@ -127,6 +131,7 @@ fixtures: ## regenerate golden files and scripted cassettes; refuses without MSG
 	$(UV) run python -I packages/bench/scripts/upstream-mem-inv-golden.py --upstream "$(MEM_INV_UPSTREAM)" --fixtures fixtures/bench/mem-inv-bench --out fixtures/bench/mem-inv-bench/upstream-golden.json
 	env -u ENGRAM_OFFLINE node packages/bench/scripts/vendor-longmemeval.ts --upstream "$(LONGMEMEVAL_UPSTREAM)" --fetch --out fixtures/bench/longmemeval
 	node packages/bench/scripts/fault-set.ts --data fixtures/bench/longmemeval/questions.jsonl --config research/configs/h3-fault-set.json --out fixtures/fault-sets/longmemeval
+	node packages/runner/scripts/fault-set-script.ts --config research/configs/h3-lint-model-fixture.json --out fixtures/lint/h3-lint-model-script.json
 	for name in $(RUNNER_FIXTURES); do \
 	  rm -rf "fixtures/cassettes/$$name"; \
 	  env -u ENGRAM_OFFLINE node packages/runner/scripts/run.ts --config "research/configs/$$name.json" --out ".engram/runs/$$name" --record; \

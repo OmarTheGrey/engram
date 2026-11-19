@@ -1,0 +1,2505 @@
+{
+  "_comment": "Card L4's scripted lint model, written by packages/runner/scripts/fault-set-script.ts from the fixture set's labels (make fixtures); its planted answers are listed there.",
+  "replies": [
+    {
+      "input": {
+        "A": "For the record, my dry cleaner is Bluebell Cleaners.",
+        "B": "For the record, my cat's name is Biscuit."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"contradiction\",\"reason\":\"Planted false finding.\"}"
+    },
+    {
+      "input": {
+        "A": "For the record, my dry cleaner is Bluebell Cleaners.",
+        "B": "For the record, my cat's name is Biscuit."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "For the record, my dry cleaner is Bluebell Cleaners.",
+        "B": "As it stands, my cat's name is Juniper."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "For the record, my dry cleaner is Bluebell Cleaners.",
+        "B": "As it stands, my cat's name is Juniper."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "For the record, my dry cleaner is Bluebell Cleaners.",
+        "B": "The user said: \"Here's a start - I've bought gifts for my sister's birthday, my mom, my neighbor Mrs.\""
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "For the record, my dry cleaner is Bluebell Cleaners.",
+        "B": "The user said: \"Here's a start - I've bought gifts for my sister's birthday, my mom, my neighbor Mrs.\""
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "For the record, my dry cleaner is Bluebell Cleaners.",
+        "B": "The user says their vet is Dr. Kowalski."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "For the record, my dry cleaner is Bluebell Cleaners.",
+        "B": "The user says their vet is Dr. Kowalski."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "For the record, my dry cleaner is Bluebell Cleaners.",
+        "B": "My chess club night is Wednesday."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "For the record, my dry cleaner is Bluebell Cleaners.",
+        "B": "My chess club night is Wednesday."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "For the record, my dry cleaner is Bluebell Cleaners.",
+        "B": "Just so you know, my Spanish tutor is Mateo."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "For the record, my dry cleaner is Bluebell Cleaners.",
+        "B": "Just so you know, my Spanish tutor is Mateo."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "For the record, my dry cleaner is Bluebell Cleaners.",
+        "B": "My dry cleaner is Pressed Perfect at the moment."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Two states at different times.\"}"
+    },
+    {
+      "input": {
+        "A": "For the record, my dry cleaner is Bluebell Cleaners.",
+        "B": "My dry cleaner is Pressed Perfect at the moment."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"contradiction\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "For the record, my dry cleaner is Bluebell Cleaners.",
+        "B": "To be clear, my chess club night is Wednesday."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "For the record, my dry cleaner is Bluebell Cleaners.",
+        "B": "To be clear, my chess club night is Wednesday."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "For the record, my dry cleaner is Bluebell Cleaners.",
+        "B": "According to the user, their streaming service is ViewPort."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "For the record, my dry cleaner is Bluebell Cleaners.",
+        "B": "According to the user, their streaming service is ViewPort."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "For the record, my cat's name is Biscuit.",
+        "B": "As it stands, my cat's name is Juniper."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"contradiction\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "For the record, my cat's name is Biscuit.",
+        "B": "As it stands, my cat's name is Juniper."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"contradiction\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "For the record, my cat's name is Biscuit.",
+        "B": "The user said: \"Here's a start - I've bought gifts for my sister's birthday, my mom, my neighbor Mrs.\""
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "For the record, my cat's name is Biscuit.",
+        "B": "The user said: \"Here's a start - I've bought gifts for my sister's birthday, my mom, my neighbor Mrs.\""
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "For the record, my cat's name is Biscuit.",
+        "B": "The user said: \"For my sister's birthday, I got her a yellow dress and a pair of earrings to match.\""
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "For the record, my cat's name is Biscuit.",
+        "B": "The user said: \"For my sister's birthday, I got her a yellow dress and a pair of earrings to match.\""
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "For the record, my cat's name is Biscuit.",
+        "B": "My chess club night is Wednesday."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "For the record, my cat's name is Biscuit.",
+        "B": "My chess club night is Wednesday."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "For the record, my cat's name is Biscuit.",
+        "B": "My dry cleaner is Pressed Perfect at the moment."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "For the record, my cat's name is Biscuit.",
+        "B": "My dry cleaner is Pressed Perfect at the moment."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "For the record, my cat's name is Biscuit.",
+        "B": "According to the user, their streaming service is ViewPort."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "For the record, my cat's name is Biscuit.",
+        "B": "According to the user, their streaming service is ViewPort."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "As it stands, my cat's name is Juniper.",
+        "B": "My chess club night is Wednesday."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "As it stands, my cat's name is Juniper.",
+        "B": "My chess club night is Wednesday."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "As it stands, my cat's name is Juniper.",
+        "B": "Just so you know, my Spanish tutor is Mateo."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "As it stands, my cat's name is Juniper.",
+        "B": "Just so you know, my Spanish tutor is Mateo."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "As it stands, my cat's name is Juniper.",
+        "B": "My dry cleaner is Pressed Perfect at the moment."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "As it stands, my cat's name is Juniper.",
+        "B": "My dry cleaner is Pressed Perfect at the moment."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "As it stands, my cat's name is Juniper.",
+        "B": "To be clear, my chess club night is Wednesday."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "As it stands, my cat's name is Juniper.",
+        "B": "To be clear, my chess club night is Wednesday."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "The user said: \"Here's a start - I've bought gifts for my sister's birthday, my mom, my neighbor Mrs.\"",
+        "B": "The user said: \"For my sister's birthday, I got her a yellow dress and a pair of earrings to match.\""
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "The user said: \"Here's a start - I've bought gifts for my sister's birthday, my mom, my neighbor Mrs.\"",
+        "B": "The user said: \"For my sister's birthday, I got her a yellow dress and a pair of earrings to match.\""
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "The user said: \"Here's a start - I've bought gifts for my sister's birthday, my mom, my neighbor Mrs.\"",
+        "B": "The user said: \"I got her a pair of silver hoop earrings with a small pearl in the center.\""
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "The user said: \"Here's a start - I've bought gifts for my sister's birthday, my mom, my neighbor Mrs.\"",
+        "B": "The user said: \"I got her a pair of silver hoop earrings with a small pearl in the center.\""
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "The user said: \"Here's a start - I've bought gifts for my sister's birthday, my mom, my neighbor Mrs.\"",
+        "B": "The user said: \"I got her some groceries and flowers when she was recovering from surgery.\""
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "The user said: \"Here's a start - I've bought gifts for my sister's birthday, my mom, my neighbor Mrs.\"",
+        "B": "The user said: \"I got her some groceries and flowers when she was recovering from surgery.\""
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "The user says their vet is Dr. Kowalski.",
+        "B": "According to the user, their yoga studio is Sun Salute Collective."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "The user says their vet is Dr. Kowalski.",
+        "B": "According to the user, their yoga studio is Sun Salute Collective."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "The user says their vet is Dr. Kowalski.",
+        "B": "The user said: \"I got her a pair of silver hoop earrings with a small pearl in the center.\""
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "The user says their vet is Dr. Kowalski.",
+        "B": "The user said: \"I got her a pair of silver hoop earrings with a small pearl in the center.\""
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "The user says their vet is Dr. Kowalski.",
+        "B": "According to the user, their barber is Marco at The Chair."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "The user says their vet is Dr. Kowalski.",
+        "B": "According to the user, their barber is Marco at The Chair."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "The user says their vet is Dr. Kowalski.",
+        "B": "The user said: \"I got her some groceries and flowers when she was recovering from surgery.\""
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "The user says their vet is Dr. Kowalski.",
+        "B": "The user said: \"I got her some groceries and flowers when she was recovering from surgery.\""
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "The user says their vet is Dr. Kowalski.",
+        "B": "My dry cleaner is Pressed Perfect at the moment."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "The user says their vet is Dr. Kowalski.",
+        "B": "My dry cleaner is Pressed Perfect at the moment."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "The user says their vet is Dr. Kowalski.",
+        "B": "According to the user, their streaming service is ViewPort."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "The user says their vet is Dr. Kowalski.",
+        "B": "According to the user, their streaming service is ViewPort."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "According to the user, their yoga studio is Sun Salute Collective.",
+        "B": "According to the user, their barber is Marco at The Chair."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "According to the user, their yoga studio is Sun Salute Collective.",
+        "B": "According to the user, their barber is Marco at The Chair."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "According to the user, their yoga studio is Sun Salute Collective.",
+        "B": "My dry cleaner is Pressed Perfect at the moment."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "According to the user, their yoga studio is Sun Salute Collective.",
+        "B": "My dry cleaner is Pressed Perfect at the moment."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "According to the user, their yoga studio is Sun Salute Collective.",
+        "B": "To be clear, my chess club night is Wednesday."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "According to the user, their yoga studio is Sun Salute Collective.",
+        "B": "To be clear, my chess club night is Wednesday."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "According to the user, their yoga studio is Sun Salute Collective.",
+        "B": "According to the user, their streaming service is ViewPort."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "According to the user, their yoga studio is Sun Salute Collective.",
+        "B": "According to the user, their streaming service is ViewPort."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "The user said: \"For my sister's birthday, I got her a yellow dress and a pair of earrings to match.\"",
+        "B": "The user said: \"I got her a pair of silver hoop earrings with a small pearl in the center.\""
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "The user said: \"For my sister's birthday, I got her a yellow dress and a pair of earrings to match.\"",
+        "B": "The user said: \"I got her a pair of silver hoop earrings with a small pearl in the center.\""
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "The user said: \"For my sister's birthday, I got her a yellow dress and a pair of earrings to match.\"",
+        "B": "The user said: \"I got her some groceries and flowers when she was recovering from surgery.\""
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "The user said: \"For my sister's birthday, I got her a yellow dress and a pair of earrings to match.\"",
+        "B": "The user said: \"I got her some groceries and flowers when she was recovering from surgery.\""
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "The user said: \"For my sister's birthday, I got her a yellow dress and a pair of earrings to match.\"",
+        "B": "According to the user, their streaming service is ViewPort."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "The user said: \"For my sister's birthday, I got her a yellow dress and a pair of earrings to match.\"",
+        "B": "According to the user, their streaming service is ViewPort."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "My chess club night is Wednesday.",
+        "B": "Just so you know, my go-to pizza place is Forno Rosso."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "My chess club night is Wednesday.",
+        "B": "Just so you know, my go-to pizza place is Forno Rosso."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "My chess club night is Wednesday.",
+        "B": "Right now my go-to pizza place is Forno Rosso."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "My chess club night is Wednesday.",
+        "B": "Right now my go-to pizza place is Forno Rosso."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "My chess club night is Wednesday.",
+        "B": "Just so you know, my Spanish tutor is Mateo."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "My chess club night is Wednesday.",
+        "B": "Just so you know, my Spanish tutor is Mateo."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "My chess club night is Wednesday.",
+        "B": "My dry cleaner is Pressed Perfect at the moment."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "My chess club night is Wednesday.",
+        "B": "My dry cleaner is Pressed Perfect at the moment."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "My chess club night is Wednesday.",
+        "B": "To be clear, my chess club night is Wednesday."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "My chess club night is Wednesday.",
+        "B": "To be clear, my chess club night is Wednesday."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "Just so you know, my go-to pizza place is Forno Rosso.",
+        "B": "Right now my go-to pizza place is Forno Rosso."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "Just so you know, my go-to pizza place is Forno Rosso.",
+        "B": "Right now my go-to pizza place is Forno Rosso."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"contradiction\",\"reason\":\"Planted false finding.\"}"
+    },
+    {
+      "input": {
+        "A": "Just so you know, my go-to pizza place is Forno Rosso.",
+        "B": "Just so you know, my Spanish tutor is Mateo."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "Just so you know, my go-to pizza place is Forno Rosso.",
+        "B": "Just so you know, my Spanish tutor is Mateo."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "Just so you know, my go-to pizza place is Forno Rosso.",
+        "B": "My dry cleaner is Pressed Perfect at the moment."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "Just so you know, my go-to pizza place is Forno Rosso.",
+        "B": "My dry cleaner is Pressed Perfect at the moment."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "Just so you know, my go-to pizza place is Forno Rosso.",
+        "B": "To be clear, my chess club night is Wednesday."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "Just so you know, my go-to pizza place is Forno Rosso.",
+        "B": "To be clear, my chess club night is Wednesday."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "Right now my go-to pizza place is Forno Rosso.",
+        "B": "Just so you know, my Spanish tutor is Mateo."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "Right now my go-to pizza place is Forno Rosso.",
+        "B": "Just so you know, my Spanish tutor is Mateo."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "Right now my go-to pizza place is Forno Rosso.",
+        "B": "My dry cleaner is Pressed Perfect at the moment."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "Right now my go-to pizza place is Forno Rosso.",
+        "B": "My dry cleaner is Pressed Perfect at the moment."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "Right now my go-to pizza place is Forno Rosso.",
+        "B": "To be clear, my chess club night is Wednesday."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "Right now my go-to pizza place is Forno Rosso.",
+        "B": "To be clear, my chess club night is Wednesday."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "The user said: \"I got her a pair of silver hoop earrings with a small pearl in the center.\"",
+        "B": "The user said: \"I got her some groceries and flowers when she was recovering from surgery.\""
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "The user said: \"I got her a pair of silver hoop earrings with a small pearl in the center.\"",
+        "B": "The user said: \"I got her some groceries and flowers when she was recovering from surgery.\""
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "The user said: \"I got her a pair of silver hoop earrings with a small pearl in the center.\"",
+        "B": "According to the user, their streaming service is ViewPort."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "The user said: \"I got her a pair of silver hoop earrings with a small pearl in the center.\"",
+        "B": "According to the user, their streaming service is ViewPort."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "According to the user, their barber is Marco at The Chair.",
+        "B": "My dry cleaner is Pressed Perfect at the moment."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "According to the user, their barber is Marco at The Chair.",
+        "B": "My dry cleaner is Pressed Perfect at the moment."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "According to the user, their barber is Marco at The Chair.",
+        "B": "To be clear, my chess club night is Wednesday."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "According to the user, their barber is Marco at The Chair.",
+        "B": "To be clear, my chess club night is Wednesday."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "According to the user, their barber is Marco at The Chair.",
+        "B": "According to the user, their streaming service is ViewPort."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "According to the user, their barber is Marco at The Chair.",
+        "B": "According to the user, their streaming service is ViewPort."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "The user said: \"I got her some groceries and flowers when she was recovering from surgery.\"",
+        "B": "According to the user, their streaming service is ViewPort."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "The user said: \"I got her some groceries and flowers when she was recovering from surgery.\"",
+        "B": "According to the user, their streaming service is ViewPort."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "Just so you know, my Spanish tutor is Mateo.",
+        "B": "My dry cleaner is Pressed Perfect at the moment."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "Just so you know, my Spanish tutor is Mateo.",
+        "B": "My dry cleaner is Pressed Perfect at the moment."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "Just so you know, my Spanish tutor is Mateo.",
+        "B": "To be clear, my chess club night is Wednesday."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "Just so you know, my Spanish tutor is Mateo.",
+        "B": "To be clear, my chess club night is Wednesday."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "To be clear, my chess club night is Wednesday.",
+        "B": "According to the user, their streaming service is ViewPort."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "To be clear, my chess club night is Wednesday.",
+        "B": "According to the user, their streaming service is ViewPort."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "claim": "The user said: \"Here's a start - I've bought gifts for my sister's birthday, my mom, my neighbor Mrs.\"",
+        "source": "Here's a start - I've bought gifts for my sister's birthday, my mom, my neighbor Mrs. Johnson, coworkers, my best friend's baby shower, and my brother's new apartment."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"supported\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "claim": "The user said: \"Here's a start - I've bought gifts for my sister's birthday, my mom, my neighbor Mrs.\"",
+        "source": "Here's a start - I've bought gifts for my sister's birthday, my mom, my neighbor Mrs. Johnson, coworkers, my best friend's baby shower, and my brother's new apartment."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": ""
+    },
+    {
+      "input": {
+        "claim": "The user says their vet is Dr. Kowalski.",
+        "source": "By the way, my locker number is 318."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"unsupported\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "claim": "The user says their vet is Dr. Kowalski.",
+        "source": "By the way, my locker number is 318."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"supported\",\"reason\":\"Planted miss.\"}"
+    },
+    {
+      "input": {
+        "claim": "The user said: \"For my sister's birthday, I got her a yellow dress and a pair of earrings to match.\"",
+        "source": "For my sister's birthday, I got her a yellow dress and a pair of earrings to match."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"supported\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "claim": "The user said: \"For my sister's birthday, I got her a yellow dress and a pair of earrings to match.\"",
+        "source": "For my sister's birthday, I got her a yellow dress and a pair of earrings to match."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"supported\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "claim": "According to the user, their barber is Marco at The Chair.",
+        "source": "By the way, my barber is Marco at The Chair."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"supported\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "claim": "According to the user, their barber is Marco at The Chair.",
+        "source": "By the way, my barber is Marco at The Chair."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"supported\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "claim": "The user said: \"I got her some groceries and flowers when she was recovering from surgery.\"",
+        "source": "I  got her some groceries and flowers when she was recovering from surgery.\nassistant:That's very thoughtful of you!\n\nHere's the updated list:\n\n**Sister's Birthday**\n\n* Occasion: Sister's birthday\n* Gift(s):\n\t+ Yellow dress\n\t+ Pair of earrings (matching the dress)\n\n**Gift for Mom**\n\n* Occasion: Just because/No specific occasion\n* Gift(s):\n\t+ Pair of silver hoop earrings with a small pearl in the center\n\n**Gift for Mrs. Johnson**\n\n* Occasion: Recovery from surgery\n* Gift(s):\n\t+ Groceries\n\t+ Flowers\n\nLet's move on to the coworkers.\n\n**Coworkers**\n\n* Occasion: _______________________________________ (was it a holiday, team-building, or another reason?)\n* Gift(s): _______________________________________ (what did you get them? e.g., individual gifts or a group gift?)\n\nWhat's the occasion and gift for your coworkers?"
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"supported\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "claim": "The user said: \"I got her some groceries and flowers when she was recovering from surgery.\"",
+        "source": "I  got her some groceries and flowers when she was recovering from surgery.\nassistant:That's very thoughtful of you!\n\nHere's the updated list:\n\n**Sister's Birthday**\n\n* Occasion: Sister's birthday\n* Gift(s):\n\t+ Yellow dress\n\t+ Pair of earrings (matching the dress)\n\n**Gift for Mom**\n\n* Occasion: Just because/No specific occasion\n* Gift(s):\n\t+ Pair of silver hoop earrings with a small pearl in the center\n\n**Gift for Mrs. Johnson**\n\n* Occasion: Recovery from surgery\n* Gift(s):\n\t+ Groceries\n\t+ Flowers\n\nLet's move on to the coworkers.\n\n**Coworkers**\n\n* Occasion: _______________________________________ (was it a holiday, team-building, or another reason?)\n* Gift(s): _______________________________________ (what did you get them? e.g., individual gifts or a group gift?)\n\nWhat's the occasion and gift for your coworkers?"
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"supported\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "claim": "According to the user, their streaming service is ViewPort.",
+        "source": "Side note: my streaming service is ViewPort."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"supported\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "claim": "According to the user, their streaming service is ViewPort.",
+        "source": "Side note: my streaming service is ViewPort."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"supported\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "My favourite wine is a Malbec.",
+        "B": "At work, our team chat channel is #team-orion."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "My favourite wine is a Malbec.",
+        "B": "At work, our team chat channel is #team-orion."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "My favourite wine is a Malbec.",
+        "B": "At work, our deploy window is 09:00 to 11:00."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "My favourite wine is a Malbec.",
+        "B": "At work, our deploy window is 09:00 to 11:00."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "At work, our team chat channel is #team-orion.",
+        "B": "At work, our deploy window is 09:00 to 11:00."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "At work, our team chat channel is #team-orion.",
+        "B": "At work, our deploy window is 09:00 to 11:00."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "Just so you know, my favourite coffee shop is Morning Ritual.",
+        "B": "For the record, my favourite wine is a Chenin Blanc."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "Just so you know, my favourite coffee shop is Morning Ritual.",
+        "B": "For the record, my favourite wine is a Chenin Blanc."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "Just so you know, my favourite coffee shop is Morning Ritual.",
+        "B": "As it stands, my favourite coffee shop is Morning Ritual."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "Just so you know, my favourite coffee shop is Morning Ritual.",
+        "B": "As it stands, my favourite coffee shop is Morning Ritual."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "Just so you know, my favourite coffee shop is Morning Ritual.",
+        "B": "Just so you know, my favourite podcast is The Long Table."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "Just so you know, my favourite coffee shop is Morning Ritual.",
+        "B": "Just so you know, my favourite podcast is The Long Table."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "Just so you know, my favourite coffee shop is Morning Ritual.",
+        "B": "My favourite podcast is The Long Table at the moment."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "Just so you know, my favourite coffee shop is Morning Ritual.",
+        "B": "My favourite podcast is The Long Table at the moment."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "Just so you know, my favourite coffee shop is Morning Ritual.",
+        "B": "Just so you know, my dentist is Dr. Alvarez."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "Just so you know, my favourite coffee shop is Morning Ritual.",
+        "B": "Just so you know, my dentist is Dr. Alvarez."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "The user said: \"I need help organizing my contacts.\"",
+        "B": "The user said: \"I'll start filling out the template.\""
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "The user said: \"I need help organizing my contacts.\"",
+        "B": "The user said: \"I'll start filling out the template.\""
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "The user said: \"I need help organizing my contacts.\"",
+        "B": "According to the user, their internet provider is NetWave."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "The user said: \"I need help organizing my contacts.\"",
+        "B": "According to the user, their internet provider is NetWave."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "The user said: \"I need help organizing my contacts.\"",
+        "B": "The user said: \"She's into indie music, and we talked about some new bands to check out.\""
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "The user said: \"I need help organizing my contacts.\"",
+        "B": "The user said: \"She's into indie music, and we talked about some new bands to check out.\""
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "The user said: \"I need help organizing my contacts.\"",
+        "B": "The user's climbing partner is Tomas."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "The user said: \"I need help organizing my contacts.\"",
+        "B": "The user's climbing partner is Tomas."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "The user said: \"I need help organizing my contacts.\"",
+        "B": "My dentist is Dr. Okafor at the moment."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "The user said: \"I need help organizing my contacts.\"",
+        "B": "My dentist is Dr. Okafor at the moment."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "The user said: \"I need help organizing my contacts.\"",
+        "B": "The user said: \"Alex and I talked about our jobs and commutes, and he recommended some podcasts to listen to.\""
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "The user said: \"I need help organizing my contacts.\"",
+        "B": "The user said: \"Alex and I talked about our jobs and commutes, and he recommended some podcasts to listen to.\""
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "For the record, my favourite wine is a Chenin Blanc.",
+        "B": "The user's favourite sushi place is Umi Bar, most of the time."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "For the record, my favourite wine is a Chenin Blanc.",
+        "B": "The user's favourite sushi place is Umi Bar, most of the time."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "For the record, my favourite wine is a Chenin Blanc.",
+        "B": "As it stands, my favourite coffee shop is Morning Ritual."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "For the record, my favourite wine is a Chenin Blanc.",
+        "B": "As it stands, my favourite coffee shop is Morning Ritual."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "For the record, my favourite wine is a Chenin Blanc.",
+        "B": "Just so you know, my favourite podcast is The Long Table."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "For the record, my favourite wine is a Chenin Blanc.",
+        "B": "Just so you know, my favourite podcast is The Long Table."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "For the record, my favourite wine is a Chenin Blanc.",
+        "B": "My favourite podcast is The Long Table at the moment."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "For the record, my favourite wine is a Chenin Blanc.",
+        "B": "My favourite podcast is The Long Table at the moment."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "For the record, my favourite wine is a Chenin Blanc.",
+        "B": "My dentist is Dr. Okafor at the moment."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "For the record, my favourite wine is a Chenin Blanc.",
+        "B": "My dentist is Dr. Okafor at the moment."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "For the record, my favourite wine is a Chenin Blanc.",
+        "B": "My dry cleaner is Crisp Cleaners."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "For the record, my favourite wine is a Chenin Blanc.",
+        "B": "My dry cleaner is Crisp Cleaners."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "The user's favourite sushi place is Umi Bar, most of the time.",
+        "B": "According to the user, their internet provider is NetWave."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "The user's favourite sushi place is Umi Bar, most of the time.",
+        "B": "According to the user, their internet provider is NetWave."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "The user's favourite sushi place is Umi Bar, most of the time.",
+        "B": "My favourite podcast is The Long Table at the moment."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "The user's favourite sushi place is Umi Bar, most of the time.",
+        "B": "My favourite podcast is The Long Table at the moment."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "The user's favourite sushi place is Umi Bar, most of the time.",
+        "B": "The user's climbing partner is Tomas."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "The user's favourite sushi place is Umi Bar, most of the time.",
+        "B": "The user's climbing partner is Tomas."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "The user's favourite sushi place is Umi Bar, most of the time.",
+        "B": "According to the user, their florist is Petal and Stem."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "The user's favourite sushi place is Umi Bar, most of the time.",
+        "B": "According to the user, their florist is Petal and Stem."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "The user said: \"I'll start filling out the template.\"",
+        "B": "According to the user, their internet provider is NetWave."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "The user said: \"I'll start filling out the template.\"",
+        "B": "According to the user, their internet provider is NetWave."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "The user said: \"I'll start filling out the template.\"",
+        "B": "The user said: \"She's into indie music, and we talked about some new bands to check out.\""
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "The user said: \"I'll start filling out the template.\"",
+        "B": "The user said: \"She's into indie music, and we talked about some new bands to check out.\""
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "The user said: \"I'll start filling out the template.\"",
+        "B": "The user's climbing partner is Tomas."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "The user said: \"I'll start filling out the template.\"",
+        "B": "The user's climbing partner is Tomas."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "The user said: \"I'll start filling out the template.\"",
+        "B": "The user said: \"Alex and I talked about our jobs and commutes, and he recommended some podcasts to listen to.\""
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "The user said: \"I'll start filling out the template.\"",
+        "B": "The user said: \"Alex and I talked about our jobs and commutes, and he recommended some podcasts to listen to.\""
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "As it stands, my favourite coffee shop is Morning Ritual.",
+        "B": "Just so you know, my favourite podcast is The Long Table."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "As it stands, my favourite coffee shop is Morning Ritual.",
+        "B": "Just so you know, my favourite podcast is The Long Table."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "As it stands, my favourite coffee shop is Morning Ritual.",
+        "B": "My favourite podcast is The Long Table at the moment."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "As it stands, my favourite coffee shop is Morning Ritual.",
+        "B": "My favourite podcast is The Long Table at the moment."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "As it stands, my favourite coffee shop is Morning Ritual.",
+        "B": "My dry cleaner is Crisp Cleaners."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "As it stands, my favourite coffee shop is Morning Ritual.",
+        "B": "My dry cleaner is Crisp Cleaners."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "According to the user, their internet provider is NetWave.",
+        "B": "The user's climbing partner is Tomas."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "According to the user, their internet provider is NetWave.",
+        "B": "The user's climbing partner is Tomas."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "According to the user, their internet provider is NetWave.",
+        "B": "According to the user, their florist is Petal and Stem."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "According to the user, their internet provider is NetWave.",
+        "B": "According to the user, their florist is Petal and Stem."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "According to the user, their internet provider is NetWave.",
+        "B": "My dentist is Dr. Okafor at the moment."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "According to the user, their internet provider is NetWave.",
+        "B": "My dentist is Dr. Okafor at the moment."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "According to the user, their internet provider is NetWave.",
+        "B": "The user said: \"Alex and I talked about our jobs and commutes, and he recommended some podcasts to listen to.\""
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "According to the user, their internet provider is NetWave.",
+        "B": "The user said: \"Alex and I talked about our jobs and commutes, and he recommended some podcasts to listen to.\""
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "According to the user, their internet provider is NetWave.",
+        "B": "To be clear, my dry cleaner is Pressed Perfect."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "According to the user, their internet provider is NetWave.",
+        "B": "To be clear, my dry cleaner is Pressed Perfect."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "The user said: \"She's into indie music, and we talked about some new bands to check out.\"",
+        "B": "The user's climbing partner is Tomas."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "The user said: \"She's into indie music, and we talked about some new bands to check out.\"",
+        "B": "The user's climbing partner is Tomas."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "The user said: \"She's into indie music, and we talked about some new bands to check out.\"",
+        "B": "According to the user, their florist is Petal and Stem."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "The user said: \"She's into indie music, and we talked about some new bands to check out.\"",
+        "B": "According to the user, their florist is Petal and Stem."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "The user said: \"She's into indie music, and we talked about some new bands to check out.\"",
+        "B": "The user said: \"Alex and I talked about our jobs and commutes, and he recommended some podcasts to listen to.\""
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "The user said: \"She's into indie music, and we talked about some new bands to check out.\"",
+        "B": "The user said: \"Alex and I talked about our jobs and commutes, and he recommended some podcasts to listen to.\""
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "Just so you know, my favourite podcast is The Long Table.",
+        "B": "My favourite podcast is The Long Table at the moment."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "Just so you know, my favourite podcast is The Long Table.",
+        "B": "My favourite podcast is The Long Table at the moment."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"contradiction\",\"reason\":\"Planted false finding.\"}"
+    },
+    {
+      "input": {
+        "A": "Just so you know, my favourite podcast is The Long Table.",
+        "B": "Just so you know, my dentist is Dr. Alvarez."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "Just so you know, my favourite podcast is The Long Table.",
+        "B": "Just so you know, my dentist is Dr. Alvarez."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "Just so you know, my favourite podcast is The Long Table.",
+        "B": "My dentist is Dr. Okafor at the moment."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "Just so you know, my favourite podcast is The Long Table.",
+        "B": "My dentist is Dr. Okafor at the moment."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "My favourite podcast is The Long Table at the moment.",
+        "B": "My dentist is Dr. Okafor at the moment."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "My favourite podcast is The Long Table at the moment.",
+        "B": "My dentist is Dr. Okafor at the moment."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "My favourite podcast is The Long Table at the moment.",
+        "B": "My dry cleaner is Crisp Cleaners."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "My favourite podcast is The Long Table at the moment.",
+        "B": "My dry cleaner is Crisp Cleaners."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "My favourite podcast is The Long Table at the moment.",
+        "B": "To be clear, my dry cleaner is Pressed Perfect."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "My favourite podcast is The Long Table at the moment.",
+        "B": "To be clear, my dry cleaner is Pressed Perfect."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "The user's climbing partner is Tomas.",
+        "B": "According to the user, their florist is Petal and Stem."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "The user's climbing partner is Tomas.",
+        "B": "According to the user, their florist is Petal and Stem."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "The user's climbing partner is Tomas.",
+        "B": "My dentist is Dr. Okafor at the moment."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "The user's climbing partner is Tomas.",
+        "B": "My dentist is Dr. Okafor at the moment."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "According to the user, their florist is Petal and Stem.",
+        "B": "The user said: \"Alex and I talked about our jobs and commutes, and he recommended some podcasts to listen to.\""
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "According to the user, their florist is Petal and Stem.",
+        "B": "The user said: \"Alex and I talked about our jobs and commutes, and he recommended some podcasts to listen to.\""
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "Just so you know, my dentist is Dr. Alvarez.",
+        "B": "My dentist is Dr. Okafor at the moment."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"contradiction\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "Just so you know, my dentist is Dr. Alvarez.",
+        "B": "My dentist is Dr. Okafor at the moment."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "not json"
+    },
+    {
+      "input": {
+        "A": "Just so you know, my dentist is Dr. Alvarez.",
+        "B": "My dry cleaner is Crisp Cleaners."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "Just so you know, my dentist is Dr. Alvarez.",
+        "B": "My dry cleaner is Crisp Cleaners."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "Just so you know, my dentist is Dr. Alvarez.",
+        "B": "To be clear, my dry cleaner is Pressed Perfect."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "Just so you know, my dentist is Dr. Alvarez.",
+        "B": "To be clear, my dry cleaner is Pressed Perfect."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "My dentist is Dr. Okafor at the moment.",
+        "B": "My dry cleaner is Crisp Cleaners."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "My dentist is Dr. Okafor at the moment.",
+        "B": "My dry cleaner is Crisp Cleaners."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "My dentist is Dr. Okafor at the moment.",
+        "B": "To be clear, my dry cleaner is Pressed Perfect."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "My dentist is Dr. Okafor at the moment.",
+        "B": "To be clear, my dry cleaner is Pressed Perfect."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "My dry cleaner is Crisp Cleaners.",
+        "B": "To be clear, my dry cleaner is Pressed Perfect."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Two states at different times.\"}"
+    },
+    {
+      "input": {
+        "A": "My dry cleaner is Crisp Cleaners.",
+        "B": "To be clear, my dry cleaner is Pressed Perfect."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"contradiction\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "claim": "The user said: \"I need help organizing my contacts.\"",
+        "source": "I need help organizing my contacts. Can you create a list of people I've met recently and their interests? Maybe that'll help me remember to follow up with them."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"supported\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "claim": "The user said: \"I need help organizing my contacts.\"",
+        "source": "I need help organizing my contacts. Can you create a list of people I've met recently and their interests? Maybe that'll help me remember to follow up with them."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"supported\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "claim": "The user's favourite sushi place is Umi Bar, most of the time.",
+        "source": "Side note: my favourite sushi place is Umi Bar."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"unsupported\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "claim": "The user's favourite sushi place is Umi Bar, most of the time.",
+        "source": "Side note: my favourite sushi place is Umi Bar."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"unsupported\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "claim": "The user said: \"I'll start filling out the template.\"",
+        "source": "I'll  start filling out the template. Under \"How We Met\", I'll include the location where I met them. For Sophia, it was a coffee shop in the city."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"supported\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "claim": "The user said: \"I'll start filling out the template.\"",
+        "source": "I'll  start filling out the template. Under \"How We Met\", I'll include the location where I met them. For Sophia, it was a coffee shop in the city."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"supported\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "claim": "According to the user, their internet provider is NetWave.",
+        "source": "Side note: my internet provider is NetWave."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"supported\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "claim": "According to the user, their internet provider is NetWave.",
+        "source": "Side note: my internet provider is NetWave."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"supported\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "claim": "The user's climbing partner is Tomas.",
+        "source": "Side note: my climbing partner is Tomas."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"supported\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "claim": "The user's climbing partner is Tomas.",
+        "source": "Side note: my climbing partner is Tomas."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"supported\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "claim": "The user said: \"Alex and I talked about our jobs and commutes, and he recommended some podcasts to listen to.\"",
+        "source": "Alex and I talked about our jobs and commutes, and he recommended some podcasts to listen to."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"supported\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "claim": "The user said: \"Alex and I talked about our jobs and commutes, and he recommended some podcasts to listen to.\"",
+        "source": "Alex and I talked about our jobs and commutes, and he recommended some podcasts to listen to."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"supported\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "My landlord is Mr. Haddad.",
+        "B": "At work, our deploy window is 16:00 to 18:00."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "My landlord is Mr. Haddad.",
+        "B": "At work, our deploy window is 16:00 to 18:00."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "My landlord is Mr. Haddad.",
+        "B": "At work, our project code name is Kestrel."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "My landlord is Mr. Haddad.",
+        "B": "At work, our project code name is Kestrel."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "At work, our deploy window is 16:00 to 18:00.",
+        "B": "At work, our project code name is Kestrel."
+      },
+      "seeds": [
+        1
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    },
+    {
+      "input": {
+        "A": "At work, our deploy window is 16:00 to 18:00.",
+        "B": "At work, our project code name is Kestrel."
+      },
+      "seeds": [
+        2
+      ],
+      "reply": "{\"verdict\":\"consistent\",\"reason\":\"Scripted.\"}"
+    }
+  ]
+}

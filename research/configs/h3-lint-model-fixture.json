@@ -1,0 +1,11 @@
+{
+  "name": "h3-lint-model-fixture",
+  "kind": "pipeline",
+  "benchmark": "fault-set",
+  "data": "../../fixtures/fault-sets/longmemeval",
+  "questions": ["66f24dbb", "3d86fd0a"],
+  "model": "scripted/lint-l4",
+  "seeds": [1, 2],
+  "script": "../../fixtures/lint/h3-lint-model-script.json",
+  "cassettes": "../../fixtures/cassettes/h3-lint-model-fixture"
+}
