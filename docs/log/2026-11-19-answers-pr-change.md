@@ -19,6 +19,6 @@ supersedes: none
 
 **Why.** Step 3 of section 7 of `docs/tasks/prereg-v1-plan.md`, minus the label audit's part.
 
-**Result.** 24 answer lines accepted, item 16 changed to three members, items 1 and 20 open; v1 keeps only those two items' marks, stays untagged, and holds a marked placeholder for the audit. ADRs 0031 to 0033 and the pending amendments are accepted; `OWNER_DECIDES` is empty. HaluMem is a checked, unregistered candidate. ADR 0018's L1 amendment was then marked accepted, and the unmerged `adrs-accepted` entry edited in place to list it. Items 1, 16 and 20 were never committed as accepted.
+**Result.** 24 answer lines accepted, item 16 changed to three members, items 1 and 20 open; v1 keeps only those two items' marks, stays untagged, and holds a marked placeholder for the audit. ADRs 0031 to 0033 and the pending amendments are accepted; `OWNER_DECIDES` is empty. HaluMem is a checked, unregistered candidate. ADR 0018's L1 amendment stays pending the lead (review finding P43-3). Items 1, 16 and 20 were never committed as accepted.
 
 **Consequence.** Before the tag: items 1 and 20, the audit, and a short PR writing the audit into v1.
