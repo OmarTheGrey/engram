@@ -38,7 +38,7 @@ Read these before you start, so they do not surprise you.
 
 1. A clone of this repository at the agreed commit, then `pnpm install && uv sync`. Node 24 or later (`node packages/cli/src/main.ts doctor` checks it).
 2. Build the inspector: `make ui`.
-3. Your memory folder: the `memory` folder of the project you work in most, under `~/.claude/projects/` (on Windows `%USERPROFILE%\.claude\projects\<project>\memory`). Copy it somewhere private as a backup before you start: the plane writes the items you create through Engram into it as `<id>.md` files.
+3. Your memory folder: the `memory` folder of the project you work in most, under `~/.claude/projects/` (on Windows `%USERPROFILE%\.claude\projects\<project>\memory`). Copy it somewhere private as a backup before you start: the plane writes the items you create through Engram into it as `<id>.md` files. It never lists them in the folder's `MEMORY.md`, which Claude Code loads into every session by itself, outside the plane's read filter; that file stays Claude Code's own (card RV3; ADR 0013, amendment of card RV3). Do not copy or rename an `<id>.md` file: a copy is not read, and the adapter reports it.
 4. Your log: the per-user default, `~/.engram/engram.db` (on Windows `%USERPROFILE%\.engram\engram.db`), outside the repository and the memory folder. If one is there already, rename it before the start, so the dogfood's log holds the two weeks and nothing else. The default matters: it is the log `engram serve` opens, the one the Claude Code hook protects from file tools (a command given `--server` takes no `--db`), and the one the report reads. Leave `ENGRAM_DB_URL` unset.
 
 Below, `<folder>` is your memory folder, `<id>` your id, and `<repo>` the absolute path of your clone. Quote paths that hold spaces.
