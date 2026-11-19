@@ -11,6 +11,9 @@
 // instead of writing it, and marks every event's reason as an adoption from
 // that store; that ref goes through the same checks as one the adapter
 // returns, and a ref that cannot be recorded leaves the store-failure event.
+// Adoption sets the item's provenance and grants by `adoptedItem`, never
+// raising trust or widening grants, and may retire a holder of its ref the
+// store no longer lists (card RV4).
 //
 // Across db handles (card E2.6, commit.ts): the decision is checked again in
 // the transaction that commits it. If the item changed, or an offboarding

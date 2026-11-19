@@ -13,6 +13,28 @@
 // reason starts `adopted from store <name>: `. Every decision is one event
 // with its reason and policy_id (AGENTS.md rule 3).
 //
+// What adoption records (card RV4, write.ts adoptedItem): it never raises
+// trust and never widens grants. A record whose content and provenance are
+// as the plane holds them for its id keeps the plane's provenance, so a
+// record the plane wrote is no new version (its re-adoption as `import`
+// ended here); any other record is the adopter's, of the least trusted kind
+// among its claim, the plane's item of that id and `import`, so an agent's
+// `model` item stays `model` (ADR 0021, D4). A grant is kept only when the
+// plane's item of that id carries it; one the plane never recorded, in a
+// record dropped into the store or edited there, is dropped and named in the
+// reason (RV-ADP-4).
+//
+// A store that gives a record it kept a new id (a moved files folder does):
+// a projected item of this store and scope at the ref the store now lists
+// another id under, which the listing no longer holds, is retired
+// (engram/adopt/retract) in the transaction that adopts the record now at
+// its ref, so the ref is recordable (write.ts, Adoption.vacated). The record
+// is refused instead (engram/adopt/rekeyed) when that item was retired by
+// anything but a retraction and the record holds its content, so a retired
+// item is not brought back under a new id; and a record holding content an
+// offboarding erased from its scope and left in the store is refused under
+// any id (engram/adopt/erased, events.ts erasedScopeContent).
+//
 // Skipped, with no event: an item the projection holds as the store has it
 // (status aside, since the gate may land it as a candidate, and the fields
 // the store derives from its own bookkeeping aside, Adapter.derivedFields, so

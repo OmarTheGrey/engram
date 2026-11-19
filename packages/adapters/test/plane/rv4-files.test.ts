@@ -222,10 +222,14 @@ describe("defect 2: adoption never widens grants (RV-ADP-4)", () => {
     expect(event?.reason).toMatch(/adoption dropped the grant to person:mallory/);
     expect(event?.reason).toMatch(/holds no item of that id/);
     expect((await plane.read(mallory, { at: AT })).items).toEqual([]);
-    // Adopting again changes nothing: the store's grant is never taken up.
+    // Adopting again appends nothing: the store's grant is never taken up,
+    // and the record as adoption records it is what the plane holds.
     const n = allEvents(db).length;
-    await adoptStoreItems(deps, dana, "person:dana", LATER);
-    expect(allEvents(db).length).toBeGreaterThanOrEqual(n);
+    expect(await adoptStoreItems(deps, dana, "person:dana", LATER)).toMatchObject({
+      allowed: 0,
+      unchanged: 2,
+    });
+    expect(allEvents(db)).toHaveLength(n);
     expect(itemById(db, ID(777))?.grants).toEqual([]);
     expect((await plane.read(mallory, { at: LATER })).items).toEqual([]);
   });
