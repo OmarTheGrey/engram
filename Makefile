@@ -88,7 +88,7 @@ endif
 
 RUN_OUT ?= .engram/runs/$(basename $(notdir $(CONFIG)))
 
-run: ## replay a runner config as pi SDK sessions from its cassettes; a miss is an error: make run CONFIG=research/configs/rn1-gatemem-probe.json; MODEL=<provider/model> LIVE=1 runs it live into new cassettes under .engram/runs, REPLAY=1 replays those offline; COUNT=1 checks its data against the pin and counts its sessions, calling no model; each row is written as its session ends, and RESUME=1 continues the run already in the output folder (card RV1); a run stopped at its spend_ceiling_usd exits 3
+run: ## replay a runner config as pi SDK sessions from its cassettes; a miss is an error: make run CONFIG=research/configs/rn1-gatemem-probe.json; MODEL=<provider/model> LIVE=1 runs it live into new cassettes under .engram/runs, REPLAY=1 replays those offline; COUNT=1 checks its data against the pin and counts its sessions, calling no model; each row is written as its session ends, and RESUME=1 continues the run already in the output folder (card RV1); a live run reruns a session a transient outage stopped, waiting up to about 12 minutes, before it stops and needs RESUME=1; a run stopped at its spend_ceiling_usd exits 3
 	@[ -n "$(CONFIG)" ] || { echo "usage: make run CONFIG=<runner config>"; exit 2; }
 	node packages/runner/scripts/run.ts --config "$(CONFIG)" --out "$(RUN_OUT)$(if $(filter 1,$(LIVE) $(REPLAY)),-live)$(if $(filter 1,$(COUNT)),-count)" $(if $(filter 1,$(LIVE)),--live --model "$(MODEL)") $(if $(filter 1,$(REPLAY)),--replay --model "$(MODEL)") $(if $(filter 1,$(COUNT)),--count) $(if $(filter 1,$(RESUME)),--resume)
 

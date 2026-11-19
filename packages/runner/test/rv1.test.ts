@@ -14,18 +14,8 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import {
-  type AssistantMessage,
-  createModels,
-  type FauxResponseFactory,
-  fauxAssistantMessage,
-  fauxProvider,
-  fauxText,
-  fauxToolCall,
-} from "@earendil-works/pi-ai";
 import { type CacheEntry, type CacheStore, memoryCache } from "@engram/model";
 import { afterAll, describe, expect, test } from "vitest";
-import type { LiveModels } from "../src/answers.ts";
 import { type Condition, readRunnerConfig } from "../src/config.ts";
 import {
   forEachJsonl,
@@ -38,6 +28,7 @@ import { liveConfig, liveOptions } from "../src/live.ts";
 import { readMemInvConfig, runMemInvConfig } from "../src/mem-inv-probe.ts";
 import { sessionFailure } from "../src/model/cassette.ts";
 import { EVENTS_FILE, runConfig } from "../src/run.ts";
+import { FAUX_MODEL, fauxLive } from "./live-fakes.ts";
 import { B3, B4, EXAMPLE } from "./paths.ts";
 
 const REPO = resolve(import.meta.dirname, "../../..");
@@ -51,8 +42,6 @@ const one = {
 };
 /** RN1's example: one checkpoint under C2, C3 and C5, two scripted calls a session. */
 const example = readRunnerConfig(EXAMPLE);
-const FAUX_MODEL = "faux-live/model-1";
-const ANSWER = '{"action":"refuse","answer":"No.","answer_structured":{},"used_record_ids":[]}';
 const noWait = { sleep: async () => {} };
 
 const temp: string[] = [];
@@ -64,57 +53,6 @@ const fresh = () => {
 afterAll(() => {
   for (const dir of temp) rmSync(dir, { recursive: true, force: true });
 });
-
-const usage = (cost: number): AssistantMessage["usage"] => ({
-  input: 10,
-  output: 5,
-  cacheRead: 0,
-  cacheWrite: 0,
-  totalTokens: 15,
-  cost: { input: cost / 2, output: cost / 2, cacheRead: 0, cacheWrite: 0, total: cost },
-});
-
-/**
- * A faux live provider on the seeded API: the first replies are `failures`
- * (pi-ai error messages), then a memory_read, then the answer once a read
- * came back; with `loop`, a memory_read every time. Each reply costs `cost`.
- */
-function fauxLive(options: { failures?: string[]; cost?: number; loop?: boolean } = {}) {
-  const faux = fauxProvider({
-    api: "openai-completions",
-    provider: "faux-live",
-    models: [{ id: "model-1" }],
-  });
-  const state = { calls: 0 };
-  const failures = [...(options.failures ?? [])];
-  const step: FauxResponseFactory = (context) => {
-    state.calls++;
-    const failure = failures.shift();
-    if (failure !== undefined) {
-      return fauxAssistantMessage([], { stopReason: "error", errorMessage: failure });
-    }
-    const last = context.messages.at(-1);
-    const reply =
-      last?.role === "toolResult" && !options.loop
-        ? fauxAssistantMessage(fauxText(ANSWER))
-        : fauxAssistantMessage(fauxToolCall("memory_read", { query: "Monsoon" }), {
-            stopReason: "toolUse",
-          });
-    return reply;
-  };
-  faux.setResponses(Array.from({ length: 256 }, () => step));
-  const inner = createModels();
-  inner.setProvider(faux.provider);
-  // The faux provider estimates usage itself; a live provider reports its cost.
-  const models: LiveModels = {
-    getModel: (provider, id) => inner.getModel(provider, id),
-    completeSimple: async (model, context, stream) => ({
-      ...(await inner.completeSimple(model, context, stream)),
-      usage: usage(options.cost ?? 0),
-    }),
-  };
-  return { models, state };
-}
 
 const live = (config: typeof one, cassettes = join(fresh(), "cassettes")) =>
   liveConfig(config, { model: FAUX_MODEL, repo: REPO, cassettes, env: {} });
@@ -143,7 +81,9 @@ describe("a transient error in the answer model (RV-EXP-1)", () => {
     expect(result.rows[0]?.output.action).toBe("refuse");
     // Three provider calls (the 429, the retried read, the answer), two recorded.
     expect(provider.state.calls).toBe(3);
-    expect(result.calls).toEqual({ new: 2, cached: 0 });
+    // Every provider call is a paid call in the ledger, the 429 included
+    // (review RV1-3); two of them are cassettes.
+    expect(result.calls).toEqual({ new: 3, cached: 0 });
     expect(readdirSync(config.cassettes)).toHaveLength(2);
     // GateMem's router waits a second after the first transient failure.
     expect(slept).toEqual([1000]);

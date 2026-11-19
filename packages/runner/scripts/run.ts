@@ -93,6 +93,7 @@ import {
   readMemInvConfig,
   runMemInvConfig,
 } from "../src/mem-inv-probe.ts";
+import { SESSION_RETRY } from "../src/model/retry.ts";
 import { EVENTS_FILE, type RunnerOptions, runConfig } from "../src/run.ts";
 import { memInvLines, memInvRowLines, runFooter } from "./run-mem-inv.ts";
 
@@ -251,6 +252,7 @@ async function runLongMemEval(path: string, out: string, flags: Flags): Promise<
     result = await runLongMemEvalConfig(config, {
       ...options,
       journal,
+      ...(flags.live ? { sessionRetry: SESSION_RETRY } : {}),
       onRow: (r) => console.log(longMemEvalRowLine(r)),
     });
   } finally {
@@ -484,6 +486,7 @@ async function runOne(path: string, out: string, flags: Flags): Promise<Outcome>
       result = await runMemInvConfig(memInv, {
         ...options,
         journal,
+        ...(flags.live ? { sessionRetry: SESSION_RETRY } : {}),
         onRow: (r) => console.log(memInvRowLines(r).join("\n")),
       });
     } finally {
@@ -501,6 +504,7 @@ async function runOne(path: string, out: string, flags: Flags): Promise<Outcome>
     const gatememOptions: RunnerOptions = {
       ...options,
       journal,
+      ...(flags.live ? { sessionRetry: SESSION_RETRY } : {}),
       onRow: (r) => console.log(gatememRowLine(r)),
     };
     result = await runConfig(gm, gatememOptions);

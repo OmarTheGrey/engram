@@ -44,8 +44,8 @@ import { parseArgs } from "node:util";
 import { memInvBench } from "@engram/bench";
 import { configJudge, readRunnerConfig } from "../src/config.ts";
 import type { ProbeResult } from "../src/gatemem-probe.ts";
-import { forEachJsonl } from "../src/journal.ts";
 import { isMemInvConfig, type MemInvProbeResult, readMemInvConfig } from "../src/mem-inv-probe.ts";
+import { gatememRow, readJsonl } from "../src/research/h1-rows.ts";
 import {
   answerModels,
   type Conversion,
@@ -58,23 +58,6 @@ import {
   unreadKeyPath,
   unreadKit,
 } from "../src/research/h1-sessions.ts";
-
-/**
- * A run's results.jsonl, one line at a time (card RV1, RV-EXP-2: at H1's
- * size the file is too large to read as one string), each row as `keep`
- * leaves it.
- */
-const readJsonl = <T>(path: string, keep: (row: T) => T = (row) => row): T[] => {
-  const rows: T[] = [];
-  forEachJsonl<T>(path, (row) => rows.push(keep(row)));
-  return rows;
-};
-
-/** What the H1 conversion reads of a GateMem row: its session, score, judge and exclusion. */
-const gatememRow = (r: ProbeResult): ProbeResult => {
-  const { tool_calls: _t, output: _o, decisions: _d, events: _e, ...kept } = r;
-  return kept as ProbeResult;
-};
 
 const readJson = (path: string, what: string): unknown => {
   if (!existsSync(path)) throw new Error(`no ${what} at ${path}`);

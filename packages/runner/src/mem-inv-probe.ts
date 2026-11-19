@@ -65,7 +65,14 @@ import {
   writeJsonl,
 } from "./journal.ts";
 import { type AnswerSource, cassettePiModel, sessionFailure } from "./model/cassette.ts";
-import { NOTE_RETRY, type RetryPolicy, realSleep, type Sleep, withRetry } from "./model/retry.ts";
+import {
+  NOTE_RETRY,
+  type RetryPolicy,
+  realSleep,
+  retrySession,
+  type Sleep,
+  withRetry,
+} from "./model/retry.ts";
 import { closeStore, openStore, type StoreName } from "./stores.ts";
 
 /**
@@ -446,6 +453,8 @@ export interface MemInvRunnerOptions {
   onRow?: (row: MemInvProbeResult) => void;
   /** How a transient failure's retry waits (answers and notes); a real wait unless a test injects one. */
   sleep?: Sleep;
+  /** The outer session retry (review RV1-6); run.ts RunnerOptions.sessionRetry. */
+  sessionRetry?: RetryPolicy;
 }
 
 /**
@@ -628,24 +637,29 @@ export async function runMemInvConfig(
           if (sink.done({ item: `mem-inv-bench/${item}`, condition, store, seed })) continue;
           if (!sink.proceed()) break sessions;
           sink.commit(
-            await runMemInvProbe({
-              case: c,
-              condition,
-              seed,
-              model: config.model,
-              preset: config.preset,
-              policy,
-              store,
-              cache,
-              answers: answersFor(config, item, condition, options.live),
-              ...(config.read_limit === undefined ? {} : { readLimit: config.read_limit }),
-              ...(options.offline === undefined ? {} : { offline: options.offline }),
-              onUsage: sink.onUsage,
-              // MEM-INV-Bench's driver.call retries a transient failure (RV-EXP-1).
-              retry: NOTE_RETRY,
-              ...(options.sleep === undefined ? {} : { sleep: options.sleep }),
-              ...(config.turn_limit === undefined ? {} : { turnLimit: config.turn_limit }),
-            }),
+            await retrySession(
+              () =>
+                runMemInvProbe({
+                  case: c,
+                  condition,
+                  seed,
+                  model: config.model,
+                  preset: config.preset,
+                  policy,
+                  store,
+                  cache,
+                  answers: answersFor(config, item, condition, options.live),
+                  ...(config.read_limit === undefined ? {} : { readLimit: config.read_limit }),
+                  ...(options.offline === undefined ? {} : { offline: options.offline }),
+                  onUsage: sink.onUsage,
+                  // MEM-INV-Bench's driver.call retries a transient failure (RV-EXP-1).
+                  retry: NOTE_RETRY,
+                  ...(options.sleep === undefined ? {} : { sleep: options.sleep }),
+                  ...(config.turn_limit === undefined ? {} : { turnLimit: config.turn_limit }),
+                }),
+              options.sessionRetry,
+              options.sleep ?? realSleep,
+            ),
           );
         }
       }

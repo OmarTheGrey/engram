@@ -43,7 +43,13 @@ import {
   writeJsonl,
 } from "./journal.ts";
 import { judgeAnswer } from "./judge.ts";
-import { JUDGE_RETRY, type Sleep } from "./model/retry.ts";
+import {
+  JUDGE_RETRY,
+  type RetryPolicy,
+  realSleep,
+  retrySession,
+  type Sleep,
+} from "./model/retry.ts";
 
 export type { LiveModels } from "./answers.ts";
 
@@ -67,6 +73,13 @@ export interface RunnerOptions {
   onRow?: (row: ProbeResult) => void;
   /** How a transient failure's retry waits; a real wait unless a test injects one. */
   sleep?: Sleep;
+  /**
+   * The outer session retry (review RV1-6, model/retry.ts SESSION_RETRY): a
+   * session that stopped on a transient failure its call's retry could not
+   * outlast is run again after a wait, its recorded calls from the cassettes.
+   * None when unset; `make run` sets it for a live run.
+   */
+  sessionRetry?: RetryPolicy;
 }
 
 /** What a run's summary is of: the rows' condition, store, score, judge and exclusion. */
@@ -157,22 +170,30 @@ export async function runConfig(
           ...(config.read_limit === undefined ? {} : { readLimit: config.read_limit }),
           ...(config.turn_limit === undefined ? {} : { turnLimit: config.turn_limit }),
         };
-        const row = await runProbe(spec);
-        // GateMem's judge scores the answer as its own scoring does (J1); a
-        // session the turn limit cut off is excluded and not judged.
-        if (judge && checkpoint && row.excluded === undefined) {
-          row.judge = await judgeAnswer({
-            judge,
-            checkpoint,
-            output: row.output,
-            seed,
-            context: probeContext(spec),
-            cache,
-            live: options.live,
-            offline: options.offline,
-            onUsage: sink.onUsage,
-          });
-        }
+        const row = await retrySession(
+          async () => {
+            const probed = await runProbe(spec);
+            // GateMem's judge scores the answer as its own scoring does (J1); a
+            // session the turn limit cut off is excluded and not judged.
+            if (judge && checkpoint && probed.excluded === undefined) {
+              probed.judge = await judgeAnswer({
+                judge,
+                checkpoint,
+                output: probed.output,
+                seed,
+                context: probeContext(spec),
+                cache,
+                live: options.live,
+                offline: options.offline,
+                onUsage: sink.onUsage,
+                sleep: options.sleep,
+              });
+            }
+            return probed;
+          },
+          options.sessionRetry,
+          options.sleep ?? realSleep,
+        );
         sink.commit(row);
       }
     }

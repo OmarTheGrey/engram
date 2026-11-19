@@ -10,7 +10,7 @@
 // It writes about half a gigabyte, so it is slow by design and runs only
 // with ENGRAM_SCALE=1: `make test-scale`.
 import { constants } from "node:buffer";
-import { mkdtempSync, rmSync, statSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { memoryCache } from "@engram/model";
@@ -18,6 +18,7 @@ import { describe, expect, test } from "vitest";
 import { type Condition, readRunnerConfig } from "../src/config.ts";
 import type { LoggedEvent, ProbeResult } from "../src/gatemem-probe.ts";
 import { forEachJsonl, RunJournal } from "../src/journal.ts";
+import { gatememRow, readJsonl } from "../src/research/h1-rows.ts";
 import { gatememSessions } from "../src/research/h1-sessions.ts";
 import { EVENTS_FILE, runConfig, splitRow } from "../src/run.ts";
 import { EXAMPLE } from "./paths.ts";
@@ -102,13 +103,9 @@ describe.runIf(process.env.ENGRAM_SCALE === "1")(
           statSync(join(dir, "results.jsonl")).size + statSync(join(dir, EVENTS_FILE)).size;
         expect(bytes).toBeGreaterThan(constants.MAX_STRING_LENGTH);
 
-        // Read back a line at a time, as h1-sessions.ts reads a run.
-        const rows: ProbeResult[] = [];
-        const { lines } = forEachJsonl<ProbeResult>(join(dir, "results.jsonl"), (r) => {
-          const { tool_calls: _t, output: _o, decisions: _d, ...kept } = r;
-          rows.push(kept as ProbeResult);
-        });
-        expect(lines).toBe(ROWS);
+        // Read back with h1-sessions.ts's own reader and row cut.
+        const rows = readJsonl<ProbeResult>(join(dir, "results.jsonl"), gatememRow);
+        expect(rows).toHaveLength(ROWS);
         let events = 0;
         forEachJsonl<{ events: unknown[] }>(join(dir, EVENTS_FILE), (e) => {
           events += e.events.length;
@@ -129,6 +126,27 @@ describe.runIf(process.env.ENGRAM_SCALE === "1")(
         expect(
           conversion.sessions.length + Object.values(conversion.skipped).reduce((a, b) => a + b, 0),
         ).toBe(ROWS);
+
+        // One file above the limit (review RV1-5): the same rows with their
+        // plane logs left in, as a run without the sidecar would write them,
+        // so a reader that took the file as one string would throw here.
+        const whole = join(dir, "whole");
+        const single = RunJournal.open(whole, {
+          identity: { config: "h1-scale", fingerprint: "synthetic" },
+          resume: false,
+        });
+        for (let i = 0; i < ROWS; i++) {
+          const row = shaped(CONDITIONS[i % 5] as Condition, i, pad);
+          single.append(row, row);
+        }
+        single.close();
+        const file = join(whole, "results.jsonl");
+        expect(statSync(file).size).toBeGreaterThan(constants.MAX_STRING_LENGTH);
+        expect(() => readFileSync(file, "utf8")).toThrow();
+        const back = readJsonl<ProbeResult>(file, gatememRow);
+        expect(back).toHaveLength(ROWS);
+        expect(back.every((r) => r.events === undefined)).toBe(true);
+        expect(back).toEqual(rows);
       } finally {
         rmSync(dir, { recursive: true, force: true });
       }

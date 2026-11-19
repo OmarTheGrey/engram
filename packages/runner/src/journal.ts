@@ -132,21 +132,39 @@ export function writeJsonl(path: string, rows: Iterable<unknown>): void {
   }
 }
 
-/** The fields of a config that do not change what its sessions are: paths, and the spend ceiling. */
-const UNFINGERPRINTED = new Set(["data", "cassettes", "script", "spend_ceiling_usd"]);
+/** The fields of a config that do not change what its sessions are: its cassettes, and the spend ceiling. */
+const UNFINGERPRINTED = new Set(["cassettes", "spend_ceiling_usd"]);
+
+/** A script as its path and the sha256 of its contents, so a script edited in place is another run. */
+const scriptPrint = (path: unknown) =>
+  typeof path === "string" && existsSync(path)
+    ? { path, sha256: sha256(readFileSync(path, "utf8").replaceAll("\r\n", "\n")) }
+    : path;
 
 /**
- * A fingerprint of what a config runs: every field but its paths (which
- * differ between machines and between a live run and its replay) and its
- * spend ceiling (raised to continue a stopped sweep).
+ * A fingerprint of what a config runs: every field but its cassettes (a live
+ * run and its replay share a folder, and the cassettes move between
+ * machines) and its spend ceiling (raised to continue a stopped sweep). The
+ * data folder and the scripts are in it, a script by its contents as well
+ * as its path, so a resume never mixes rows of two scripts or two data sets
+ * (review RV1-7).
  */
 export function runFingerprint(config: object): string {
   const kept = Object.fromEntries(
     Object.entries(config).flatMap(([k, v]): [string, unknown][] => {
       if (UNFINGERPRINTED.has(k) || v === undefined) return [];
+      if (k === "script") return [[k, scriptPrint(v)]];
       if (k === "judge" && v && typeof v === "object") {
-        const { script: _script, ...judge } = v as Record<string, unknown>;
-        return [[k, judge]];
+        const judge = v as Record<string, unknown>;
+        return [
+          [
+            k,
+            {
+              ...judge,
+              ...(judge.script === undefined ? {} : { script: scriptPrint(judge.script) }),
+            },
+          ],
+        ];
       }
       return [[k, v]];
     }),
