@@ -42,8 +42,10 @@ import {
   erasureBegunSince,
   erasureOpen,
   lastErasure,
+  lastRemoval,
   logHead,
   ownBytes,
+  removedAncestor,
   settle,
   staleness,
   touchedSince,
@@ -229,13 +231,18 @@ function planeRefusal(
   const erasing = scopes.find((s) => erasureOpen(db, s));
   if (erasing) return { reason: erasingReason(erasing), policy_id: ERASING_ID };
   if (adopting || existing) return null;
-  const gone = lastErasure(db, item.id);
+  // A new item whose lineage names an erased or swept id carries content
+  // traced to erased content (verification pass 3 of PR #50, V3-1).
+  const ancestor = removedAncestor(db, item);
+  const gone = lastErasure(db, item.id) ?? (ancestor ? lastRemoval(db, ancestor) : null);
   if (!gone) return null;
   const scope = gone.scope_from;
   return {
     reason:
       scope !== null && actor.memberships.includes(scope)
-        ? `item id ${item.id} belonged to an item erased with ${scope} at an offboarding; an erased id is never used again, so a new memory takes a new id`
+        ? ancestor && !lastErasure(db, item.id)
+          ? `item ${item.id} names in its lineage item ${ancestor}, which an offboarding of ${scope} took out; content traced to it is not written again`
+          : `item id ${item.id} belonged to an item erased with ${scope} at an offboarding; an erased id is never used again, so a new memory takes a new id`
         : "the item id is held by an item you cannot access",
     policy_id: WRITE_ERASED_ID,
   };

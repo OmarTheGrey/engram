@@ -632,6 +632,8 @@ export function narrowingProblem(
   if (!e.item || !before) return "a narrowing of an item no allowed event left";
   if (!sameApartFromGrants(before, e.item)) return "a narrowing that changes more than grants";
   if (addedGrants(before.grants, e.item.grants).length > 0) return "a narrowing that adds a grant";
+  if (addedGrants(e.item.grants, before.grants).length === 0)
+    return "a narrowing that removes no grant";
   return undefined;
 }
 

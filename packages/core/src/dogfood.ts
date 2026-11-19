@@ -48,11 +48,13 @@ import {
   grantsChanged,
   grantsWiden,
   NARROWED_RULE,
+  narrowingProblem,
   priorVersion,
   readable,
   replayEvent,
   UNTRUSTED_KINDS,
   WITHDRAWN_RULE,
+  withdrawalProblem,
   withinValidity,
 } from "./oracle.ts";
 import {
@@ -334,6 +336,26 @@ export function dogfoodReport(
       }
     }
 
+    // The plane's own recovery events are judged whatever they do to the
+    // grants: a withdrawal or a narrowing that changes content, removes
+    // nothing or names no adoption is a violation (verification pass 3, V3-4).
+    const recovery =
+      e.decision === "allow" &&
+      e.item !== undefined &&
+      (e.policy_id === WITHDRAWN_RULE || e.policy_id === NARROWED_RULE);
+    if (recovery && e.item) {
+      const before = priorVersion(state, e);
+      const problem =
+        e.policy_id === WITHDRAWN_RULE
+          ? withdrawalProblem(e, (id) => seen.get(id))
+          : narrowingProblem(before, e);
+      if (problem !== undefined) {
+        r.violations.grant_change++;
+        details.push(
+          `${e.op} event ${e.seq} at ${e.ts} by ${e.actor} (${e.policy_id}) on ${e.item.id}: ${problem}`,
+        );
+      }
+    }
     if (e.decision === "allow" && e.item) {
       const item = e.item;
       const before = priorVersion(state, e);
@@ -348,9 +370,11 @@ export function dogfoodReport(
         r.grants.changes++;
         r.grants.added += addedGrants(before?.grants ?? [], item.grants).length;
         r.grants.removed += addedGrants(item.grants, before?.grants ?? []).length;
-        const problem = grantChangeProblem(policy, actorFor(e.actor), before, e, heldBefore, (id) =>
-          seen.get(id),
-        );
+        const problem = recovery
+          ? undefined
+          : grantChangeProblem(policy, actorFor(e.actor), before, e, heldBefore, (id) =>
+              seen.get(id),
+            );
         if (problem !== undefined) {
           r.violations.grant_change++;
           details.push(

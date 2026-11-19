@@ -91,6 +91,7 @@ import {
   itemHash,
   lastRemoval,
   logHead,
+  removedAncestor,
   touchedSince,
 } from "./commit.ts";
 import { inWriteQueue } from "./queue.ts";
@@ -356,8 +357,12 @@ function erasedRefusal(
       policy_id: ADOPT_ERASED_ID,
     };
   if (itemById(db, candidate.id)) return null;
-  const gone = lastRemoval(db, candidate.id);
-  if (!gone || gone.reason.includes(LEFT_CONTENT_CLAUSE)) return null;
+  const own = lastRemoval(db, candidate.id);
+  // A record whose lineage names an erased or swept id carries content traced
+  // to it, whatever scope it lies in (verification pass 3 of PR #50, V3-1).
+  const ancestor = own ? null : removedAncestor(db, candidate);
+  const gone = own ?? (ancestor ? lastRemoval(db, ancestor) : null);
+  if (!gone || (own && gone.reason.includes(LEFT_CONTENT_CLAUSE))) return null;
   // A record whose ref a projected item holds (a version shared out of the
   // person scope, review of PR #33) is refused, never deleted: deleting it
   // would delete that item's bytes.
@@ -367,7 +372,9 @@ function erasedRefusal(
       policy_id: ADOPT_ERASED_ID,
     };
   return {
-    reason: `the store holds a record under the id of item ${candidate.id}, which an offboarding took out of the store (${gone.policy_id}); that id is never adopted again, and ${PURGE_CLAUSE}`,
+    reason: ancestor
+      ? `the store holds a record, item ${candidate.id}, whose lineage names item ${ancestor}, which an offboarding took out of the store (${gone.policy_id}); content traced to it is never adopted, and ${PURGE_CLAUSE}`
+      : `the store holds a record under the id of item ${candidate.id}, which an offboarding took out of the store (${gone.policy_id}); that id is never adopted again, and ${PURGE_CLAUSE}`,
     policy_id: ADOPT_ERASED_ID,
     purge: true,
   };

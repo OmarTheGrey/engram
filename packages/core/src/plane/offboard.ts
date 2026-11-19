@@ -72,10 +72,14 @@
 // The report's reason names this offboarding's begin mark, and closes it and
 // every mark that was open when it was appended (verification of PR #50,
 // V-1): a rerun after an offboarding that stopped after its mark reopens the
-// scope. Before the report, the sweep deletes what the person scope's store
-// still holds under an id the log never allowed or an erased id
-// (engram/offboard/swept, V-1 and V-5); a record written after the report is
-// the person's again.
+// scope, and an offboarding begun later stays open until its own report.
+// Before the report, the sweep deletes what the stores still hold that the
+// erasure must not leave (engram/offboard/swept; see the sweep below). A
+// record that appears in the person scope after the report, under an id the
+// log never recorded and with no lineage to erased content, is adopted as
+// the person's: the plane cannot tell it from a new memory written then, and
+// whether a completed offboarding should refuse such records is an open
+// question for the lead (ADR 0010).
 //
 // Who may offboard: a user-sourced actor who is a member of the person scope
 // and of every role scope handed over, else one deny event
@@ -107,8 +111,10 @@ import {
   OFFBOARD_REPORT_ID,
   OFFBOARD_SWEPT_ID,
   ownBytes,
+  removedAncestor,
   settle,
   staleness,
+  touchedSince,
 } from "./commit.ts";
 import { inWriteQueue } from "./queue.ts";
 
@@ -557,51 +563,98 @@ async function run(
   const ids = new Set(erased.map((i) => i.id));
   const leftInStore: DeletionReport["erased"]["left_in_store"] = byRef(refused, erased);
 
-  // The sweep (verification of PR #50, V-1 and V-5): what the person scope's
-  // store still holds that no projected item holds, under an id the log never
-  // allowed (a write that never committed: a writer that crashed, or one
-  // decided before an earlier offboarding stopped) or under an erased id
-  // whose record the erasure deleted, is deleted now, one event each, before
-  // the report reopens the scope. A record written after the report is the
-  // person's again and is adopted as any other.
+  // The sweep (verification of PR #50, V-1 and V-5; pass 3, V3-1, V3-2). It
+  // deletes, one event each, what a store still holds that no projected item
+  // holds and that the erasure must not leave behind: in the person scope, a
+  // record under an id the log never allowed (a write that never committed:
+  // a writer that crashed, or one decided before an earlier offboarding
+  // stopped) or under an erased id whose record the erasure deleted; in every
+  // scope the log names, a record whose lineage names an erased or swept id
+  // (a promotion's new version that never committed). A record an item
+  // outside the person scope holds by its ref stays. Each deletion follows
+  // the store-then-log protocol (commit.ts): the log's head is noted before
+  // the listing, and if the record's item changed since (a write committed
+  // meanwhile, by another handle), the projected item is written back and no
+  // swept event is appended. A store that refuses the delete for good leaves
+  // the record refused while it holds that content, as an erasure's
+  // left-in-store record is (V3-7).
   let swept = 0;
   let sweepFailed = 0;
-  for (const record of await adapter.list(person)) {
-    if (!record.store_ref || itemById(db, record.id)) continue;
-    // A ref an item outside the person scope holds stays (review of PR #33).
-    if (itemsByStoreRef(db, record.store_ref).length > 0) continue;
-    const history = eventsByItem(db, record.id);
-    const gone = history.filter(erases).at(-1);
-    if (gone?.reason.includes(LEFT_CONTENT_CLAUSE)) continue;
-    if (!gone && history.some((e) => e.decision === "allow")) continue;
-    let failure: string | null = null;
-    try {
-      await adapter.delete(record.store_ref);
-    } catch (e) {
-      failure = isNotDeletable(e)
-        ? `the store refuses the delete for good (${errorText(e)}); the record stays there, and adoption refuses it`
-        : `the delete failed (${errorText(e)}); the record stays there, and adoption refuses it and deletes it`;
+  const others = db
+    .prepare(
+      `SELECT DISTINCT scope_to AS scope FROM events WHERE scope_to IS NOT NULL
+       UNION SELECT DISTINCT scope_from AS scope FROM events WHERE scope_from IS NOT NULL`,
+    )
+    .all()
+    .map((r) => String(r.scope))
+    .filter((sc) => sc !== person)
+    .sort();
+  for (const scope of [person, ...others]) {
+    const head = logHead(db);
+    for (const record of await adapter.list(scope)) {
+      const record_ref = record.store_ref;
+      if (!record_ref) continue;
+      const what = db.transaction((): string | null => {
+        if (itemById(db, record.id)) return null;
+        // A ref an item outside the person scope holds stays (review of PR #33).
+        if (itemsByStoreRef(db, record_ref).length > 0) return null;
+        const ancestor = removedAncestor(db, record);
+        if (ancestor)
+          return `a record, item ${record.id} in ${scope}, whose lineage names item ${ancestor}, which an offboarding of ${person} took out`;
+        if (scope !== person) return null;
+        const history = eventsByItem(db, record.id);
+        const gone = history.filter(erases).at(-1);
+        if (gone?.reason.includes(LEFT_CONTENT_CLAUSE)) return null;
+        if (gone)
+          return `a record under the id of item ${record.id}, which this or an earlier offboarding of ${person} erased`;
+        if (history.some((e) => e.decision === "allow")) return null;
+        return `a record under item id ${record.id}, which no allowed event of the log ever recorded: a write that never committed`;
+      });
+      if (what === null) continue;
+      let failure: string | null = null;
+      let forGood = false;
+      try {
+        await adapter.delete(record_ref);
+      } catch (e) {
+        forGood = isNotDeletable(e);
+        failure = forGood
+          ? `the store refuses the delete for good: ${errorText(e)}; the record stays there, refused while it holds this content`
+          : `the delete failed: ${errorText(e)}; the record stays there, and adoption refuses it and deletes it`;
+      }
+      const outcome = db.transaction(() => {
+        // Committed meanwhile on another handle: the sweep's decision is stale.
+        if (touchedSince(db, record.id, head)) return null;
+        return appendEvent(db, {
+          ...base,
+          id: newId(),
+          op: "retire",
+          item_id: record.id,
+          scope_from: scope,
+          scope_to: null,
+          decision: failure ? "deny" : "allow",
+          reason: failure
+            ? `${what}, left in the store, was to be deleted at offboarding, but ${failure}${forGood ? `; ${LEFT_CONTENT_CLAUSE} (${mergingContentHash(record.content)})` : ""}`
+            : `${what}, left in the store, was deleted at offboarding`,
+          policy_id: OFFBOARD_SWEPT_ID,
+        });
+      });
+      if (outcome) {
+        events.push(outcome);
+        if (failure) sweepFailed++;
+        else swept++;
+        continue;
+      }
+      // Put back what the log now holds for it, as a stale writer does.
+      for (let round = 0; round < 4; round++) {
+        const { again, now } = db.transaction(() => ({
+          again: logHead(db),
+          now: itemById(db, record.id),
+        }));
+        if (!now || now.store_ref?.key !== record_ref.key) break;
+        await adapter.write({ ...now, store_ref: null } as MemoryItem);
+        if (!db.transaction(() => touchedSince(db, record.id, again))) break;
+      }
     }
-    const what = gone
-      ? `a record under the id of item ${record.id}, which this or an earlier offboarding of ${person} erased`
-      : `a record under item id ${record.id}, which no allowed event of the log ever recorded: a write that never committed`;
-    events.push(
-      appendEvent(db, {
-        ...base,
-        id: newId(),
-        op: "retire",
-        item_id: record.id,
-        scope_from: person,
-        scope_to: null,
-        decision: failure ? "deny" : "allow",
-        reason: failure
-          ? `${what}, left in the store, was to be deleted at offboarding, but ${failure}`
-          : `${what}, left in the store, was deleted at offboarding`,
-        policy_id: OFFBOARD_SWEPT_ID,
-      }),
-    );
-    if (failure) sweepFailed++;
-    else swept++;
   }
 
   const kept = projected.filter(

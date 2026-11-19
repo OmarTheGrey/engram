@@ -37,7 +37,9 @@ export function erasedStoreContent(db: Db, itemId: string): Set<string> {
   const out = new Set<string>();
   const open = `${LEFT_CONTENT_CLAUSE} (`;
   for (const event of eventsByItem(db, itemId)) {
-    if (!erases(event)) continue;
+    // An erasure, or an offboarding's sweep of a record the store would not
+    // let it delete (engram/offboard/swept; verification pass 3 of PR #50).
+    if (!erases(event) && event.policy_id !== "engram/offboard/swept") continue;
     // The clause ends the reason; the store's error text comes before it.
     const start = event.reason.lastIndexOf(open);
     if (start < 0) continue;

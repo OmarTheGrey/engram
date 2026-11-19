@@ -228,6 +228,16 @@ export function lastRemoval(db: Db, itemId: string): MemoryEvent | null {
   );
 }
 
+/**
+ * The first id `item`'s lineage names whose record an offboarding took out
+ * (lastRemoval), or null: content traced to erased content by lineage, such
+ * as a promotion's new version written under a fresh id (verification pass 3
+ * of PR #50, V3-1).
+ */
+export function removedAncestor(db: Db, item: Pick<MemoryItem, "lineage">): string | null {
+  return item.lineage.find((ancestor) => lastRemoval(db, ancestor) !== null) ?? null;
+}
+
 /** The refusal of a change to an item in a person scope an offboarding is erasing. */
 export function erasingReason(scope: string): string {
   return `${scope} is being erased by an offboarding that has not completed; nothing in it may change until it does`;
@@ -380,7 +390,15 @@ function recovery(deps: PlaneDeps, itemId: string, stale: StaleWrite): Recovery 
   if (own.decision !== "allow" || !own.item) return null;
   const had = before?.grants ?? [];
   const reintroduced = own.item.grants.filter((g) => !had.some((h) => sameGrant(g, h)));
-  const removed = now.grants.filter((g) => reintroduced.some((r) => sameGrant(g, r)));
+  // Only a grant every allowed version since the adoption carried without a
+  // break: one the owner removed and then added again after the adoption is
+  // the owner's own, and stays (verification pass 3, V3-3).
+  const versions = history.filter((e) => e.seq >= own.seq && e.decision === "allow" && e.item);
+  const removed = now.grants.filter(
+    (g) =>
+      reintroduced.some((r) => sameGrant(g, r)) &&
+      versions.every((e) => e.item?.grants.some((h) => sameGrant(g, h))),
+  );
   if (removed.length === 0) return null;
   return {
     kind: "narrow",
