@@ -44,6 +44,15 @@ import {
 } from "../src/config.ts";
 import { countConfig, countLines, ensurePinnedData, UnpinnedData } from "../src/count.ts";
 import {
+  countFaultSetConfig,
+  type FaultSetRunOptions,
+  faultSetCountLines,
+  isFaultSetConfig,
+  readFaultSetConfig,
+  runFaultSetConfig,
+  writeFaultSetResult,
+} from "../src/lint-fault-set.ts";
+import {
   countLintConfig,
   isLintConfig,
   type LintRunnerOptions,
@@ -250,10 +259,81 @@ async function runLint(path: string, out: string, flags: Flags): Promise<Outcome
   return { code: 0, sessions: result.rows.length, calls: result.calls };
 }
 
+/**
+ * A seeded-fault set config (card L4): every state of a card L2 set linted
+ * per seed with both tiers, the config's lint model through its cassettes.
+ * The same modes as a lint fault-fixture config.
+ */
+async function runFaultSet(path: string, out: string, flags: Flags): Promise<Outcome> {
+  let config = readFaultSetConfig(path);
+  const named = flags.live || flags.replay;
+  if (flags.count) {
+    const count = await countFaultSetConfig(config, REPO);
+    mkdirSync(out, { recursive: true });
+    writeFileSync(join(out, "count.json"), `${JSON.stringify(count, null, 2)}\n`);
+    console.log([...faultSetCountLines(count), `written to ${join(out, "count.json")}`].join("\n"));
+    return {
+      code: 0,
+      sessions: count.questions * count.seeds.length,
+      calls: { new: 0, cached: 0 },
+    };
+  }
+  if (config.kind === "experiment" && !named) {
+    console.error(
+      `run.ts: ${config.name} is an experiment config: it runs on a named model (MODEL=<provider/model> LIVE=1), replays that run (MODEL=<provider/model> REPLAY=1), or is counted (COUNT=1)`,
+    );
+    return FAILED;
+  }
+  let options: FaultSetRunOptions = { offline: !flags.record };
+  if (named) {
+    const request = {
+      model: flags.model as string,
+      repo: REPO,
+      ...(flags.cassettes === undefined ? {} : { cassettes: resolve(flags.cassettes) }),
+    };
+    try {
+      config = flags.live ? liveConfig(config, request) : replayConfig(config, request);
+      options = flags.live ? liveOptions(config, builtinLiveModels()) : replayOptions(config);
+    } catch (e) {
+      if (e instanceof LiveRunRefused) {
+        console.error(e.message);
+        return FAILED;
+      }
+      throw e;
+    }
+  }
+  const result = await runFaultSetConfig(config, options);
+  writeFaultSetResult(result, out);
+  const how = flags.live
+    ? ` (recorded into ${config.cassettes})`
+    : flags.replay
+      ? ` (replayed from ${config.cassettes})`
+      : "";
+  const lines = [
+    `${config.name}: ${result.rows.length} lint runs (${new Set(result.rows.map((r) => r.question_id)).size} states x seeds ${config.seeds.join(", ")}), model ${config.model}`,
+    `model calls: ${result.calls.new} new, ${result.calls.cached} from cassettes${how}`,
+    ...Object.entries(result.summary).map(
+      ([seed, counts]) =>
+        `  seed ${seed}: ${Object.entries(counts)
+          .map(([k, n]) => `${k} ${n}`)
+          .join(", ")}`,
+    ),
+    runFooter(
+      config.kind,
+      named,
+      "the set's labels, read only by research/scripts/h3_lint_delta.py",
+    ),
+    `written to ${out}`,
+  ];
+  console.log(lines.join("\n"));
+  return { code: 0, sessions: result.rows.length, calls: result.calls };
+}
+
 /** Run, replay, record or count one config into `out`. */
 async function runOne(path: string, out: string, flags: Flags): Promise<Outcome> {
   if (isLongMemEvalConfig(path)) return runLongMemEval(path, out, flags);
   if (isLintConfig(path)) return runLint(path, out, flags);
+  if (isFaultSetConfig(path)) return runFaultSet(path, out, flags);
   const read = readAnyConfig(path);
   let config: AnyRunnerConfig = "gatemem" in read ? read.gatemem : read.memInv;
   const named = flags.live || flags.replay;
