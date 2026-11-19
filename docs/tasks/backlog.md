@@ -115,3 +115,14 @@ Found by the work on card E9.4 and the review of PR #44, and left open on purpos
 | Offboarding's window: an owner's rewrite (V-2) | the same window for an owner's `Plane.write` rewrite adding a grant, held at its store write while the offboarding completes (ordering R3) | card E2.6; `docs/log/2026-11-19-e9-4-verification-finding-offboarding-window.md` |
 | Offboarding's window: the handover undoes a grant removal (V-3) | a handover held at its store write while the owner removes a grant writes the version it read, so the removal is undone and the grantee reads the role item (ordering R4); an in-place promotion has the same shape | card E2.6; `docs/log/2026-11-19-e9-4-verification-finding-offboarding-window.md` |
 | A first write naming another owner | the write gate compares a new item's owner as written (ADR 0006), so a member of a shared scope can create an item naming another person as its owner and carrying grants, which then read as that person's consent | ADR 0034, consequences; `docs/log/2026-11-19-e9-4-verification-finding-first-write-owner.md` |
+
+## Follow-ups from card E9.5's kit (2026-11-19)
+
+Found while building the twin dogfood's kit; the first needs the lead, the others are cards.
+
+| item | what is left | where it is recorded |
+|---|---|---|
+| Knowledge profile dogfood | Gate D asks that the Knowledge and Twin profiles run on dogfood data with zero recorded violations; card E9.5 covers the Twin profile only, and no card covers a Knowledge dogfood. The lead decides: a card for it (the violation report takes any policy with `--policy`), or Gate D read as the Twin profile's | `docs/log/2026-11-19-e9-5-finding-knowledge-dogfood-uncovered.md` |
+| Re-adoption raises model content to import | over the files adapter, the re-adoption after a plane write raises an agent-written item's provenance from `model` to `import`, after which its owner may grant it and a promotion reads it as `import`; adoption should keep the kind of a record the plane wrote. The dogfood counts such grants under `watch.granted_after_raise` | `docs/log/2026-11-19-e9-5-finding-readoption-raises-model-content.md` |
+| An event's actor capacity | an event records the actor's id only, not its level, memberships or source, so the violation report judges reads under the flags a member declares and cannot check the source of an `engram/grant/change` event; recording them is a schema change (AGENTS.md rule 5) | `docs/log/2026-11-19-e9-5-decision-declared-actors.md` |
+| The report on a Postgres log | `packages/core/scripts/dogfood-report.ts` reads a SQLite log only | `docs/log/2026-11-19-e9-5-decision-default-sqlite-log.md` |
