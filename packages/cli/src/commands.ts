@@ -39,6 +39,9 @@ export const ACTOR_OPTIONS = {
   level: { type: "string" },
   member: { type: "string", multiple: true },
   at: { type: "string" },
+  // For tests and fixtures only: lets --at set the clock of an in-process
+  // call that is not a read (review fix pass of PR #59, RV5-3).
+  "test-clock": { type: "boolean" },
 } satisfies Options;
 
 /** A server to call instead of the in-process app (or ENGRAM_SERVER_URL). */
@@ -67,13 +70,28 @@ export function parse<O extends Options>(args: string[], options: O, positionals
  * The time of a call that is not a read (card RV5, finding RV-SRF-2). A
  * server stamps every event from its own clock, so over --server (or
  * ENGRAM_SERVER_URL) `--at` is refused. In process the CLI is the server
- * (ADR 0027 decision 3), and `--at` sets its clock for this one call.
+ * (ADR 0027 decision 3), and its clock is the real one: `--at` is refused
+ * there too (review fix pass of PR #59, RV5-3), since a future retain
+ * retires the member's items for good and a backdated write is stamped
+ * before the log's history. Only `--test-clock`, for tests and fixtures,
+ * lets `--at` set the clock of this one in-process call.
  */
-function callClock(values: { at?: string | undefined; server?: string | undefined }, io: Io) {
+function callClock(
+  values: {
+    at?: string | undefined;
+    server?: string | undefined;
+    "test-clock"?: boolean | undefined;
+  },
+  io: Io,
+) {
   const given = checkTime("--at", values.at);
   if (given !== undefined && serverOf(io, values) !== undefined)
     throw new UsageError(
       "--at sets the time of the call, which a server stamps from its own clock; only engram read takes --at with --server (the time its validity windows are judged at)",
+    );
+  if (given !== undefined && values["test-clock"] !== true)
+    throw new UsageError(
+      "--at sets the clock of a call that is not a read, which runs at the real clock: a future time retires items for good, an earlier one is stamped before the log's history; only engram read takes --at (the time its validity windows are judged at), and --test-clock lets tests and fixtures set the clock",
     );
   const at = given ?? io.now();
   return { at, io: given === undefined ? io : { ...io, now: () => given } };

@@ -101,8 +101,9 @@ actor options (read, write, promote, explain, retain, lint):
   --member <scope>            a scope the actor belongs to; repeatable (default the actor's scope)
   --at <iso time>             read: the time validity windows are judged at; the read and
                               the owner's sweep run at the server's clock. Any other
-                              command: the time of the call, in process only (a server
-                              stamps its own); default now
+                              command: refused, unless --test-clock is given in process
+  --test-clock                for tests and fixtures only: --at sets the clock of an
+                              in-process call that is not a read (refused with --server)
 
 write options:
   --content <text>            the item's content
