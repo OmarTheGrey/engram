@@ -94,6 +94,39 @@ def test_reproduce_fails_when_the_manifest_hash_is_not_the_committed_file(tmp_pa
     assert any("regenerated" in p for p in problems)
 
 
+def test_each_manifest_file_has_one_row_and_its_commit_is_in_the_history() -> None:
+    """A row names a commit HEAD contains (review P60-1).
+
+    A rebase rewrites the branch's own commits, and a squash merge replaces
+    them with one new commit: the orchestrator rewrites a new row's commit
+    cell to the squash commit right after the merge, and before then the cell
+    names the branch commit that holds the script, which HEAD contains. A
+    checkout without git history skips the ancestry half.
+    """
+    rows = reproduce.manifest_rows(
+        (REPO / "research/results/MANIFEST.md").read_text(encoding="utf-8")
+    )
+    files = [row.file for row in rows]
+    assert sorted({f for f in files if files.count(f) > 1}) == []
+    git = shutil.which("git")
+    if git is None or not (REPO / ".git").exists():
+        pytest.skip("no git history to check the commit cells against")
+    import subprocess
+
+    outside = [
+        f"{row.file} names {row.commit}"
+        for row in rows
+        if subprocess.run(
+            [git, "merge-base", "--is-ancestor", row.commit, "HEAD"],
+            cwd=REPO,
+            capture_output=True,
+            check=False,
+        ).returncode
+        != 0
+    ]
+    assert outside == []
+
+
 def test_the_repository_manifest_rows_parse() -> None:
     text = (REPO / "research/results/MANIFEST.md").read_text(encoding="utf-8")
     for row in reproduce.manifest_rows(text):
