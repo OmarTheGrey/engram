@@ -529,15 +529,17 @@ def totals(
                         if row["id"].startswith("h3-lint-model/") and o47 == "b":
                             weight = share47
                         model = resolve_model(row, option)
+                        t = row_tokens(row, utility=utility)
+                        for e in ESTIMATES:
+                            calls[e] += weight * t[e]["calls"]
                         d = dollars(row, model, prices, flags, utility=utility)
                         if d is None:
+                            # Counted in calls, left out of dollars, and named.
                             missing.append(model)
                             continue
-                        t = row_tokens(row, utility=utility)
                         h = by_h.setdefault(row["hypothesis"], {"low": 0.0, "high": 0.0})
                         for e in ESTIMATES:
                             cost[e] += weight * d[e]
-                            calls[e] += weight * t[e]["calls"]
                             h[e] += weight * d[e]
                     by_option[f"1{o1}/2{o2}/47{o47}"] = {
                         "dollars": cost,

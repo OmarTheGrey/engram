@@ -88,11 +88,28 @@
       "status": "built",
       "count": "make run CONFIG=research/configs/h1-gatemem.json COUNT=1, as research/results/h1-cost.json records it (sizes.gatemem)",
       "groups": [
-        { "kind": "access", "items": "h1-cost:sizes.gatemem.item_kinds.access control", "shape": { "ref": "h1-cost:measured.gatemem.{condition}.full_set.privacy" } },
-        { "kind": "forgetting", "items": "h1-cost:sizes.gatemem.item_kinds.active forgetting", "shape": { "ref": "h1-cost:measured.gatemem.{condition}.full_set.safety" } },
-        { "kind": "utility", "utility": true, "items": "h1-cost:sizes.gatemem.item_kinds.utility", "shape": { "ref": "h1-cost:measured.gatemem.{condition}.full_set.utility" } }
+        {
+          "kind": "access",
+          "items": "h1-cost:sizes.gatemem.item_kinds.access control",
+          "shape": { "ref": "h1-cost:measured.gatemem.{condition}.full_set.privacy" }
+        },
+        {
+          "kind": "forgetting",
+          "items": "h1-cost:sizes.gatemem.item_kinds.active forgetting",
+          "shape": { "ref": "h1-cost:measured.gatemem.{condition}.full_set.safety" }
+        },
+        {
+          "kind": "utility",
+          "utility": true,
+          "items": "h1-cost:sizes.gatemem.item_kinds.utility",
+          "shape": { "ref": "h1-cost:measured.gatemem.{condition}.full_set.utility" }
+        }
       ],
-      "judge": { "model": "openrouter/openai/gpt-4o", "attempts": { "low": 1, "high": 3 }, "shape": { "single": "h1-cost:measured.judge" } }
+      "judge": {
+        "model": "openrouter/openai/gpt-4o",
+        "attempts": { "low": 1, "high": 3 },
+        "shape": { "single": "h1-cost:measured.judge" }
+      }
     },
     {
       "id": "h1-mem-inv",
@@ -106,7 +123,11 @@
       "status": "built",
       "count": "make run CONFIG=research/configs/h1-mem-inv.json COUNT=1, as research/results/h1-cost.json records it (sizes.mem-inv-bench)",
       "groups": [
-        { "kind": "case", "items": "h1-cost:sizes.mem-inv-bench.items", "shape": { "ref": "h1-cost:measured.mem-inv-bench.{condition}.full_set" } }
+        {
+          "kind": "case",
+          "items": "h1-cost:sizes.mem-inv-bench.items",
+          "shape": { "ref": "h1-cost:measured.mem-inv-bench.{condition}.full_set" }
+        }
       ]
     },
     {
@@ -120,7 +141,13 @@
       "seeds": [1],
       "status": "built",
       "count": "make run CONFIG=research/configs/h1-mem-inv.json COUNT=1: 8 agent notes, one per scenario, with the first seed",
-      "groups": [{ "kind": "note", "items": "h1-cost:sizes.mem-inv-bench.note_calls", "shape": { "note": "h1-cost:measured.mem-inv-bench.note" } }]
+      "groups": [
+        {
+          "kind": "note",
+          "items": "h1-cost:sizes.mem-inv-bench.note_calls",
+          "shape": { "note": "h1-cost:measured.mem-inv-bench.note" }
+        }
+      ]
     },
     {
       "id": "h2-gatemem",
@@ -135,11 +162,28 @@
       "shared_with": "h1-gatemem",
       "count": "the same cells as H1's (item, condition, preset, store, model, seed), so their cassettes serve both (rule 7) and they make no new call; if H1 drops its utility checkpoints (lead-decisions item 2b), the utility cells are new",
       "groups": [
-        { "kind": "access", "items": "h1-cost:sizes.gatemem.item_kinds.access control", "shape": { "ref": "h1-cost:measured.gatemem.{condition}.full_set.privacy" } },
-        { "kind": "forgetting", "items": "h1-cost:sizes.gatemem.item_kinds.active forgetting", "shape": { "ref": "h1-cost:measured.gatemem.{condition}.full_set.safety" } },
-        { "kind": "utility", "utility": true, "items": "h1-cost:sizes.gatemem.item_kinds.utility", "shape": { "ref": "h1-cost:measured.gatemem.{condition}.full_set.utility" } }
+        {
+          "kind": "access",
+          "items": "h1-cost:sizes.gatemem.item_kinds.access control",
+          "shape": { "ref": "h1-cost:measured.gatemem.{condition}.full_set.privacy" }
+        },
+        {
+          "kind": "forgetting",
+          "items": "h1-cost:sizes.gatemem.item_kinds.active forgetting",
+          "shape": { "ref": "h1-cost:measured.gatemem.{condition}.full_set.safety" }
+        },
+        {
+          "kind": "utility",
+          "utility": true,
+          "items": "h1-cost:sizes.gatemem.item_kinds.utility",
+          "shape": { "ref": "h1-cost:measured.gatemem.{condition}.full_set.utility" }
+        }
       ],
-      "judge": { "model": "openrouter/openai/gpt-4o", "attempts": { "low": 1, "high": 3 }, "shape": { "single": "h1-cost:measured.judge" } }
+      "judge": {
+        "model": "openrouter/openai/gpt-4o",
+        "attempts": { "low": 1, "high": 3 },
+        "shape": { "single": "h1-cost:measured.judge" }
+      }
     },
     {
       "id": "h2-gatemem-sweep",
@@ -153,11 +197,42 @@
       "status": "estimated from the design: the probe runs C5 at any preset, no config is written",
       "count": "every GateMem checkpoint at each preset, three seeds, as H1's design; tokens from C5 at medium (low) to C2 (high), since a preset admits at most what C2 reads",
       "groups": [
-        { "kind": "access", "items": "h1-cost:sizes.gatemem.item_kinds.access control", "shape": { "envelope": { "low": "h1-cost:measured.gatemem.C5.full_set.privacy", "high": "h1-cost:measured.gatemem.C2.full_set.privacy" } } },
-        { "kind": "forgetting", "items": "h1-cost:sizes.gatemem.item_kinds.active forgetting", "shape": { "envelope": { "low": "h1-cost:measured.gatemem.C5.full_set.safety", "high": "h1-cost:measured.gatemem.C2.full_set.safety" } } },
-        { "kind": "utility", "items": "h1-cost:sizes.gatemem.item_kinds.utility", "shape": { "envelope": { "low": "h1-cost:measured.gatemem.C5.full_set.utility", "high": "h1-cost:measured.gatemem.C2.full_set.utility" } } }
+        {
+          "kind": "access",
+          "items": "h1-cost:sizes.gatemem.item_kinds.access control",
+          "shape": {
+            "envelope": {
+              "low": "h1-cost:measured.gatemem.C5.full_set.privacy",
+              "high": "h1-cost:measured.gatemem.C2.full_set.privacy"
+            }
+          }
+        },
+        {
+          "kind": "forgetting",
+          "items": "h1-cost:sizes.gatemem.item_kinds.active forgetting",
+          "shape": {
+            "envelope": {
+              "low": "h1-cost:measured.gatemem.C5.full_set.safety",
+              "high": "h1-cost:measured.gatemem.C2.full_set.safety"
+            }
+          }
+        },
+        {
+          "kind": "utility",
+          "items": "h1-cost:sizes.gatemem.item_kinds.utility",
+          "shape": {
+            "envelope": {
+              "low": "h1-cost:measured.gatemem.C5.full_set.utility",
+              "high": "h1-cost:measured.gatemem.C2.full_set.utility"
+            }
+          }
+        }
       ],
-      "judge": { "model": "openrouter/openai/gpt-4o", "attempts": { "low": 1, "high": 3 }, "shape": { "single": "h1-cost:measured.judge" } }
+      "judge": {
+        "model": "openrouter/openai/gpt-4o",
+        "attempts": { "low": 1, "high": 3 },
+        "shape": { "single": "h1-cost:measured.judge" }
+      }
     },
     {
       "id": "h2-gatemem-c1",
@@ -171,11 +246,27 @@
       "status": "estimated from the design: C1 is built on GateMem (packages/bench/src/gatemem/agents.ts longContextItems), no H2 config is written",
       "count": "every GateMem checkpoint, three seeds, one call each: GateMem's query prompt with the last 300 turns up to the as-of turn as its memory block, each turn's item as JSON",
       "groups": [
-        { "kind": "access", "items": "h1-cost:sizes.gatemem.item_kinds.access control", "shape": { "c1_gatemem": "privacy" } },
-        { "kind": "forgetting", "items": "h1-cost:sizes.gatemem.item_kinds.active forgetting", "shape": { "c1_gatemem": "safety" } },
-        { "kind": "utility", "items": "h1-cost:sizes.gatemem.item_kinds.utility", "shape": { "c1_gatemem": "utility" } }
+        {
+          "kind": "access",
+          "items": "h1-cost:sizes.gatemem.item_kinds.access control",
+          "shape": { "c1_gatemem": "privacy" }
+        },
+        {
+          "kind": "forgetting",
+          "items": "h1-cost:sizes.gatemem.item_kinds.active forgetting",
+          "shape": { "c1_gatemem": "safety" }
+        },
+        {
+          "kind": "utility",
+          "items": "h1-cost:sizes.gatemem.item_kinds.utility",
+          "shape": { "c1_gatemem": "utility" }
+        }
       ],
-      "judge": { "model": "openrouter/openai/gpt-4o", "attempts": { "low": 1, "high": 3 }, "shape": { "single": "h1-cost:measured.judge" } }
+      "judge": {
+        "model": "openrouter/openai/gpt-4o",
+        "attempts": { "low": 1, "high": 3 },
+        "shape": { "single": "h1-cost:measured.judge" }
+      }
     },
     {
       "id": "h2-longmemeval",
@@ -189,9 +280,17 @@
       "status": "built",
       "count": "make run CONFIG=research/configs/h2-longmemeval-c2.json COUNT=1 and h2-longmemeval-c5-medium.json COUNT=1, as research/results/h2-longmemeval-cost.json records them",
       "groups": [
-        { "kind": "question", "items": "h2-longmemeval-cost:measured.full_set.questions", "shape": { "ref": "h2-longmemeval-cost:measured.{lme_arm}.full_set" } }
+        {
+          "kind": "question",
+          "items": "h2-longmemeval-cost:measured.full_set.questions",
+          "shape": { "ref": "h2-longmemeval-cost:measured.{lme_arm}.full_set" }
+        }
       ],
-      "judge": { "model": "openrouter/openai/gpt-4o-2024-08-06", "attempts": { "low": 1, "high": 1 }, "shape": { "single": "h2-longmemeval-cost:measured.judge" } }
+      "judge": {
+        "model": "openrouter/openai/gpt-4o-2024-08-06",
+        "attempts": { "low": 1, "high": 1 },
+        "shape": { "single": "h2-longmemeval-cost:measured.judge" }
+      }
     },
     {
       "id": "h2-longmemeval-sweep",
@@ -205,9 +304,22 @@
       "status": "estimated from the design: the runner runs C5 on LongMemEval at any preset, no config is written",
       "count": "the 500 questions at each preset, three seeds, as the baselines; tokens from C5 at medium (low) to C2 (high)",
       "groups": [
-        { "kind": "question", "items": "h2-longmemeval-cost:measured.full_set.questions", "shape": { "envelope": { "low": "h2-longmemeval-cost:measured.c5-medium.full_set", "high": "h2-longmemeval-cost:measured.c2.full_set" } } }
+        {
+          "kind": "question",
+          "items": "h2-longmemeval-cost:measured.full_set.questions",
+          "shape": {
+            "envelope": {
+              "low": "h2-longmemeval-cost:measured.c5-medium.full_set",
+              "high": "h2-longmemeval-cost:measured.c2.full_set"
+            }
+          }
+        }
       ],
-      "judge": { "model": "openrouter/openai/gpt-4o-2024-08-06", "attempts": { "low": 1, "high": 1 }, "shape": { "single": "h2-longmemeval-cost:measured.judge" } }
+      "judge": {
+        "model": "openrouter/openai/gpt-4o-2024-08-06",
+        "attempts": { "low": 1, "high": 1 },
+        "shape": { "single": "h2-longmemeval-cost:measured.judge" }
+      }
     },
     {
       "id": "h2-longmemeval-c1",
@@ -220,8 +332,18 @@
       "seeds": [1, 2, 3],
       "status": "estimated from the design: C1 is not built on LongMemEval (RV-DES-18)",
       "count": "the 500 questions, three seeds, one call each with the whole history in the prompt (upstream's full-history reader), the reader prompt plus the S split's mean history characters, over four",
-      "groups": [{ "kind": "question", "items": "h2-longmemeval-cost:measured.full_set.questions", "shape": { "c1_longmemeval": true } }],
-      "judge": { "model": "openrouter/openai/gpt-4o-2024-08-06", "attempts": { "low": 1, "high": 1 }, "shape": { "single": "h2-longmemeval-cost:measured.judge" } }
+      "groups": [
+        {
+          "kind": "question",
+          "items": "h2-longmemeval-cost:measured.full_set.questions",
+          "shape": { "c1_longmemeval": true }
+        }
+      ],
+      "judge": {
+        "model": "openrouter/openai/gpt-4o-2024-08-06",
+        "attempts": { "low": 1, "high": 1 },
+        "shape": { "single": "h2-longmemeval-cost:measured.judge" }
+      }
     },
     {
       "id": "h2-merit",
@@ -266,14 +388,60 @@
           "items": 100,
           "shape": {
             "mix": [
-              { "weight": "h1-cost:sizes.gatemem.item_kinds.access control", "shape": { "by_condition": { "C1": { "c1_gatemem": "privacy" }, "C2": { "ref": "h1-cost:measured.gatemem.C2.full_set.privacy" }, "C5": { "envelope": { "low": "h1-cost:measured.gatemem.C5.full_set.privacy", "high": "h1-cost:measured.gatemem.C2.full_set.privacy" } } } } },
-              { "weight": "h1-cost:sizes.gatemem.item_kinds.active forgetting", "shape": { "by_condition": { "C1": { "c1_gatemem": "safety" }, "C2": { "ref": "h1-cost:measured.gatemem.C2.full_set.safety" }, "C5": { "envelope": { "low": "h1-cost:measured.gatemem.C5.full_set.safety", "high": "h1-cost:measured.gatemem.C2.full_set.safety" } } } } },
-              { "weight": "h1-cost:sizes.gatemem.item_kinds.utility", "shape": { "by_condition": { "C1": { "c1_gatemem": "utility" }, "C2": { "ref": "h1-cost:measured.gatemem.C2.full_set.utility" }, "C5": { "envelope": { "low": "h1-cost:measured.gatemem.C5.full_set.utility", "high": "h1-cost:measured.gatemem.C2.full_set.utility" } } } } }
+              {
+                "weight": "h1-cost:sizes.gatemem.item_kinds.access control",
+                "shape": {
+                  "by_condition": {
+                    "C1": { "c1_gatemem": "privacy" },
+                    "C2": { "ref": "h1-cost:measured.gatemem.C2.full_set.privacy" },
+                    "C5": {
+                      "envelope": {
+                        "low": "h1-cost:measured.gatemem.C5.full_set.privacy",
+                        "high": "h1-cost:measured.gatemem.C2.full_set.privacy"
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "weight": "h1-cost:sizes.gatemem.item_kinds.active forgetting",
+                "shape": {
+                  "by_condition": {
+                    "C1": { "c1_gatemem": "safety" },
+                    "C2": { "ref": "h1-cost:measured.gatemem.C2.full_set.safety" },
+                    "C5": {
+                      "envelope": {
+                        "low": "h1-cost:measured.gatemem.C5.full_set.safety",
+                        "high": "h1-cost:measured.gatemem.C2.full_set.safety"
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "weight": "h1-cost:sizes.gatemem.item_kinds.utility",
+                "shape": {
+                  "by_condition": {
+                    "C1": { "c1_gatemem": "utility" },
+                    "C2": { "ref": "h1-cost:measured.gatemem.C2.full_set.utility" },
+                    "C5": {
+                      "envelope": {
+                        "low": "h1-cost:measured.gatemem.C5.full_set.utility",
+                        "high": "h1-cost:measured.gatemem.C2.full_set.utility"
+                      }
+                    }
+                  }
+                }
+              }
             ]
           }
         }
       ],
-      "judge": { "model": "openrouter/openai/gpt-4o", "attempts": { "low": 1, "high": 3 }, "shape": { "single": "h1-cost:measured.judge" } }
+      "judge": {
+        "model": "openrouter/openai/gpt-4o",
+        "attempts": { "low": 1, "high": 3 },
+        "shape": { "single": "h1-cost:measured.judge" }
+      }
     },
     {
       "id": "h2-subset-longmemeval",
@@ -290,10 +458,25 @@
         {
           "kind": "question",
           "items": 200,
-          "shape": { "by_condition": { "C1": { "c1_longmemeval": true }, "C2": { "ref": "h2-longmemeval-cost:measured.c2.full_set" }, "C5": { "envelope": { "low": "h2-longmemeval-cost:measured.c5-medium.full_set", "high": "h2-longmemeval-cost:measured.c2.full_set" } } } }
+          "shape": {
+            "by_condition": {
+              "C1": { "c1_longmemeval": true },
+              "C2": { "ref": "h2-longmemeval-cost:measured.c2.full_set" },
+              "C5": {
+                "envelope": {
+                  "low": "h2-longmemeval-cost:measured.c5-medium.full_set",
+                  "high": "h2-longmemeval-cost:measured.c2.full_set"
+                }
+              }
+            }
+          }
         }
       ],
-      "judge": { "model": "openrouter/openai/gpt-4o-2024-08-06", "attempts": { "low": 1, "high": 1 }, "shape": { "single": "h2-longmemeval-cost:measured.judge" } }
+      "judge": {
+        "model": "openrouter/openai/gpt-4o-2024-08-06",
+        "attempts": { "low": 1, "high": 1 },
+        "shape": { "single": "h2-longmemeval-cost:measured.judge" }
+      }
     },
     {
       "id": "h2-subset-merit",
@@ -306,7 +489,19 @@
       "seeds": [1, 2, 3],
       "status": "estimated from the design: about 50 MERIT tasks per model (pre-registration, Models), no harness is built",
       "count": "50 episodes per model at C1, C2 and C5 at each preset, three seeds; C1 and C2 counted once",
-      "groups": [{ "kind": "episode", "items": 50, "shape": { "by_condition": { "C1": { "design": "merit-episode-c1" }, "C2": { "design": "merit-episode" }, "C5": { "design": "merit-episode" } } } }]
+      "groups": [
+        {
+          "kind": "episode",
+          "items": 50,
+          "shape": {
+            "by_condition": {
+              "C1": { "design": "merit-episode-c1" },
+              "C2": { "design": "merit-episode" },
+              "C5": { "design": "merit-episode" }
+            }
+          }
+        }
+      ]
     },
     {
       "id": "h3-longmemeval-c5",
@@ -320,8 +515,18 @@
       "status": "built",
       "shared_with": "h2-longmemeval",
       "count": "H2's C5 baseline at medium, the same cells, so no new call",
-      "groups": [{ "kind": "question", "items": "h2-longmemeval-cost:measured.full_set.questions", "shape": { "ref": "h2-longmemeval-cost:measured.c5-medium.full_set" } }],
-      "judge": { "model": "openrouter/openai/gpt-4o-2024-08-06", "attempts": { "low": 1, "high": 1 }, "shape": { "single": "h2-longmemeval-cost:measured.judge" } }
+      "groups": [
+        {
+          "kind": "question",
+          "items": "h2-longmemeval-cost:measured.full_set.questions",
+          "shape": { "ref": "h2-longmemeval-cost:measured.c5-medium.full_set" }
+        }
+      ],
+      "judge": {
+        "model": "openrouter/openai/gpt-4o-2024-08-06",
+        "attempts": { "low": 1, "high": 1 },
+        "shape": { "single": "h2-longmemeval-cost:measured.judge" }
+      }
     },
     {
       "id": "h3-longmemeval-c6",
@@ -334,8 +539,18 @@
       "seeds": [1, 2, 3],
       "status": "estimated from the design: C6 is not built (packages/runner/src/config.ts stops at C5)",
       "count": "the 500 questions, three seeds; the deterministic lints call no model, so a session has C5's shape",
-      "groups": [{ "kind": "question", "items": "h2-longmemeval-cost:measured.full_set.questions", "shape": { "ref": "h2-longmemeval-cost:measured.c5-medium.full_set" } }],
-      "judge": { "model": "openrouter/openai/gpt-4o-2024-08-06", "attempts": { "low": 1, "high": 1 }, "shape": { "single": "h2-longmemeval-cost:measured.judge" } }
+      "groups": [
+        {
+          "kind": "question",
+          "items": "h2-longmemeval-cost:measured.full_set.questions",
+          "shape": { "ref": "h2-longmemeval-cost:measured.c5-medium.full_set" }
+        }
+      ],
+      "judge": {
+        "model": "openrouter/openai/gpt-4o-2024-08-06",
+        "attempts": { "low": 1, "high": 1 },
+        "shape": { "single": "h2-longmemeval-cost:measured.judge" }
+      }
     },
     {
       "id": "h3-lint-model",
@@ -348,20 +563,60 @@
       "seeds": [1, 2, 3],
       "status": "built",
       "count": "make run CONFIG=research/configs/h3-lint-model.json COUNT=1, as research/results/h3-lint-floor.json records it (model_run): calls and prompt characters; the reply length is assumed (lint_output_tokens), not measured",
-      "groups": [{ "kind": "lint call", "items": 1, "shape": { "lint_model": "h3-lint-floor:model_run" } }]
+      "groups": [
+        { "kind": "lint call", "items": 1, "shape": { "lint_model": "h3-lint-floor:model_run" } }
+      ]
     },
     {
       "id": "h4-gatemem",
       "hypothesis": "H4",
       "benchmark": "gatemem",
       "arms": [
-        { "condition": "C5", "store": "files", "role": "M1", "utility": true, "status": "estimated from the design: the files store joins the runner in card X9" },
-        { "condition": "C5", "store": "mem0", "role": "M1", "utility": true, "status": "built (the probe), no config is written" },
-        { "condition": "C5", "store": "letta", "role": "M1", "utility": true, "status": "built (the probe), no config is written" },
-        { "condition": "C5", "store": "mem0", "role": "M2", "status": "built (the probe), no config is written" },
-        { "condition": "C5", "store": "mem0", "role": "M3", "status": "built (the probe), no config is written" },
-        { "condition": "C2", "store": "mem0", "role": "M1", "status": "built (the probe), no config is written" },
-        { "condition": "C7", "store": "mem0", "role": "M1", "status": "estimated from the design: C7 is not built" }
+        {
+          "condition": "C5",
+          "store": "files",
+          "role": "M1",
+          "utility": true,
+          "status": "estimated from the design: the files store joins the runner in card X9"
+        },
+        {
+          "condition": "C5",
+          "store": "mem0",
+          "role": "M1",
+          "utility": true,
+          "status": "built (the probe), no config is written"
+        },
+        {
+          "condition": "C5",
+          "store": "letta",
+          "role": "M1",
+          "utility": true,
+          "status": "built (the probe), no config is written"
+        },
+        {
+          "condition": "C5",
+          "store": "mem0",
+          "role": "M2",
+          "status": "built (the probe), no config is written"
+        },
+        {
+          "condition": "C5",
+          "store": "mem0",
+          "role": "M3",
+          "status": "built (the probe), no config is written"
+        },
+        {
+          "condition": "C2",
+          "store": "mem0",
+          "role": "M1",
+          "status": "built (the probe), no config is written"
+        },
+        {
+          "condition": "C7",
+          "store": "mem0",
+          "role": "M1",
+          "status": "estimated from the design: C7 is not built"
+        }
       ],
       "preset": "medium",
       "seeds": [1, 2, 3],
@@ -373,14 +628,29 @@
           "items": 761,
           "shape": {
             "mix": [
-              { "weight": "h1-cost:sizes.gatemem.item_kinds.access control", "shape": { "ref": "h1-cost:measured.gatemem.{read_condition}.full_set.privacy" } },
-              { "weight": "h1-cost:sizes.gatemem.item_kinds.active forgetting", "shape": { "ref": "h1-cost:measured.gatemem.{read_condition}.full_set.safety" } }
+              {
+                "weight": "h1-cost:sizes.gatemem.item_kinds.access control",
+                "shape": { "ref": "h1-cost:measured.gatemem.{read_condition}.full_set.privacy" }
+              },
+              {
+                "weight": "h1-cost:sizes.gatemem.item_kinds.active forgetting",
+                "shape": { "ref": "h1-cost:measured.gatemem.{read_condition}.full_set.safety" }
+              }
             ]
           }
         },
-        { "kind": "utility", "arm_utility": true, "items": "h1-cost:sizes.gatemem.item_kinds.utility", "shape": { "ref": "h1-cost:measured.gatemem.{read_condition}.full_set.utility" } }
+        {
+          "kind": "utility",
+          "arm_utility": true,
+          "items": "h1-cost:sizes.gatemem.item_kinds.utility",
+          "shape": { "ref": "h1-cost:measured.gatemem.{read_condition}.full_set.utility" }
+        }
       ],
-      "judge": { "model": "openrouter/openai/gpt-4o", "attempts": { "low": 1, "high": 3 }, "shape": { "single": "h1-cost:measured.judge" } }
+      "judge": {
+        "model": "openrouter/openai/gpt-4o",
+        "attempts": { "low": 1, "high": 3 },
+        "shape": { "single": "h1-cost:measured.judge" }
+      }
     },
     {
       "id": "h4-memoryagentbench",
@@ -401,7 +671,12 @@
       "count": "761 Conflict Resolution questions per arm (its 8 rows hold about 100 questions each, from the paper, not counted from the pinned data), three seeds, and 761 Accurate Retrieval questions on the store arms for the utility gap; context chunks are written by the runner, not by a model call; the scoring is deterministic, so no judge is counted (its LongMemEval subset's gpt-4o judge is left out)",
       "groups": [
         { "kind": "conflict resolution", "items": 761, "shape": { "design": "mab-question" } },
-        { "kind": "accurate retrieval", "arm_utility": true, "items": 761, "shape": { "design": "mab-question" } }
+        {
+          "kind": "accurate retrieval",
+          "arm_utility": true,
+          "items": 761,
+          "shape": { "design": "mab-question" }
+        }
       ]
     },
     {
@@ -473,7 +748,9 @@
       "seeds": [1, 2, 3],
       "status": "estimated from the design: replay validation admits a procedure at 4 of 5 runs; the number of candidates is not known",
       "count": "replay_n = 5 episodes per candidate procedure; 20 candidates per seed taken here (100 episodes a seed), each an agent episode; their simulated users are in h5-tau2-replay-user",
-      "groups": [{ "kind": "replay episode", "items": 100, "shape": { "design": "tau2-agent-episode" } }]
+      "groups": [
+        { "kind": "replay episode", "items": 100, "shape": { "design": "tau2-agent-episode" } }
+      ]
     },
     {
       "id": "h5-tau2-replay-user",
@@ -486,7 +763,9 @@
       "seeds": [1, 2, 3],
       "status": "estimated from the design: as h5-tau2-replay",
       "count": "one simulated user per replay episode",
-      "groups": [{ "kind": "replay episode", "items": 100, "shape": { "design": "tau2-user-episode" } }]
+      "groups": [
+        { "kind": "replay episode", "items": 100, "shape": { "design": "tau2-user-episode" } }
+      ]
     },
     {
       "id": "l3-pilot",
@@ -504,11 +783,31 @@
   ],
   "options": {
     "item_1": {
-      "a": { "M1": "openrouter/openai/gpt-5.6-terra", "M2": "openrouter/mistralai/mistral-large-4-0", "M3": "openrouter/deepseek/deepseek-v4-pro-0813" },
-      "b-deepseek": { "M1": "openrouter/deepseek/deepseek-v4-pro-0813", "M2": "openrouter/mistralai/mistral-large-4-0", "M3": "openrouter/openai/gpt-5.6-terra" },
-      "b-mistral": { "M1": "openrouter/mistralai/mistral-large-4-0", "M2": "openrouter/deepseek/deepseek-v4-pro-0813", "M3": "openrouter/openai/gpt-5.6-terra" },
-      "c-luna": { "M1": "openrouter/openai/gpt-6-luna", "M2": "openrouter/mistralai/mistral-large-4-0", "M3": "openrouter/deepseek/deepseek-v4-pro-0813" },
-      "c-mistral-small": { "M1": "openrouter/mistralai/mistral-small-2603", "M2": "openrouter/mistralai/mistral-large-4-0", "M3": "openrouter/deepseek/deepseek-v4-pro-0813" }
+      "a": {
+        "M1": "openrouter/openai/gpt-5.6-terra",
+        "M2": "openrouter/mistralai/mistral-large-4-0",
+        "M3": "openrouter/deepseek/deepseek-v4-pro-0813"
+      },
+      "b-deepseek": {
+        "M1": "openrouter/deepseek/deepseek-v4-pro-0813",
+        "M2": "openrouter/mistralai/mistral-large-4-0",
+        "M3": "openrouter/openai/gpt-5.6-terra"
+      },
+      "b-mistral": {
+        "M1": "openrouter/mistralai/mistral-large-4-0",
+        "M2": "openrouter/deepseek/deepseek-v4-pro-0813",
+        "M3": "openrouter/openai/gpt-5.6-terra"
+      },
+      "c-luna": {
+        "M1": "openrouter/openai/gpt-6-luna",
+        "M2": "openrouter/mistralai/mistral-large-4-0",
+        "M3": "openrouter/deepseek/deepseek-v4-pro-0813"
+      },
+      "c-mistral-small": {
+        "M1": "openrouter/mistralai/mistral-small-2603",
+        "M2": "openrouter/mistralai/mistral-large-4-0",
+        "M3": "openrouter/deepseek/deepseek-v4-pro-0813"
+      }
     },
     "item_1_note": "Item 1's option (b) names only M1; the other two models keep their makers and take the other two roles. Option (c) names no small model; gpt-6-luna and mistral-small-2603 bound the range item 1 quotes, with M2 and M3 as in (a).",
     "item_2": {
@@ -517,7 +816,10 @@
     },
     "item_47": {
       "a": "decided with the spend: priced as registered (c)",
-      "b": { "share": 0.5, "text": "a seeded 250-question subset by amendment: calls in proportion to the questions, 0.5 of the full run (the L4 review's table gives about 47,600)" },
+      "b": {
+        "share": 0.5,
+        "text": "a seeded 250-question subset by amendment: calls in proportion to the questions, 0.5 of the full run (the L4 review's table gives about 47,600)"
+      },
       "c": "all 500 questions, as registered: 95,217 calls"
     }
   },

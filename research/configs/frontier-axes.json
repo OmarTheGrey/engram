@@ -30,20 +30,165 @@
   },
   "variants": [
     { "name": "medium", "axis": "baseline", "value": "medium", "base": "medium" },
-    { "name": "grants-off", "axis": "grants", "value": false, "base": "medium", "set": [{ "path": ["read", "honour_grants"], "value": false }] },
-    { "name": "scope-person-only", "axis": "scope_width", "value": "person", "base": "medium", "set": [{ "path": ["read", "matrix", { "reader": "person" }, "may_read"], "value": ["person"] }] },
-    { "name": "scope-no-person", "axis": "scope_width", "value": "role,team,org", "base": "medium", "set": [{ "path": ["read", "matrix", { "reader": "person" }, "may_read"], "value": ["role", "team", "org"] }] },
-    { "name": "budget-25", "axis": "budget", "value": 25, "base": "medium", "set": [{ "path": ["retention", { "scope": "person", "class": "episodic" }, "budget"], "value": 25 }] },
-    { "name": "budget-50", "axis": "budget", "value": 50, "base": "medium", "set": [{ "path": ["retention", { "scope": "person", "class": "episodic" }, "budget"], "value": 50 }] },
-    { "name": "budget-100", "axis": "budget", "value": 100, "base": "medium", "set": [{ "path": ["retention", { "scope": "person", "class": "episodic" }, "budget"], "value": 100 }] },
-    { "name": "budget-200", "axis": "budget", "value": 200, "base": "medium", "set": [{ "path": ["retention", { "scope": "person", "class": "episodic" }, "budget"], "value": 200 }] },
-    { "name": "budget-400", "axis": "budget", "value": 400, "base": "medium", "set": [{ "path": ["retention", { "scope": "person", "class": "episodic" }, "budget"], "value": 400 }] },
-    { "name": "ttl-1d", "axis": "ttl", "value": 86400, "base": "medium", "set": [{ "path": ["retention", { "scope": "person", "class": "episodic" }, "ttl"], "value": 86400 }] },
-    { "name": "ttl-7d", "axis": "ttl", "value": 604800, "base": "medium", "set": [{ "path": ["retention", { "scope": "person", "class": "episodic" }, "ttl"], "value": 604800 }] },
-    { "name": "ttl-30d", "axis": "ttl", "value": 2592000, "base": "medium", "set": [{ "path": ["retention", { "scope": "person", "class": "episodic" }, "ttl"], "value": 2592000 }] },
-    { "name": "ttl-180d", "axis": "ttl", "value": 15552000, "base": "medium", "set": [{ "path": ["retention", { "scope": "person", "class": "episodic" }, "ttl"], "value": 15552000 }] },
-    { "name": "ttl-365d", "axis": "ttl", "value": 31536000, "base": "medium", "set": [{ "path": ["retention", { "scope": "person", "class": "episodic" }, "ttl"], "value": 31536000 }] },
-    { "name": "ttl-none", "axis": "ttl", "value": null, "base": "medium", "set": [{ "path": ["retention", { "scope": "person", "class": "episodic" }, "ttl"], "value": null }] },
-    { "name": "no-model-source", "axis": "sources", "value": "user,document,tool,import,compaction", "base": "medium", "set": [{ "path": ["write", { "scope": "person" }, "allowed_sources"], "value": ["user", "document", "tool", "import", "compaction"] }] }
+    {
+      "name": "grants-off",
+      "axis": "grants",
+      "value": false,
+      "base": "medium",
+      "set": [{ "path": ["read", "honour_grants"], "value": false }]
+    },
+    {
+      "name": "scope-person-only",
+      "axis": "scope_width",
+      "value": "person",
+      "base": "medium",
+      "set": [
+        { "path": ["read", "matrix", { "reader": "person" }, "may_read"], "value": ["person"] }
+      ]
+    },
+    {
+      "name": "scope-no-person",
+      "axis": "scope_width",
+      "value": "role,team,org",
+      "base": "medium",
+      "set": [
+        {
+          "path": ["read", "matrix", { "reader": "person" }, "may_read"],
+          "value": ["role", "team", "org"]
+        }
+      ]
+    },
+    {
+      "name": "budget-25",
+      "axis": "budget",
+      "value": 25,
+      "base": "medium",
+      "set": [
+        { "path": ["retention", { "scope": "person", "class": "episodic" }, "budget"], "value": 25 }
+      ]
+    },
+    {
+      "name": "budget-50",
+      "axis": "budget",
+      "value": 50,
+      "base": "medium",
+      "set": [
+        { "path": ["retention", { "scope": "person", "class": "episodic" }, "budget"], "value": 50 }
+      ]
+    },
+    {
+      "name": "budget-100",
+      "axis": "budget",
+      "value": 100,
+      "base": "medium",
+      "set": [
+        {
+          "path": ["retention", { "scope": "person", "class": "episodic" }, "budget"],
+          "value": 100
+        }
+      ]
+    },
+    {
+      "name": "budget-200",
+      "axis": "budget",
+      "value": 200,
+      "base": "medium",
+      "set": [
+        {
+          "path": ["retention", { "scope": "person", "class": "episodic" }, "budget"],
+          "value": 200
+        }
+      ]
+    },
+    {
+      "name": "budget-400",
+      "axis": "budget",
+      "value": 400,
+      "base": "medium",
+      "set": [
+        {
+          "path": ["retention", { "scope": "person", "class": "episodic" }, "budget"],
+          "value": 400
+        }
+      ]
+    },
+    {
+      "name": "ttl-1d",
+      "axis": "ttl",
+      "value": 86400,
+      "base": "medium",
+      "set": [
+        { "path": ["retention", { "scope": "person", "class": "episodic" }, "ttl"], "value": 86400 }
+      ]
+    },
+    {
+      "name": "ttl-7d",
+      "axis": "ttl",
+      "value": 604800,
+      "base": "medium",
+      "set": [
+        {
+          "path": ["retention", { "scope": "person", "class": "episodic" }, "ttl"],
+          "value": 604800
+        }
+      ]
+    },
+    {
+      "name": "ttl-30d",
+      "axis": "ttl",
+      "value": 2592000,
+      "base": "medium",
+      "set": [
+        {
+          "path": ["retention", { "scope": "person", "class": "episodic" }, "ttl"],
+          "value": 2592000
+        }
+      ]
+    },
+    {
+      "name": "ttl-180d",
+      "axis": "ttl",
+      "value": 15552000,
+      "base": "medium",
+      "set": [
+        {
+          "path": ["retention", { "scope": "person", "class": "episodic" }, "ttl"],
+          "value": 15552000
+        }
+      ]
+    },
+    {
+      "name": "ttl-365d",
+      "axis": "ttl",
+      "value": 31536000,
+      "base": "medium",
+      "set": [
+        {
+          "path": ["retention", { "scope": "person", "class": "episodic" }, "ttl"],
+          "value": 31536000
+        }
+      ]
+    },
+    {
+      "name": "ttl-none",
+      "axis": "ttl",
+      "value": null,
+      "base": "medium",
+      "set": [
+        { "path": ["retention", { "scope": "person", "class": "episodic" }, "ttl"], "value": null }
+      ]
+    },
+    {
+      "name": "no-model-source",
+      "axis": "sources",
+      "value": "user,document,tool,import,compaction",
+      "base": "medium",
+      "set": [
+        {
+          "path": ["write", { "scope": "person" }, "allowed_sources"],
+          "value": ["user", "document", "tool", "import", "compaction"]
+        }
+      ]
+    }
   ]
 }

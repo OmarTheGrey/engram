@@ -93,11 +93,38 @@ Do not commit the sheets or the context files: they hold benchmark content, and 
 
 It answers a different question: whether a text match is the secret or a coincidence, and so how much of the reachable-leak share is real. The same members can read it after the label audit and record, for each checkpoint, whether the matched turn holds the secret. The share they agree is real is the evidence v1's forgetting decision rests on.
 
+## The rule and the response, as config values (card RV8)
+
+The rejection rule and what a tripped stop means are the lead's (lead-decisions items 5 and 6, pending), so each audit config holds them:
+
+- `reject_quorum`: how many members must reject an item. 2 is the recommended answer to item 5 (both of two, two of three); 1 is "any one" (5c) and 3 is "all three" (5b).
+- `stop_share`: the stop, more than this share of a benchmark's items rejected (0.1).
+- `on_stop`: `pause`, the pre-registration's text (the benchmark's runs wait for an amendment), or `drop`, item 6's recommended answer (the rejected items are dropped, listed in v1, and the runs proceed).
+
+`agreement.json` gives, per benchmark, `reject_quorum` and `action`: the configured response and, when `stop` is true, what it means (with `drop`, how many items are kept). Changing an answer is one config value; nothing else moves.
+
+## LongMemEval (card RV8)
+
+H2 and H3 run on LongMemEval, so its 50 items are audited before their first run with the same kit and the same three members: `research/configs/label-audit-longmemeval.json`, written under `.engram/audit-longmemeval/`.
+
+| benchmark | items | phase 1: the member's own label | phase 2: the key check |
+|---|---|---|---|
+| LongMemEval | 50 questions of the cleaned S split, a seeded draw without replacement from the 500 (seed 20261103), in a seeded order, named L01 to L50 | `answerable` (the sessions shown hold the answer) or `unanswerable` (LongMemEval's abstention questions, whose id ends `_abs`); write your own answer in `member_comment` | is the benchmark's answer what the sessions shown support? `yes` or `no` |
+
+- **The draw.** The pre-registration registers 50 items per benchmark and no sampling rule for LongMemEval. GateMem's rule is a seeded draw per kind of the items the primary metric is computed on; LongMemEval's accuracy is computed on every question, one kind, so the draw is a seeded simple random sample of 50. The pre-registration needs the rule written in (`docs/log/2026-11-20-rv8-finding-lme-audit-rule.md`).
+- **What a member sees.** The question and its date, and only the sessions the benchmark names as evidence, dated, in history order, each turn as its role and text. A whole S history is about 115,000 tokens, too long to read. No session id, `has_answer` mark, answer, question type or abstention flag is shown, but which sessions are shown is itself a label.
+- **The rule.** As on MEM-INV-Bench: an item is rejected when `reject_quorum` members label its answerability otherwise than the benchmark, or that many answer `no` on its key. Two of one kind are needed.
+- **The stop.** `stop` is true at 6 or more of the 50 rejected.
+
+Draw, fill and compare exactly as in Steps above, with `--config research/configs/label-audit-longmemeval.json` in each command. The draw itself is recorded without any id, label or key, as counts per kind and each reference's context sha256: `research/results/label-audit-longmemeval.json` (and H1's draw, `research/results/label-audit.json`), from `research/scripts/label_audit_draw.py`. Check that your context files hash to it before you start.
+
 ## Files
 
 - `research/configs/label-audit.json`: the seed, the members, the stopping rule's `stop_share`, the sample sizes and the data.
 - `research/scripts/label_audit_sample.py`: the draw, the blind phase-1 sheets and contexts, and the phase-2 key sheets.
 - `research/scripts/label_audit_agreement.py`: the agreement, with labels from the draw, and the stopping rule.
+- `research/configs/label-audit-longmemeval.json`: LongMemEval's audit, with the same seed, members, rule and response.
+- `research/scripts/label_audit_draw.py`: the draw as a committed record with no label (`research/results/label-audit.json`, `research/results/label-audit-longmemeval.json`).
 - `research/tests/test_label_audit.py`. It checks:
   - that each phase-1 context equals what an agent sees, rebuilt from the data, so nothing appended to it passes;
   - that no phase-1 sheet or context holds an item's label, key, family or kind;
@@ -106,4 +133,6 @@ It answers a different question: whether a text match is the secret or a coincid
   - the agreement against labels from the draw, with a kappa computed by hand;
   - that a sheet cannot change the benchmark label;
   - the stopping rule above and below the threshold on both benchmarks, and the stop flag waiting for the keys;
-  - with three members, the two-of-three rule (neither "all three" nor "any one"), Fleiss' kappa computed by hand, each pair's kappa, the stop flag waiting for every member's keys, and that two members keep the two-member report.
+  - with three members, the two-of-three rule (neither "all three" nor "any one"), Fleiss' kappa computed by hand, each pair's kappa, the stop flag waiting for every member's keys, and that two members keep the two-member report;
+  - on LongMemEval, the seeded draw, a context with the evidence sessions and no label, the rule at each quorum, and the stop's response from the config;
+  - that the draw record holds no id, label or key.
