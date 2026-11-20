@@ -122,6 +122,10 @@ describe("a leading cd moves the words after it (RV7-R7)", () => {
     "cd src && grep -r TODO .",
     "cd packages && find . -name '*.ts'",
     "cd src && cd lib && rg TODO .",
+    "cd src && grep -r TODO . | head",
+    "cd src && grep -r TODO . 2>&1",
+    "cd src && grep -r 'a; b || c & d' .",
+    'cd src && grep -r "a; b" .',
   ])("leaves %s alone with the root in the repository", (command) => {
     expect(shellBypass(command, inside)).toBeUndefined();
   });
@@ -135,5 +139,33 @@ describe("a leading cd moves the words after it (RV7-R7)", () => {
     'bash -c "cd src && true"; grep -r TODO .',
   ])("still blocks %s", (command) => {
     expect(shellBypass(command, inside)?.route).toBe("path");
+  });
+});
+
+// Second review pass of PR #61 (RV7-R7b): after `;`, `||`, a single `&` or a
+// newline a word runs in the old folder when the leading `cd` failed.
+describe("a leading cd that can fail keeps the cwd (RV7-R7b)", () => {
+  const inside = {
+    cwd: "/home/u/proj",
+    roots: ["/home/u/proj/mem"],
+    rootStore: "files",
+    home: "/home/u",
+  };
+  it.each([
+    "cd nope && ls; cat mem/a.md",
+    "cd nope && true; cat mem/a.md",
+    "cd nope && echo hi & cat mem/a.md",
+    "cd nope && ls || cat mem/a.md",
+    "cd nope && echo hi\ncat mem/a.md",
+    "cd nope && echo $(true; cat mem/a.md)",
+    'cd nope && echo "$(true; cat mem/a.md)"',
+  ])("blocks %s in both shell modes", (command) => {
+    expect(shellBypass(command, inside)?.route).toBe("path");
+    expect(shellBypass(command, { ...inside, shell: "powershell" })?.route).toBe("path");
+  });
+  it("still passes the point of R7 in both shell modes", () => {
+    const command = "cd src && grep -r TODO .";
+    expect(shellBypass(command, inside)).toBeUndefined();
+    expect(shellBypass(command, { ...inside, shell: "powershell" })).toBeUndefined();
   });
 });

@@ -23,7 +23,7 @@ import { describe, expect, test } from "vitest";
 import { allEvents } from "../../../src/events.ts";
 import { itemById } from "../../../src/items.ts";
 import { type Actor, adoptStoreItems, offboard } from "../../../src/plane.ts";
-import { WRITE_GRANT_ID, WRITE_MOVE_ID } from "../../../src/policy/evaluate.ts";
+import { evaluateWrite, WRITE_GRANT_ID, WRITE_MOVE_ID } from "../../../src/policy/evaluate.ts";
 import { GRANT_OWNER_ID, GRANT_SOURCE_ID, GRANT_UNCHANGED_ID } from "../../../src/policy/grants.ts";
 import { parsePolicy } from "../../../src/policy/load.ts";
 import type { Grant, MemoryItem } from "../../../src/schema.ts";
@@ -368,6 +368,8 @@ describe("RV-CORE-2: only the owner moves an item to another scope", () => {
     const moved = { ...env.role, version: 2, scope: "person:lee" } as MemoryItem;
     const r = await env.plane.write(lee, moved, LATER);
     expect(r.event).toMatchObject({ decision: "deny", policy_id: WRITE_MOVE_ID });
+    // Review fix pass 2 (RV7-R10b): the check is pinned, not just the rule id.
+    expect(evaluateWrite(env.policy, lee, moved, before, new Map(), LATER).check).toBe("move");
     expect(r.event.reason).toContain("only its owner person:dana");
     expect(itemById(env.db, id(1))).toEqual(before);
     expect((await env.plane.read(dana, { at: LATER })).items.map((i) => i.id)).toEqual([id(1)]);

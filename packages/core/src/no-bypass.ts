@@ -464,6 +464,49 @@ const literalDir = (dir: string) => dir !== "-" && !/[$\x60*?[\]{}]/.test(dir);
 const unquote = (word: string) => word.replace(/^["']|["']$/g, "");
 
 /**
+ * Whether every word of `rest` runs only after the commands before it
+ * succeeded: it holds no `;`, `||`, single `&` or newline outside quotes.
+ * Pipes and `&&` are fine, and so are the `&` of a redirection (`2>&1`,
+ * `&>`) and of `|&`. A double-quoted string holding `$(` or a backtick runs
+ * a script, so it counts as holding a separator; inside single quotes
+ * nothing runs. Errs towards false (RV7-R7b).
+ */
+function joinedByAndOnly(rest: string): boolean {
+  for (let i = 0; i < rest.length; i++) {
+    const c = rest[i] as string;
+    if (c === "\\" || c === "`") {
+      // an escaped separator is read as a separator; a backtick is a substitution or a PowerShell escape
+      if (c === "`") return false;
+      const next = rest[i + 1];
+      if (next === ";" || next === "&" || next === "|") return false;
+      i++;
+    } else if (c === "'") {
+      const end = rest.indexOf("'", i + 1);
+      if (end < 0) return false;
+      i = end;
+    } else if (c === '"') {
+      let j = i + 1;
+      for (; j < rest.length && rest[j] !== '"'; j++) {
+        if (rest[j] === "\\") j++;
+        else if (rest[j] === "`" || (rest[j] === "$" && rest[j + 1] === "(")) return false;
+      }
+      if (j >= rest.length) return false;
+      i = j;
+    } else if (c === ";" || c === "\n" || c === "\r") {
+      return false;
+    } else if (c === "|") {
+      if (rest[i + 1] === "|") return false;
+      if (rest[i + 1] === "&") i++;
+    } else if (c === "&") {
+      if (rest[i + 1] === "&") i++;
+      else if (rest[i - 1] === ">" || rest[i - 1] === "<" || rest[i + 1] === ">") continue;
+      else return false;
+    }
+  }
+  return true;
+}
+
+/**
  * Every folder a word of `command` may be resolved against (card RV7, core
  * review finding RV-CORE-5; review fix pass of PR #61, RV7-R3 and R7): the
  * cwd, and every folder a `cd`, `pushd`, `Push-Location`, `-C`,
@@ -473,8 +516,10 @@ const unquote = (word: string) => word.replace(/^["']|["']$/g, "");
  * written, quotes and nested scripts included, erring towards blocking: a
  * word is checked against folders the command may never enter. One
  * narrowing: a chain of literal `cd dir &&` at the very start of the command
- * replaces the cwd, since every later word runs there or not at all, so
- * `cd src && grep -r TODO .` is judged in `src` alone.
+ * replaces the cwd when everything after it is joined by `&&` and pipes alone
+ * (so every later word runs there or not at all), and `cd src && grep -r TODO .`
+ * is judged in `src` alone; after a `;`, `||`, a single `&` or a newline a word
+ * runs in the old folder if the `cd` failed, so the cwd stays.
  */
 function workingDirs(command: string, check: BypassCheck): string[] {
   const home = check.home ?? homedir();
@@ -485,12 +530,19 @@ function workingDirs(command: string, check: BypassCheck): string[] {
   }
   const resolveIn = (base: string, dir: string) => resolve(base, expandHome(dir, home) ?? dir);
   let dirs = [check.cwd];
-  for (let rest = text, m = LEADING_CD.exec(rest); m; m = LEADING_CD.exec(rest)) {
+  let moved: string | undefined;
+  let rest = text;
+  for (let m = LEADING_CD.exec(rest); m; m = LEADING_CD.exec(rest)) {
     const dir = unquote(m[1] as string);
     if (!literalDir(dir)) break;
-    dirs = [resolveIn(dirs[0] as string, dir)];
+    moved = resolveIn(moved ?? check.cwd, dir);
     rest = rest.slice(m[0].length);
   }
+  // The chain moves the later words only when each runs after the `cd`
+  // succeeded: joined by `&&` and pipes alone (RV7-R7b of the second review
+  // pass). After `;`, `||`, a single `&` or a newline a word still runs in the
+  // old folder when the `cd` failed.
+  if (moved !== undefined && joinedByAndOnly(rest)) dirs = [moved];
   const named: { at: number; dir: string }[] = [];
   for (const re of [CD_TARGET, DIR_OPTION])
     for (const m of text.matchAll(re))
