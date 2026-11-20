@@ -2,6 +2,8 @@
 // into its own folder against the same cassettes, merged into the one run
 // the H1 table reads. pi-ai's faux provider stands in for a live provider on
 // the seeded API; nothing here reaches the network.
+
+import { spawn } from "node:child_process";
 import {
   appendFileSync,
   existsSync,
@@ -17,7 +19,13 @@ import { join, resolve } from "node:path";
 import { type CacheStore, fileCache } from "@engram/model";
 import { afterAll, describe, expect, test } from "vitest";
 import { type Condition, configItems, readRunnerConfig } from "../src/config.ts";
-import { JournalLocked, JournalMismatch, LOCK_FILE, lockedBy } from "../src/journal.ts";
+import {
+  JournalLocked,
+  JournalMismatch,
+  LOCK_FILE,
+  lockedBy,
+  processStart,
+} from "../src/journal.ts";
 import { liveConfig, liveOptions } from "../src/live.ts";
 import { EVENTS_FILE, runConfig } from "../src/run.ts";
 import {
@@ -82,9 +90,24 @@ async function runShard(
   config: ReturnType<typeof live>,
   out: string,
   shard: Shard,
-  options: { resume?: boolean; crashAfter?: number; offline?: boolean } = {},
+  options: { resume?: boolean; crashAfter?: number; crashAtCall?: number; offline?: boolean } = {},
 ) {
   const provider = fauxLive({ stableIds: true });
+  const base = options.offline
+    ? { cache: fileCache(config.cassettes), offline: true }
+    : liveOptions(config, provider.models, {});
+  let calls = 0;
+  const inner = base.cache as CacheStore;
+  // The machine going away in the middle of a session: the call-th cache read throws.
+  const cache: CacheStore = {
+    get: (k) => {
+      if (options.crashAtCall !== undefined && ++calls === options.crashAtCall) {
+        throw new Error("the machine went away mid-session");
+      }
+      return inner.get(k);
+    },
+    set: (e) => inner.set(e),
+  };
   const journal = openRunJournal(shardDir(out, shard), shardConfig(config, shard), {
     resume: options.resume ?? false,
     shard,
@@ -93,9 +116,8 @@ async function runShard(
   let rows = 0;
   try {
     return await runConfig(shardConfig(config, shard), {
-      ...(options.offline
-        ? { cache: fileCache(config.cassettes), offline: true }
-        : liveOptions(config, provider.models, {})),
+      ...base,
+      cache,
       journal,
       shard,
       onRow: () => {
@@ -211,7 +233,75 @@ describe("a sharded run, merged, is the unsharded run (RV-DES-10)", () => {
     );
     appendFileSync(join(second, EVENTS_FILE), `${read(first, EVENTS_FILE).split("\n")[0]}\n`);
     await expect(merge(config, out, 2)).rejects.toThrow(/is in two shards; the shards overlap/);
+    // Review P60-3: a refused merge leaves no run behind, so an unsharded resume starts afresh.
+    for (const f of ["run.json", "results.jsonl", EVENTS_FILE, "usage.jsonl", "summary.json"]) {
+      expect(existsSync(join(out, f)), f).toBe(false);
+    }
+    const unsharded = openRunJournal(out, config, { resume: true, sidecar: EVENTS_FILE });
+    expect(unsharded.resumed).toBe(0);
+    unsharded.close();
+
+    // A shard that lost a session: the runner's pass finds the hole, and nothing is left either.
+    await runShard(config, out, { index: 2, count: 2 });
+    const rows = read(second, "results.jsonl").split("\n");
+    const events = read(second, EVENTS_FILE).split("\n");
+    writeFileSync(join(second, "results.jsonl"), rows.slice(1).join("\n"));
+    writeFileSync(join(second, EVENTS_FILE), events.slice(1).join("\n"));
+    await expect(merge(config, out, 2)).rejects.toThrow(/is in none of the shards/);
+    for (const f of ["run.json", "results.jsonl", "summary.json", "usage.json"]) {
+      expect(existsSync(join(out, f)), f).toBe(false);
+    }
   }, 120_000);
+
+  test("a crash in the middle of a session: results, events and summary are the unsharded run's; the ledger adds the replayed call (review P60-5)", async () => {
+    const config = live(join(fresh(), "cassettes"), { conditions: ["C2"], seeds: [1] });
+    const whole = fresh();
+    const provider = fauxLive({ stableIds: true });
+    const journal = openRunJournal(whole, config, { resume: false, sidecar: EVENTS_FILE });
+    await runConfig(config, { ...liveOptions(config, provider.models, {}), journal });
+    journal.close();
+
+    const sharded = live(join(fresh(), "cassettes"), { conditions: ["C2"], seeds: [1] });
+    const out = join(fresh(), "run");
+    await runShard(sharded, out, { index: 1, count: 2 });
+    // Shard 2 holds two items: its second session's first call is recorded, its second is not.
+    await expect(
+      runShard(sharded, out, { index: 2, count: 2 }, { crashAtCall: 4 }),
+    ).rejects.toThrow(/mid-session/);
+    const resumed = await runShard(sharded, out, { index: 2, count: 2 }, { resume: true });
+    expect(resumed.calls).toEqual({ new: 1, cached: 1 });
+    await merge(sharded, out, 2);
+    for (const file of ["results.jsonl", EVENTS_FILE, "summary.json"]) {
+      expect(read(out, file), file).toBe(read(whole, file));
+    }
+    // The ledger holds every paid call once, as the unsharded run's, and the replayed one as a hit.
+    const paid = (dir: string) =>
+      read(dir, "usage.jsonl")
+        .split("\n")
+        .filter((l) => l !== "" && !l.includes('"hit":true'));
+    expect(paid(out)).toEqual(paid(whole));
+    expect(JSON.parse(read(out, "usage.json")).calls).toEqual({
+      ...JSON.parse(read(whole, "usage.json")).calls,
+      cached: 1,
+    });
+  }, 120_000);
+
+  test("a shard count above the item count is refused before any folder exists (review P60-7)", () => {
+    const out = join(fresh(), "run");
+    const items = ["a", "b", "c"];
+    expect(() =>
+      openRunJournal(
+        shardDir(out, { index: 1, count: 4 }),
+        { name: "x" },
+        {
+          resume: false,
+          shard: { index: 1, count: 4 },
+          items,
+        },
+      ),
+    ).toThrow(ShardRefused);
+    expect(existsSync(shardDir(out, { index: 1, count: 4 }))).toBe(false);
+  });
 
   test("a resume refuses another shard's folder: the shard is in the fingerprint", async () => {
     const config = live(join(fresh(), "cassettes"), { conditions: ["C2"], seeds: [1] });
@@ -271,7 +361,7 @@ describe("one process at a time writes a folder (RV1 backlog)", () => {
   test("a second journal on a folder is refused while the first is open, and the lock goes when it closes", () => {
     const dir = fresh();
     const first = openRunJournal(dir, { name: "x" }, { resume: false });
-    expect(lockedBy(dir)).toEqual({ pid: process.pid, host: hostname() });
+    expect(lockedBy(dir)).toMatchObject({ pid: process.pid, host: hostname() });
     expect(() => openRunJournal(dir, { name: "x" }, { resume: true })).toThrow(JournalLocked);
     first.close();
     expect(existsSync(join(dir, LOCK_FILE))).toBe(false);
@@ -294,4 +384,55 @@ describe("one process at a time writes a folder (RV1 backlog)", () => {
       /naming no process/,
     );
   });
+
+  test("a lock names its holder's start time, so a live process that reused the pid does not hold it (review P60-8)", async () => {
+    const dir = fresh();
+    const mine = openRunJournal(dir, { name: "x" }, { resume: false });
+    const held = JSON.parse(read(dir, LOCK_FILE));
+    expect(held).toMatchObject({ pid: process.pid, host: hostname() });
+    expect(typeof held.started).toBe("number");
+    expect(held.nonce).toMatch(/^[0-9a-f-]{36}$/);
+    mine.close();
+    // A live process of this host, started after the time the lock names: the pid was reused.
+    const child = spawn(process.execPath, ["-e", "setTimeout(() => {}, 60000)"], {
+      stdio: "ignore",
+    });
+    try {
+      await new Promise((r) => setTimeout(r, 300));
+      const pid = child.pid as number;
+      writeFileSync(
+        join(dir, LOCK_FILE),
+        JSON.stringify({ pid, host: hostname(), started: 1, nonce: "0" }),
+      );
+      expect(lockedBy(dir)).toBeUndefined();
+      openRunJournal(dir, { name: "x" }, { resume: false }).close();
+      // The same process with its own start time does hold it.
+      const started = processStart(pid) as number;
+      expect(started).toBeGreaterThan(0);
+      writeFileSync(
+        join(dir, LOCK_FILE),
+        JSON.stringify({ pid, host: hostname(), started, nonce: "0" }),
+      );
+      expect(() => openRunJournal(dir, { name: "x" }, { resume: false })).toThrow(JournalLocked);
+    } finally {
+      child.kill();
+    }
+  }, 60_000);
+
+  test("a merge holds every shard folder's lock while it reads them (review P60-8)", async () => {
+    const config = live(join(fresh(), "cassettes"), { conditions: ["C2"], seeds: [1] });
+    const out = join(fresh(), "run");
+    await runShard(config, out, { index: 1, count: 2 });
+    await runShard(config, out, { index: 2, count: 2 });
+    const journal = openRunJournal(out, config, { resume: true, merge: 2, sidecar: EVENTS_FILE });
+    try {
+      expect(lockedBy(shardDir(out, { index: 1, count: 2 }))).toMatchObject({ pid: process.pid });
+      await expect(runShard(config, out, { index: 2, count: 2 }, { resume: true })).rejects.toThrow(
+        JournalLocked,
+      );
+    } finally {
+      journal.close();
+    }
+    expect(lockedBy(shardDir(out, { index: 2, count: 2 }))).toBeUndefined();
+  }, 120_000);
 });

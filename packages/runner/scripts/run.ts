@@ -61,7 +61,13 @@ import {
   readRunnerConfig,
   readSuite,
 } from "../src/config.ts";
-import { countConfig, countLines, ensurePinnedData, UnpinnedData } from "../src/count.ts";
+import {
+  configItemIds,
+  countConfig,
+  countLines,
+  ensurePinnedData,
+  UnpinnedData,
+} from "../src/count.ts";
 import type { ProbeResult } from "../src/gatemem-probe.ts";
 import { JournalMismatch, type Stopped } from "../src/journal.ts";
 import {
@@ -153,7 +159,7 @@ const STOPPED = 3;
 const openJournal = (out: string, config: AnyRunnerConfig, flags: Flags, sidecar?: string) =>
   openRunJournal(out, config, {
     resume: flags.resume,
-    ...(flags.shard ? { shard: flags.shard } : {}),
+    ...(flags.shard ? { shard: flags.shard, items: configItemIds(config) } : {}),
     ...(flags.merge === undefined ? {} : { merge: flags.merge }),
     ...(sidecar === undefined ? {} : { sidecar }),
   });

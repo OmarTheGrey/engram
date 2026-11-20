@@ -198,6 +198,9 @@ function itemsOf(
   };
 }
 
+/** The config's items in run order, unsharded: what a shard's slice is checked against before its folder is made (review P60-7). */
+export const configItemIds = (config: AnyRunnerConfig): string[] => itemsOf(config, undefined).ids;
+
 /** What the config would run: sessions per condition, store and seed. No model, no cassette. */
 export async function countConfig(
   config: AnyRunnerConfig,

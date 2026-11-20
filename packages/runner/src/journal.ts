@@ -31,13 +31,18 @@
 // journal holds run.lock in it, naming its process and host, until it is
 // closed. A second journal on the folder is refused while that process
 // lives; a lock left by a process of this host that is gone is taken over.
+
+import { execFileSync } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import {
   closeSync,
   existsSync,
+  linkSync,
   mkdirSync,
   openSync,
   readFileSync,
   readSync,
+  renameSync,
   rmSync,
   truncateSync,
   writeFileSync,
@@ -235,6 +240,48 @@ export class JournalLocked extends JournalMismatch {
 interface LockHolder {
   pid: number;
   host: string;
+  /** When the holder's process started, in ms since the epoch (review P60-8); absent in an older lock. */
+  started?: number;
+  /** A random id of this lock, so a takeover can tell the lock it read from one taken since. */
+  nonce?: string;
+}
+
+/** A start time read back for the same process may differ by clock rounding and the query's own time. */
+const START_SLACK_MS = 2_000;
+
+/** This process's start time, in ms since the epoch. */
+const OWN_START = Math.round(Date.now() - performance.now());
+
+/**
+ * When process `pid` of this host started, in ms since the epoch, or
+ * undefined when it is not running or the start cannot be read. POSIX
+ * reads `ps -o etimes=`; Windows asks CIM for the process's CreationDate.
+ */
+export function processStart(pid: number): number | undefined {
+  if (pid === process.pid) return OWN_START;
+  try {
+    if (process.platform === "win32") {
+      const out = execFileSync(
+        "powershell.exe",
+        [
+          "-NoProfile",
+          "-NonInteractive",
+          "-Command",
+          `$p = Get-CimInstance Win32_Process -Filter 'ProcessId=${pid}'; if ($p) { [DateTimeOffset]::new($p.CreationDate).ToUnixTimeMilliseconds() }`,
+        ],
+        { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 30_000 },
+      ).trim();
+      return out === "" ? undefined : Number(out);
+    }
+    const out = execFileSync("ps", ["-o", "etimes=", "-p", String(pid)], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+      timeout: 10_000,
+    }).trim();
+    return out === "" ? undefined : Date.now() - Number(out) * 1000;
+  } catch {
+    return undefined;
+  }
 }
 
 /** Whether process `pid` of this host is running. */
@@ -252,11 +299,30 @@ function lockHolder(path: string): LockHolder | undefined {
   try {
     const holder = JSON.parse(readFileSync(path, "utf8")) as Partial<LockHolder>;
     return typeof holder.pid === "number" && typeof holder.host === "string"
-      ? { pid: holder.pid, host: holder.host }
+      ? {
+          pid: holder.pid,
+          host: holder.host,
+          ...(typeof holder.started === "number" ? { started: holder.started } : {}),
+          ...(typeof holder.nonce === "string" ? { nonce: holder.nonce } : {}),
+        }
       : undefined;
   } catch {
     return undefined;
   }
+}
+
+/**
+ * Whether the process a lock names is gone: a process of this host that is
+ * not running, or (review P60-8) one whose pid now belongs to a process
+ * started at another time than the lock records. A start time that cannot
+ * be read counts as the holder's, so an unreadable process keeps its lock.
+ */
+function gone(holder: LockHolder): boolean {
+  if (holder.host !== hostname() || holder.pid === process.pid) return false;
+  if (!alive(holder.pid)) return true;
+  if (holder.started === undefined) return false;
+  const started = processStart(holder.pid);
+  return started !== undefined && Math.abs(started - holder.started) > START_SLACK_MS;
 }
 
 /** Who holds `dir`'s lock: a live process (or one of another host), "unknown", or nobody. */
@@ -265,32 +331,52 @@ export function lockedBy(dir: string): LockHolder | "unknown" | undefined {
   if (!existsSync(path)) return undefined;
   const holder = lockHolder(path);
   if (holder === undefined) return "unknown";
-  if (holder.host === hostname() && holder.pid !== process.pid && !alive(holder.pid)) {
-    return undefined;
-  }
-  return holder;
+  return gone(holder) ? undefined : holder;
 }
 
-/** Take `dir`'s lock (see the module comment); returns the lock file's path. */
+/**
+ * Take `dir`'s lock (see the module comment); returns the lock file's path.
+ * A stale lock is taken over atomically (review P60-8): it is renamed to a
+ * name of this attempt's own, which only one process can do, and the renamed
+ * file must still be the stale lock that was judged gone; if another process
+ * replaced it in between, it is put back and the lock is refused.
+ */
 function acquireLock(dir: string): string {
   const path = join(dir, LOCK_FILE);
-  for (let attempt = 0; attempt < 2; attempt++) {
+  const mine = { pid: process.pid, host: hostname(), started: OWN_START, nonce: randomUUID() };
+  for (let attempt = 0; attempt < 3; attempt++) {
     try {
       const fd = openSync(path, "wx");
       try {
-        writeSync(fd, `${JSON.stringify({ pid: process.pid, host: hostname() })}\n`);
+        writeSync(fd, `${JSON.stringify(mine)}\n`);
       } finally {
         closeSync(fd);
       }
       return path;
     } catch (e) {
       if ((e as NodeJS.ErrnoException).code !== "EEXIST") throw e;
-      const holder = lockedBy(dir);
-      if (holder === undefined) {
-        // Its holder is gone: take the lock over.
-        rmSync(path, { force: true });
-        continue;
+      const seen = lockHolder(path);
+      if (seen !== undefined && gone(seen)) {
+        const aside = `${path}.stale-${mine.nonce}`;
+        try {
+          renameSync(path, aside);
+        } catch {
+          continue; // another process moved it first; look again
+        }
+        const moved = lockHolder(aside);
+        if (moved !== undefined && moved.nonce === seen.nonce && moved.pid === seen.pid) {
+          rmSync(aside, { force: true });
+          continue;
+        }
+        // Not the lock judged gone: give it back where it was.
+        try {
+          linkSync(aside, path);
+        } catch {
+          // The place is taken again; the lock in it is someone's, so refuse below.
+        }
+        rmSync(aside, { force: true });
       }
+      const holder = lockedBy(dir) ?? seen ?? "unknown";
       throw new JournalLocked(
         holder === "unknown"
           ? `${dir} holds ${LOCK_FILE} naming no process: another run may be writing it; if none is, remove ${path}`
@@ -347,14 +433,21 @@ export class RunJournal {
   private side: number | undefined;
   private usage: number | undefined;
   private lock: string | undefined;
+  /** A merge's: the shard folders' locks, held while it reads them (review P60-8). */
+  private shardLocks: string[] = [];
+  /** A merge's identity, written to run.json once the merged rows are sealed (review P60-3). */
+  private readonly identity: RunIdentity;
+  private sealedOk = false;
 
   private constructor(dir: string, options: JournalOptions) {
     this.dir = dir;
     this.sidecar = options.sidecar;
     this.sealed = options.merge !== undefined;
+    this.identity = options.identity;
     mkdirSync(dir, { recursive: true });
     this.lock = acquireLock(dir);
     try {
+      for (const shard of options.merge ?? []) this.shardLocks.push(acquireLock(shard));
       this.openFolder(options);
     } catch (e) {
       this.close();
@@ -378,7 +471,8 @@ export class RunJournal {
           options.merge.map((shard) => join(shard, f)),
         );
       }
-      writeFileSync(run, `${JSON.stringify(options.identity, null, 2)}\n`);
+      // run.json is written only once checkSealed passes (review P60-3): a
+      // refused merge leaves no run that a resume would take for this one.
       this.readBack();
     } else if (options.resume && existsSync(run)) {
       const recorded = JSON.parse(readFileSync(run, "utf8")) as RunIdentity;
@@ -485,6 +579,8 @@ export class RunJournal {
         `the shards' sessions are not in the config's order (first at row ${at + 1}); merge the shards in shard order`,
       );
     }
+    writeFileSync(join(this.dir, RUN_FILE), `${JSON.stringify(this.identity, null, 2)}\n`);
+    this.sealedOk = true;
   }
 
   /** How many sessions the folder holds. */
@@ -523,6 +619,14 @@ export class RunJournal {
   close(): void {
     for (const fd of [this.results, this.side, this.usage]) if (fd !== undefined) closeSync(fd);
     this.results = this.side = this.usage = undefined;
+    if (this.sealed && !this.sealedOk && this.lock !== undefined) {
+      // A merge that did not seal (refused, or the pass failed): none of its files stay (review P60-3).
+      const files = [RESULTS_FILE, USAGE_LOG, RUN_FILE, SUMMARY_FILE, USAGE_FILE];
+      if (this.sidecar) files.push(this.sidecar);
+      for (const f of files) rmSync(join(this.dir, f), { force: true });
+    }
+    for (const lock of this.shardLocks) rmSync(lock, { force: true });
+    this.shardLocks = [];
     if (this.lock !== undefined) rmSync(this.lock, { force: true });
     this.lock = undefined;
   }

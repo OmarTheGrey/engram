@@ -22,7 +22,7 @@
 //   shard's folder and the merge refuses shards of two configs.
 // - A config's spend_ceiling_usd is the whole run's: each of n shards stops
 //   when a provider's spend in that shard reaches the ceiling divided by n.
-import { existsSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { AnyRunnerConfig } from "./config.ts";
 import {
@@ -34,7 +34,6 @@ import {
   runFingerprint,
   SUMMARY_FILE,
   shardFingerprint,
-  USAGE_FILE,
 } from "./journal.ts";
 
 /** The i-th of n slices of a run, 1-based. */
@@ -156,6 +155,12 @@ export interface RunJournalOptions {
   merge?: number;
   /** GateMem's events.jsonl. */
   sidecar?: string;
+  /**
+   * The config's items, in run order: with a shard, its slice is checked
+   * before any folder is made, so a shard count above the item count leaves
+   * nothing behind (review P60-7).
+   */
+  items?: readonly string[];
 }
 
 /**
@@ -174,6 +179,7 @@ export function openRunJournal(
     const merge = checkShards(out, options.merge, unsharded);
     return RunJournal.open(out, { identity: unsharded, resume: true, merge, ...sidecar });
   }
+  if (options.shard && options.items) shardSlice(options.items, options.shard);
   const identity: RunIdentity = options.shard
     ? {
         ...unsharded,
@@ -187,14 +193,10 @@ export function openRunJournal(
 
 /**
  * After the runner's pass over a merged folder: its rows are every session
- * of the config, once, in its order, or the merge is undone (the summary
- * the pass wrote is removed, since it is not the run's).
+ * of the config, once, in its order, and run.json is written; otherwise it
+ * throws, and closing the journal removes every merged file (review P60-3),
+ * so no later run takes the folder for this one.
  */
 export function sealMerge(journal: RunJournal): void {
-  try {
-    journal.checkSealed();
-  } catch (e) {
-    for (const f of [SUMMARY_FILE, USAGE_FILE]) rmSync(join(journal.dir, f), { force: true });
-    throw e;
-  }
+  journal.checkSealed();
 }
