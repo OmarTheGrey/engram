@@ -80,7 +80,7 @@ describe("the routes, through the generated client, on the fake store", () => {
     expect(C.ReadResponse.parse(other.data).sync).toBeNull();
   });
 
-  it("events: an item in a scope the read matrix keeps from the viewer is withheld (R3-4)", async () => {
+  it("events: an event in a scope the read matrix keeps from the viewer is not shown (R3-4, RV-CORE-4)", async () => {
     const { client } = testWorkspace();
     await client.POST("/api/v1/items", {
       body: { actor: { ...dana, source: "user" }, item: itemFor(1) },
@@ -88,9 +88,8 @@ describe("the routes, through the generated client, on the fake store", () => {
     // A team-level member of person:dana: the medium preset's team row reads no person scope.
     const team = { id: "team:ops", level: "team" as const, memberships: ["person:dana"] };
     const { data } = await client.POST("/api/v1/events", { body: { actor: team } });
-    const [write] = C.EventsResponse.parse(data).events;
-    expect(write).toMatchObject({ op: "write", scope_to: "person:dana" });
-    expect(write?.item).toBeUndefined();
+    // Card RV7 (RV-CORE-4): the event itself is withheld now, not only its item.
+    expect(C.EventsResponse.parse(data).events).toEqual([]);
     const own = await client.POST("/api/v1/events", { body: { actor: dana } });
     expect(C.EventsResponse.parse(own.data).events[0]?.item?.content).toBe("fact 1");
   });
