@@ -170,3 +170,91 @@ These need answering before the frontier work (X5) starts.
 48. **MPBench.** It stays a candidate, and the request is not sent.
     - (a) Keep as is.
     - (b) Send the request.
+
+## Decided on 2026-11-20, under the lead's delegation
+
+On 2026-11-20 the lead delegated the open decisions to the orchestrating session. It closes every item it can and brings back only the highest-priority ones it cannot. These answers are binding until the lead overturns one, and each carries its reason.
+
+Prices come from `research/results/h2-cost-table.json` (card RV8, OpenRouter's list of 2026-11-20; on branch `rv8` until that card merges). Two decisions needed new ADRs: [ADR 0035](../decisions/0035-store-independence-is-a-design-property.md) and [ADR 0036](../decisions/0036-cassettes-beyond-the-repository.md).
+
+**Still open, put to the lead:** item 1, the three models. Everything below is priced per model option, so that choice sets the spend.
+
+### A. Gate C
+
+| item | answer | reason |
+|---|---|---|
+| 1 | open | It moves the whole programme's cost by a factor of up to six: $450 to $3,365 at the small-model end, against $2,101 to $21,865 for option (a). |
+| 2 | (a) include the utility checkpoints | Dropping them saves under 3% overall. H2's C2 and C5 need the same utility cells, so dropping them in H1 only makes them new calls in H2. H1 keeps MGS as registered. |
+| 3 | (a) 1.25 times the run's high estimate, per provider | A formula, valid whichever models item 1 picks. A sharded run divides it by n and may overshoot by up to n sessions (card RV6). |
+| 4 | (a) 8 model calls; a capped session is excluded and counted per condition | No GateMem or MEM-INV-Bench session in the fixtures needs more than 4. |
+| 5 | (a) two of three auditors reject | One auditor can be noisy; all three is too lenient for a stopping rule. |
+| 6 | (a) drop the rejected items, list them in v1, proceed | It keeps the 13 December gate, and the rejected items are reported, never silently lost. |
+| 7 | (a) run the smoke config and B1 before the tag | A few dollars, against the first live call being the registered run. At 50 checkpoints B1's band accepts A = 0 and F = 0, so B1 checks utility (U) above all; v1 says so. |
+| 8 | (a) a hypothesis not run enters Holm with p = 1 | Conservative, and it matches the guard card X4 built. |
+| 9 | (a) H2 to H5 are fixed before H1's data exist | Otherwise H1's results could shape the other designs. |
+| 10 | (a) an "undecided" read-out continues and is reported as undecided | The final Holm over all five decides. A pivot on a non-result would waste the run. |
+| 11 | (a) confirm H2's and H5's thresholds as written | No data argues for a change, and a change after the review would look tuned. |
+| 12 | (a) the registered clock, plus a descriptive sensitivity analysis on the 446 unaffected questions, outside Holm | It keeps the registered design and shows the ttl's effect openly. |
+| 13 | (a) `openrouter/openai/gpt-4o-2024-08-06`, seeded | It is the paper's judge, and OpenRouter lists it ($2.50 and $10 per million tokens). ADR 0017 holds without an exception. |
+| 14 | (a) exclude the session under its own reason, counted per condition | One over-long prompt should not stop a multi-day run. |
+| 15 | (a) report capped utility sessions per condition in the H1 table | Visible where the result is read. |
+| 16 | (a) adopt card RV1's wording for C3 and C4 | The prompts are what ran, so the text should match them. |
+| 17 | (a) Mohamad and Shady read the UNREAD replies | Both are on the team the lead named. The readings are blind and pseudonymous (card RV2). |
+| 18 | (a) the audit 23 to 28 November; the tag and Zenodo deposit by 30 November; H1 1 to 8 December on 4 shards | Card RV6 estimates 13 to 49 hours for H1's GateMem arm on 4 shards. |
+| 19 | (a) the server and core own the access clock | Built and merged in card RV5 (#59), with the log's high-water mark. |
+
+### B. Gate D
+
+| item | answer | reason |
+|---|---|---|
+| 20 | (a) store independence is a design property, proven by a request-identity check; the store family leaves H4's equivalence test and Gate D's "two stores" | No condition uses a store's own search (ADR 0031), so a cross-store test measures only noise. See [ADR 0035](../decisions/0035-store-independence-is-a-design-property.md). |
+| 21 | (a) measure candidate axes offline, choose from the result, register them by amendment before X6 | Card RV8 measured them; the choice is made from that result when it merges. |
+| 22 | (a) H2's violations come from GateMem's A and F at the same preset, and the sizes on M1 are fixed now | LongMemEval has no violation labels. |
+| 23 | (a) the model tier is H3's main test | On LongMemEval only the duplicate lint fires deterministically, so the deterministic test is close to a certain null. |
+| 24 | (a) H4 runs on GateMem only | MemoryAgentBench has no violation definition, and card B9 builds something else. See ADR 0035. |
+| 25 | (a) the harness claim is restated as untested, and C7's test is dropped | C7 equals C5 in benchmark sessions, and the other harnesses cannot be seeded. |
+| 26 | (a) the orchestrator drafts the kill-list rewrite, with Gate C's "undecided" branch, for the lead | |
+| 27 | (a) a Zenodo deposit with a fetch script checked by sha256 | As the lead chose for the data (decision-sheet item 3a). See [ADR 0036](../decisions/0036-cassettes-beyond-the-repository.md). |
+| 28 | (a) a card runs a Knowledge-profile dogfood beside the twin dogfood | Gate D names it. |
+| 29 | (a) a local cassette proxy speaking the OpenAI API, shared by the three harnesses | Days of work rather than weeks per harness, and it brings them under rules 6 and 7. See ADR 0036. |
+| 30 | (a) the orchestrator drafts H5's prerequisites for the lead | The tau2 split, the user-simulator model, dropping the unregistered repository set, and the harness card. |
+| 31 | (a), with one more condition: the day card RV7 (owner rules, #61) merges | E2.6 and RV4 are merged. RV7 closes a co-holder's way of taking an owner's item, and the twin dogfood exercises that. |
+| 32 | (a) accept the twin profile's values as reviewed | |
+| 33 | (a) members turn Claude Code's auto memory off | "Zero violations" is measured on the plane, and the native path is stated as outside it (`docs/dogfood.md`). |
+
+### C. ADRs and policy
+
+| item | answer | reason |
+|---|---|---|
+| 34 | (a) accept ADR 0034, with a 1-year cap on a grant's expiry, and refuse an expired or other-class grant on a first write | The fixtures that write such grants are fixed in the same card. |
+| 35 | (a) amend ADR 0034: an owner's promotion keeps the grant, which then admits nothing across a class change | A non-owner's promotion now drops grants (card RV7). |
+| 36 | (a) a non-owner sees only the grants naming them, in core | The API should not leak more than the inspector does. |
+| 37 | (a) accept card L1's amendment to ADR 0018 | |
+| 38 | (a) on all four parts | An offboarded person scope refuses later writes. The plane keeps hashes of erased content (built in E2.6 and RV4). Promotions made before the offboarding stay as the scope's knowledge. A file holding erased content is refused while it holds it. |
+| 39 | (a) only the owner rewrites an item carrying grants, or moves an item | Built in card RV7. |
+| 40 | (a) events follow the read matrix | Built in card RV7. |
+| 41 | (a) ADR 0013 defines memory search as any term, ranked by core | One meaning on every store, explainable. |
+| 42 | (a) record that the confidence floor does not gate model and compaction sources | A model can claim confidence 1. Capping it in core would still gate on a number the writer chose. |
+
+### D. Lints and research
+
+| item | answer | reason |
+|---|---|---|
+| 43 | (a) a standard deviation across seeds of at most 0.05 on precision and recall, per lint | |
+| 44 | (a) a later update of the same attribute counts as a contradiction; change the prompt and re-record the cassettes | Two live items holding conflicting values are the hygiene problem the lint exists to flag. |
+| 45 | (a) restate H3's deterministic claim as precision on natural memory, through the audit sample; seeded recall stays as a regression check | |
+| 46 | (a) B5 names its assistant model | |
+| 47 | (c) all 500 questions, as registered | The 250-question subset saves under 4% of the total and would need an amendment. |
+| 48 | (a) MPBench stays a candidate; the request is not sent | |
+
+### Decisions the review cards left open
+
+| from | answer | reason |
+|---|---|---|
+| RV6, shard count | 4 shards for H1 | Card RV6's wall-time estimate fits the 1 to 8 December window. |
+| RV6, B1 band and smoke pass rule | accept the band as computed (U 40 to 50, A 0 to 12, F 0 to 6 of 50) and the pass rule as proposed | See item 7 on what B1 can show. |
+| RV6, OpenRouter upstreams | pin each model to its maker's own endpoint where OpenRouter lists one, otherwise to the cheapest that honours `seed`, with `allow_fallbacks: false` | Named per model once item 1 is answered. |
+| RV7, expired grants and the owner rule | expired grants count, and the owner's own agent may rewrite | An expired grant can be renewed by the owner alone, and the owner's agent acts under the owner's id. |
+| RV4, the invariants file's second reviewer | the PR #58 verifier counts, and approved invariants 6 and 7 | `docs/log/2026-11-20-orch-rv4-verification-follow-ups.md` |
+
+The answers card that carries these into the pre-registration, the ADRs and the roadmap follows as its own PR, as on 2026-11-19.

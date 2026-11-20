@@ -40,6 +40,8 @@ Every ADR, 0001 to 0033, is accepted by the lead, and the lead is its decider. A
 | 0032 | The simulator replays recorded calls through the plane on scratch logs | accepted |
 | 0033 | The model-call layer (the cached call, the scripted models) is its own package, @engram/model | accepted |
 | 0034 | A grant change is the owner's governed write: one update event, a new version in place | proposed |
+| 0035 | Store independence is a design property, proven by request identity; H4 tests policy equivalence on GateMem only | accepted under the lead's delegation, 2026-11-20 |
+| 0036 | Cassettes beyond the repository: a Zenodo deposit fetched by sha256, and a local cassette proxy for external harnesses | accepted under the lead's delegation, 2026-11-20 |
 
 ---
 
