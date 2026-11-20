@@ -45,7 +45,11 @@
 // reported as store `engram`, as the Claude Code hook guards its own
 // (RV-SRF-3); and only the four tools this extension registers skip the
 // no-bypass checks, so another extension's `memory_*` tool with a path into
-// a store root is blocked like any other tool (RV-SRF-4). The sweeps before
+// a store root is blocked like any other tool (RV-SRF-4). The exemption is
+// by identity, not name: pi keeps the first tool registered under a name, so
+// a tool is this extension's own only when the definition pi reports for
+// that name carries the schema object this extension registered (review fix
+// pass, RV5-1). The sweeps before
 // each prompt are core's syncBeforeRead, at this process's clock (RV-SRF-1).
 import { createHash } from "node:crypto";
 import type { ExtensionAPI, ExtensionFactory } from "@earendil-works/pi-coding-agent";
@@ -178,15 +182,6 @@ const modelOf = (ctx: { model?: { provider: string; id: string } | undefined }) 
 
 /** Shell tools whose `command` is checked for store names. */
 const SHELL_TOOLS = new Set(["bash", "powershell"]);
-/**
- * The tools this extension registers, the governed path: the only tools the
- * no-bypass checks pass over (card RV5, RV-SRF-4). Any other tool, whatever
- * its name, is checked; another extension's memory_* result is still
- * withheld from the model by the context handler (tag.ts).
- */
-const ENGRAM_TOOLS: ReadonlySet<string> = new Set(
-  [MEMORY_WRITE, MEMORY_READ, MEMORY_EXPLAIN, MEMORY_SIMULATE].map((t): string => t.name),
-);
 
 export function createEngramExtension(options: EngramExtensionOptions): ExtensionFactory {
   const newId = options.newId ?? (() => uuidv7());
@@ -304,6 +299,27 @@ export function createEngramExtension(options: EngramExtensionOptions): Extensio
       return undefined;
     };
 
+    /**
+     * The parameter schema object of each tool this session registered, a
+     * copy made here, so no other extension can hold the same object (review
+     * fix pass, RV5-1). pi keeps the first tool registered under a name and
+     * reports the definition it keeps through getAllTools, its `parameters`
+     * the very object registered, so a name is this extension's own only
+     * when pi's schema for it is this one.
+     */
+    const ownSchemas = new Map<string, object>();
+    function own<T extends { name: string; parameters: object }>(tool: T): T {
+      const parameters = { ...tool.parameters };
+      ownSchemas.set(tool.name, parameters);
+      return { ...tool, parameters };
+    }
+    /** Whether the tool pi runs under this name is this extension's own (RV5-1). */
+    const isOwnTool = (toolName: string): boolean => {
+      const schema = ownSchemas.get(toolName);
+      if (schema === undefined) return false;
+      return pi.getAllTools().some((t) => t.name === toolName && t.parameters === schema);
+    };
+
     /** Runs a memory tool's body and records the text it produced, or the error it threw. */
     async function produce<D>(
       toolCallId: string,
@@ -321,7 +337,7 @@ export function createEngramExtension(options: EngramExtensionOptions): Extensio
     }
 
     pi.registerTool({
-      ...MEMORY_WRITE,
+      ...own(MEMORY_WRITE),
       async execute(toolCallId, params, _signal, _onUpdate, ctx) {
         // The committed decision (decision D12): tool_call only checked it.
         // Writes over one log are queued in the Plane, and the policy or the
@@ -370,7 +386,7 @@ export function createEngramExtension(options: EngramExtensionOptions): Extensio
     });
 
     pi.registerTool({
-      ...MEMORY_READ,
+      ...own(MEMORY_READ),
       async execute(toolCallId, params) {
         try {
           const details = await read(params.query);
@@ -386,7 +402,7 @@ export function createEngramExtension(options: EngramExtensionOptions): Extensio
     });
 
     pi.registerTool({
-      ...MEMORY_EXPLAIN,
+      ...own(MEMORY_EXPLAIN),
       async execute(toolCallId, params) {
         return produce(toolCallId, "memory_explain", async () => {
           // Only the reader may explain a read (decision D5): another
@@ -401,7 +417,7 @@ export function createEngramExtension(options: EngramExtensionOptions): Extensio
     });
 
     pi.registerTool({
-      ...MEMORY_SIMULATE,
+      ...own(MEMORY_SIMULATE),
       async execute(toolCallId, params) {
         return produce(toolCallId, "memory_simulate", async () => {
           // A replay on scratch logs and stores (card E8.9): this session's
@@ -415,7 +431,11 @@ export function createEngramExtension(options: EngramExtensionOptions): Extensio
 
     pi.on("tool_call", async (event, ctx) => {
       const input = event.input as Record<string, unknown>;
-      if (event.toolName === "memory_write") {
+      // Only this extension's own tools are its governed path; a tool another
+      // extension registered under one of their names is checked below like
+      // any other (RV5-1).
+      const own = isOwnTool(event.toolName);
+      if (own && event.toolName === "memory_write") {
         const at = now();
         const item = itemFromCall(
           input,
@@ -433,7 +453,7 @@ export function createEngramExtension(options: EngramExtensionOptions): Extensio
         record.addText(event.toolCallId, "memory_write", actor.id, reason, true);
         return { block: true, reason };
       }
-      if (ENGRAM_TOOLS.has(event.toolName)) return undefined;
+      if (own) return undefined;
       let blocked: MemoryEvent | undefined;
       if (SHELL_TOOLS.has(event.toolName)) {
         blocked = await shellBypass(
