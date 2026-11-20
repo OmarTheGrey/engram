@@ -215,3 +215,33 @@ def test_the_config_holds_the_four_asked_axes_and_the_baseline() -> None:
     assert {"grants", "scope_width", "budget", "ttl", "baseline"} <= axes
     assert len([v for v in CONFIG["variants"] if v["axis"] == "ttl"]) >= 3
     assert CONFIG["baseline"] == "medium"
+
+
+def lme_cell(hidden: int, real_hidden: int) -> dict[str, Any]:
+    def clock(h: int) -> dict[str, Any]:
+        return {
+            "hidden": h,
+            "expired": h,
+            "outside_validity": 0,
+            "not_active": 0,
+            "evidence_turns_hidden": 0,
+            "evidence_session_turns_hidden": 0,
+        }
+
+    return {
+        "writes": {"allow": 5},
+        "clocks": {"read_time": clock(hidden), "real_time": clock(real_hidden)},
+    }
+
+
+def test_longmemeval_compares_at_the_configured_clock_only() -> None:
+    row = {
+        "question_id": "q",
+        "evidence_turns": 1,
+        "presets": {"b": lme_cell(0, 5), "other_clock": lme_cell(0, 0), "moves": lme_cell(2, 5)},
+    }
+    s = fa.summarise_longmemeval([row], ["b", "other_clock", "moves"], "b", "read_time")
+    assert s["other_clock"]["identical_to_baseline"] is True
+    assert s["other_clock"]["questions_changed"] == 0
+    assert s["moves"]["identical_to_baseline"] is False
+    assert s["moves"]["questions_changed"] == 1 and s["moves"]["hidden_vs_baseline"] == 2

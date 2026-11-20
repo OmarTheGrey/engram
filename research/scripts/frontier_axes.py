@@ -2,7 +2,7 @@
 
 Usage:
     uv run python research/scripts/frontier_axes.py \\
-        --config research/configs/frontier-axes.json --out research/results/frontier-axes.json
+        --config research/configs/frontier-axes.json --out research/results/h2-frontier-axes.json
 
 H2's knee and Gate D's two policy levels need a strictness axis the benchmarks
 exercise, and the three presets admit and deny the same items on GateMem
@@ -223,6 +223,11 @@ def summarise_longmemeval(
     rows: Sequence[Mapping[str, Any]], names: Sequence[str], baseline: str, clock: str
 ) -> dict[str, Any]:
     """Per variant at one clock: writes, hidden turns, evidence lost, against the baseline."""
+
+    def same(c: Mapping[str, Any], b: Mapping[str, Any]) -> bool:
+        """The same write decisions and the same read at this clock; other clocks do not count."""
+        return bool(c["writes"] == b["writes"] and c["clocks"][clock] == b["clocks"][clock])
+
     out: dict[str, Any] = {}
     for name in names:
         cells = [(r, r["presets"][name], r["presets"][baseline]) for r in rows]
@@ -250,11 +255,11 @@ def summarise_longmemeval(
                 for r, c, _ in at
                 if r["evidence_turns"] > 0 and c["evidence_turns_hidden"] == r["evidence_turns"]
             ),
-            "questions_changed": sum(1 for _, c, b in cells if c != b),
+            "questions_changed": sum(1 for _, c, b in cells if not same(c, b)),
             "questions_losing_evidence_vs_baseline": sum(
                 1 for _, c, b in at if c["evidence_turns_hidden"] > b["evidence_turns_hidden"]
             ),
-            "identical_to_baseline": all(c == b for _, c, b in cells),
+            "identical_to_baseline": all(same(c, b) for _, c, b in cells),
         }
     return out
 
