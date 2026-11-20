@@ -34,6 +34,7 @@ import {
   type CallContext,
   cached,
   cacheKey,
+  type ServedResponse,
   TransientCallError,
   type UsageRecord,
 } from "@engram/model";
@@ -47,6 +48,7 @@ import {
   type Sleep,
   withRetry,
 } from "./model/retry.ts";
+import { servedBy } from "./model/upstream.ts";
 
 /** The one API a live judge runs on: it carries the seed and `response_format` through `samplingParams`. */
 export const SEEDED_JUDGE_API = "openai-completions";
@@ -140,14 +142,18 @@ export function liveJudgeCall(
         cost_usd: reply.usage.cost.total,
       });
     }
-    return {
+    const upstream = servedBy(reply);
+    const response: ServedResponse = {
       text: reply.content.flatMap((c) => (c.type === "text" ? [c.text] : [])).join(""),
       usage: {
         input_tokens: reply.usage.input,
         output_tokens: reply.usage.output,
         cost_usd: reply.usage.cost.total,
       },
+      // The upstream OpenRouter served it from (card RV6), kept in the cassette.
+      ...(upstream === undefined ? {} : { upstream }),
     };
+    return response;
   };
 }
 

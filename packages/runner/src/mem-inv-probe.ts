@@ -73,6 +73,7 @@ import {
   type Sleep,
   withRetry,
 } from "./model/retry.ts";
+import type { Shard } from "./shard.ts";
 import { closeStore, openStore, type StoreName } from "./stores.ts";
 
 /**
@@ -444,6 +445,12 @@ export interface MemInvRunnerResult {
 
 export interface MemInvRunnerOptions {
   cache?: CacheStore;
+  /**
+   * Run only this shard's items (card RV6, shard.ts): the i-th of n
+   * contiguous blocks of the config's items, every condition, store and
+   * seed of each. No cache key depends on it.
+   */
+  shard?: Shard;
   offline?: boolean;
   /** Where misses of a non-scripted model go (a live run, live.ts). Without it such a miss is an error. */
   live?: LiveModels;
@@ -610,6 +617,7 @@ export async function runMemInvConfig(
   const items = configItems(
     config,
     cases.map((c) => c.case_id),
+    options.shard,
   );
   sessions: for (const item of items) {
     const keys = stores.flatMap((store) =>

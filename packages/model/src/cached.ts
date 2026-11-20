@@ -23,11 +23,20 @@ export interface CallContext {
   store: string;
 }
 
+/**
+ * A response with the upstream provider that served it, when a gateway
+ * (OpenRouter) reports one (card RV6, RV-DES-11). Not part of any key; a
+ * cassette recorded without it replays unchanged.
+ */
+export interface ServedResponse extends ModelResponse {
+  upstream?: string;
+}
+
 export interface CacheEntry {
   key: string;
   context: CallContext;
   request: ModelRequest;
-  response: ModelResponse;
+  response: ServedResponse;
 }
 
 export interface CacheStore {
@@ -48,6 +57,8 @@ export interface UsageRecord {
   output_tokens: number;
   cost_usd: number;
   cached?: ModelUsage;
+  /** The upstream provider that served the call (a hit: the one that served the recording), when known. */
+  upstream?: string;
 }
 
 export interface CachedOptions {
@@ -118,7 +129,9 @@ export function cached(inner: ModelCall, options: CachedOptions): ModelCall {
       }
       response = await flight;
     }
+    const upstream = (response as ServedResponse).upstream;
     const base = { key, model: request.model };
+    const served = upstream === undefined ? {} : { upstream };
     options.onUsage?.(
       hit
         ? {
@@ -128,8 +141,9 @@ export function cached(inner: ModelCall, options: CachedOptions): ModelCall {
             output_tokens: 0,
             cost_usd: 0,
             cached: response.usage,
+            ...served,
           }
-        : { ...base, hit: false, ...response.usage },
+        : { ...base, hit: false, ...response.usage, ...served },
     );
     return response;
   };

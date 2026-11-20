@@ -14,4 +14,5 @@ export * from "./mem-inv-probe.ts";
 export * from "./model/cassette.ts";
 export * from "./model/pi.ts";
 export * from "./run.ts";
+export * from "./shard.ts";
 export { closeStore, LETTA_STORE_PREFIX, openStore, type StoreName } from "./stores.ts";

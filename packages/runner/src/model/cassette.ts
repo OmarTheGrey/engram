@@ -44,6 +44,7 @@ import {
   cacheKey,
   OfflineMissError,
   type ScriptStep,
+  type ServedResponse,
   scriptedPiModel,
   TransientCallError,
   type UsageRecord,
@@ -57,6 +58,7 @@ import {
   type Sleep,
   withRetry,
 } from "./retry.ts";
+import { servedBy } from "./upstream.ts";
 
 /** What a miss is answered with besides the transcript: the config's seed and the loop's options. */
 export interface AnswerCall {
@@ -342,14 +344,17 @@ export function cassettePiModel(options: CassetteModelOptions) {
         }
         throw new Error(message);
       }
-      return {
+      const upstream = servedBy(reply);
+      const response: ServedResponse = {
         text: encode(reply),
         usage: {
           input_tokens: reply.usage.input,
           output_tokens: reply.usage.output,
           cost_usd: reply.usage.cost.total,
         },
+        ...(upstream === undefined ? {} : { upstream }),
       };
+      return response;
     };
     try {
       const call = cached(inner, {

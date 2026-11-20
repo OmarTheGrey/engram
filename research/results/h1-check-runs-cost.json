@@ -1,0 +1,259 @@
+{
+  "assumptions": [
+    "The smoke run is priced on decision sheet item 1's recommended M1, openrouter/openai/gpt-5.6-terra (item 1 is still open; another M1 scales with its catalogue prices); the B1 reference run on the paper's backbone for the reference numbers it is held to, openrouter/openai/gpt-5.4.",
+    "A C2 to C5 session costs what research/results/h1-cost.json measured for its condition and item kind on the pinned full set (GateMem) or the case set (MEM-INV-Bench), low and high; the smoke run's fixture items are priced at the full set's mean, not at their own sizes.",
+    "A C1 session is one answer call: its own long-context prompt in characters over four, plus the framing the fixture C1 cassettes hold beyond their prompts, and the fixture C1 answer's output tokens; the high estimate scales both by H1's token scale (4/3). C1 makes no read, so H1's extra read turns do not apply.",
+    "The judge, GPT-4o through OpenRouter, runs one (low) to three (high) attempts per GateMem session, each at H1's measured judge prompt and verdict size.",
+    "Reasoning tokens per answer call, the note's output limit, the token scale and every other estimate setting are H1's (research/results/h1-cost.json estimates).",
+    "No prompt caching, batch discount or provider minimum; list prices from pi-ai 1.3.0's catalogue, not a quote. The configs' spend_ceiling_usd bounds what a run can spend, per provider."
+  ],
+  "estimates": {
+    "high": {
+      "extra_read_turns": 2,
+      "judge_calls": "max",
+      "note_output_tokens": 300,
+      "reasoning_tokens_per_call": {
+        "off_honoured": 1024,
+        "off_ignored": 4096
+      },
+      "token_scale": 1.333333
+    },
+    "low": {
+      "extra_read_turns": 0,
+      "judge_calls": "min",
+      "note_output_tokens": null,
+      "reasoning_tokens_per_call": {
+        "off_honoured": 0,
+        "off_ignored": 256
+      },
+      "token_scale": 1.0
+    }
+  },
+  "inputs": {
+    "h1_cost": {
+      "file": "research/results/h1-cost.json",
+      "sha256": "f147daf74c9bbec665b067ed0dc47eec97b25d5af7b8862ba582b0e7938c37fb"
+    }
+  },
+  "measured_c1": {
+    "answer_output_tokens": 41.5,
+    "fixture_sessions": 4,
+    "framing_tokens": 5.75
+  },
+  "models": {
+    "openrouter/openai/gpt-4o": {
+      "accepted": true,
+      "api": "openai-completions",
+      "can_turn_reasoning_off": true,
+      "input_per_million": 2.5,
+      "output_per_million": 10,
+      "reasoning": false
+    },
+    "openrouter/openai/gpt-5.4": {
+      "accepted": true,
+      "api": "openai-completions",
+      "can_turn_reasoning_off": true,
+      "input_per_million": 2.5,
+      "output_per_million": 15,
+      "reasoning": true
+    },
+    "openrouter/openai/gpt-5.6-terra": {
+      "accepted": true,
+      "api": "openai-completions",
+      "can_turn_reasoning_off": true,
+      "input_per_million": 2,
+      "output_per_million": 12,
+      "reasoning": true
+    }
+  },
+  "name": "h1-check-runs-cost",
+  "prices": {
+    "generated_at": "2026-10-15T19:00:55.287Z",
+    "openrouter_sha256": "d303cf8e4ad2cfd322ea5fc8c9e617d46b21d36d9ebe0454be26ae92d91440aa",
+    "package": "@earendil-works/pi-ai",
+    "provider": "openrouter",
+    "unit": "US dollars per million tokens (pi-ai catalogue cost.input, cost.output)",
+    "version": "1.3.0"
+  },
+  "runs": [
+    {
+      "benchmark": "gatemem",
+      "config": "research/configs/smoke-h1-gatemem.json",
+      "cost": {
+        "high": 2.714936,
+        "low": 0.369064
+      },
+      "item_kinds": {
+        "access control": 2,
+        "active forgetting": 2,
+        "utility": 2
+      },
+      "judge_calls": {
+        "calls_max": 90,
+        "calls_min": 30,
+        "model": "openrouter/openai/gpt-4o"
+      },
+      "judge_cost": {
+        "high": 0.297848,
+        "low": 0.074462
+      },
+      "judge_tokens": {
+        "high": {
+          "calls": 90.0,
+          "input": 102339.212495,
+          "output": 4199.99895
+        },
+        "low": {
+          "calls": 30.0,
+          "input": 25584.80952,
+          "output": 1050.0
+        }
+      },
+      "model": "openrouter/openai/gpt-5.6-terra",
+      "name": "smoke-h1-gatemem",
+      "note_calls": 0,
+      "per_condition": {
+        "C1": 6,
+        "C2": 6,
+        "C3": 6,
+        "C4": 6,
+        "C5": 6
+      },
+      "sessions": 30,
+      "tokens": {
+        "high": {
+          "calls": 102.0,
+          "input": 716212.115283,
+          "output": 2427.999393
+        },
+        "low": {
+          "calls": 54.0,
+          "input": 175909.9974,
+          "output": 1437.0
+        }
+      },
+      "total": {
+        "high": 3.012784,
+        "low": 0.443526
+      }
+    },
+    {
+      "benchmark": "mem-inv-bench",
+      "config": "research/configs/smoke-h1-mem-inv.json",
+      "cost": {
+        "high": 1.250165,
+        "low": 0.084943
+      },
+      "item_kinds": {
+        "attack/corroborate": 1,
+        "attack/direct": 1,
+        "attack/summarize": 1,
+        "attack/tool_echo": 1,
+        "benign": 1
+      },
+      "judge_cost": {
+        "high": 0,
+        "low": 0
+      },
+      "judge_tokens": {
+        "high": {
+          "calls": 0.0,
+          "input": 0,
+          "output": 0
+        },
+        "low": {
+          "calls": 0.0,
+          "input": 0,
+          "output": 0
+        }
+      },
+      "model": "openrouter/openai/gpt-5.6-terra",
+      "name": "smoke-h1-mem-inv",
+      "note_calls": 1,
+      "per_condition": {
+        "C2": 5,
+        "C3": 5,
+        "C4": 5,
+        "C5": 5
+      },
+      "sessions": 20,
+      "tokens": {
+        "high": {
+          "calls": 81.0,
+          "input": 120818.355769,
+          "output": 1099.9998
+        },
+        "low": {
+          "calls": 41.0,
+          "input": 40155.63158,
+          "output": 386.0
+        }
+      },
+      "total": {
+        "high": 1.250165,
+        "low": 0.084943
+      }
+    },
+    {
+      "benchmark": "gatemem",
+      "config": "research/configs/b1-gatemem-reference.json",
+      "cost": {
+        "high": 4.549772,
+        "low": 1.684329
+      },
+      "item_kinds": {
+        "access control": 50,
+        "active forgetting": 50,
+        "utility": 50
+      },
+      "judge_calls": {
+        "calls_max": 450,
+        "calls_min": 150,
+        "model": "openrouter/openai/gpt-4o"
+      },
+      "judge_cost": {
+        "high": 1.48924,
+        "low": 0.37231
+      },
+      "judge_tokens": {
+        "high": {
+          "calls": 450.0,
+          "input": 511696.062476,
+          "output": 20999.99475
+        },
+        "low": {
+          "calls": 150.0,
+          "input": 127924.0476,
+          "output": 5250.0
+        }
+      },
+      "model": "openrouter/openai/gpt-5.4",
+      "name": "b1-gatemem-reference",
+      "note_calls": 0,
+      "per_condition": {
+        "C1": 150
+      },
+      "sessions": 150,
+      "tokens": {
+        "high": {
+          "calls": 150.0,
+          "input": 848508.787873,
+          "output": 8299.997925
+        },
+        "low": {
+          "calls": 150.0,
+          "input": 636381.75,
+          "output": 6225.0
+        }
+      },
+      "total": {
+        "high": 6.039012,
+        "low": 2.056639
+      }
+    }
+  ],
+  "total": {
+    "high": 10.301961,
+    "low": 2.585109
+  }
+}

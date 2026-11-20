@@ -129,6 +129,28 @@ Written 2026-11-03 by PR 4 (#27, branch `prereg-pr4-v1`), after part A's review 
 
 Later, not H1's, all before H4 runs (card X9): `research/configs/h1-gatemem.json` labels its sessions with the slot `prereg/M1` and writes to one run folder, so the M2 and M3 runs take their own configs, one per slot, with their own run folders; the runner's stores are fake, Mem0 and Letta, so the files store H4 names joins the runner; a seeded rule draws H4's 761 items per arm; and H4's table code pairs through `complete_item_differences` (`research/analysis/equivalence.py`), which drops items that lose a seed (decision sheet item 13h).
 
+### The live checks before the tag (card RV6)
+
+Added 2026-11-20 by card RV6 (design review RV-DES-9), for the lead: two live runs that are never analysed, made before the tag so the first live call is not the registered H1 run. Both are `pipeline` configs; neither is read by `make h1-table` or any research script. Before step 4 (the tag), on the machine that will run H1, with `OPENROUTER_API_KEY` set and `ENGRAM_OFFLINE` unset:
+
+```
+make run CONFIG=research/configs/h1-gatemem.json COUNT=1
+make run CONFIG=research/configs/smoke-h1.json COUNT=1
+make run CONFIG=research/configs/b1-gatemem-reference.json COUNT=1
+make run CONFIG=research/configs/smoke-h1.json MODEL=openrouter/openai/gpt-5.6-terra LIVE=1
+make run CONFIG=research/configs/smoke-h1.json MODEL=openrouter/openai/gpt-5.6-terra REPLAY=1
+make run CONFIG=research/configs/b1-gatemem-reference.json MODEL=openrouter/openai/gpt-5.4 LIVE=1
+```
+
+- The first COUNT fetches the pinned GateMem full set, which the B1 config reads; the next two print 50 sessions (30 GateMem under C1 to C5, 20 MEM-INV-Bench under C2 to C5) and 150 sessions (C1 on Medical), with no call.
+- The smoke run (`smoke-h1-gatemem.json`, `smoke-h1-mem-inv.json`) runs H1's whole live path on Mem0 at preset `medium` with the paper's judge, on six GateMem fixture items (two of each kind) and five MEM-INV-Bench cases (one per family and channel), with the model item 1 names (`gpt-5.6-terra` as recommended). It passes when every session ends with a row, the replay makes zero new calls, `served by:` names the upstreams, and no session is excluded. Priced at 0.53 to 4.26 USD (`research/results/h1-check-runs-cost.json`); its ceilings are 5 and 3 USD.
+- The B1 reference run (`b1-gatemem-reference.json`) is GateMem's long-context agent (C1, ADR 0031 decision 3) on the paper's backbone, GPT-5.4, over 150 Medical checkpoints (50 per kind, `node packages/runner/scripts/check-runs.ts b1-items --data .engram/upstream/gatemem/bench/data`), judged by GPT-4o; its U, A and F are held to the paper's Table 3 row (Medical, GPT-5.4, Long-Context: U 91.4, A 10.4, F 2.3) within the tolerance the lead sets (proposed, a two-sample band: of the 50 replicated checkpoints per kind, U passes at 40 to 50, A at 0 to 12, F at 0 to 6, from `node packages/runner/scripts/check-runs.ts b1-band`; `docs/log/2026-11-20-rv6-review-decision-b1-two-sample-band.md`). It is Gate B's carried criterion (a). Priced at 2.06 to 6.04 USD; its ceiling is 10 USD.
+- A failure of either is fixed before the tag. Neither run's cassettes or numbers are results.
+
+### Running H1 in shards (card RV6)
+
+Any of the run commands below takes `SHARD=i/n`: n processes, on one machine or several, each run `make run CONFIG=<arm> MODEL=<M1> LIVE=1 SHARD=i/n` for i from 1 to n into `.engram/runs/<arm>-live-shard-<i>-of-<n>`, against the same cassettes (copy them between machines afterwards); `RESUME=1` resumes one shard; then `make run CONFIG=<arm> MODEL=<M1> REPLAY=1 MERGE=n` writes the merged run into `.engram/runs/<arm>-live`, the folder `make h1-table` reads: its results, events and summary byte for byte what one process would have written, and its usage files too unless a shard crashed in the middle of a session. Each shard stops at the config's `spend_ceiling_usd` divided by n, checked before each session, so the run can pass the ceiling by up to n sessions' cost. The estimated wall time is in `docs/log/2026-11-20-rv6-finding-h1-wall-time.md` (four shards: about 13 hours to 2 days).
+
 ### The commands that run H1 once the key exists
 
 On main at the tagged commit, with `OPENROUTER_API_KEY` set and `ENGRAM_OFFLINE` unset, the model being item 1's M1 (`openrouter/openai/gpt-5.6-terra` as recommended), as `research/configs/h1-table.json`'s `how_to`, the Makefile's help and AGENTS.md give them:

@@ -19,15 +19,30 @@
 // - The cassette directory must be under the repository's `.engram/` (which
 //   .gitignore keeps out of the repository) or outside the repository, and
 //   never overlap `fixtures/` or the config's own cassettes (review R5-4). The
-//   default is `.engram/runs/<config>-live/<provider>/<model>/cassettes`.
+//   default is `.engram/runs/<config>-live/<provider>/<model>/cassettes`, or
+//   `cassettes-upstream-<hash>` for a config that pins OpenRouter's upstream.
 // - A replay (review R5-5) reads the same directory with every miss an error,
 //   is allowed offline, and refuses a directory that does not exist.
+// - A config's `openrouter_provider` (card RV6, model/upstream.ts) pins
+//   OpenRouter's upstream for the answer model and the judge; a live run
+//   refuses it for a model that is not on OpenRouter, and for one model
+//   pinned two ways. Every live run records the upstream that served each
+//   OpenRouter call, pinned or not.
 import { existsSync, readdirSync } from "node:fs";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import { createModels } from "@earendil-works/pi-ai";
 import { builtinProviders } from "@earendil-works/pi-ai/providers/all";
+import { canonicalJson, sha256 } from "@engram/core";
 import { fileCache } from "@engram/model";
 import type { LiveModels } from "./answers.ts";
+import { configJudge } from "./config.ts";
+import { longMemEvalJudge } from "./longmemeval-probe.ts";
+import {
+  OPENROUTER,
+  type OpenRouterProvider,
+  type OpenRouterRouting,
+  routedModels,
+} from "./model/upstream.ts";
 import type { RunnerOptions } from "./run.ts";
 
 /** What a live run or a replay sets of any runner's options: the cassettes, offline, and the live models. */
@@ -38,6 +53,12 @@ export interface LiveRunConfig {
   name: string;
   model: string;
   cassettes: string;
+  /** What names the judge a live run calls (a GateMem or LongMemEval config's own, or its paper's). */
+  kind?: string;
+  benchmark?: string;
+  judge?: { model: string } | undefined;
+  /** OpenRouter's upstream for the answer model and the judge (card RV6). */
+  openrouter_provider?: OpenRouterProvider | undefined;
 }
 
 export class LiveRunRefused extends Error {
@@ -67,6 +88,20 @@ const within = (parent: string, child: string) => {
 
 const offline = (env: NodeJS.ProcessEnv) => env.ENGRAM_OFFLINE === "1";
 
+/**
+ * The last part of the default live cassette directory: `cassettes`, or
+ * with an `openrouter_provider` pin `cassettes-upstream-<12 hex>`, a hash of
+ * the pin in canonical JSON (review P60-4). The pin stays out of every cache
+ * key, so a pinned run gets a folder of its own instead: a fresh live run
+ * under a new pin never replays answers another upstream gave. An explicit
+ * `--cassettes` folder is the caller's to keep apart.
+ */
+export function cassetteFolder(config: Pick<LiveRunConfig, "openrouter_provider">): string {
+  const pin = config.openrouter_provider;
+  if (pin === undefined) return "cassettes";
+  return `cassettes-upstream-${sha256(canonicalJson(pin)).slice(0, 12)}`;
+}
+
 /** The named model's live cassette directory, checked against the rules above. */
 function liveCassettes(config: LiveRunConfig, request: LiveRunRequest): string {
   const [provider = "", ...rest] = request.model.split("/");
@@ -83,7 +118,14 @@ function liveCassettes(config: LiveRunConfig, request: LiveRunRequest): string {
   }
   const cassettes = resolve(
     request.cassettes ??
-      join(request.repo, ".engram", "runs", `${config.name}-live`, ...parts, "cassettes"),
+      join(
+        request.repo,
+        ".engram",
+        "runs",
+        `${config.name}-live`,
+        ...parts,
+        cassetteFolder(config),
+      ),
   );
   for (const committed of [join(request.repo, "fixtures"), config.cassettes]) {
     if (within(committed, cassettes) || within(cassettes, committed)) {
@@ -136,10 +178,57 @@ export function builtinLiveModels(): LiveModels {
   return models;
 }
 
+/** The judge model a live run of `config` calls, if any: its own, or its benchmark's paper judge for an experiment. */
+function judgeModel(config: LiveRunConfig): string | undefined {
+  if (config.judge) return config.judge.model;
+  if (config.kind !== "experiment") return undefined;
+  if (config.benchmark === "gatemem") return configJudge({ kind: "experiment" })?.model;
+  if (config.benchmark === "longmemeval") return longMemEvalJudge({ kind: "experiment" })?.model;
+  return undefined;
+}
+
+/**
+ * The OpenRouter routing of each pinned model of `config` (card RV6):
+ * `openrouter_provider.answer` for its model, `.judge` for its judge.
+ * Refused for a model not on OpenRouter (pi-ai sends the routing to
+ * OpenRouter only) and for one model pinned two ways.
+ */
+export function upstreamRoutes(config: LiveRunConfig): Map<string, OpenRouterRouting> {
+  const routes = new Map<string, OpenRouterRouting>();
+  const pinned = config.openrouter_provider;
+  if (pinned === undefined) return routes;
+  const roles: [string, string | undefined, OpenRouterRouting | undefined][] = [
+    ["answer", config.model, pinned.answer],
+    ["judge", judgeModel(config), pinned.judge],
+  ];
+  for (const [role, model, routing] of roles) {
+    if (routing === undefined) continue;
+    if (model === undefined) {
+      throw new LiveRunRefused(
+        `openrouter_provider.${role} pins an upstream, and ${config.name} calls no ${role} model`,
+      );
+    }
+    if (model.split("/")[0] !== OPENROUTER) {
+      throw new LiveRunRefused(
+        `openrouter_provider.${role} pins an OpenRouter upstream, and the ${role} model ${model} is not on OpenRouter; pi-ai sends OpenRouter's provider field to OpenRouter only`,
+      );
+    }
+    const prior = routes.get(model);
+    if (prior !== undefined && canonicalJson(prior) !== canonicalJson(routing)) {
+      throw new LiveRunRefused(
+        `${model} is both the answer model and the judge, and openrouter_provider pins it two ways`,
+      );
+    }
+    routes.set(model, routing);
+  }
+  return routes;
+}
+
 /**
  * The runner options of a live run: record misses from `live` into the
- * config's cassettes. Refuses under ENGRAM_OFFLINE=1, a second defence after
- * `liveConfig`.
+ * config's cassettes, each pinned model with its OpenRouter routing and
+ * every OpenRouter reply's serving provider recorded (card RV6). Refuses
+ * under ENGRAM_OFFLINE=1, a second defence after `liveConfig`.
  */
 export function liveOptions(
   config: LiveRunConfig,
@@ -149,7 +238,11 @@ export function liveOptions(
   if (offline(env)) {
     throw new LiveRunRefused("ENGRAM_OFFLINE=1 is set, and a live run reaches a model");
   }
-  return { cache: fileCache(config.cassettes), offline: false, live };
+  return {
+    cache: fileCache(config.cassettes),
+    offline: false,
+    live: routedModels(live, upstreamRoutes(config)),
+  };
 }
 
 /** The runner options of a replay: the config's cassettes only, every miss an error. */

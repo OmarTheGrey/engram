@@ -50,6 +50,7 @@ import {
   retrySession,
   type Sleep,
 } from "./model/retry.ts";
+import type { Shard } from "./shard.ts";
 
 export type { LiveModels } from "./answers.ts";
 
@@ -80,6 +81,12 @@ export interface RunnerOptions {
    * None when unset; `make run` sets it for a live run.
    */
   sessionRetry?: RetryPolicy;
+  /**
+   * Run only this shard's items (card RV6, shard.ts): the i-th of n
+   * contiguous blocks of the config's items, every condition, store and
+   * seed of each. No cache key depends on it.
+   */
+  shard?: Shard;
 }
 
 /** What a run's summary is of: the rows' condition, store, score, judge and exclusion. */
@@ -143,7 +150,7 @@ export async function runConfig(
   });
   const cells = configCells(config);
   const judge = configJudge(config);
-  sessions: for (const item of configItems(config, gatememItems(domains))) {
+  sessions: for (const item of configItems(config, gatememItems(domains), options.shard)) {
     const domain = findDomain(domains, item);
     const checkpoint = domain.checkpoints.find((c) => c.checkpoint_id === item);
     for (const { condition, store } of cells) {

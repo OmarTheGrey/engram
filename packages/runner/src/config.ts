@@ -7,6 +7,8 @@ import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { PRESETS } from "@engram/core";
 import { z } from "zod";
+import { OpenRouterProvider } from "./model/upstream.ts";
+import { type Shard, shardSlice } from "./shard.ts";
 import { STORES, type StoreName } from "./stores.ts";
 
 /**
@@ -161,6 +163,16 @@ export const RunnerConfig = z.strictObject({
       script: z.string().optional(),
     })
     .optional(),
+  /**
+   * OpenRouter's upstream provider for the answer model and for the judge
+   * (card RV6, RV-DES-11; model/upstream.ts): OpenRouter's `provider`
+   * routing object, for example `{"order": ["deepinfra"],
+   * "allow_fallbacks": false}`, sent with every live call of that model.
+   * A live run refuses it for a model not on OpenRouter. Part of the run's
+   * fingerprint, never of a cache key. Unset, OpenRouter routes freely; the
+   * serving provider is recorded either way.
+   */
+  openrouter_provider: OpenRouterProvider.optional(),
 });
 export type RunnerConfig = z.infer<typeof RunnerConfig>;
 
@@ -238,18 +250,23 @@ export function parseRunnerConfig(value: unknown, base = process.cwd()): RunnerC
 export const configStores = (config: Pick<AnyRunnerConfig, "store">): StoreName[] =>
   typeof config.store === "string" ? [config.store] : [...config.store];
 
-/** The config's items: its list, or every id of the data in order when it says `all`. */
+/**
+ * The config's items: its list, or every id of the data in order when it
+ * says `all`; with a shard, that shard's contiguous block of them (card RV6,
+ * shard.ts).
+ */
 export function configItems(
   config: Pick<AnyRunnerConfig, "items" | "name">,
   available: readonly string[],
+  shard?: Shard,
 ): string[] {
-  if (config.items === "all") return [...available];
+  if (config.items === "all") return shardSlice(available, shard);
   const known = new Set(available);
   const missing = config.items.filter((i) => !known.has(i));
   if (missing.length > 0) {
     throw new Error(`config ${config.name}: no item ${missing.join(", ")} in the data`);
   }
-  return [...config.items];
+  return shardSlice(config.items, shard);
 }
 
 /**
