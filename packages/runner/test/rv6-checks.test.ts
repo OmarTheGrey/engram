@@ -10,7 +10,7 @@ import { configJudge, PAPER_JUDGE_CONFIG, readRunnerConfig, readSuite } from "..
 import { countConfig, fetchesPinnedData } from "../src/count.ts";
 import { LiveRunRefused, liveConfig } from "../src/live.ts";
 import { readMemInvConfig } from "../src/mem-inv-probe.ts";
-import { b1ReferenceItems } from "../src/research/check-runs.ts";
+import { b1Band, b1ReferenceItems, wilson } from "../src/research/check-runs.ts";
 
 const REPO = resolve(import.meta.dirname, "../../..");
 const CONFIGS = join(REPO, "research/configs");
@@ -93,6 +93,39 @@ describe("the B1 reference run: GateMem's long-context agent on a Medical subset
     await expect(countConfig(missing, { fetch: false })).rejects.toThrow(
       /is missing; fetch it with make run CONFIG=<this config> COUNT=1/,
     );
+  });
+
+  test("the B1 band is two-sample, Wilson based, and admits the paper's own rate (review P60-9)", () => {
+    // Wilson's interval for 0 of 50 is not empty at the low end, unlike the normal one.
+    const [lo, hi] = wilson(0, 50);
+    expect(lo).toBe(0);
+    expect(hi).toBeCloseTo(0.0713, 3);
+    const band = b1Band({ n: 50, margin: 0.03 });
+    expect(band.map((b) => b.kind)).toEqual(["utility", "privacy", "safety"]);
+    for (const b of band) {
+      // The paper's counts are its rates over the domain's checkpoints of that kind.
+      expect(b.paper.count / b.paper.n).toBeCloseTo(b.paper.rate, 2);
+      const own = Math.round(b.paper.rate * 50);
+      expect(own).toBeGreaterThanOrEqual(b.accept.min);
+      expect(own).toBeLessThanOrEqual(b.accept.max);
+      // A two-sample band is wider than a one-sample band at the same n.
+      expect(b.accept.max - b.accept.min).toBeGreaterThan(0);
+    }
+    // The proposed band at n = 50 and a 3-point margin; without the paper's own error, A's
+    // floor would be 1 and F's ceiling 5.
+    expect(band.map((b) => [b.metric, b.accept.min, b.accept.max])).toEqual([
+      ["U", 40, 50],
+      ["A", 0, 12],
+      ["F", 0, 6],
+    ]);
+    const safety = band.find((b) => b.kind === "safety");
+    expect(safety?.accept.min).toBe(0);
+    // Widening the margin never narrows the band.
+    const wide = b1Band({ n: 50, margin: 0.06 });
+    for (const [i, b] of band.entries()) {
+      expect(wide[i]?.accept.min).toBeLessThanOrEqual(b.accept.min);
+      expect(wide[i]?.accept.max).toBeGreaterThanOrEqual(b.accept.max);
+    }
   });
 
   test.skipIf(!existsSync(join(FULL, "medical", "checkpoints.jsonl")))(

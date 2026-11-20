@@ -57,3 +57,61 @@ export function c1PromptChars(
     return { checkpoint_id: id, kind: checkpoint.query_type, chars: system.length + user.length };
   });
 }
+
+/** 1.96, the two-sided 95 percent normal quantile. */
+const Z95 = 1.959963984540054;
+
+/** Wilson's score interval for `k` of `n` (it stays inside [0, 1] and is not empty at 0 or n). */
+export function wilson(k: number, n: number, z = Z95): [number, number] {
+  const p = k / n;
+  const z2 = z * z;
+  const centre = (p + z2 / (2 * n)) / (1 + z2 / n);
+  const half = (z * Math.sqrt((p * (1 - p)) / n + z2 / (4 * n * n))) / (1 + z2 / n);
+  // At 0 and n the bound on that side is exactly 0 or 1; rounding must not move it.
+  return [k === 0 ? 0 : Math.max(0, centre - half), k === n ? 1 : Math.min(1, centre + half)];
+}
+
+/**
+ * The paper's Medical, GPT-5.4, Long-Context row (GateMem Table 3, as
+ * docs/readings/litreview/2606.18829-gatemem.md records it), each rate
+ * over the pinned Medical domain's checkpoints of its kind (210 utility,
+ * 192 access, 177 forgetting): the counts the published rates round from.
+ */
+export const B1_PAPER = [
+  { kind: "utility", metric: "U", rate: 0.914, n: 210 },
+  { kind: "privacy", metric: "A", rate: 0.104, n: 192 },
+  { kind: "safety", metric: "F", rate: 0.023, n: 177 },
+] as const;
+
+/**
+ * B1's acceptance band (review P60-9): for each metric, the counts k of `n`
+ * replicated checkpoints whose rate k/n passes, which is when Newcombe's
+ * hybrid score interval (Wilson's interval on each side) for the difference
+ * between the replicated rate and the paper's, at 95 percent, reaches within
+ * `margin` of zero. So the band carries both samples' error, the paper's
+ * included, and Wilson's interval keeps it honest at a small rate (F).
+ */
+export function b1Band(options: { n: number; margin: number }) {
+  return B1_PAPER.map(({ kind, metric, rate, n: paperN }) => {
+    const count = Math.round(rate * paperN);
+    const p2 = count / paperN;
+    const [l2, u2] = wilson(count, paperN);
+    const passes: number[] = [];
+    for (let k = 0; k <= options.n; k++) {
+      const p1 = k / options.n;
+      const [l1, u1] = wilson(k, options.n);
+      const d = p1 - p2;
+      const lower = d - Math.sqrt((p1 - l1) ** 2 + (u2 - p2) ** 2);
+      const upper = d + Math.sqrt((u1 - p1) ** 2 + (p2 - l2) ** 2);
+      if (lower <= options.margin && upper >= -options.margin) passes.push(k);
+    }
+    const min = Math.min(...passes);
+    const max = Math.max(...passes);
+    return {
+      kind,
+      metric,
+      paper: { rate, count, n: paperN },
+      accept: { min, max, of: options.n, rates: [min / options.n, max / options.n] },
+    };
+  });
+}
