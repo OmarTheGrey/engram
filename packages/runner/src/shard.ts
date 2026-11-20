@@ -9,7 +9,9 @@
 //   contiguous blocks of the config's items in run order (items
 //   floor((i-1)N/n) to floor(iN/n) - 1), so its rows are a contiguous run of
 //   the unsharded run's rows, and the merge is the shards' files concatenated
-//   in shard order: byte for byte the unsharded run's.
+//   in shard order: byte for byte the unsharded run's results, events and
+//   summary, and its usage files too unless a shard crashed in the middle of
+//   a session, whose resume replays that session's recorded calls as hits.
 // - Nothing about a call depends on the shard: no cache key names it (a key is
 //   the item, condition, preset, store, model, seed and prompt hash, ADR
 //   0017), and the cassette directory is the config's, so every shard records
@@ -22,6 +24,9 @@
 //   shard's folder and the merge refuses shards of two configs.
 // - A config's spend_ceiling_usd is the whole run's: each of n shards stops
 //   when a provider's spend in that shard reaches the ceiling divided by n.
+//   The check comes before each session, and a session started under it
+//   finishes, so a run of n shards can pass the ceiling by up to n sessions'
+//   cost (one per shard), where an unsharded run passes it by at most one.
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { AnyRunnerConfig } from "./config.ts";
