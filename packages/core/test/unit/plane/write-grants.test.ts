@@ -304,11 +304,15 @@ describe("RV-CORE-1: a rewrite of an item carrying grants is its owner's", () =>
       ...stored,
       version: stored.version + 1,
       content: "Edited in the store.",
-    });
+    } as MemoryItem);
     const byLee = await adoptStoreItems(env.deps, lee, ROLE, LATER);
     expect(byLee).toMatchObject({ allowed: 0, denied: 1 });
     expect(itemById(env.db, id(1))?.content).toBe("The release train leaves at 3.");
-    const fresher = { ...stored, version: stored.version + 2, content: "Edited by Dana." };
+    const fresher = {
+      ...stored,
+      version: stored.version + 2,
+      content: "Edited by Dana.",
+    } as MemoryItem;
     await env.adapter.write(fresher);
     const byDana = await adoptStoreItems(env.deps, dana, ROLE, LATER);
     expect(byDana).toMatchObject({ allowed: 1, denied: 0 });
