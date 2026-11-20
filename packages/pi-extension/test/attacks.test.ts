@@ -21,12 +21,13 @@ import {
   mkdtempSync,
   readdirSync,
   readFileSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ToolCall } from "@earendil-works/pi-ai";
-import type { ExtensionFactory } from "@earendil-works/pi-coding-agent";
+import { type ExtensionFactory, SessionManager } from "@earendil-works/pi-coding-agent";
 import {
   allEvents,
   BYPASS_PATH_ID,
@@ -1058,6 +1059,123 @@ describe("card RV5, RV-SRF-3: the files that govern the session are guarded", ()
     expect(result.exitCode).toBe(126);
     expect(readFileSync(log, "utf8")).toBe("LOG");
   });
+
+  // Review fix pass of PR #59 (RV5-4): pi's shell check does not follow `cd`
+  // (core's no-bypass.ts, which card RV7 extends with cd, pushd and -C
+  // tracking). Until then the protectBelow folder itself counts as
+  // protected, so a command that names it to step into it is blocked; the
+  // session's own cwd is the one exception, as a relative path is already
+  // read against it and pi's tools default to it.
+  test("the protectBelow folder itself is protected: cd into it, then rm, is blocked", async () => {
+    const { log: events } = await seeded();
+    const { base, log, protect } = governed();
+    const ext = createEngramExtension({
+      ...events,
+      policy,
+      actor: OMAR,
+      now: () => AT,
+      protect,
+      protectBelow: [base],
+    });
+    const steps = [
+      call("c1", "bash", { command: `cd "${base}" && rm engram.db` }),
+      call("c2", "bash", { command: `rm -rf "${base}"` }),
+      call("c3", "ls", { path: base }),
+      { text: "done" },
+    ];
+    const run = await session([ext], steps, ["bash", "ls"]);
+    await run.session.prompt("go");
+    const results = toolResults(run.sessionManager);
+    expect(results).toHaveLength(3);
+    for (const r of results) {
+      expect(r.isError, `${r.toolName}: ${textOf(r)}`).toBe(true);
+      expect(textOf(r)).toContain("inside the root of store engram");
+    }
+    expect(readFileSync(log, "utf8")).toBe("LOG");
+  });
+
+  test("the session's own cwd, a protectBelow folder, is not itself protected", async () => {
+    const { log: events } = await seeded();
+    const cwd = mkdtempSync(join(tmpdir(), "engram-cwd-"));
+    mkdirSync(join(cwd, ".pi"));
+    writeFileSync(join(cwd, "notes.md"), "plain notes");
+    const ext = createEngramExtension({
+      ...events,
+      policy,
+      actor: OMAR,
+      now: () => AT,
+      // pi-package's shape: .pi inside the cwd, guarded below the cwd.
+      protect: [join(cwd, ".pi")],
+      protectBelow: [cwd],
+    });
+    const steps = [
+      call("l1", "ls", {}),
+      call("l2", "bash", { command: "ls ." }),
+      call("l3", "bash", { command: `ls "${cwd}"` }),
+      call("l4", "bash", { command: "rm -rf .pi" }),
+      { text: "ok" },
+    ];
+    const run = await session([ext], steps, ["ls", "bash"], {
+      resume: { sessionManager: SessionManager.inMemory(cwd), cwd },
+    });
+    await run.session.prompt("go");
+    const results = toolResults(run.sessionManager);
+    expect(results.map((r) => r.isError)).toEqual([false, false, false, true]);
+    expect(existsSync(join(cwd, ".pi"))).toBe(true);
+  });
+
+  // Review fix pass of PR #59 (RV5-7): the -journal companion, pi's agent
+  // folder, and a link into .pi, each guarded as pi-package lists them.
+  test("the log's -journal file, pi's agent folder and a junction into .pi are guarded", async () => {
+    const { log: events } = await seeded();
+    const { base, log, pi, protect } = governed();
+    const agent = join(base, "home", ".pi", "agent");
+    mkdirSync(agent, { recursive: true });
+    writeFileSync(join(agent, "settings.json"), "{}");
+    const link = join(base, "elsewhere");
+    // A junction on Windows (no privilege needed), a symlink elsewhere.
+    symlinkSync(pi, link, process.platform === "win32" ? "junction" : "dir");
+    const ext = createEngramExtension({
+      ...events,
+      policy,
+      actor: OMAR,
+      now: () => AT,
+      protect: [...protect, agent],
+      protectBelow: [base],
+    });
+    const steps = [
+      call("j1", "write", { path: `${log}-journal`, content: "" }),
+      call("j2", "bash", { command: `rm -f "${log}-journal"` }),
+      call("a1", "write", { path: join(agent, "settings.json"), content: '{"packages":[]}' }),
+      call("a2", "write", { path: join(agent, "extensions", "off.ts"), content: "export {}" }),
+      call("a3", "bash", { command: `rm -rf "${agent}"` }),
+      call("s1", "write", { path: join(link, "settings.json"), content: '{"packages":[]}' }),
+      call("s2", "edit", {
+        path: join(link, "settings.json"),
+        edits: [{ oldText: "{}", newText: '{"packages":[]}' }],
+      }),
+      call("s3", "bash", { command: `rm -f "${join(link, "settings.json")}"` }),
+      { text: "done" },
+    ];
+    const run = await session([ext], steps, ["write", "edit", "bash"]);
+    await run.session.prompt("go");
+    const results = toolResults(run.sessionManager);
+    expect(results).toHaveLength(8);
+    for (const r of results) {
+      expect(r.isError, `${r.toolName}: ${textOf(r)}`).toBe(true);
+      expect(textOf(r)).toContain("inside the root of store engram");
+    }
+    expect(existsSync(`${log}-journal`)).toBe(false);
+    expect(readFileSync(join(agent, "settings.json"), "utf8")).toBe("{}");
+    expect(existsSync(join(agent, "extensions"))).toBe(false);
+    expect(readFileSync(join(pi, "settings.json"), "utf8")).toBe("{}");
+  });
+
+  // Pending card RV7: core's shell check following `cd` into a folder that
+  // is not itself protected, then a relative path into a protected one.
+  test.todo(
+    "RV7: cd into a folder above the protectBelow folder, then rm a relative path to the log, is blocked",
+  );
 
   test("a file beside them still runs", async () => {
     const { log: events } = await seeded();

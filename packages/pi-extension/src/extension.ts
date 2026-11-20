@@ -52,6 +52,8 @@
 // pass, RV5-1). The sweeps before
 // each prompt are core's syncBeforeRead, at this process's clock (RV-SRF-1).
 import { createHash } from "node:crypto";
+import { realpathSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 import type { ExtensionAPI, ExtensionFactory } from "@earendil-works/pi-coding-agent";
 import {
   type Actor,
@@ -180,6 +182,32 @@ function itemFromCall(
 const modelOf = (ctx: { model?: { provider: string; id: string } | undefined }) =>
   ctx.model ? `${ctx.model.provider}/${ctx.model.id}` : undefined;
 
+/** A path as the file system names it, for comparing two folders. */
+function samePlace(path: string): string {
+  let real = resolve(path);
+  try {
+    real = realpathSync.native(real);
+  } catch {
+    // a folder that does not exist yet is named as given
+  }
+  return process.platform === "win32" ? real.toLowerCase() : real;
+}
+
+/**
+ * The folders a protected path's ancestors are guarded below (review fix
+ * pass of PR #59, RV5-4). Core guards a folder holding a protected file only
+ * strictly inside one of them; here each protectBelow folder is itself
+ * guarded too, by handing core its parent, so `cd ~ && rm .engram/engram.db`
+ * is blocked at the `cd`, until core's shell check follows `cd` (card RV7).
+ * The session's own cwd is the one exception: a relative path is already
+ * read against it, and pi's tools default to it, so guarding it would block
+ * every `ls`.
+ */
+function guardedBelow(below: readonly string[], cwd: string): string[] {
+  const here = samePlace(cwd);
+  return below.map((b) => (samePlace(b) === here ? b : dirname(resolve(b))));
+}
+
 /** Shell tools whose `command` is checked for store names. */
 const SHELL_TOOLS = new Set(["bash", "powershell"]);
 
@@ -276,7 +304,7 @@ export function createEngramExtension(options: EngramExtensionOptions): Extensio
         roots: protect,
         stores: storeCommands,
         rootStore: "engram",
-        ancestorsBelow: protectBelow,
+        ancestorsBelow: guardedBelow(protectBelow, cwd),
       },
     ];
 
