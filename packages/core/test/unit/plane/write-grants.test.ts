@@ -20,6 +20,7 @@
 // and a promotion's new version may carry from its source.
 import { readFileSync } from "node:fs";
 import { describe, expect, test } from "vitest";
+import { allEvents } from "../../../src/events.ts";
 import { itemById } from "../../../src/items.ts";
 import { type Actor, adoptStoreItems } from "../../../src/plane.ts";
 import { WRITE_GRANT_ID } from "../../../src/policy/evaluate.ts";
@@ -110,7 +111,10 @@ describe("I1: a rewrite that changes the grants is a grant change", () => {
     expect(byLee.event.decision).toBe("allow");
   });
 
-  test("the owner's store record adopted with other grants lands, as it did", async () => {
+  // Card RV4 (RV-ADP-4): a grant reaches the log only through the plane.
+  // Adoption keeps the edited record but drops a grant the plane never
+  // recorded for its id, and its reason names it; before, the grant landed.
+  test("the owner's store record adopted with other grants lands without the grants the plane never recorded", async () => {
     const env = fresh(twin());
     const own = item(2, { scope: "person:dana", owner: dana.id, content: "Dana's note." });
     expect((await env.plane.write(dana, own, AT)).event.decision).toBe("allow");
@@ -124,7 +128,8 @@ describe("I1: a rewrite that changes the grants is a grant change", () => {
       LATER,
     );
     expect(report).toMatchObject({ allowed: 1, denied: 0 });
-    expect(itemById(env.db, id(2))?.grants).toEqual([toSam]);
+    expect(itemById(env.db, id(2))).toMatchObject({ version: 2, grants: [] });
+    expect(allEvents(env.db).at(-1)?.reason).toMatch(/adoption dropped the grant to person:sam/);
   });
 });
 

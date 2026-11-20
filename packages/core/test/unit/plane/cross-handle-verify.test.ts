@@ -573,7 +573,11 @@ forEachBackend((backend) => {
       expect(await env.store.list("team:x")).toHaveLength(1);
     });
 
-    test("V9: stale bytes adopted and built on: the plane removes the grant they reintroduced, and says so", async () => {
+    // Card RV4: adoption keeps only the grants the plane's item of that id
+    // carries, so the adoption of the stale bytes drops Sam's grant itself
+    // and says so; nothing is reintroduced, and the stale writer's narrowing
+    // (engram/adopt/narrowed) has nothing left to remove.
+    test("V9: stale bytes adopted and built on: the adoption drops the grant they would reintroduce, and says so", async () => {
       const env = setup(backend);
       const role = await seedRole(env, [toSam, toLee]);
       const before = env.a.pause("write", "before");
@@ -593,22 +597,23 @@ forEachBackend((backend) => {
       before.release();
       await after.arrived;
       await adoptStoreItems(env.depsTheirs, dana, "role:release", AT);
+      const adoption = eventsByItem(env.mine, role.id).at(-1);
+      expect(adoption?.decision).toBe("allow");
+      expect(adoption?.reason).toMatch(/adoption dropped the grant to person:sam/);
+      expect(adoption?.item?.grants).toEqual([toLee]);
       expect(
         (await env.planeTheirs.changeGrants(dana, role.id, { remove: [toLee] }, AT)).decision,
       ).toBe("allow");
       after.release();
       const r = await stale;
       expect(r.event.policy_id).toBe(WRITE_CONFLICT);
-      expect(r.event.reason).toMatch(/removed the grant to person:sam/);
       const now = await storeMatches(env, role.id);
       expect(now.grants).toEqual([]);
-      // The edit the adoption carried in stays; only the grant goes.
+      // The edit the adoption carried in stays; the grant never came back.
       expect(now.content).toBe("The release train leaves at 4.");
-      const narrowed = eventsByItem(env.mine, role.id).filter(
-        (e) => e.policy_id === "engram/adopt/narrowed",
-      );
-      expect(narrowed).toHaveLength(1);
-      expect(narrowed[0]?.decision).toBe("allow");
+      expect(
+        eventsByItem(env.mine, role.id).filter((e) => e.policy_id === "engram/adopt/narrowed"),
+      ).toEqual([]);
       expect((await env.plane.read(sam, { at: LATER })).items).toEqual([]);
       monotonic(env, role.id);
       const rep = dogfoodReport(allEvents(env.mine), env.depsMine.policy, [dana, hr, sam, lee]);
@@ -890,10 +895,10 @@ forEachBackend((backend) => {
       ).toBe("allow");
       const after = await land();
       await adoptStoreItems(env.depsTheirs, dana, "role:release", AT);
-      // The owner removes the reintroduced grant, then grants Sam again on purpose.
-      expect(
-        (await env.planeTheirs.changeGrants(dana, role.id, { remove: [toSam] }, AT)).decision,
-      ).toBe("allow");
+      // The adoption did not reintroduce the removed grant (card RV4: it
+      // keeps only grants the plane's item carries); the owner grants Sam
+      // again on purpose.
+      expect(itemById(env.mine, role.id)?.grants).toEqual([]);
       expect(
         (await env.planeTheirs.changeGrants(dana, role.id, { add: [toSam] }, AT)).decision,
       ).toBe("allow");

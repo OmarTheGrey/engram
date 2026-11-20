@@ -80,11 +80,23 @@ async function matching(
   }
   const inScope = new Set(reach.filter((i) => scopes.includes(i.scope)).map((i) => i.id));
   const hits = scopes.length === 0 ? [] : await adapter.search(query, scopes);
+  // A hit whose store record no longer holds the projected content (an edit
+  // adoption denied while the plane kept the version it approved; review fix
+  // pass 2 of PR #58, N-1) matched text the plane never admitted: that item
+  // is matched by the plane over its own content instead.
+  const held = new Map(reach.map((i) => [i.id, strictContentHash(i.content)]));
+  const diverged = new Set(
+    hits
+      .filter((h) => inScope.has(h.id) && held.get(h.id) !== strictContentHash(h.content))
+      .map((h) => h.id),
+  );
   const share = termShare(
-    reach.filter((i) => !inScope.has(i.id)),
+    reach.filter((i) => !inScope.has(i.id) || diverged.has(i.id)),
     terms,
   );
-  const order = [...new Set(hits.map((i) => i.id).filter((id) => inScope.has(id)))];
+  const order = [
+    ...new Set(hits.map((i) => i.id).filter((id) => inScope.has(id) && !diverged.has(id))),
+  ];
   return { order: [...order, ...share.keys()], share };
 }
 

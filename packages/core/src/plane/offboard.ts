@@ -44,7 +44,16 @@
 // the store still holds, so adoption refuses that record while it holds the
 // erased content (a deny event, engram/adopt/erased) and adopts anything else
 // normally. Those hashes are the one trace of erased content the log keeps,
-// and only for records still in a store (ADR 0010, recheck of PR #41).
+// and only for records still in a store, or that may be (ADR 0010, recheck
+// of PR #41). A ref the store holds no record at (its read finds none before
+// the delete) is not proven deleted (review fix pass of PR #58, I-1): a files
+// folder renamed while the plane names its old root still holds every record
+// elsewhere. The item is erased all the same; the report lists the ref under
+// not_found_in_store, and its erase event carries NOT_FOUND_CLAUSE beside
+// LEFT_CONTENT_CLAUSE with the erased versions' hashes, so adoption refuses
+// that content in the person scope under any id; a record under the erased
+// id itself is refused while it holds that content and adopted once it
+// changes, as a left-in-store record is (review fix pass 2, N-3).
 //
 // The deletion report names what was erased and handed over, by id, and what
 // this call cannot reach. It carries no content. One summary event
@@ -95,7 +104,9 @@ import {
   ERASURE_ID,
   erases,
   eventsByItem,
+  keptInStore,
   LEFT_CONTENT_CLAUSE,
+  NOT_FOUND_CLAUSE,
 } from "../events.ts";
 import { itemById, itemsByStoreRef } from "../items.ts";
 import { refItemId } from "../lint/det.ts";
@@ -166,6 +177,14 @@ export interface DeletionReport {
      * left in the store for the person to delete there.
      */
     left_in_store: { ref: StoreRef; error: string; items: string[] }[];
+    /**
+     * Refs the store held no record at when the erasure went to delete them
+     * (a moved store, a record deleted outside the plane), and the erased
+     * items holding them: not proven deleted, so their erase events keep the
+     * erased content's hashes and adoption refuses that content in the
+     * person scope under any id (review fix pass of PR #58, I-1).
+     */
+    not_found_in_store: { ref: StoreRef; items: string[] }[];
     /** Earlier events whose copy of an erased item, or lint evidence about one, was redacted. */
     events_redacted: number;
     /** Explanation rows removed. */
@@ -233,6 +252,7 @@ async function run(
     store_refs: [],
     store_failures: [],
     left_in_store: [],
+    not_found_in_store: [],
     events_redacted: 0,
     explanation_rows: 0,
   };
@@ -431,8 +451,22 @@ async function run(
   const deleted: StoreRef[] = [];
   const failed = new Map<string, string>();
   const refused = new Map<string, string>();
+  // A ref the store holds no record at: deleting it succeeds under the
+  // adapter contract, but proves nothing. The store may have moved (a files
+  // folder renamed while the plane names the old root) and still hold the
+  // record elsewhere, so its content is kept refused (review fix pass of PR
+  // #58, I-1). A read that throws means a record is there: it is deleted.
+  const missing = new Set<string>();
   for (const [key, ref] of refs) {
     try {
+      const present = await adapter.read(ref).then(
+        (r) => r !== undefined,
+        () => true,
+      );
+      if (!present) {
+        missing.add(key);
+        continue;
+      }
       await adapter.delete(ref);
       deleted.push(ref);
     } catch (e) {
@@ -472,6 +506,11 @@ async function run(
   // adoption refuses exactly these bytes (and the erased versions') later.
   const leftContent = new Map<string, Set<string>>();
   for (const i of toErase) {
+    if (i.store_ref && missing.has(refKey(i.store_ref))) {
+      // No record to read; the erased versions' hashes are added below.
+      leftContent.set(i.id, new Set([mergingContentHash(i.content)]));
+      continue;
+    }
     if (!i.store_ref || !refused.has(refKey(i.store_ref))) continue;
     const hashes = new Set([mergingContentHash(i.content)]);
     try {
@@ -490,7 +529,9 @@ async function run(
         ? `kept in the store, whose record an item outside ${person} also holds`
         : refused.has(refKey(i.store_ref))
           ? `left in the store, which refuses the plane's delete (${refused.get(refKey(i.store_ref))}); the person deletes it there`
-          : "deleted from the store";
+          : missing.has(refKey(i.store_ref))
+            ? `${NOT_FOUND_CLAUSE} (the store may have moved, or the record was deleted outside the plane)`
+            : "deleted from the store";
 
   const { erased, redactedEvents, explanationRows } = db.transaction(() => {
     // Erased: what was read at the mark and the projection still holds, as
@@ -562,6 +603,10 @@ async function run(
   });
   const ids = new Set(erased.map((i) => i.id));
   const leftInStore: DeletionReport["erased"]["left_in_store"] = byRef(refused, erased);
+  const notFound: DeletionReport["erased"]["not_found_in_store"] = byRef(
+    new Map([...missing].map((key) => [key, ""])),
+    erased,
+  ).map(({ ref, items }) => ({ ref, items }));
 
   // The sweep (verification of PR #50, V-1 and V-5; pass 3, V3-1, V3-2). It
   // deletes, one event each, what a store still holds that no projected item
@@ -604,7 +649,7 @@ async function run(
         if (scope !== person) return null;
         const history = eventsByItem(db, record.id);
         const gone = history.filter(erases).at(-1);
-        if (gone?.reason.includes(LEFT_CONTENT_CLAUSE)) return null;
+        if (gone && keptInStore(gone)) return null;
         if (gone)
           return `a record under the id of item ${record.id}, which this or an earlier offboarding of ${person} erased`;
         if (history.some((e) => e.decision === "allow")) return null;
@@ -688,6 +733,11 @@ async function run(
           `${swept + sweepFailed} record${swept + sweepFailed === 1 ? "" : "s"} left in the store of ${person} under an erased id or one the log never recorded ${swept + sweepFailed === 1 ? "was" : "were"} swept (${OFFBOARD_SWEPT_ID}): ${swept} deleted, ${sweepFailed} the store would not delete, which adoption refuses`,
         ]
       : []),
+    ...(notFound.length > 0
+      ? [
+          `${notFound.length} store ref${notFound.length === 1 ? " holds" : "s hold"} no record in the store ${adapter.name}, so what was there is not proven deleted: see not_found_in_store; if the store moved (a renamed folder), the records are still there, and the person deletes them; adoption refuses their content in ${person} under any id, and the log keeps that content's hash, which can confirm a guess of short content`,
+        ]
+      : []),
     ...notHanded.map(
       (n) =>
         `${n.item} in ${n.scope} was not handed over to ${n.successor}: it kept changing on another handle (${NOT_HANDED_OVER_ID}); it stays the leaver's until offboarding runs again`,
@@ -726,6 +776,7 @@ async function run(
       store_refs: deleted,
       store_failures: failures,
       left_in_store: leftInStore,
+      not_found_in_store: notFound,
       events_redacted: redactedEvents,
       explanation_rows: explanationRows,
     },

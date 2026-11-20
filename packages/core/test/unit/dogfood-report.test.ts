@@ -189,9 +189,9 @@ async function twoWeeks(): Promise<Twin> {
       )
     ).event,
   );
-  // The re-adoption on day 1 raised the agent's items to import (a finding of
-  // card E9.5); the procedure tells members never to grant them, so Dana
-  // does not here (see "a grant on an item re-adoption raised").
+  // The agent's items stay model through every adoption (card RV4; before
+  // it, the re-adoption on day 1 raised them to import), so a grant on one
+  // is refused (see "the same grant through the real plane").
   expect(await read(SAM, day(2, 13))).toEqual([FACT]);
 
   // Day 4: a pattern grant on the plan, lasting to day 9.
@@ -265,9 +265,11 @@ describe("the violation report on a realistic two weeks", () => {
     expect(r.reads.items_returned).toBe(4 + 9 + 1 + 2 + 1 + 0 + 9 + 9);
     expect(r.reads.items_via_grant).toBe(4);
     expect(r.grants).toEqual({ added: 2, changes: 3, removed: 1 });
-    // 4 files adopted, Dana's 3 and the agent's 2, and each of those 5 re-adopted once as import.
-    expect(r.writes).toEqual({ allowed: 4 + 5 + 5, denied: 1 });
-    expect(r.watch).toEqual({ narrowed: 0, provenance_raised: 2 });
+    // 4 files adopted, Dana's 3 and the agent's 2; adoption leaves a record
+    // the plane wrote as it holds it, so none is adopted again (card RV4).
+    expect(r.writes).toEqual({ allowed: 4 + 5, denied: 1 });
+    // Adoption never raises trust (card RV4): the agent's items stay model.
+    expect(r.watch).toEqual({ narrowed: 0, provenance_raised: 0 });
     expect(r.declared).toEqual({
       level: "person",
       memberships_by_level: { org: 0, person: 1, role: 0, team: 0 },
@@ -525,14 +527,32 @@ describe("review fix pass: what a grant change adds (E95-1, E95-3, E95-6)", () =
     expect(violations(t)).toEqual({ grant_change: 1, read: 1, total: 2 });
   });
 
-  test("an owner's grant on an item whose provenance re-adoption raised", async () => {
+  test("an owner's grant on the agent's item", async () => {
     const t = await twoWeeks();
+    expect(itemOf(t, EPISODE).provenance.kind).toBe("model");
     ownerGrant(t, EPISODE, [sam({ class: "episodic" })]);
     plant(t, { item_ids: [EPISODE] });
     expect(violations(t)).toEqual({ grant_change: 1, read: 0, total: 1 });
   });
 
-  test("the same grant through the real plane, which accepts it (E95-6)", async () => {
+  test("an owner's grant on an item whose provenance a planted event raised", async () => {
+    const t = await twoWeeks();
+    const it = itemOf(t, EPISODE);
+    plant(t, {
+      ...written({
+        ...it,
+        version: it.version + 1,
+        provenance: { ...it.provenance, kind: "import" },
+      }),
+      ts: day(13, 10),
+    });
+    expect(report(t).report.watch.provenance_raised).toBe(1);
+    ownerGrant(t, EPISODE, [sam({ class: "episodic" })]);
+    plant(t, { item_ids: [EPISODE] });
+    expect(violations(t)).toEqual({ grant_change: 1, read: 0, total: 1 });
+  });
+
+  test("the same grant through the real plane, which refuses it since adoption keeps model (E95-6, card RV4)", async () => {
     const t = await twoWeeks();
     const { event } = await t.plane.changeGrants(
       DANA,
@@ -540,8 +560,8 @@ describe("review fix pass: what a grant change adds (E95-1, E95-3, E95-6)", () =
       { add: [sam({ class: "episodic" })] },
       day(13, 11),
     );
-    expect(event.decision).toBe("allow");
-    expect(violations(t)).toEqual({ grant_change: 1, read: 0, total: 1 });
+    expect(event).toMatchObject({ decision: "deny", policy_id: "engram/write/grant" });
+    expect(violations(t)).toEqual({ grant_change: 0, read: 0, total: 0 });
   });
 
   test("an owner's grant on content still recorded as model", async () => {
