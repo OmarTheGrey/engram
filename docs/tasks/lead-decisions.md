@@ -177,13 +177,13 @@ On 2026-11-20 the lead delegated the open decisions to the orchestrating session
 
 Prices come from `research/results/h2-cost-table.json` (card RV8, OpenRouter's list of 2026-11-20; on branch `rv8` until that card merges). Two decisions needed new ADRs: [ADR 0035](../decisions/0035-store-independence-is-a-design-property.md) and [ADR 0036](../decisions/0036-cassettes-beyond-the-repository.md).
 
-**Still open, put to the lead:** item 1, the three models. Everything below is priced per model option, so that choice sets the spend.
+**Put to the lead:** item 1, the three models, which the lead answered the same day (row 1 below). Nothing is open now.
 
 ### A. Gate C
 
 | item | answer | reason |
 |---|---|---|
-| 1 | open | It moves the whole programme's cost by a factor of up to six: $450 to $3,365 at the small-model end, against $2,101 to $21,865 for option (a). |
+| 1 | the lead's own answer, 2026-11-20: M1 `openrouter/deepseek/deepseek-v4-pro-0813`, M2 `openrouter/z-ai/glm-5.3-flash`, M3 `openrouter/mistralai/mistral-large-4-0`; reasoning off; judges as registered | Three makers (DeepSeek, Zhipu, Mistral), as ADR 0016 requires. Each exact id is OpenRouter's dated or versioned name, never a `~latest` alias. The set is priced again in card RV8 before any ceiling is set. |
 | 2 | (a) include the utility checkpoints | Dropping them saves under 3% overall. H2's C2 and C5 need the same utility cells, so dropping them in H1 only makes them new calls in H2. H1 keeps MGS as registered. |
 | 3 | (a) 1.25 times the run's high estimate, per provider | A formula, valid whichever models item 1 picks. A sharded run divides it by n and may overshoot by up to n sessions (card RV6). |
 | 4 | (a) 8 model calls; a capped session is excluded and counted per condition | No GateMem or MEM-INV-Bench session in the fixtures needs more than 4. |
