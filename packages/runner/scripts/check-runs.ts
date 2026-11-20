@@ -4,7 +4,7 @@
 //   node packages/runner/scripts/check-runs.ts b1-items --data .engram/upstream/gatemem/bench/data [--domain medical] [--per-kind 50]
 //       B1's reference subset: the ids research/configs/b1-gatemem-reference.json lists.
 //   node packages/runner/scripts/check-runs.ts c1-chars --config <GateMem runner config> --out <file.json>
-//       C1's prompt characters per item of the config, for research/scripts/check_runs_cost.py.
+//       C1's prompt characters per item of the config, for research/scripts/h1_check_runs_cost.py.
 import { writeFileSync } from "node:fs";
 import { parseArgs } from "node:util";
 import { gatemem } from "@engram/bench";

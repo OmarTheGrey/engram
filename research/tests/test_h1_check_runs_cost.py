@@ -1,4 +1,4 @@
-"""The pre-tag checks' price (card RV6, research/scripts/check_runs_cost.py).
+"""The pre-tag checks' price (card RV6, research/scripts/h1_check_runs_cost.py).
 
 The smoke run's two configs are priced from the fixture data and H1's
 committed cost result, so this runs offline; the B1 reference run, which
@@ -10,18 +10,18 @@ from __future__ import annotations
 
 from typing import Any
 
-from scripts import check_runs_cost
+from scripts import h1_check_runs_cost
 from scripts.results_io import REPO, load_config
 
 
 def _smoke_only() -> dict[str, Any]:
-    config = load_config(REPO / "research/configs/check-runs-cost.json")
+    config = load_config(REPO / "research/configs/h1-check-runs-cost.json")
     config["runs"] = [r for r in config["runs"] if "smoke" in str(r["config"])]
     return config
 
 
 def test_the_smoke_run_is_priced_per_session_from_h1s_measured_shapes() -> None:
-    result = check_runs_cost.compute(_smoke_only())
+    result = h1_check_runs_cost.compute(_smoke_only())
     gatemem, mem_inv = result["runs"]
     assert (gatemem["name"], gatemem["sessions"]) == ("smoke-h1-gatemem", 30)
     assert gatemem["per_condition"] == {c: 6 for c in ("C1", "C2", "C3", "C4", "C5")}

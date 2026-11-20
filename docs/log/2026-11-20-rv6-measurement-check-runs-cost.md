@@ -7,13 +7,13 @@ chapter: evaluation
 pillar: research
 hypothesis: H1
 evidence:
-  - research/results/check-runs-cost.json
+  - research/results/h1-check-runs-cost.json
   - research/results/MANIFEST.md
-  - "uv run python research/scripts/check_runs_cost.py --config research/configs/check-runs-cost.json --out research/results/check-runs-cost.json"
+  - "uv run python research/scripts/h1_check_runs_cost.py --config research/configs/h1-check-runs-cost.json --out research/results/h1-check-runs-cost.json"
 supersedes: none
 ---
 
-**What.** The price of the two pre-tag checks, from H1's cost code and shapes: `research/results/check-runs-cost.json` (MANIFEST row `check-runs-cost.json`).
+**What.** The price of the two pre-tag checks, from H1's cost code and shapes: `research/results/h1-check-runs-cost.json` (MANIFEST row `h1-check-runs-cost.json`).
 
 **Why.** The checks are paid calls before the tag; the lead sees their price first.
 

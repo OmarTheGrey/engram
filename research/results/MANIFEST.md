@@ -15,4 +15,3 @@ One row per results file. A results file exists only if `research/scripts/<scrip
 | research/results/h3-lint-floor.json | research/configs/h3-lint-floor.json | research/scripts/h3_lint_floor.py | 00c606e | 354da5711ed36526b59051f3477bdf97bb4ff2b74fcf691982157fab9aef25a9 | none |
 | research/results/h2-longmemeval-ttl.json | research/configs/h2-longmemeval-ttl.json | research/scripts/h2_longmemeval_ttl.py | 00c606e | 412941154b27162d6c55236c13ac6e609595d62c37010bb12eb842e43bde428a | none |
 | research/results/h2-longmemeval-cost.json | research/configs/h2-longmemeval-cost.json | research/scripts/h2_longmemeval_cost.py | 755c29d | 529b1450b56f154202543ad7aa045eee61e2c56cce5ed7c0169b934ec91a1cb8 | none |
-| research/results/check-runs-cost.json | research/configs/check-runs-cost.json | research/scripts/check_runs_cost.py | 4dff9da | fd217161a960bd0710e8355a80fad77d0c93198468ff04aef122863be7dce6e0 | none |

@@ -1,6 +1,6 @@
 // The pre-tag live checks (card RV6, design review RV-DES-9): the B1
 // reference config's items, drawn by a rule with no randomness, and C1's
-// prompt size per GateMem checkpoint, which research/scripts/check_runs_cost.py
+// prompt size per GateMem checkpoint, which research/scripts/h1_check_runs_cost.py
 // prices. No model is called.
 import type { gatemem } from "@engram/bench";
 import { longContextPrompt, probeInputs } from "../gatemem-probe.ts";

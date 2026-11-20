@@ -16,6 +16,6 @@ supersedes: none
 
 **Why.** It reaches every path H1's live run takes (each condition, both arms, the judge, an agent note, Mem0, the upstream record) cheaply, on items whose scripted runs are known. C1 is in it though H1 does not run it, since B1 and H2 do.
 
-**Result.** 50 sessions, priced at 0.53 to 4.26 USD on gpt-5.6-terra (`research/results/check-runs-cost.json`); ceilings 5 and 3 USD.
+**Result.** 50 sessions, priced at 0.53 to 4.26 USD on gpt-5.6-terra (`research/results/h1-check-runs-cost.json`); ceilings 5 and 3 USD.
 
 **Consequence.** For the lead: the pass rule proposed in section 7 (every session a row, a zero-call replay, no exclusion).
