@@ -7,7 +7,7 @@ import { join, resolve } from "node:path";
 import { gatemem } from "@engram/bench";
 import { describe, expect, test } from "vitest";
 import { configJudge, PAPER_JUDGE_CONFIG, readRunnerConfig, readSuite } from "../src/config.ts";
-import { countConfig } from "../src/count.ts";
+import { countConfig, fetchesPinnedData } from "../src/count.ts";
 import { LiveRunRefused, liveConfig } from "../src/live.ts";
 import { readMemInvConfig } from "../src/mem-inv-probe.ts";
 import { b1ReferenceItems } from "../src/research/check-runs.ts";
@@ -82,6 +82,17 @@ describe("the B1 reference run: GateMem's long-context agent on a Medical subset
     ]);
     // A domain with fewer checkpoints of a kind than asked is refused, not padded.
     expect(() => b1ReferenceItems(domains, "medical", 2)).toThrow(/1 safety checkpoints/);
+  });
+
+  test("COUNT fetches the pinned full set for any config whose data folder is missing, and says so when it may not (review P60-2)", async () => {
+    const b1 = readRunnerConfig(B1);
+    const missing = { ...b1, data: join(REPO, ".engram", "no-such-gatemem-data") };
+    expect(fetchesPinnedData(missing)).toBe(true);
+    // A committed fixture subset is there, so a pipeline config on it fetches nothing.
+    expect(fetchesPinnedData(readRunnerConfig(SMOKE_GATEMEM))).toBe(false);
+    await expect(countConfig(missing, { fetch: false })).rejects.toThrow(
+      /is missing; fetch it with make run CONFIG=<this config> COUNT=1/,
+    );
   });
 
   test.skipIf(!existsSync(join(FULL, "medical", "checkpoints.jsonl")))(

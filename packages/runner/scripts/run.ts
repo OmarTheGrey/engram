@@ -66,6 +66,7 @@ import {
   countConfig,
   countLines,
   ensurePinnedData,
+  fetchesPinnedData,
   UnpinnedData,
 } from "../src/count.ts";
 import type { ProbeResult } from "../src/gatemem-probe.ts";
@@ -544,7 +545,7 @@ async function runOne(path: string, out: string, flags: Flags): Promise<Outcome>
       // The guards first, so a refused run fetches nothing and creates no folder.
       config = flags.live ? liveConfig(config, request) : replayConfig(config, request);
       // An experiment runs only on its pinned data (fetched at the pin when missing).
-      if (config.kind === "experiment") {
+      if (fetchesPinnedData(config)) {
         await ensurePinnedData(config, { fetch: true, log: (l) => console.log(l) });
       }
       options = flags.live ? liveOptions(config, builtinLiveModels()) : replayOptions(config);

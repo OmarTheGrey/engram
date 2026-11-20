@@ -12,6 +12,7 @@
 // laundering channels, LongMemEval's categories) are hidden labels (strip.ts
 // in each benchmark); they are counted here for the protocol's sizes and
 // reach no session.
+import { existsSync } from "node:fs";
 import { gatemem, longMemEval, memInvBench } from "@engram/bench";
 import {
   type AnyRunnerConfig,
@@ -47,6 +48,17 @@ export interface DataCheck {
 }
 
 /**
+ * Whether COUNT (and a live run or a replay) fetches GateMem's pinned full
+ * set for a config: an experiment's always when it is not there, and any
+ * config's whose data folder does not exist (review P60-2), since a
+ * committed fixture subset always does; so a pipeline config on the full set
+ * (B1's reference run) counts on a fresh clone.
+ */
+export function fetchesPinnedData(config: Pick<AnyRunnerConfig, "data" | "kind">): boolean {
+  return config.kind === "experiment" || !existsSync(config.data);
+}
+
+/**
  * The config's data against the pin: an experiment needs the full pinned set,
  * a pipeline config the full set or the fixture subset. A GateMem experiment
  * whose data is missing has the pinned files fetched first when `fetch` is set
@@ -59,7 +71,7 @@ export async function ensurePinnedData(
   const check = async () => {
     if (config.benchmark === "gatemem") {
       let found = gatemem.checkGateMemData(config.data);
-      if (found.set !== "full" && config.kind === "experiment" && options.fetch) {
+      if (found.set !== "full" && fetchesPinnedData(config) && options.fetch) {
         await gatemem.fetchPinnedData(config.data, gatemem.readGateMemManifest(), options.log);
         found = gatemem.checkGateMemData(config.data);
       }
@@ -87,6 +99,11 @@ export async function ensurePinnedData(
     }
     throw new UnpinnedData(`config ${config.name}: no pinned data known for ${config.benchmark}`);
   };
+  if (config.benchmark === "gatemem" && !existsSync(config.data) && !options.fetch) {
+    throw new UnpinnedData(
+      `config ${config.name}: its data folder ${config.data} is missing; fetch it with make run CONFIG=<this config> COUNT=1, which fetches GateMem's pinned full set into it (data only, never a model)`,
+    );
+  }
   const found = await check();
   const wanted = config.kind === "experiment" ? ["full"] : ["full", "fixture"];
   if (!wanted.includes(found.set)) {
