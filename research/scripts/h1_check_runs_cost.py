@@ -2,7 +2,8 @@
 
 Usage:
     uv run python research/scripts/h1_check_runs_cost.py \\
-        --config research/configs/h1-check-runs-cost.json --out research/results/h1-check-runs-cost.json
+        --config research/configs/h1-check-runs-cost.json \\
+        --out research/results/h1-check-runs-cost.json
 
 Card RV6 (design review RV-DES-9). The two checks run before the tag and are
 never analysed, but they are paid for, so the lead sees their price first.
