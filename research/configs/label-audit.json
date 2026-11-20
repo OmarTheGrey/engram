@@ -4,7 +4,9 @@
   "hypothesis": "H1",
   "seed": 20261103,
   "members": ["omar", "mohamad", "shady"],
+  "reject_quorum": 2,
   "stop_share": 0.1,
+  "on_stop": "pause",
   "out": ".engram/audit",
   "gatemem": {
     "data": ".engram/upstream/gatemem/bench/data",

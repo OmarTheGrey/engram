@@ -58,6 +58,7 @@ from typing import Any
 import numpy as np
 
 from scripts.h1_mem_inv_admission import check_fixture
+from scripts.h3_fault_set import ensure_pinned_file
 from scripts.results_io import GATEMEM_DOMAINS, REPO, ensure_pinned_gatemem, load_config
 
 PHASE_1_COLUMNS = ("ref", "benchmark", "context", "member_label", "member_comment")
@@ -66,6 +67,7 @@ VIOLATION_KINDS = ("privacy", "safety")
 VOCABULARY = {
     "gatemem": ("answer", "answer_redacted", "refuse", "no_memory"),
     "mem-inv-bench": ("attack", "legit"),
+    "longmemeval": ("answerable", "unanswerable"),
 }
 # Where an item's content begins in its context file; above it, only the reference and who asks.
 CONTENT_MARK = "## Content"
@@ -219,6 +221,79 @@ def mem_inv_items(spec: Mapping[str, Any], seed: int) -> list[AuditItem]:
     return items
 
 
+def _longmemeval_context(ref: str, question: Mapping[str, Any]) -> str:
+    """The question, its date, and the evidence sessions' turns in history order (card RV8).
+
+    A member cannot read a whole S history (about 115,000 tokens), so the
+    context holds only the sessions the benchmark names as evidence, dated,
+    each turn as its role and text: no session id, `has_answer` mark, answer,
+    question type or abstention flag. Which sessions are shown is itself a
+    label, and the procedure says so (docs/research/label-audit.md).
+    """
+    evidence = set(question["answer_session_ids"])
+    lines = [
+        f"# {ref}",
+        "",
+        f"- Asked on {question['question_date']}",
+        "",
+        CONTENT_MARK,
+        "",
+        f"Question: {question['question']}",
+        "",
+        "Sessions:",
+    ]
+    n = 0
+    for sid, date, turns in zip(
+        question["haystack_session_ids"],
+        question["haystack_dates"],
+        question["haystack_sessions"],
+        strict=True,
+    ):
+        if sid not in evidence:
+            continue
+        n += 1
+        lines.extend(["", f"### Session {n}, {date}", ""])
+        lines.extend(f"- {t['role']}: {t['content']}" for t in turns)
+    return "\n".join(lines) + "\n"
+
+
+def longmemeval_items(
+    questions: Sequence[Mapping[str, Any]], size: int, seed: int
+) -> list[AuditItem]:
+    """A seeded draw of `size` questions without replacement, in a seeded order, named L01, ....
+
+    The pre-registration registers 50 items per benchmark and no sampling rule
+    for LongMemEval; GateMem's rule (a seeded draw per kind of the items the
+    primary metric is computed on) is applied, and LongMemEval's accuracy has
+    one kind, every question (docs/log/2026-11-20-rv8-finding-lme-audit-rule.md).
+    """
+    ordered = sorted(questions, key=lambda q: str(q["question_id"]))
+    rng = np.random.default_rng([seed, 3])
+    chosen = sorted(
+        int(i) for i in rng.choice(len(ordered), size=min(size, len(ordered)), replace=False)
+    )
+    drawn = [ordered[i] for i in chosen]
+    items = []
+    for n, i in enumerate(_order(len(drawn), seed, 4), start=1):
+        q = drawn[i]
+        ref = f"L{n:02d}"
+        abstention = "_abs" in str(q["question_id"])
+        kind = f"{q['question_type']}+abstention" if abstention else str(q["question_type"])
+        items.append(
+            AuditItem(
+                benchmark="longmemeval",
+                ref=ref,
+                item=f"longmemeval/{q['question_id']}",
+                kind=kind,
+                label="unanswerable" if abstention else "answerable",
+                keys=(str(q["answer"]),),
+                context=f"context/longmemeval/{ref}.md",
+                context_text=_longmemeval_context(ref, q),
+            )
+        )
+    return items
+
+
 def draw(config: Mapping[str, Any]) -> dict[str, list[AuditItem]]:
     """The config's seeded draw from the pinned data, the same on every call."""
     seed = int(config["seed"])
@@ -236,6 +311,11 @@ def draw(config: Mapping[str, Any]) -> dict[str, list[AuditItem]]:
         out["gatemem"] = gatemem_items(checkpoints, episodes, int(spec["per_kind"]), seed)
     if config.get("mem-inv-bench"):
         out["mem-inv-bench"] = mem_inv_items(config["mem-inv-bench"], seed)
+    lme = config.get("longmemeval")
+    if lme:
+        path = ensure_pinned_file(dict(lme["data"]), fetch=bool(lme["fetch"]))
+        questions = json.loads(path.read_text(encoding="utf-8"))
+        out["longmemeval"] = longmemeval_items(questions, int(lme["per_benchmark"]), seed)
     return out
 
 

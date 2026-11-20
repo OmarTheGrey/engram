@@ -30,6 +30,7 @@ import {
   loadPreset,
   migrate,
   openSqlite,
+  type Policy,
   type PresetName,
   readCounts,
 } from "@engram/core";
@@ -84,9 +85,25 @@ export interface ClockRow {
 }
 
 /** One question's row under each preset. */
-export async function clockRow(
+export function clockRow(
   question: longMemEval.Question,
   presets: readonly PresetName[],
+  realTime: string,
+): Promise<ClockRow> {
+  return clockRowFor(
+    question,
+    Object.fromEntries(presets.map((p) => [p, loadPreset(p)])),
+    realTime,
+  );
+}
+
+/**
+ * One question's row under each named policy: a preset, or a variant of one
+ * (card RV8's frontier axes, packages/runner/scripts/frontier-axes.ts).
+ */
+export async function clockRowFor(
+  question: longMemEval.Question,
+  policies: Readonly<Record<string, Policy>>,
   realTime: string,
 ): Promise<ClockRow> {
   const view = longMemEval.visibleQuestion(question);
@@ -102,13 +119,13 @@ export async function clockRow(
   const turns = question.haystack_sessions.flatMap((s, si) => s.map((_t, ti) => label(si, ti)));
 
   const out: ClockRow["presets"] = {};
-  for (const preset of presets) {
+  for (const [preset, policy] of Object.entries(policies)) {
     const adapter = await openStore("fake");
     const db = openSqlite(":memory:");
     try {
       migrate(db);
       const newId = sequentialIds();
-      const plane = createPlane({ db, adapter, policy: loadPreset(preset), newId });
+      const plane = createPlane({ db, adapter, policy, newId });
       const written = await longMemEval.writePhase(plane, view, newId);
       const writes: Record<string, number> = {};
       const items = new Map<string, { at: number; answer: boolean; session: boolean }>();
