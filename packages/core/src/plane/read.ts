@@ -270,16 +270,54 @@ export async function filteredRead(
 /**
  * The time an access decision is judged at (card RV5, finding RV-CORE-3;
  * ADR 0005 and ADR 0027, amendments proposed by RV5): `at`, unless the log
- * already holds a later event, in which case that event's ts. A grant's
- * expiry or a ttl the log has passed cannot be reopened by naming an earlier
- * time, and the log's timestamps never run backwards at a read. The time a
- * caller names is history at most, which a read takes as its `valid_at`.
+ * already holds an event with a later ts, in which case the latest ts the
+ * log holds (its head). A grant's expiry or a ttl the log has passed cannot
+ * be reopened by naming an earlier time, and no read event's ts is earlier
+ * than any ts before it. The time a caller names is history at most, which a
+ * read takes as its `valid_at`.
+ *
+ * The head is the highest ts, compared as instants, not the ts of the
+ * highest seq (review fix pass of PR #59, RV5-2): an event appended with an
+ * earlier ts, a write at a backdated clock say, does not move it back.
  */
 export function accessTime(db: PlaneDeps["db"], at: string): string {
-  const row = db.prepare("SELECT body FROM events ORDER BY seq DESC LIMIT 1").get();
-  if (row === undefined) return at;
-  const head = (JSON.parse(String(row.body)) as { ts?: unknown }).ts;
-  return typeof head === "string" && compareTimestamps(head, at) > 0 ? head : at;
+  const head = logHead(db);
+  return head !== undefined && compareTimestamps(head, at) > 0 ? head : at;
+}
+
+/** What a handle has seen of its log: the last event read and the highest ts so far. */
+interface HeadMark {
+  seq: number;
+  id: string;
+  max: string | undefined;
+}
+const heads = new WeakMap<PlaneDeps["db"], HeadMark>();
+
+/**
+ * The highest ts in the log, or undefined for an empty log. The events table
+ * has no ts column (a schema change, AGENTS.md rule 5), so each handle keeps
+ * a high-water mark and reads only the events appended since, on SQLite and
+ * Postgres alike. Events are only ever appended and their ts never
+ * rewritten (an erasure redacts content, not ts); a mark whose last event is
+ * gone (a rolled-back append) is dropped and the log read again from the
+ * start, so the mark never holds a ts the log does not.
+ */
+export function logHead(db: PlaneDeps["db"]): string | undefined {
+  let mark = heads.get(db);
+  if (mark !== undefined) {
+    const last = db.prepare("SELECT id FROM events WHERE seq = ?").get(mark.seq);
+    if (last === undefined || String(last.id) !== mark.id) mark = undefined;
+  }
+  let { seq, id, max } = mark ?? { seq: -1, id: "", max: undefined };
+  const rows = db.prepare("SELECT seq, id, body FROM events WHERE seq > ? ORDER BY seq").all(seq);
+  for (const row of rows) {
+    const ts = (JSON.parse(String(row.body)) as { ts?: unknown }).ts;
+    if (typeof ts === "string" && (max === undefined || compareTimestamps(ts, max) > 0)) max = ts;
+    seq = Number(row.seq);
+    id = String(row.id);
+  }
+  if (seq >= 0) heads.set(db, { seq, id, max });
+  return max;
 }
 
 /**
