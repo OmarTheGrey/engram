@@ -24,6 +24,21 @@
 // record dropped into the store or edited there, is dropped and named in the
 // reason (RV-ADP-4).
 //
+// Review fix pass of PR #58. A record that is the plane's item once its
+// unrecorded grants are dropped gets one allow event naming each dropped
+// grantee, once per store content (its hash note), so the strip is always
+// recorded (I-4); a retired item's record is not re-gated for it. A record
+// new to the plane whose content an item this adoption retires holds (the
+// store no longer lists that item) takes the least trusted of their kinds
+// too, so agent content re-filed under a new id with its kind edited stays
+// agent content (I-5). A record the gate denies only for the source adoption
+// gives it (a hand edit is `import` at most, and the twin profile's team
+// scope refuses `import`), which would pass at the plane's kind for its id,
+// leaves the plane's item standing: the deny is recorded and nothing is
+// retracted (I-3). Two copies of one folder adopted in turn into one scope
+// churn: each adoption re-keys the other copy's records and retires them,
+// so two folders need two adapter names (docs/dogfood.md) (I-6).
+//
 // A store that gives a record it kept a new id (a moved files folder does):
 // a projected item of this store and scope at the ref the store now lists
 // another id under, which the listing no longer holds, is retired
@@ -32,8 +47,12 @@
 // is refused instead (engram/adopt/rekeyed) when that item was retired by
 // anything but a retraction and the record holds its content, so a retired
 // item is not brought back under a new id; and a record holding content an
-// offboarding erased from its scope and left in the store is refused under
-// any id (engram/adopt/erased, events.ts erasedScopeContent).
+// offboarding erased from its scope and left in the store, or whose record
+// the offboarding found nowhere at its ref (a folder moved before it ran),
+// is refused under any id (engram/adopt/erased, events.ts
+// erasedScopeContent, read once per adoption). Holding that content up to
+// the merging form (case, width, invisible characters) is holding it, in
+// the re-keyed refusal as in the erased one.
 //
 // Skipped, with no event: an item the projection holds as the store has it
 // (status aside, since the gate may land it as a candidate, and the fields
@@ -82,8 +101,12 @@
 //
 // Retracted, with one retire event (policy_id engram/adopt/retract): a
 // projected item of this store and scope the store no longer lists, and a
-// projected item whose store version the gate just denied. So the plane never
-// serves content the store no longer has. When the store reports the entry
+// projected item whose store version the gate just denied, unless that deny
+// was only for the source adoption gave it, or the denied record is the
+// plane's item with unrecorded grants dropped (review fix pass of PR #58,
+// I-3 and I-4): then the plane keeps the version it approved, which the
+// store holds edited. Otherwise the plane never serves content the store no
+// longer has. When the store reports the entry
 // as unreadable (Adapter.diagnostics, such as a file whose frontmatter no
 // longer parses), the reason says so and names the store's diagnostic: the
 // store cannot serve that entry, and what the plane holds is a version the
@@ -99,16 +122,15 @@ import {
   erasedScopeContent,
   erasedStoreContent,
   eventsByItem,
-  LEFT_CONTENT_CLAUSE,
+  keptInStore,
 } from "../events.ts";
 import { itemById, itemsByStoreRef } from "../items.ts";
 import type { PlaneDeps } from "../plane.ts";
-import { STORE_FAILURE_ID } from "../policy/evaluate.ts";
-import type { MemoryEvent, MemoryItem } from "../schema.ts";
+import { evaluateWrite, STORE_FAILURE_ID } from "../policy/evaluate.ts";
+import { type MemoryEvent, type MemoryItem, MemoryItem as MemoryItemSchema } from "../schema.ts";
 import {
   ADOPT_ERASED_ID,
   ADOPTION_PREFIX,
-  canonical,
   comparable,
   erasureBegunSince,
   hashNote,
@@ -119,7 +141,9 @@ import {
   touchedSince,
 } from "./commit.ts";
 import { inWriteQueue } from "./queue.ts";
-import { adoptedItem, adoptWrite, refHolders } from "./write.ts";
+import { adoptedItem, adoptWrite, refHolders, retiredContent } from "./write.ts";
+
+type Kind = MemoryItem["provenance"]["kind"];
 
 export { ADOPT_ERASED_ID };
 
@@ -261,6 +285,18 @@ export async function adoptStoreItems(
   /** A projected item of this store and scope that the listing does not hold: the store vacated it. */
   const vacated = (held: MemoryItem) =>
     held.scope === scope && held.store_ref?.adapter === adapter.name && !present.has(held.id);
+  // The erased content of this scope, read once per adoption (I-7).
+  const scopeErased: ScopeErased = { scope, read: erasedScopeContent(db, scope) };
+  // What this adoption retires because the store no longer lists it, by
+  // content: a record of the same content new to the plane takes the least
+  // trusted of their kinds (review fix pass of PR #58, I-5).
+  const leaving = new Map<string, Kind[]>();
+  for (const held of currentItems(db)) {
+    if (held.status === "retired" || !vacated(held)) continue;
+    const hash = mergingContentHash(held.content);
+    leaving.set(hash, [...(leaving.get(hash) ?? []), held.provenance.kind]);
+  }
+  const retiring = (record: MemoryItem) => leaving.get(mergingContentHash(record.content)) ?? [];
 
   for (const item of listed) {
     if (!item.store_ref) {
@@ -268,18 +304,30 @@ export async function adoptStoreItems(
     }
     const known = itemById(db, item.id);
     const history = eventsByItem(db, item.id);
-    const [asAdopted] = adoptedItem(adopter, item, known);
+    const [asAdopted] = adoptedItem(adopter, item, known, retiring(item));
     const derived = adapter.derivedFields?.(item) ?? [];
+    const note = hashNote(itemHash(item, derived));
+    // The store's record is what the plane holds once its unrecorded grants
+    // are dropped: nothing to adopt, but the strip is recorded once per
+    // store content (I-4), and a deny of it leaves the plane's item.
+    let stripOnly = false;
     if (known && comparable(known, derived) === comparable(asAdopted, derived)) {
       const retracted = history.at(-1)?.policy_id === ADOPT_RETRACT_ID;
       if (known.status !== "retired" || !retracted) {
-        report.unchanged++;
-        continue;
+        const stripped = asAdopted.grants.length < item.grants.length;
+        if (
+          !stripped ||
+          known.status === "retired" ||
+          history.some((e) => e.reason.endsWith(note))
+        ) {
+          report.unchanged++;
+          continue;
+        }
+        stripOnly = true;
       }
     }
-    const note = hashNote(itemHash(item, derived));
     const lastWrite = history.filter((e) => e.op === "write").at(-1);
-    const purgeable = erasedRefusal(deps, item)?.purge === true;
+    const purgeable = erasedRefusal(deps, item, scopeErased)?.purge === true;
     // The purge of these bytes was decided already: retry the delete, and
     // record only a new outcome (V-9).
     const decided =
@@ -312,11 +360,13 @@ export async function adoptStoreItems(
       suffix: note,
       listed: head,
       refuse: (candidate) => {
-        const refusal = erasedRefusal(deps, candidate) ?? rekeyedRefusal(deps, candidate, vacated);
+        const refusal =
+          erasedRefusal(deps, candidate, scopeErased) ?? rekeyedRefusal(deps, candidate, vacated);
         purge = refusal?.purge === true;
         return refusal;
       },
       vacated,
+      retiring,
       retract: (held, by) =>
         retire(
           held,
@@ -346,11 +396,16 @@ export async function adoptStoreItems(
       db.transaction(() => {
         const held = itemById(db, item.id);
         // Changed since this adoption's own deny, by another handle: leave it.
-        if (held && held.status !== "retired" && !stale(held.id, held.scope, event.seq))
-          retire(
-            held,
-            `the store's version of item ${held.id} was denied (${event.policy_id}); the plane retires the version it held, which the store no longer has`,
-          );
+        if (!held || held.status === "retired" || stale(held.id, held.scope, event.seq)) return;
+        // The store's version, once its unrecorded grants are dropped, is
+        // the plane's own (I-4); or it is denied only for the source
+        // adoption gives it, which the plane's item does not have (I-3). The
+        // deny is recorded and the plane keeps the version it approved.
+        if (stripOnly || deniedOnlyForSource(deps, adopter, item, held, at, retiring)) return;
+        retire(
+          held,
+          `the store's version of item ${held.id} was denied (${event.policy_id}); the plane retires the version it held, which the store no longer has`,
+        );
       }),
     );
   }
@@ -393,7 +448,9 @@ function rekeyedRefusal(
   if (!candidate.store_ref || itemById(deps.db, candidate.id)) return null;
   for (const held of refHolders(deps, candidate, candidate.store_ref)) {
     if (held.status !== "retired" || !vacated(held)) continue;
-    if (canonical(held.content) !== canonical(candidate.content)) continue;
+    // Compared as the erased refusal compares: case, width and invisible
+    // characters do not make content new (I-9).
+    if (mergingContentHash(held.content) !== mergingContentHash(candidate.content)) continue;
     const last = eventsByItem(deps.db, held.id)
       .filter((e) => e.decision === "allow" && RETIRING_OPS.has(e.op))
       .at(-1);
@@ -404,6 +461,46 @@ function rekeyedRefusal(
     };
   }
   return null;
+}
+
+/** One adoption's scope and its reader of that scope's erased content (events.ts erasedScopeContent). */
+interface ScopeErased {
+  scope: string;
+  read: () => ReadonlySet<string>;
+}
+
+/**
+ * Whether the gate denies the store's record of `held` only for the source
+ * adoption gives it (review fix pass of PR #58, I-3): the gate's check is
+ * the source rule or source isolation, and the same record at the kind the
+ * plane holds `held` at would pass. A record edited by hand is `import` at
+ * most, and a scope whose rule refuses `import` (the twin profile's team
+ * scope) would otherwise retire the item the plane approved there, over a
+ * kind adoption set. The deny stands; the plane keeps its item.
+ */
+function deniedOnlyForSource(
+  deps: PlaneDeps,
+  actor: Actor,
+  input: MemoryItem,
+  held: MemoryItem,
+  at: string,
+  retiring: (item: MemoryItem) => readonly MemoryItem["provenance"]["kind"][],
+): boolean {
+  const parsed = MemoryItemSchema.safeParse(input);
+  if (!parsed.success) return false;
+  const [item] = adoptedItem(actor, parsed.data, held, retiring(parsed.data));
+  const retired = retiredContent(deps.db, item.scope);
+  const asAdopted = evaluateWrite(deps.policy, actor, item, held, retired, at);
+  if (asAdopted.decision === "allow") return false;
+  if (asAdopted.check !== "source-not-allowed" && asAdopted.check !== "source-isolation")
+    return false;
+  const kind = held.provenance.kind;
+  if (kind === item.provenance.kind) return false;
+  const asHeld = { ...item, provenance: { ...item.provenance, kind } } as MemoryItem;
+  return (
+    evaluateWrite(deps.policy, { ...actor, source: kind }, asHeld, held, retired, at).decision ===
+    "allow"
+  );
 }
 
 /** The allowed events that change or retire an item (the projection's own ops). */
@@ -423,6 +520,7 @@ const RETIRING_OPS = new Set(["write", "update", "promote", "retire", "evict"]);
 function erasedRefusal(
   deps: PlaneDeps,
   candidate: MemoryItem,
+  scopeErased: ScopeErased,
 ): { reason: string; policy_id: string; purge?: boolean } | null {
   const { db } = deps;
   if (erasedStoreContent(db, candidate.id).has(mergingContentHash(candidate.content)))
@@ -434,7 +532,14 @@ function erasedRefusal(
   // The same content under an id the plane never held, in a scope an
   // offboarding erased it from and left it in the store: a store that gave
   // the record it kept a new id, such as a moved folder (card RV4).
-  if (erasedScopeContent(db, candidate.scope).has(mergingContentHash(candidate.content)))
+  // The listing is of one scope; a candidate elsewhere (none, from a
+  // conforming store) is checked against its own scope's erasures.
+  const erasedHere = candidate.scope === scopeErased.scope ? scopeErased.read() : null;
+  if (
+    (erasedHere ?? erasedScopeContent(db, candidate.scope)()).has(
+      mergingContentHash(candidate.content),
+    )
+  )
     return {
       reason: `the store's record of item ${candidate.id} holds content erased from ${candidate.scope} at an offboarding and left in the store under another id; it is not adopted again until it changes`,
       policy_id: ADOPT_ERASED_ID,
@@ -444,7 +549,7 @@ function erasedRefusal(
   // to it, whatever scope it lies in (verification pass 3 of PR #50, V3-1).
   const ancestor = own ? null : removedAncestor(db, candidate);
   const gone = own ?? (ancestor ? lastRemoval(db, ancestor) : null);
-  if (!gone || (own && gone.reason.includes(LEFT_CONTENT_CLAUSE))) return null;
+  if (!gone || (own && keptInStore(gone))) return null;
   // A record whose ref a projected item holds (a version shared out of the
   // person scope, review of PR #33) is refused, never deleted: deleting it
   // would delete that item's bytes.

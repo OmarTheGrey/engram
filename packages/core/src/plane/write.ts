@@ -63,6 +63,8 @@ export { checkCall, WRITE_CONFLICT_ID };
 /** The rule of a write refused because its id belongs to an item an offboarding erased (card E2.6). */
 export const WRITE_ERASED_ID = "engram/write/erased";
 
+type Kind = MemoryItem["provenance"]["kind"];
+
 const StoreRefShape = z.object({ adapter: z.string().min(1), key: z.string().min(1) });
 
 const field = (value: unknown, key: string): unknown =>
@@ -149,11 +151,17 @@ export function withPlaneProvenance(actor: Actor, item: MemoryItem): [MemoryItem
  *   removed since. A grant the plane never recorded for that id, in a record
  *   dropped into the store or edited there, is dropped, and the reason names
  *   each grantee. The plane narrows, never widens (RV-ADP-4).
+ * - `retiring`: the kinds of the items of the same content this adoption
+ *   retires because the store no longer lists them (review fix pass of PR
+ *   #58, I-5). A record new to the plane takes the least trusted of those
+ *   too, so agent content re-filed under a new id, its claimed kind edited,
+ *   keeps the kind the plane held it at.
  */
 export function adoptedItem(
   actor: Actor,
   item: MemoryItem,
   known: MemoryItem | undefined,
+  retiring: readonly Kind[] = [],
 ): [MemoryItem, string] {
   const kept = known ? item.grants.filter((g) => known.grants.some((h) => sameGrant(g, h))) : [];
   const dropped = item.grants.filter((g) => !kept.includes(g));
@@ -161,15 +169,17 @@ export function adoptedItem(
     known !== undefined &&
     canonical(item.content) === canonical(known.content) &&
     canonical(item.provenance) === canonical(known.provenance);
+  const also = known ? [] : retiring;
   const kind = leastTrusted([
     item.provenance.kind,
     ...(known ? [known.provenance.kind] : []),
+    ...also,
     "import",
   ]);
   const provenance = asHeld ? known.provenance : { ...item.provenance, kind, actor: actor.id };
   const provenanceNote = asHeld
     ? `provenance kept as the plane holds it for item ${item.id}: kind ${provenance.kind}, actor ${provenance.actor}`
-    : `provenance set by adoption: kind ${kind}, the least trusted of the record's claim${known ? ", the plane's item of that id" : ""} and import; actor ${actor.id}`;
+    : `provenance set by adoption: kind ${kind}, the least trusted of the record's claim${known ? ", the plane's item of that id" : ""}${also.length > 0 ? ", an item of the same content this adoption retires" : ""} and import; actor ${actor.id}`;
   const grantNote =
     dropped.length === 0
       ? ""
@@ -262,6 +272,11 @@ export interface Adoption {
   vacated?: (holder: MemoryItem) => boolean;
   /** Appends the retirement of a vacated holder, `by` the item the store now lists at its ref. */
   retract?: (holder: MemoryItem, by: MemoryItem) => void;
+  /**
+   * The kinds of the items of `item`'s content that this adoption retires
+   * because the store no longer lists them (adoptedItem's `retiring`).
+   */
+  retiring?: (item: MemoryItem) => readonly Kind[];
 }
 
 /** What the gate decides about a write, before anything is committed. */
@@ -336,6 +351,7 @@ function decideWrite(
   input: MemoryItem,
   at: string,
   adopting = false,
+  retiring: (item: MemoryItem) => readonly Kind[] = () => [],
 ): Decided {
   checkCall(actor, at, "write");
   const parsed = MemoryItem.safeParse(input);
@@ -358,7 +374,7 @@ function decideWrite(
   // widening its grants (card RV4); every other write takes the plane's
   // provenance from its harness-set source.
   const [item, provenanceNote] = adopting
-    ? adoptedItem(actor, parsed.data, existing)
+    ? adoptedItem(actor, parsed.data, existing, retiring(parsed.data))
     : withPlaneProvenance(actor, parsed.data);
   const decision = evaluateWrite(
     deps.policy,
@@ -608,7 +624,7 @@ export function adoptWrite(
     const listedScope = validOrNull(input, "scope", Scope);
     if (listedId !== null && touchedSince(db, listedId, adoption.listed)) return null;
     if (listedScope !== null && erasureBegunSince(db, listedScope, adoption.listed)) return null;
-    const decided = decideWrite(deps, actor, input, at, true);
+    const decided = decideWrite(deps, actor, input, at, true, adoption.retiring);
     if (decided.kind !== "schema") {
       const refusal = adoption.refuse?.(decided.item) ?? null;
       if (refusal) {

@@ -2,9 +2,11 @@
 // Owned by the lead: changing this file needs a second reviewer and a
 // `decision` log entry. It never has a skip.
 //
-// All five run against the real Plane (createPlane), with the read filter of
+// All seven run against the real Plane (createPlane), with the read filter of
 // card E2.2, the write gate of card E2.3 and retention of card E2.4, under
-// random policies. Invariants
+// random policies. Invariants 6 and 7 (card RV4) judge adoption: it never
+// records a kind more trusted, or a grant, that the plane does not hold for
+// the item's id (see adoptionCase at the end of this file). Invariants
 // 1 and 2 were red by design against a stub that admitted everything until
 // those cards landed (issue #1); they are now asserted directly, in `make test`
 // and in `make test-invariants` alike. A failure prints the counterexample and
@@ -121,6 +123,7 @@ import { addSeconds, compareTimestamps } from "../../src/time.ts";
 import {
   arbActor,
   arbGatedGrant,
+  arbGatedItem,
   arbGatedItemWithTtl,
   arbGrantedItem,
   arbInstant,
@@ -1209,6 +1212,50 @@ describe("invariants", () => {
     expect(
       Object.values(grants).every((n) => n > 0),
       `invariant 5's grant walk needs allowed grant changes, reads a changed grant admitted, reads refused after a removal, for a grant's class and for its expiry, and class changes of items carrying grants; it saw ${JSON.stringify(second)}`,
+    ).toBe(true);
+  }, 240_000);
+
+  const I6 =
+    "invariant 6: adoption never records a provenance kind more trusted than the plane holds for the item's id";
+  test(I6, async () => {
+    const seen = adoptionCounters();
+    await fc.assert(
+      fc.asyncProperty(arbAdoptionCase, (c) =>
+        adoptionCase(c, seen, (adopted, before, why) => {
+          const ceiling = before?.provenance.kind ?? "import";
+          expect(
+            TRUST.indexOf(adopted.provenance.kind),
+            `${why}: adoption recorded kind ${adopted.provenance.kind} for ${adopted.id}, more trusted than ${before ? `the plane's ${ceiling}` : "import, for an id the plane never held"}`,
+          ).toBeGreaterThanOrEqual(TRUST.indexOf(ceiling));
+        }),
+      ),
+      { numRuns: RUNS, seed: seedFor(I6) },
+    );
+    expect(
+      seen.adoptedHeld > 0 && seen.adoptedNew > 0 && seen.claimRaised > 0 && seen.refiled > 0,
+      `invariant 6 needs adoptions of ids the plane held and of new ids, records claiming a kind more trusted than the plane held, and records re-filed under a new id; it saw ${JSON.stringify(seen)}`,
+    ).toBe(true);
+  }, 240_000);
+
+  const I7 =
+    "invariant 7: adoption never records a grant the plane does not hold for the item's id";
+  test(I7, async () => {
+    const seen = adoptionCounters();
+    await fc.assert(
+      fc.asyncProperty(arbAdoptionCase, (c) =>
+        adoptionCase(c, seen, (adopted, before, why) => {
+          for (const g of adopted.grants)
+            expect(
+              before?.grants.some((h) => sameGrant(g, h)) ?? false,
+              `${why}: adoption recorded a grant to ${g.to} on ${adopted.id}, which the plane ${before ? "does not hold for it" : "never held an item of"}`,
+            ).toBe(true);
+        }),
+      ),
+      { numRuns: RUNS, seed: seedFor(I7) },
+    );
+    expect(
+      seen.adoptedHeld > 0 && seen.grantDropped > 0 && seen.grantKept > 0,
+      `invariant 7 needs adoptions of ids the plane held, a grant the record carried that adoption dropped, and a grant the plane held that adoption kept; it saw ${JSON.stringify(seen)}`,
     ).toBe(true);
   }, 240_000);
 });
@@ -2768,4 +2815,147 @@ async function twoHandleWalk(
   removalsStand("after another adoption");
   lineageStands("after another adoption");
   base.close();
+}
+
+// Invariants 6 and 7 (card RV4, review fix pass of PR #58; a `decision` log
+// entry records the change). Items are written through the plane under
+// ADMIT_ALL by writers of every source; then the store's records are edited
+// outside the plane, as a person edits a memory folder by hand: content
+// changed, the claimed kind changed, grants added, a record re-filed under a
+// new id (its kind and grants edited too) or deleted. Each scope is then
+// adopted. Every allowed adoption event is judged against the plane's item
+// of its id just before it, from the oracle's own replay of the log: its
+// kind is never more trusted than that item's (than `import`, for an id the
+// plane never held; invariant 6), and it carries no grant that item does
+// not (none, for a new id; invariant 7). `Kind` is the promotion walk's.
+
+/** A hand edit of one record the plane wrote. */
+type Tamper =
+  | { how: "none" | "content" | "drop" }
+  | { how: "kind"; kind: Kind }
+  | { how: "grants"; grants: Grant[] }
+  | { how: "refile"; kind: Kind; grants: Grant[] };
+
+const arbKind = fc.constantFrom<Kind>(...TRUST);
+const arbTamper: fc.Arbitrary<Tamper> = fc.oneof(
+  fc.constantFrom<Tamper>({ how: "none" }, { how: "content" }, { how: "drop" }),
+  arbKind.map((kind): Tamper => ({ how: "kind", kind })),
+  fc
+    .array(arbGatedGrant, { minLength: 1, maxLength: 2 })
+    .map((grants): Tamper => ({ how: "grants", grants: grants as Grant[] })),
+  fc
+    .tuple(arbKind, fc.array(arbGatedGrant, { maxLength: 2 }))
+    .map(([kind, grants]): Tamper => ({ how: "refile", kind, grants: grants as Grant[] })),
+);
+
+interface AdoptionCase {
+  items: MemoryItem[];
+  /** The source of each item's writer. */
+  sources: Kind[];
+  tampers: Tamper[];
+  at: string;
+}
+
+const arbAdoptionCase: fc.Arbitrary<AdoptionCase> = fc.record({
+  items: fc.uniqueArray(arbGatedItem, { selector: (i) => i.id, minLength: 1, maxLength: 5 }),
+  sources: fc.array(arbKind, { minLength: 5, maxLength: 5 }),
+  tampers: fc.array(arbTamper, { minLength: 5, maxLength: 5 }),
+  at: arbTimestamp,
+});
+
+const adoptionCounters = () => ({
+  adoptedHeld: 0,
+  adoptedNew: 0,
+  claimRaised: 0,
+  refiled: 0,
+  grantDropped: 0,
+  grantKept: 0,
+});
+
+const edited = (content: MemoryItem["content"]): MemoryItem["content"] =>
+  typeof content === "string"
+    ? `${content} (edited by hand)`
+    : ({ ...content, body: `${content.body} (edited by hand)` } as MemoryItem["content"]);
+
+/**
+ * Runs one case and calls `judge` on every allowed adoption event's item with
+ * the plane's item of that id just before the event (undefined when the plane
+ * held none).
+ */
+async function adoptionCase(
+  c: AdoptionCase,
+  seen: ReturnType<typeof adoptionCounters>,
+  judge: (adopted: MemoryItem, before: MemoryItem | undefined, why: string) => void,
+): Promise<void> {
+  const { db, adapter, plane, newId } = freshPlane(ADMIT_ALL);
+  for (const [k, item] of c.items.entries()) {
+    const source = c.sources[k] ?? "user";
+    const writer: Actor & { source: Kind } = {
+      id: item.owner,
+      level: "person",
+      memberships: [item.scope],
+      source,
+    };
+    await plane.write(writer, item, c.at);
+  }
+  const claimed = new Map<string, Kind>();
+  for (const [k, held] of currentItems(db).entries()) {
+    const tamper = c.tampers[k] ?? { how: "none" };
+    const ref = held.store_ref;
+    if (!ref) continue;
+    const record = { ...held, store_ref: null } as MemoryItem;
+    if (tamper.how === "content")
+      await adapter.write({ ...record, content: edited(held.content) } as MemoryItem);
+    if (tamper.how === "drop") await adapter.delete(ref);
+    if (tamper.how === "kind") {
+      await adapter.write({ ...record, provenance: { ...held.provenance, kind: tamper.kind } });
+      claimed.set(held.id, tamper.kind);
+    }
+    if (tamper.how === "grants")
+      await adapter.write({ ...record, grants: [...held.grants, ...tamper.grants] });
+    if (tamper.how === "refile") {
+      const id = `01930000-0000-7000-8000-${String(k + 1).padStart(12, "0")}`;
+      await adapter.delete(ref);
+      await adapter.write({
+        ...record,
+        id,
+        provenance: { ...held.provenance, kind: tamper.kind },
+        grants: [...held.grants, ...tamper.grants],
+      });
+      seen.refiled++;
+    }
+  }
+  const start = allEvents(db).length;
+  const scopes = [...new Set(c.items.map((i) => i.scope))].sort();
+  const adopter: Actor = { id: "person:omar", level: "person", memberships: scopes };
+  for (const scope of scopes)
+    await adoptStoreItems({ db, adapter, policy: ADMIT_ALL, newId }, adopter, scope, c.at);
+
+  // The oracle's own replay of the log: each item as the events left it.
+  const state = new Map<string, MemoryItem>();
+  for (const [k, e] of allEvents(db).entries()) {
+    const before = e.item_id ? state.get(e.item_id) : undefined;
+    const adoption =
+      k >= start && e.op === "write" && e.decision === "allow" && e.item !== undefined;
+    if (adoption && e.item && e.reason.startsWith("adopted from store ")) {
+      const why = `event ${e.id}`;
+      judge(e.item, before, why);
+      if (before) seen.adoptedHeld++;
+      else seen.adoptedNew++;
+      const claim = claimed.get(e.item.id);
+      if (before && claim && TRUST.indexOf(claim) < TRUST.indexOf(before.provenance.kind))
+        seen.claimRaised++;
+      if (e.reason.includes("adoption dropped")) seen.grantDropped++;
+      if (e.item.grants.length > 0) seen.grantKept++;
+    }
+    if (!e.item_id) continue;
+    if (e.decision === "allow" && e.op === "retire" && e.policy_id === "engram/offboard/erase")
+      state.delete(e.item_id);
+    else {
+      const after = e.decision === "allow" && e.item ? e.item : before;
+      if (after && e.decision === "allow" && (e.op === "retire" || e.op === "evict"))
+        state.set(e.item_id, { ...after, status: "retired" } as MemoryItem);
+      else if (after) state.set(e.item_id, after);
+    }
+  }
 }

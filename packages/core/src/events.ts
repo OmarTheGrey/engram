@@ -29,44 +29,85 @@ export const ERASURE_ID = "engram/offboard/erase";
 export const LEFT_CONTENT_CLAUSE = "adoption refuses a store record holding the erased content";
 
 /**
+ * The clause an erase event's reason carries for an item whose store record
+ * the erasure found nowhere at its ref (review fix pass of PR #58, I-1): a
+ * store that moved (a files folder renamed while the plane still names the
+ * old root) or a record deleted outside the plane. Its deletion is not
+ * proven, so the event also carries LEFT_CONTENT_CLAUSE with the erased
+ * versions' hashes, and adoption refuses that content in the person scope
+ * under any id. Unlike a record left in a store that refuses the delete, a
+ * record that later appears under the erased id itself is never adopted,
+ * whatever it holds (keptInStore).
+ */
+export const NOT_FOUND_CLAUSE = "no record was found at its ref, so its deletion is not proven";
+
+/** The rule of an offboarding's sweep of a left record (plane/commit.ts OFFBOARD_SWEPT_ID). */
+const SWEPT_ID = "engram/offboard/swept";
+
+/** The merging content hashes an erase or sweep event's LEFT_CONTENT_CLAUSE names, if any. */
+function leftHashes(event: MemoryEvent): string[] {
+  // An erasure, or an offboarding's sweep of a record the store would not
+  // let it delete (engram/offboard/swept; verification pass 3 of PR #50).
+  if (!erases(event) && event.policy_id !== SWEPT_ID) return [];
+  const open = `${LEFT_CONTENT_CLAUSE} (`;
+  // The clause ends the reason; the store's error text comes before it.
+  const start = event.reason.lastIndexOf(open);
+  if (start < 0) return [];
+  const end = event.reason.indexOf(")", start + open.length);
+  if (end < 0) return [];
+  return event.reason
+    .slice(start + open.length, end)
+    .split(", ")
+    .filter((h) => h !== "");
+}
+
+/**
+ * Whether the erase or sweep event `event` left its item's record in a store
+ * that refuses the plane's delete, so a changed record under that id is the
+ * person's to adopt (rechecks of PR #41): it names the left content, and its
+ * record was not one the erasure found nowhere (NOT_FOUND_CLAUSE).
+ */
+export function keptInStore(event: MemoryEvent): boolean {
+  return event.reason.includes(LEFT_CONTENT_CLAUSE) && !event.reason.includes(NOT_FOUND_CLAUSE);
+}
+
+/**
  * The erased content hashes the erase events of one item name
  * (LEFT_CONTENT_CLAUSE): the record left in the store under that id, and only
  * it, is refused while it holds them. One indexed lookup by item id.
  */
 export function erasedStoreContent(db: Db, itemId: string): Set<string> {
   const out = new Set<string>();
-  const open = `${LEFT_CONTENT_CLAUSE} (`;
-  for (const event of eventsByItem(db, itemId)) {
-    // An erasure, or an offboarding's sweep of a record the store would not
-    // let it delete (engram/offboard/swept; verification pass 3 of PR #50).
-    if (!erases(event) && event.policy_id !== "engram/offboard/swept") continue;
-    // The clause ends the reason; the store's error text comes before it.
-    const start = event.reason.lastIndexOf(open);
-    if (start < 0) continue;
-    const end = event.reason.indexOf(")", start + open.length);
-    if (end < 0) continue;
-    const list = event.reason.slice(start + open.length, end);
-    for (const h of list.split(", ")) if (h) out.add(h);
-  }
+  for (const event of eventsByItem(db, itemId)) for (const h of leftHashes(event)) out.add(h);
   return out;
 }
 
 /**
  * The merging content hashes erasedStoreContent names for every item an
- * offboarding of `scope` erased or swept and left in a store (card RV4):
- * what adoption refuses in that scope under any id, since a store may give
- * a record it kept a new id (a moved files folder re-keys its files).
+ * offboarding of `scope` erased or swept and left in a store, or found
+ * nowhere at its ref (card RV4): what adoption refuses in that scope under
+ * any id, since a store may give a record it kept a new id (a moved files
+ * folder re-keys its files). Only erase and sweep events count. Returns a
+ * reader for one adoption: each call reads only the scope's retire events
+ * appended since the last call, so an adoption gating many records reads
+ * each erasure once (review fix pass of PR #58, I-7), and still sees one
+ * committed while it runs.
  */
-export function erasedScopeContent(db: Db, scope: string): Set<string> {
+export function erasedScopeContent(db: Db, scope: string): () => ReadonlySet<string> {
   const out = new Set<string>();
-  const ids = db
-    .prepare(
-      "SELECT DISTINCT item_id FROM events WHERE scope_from = ? AND op = 'retire' AND item_id IS NOT NULL",
-    )
-    .all(scope)
-    .map((r) => String(r.item_id));
-  for (const id of ids) for (const h of erasedStoreContent(db, id)) out.add(h);
-  return out;
+  let after = 0;
+  return () => {
+    const rows = db
+      .prepare(
+        "SELECT seq, body FROM events WHERE scope_from = ? AND op = 'retire' AND seq > ? ORDER BY seq",
+      )
+      .all(scope, after);
+    for (const row of rows) {
+      after = Number(row.seq);
+      for (const h of leftHashes(JSON.parse(String(row.body)) as MemoryEvent)) out.add(h);
+    }
+    return out;
+  };
 }
 
 /** The event erases its item: the projection and replay drop it (ERASURE_ID). */
