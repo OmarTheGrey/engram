@@ -1221,19 +1221,29 @@ describe("invariants", () => {
     const seen = adoptionCounters();
     await fc.assert(
       fc.asyncProperty(arbAdoptionCase, (c) =>
-        adoptionCase(c, seen, (adopted, before, why) => {
-          const ceiling = before?.provenance.kind ?? "import";
+        adoptionCase(c, seen, (adopted, before, why, origin) => {
+          // A re-filed copy is judged against the item it copies (review fix
+          // pass 2, N-2), in the same adoption or a later one.
+          const held = before?.provenance.kind ?? origin;
+          const ceiling = Math.max(
+            TRUST.indexOf(held ?? "import"),
+            before ? 0 : TRUST.indexOf("import"),
+          );
           expect(
             TRUST.indexOf(adopted.provenance.kind),
-            `${why}: adoption recorded kind ${adopted.provenance.kind} for ${adopted.id}, more trusted than ${before ? `the plane's ${ceiling}` : "import, for an id the plane never held"}`,
-          ).toBeGreaterThanOrEqual(TRUST.indexOf(ceiling));
+            `${why}: adoption recorded kind ${adopted.provenance.kind} for ${adopted.id}, more trusted than ${before ? `the plane's ${held}` : origin ? `the ${origin} item it re-files, and import` : "import, for an id the plane never held"}`,
+          ).toBeGreaterThanOrEqual(ceiling);
         }),
       ),
       { numRuns: RUNS, seed: seedFor(I6) },
     );
     expect(
-      seen.adoptedHeld > 0 && seen.adoptedNew > 0 && seen.claimRaised > 0 && seen.refiled > 0,
-      `invariant 6 needs adoptions of ids the plane held and of new ids, records claiming a kind more trusted than the plane held, and records re-filed under a new id; it saw ${JSON.stringify(seen)}`,
+      seen.adoptedHeld > 0 &&
+        seen.adoptedNew > 0 &&
+        seen.claimRaised > 0 &&
+        seen.refiled > 0 &&
+        seen.refiledLater > 0,
+      `invariant 6 needs adoptions of ids the plane held and of new ids, records claiming a kind more trusted than the plane held, and records re-filed under a new id, in the same adoption and in a later one; it saw ${JSON.stringify(seen)}`,
     ).toBe(true);
   }, 240_000);
 
@@ -2822,8 +2832,9 @@ async function twoHandleWalk(
 // ADMIT_ALL by writers of every source; then the store's records are edited
 // outside the plane, as a person edits a memory folder by hand: content
 // changed, the claimed kind changed, grants added, a record re-filed under a
-// new id (its kind and grants edited too) or deleted. Each scope is then
-// adopted. Every allowed adoption event is judged against the plane's item
+// new id (its kind and grants edited too; sometimes written only after the
+// scope was adopted without it) or deleted. Each scope is then adopted. A
+// re-filed copy is judged against the kind of the item it copies (N-2). Every allowed adoption event is judged against the plane's item
 // of its id just before it, from the oracle's own replay of the log: its
 // kind is never more trusted than that item's (than `import`, for an id the
 // plane never held; invariant 6), and it carries no grant that item does
@@ -2834,7 +2845,8 @@ type Tamper =
   | { how: "none" | "content" | "drop" }
   | { how: "kind"; kind: Kind }
   | { how: "grants"; grants: Grant[] }
-  | { how: "refile"; kind: Kind; grants: Grant[] };
+  /** `between`: the record is deleted, the scope adopted, and only then the copy written (N-2). */
+  | { how: "refile"; kind: Kind; grants: Grant[]; between: boolean };
 
 const arbKind = fc.constantFrom<Kind>(...TRUST);
 const arbTamper: fc.Arbitrary<Tamper> = fc.oneof(
@@ -2843,9 +2855,14 @@ const arbTamper: fc.Arbitrary<Tamper> = fc.oneof(
   fc
     .array(arbGatedGrant, { minLength: 1, maxLength: 2 })
     .map((grants): Tamper => ({ how: "grants", grants: grants as Grant[] })),
-  fc
-    .tuple(arbKind, fc.array(arbGatedGrant, { maxLength: 2 }))
-    .map(([kind, grants]): Tamper => ({ how: "refile", kind, grants: grants as Grant[] })),
+  fc.tuple(arbKind, fc.array(arbGatedGrant, { maxLength: 2 }), fc.boolean()).map(
+    ([kind, grants, between]): Tamper => ({
+      how: "refile",
+      kind,
+      grants: grants as Grant[],
+      between,
+    }),
+  ),
 );
 
 interface AdoptionCase {
@@ -2868,6 +2885,7 @@ const adoptionCounters = () => ({
   adoptedNew: 0,
   claimRaised: 0,
   refiled: 0,
+  refiledLater: 0,
   grantDropped: 0,
   grantKept: 0,
 });
@@ -2885,7 +2903,12 @@ const edited = (content: MemoryItem["content"]): MemoryItem["content"] =>
 async function adoptionCase(
   c: AdoptionCase,
   seen: ReturnType<typeof adoptionCounters>,
-  judge: (adopted: MemoryItem, before: MemoryItem | undefined, why: string) => void,
+  judge: (
+    adopted: MemoryItem,
+    before: MemoryItem | undefined,
+    why: string,
+    origin: Kind | undefined,
+  ) => void,
 ): Promise<void> {
   const { db, adapter, plane, newId } = freshPlane(ADMIT_ALL);
   for (const [k, item] of c.items.entries()) {
@@ -2899,6 +2922,9 @@ async function adoptionCase(
     await plane.write(writer, item, c.at);
   }
   const claimed = new Map<string, Kind>();
+  /** A re-filed record's id, and the kind the plane held the item it copies at. */
+  const origins = new Map<string, Kind>();
+  const later: MemoryItem[] = [];
   for (const [k, held] of currentItems(db).entries()) {
     const tamper = c.tampers[k] ?? { how: "none" };
     const ref = held.store_ref;
@@ -2916,20 +2942,32 @@ async function adoptionCase(
     if (tamper.how === "refile") {
       const id = `01930000-0000-7000-8000-${String(k + 1).padStart(12, "0")}`;
       await adapter.delete(ref);
-      await adapter.write({
+      const copy = {
         ...record,
         id,
         provenance: { ...held.provenance, kind: tamper.kind },
         grants: [...held.grants, ...tamper.grants],
-      });
+      } as MemoryItem;
+      origins.set(id, held.provenance.kind);
+      if (tamper.between) later.push(copy);
+      else await adapter.write(copy);
       seen.refiled++;
     }
   }
   const start = allEvents(db).length;
   const scopes = [...new Set(c.items.map((i) => i.scope))].sort();
   const adopter: Actor = { id: "person:omar", level: "person", memberships: scopes };
-  for (const scope of scopes)
-    await adoptStoreItems({ db, adapter, policy: ADMIT_ALL, newId }, adopter, scope, c.at);
+  const adoptAll = async () => {
+    for (const scope of scopes)
+      await adoptStoreItems({ db, adapter, policy: ADMIT_ALL, newId }, adopter, scope, c.at);
+  };
+  await adoptAll();
+  if (later.length > 0) {
+    // The originals are retired by now; their copies arrive in a later pass.
+    for (const copy of later) await adapter.write(copy);
+    seen.refiledLater += later.length;
+    await adoptAll();
+  }
 
   // The oracle's own replay of the log: each item as the events left it.
   const state = new Map<string, MemoryItem>();
@@ -2939,7 +2977,7 @@ async function adoptionCase(
       k >= start && e.op === "write" && e.decision === "allow" && e.item !== undefined;
     if (adoption && e.item && e.reason.startsWith("adopted from store ")) {
       const why = `event ${e.id}`;
-      judge(e.item, before, why);
+      judge(e.item, before, why, origins.get(e.item.id));
       if (before) seen.adoptedHeld++;
       else seen.adoptedNew++;
       const claim = claimed.get(e.item.id);

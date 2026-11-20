@@ -51,8 +51,9 @@
 // elsewhere. The item is erased all the same; the report lists the ref under
 // not_found_in_store, and its erase event carries NOT_FOUND_CLAUSE beside
 // LEFT_CONTENT_CLAUSE with the erased versions' hashes, so adoption refuses
-// that content in the person scope under any id, and refuses the erased id
-// itself whatever it holds (deleting that record, as the erasure meant to).
+// that content in the person scope under any id; a record under the erased
+// id itself is refused while it holds that content and adopted once it
+// changes, as a left-in-store record is (review fix pass 2, N-3).
 //
 // The deletion report names what was erased and handed over, by id, and what
 // this call cannot reach. It carries no content. One summary event

@@ -152,15 +152,116 @@ describe("I-1: a folder moved before an offboarding", () => {
     const n = allEvents(db).length;
     expect((await adoptStoreItems(moved, dana, "person:dana", LATER)).unchanged).toBe(5);
     expect(allEvents(db)).toHaveLength(n);
-    // The erased id itself, edited: its record was never proven left in a
-    // store that refuses the delete, so the id is never adopted again, and
-    // the plane deletes the record, as the erasure meant to.
+    // The erased id itself, edited: refused only while it holds the erased
+    // content, as a record left in a store that refuses the delete is
+    // (review fix pass 2, N-3); the edit is new content, and adopts.
     await editBody(after, `${ID(9)}.md`, "Note 9, edited after the move.");
     const edited = await adoptStoreItems(moved, dana, "person:dana", LATER);
-    expect(edited).toMatchObject({ allowed: 0, denied: 1 });
-    expect(edited.denials[0]).toMatchObject({ item_id: ID(9), policy_id: ADOPT_ERASED_ID });
-    await expect(readFile(join(after, `${ID(9)}.md`), "utf8")).rejects.toThrow(/ENOENT/);
-    expect(currentItems(db)).toEqual([]);
+    expect(edited).toMatchObject({ allowed: 1, denied: 0 });
+    expect(currentItems(db).map((i) => [i.id, i.content])).toEqual([
+      [ID(9), "Note 9, edited after the move."],
+    ]);
+  });
+
+  test("moved back after the erasure: a new file under an erased id adopts, as after an ordinary erasure (N-3)", async () => {
+    const role =
+      "---\nname: role\ndescription: role\nmetadata:\n  type: user\n---\nA brand new role, written later.\n";
+    // P32: the erasure ran while the folder was elsewhere, then it moved back.
+    const parent = await tempDir("engram-rv4r-back-");
+    const before = join(parent, "a");
+    const after = join(parent, "b");
+    await cp(FIXTURE, before, { recursive: true });
+    const moved = await logOver(before);
+    await adoptStoreItems(moved.deps, dana, "person:dana", AT);
+    await rename(before, after);
+    const report = await offboard(moved.deps, dana, { person: "person:dana", roles: [] }, AT);
+    expect(report.erased.not_found_in_store).toHaveLength(4);
+    await rename(after, before);
+    await writeFile(join(before, "user_role.md"), role);
+    const back = await adoptStoreItems(moved.deps, dana, "person:dana", LATER);
+    // P33: the same, with the erasure finding the folder where it was.
+    const root = await tempDir();
+    await cp(FIXTURE, root, { recursive: true });
+    const stayed = await logOver(root);
+    await adoptStoreItems(stayed.deps, dana, "person:dana", AT);
+    const left = await offboard(stayed.deps, dana, { person: "person:dana", roles: [] }, AT);
+    expect(left.erased.left_in_store).toHaveLength(4);
+    await writeFile(join(root, "user_role.md"), role);
+    const ordinary = await adoptStoreItems(stayed.deps, dana, "person:dana", LATER);
+
+    expect(ordinary).toMatchObject({ allowed: 1, denied: 3 });
+    expect(back).toMatchObject({ allowed: 1, denied: 3 });
+    expect(back.denials.map((d) => d.policy_id)).toEqual(Array(3).fill(ADOPT_ERASED_ID));
+    expect(moved.db && currentItems(moved.db).map((i) => i.content)).toEqual([
+      "A brand new role, written later.",
+    ]);
+  });
+});
+
+describe("N-1: a kept item is never found by text the gate denied", () => {
+  test("Lee's search for a word only Dana's denied edit holds returns nothing (P30b)", async () => {
+    const root = await tempDir();
+    const danaT = person("dana", ["team:x"]);
+    const lee = person("lee", ["team:x"]);
+    const policy = parsePolicy(
+      (await profileText()).replace(
+        "  - scope: team\n    allowed_sources: [user, document]\n    confidence_floor: 0.7\n    forbidden_classes: [episodic]\n    requires_review: true",
+        "  - scope: team\n    allowed_sources: [user, document]\n    confidence_floor: 0.7\n    forbidden_classes: [episodic]\n    requires_review: false",
+      ),
+      "twin-team-open.yaml",
+    );
+    const { db, deps } = await logOver(root, policy);
+    const plane = createPlane(deps);
+    const w = await plane.write(
+      danaT,
+      note(40, { scope: "team:x", content: "Team deploys on Tuesdays." }),
+      AT,
+    );
+    expect(w.event.decision).toBe("allow");
+    expect(itemById(db, ID(40))?.status).toBe("active");
+    await editBody(root, `${ID(40)}.md`, "Team deploys on Tuesdays. Prod password is hunter2.");
+    const r = await adoptStoreItems(deps, danaT, "team:x", LATER);
+    expect(r).toMatchObject({ denied: 1, retired: 0 });
+
+    for (const who of [lee, danaT])
+      expect((await plane.read(who, { at: LATER, text: "hunter2" })).items).toEqual([]);
+    // Its own content still finds it.
+    expect((await plane.read(lee, { at: LATER, text: "tuesdays" })).items.map((i) => i.id)).toEqual(
+      [ID(40)],
+    );
+  });
+});
+
+describe("N-2: the kind floor holds across adoptions", () => {
+  test("agent content deleted, adopted, then re-filed with kind user stays model (P4b)", async () => {
+    const root = await tempDir();
+    const { db, deps } = await logOver(root);
+    const plane = createPlane(deps);
+    expect(
+      (await plane.write(agent, note(1, { content: "Agent episode." }), AT)).event.decision,
+    ).toBe("allow");
+    const text = (await readFile(join(root, `${ID(1)}.md`), "utf8"))
+      .replace("kind: model", "kind: user")
+      .replaceAll("000000000001", "000000000778");
+    await rm(join(root, `${ID(1)}.md`));
+    expect((await adoptStoreItems(deps, dana, "person:dana", AT)).retired).toBe(1);
+    await writeFile(join(root, `${ID(778)}.md`), text);
+    // The copy is the agent's content at kind model, so the gate's
+    // retired-content rule refuses it: a model source cannot bring back
+    // content retired in its scope (ADR 0025).
+    const again = await adoptStoreItems(deps, dana, "person:dana", AT);
+    expect(again).toMatchObject({ allowed: 0, denied: 1 });
+    expect(again.denials[0]?.reason).toMatch(/a model source cannot bring it back/);
+    expect(again.denials[0]?.reason).toMatch(/provenance set by adoption: kind model/);
+    expect(itemById(db, ID(778))).toBeUndefined();
+    const g = await plane.changeGrants(
+      dana,
+      ID(778),
+      { add: [{ to: sam.id, class: "semantic", mode: "read", expires: "2026-12-19T00:00:00Z" }] },
+      LATER,
+    );
+    expect(g.event.decision).toBe("deny");
+    expect((await plane.read(sam, { at: LATER })).items).toEqual([]);
   });
 });
 
@@ -287,7 +388,7 @@ describe("I-5: agent content re-filed under a new id with its kind edited", () =
     expect(itemById(db, ID(1))?.status).toBe("retired");
     expect(itemById(db, ID(778))?.provenance).toMatchObject({ kind: "model", actor: dana.id });
     expect(eventsByItem(db, ID(778)).at(-1)?.reason).toMatch(
-      /the least trusted of the record's claim, an item of the same content this adoption retires and import/,
+      /the least trusted of the record's claim, an item of the same content the scope no longer holds and import/,
     );
     const g = await plane.changeGrants(
       dana,

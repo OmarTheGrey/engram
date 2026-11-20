@@ -35,9 +35,9 @@ export const LEFT_CONTENT_CLAUSE = "adoption refuses a store record holding the 
  * old root) or a record deleted outside the plane. Its deletion is not
  * proven, so the event also carries LEFT_CONTENT_CLAUSE with the erased
  * versions' hashes, and adoption refuses that content in the person scope
- * under any id. Unlike a record left in a store that refuses the delete, a
- * record that later appears under the erased id itself is never adopted,
- * whatever it holds (keptInStore).
+ * under any id. As for a record left in a store that refuses the delete, a
+ * record under the erased id itself is refused while it holds that content
+ * and adopted once it changes (keptInStore; review fix pass 2, N-3).
  */
 export const NOT_FOUND_CLAUSE = "no record was found at its ref, so its deletion is not proven";
 
@@ -62,13 +62,16 @@ function leftHashes(event: MemoryEvent): string[] {
 }
 
 /**
- * Whether the erase or sweep event `event` left its item's record in a store
- * that refuses the plane's delete, so a changed record under that id is the
- * person's to adopt (rechecks of PR #41): it names the left content, and its
- * record was not one the erasure found nowhere (NOT_FOUND_CLAUSE).
+ * Whether the erase or sweep event `event` says its item's record may still
+ * be in a store: left in one that refuses the plane's delete, or found
+ * nowhere at its ref (NOT_FOUND_CLAUSE). Either way it names the erased
+ * content, and a record under that id is refused only while it holds that
+ * content; changed, it is the person's to adopt (rechecks of PR #41; review
+ * fix pass 2 of PR #58, N-3: a folder moved back after the erasure, a new
+ * file written under an erased id, adopts as after an ordinary erasure).
  */
 export function keptInStore(event: MemoryEvent): boolean {
-  return event.reason.includes(LEFT_CONTENT_CLAUSE) && !event.reason.includes(NOT_FOUND_CLAUSE);
+  return event.reason.includes(LEFT_CONTENT_CLAUSE);
 }
 
 /**

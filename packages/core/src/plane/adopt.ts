@@ -28,10 +28,12 @@
 // unrecorded grants are dropped gets one allow event naming each dropped
 // grantee, once per store content (its hash note), so the strip is always
 // recorded (I-4); a retired item's record is not re-gated for it. A record
-// new to the plane whose content an item this adoption retires holds (the
-// store no longer lists that item) takes the least trusted of their kinds
-// too, so agent content re-filed under a new id with its kind edited stays
-// agent content (I-5). A record the gate denies only for the source adoption
+// new to the plane whose content a retired item of the scope holds, or an
+// item this adoption retires (the store no longer lists it), takes the least
+// trusted of their kinds too, so agent content re-filed under a new id with
+// its kind edited stays agent content, in this adoption or a later one (I-5,
+// N-2). A search hit whose store record no longer holds the projected
+// content is matched over the projected content (read.ts, N-1). A record the gate denies only for the source adoption
 // gives it (a hand edit is `import` at most, and the twin profile's team
 // scope refuses `import`), which would pass at the plane's kind for its id,
 // leaves the plane's item standing: the deny is recorded and nothing is
@@ -287,16 +289,19 @@ export async function adoptStoreItems(
     held.scope === scope && held.store_ref?.adapter === adapter.name && !present.has(held.id);
   // The erased content of this scope, read once per adoption (I-7).
   const scopeErased: ScopeErased = { scope, read: erasedScopeContent(db, scope) };
-  // What this adoption retires because the store no longer lists it, by
-  // content: a record of the same content new to the plane takes the least
-  // trusted of their kinds (review fix pass of PR #58, I-5).
-  const leaving = new Map<string, Kind[]>();
+  // The kinds of what the scope no longer holds, by content: every retired
+  // item of the scope, and every item this adoption retires because the
+  // store no longer lists it. A record of the same content new to the plane
+  // takes the least trusted of their kinds, whether its original went in
+  // this adoption or an earlier one (review fix passes of PR #58, I-5, N-2).
+  const goneKinds = new Map<string, Kind[]>();
   for (const held of currentItems(db)) {
-    if (held.status === "retired" || !vacated(held)) continue;
+    if (held.scope !== scope || (held.status !== "retired" && !vacated(held))) continue;
     const hash = mergingContentHash(held.content);
-    leaving.set(hash, [...(leaving.get(hash) ?? []), held.provenance.kind]);
+    goneKinds.set(hash, [...(goneKinds.get(hash) ?? []), held.provenance.kind]);
   }
-  const retiring = (record: MemoryItem) => leaving.get(mergingContentHash(record.content)) ?? [];
+  const sameContent = (record: MemoryItem) =>
+    goneKinds.get(mergingContentHash(record.content)) ?? [];
 
   for (const item of listed) {
     if (!item.store_ref) {
@@ -304,7 +309,7 @@ export async function adoptStoreItems(
     }
     const known = itemById(db, item.id);
     const history = eventsByItem(db, item.id);
-    const [asAdopted] = adoptedItem(adopter, item, known, retiring(item));
+    const [asAdopted] = adoptedItem(adopter, item, known, sameContent(item));
     const derived = adapter.derivedFields?.(item) ?? [];
     const note = hashNote(itemHash(item, derived));
     // The store's record is what the plane holds once its unrecorded grants
@@ -366,7 +371,7 @@ export async function adoptStoreItems(
         return refusal;
       },
       vacated,
-      retiring,
+      sameContent,
       retract: (held, by) =>
         retire(
           held,
@@ -401,7 +406,7 @@ export async function adoptStoreItems(
         // the plane's own (I-4); or it is denied only for the source
         // adoption gives it, which the plane's item does not have (I-3). The
         // deny is recorded and the plane keeps the version it approved.
-        if (stripOnly || deniedOnlyForSource(deps, adopter, item, held, at, retiring)) return;
+        if (stripOnly || deniedOnlyForSource(deps, adopter, item, held, at, sameContent)) return;
         retire(
           held,
           `the store's version of item ${held.id} was denied (${event.policy_id}); the plane retires the version it held, which the store no longer has`,
@@ -484,11 +489,11 @@ function deniedOnlyForSource(
   input: MemoryItem,
   held: MemoryItem,
   at: string,
-  retiring: (item: MemoryItem) => readonly MemoryItem["provenance"]["kind"][],
+  sameContent: (item: MemoryItem) => readonly MemoryItem["provenance"]["kind"][],
 ): boolean {
   const parsed = MemoryItemSchema.safeParse(input);
   if (!parsed.success) return false;
-  const [item] = adoptedItem(actor, parsed.data, held, retiring(parsed.data));
+  const [item] = adoptedItem(actor, parsed.data, held, sameContent(parsed.data));
   const retired = retiredContent(deps.db, item.scope);
   const asAdopted = evaluateWrite(deps.policy, actor, item, held, retired, at);
   if (asAdopted.decision === "allow") return false;
