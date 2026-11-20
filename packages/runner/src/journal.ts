@@ -228,6 +228,8 @@ export interface JournalOptions {
    * module comment). `identity` is the unsharded run's.
    */
   merge?: readonly string[];
+  /** Reads a lock holder's start time (review P60-R2); a test injects it. */
+  startOf?: StartReader;
 }
 
 export class JournalLocked extends JournalMismatch {
@@ -252,33 +254,71 @@ const START_SLACK_MS = 2_000;
 /** This process's start time, in ms since the epoch. */
 const OWN_START = Math.round(Date.now() - performance.now());
 
+/** Reads when process `pid` of this host started, in ms since the epoch; undefined when it cannot. */
+export type StartReader = (pid: number) => number | undefined;
+
+/** Clock ticks per second in /proc/<pid>/stat; 100 on every Linux the runner supports. */
+const CLOCK_TICKS = 100;
+
+/**
+ * A process start from the text of /proc/<pid>/stat and the boot time
+ * (btime of /proc/stat, in seconds): field 22 is the start in clock ticks
+ * since boot. The command name (field 2) may hold spaces and parentheses,
+ * so the fields are counted from the last closing parenthesis.
+ */
+export function parseProcStat(stat: string, btimeSeconds: number): number | undefined {
+  const close = stat.lastIndexOf(")");
+  if (close < 0) return undefined;
+  const ticks = Number(
+    stat
+      .slice(close + 1)
+      .trim()
+      .split(/\s+/)[19],
+  );
+  return Number.isFinite(ticks)
+    ? btimeSeconds * 1000 + Math.round((ticks * 1000) / CLOCK_TICKS)
+    : undefined;
+}
+
+/** An absolute start time, never an age subtracted from the clock (review P60-R2). */
+function readStart(pid: number): number | undefined {
+  if (process.platform === "win32") {
+    const out = execFileSync(
+      "powershell.exe",
+      [
+        "-NoProfile",
+        "-NonInteractive",
+        "-Command",
+        `$p = Get-CimInstance Win32_Process -Filter 'ProcessId=${pid}'; if ($p) { [DateTimeOffset]::new($p.CreationDate).ToUnixTimeMilliseconds() }`,
+      ],
+      { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 30_000 },
+    ).trim();
+    return out === "" ? undefined : Number(out);
+  }
+  if (existsSync("/proc/self/stat")) {
+    const btime = /^btime (\d+)$/m.exec(readFileSync("/proc/stat", "utf8"));
+    return btime === null
+      ? undefined
+      : parseProcStat(readFileSync(`/proc/${pid}/stat`, "utf8"), Number(btime[1]));
+  }
+  const out = execFileSync("ps", ["-o", "lstart=", "-p", String(pid)], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"],
+    timeout: 10_000,
+    env: { ...process.env, LC_ALL: "C" },
+  }).trim();
+  const at = out === "" ? Number.NaN : Date.parse(out);
+  return Number.isFinite(at) ? at : undefined;
+}
+
 /**
  * When process `pid` of this host started, in ms since the epoch, or
- * undefined when it is not running or the start cannot be read. POSIX
- * reads `ps -o etimes=`; Windows asks CIM for the process's CreationDate.
+ * undefined when it is not running or the start cannot be read.
  */
 export function processStart(pid: number): number | undefined {
   if (pid === process.pid) return OWN_START;
   try {
-    if (process.platform === "win32") {
-      const out = execFileSync(
-        "powershell.exe",
-        [
-          "-NoProfile",
-          "-NonInteractive",
-          "-Command",
-          `$p = Get-CimInstance Win32_Process -Filter 'ProcessId=${pid}'; if ($p) { [DateTimeOffset]::new($p.CreationDate).ToUnixTimeMilliseconds() }`,
-        ],
-        { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 30_000 },
-      ).trim();
-      return out === "" ? undefined : Number(out);
-    }
-    const out = execFileSync("ps", ["-o", "etimes=", "-p", String(pid)], {
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "ignore"],
-      timeout: 10_000,
-    }).trim();
-    return out === "" ? undefined : Date.now() - Number(out) * 1000;
+    return readStart(pid);
   } catch {
     return undefined;
   }
@@ -317,21 +357,24 @@ function lockHolder(path: string): LockHolder | undefined {
  * started at another time than the lock records. A start time that cannot
  * be read counts as the holder's, so an unreadable process keeps its lock.
  */
-function gone(holder: LockHolder): boolean {
+function gone(holder: LockHolder, startOf: StartReader): boolean {
   if (holder.host !== hostname() || holder.pid === process.pid) return false;
   if (!alive(holder.pid)) return true;
   if (holder.started === undefined) return false;
-  const started = processStart(holder.pid);
+  const started = startOf(holder.pid);
   return started !== undefined && Math.abs(started - holder.started) > START_SLACK_MS;
 }
 
 /** Who holds `dir`'s lock: a live process (or one of another host), "unknown", or nobody. */
-export function lockedBy(dir: string): LockHolder | "unknown" | undefined {
+export function lockedBy(
+  dir: string,
+  startOf: StartReader = processStart,
+): LockHolder | "unknown" | undefined {
   const path = join(dir, LOCK_FILE);
   if (!existsSync(path)) return undefined;
   const holder = lockHolder(path);
   if (holder === undefined) return "unknown";
-  return gone(holder) ? undefined : holder;
+  return gone(holder, startOf) ? undefined : holder;
 }
 
 /**
@@ -341,7 +384,7 @@ export function lockedBy(dir: string): LockHolder | "unknown" | undefined {
  * file must still be the stale lock that was judged gone; if another process
  * replaced it in between, it is put back and the lock is refused.
  */
-function acquireLock(dir: string): string {
+function acquireLock(dir: string, startOf: StartReader): string {
   const path = join(dir, LOCK_FILE);
   const mine = { pid: process.pid, host: hostname(), started: OWN_START, nonce: randomUUID() };
   for (let attempt = 0; attempt < 3; attempt++) {
@@ -356,7 +399,7 @@ function acquireLock(dir: string): string {
     } catch (e) {
       if ((e as NodeJS.ErrnoException).code !== "EEXIST") throw e;
       const seen = lockHolder(path);
-      if (seen !== undefined && gone(seen)) {
+      if (seen !== undefined && gone(seen, startOf)) {
         const aside = `${path}.stale-${mine.nonce}`;
         try {
           renameSync(path, aside);
@@ -376,7 +419,7 @@ function acquireLock(dir: string): string {
         }
         rmSync(aside, { force: true });
       }
-      const holder = lockedBy(dir) ?? seen ?? "unknown";
+      const holder = lockedBy(dir, startOf) ?? seen ?? "unknown";
       throw new JournalLocked(
         holder === "unknown"
           ? `${dir} holds ${LOCK_FILE} naming no process: another run may be writing it; if none is, remove ${path}`
@@ -438,6 +481,8 @@ export class RunJournal {
   /** A merge's identity, written to run.json once the merged rows are sealed (review P60-3). */
   private readonly identity: RunIdentity;
   private sealedOk = false;
+  /** Set once a merge starts writing the folder: only then does closing remove its files (review P60-R3). */
+  private mergeWriting = false;
 
   private constructor(dir: string, options: JournalOptions) {
     this.dir = dir;
@@ -445,9 +490,10 @@ export class RunJournal {
     this.sealed = options.merge !== undefined;
     this.identity = options.identity;
     mkdirSync(dir, { recursive: true });
-    this.lock = acquireLock(dir);
+    const startOf = options.startOf ?? processStart;
+    this.lock = acquireLock(dir, startOf);
     try {
-      for (const shard of options.merge ?? []) this.shardLocks.push(acquireLock(shard));
+      for (const shard of options.merge ?? []) this.shardLocks.push(acquireLock(shard, startOf));
       this.openFolder(options);
     } catch (e) {
       this.close();
@@ -463,6 +509,7 @@ export class RunJournal {
     const results = join(dir, RESULTS_FILE);
     const run = join(dir, RUN_FILE);
     if (options.merge) {
+      this.mergeWriting = true;
       for (const f of files) rmSync(join(dir, f), { force: true });
       const logs = [RESULTS_FILE, USAGE_LOG, ...(options.sidecar ? [options.sidecar] : [])];
       for (const f of logs) {
@@ -619,7 +666,7 @@ export class RunJournal {
   close(): void {
     for (const fd of [this.results, this.side, this.usage]) if (fd !== undefined) closeSync(fd);
     this.results = this.side = this.usage = undefined;
-    if (this.sealed && !this.sealedOk && this.lock !== undefined) {
+    if (this.mergeWriting && !this.sealedOk && this.lock !== undefined) {
       // A merge that did not seal (refused, or the pass failed): none of its files stay (review P60-3).
       const files = [RESULTS_FILE, USAGE_LOG, RUN_FILE, SUMMARY_FILE, USAGE_FILE];
       if (this.sidecar) files.push(this.sidecar);

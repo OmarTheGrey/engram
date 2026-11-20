@@ -24,7 +24,11 @@ import {
   JournalMismatch,
   LOCK_FILE,
   lockedBy,
+  parseProcStat,
   processStart,
+  RESULTS_FILE,
+  RUN_FILE,
+  RunJournal,
 } from "../src/journal.ts";
 import { liveConfig, liveOptions } from "../src/live.ts";
 import { EVENTS_FILE, runConfig } from "../src/run.ts";
@@ -435,4 +439,70 @@ describe("one process at a time writes a folder (RV1 backlog)", () => {
     }
     expect(lockedBy(shardDir(out, { index: 2, count: 2 }))).toBeUndefined();
   }, 120_000);
+});
+
+describe("the lock's start time is absolute and its reader injectable (review P60-R2)", () => {
+  const holder = (dir: string, started: number) => {
+    mkdirSync(dir, { recursive: true });
+    // A live process of this host that is not this one: the parent of this test process.
+    writeFileSync(
+      join(dir, LOCK_FILE),
+      JSON.stringify({ pid: process.ppid, host: hostname(), started, nonce: "0" }),
+    );
+  };
+
+  test("a live holder whose start matches is kept, a mismatching one is taken over, an unreadable one is kept", () => {
+    const dir = fresh();
+    holder(dir, 1_000_000);
+    expect(lockedBy(dir, () => 1_000_000)).toMatchObject({ pid: process.ppid });
+    expect(lockedBy(dir, () => 1_001_500)).toMatchObject({ pid: process.ppid });
+    expect(lockedBy(dir, () => 5_000_000)).toBeUndefined();
+    expect(lockedBy(dir, () => undefined)).toMatchObject({ pid: process.ppid });
+    // The journal takes the same reader: a mismatch is taken over, an unreadable start refuses.
+    expect(() =>
+      RunJournal.open(dir, {
+        identity: { config: "x", fingerprint: "f" },
+        resume: false,
+        startOf: () => undefined,
+      }),
+    ).toThrow(JournalLocked);
+    RunJournal.open(dir, {
+      identity: { config: "x", fingerprint: "f" },
+      resume: false,
+      startOf: () => 5_000_000,
+    }).close();
+  });
+
+  test("a start is read from /proc/<pid>/stat and /proc/stat's btime, whatever the comm holds", () => {
+    // comm may hold spaces and parentheses; starttime is field 22, in clock ticks since boot.
+    const stat = `42 (a) b (c)) S 1 42 42 0 -1 4194560 100 0 0 0 1 2 0 0 20 0 1 0 12345 1000 10 18446744073709551615`;
+    expect(parseProcStat(stat, 1_700_000_000)).toBe(1_700_000_000_000 + 123_450);
+    expect(parseProcStat("garbage", 1)).toBeUndefined();
+  });
+});
+
+describe("a merge that cannot take a shard lock leaves a good run alone (review P60-R3)", () => {
+  test("the run already in the folder survives", () => {
+    const out = fresh();
+    const a = join(fresh(), "a");
+    const b = join(fresh(), "b");
+    mkdirSync(out, { recursive: true });
+    mkdirSync(a, { recursive: true });
+    mkdirSync(b, { recursive: true });
+    writeFileSync(join(out, RESULTS_FILE), '{"good":1}\n');
+    writeFileSync(join(out, RUN_FILE), '{"config":"x","fingerprint":"f"}\n');
+    // Shard b is being written by a process of another host.
+    writeFileSync(join(b, LOCK_FILE), JSON.stringify({ pid: 1, host: `not-${hostname()}` }));
+    expect(() =>
+      RunJournal.open(out, {
+        identity: { config: "x", fingerprint: "f" },
+        resume: true,
+        merge: [a, b],
+      }),
+    ).toThrow(JournalLocked);
+    expect(read(out, RESULTS_FILE)).toBe('{"good":1}\n');
+    expect(existsSync(join(out, RUN_FILE))).toBe(true);
+    expect(existsSync(join(out, LOCK_FILE))).toBe(false);
+    expect(existsSync(join(a, LOCK_FILE))).toBe(false);
+  });
 });
