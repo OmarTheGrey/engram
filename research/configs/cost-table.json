@@ -1,0 +1,533 @@
+{
+  "name": "cost-table",
+  "kind": "measurement",
+  "hypothesis": "H1-H5",
+  "inputs": {
+    "h1-cost": "research/results/h1-cost.json",
+    "h2-longmemeval-cost": "research/results/h2-longmemeval-cost.json",
+    "h3-lint-floor": "research/results/h3-lint-floor.json"
+  },
+  "prices": ["research/configs/openrouter-prices.json"],
+  "catalogue_prices": "h1-cost",
+  "gatemem_data": {
+    "full": ".engram/upstream/gatemem/bench/data",
+    "manifest": "fixtures/bench/gatemem/manifest.json",
+    "fetch": true
+  },
+  "long_context_turns": 300,
+  "count_configs": { "l3-pilot": "research/configs/l3-pilot.json" },
+  "non_reasoning": [
+    "openrouter/openai/gpt-4o",
+    "openrouter/openai/gpt-4o-2024-08-06",
+    "openrouter/openai/gpt-4.1"
+  ],
+  "ceiling_factor": 1.25,
+  "estimates": {
+    "low": {
+      "token_scale": 1.0,
+      "judge_attempts": "low",
+      "reasoning_tokens_per_call": { "off_honoured": 0, "off_ignored": 256 },
+      "note_output_tokens": null,
+      "lint_output_tokens": 30
+    },
+    "high": {
+      "token_scale": 1.333333,
+      "judge_attempts": "high",
+      "reasoning_tokens_per_call": { "off_honoured": 1024, "off_ignored": 4096 },
+      "note_output_tokens": 300,
+      "lint_output_tokens": 300
+    }
+  },
+  "design_shapes": {
+    "merit-episode": {
+      "basis": "MERIT's paper (docs/readings/litreview/2609.05441-merit.md): about 0.00046 dollars per D1-easy episode under no memory on gpt-4.1-mini, about 1,000 input tokens; the low takes 3 calls and 1,500 tokens, the high 8 calls and ten times the tokens",
+      "low": { "calls": 3, "input": 1500, "output": 150 },
+      "high": { "calls": 8, "input": 15000, "output": 800 }
+    },
+    "merit-episode-c1": {
+      "basis": "MERIT's full replay, 2.7 to 3.9 times the per-episode cost of the best memory (the paper, Sec. 5.6); the low takes about 2.7 times merit-episode's input",
+      "low": { "calls": 3, "input": 4000, "output": 150 },
+      "high": { "calls": 8, "input": 40000, "output": 800 }
+    },
+    "mab-question": {
+      "basis": "one read and one answer as on GateMem: two calls, a 300-token prompt and a top-20 read of context chunks, 256 tokens a chunk (low); four calls (two more reads) and 1,024 tokens a chunk (high), input (r + 1) prompt + (8 + read) r (r + 1) / 2 as research/scripts/h1_cost.py counts it",
+      "low": { "calls": 2, "input": 5720, "output": 50 },
+      "high": { "calls": 4, "input": 124128, "output": 120 }
+    },
+    "tau2-agent-episode": {
+      "basis": "tau2's agent: 8 calls of about 5,000 input tokens (the domain policy, the tool schemas and the dialogue) and 100 output (low); 20 calls of 12,000 and 300 (high)",
+      "low": { "calls": 8, "input": 40000, "output": 800 },
+      "high": { "calls": 20, "input": 240000, "output": 6000 }
+    },
+    "tau2-user-episode": {
+      "basis": "tau2's LLM user simulator answers every agent turn: 8 calls of 1,500 input and 60 output (low), 20 calls of 5,000 and 150 (high)",
+      "low": { "calls": 8, "input": 12000, "output": 480 },
+      "high": { "calls": 20, "input": 100000, "output": 3000 }
+    },
+    "tau2-retail-judge": {
+      "basis": "one call per retail episode for its natural-language assertions",
+      "low": { "calls": 1, "input": 2000, "output": 100 },
+      "high": { "calls": 1, "input": 6000, "output": 300 }
+    },
+    "tau2-induction": {
+      "basis": "Agent Workflow Memory (ADR 0012): one induction call per recorded trajectory, the trajectory in and the workflows out",
+      "low": { "calls": 1, "input": 6000, "output": 500 },
+      "high": { "calls": 1, "input": 20000, "output": 1500 }
+    }
+  },
+  "runs": [
+    {
+      "id": "h1-gatemem",
+      "hypothesis": "H1",
+      "benchmark": "gatemem",
+      "conditions": ["C2", "C3", "C4", "C5"],
+      "preset": "medium",
+      "store": "mem0",
+      "role": "M1",
+      "seeds": [1, 2, 3],
+      "status": "built",
+      "count": "make run CONFIG=research/configs/h1-gatemem.json COUNT=1, as research/results/h1-cost.json records it (sizes.gatemem)",
+      "groups": [
+        { "kind": "access", "items": "h1-cost:sizes.gatemem.item_kinds.access control", "shape": { "ref": "h1-cost:measured.gatemem.{condition}.full_set.privacy" } },
+        { "kind": "forgetting", "items": "h1-cost:sizes.gatemem.item_kinds.active forgetting", "shape": { "ref": "h1-cost:measured.gatemem.{condition}.full_set.safety" } },
+        { "kind": "utility", "utility": true, "items": "h1-cost:sizes.gatemem.item_kinds.utility", "shape": { "ref": "h1-cost:measured.gatemem.{condition}.full_set.utility" } }
+      ],
+      "judge": { "model": "openrouter/openai/gpt-4o", "attempts": { "low": 1, "high": 3 }, "shape": { "single": "h1-cost:measured.judge" } }
+    },
+    {
+      "id": "h1-mem-inv",
+      "hypothesis": "H1",
+      "benchmark": "mem-inv-bench",
+      "conditions": ["C2", "C3", "C4", "C5"],
+      "preset": "medium",
+      "store": "mem0",
+      "role": "M1",
+      "seeds": [1, 2, 3],
+      "status": "built",
+      "count": "make run CONFIG=research/configs/h1-mem-inv.json COUNT=1, as research/results/h1-cost.json records it (sizes.mem-inv-bench)",
+      "groups": [
+        { "kind": "case", "items": "h1-cost:sizes.mem-inv-bench.items", "shape": { "ref": "h1-cost:measured.mem-inv-bench.{condition}.full_set" } }
+      ]
+    },
+    {
+      "id": "h1-mem-inv-notes",
+      "hypothesis": "H1",
+      "benchmark": "mem-inv-bench",
+      "conditions": ["note"],
+      "preset": "none",
+      "store": "none",
+      "role": "M1",
+      "seeds": [1],
+      "status": "built",
+      "count": "make run CONFIG=research/configs/h1-mem-inv.json COUNT=1: 8 agent notes, one per scenario, with the first seed",
+      "groups": [{ "kind": "note", "items": "h1-cost:sizes.mem-inv-bench.note_calls", "shape": { "note": "h1-cost:measured.mem-inv-bench.note" } }]
+    },
+    {
+      "id": "h2-gatemem",
+      "hypothesis": "H2",
+      "benchmark": "gatemem",
+      "conditions": ["C2", "C5"],
+      "preset": "medium",
+      "store": "mem0",
+      "role": "M1",
+      "seeds": [1, 2, 3],
+      "status": "built",
+      "shared_with": "h1-gatemem",
+      "count": "the same cells as H1's (item, condition, preset, store, model, seed), so their cassettes serve both (rule 7) and they make no new call; if H1 drops its utility checkpoints (lead-decisions item 2b), the utility cells are new",
+      "groups": [
+        { "kind": "access", "items": "h1-cost:sizes.gatemem.item_kinds.access control", "shape": { "ref": "h1-cost:measured.gatemem.{condition}.full_set.privacy" } },
+        { "kind": "forgetting", "items": "h1-cost:sizes.gatemem.item_kinds.active forgetting", "shape": { "ref": "h1-cost:measured.gatemem.{condition}.full_set.safety" } },
+        { "kind": "utility", "utility": true, "items": "h1-cost:sizes.gatemem.item_kinds.utility", "shape": { "ref": "h1-cost:measured.gatemem.{condition}.full_set.utility" } }
+      ],
+      "judge": { "model": "openrouter/openai/gpt-4o", "attempts": { "low": 1, "high": 3 }, "shape": { "single": "h1-cost:measured.judge" } }
+    },
+    {
+      "id": "h2-gatemem-sweep",
+      "hypothesis": "H2",
+      "benchmark": "gatemem",
+      "conditions": ["C5"],
+      "presets": ["strict", "permissive"],
+      "store": "mem0",
+      "role": "M1",
+      "seeds": [1, 2, 3],
+      "status": "estimated from the design: the probe runs C5 at any preset, no config is written",
+      "count": "every GateMem checkpoint at each preset, three seeds, as H1's design; tokens from C5 at medium (low) to C2 (high), since a preset admits at most what C2 reads",
+      "groups": [
+        { "kind": "access", "items": "h1-cost:sizes.gatemem.item_kinds.access control", "shape": { "envelope": { "low": "h1-cost:measured.gatemem.C5.full_set.privacy", "high": "h1-cost:measured.gatemem.C2.full_set.privacy" } } },
+        { "kind": "forgetting", "items": "h1-cost:sizes.gatemem.item_kinds.active forgetting", "shape": { "envelope": { "low": "h1-cost:measured.gatemem.C5.full_set.safety", "high": "h1-cost:measured.gatemem.C2.full_set.safety" } } },
+        { "kind": "utility", "items": "h1-cost:sizes.gatemem.item_kinds.utility", "shape": { "envelope": { "low": "h1-cost:measured.gatemem.C5.full_set.utility", "high": "h1-cost:measured.gatemem.C2.full_set.utility" } } }
+      ],
+      "judge": { "model": "openrouter/openai/gpt-4o", "attempts": { "low": 1, "high": 3 }, "shape": { "single": "h1-cost:measured.judge" } }
+    },
+    {
+      "id": "h2-gatemem-c1",
+      "hypothesis": "H2",
+      "benchmark": "gatemem",
+      "conditions": ["C1"],
+      "preset": "none",
+      "store": "none",
+      "role": "M1",
+      "seeds": [1, 2, 3],
+      "status": "estimated from the design: C1 is built on GateMem (packages/bench/src/gatemem/agents.ts longContextItems), no H2 config is written",
+      "count": "every GateMem checkpoint, three seeds, one call each: GateMem's query prompt with the last 300 turns up to the as-of turn as its memory block, each turn's item as JSON",
+      "groups": [
+        { "kind": "access", "items": "h1-cost:sizes.gatemem.item_kinds.access control", "shape": { "c1_gatemem": "privacy" } },
+        { "kind": "forgetting", "items": "h1-cost:sizes.gatemem.item_kinds.active forgetting", "shape": { "c1_gatemem": "safety" } },
+        { "kind": "utility", "items": "h1-cost:sizes.gatemem.item_kinds.utility", "shape": { "c1_gatemem": "utility" } }
+      ],
+      "judge": { "model": "openrouter/openai/gpt-4o", "attempts": { "low": 1, "high": 3 }, "shape": { "single": "h1-cost:measured.judge" } }
+    },
+    {
+      "id": "h2-longmemeval",
+      "hypothesis": "H2",
+      "benchmark": "longmemeval",
+      "conditions": ["C2", "C5"],
+      "preset": "medium",
+      "store": "mem0",
+      "role": "M1",
+      "seeds": [1, 2, 3],
+      "status": "built",
+      "count": "make run CONFIG=research/configs/h2-longmemeval-c2.json COUNT=1 and h2-longmemeval-c5-medium.json COUNT=1, as research/results/h2-longmemeval-cost.json records them",
+      "groups": [
+        { "kind": "question", "items": "h2-longmemeval-cost:measured.full_set.questions", "shape": { "ref": "h2-longmemeval-cost:measured.{lme_arm}.full_set" } }
+      ],
+      "judge": { "model": "openrouter/openai/gpt-4o-2024-08-06", "attempts": { "low": 1, "high": 1 }, "shape": { "single": "h2-longmemeval-cost:measured.judge" } }
+    },
+    {
+      "id": "h2-longmemeval-sweep",
+      "hypothesis": "H2",
+      "benchmark": "longmemeval",
+      "conditions": ["C5"],
+      "presets": ["strict", "permissive"],
+      "store": "mem0",
+      "role": "M1",
+      "seeds": [1, 2, 3],
+      "status": "estimated from the design: the runner runs C5 on LongMemEval at any preset, no config is written",
+      "count": "the 500 questions at each preset, three seeds, as the baselines; tokens from C5 at medium (low) to C2 (high)",
+      "groups": [
+        { "kind": "question", "items": "h2-longmemeval-cost:measured.full_set.questions", "shape": { "envelope": { "low": "h2-longmemeval-cost:measured.c5-medium.full_set", "high": "h2-longmemeval-cost:measured.c2.full_set" } } }
+      ],
+      "judge": { "model": "openrouter/openai/gpt-4o-2024-08-06", "attempts": { "low": 1, "high": 1 }, "shape": { "single": "h2-longmemeval-cost:measured.judge" } }
+    },
+    {
+      "id": "h2-longmemeval-c1",
+      "hypothesis": "H2",
+      "benchmark": "longmemeval",
+      "conditions": ["C1"],
+      "preset": "none",
+      "store": "none",
+      "role": "M1",
+      "seeds": [1, 2, 3],
+      "status": "estimated from the design: C1 is not built on LongMemEval (RV-DES-18)",
+      "count": "the 500 questions, three seeds, one call each with the whole history in the prompt (upstream's full-history reader), the reader prompt plus the S split's mean history characters, over four",
+      "groups": [{ "kind": "question", "items": "h2-longmemeval-cost:measured.full_set.questions", "shape": { "c1_longmemeval": true } }],
+      "judge": { "model": "openrouter/openai/gpt-4o-2024-08-06", "attempts": { "low": 1, "high": 1 }, "shape": { "single": "h2-longmemeval-cost:measured.judge" } }
+    },
+    {
+      "id": "h2-merit",
+      "hypothesis": "H2",
+      "benchmark": "merit",
+      "conditions": ["C2", "C5"],
+      "presets": ["strict", "medium", "permissive"],
+      "store": "mem0",
+      "role": "M1",
+      "seeds": [1, 2, 3],
+      "status": "estimated from the design: no MERIT harness is built",
+      "count": "the arcs of D1 to D3 at the pin: 3 domains, 3 tiers, 10 arcs of 5 episodes per cell (docs/readings/litreview/2609.05441-merit.md), 450 episodes; MERIT's user is scripted (packages/bench/PINS.md), so no simulator calls; C2 is the same at every preset and counted once",
+      "groups": [{ "kind": "episode", "items": 450, "shape": { "design": "merit-episode" } }]
+    },
+    {
+      "id": "h2-merit-c1",
+      "hypothesis": "H2",
+      "benchmark": "merit",
+      "conditions": ["C1"],
+      "preset": "none",
+      "store": "none",
+      "role": "M1",
+      "seeds": [1, 2, 3],
+      "status": "estimated from the design: no MERIT harness is built",
+      "count": "450 episodes, full replay as MERIT's C1",
+      "groups": [{ "kind": "episode", "items": 450, "shape": { "design": "merit-episode-c1" } }]
+    },
+    {
+      "id": "h2-subset-gatemem",
+      "hypothesis": "H2",
+      "benchmark": "gatemem",
+      "conditions": ["C1", "C2", "C5"],
+      "presets": ["strict", "medium", "permissive"],
+      "store": "mem0",
+      "roles": ["M2", "M3"],
+      "seeds": [1, 2, 3],
+      "status": "estimated from the design: about 100 GateMem probes per model (pre-registration, Models), no config is written",
+      "count": "100 checkpoints per model at C1, C2 and C5 at each preset, three seeds; C1 and C2 counted once; the shape is the full set's mean over the three kinds",
+      "groups": [
+        {
+          "kind": "checkpoint",
+          "items": 100,
+          "shape": {
+            "mix": [
+              { "weight": "h1-cost:sizes.gatemem.item_kinds.access control", "shape": { "by_condition": { "C1": { "c1_gatemem": "privacy" }, "C2": { "ref": "h1-cost:measured.gatemem.C2.full_set.privacy" }, "C5": { "envelope": { "low": "h1-cost:measured.gatemem.C5.full_set.privacy", "high": "h1-cost:measured.gatemem.C2.full_set.privacy" } } } } },
+              { "weight": "h1-cost:sizes.gatemem.item_kinds.active forgetting", "shape": { "by_condition": { "C1": { "c1_gatemem": "safety" }, "C2": { "ref": "h1-cost:measured.gatemem.C2.full_set.safety" }, "C5": { "envelope": { "low": "h1-cost:measured.gatemem.C5.full_set.safety", "high": "h1-cost:measured.gatemem.C2.full_set.safety" } } } } },
+              { "weight": "h1-cost:sizes.gatemem.item_kinds.utility", "shape": { "by_condition": { "C1": { "c1_gatemem": "utility" }, "C2": { "ref": "h1-cost:measured.gatemem.C2.full_set.utility" }, "C5": { "envelope": { "low": "h1-cost:measured.gatemem.C5.full_set.utility", "high": "h1-cost:measured.gatemem.C2.full_set.utility" } } } } }
+            ]
+          }
+        }
+      ],
+      "judge": { "model": "openrouter/openai/gpt-4o", "attempts": { "low": 1, "high": 3 }, "shape": { "single": "h1-cost:measured.judge" } }
+    },
+    {
+      "id": "h2-subset-longmemeval",
+      "hypothesis": "H2",
+      "benchmark": "longmemeval",
+      "conditions": ["C1", "C2", "C5"],
+      "presets": ["strict", "medium", "permissive"],
+      "store": "mem0",
+      "roles": ["M2", "M3"],
+      "seeds": [1, 2, 3],
+      "status": "estimated from the design: about 200 LongMemEval questions per model (pre-registration, Models), no config is written; C1 is not built",
+      "count": "200 questions per model at C1, C2 and C5 at each preset, three seeds; C1 and C2 counted once",
+      "groups": [
+        {
+          "kind": "question",
+          "items": 200,
+          "shape": { "by_condition": { "C1": { "c1_longmemeval": true }, "C2": { "ref": "h2-longmemeval-cost:measured.c2.full_set" }, "C5": { "envelope": { "low": "h2-longmemeval-cost:measured.c5-medium.full_set", "high": "h2-longmemeval-cost:measured.c2.full_set" } } } }
+        }
+      ],
+      "judge": { "model": "openrouter/openai/gpt-4o-2024-08-06", "attempts": { "low": 1, "high": 1 }, "shape": { "single": "h2-longmemeval-cost:measured.judge" } }
+    },
+    {
+      "id": "h2-subset-merit",
+      "hypothesis": "H2",
+      "benchmark": "merit",
+      "conditions": ["C1", "C2", "C5"],
+      "presets": ["strict", "medium", "permissive"],
+      "store": "mem0",
+      "roles": ["M2", "M3"],
+      "seeds": [1, 2, 3],
+      "status": "estimated from the design: about 50 MERIT tasks per model (pre-registration, Models), no harness is built",
+      "count": "50 episodes per model at C1, C2 and C5 at each preset, three seeds; C1 and C2 counted once",
+      "groups": [{ "kind": "episode", "items": 50, "shape": { "by_condition": { "C1": { "design": "merit-episode-c1" }, "C2": { "design": "merit-episode" }, "C5": { "design": "merit-episode" } } } }]
+    },
+    {
+      "id": "h3-longmemeval-c5",
+      "hypothesis": "H3",
+      "benchmark": "longmemeval",
+      "conditions": ["C5"],
+      "preset": "medium",
+      "store": "mem0",
+      "role": "M1",
+      "seeds": [1, 2, 3],
+      "status": "built",
+      "shared_with": "h2-longmemeval",
+      "count": "H2's C5 baseline at medium, the same cells, so no new call",
+      "groups": [{ "kind": "question", "items": "h2-longmemeval-cost:measured.full_set.questions", "shape": { "ref": "h2-longmemeval-cost:measured.c5-medium.full_set" } }],
+      "judge": { "model": "openrouter/openai/gpt-4o-2024-08-06", "attempts": { "low": 1, "high": 1 }, "shape": { "single": "h2-longmemeval-cost:measured.judge" } }
+    },
+    {
+      "id": "h3-longmemeval-c6",
+      "hypothesis": "H3",
+      "benchmark": "longmemeval",
+      "conditions": ["C6"],
+      "preset": "medium",
+      "store": "mem0",
+      "role": "M1",
+      "seeds": [1, 2, 3],
+      "status": "estimated from the design: C6 is not built (packages/runner/src/config.ts stops at C5)",
+      "count": "the 500 questions, three seeds; the deterministic lints call no model, so a session has C5's shape",
+      "groups": [{ "kind": "question", "items": "h2-longmemeval-cost:measured.full_set.questions", "shape": { "ref": "h2-longmemeval-cost:measured.c5-medium.full_set" } }],
+      "judge": { "model": "openrouter/openai/gpt-4o-2024-08-06", "attempts": { "low": 1, "high": 1 }, "shape": { "single": "h2-longmemeval-cost:measured.judge" } }
+    },
+    {
+      "id": "h3-lint-model",
+      "hypothesis": "H3",
+      "benchmark": "fault-set",
+      "conditions": ["model-lints"],
+      "preset": "medium",
+      "store": "none",
+      "role": "M1",
+      "seeds": [1, 2, 3],
+      "status": "built",
+      "count": "make run CONFIG=research/configs/h3-lint-model.json COUNT=1, as research/results/h3-lint-floor.json records it (model_run): calls and prompt characters; the reply length is assumed (lint_output_tokens), not measured",
+      "groups": [{ "kind": "lint call", "items": 1, "shape": { "lint_model": "h3-lint-floor:model_run" } }]
+    },
+    {
+      "id": "h4-gatemem",
+      "hypothesis": "H4",
+      "benchmark": "gatemem",
+      "arms": [
+        { "condition": "C5", "store": "files", "role": "M1", "utility": true, "status": "estimated from the design: the files store joins the runner in card X9" },
+        { "condition": "C5", "store": "mem0", "role": "M1", "utility": true, "status": "built (the probe), no config is written" },
+        { "condition": "C5", "store": "letta", "role": "M1", "utility": true, "status": "built (the probe), no config is written" },
+        { "condition": "C5", "store": "mem0", "role": "M2", "status": "built (the probe), no config is written" },
+        { "condition": "C5", "store": "mem0", "role": "M3", "status": "built (the probe), no config is written" },
+        { "condition": "C2", "store": "mem0", "role": "M1", "status": "built (the probe), no config is written" },
+        { "condition": "C7", "store": "mem0", "role": "M1", "status": "estimated from the design: C7 is not built" }
+      ],
+      "preset": "medium",
+      "seeds": [1, 2, 3],
+      "status": "per arm",
+      "count": "761 access and forgetting checkpoints per arm (pre-registration, H4; the draw is fixed in card X9), three seeds, the shape the two kinds' mean; the store arms also read the 728 utility checkpoints for the utility gap; C7 reads unfiltered, so C2's shape. Counted as new: whether the mem0 arms on M1 reuse H1's cells depends on X9's draw",
+      "groups": [
+        {
+          "kind": "violation",
+          "items": 761,
+          "shape": {
+            "mix": [
+              { "weight": "h1-cost:sizes.gatemem.item_kinds.access control", "shape": { "ref": "h1-cost:measured.gatemem.{read_condition}.full_set.privacy" } },
+              { "weight": "h1-cost:sizes.gatemem.item_kinds.active forgetting", "shape": { "ref": "h1-cost:measured.gatemem.{read_condition}.full_set.safety" } }
+            ]
+          }
+        },
+        { "kind": "utility", "arm_utility": true, "items": "h1-cost:sizes.gatemem.item_kinds.utility", "shape": { "ref": "h1-cost:measured.gatemem.{read_condition}.full_set.utility" } }
+      ],
+      "judge": { "model": "openrouter/openai/gpt-4o", "attempts": { "low": 1, "high": 3 }, "shape": { "single": "h1-cost:measured.judge" } }
+    },
+    {
+      "id": "h4-memoryagentbench",
+      "hypothesis": "H4",
+      "benchmark": "memoryagentbench",
+      "arms": [
+        { "condition": "C5", "store": "files", "role": "M1", "utility": true },
+        { "condition": "C5", "store": "mem0", "role": "M1", "utility": true },
+        { "condition": "C5", "store": "letta", "role": "M1", "utility": true },
+        { "condition": "C5", "store": "mem0", "role": "M2" },
+        { "condition": "C5", "store": "mem0", "role": "M3" },
+        { "condition": "C2", "store": "mem0", "role": "M1" },
+        { "condition": "C7", "store": "mem0", "role": "M1" }
+      ],
+      "preset": "medium",
+      "seeds": [1, 2, 3],
+      "status": "estimated from the design: no MemoryAgentBench harness is built, and its violation is not defined (RV-DES-7)",
+      "count": "761 Conflict Resolution questions per arm (its 8 rows hold about 100 questions each, from the paper, not counted from the pinned data), three seeds, and 761 Accurate Retrieval questions on the store arms for the utility gap; context chunks are written by the runner, not by a model call; the scoring is deterministic, so no judge is counted (its LongMemEval subset's gpt-4o judge is left out)",
+      "groups": [
+        { "kind": "conflict resolution", "items": 761, "shape": { "design": "mab-question" } },
+        { "kind": "accurate retrieval", "arm_utility": true, "items": 761, "shape": { "design": "mab-question" } }
+      ]
+    },
+    {
+      "id": "h5-tau2",
+      "hypothesis": "H5",
+      "benchmark": "tau2-bench",
+      "conditions": ["C1", "C2", "C5"],
+      "preset": "medium",
+      "store": "mem0",
+      "role": "M1",
+      "seeds": [1, 2, 3],
+      "status": "estimated from the design: no tau2 harness, no train and test split, no user-simulator model is fixed (RV-DES-5)",
+      "count": "every base task of airline (50) and retail (114) at v1.0.1 (packages/bench/PINS.md), since the test splits are not defined: an upper bound; three seeds",
+      "groups": [
+        { "kind": "airline", "items": 50, "shape": { "design": "tau2-agent-episode" } },
+        { "kind": "retail", "items": 114, "shape": { "design": "tau2-agent-episode" } }
+      ]
+    },
+    {
+      "id": "h5-tau2-user",
+      "hypothesis": "H5",
+      "benchmark": "tau2-bench",
+      "conditions": ["C1", "C2", "C5"],
+      "preset": "medium",
+      "store": "none",
+      "model": "openrouter/openai/gpt-4.1",
+      "seeds": [1, 2, 3],
+      "status": "estimated from the design: the simulator model is not fixed; priced as upstream's default, gpt-4.1",
+      "count": "one simulated user per agent episode",
+      "groups": [
+        { "kind": "airline", "items": 50, "shape": { "design": "tau2-user-episode" } },
+        { "kind": "retail", "items": 114, "shape": { "design": "tau2-user-episode" } }
+      ]
+    },
+    {
+      "id": "h5-tau2-judge",
+      "hypothesis": "H5",
+      "benchmark": "tau2-bench",
+      "conditions": ["C1", "C2", "C5"],
+      "preset": "none",
+      "store": "none",
+      "model": "openrouter/openai/gpt-4.1",
+      "seeds": [1, 2, 3],
+      "status": "estimated from the design: tau2's retail NL assertions, judged by gpt-4.1-2025-04-14 upstream",
+      "count": "one judge call per retail episode",
+      "groups": [{ "kind": "retail", "items": 114, "shape": { "design": "tau2-retail-judge" } }]
+    },
+    {
+      "id": "h5-tau2-induction",
+      "hypothesis": "H5",
+      "benchmark": "tau2-bench",
+      "conditions": ["C2", "C5"],
+      "preset": "medium",
+      "store": "none",
+      "role": "M1",
+      "seeds": [1, 2, 3],
+      "status": "estimated from the design: the induction (ADR 0012) runs over recorded trajectories, whose source is not fixed",
+      "count": "one induction call per task trajectory, both domains, three seeds, under C2 and C5 (the same method in both)",
+      "groups": [{ "kind": "trajectory", "items": 164, "shape": { "design": "tau2-induction" } }]
+    },
+    {
+      "id": "h5-tau2-replay",
+      "hypothesis": "H5",
+      "benchmark": "tau2-bench",
+      "conditions": ["C5"],
+      "preset": "medium",
+      "store": "mem0",
+      "role": "M1",
+      "seeds": [1, 2, 3],
+      "status": "estimated from the design: replay validation admits a procedure at 4 of 5 runs; the number of candidates is not known",
+      "count": "replay_n = 5 episodes per candidate procedure; 20 candidates per seed taken here (100 episodes a seed), each an agent episode; their simulated users are in h5-tau2-replay-user",
+      "groups": [{ "kind": "replay episode", "items": 100, "shape": { "design": "tau2-agent-episode" } }]
+    },
+    {
+      "id": "h5-tau2-replay-user",
+      "hypothesis": "H5",
+      "benchmark": "tau2-bench",
+      "conditions": ["C5"],
+      "preset": "none",
+      "store": "none",
+      "model": "openrouter/openai/gpt-4.1",
+      "seeds": [1, 2, 3],
+      "status": "estimated from the design: as h5-tau2-replay",
+      "count": "one simulated user per replay episode",
+      "groups": [{ "kind": "replay episode", "items": 100, "shape": { "design": "tau2-user-episode" } }]
+    },
+    {
+      "id": "l3-pilot",
+      "hypothesis": "H3",
+      "benchmark": "lint-faults",
+      "conditions": ["model-lints"],
+      "preset": "none",
+      "store": "none",
+      "role": "M1",
+      "seeds": [1, 2, 3],
+      "status": "built",
+      "count": "make run CONFIG=research/configs/l3-pilot.json COUNT=1, run by this script: the variance pilot before H3's model tier",
+      "groups": [{ "kind": "lint call", "items": 1, "shape": { "count_lint": "l3-pilot" } }]
+    }
+  ],
+  "options": {
+    "item_1": {
+      "a": { "M1": "openrouter/openai/gpt-5.6-terra", "M2": "openrouter/mistralai/mistral-large-4-0", "M3": "openrouter/deepseek/deepseek-v4-pro-0813" },
+      "b-deepseek": { "M1": "openrouter/deepseek/deepseek-v4-pro-0813", "M2": "openrouter/mistralai/mistral-large-4-0", "M3": "openrouter/openai/gpt-5.6-terra" },
+      "b-mistral": { "M1": "openrouter/mistralai/mistral-large-4-0", "M2": "openrouter/deepseek/deepseek-v4-pro-0813", "M3": "openrouter/openai/gpt-5.6-terra" },
+      "c-luna": { "M1": "openrouter/openai/gpt-6-luna", "M2": "openrouter/mistralai/mistral-large-4-0", "M3": "openrouter/deepseek/deepseek-v4-pro-0813" },
+      "c-mistral-small": { "M1": "openrouter/mistralai/mistral-small-2603", "M2": "openrouter/mistralai/mistral-large-4-0", "M3": "openrouter/deepseek/deepseek-v4-pro-0813" }
+    },
+    "item_1_note": "Item 1's option (b) names only M1; the other two models keep their makers and take the other two roles. Option (c) names no small model; gpt-6-luna and mistral-small-2603 bound the range item 1 quotes, with M2 and M3 as in (a).",
+    "item_2": {
+      "a": "H1 runs its 728 utility checkpoints (MGS), and H2's GateMem C2 and C5 at medium reuse every H1 cell",
+      "b": "H1 drops its utility checkpoints; H2 still needs them for U, so its C2 and C5 utility cells at medium become new calls"
+    },
+    "item_47": {
+      "a": "decided with the spend: priced as registered (c)",
+      "b": { "share": 0.5, "text": "a seeded 250-question subset by amendment: calls in proportion to the questions, 0.5 of the full run (the L4 review's table gives about 47,600)" },
+      "c": "all 500 questions, as registered: 95,217 calls"
+    }
+  },
+  "assumptions": [
+    "Every token count follows research/scripts/h1_cost.py: pi's own estimate, characters over four, and the high estimate counts three characters per token (token_scale 4/3) on input and output alike.",
+    "Measured shapes come from the committed results named in inputs, each checked against its sha256 in research/results/MANIFEST.md; a run marked estimated from the design takes its shape from design_shapes or from the nearest measured condition, as its count says.",
+    "Reasoning output tokens per call of the model under test, where pi-ai sends an off it honours: 0 (low) and 1,024 (high); where off is ignored: 256 and 4,096 (research/configs/h1-cost.json). Which applies is the pi-ai catalogue's flag in research/results/h1-cost.json. Judges and simulators reason not at all.",
+    "GateMem's judge makes one to three attempts per session (upstream's retries); LongMemEval's one call per session.",
+    "No prompt caching, batch discount or provider minimum; HTTP retries are not counted; prices are OpenRouter's list prices on the day fetched (research/configs/openrouter-prices.json), and the pi-ai 1.3.0 catalogue's (2026-10-15) are given for the totals beside them.",
+    "A row marked shared_with makes no new call under rule 7 (a re-run with the same cells is a cache hit) and enters no total, except where an option of item 2 makes it new.",
+    "The ceiling per run is ceiling_factor times its high estimate (card RV1, lead-decisions item 3a)."
+  ]
+}
