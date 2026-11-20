@@ -1,0 +1,11 @@
+{
+  "name": "h1-figure",
+  "kind": "figure",
+  "hypothesis": "H1",
+  "table": "research/results/h1-table.json",
+  "how_to": [
+    "H1's figure, drawn from the main H1 table: per arm (GateMem's primary set, then MEM-INV-Bench), the violation rate of C2 to C5 on the primary model with its Wilson 95 percent interval, and C4 minus C5 with its BCa interval, one-sided p-value and relative reduction; the caption gives H1's decision.",
+    "make h1-figure, after make h1-table has written research/results/h1-table.json: writes research/results/h1-figure.svg. The SVG is written by hand, byte-stable, and records the table's sha256 in its desc.",
+    "No figure from fixture or planted data goes into research/results/."
+  ]
+}

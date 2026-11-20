@@ -88,7 +88,8 @@ dict:
   C5): its item count `n`, the (item, seed) sessions dropped because either
   condition excluded or lacked them, mean difference, BCa and percentile
   intervals, one-sided p-value, z0 and acceleration. Only the tested contrast
-  enters a decision.
+  enters a decision. Table version 3 adds `effect` to each contrast, its
+  effect sizes, proposed and not registered (`analysis.effects`, card X4).
 - `primary`, `holm` and `decision`: see `decide_h1`; in the main table
   only.
 - `gate_by_action`: the config's setting, which every session must share:
@@ -129,6 +130,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -145,14 +147,14 @@ from analysis.bootstrap import (
     paired_bootstrap,
     paired_item_differences,
 )
-from analysis.holm import holm
+from analysis.effects import relative_reduction
+from analysis.holm import HYPOTHESES, holm, interim_bound
 from analysis.wilson import wilson
 
 SESSIONS_SCHEMA = "h1-sessions/2"
-TABLE_SCHEMA = "h1-table/2"
+TABLE_SCHEMA = "h1-table/3"
 BENCHMARKS = ("gatemem", "mem-inv-bench")
 CONDITIONS = ("C2", "C3", "C4", "C5")
-HYPOTHESES = ("H1", "H2", "H3", "H4", "H5")
 FIELDS = ("benchmark", "model", "store", "preset", "condition", "item", "seed", "violation")
 OPTIONAL = (
     "exclusion",
@@ -321,6 +323,8 @@ def decide_h1(
     enforcement violated more than instruction; it is "absent" when that arm
     has no contrast.
     """
+    if secondary_high is not None and not math.isfinite(secondary_high):
+        raise ValueError(f"the secondary arm's interval end is {secondary_high}, not a number")
     others = dict(other_primary_p or {})
     if others and set(others) != set(HYPOTHESES[1:]):
         raise ValueError(
@@ -336,7 +340,7 @@ def decide_h1(
             "others": others,
         }
     else:
-        adjusted = min(1.0, len(HYPOTHESES) * p)
+        adjusted = interim_bound(p)
         if adjusted < alpha:
             primary = "supported"
         elif p >= alpha:
@@ -443,6 +447,13 @@ def _rates_and_contrasts(
                     "tested": name == config.tested,
                     "seeds_dropped": len(either) - len(kept),
                     **asdict(result),
+                    "effect": relative_reduction(
+                        first,
+                        second,
+                        seed=_seed_for(config.seed, benchmark, model, name, "effect", tag),
+                        resamples=config.resamples,
+                        confidence=config.confidence,
+                    ),
                 }
             )
 
