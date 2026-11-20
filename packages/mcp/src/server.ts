@@ -62,7 +62,17 @@ export interface McpOptions {
   now: () => string;
   /** A fresh UUIDv7 for each item written. */
   newId: () => string;
+  /**
+   * The most calls one server (one MCP session) records for memory_simulate;
+   * default MAX_SESSION_STEPS. Past it, no more are kept and memory_simulate
+   * refuses, rather than replay a workload cut short (review fix pass of PR
+   * #59, RV5-5).
+   */
+  maxSteps?: number;
 }
+
+/** The default bound on one session's recorded calls. */
+export const MAX_SESSION_STEPS = 10_000;
 
 export const SERVER_INFO = { name: "engram", version: "0.0.0" };
 
@@ -105,6 +115,12 @@ export function createMcpServer(options: McpOptions): Server {
   const agent: Actor = { ...options.actor, source: "model" };
   /** The Plane calls this server made, in order: memory_simulate's workload (card E8.9). */
   const steps: WorkloadStep[] = [];
+  const maxSteps = options.maxSteps ?? MAX_SESSION_STEPS;
+  let overflowed = false;
+  const record = (step: WorkloadStep) => {
+    if (steps.length < maxSteps) steps.push(step);
+    else overflowed = true;
+  };
 
   const server = new Server(SERVER_INFO, { capabilities: { tools: {} } });
   server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: toolList() }));
@@ -153,7 +169,7 @@ export function createMcpServer(options: McpOptions): Server {
           item: MemoryItem | null;
           event: MemoryEvent;
         };
-        steps.push({
+        record({
           op: "write",
           as: "agent",
           at: event.ts,
@@ -172,7 +188,7 @@ export function createMcpServer(options: McpOptions): Server {
           filtered: number;
           event: MemoryEvent;
         };
-        steps.push({ op: "read", as: "agent", at: r.event.ts, text: String(args.query) });
+        record({ op: "read", as: "agent", at: r.event.ts, text: String(args.query) });
         // The read event's reason counts items out of reach; it is kept from the model.
         return text(
           tagRecall(
@@ -191,6 +207,11 @@ export function createMcpServer(options: McpOptions): Server {
       }
       case "memory_simulate": {
         // Replayed on scratch logs and stores: this server's own calls only.
+        if (overflowed)
+          return text(
+            `memory_simulate: this session made more than ${maxSteps} calls, the most it records; a replay of only some of them would not be this session's, so start a new session to simulate`,
+            true,
+          );
         const candidate =
           args.candidate === undefined ? undefined : loadPreset(args.candidate as PresetName);
         const answer = await client.POST("/api/v1/simulate", {

@@ -10,7 +10,10 @@
 // a stateless transport built a server per request, so memory_simulate
 // replayed an empty workload), and stdio answers the calls in flight when
 // its input ends before it closes (RV-SRF-7: their replies were dropped,
-// though their writes had committed).
+// though their writes had committed). Review fix pass of PR #59 (RV5-5):
+// HTTP sessions are capped, the least recently used evicted, idle ones
+// expired at an injectable clock, and an ended session's next request is
+// told why; stdio's drain timer is injectable.
 import { randomUUID } from "node:crypto";
 import type { AddressInfo } from "node:net";
 import type { Readable, Writable } from "node:stream";
@@ -36,6 +39,12 @@ export const MCP_PATH = "/mcp";
 /** How long stdio waits, after its input ends, for the replies of calls in flight. */
 export const STDIO_DRAIN_MS = 30_000;
 
+/** The timer stdio's drain waits on; injected by tests (review fix pass of PR #59, RV5-5). */
+export interface DrainTimers {
+  setTimeout(fire: () => void, ms: number): unknown;
+  clearTimeout(timer: unknown): void;
+}
+
 /**
  * Serves `server` over stdio until the client closes the stream or `stop` is
  * aborted. When the input ends, the calls already received are answered
@@ -47,6 +56,7 @@ export async function serveStdio(
   stdin: Readable,
   stdout: Writable,
   stop?: AbortSignal,
+  timers: DrainTimers = { setTimeout, clearTimeout },
 ): Promise<void> {
   const transport = new StdioServerTransport(stdin, stdout);
   const closed = new Promise<"end" | "close">((done) => {
@@ -80,33 +90,95 @@ export async function serveStdio(
   };
   await server.connect(transport);
   if ((await closed) === "end" && inFlight > 0 && !stop?.aborted) {
-    let timer: ReturnType<typeof setTimeout> | undefined;
+    let timer: unknown;
     await new Promise<void>((done) => {
       drained = done;
-      timer = setTimeout(done, STDIO_DRAIN_MS);
+      timer = timers.setTimeout(done, STDIO_DRAIN_MS);
       stop?.addEventListener("abort", () => done(), { once: true });
     });
-    clearTimeout(timer);
+    timers.clearTimeout(timer);
   }
   await server.close();
 }
 
-/** How many MCP sessions the HTTP transport keeps; the oldest is closed past it. */
+/** How many MCP sessions the HTTP transport keeps; the least recently used is closed past it. */
 export const MAX_HTTP_SESSIONS = 64;
+
+/** How long an MCP session may go without a request before it is closed. */
+export const MCP_IDLE_MS = 30 * 60_000;
+
+/** How many ended session ids the transport remembers, to say why each ended. */
+const ENDED_KEPT = 1024;
+
+/** The HTTP transport's session limits (review fix pass of PR #59, RV5-5). */
+export interface HttpSessionOptions {
+  /** Sessions kept at once; the least recently used is evicted past it. Default MAX_HTTP_SESSIONS. */
+  maxSessions?: number;
+  /** A session with no request for this long is closed. Default MCP_IDLE_MS. */
+  idleMs?: number;
+  /** The idle clock, in milliseconds; the wall clock unless a test injects one. */
+  now?: () => number;
+}
+
+const sessionEnded = (message: string) =>
+  Response.json({ jsonrpc: "2.0", error: { code: -32001, message }, id: null }, { status: 404 });
+
+interface LiveSession {
+  transport: WebStandardStreamableHTTPServerTransport;
+  seen: number;
+}
 
 /**
  * A Hono app with the streamable HTTP endpoint at MCP_PATH behind the
  * loopback guard. One server and transport per MCP session (the SDK's
  * stateful pattern): an initialize request with no `mcp-session-id` starts
- * one, later requests name it, and a DELETE or MAX_HTTP_SESSIONS newer
- * sessions end it. A server holds its session's own calls, so memory_simulate
- * replays that session's workload (card RV5, RV-SRF-6). Answers are JSON,
- * not a stream. Session ids are random UUIDs; they identify a session, they
- * do not authenticate it (loopback only, ADR 0027 decision 4).
+ * one, later requests name it, and a DELETE ends it. A server holds its
+ * session's own calls, so memory_simulate replays that session's workload
+ * (card RV5, RV-SRF-6). Answers are JSON, not a stream. Session ids are
+ * random UUIDs; they identify a session, they do not authenticate it
+ * (loopback only, ADR 0027 decision 4).
+ *
+ * Bounds (review fix pass of PR #59, RV5-5): at most `maxSessions` are kept,
+ * the least recently used evicted past it, and one idle for `idleMs` is
+ * closed; a request naming an evicted or expired session is answered 404
+ * with why, so a client knows to start a new one, where one the server never
+ * held is "Session not found". Each session's own steps are bounded by its
+ * server (createMcpServer's maxSteps).
  */
-export function mcpHttpApp(makeServer: () => Server, port: number): Hono {
+export function mcpHttpApp(
+  makeServer: () => Server,
+  port: number,
+  options: HttpSessionOptions = {},
+): Hono {
+  const maxSessions = options.maxSessions ?? MAX_HTTP_SESSIONS;
+  const idleMs = options.idleMs ?? MCP_IDLE_MS;
+  const now = options.now ?? Date.now;
   const app = new Hono();
-  const sessions = new Map<string, WebStandardStreamableHTTPServerTransport>();
+  /** Live sessions, least recently used first (a Map keeps insertion order). */
+  const sessions = new Map<string, LiveSession>();
+  /** Why each recently ended session ended. */
+  const ended = new Map<string, string>();
+  const end = (sid: string, why: string) => {
+    const live = sessions.get(sid);
+    if (live === undefined) return;
+    sessions.delete(sid);
+    ended.set(sid, why);
+    for (const old of [...ended.keys()]) {
+      if (ended.size <= ENDED_KEPT) break;
+      ended.delete(old);
+    }
+    void live.transport.close();
+  };
+  const expireIdle = () => {
+    const t = now();
+    for (const [sid, live] of [...sessions]) {
+      if (t - live.seen > idleMs)
+        end(
+          sid,
+          `Session expired: it had no request for more than ${idleMs} ms (idle) and was closed; start a new session`,
+        );
+    }
+  };
   app.use("*", loopbackGuard(port));
   // The same cap as the HTTP API's (review finding R3-12).
   app.use(
@@ -126,15 +198,16 @@ export function mcpHttpApp(makeServer: () => Server, port: number): Hono {
     }),
   );
   app.all(MCP_PATH, async (c) => {
+    expireIdle();
     const id = c.req.header("mcp-session-id");
     if (id !== undefined) {
       const known = sessions.get(id);
-      if (known === undefined)
-        return Response.json(
-          { jsonrpc: "2.0", error: { code: -32001, message: "Session not found" }, id: null },
-          { status: 404 },
-        );
-      return known.handleRequest(c.req.raw);
+      if (known === undefined) return sessionEnded(ended.get(id) ?? "Session not found");
+      // The most recently used goes last.
+      sessions.delete(id);
+      known.seen = now();
+      sessions.set(id, known);
+      return known.transport.handleRequest(c.req.raw);
     }
     // No session named: the transport answers an initialize request with a
     // new session id and refuses anything else, and only an initialized
@@ -144,11 +217,13 @@ export function mcpHttpApp(makeServer: () => Server, port: number): Hono {
         sessionIdGenerator: () => randomUUID(),
         enableJsonResponse: true,
         onsessioninitialized: (sid) => {
-          sessions.set(sid, transport);
-          for (const [old, t] of sessions) {
-            if (sessions.size <= MAX_HTTP_SESSIONS) break;
-            sessions.delete(old);
-            void t.close();
+          sessions.set(sid, { transport, seen: now() });
+          for (const old of [...sessions.keys()]) {
+            if (sessions.size <= maxSessions) break;
+            end(
+              old,
+              `Session evicted: the server keeps at most ${maxSessions} sessions and closed this one, the least recently used; start a new session`,
+            );
           }
         },
         onsessionclosed: (sid) => {
@@ -174,7 +249,7 @@ export interface HttpListening {
 /** Serves streamable HTTP on a loopback address; any other host is a UsageError. */
 export function serveHttp(
   makeServer: () => Server,
-  options: { host?: string; port: number },
+  options: { host?: string; port: number } & HttpSessionOptions,
 ): Promise<HttpListening> {
   const host = options.host ?? "127.0.0.1";
   if (!isLoopbackHost(host))
@@ -196,7 +271,8 @@ export function serveHttp(
           reject(notLoopbackBound(info.address));
           return;
         }
-        app = mcpHttpApp(makeServer, info.port);
+        const { host: _host, port: _port, ...limits } = options;
+        app = mcpHttpApp(makeServer, info.port, limits);
         const name = host.includes(":") ? `[${host}]` : host;
         resolveListening({
           url: `http://${name}:${info.port}${MCP_PATH}`,
