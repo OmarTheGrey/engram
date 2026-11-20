@@ -241,6 +241,11 @@ export function reviewerProblem(
     return `${actor.id} confirmed item ${item.id} by restating it and cannot also approve its promotion`;
   if (actor.source !== "user")
     return `${actor.id} acts with source ${actor.source ?? "none"}; only a user-sourced actor can approve`;
+  // Defence in depth (card RV7, core review finding RV-CORE-9): within
+  // evaluatePromotion this never decides, since the promoted item is first
+  // judged as a write into the target, whose membership check refuses a
+  // non-member. It stays so the rule holds for any other caller of this
+  // exported function, and reads as ADR 0026 states it.
   if (!actor.memberships.includes(target))
     return `${actor.id} is not a member of ${target}, so cannot approve a promotion into it`;
   return null;
