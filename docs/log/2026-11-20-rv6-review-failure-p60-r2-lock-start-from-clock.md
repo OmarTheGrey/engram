@@ -16,6 +16,6 @@ supersedes: none
 
 **Why.** A clock step of more than 2 s during a long run made a live holder's start differ from the lock's, so the lock was judged gone: the one way it failed open.
 
-**Result.** The start is now absolute: /proc/<pid>/stat starttime plus btime on Linux, ps lstart elsewhere, CIM on Windows as before. The reader is injectable (lockedBy and the journal's startOf). Tests: a matching live holder is kept, a mismatching one taken over, an unreadable one kept; the stat parser is checked on a comm with parentheses. Mutations: treating unreadable as gone fails the first, reading field 21 fails the parser test.
+**Result.** The start is now absolute: /proc/<pid>/stat starttime plus btime on Linux, ps lstart elsewhere, CIM on Windows as before. The reader is injectable (lockedBy and the journal's startOf). Tests: a matching holder is kept, a mismatching one taken over, an unreadable one kept; the parser is checked. Both mutations fail them.
 
 **Consequence.** A clock step no longer frees a live lock by itself; btime is derived from the clock on Linux, so a step between the lock's write and its read can still shift it, which the 2 s slack does not cover.
