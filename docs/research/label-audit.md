@@ -116,7 +116,7 @@ H2 and H3 run on LongMemEval, so its 50 items are audited before their first run
 - **The rule.** As on MEM-INV-Bench: an item is rejected when `reject_quorum` members label its answerability otherwise than the benchmark, or that many answer `no` on its key. Two of one kind are needed.
 - **The stop.** `stop` is true at 6 or more of the 50 rejected.
 
-Draw, fill and compare exactly as in Steps above, with `--config research/configs/label-audit-longmemeval.json` in each command. The draw itself is recorded without any id, label or key, as counts per kind and each reference's context sha256: `research/results/label-audit-longmemeval.json` (and H1's draw, `research/results/label-audit.json`), from `research/scripts/label_audit_draw.py`. Check that your context files hash to it before you start.
+Draw, fill and compare exactly as in Steps above, with `--config research/configs/label-audit-longmemeval.json` in each command. The draw itself is recorded without any id, label or key, as counts per kind and each reference's context sha256: `research/results/h2-label-audit-longmemeval.json` (and H1's draw, `research/results/h1-label-audit.json`), from `research/scripts/label_audit_draw.py`. Check that your context files hash to it before you start.
 
 ## Files
 
@@ -124,7 +124,7 @@ Draw, fill and compare exactly as in Steps above, with `--config research/config
 - `research/scripts/label_audit_sample.py`: the draw, the blind phase-1 sheets and contexts, and the phase-2 key sheets.
 - `research/scripts/label_audit_agreement.py`: the agreement, with labels from the draw, and the stopping rule.
 - `research/configs/label-audit-longmemeval.json`: LongMemEval's audit, with the same seed, members, rule and response.
-- `research/scripts/label_audit_draw.py`: the draw as a committed record with no label (`research/results/label-audit.json`, `research/results/label-audit-longmemeval.json`).
+- `research/scripts/label_audit_draw.py`: the draw as a committed record with no label (`research/results/h1-label-audit.json`, `research/results/h2-label-audit-longmemeval.json`).
 - `research/tests/test_label_audit.py`. It checks:
   - that each phase-1 context equals what an agent sees, rebuilt from the data, so nothing appended to it passes;
   - that no phase-1 sheet or context holds an item's label, key, family or kind;

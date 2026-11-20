@@ -2,7 +2,7 @@
 
 Usage:
     uv run python research/scripts/cost_table.py \\
-        --config research/configs/cost-table.json --out research/results/cost-table.json
+        --config research/configs/cost-table.json --out research/results/h2-cost-table.json
 
 One row per run of the pre-registration, H1 to H5: each benchmark, condition,
 preset, store and model role, its seeds, and its judge, simulator or lint calls

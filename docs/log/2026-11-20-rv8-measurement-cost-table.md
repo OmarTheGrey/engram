@@ -7,12 +7,12 @@ chapter: evaluation
 pillar: research
 hypothesis: none
 evidence:
-  - research/results/cost-table.json
-  - "uv run python research/scripts/cost_table.py --config research/configs/cost-table.json --out research/results/cost-table.json"
+  - research/results/h2-cost-table.json
+  - "uv run python research/scripts/cost_table.py --config research/configs/cost-table.json --out research/results/h2-cost-table.json"
 supersedes: none
 ---
 
-**What.** The full cost table, MANIFEST row research/results/cost-table.json.
+**What.** The full cost table, MANIFEST row research/results/h2-cost-table.json.
 
 **Why.** RV-DES-20; lead-decisions items 1, 2, 3 and 47.
 

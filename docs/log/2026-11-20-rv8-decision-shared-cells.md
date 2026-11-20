@@ -8,7 +8,7 @@ pillar: research
 hypothesis: none
 evidence:
   - research/configs/cost-table.json
-  - research/results/cost-table.json
+  - research/results/h2-cost-table.json
 supersedes: none
 ---
 

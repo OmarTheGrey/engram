@@ -7,12 +7,12 @@ chapter: evaluation
 pillar: research
 hypothesis: H2
 evidence:
-  - research/results/label-audit-longmemeval.json
-  - "uv run python research/scripts/label_audit_draw.py --config research/configs/label-audit-longmemeval.json --out research/results/label-audit-longmemeval.json"
+  - research/results/h2-label-audit-longmemeval.json
+  - "uv run python research/scripts/label_audit_draw.py --config research/configs/label-audit-longmemeval.json --out research/results/h2-label-audit-longmemeval.json"
 supersedes: none
 ---
 
-**What.** LongMemEval's audit draw recorded without any id, label or key, MANIFEST row research/results/label-audit-longmemeval.json.
+**What.** LongMemEval's audit draw recorded without any id, label or key, MANIFEST row research/results/h2-label-audit-longmemeval.json.
 
 **Why.** RV-DES-17; the members' sheets and context files can be checked against a committed draw before the audit.
 

@@ -3,7 +3,7 @@
 Usage:
     uv run python research/scripts/label_audit_draw.py \\
         --config research/configs/label-audit-longmemeval.json \\
-        --out research/results/label-audit-longmemeval.json
+        --out research/results/h2-label-audit-longmemeval.json
 
 The sampler (research/scripts/label_audit_sample.py `draw`) is the only place
 the audit's items are drawn; this script records what it drew so the sheets

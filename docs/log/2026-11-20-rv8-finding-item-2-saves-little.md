@@ -7,7 +7,7 @@ chapter: evaluation
 pillar: research
 hypothesis: H1
 evidence:
-  - research/results/cost-table.json
+  - research/results/h2-cost-table.json
 supersedes: none
 ---
 
