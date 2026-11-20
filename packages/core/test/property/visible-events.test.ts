@@ -33,6 +33,27 @@ const SCOPES = ["org", "person:a", "person:b", "role:a", "role:b", "team:a", "te
 const OTHERS = ["person:x", "person:y", "agent:pi"];
 const CASES = ["own", "from-member", "to-member", "foreign", "unscoped"] as const;
 type Case = (typeof CASES)[number];
+/**
+ * Whether a case's event is shown. The viewer's own event is shown when it
+ * names no scope or a scope the viewer may read (review finding RV7-R2 of
+ * PR #61: a role context under the person's own id sees no person-scope
+ * event); every other case by construction.
+ */
+function expectedShown(
+  c: { case: Case; scopes: readonly [string | null, string | null] },
+  viewer: Actor,
+  policy: Policy,
+): boolean {
+  if (c.case !== "own") return SHOWN[c.case];
+  const [from, to] = c.scopes;
+  const inside = readableScopes(viewer, policy);
+  return (
+    (from === null && to === null) ||
+    (from !== null && inside.includes(from)) ||
+    (to !== null && inside.includes(to))
+  );
+}
+
 const SHOWN: Record<Case, boolean> = {
   own: true,
   "from-member": true,
@@ -129,7 +150,7 @@ describe("visibleEvents", () => {
         const log = cases.map((c, seq) => event(c, seq));
         const shown = visibleEvents(viewer, log, { policy, at, current: () => undefined });
         expect(shown.map((e) => e.seq)).toEqual(
-          cases.flatMap((c, seq) => (SHOWN[c.case] ? [seq] : [])),
+          cases.flatMap((c, seq) => (expectedShown(c, viewer, policy) ? [seq] : [])),
         );
         for (const c of cases)
           if (c.case === "foreign" && c.scopes.some((x) => x && viewer.memberships.includes(x)))
@@ -237,5 +258,26 @@ describe("a member the read matrix stops sees no event of the scope (RV-CORE-4)"
     const own = visibleEvents(omar, events, view).map((e) => e.item_id);
     expect(own).toEqual(expect.arrayContaining([id(1), id(2)]));
     expect(own.length).toBe(events.filter((e) => e.op !== "read" || e.actor === omar.id).length);
+  });
+
+  // Review finding RV7-R2 of PR #61: the CLI and the server build a role
+  // context under the person's own id, so the maker's exemption showed it
+  // every person-scope event it had made as a person.
+  test("a role context under the person's own id sees no event of the person scope", async () => {
+    const env = fresh(twin());
+    const note = (n: number) =>
+      item(n, { scope: "person:omar", owner: omar.id, content: "The safe code is 4711." });
+    expect((await env.plane.write(omar, note(1), AT)).event.decision).toBe("allow");
+    expect((await env.plane.write(omar, note(2), AT)).event.decision).toBe("allow");
+    await env.plane.lint(omar, AT, "person:omar");
+    const asRole: Actor = { ...omar, level: "role" };
+    expect((await env.plane.read(asRole, { at: AT })).items).toEqual([]);
+    const view = { policy: env.policy, at: AT, current: () => undefined };
+    const seen = visibleEvents(asRole, env.plane.events(), view);
+    expect(
+      seen.filter((e) => e.scope_to === "person:omar" || e.scope_from === "person:omar"),
+    ).toEqual([]);
+    // Its own read names no scope, so it still sees that.
+    expect(seen.map((e) => e.op)).toEqual(["read"]);
   });
 });
