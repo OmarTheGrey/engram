@@ -415,50 +415,92 @@ export function shellBypass(command: string, check: BypassCheck): Bypass | undef
   return undefined;
 }
 
+/**
+ * Quoting a shell removes inside a command name: a backslash or a pair of
+ * quotes between its letters (`\cd`, `"cd"`, `c''d`) runs the same command
+ * (review finding RV7-R3 of PR #61).
+ */
+const NAME_QUOTES = String.raw`[\\'"]*`;
+/** A command name as a pattern that admits NAME_QUOTES around and between its letters. */
+const quotedName = (name: string) =>
+  `${NAME_QUOTES}${[...name].map((c) => (c === "-" ? "\\-" : c)).join(NAME_QUOTES)}${NAME_QUOTES}`;
 /** Commands that change the folder later words are read from: `cd`, `pushd`, and their PowerShell and cmd names. */
-const CD_WORD = String.raw`(?:cd|pushd|chdir|set-location|sl)`;
+const CD_WORD = `(?:${["cd", "pushd", "chdir", "set-location", "push-location", "sl"]
+  .map(quotedName)
+  .join("|")})`;
 /** Where a command word may start in the raw text: its start, after a separator, a quote, a backtick or a paren. */
 const CD_START = String.raw`(?:^|[\s;&|("'\x60])`;
 /** One shell word as written: double-quoted, single-quoted, or a run up to a separator. */
 const RAW_WORD = String.raw`("[^"]*"|'[^']*'|[^\s;&|()"'\x60]+)`;
-/** `cd dir`, options (`-P`, cmd's `/d`) skipped: the target is the group. */
-const CD_TARGET = new RegExp(
-  `${CD_START}${CD_WORD}\\s+(?:(?:-[A-Za-z]+|/d)\\s+)*${RAW_WORD}`,
-  "gi",
-);
+/** Options before a `cd` target: `-P`, the end of options `--`, cmd's `/d`. */
+const CD_OPTIONS = String.raw`(?:(?:-[A-Za-z]+|--|/d)\s+)*`;
+/** `cd dir`, options skipped: the target is the group. */
+const CD_TARGET = new RegExp(String.raw`${CD_START}${CD_WORD}\s+${CD_OPTIONS}${RAW_WORD}`, "gi");
 /** A bare `cd`, which goes to the home folder. */
-const CD_HOME = new RegExp(`${CD_START}${CD_WORD}(?=\\s*(?:$|[;&|)\\n]))`, "gi");
-/** `-C dir` (git, make, tar) and `--directory dir` or `--directory=dir` (make, tar). */
-const DIR_OPTION = new RegExp(`\\s(?:-C|--directory)(?:=|\\s+)${RAW_WORD}`, "g");
+const CD_HOME = new RegExp(String.raw`${CD_START}${CD_WORD}(?=\s*(?:$|[;&|)\n]))`, "gi");
+/** One `cd dir &&` at the very start of the text: every later word runs in `dir` or not at all (RV7-R7). */
+const LEADING_CD = new RegExp(String.raw`^\s*${CD_WORD}\s+${CD_OPTIONS}${RAW_WORD}\s*&&`, "i");
+/**
+ * `-C dir` and `-Cdir` (git, make, tar, env), `--directory dir` or
+ * `--directory=dir` (make, tar), and `--chdir dir` or `--chdir=dir` (env).
+ */
+const DIR_OPTION = new RegExp(
+  String.raw`\s(?:-C(?:=|\s*)|--directory(?:=|\s+)|--chdir(?:=|\s+))${RAW_WORD}`,
+  "g",
+);
+/**
+ * A single-quoted `-m` or `--message` of a version-control tool in command
+ * position (first in its segment, after wrappers and assignments): a message
+ * that never runs, so a `cd` inside it moves nothing. Anywhere else, as in
+ * `bash -c -m '...'`, the quoted text may be a script (RV7-R3).
+ */
+const VCS_MESSAGE =
+  /((?:^|[;&|\n(])\s*(?:[\w./=-]+\s+)*?(?:git|hg|svn|jj|bzr)(?:\.exe)?\s[^;&|\n']*?)(?:-m|--message)(?:=|\s+)'[^']*'/gi;
 /** How many folders one command may be read from, at most. */
 const MAX_DIRS = 32;
 
+/** A folder a `cd` names, with no expansion left for the shell (`$`, a backtick, a glob). */
+const literalDir = (dir: string) => dir !== "-" && !/[$\x60*?[\]{}]/.test(dir);
+const unquote = (word: string) => word.replace(/^["']|["']$/g, "");
+
 /**
  * Every folder a word of `command` may be resolved against (card RV7, core
- * review finding RV-CORE-5): the cwd, and every folder a `cd`, `pushd`,
- * `-C` or `--directory` in it names, each resolved against the cwd and
+ * review finding RV-CORE-5; review fix pass of PR #61, RV7-R3 and R7): the
+ * cwd, and every folder a `cd`, `pushd`, `Push-Location`, `-C`,
+ * `--directory` or `--chdir` in it names, each resolved against the cwd and
  * every folder named before it, so `cd .. && cat mem/a.md` and `cd /a; cd b`
  * are followed; a bare `cd` adds the home folder. The text is read as
- * written, quotes and nested scripts included, erring towards blocking:
- * a word is checked against folders the command may never enter.
+ * written, quotes and nested scripts included, erring towards blocking: a
+ * word is checked against folders the command may never enter. One
+ * narrowing: a chain of literal `cd dir &&` at the very start of the command
+ * replaces the cwd, since every later word runs there or not at all, so
+ * `cd src && grep -r TODO .` is judged in `src` alone.
  */
 function workingDirs(command: string, check: BypassCheck): string[] {
   const home = check.home ?? homedir();
-  // A single-quoted commit message never runs, so a `cd` inside one moves
-  // nothing (`git commit -m '$(cd memory)'`); its words are checked as before.
-  const text = command.replace(/(?:-m|--message)(?:=|\s+)'[^']*'/g, " ");
+  let text = command;
+  for (let before = ""; before !== text; ) {
+    before = text;
+    text = text.replace(VCS_MESSAGE, "$1 ");
+  }
+  const resolveIn = (base: string, dir: string) => resolve(base, expandHome(dir, home) ?? dir);
+  let dirs = [check.cwd];
+  for (let rest = text, m = LEADING_CD.exec(rest); m; m = LEADING_CD.exec(rest)) {
+    const dir = unquote(m[1] as string);
+    if (!literalDir(dir)) break;
+    dirs = [resolveIn(dirs[0] as string, dir)];
+    rest = rest.slice(m[0].length);
+  }
   const named: { at: number; dir: string }[] = [];
   for (const re of [CD_TARGET, DIR_OPTION])
     for (const m of text.matchAll(re))
-      named.push({ at: m.index ?? 0, dir: (m[1] as string).replace(/^["']|["']$/g, "") });
+      named.push({ at: m.index ?? 0, dir: unquote(m[1] as string) });
   for (const m of text.matchAll(CD_HOME)) named.push({ at: m.index ?? 0, dir: home });
   named.sort((a, b) => a.at - b.at);
-  const dirs = [check.cwd];
   for (const { dir } of named) {
-    const target = expandHome(dir, home) ?? dir;
     for (const base of [...dirs]) {
       if (dirs.length >= MAX_DIRS) break;
-      const next = resolve(base, target);
+      const next = resolveIn(base, dir);
       if (!dirs.includes(next)) dirs.push(next);
     }
   }

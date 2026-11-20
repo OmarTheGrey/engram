@@ -79,3 +79,61 @@ describe("paths a command reaches from another folder (RV-CORE-5)", () => {
     expect(shellBypass(command, away)).toBeUndefined();
   });
 });
+
+// Review fix pass of PR #61. RV7-R3: spellings of a folder change the first
+// pass let through, in both shell modes. RV7-R7: a leading `cd dir &&` moves
+// every later word, so `.` after it is judged in `dir` alone.
+describe("folder changes under other spellings (RV7-R3)", () => {
+  const away = { cwd: "/home/u/proj", roots: ["/home/u/mem"], rootStore: "files", home: "/home/u" };
+  it.each([
+    "cd -- .. && cat mem/a.md",
+    "\\cd .. && cat mem/a.md",
+    '"cd" .. && cat mem/a.md',
+    "c''d .. && cat mem/a.md",
+    "builtin cd .. && cat mem/a.md",
+    "Push-Location ..; Get-Content mem/a.md",
+    "make -C.. -f mem/a.md",
+    "tar -C.. -cf - mem",
+    "env --chdir=.. cat mem/a.md",
+    "env -C .. cat mem/a.md",
+    "bash -c -m 'cd ..; cat mem/a.md'",
+    "echo x && git commit -m 'ok' && cd .. && cat mem/a.md",
+  ])("blocks %s in both shell modes", (command) => {
+    expect(shellBypass(command, away)?.route).toBe("path");
+    expect(shellBypass(command, { ...away, shell: "powershell" })?.route).toBe("path");
+  });
+
+  it.each(["git commit -m 'cd ..; tidy mem notes'", "git -C . commit -m 'cd .. first'"])(
+    "still ignores a cd inside a single-quoted commit message: %s",
+    (command) => {
+      expect(shellBypass(command, away)).toBeUndefined();
+    },
+  );
+});
+
+describe("a leading cd moves the words after it (RV7-R7)", () => {
+  const inside = {
+    cwd: "/home/u/proj",
+    roots: ["/home/u/proj/.engram/mem"],
+    rootStore: "files",
+    home: "/home/u",
+  };
+  it.each([
+    "cd src && grep -r TODO .",
+    "cd packages && find . -name '*.ts'",
+    "cd src && cd lib && rg TODO .",
+  ])("leaves %s alone with the root in the repository", (command) => {
+    expect(shellBypass(command, inside)).toBeUndefined();
+  });
+  it.each([
+    "grep -r TODO .",
+    "cd src; grep -r TODO .",
+    "cd src && cd .. && grep -r TODO .",
+    "cd .engram && cat mem/a.md",
+    "cd src && cat ../.engram/mem/a.md",
+    "(cd src && true); grep -r TODO .",
+    'bash -c "cd src && true"; grep -r TODO .',
+  ])("still blocks %s", (command) => {
+    expect(shellBypass(command, inside)?.route).toBe("path");
+  });
+});
