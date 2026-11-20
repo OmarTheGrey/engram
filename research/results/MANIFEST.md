@@ -22,3 +22,4 @@ One row per results file. A results file exists only if `research/scripts/<scrip
 | research/results/h1-label-audit.json | research/configs/label-audit.json | research/scripts/label_audit_draw.py | bb3608a | 92aef92a7c0a89f241b034e9823984e41a04adf4017243bbffb1304b029baad8 | none |
 | research/results/h2-label-audit-longmemeval.json | research/configs/label-audit-longmemeval.json | research/scripts/label_audit_draw.py | bb3608a | a62a6313a32a787e503be2ae9d3cbb741b1584e679726cffd78b8aa1f5a583d4 | none |
 | research/results/h2-cost-table.json | research/configs/cost-table.json | research/scripts/cost_table.py | bb3608a | 719dbf6d483f4fe5d9553f092aa498771bd7f15bba5a843ca3998da3ab585561 | none |
+| research/results/h2-frontier-axes.json | research/configs/frontier-axes.json | research/scripts/frontier_axes.py | 21a4b7f | 5f208b78489b78a2364edf8b2dc1a5d16a4baa8a3a4be5033b5d313debc4180f | none |

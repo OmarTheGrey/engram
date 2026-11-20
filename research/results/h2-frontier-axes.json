@@ -1,0 +1,1563 @@
+{
+  "axes": {
+    "budget": {
+      "gatemem": {
+        "flat": false,
+        "values_that_move": [
+          "budget-25",
+          "budget-50"
+        ]
+      },
+      "longmemeval": {
+        "flat": false,
+        "values_that_move": [
+          "budget-25",
+          "budget-50",
+          "budget-100",
+          "budget-200",
+          "budget-400"
+        ]
+      },
+      "meaning": "retention budget of person-scope episodic items (eviction by recency at the write that passes it)",
+      "values": {
+        "budget-100": 100,
+        "budget-200": 200,
+        "budget-25": 25,
+        "budget-400": 400,
+        "budget-50": 50
+      }
+    },
+    "grants": {
+      "gatemem": {
+        "flat": false,
+        "values_that_move": [
+          "grants-off"
+        ]
+      },
+      "longmemeval": {
+        "flat": true,
+        "values_that_move": []
+      },
+      "meaning": "read.honour_grants: whether a read grant admits another person's item",
+      "values": {
+        "grants-off": false
+      }
+    },
+    "scope_width": {
+      "gatemem": {
+        "flat": false,
+        "values_that_move": [
+          "scope-no-person"
+        ]
+      },
+      "longmemeval": {
+        "flat": false,
+        "values_that_move": [
+          "scope-no-person"
+        ]
+      },
+      "meaning": "read.matrix's person row: which levels a person-level reader may read",
+      "values": {
+        "scope-no-person": "role,team,org",
+        "scope-person-only": "person"
+      }
+    },
+    "sources": {
+      "gatemem": {
+        "flat": false,
+        "values_that_move": [
+          "no-model-source"
+        ]
+      },
+      "longmemeval": {
+        "flat": false,
+        "values_that_move": [
+          "no-model-source"
+        ]
+      },
+      "meaning": "an extra axis beside the four asked for: whether model content is admitted to person scope at write",
+      "values": {
+        "no-model-source": "user,document,tool,import,compaction"
+      }
+    },
+    "ttl": {
+      "gatemem": {
+        "flat": false,
+        "values_that_move": [
+          "ttl-1d",
+          "ttl-7d"
+        ]
+      },
+      "longmemeval": {
+        "flat": false,
+        "values_that_move": [
+          "ttl-1d",
+          "ttl-7d",
+          "ttl-30d",
+          "ttl-180d",
+          "ttl-365d",
+          "ttl-none"
+        ]
+      },
+      "meaning": "retention ttl of person-scope episodic items, in seconds",
+      "values": {
+        "ttl-180d": 15552000,
+        "ttl-1d": 86400,
+        "ttl-30d": 2592000,
+        "ttl-365d": 31536000,
+        "ttl-7d": 604800,
+        "ttl-none": null
+      }
+    }
+  },
+  "baseline": "medium",
+  "entry": "packages/runner/scripts/frontier-axes.ts",
+  "gatemem": {
+    "by_variant": {
+      "budget-100": {
+        "checkpoints_changed": 0,
+        "denied_writes": 0,
+        "hidden_vs_baseline": 0,
+        "identical_to_baseline": true,
+        "kinds": {
+          "access": {
+            "checkpoints": 727,
+            "checkpoints_changed": 0,
+            "checkpoints_with_denied_writes": 0,
+            "denied_writes": 0,
+            "hidden_vs_baseline": 0,
+            "leak_added_vs_baseline": 0,
+            "leak_removed_vs_baseline": 0,
+            "readable_turns": 16388,
+            "readable_via_grant": 10542,
+            "shown_vs_baseline": 0,
+            "turn_writes": 96386,
+            "with_leak_in_reach": 282
+          },
+          "forgetting": {
+            "checkpoints": 763,
+            "checkpoints_changed": 0,
+            "checkpoints_with_denied_writes": 0,
+            "denied_writes": 0,
+            "hidden_vs_baseline": 0,
+            "leak_added_vs_baseline": 0,
+            "leak_removed_vs_baseline": 0,
+            "readable_turns": 49359,
+            "readable_via_grant": 35773,
+            "shown_vs_baseline": 0,
+            "turn_writes": 142659,
+            "with_leak_in_reach": 565
+          },
+          "utility": {
+            "checkpoints": 728,
+            "checkpoints_changed": 0,
+            "checkpoints_with_denied_writes": 0,
+            "denied_writes": 0,
+            "hidden_vs_baseline": 0,
+            "losing_include_vs_baseline": 0,
+            "readable_turns": 30442,
+            "readable_via_grant": 18672,
+            "shown_vs_baseline": 0,
+            "turn_writes": 86485,
+            "with_every_include_in_reach": 424
+          }
+        },
+        "shown_vs_baseline": 0
+      },
+      "budget-200": {
+        "checkpoints_changed": 0,
+        "denied_writes": 0,
+        "hidden_vs_baseline": 0,
+        "identical_to_baseline": true,
+        "kinds": {
+          "access": {
+            "checkpoints": 727,
+            "checkpoints_changed": 0,
+            "checkpoints_with_denied_writes": 0,
+            "denied_writes": 0,
+            "hidden_vs_baseline": 0,
+            "leak_added_vs_baseline": 0,
+            "leak_removed_vs_baseline": 0,
+            "readable_turns": 16388,
+            "readable_via_grant": 10542,
+            "shown_vs_baseline": 0,
+            "turn_writes": 96386,
+            "with_leak_in_reach": 282
+          },
+          "forgetting": {
+            "checkpoints": 763,
+            "checkpoints_changed": 0,
+            "checkpoints_with_denied_writes": 0,
+            "denied_writes": 0,
+            "hidden_vs_baseline": 0,
+            "leak_added_vs_baseline": 0,
+            "leak_removed_vs_baseline": 0,
+            "readable_turns": 49359,
+            "readable_via_grant": 35773,
+            "shown_vs_baseline": 0,
+            "turn_writes": 142659,
+            "with_leak_in_reach": 565
+          },
+          "utility": {
+            "checkpoints": 728,
+            "checkpoints_changed": 0,
+            "checkpoints_with_denied_writes": 0,
+            "denied_writes": 0,
+            "hidden_vs_baseline": 0,
+            "losing_include_vs_baseline": 0,
+            "readable_turns": 30442,
+            "readable_via_grant": 18672,
+            "shown_vs_baseline": 0,
+            "turn_writes": 86485,
+            "with_every_include_in_reach": 424
+          }
+        },
+        "shown_vs_baseline": 0
+      },
+      "budget-25": {
+        "checkpoints_changed": 560,
+        "denied_writes": 0,
+        "hidden_vs_baseline": 9740,
+        "identical_to_baseline": false,
+        "kinds": {
+          "access": {
+            "checkpoints": 727,
+            "checkpoints_changed": 91,
+            "checkpoints_with_denied_writes": 0,
+            "denied_writes": 0,
+            "hidden_vs_baseline": 1615,
+            "leak_added_vs_baseline": 0,
+            "leak_removed_vs_baseline": 1,
+            "readable_turns": 14773,
+            "readable_via_grant": 9049,
+            "shown_vs_baseline": 0,
+            "turn_writes": 96386,
+            "with_leak_in_reach": 281
+          },
+          "forgetting": {
+            "checkpoints": 763,
+            "checkpoints_changed": 293,
+            "checkpoints_with_denied_writes": 0,
+            "denied_writes": 0,
+            "hidden_vs_baseline": 5499,
+            "leak_added_vs_baseline": 0,
+            "leak_removed_vs_baseline": 12,
+            "readable_turns": 43860,
+            "readable_via_grant": 32211,
+            "shown_vs_baseline": 0,
+            "turn_writes": 142659,
+            "with_leak_in_reach": 553
+          },
+          "utility": {
+            "checkpoints": 728,
+            "checkpoints_changed": 176,
+            "checkpoints_with_denied_writes": 0,
+            "denied_writes": 0,
+            "hidden_vs_baseline": 2626,
+            "losing_include_vs_baseline": 19,
+            "readable_turns": 27816,
+            "readable_via_grant": 17869,
+            "shown_vs_baseline": 0,
+            "turn_writes": 86485,
+            "with_every_include_in_reach": 411
+          }
+        },
+        "shown_vs_baseline": 0
+      },
+      "budget-400": {
+        "checkpoints_changed": 0,
+        "denied_writes": 0,
+        "hidden_vs_baseline": 0,
+        "identical_to_baseline": true,
+        "kinds": {
+          "access": {
+            "checkpoints": 727,
+            "checkpoints_changed": 0,
+            "checkpoints_with_denied_writes": 0,
+            "denied_writes": 0,
+            "hidden_vs_baseline": 0,
+            "leak_added_vs_baseline": 0,
+            "leak_removed_vs_baseline": 0,
+            "readable_turns": 16388,
+            "readable_via_grant": 10542,
+            "shown_vs_baseline": 0,
+            "turn_writes": 96386,
+            "with_leak_in_reach": 282
+          },
+          "forgetting": {
+            "checkpoints": 763,
+            "checkpoints_changed": 0,
+            "checkpoints_with_denied_writes": 0,
+            "denied_writes": 0,
+            "hidden_vs_baseline": 0,
+            "leak_added_vs_baseline": 0,
+            "leak_removed_vs_baseline": 0,
+            "readable_turns": 49359,
+            "readable_via_grant": 35773,
+            "shown_vs_baseline": 0,
+            "turn_writes": 142659,
+            "with_leak_in_reach": 565
+          },
+          "utility": {
+            "checkpoints": 728,
+            "checkpoints_changed": 0,
+            "checkpoints_with_denied_writes": 0,
+            "denied_writes": 0,
+            "hidden_vs_baseline": 0,
+            "losing_include_vs_baseline": 0,
+            "readable_turns": 30442,
+            "readable_via_grant": 18672,
+            "shown_vs_baseline": 0,
+            "turn_writes": 86485,
+            "with_every_include_in_reach": 424
+          }
+        },
+        "shown_vs_baseline": 0
+      },
+      "budget-50": {
+        "checkpoints_changed": 118,
+        "denied_writes": 0,
+        "hidden_vs_baseline": 1512,
+        "identical_to_baseline": false,
+        "kinds": {
+          "access": {
+            "checkpoints": 727,
+            "checkpoints_changed": 22,
+            "checkpoints_with_denied_writes": 0,
+            "denied_writes": 0,
+            "hidden_vs_baseline": 206,
+            "leak_added_vs_baseline": 0,
+            "leak_removed_vs_baseline": 0,
+            "readable_turns": 16182,
+            "readable_via_grant": 10336,
+            "shown_vs_baseline": 0,
+            "turn_writes": 96386,
+            "with_leak_in_reach": 282
+          },
+          "forgetting": {
+            "checkpoints": 763,
+            "checkpoints_changed": 72,
+            "checkpoints_with_denied_writes": 0,
+            "denied_writes": 0,
+            "hidden_vs_baseline": 990,
+            "leak_added_vs_baseline": 0,
+            "leak_removed_vs_baseline": 0,
+            "readable_turns": 48369,
+            "readable_via_grant": 35128,
+            "shown_vs_baseline": 0,
+            "turn_writes": 142659,
+            "with_leak_in_reach": 565
+          },
+          "utility": {
+            "checkpoints": 728,
+            "checkpoints_changed": 24,
+            "checkpoints_with_denied_writes": 0,
+            "denied_writes": 0,
+            "hidden_vs_baseline": 316,
+            "losing_include_vs_baseline": 1,
+            "readable_turns": 30126,
+            "readable_via_grant": 18656,
+            "shown_vs_baseline": 0,
+            "turn_writes": 86485,
+            "with_every_include_in_reach": 424
+          }
+        },
+        "shown_vs_baseline": 0
+      },
+      "grants-off": {
+        "checkpoints_changed": 1154,
+        "denied_writes": 0,
+        "hidden_vs_baseline": 64987,
+        "identical_to_baseline": false,
+        "kinds": {
+          "access": {
+            "checkpoints": 727,
+            "checkpoints_changed": 275,
+            "checkpoints_with_denied_writes": 0,
+            "denied_writes": 0,
+            "hidden_vs_baseline": 10542,
+            "leak_added_vs_baseline": 0,
+            "leak_removed_vs_baseline": 91,
+            "readable_turns": 5846,
+            "readable_via_grant": 0,
+            "shown_vs_baseline": 0,
+            "turn_writes": 96386,
+            "with_leak_in_reach": 191
+          },
+          "forgetting": {
+            "checkpoints": 763,
+            "checkpoints_changed": 447,
+            "checkpoints_with_denied_writes": 0,
+            "denied_writes": 0,
+            "hidden_vs_baseline": 35773,
+            "leak_added_vs_baseline": 0,
+            "leak_removed_vs_baseline": 201,
+            "readable_turns": 13586,
+            "readable_via_grant": 0,
+            "shown_vs_baseline": 0,
+            "turn_writes": 142659,
+            "with_leak_in_reach": 364
+          },
+          "utility": {
+            "checkpoints": 728,
+            "checkpoints_changed": 432,
+            "checkpoints_with_denied_writes": 0,
+            "denied_writes": 0,
+            "hidden_vs_baseline": 18672,
+            "losing_include_vs_baseline": 171,
+            "readable_turns": 11770,
+            "readable_via_grant": 0,
+            "shown_vs_baseline": 0,
+            "turn_writes": 86485,
+            "with_every_include_in_reach": 298
+          }
+        },
+        "shown_vs_baseline": 0
+      },
+      "medium": {
+        "checkpoints_changed": 0,
+        "denied_writes": 0,
+        "hidden_vs_baseline": 0,
+        "identical_to_baseline": true,
+        "kinds": {
+          "access": {
+            "checkpoints": 727,
+            "checkpoints_changed": 0,
+            "checkpoints_with_denied_writes": 0,
+            "denied_writes": 0,
+            "hidden_vs_baseline": 0,
+            "leak_added_vs_baseline": 0,
+            "leak_removed_vs_baseline": 0,
+            "readable_turns": 16388,
+            "readable_via_grant": 10542,
+            "shown_vs_baseline": 0,
+            "turn_writes": 96386,
+            "with_leak_in_reach": 282
+          },
+          "forgetting": {
+            "checkpoints": 763,
+            "checkpoints_changed": 0,
+            "checkpoints_with_denied_writes": 0,
+            "denied_writes": 0,
+            "hidden_vs_baseline": 0,
+            "leak_added_vs_baseline": 0,
+            "leak_removed_vs_baseline": 0,
+            "readable_turns": 49359,
+            "readable_via_grant": 35773,
+            "shown_vs_baseline": 0,
+            "turn_writes": 142659,
+            "with_leak_in_reach": 565
+          },
+          "utility": {
+            "checkpoints": 728,
+            "checkpoints_changed": 0,
+            "checkpoints_with_denied_writes": 0,
+            "denied_writes": 0,
+            "hidden_vs_baseline": 0,
+            "losing_include_vs_baseline": 0,
+            "readable_turns": 30442,
+            "readable_via_grant": 18672,
+            "shown_vs_baseline": 0,
+            "turn_writes": 86485,
+            "with_every_include_in_reach": 424
+          }
+        },
+        "shown_vs_baseline": 0
+      },
+      "no-model-source": {
+        "checkpoints_changed": 319,
+        "denied_writes": 5795,
+        "hidden_vs_baseline": 0,
+        "identical_to_baseline": false,
+        "kinds": {
+          "access": {
+            "checkpoints": 727,
+            "checkpoints_changed": 105,
+            "checkpoints_with_denied_writes": 105,
+            "denied_writes": 1799,
+            "hidden_vs_baseline": 0,
+            "leak_added_vs_baseline": 0,
+            "leak_removed_vs_baseline": 0,
+            "readable_turns": 16388,
+            "readable_via_grant": 10542,
+            "shown_vs_baseline": 0,
+            "turn_writes": 96386,
+            "with_leak_in_reach": 282
+          },
+          "forgetting": {
+            "checkpoints": 763,
+            "checkpoints_changed": 109,
+            "checkpoints_with_denied_writes": 109,
+            "denied_writes": 2452,
+            "hidden_vs_baseline": 0,
+            "leak_added_vs_baseline": 0,
+            "leak_removed_vs_baseline": 0,
+            "readable_turns": 49359,
+            "readable_via_grant": 35773,
+            "shown_vs_baseline": 0,
+            "turn_writes": 142659,
+            "with_leak_in_reach": 565
+          },
+          "utility": {
+            "checkpoints": 728,
+            "checkpoints_changed": 105,
+            "checkpoints_with_denied_writes": 105,
+            "denied_writes": 1544,
+            "hidden_vs_baseline": 0,
+            "losing_include_vs_baseline": 0,
+            "readable_turns": 30442,
+            "readable_via_grant": 18672,
+            "shown_vs_baseline": 0,
+            "turn_writes": 86485,
+            "with_every_include_in_reach": 424
+          }
+        },
+        "shown_vs_baseline": 0
+      },
+      "scope-no-person": {
+        "checkpoints_changed": 2117,
+        "denied_writes": 0,
+        "hidden_vs_baseline": 31202,
+        "identical_to_baseline": false,
+        "kinds": {
+          "access": {
+            "checkpoints": 727,
+            "checkpoints_changed": 659,
+            "checkpoints_with_denied_writes": 0,
+            "denied_writes": 0,
+            "hidden_vs_baseline": 5846,
+            "leak_added_vs_baseline": 0,
+            "leak_removed_vs_baseline": 156,
+            "readable_turns": 10542,
+            "readable_via_grant": 10542,
+            "shown_vs_baseline": 0,
+            "turn_writes": 96386,
+            "with_leak_in_reach": 126
+          },
+          "forgetting": {
+            "checkpoints": 763,
+            "checkpoints_changed": 732,
+            "checkpoints_with_denied_writes": 0,
+            "denied_writes": 0,
+            "hidden_vs_baseline": 13586,
+            "leak_added_vs_baseline": 0,
+            "leak_removed_vs_baseline": 225,
+            "readable_turns": 35773,
+            "readable_via_grant": 35773,
+            "shown_vs_baseline": 0,
+            "turn_writes": 142659,
+            "with_leak_in_reach": 340
+          },
+          "utility": {
+            "checkpoints": 728,
+            "checkpoints_changed": 726,
+            "checkpoints_with_denied_writes": 0,
+            "denied_writes": 0,
+            "hidden_vs_baseline": 11770,
+            "losing_include_vs_baseline": 520,
+            "readable_turns": 18672,
+            "readable_via_grant": 18672,
+            "shown_vs_baseline": 0,
+            "turn_writes": 86485,
+            "with_every_include_in_reach": 96
+          }
+        },
+        "shown_vs_baseline": 0
+      },
+      "scope-person-only": {
+        "checkpoints_changed": 0,
+        "denied_writes": 0,
+        "hidden_vs_baseline": 0,
+        "identical_to_baseline": true,
+        "kinds": {
+          "access": {
+            "checkpoints": 727,
+            "checkpoints_changed": 0,
+            "checkpoints_with_denied_writes": 0,
+            "denied_writes": 0,
+            "hidden_vs_baseline": 0,
+            "leak_added_vs_baseline": 0,
+            "leak_removed_vs_baseline": 0,
+            "readable_turns": 16388,
+            "readable_via_grant": 10542,
+            "shown_vs_baseline": 0,
+            "turn_writes": 96386,
+            "with_leak_in_reach": 282
+          },
+          "forgetting": {
+            "checkpoints": 763,
+            "checkpoints_changed": 0,
+            "checkpoints_with_denied_writes": 0,
+            "denied_writes": 0,
+            "hidden_vs_baseline": 0,
+            "leak_added_vs_baseline": 0,
+            "leak_removed_vs_baseline": 0,
+            "readable_turns": 49359,
+            "readable_via_grant": 35773,
+            "shown_vs_baseline": 0,
+            "turn_writes": 142659,
+            "with_leak_in_reach": 565
+          },
+          "utility": {
+            "checkpoints": 728,
+            "checkpoints_changed": 0,
+            "checkpoints_with_denied_writes": 0,
+            "denied_writes": 0,
+            "hidden_vs_baseline": 0,
+            "losing_include_vs_baseline": 0,
+            "readable_turns": 30442,
+            "readable_via_grant": 18672,
+            "shown_vs_baseline": 0,
+            "turn_writes": 86485,
+            "with_every_include_in_reach": 424
+          }
+        },
+        "shown_vs_baseline": 0
+      },
+      "ttl-180d": {
+        "checkpoints_changed": 0,
+        "denied_writes": 0,
+        "hidden_vs_baseline": 0,
+        "identical_to_baseline": true,
+        "kinds": {
+          "access": {
+            "checkpoints": 727,
+            "checkpoints_changed": 0,
+            "checkpoints_with_denied_writes": 0,
+            "denied_writes": 0,
+            "hidden_vs_baseline": 0,
+            "leak_added_vs_baseline": 0,
+            "leak_removed_vs_baseline": 0,
+            "readable_turns": 16388,
+            "readable_via_grant": 10542,
+            "shown_vs_baseline": 0,
+            "turn_writes": 96386,
+            "with_leak_in_reach": 282
+          },
+          "forgetting": {
+            "checkpoints": 763,
+            "checkpoints_changed": 0,
+            "checkpoints_with_denied_writes": 0,
+            "denied_writes": 0,
+            "hidden_vs_baseline": 0,
+            "leak_added_vs_baseline": 0,
+            "leak_removed_vs_baseline": 0,
+            "readable_turns": 49359,
+            "readable_via_grant": 35773,
+            "shown_vs_baseline": 0,
+            "turn_writes": 142659,
+            "with_leak_in_reach": 565
+          },
+          "utility": {
+            "checkpoints": 728,
+            "checkpoints_changed": 0,
+            "checkpoints_with_denied_writes": 0,
+            "denied_writes": 0,
+            "hidden_vs_baseline": 0,
+            "losing_include_vs_baseline": 0,
+            "readable_turns": 30442,
+            "readable_via_grant": 18672,
+            "shown_vs_baseline": 0,
+            "turn_writes": 86485,
+            "with_every_include_in_reach": 424
+          }
+        },
+        "shown_vs_baseline": 0
+      },
+      "ttl-1d": {
+        "checkpoints_changed": 306,
+        "denied_writes": 0,
+        "hidden_vs_baseline": 4544,
+        "identical_to_baseline": false,
+        "kinds": {
+          "access": {
+            "checkpoints": 727,
+            "checkpoints_changed": 90,
+            "checkpoints_with_denied_writes": 0,
+            "denied_writes": 0,
+            "hidden_vs_baseline": 539,
+            "leak_added_vs_baseline": 0,
+            "leak_removed_vs_baseline": 6,
+            "readable_turns": 15849,
+            "readable_via_grant": 10383,
+            "shown_vs_baseline": 0,
+            "turn_writes": 96386,
+            "with_leak_in_reach": 276
+          },
+          "forgetting": {
+            "checkpoints": 763,
+            "checkpoints_changed": 129,
+            "checkpoints_with_denied_writes": 0,
+            "denied_writes": 0,
+            "hidden_vs_baseline": 2420,
+            "leak_added_vs_baseline": 0,
+            "leak_removed_vs_baseline": 26,
+            "readable_turns": 46939,
+            "readable_via_grant": 34799,
+            "shown_vs_baseline": 0,
+            "turn_writes": 142659,
+            "with_leak_in_reach": 539
+          },
+          "utility": {
+            "checkpoints": 728,
+            "checkpoints_changed": 87,
+            "checkpoints_with_denied_writes": 0,
+            "denied_writes": 0,
+            "hidden_vs_baseline": 1585,
+            "losing_include_vs_baseline": 18,
+            "readable_turns": 28857,
+            "readable_via_grant": 18218,
+            "shown_vs_baseline": 0,
+            "turn_writes": 86485,
+            "with_every_include_in_reach": 417
+          }
+        },
+        "shown_vs_baseline": 0
+      },
+      "ttl-30d": {
+        "checkpoints_changed": 0,
+        "denied_writes": 0,
+        "hidden_vs_baseline": 0,
+        "identical_to_baseline": true,
+        "kinds": {
+          "access": {
+            "checkpoints": 727,
+            "checkpoints_changed": 0,
+            "checkpoints_with_denied_writes": 0,
+            "denied_writes": 0,
+            "hidden_vs_baseline": 0,
+            "leak_added_vs_baseline": 0,
+            "leak_removed_vs_baseline": 0,
+            "readable_turns": 16388,
+            "readable_via_grant": 10542,
+            "shown_vs_baseline": 0,
+            "turn_writes": 96386,
+            "with_leak_in_reach": 282
+          },
+          "forgetting": {
+            "checkpoints": 763,
+            "checkpoints_changed": 0,
+            "checkpoints_with_denied_writes": 0,
+            "denied_writes": 0,
+            "hidden_vs_baseline": 0,
+            "leak_added_vs_baseline": 0,
+            "leak_removed_vs_baseline": 0,
+            "readable_turns": 49359,
+            "readable_via_grant": 35773,
+            "shown_vs_baseline": 0,
+            "turn_writes": 142659,
+            "with_leak_in_reach": 565
+          },
+          "utility": {
+            "checkpoints": 728,
+            "checkpoints_changed": 0,
+            "checkpoints_with_denied_writes": 0,
+            "denied_writes": 0,
+            "hidden_vs_baseline": 0,
+            "losing_include_vs_baseline": 0,
+            "readable_turns": 30442,
+            "readable_via_grant": 18672,
+            "shown_vs_baseline": 0,
+            "turn_writes": 86485,
+            "with_every_include_in_reach": 424
+          }
+        },
+        "shown_vs_baseline": 0
+      },
+      "ttl-365d": {
+        "checkpoints_changed": 0,
+        "denied_writes": 0,
+        "hidden_vs_baseline": 0,
+        "identical_to_baseline": true,
+        "kinds": {
+          "access": {
+            "checkpoints": 727,
+            "checkpoints_changed": 0,
+            "checkpoints_with_denied_writes": 0,
+            "denied_writes": 0,
+            "hidden_vs_baseline": 0,
+            "leak_added_vs_baseline": 0,
+            "leak_removed_vs_baseline": 0,
+            "readable_turns": 16388,
+            "readable_via_grant": 10542,
+            "shown_vs_baseline": 0,
+            "turn_writes": 96386,
+            "with_leak_in_reach": 282
+          },
+          "forgetting": {
+            "checkpoints": 763,
+            "checkpoints_changed": 0,
+            "checkpoints_with_denied_writes": 0,
+            "denied_writes": 0,
+            "hidden_vs_baseline": 0,
+            "leak_added_vs_baseline": 0,
+            "leak_removed_vs_baseline": 0,
+            "readable_turns": 49359,
+            "readable_via_grant": 35773,
+            "shown_vs_baseline": 0,
+            "turn_writes": 142659,
+            "with_leak_in_reach": 565
+          },
+          "utility": {
+            "checkpoints": 728,
+            "checkpoints_changed": 0,
+            "checkpoints_with_denied_writes": 0,
+            "denied_writes": 0,
+            "hidden_vs_baseline": 0,
+            "losing_include_vs_baseline": 0,
+            "readable_turns": 30442,
+            "readable_via_grant": 18672,
+            "shown_vs_baseline": 0,
+            "turn_writes": 86485,
+            "with_every_include_in_reach": 424
+          }
+        },
+        "shown_vs_baseline": 0
+      },
+      "ttl-7d": {
+        "checkpoints_changed": 36,
+        "denied_writes": 0,
+        "hidden_vs_baseline": 388,
+        "identical_to_baseline": false,
+        "kinds": {
+          "access": {
+            "checkpoints": 727,
+            "checkpoints_changed": 8,
+            "checkpoints_with_denied_writes": 0,
+            "denied_writes": 0,
+            "hidden_vs_baseline": 31,
+            "leak_added_vs_baseline": 0,
+            "leak_removed_vs_baseline": 0,
+            "readable_turns": 16357,
+            "readable_via_grant": 10538,
+            "shown_vs_baseline": 0,
+            "turn_writes": 96386,
+            "with_leak_in_reach": 282
+          },
+          "forgetting": {
+            "checkpoints": 763,
+            "checkpoints_changed": 20,
+            "checkpoints_with_denied_writes": 0,
+            "denied_writes": 0,
+            "hidden_vs_baseline": 251,
+            "leak_added_vs_baseline": 0,
+            "leak_removed_vs_baseline": 2,
+            "readable_turns": 49108,
+            "readable_via_grant": 35685,
+            "shown_vs_baseline": 0,
+            "turn_writes": 142659,
+            "with_leak_in_reach": 563
+          },
+          "utility": {
+            "checkpoints": 728,
+            "checkpoints_changed": 8,
+            "checkpoints_with_denied_writes": 0,
+            "denied_writes": 0,
+            "hidden_vs_baseline": 106,
+            "losing_include_vs_baseline": 1,
+            "readable_turns": 30336,
+            "readable_via_grant": 18649,
+            "shown_vs_baseline": 0,
+            "turn_writes": 86485,
+            "with_every_include_in_reach": 423
+          }
+        },
+        "shown_vs_baseline": 0
+      },
+      "ttl-none": {
+        "checkpoints_changed": 0,
+        "denied_writes": 0,
+        "hidden_vs_baseline": 0,
+        "identical_to_baseline": true,
+        "kinds": {
+          "access": {
+            "checkpoints": 727,
+            "checkpoints_changed": 0,
+            "checkpoints_with_denied_writes": 0,
+            "denied_writes": 0,
+            "hidden_vs_baseline": 0,
+            "leak_added_vs_baseline": 0,
+            "leak_removed_vs_baseline": 0,
+            "readable_turns": 16388,
+            "readable_via_grant": 10542,
+            "shown_vs_baseline": 0,
+            "turn_writes": 96386,
+            "with_leak_in_reach": 282
+          },
+          "forgetting": {
+            "checkpoints": 763,
+            "checkpoints_changed": 0,
+            "checkpoints_with_denied_writes": 0,
+            "denied_writes": 0,
+            "hidden_vs_baseline": 0,
+            "leak_added_vs_baseline": 0,
+            "leak_removed_vs_baseline": 0,
+            "readable_turns": 49359,
+            "readable_via_grant": 35773,
+            "shown_vs_baseline": 0,
+            "turn_writes": 142659,
+            "with_leak_in_reach": 565
+          },
+          "utility": {
+            "checkpoints": 728,
+            "checkpoints_changed": 0,
+            "checkpoints_with_denied_writes": 0,
+            "denied_writes": 0,
+            "hidden_vs_baseline": 0,
+            "losing_include_vs_baseline": 0,
+            "readable_turns": 30442,
+            "readable_via_grant": 18672,
+            "shown_vs_baseline": 0,
+            "turn_writes": 86485,
+            "with_every_include_in_reach": 424
+          }
+        },
+        "shown_vs_baseline": 0
+      }
+    },
+    "checkpoints": 2218,
+    "commit": "a983828b3bb7565e16e25ac8cdc2fc1982633b0b",
+    "rows_sha256": "91b23bffb694c48c462e071f7820c77178340a0df4c8b2c05cf7c2f02e57d2f4"
+  },
+  "hypothesis": "H2",
+  "longmemeval": {
+    "by_variant": {
+      "budget-100": {
+        "by_cause": {
+          "expired": 1703,
+          "not_active": 195565,
+          "outside_validity": 0
+        },
+        "denied_writes": 61,
+        "hidden_turns": 197268,
+        "hidden_vs_baseline": 186146,
+        "identical_to_baseline": false,
+        "questions_changed": 500,
+        "questions_losing_all_evidence": 299,
+        "questions_losing_evidence": 417,
+        "questions_losing_evidence_vs_baseline": 399,
+        "questions_with_hidden_turns": 500,
+        "shown_vs_baseline": 0,
+        "writes": {
+          "allow": 246689,
+          "deny": 61
+        }
+      },
+      "budget-200": {
+        "by_cause": {
+          "expired": 4549,
+          "not_active": 143669,
+          "outside_validity": 0
+        },
+        "denied_writes": 51,
+        "hidden_turns": 148218,
+        "hidden_vs_baseline": 137096,
+        "identical_to_baseline": false,
+        "questions_changed": 500,
+        "questions_losing_all_evidence": 170,
+        "questions_losing_evidence": 350,
+        "questions_losing_evidence_vs_baseline": 320,
+        "questions_with_hidden_turns": 500,
+        "shown_vs_baseline": 0,
+        "writes": {
+          "allow": 246699,
+          "deny": 51
+        }
+      },
+      "budget-25": {
+        "by_cause": {
+          "expired": 152,
+          "not_active": 234153,
+          "outside_validity": 0
+        },
+        "denied_writes": 95,
+        "hidden_turns": 234305,
+        "hidden_vs_baseline": 223193,
+        "identical_to_baseline": false,
+        "questions_changed": 500,
+        "questions_losing_all_evidence": 432,
+        "questions_losing_evidence": 465,
+        "questions_losing_evidence_vs_baseline": 454,
+        "questions_with_hidden_turns": 500,
+        "shown_vs_baseline": 10,
+        "writes": {
+          "allow": 246655,
+          "deny": 95
+        }
+      },
+      "budget-400": {
+        "by_cause": {
+          "expired": 9997,
+          "not_active": 43686,
+          "outside_validity": 0
+        },
+        "denied_writes": 2,
+        "hidden_turns": 53683,
+        "hidden_vs_baseline": 42561,
+        "identical_to_baseline": false,
+        "questions_changed": 469,
+        "questions_losing_all_evidence": 39,
+        "questions_losing_evidence": 164,
+        "questions_losing_evidence_vs_baseline": 127,
+        "questions_with_hidden_turns": 500,
+        "shown_vs_baseline": 0,
+        "writes": {
+          "allow": 246748,
+          "deny": 2
+        }
+      },
+      "budget-50": {
+        "by_cause": {
+          "expired": 447,
+          "not_active": 221536,
+          "outside_validity": 0
+        },
+        "denied_writes": 67,
+        "hidden_turns": 221983,
+        "hidden_vs_baseline": 210861,
+        "identical_to_baseline": false,
+        "questions_changed": 500,
+        "questions_losing_all_evidence": 382,
+        "questions_losing_evidence": 453,
+        "questions_losing_evidence_vs_baseline": 440,
+        "questions_with_hidden_turns": 500,
+        "shown_vs_baseline": 0,
+        "writes": {
+          "allow": 246683,
+          "deny": 67
+        }
+      },
+      "grants-off": {
+        "by_cause": {
+          "expired": 11122,
+          "not_active": 0,
+          "outside_validity": 0
+        },
+        "denied_writes": 0,
+        "hidden_turns": 11122,
+        "hidden_vs_baseline": 0,
+        "identical_to_baseline": true,
+        "questions_changed": 0,
+        "questions_losing_all_evidence": 5,
+        "questions_losing_evidence": 38,
+        "questions_losing_evidence_vs_baseline": 0,
+        "questions_with_hidden_turns": 54,
+        "shown_vs_baseline": 0,
+        "writes": {
+          "allow": 246750
+        }
+      },
+      "medium": {
+        "by_cause": {
+          "expired": 11122,
+          "not_active": 0,
+          "outside_validity": 0
+        },
+        "denied_writes": 0,
+        "hidden_turns": 11122,
+        "hidden_vs_baseline": 0,
+        "identical_to_baseline": true,
+        "questions_changed": 0,
+        "questions_losing_all_evidence": 5,
+        "questions_losing_evidence": 38,
+        "questions_losing_evidence_vs_baseline": 0,
+        "questions_with_hidden_turns": 54,
+        "shown_vs_baseline": 0,
+        "writes": {
+          "allow": 246750
+        }
+      },
+      "no-model-source": {
+        "by_cause": {
+          "expired": 5513,
+          "not_active": 0,
+          "outside_validity": 0
+        },
+        "denied_writes": 124334,
+        "hidden_turns": 5513,
+        "hidden_vs_baseline": 0,
+        "identical_to_baseline": false,
+        "questions_changed": 500,
+        "questions_losing_all_evidence": 5,
+        "questions_losing_evidence": 38,
+        "questions_losing_evidence_vs_baseline": 0,
+        "questions_with_hidden_turns": 54,
+        "shown_vs_baseline": 5609,
+        "writes": {
+          "allow": 122416,
+          "deny": 124334
+        }
+      },
+      "scope-no-person": {
+        "by_cause": {
+          "expired": 0,
+          "not_active": 0,
+          "outside_validity": 0
+        },
+        "denied_writes": 0,
+        "hidden_turns": 246750,
+        "hidden_vs_baseline": 235628,
+        "identical_to_baseline": false,
+        "questions_changed": 500,
+        "questions_losing_all_evidence": 479,
+        "questions_losing_evidence": 479,
+        "questions_losing_evidence_vs_baseline": 474,
+        "questions_with_hidden_turns": 500,
+        "shown_vs_baseline": 0,
+        "writes": {
+          "allow": 246750
+        }
+      },
+      "scope-person-only": {
+        "by_cause": {
+          "expired": 11122,
+          "not_active": 0,
+          "outside_validity": 0
+        },
+        "denied_writes": 0,
+        "hidden_turns": 11122,
+        "hidden_vs_baseline": 0,
+        "identical_to_baseline": true,
+        "questions_changed": 0,
+        "questions_losing_all_evidence": 5,
+        "questions_losing_evidence": 38,
+        "questions_losing_evidence_vs_baseline": 0,
+        "questions_with_hidden_turns": 54,
+        "shown_vs_baseline": 0,
+        "writes": {
+          "allow": 246750
+        }
+      },
+      "ttl-180d": {
+        "by_cause": {
+          "expired": 2625,
+          "not_active": 0,
+          "outside_validity": 0
+        },
+        "denied_writes": 0,
+        "hidden_turns": 2625,
+        "hidden_vs_baseline": 0,
+        "identical_to_baseline": false,
+        "questions_changed": 53,
+        "questions_losing_all_evidence": 1,
+        "questions_losing_evidence": 12,
+        "questions_losing_evidence_vs_baseline": 0,
+        "questions_with_hidden_turns": 13,
+        "shown_vs_baseline": 8497,
+        "writes": {
+          "allow": 246750
+        }
+      },
+      "ttl-1d": {
+        "by_cause": {
+          "expired": 186588,
+          "not_active": 0,
+          "outside_validity": 0
+        },
+        "denied_writes": 0,
+        "hidden_turns": 186588,
+        "hidden_vs_baseline": 175466,
+        "identical_to_baseline": false,
+        "questions_changed": 401,
+        "questions_losing_all_evidence": 346,
+        "questions_losing_evidence": 371,
+        "questions_losing_evidence_vs_baseline": 362,
+        "questions_with_hidden_turns": 406,
+        "shown_vs_baseline": 0,
+        "writes": {
+          "allow": 246750
+        }
+      },
+      "ttl-30d": {
+        "by_cause": {
+          "expired": 34688,
+          "not_active": 0,
+          "outside_validity": 0
+        },
+        "denied_writes": 0,
+        "hidden_turns": 34688,
+        "hidden_vs_baseline": 23566,
+        "identical_to_baseline": false,
+        "questions_changed": 142,
+        "questions_losing_all_evidence": 22,
+        "questions_losing_evidence": 77,
+        "questions_losing_evidence_vs_baseline": 45,
+        "questions_with_hidden_turns": 148,
+        "shown_vs_baseline": 0,
+        "writes": {
+          "allow": 246750
+        }
+      },
+      "ttl-365d": {
+        "by_cause": {
+          "expired": 0,
+          "not_active": 0,
+          "outside_validity": 0
+        },
+        "denied_writes": 0,
+        "hidden_turns": 0,
+        "hidden_vs_baseline": 0,
+        "identical_to_baseline": false,
+        "questions_changed": 54,
+        "questions_losing_all_evidence": 0,
+        "questions_losing_evidence": 0,
+        "questions_losing_evidence_vs_baseline": 0,
+        "questions_with_hidden_turns": 0,
+        "shown_vs_baseline": 11122,
+        "writes": {
+          "allow": 246750
+        }
+      },
+      "ttl-7d": {
+        "by_cause": {
+          "expired": 110437,
+          "not_active": 0,
+          "outside_validity": 0
+        },
+        "denied_writes": 0,
+        "hidden_turns": 110437,
+        "hidden_vs_baseline": 99315,
+        "identical_to_baseline": false,
+        "questions_changed": 401,
+        "questions_losing_all_evidence": 173,
+        "questions_losing_evidence": 246,
+        "questions_losing_evidence_vs_baseline": 232,
+        "questions_with_hidden_turns": 406,
+        "shown_vs_baseline": 0,
+        "writes": {
+          "allow": 246750
+        }
+      },
+      "ttl-none": {
+        "by_cause": {
+          "expired": 0,
+          "not_active": 0,
+          "outside_validity": 0
+        },
+        "denied_writes": 0,
+        "hidden_turns": 0,
+        "hidden_vs_baseline": 0,
+        "identical_to_baseline": false,
+        "questions_changed": 54,
+        "questions_losing_all_evidence": 0,
+        "questions_losing_evidence": 0,
+        "questions_losing_evidence_vs_baseline": 0,
+        "questions_with_hidden_turns": 0,
+        "shown_vs_baseline": 11122,
+        "writes": {
+          "allow": 246750
+        }
+      }
+    },
+    "clock": "read_time",
+    "data": {
+      "dataset": "https://huggingface.co/datasets/xiaowu0162/longmemeval-cleaned",
+      "file": "longmemeval_s_cleaned.json",
+      "revision": "98d7416c24c778c2fee6e6f3006e7a073259d48f",
+      "sha256": "d6f21ea9d60a0d56f34a05b609c79c88a451d2ae03597821ea3d5a9678c3a442"
+    },
+    "questions": 500,
+    "rows_sha256": "22b2545e1e474201c504af59b717a71009c606d7e68f1a84ab963bbf6ffb2399"
+  },
+  "name": "frontier-axes",
+  "variants": [
+    {
+      "axis": "baseline",
+      "base": "medium",
+      "name": "medium",
+      "value": "medium"
+    },
+    {
+      "axis": "grants",
+      "base": "medium",
+      "name": "grants-off",
+      "set": [
+        {
+          "path": [
+            "read",
+            "honour_grants"
+          ],
+          "value": false
+        }
+      ],
+      "value": false
+    },
+    {
+      "axis": "scope_width",
+      "base": "medium",
+      "name": "scope-person-only",
+      "set": [
+        {
+          "path": [
+            "read",
+            "matrix",
+            {
+              "reader": "person"
+            },
+            "may_read"
+          ],
+          "value": [
+            "person"
+          ]
+        }
+      ],
+      "value": "person"
+    },
+    {
+      "axis": "scope_width",
+      "base": "medium",
+      "name": "scope-no-person",
+      "set": [
+        {
+          "path": [
+            "read",
+            "matrix",
+            {
+              "reader": "person"
+            },
+            "may_read"
+          ],
+          "value": [
+            "role",
+            "team",
+            "org"
+          ]
+        }
+      ],
+      "value": "role,team,org"
+    },
+    {
+      "axis": "budget",
+      "base": "medium",
+      "name": "budget-25",
+      "set": [
+        {
+          "path": [
+            "retention",
+            {
+              "class": "episodic",
+              "scope": "person"
+            },
+            "budget"
+          ],
+          "value": 25
+        }
+      ],
+      "value": 25
+    },
+    {
+      "axis": "budget",
+      "base": "medium",
+      "name": "budget-50",
+      "set": [
+        {
+          "path": [
+            "retention",
+            {
+              "class": "episodic",
+              "scope": "person"
+            },
+            "budget"
+          ],
+          "value": 50
+        }
+      ],
+      "value": 50
+    },
+    {
+      "axis": "budget",
+      "base": "medium",
+      "name": "budget-100",
+      "set": [
+        {
+          "path": [
+            "retention",
+            {
+              "class": "episodic",
+              "scope": "person"
+            },
+            "budget"
+          ],
+          "value": 100
+        }
+      ],
+      "value": 100
+    },
+    {
+      "axis": "budget",
+      "base": "medium",
+      "name": "budget-200",
+      "set": [
+        {
+          "path": [
+            "retention",
+            {
+              "class": "episodic",
+              "scope": "person"
+            },
+            "budget"
+          ],
+          "value": 200
+        }
+      ],
+      "value": 200
+    },
+    {
+      "axis": "budget",
+      "base": "medium",
+      "name": "budget-400",
+      "set": [
+        {
+          "path": [
+            "retention",
+            {
+              "class": "episodic",
+              "scope": "person"
+            },
+            "budget"
+          ],
+          "value": 400
+        }
+      ],
+      "value": 400
+    },
+    {
+      "axis": "ttl",
+      "base": "medium",
+      "name": "ttl-1d",
+      "set": [
+        {
+          "path": [
+            "retention",
+            {
+              "class": "episodic",
+              "scope": "person"
+            },
+            "ttl"
+          ],
+          "value": 86400
+        }
+      ],
+      "value": 86400
+    },
+    {
+      "axis": "ttl",
+      "base": "medium",
+      "name": "ttl-7d",
+      "set": [
+        {
+          "path": [
+            "retention",
+            {
+              "class": "episodic",
+              "scope": "person"
+            },
+            "ttl"
+          ],
+          "value": 604800
+        }
+      ],
+      "value": 604800
+    },
+    {
+      "axis": "ttl",
+      "base": "medium",
+      "name": "ttl-30d",
+      "set": [
+        {
+          "path": [
+            "retention",
+            {
+              "class": "episodic",
+              "scope": "person"
+            },
+            "ttl"
+          ],
+          "value": 2592000
+        }
+      ],
+      "value": 2592000
+    },
+    {
+      "axis": "ttl",
+      "base": "medium",
+      "name": "ttl-180d",
+      "set": [
+        {
+          "path": [
+            "retention",
+            {
+              "class": "episodic",
+              "scope": "person"
+            },
+            "ttl"
+          ],
+          "value": 15552000
+        }
+      ],
+      "value": 15552000
+    },
+    {
+      "axis": "ttl",
+      "base": "medium",
+      "name": "ttl-365d",
+      "set": [
+        {
+          "path": [
+            "retention",
+            {
+              "class": "episodic",
+              "scope": "person"
+            },
+            "ttl"
+          ],
+          "value": 31536000
+        }
+      ],
+      "value": 31536000
+    },
+    {
+      "axis": "ttl",
+      "base": "medium",
+      "name": "ttl-none",
+      "set": [
+        {
+          "path": [
+            "retention",
+            {
+              "class": "episodic",
+              "scope": "person"
+            },
+            "ttl"
+          ],
+          "value": null
+        }
+      ],
+      "value": null
+    },
+    {
+      "axis": "sources",
+      "base": "medium",
+      "name": "no-model-source",
+      "set": [
+        {
+          "path": [
+            "write",
+            {
+              "scope": "person"
+            },
+            "allowed_sources"
+          ],
+          "value": [
+            "user",
+            "document",
+            "tool",
+            "import",
+            "compaction"
+          ]
+        }
+      ],
+      "value": "user,document,tool,import,compaction"
+    }
+  ]
+}
