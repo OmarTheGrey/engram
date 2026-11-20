@@ -84,13 +84,25 @@ describe("the B1 reference run: GateMem's long-context agent on a Medical subset
     expect(() => b1ReferenceItems(domains, "medical", 2)).toThrow(/1 safety checkpoints/);
   });
 
-  test("COUNT fetches the pinned full set for any config whose data folder is missing, and says so when it may not (review P60-2)", async () => {
+  test("COUNT fetches the pinned full set only into a missing folder under .engram/upstream/, and refuses any other missing folder (review P60-2, P60-R1)", async () => {
     const b1 = readRunnerConfig(B1);
-    const missing = { ...b1, data: join(REPO, ".engram", "no-such-gatemem-data") };
-    expect(fetchesPinnedData(missing)).toBe(true);
+    const upstream = { ...b1, data: join(REPO, ".engram", "upstream", "gatemem", "no-such-data") };
+    expect(fetchesPinnedData(upstream)).toBe(true);
+    // A typo, or a fixture folder that was deleted, is never filled with the full set.
+    for (const data of [
+      join(REPO, "fixtures", "bench", "gatemem-typo"),
+      join(REPO, ".engram", "no-such-gatemem-data"),
+    ]) {
+      const wrong = { ...b1, data };
+      expect(fetchesPinnedData(wrong), data).toBe(false);
+      expect(fetchesPinnedData({ ...wrong, kind: "experiment" }), data).toBe(false);
+      await expect(countConfig(wrong, { fetch: true })).rejects.toThrow(
+        /is missing, and only a data folder under \.engram\/upstream\/ is fetched/,
+      );
+    }
     // A committed fixture subset is there, so a pipeline config on it fetches nothing.
     expect(fetchesPinnedData(readRunnerConfig(SMOKE_GATEMEM))).toBe(false);
-    await expect(countConfig(missing, { fetch: false })).rejects.toThrow(
+    await expect(countConfig(upstream, { fetch: false })).rejects.toThrow(
       /is missing; fetch it with make run CONFIG=<this config> COUNT=1/,
     );
   });
