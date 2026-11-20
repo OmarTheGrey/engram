@@ -142,3 +142,48 @@ def test_the_prices_config_names_its_source_and_date() -> None:
         for model in option.values():
             assert model in p["models"], model
     assert json.loads(json.dumps(p)) == p
+
+
+LEAD = {
+    "M1": "openrouter/deepseek/deepseek-v4-pro-0813",
+    "M2": "openrouter/z-ai/glm-5.3-flash",
+    "M3": "openrouter/mistralai/mistral-large-4-0",
+}
+
+
+def test_the_leads_set_is_an_option_and_its_prices_are_the_second_fetch() -> None:
+    assert CONFIG["options"]["item_1"]["d-lead"] == LEAD
+    p = load_config(REPO / CONFIG["prices"][0])
+    assert p["models"][LEAD["M1"]]["input"] == pytest.approx(1.32)
+    assert p["models"][LEAD["M1"]]["output"] == pytest.approx(3.96)
+    assert p["models"][LEAD["M2"]]["input"] == pytest.approx(0.0399)
+    assert p["models"][LEAD["M2"]]["output"] == pytest.approx(0.0784)
+    assert len(p["response_sha256"]) == 64
+
+
+def test_the_decisions_drop_h4s_store_family_its_memoryagentbench_set_and_c7() -> None:
+    _, rows, sets, flags = built()
+    spec = CONFIG["decisions"]
+    out = cost_table.decided(rows, CONFIG, sets, flags)
+    dropped = set(out["rows_dropped"])
+    assert dropped
+    for r in rows:
+        gone = (
+            r["run"] == "h4-memoryagentbench"
+            or (r["run"] == "h4-gatemem" and r["store"] in ("files", "letta"))
+            or r["condition"] == "C7"
+        )
+        assert (r["id"] in dropped) == gone, r["id"]
+    assert (spec["item_1"], spec["item_2"], spec["item_47"]) == ("d-lead", "a", "c")
+
+
+def test_decided_totals_change_h4_only() -> None:
+    _, rows, sets, flags = built()
+    reg = cost_table.totals(rows, CONFIG, sets, flags)["openrouter-prices"]["1d-lead/2a/47c"]
+    dec = cost_table.decided(rows, CONFIG, sets, flags)["totals"]["openrouter-prices"]["d-lead"]
+    for h in ("H1", "H2", "H3", "H5"):
+        assert dec["by_hypothesis"][h] == pytest.approx(reg["by_hypothesis"][h]), h
+    assert dec["by_hypothesis"]["H4"]["high"] < reg["by_hypothesis"]["H4"]["high"]
+    assert dec["calls"]["high"] < reg["calls"]["high"]
+    assert dec["unpriced_models"] == []
+    assert dec["ceiling"] == pytest.approx(1.25 * dec["dollars"]["high"])

@@ -9,6 +9,473 @@
     "The ceiling per run is ceiling_factor times its high estimate (card RV1, lead-decisions item 3a)."
   ],
   "ceiling_factor": 1.25,
+  "decided": {
+    "date": "2026-11-20",
+    "exclude": [
+      {
+        "run": "h4-memoryagentbench",
+        "why": "item 24: H4 runs on GateMem only"
+      },
+      {
+        "run": "h4-gatemem",
+        "store": [
+          "files",
+          "letta"
+        ],
+        "why": "item 20: the store family leaves H4's equivalence test (ADR 0035); the mem0 arm and the model and condition arms stay"
+      },
+      {
+        "condition": "C7",
+        "why": "item 25: C7's test is dropped, C7 equals C5 in benchmark sessions"
+      }
+    ],
+    "item_1": "d-lead",
+    "item_2": "a",
+    "item_47": "c",
+    "rows_dropped": [
+      "h4-gatemem/C5/medium/files/M1",
+      "h4-gatemem/C5/medium/files/M1/judge",
+      "h4-gatemem/C5/medium/letta/M1",
+      "h4-gatemem/C5/medium/letta/M1/judge",
+      "h4-gatemem/C7/medium/mem0/M1",
+      "h4-gatemem/C7/medium/mem0/M1/judge",
+      "h4-memoryagentbench/C5/medium/files/M1",
+      "h4-memoryagentbench/C5/medium/mem0/M1",
+      "h4-memoryagentbench/C5/medium/letta/M1",
+      "h4-memoryagentbench/C5/medium/mem0/M2",
+      "h4-memoryagentbench/C5/medium/mem0/M3",
+      "h4-memoryagentbench/C2/medium/mem0/M1",
+      "h4-memoryagentbench/C7/medium/mem0/M1"
+    ],
+    "rows_kept": 115,
+    "totals": {
+      "openrouter-prices": {
+        "a": {
+          "by_hypothesis": {
+            "H1": {
+              "high": 3105.533286,
+              "low": 389.58159
+            },
+            "H2": {
+              "high": 5338.658862,
+              "low": 1057.968468
+            },
+            "H3": {
+              "high": 1998.935163,
+              "low": 103.002394
+            },
+            "H4": {
+              "high": 799.047615,
+              "low": 97.142707
+            },
+            "H5": {
+              "high": 2381.923869,
+              "low": 231.21024
+            }
+          },
+          "calls": {
+            "high": 707546.0,
+            "low": 369092.0
+          },
+          "ceiling": 17030.123492,
+          "dollars": {
+            "high": 13624.098793,
+            "low": 1878.905399
+          },
+          "unpriced_models": []
+        },
+        "b-deepseek": {
+          "by_hypothesis": {
+            "H1": {
+              "high": 1691.066007,
+              "low": 274.334574
+            },
+            "H2": {
+              "high": 3695.308271,
+              "low": 861.097009
+            },
+            "H3": {
+              "high": 757.589116,
+              "low": 56.756242
+            },
+            "H4": {
+              "high": 599.025856,
+              "low": 84.431018
+            },
+            "H5": {
+              "high": 1547.03219,
+              "low": 163.509408
+            }
+          },
+          "calls": {
+            "high": 707546.0,
+            "low": 369092.0
+          },
+          "ceiling": 10362.526801,
+          "dollars": {
+            "high": 8290.02144,
+            "low": 1440.128251
+          },
+          "unpriced_models": []
+        },
+        "b-mistral": {
+          "by_hypothesis": {
+            "H1": {
+              "high": 1020.895211,
+              "low": 176.50991
+            },
+            "H2": {
+              "high": 2902.770022,
+              "low": 691.732532
+            },
+            "H3": {
+              "high": 402.179302,
+              "low": 30.418631
+            },
+            "H4": {
+              "high": 518.881685,
+              "low": 74.050585
+            },
+            "H5": {
+              "high": 1078.790752,
+              "low": 112.24632
+            }
+          },
+          "calls": {
+            "high": 707546.0,
+            "low": 369092.0
+          },
+          "ceiling": 7404.396214,
+          "dollars": {
+            "high": 5923.516971,
+            "low": 1084.957978
+          },
+          "unpriced_models": []
+        },
+        "c-luna": {
+          "by_hypothesis": {
+            "H1": {
+              "high": 394.990869,
+              "low": 82.106061
+            },
+            "H2": {
+              "high": 1256.224561,
+              "low": 320.757295
+            },
+            "H3": {
+              "high": 86.619045,
+              "low": 5.509278
+            },
+            "H4": {
+              "high": 267.374712,
+              "low": 47.529434
+            },
+            "H5": {
+              "high": 636.365094,
+              "low": 63.01944
+            }
+          },
+          "calls": {
+            "high": 707546.0,
+            "low": 369092.0
+          },
+          "ceiling": 3301.967851,
+          "dollars": {
+            "high": 2641.57428,
+            "low": 518.921508
+          },
+          "unpriced_models": []
+        },
+        "c-mistral-small": {
+          "by_hypothesis": {
+            "H1": {
+              "high": 443.374891,
+              "low": 89.928851
+            },
+            "H2": {
+              "high": 1332.86815,
+              "low": 339.732668
+            },
+            "H3": {
+              "high": 108.184946,
+              "low": 7.488614
+            },
+            "H4": {
+              "high": 275.644295,
+              "low": 48.767342
+            },
+            "H5": {
+              "high": 671.448695,
+              "low": 67.05792
+            }
+          },
+          "calls": {
+            "high": 707546.0,
+            "low": 369092.0
+          },
+          "ceiling": 3539.401221,
+          "dollars": {
+            "high": 2831.520977,
+            "low": 552.975396
+          },
+          "unpriced_models": []
+        },
+        "d-lead": {
+          "by_hypothesis": {
+            "H1": {
+              "high": 1691.066007,
+              "low": 274.334574
+            },
+            "H2": {
+              "high": 2765.097002,
+              "low": 647.284117
+            },
+            "H3": {
+              "high": 757.589116,
+              "low": 56.756242
+            },
+            "H4": {
+              "high": 417.366917,
+              "low": 67.473781
+            },
+            "H5": {
+              "high": 1547.03219,
+              "low": 163.509408
+            }
+          },
+          "calls": {
+            "high": 707546.0,
+            "low": 369092.0
+          },
+          "ceiling": 8972.68904,
+          "dollars": {
+            "high": 7178.151232,
+            "low": 1209.358122
+          },
+          "unpriced_models": []
+        }
+      },
+      "pi-ai-1.3.0": {
+        "a": {
+          "by_hypothesis": {
+            "H1": {
+              "high": 3105.533286,
+              "low": 389.58159
+            },
+            "H2": {
+              "high": 5063.36512,
+              "low": 984.244222
+            },
+            "H3": {
+              "high": 1998.935163,
+              "low": 103.002394
+            },
+            "H4": {
+              "high": 755.757372,
+              "low": 91.470592
+            },
+            "H5": {
+              "high": 1831.792806,
+              "low": 176.8416
+            }
+          },
+          "calls": {
+            "high": 707546.0,
+            "low": 369092.0
+          },
+          "ceiling": 15944.229683,
+          "dollars": {
+            "high": 12755.383747,
+            "low": 1745.140398
+          },
+          "unpriced_models": [
+            "openrouter/openai/gpt-4.1"
+          ]
+        },
+        "b-deepseek": {
+          "by_hypothesis": {
+            "H1": {
+              "high": 977.658385,
+              "low": 170.198641
+            },
+            "H2": {
+              "high": 2576.34478,
+              "low": 607.081546
+            },
+            "H3": {
+              "high": 379.249637,
+              "low": 28.71943
+            },
+            "H4": {
+              "high": 470.420851,
+              "low": 67.708765
+            },
+            "H5": {
+              "high": 498.450564,
+              "low": 54.570384
+            }
+          },
+          "calls": {
+            "high": 707546.0,
+            "low": 369092.0
+          },
+          "ceiling": 6127.655271,
+          "dollars": {
+            "high": 4902.124217,
+            "low": 928.278765
+          },
+          "unpriced_models": [
+            "openrouter/openai/gpt-4.1"
+          ]
+        },
+        "b-mistral": {
+          "by_hypothesis": {
+            "H1": {
+              "high": 1004.938809,
+              "low": 173.420571
+            },
+            "H2": {
+              "high": 2608.361489,
+              "low": 612.637557
+            },
+            "H3": {
+              "high": 397.810651,
+              "low": 29.713695
+            },
+            "H4": {
+              "high": 473.940494,
+              "low": 68.054673
+            },
+            "H5": {
+              "high": 516.232931,
+              "low": 56.319672
+            }
+          },
+          "calls": {
+            "high": 707546.0,
+            "low": 369092.0
+          },
+          "ceiling": 6251.605466,
+          "dollars": {
+            "high": 5001.284373,
+            "low": 940.146167
+          },
+          "unpriced_models": [
+            "openrouter/openai/gpt-4.1"
+          ]
+        },
+        "c-luna": {
+          "by_hypothesis": {
+            "H1": {
+              "high": 394.990869,
+              "low": 82.106061
+            },
+            "H2": {
+              "high": 980.930819,
+              "low": 247.033049
+            },
+            "H3": {
+              "high": 86.619045,
+              "low": 5.509278
+            },
+            "H4": {
+              "high": 224.084469,
+              "low": 41.857318
+            },
+            "H5": {
+              "high": 86.234031,
+              "low": 8.6508
+            }
+          },
+          "calls": {
+            "high": 707546.0,
+            "low": 369092.0
+          },
+          "ceiling": 2216.074042,
+          "dollars": {
+            "high": 1772.859234,
+            "low": 385.156506
+          },
+          "unpriced_models": [
+            "openrouter/openai/gpt-4.1"
+          ]
+        },
+        "c-mistral-small": {
+          "by_hypothesis": {
+            "H1": {
+              "high": 443.374891,
+              "low": 89.928851
+            },
+            "H2": {
+              "high": 1057.574408,
+              "low": 266.008422
+            },
+            "H3": {
+              "high": 108.184946,
+              "low": 7.488614
+            },
+            "H4": {
+              "high": 232.354052,
+              "low": 43.095226
+            },
+            "H5": {
+              "high": 121.317633,
+              "low": 12.68928
+            }
+          },
+          "calls": {
+            "high": 707546.0,
+            "low": 369092.0
+          },
+          "ceiling": 2453.507413,
+          "dollars": {
+            "high": 1962.80593,
+            "low": 419.210394
+          },
+          "unpriced_models": [
+            "openrouter/openai/gpt-4.1"
+          ]
+        },
+        "d-lead": {
+          "by_hypothesis": {
+            "H1": {
+              "high": 977.658385,
+              "low": 170.198641
+            },
+            "H2": {
+              "high": 1625.729834,
+              "low": 388.744416
+            },
+            "H3": {
+              "high": 379.249637,
+              "low": 28.71943
+            },
+            "H4": {
+              "high": 284.388816,
+              "low": 50.331402
+            },
+            "H5": {
+              "high": 498.450564,
+              "low": 54.570384
+            }
+          },
+          "calls": {
+            "high": 707546.0,
+            "low": 369092.0
+          },
+          "ceiling": 4706.846546,
+          "dollars": {
+            "high": 3765.477237,
+            "low": 692.564273
+          },
+          "unpriced_models": [
+            "openrouter/openai/gpt-4.1",
+            "openrouter/z-ai/glm-5.3-flash"
+          ]
+        }
+      }
+    }
+  },
   "design_shapes": {
     "mab-question": {
       "basis": "one read and one answer as on GateMem: two calls, a 300-token prompt and a top-20 read of context chunks, 256 tokens a chunk (low); four calls (two more reads) and 1,024 tokens a chunk (high), input (r + 1) prompt + (8 + read) r (r + 1) / 2 as research/scripts/h1_cost.py counts it",
@@ -176,6 +643,11 @@
         "M1": "openrouter/mistralai/mistral-small-2603",
         "M2": "openrouter/mistralai/mistral-large-4-0",
         "M3": "openrouter/deepseek/deepseek-v4-pro-0813"
+      },
+      "d-lead": {
+        "M1": "openrouter/deepseek/deepseek-v4-pro-0813",
+        "M2": "openrouter/z-ai/glm-5.3-flash",
+        "M3": "openrouter/mistralai/mistral-large-4-0"
       }
     },
     "item_1_note": "Item 1's option (b) names only M1; the other two models keep their makers and take the other two roles. Option (c) names no small model; gpt-6-luna and mistral-small-2603 bound the range item 1 quotes, with M2 and M3 as in (a).",
@@ -198,12 +670,12 @@
       "file": "research/configs/openrouter-prices.json",
       "models": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "input": 0.22,
-          "output": 9.5
+          "input": 1.32,
+          "output": 3.96
         },
         "openrouter/deepseek/deepseek-v4.1-flash": {
-          "input": 0.051,
-          "output": 0.567
+          "input": 0.3,
+          "output": 1.2
         },
         "openrouter/mistralai/mistral-large-4-0": {
           "input": 0.7,
@@ -240,9 +712,13 @@
         "openrouter/qwen/qwen3.8-flash": {
           "input": 0.15,
           "output": 0.47
+        },
+        "openrouter/z-ai/glm-5.3-flash": {
+          "input": 0.0399,
+          "output": 0.0784
         }
       },
-      "response_sha256": "3005b45c7e3588a55292d1bc759241e96fada06caad0b9c31c17e6f1c72b6cb0",
+      "response_sha256": "f494e90843061bb9e5ca95e8c5bf116ce473a458735cadbe75a41451908aa3d0",
       "source": "OpenRouter's public model list, https://openrouter.ai/api/v1/models (no key), each model's pricing.prompt, pricing.completion and pricing.input_cache_read, in dollars per token, multiplied here by one million"
     },
     "pi-ai-1.3.0": {
@@ -355,9 +831,9 @@
       "count": "make run CONFIG=research/configs/h1-gatemem.json COUNT=1, as research/results/h1-cost.json records it (sizes.gatemem)",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 361.26059,
-          "high": 289.008472,
-          "low": 8.471735
+          "ceiling": 322.043377,
+          "high": 257.634702,
+          "low": 33.360468
         },
         "openrouter/mistralai/mistral-large-4-0": {
           "ceiling": 170.780579,
@@ -491,9 +967,9 @@
       "count": "make run CONFIG=research/configs/h1-gatemem.json COUNT=1, as research/results/h1-cost.json records it (sizes.gatemem)",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 371.205212,
-          "high": 296.96417,
-          "low": 11.455123
+          "ceiling": 381.711111,
+          "high": 305.368889,
+          "low": 51.260792
         },
         "openrouter/mistralai/mistral-large-4-0": {
           "ceiling": 202.422559,
@@ -627,9 +1103,9 @@
       "count": "make run CONFIG=research/configs/h1-gatemem.json COUNT=1, as research/results/h1-cost.json records it (sizes.gatemem)",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 433.494694,
-          "high": 346.795755,
-          "low": 17.947571
+          "ceiling": 755.448005,
+          "high": 604.358404,
+          "low": 90.215482
         },
         "openrouter/mistralai/mistral-large-4-0": {
           "ceiling": 400.616366,
@@ -763,9 +1239,9 @@
       "count": "make run CONFIG=research/configs/h1-gatemem.json COUNT=1, as research/results/h1-cost.json records it (sizes.gatemem)",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 359.317611,
-          "high": 287.454089,
-          "low": 8.277437
+          "ceiling": 310.385508,
+          "high": 248.308406,
+          "low": 32.19468
         },
         "openrouter/mistralai/mistral-large-4-0": {
           "ceiling": 164.598375,
@@ -899,9 +1375,9 @@
       "count": "make run CONFIG=research/configs/h1-mem-inv.json COUNT=1, as research/results/h1-cost.json records it (sizes.mem-inv-bench)",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 5.692399,
-          "high": 4.553919,
-          "low": 0.041731
+          "ceiling": 2.893677,
+          "high": 2.314942,
+          "low": 0.141546
         },
         "openrouter/mistralai/mistral-large-4-0": {
           "ceiling": 1.534526,
@@ -965,9 +1441,9 @@
       "count": "make run CONFIG=research/configs/h1-mem-inv.json COUNT=1, as research/results/h1-cost.json records it (sizes.mem-inv-bench)",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 5.86194,
-          "high": 4.689552,
-          "low": 0.092593
+          "ceiling": 3.910922,
+          "high": 3.128738,
+          "low": 0.44672
         },
         "openrouter/mistralai/mistral-large-4-0": {
           "ceiling": 2.073974,
@@ -1031,9 +1507,9 @@
       "count": "make run CONFIG=research/configs/h1-mem-inv.json COUNT=1, as research/results/h1-cost.json records it (sizes.mem-inv-bench)",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 5.896302,
-          "high": 4.717041,
-          "low": 0.101948
+          "ceiling": 4.117095,
+          "high": 3.293676,
+          "low": 0.50285
         },
         "openrouter/mistralai/mistral-large-4-0": {
           "ceiling": 2.183308,
@@ -1097,9 +1573,9 @@
       "count": "make run CONFIG=research/configs/h1-mem-inv.json COUNT=1, as research/results/h1-cost.json records it (sizes.mem-inv-bench)",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 5.702729,
-          "high": 4.562183,
-          "low": 0.042764
+          "ceiling": 2.955659,
+          "high": 2.364527,
+          "low": 0.147744
         },
         "openrouter/mistralai/mistral-large-4-0": {
           "ceiling": 1.567395,
@@ -1163,9 +1639,9 @@
       "count": "make run CONFIG=research/configs/h1-mem-inv.json COUNT=1: 8 agent notes, one per scenario, with the first seed",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 0.125991,
-          "high": 0.100793,
-          "low": 0.002103
+          "ceiling": 0.053698,
+          "high": 0.042958,
+          "low": 0.001584
         },
         "openrouter/mistralai/mistral-large-4-0": {
           "ceiling": 0.028476,
@@ -1227,9 +1703,9 @@
       "count": "the same cells as H1's (item, condition, preset, store, model, seed), so their cassettes serve both (rule 7) and they make no new call; if H1 drops its utility checkpoints (lead-decisions item 2b), the utility cells are new",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 361.26059,
-          "high": 289.008472,
-          "low": 8.471735
+          "ceiling": 322.043377,
+          "high": 257.634702,
+          "low": 33.360468
         },
         "openrouter/mistralai/mistral-large-4-0": {
           "ceiling": 170.780579,
@@ -1363,9 +1839,9 @@
       "count": "the same cells as H1's (item, condition, preset, store, model, seed), so their cassettes serve both (rule 7) and they make no new call; if H1 drops its utility checkpoints (lead-decisions item 2b), the utility cells are new",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 359.317611,
-          "high": 287.454089,
-          "low": 8.277437
+          "ceiling": 310.385508,
+          "high": 248.308406,
+          "low": 32.19468
         },
         "openrouter/mistralai/mistral-large-4-0": {
           "ceiling": 164.598375,
@@ -1499,9 +1975,9 @@
       "count": "every GateMem checkpoint at each preset, three seeds, as H1's design; tokens from C5 at medium (low) to C2 (high), since a preset admits at most what C2 reads",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 361.26059,
-          "high": 289.008472,
-          "low": 8.277437
+          "ceiling": 322.043377,
+          "high": 257.634702,
+          "low": 32.19468
         },
         "openrouter/mistralai/mistral-large-4-0": {
           "ceiling": 170.780579,
@@ -1635,9 +2111,9 @@
       "count": "every GateMem checkpoint at each preset, three seeds, as H1's design; tokens from C5 at medium (low) to C2 (high), since a preset admits at most what C2 reads",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 361.26059,
-          "high": 289.008472,
-          "low": 8.277437
+          "ceiling": 322.043377,
+          "high": 257.634702,
+          "low": 32.19468
         },
         "openrouter/mistralai/mistral-large-4-0": {
           "ceiling": 170.780579,
@@ -1771,9 +2247,9 @@
       "count": "every GateMem checkpoint, three seeds, one call each: GateMem's query prompt with the last 300 turns up to the as-of turn as its memory block, each turn's item as JSON",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 110.14233,
-          "high": 88.113864,
-          "low": 17.537818
+          "ceiling": 184.695075,
+          "high": 147.75606,
+          "low": 90.580391
         },
         "openrouter/mistralai/mistral-large-4-0": {
           "ceiling": 97.944358,
@@ -1907,9 +2383,9 @@
       "count": "make run CONFIG=research/configs/h2-longmemeval-c2.json COUNT=1 and h2-longmemeval-c5-medium.json COUNT=1, as research/results/h2-longmemeval-cost.json records them",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 107.980212,
-          "high": 86.384169,
-          "low": 3.803115
+          "ceiling": 232.710673,
+          "high": 186.168539,
+          "low": 20.949031
         },
         "openrouter/mistralai/mistral-large-4-0": {
           "ceiling": 123.407175,
@@ -2019,9 +2495,9 @@
       "count": "make run CONFIG=research/configs/h2-longmemeval-c2.json COUNT=1 and h2-longmemeval-c5-medium.json COUNT=1, as research/results/h2-longmemeval-cost.json records them",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 108.367228,
-          "high": 86.693782,
-          "low": 3.841817
+          "ceiling": 235.03277,
+          "high": 188.026216,
+          "low": 21.181241
         },
         "openrouter/mistralai/mistral-large-4-0": {
           "ceiling": 124.63859,
@@ -2131,9 +2607,9 @@
       "count": "the 500 questions at each preset, three seeds, as the baselines; tokens from C5 at medium (low) to C2 (high)",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 107.980212,
-          "high": 86.384169,
-          "low": 3.841817
+          "ceiling": 232.710673,
+          "high": 186.168539,
+          "low": 21.181241
         },
         "openrouter/mistralai/mistral-large-4-0": {
           "ceiling": 123.407175,
@@ -2243,9 +2719,9 @@
       "count": "the 500 questions at each preset, three seeds, as the baselines; tokens from C5 at medium (low) to C2 (high)",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 107.980212,
-          "high": 86.384169,
-          "low": 3.841817
+          "ceiling": 232.710673,
+          "high": 186.168539,
+          "low": 21.181241
         },
         "openrouter/mistralai/mistral-large-4-0": {
           "ceiling": 123.407175,
@@ -2355,9 +2831,9 @@
       "count": "the 500 questions, three seeds, one call each with the whole history in the prompt (upstream's full-history reader), the reader prompt plus the S split's mean history characters, over four",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 85.707586,
-          "high": 68.566069,
-          "low": 40.480562
+          "ceiling": 411.646268,
+          "high": 329.317015,
+          "low": 242.425902
         },
         "openrouter/mistralai/mistral-large-4-0": {
           "ceiling": 218.297263,
@@ -2467,9 +2943,9 @@
       "count": "the arcs of D1 to D3 at the pin: 3 domains, 3 tiers, 10 arcs of 5 episodes per cell (docs/readings/litreview/2609.05441-merit.md), 450 episodes; MERIT's user is scripted (packages/bench/PINS.md), so no simulator calls; C2 is the same at every preset and counted once",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 155.852994,
-          "high": 124.682395,
-          "low": 2.36925
+          "ceiling": 106.421027,
+          "high": 85.136822,
+          "low": 3.4749
         },
         "openrouter/mistralai/mistral-large-4-0": {
           "ceiling": 56.435393,
@@ -2533,9 +3009,9 @@
       "count": "the arcs of D1 to D3 at the pin: 3 domains, 3 tiers, 10 arcs of 5 episodes per cell (docs/readings/litreview/2609.05441-merit.md), 450 episodes; MERIT's user is scripted (packages/bench/PINS.md), so no simulator calls; C2 is the same at every preset and counted once",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 155.852994,
-          "high": 124.682395,
-          "low": 2.36925
+          "ceiling": 106.421027,
+          "high": 85.136822,
+          "low": 3.4749
         },
         "openrouter/mistralai/mistral-large-4-0": {
           "ceiling": 56.435393,
@@ -2599,9 +3075,9 @@
       "count": "the arcs of D1 to D3 at the pin: 3 domains, 3 tiers, 10 arcs of 5 episodes per cell (docs/readings/litreview/2609.05441-merit.md), 450 episodes; MERIT's user is scripted (packages/bench/PINS.md), so no simulator calls; C2 is the same at every preset and counted once",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 155.852994,
-          "high": 124.682395,
-          "low": 2.36925
+          "ceiling": 106.421027,
+          "high": 85.136822,
+          "low": 3.4749
         },
         "openrouter/mistralai/mistral-large-4-0": {
           "ceiling": 56.435393,
@@ -2665,9 +3141,9 @@
       "count": "the arcs of D1 to D3 at the pin: 3 domains, 3 tiers, 10 arcs of 5 episodes per cell (docs/readings/litreview/2609.05441-merit.md), 450 episodes; MERIT's user is scripted (packages/bench/PINS.md), so no simulator calls; C2 is the same at every preset and counted once",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 155.852994,
-          "high": 124.682395,
-          "low": 2.36925
+          "ceiling": 106.421027,
+          "high": 85.136822,
+          "low": 3.4749
         },
         "openrouter/mistralai/mistral-large-4-0": {
           "ceiling": 56.435393,
@@ -2731,9 +3207,9 @@
       "count": "450 episodes, full replay as MERIT's C1",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 168.227991,
-          "high": 134.582393,
-          "low": 3.11175
+          "ceiling": 180.671009,
+          "high": 144.536807,
+          "low": 7.9299
         },
         "openrouter/mistralai/mistral-large-4-0": {
           "ceiling": 95.810383,
@@ -2797,14 +3273,19 @@
       "count": "100 checkpoints per model at C1, C2 and C5 at each preset, three seeds; C1 and C2 counted once; the shape is the full set's mean over the three kinds",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 4.96584,
-          "high": 3.972672,
-          "low": 0.790704
+          "ceiling": 8.3271,
+          "high": 6.66168,
+          "low": 4.083877
         },
         "openrouter/mistralai/mistral-large-4-0": {
           "ceiling": 4.415886,
           "high": 3.532709,
           "low": 2.165692
+        },
+        "openrouter/z-ai/glm-5.3-flash": {
+          "ceiling": 0.325306,
+          "high": 0.260245,
+          "low": 0.128951
         }
       },
       "groups": [
@@ -2894,14 +3375,19 @@
       "count": "100 checkpoints per model at C1, C2 and C5 at each preset, three seeds; C1 and C2 counted once; the shape is the full set's mean over the three kinds",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 16.287673,
-          "high": 13.030138,
-          "low": 0.381954
+          "ceiling": 14.519539,
+          "high": 11.615631,
+          "low": 1.504079
         },
         "openrouter/mistralai/mistral-large-4-0": {
           "ceiling": 7.699756,
           "high": 6.159804,
           "low": 0.797618
+        },
+        "openrouter/z-ai/glm-5.3-flash": {
+          "ceiling": 0.735364,
+          "high": 0.588291,
+          "low": 0.056893
         }
       },
       "groups": [
@@ -2991,14 +3477,19 @@
       "count": "100 checkpoints per model at C1, C2 and C5 at each preset, three seeds; C1 and C2 counted once; the shape is the full set's mean over the three kinds",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 16.287673,
-          "high": 13.030138,
-          "low": 0.373194
+          "ceiling": 14.519539,
+          "high": 11.615631,
+          "low": 1.451519
         },
         "openrouter/mistralai/mistral-large-4-0": {
           "ceiling": 7.699756,
           "high": 6.159804,
           "low": 0.769745
+        },
+        "openrouter/z-ai/glm-5.3-flash": {
+          "ceiling": 0.735364,
+          "high": 0.588291,
+          "low": 0.055304
         }
       },
       "groups": [
@@ -3088,14 +3579,19 @@
       "count": "100 checkpoints per model at C1, C2 and C5 at each preset, three seeds; C1 and C2 counted once; the shape is the full set's mean over the three kinds",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 16.287673,
-          "high": 13.030138,
-          "low": 0.373194
+          "ceiling": 14.519539,
+          "high": 11.615631,
+          "low": 1.451519
         },
         "openrouter/mistralai/mistral-large-4-0": {
           "ceiling": 7.699756,
           "high": 6.159804,
           "low": 0.769745
+        },
+        "openrouter/z-ai/glm-5.3-flash": {
+          "ceiling": 0.735364,
+          "high": 0.588291,
+          "low": 0.055304
         }
       },
       "groups": [
@@ -3185,14 +3681,19 @@
       "count": "100 checkpoints per model at C1, C2 and C5 at each preset, three seeds; C1 and C2 counted once; the shape is the full set's mean over the three kinds",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 16.287673,
-          "high": 13.030138,
-          "low": 0.373194
+          "ceiling": 14.519539,
+          "high": 11.615631,
+          "low": 1.451519
         },
         "openrouter/mistralai/mistral-large-4-0": {
           "ceiling": 7.699756,
           "high": 6.159804,
           "low": 0.769745
+        },
+        "openrouter/z-ai/glm-5.3-flash": {
+          "ceiling": 0.735364,
+          "high": 0.588291,
+          "low": 0.055304
         }
       },
       "groups": [
@@ -3282,9 +3783,14 @@
       "count": "100 checkpoints per model at C1, C2 and C5 at each preset, three seeds; C1 and C2 counted once; the shape is the full set's mean over the three kinds",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 4.96584,
-          "high": 3.972672,
-          "low": 0.790704
+          "ceiling": 8.3271,
+          "high": 6.66168,
+          "low": 4.083877
+        },
+        "openrouter/mistralai/mistral-large-4-0": {
+          "ceiling": 4.415886,
+          "high": 3.532709,
+          "low": 2.165692
         },
         "openrouter/openai/gpt-5.6-terra": {
           "ceiling": 15.045318,
@@ -3379,9 +3885,14 @@
       "count": "100 checkpoints per model at C1, C2 and C5 at each preset, three seeds; C1 and C2 counted once; the shape is the full set's mean over the three kinds",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 16.287673,
-          "high": 13.030138,
-          "low": 0.381954
+          "ceiling": 14.519539,
+          "high": 11.615631,
+          "low": 1.504079
+        },
+        "openrouter/mistralai/mistral-large-4-0": {
+          "ceiling": 7.699756,
+          "high": 6.159804,
+          "low": 0.797618
         },
         "openrouter/openai/gpt-5.6-terra": {
           "ceiling": 31.411802,
@@ -3476,9 +3987,14 @@
       "count": "100 checkpoints per model at C1, C2 and C5 at each preset, three seeds; C1 and C2 counted once; the shape is the full set's mean over the three kinds",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 16.287673,
-          "high": 13.030138,
-          "low": 0.373194
+          "ceiling": 14.519539,
+          "high": 11.615631,
+          "low": 1.451519
+        },
+        "openrouter/mistralai/mistral-large-4-0": {
+          "ceiling": 7.699756,
+          "high": 6.159804,
+          "low": 0.769745
         },
         "openrouter/openai/gpt-5.6-terra": {
           "ceiling": 31.411802,
@@ -3573,9 +4089,14 @@
       "count": "100 checkpoints per model at C1, C2 and C5 at each preset, three seeds; C1 and C2 counted once; the shape is the full set's mean over the three kinds",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 16.287673,
-          "high": 13.030138,
-          "low": 0.373194
+          "ceiling": 14.519539,
+          "high": 11.615631,
+          "low": 1.451519
+        },
+        "openrouter/mistralai/mistral-large-4-0": {
+          "ceiling": 7.699756,
+          "high": 6.159804,
+          "low": 0.769745
         },
         "openrouter/openai/gpt-5.6-terra": {
           "ceiling": 31.411802,
@@ -3670,9 +4191,14 @@
       "count": "100 checkpoints per model at C1, C2 and C5 at each preset, three seeds; C1 and C2 counted once; the shape is the full set's mean over the three kinds",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 16.287673,
-          "high": 13.030138,
-          "low": 0.373194
+          "ceiling": 14.519539,
+          "high": 11.615631,
+          "low": 1.451519
+        },
+        "openrouter/mistralai/mistral-large-4-0": {
+          "ceiling": 7.699756,
+          "high": 6.159804,
+          "low": 0.769745
         },
         "openrouter/openai/gpt-5.6-terra": {
           "ceiling": 31.411802,
@@ -3767,14 +4293,19 @@
       "count": "200 questions per model at C1, C2 and C5 at each preset, three seeds; C1 and C2 counted once",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 34.283035,
-          "high": 27.426428,
-          "low": 16.192225
+          "ceiling": 164.658507,
+          "high": 131.726806,
+          "low": 96.970361
         },
         "openrouter/mistralai/mistral-large-4-0": {
           "ceiling": 87.318905,
           "high": 69.855124,
           "low": 51.423676
+        },
+        "openrouter/z-ai/glm-5.3-flash": {
+          "ceiling": 5.125855,
+          "high": 4.100684,
+          "low": 2.943049
         }
       },
       "groups": [
@@ -3864,14 +4395,19 @@
       "count": "200 questions per model at C1, C2 and C5 at each preset, three seeds; C1 and C2 counted once",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 43.192085,
-          "high": 34.553668,
-          "low": 1.521246
+          "ceiling": 93.084269,
+          "high": 74.467415,
+          "low": 8.379613
         },
         "openrouter/mistralai/mistral-large-4-0": {
           "ceiling": 49.36287,
           "high": 39.490296,
           "low": 4.443734
+        },
+        "openrouter/z-ai/glm-5.3-flash": {
+          "ceiling": 3.406908,
+          "high": 2.725526,
+          "low": 0.276795
         }
       },
       "groups": [
@@ -3961,14 +4497,19 @@
       "count": "200 questions per model at C1, C2 and C5 at each preset, three seeds; C1 and C2 counted once",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 43.192085,
-          "high": 34.553668,
-          "low": 1.536727
+          "ceiling": 93.084269,
+          "high": 74.467415,
+          "low": 8.472496
         },
         "openrouter/mistralai/mistral-large-4-0": {
           "ceiling": 49.36287,
           "high": 39.490296,
           "low": 4.492991
+        },
+        "openrouter/z-ai/glm-5.3-flash": {
+          "ceiling": 3.406908,
+          "high": 2.725526,
+          "low": 0.279603
         }
       },
       "groups": [
@@ -4058,14 +4599,19 @@
       "count": "200 questions per model at C1, C2 and C5 at each preset, three seeds; C1 and C2 counted once",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 43.192085,
-          "high": 34.553668,
-          "low": 1.536727
+          "ceiling": 93.084269,
+          "high": 74.467415,
+          "low": 8.472496
         },
         "openrouter/mistralai/mistral-large-4-0": {
           "ceiling": 49.36287,
           "high": 39.490296,
           "low": 4.492991
+        },
+        "openrouter/z-ai/glm-5.3-flash": {
+          "ceiling": 3.406908,
+          "high": 2.725526,
+          "low": 0.279603
         }
       },
       "groups": [
@@ -4155,14 +4701,19 @@
       "count": "200 questions per model at C1, C2 and C5 at each preset, three seeds; C1 and C2 counted once",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 43.192085,
-          "high": 34.553668,
-          "low": 1.536727
+          "ceiling": 93.084269,
+          "high": 74.467415,
+          "low": 8.472496
         },
         "openrouter/mistralai/mistral-large-4-0": {
           "ceiling": 49.36287,
           "high": 39.490296,
           "low": 4.492991
+        },
+        "openrouter/z-ai/glm-5.3-flash": {
+          "ceiling": 3.406908,
+          "high": 2.725526,
+          "low": 0.279603
         }
       },
       "groups": [
@@ -4252,9 +4803,14 @@
       "count": "200 questions per model at C1, C2 and C5 at each preset, three seeds; C1 and C2 counted once",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 34.283035,
-          "high": 27.426428,
-          "low": 16.192225
+          "ceiling": 164.658507,
+          "high": 131.726806,
+          "low": 96.970361
+        },
+        "openrouter/mistralai/mistral-large-4-0": {
+          "ceiling": 87.318905,
+          "high": 69.855124,
+          "low": 51.423676
         },
         "openrouter/openai/gpt-5.6-terra": {
           "ceiling": 254.125087,
@@ -4349,9 +4905,14 @@
       "count": "200 questions per model at C1, C2 and C5 at each preset, three seeds; C1 and C2 counted once",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 43.192085,
-          "high": 34.553668,
-          "low": 1.521246
+          "ceiling": 93.084269,
+          "high": 74.467415,
+          "low": 8.379613
+        },
+        "openrouter/mistralai/mistral-large-4-0": {
+          "ceiling": 49.36287,
+          "high": 39.490296,
+          "low": 4.443734
         },
         "openrouter/openai/gpt-5.6-terra": {
           "ceiling": 159.822772,
@@ -4446,9 +5007,14 @@
       "count": "200 questions per model at C1, C2 and C5 at each preset, three seeds; C1 and C2 counted once",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 43.192085,
-          "high": 34.553668,
-          "low": 1.536727
+          "ceiling": 93.084269,
+          "high": 74.467415,
+          "low": 8.472496
+        },
+        "openrouter/mistralai/mistral-large-4-0": {
+          "ceiling": 49.36287,
+          "high": 39.490296,
+          "low": 4.492991
         },
         "openrouter/openai/gpt-5.6-terra": {
           "ceiling": 159.822772,
@@ -4543,9 +5109,14 @@
       "count": "200 questions per model at C1, C2 and C5 at each preset, three seeds; C1 and C2 counted once",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 43.192085,
-          "high": 34.553668,
-          "low": 1.536727
+          "ceiling": 93.084269,
+          "high": 74.467415,
+          "low": 8.472496
+        },
+        "openrouter/mistralai/mistral-large-4-0": {
+          "ceiling": 49.36287,
+          "high": 39.490296,
+          "low": 4.492991
         },
         "openrouter/openai/gpt-5.6-terra": {
           "ceiling": 159.822772,
@@ -4640,9 +5211,14 @@
       "count": "200 questions per model at C1, C2 and C5 at each preset, three seeds; C1 and C2 counted once",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 43.192085,
-          "high": 34.553668,
-          "low": 1.536727
+          "ceiling": 93.084269,
+          "high": 74.467415,
+          "low": 8.472496
+        },
+        "openrouter/mistralai/mistral-large-4-0": {
+          "ceiling": 49.36287,
+          "high": 39.490296,
+          "low": 4.492991
         },
         "openrouter/openai/gpt-5.6-terra": {
           "ceiling": 159.822772,
@@ -4737,14 +5313,19 @@
       "count": "50 episodes per model at C1, C2 and C5 at each preset, three seeds; C1 and C2 counted once",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 18.691999,
-          "high": 14.953599,
-          "low": 0.34575
+          "ceiling": 20.074557,
+          "high": 16.059645,
+          "low": 0.8811
         },
         "openrouter/mistralai/mistral-large-4-0": {
           "ceiling": 10.645598,
           "high": 8.516479,
           "low": 0.46725
+        },
+        "openrouter/z-ai/glm-5.3-flash": {
+          "ceiling": 0.896369,
+          "high": 0.717096,
+          "low": 0.034736
         }
       },
       "groups": [
@@ -4788,14 +5369,19 @@
       "count": "50 episodes per model at C1, C2 and C5 at each preset, three seeds; C1 and C2 counted once",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 17.316999,
-          "high": 13.853599,
-          "low": 0.26325
+          "ceiling": 11.824559,
+          "high": 9.459647,
+          "low": 0.3861
         },
         "openrouter/mistralai/mistral-large-4-0": {
           "ceiling": 6.270599,
           "high": 5.016479,
           "low": 0.20475
+        },
+        "openrouter/z-ai/glm-5.3-flash": {
+          "ceiling": 0.646995,
+          "high": 0.517596,
+          "low": 0.019773
         }
       },
       "groups": [
@@ -4839,14 +5425,19 @@
       "count": "50 episodes per model at C1, C2 and C5 at each preset, three seeds; C1 and C2 counted once",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 17.316999,
-          "high": 13.853599,
-          "low": 0.26325
+          "ceiling": 11.824559,
+          "high": 9.459647,
+          "low": 0.3861
         },
         "openrouter/mistralai/mistral-large-4-0": {
           "ceiling": 6.270599,
           "high": 5.016479,
           "low": 0.20475
+        },
+        "openrouter/z-ai/glm-5.3-flash": {
+          "ceiling": 0.646995,
+          "high": 0.517596,
+          "low": 0.019773
         }
       },
       "groups": [
@@ -4890,14 +5481,19 @@
       "count": "50 episodes per model at C1, C2 and C5 at each preset, three seeds; C1 and C2 counted once",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 17.316999,
-          "high": 13.853599,
-          "low": 0.26325
+          "ceiling": 11.824559,
+          "high": 9.459647,
+          "low": 0.3861
         },
         "openrouter/mistralai/mistral-large-4-0": {
           "ceiling": 6.270599,
           "high": 5.016479,
           "low": 0.20475
+        },
+        "openrouter/z-ai/glm-5.3-flash": {
+          "ceiling": 0.646995,
+          "high": 0.517596,
+          "low": 0.019773
         }
       },
       "groups": [
@@ -4941,14 +5537,19 @@
       "count": "50 episodes per model at C1, C2 and C5 at each preset, three seeds; C1 and C2 counted once",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 17.316999,
-          "high": 13.853599,
-          "low": 0.26325
+          "ceiling": 11.824559,
+          "high": 9.459647,
+          "low": 0.3861
         },
         "openrouter/mistralai/mistral-large-4-0": {
           "ceiling": 6.270599,
           "high": 5.016479,
           "low": 0.20475
+        },
+        "openrouter/z-ai/glm-5.3-flash": {
+          "ceiling": 0.646995,
+          "high": 0.517596,
+          "low": 0.019773
         }
       },
       "groups": [
@@ -4992,9 +5593,14 @@
       "count": "50 episodes per model at C1, C2 and C5 at each preset, three seeds; C1 and C2 counted once",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 18.691999,
-          "high": 14.953599,
-          "low": 0.34575
+          "ceiling": 20.074557,
+          "high": 16.059645,
+          "low": 0.8811
+        },
+        "openrouter/mistralai/mistral-large-4-0": {
+          "ceiling": 10.645598,
+          "high": 8.516479,
+          "low": 0.46725
         },
         "openrouter/openai/gpt-5.6-terra": {
           "ceiling": 40.831994,
@@ -5043,9 +5649,14 @@
       "count": "50 episodes per model at C1, C2 and C5 at each preset, three seeds; C1 and C2 counted once",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 17.316999,
-          "high": 13.853599,
-          "low": 0.26325
+          "ceiling": 11.824559,
+          "high": 9.459647,
+          "low": 0.3861
+        },
+        "openrouter/mistralai/mistral-large-4-0": {
+          "ceiling": 6.270599,
+          "high": 5.016479,
+          "low": 0.20475
         },
         "openrouter/openai/gpt-5.6-terra": {
           "ceiling": 28.331998,
@@ -5094,9 +5705,14 @@
       "count": "50 episodes per model at C1, C2 and C5 at each preset, three seeds; C1 and C2 counted once",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 17.316999,
-          "high": 13.853599,
-          "low": 0.26325
+          "ceiling": 11.824559,
+          "high": 9.459647,
+          "low": 0.3861
+        },
+        "openrouter/mistralai/mistral-large-4-0": {
+          "ceiling": 6.270599,
+          "high": 5.016479,
+          "low": 0.20475
         },
         "openrouter/openai/gpt-5.6-terra": {
           "ceiling": 28.331998,
@@ -5145,9 +5761,14 @@
       "count": "50 episodes per model at C1, C2 and C5 at each preset, three seeds; C1 and C2 counted once",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 17.316999,
-          "high": 13.853599,
-          "low": 0.26325
+          "ceiling": 11.824559,
+          "high": 9.459647,
+          "low": 0.3861
+        },
+        "openrouter/mistralai/mistral-large-4-0": {
+          "ceiling": 6.270599,
+          "high": 5.016479,
+          "low": 0.20475
         },
         "openrouter/openai/gpt-5.6-terra": {
           "ceiling": 28.331998,
@@ -5196,9 +5817,14 @@
       "count": "50 episodes per model at C1, C2 and C5 at each preset, three seeds; C1 and C2 counted once",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 17.316999,
-          "high": 13.853599,
-          "low": 0.26325
+          "ceiling": 11.824559,
+          "high": 9.459647,
+          "low": 0.3861
+        },
+        "openrouter/mistralai/mistral-large-4-0": {
+          "ceiling": 6.270599,
+          "high": 5.016479,
+          "low": 0.20475
         },
         "openrouter/openai/gpt-5.6-terra": {
           "ceiling": 28.331998,
@@ -5247,9 +5873,9 @@
       "count": "H2's C5 baseline at medium, the same cells, so no new call",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 108.367228,
-          "high": 86.693782,
-          "low": 3.841817
+          "ceiling": 235.03277,
+          "high": 188.026216,
+          "low": 21.181241
         },
         "openrouter/mistralai/mistral-large-4-0": {
           "ceiling": 124.63859,
@@ -5359,9 +5985,9 @@
       "count": "the 500 questions, three seeds; the deterministic lints call no model, so a session has C5's shape",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 108.367228,
-          "high": 86.693782,
-          "low": 3.841817
+          "ceiling": 235.03277,
+          "high": 188.026216,
+          "low": 21.181241
         },
         "openrouter/mistralai/mistral-large-4-0": {
           "ceiling": 124.63859,
@@ -5471,9 +6097,9 @@
       "count": "make run CONFIG=research/configs/h3-lint-model.json COUNT=1, as research/results/h3-lint-floor.json records it (model_run): calls and prompt characters; the reply length is assumed (lint_output_tokens), not measured",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 1616.664491,
-          "high": 1293.331593,
-          "low": 31.063926
+          "ceiling": 710.436346,
+          "high": 568.349077,
+          "low": 34.874268
         },
         "openrouter/mistralai/mistral-large-4-0": {
           "ceiling": 376.746547,
@@ -5537,9 +6163,9 @@
       "count": "761 access and forgetting checkpoints per arm (pre-registration, H4; the draw is fixed in card X9), three seeds, the shape the two kinds' mean; the store arms also read the 728 utility checkpoints for the utility gap; C7 reads unfiltered, so C2's shape. Counted as new: whether the mem0 arms on M1 reuse H1's cells depends on X9's draw",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 241.265806,
-          "high": 193.012645,
-          "low": 5.560768
+          "ceiling": 208.650056,
+          "high": 166.920044,
+          "low": 21.63659
         },
         "openrouter/mistralai/mistral-large-4-0": {
           "ceiling": 110.647757,
@@ -5661,9 +6287,9 @@
       "count": "761 access and forgetting checkpoints per arm (pre-registration, H4; the draw is fixed in card X9), three seeds, the shape the two kinds' mean; the store arms also read the 728 utility checkpoints for the utility gap; C7 reads unfiltered, so C2's shape. Counted as new: whether the mem0 arms on M1 reuse H1's cells depends on X9's draw",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 241.265806,
-          "high": 193.012645,
-          "low": 5.560768
+          "ceiling": 208.650056,
+          "high": 166.920044,
+          "low": 21.63659
         },
         "openrouter/mistralai/mistral-large-4-0": {
           "ceiling": 110.647757,
@@ -5785,9 +6411,9 @@
       "count": "761 access and forgetting checkpoints per arm (pre-registration, H4; the draw is fixed in card X9), three seeds, the shape the two kinds' mean; the store arms also read the 728 utility checkpoints for the utility gap; C7 reads unfiltered, so C2's shape. Counted as new: whether the mem0 arms on M1 reuse H1's cells depends on X9's draw",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 241.265806,
-          "high": 193.012645,
-          "low": 5.560768
+          "ceiling": 208.650056,
+          "high": 166.920044,
+          "low": 21.63659
         },
         "openrouter/mistralai/mistral-large-4-0": {
           "ceiling": 110.647757,
@@ -5909,14 +6535,19 @@
       "count": "761 access and forgetting checkpoints per arm (pre-registration, H4; the draw is fixed in card X9), three seeds, the shape the two kinds' mean; the store arms also read the 728 utility checkpoints for the utility gap; C7 reads unfiltered, so C2's shape. Counted as new: whether the mem0 arms on M1 reuse H1's cells depends on X9's draw",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 123.233778,
-          "high": 98.587022,
-          "low": 2.835919
+          "ceiling": 106.201206,
+          "high": 84.960965,
+          "low": 11.021546
         },
         "openrouter/mistralai/mistral-large-4-0": {
           "ceiling": 56.318821,
           "high": 45.055057,
           "low": 5.844759
+        },
+        "openrouter/z-ai/glm-5.3-flash": {
+          "ceiling": 5.466369,
+          "high": 4.373095,
+          "low": 0.420125
         }
       },
       "groups": [
@@ -6006,9 +6637,14 @@
       "count": "761 access and forgetting checkpoints per arm (pre-registration, H4; the draw is fixed in card X9), three seeds, the shape the two kinds' mean; the store arms also read the 728 utility checkpoints for the utility gap; C7 reads unfiltered, so C2's shape. Counted as new: whether the mem0 arms on M1 reuse H1's cells depends on X9's draw",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 123.233778,
-          "high": 98.587022,
-          "low": 2.835919
+          "ceiling": 106.201206,
+          "high": 84.960965,
+          "low": 11.021546
+        },
+        "openrouter/mistralai/mistral-large-4-0": {
+          "ceiling": 56.318821,
+          "high": 45.055057,
+          "low": 5.844759
         },
         "openrouter/openai/gpt-5.6-terra": {
           "ceiling": 232.540043,
@@ -6103,9 +6739,9 @@
       "count": "761 access and forgetting checkpoints per arm (pre-registration, H4; the draw is fixed in card X9), three seeds, the shape the two kinds' mean; the store arms also read the 728 utility checkpoints for the utility gap; C7 reads unfiltered, so C2's shape. Counted as new: whether the mem0 arms on M1 reuse H1's cells depends on X9's draw",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 124.006587,
-          "high": 99.205269,
-          "low": 2.9132
+          "ceiling": 110.838058,
+          "high": 88.670447,
+          "low": 11.485231
         },
         "openrouter/mistralai/mistral-large-4-0": {
           "ceiling": 58.777758,
@@ -6215,9 +6851,9 @@
       "count": "761 access and forgetting checkpoints per arm (pre-registration, H4; the draw is fixed in card X9), three seeds, the shape the two kinds' mean; the store arms also read the 728 utility checkpoints for the utility gap; C7 reads unfiltered, so C2's shape. Counted as new: whether the mem0 arms on M1 reuse H1's cells depends on X9's draw",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 124.006587,
-          "high": 99.205269,
-          "low": 2.9132
+          "ceiling": 110.838058,
+          "high": 88.670447,
+          "low": 11.485231
         },
         "openrouter/mistralai/mistral-large-4-0": {
           "ceiling": 58.777758,
@@ -6327,9 +6963,9 @@
       "count": "761 Conflict Resolution questions per arm (its 8 rows hold about 100 questions each, from the paper, not counted from the pinned data), three seeds, and 761 Accurate Retrieval questions on the store arms for the utility gap; context chunks are written by the runner, not by a model call; the scoring is deterministic, so no judge is counted (its LongMemEval subset's gpt-4o judge is left out)",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 438.580683,
-          "high": 350.864547,
-          "low": 7.914704
+          "ceiling": 1343.083108,
+          "high": 1074.466487,
+          "low": 35.379194
         },
         "openrouter/mistralai/mistral-large-4-0": {
           "ceiling": 712.241042,
@@ -6399,9 +7035,9 @@
       "count": "761 Conflict Resolution questions per arm (its 8 rows hold about 100 questions each, from the paper, not counted from the pinned data), three seeds, and 761 Accurate Retrieval questions on the store arms for the utility gap; context chunks are written by the runner, not by a model call; the scoring is deterministic, so no judge is counted (its LongMemEval subset's gpt-4o judge is left out)",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 438.580683,
-          "high": 350.864547,
-          "low": 7.914704
+          "ceiling": 1343.083108,
+          "high": 1074.466487,
+          "low": 35.379194
         },
         "openrouter/mistralai/mistral-large-4-0": {
           "ceiling": 712.241042,
@@ -6471,9 +7107,9 @@
       "count": "761 Conflict Resolution questions per arm (its 8 rows hold about 100 questions each, from the paper, not counted from the pinned data), three seeds, and 761 Accurate Retrieval questions on the store arms for the utility gap; context chunks are written by the runner, not by a model call; the scoring is deterministic, so no judge is counted (its LongMemEval subset's gpt-4o judge is left out)",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 438.580683,
-          "high": 350.864547,
-          "low": 7.914704
+          "ceiling": 1343.083108,
+          "high": 1074.466487,
+          "low": 35.379194
         },
         "openrouter/mistralai/mistral-large-4-0": {
           "ceiling": 712.241042,
@@ -6543,14 +7179,19 @@
       "count": "761 Conflict Resolution questions per arm (its 8 rows hold about 100 questions each, from the paper, not counted from the pinned data), three seeds, and 761 Accurate Retrieval questions on the store arms for the utility gap; context chunks are written by the runner, not by a model call; the scoring is deterministic, so no judge is counted (its LongMemEval subset's gpt-4o judge is left out)",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 219.290342,
-          "high": 175.432273,
-          "low": 3.957352
+          "ceiling": 671.541554,
+          "high": 537.233243,
+          "low": 17.689597
         },
         "openrouter/mistralai/mistral-large-4-0": {
           "ceiling": 356.120521,
           "high": 284.896417,
           "low": 9.380847
+        },
+        "openrouter/z-ai/glm-5.3-flash": {
+          "ceiling": 22.546501,
+          "high": 18.037201,
+          "low": 0.621635
         }
       },
       "groups": [
@@ -6594,9 +7235,14 @@
       "count": "761 Conflict Resolution questions per arm (its 8 rows hold about 100 questions each, from the paper, not counted from the pinned data), three seeds, and 761 Accurate Retrieval questions on the store arms for the utility gap; context chunks are written by the runner, not by a model call; the scoring is deterministic, so no judge is counted (its LongMemEval subset's gpt-4o judge is left out)",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 219.290342,
-          "high": 175.432273,
-          "low": 3.957352
+          "ceiling": 671.541554,
+          "high": 537.233243,
+          "low": 17.689597
+        },
+        "openrouter/mistralai/mistral-large-4-0": {
+          "ceiling": 356.120521,
+          "high": 284.896417,
+          "low": 9.380847
         },
         "openrouter/openai/gpt-5.6-terra": {
           "ceiling": 1090.360562,
@@ -6645,9 +7291,9 @@
       "count": "761 Conflict Resolution questions per arm (its 8 rows hold about 100 questions each, from the paper, not counted from the pinned data), three seeds, and 761 Accurate Retrieval questions on the store arms for the utility gap; context chunks are written by the runner, not by a model call; the scoring is deterministic, so no judge is counted (its LongMemEval subset's gpt-4o judge is left out)",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 219.290342,
-          "high": 175.432273,
-          "low": 3.957352
+          "ceiling": 671.541554,
+          "high": 537.233243,
+          "low": 17.689597
         },
         "openrouter/mistralai/mistral-large-4-0": {
           "ceiling": 356.120521,
@@ -6711,9 +7357,9 @@
       "count": "761 Conflict Resolution questions per arm (its 8 rows hold about 100 questions each, from the paper, not counted from the pinned data), three seeds, and 761 Accurate Retrieval questions on the store arms for the utility gap; context chunks are written by the runner, not by a model call; the scoring is deterministic, so no judge is counted (its LongMemEval subset's gpt-4o judge is left out)",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 219.290342,
-          "high": 175.432273,
-          "low": 3.957352
+          "ceiling": 671.541554,
+          "high": 537.233243,
+          "low": 17.689597
         },
         "openrouter/mistralai/mistral-large-4-0": {
           "ceiling": 356.120521,
@@ -6777,9 +7423,9 @@
       "count": "every base task of airline (50) and retail (114) at v1.0.1 (packages/bench/PINS.md), since the test splits are not defined: an upper bound; three seeds",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 209.690377,
-          "high": 167.752302,
-          "low": 8.0688
+          "ceiling": 329.136122,
+          "high": 263.308898,
+          "low": 27.536256
         },
         "openrouter/mistralai/mistral-large-4-0": {
           "ceiling": 174.541883,
@@ -6849,9 +7495,9 @@
       "count": "every base task of airline (50) and retail (114) at v1.0.1 (packages/bench/PINS.md), since the test splits are not defined: an upper bound; three seeds",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 209.690377,
-          "high": 167.752302,
-          "low": 8.0688
+          "ceiling": 329.136122,
+          "high": 263.308898,
+          "low": 27.536256
         },
         "openrouter/mistralai/mistral-large-4-0": {
           "ceiling": 174.541883,
@@ -6921,9 +7567,9 @@
       "count": "every base task of airline (50) and retail (114) at v1.0.1 (packages/bench/PINS.md), since the test splits are not defined: an upper bound; three seeds",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 209.690377,
-          "high": 167.752302,
-          "low": 8.0688
+          "ceiling": 329.136122,
+          "high": 263.308898,
+          "low": 27.536256
         },
         "openrouter/mistralai/mistral-large-4-0": {
           "ceiling": 174.541883,
@@ -7287,9 +7933,9 @@
       "count": "one induction call per task trajectory, both domains, three seeds, under C2 and C5 (the same method in both)",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 21.275716,
-          "high": 17.020573,
-          "low": 2.98644
+          "ceiling": 29.012643,
+          "high": 23.210114,
+          "low": 4.8708
         },
         "openrouter/mistralai/mistral-large-4-0": {
           "ceiling": 15.385492,
@@ -7353,9 +7999,9 @@
       "count": "one induction call per task trajectory, both domains, three seeds, under C2 and C5 (the same method in both)",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 21.275716,
-          "high": 17.020573,
-          "low": 2.98644
+          "ceiling": 29.012643,
+          "high": 23.210114,
+          "low": 4.8708
         },
         "openrouter/mistralai/mistral-large-4-0": {
           "ceiling": 15.385492,
@@ -7419,9 +8065,9 @@
       "count": "replay_n = 5 episodes per candidate procedure; 20 candidates per seed taken here (100 episodes a seed), each an agent episode; their simulated users are in h5-tau2-replay-user",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 127.859986,
-          "high": 102.287989,
-          "low": 4.92
+          "ceiling": 200.692757,
+          "high": 160.554206,
+          "low": 16.7904
         },
         "openrouter/mistralai/mistral-large-4-0": {
           "ceiling": 106.427977,
@@ -7531,9 +8177,9 @@
       "count": "make run CONFIG=research/configs/l3-pilot.json COUNT=1, run by this script: the variance pilot before H3's model tier",
       "dollars": {
         "openrouter/deepseek/deepseek-v4-pro-0813": {
-          "ceiling": 0.865759,
-          "high": 0.692607,
-          "low": 0.016544
+          "ceiling": 0.379582,
+          "high": 0.303666,
+          "low": 0.018115
         },
         "openrouter/mistralai/mistral-large-4-0": {
           "ceiling": 0.201294,
@@ -7592,16 +8238,16 @@
             "low": 389.58159
           },
           "H2": {
-            "high": 5094.142278,
-            "low": 940.847635
+            "high": 5338.658862,
+            "low": 1057.968468
           },
           "H3": {
             "high": 1998.935163,
             "low": 103.002394
           },
           "H4": {
-            "high": 9284.389514,
-            "low": 436.33393
+            "high": 9632.564426,
+            "low": 458.251801
           },
           "H5": {
             "high": 2381.923869,
@@ -7612,10 +8258,10 @@
           "high": 877385.0,
           "low": 448403.0
         },
-        "ceiling": 27331.155137,
+        "ceiling": 28072.019506,
         "dollars": {
-          "high": 21864.924109,
-          "low": 2100.975789
+          "high": 22457.615605,
+          "low": 2240.014493
         },
         "unpriced_models": []
       },
@@ -7626,16 +8272,16 @@
             "low": 389.58159
           },
           "H2": {
-            "high": 5094.142278,
-            "low": 940.847635
+            "high": 5338.658862,
+            "low": 1057.968468
           },
           "H3": {
             "high": 1161.600685,
             "low": 68.012964
           },
           "H4": {
-            "high": 9284.389514,
-            "low": 436.33393
+            "high": 9632.564426,
+            "low": 458.251801
           },
           "H5": {
             "high": 2381.923869,
@@ -7646,10 +8292,10 @@
           "high": 829776.5,
           "low": 400794.5
         },
-        "ceiling": 26284.487039,
+        "ceiling": 27025.351409,
         "dollars": {
-          "high": 21027.589631,
-          "low": 2065.986359
+          "high": 21620.281127,
+          "low": 2205.025064
         },
         "unpriced_models": []
       },
@@ -7660,16 +8306,16 @@
             "low": 389.58159
           },
           "H2": {
-            "high": 5094.142278,
-            "low": 940.847635
+            "high": 5338.658862,
+            "low": 1057.968468
           },
           "H3": {
             "high": 1998.935163,
             "low": 103.002394
           },
           "H4": {
-            "high": 9284.389514,
-            "low": 436.33393
+            "high": 9632.564426,
+            "low": 458.251801
           },
           "H5": {
             "high": 2381.923869,
@@ -7680,10 +8326,10 @@
           "high": 877385.0,
           "low": 448403.0
         },
-        "ceiling": 27331.155137,
+        "ceiling": 28072.019506,
         "dollars": {
-          "high": 21864.924109,
-          "low": 2100.975789
+          "high": 22457.615605,
+          "low": 2240.014493
         },
         "unpriced_models": []
       },
@@ -7694,16 +8340,16 @@
             "low": 268.248577
           },
           "H2": {
-            "high": 5498.632832,
-            "low": 985.544183
+            "high": 5743.149416,
+            "low": 1102.665017
           },
           "H3": {
             "high": 1998.935163,
             "low": 103.002394
           },
           "H4": {
-            "high": 9284.389514,
-            "low": 436.33393
+            "high": 9632.564426,
+            "low": 458.251801
           },
           "H5": {
             "high": 2381.923869,
@@ -7714,10 +8360,10 @@
           "high": 846809.0,
           "low": 435299.0
         },
-        "ceiling": 26632.698353,
+        "ceiling": 27373.562723,
         "dollars": {
-          "high": 21306.158682,
-          "low": 2024.339324
+          "high": 21898.850178,
+          "low": 2163.378029
         },
         "unpriced_models": []
       },
@@ -7728,16 +8374,16 @@
             "low": 268.248577
           },
           "H2": {
-            "high": 5498.632832,
-            "low": 985.544183
+            "high": 5743.149416,
+            "low": 1102.665017
           },
           "H3": {
             "high": 1161.600685,
             "low": 68.012964
           },
           "H4": {
-            "high": 9284.389514,
-            "low": 436.33393
+            "high": 9632.564426,
+            "low": 458.251801
           },
           "H5": {
             "high": 2381.923869,
@@ -7748,10 +8394,10 @@
           "high": 799200.5,
           "low": 387690.5
         },
-        "ceiling": 25586.030256,
+        "ceiling": 26326.894626,
         "dollars": {
-          "high": 20468.824205,
-          "low": 1989.349895
+          "high": 21061.5157,
+          "low": 2128.388599
         },
         "unpriced_models": []
       },
@@ -7762,16 +8408,16 @@
             "low": 268.248577
           },
           "H2": {
-            "high": 5498.632832,
-            "low": 985.544183
+            "high": 5743.149416,
+            "low": 1102.665017
           },
           "H3": {
             "high": 1998.935163,
             "low": 103.002394
           },
           "H4": {
-            "high": 9284.389514,
-            "low": 436.33393
+            "high": 9632.564426,
+            "low": 458.251801
           },
           "H5": {
             "high": 2381.923869,
@@ -7782,214 +8428,214 @@
           "high": 846809.0,
           "low": 435299.0
         },
-        "ceiling": 26632.698353,
+        "ceiling": 27373.562723,
         "dollars": {
-          "high": 21306.158682,
-          "low": 2024.339324
+          "high": 21898.850178,
+          "low": 2163.378029
         },
         "unpriced_models": []
       },
       "1b-deepseek/2a/47a": {
         "by_hypothesis": {
           "H1": {
-            "high": 1503.096738,
-            "low": 112.495712
+            "high": 1691.066007,
+            "low": 274.334574
           },
           "H2": {
-            "high": 3185.205008,
-            "low": 459.869672
+            "high": 3695.308271,
+            "low": 861.097009
           },
           "H3": {
-            "high": 1381.628139,
-            "low": 35.604906
+            "high": 757.589116,
+            "low": 56.756242
           },
           "H4": {
-            "high": 3792.892266,
-            "low": 170.186237
+            "high": 6587.95258,
+            "low": 345.415724
           },
           "H5": {
-            "high": 1189.717103,
-            "low": 89.46792
+            "high": 1547.03219,
+            "low": 163.509408
           }
         },
         "calls": {
           "high": 877385.0,
           "low": 448403.0
         },
-        "ceiling": 13815.674069,
+        "ceiling": 17848.685205,
         "dollars": {
-          "high": 11052.539255,
-          "low": 867.624447
+          "high": 14278.948164,
+          "low": 1701.112958
         },
         "unpriced_models": []
       },
       "1b-deepseek/2a/47b": {
         "by_hypothesis": {
           "H1": {
-            "high": 1503.096738,
-            "low": 112.495712
+            "high": 1691.066007,
+            "low": 274.334574
           },
           "H2": {
-            "high": 3185.205008,
-            "low": 459.869672
+            "high": 3695.308271,
+            "low": 861.097009
           },
           "H3": {
-            "high": 734.962343,
-            "low": 20.072943
+            "high": 473.414578,
+            "low": 39.319108
           },
           "H4": {
-            "high": 3792.892266,
-            "low": 170.186237
+            "high": 6587.95258,
+            "low": 345.415724
           },
           "H5": {
-            "high": 1189.717103,
-            "low": 89.46792
+            "high": 1547.03219,
+            "low": 163.509408
           }
         },
         "calls": {
           "high": 829776.5,
           "low": 400794.5
         },
-        "ceiling": 13007.341823,
+        "ceiling": 17493.467032,
         "dollars": {
-          "high": 10405.873458,
-          "low": 852.092484
+          "high": 13994.773626,
+          "low": 1683.675824
         },
         "unpriced_models": []
       },
       "1b-deepseek/2a/47c": {
         "by_hypothesis": {
           "H1": {
-            "high": 1503.096738,
-            "low": 112.495712
+            "high": 1691.066007,
+            "low": 274.334574
           },
           "H2": {
-            "high": 3185.205008,
-            "low": 459.869672
+            "high": 3695.308271,
+            "low": 861.097009
           },
           "H3": {
-            "high": 1381.628139,
-            "low": 35.604906
+            "high": 757.589116,
+            "low": 56.756242
           },
           "H4": {
-            "high": 3792.892266,
-            "low": 170.186237
+            "high": 6587.95258,
+            "low": 345.415724
           },
           "H5": {
-            "high": 1189.717103,
-            "low": 89.46792
+            "high": 1547.03219,
+            "low": 163.509408
           }
         },
         "calls": {
           "high": 877385.0,
           "low": 448403.0
         },
-        "ceiling": 13815.674069,
+        "ceiling": 17848.685205,
         "dollars": {
-          "high": 11052.539255,
-          "low": 867.624447
+          "high": 14278.948164,
+          "low": 1701.112958
         },
         "unpriced_models": []
       },
       "1b-deepseek/2b/47a": {
         "by_hypothesis": {
           "H1": {
-            "high": 1021.002898,
-            "low": 76.313613
+            "high": 1170.548298,
+            "low": 188.59488
           },
           "H2": {
-            "high": 3417.76681,
-            "low": 476.204026
+            "high": 3904.656417,
+            "low": 893.426684
           },
           "H3": {
-            "high": 1381.628139,
-            "low": 35.604906
+            "high": 757.589116,
+            "low": 56.756242
           },
           "H4": {
-            "high": 3792.892266,
-            "low": 170.186237
+            "high": 6587.95258,
+            "low": 345.415724
           },
           "H5": {
-            "high": 1189.717103,
-            "low": 89.46792
+            "high": 1547.03219,
+            "low": 163.509408
           }
         },
         "calls": {
           "high": 846809.0,
           "low": 435299.0
         },
-        "ceiling": 13503.759021,
+        "ceiling": 17459.723252,
         "dollars": {
-          "high": 10803.007217,
-          "low": 847.776702
+          "high": 13967.778602,
+          "low": 1647.702938
         },
         "unpriced_models": []
       },
       "1b-deepseek/2b/47b": {
         "by_hypothesis": {
           "H1": {
-            "high": 1021.002898,
-            "low": 76.313613
+            "high": 1170.548298,
+            "low": 188.59488
           },
           "H2": {
-            "high": 3417.76681,
-            "low": 476.204026
+            "high": 3904.656417,
+            "low": 893.426684
           },
           "H3": {
-            "high": 734.962343,
-            "low": 20.072943
+            "high": 473.414578,
+            "low": 39.319108
           },
           "H4": {
-            "high": 3792.892266,
-            "low": 170.186237
+            "high": 6587.95258,
+            "low": 345.415724
           },
           "H5": {
-            "high": 1189.717103,
-            "low": 89.46792
+            "high": 1547.03219,
+            "low": 163.509408
           }
         },
         "calls": {
           "high": 799200.5,
           "low": 387690.5
         },
-        "ceiling": 12695.426776,
+        "ceiling": 17104.505079,
         "dollars": {
-          "high": 10156.34142,
-          "low": 832.244739
+          "high": 13683.604063,
+          "low": 1630.265805
         },
         "unpriced_models": []
       },
       "1b-deepseek/2b/47c": {
         "by_hypothesis": {
           "H1": {
-            "high": 1021.002898,
-            "low": 76.313613
+            "high": 1170.548298,
+            "low": 188.59488
           },
           "H2": {
-            "high": 3417.76681,
-            "low": 476.204026
+            "high": 3904.656417,
+            "low": 893.426684
           },
           "H3": {
-            "high": 1381.628139,
-            "low": 35.604906
+            "high": 757.589116,
+            "low": 56.756242
           },
           "H4": {
-            "high": 3792.892266,
-            "low": 170.186237
+            "high": 6587.95258,
+            "low": 345.415724
           },
           "H5": {
-            "high": 1189.717103,
-            "low": 89.46792
+            "high": 1547.03219,
+            "low": 163.509408
           }
         },
         "calls": {
           "high": 846809.0,
           "low": 435299.0
         },
-        "ceiling": 13503.759021,
+        "ceiling": 17459.723252,
         "dollars": {
-          "high": 10803.007217,
-          "low": 847.776702
+          "high": 13967.778602,
+          "low": 1647.702938
         },
         "unpriced_models": []
       },
@@ -8000,16 +8646,16 @@
             "low": 176.50991
           },
           "H2": {
-            "high": 2658.253438,
-            "low": 574.611699
+            "high": 2902.770022,
+            "low": 691.732532
           },
           "H3": {
             "high": 402.179302,
             "low": 30.418631
           },
           "H4": {
-            "high": 4194.823793,
-            "low": 229.23631
+            "high": 4542.998705,
+            "low": 251.154181
           },
           "H5": {
             "high": 1078.790752,
@@ -8020,10 +8666,10 @@
           "high": 877385.0,
           "low": 448403.0
         },
-        "ceiling": 11693.67812,
+        "ceiling": 12434.54249,
         "dollars": {
-          "high": 9354.942496,
-          "low": 1123.022869
+          "high": 9947.633992,
+          "low": 1262.061573
         },
         "unpriced_models": []
       },
@@ -8034,16 +8680,16 @@
             "low": 176.50991
           },
           "H2": {
-            "high": 2658.253438,
-            "low": 574.611699
+            "high": 2902.770022,
+            "low": 691.732532
           },
           "H3": {
             "high": 251.480683,
             "low": 21.171666
           },
           "H4": {
-            "high": 4194.823793,
-            "low": 229.23631
+            "high": 4542.998705,
+            "low": 251.154181
           },
           "H5": {
             "high": 1078.790752,
@@ -8054,10 +8700,10 @@
           "high": 829776.5,
           "low": 400794.5
         },
-        "ceiling": 11505.304846,
+        "ceiling": 12246.169216,
         "dollars": {
-          "high": 9204.243877,
-          "low": 1113.775904
+          "high": 9796.935373,
+          "low": 1252.814609
         },
         "unpriced_models": []
       },
@@ -8068,16 +8714,16 @@
             "low": 176.50991
           },
           "H2": {
-            "high": 2658.253438,
-            "low": 574.611699
+            "high": 2902.770022,
+            "low": 691.732532
           },
           "H3": {
             "high": 402.179302,
             "low": 30.418631
           },
           "H4": {
-            "high": 4194.823793,
-            "low": 229.23631
+            "high": 4542.998705,
+            "low": 251.154181
           },
           "H5": {
             "high": 1078.790752,
@@ -8088,10 +8734,10 @@
           "high": 877385.0,
           "low": 448403.0
         },
-        "ceiling": 11693.67812,
+        "ceiling": 12434.54249,
         "dollars": {
-          "high": 9354.942496,
-          "low": 1123.022869
+          "high": 9947.633992,
+          "low": 1262.061573
         },
         "unpriced_models": []
       },
@@ -8102,16 +8748,16 @@
             "low": 120.85729
           },
           "H2": {
-            "high": 2789.640589,
-            "low": 596.848523
+            "high": 3034.157172,
+            "low": 713.969357
           },
           "H3": {
             "high": 402.179302,
             "low": 30.418631
           },
           "H4": {
-            "high": 4194.823793,
-            "low": 229.23631
+            "high": 4542.998705,
+            "low": 251.154181
           },
           "H5": {
             "high": 1078.790752,
@@ -8122,10 +8768,10 @@
           "high": 846809.0,
           "low": 435299.0
         },
-        "ceiling": 11461.948925,
+        "ceiling": 12202.813294,
         "dollars": {
-          "high": 9169.55914,
-          "low": 1089.607074
+          "high": 9762.250636,
+          "low": 1228.645779
         },
         "unpriced_models": []
       },
@@ -8136,16 +8782,16 @@
             "low": 120.85729
           },
           "H2": {
-            "high": 2789.640589,
-            "low": 596.848523
+            "high": 3034.157172,
+            "low": 713.969357
           },
           "H3": {
             "high": 251.480683,
             "low": 21.171666
           },
           "H4": {
-            "high": 4194.823793,
-            "low": 229.23631
+            "high": 4542.998705,
+            "low": 251.154181
           },
           "H5": {
             "high": 1078.790752,
@@ -8156,10 +8802,10 @@
           "high": 799200.5,
           "low": 387690.5
         },
-        "ceiling": 11273.575651,
+        "ceiling": 12014.440021,
         "dollars": {
-          "high": 9018.860521,
-          "low": 1080.360109
+          "high": 9611.552017,
+          "low": 1219.398814
         },
         "unpriced_models": []
       },
@@ -8170,16 +8816,16 @@
             "low": 120.85729
           },
           "H2": {
-            "high": 2789.640589,
-            "low": 596.848523
+            "high": 3034.157172,
+            "low": 713.969357
           },
           "H3": {
             "high": 402.179302,
             "low": 30.418631
           },
           "H4": {
-            "high": 4194.823793,
-            "low": 229.23631
+            "high": 4542.998705,
+            "low": 251.154181
           },
           "H5": {
             "high": 1078.790752,
@@ -8190,10 +8836,10 @@
           "high": 846809.0,
           "low": 435299.0
         },
-        "ceiling": 11461.948925,
+        "ceiling": 12202.813294,
         "dollars": {
-          "high": 9169.55914,
-          "low": 1089.607074
+          "high": 9762.250636,
+          "low": 1228.645779
         },
         "unpriced_models": []
       },
@@ -8204,16 +8850,16 @@
             "low": 82.106061
           },
           "H2": {
-            "high": 1011.707977,
-            "low": 203.636462
+            "high": 1256.224561,
+            "low": 320.757295
           },
           "H3": {
             "high": 86.619045,
             "low": 5.509278
           },
           "H4": {
-            "high": 1235.23032,
-            "low": 95.686378
+            "high": 1583.405232,
+            "low": 117.604249
           },
           "H5": {
             "high": 636.365094,
@@ -8224,10 +8870,10 @@
           "high": 877385.0,
           "low": 448403.0
         },
-        "ceiling": 4206.141632,
+        "ceiling": 4947.006001,
         "dollars": {
-          "high": 3364.913305,
-          "low": 449.957619
+          "high": 3957.604801,
+          "low": 588.996323
         },
         "unpriced_models": []
       },
@@ -8238,16 +8884,16 @@
             "low": 82.106061
           },
           "H2": {
-            "high": 1011.707977,
-            "low": 203.636462
+            "high": 1256.224561,
+            "low": 320.757295
           },
           "H3": {
             "high": 51.531771,
             "low": 3.902632
           },
           "H4": {
-            "high": 1235.23032,
-            "low": 95.686378
+            "high": 1583.405232,
+            "low": 117.604249
           },
           "H5": {
             "high": 636.365094,
@@ -8258,10 +8904,10 @@
           "high": 829776.5,
           "low": 400794.5
         },
-        "ceiling": 4162.282539,
+        "ceiling": 4903.146909,
         "dollars": {
-          "high": 3329.826031,
-          "low": 448.350973
+          "high": 3922.517527,
+          "low": 587.389677
         },
         "unpriced_models": []
       },
@@ -8272,16 +8918,16 @@
             "low": 82.106061
           },
           "H2": {
-            "high": 1011.707977,
-            "low": 203.636462
+            "high": 1256.224561,
+            "low": 320.757295
           },
           "H3": {
             "high": 86.619045,
             "low": 5.509278
           },
           "H4": {
-            "high": 1235.23032,
-            "low": 95.686378
+            "high": 1583.405232,
+            "low": 117.604249
           },
           "H5": {
             "high": 636.365094,
@@ -8292,10 +8938,10 @@
           "high": 877385.0,
           "low": 448403.0
         },
-        "ceiling": 4206.141632,
+        "ceiling": 4947.006001,
         "dollars": {
-          "high": 3364.913305,
-          "low": 449.957619
+          "high": 3957.604801,
+          "low": 588.996323
         },
         "unpriced_models": []
       },
@@ -8306,16 +8952,16 @@
             "low": 55.483479
           },
           "H2": {
-            "high": 1071.303563,
-            "low": 216.149255
+            "high": 1315.820147,
+            "low": 333.270088
           },
           "H3": {
             "high": 86.619045,
             "low": 5.509278
           },
           "H4": {
-            "high": 1235.23032,
-            "low": 95.686378
+            "high": 1583.405232,
+            "low": 117.604249
           },
           "H5": {
             "high": 636.365094,
@@ -8326,10 +8972,10 @@
           "high": 846809.0,
           "low": 435299.0
         },
-        "ceiling": 4122.00497,
+        "ceiling": 4862.869339,
         "dollars": {
-          "high": 3297.603976,
-          "low": 435.84783
+          "high": 3890.295472,
+          "low": 574.886535
         },
         "unpriced_models": []
       },
@@ -8340,16 +8986,16 @@
             "low": 55.483479
           },
           "H2": {
-            "high": 1071.303563,
-            "low": 216.149255
+            "high": 1315.820147,
+            "low": 333.270088
           },
           "H3": {
             "high": 51.531771,
             "low": 3.902632
           },
           "H4": {
-            "high": 1235.23032,
-            "low": 95.686378
+            "high": 1583.405232,
+            "low": 117.604249
           },
           "H5": {
             "high": 636.365094,
@@ -8360,10 +9006,10 @@
           "high": 799200.5,
           "low": 387690.5
         },
-        "ceiling": 4078.145877,
+        "ceiling": 4819.010247,
         "dollars": {
-          "high": 3262.516702,
-          "low": 434.241184
+          "high": 3855.208198,
+          "low": 573.279889
         },
         "unpriced_models": []
       },
@@ -8374,16 +9020,16 @@
             "low": 55.483479
           },
           "H2": {
-            "high": 1071.303563,
-            "low": 216.149255
+            "high": 1315.820147,
+            "low": 333.270088
           },
           "H3": {
             "high": 86.619045,
             "low": 5.509278
           },
           "H4": {
-            "high": 1235.23032,
-            "low": 95.686378
+            "high": 1583.405232,
+            "low": 117.604249
           },
           "H5": {
             "high": 636.365094,
@@ -8394,10 +9040,10 @@
           "high": 846809.0,
           "low": 435299.0
         },
-        "ceiling": 4122.00497,
+        "ceiling": 4862.869339,
         "dollars": {
-          "high": 3297.603976,
-          "low": 435.84783
+          "high": 3890.295472,
+          "low": 574.886535
         },
         "unpriced_models": []
       },
@@ -8408,16 +9054,16 @@
             "low": 89.928851
           },
           "H2": {
-            "high": 1088.351567,
-            "low": 222.611835
+            "high": 1332.86815,
+            "low": 339.732668
           },
           "H3": {
             "high": 108.184946,
             "low": 7.488614
           },
           "H4": {
-            "high": 1416.069241,
-            "low": 104.285531
+            "high": 1764.244153,
+            "low": 126.203402
           },
           "H5": {
             "high": 671.448695,
@@ -8428,10 +9074,10 @@
           "high": 877385.0,
           "low": 448403.0
         },
-        "ceiling": 4659.286674,
+        "ceiling": 5400.151044,
         "dollars": {
-          "high": 3727.42934,
-          "low": 491.372751
+          "high": 4320.120835,
+          "low": 630.411456
         },
         "unpriced_models": []
       },
@@ -8442,16 +9088,16 @@
             "low": 89.928851
           },
           "H2": {
-            "high": 1088.351567,
-            "low": 222.611835
+            "high": 1332.86815,
+            "low": 339.732668
           },
           "H3": {
             "high": 65.72321,
             "low": 5.292884
           },
           "H4": {
-            "high": 1416.069241,
-            "low": 104.285531
+            "high": 1764.244153,
+            "low": 126.203402
           },
           "H5": {
             "high": 671.448695,
@@ -8462,10 +9108,10 @@
           "high": 829776.5,
           "low": 400794.5
         },
-        "ceiling": 4606.209504,
+        "ceiling": 5347.073874,
         "dollars": {
-          "high": 3684.967603,
-          "low": 489.177021
+          "high": 4277.659099,
+          "low": 628.215725
         },
         "unpriced_models": []
       },
@@ -8476,16 +9122,16 @@
             "low": 89.928851
           },
           "H2": {
-            "high": 1088.351567,
-            "low": 222.611835
+            "high": 1332.86815,
+            "low": 339.732668
           },
           "H3": {
             "high": 108.184946,
             "low": 7.488614
           },
           "H4": {
-            "high": 1416.069241,
-            "low": 104.285531
+            "high": 1764.244153,
+            "low": 126.203402
           },
           "H5": {
             "high": 671.448695,
@@ -8496,10 +9142,10 @@
           "high": 877385.0,
           "low": 448403.0
         },
-        "ceiling": 4659.286674,
+        "ceiling": 5400.151044,
         "dollars": {
-          "high": 3727.42934,
-          "low": 491.372751
+          "high": 4320.120835,
+          "low": 630.411456
         },
         "unpriced_models": []
       },
@@ -8510,16 +9156,16 @@
             "low": 60.901514
           },
           "H2": {
-            "high": 1153.32069,
-            "low": 235.927757
+            "high": 1397.837273,
+            "low": 353.04859
           },
           "H3": {
             "high": 108.184946,
             "low": 7.488614
           },
           "H4": {
-            "high": 1416.069241,
-            "low": 104.285531
+            "high": 1764.244153,
+            "low": 126.203402
           },
           "H5": {
             "high": 671.448695,
@@ -8530,10 +9176,10 @@
           "high": 846809.0,
           "low": 435299.0
         },
-        "ceiling": 4563.612001,
+        "ceiling": 5304.476371,
         "dollars": {
-          "high": 3650.889601,
-          "low": 475.661336
+          "high": 4243.581097,
+          "low": 614.70004
         },
         "unpriced_models": []
       },
@@ -8544,16 +9190,16 @@
             "low": 60.901514
           },
           "H2": {
-            "high": 1153.32069,
-            "low": 235.927757
+            "high": 1397.837273,
+            "low": 353.04859
           },
           "H3": {
             "high": 65.72321,
             "low": 5.292884
           },
           "H4": {
-            "high": 1416.069241,
-            "low": 104.285531
+            "high": 1764.244153,
+            "low": 126.203402
           },
           "H5": {
             "high": 671.448695,
@@ -8564,10 +9210,10 @@
           "high": 799200.5,
           "low": 387690.5
         },
-        "ceiling": 4510.534831,
+        "ceiling": 5251.399201,
         "dollars": {
-          "high": 3608.427865,
-          "low": 473.465605
+          "high": 4201.119361,
+          "low": 612.50431
         },
         "unpriced_models": []
       },
@@ -8578,16 +9224,16 @@
             "low": 60.901514
           },
           "H2": {
-            "high": 1153.32069,
-            "low": 235.927757
+            "high": 1397.837273,
+            "low": 353.04859
           },
           "H3": {
             "high": 108.184946,
             "low": 7.488614
           },
           "H4": {
-            "high": 1416.069241,
-            "low": 104.285531
+            "high": 1764.244153,
+            "low": 126.203402
           },
           "H5": {
             "high": 671.448695,
@@ -8598,10 +9244,214 @@
           "high": 846809.0,
           "low": 435299.0
         },
-        "ceiling": 4563.612001,
+        "ceiling": 5304.476371,
         "dollars": {
-          "high": 3650.889601,
-          "low": 475.661336
+          "high": 4243.581097,
+          "low": 614.70004
+        },
+        "unpriced_models": []
+      },
+      "1d-lead/2a/47a": {
+        "by_hypothesis": {
+          "H1": {
+            "high": 1691.066007,
+            "low": 274.334574
+          },
+          "H2": {
+            "high": 2765.097002,
+            "low": 647.284117
+          },
+          "H3": {
+            "high": 757.589116,
+            "low": 56.756242
+          },
+          "H4": {
+            "high": 5552.042392,
+            "low": 301.592803
+          },
+          "H5": {
+            "high": 1547.03219,
+            "low": 163.509408
+          }
+        },
+        "calls": {
+          "high": 877385.0,
+          "low": 448403.0
+        },
+        "ceiling": 15391.033384,
+        "dollars": {
+          "high": 12312.826707,
+          "low": 1443.477144
+        },
+        "unpriced_models": []
+      },
+      "1d-lead/2a/47b": {
+        "by_hypothesis": {
+          "H1": {
+            "high": 1691.066007,
+            "low": 274.334574
+          },
+          "H2": {
+            "high": 2765.097002,
+            "low": 647.284117
+          },
+          "H3": {
+            "high": 473.414578,
+            "low": 39.319108
+          },
+          "H4": {
+            "high": 5552.042392,
+            "low": 301.592803
+          },
+          "H5": {
+            "high": 1547.03219,
+            "low": 163.509408
+          }
+        },
+        "calls": {
+          "high": 829776.5,
+          "low": 400794.5
+        },
+        "ceiling": 15035.815211,
+        "dollars": {
+          "high": 12028.652168,
+          "low": 1426.040011
+        },
+        "unpriced_models": []
+      },
+      "1d-lead/2a/47c": {
+        "by_hypothesis": {
+          "H1": {
+            "high": 1691.066007,
+            "low": 274.334574
+          },
+          "H2": {
+            "high": 2765.097002,
+            "low": 647.284117
+          },
+          "H3": {
+            "high": 757.589116,
+            "low": 56.756242
+          },
+          "H4": {
+            "high": 5552.042392,
+            "low": 301.592803
+          },
+          "H5": {
+            "high": 1547.03219,
+            "low": 163.509408
+          }
+        },
+        "calls": {
+          "high": 877385.0,
+          "low": 448403.0
+        },
+        "ceiling": 15391.033384,
+        "dollars": {
+          "high": 12312.826707,
+          "low": 1443.477144
+        },
+        "unpriced_models": []
+      },
+      "1d-lead/2b/47a": {
+        "by_hypothesis": {
+          "H1": {
+            "high": 1170.548298,
+            "low": 188.59488
+          },
+          "H2": {
+            "high": 2974.445148,
+            "low": 679.613792
+          },
+          "H3": {
+            "high": 757.589116,
+            "low": 56.756242
+          },
+          "H4": {
+            "high": 5552.042392,
+            "low": 301.592803
+          },
+          "H5": {
+            "high": 1547.03219,
+            "low": 163.509408
+          }
+        },
+        "calls": {
+          "high": 846809.0,
+          "low": 435299.0
+        },
+        "ceiling": 15002.071431,
+        "dollars": {
+          "high": 12001.657144,
+          "low": 1390.067125
+        },
+        "unpriced_models": []
+      },
+      "1d-lead/2b/47b": {
+        "by_hypothesis": {
+          "H1": {
+            "high": 1170.548298,
+            "low": 188.59488
+          },
+          "H2": {
+            "high": 2974.445148,
+            "low": 679.613792
+          },
+          "H3": {
+            "high": 473.414578,
+            "low": 39.319108
+          },
+          "H4": {
+            "high": 5552.042392,
+            "low": 301.592803
+          },
+          "H5": {
+            "high": 1547.03219,
+            "low": 163.509408
+          }
+        },
+        "calls": {
+          "high": 799200.5,
+          "low": 387690.5
+        },
+        "ceiling": 14646.853258,
+        "dollars": {
+          "high": 11717.482606,
+          "low": 1372.629991
+        },
+        "unpriced_models": []
+      },
+      "1d-lead/2b/47c": {
+        "by_hypothesis": {
+          "H1": {
+            "high": 1170.548298,
+            "low": 188.59488
+          },
+          "H2": {
+            "high": 2974.445148,
+            "low": 679.613792
+          },
+          "H3": {
+            "high": 757.589116,
+            "low": 56.756242
+          },
+          "H4": {
+            "high": 5552.042392,
+            "low": 301.592803
+          },
+          "H5": {
+            "high": 1547.03219,
+            "low": 163.509408
+          }
+        },
+        "calls": {
+          "high": 846809.0,
+          "low": 435299.0
+        },
+        "ceiling": 15002.071431,
+        "dollars": {
+          "high": 12001.657144,
+          "low": 1390.067125
         },
         "unpriced_models": []
       }
@@ -9685,6 +10535,228 @@
         },
         "unpriced_models": [
           "openrouter/openai/gpt-4.1"
+        ]
+      },
+      "1d-lead/2a/47a": {
+        "by_hypothesis": {
+          "H1": {
+            "high": 977.658385,
+            "low": 170.198641
+          },
+          "H2": {
+            "high": 1625.729834,
+            "low": 388.744416
+          },
+          "H3": {
+            "high": 379.249637,
+            "low": 28.71943
+          },
+          "H4": {
+            "high": 3033.184774,
+            "low": 185.428878
+          },
+          "H5": {
+            "high": 498.450564,
+            "low": 54.570384
+          }
+        },
+        "calls": {
+          "high": 877385.0,
+          "low": 448403.0
+        },
+        "ceiling": 8142.841493,
+        "dollars": {
+          "high": 6514.273194,
+          "low": 827.661749
+        },
+        "unpriced_models": [
+          "openrouter/openai/gpt-4.1",
+          "openrouter/z-ai/glm-5.3-flash"
+        ]
+      },
+      "1d-lead/2a/47b": {
+        "by_hypothesis": {
+          "H1": {
+            "high": 977.658385,
+            "low": 170.198641
+          },
+          "H2": {
+            "high": 1625.729834,
+            "low": 388.744416
+          },
+          "H3": {
+            "high": 237.162367,
+            "low": 20.000863
+          },
+          "H4": {
+            "high": 3033.184774,
+            "low": 185.428878
+          },
+          "H5": {
+            "high": 498.450564,
+            "low": 54.570384
+          }
+        },
+        "calls": {
+          "high": 829776.5,
+          "low": 400794.5
+        },
+        "ceiling": 7965.232406,
+        "dollars": {
+          "high": 6372.185925,
+          "low": 818.943182
+        },
+        "unpriced_models": [
+          "openrouter/openai/gpt-4.1",
+          "openrouter/z-ai/glm-5.3-flash"
+        ]
+      },
+      "1d-lead/2a/47c": {
+        "by_hypothesis": {
+          "H1": {
+            "high": 977.658385,
+            "low": 170.198641
+          },
+          "H2": {
+            "high": 1625.729834,
+            "low": 388.744416
+          },
+          "H3": {
+            "high": 379.249637,
+            "low": 28.71943
+          },
+          "H4": {
+            "high": 3033.184774,
+            "low": 185.428878
+          },
+          "H5": {
+            "high": 498.450564,
+            "low": 54.570384
+          }
+        },
+        "calls": {
+          "high": 877385.0,
+          "low": 448403.0
+        },
+        "ceiling": 8142.841493,
+        "dollars": {
+          "high": 6514.273194,
+          "low": 827.661749
+        },
+        "unpriced_models": [
+          "openrouter/openai/gpt-4.1",
+          "openrouter/z-ai/glm-5.3-flash"
+        ]
+      },
+      "1d-lead/2b/47a": {
+        "by_hypothesis": {
+          "H1": {
+            "high": 674.032859,
+            "low": 116.487123
+          },
+          "H2": {
+            "high": 1752.087243,
+            "low": 410.330089
+          },
+          "H3": {
+            "high": 379.249637,
+            "low": 28.71943
+          },
+          "H4": {
+            "high": 3033.184774,
+            "low": 185.428878
+          },
+          "H5": {
+            "high": 498.450564,
+            "low": 54.570384
+          }
+        },
+        "calls": {
+          "high": 846809.0,
+          "low": 435299.0
+        },
+        "ceiling": 7921.256346,
+        "dollars": {
+          "high": 6337.005077,
+          "low": 795.535904
+        },
+        "unpriced_models": [
+          "openrouter/openai/gpt-4.1",
+          "openrouter/z-ai/glm-5.3-flash"
+        ]
+      },
+      "1d-lead/2b/47b": {
+        "by_hypothesis": {
+          "H1": {
+            "high": 674.032859,
+            "low": 116.487123
+          },
+          "H2": {
+            "high": 1752.087243,
+            "low": 410.330089
+          },
+          "H3": {
+            "high": 237.162367,
+            "low": 20.000863
+          },
+          "H4": {
+            "high": 3033.184774,
+            "low": 185.428878
+          },
+          "H5": {
+            "high": 498.450564,
+            "low": 54.570384
+          }
+        },
+        "calls": {
+          "high": 799200.5,
+          "low": 387690.5
+        },
+        "ceiling": 7743.64726,
+        "dollars": {
+          "high": 6194.917808,
+          "low": 786.817337
+        },
+        "unpriced_models": [
+          "openrouter/openai/gpt-4.1",
+          "openrouter/z-ai/glm-5.3-flash"
+        ]
+      },
+      "1d-lead/2b/47c": {
+        "by_hypothesis": {
+          "H1": {
+            "high": 674.032859,
+            "low": 116.487123
+          },
+          "H2": {
+            "high": 1752.087243,
+            "low": 410.330089
+          },
+          "H3": {
+            "high": 379.249637,
+            "low": 28.71943
+          },
+          "H4": {
+            "high": 3033.184774,
+            "low": 185.428878
+          },
+          "H5": {
+            "high": 498.450564,
+            "low": 54.570384
+          }
+        },
+        "calls": {
+          "high": 846809.0,
+          "low": 435299.0
+        },
+        "ceiling": 7921.256346,
+        "dollars": {
+          "high": 6337.005077,
+          "low": 795.535904
+        },
+        "unpriced_models": [
+          "openrouter/openai/gpt-4.1",
+          "openrouter/z-ai/glm-5.3-flash"
         ]
       }
     }

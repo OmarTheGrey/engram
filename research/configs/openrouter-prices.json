@@ -3,38 +3,78 @@
   "kind": "prices",
   "source": "OpenRouter's public model list, https://openrouter.ai/api/v1/models (no key), each model's pricing.prompt, pricing.completion and pricing.input_cache_read, in dollars per token, multiplied here by one million",
   "fetched": "2026-11-20",
-  "response_sha256": "3005b45c7e3588a55292d1bc759241e96fada06caad0b9c31c17e6f1c72b6cb0",
-  "response_models": 479,
+  "response_sha256": "f494e90843061bb9e5ca95e8c5bf116ce473a458735cadbe75a41451908aa3d0",
+  "response_models": 477,
   "unit": "US dollars per million tokens",
   "notes": [
     "List prices on the day fetched, not a quote; OpenRouter can change them at any time, and the provider it routes a call to may bill differently (RV-DES-11).",
     "openai/gpt-5.6-terra lists a higher price for prompts of 272,000 tokens or more (4 and 18 dollars per million); no registered call is estimated that large, so the base price is used.",
-    "deepseek/deepseek-v4-pro-0813 lists 0.22 in and 9.5 out, where pi-ai 1.3.0's catalogue (2026-10-15) lists 0.66 in and 1.98 out: the output price is almost five times the catalogue's.",
-    "openai/gpt-4.1 stands for tau2-bench's retail judge and user simulator, gpt-4.1-2025-04-14 upstream; OpenRouter lists no dated id for it."
+    "deepseek/deepseek-v4-pro-0813 lists 1.32 in and 3.96 out on the second fetch of 2026-11-20 (0.22 and 9.5 on the first, an earlier state of the list), where pi-ai 1.3.0's catalogue (2026-10-15) lists 0.66 in and 1.98 out. deepseek/deepseek-v4.1-flash moved the same way (0.051 and 0.567 to 0.3 and 1.2). Prices are volatile within a day: recheck on the day of the run.",
+    "openai/gpt-4.1 stands for tau2-bench's retail judge and user simulator, gpt-4.1-2025-04-14 upstream; OpenRouter lists no dated id for it.",
+    "openrouter/z-ai/glm-5.3-flash (the lead's M2) lists 0.0399 in, 0.0784 out and 0.03 cache read per million (pricing 0.0000000399, 0.0000000784, 0.00000003 per token); also listed are glm-5.3-flashx, glm-5.3-prime and a ~z-ai/glm-flash-latest alias, none of them used."
   ],
   "models": {
-    "openrouter/openai/gpt-5.6-terra": { "input": 2.0, "output": 12.0, "cache_read": 0.2 },
-    "openrouter/mistralai/mistral-large-4-0": { "input": 0.7, "output": 2.1, "cache_read": 0.07 },
-    "openrouter/deepseek/deepseek-v4-pro-0813": {
-      "input": 0.22,
-      "output": 9.5,
-      "cache_read": 0.17
+    "openrouter/openai/gpt-5.6-terra": {
+      "input": 2.0,
+      "output": 12.0,
+      "cache_read": 0.2
     },
-    "openrouter/openai/gpt-6-luna": { "input": 0.1, "output": 0.5, "cache_read": 0.01 },
+    "openrouter/mistralai/mistral-large-4-0": {
+      "input": 0.7,
+      "output": 2.1,
+      "cache_read": 0.07
+    },
+    "openrouter/deepseek/deepseek-v4-pro-0813": {
+      "input": 1.32,
+      "output": 3.96,
+      "cache_read": 0.044
+    },
+    "openrouter/openai/gpt-6-luna": {
+      "input": 0.1,
+      "output": 0.5,
+      "cache_read": 0.01
+    },
     "openrouter/mistralai/mistral-small-2603": {
       "input": 0.15,
       "output": 0.6,
       "cache_read": 0.015
     },
     "openrouter/deepseek/deepseek-v4.1-flash": {
-      "input": 0.051,
-      "output": 0.567,
-      "cache_read": 0.018
+      "input": 0.3,
+      "output": 1.2,
+      "cache_read": 0.006
     },
-    "openrouter/qwen/qwen3.8-flash": { "input": 0.15, "output": 0.47, "cache_read": 0.016 },
-    "openrouter/openai/gpt-6.1-sol": { "input": 2.0, "output": 10.0, "cache_read": 0.1 },
-    "openrouter/openai/gpt-4o": { "input": 2.5, "output": 10.0, "cache_read": 1.25 },
-    "openrouter/openai/gpt-4o-2024-08-06": { "input": 2.5, "output": 10.0, "cache_read": 1.25 },
-    "openrouter/openai/gpt-4.1": { "input": 2.0, "output": 8.0, "cache_read": 0.5 }
-  }
+    "openrouter/qwen/qwen3.8-flash": {
+      "input": 0.15,
+      "output": 0.47,
+      "cache_read": 0.016
+    },
+    "openrouter/openai/gpt-6.1-sol": {
+      "input": 2.0,
+      "output": 10.0,
+      "cache_read": 0.1
+    },
+    "openrouter/openai/gpt-4o": {
+      "input": 2.5,
+      "output": 10.0,
+      "cache_read": 1.25
+    },
+    "openrouter/openai/gpt-4o-2024-08-06": {
+      "input": 2.5,
+      "output": 10.0,
+      "cache_read": 1.25
+    },
+    "openrouter/openai/gpt-4.1": {
+      "input": 2.0,
+      "output": 8.0,
+      "cache_read": 0.5
+    },
+    "openrouter/z-ai/glm-5.3-flash": {
+      "input": 0.0399,
+      "output": 0.0784,
+      "cache_read": 0.03
+    }
+  },
+  "response_bytes": 926144,
+  "refetched": "2026-11-20, after the first fetch (response 3005b45c...b6cb0, 479 models, 927,325 bytes) priced deepseek/deepseek-v4-pro-0813 at 0.22 in and 9.5 out; a second fetch the same day returned identical bytes, sha256 above"
 }

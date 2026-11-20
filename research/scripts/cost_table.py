@@ -326,6 +326,7 @@ def build_rows(
                     }
                 )
             base = {
+                "run": run["id"],
                 "hypothesis": run["hypothesis"],
                 "benchmark": run["benchmark"],
                 "condition": cell["condition"],
@@ -414,6 +415,12 @@ def model_flags(config: Mapping[str, Any], inputs: Mapping[str, Any]) -> dict[st
         }
     for m in config["non_reasoning"]:
         flags[m] = {"reasoning": False, "can_turn_reasoning_off": None}
+    for m, f in config.get("extra_model_flags", {}).items():
+        # Models pi-ai's catalogue does not list, flagged by the config with its reason.
+        flags[m] = {
+            "reasoning": bool(f["reasoning"]),
+            "can_turn_reasoning_off": f["can_turn_reasoning_off"],
+        }
     return flags
 
 
@@ -552,6 +559,48 @@ def totals(
     return out
 
 
+def kept(row: Mapping[str, Any], excluded: Sequence[Mapping[str, Any]]) -> bool:
+    """False for a row any exclusion of the 20 November decisions names (all its keys match)."""
+    for rule in excluded:
+        match = {k: v for k, v in rule.items() if k != "why"}
+        if all(
+            (row.get(k) in v) if isinstance(v, list) else row.get(k) == v for k, v in match.items()
+        ):
+            return False
+    return True
+
+
+def decided(
+    rows: Sequence[Mapping[str, Any]],
+    config: Mapping[str, Any],
+    sets: Mapping[str, Any],
+    flags: Mapping[str, Mapping[str, Any]],
+) -> dict[str, Any]:
+    """The totals with the lead's delegated decisions of 2026-11-20 applied.
+
+    Item 2a and item 47c are the options 1x/2a/47c of `totals`; the rows the
+    decisions drop (H4's store family and its MemoryAgentBench set, C7) are
+    left out, and each dropped row is named with its share at the primary prices.
+    """
+    spec = config["decisions"]
+    keep = [r for r in rows if kept(r, spec["exclude"])]
+    dropped = [r["id"] for r in rows if not kept(r, spec["exclude"])]
+    key = f"2{spec['item_2']}/47{spec['item_47']}"
+    out: dict[str, Any] = {
+        "date": spec["date"],
+        "item_1": spec["item_1"],
+        "item_2": spec["item_2"],
+        "item_47": spec["item_47"],
+        "exclude": spec["exclude"],
+        "rows_dropped": dropped,
+        "rows_kept": len(keep),
+        "totals": {},
+    }
+    for name, t in totals(keep, config, sets, flags).items():
+        out["totals"][name] = {o1: t[f"1{o1}/{key}"] for o1 in sorted(config["options"]["item_1"])}
+    return out
+
+
 def table(
     rows: Sequence[Mapping[str, Any]],
     config: Mapping[str, Any],
@@ -656,6 +705,7 @@ def compute(config: Mapping[str, Any]) -> dict[str, Any]:
         "options": config["options"],
         "rows": table(rows, config, sets, flags, primary),
         "totals": totals(rows, config, sets, flags),
+        "decided": decided(rows, config, sets, flags),
         "assumptions": config["assumptions"],
     }
 
