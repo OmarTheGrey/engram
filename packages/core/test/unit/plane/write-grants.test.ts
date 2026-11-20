@@ -394,7 +394,8 @@ describe("RV-CORE-2: only the owner moves an item to another scope", () => {
     const roleContext: Actor = { ...lee, level: "role" };
     const moved = { ...it, version: 2, scope: ROLE } as MemoryItem;
     const r = await env.plane.write(roleContext, moved, LATER);
-    expect(r.event).toMatchObject({ decision: "deny", policy_id: WRITE_MOVE_ID });
+    // Review fix pass of PR #61 (RV7-R5): the rule id would name the check, so the opaque refusal takes the membership rule's.
+    expect(r.event).toMatchObject({ decision: "deny", policy_id: "engram/write/membership" });
     expect(r.event.reason).not.toContain("person:dana");
     expect(r.event.reason).toContain("an item you cannot access");
   });
@@ -405,5 +406,92 @@ describe("RV-CORE-2: only the owner moves an item to another scope", () => {
     const r = await env.plane.write(dana, moved, LATER);
     expect(r.event.decision).toBe("allow");
     expect(itemById(env.db, id(1))?.scope).toBe("person:dana");
+  });
+});
+
+// Review fix pass of PR #61. RV7-R1: a co-holder took the owner's granted item
+// by promoting it into a scope the owner is not in; the new version kept the
+// grants, and nobody could remove them. A new version a non-owner makes
+// carries no grants (a grant is its owner's consent to one item), and the
+// promotion's reason says so. RV7-R4: the in-place exemption is the
+// promotion gate's alone. RV7-R5: the owner-rewrite refusal is opaque to a
+// writer who cannot read the item's scope.
+describe("review fix pass of PR #61", () => {
+  const sam: Actor = { id: "person:sam", level: "person", memberships: ["person:sam"] };
+  const leeInTeam: Actor = { ...lee, memberships: ["person:lee", ROLE, "team:x"] };
+
+  test("RV7-R1: a co-holder's promotion of the owner's granted item into another scope carries no grant", async () => {
+    const env = await seeded();
+    const p = await env.plane.promote(leeInTeam, id(1), "team:x", LATER, { review: true });
+    expect(p.event.decision).toBe("allow");
+    expect(p.event.reason).toContain("1 grant of its owner person:dana is not carried");
+    const promoted = p.item as MemoryItem;
+    expect(promoted).toMatchObject({ scope: "team:x", owner: dana.id, grants: [] });
+    expect((await env.plane.read(sam, { at: LATER })).items).toEqual([]);
+  });
+
+  test("RV7-R1: the owner's own new version keeps the grants", async () => {
+    // An episodic person item of Dana's, granted to Sam, promoted by Dana on
+    // three confirmations: a new version (class semantic) she makes herself.
+    const env = fresh(twin());
+    const episodic = { ...toSam, class: "episodic" as const };
+    const own = item(30, {
+      class: "episodic",
+      scope: "person:dana",
+      owner: dana.id,
+      content: "Deploys run on Tuesdays.",
+      grants: [episodic],
+    } as Partial<MemoryItem>);
+    expect((await env.plane.write(dana, own, AT)).event.decision).toBe("allow");
+    for (const [n, who] of [
+      [31, "person:a"],
+      [32, "person:b"],
+      [33, "person:c"],
+    ] as const) {
+      const confirming = item(n, {
+        class: "episodic",
+        scope: "person:dana",
+        owner: who,
+        content: "Deploys run on Tuesdays.",
+      } as Partial<MemoryItem>);
+      const writer: Actor = {
+        id: who,
+        level: "person",
+        memberships: ["person:dana"],
+        source: "user",
+      };
+      expect((await env.plane.write(writer, confirming, AT)).event.decision).toBe("allow");
+    }
+    const p = await env.plane.promote(dana, id(30), "person:dana", LATER);
+    expect(p.event.decision).toBe("allow");
+    expect(p.item?.grants).toEqual([episodic]);
+    expect(p.event.reason).not.toContain("is not carried");
+  });
+
+  test("RV7-R4: a co-holder's status-only rewrite through Plane.write is no promotion", async () => {
+    const env = await seeded();
+    // No harness source: the provenance stays as claimed, so only status and version differ.
+    const sourceless: Actor = { id: lee.id, level: "person", memberships: lee.memberships };
+    // The projected item itself (its store_ref set), so nothing but the status and the version differ.
+    const retired = rewrite(itemById(env.db, id(1)) as MemoryItem, { status: "retired" });
+    const r = await env.plane.write(sourceless, retired, LATER);
+    expect(r.event).toMatchObject({ decision: "deny", policy_id: GRANT_OWNER_ID });
+  });
+
+  test("RV7-R5: a writer who cannot read the scope learns neither the owner nor that the item carries grants", async () => {
+    const env = fresh(twin());
+    const it = item(14, { scope: "person:lee", owner: dana.id, content: "Odd.", grants: [toSam] });
+    expect((await env.plane.write(lee, it, AT)).event.decision).toBe("allow");
+    const roleContext: Actor = {
+      id: "agent:lee-role",
+      level: "role",
+      memberships: ["person:lee", ROLE],
+    };
+    const r = await env.plane.write(roleContext, rewrite(it, { content: "Edited." }), LATER);
+    // The rule id would name the check, so the opaque refusal takes the membership rule's.
+    expect(r.event).toMatchObject({ decision: "deny", policy_id: "engram/write/membership" });
+    expect(r.event.reason).toContain("an item you cannot access");
+    expect(r.event.reason).not.toContain("grant");
+    expect(r.event.reason).not.toContain("person:dana");
   });
 });

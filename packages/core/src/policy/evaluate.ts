@@ -179,7 +179,8 @@ export type WriteCheck =
   | "source-not-allowed"
   | "source-isolation"
   | "below-floor"
-  | "retired-content";
+  | "retired-content"
+  | "move";
 
 export interface WriteDecision {
   /**
@@ -287,13 +288,16 @@ export function evaluateWrite(
     // Only the owner moves an item (RV-CORE-2): membership of both scopes is
     // not enough, or a co-holder could take the owner's item out of the
     // owner's reach, and with it the owner's control of its grants.
+    // A writer who may not read the item's scope gets the opaque refusal
+    // under the membership rule, whose id names no check (RV7-R5).
     if (item.scope !== existing.scope && actor.id !== existing.owner)
-      return deny(
-        "version",
-        opaque ??
-          `a rewrite of ${item.id} moves it from ${existing.scope} to ${item.scope}: only its owner ${existing.owner} may move it`,
-        WRITE_MOVE_ID,
-      );
+      return opaque
+        ? deny("not-member", opaque, WRITE_MEMBERSHIP_ID)
+        : deny(
+            "move",
+            `a rewrite of ${item.id} moves it from ${existing.scope} to ${item.scope}: only its owner ${existing.owner} may move it`,
+            WRITE_MOVE_ID,
+          );
   }
   const kind = item.provenance.kind;
   const prior = existing?.grants ?? [];
@@ -332,11 +336,17 @@ export function evaluateWrite(
   ) {
     // A grant is the owner's consent to what the item says (RV-CORE-1): a
     // rewrite keeping the grants is the owner's too, or a grantee would read
-    // another member's text under the owner's name.
-    const named = readableScope(policy, actor, existing.scope) ? ` ${existing.owner}` : "";
+    // another member's text under the owner's name. A writer who may not
+    // read the item's scope learns only that the id is taken (RV7-R5).
+    if (!readableScope(policy, actor, existing.scope))
+      return deny(
+        "not-member",
+        `${actor.id} cannot write item ${item.id}: the item id is held by an item you cannot access`,
+        WRITE_MEMBERSHIP_ID,
+      );
     return deny(
       "grant",
-      `a rewrite of ${item.id} keeps its grants, which are its owner's consent to what it says: only its owner${named} may rewrite an item carrying grants`,
+      `a rewrite of ${item.id} keeps its grants, which are its owner's consent to what it says: only its owner ${existing.owner} may rewrite an item carrying grants`,
       GRANT_OWNER_ID,
     );
   }
