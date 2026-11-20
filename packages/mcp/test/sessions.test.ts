@@ -187,7 +187,6 @@ describe("RV5-5: a session's memory_simulate workload is bounded", () => {
 
 describe("RV5-5: stdio's drain after its input ends", () => {
   it("waits STDIO_DRAIN_MS for a call in flight, then closes (timer injected)", async () => {
-    const ws = await testWorkspace();
     // A plane that never answers: only the drain timer can end the wait.
     const stuck = createEngramClient({
       baseUrl: "http://127.0.0.1:7313",
