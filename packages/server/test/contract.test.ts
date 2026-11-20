@@ -39,7 +39,7 @@ describe("the routes, through the generated client, on the fake store", () => {
   it("write: an item failing the schema is a deny event from the plane", async () => {
     const { client } = testWorkspace();
     const { data } = await client.POST("/api/v1/items", {
-      body: { actor: dana, item: { content: "no id" }, at: NOW },
+      body: { actor: dana, item: { content: "no id" } },
     });
     expect(C.WriteResponse.parse(data).event.policy_id).toBe("engram/write/schema");
   });

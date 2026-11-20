@@ -165,6 +165,29 @@ describe("engram hook claude-code", () => {
     expect(free.out).toBe("");
   });
 
+  it("with --server, guards the log --protect names and its SQLite companions (card RV5, RV-SRF-9)", async () => {
+    const dir = await tempDir();
+    const home = await tempDir();
+    // The log `engram serve --db` writes, somewhere the hook cannot infer.
+    const served = join(dir, "served", "engram.db");
+    const run = (args: string[], file_path: string) =>
+      cli(["hook", "claude-code", "--server", "http://127.0.0.1:9", ...args], {
+        cwd: dir,
+        home,
+        stdin: stdin({ tool_name: "Write", tool_input: { file_path, content: "" }, cwd: dir }),
+      });
+    // Before the flag, the hook protected only the default log under home.
+    const unguarded = await run([], `${served}-wal`);
+    expect(unguarded.out).toBe("");
+    for (const file of [served, `${served}-wal`, `${served}-shm`, `${served}-journal`]) {
+      const r = await run(["--protect", join("served", "engram.db")], file);
+      expect(r.code).toBe(0);
+      const reason = JSON.parse(r.out).hookSpecificOutput.permissionDecisionReason as string;
+      // The server is not listening, so the block is unrecorded, and still a deny.
+      expect(reason).toContain("blocked engram (path)");
+    }
+  });
+
   it("names the harnesses it knows", async () => {
     const r = await cli(["hook", "cursor"], { stdin: stdin("{}") });
     expect(r.code).toBe(2);

@@ -37,6 +37,7 @@ import {
   readRuleId,
 } from "../policy/evaluate.ts";
 import { type Explanation, type MemoryItem, SCHEMA_VERSION } from "../schema.ts";
+import { compareTimestamps } from "../time.ts";
 import { formatReadReason } from "./read-reason.ts";
 import { matchesQuery, queryTerms, retrieve, scoreComponents } from "./retrieve.ts";
 import { checkCall } from "./write.ts";
@@ -119,7 +120,13 @@ export async function filteredRead(
 ): Promise<ReadResult> {
   const { db, policy, newId } = deps;
   checkCall(actor, query?.at, "read");
-  const { at } = query;
+  const requested = query.at;
+  // The time validity windows are judged at (card RV5, findings RV-SRF-2
+  // and RV-CORE-3): the reader's `valid_at` when it names one, else the time
+  // it asked to read at. Access (status, ttl, grants), scoring and the
+  // event's ts are judged at accessTime below, never before the log's head.
+  if (query.valid_at !== undefined) checkCall(actor, query.valid_at, "read (valid_at)");
+  const validAt = query.valid_at ?? requested;
   const snapshot = currentItems(db);
   const reach = snapshot.filter((i) => reachable(policy, actor, i));
   // The readable scopes the actor belongs to: the store is never asked about
@@ -148,6 +155,8 @@ export async function filteredRead(
   // since; an item whose content changed or that is new is matched by the
   // plane over its current content (final recheck of PR #41).
   const { items, explanations, filtered, event } = db.transaction(() => {
+    // Under the log's lock: the head cannot move before this read is appended.
+    const at = accessTime(db, requested);
     const projected = currentItems(db);
     const live = projected.filter((i) => reachable(policy, actor, i));
     const outOfReach = projected.length - live.length;
@@ -168,7 +177,7 @@ export async function filteredRead(
       "outside-validity": 0,
     };
     const passed = candidates.flatMap((item) => {
-      const decision = evaluateRead(policy, actor, item, at);
+      const decision = evaluateRead(policy, actor, item, at, validAt);
       counts[decision.check]++;
       return decision.admitted ? [{ item, decision }] : [];
     });
@@ -211,7 +220,7 @@ export async function filteredRead(
       score: { total, components: parts },
       policy_id: decision.policy_id,
       grants_used: decision.grants_used,
-      validity: { at, valid_from: item.valid_from, valid_to: item.valid_to },
+      validity: { at: validAt, valid_from: item.valid_from, valid_to: item.valid_to },
       schema_version: 1 as const,
     }));
     // Reachable candidates the filter removed: outside the validity window,
@@ -221,17 +230,20 @@ export async function filteredRead(
       counts.excluded + counts["outside-validity"] + counts["not-active"] + counts.expired;
     // Under the core pipeline with a limit, the admitted items ranked below it.
     const limited = core && deps.retrieval?.limit !== undefined;
-    const reason = formatReadReason({
-      returned: admitted.length,
-      candidates: candidates.length,
-      filtered,
-      outside_validity: counts["outside-validity"],
-      not_active: counts["not-active"],
-      expired: counts.expired,
-      excluded: counts.excluded,
-      ...(limited ? { cut: passed.length - admitted.length } : {}),
-      out_of_reach: outOfReach,
-    });
+    const reason = formatReadReason(
+      {
+        returned: admitted.length,
+        candidates: candidates.length,
+        filtered,
+        outside_validity: counts["outside-validity"],
+        not_active: counts["not-active"],
+        expired: counts.expired,
+        excluded: counts.excluded,
+        ...(limited ? { cut: passed.length - admitted.length } : {}),
+        out_of_reach: outOfReach,
+      },
+      compareTimestamps(validAt, at) === 0 ? undefined : validAt,
+    );
     const appended = appendEvent(db, {
       id: newId(),
       ts: at,
@@ -253,6 +265,59 @@ export async function filteredRead(
     return { items: admitted.map((a) => a.item), explanations, filtered, event: appended };
   });
   return { items, explanations, filtered, event };
+}
+
+/**
+ * The time an access decision is judged at (card RV5, finding RV-CORE-3;
+ * ADR 0005 and ADR 0027, amendments proposed by RV5): `at`, unless the log
+ * already holds an event with a later ts, in which case the latest ts the
+ * log holds (its head). A grant's expiry or a ttl the log has passed cannot
+ * be reopened by naming an earlier time, and no read event's ts is earlier
+ * than any ts before it. The time a caller names is history at most, which a
+ * read takes as its `valid_at`.
+ *
+ * The head is the highest ts, compared as instants, not the ts of the
+ * highest seq (review fix pass of PR #59, RV5-2): an event appended with an
+ * earlier ts, a write at a backdated clock say, does not move it back.
+ */
+export function accessTime(db: PlaneDeps["db"], at: string): string {
+  const head = logHead(db);
+  return head !== undefined && compareTimestamps(head, at) > 0 ? head : at;
+}
+
+/** What a handle has seen of its log: the last event read and the highest ts so far. */
+interface HeadMark {
+  seq: number;
+  id: string;
+  max: string | undefined;
+}
+const heads = new WeakMap<PlaneDeps["db"], HeadMark>();
+
+/**
+ * The highest ts in the log, or undefined for an empty log. The events table
+ * has no ts column (a schema change, AGENTS.md rule 5), so each handle keeps
+ * a high-water mark and reads only the events appended since, on SQLite and
+ * Postgres alike. Events are only ever appended and their ts never
+ * rewritten (an erasure redacts content, not ts); a mark whose last event is
+ * gone (a rolled-back append) is dropped and the log read again from the
+ * start, so the mark never holds a ts the log does not.
+ */
+export function logHead(db: PlaneDeps["db"]): string | undefined {
+  let mark = heads.get(db);
+  if (mark !== undefined) {
+    const last = db.prepare("SELECT id FROM events WHERE seq = ?").get(mark.seq);
+    if (last === undefined || String(last.id) !== mark.id) mark = undefined;
+  }
+  let { seq, id, max } = mark ?? { seq: -1, id: "", max: undefined };
+  const rows = db.prepare("SELECT seq, id, body FROM events WHERE seq > ? ORDER BY seq").all(seq);
+  for (const row of rows) {
+    const ts = (JSON.parse(String(row.body)) as { ts?: unknown }).ts;
+    if (typeof ts === "string" && (max === undefined || compareTimestamps(ts, max) > 0)) max = ts;
+    seq = Number(row.seq);
+    id = String(row.id);
+  }
+  if (seq >= 0) heads.set(db, { seq, id, max });
+  return max;
 }
 
 /**

@@ -461,13 +461,18 @@ export function readableAt(policy: Policy, actor: Actor, item: MemoryItem, at: s
  * the actor's level read that scope's level) or, when the policy honours
  * grants, by every live grant on the item whose `to` matches the actor, whose
  * class is absent or the item's, and whose expiry is absent or after `at`.
- * An admitted item must also be inside its validity window at `at`.
+ * An admitted item must also be inside its validity window at `validAt`,
+ * which is `at` unless the reader asked what was true at another time (card
+ * RV5, finding RV-SRF-2): status, ttl and grants are always judged at `at`,
+ * the read's own time, so a time the reader names cannot bring back what a
+ * grant's expiry or a ttl has closed.
  */
 export function evaluateRead(
   policy: Policy,
   actor: Actor,
   item: MemoryItem,
   at: string,
+  validAt: string = at,
 ): ReadDecision {
   const level = scopeLevel(item.scope);
   const matrixId = readRuleId(policy, actor);
@@ -516,11 +521,11 @@ export function evaluateRead(
           );
   }
   if (!access.admitted) return access;
-  if (!withinValidity(item, at))
+  if (!withinValidity(item, validAt))
     return result(
       false,
       "outside-validity",
-      `outside its validity window [${item.valid_from}, ${item.valid_to ?? "open"}) at ${at}`,
+      `outside its validity window [${item.valid_from}, ${item.valid_to ?? "open"}) at ${validAt}`,
       READ_VALIDITY_ID,
     );
   return access;

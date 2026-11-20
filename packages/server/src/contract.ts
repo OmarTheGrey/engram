@@ -28,8 +28,13 @@ export const Actor = ActorShape.meta({
     "Who acts, as the caller asserts it (no authentication in v0, ADR 0027): id, the level it reads as, its member scopes, and the provenance kind of what it writes.",
 });
 
-const at = Timestamp.optional().meta({
-  description: "The time of the call, UTC ISO 8601; the server's clock when absent.",
+// Every event's ts is the server's own clock (card RV5, finding RV-SRF-2;
+// ADR 0027, amendment proposed by RV5): a request names no time of its own,
+// and a request that tries is refused by its strict schema (400). A read
+// alone takes `at`, as the time validity windows are judged at.
+const validAt = Timestamp.optional().meta({
+  description:
+    "The time validity windows are judged at, UTC ISO 8601, when the reader asks what was true at another time. The read itself happens at the server's clock: its event's ts, and the time status, ttl and grant expiry are judged at. It sweeps nothing, and the read event's reason records it.",
 });
 
 export const WriteRequest = z.strictObject({
@@ -38,7 +43,6 @@ export const WriteRequest = z.strictObject({
     description:
       "A MemoryItem (#/components/schemas/MemoryItem) as the caller assembles it; the plane validates it and denies an invalid one with the event engram/write/schema.",
   }),
-  at,
 });
 
 export const WriteResponse = z.strictObject({
@@ -56,7 +60,7 @@ export const CheckResponse = z.strictObject({
 export const ReadRequest = z.strictObject({
   actor: Actor,
   text: z.string().optional(),
-  at,
+  at: validAt,
 });
 
 export const RetentionReport = z.strictObject({
@@ -117,7 +121,6 @@ export const PromoteRequest = z.strictObject({
   item_id: z.string(),
   to: z.string(),
   review: z.boolean().optional(),
-  at,
 });
 
 export const GateResponse = z.strictObject({
@@ -137,7 +140,6 @@ export const GrantRequest = z.strictObject({
   remove: z.array(Grant).optional().meta({
     description: "Grants to remove, each exactly as the item carries it.",
   }),
-  at,
 });
 
 export const GrantResponse = z.strictObject({
@@ -146,20 +148,19 @@ export const GrantResponse = z.strictObject({
   event: MemoryEvent,
 });
 
-export const RetainRequest = z.strictObject({ actor: Actor, scope: z.string(), at });
+export const RetainRequest = z.strictObject({ actor: Actor, scope: z.string() });
 
 export const EventsRequest = z.strictObject({
   actor: Actor,
   after: z.int().nonnegative().optional().meta({
     description: "Only events with a seq above this one.",
   }),
-  at,
 });
 export const EventsResponse = z.strictObject({ events: z.array(MemoryEvent) });
 
 export const PolicyResponse = z.strictObject({ policy: Policy, label: z.string() });
 
-export const LintRequest = z.strictObject({ actor: Actor, scope: z.string(), at });
+export const LintRequest = z.strictObject({ actor: Actor, scope: z.string() });
 /** Plane.lint's LintReport (card L1): deny when the actor is not a member of the scope. */
 export const LintResponse = z.strictObject({
   decision: z.enum(["allow", "deny"]),
@@ -191,7 +192,6 @@ export const BypassRequest = z.strictObject({
     store: z.string(),
     route: z.enum(["command", "path", "result"]).optional(),
   }),
-  at,
 });
 export const EventResponse = z.strictObject({ event: MemoryEvent });
 

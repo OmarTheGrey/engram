@@ -18,6 +18,11 @@
 // not see the harness's context, so reads are governed, not filtered out of
 // what the model already holds (condition C7).
 //
+// Time (card RV5, finding RV-SRF-2): requests carry no time; the server
+// stamps each event from its own clock, and memory_simulate's workload
+// records each call at the ts its event got. `now` dates a written item's
+// validity only.
+//
 // The low-level Server is used, not McpServer, because the tools' input
 // schemas are the shared TypeBox (JSON Schema) definitions, which McpServer
 // would want restated in Zod.
@@ -53,11 +58,21 @@ export interface McpOptions {
   client: EngramClient;
   /** Who every call is made as; its source is set to `model` here, whatever it says. */
   actor: Actor;
-  /** The time of each call, ISO 8601 UTC. */
+  /** The valid_from of each item written, ISO 8601 UTC; events are stamped by the server. */
   now: () => string;
   /** A fresh UUIDv7 for each item written. */
   newId: () => string;
+  /**
+   * The most calls one server (one MCP session) records for memory_simulate;
+   * default MAX_SESSION_STEPS. Past it, no more are kept and memory_simulate
+   * refuses, rather than replay a workload cut short (review fix pass of PR
+   * #59, RV5-5).
+   */
+  maxSteps?: number;
 }
+
+/** The default bound on one session's recorded calls. */
+export const MAX_SESSION_STEPS = 10_000;
 
 export const SERVER_INFO = { name: "engram", version: "0.0.0" };
 
@@ -100,6 +115,12 @@ export function createMcpServer(options: McpOptions): Server {
   const agent: Actor = { ...options.actor, source: "model" };
   /** The Plane calls this server made, in order: memory_simulate's workload (card E8.9). */
   const steps: WorkloadStep[] = [];
+  const maxSteps = options.maxSteps ?? MAX_SESSION_STEPS;
+  let overflowed = false;
+  const record = (step: WorkloadStep) => {
+    if (steps.length < maxSteps) steps.push(step);
+    else overflowed = true;
+  };
 
   const server = new Server(SERVER_INFO, { capabilities: { tools: {} } });
   server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: toolList() }));
@@ -142,24 +163,23 @@ export function createMcpServer(options: McpOptions): Server {
           store_ref: null,
           schema_version: 1,
         };
-        steps.push({
-          op: "write",
-          as: "agent",
-          at,
-          item: item as Extract<WorkloadStep, { op: "write" }>["item"],
-        });
-        const answer = await client.POST("/api/v1/items", { body: { actor: agent, item, at } });
+        const answer = await client.POST("/api/v1/items", { body: { actor: agent, item } });
         if (answer.data === undefined) return text(failure(answer).message, true);
         const { item: stored, event } = answer.data as unknown as {
           item: MemoryItem | null;
           event: MemoryEvent;
         };
+        record({
+          op: "write",
+          as: "agent",
+          at: event.ts,
+          item: item as Extract<WorkloadStep, { op: "write" }>["item"],
+        });
         return stored ? text(writeResultText(stored)) : text(refusal(event), true);
       }
       case "memory_read": {
-        steps.push({ op: "read", as: "agent", at, text: String(args.query) });
         const answer = await client.POST("/api/v1/read", {
-          body: { actor: agent, text: String(args.query), at },
+          body: { actor: agent, text: String(args.query) },
         });
         if (answer.data === undefined) return text(failure(answer).message, true);
         const r = answer.data as unknown as {
@@ -168,6 +188,7 @@ export function createMcpServer(options: McpOptions): Server {
           filtered: number;
           event: MemoryEvent;
         };
+        record({ op: "read", as: "agent", at: r.event.ts, text: String(args.query) });
         // The read event's reason counts items out of reach; it is kept from the model.
         return text(
           tagRecall(
@@ -186,6 +207,11 @@ export function createMcpServer(options: McpOptions): Server {
       }
       case "memory_simulate": {
         // Replayed on scratch logs and stores: this server's own calls only.
+        if (overflowed)
+          return text(
+            `memory_simulate: this session made more than ${maxSteps} calls, the most it records; a replay of only some of them would not be this session's, so start a new session to simulate`,
+            true,
+          );
         const candidate =
           args.candidate === undefined ? undefined : loadPreset(args.candidate as PresetName);
         const answer = await client.POST("/api/v1/simulate", {

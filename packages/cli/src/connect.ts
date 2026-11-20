@@ -34,6 +34,10 @@ export interface Connection {
 
 export type Fetch = (request: Request) => Promise<Response>;
 
+/** The server a command names: --server, else ENGRAM_SERVER_URL, else none (in process). */
+export const serverOf = (io: Pick<Io, "env">, flags: { server?: string | undefined }) =>
+  flags.server ?? (io.env[SERVER_URL_ENV] || undefined);
+
 /**
  * The client a command calls. `flags` are its parsed options; `workspace`
  * builds the in-process workspace's options from them. In process, the
@@ -47,7 +51,7 @@ export function connect(
   workspace: () => Omit<WorkspaceOptions, "cwd" | "home" | "env" | "newId">,
   open: ((ws: LocalWorkspace) => void) | undefined,
 ): Connection {
-  const server = flags.server ?? (io.env[SERVER_URL_ENV] || undefined);
+  const server = serverOf(io, flags);
   const wrap = (fetch: Fetch): Fetch => (io.transport ? io.transport(fetch) : fetch);
   if (server !== undefined) {
     const given = WORKSPACE_FLAGS.filter((f) => flags[f] !== undefined);

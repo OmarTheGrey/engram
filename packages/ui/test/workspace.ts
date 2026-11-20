@@ -96,26 +96,31 @@ export async function fixtureWorkspace(dir: string, policyFile: string) {
     },
     { viewer },
   );
-  const app = createApp(workspace, { port: PORT, now: () => w.now });
+  // The server's clock, set to each step's time while the workload runs: a
+  // request names no time of its own (card RV5, ADR 0027's amendment).
+  let clock = w.now;
+  const app = createApp(workspace, { port: PORT, now: () => clock });
   const client = clientOf(app);
   const reads = new Map<string, ReadResponse>();
   const decisions: string[] = [];
   for (const step of w.steps) {
     const actor = w.actors[step.as] as Actor;
+    clock = step.at;
     if (step.op === "write") {
       const { data, error } = await client.POST("/api/v1/items", {
-        body: { actor, item: itemOf(actor, step.item), at: step.at },
+        body: { actor, item: itemOf(actor, step.item) },
       });
       if (data === undefined) throw new Error(`fixture write failed: ${JSON.stringify(error)}`);
       decisions.push(`${step.item.id} ${data.event.decision}`);
     } else {
       const { data, error } = await client.POST("/api/v1/read", {
-        body: { actor, at: step.at, ...(step.text ? { text: step.text } : {}) },
+        body: { actor, ...(step.text ? { text: step.text } : {}) },
       });
       if (data === undefined) throw new Error(`fixture read failed: ${JSON.stringify(error)}`);
       reads.set(step.as, data);
     }
   }
+  clock = w.now;
   /**
    * The timeline core's visibleEvents gives `actor` over the log as it is now,
    * at the server's clock: the events it may see, each item withheld unless

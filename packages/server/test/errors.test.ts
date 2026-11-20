@@ -32,7 +32,7 @@ describe("error statuses", () => {
   it("400 for a call the plane refuses as invalid (InvalidCallError)", async () => {
     const { client } = testWorkspace();
     const { response, error } = await client.POST("/api/v1/promote", {
-      body: { actor: dana, item_id: "not-an-id", to: "team:x", at: NOW },
+      body: { actor: dana, item_id: "not-an-id", to: "team:x" },
     });
     expect(response.status).toBe(400);
     expect(error?.error.code).toBe("invalid_call");

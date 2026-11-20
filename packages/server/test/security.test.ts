@@ -15,7 +15,7 @@ const json = (body: unknown, headers: Record<string, string> = {}) => ({
   body: JSON.stringify(body),
 });
 
-const bypassBody = { actor: dana, bypass: { command: "mem0 add x", store: "mem0" }, at: NOW };
+const bypassBody = { actor: dana, bypass: { command: "mem0 add x", store: "mem0" } };
 
 async function send(path: string, init: RequestInit, base = BASE) {
   const { app, workspace } = testWorkspace();

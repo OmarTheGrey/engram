@@ -166,3 +166,13 @@ Built by card RV1 (the repository review's RV-EXP-1 to -5 and -10) with proposed
 | Concurrent writers | two processes writing the same `--out` folder interleave their rows; a lock file in the folder would guard it (a card) | `docs/log/2026-11-19-rv1-finding-concurrent-writers.md` |
 | Capped utility sessions | a capped GateMem utility session leaves MGS's U with no count, since h1-sessions/2 allows no exclusion on a utility row; the lead decides whether the H1 table counts them per condition | `docs/log/2026-11-19-rv1-review-failure-4-utility-gap.md` |
 | v1's condition wording | v1 does not describe C3's identity and instruction sentences or C4's instruction sentence; the proposed lines are in the finding, for the lead's text | `docs/log/2026-11-19-rv1-finding-v1-condition-wording.md` |
+
+## Follow-ups from card RV5 (2026-11-20)
+
+From the repository review of the surfaces (findings RV-SRF-1 to RV-SRF-9); each waits on the lead.
+
+| item | what is left | where it is recorded |
+|---|---|---|
+| Claude Code's native memory path | with auto memory off Claude Code loads no `MEMORY.md`, but what a session holds in context and its plain-text transcripts (`~/.claude/projects/<project>/*.jsonl`, MCP results included) stay outside the plane and the report; the lead decides whether Gate D's "zero recorded violations" stands beside them, or the hook also guards the transcripts | `docs/log/2026-11-20-rv5-finding-native-memory-path.md`; `docs/dogfood.md`, limits 7 and the auto memory section |
+| What `at` means over HTTP | the server stamps every event's ts and a read's `at` is a read-only `valid_at`; the lead accepts this or the other design (refuse a skew beyond a bound) | ADR 0027, amendment proposed by RV5 |
+| The owner is self-asserted | a caller claiming the store owner's id is the owner to `syncBeforeRead`, as to every route, until authentication | ADR 0025 and ADR 0027, amendments proposed by RV5 |

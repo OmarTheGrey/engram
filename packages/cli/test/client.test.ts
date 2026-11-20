@@ -72,7 +72,7 @@ describe("engram lint", () => {
       "write",
       ...["--root", root, "--owner", "dana", "--db", db],
       ...["--content", "Dana is on call this week.", "--valid-to", "2026-10-02T00:00:00.000Z"],
-      ...["--at", "2026-10-01T00:00:00.000Z"],
+      ...["--at", "2026-10-01T00:00:00.000Z", "--test-clock"],
     ]);
     expect(written.code).toBe(0);
     const linted = await cli(["lint", "--scope", "person:dana", "--owner", "dana", "--db", db]);
@@ -112,7 +112,7 @@ describe("engram retain", () => {
       "write",
       ...["--root", root, "--owner", "dana", "--db", db, "--policy", policy, ...as],
       ...["--scope", "team:platform", "--content", "The freeze starts Friday."],
-      ...["--at", "2026-10-01T00:00:00.000Z"],
+      ...["--at", "2026-10-01T00:00:00.000Z", "--test-clock"],
     ]);
     expect(written.code).toBe(0);
     const swept = await cli([

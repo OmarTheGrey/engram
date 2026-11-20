@@ -6,9 +6,10 @@
 import { mkdirSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { createEngramClient } from "@engram/sdk";
 import { describe, expect, it } from "vitest";
 import { claudeCodeHook, hookBypass } from "../src/hook.ts";
-import { NOW, testWorkspace } from "./helpers.ts";
+import { testWorkspace } from "./helpers.ts";
 
 const cwd = mkdtempSync(join(tmpdir(), "engram-hook-"));
 const root = join(cwd, "memory");
@@ -157,7 +158,6 @@ describe("claudeCodeHook", () => {
       ...SCOPE,
       client: ws.client,
       actor: CLAUDE,
-      now: () => NOW,
     });
     expect(answer?.hookSpecificOutput.permissionDecision).toBe("deny");
   });
@@ -170,7 +170,6 @@ describe("claudeCodeHook", () => {
       actor: CLAUDE,
       ...SCOPE,
       cwd,
-      now: () => NOW,
     });
     const events = ws.workspace.plane.events().slice(before);
     expect(events).toHaveLength(1);
@@ -189,6 +188,29 @@ describe("claudeCodeHook", () => {
     });
   });
 
+  it("records the block as source model whatever source the actor it was given claims (card RV5, RV-SRF-8)", async () => {
+    const ws = await testWorkspace();
+    const sent: unknown[] = [];
+    // The generated client over the same app, keeping each body it sends.
+    const recording = createEngramClient({
+      baseUrl: "http://127.0.0.1:7313",
+      fetch: async (request) => {
+        sent.push(await request.clone().json());
+        return ws.app.fetch(request);
+      },
+    });
+    const answer = await claudeCodeHook(call("Bash", { command: "mem0 delete --all" }), {
+      client: recording,
+      actor: { ...CLAUDE, source: "user" },
+      ...SCOPE,
+      cwd,
+    });
+    expect(answer?.hookSpecificOutput.permissionDecision).toBe("deny");
+    expect(sent).toHaveLength(1);
+    expect(sent[0]).toMatchObject({ actor: { id: CLAUDE.id, source: "model" } });
+    expect(sent[0]).not.toHaveProperty("at");
+  });
+
   it("answers nothing for a call that is no bypass, and records nothing", async () => {
     const ws = await testWorkspace();
     const before = ws.workspace.plane.events().length;
@@ -197,7 +219,6 @@ describe("claudeCodeHook", () => {
       actor: CLAUDE,
       ...SCOPE,
       cwd,
-      now: () => NOW,
     });
     expect(answer).toBeNull();
     expect(ws.workspace.plane.events()).toHaveLength(before);
@@ -214,7 +235,6 @@ describe("claudeCodeHook", () => {
       actor: CLAUDE,
       ...SCOPE,
       cwd,
-      now: () => NOW,
     });
     expect(answer?.hookSpecificOutput.permissionDecision).toBe("deny");
     expect(answer?.hookSpecificOutput.permissionDecisionReason).toContain("could not be recorded");

@@ -43,7 +43,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Read through the plane as the actor: the store's owner sweeps and adopts first when the workspace has a store; every returned item is explained. */
+        /** Read through the plane as the actor at the server's clock, validity windows at `at` when given: with a store, its owner's sweep when the owner reads and the adoption of its memories run first; every returned item is explained. */
         post: operations["read"];
         delete?: never;
         options?: never;
@@ -467,11 +467,6 @@ export interface components {
             item: {
                 [key: string]: components["schemas"]["JsonValue"];
             };
-            /**
-             * Format: date-time
-             * @description The time of the call, UTC ISO 8601; the server's clock when absent.
-             */
-            at?: string;
         };
         WriteResponse: {
             item: components["schemas"]["MemoryItem"] | null;
@@ -489,7 +484,7 @@ export interface components {
             text?: string;
             /**
              * Format: date-time
-             * @description The time of the call, UTC ISO 8601; the server's clock when absent.
+             * @description The time validity windows are judged at, UTC ISO 8601, when the reader asks what was true at another time. The read itself happens at the server's clock: its event's ts, and the time status, ttl and grant expiry are judged at. It sweeps nothing, and the read event's reason records it.
              */
             at?: string;
         };
@@ -564,11 +559,6 @@ export interface components {
             item_id: string;
             to: string;
             review?: boolean;
-            /**
-             * Format: date-time
-             * @description The time of the call, UTC ISO 8601; the server's clock when absent.
-             */
-            at?: string;
         };
         GateResponse: {
             /** @enum {string} */
@@ -584,11 +574,6 @@ export interface components {
             add?: components["schemas"]["Grant"][];
             /** @description Grants to remove, each exactly as the item carries it. */
             remove?: components["schemas"]["Grant"][];
-            /**
-             * Format: date-time
-             * @description The time of the call, UTC ISO 8601; the server's clock when absent.
-             */
-            at?: string;
         };
         GrantResponse: {
             /** @enum {string} */
@@ -599,21 +584,11 @@ export interface components {
         RetainRequest: {
             actor: components["schemas"]["Actor"];
             scope: string;
-            /**
-             * Format: date-time
-             * @description The time of the call, UTC ISO 8601; the server's clock when absent.
-             */
-            at?: string;
         };
         EventsRequest: {
             actor: components["schemas"]["Actor"];
             /** @description Only events with a seq above this one. */
             after?: number;
-            /**
-             * Format: date-time
-             * @description The time of the call, UTC ISO 8601; the server's clock when absent.
-             */
-            at?: string;
         };
         EventsResponse: {
             events: components["schemas"]["MemoryEvent"][];
@@ -625,11 +600,6 @@ export interface components {
         LintRequest: {
             actor: components["schemas"]["Actor"];
             scope: string;
-            /**
-             * Format: date-time
-             * @description The time of the call, UTC ISO 8601; the server's clock when absent.
-             */
-            at?: string;
         };
         LintResponse: {
             /** @enum {string} */
@@ -855,11 +825,6 @@ export interface components {
                 /** @enum {string} */
                 route?: "command" | "path" | "result";
             };
-            /**
-             * Format: date-time
-             * @description The time of the call, UTC ISO 8601; the server's clock when absent.
-             */
-            at?: string;
         };
         EventResponse: {
             event: components["schemas"]["MemoryEvent"];
