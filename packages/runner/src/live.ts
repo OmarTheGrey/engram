@@ -19,7 +19,8 @@
 // - The cassette directory must be under the repository's `.engram/` (which
 //   .gitignore keeps out of the repository) or outside the repository, and
 //   never overlap `fixtures/` or the config's own cassettes (review R5-4). The
-//   default is `.engram/runs/<config>-live/<provider>/<model>/cassettes`.
+//   default is `.engram/runs/<config>-live/<provider>/<model>/cassettes`, or
+//   `cassettes-upstream-<hash>` for a config that pins OpenRouter's upstream.
 // - A replay (review R5-5) reads the same directory with every miss an error,
 //   is allowed offline, and refuses a directory that does not exist.
 // - A config's `openrouter_provider` (card RV6, model/upstream.ts) pins
@@ -31,7 +32,7 @@ import { existsSync, readdirSync } from "node:fs";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import { createModels } from "@earendil-works/pi-ai";
 import { builtinProviders } from "@earendil-works/pi-ai/providers/all";
-import { canonicalJson } from "@engram/core";
+import { canonicalJson, sha256 } from "@engram/core";
 import { fileCache } from "@engram/model";
 import type { LiveModels } from "./answers.ts";
 import { configJudge } from "./config.ts";
@@ -87,6 +88,20 @@ const within = (parent: string, child: string) => {
 
 const offline = (env: NodeJS.ProcessEnv) => env.ENGRAM_OFFLINE === "1";
 
+/**
+ * The last part of the default live cassette directory: `cassettes`, or
+ * with an `openrouter_provider` pin `cassettes-upstream-<12 hex>`, a hash of
+ * the pin in canonical JSON (review P60-4). The pin stays out of every cache
+ * key, so a pinned run gets a folder of its own instead: a fresh live run
+ * under a new pin never replays answers another upstream gave. An explicit
+ * `--cassettes` folder is the caller's to keep apart.
+ */
+export function cassetteFolder(config: Pick<LiveRunConfig, "openrouter_provider">): string {
+  const pin = config.openrouter_provider;
+  if (pin === undefined) return "cassettes";
+  return `cassettes-upstream-${sha256(canonicalJson(pin)).slice(0, 12)}`;
+}
+
 /** The named model's live cassette directory, checked against the rules above. */
 function liveCassettes(config: LiveRunConfig, request: LiveRunRequest): string {
   const [provider = "", ...rest] = request.model.split("/");
@@ -103,7 +118,14 @@ function liveCassettes(config: LiveRunConfig, request: LiveRunRequest): string {
   }
   const cassettes = resolve(
     request.cassettes ??
-      join(request.repo, ".engram", "runs", `${config.name}-live`, ...parts, "cassettes"),
+      join(
+        request.repo,
+        ".engram",
+        "runs",
+        `${config.name}-live`,
+        ...parts,
+        cassetteFolder(config),
+      ),
   );
   for (const committed of [join(request.repo, "fixtures"), config.cassettes]) {
     if (within(committed, cassettes) || within(cassettes, committed)) {

@@ -3,7 +3,7 @@
 // served each call recorded in its cassette and in the usage ledger. The
 // wire test drives pi-ai's own OpenRouter provider against a fetch that
 // answers in OpenRouter's stream format; nothing reaches the network.
-import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import {
@@ -23,6 +23,7 @@ import {
   LiveRunRefused,
   liveConfig,
   liveOptions,
+  replayConfig,
   upstreamRoutes,
 } from "../src/live.ts";
 import { routedModels, servedBy } from "../src/model/upstream.ts";
@@ -143,6 +144,41 @@ describe("pi-ai 1.3.0 passes OpenRouter's provider routing, and its chunks name 
 });
 
 describe("a config pins the upstream of its answer model and its judge", () => {
+  test("a pinned run records into a cassette folder of its own pin; a replay reads the same one (review P60-4)", () => {
+    const base = readRunnerConfig(B3);
+    const request = { model: "openrouter/openai/gpt-4o", repo: REPO, env: {} };
+    const free = liveConfig({ ...base, openrouter_provider: undefined }, request);
+    const pinned = liveConfig({ ...base, openrouter_provider: { answer: PIN } }, request);
+    const other = liveConfig(
+      { ...base, openrouter_provider: { answer: { only: ["openai"] } } },
+      request,
+    );
+    // An unpinned run keeps the folder it always had, so recorded runs still replay.
+    expect(free.cassettes.replaceAll("\\", "/")).toMatch(
+      /b3-gatemem-plane-live\/openrouter\/openai\/gpt-4o\/cassettes$/,
+    );
+    expect(pinned.cassettes).toMatch(/cassettes-upstream-[0-9a-f]{12}$/);
+    expect(new Set([free.cassettes, pinned.cassettes, other.cassettes]).size).toBe(3);
+    // The same pin written in another key order is the same folder.
+    const reordered = liveConfig(
+      {
+        ...base,
+        openrouter_provider: { answer: { allow_fallbacks: false, order: ["deepinfra"] } },
+      },
+      request,
+    );
+    expect(reordered.cassettes).toBe(pinned.cassettes);
+    mkdirSync(pinned.cassettes, { recursive: true });
+    writeFileSync(join(pinned.cassettes, "x.json"), "{}");
+    try {
+      expect(
+        replayConfig({ ...base, openrouter_provider: { answer: PIN } }, request).cassettes,
+      ).toBe(pinned.cassettes);
+    } finally {
+      rmSync(pinned.cassettes, { recursive: true, force: true });
+    }
+  });
+
   const b3 = readRunnerConfig(B3);
 
   test("openrouter_provider parses OpenRouter's fields and refuses others", () => {
