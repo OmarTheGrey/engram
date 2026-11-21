@@ -8,7 +8,7 @@ SHELL := bash
 PNPM ?= pnpm
 UV ?= uv
 
-.PHONY: help test test-invariants test-scale test-one test-e2e test-repro lint lint-docs api api-check ui bench run h1-table h1-figure l3-variance h3-lint-delta fixtures fault-workspace thesis engram dogfood-report
+.PHONY: help test test-invariants test-scale test-one test-e2e test-repro lint lint-docs api api-check ui bench run h1-table h1-figure l3-variance h3-lint-delta fixtures fault-workspace thesis engram dogfood-report verify-spec
 
 help: ## list targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | sed -E 's/:.*## /\t/' | expand -t 16
@@ -165,3 +165,62 @@ dogfood-report: ## the twin dogfood's violation report over your own log, counts
 
 engram: ## run the engram CLI: make engram ARGS="read --root <folder> --owner <id>"
 	@node packages/cli/src/main.ts $(ARGS)
+
+# Card E1.5: the Quint model of the commit and erasure protocol (specs/).
+# Quint runs through npx at an exact version, not as a workspace dependency,
+# and fetches its Rust simulator and Apalache into ~/.quint on first use.
+QUINT_VERSION := 0.33.1
+APALACHE_VERSION := 0.62.4
+QUINT ?= npx --yes @informalsystems/quint@$(QUINT_VERSION)
+SPEC_SEEDS ?= 1 2 3
+SPEC_SAMPLES ?= 5000
+SPEC_STEPS ?= 60
+SPEC_DEPTH ?= 4
+SPEC_OUT := .engram/verify-spec
+SPEC_WITNESSES := sawConflict sawWithdrawal sawWriterAcrossErasure sawSwept sawPutBack sawAdoptErased sawWriteErased sawErasing sawReopen sawAdoptionOverUser sawAsHeldAboveImport
+# What the broken variant must violate: the erasure properties first;
+# noStaleAppend restates the removed check, so it is an extra. Apalache's
+# depth cannot reach an erasure (at least 6 steps), so it is held to the two
+# it can refute within SPEC_DEPTH.
+SPEC_BROKEN_SIM := erasureHolds noWriteWhileErasing noStaleAppend
+SPEC_BROKEN_BMC := noWriteWhileErasing noStaleAppend
+
+verify-spec: ## card E1.5: typecheck and test specs/commit.qnt, simulate the good model, refute the broken one, and (with a JVM) bounded-check both with Apalache; outside make test
+	@mkdir -p $(SPEC_OUT)
+	$(QUINT) typecheck specs/commit.qnt
+	$(QUINT) test specs/commit.qnt --main=good
+	$(QUINT) test specs/commit.qnt --main=broken
+	$(QUINT) test specs/commit.qnt --main=knownGapThreeOffboardings
+	@for seed in $(SPEC_SEEDS); do \
+	  echo "simulation of the good model: seed $$seed, $(SPEC_SAMPLES) traces of $(SPEC_STEPS) steps"; \
+	  $(QUINT) run specs/commit.qnt --main=good --invariant=safety --max-samples=$(SPEC_SAMPLES) \
+	    --max-steps=$(SPEC_STEPS) --seed=$$seed --n-threads=4 --verbosity=1 --witnesses $(SPEC_WITNESSES) \
+	    || { echo "verify-spec: the good model violates a property (seed $$seed)"; exit 1; }; \
+	done
+	@for inv in $(SPEC_BROKEN_SIM); do \
+	  out=$(SPEC_OUT)/broken-simulation-$$inv; rm -f $$out.itf.json $$out.txt; \
+	  echo "simulation of the broken model: the checker must refute $$inv"; \
+	  if $(QUINT) run specs/commit.qnt --main=broken --invariant=$$inv --max-samples=$(SPEC_SAMPLES) \
+	      --max-steps=$(SPEC_STEPS) --seed=1 --n-threads=4 --out-itf=$$out.itf.json > $$out.txt 2>&1; then \
+	    echo "verify-spec: the broken model was not refuted on $$inv"; exit 1; fi; \
+	  grep -q '"status":"violation"' $$out.itf.json 2>/dev/null \
+	    || { cat $$out.txt; echo "verify-spec: the broken run on $$inv failed without a counterexample"; exit 1; }; \
+	  echo "refuted; the trace is in $$out.itf.json"; \
+	done
+	@if ! command -v java > /dev/null; then \
+	  echo "verify-spec: no JVM on the path, so no Apalache: the checking above is randomized simulation only"; exit 0; fi; \
+	cd $(SPEC_OUT) && \
+	echo "Apalache, good model: every interleaving up to $(SPEC_DEPTH) steps" && \
+	$(QUINT) verify ../../specs/commit.qnt --main=good --invariant=safety --max-steps=$(SPEC_DEPTH) \
+	  --apalache-version=$(APALACHE_VERSION) --verbosity=1 \
+	  || { echo "verify-spec: Apalache found a violation in the good model"; exit 1; }; \
+	for inv in $(SPEC_BROKEN_BMC); do \
+	  out=broken-apalache-$$inv; rm -f $$out.itf.json $$out.txt; \
+	  echo "Apalache, broken model: $$inv must fail within $(SPEC_DEPTH) steps"; \
+	  if $(QUINT) verify ../../specs/commit.qnt --main=broken --invariant=$$inv --max-steps=$(SPEC_DEPTH) \
+	      --apalache-version=$(APALACHE_VERSION) --out-itf=$$out.itf.json > $$out.txt 2>&1; then \
+	    echo "verify-spec: Apalache did not refute the broken model on $$inv"; exit 1; fi; \
+	  grep -q "found a counterexample" $$out.txt \
+	    || { cat $$out.txt; echo "verify-spec: the Apalache run on $$inv failed without a counterexample"; exit 1; }; \
+	  echo "refuted; the trace is in $(SPEC_OUT)/$$out.itf.json"; \
+	done

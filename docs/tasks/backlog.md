@@ -249,3 +249,11 @@ Claims the crosswalk (`docs/compliance/README.md`) marks not evidenced, and what
 | item | what is left | where it is recorded |
 |---|---|---|
 | MERIT C1's cost (card X7) | MERIT's C1 is FullReplay, so its prompts grow with each arc toward the 60,000-character cap (about 15,000 tokens per call at the cap, several calls per episode); budget C1's spend before the live run, from the fixture slice's call shapes and MERIT's own reference runs' token counts | ADR 0031's amendment of 2026-11-21; `docs/log/2026-11-21-b7-decision-c1-adr-0031.md` |
+## Follow-ups from card E1.5 (2026-11-21)
+
+Two gaps in the commit and erasure protocol that the Quint model found (`specs/README.md`, "What the model found"). Card E1.5 changes nothing under `packages/`, so each is pinned by a scenario test that fails once the code and the model are fixed, and left to a core card.
+
+| item | what is left | where it is recorded |
+|---|---|---|
+| The sweep's put-back leaves erased content | `offboard.ts` `run`, the put-back loop after a changed swept record: when its read finds the item gone (a third offboarding of the person erased it between the put-back's read and its write) it ends with `break` and leaves the bytes it wrote; it should delete the record when the item is gone or its scope is being erased, as `commit.ts` `settle`'s `wanted` does, then change `obPutBackRead` in the model to match and turn `knownGapThreeOffboardings::putBackAcrossThirdErasureTest` into a passing test of the fix | `docs/log/2026-11-21-e1-5-finding-put-back-leak.md` |
+| Adoption's purge deletes a committed write's record | two paths delete a refused record outside the lock with nothing checked after the refusal: `adopt.ts` `purgeOutcome` after a fresh refusal, and the purge retry for bytes already refused (`adopt.ts`, the `decided` branch of `adoptStoreItems`), which runs with no lock and no deferral; a write under a swept id (allowed, since `write.ts` `planeRefusal` checks `lastErasure` only) that commits in between loses its record, and the next adoption retires it. Fix one or both: refuse a new write under a swept id as under an erased one, and check under the lock, just before each purge's delete, that the item has not changed since the refusal; then turn `good::sweptIdPurgeRaceTest` into a test of the fix | `docs/log/2026-11-21-e1-5-finding-purge-race-on-the-code.md` |
