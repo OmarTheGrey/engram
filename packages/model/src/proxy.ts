@@ -34,15 +34,14 @@
 // Usage goes to `onUsage` as the runner's UsageRecord, so the caller writes it
 // to the runner's ledger (usage.jsonl, card RV1) and cost accounting needs
 // nothing new. The proxy itself picks no cassette folder and opens no
-// ledger: the harness cards (B7, B11) wire it to the runner's live guards.
-import {
-  createServer,
-  type IncomingHttpHeaders,
-  type IncomingMessage,
-  type Server,
-  type ServerResponse,
-} from "node:http";
+// ledger: the harness cards (B7, B11) wire it to the run's folder and
+// journal. Recording into a file cache applies the runner's live guard
+// (`recordingRefusal`, recording.ts): under `<repo>/.engram/` or outside the
+// repository, never into `fixtures/` unless `recordFixtures` is set. A harness
+// name may not be one of the runner's own item prefixes (RESERVED_HARNESSES).
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
+import { join } from "node:path";
 import { canonicalJson, type ModelRequest, UnsupportedRequestError } from "@engram/core";
 import {
   type CachedOptions,
@@ -58,6 +57,7 @@ import {
   TransientCallError,
   type UsageRecord,
 } from "./cached.ts";
+import { recordingRefusal, within } from "./recording.ts";
 
 /** vcrpy's record modes the proxy offers: replay only, or record what is not yet recorded. */
 export type RecordMode = "none" | "new_episodes";
@@ -88,6 +88,28 @@ const FIELDS = Object.keys(CONTEXT_HEADERS) as (keyof ProxyContext)[];
 
 /** A harness name: no slash, so `<harness>/<item>` cannot be read two ways. */
 const HARNESS = /^[A-Za-z0-9._-]+$/;
+
+/**
+ * The item prefixes the runner's own calls use (card B10 review B10-6): a
+ * harness may not take one, so no proxy key is ever a runner key. A runner
+ * benchmark that adds a prefix adds it here.
+ */
+export const RESERVED_HARNESSES: readonly string[] = [
+  "gatemem",
+  "longmemeval",
+  "mem-inv-bench",
+  "faults",
+  "fault-set",
+];
+
+/** Why `harness` cannot name a harness, or undefined when it can. */
+function harnessProblem(harness: string): string | undefined {
+  if (!HARNESS.test(harness)) return `must match ${HARNESS}, not ${JSON.stringify(harness)}`;
+  if (RESERVED_HARNESSES.includes(harness)) {
+    return `${JSON.stringify(harness)} is an item prefix the runner's own calls use (${RESERVED_HARNESSES.join(", ")}); a harness takes another name so its keys never meet the runner's`;
+  }
+  return undefined;
+}
 const SEED = /^(0|[1-9][0-9]*)$/;
 
 /** The cache's CallContext of a cell: the harness qualifies the item. */
@@ -159,6 +181,20 @@ export interface ProxyOptions {
   env?: NodeJS.ProcessEnv;
   /** The largest request body read, in bytes; 64 MiB by default. */
   maxBodyBytes?: number;
+  /**
+   * The repository root, for the recording guard the runner's live mode
+   * applies (`recordingRefusal`): recording into a file cache needs it, and
+   * the cache's folder must be under `<repo>/.engram/` or outside the
+   * repository, never overlapping `fixtures/` or `committed`.
+   */
+  repo?: string;
+  /** Committed cassette directories besides `fixtures/` that a recording must not touch. */
+  committed?: readonly string[];
+  /**
+   * Record scripted cassettes into `<repo>/fixtures/`, as `make fixtures`
+   * does: the file cache's folder must then be inside `fixtures/`.
+   */
+  recordFixtures?: boolean;
 }
 
 export interface ProxyHandle {
@@ -195,6 +231,13 @@ function strictSchema(format: unknown): ModelRequest["responseSchema"] {
   return { name: spec.name, schema: spec.schema };
 }
 
+const streamingRefused = () =>
+  new ProxyRequestError(
+    501,
+    "not_implemented",
+    "streaming is not served: the cassette proxy answers a whole completion; send stream false (a harness card adds streaming when it needs it)",
+  );
+
 /**
  * The request the proxy keys and records for an OpenAI chat-completions
  * body under the experiment's `seed`. What a ModelRequest can hold is put
@@ -223,13 +266,7 @@ export function chatRequest(body: unknown, seed: number): ChatRequest {
     n,
     ...rest
   } = given;
-  if (stream !== undefined && stream !== false) {
-    throw new ProxyRequestError(
-      501,
-      "not_implemented",
-      "streaming is not served: the cassette proxy answers a whole completion; send stream false (a harness card adds streaming when it needs it)",
-    );
-  }
+  if (stream !== undefined && stream !== false) throw streamingRefused();
   if (typeof model !== "string" || model === "") throw bad("model must be a non-empty string");
   if (!Array.isArray(messages)) throw bad("messages must be an array");
   if (n !== undefined && n !== 1) throw bad("n must be 1: a cassette holds one reply per key");
@@ -308,12 +345,16 @@ export function chatCompletion(key: string, model: string, response: ChatRespons
 }
 
 /** The cell of one request: the configuration's fields, filled and checked by its headers. */
-function cellOf(headers: IncomingHttpHeaders, fixed: Partial<ProxyContext>): ProxyContext {
+function cellOf(headers: NodeJS.Dict<string[]>, fixed: Partial<ProxyContext>): ProxyContext {
   const cell: Partial<Record<keyof ProxyContext, string | number>> = {};
   for (const field of FIELDS) {
     const header = CONTEXT_HEADERS[field];
-    const raw = headers[header];
-    if (Array.isArray(raw)) throw bad(`header ${header} is sent more than once`);
+    // Node joins a repeated x- header with ", "; its distinct values show it was sent twice.
+    const values = headers[header];
+    if (values !== undefined && values.length > 1) {
+      throw bad(`header ${header} is sent more than once`);
+    }
+    const raw = values?.[0];
     let value: string | number | undefined = raw;
     if (raw !== undefined && field === "seed") {
       if (!SEED.test(raw) || !Number.isSafeInteger(Number(raw))) {
@@ -321,9 +362,8 @@ function cellOf(headers: IncomingHttpHeaders, fixed: Partial<ProxyContext>): Pro
       }
       value = Number(raw);
     }
-    if (field === "harness" && typeof value === "string" && !HARNESS.test(value)) {
-      throw bad(`header ${header} must match ${HARNESS}, not ${JSON.stringify(value)}`);
-    }
+    const problem = field === "harness" && typeof value === "string" && harnessProblem(value);
+    if (problem) throw bad(`header ${header} ${problem}`);
     const set = fixed[field];
     if (set !== undefined && value !== undefined && value !== set) {
       throw bad(
@@ -352,9 +392,8 @@ function checkedContext(context: Partial<ProxyContext>): Partial<ProxyContext> {
       throw new ProxyRefused(`${field} must be a non-empty string`);
     }
   }
-  if (context.harness !== undefined && !HARNESS.test(context.harness)) {
-    throw new ProxyRefused(`the harness must match ${HARNESS}, not ${context.harness}`);
-  }
+  const problem = context.harness === undefined ? undefined : harnessProblem(context.harness);
+  if (problem !== undefined) throw new ProxyRefused(`the harness ${problem}`);
   return { ...context };
 }
 
@@ -417,9 +456,38 @@ function asRequestError(e: unknown, key: string | undefined): ProxyRequestError 
 }
 
 /**
+ * The runner's live guard on the folder a recording writes (B10-8): a file
+ * cache records under `<repo>/.engram/` or outside the repository, never
+ * into `fixtures/` or a committed folder, unless `recordFixtures` asks for
+ * `fixtures/` (and then only there). A cache that names no folder (a memory
+ * cache) writes no file and is not checked.
+ */
+function refuseRecordingPlace(options: ProxyOptions) {
+  const dir = options.cache.dir;
+  if (dir === undefined) return;
+  if (options.repo === undefined) {
+    throw new ProxyRefused(
+      `recording into ${dir} needs the repository root (repo) so the live guard can keep it out of committed folders`,
+    );
+  }
+  if (options.recordFixtures === true) {
+    if (!within(join(options.repo, "fixtures"), dir)) {
+      throw new ProxyRefused(`recordFixtures records into fixtures/ only, and ${dir} is not in it`);
+    }
+    return;
+  }
+  const refusal = recordingRefusal(dir, {
+    repo: options.repo,
+    ...(options.committed === undefined ? {} : { committed: options.committed }),
+  });
+  if (refusal !== undefined) throw new ProxyRefused(refusal);
+}
+
+/**
  * Starts the proxy on 127.0.0.1. Refused for a record mode it does not
- * offer, for recording under ENGRAM_OFFLINE=1 or without an upstream, and
- * for a configured cell field that is malformed.
+ * offer, for recording under ENGRAM_OFFLINE=1, without an upstream or into
+ * a folder the live guard refuses, and for a configured cell field that is
+ * malformed or a reserved harness name.
  */
 export async function startProxy(options: ProxyOptions): Promise<ProxyHandle> {
   const record: string = options.record ?? "none";
@@ -437,6 +505,7 @@ export async function startProxy(options: ProxyOptions): Promise<ProxyHandle> {
     if (options.upstream === undefined) {
       throw new ProxyRefused("record mode new_episodes needs an upstream to answer a miss");
     }
+    refuseRecordingPlace(options);
   }
   const fixed = checkedContext(options.context ?? {});
   const limit = options.maxBodyBytes ?? 64 * 1024 * 1024;
@@ -481,7 +550,16 @@ export async function startProxy(options: ProxyOptions): Promise<ProxyHandle> {
     } catch (e) {
       throw bad(`the request body is not JSON: ${(e as Error).message}`);
     }
-    const cell = cellOf(req.headers, fixed);
+    // Before the cell: a streaming request is a 501 whatever headers it carries.
+    if (
+      isObject(body) &&
+      body.stream !== undefined &&
+      body.stream !== null &&
+      body.stream !== false
+    ) {
+      throw streamingRefused();
+    }
+    const cell = cellOf(req.headersDistinct, fixed);
     const context = proxyCallContext(cell);
     const request = chatRequest(body, cell.seed);
     const key = cacheKey(context, request);
@@ -584,17 +662,24 @@ export class HarnessEndpointRefused extends Error {
 /**
  * The check a research config runs on its harness's model endpoint (the
  * OpenAI base URL LiteLLM is given), returning it normalised as
- * `http://127.0.0.1:<port>/v1`. Before the proxy starts it refuses anything
- * that cannot be the proxy (another host or scheme, credentials, a query, no
- * port, a path other than `/v1`); given the running proxy, anything that is
- * not its base URL. ADR 0036 states the limit: this checks what the harness
- * was configured with, and cannot stop a harness that ignores its
- * configuration from opening a connection of its own.
+ * `http://127.0.0.1:<port>/v1`. `expected` names the proxy's port: the
+ * running proxy's handle, or `{ port }` as the research config states it
+ * before the proxy starts on that port. Anything else is refused: another
+ * host or scheme, credentials, a query or fragment, no port, a path other
+ * than `/v1`, and any other port, since another loopback server (Ollama,
+ * vLLM, a LiteLLM proxy server that forwards to a paid API) is not the
+ * cassette proxy (review B10-1). ADR 0036 states the limit: this checks what
+ * the harness was configured with, and cannot stop a harness that ignores
+ * its configuration from opening a connection of its own.
  */
-export function checkHarnessEndpoint(
-  endpoint: unknown,
-  proxy?: Pick<ProxyHandle, "baseUrl">,
-): string {
+export function checkHarnessEndpoint(endpoint: unknown, expected: { port: number }): string {
+  const port = expected?.port;
+  if (typeof port !== "number" || !Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new HarnessEndpointRefused(
+      endpoint,
+      `no proxy port to check it against (expected ${JSON.stringify(port ?? null)}); pass the running proxy or the port the research config states`,
+    );
+  }
   if (typeof endpoint !== "string" || endpoint === "") {
     throw new HarnessEndpointRefused(endpoint, "no endpoint is set");
   }
@@ -621,8 +706,11 @@ export function checkHarnessEndpoint(
     throw new HarnessEndpointRefused(endpoint, "the proxy's base path is /v1");
   }
   const normal = `http://127.0.0.1:${url.port}/v1`;
-  if (proxy !== undefined && normal !== proxy.baseUrl) {
-    throw new HarnessEndpointRefused(endpoint, `the proxy serving this run is ${proxy.baseUrl}`);
+  if (Number(url.port) !== port) {
+    throw new HarnessEndpointRefused(
+      endpoint,
+      `the cassette proxy of this run is on port ${port}, at http://127.0.0.1:${port}/v1`,
+    );
   }
   return normal;
 }

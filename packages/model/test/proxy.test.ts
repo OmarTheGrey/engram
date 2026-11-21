@@ -3,7 +3,11 @@
 // runner. Every upstream here is a scripted model; no test reaches a
 // provider. Each proxy listens on 127.0.0.1 on an ephemeral port and is
 // closed after its test.
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { request as httpRequest } from "node:http";
 import type { AddressInfo } from "node:net";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { type ModelRequest, requestHash } from "@engram/core";
 import { afterEach, describe, expect, test } from "vitest";
 import {
@@ -12,6 +16,7 @@ import {
   type ChatRequest,
   cached,
   cacheKey,
+  fileCache,
   memoryCache,
   TransientCallError,
   type UsageRecord,
@@ -25,6 +30,7 @@ import {
   type ProxyOptions,
   ProxyRefused,
   proxyCallContext,
+  RESERVED_HARNESSES,
   startProxy,
 } from "../src/proxy.ts";
 import { scriptedChatCall, scriptedModelCall } from "../src/scripted.ts";
@@ -55,6 +61,42 @@ const post = (handle: ProxyHandle, body: unknown, headers: Record<string, string
     headers: { "content-type": "application/json", ...headers },
     body: JSON.stringify(body),
   });
+
+/** A POST through node:http, which can send a header twice (fetch joins repeats into one). */
+const postRaw = (
+  handle: ProxyHandle,
+  body: string,
+  headers: Record<string, string | string[]>,
+): Promise<{ status: number; body: string }> =>
+  new Promise((resolve, reject) => {
+    const req = httpRequest(
+      `${handle.baseUrl}/chat/completions`,
+      { method: "POST", headers: { "content-type": "application/json", ...headers } },
+      (res) => {
+        let text = "";
+        res.setEncoding("utf8");
+        res.on("data", (chunk: string) => {
+          text += chunk;
+        });
+        res.on("end", () => resolve({ status: res.statusCode ?? 0, body: text }));
+      },
+    );
+    req.on("error", reject);
+    req.end(body);
+  });
+
+/** A temporary folder standing for the repository root, removed after its test. */
+const temporary: string[] = [];
+afterEach(() => {
+  for (const dir of temporary.splice(0)) rmSync(dir, { recursive: true, force: true });
+});
+function tempRepo(): string {
+  const root = mkdtempSync(join(tmpdir(), "b10-"));
+  temporary.push(root);
+  const repo = join(root, "repo");
+  mkdirSync(join(repo, "fixtures"), { recursive: true });
+  return repo;
+}
 
 const ask = (content: string, extra: Record<string, unknown> = {}) => ({
   model: "openai/gpt-test",
@@ -164,6 +206,70 @@ describe("replay (the default record mode, none)", () => {
       index: 0,
       message: { role: "assistant", content: "answer 1" },
       finish_reason: "stop",
+    });
+  });
+});
+
+describe("replay from a file cache (the real cassette format)", () => {
+  test("a reply with tool calls goes through the JSON round trip and replays byte for byte", async () => {
+    const repo = tempRepo();
+    const dir = join(repo, ".engram", "runs", "b10-proxy", "cassettes");
+    const toolCalls = [
+      {
+        id: "call_9",
+        type: "function",
+        function: { name: "get_order", arguments: '{"order_id":"W9"}' },
+      },
+    ];
+    const bodies = [
+      {
+        ...ask("Where is order W9?"),
+        tools: [{ type: "function", function: { name: "get_order", parameters: {} } }],
+        tool_choice: "auto",
+      },
+      ask("Thank you."),
+    ];
+    const table = {
+      [requestHash(asSent(bodies[0]) as ModelRequest)]: {
+        text: "",
+        toolCalls,
+        finishReason: "tool_calls",
+      },
+      [requestHash(asSent(bodies[1]) as ModelRequest)]: "You are welcome.",
+    };
+    const run = async (options: Partial<ProxyOptions>) => {
+      const { upstream, state } = counted(scriptedChatCall(table));
+      const handle = await proxy({
+        cache: fileCache(dir),
+        context: { ...CELL, harness: "tau2", item: "retail-9" },
+        upstream,
+        repo,
+        ...options,
+      });
+      const texts: string[] = [];
+      const hits: (string | null)[] = [];
+      for (const body of bodies) {
+        const res = await post(handle, body);
+        expect(res.status).toBe(200);
+        hits.push(res.headers.get("x-engram-cache-hit"));
+        texts.push(await res.text());
+      }
+      await handle.close();
+      return { calls: state.calls, texts, hits };
+    };
+
+    const recorded = await run({ record: "new_episodes" });
+    const replayed = await run({});
+
+    expect(recorded.calls).toBe(2);
+    expect(recorded.hits).toEqual(["false", "false"]);
+    expect(replayed.calls).toBe(0);
+    expect(replayed.hits).toEqual(["true", "true"]);
+    expect(replayed.texts).toEqual(recorded.texts);
+    expect(JSON.parse(replayed.texts[0] as string).choices[0].message).toEqual({
+      role: "assistant",
+      content: null,
+      tool_calls: toolCalls,
     });
   });
 });
@@ -425,6 +531,120 @@ describe("modes and refusals", () => {
     expect(handle.errors.map((e) => e.status)).toEqual([400, 400, 400, 400, 400]);
   });
 
+  test("a recording proxy refuses a miss once ENGRAM_OFFLINE=1 is set, read on every call", async () => {
+    const env: NodeJS.ProcessEnv = {};
+    const { upstream, state } = counted(scriptedChatCall({}));
+    const handle = await proxy({
+      cache: memoryCache(),
+      context: { ...CELL, item: "q1" },
+      record: "new_episodes",
+      upstream,
+      env,
+    });
+    env.ENGRAM_OFFLINE = "1";
+    const res = await post(handle, ask("hi"));
+    expect(res.status).toBe(404);
+    expect((await failure(res)).error.code).toBe("cassette_miss");
+    expect(state.calls).toBe(0);
+  });
+
+  test("a cell header sent twice is a 400", async () => {
+    const handle = await proxy({ cache: memoryCache(), context: { ...CELL } });
+    const twice = await postRaw(handle, JSON.stringify(ask("hi")), {
+      "x-engram-item": ["q1", "q2"],
+    });
+    expect(twice.status).toBe(400);
+    expect(JSON.parse(twice.body).error.message).toMatch(/x-engram-item is sent more than once/);
+    const once = await postRaw(handle, JSON.stringify(ask("hi")), { "x-engram-item": "q1" });
+    expect(once.status).toBe(404);
+  });
+
+  test("a body over maxBodyBytes is a 413", async () => {
+    const handle = await proxy({
+      cache: memoryCache(),
+      context: { ...CELL, item: "q1" },
+      maxBodyBytes: 10,
+    });
+    const res = await fetch(`${handle.baseUrl}/chat/completions`, {
+      method: "POST",
+      body: "x".repeat(100),
+    });
+    expect(res.status).toBe(413);
+    expect((await failure(res)).error.code).toBe("too_large");
+  });
+
+  test("a streaming request with no cell headers is a 501, not a 400", async () => {
+    const handle = await proxy({ cache: memoryCache() });
+    const res = await post(handle, ask("hi", { stream: true }));
+    expect(res.status).toBe(501);
+    expect((await failure(res)).error.message).toMatch(/stream/);
+  });
+
+  test("the runner's item prefixes are reserved: no harness takes one", async () => {
+    expect(RESERVED_HARNESSES).toEqual([
+      "gatemem",
+      "longmemeval",
+      "mem-inv-bench",
+      "faults",
+      "fault-set",
+    ]);
+    for (const harness of RESERVED_HARNESSES) {
+      await expect(
+        startProxy({ cache: memoryCache(), context: { harness }, env: {} }),
+      ).rejects.toThrow(ProxyRefused);
+    }
+    const handle = await proxy({ cache: memoryCache(), context: { ...CELL, harness: undefined } });
+    for (const harness of RESERVED_HARNESSES) {
+      const res = await post(handle, ask("hi"), {
+        "x-engram-harness": harness,
+        "x-engram-item": "q1",
+      });
+      expect(res.status).toBe(400);
+      expect((await failure(res)).error.message).toMatch(/item prefix the runner's own calls use/);
+    }
+  });
+
+  test("recording into a file cache applies the runner's live guard", async () => {
+    const repo = tempRepo();
+    const record = (dir: string, extra: Partial<ProxyOptions> = {}) =>
+      startProxy({
+        cache: fileCache(dir),
+        record: "new_episodes",
+        upstream: scriptedChatCall({}),
+        env: {},
+        repo,
+        ...extra,
+      }).then((h) => {
+        open.push(h);
+        return h;
+      });
+    const fixtures = join(repo, "fixtures", "cassettes", "b10");
+    await expect(record(fixtures)).rejects.toThrow(/overlaps the committed cassettes/);
+    await expect(record(join(repo, "research", "results"))).rejects.toThrow(
+      /inside the repository but not under/,
+    );
+    await expect(record(join(repo, ".engram"))).rejects.toThrow(/not under/);
+    const committed = join(repo, "research", "cassettes");
+    await expect(record(join(committed, "x"), { committed: [committed] })).rejects.toThrow(
+      /overlaps the committed cassettes/,
+    );
+    await expect(record(join(repo, ".engram", "runs", "x"), { repo: undefined })).rejects.toThrow(
+      /needs the repository root/,
+    );
+    await expect(
+      record(join(repo, ".engram", "runs", "x"), { recordFixtures: true }),
+    ).rejects.toThrow(/fixtures\/ only/);
+
+    await expect(record(join(repo, ".engram", "runs", "x"))).resolves.toBeDefined();
+    await expect(record(join(repo, "..", "outside"))).resolves.toBeDefined();
+    await expect(record(fixtures, { recordFixtures: true })).resolves.toBeDefined();
+    // Replay reads committed cassettes, as make run does: the guard is for recording only.
+    await expect(proxy({ cache: fileCache(fixtures), repo })).resolves.toBeDefined();
+    await expect(
+      proxy({ cache: memoryCache(), record: "new_episodes", upstream: scriptedChatCall({}) }),
+    ).resolves.toBeDefined();
+  });
+
   test("the context headers are the six cell fields", () => {
     expect(Object.keys(CONTEXT_HEADERS).sort()).toEqual(
       ["condition", "harness", "item", "preset", "seed", "store"].sort(),
@@ -466,6 +686,8 @@ describe("checkHarnessEndpoint", () => {
       "https://api.openai.com/v1",
       "https://openrouter.ai/api/v1",
       `http://localhost:${handle.port}/v1`,
+      `http://127.0.0.1:${handle.port}/v1?x=1`,
+      `http://127.0.0.1:${handle.port}/v1#x`,
       `http://user:pw@127.0.0.1:${handle.port}/v1`,
       `http://127.0.0.1:${handle.port}/v2`,
       `https://127.0.0.1:${handle.port}/v1`,
@@ -477,10 +699,36 @@ describe("checkHarnessEndpoint", () => {
     }
   });
 
-  test("before the proxy starts, a config's endpoint must at least be a loopback proxy endpoint", () => {
-    expect(checkHarnessEndpoint("http://127.0.0.1:7400/v1")).toBe("http://127.0.0.1:7400/v1");
-    expect(() => checkHarnessEndpoint("https://api.openai.com/v1")).toThrow(
+  test("before the proxy starts, the endpoint must be on the port the research config states", () => {
+    const stated = { port: 7400 };
+    expect(checkHarnessEndpoint("http://127.0.0.1:7400/v1", stated)).toBe(
+      "http://127.0.0.1:7400/v1",
+    );
+    // Other loopback servers: Ollama, vLLM, LM Studio, a LiteLLM proxy server (which can forward to a paid API).
+    for (const port of [11434, 8000, 1234, 4000]) {
+      expect(() => checkHarnessEndpoint(`http://127.0.0.1:${port}/v1`, stated)).toThrow(
+        HarnessEndpointRefused,
+      );
+    }
+    expect(() => checkHarnessEndpoint("http://127.0.0.1:11434/v1", { port: 7400 })).toThrow(
+      /on port 7400/,
+    );
+    expect(() => checkHarnessEndpoint("http://127.0.0.1:7400/v1?x=1", stated)).toThrow(
+      /query or a fragment/,
+    );
+    expect(() => checkHarnessEndpoint("http://127.0.0.1:7400/v1#x", stated)).toThrow(
+      /query or a fragment/,
+    );
+    expect(() => checkHarnessEndpoint("https://api.openai.com/v1", stated)).toThrow(
       /not the cassette proxy/,
     );
+  });
+
+  test("with no port to check against, every endpoint is refused", () => {
+    for (const expected of [undefined, {}, { port: 0 }, { port: 70000 }, { port: 1.5 }]) {
+      expect(() =>
+        checkHarnessEndpoint("http://127.0.0.1:7400/v1", expected as { port: number }),
+      ).toThrow(/no proxy port to check it against/);
+    }
   });
 });

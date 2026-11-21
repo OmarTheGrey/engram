@@ -29,11 +29,11 @@
 //   pinned two ways. Every live run records the upstream that served each
 //   OpenRouter call, pinned or not.
 import { existsSync, readdirSync } from "node:fs";
-import { isAbsolute, join, relative, resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { createModels } from "@earendil-works/pi-ai";
 import { builtinProviders } from "@earendil-works/pi-ai/providers/all";
 import { canonicalJson, sha256 } from "@engram/core";
-import { fileCache } from "@engram/model";
+import { fileCache, recordingRefusal } from "@engram/model";
 import type { LiveModels } from "./answers.ts";
 import { configJudge } from "./config.ts";
 import { longMemEvalJudge } from "./longmemeval-probe.ts";
@@ -80,12 +80,6 @@ export interface LiveRunRequest {
 
 const SAFE_PART = /^[A-Za-z0-9._-]+$/;
 
-/** `child` is `parent` or inside it. */
-const within = (parent: string, child: string) => {
-  const rel = relative(resolve(parent), resolve(child));
-  return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
-};
-
 const offline = (env: NodeJS.ProcessEnv) => env.ENGRAM_OFFLINE === "1";
 
 /**
@@ -127,22 +121,12 @@ function liveCassettes(config: LiveRunConfig, request: LiveRunRequest): string {
         cassetteFolder(config),
       ),
   );
-  for (const committed of [join(request.repo, "fixtures"), config.cassettes]) {
-    if (within(committed, cassettes) || within(cassettes, committed)) {
-      throw new LiveRunRefused(
-        `cassette directory ${cassettes} overlaps the committed cassettes at ${resolve(committed)}`,
-      );
-    }
-  }
-  const scratch = join(request.repo, ".engram");
-  if (
-    within(request.repo, cassettes) &&
-    !(within(scratch, cassettes) && cassettes !== resolve(scratch))
-  ) {
-    throw new LiveRunRefused(
-      `cassette directory ${cassettes} is inside the repository but not under ${resolve(scratch)}; live cassettes go under .engram/ or outside the repository`,
-    );
-  }
+  // The guard the cassette proxy applies too (@engram/model, card B10 review B10-8).
+  const refusal = recordingRefusal(cassettes, {
+    repo: request.repo,
+    committed: [config.cassettes],
+  });
+  if (refusal !== undefined) throw new LiveRunRefused(refusal);
   return cassettes;
 }
 

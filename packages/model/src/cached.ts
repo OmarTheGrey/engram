@@ -4,7 +4,7 @@
 // is an error, so CI and replay never reach the network. A file cache is the
 // cassette set under fixtures/cassettes/.
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import {
   canonicalJson,
   type ModelRequest,
@@ -78,6 +78,11 @@ export interface CacheEntry {
 }
 
 export interface CacheStore {
+  /**
+   * The folder a file cache writes, so a recording can be refused a committed
+   * one (card B10 review B10-8); absent for a cache that writes no file.
+   */
+  readonly dir?: string;
   get(key: string): CacheEntry | undefined;
   set(entry: CacheEntry): void;
 }
@@ -224,6 +229,7 @@ export function fileCache(dir: string): CacheStore {
   mkdirSync(dir, { recursive: true });
   const path = (key: string) => join(dir, `${key}.json`);
   return {
+    dir: resolve(dir),
     get(key) {
       let text: string;
       try {
