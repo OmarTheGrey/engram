@@ -18,8 +18,9 @@
 // Changed: the prefix is Engram's and a 12-character key id sits between it
 // and the secret, so a key is found without trying every hash; the hash is of
 // the key, with no pepper (the source's environment configuration removed);
-// the comments are ours; the password generator and the generic masking are
-// not taken.
+// a hash shorter than 32 bytes or with a cost above 2^20 is refused (the
+// source verified a hash cut short); the comments are ours; the password
+// generator and the generic masking are not taken.
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
@@ -73,6 +74,7 @@ const SCRYPT_N = 16384;
 const SCRYPT_R = 8;
 const SCRYPT_P = 1;
 const KEYLEN = 32;
+const MAX_SCRYPT_N = 1 << 20;
 
 const scryptHash = (plain: string, salt: Buffer, n: number, r: number, p: number, keylen: number) =>
   scryptSync(Buffer.from(plain, "utf8"), salt, keylen, { N: n, r, p });
@@ -100,6 +102,11 @@ export function verifyKeyHash(plain: string, stored: string): boolean {
     if (secondSep < 0) return false;
     const salt = Buffer.from(rest.slice(0, secondSep), "base64url");
     const expected = Buffer.from(rest.slice(secondSep + 1), "base64url");
+    // Not in the source: scrypt's shorter outputs are prefixes of its longer
+    // ones, so a hash cut short would still verify, and a one-byte hash would
+    // accept one key in 256. A stored hash shorter than KEYLEN is refused, and
+    // so is a cost past MAX_SCRYPT_N, which a crafted file could use to stall.
+    if (expected.length < KEYLEN || n > MAX_SCRYPT_N) return false;
     const actual = scryptHash(plain, salt, n, r, p, expected.length);
     if (actual.length !== expected.length) return false;
     return timingSafeEqual(actual, expected);
