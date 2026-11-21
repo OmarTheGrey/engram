@@ -1,0 +1,1860 @@
+{
+  "baseline_of": {
+    "read": {
+      "op": "sqlite-read",
+      "why": "a read returns the ten items holding the word in the reader's scopes; the bare equivalent is one SELECT of those rows"
+    },
+    "write": {
+      "op": "sqlite-write",
+      "why": "an allowed write lands one item; the bare equivalent is one row inserted and committed on the same disk"
+    },
+    "write-deny": {
+      "op": "sqlite-write",
+      "why": "a denied write records exactly one row, its deny event, appended and committed in one transaction; the bare equivalent of recording one row durably is the same single-row insert, so the ratio is what the gate adds to the event's own write"
+    }
+  },
+  "budget": [
+    {
+      "baseline_ms": 0.188623,
+      "limit_ms": 50.0,
+      "measured_ms": 63.418061,
+      "met": false,
+      "name": "read-1000",
+      "op": "read",
+      "preset": "medium",
+      "ratio": 336.215949,
+      "size": 1000,
+      "stat": "p99",
+      "store": "fake",
+      "why": "a governed read of ten items from a store of 1,000 within 50 ms at p99, on the fake, so the plane's own cost stays a small share of a model turn"
+    },
+    {
+      "baseline_ms": 3.980396,
+      "limit_ms": 50.0,
+      "measured_ms": 14.445315,
+      "met": true,
+      "name": "write-1000",
+      "op": "write",
+      "preset": "medium",
+      "ratio": 3.629115,
+      "size": 1000,
+      "stat": "p99",
+      "store": "fake",
+      "why": "an allowed write into a store of 1,000 within 50 ms at p99, on the fake"
+    },
+    {
+      "baseline_ms": 1.707467,
+      "limit_ms": 100.0,
+      "max_ratio": 100.0,
+      "measured_ms": 203.405203,
+      "met": false,
+      "name": "read-10000",
+      "op": "read",
+      "preset": "medium",
+      "ratio": 119.126872,
+      "size": 10000,
+      "stat": "p99",
+      "store": "fake",
+      "why": "a governed read from a store of 10,000 within 100 ms at p99, on the fake: the target for a team-sized store, and within 100 times the bare node:sqlite baseline's p99 at the same size"
+    },
+    {
+      "baseline_ms": 3.941411,
+      "limit_ms": 100.0,
+      "max_ratio": 100.0,
+      "measured_ms": 163.290634,
+      "met": false,
+      "name": "write-10000",
+      "op": "write",
+      "preset": "medium",
+      "ratio": 41.429487,
+      "size": 10000,
+      "stat": "p99",
+      "store": "fake",
+      "why": "an allowed write into a store of 10,000 within 100 ms at p99, on the fake, and within 100 times the bare node:sqlite baseline's p99 at the same size"
+    }
+  ],
+  "card": "X15",
+  "cells": [
+    {
+      "max_ms": 17.7143,
+      "mean_ms": 5.330743,
+      "min_ms": 3.4647,
+      "n": 200,
+      "op": "read",
+      "p50_ms": 5.01845,
+      "p999_ms": 16.852172,
+      "p99_ms": 12.601979,
+      "preset": "medium",
+      "queries": {
+        "execs": 0,
+        "prepares": 7,
+        "rows": 202,
+        "statements": 16,
+        "transactions": 2
+      },
+      "size": 100,
+      "start": {
+        "events": 100,
+        "items": 100
+      },
+      "store": "fake"
+    },
+    {
+      "max_ms": 17.3997,
+      "mean_ms": 5.36518,
+      "min_ms": 3.5262,
+      "n": 200,
+      "op": "write",
+      "p50_ms": 4.8773,
+      "p999_ms": 16.666703,
+      "p99_ms": 12.061218,
+      "preset": "medium",
+      "queries": {
+        "execs": 0,
+        "prepares": 17,
+        "rows": 305,
+        "statements": 16,
+        "transactions": 3
+      },
+      "size": 100,
+      "start": {
+        "events": 100,
+        "items": 100
+      },
+      "store": "fake"
+    },
+    {
+      "max_ms": 9.2101,
+      "mean_ms": 4.223892,
+      "min_ms": 2.9774,
+      "n": 200,
+      "op": "write-deny",
+      "p50_ms": 4.09815,
+      "p999_ms": 8.837273,
+      "p99_ms": 6.920206,
+      "preset": "medium",
+      "queries": {
+        "execs": 0,
+        "prepares": 7,
+        "rows": 102,
+        "statements": 6,
+        "transactions": 1
+      },
+      "size": 100,
+      "start": {
+        "events": 100,
+        "items": 100
+      },
+      "store": "fake"
+    },
+    {
+      "max_ms": 8.9916,
+      "mean_ms": 4.010634,
+      "min_ms": 3.1882,
+      "n": 200,
+      "op": "read",
+      "p50_ms": 3.6501,
+      "p999_ms": 8.968476,
+      "p99_ms": 7.810952,
+      "preset": "permissive",
+      "queries": {
+        "execs": 0,
+        "prepares": 7,
+        "rows": 202,
+        "statements": 16,
+        "transactions": 2
+      },
+      "size": 100,
+      "start": {
+        "events": 100,
+        "items": 100
+      },
+      "store": "fake"
+    },
+    {
+      "max_ms": 10.4381,
+      "mean_ms": 4.612354,
+      "min_ms": 3.3261,
+      "n": 200,
+      "op": "write",
+      "p50_ms": 4.37135,
+      "p999_ms": 10.281766,
+      "p99_ms": 8.673588,
+      "preset": "permissive",
+      "queries": {
+        "execs": 0,
+        "prepares": 17,
+        "rows": 305,
+        "statements": 16,
+        "transactions": 3
+      },
+      "size": 100,
+      "start": {
+        "events": 100,
+        "items": 100
+      },
+      "store": "fake"
+    },
+    {
+      "max_ms": 11.2625,
+      "mean_ms": 3.560463,
+      "min_ms": 2.7326,
+      "n": 200,
+      "op": "write-deny",
+      "p50_ms": 3.29005,
+      "p999_ms": 10.524528,
+      "p99_ms": 6.479158,
+      "preset": "permissive",
+      "queries": {
+        "execs": 0,
+        "prepares": 7,
+        "rows": 102,
+        "statements": 6,
+        "transactions": 1
+      },
+      "size": 100,
+      "start": {
+        "events": 100,
+        "items": 100
+      },
+      "store": "fake"
+    },
+    {
+      "max_ms": 18.9079,
+      "mean_ms": 4.747197,
+      "min_ms": 3.4409,
+      "n": 200,
+      "op": "read",
+      "p50_ms": 4.4609,
+      "p999_ms": 18.84812,
+      "p99_ms": 10.796994,
+      "preset": "strict",
+      "queries": {
+        "execs": 0,
+        "prepares": 7,
+        "rows": 202,
+        "statements": 16,
+        "transactions": 2
+      },
+      "size": 100,
+      "start": {
+        "events": 100,
+        "items": 100
+      },
+      "store": "fake"
+    },
+    {
+      "max_ms": 32.8594,
+      "mean_ms": 4.746302,
+      "min_ms": 3.5577,
+      "n": 200,
+      "op": "write",
+      "p50_ms": 4.3243,
+      "p999_ms": 29.178139,
+      "p99_ms": 12.604538,
+      "preset": "strict",
+      "queries": {
+        "execs": 0,
+        "prepares": 17,
+        "rows": 305,
+        "statements": 16,
+        "transactions": 3
+      },
+      "size": 100,
+      "start": {
+        "events": 100,
+        "items": 100
+      },
+      "store": "fake"
+    },
+    {
+      "max_ms": 9.2952,
+      "mean_ms": 3.485687,
+      "min_ms": 2.7306,
+      "n": 200,
+      "op": "write-deny",
+      "p50_ms": 3.16035,
+      "p999_ms": 9.097155,
+      "p99_ms": 7.157936,
+      "preset": "strict",
+      "queries": {
+        "execs": 0,
+        "prepares": 7,
+        "rows": 102,
+        "statements": 6,
+        "transactions": 1
+      },
+      "size": 100,
+      "start": {
+        "events": 100,
+        "items": 100
+      },
+      "store": "fake"
+    },
+    {
+      "max_ms": 85.694,
+      "mean_ms": 18.039028,
+      "min_ms": 9.7874,
+      "n": 50,
+      "op": "read",
+      "p50_ms": 15.3816,
+      "p999_ms": 83.466406,
+      "p99_ms": 63.418061,
+      "preset": "medium",
+      "queries": {
+        "execs": 0,
+        "prepares": 7,
+        "rows": 2002,
+        "statements": 16,
+        "transactions": 2
+      },
+      "size": 1000,
+      "start": {
+        "events": 1000,
+        "items": 1000
+      },
+      "store": "fake"
+    },
+    {
+      "max_ms": 15.0757,
+      "mean_ms": 10.12292,
+      "min_ms": 7.9736,
+      "n": 50,
+      "op": "write",
+      "p50_ms": 9.6757,
+      "p999_ms": 15.012662,
+      "p99_ms": 14.445315,
+      "preset": "medium",
+      "queries": {
+        "execs": 0,
+        "prepares": 17,
+        "rows": 3005,
+        "statements": 16,
+        "transactions": 3
+      },
+      "size": 1000,
+      "start": {
+        "events": 1000,
+        "items": 1000
+      },
+      "store": "fake"
+    },
+    {
+      "max_ms": 13.2037,
+      "mean_ms": 7.08986,
+      "min_ms": 5.7075,
+      "n": 50,
+      "op": "write-deny",
+      "p50_ms": 6.4532,
+      "p999_ms": 13.081278,
+      "p99_ms": 11.979484,
+      "preset": "medium",
+      "queries": {
+        "execs": 0,
+        "prepares": 7,
+        "rows": 1002,
+        "statements": 6,
+        "transactions": 1
+      },
+      "size": 1000,
+      "start": {
+        "events": 1000,
+        "items": 1000
+      },
+      "store": "fake"
+    },
+    {
+      "max_ms": 95.4512,
+      "mean_ms": 25.089654,
+      "min_ms": 18.9063,
+      "n": 50,
+      "op": "read",
+      "p50_ms": 23.005,
+      "p999_ms": 92.608088,
+      "p99_ms": 67.020077,
+      "preset": "permissive",
+      "queries": {
+        "execs": 0,
+        "prepares": 7,
+        "rows": 2002,
+        "statements": 16,
+        "transactions": 2
+      },
+      "size": 1000,
+      "start": {
+        "events": 1000,
+        "items": 1000
+      },
+      "store": "fake"
+    },
+    {
+      "max_ms": 32.9883,
+      "mean_ms": 19.51175,
+      "min_ms": 15.8432,
+      "n": 50,
+      "op": "write",
+      "p50_ms": 18.69065,
+      "p999_ms": 32.693898,
+      "p99_ms": 30.044282,
+      "preset": "permissive",
+      "queries": {
+        "execs": 0,
+        "prepares": 17,
+        "rows": 3005,
+        "statements": 16,
+        "transactions": 3
+      },
+      "size": 1000,
+      "start": {
+        "events": 1000,
+        "items": 1000
+      },
+      "store": "fake"
+    },
+    {
+      "max_ms": 26.5467,
+      "mean_ms": 13.084508,
+      "min_ms": 9.9318,
+      "n": 50,
+      "op": "write-deny",
+      "p50_ms": 12.9133,
+      "p999_ms": 26.391115,
+      "p99_ms": 24.990852,
+      "preset": "permissive",
+      "queries": {
+        "execs": 0,
+        "prepares": 7,
+        "rows": 1002,
+        "statements": 6,
+        "transactions": 1
+      },
+      "size": 1000,
+      "start": {
+        "events": 1000,
+        "items": 1000
+      },
+      "store": "fake"
+    },
+    {
+      "max_ms": 20.9115,
+      "mean_ms": 12.125952,
+      "min_ms": 9.6041,
+      "n": 50,
+      "op": "read",
+      "p50_ms": 10.9992,
+      "p999_ms": 20.857218,
+      "p99_ms": 20.368678,
+      "preset": "strict",
+      "queries": {
+        "execs": 0,
+        "prepares": 7,
+        "rows": 2002,
+        "statements": 16,
+        "transactions": 2
+      },
+      "size": 1000,
+      "start": {
+        "events": 1000,
+        "items": 1000
+      },
+      "store": "fake"
+    },
+    {
+      "max_ms": 16.5038,
+      "mean_ms": 11.266546,
+      "min_ms": 8.1118,
+      "n": 50,
+      "op": "write",
+      "p50_ms": 10.62205,
+      "p999_ms": 16.479114,
+      "p99_ms": 16.256938,
+      "preset": "strict",
+      "queries": {
+        "execs": 0,
+        "prepares": 17,
+        "rows": 3005,
+        "statements": 16,
+        "transactions": 3
+      },
+      "size": 1000,
+      "start": {
+        "events": 1000,
+        "items": 1000
+      },
+      "store": "fake"
+    },
+    {
+      "max_ms": 19.4551,
+      "mean_ms": 8.013654,
+      "min_ms": 5.49,
+      "n": 50,
+      "op": "write-deny",
+      "p50_ms": 6.97215,
+      "p999_ms": 19.076761,
+      "p99_ms": 15.671712,
+      "preset": "strict",
+      "queries": {
+        "execs": 0,
+        "prepares": 7,
+        "rows": 1002,
+        "statements": 6,
+        "transactions": 1
+      },
+      "size": 1000,
+      "start": {
+        "events": 1000,
+        "items": 1000
+      },
+      "store": "fake"
+    },
+    {
+      "max_ms": 203.8632,
+      "mean_ms": 168.15581,
+      "min_ms": 119.4168,
+      "n": 30,
+      "op": "read",
+      "p50_ms": 171.4389,
+      "p999_ms": 203.8174,
+      "p99_ms": 203.405203,
+      "preset": "medium",
+      "queries": {
+        "execs": 0,
+        "prepares": 7,
+        "rows": 20002,
+        "statements": 16,
+        "transactions": 2
+      },
+      "size": 10000,
+      "start": {
+        "events": 10000,
+        "items": 10000
+      },
+      "store": "fake"
+    },
+    {
+      "max_ms": 175.6694,
+      "mean_ms": 125.440247,
+      "min_ms": 95.4844,
+      "n": 30,
+      "op": "write",
+      "p50_ms": 124.34365,
+      "p999_ms": 174.431523,
+      "p99_ms": 163.290634,
+      "preset": "medium",
+      "queries": {
+        "execs": 0,
+        "prepares": 17,
+        "rows": 30005,
+        "statements": 16,
+        "transactions": 3
+      },
+      "size": 10000,
+      "start": {
+        "events": 10000,
+        "items": 10000
+      },
+      "store": "fake"
+    },
+    {
+      "max_ms": 56.1469,
+      "mean_ms": 45.267407,
+      "min_ms": 31.1688,
+      "n": 30,
+      "op": "write-deny",
+      "p50_ms": 46.29825,
+      "p999_ms": 56.132243,
+      "p99_ms": 56.000334,
+      "preset": "medium",
+      "queries": {
+        "execs": 0,
+        "prepares": 7,
+        "rows": 10002,
+        "statements": 6,
+        "transactions": 1
+      },
+      "size": 10000,
+      "start": {
+        "events": 10000,
+        "items": 10000
+      },
+      "store": "fake"
+    },
+    {
+      "max_ms": 228.0466,
+      "mean_ms": 179.0705,
+      "min_ms": 122.8266,
+      "n": 30,
+      "op": "read",
+      "p50_ms": 184.793,
+      "p999_ms": 227.911034,
+      "p99_ms": 226.690937,
+      "preset": "permissive",
+      "queries": {
+        "execs": 0,
+        "prepares": 7,
+        "rows": 20002,
+        "statements": 16,
+        "transactions": 2
+      },
+      "size": 10000,
+      "start": {
+        "events": 10000,
+        "items": 10000
+      },
+      "store": "fake"
+    },
+    {
+      "max_ms": 135.6922,
+      "mean_ms": 101.513157,
+      "min_ms": 71.7955,
+      "n": 30,
+      "op": "write",
+      "p50_ms": 101.88435,
+      "p999_ms": 135.584155,
+      "p99_ms": 134.611747,
+      "preset": "permissive",
+      "queries": {
+        "execs": 0,
+        "prepares": 17,
+        "rows": 30005,
+        "statements": 16,
+        "transactions": 3
+      },
+      "size": 10000,
+      "start": {
+        "events": 10000,
+        "items": 10000
+      },
+      "store": "fake"
+    },
+    {
+      "max_ms": 52.1284,
+      "mean_ms": 42.40102,
+      "min_ms": 26.2623,
+      "n": 30,
+      "op": "write-deny",
+      "p50_ms": 42.99915,
+      "p999_ms": 52.102648,
+      "p99_ms": 51.87088,
+      "preset": "permissive",
+      "queries": {
+        "execs": 0,
+        "prepares": 7,
+        "rows": 10002,
+        "statements": 6,
+        "transactions": 1
+      },
+      "size": 10000,
+      "start": {
+        "events": 10000,
+        "items": 10000
+      },
+      "store": "fake"
+    },
+    {
+      "max_ms": 184.5891,
+      "mean_ms": 109.494697,
+      "min_ms": 84.0199,
+      "n": 30,
+      "op": "read",
+      "p50_ms": 102.56125,
+      "p999_ms": 183.640559,
+      "p99_ms": 175.103693,
+      "preset": "strict",
+      "queries": {
+        "execs": 0,
+        "prepares": 7,
+        "rows": 20002,
+        "statements": 16,
+        "transactions": 2
+      },
+      "size": 10000,
+      "start": {
+        "events": 10000,
+        "items": 10000
+      },
+      "store": "fake"
+    },
+    {
+      "max_ms": 112.7517,
+      "mean_ms": 76.31228,
+      "min_ms": 58.0977,
+      "n": 30,
+      "op": "write",
+      "p50_ms": 73.9556,
+      "p999_ms": 112.53614,
+      "p99_ms": 110.596101,
+      "preset": "strict",
+      "queries": {
+        "execs": 0,
+        "prepares": 17,
+        "rows": 30005,
+        "statements": 16,
+        "transactions": 3
+      },
+      "size": 10000,
+      "start": {
+        "events": 10000,
+        "items": 10000
+      },
+      "store": "fake"
+    },
+    {
+      "max_ms": 35.2606,
+      "mean_ms": 28.036803,
+      "min_ms": 24.5217,
+      "n": 30,
+      "op": "write-deny",
+      "p50_ms": 26.9508,
+      "p999_ms": 35.233842,
+      "p99_ms": 34.993017,
+      "preset": "strict",
+      "queries": {
+        "execs": 0,
+        "prepares": 7,
+        "rows": 10002,
+        "statements": 6,
+        "transactions": 1
+      },
+      "size": 10000,
+      "start": {
+        "events": 10000,
+        "items": 10000
+      },
+      "store": "fake"
+    },
+    {
+      "max_ms": 4736.2782,
+      "mean_ms": 131.929803,
+      "min_ms": 78.018,
+      "n": 200,
+      "op": "read",
+      "p50_ms": 106.48935,
+      "p999_ms": 3845.650436,
+      "p99_ms": 199.124499,
+      "preset": "medium",
+      "queries": {
+        "execs": 0,
+        "prepares": 7,
+        "rows": 202,
+        "statements": 16,
+        "transactions": 2
+      },
+      "size": 100,
+      "start": {
+        "events": 100,
+        "items": 100
+      },
+      "store": "files"
+    },
+    {
+      "max_ms": 21.7247,
+      "mean_ms": 11.546808,
+      "min_ms": 8.9051,
+      "n": 200,
+      "op": "write",
+      "p50_ms": 11.17685,
+      "p999_ms": 21.390022,
+      "p99_ms": 17.787482,
+      "preset": "medium",
+      "queries": {
+        "execs": 0,
+        "prepares": 17,
+        "rows": 305,
+        "statements": 16,
+        "transactions": 3
+      },
+      "size": 100,
+      "start": {
+        "events": 100,
+        "items": 100
+      },
+      "store": "files"
+    },
+    {
+      "max_ms": 95.9765,
+      "mean_ms": 4.502259,
+      "min_ms": 2.8476,
+      "n": 200,
+      "op": "write-deny",
+      "p50_ms": 3.637,
+      "p999_ms": 82.505155,
+      "p99_ms": 20.088753,
+      "preset": "medium",
+      "queries": {
+        "execs": 0,
+        "prepares": 7,
+        "rows": 102,
+        "statements": 6,
+        "transactions": 1
+      },
+      "size": 100,
+      "start": {
+        "events": 100,
+        "items": 100
+      },
+      "store": "files"
+    },
+    {
+      "max_ms": 172.1155,
+      "mean_ms": 99.915155,
+      "min_ms": 72.2356,
+      "n": 200,
+      "op": "read",
+      "p50_ms": 97.32825,
+      "p999_ms": 171.513266,
+      "p99_ms": 136.971917,
+      "preset": "permissive",
+      "queries": {
+        "execs": 0,
+        "prepares": 7,
+        "rows": 202,
+        "statements": 16,
+        "transactions": 2
+      },
+      "size": 100,
+      "start": {
+        "events": 100,
+        "items": 100
+      },
+      "store": "files"
+    },
+    {
+      "max_ms": 19.5216,
+      "mean_ms": 10.882813,
+      "min_ms": 7.2164,
+      "n": 200,
+      "op": "write",
+      "p50_ms": 10.4695,
+      "p999_ms": 19.251278,
+      "p99_ms": 16.695723,
+      "preset": "permissive",
+      "queries": {
+        "execs": 0,
+        "prepares": 17,
+        "rows": 305,
+        "statements": 16,
+        "transactions": 3
+      },
+      "size": 100,
+      "start": {
+        "events": 100,
+        "items": 100
+      },
+      "store": "files"
+    },
+    {
+      "max_ms": 10.1511,
+      "mean_ms": 4.300367,
+      "min_ms": 2.9665,
+      "n": 200,
+      "op": "write-deny",
+      "p50_ms": 3.9826,
+      "p999_ms": 9.949951,
+      "p99_ms": 8.478584,
+      "preset": "permissive",
+      "queries": {
+        "execs": 0,
+        "prepares": 7,
+        "rows": 102,
+        "statements": 6,
+        "transactions": 1
+      },
+      "size": 100,
+      "start": {
+        "events": 100,
+        "items": 100
+      },
+      "store": "files"
+    },
+    {
+      "max_ms": 273.882,
+      "mean_ms": 109.700732,
+      "min_ms": 69.9771,
+      "n": 200,
+      "op": "read",
+      "p50_ms": 108.4714,
+      "p999_ms": 257.055814,
+      "p99_ms": 161.558404,
+      "preset": "strict",
+      "queries": {
+        "execs": 0,
+        "prepares": 7,
+        "rows": 202,
+        "statements": 16,
+        "transactions": 2
+      },
+      "size": 100,
+      "start": {
+        "events": 100,
+        "items": 100
+      },
+      "store": "files"
+    },
+    {
+      "max_ms": 146.714,
+      "mean_ms": 9.294805,
+      "min_ms": 5.8935,
+      "n": 200,
+      "op": "write",
+      "p50_ms": 7.99265,
+      "p999_ms": 121.444701,
+      "p99_ms": 14.146723,
+      "preset": "strict",
+      "queries": {
+        "execs": 0,
+        "prepares": 17,
+        "rows": 305,
+        "statements": 16,
+        "transactions": 3
+      },
+      "size": 100,
+      "start": {
+        "events": 100,
+        "items": 100
+      },
+      "store": "files"
+    },
+    {
+      "max_ms": 9.8741,
+      "mean_ms": 3.649291,
+      "min_ms": 2.7649,
+      "n": 200,
+      "op": "write-deny",
+      "p50_ms": 3.30465,
+      "p999_ms": 9.619022,
+      "p99_ms": 7.791786,
+      "preset": "strict",
+      "queries": {
+        "execs": 0,
+        "prepares": 7,
+        "rows": 102,
+        "statements": 6,
+        "transactions": 1
+      },
+      "size": 100,
+      "start": {
+        "events": 100,
+        "items": 100
+      },
+      "store": "files"
+    },
+    {
+      "max_ms": 1792.0169,
+      "mean_ms": 916.651288,
+      "min_ms": 651.697,
+      "n": 50,
+      "op": "read",
+      "p50_ms": 851.8546,
+      "p999_ms": 1781.408483,
+      "p99_ms": 1685.932733,
+      "preset": "medium",
+      "queries": {
+        "execs": 0,
+        "prepares": 7,
+        "rows": 2002,
+        "statements": 16,
+        "transactions": 2
+      },
+      "size": 1000,
+      "start": {
+        "events": 1000,
+        "items": 1000
+      },
+      "store": "files"
+    },
+    {
+      "max_ms": 29.1481,
+      "mean_ms": 23.069586,
+      "min_ms": 17.8642,
+      "n": 50,
+      "op": "write",
+      "p50_ms": 23.2791,
+      "p999_ms": 29.058582,
+      "p99_ms": 28.252919,
+      "preset": "medium",
+      "queries": {
+        "execs": 0,
+        "prepares": 17,
+        "rows": 3005,
+        "statements": 16,
+        "transactions": 3
+      },
+      "size": 1000,
+      "start": {
+        "events": 1000,
+        "items": 1000
+      },
+      "store": "files"
+    },
+    {
+      "max_ms": 17.3082,
+      "mean_ms": 8.885204,
+      "min_ms": 5.9122,
+      "n": 50,
+      "op": "write-deny",
+      "p50_ms": 8.4427,
+      "p999_ms": 17.082864,
+      "p99_ms": 15.054837,
+      "preset": "medium",
+      "queries": {
+        "execs": 0,
+        "prepares": 7,
+        "rows": 1002,
+        "statements": 6,
+        "transactions": 1
+      },
+      "size": 1000,
+      "start": {
+        "events": 1000,
+        "items": 1000
+      },
+      "store": "files"
+    },
+    {
+      "max_ms": 1288.6268,
+      "mean_ms": 1023.83063,
+      "min_ms": 795.3261,
+      "n": 50,
+      "op": "read",
+      "p50_ms": 1041.1102,
+      "p999_ms": 1287.048971,
+      "p99_ms": 1272.848506,
+      "preset": "permissive",
+      "queries": {
+        "execs": 0,
+        "prepares": 7,
+        "rows": 2002,
+        "statements": 16,
+        "transactions": 2
+      },
+      "size": 1000,
+      "start": {
+        "events": 1000,
+        "items": 1000
+      },
+      "store": "files"
+    },
+    {
+      "max_ms": 75.3347,
+      "mean_ms": 19.794516,
+      "min_ms": 13.1028,
+      "n": 50,
+      "op": "write",
+      "p50_ms": 18.6709,
+      "p999_ms": 73.03636,
+      "p99_ms": 52.351299,
+      "preset": "permissive",
+      "queries": {
+        "execs": 0,
+        "prepares": 17,
+        "rows": 3005,
+        "statements": 16,
+        "transactions": 3
+      },
+      "size": 1000,
+      "start": {
+        "events": 1000,
+        "items": 1000
+      },
+      "store": "files"
+    },
+    {
+      "max_ms": 13.3352,
+      "mean_ms": 9.256542,
+      "min_ms": 6.0468,
+      "n": 50,
+      "op": "write-deny",
+      "p50_ms": 9.1214,
+      "p999_ms": 13.313263,
+      "p99_ms": 13.115827,
+      "preset": "permissive",
+      "queries": {
+        "execs": 0,
+        "prepares": 7,
+        "rows": 1002,
+        "statements": 6,
+        "transactions": 1
+      },
+      "size": 1000,
+      "start": {
+        "events": 1000,
+        "items": 1000
+      },
+      "store": "files"
+    },
+    {
+      "max_ms": 1514.1203,
+      "mean_ms": 1075.566592,
+      "min_ms": 709.1716,
+      "n": 50,
+      "op": "read",
+      "p50_ms": 1060.64075,
+      "p999_ms": 1503.866286,
+      "p99_ms": 1411.580156,
+      "preset": "strict",
+      "queries": {
+        "execs": 0,
+        "prepares": 7,
+        "rows": 2002,
+        "statements": 16,
+        "transactions": 2
+      },
+      "size": 1000,
+      "start": {
+        "events": 1000,
+        "items": 1000
+      },
+      "store": "files"
+    },
+    {
+      "max_ms": 27.0971,
+      "mean_ms": 18.108158,
+      "min_ms": 14.075,
+      "n": 50,
+      "op": "write",
+      "p50_ms": 17.1781,
+      "p999_ms": 27.041377,
+      "p99_ms": 26.539872,
+      "preset": "strict",
+      "queries": {
+        "execs": 0,
+        "prepares": 17,
+        "rows": 3005,
+        "statements": 16,
+        "transactions": 3
+      },
+      "size": 1000,
+      "start": {
+        "events": 1000,
+        "items": 1000
+      },
+      "store": "files"
+    },
+    {
+      "max_ms": 11.6241,
+      "mean_ms": 6.660746,
+      "min_ms": 5.0855,
+      "n": 50,
+      "op": "write-deny",
+      "p50_ms": 6.2272,
+      "p999_ms": 11.578109,
+      "p99_ms": 11.164186,
+      "preset": "strict",
+      "queries": {
+        "execs": 0,
+        "prepares": 7,
+        "rows": 1002,
+        "statements": 6,
+        "transactions": 1
+      },
+      "size": 1000,
+      "start": {
+        "events": 1000,
+        "items": 1000
+      },
+      "store": "files"
+    },
+    {
+      "max_ms": 0.0658,
+      "mean_ms": 0.019918,
+      "min_ms": 0.0164,
+      "n": 200,
+      "op": "sqlite-read",
+      "p50_ms": 0.018,
+      "p999_ms": 0.0658,
+      "p99_ms": 0.060454,
+      "preset": null,
+      "queries": null,
+      "size": 100,
+      "start": {
+        "events": null,
+        "items": 100
+      },
+      "store": "sqlite"
+    },
+    {
+      "max_ms": 11.7572,
+      "mean_ms": 2.966342,
+      "min_ms": 2.278,
+      "n": 200,
+      "op": "sqlite-write",
+      "p50_ms": 2.59685,
+      "p999_ms": 11.07258,
+      "p99_ms": 5.468472,
+      "preset": null,
+      "queries": null,
+      "size": 100,
+      "start": {
+        "events": null,
+        "items": 100
+      },
+      "store": "sqlite"
+    },
+    {
+      "max_ms": 0.1922,
+      "mean_ms": 0.097148,
+      "min_ms": 0.0756,
+      "n": 50,
+      "op": "sqlite-read",
+      "p50_ms": 0.0778,
+      "p999_ms": 0.191842,
+      "p99_ms": 0.188623,
+      "preset": null,
+      "queries": null,
+      "size": 1000,
+      "start": {
+        "events": null,
+        "items": 1000
+      },
+      "store": "sqlite"
+    },
+    {
+      "max_ms": 4.0341,
+      "mean_ms": 2.875338,
+      "min_ms": 2.3847,
+      "n": 50,
+      "op": "sqlite-write",
+      "p50_ms": 2.6789,
+      "p999_ms": 4.02873,
+      "p99_ms": 3.980396,
+      "preset": null,
+      "queries": null,
+      "size": 1000,
+      "start": {
+        "events": null,
+        "items": 1000
+      },
+      "store": "sqlite"
+    },
+    {
+      "max_ms": 1.7213,
+      "mean_ms": 0.877667,
+      "min_ms": 0.6924,
+      "n": 30,
+      "op": "sqlite-read",
+      "p50_ms": 0.74315,
+      "p999_ms": 1.719917,
+      "p99_ms": 1.707467,
+      "preset": null,
+      "queries": null,
+      "size": 10000,
+      "start": {
+        "events": null,
+        "items": 10000
+      },
+      "store": "sqlite"
+    },
+    {
+      "max_ms": 3.9861,
+      "mean_ms": 3.001923,
+      "min_ms": 2.4945,
+      "n": 30,
+      "op": "sqlite-write",
+      "p50_ms": 2.82525,
+      "p999_ms": 3.981631,
+      "p99_ms": 3.941411,
+      "preset": null,
+      "queries": null,
+      "size": 10000,
+      "start": {
+        "events": null,
+        "items": 10000
+      },
+      "store": "sqlite"
+    }
+  ],
+  "filed_under": "research/results/h2-* only because research/tests/test_prereg.py maps every MANIFEST file to one hypothesis's results glob; the result is descriptive and decides no hypothesis, as card R4 filed its crosswalk under h1-* with hypothesis none (docs/tasks/backlog.md, row \"A results glob outside the hypotheses\")",
+  "hypothesis": "none",
+  "machine": {
+    "arch": "x64",
+    "cores": 32,
+    "cpu": "Intel(R) Core(TM) i9-14900HX",
+    "memory_bytes": 34070192128,
+    "os": "win32 10.0.26300"
+  },
+  "node": "v24.14.0",
+  "notes": [
+    "Measured once, on the machine named in `machine`, while other coding agents ran builds and tests on it: CPU load sampled every 30 seconds during the run averaged 51 percent (from 0 to 100), with 30 to 75 node processes running. The figures are this machine's under that load; they are never compared across machines.",
+    "Each cell, one (preset, op), runs on its own copy of a store populated once per store and size (`start` gives the log's items and events when the cell began), so no cell inherits what an earlier one wrote or read (review finding X15-1). Each cell's timed calls follow `suite.warmup` untimed ones; `samples_ms` is in call order; `n` is the number of timed calls. Where n is below 1,000 the p99.9 is interpolated between the two largest samples and is not a resolved tail; where n is below 100 the same holds for the p99.",
+    "The store of each size is written through the Plane under preset medium, as user-sourced semantic items in team scopes of at most 1,000 items, so no scope passes any preset's team budget. The log is a SQLite file in WAL mode in the temporary folder; the baseline is a bare node:sqlite file with the same pragmas, a fresh table per op, so the fsync of each commit is in both. `baseline_of` says which baseline each op is compared with, and why.",
+    "`queries` counts what one steady call asks of the log: statements, the rows they return, and transactions. Statements stay fixed as the store grows; rows grow with it (an allowed write reads the projection three times, a denied write once, a read twice), and an allowed write also reads every read event in the log (docs/log/2026-11-21-x15-finding-whole-table-scans.md).",
+    "100,000 items is not measured: every Plane call here costs time linear in the store, so writing the store one item at a time through the Plane is quadratic: 10,000 items took 578 seconds on the fake (`population`), and 100,000 would take on the order of 16 hours by the same growth.",
+    "The files adapter is not measured at 10,000 items: its search reads every file in the folder on each read (docs/log/2026-11-21-x15-finding-files-search-revised.md), a median of 0.85 to 1.06 seconds per read at 1,000 items here, so a read at 10,000 items would take roughly ten seconds and the three read cells alone some twenty minutes."
+  ],
+  "overhead": [
+    {
+      "baseline_op": "sqlite-read",
+      "op": "read",
+      "p50_added_ms": 5.00045,
+      "p50_ratio": 278.802778,
+      "p999_ratio": 256.112041,
+      "p99_ratio": 208.455669,
+      "preset": "medium",
+      "size": 100,
+      "store": "fake"
+    },
+    {
+      "baseline_op": "sqlite-write",
+      "op": "write",
+      "p50_added_ms": 2.28045,
+      "p50_ratio": 1.87816,
+      "p999_ratio": 1.505223,
+      "p99_ratio": 2.205592,
+      "preset": "medium",
+      "size": 100,
+      "store": "fake"
+    },
+    {
+      "baseline_op": "sqlite-write",
+      "op": "write-deny",
+      "p50_added_ms": 1.5013,
+      "p50_ratio": 1.578123,
+      "p999_ratio": 0.798122,
+      "p99_ratio": 1.265473,
+      "preset": "medium",
+      "size": 100,
+      "store": "fake"
+    },
+    {
+      "baseline_op": "sqlite-read",
+      "op": "read",
+      "p50_added_ms": 3.6321,
+      "p50_ratio": 202.783333,
+      "p999_ratio": 136.29903,
+      "p99_ratio": 129.204883,
+      "preset": "permissive",
+      "size": 100,
+      "store": "fake"
+    },
+    {
+      "baseline_op": "sqlite-write",
+      "op": "write",
+      "p50_added_ms": 1.7745,
+      "p50_ratio": 1.683328,
+      "p999_ratio": 0.928579,
+      "p99_ratio": 1.586108,
+      "preset": "permissive",
+      "size": 100,
+      "store": "fake"
+    },
+    {
+      "baseline_op": "sqlite-write",
+      "op": "write-deny",
+      "p50_added_ms": 0.6932,
+      "p50_ratio": 1.266939,
+      "p999_ratio": 0.950504,
+      "p99_ratio": 1.184821,
+      "preset": "permissive",
+      "size": 100,
+      "store": "fake"
+    },
+    {
+      "baseline_op": "sqlite-read",
+      "op": "read",
+      "p50_added_ms": 4.4429,
+      "p50_ratio": 247.827778,
+      "p999_ratio": 286.445599,
+      "p99_ratio": 178.598505,
+      "preset": "strict",
+      "size": 100,
+      "store": "fake"
+    },
+    {
+      "baseline_op": "sqlite-write",
+      "op": "write",
+      "p50_added_ms": 1.72745,
+      "p50_ratio": 1.66521,
+      "p999_ratio": 2.635171,
+      "p99_ratio": 2.304947,
+      "preset": "strict",
+      "size": 100,
+      "store": "fake"
+    },
+    {
+      "baseline_op": "sqlite-write",
+      "op": "write-deny",
+      "p50_added_ms": 0.5635,
+      "p50_ratio": 1.216994,
+      "p999_ratio": 0.821593,
+      "p99_ratio": 1.308946,
+      "preset": "strict",
+      "size": 100,
+      "store": "fake"
+    },
+    {
+      "baseline_op": "sqlite-read",
+      "op": "read",
+      "p50_added_ms": 15.3038,
+      "p50_ratio": 197.706941,
+      "p999_ratio": 435.078218,
+      "p99_ratio": 336.215949,
+      "preset": "medium",
+      "size": 1000,
+      "store": "fake"
+    },
+    {
+      "baseline_op": "sqlite-write",
+      "op": "write",
+      "p50_added_ms": 6.9968,
+      "p50_ratio": 3.611818,
+      "p999_ratio": 3.726401,
+      "p99_ratio": 3.629115,
+      "preset": "medium",
+      "size": 1000,
+      "store": "fake"
+    },
+    {
+      "baseline_op": "sqlite-write",
+      "op": "write-deny",
+      "p50_added_ms": 3.7743,
+      "p50_ratio": 2.408899,
+      "p999_ratio": 3.246998,
+      "p99_ratio": 3.009621,
+      "preset": "medium",
+      "size": 1000,
+      "store": "fake"
+    },
+    {
+      "baseline_op": "sqlite-read",
+      "op": "read",
+      "p50_added_ms": 22.9272,
+      "p50_ratio": 295.694087,
+      "p999_ratio": 482.730283,
+      "p99_ratio": 355.312327,
+      "preset": "permissive",
+      "size": 1000,
+      "store": "fake"
+    },
+    {
+      "baseline_op": "sqlite-write",
+      "op": "write",
+      "p50_added_ms": 16.01175,
+      "p50_ratio": 6.976987,
+      "p999_ratio": 8.115188,
+      "p99_ratio": 7.548064,
+      "preset": "permissive",
+      "size": 1000,
+      "store": "fake"
+    },
+    {
+      "baseline_op": "sqlite-write",
+      "op": "write-deny",
+      "p50_added_ms": 10.2344,
+      "p50_ratio": 4.820374,
+      "p999_ratio": 6.550729,
+      "p99_ratio": 6.278484,
+      "preset": "permissive",
+      "size": 1000,
+      "store": "fake"
+    },
+    {
+      "baseline_op": "sqlite-read",
+      "op": "read",
+      "p50_added_ms": 10.9214,
+      "p50_ratio": 141.377892,
+      "p999_ratio": 108.720641,
+      "p99_ratio": 107.986184,
+      "preset": "strict",
+      "size": 1000,
+      "store": "fake"
+    },
+    {
+      "baseline_op": "sqlite-write",
+      "op": "write",
+      "p50_added_ms": 7.94315,
+      "p50_ratio": 3.965079,
+      "p999_ratio": 4.0904,
+      "p99_ratio": 4.084251,
+      "preset": "strict",
+      "size": 1000,
+      "store": "fake"
+    },
+    {
+      "baseline_op": "sqlite-write",
+      "op": "write-deny",
+      "p50_added_ms": 4.29325,
+      "p50_ratio": 2.602617,
+      "p999_ratio": 4.73518,
+      "p99_ratio": 3.937224,
+      "preset": "strict",
+      "size": 1000,
+      "store": "fake"
+    },
+    {
+      "baseline_op": "sqlite-read",
+      "op": "read",
+      "p50_added_ms": 170.69575,
+      "p50_ratio": 230.692189,
+      "p999_ratio": 118.504228,
+      "p99_ratio": 119.126872,
+      "preset": "medium",
+      "size": 10000,
+      "store": "fake"
+    },
+    {
+      "baseline_op": "sqlite-write",
+      "op": "write",
+      "p50_added_ms": 121.5184,
+      "p50_ratio": 44.011556,
+      "p999_ratio": 43.809062,
+      "p99_ratio": 41.429487,
+      "preset": "medium",
+      "size": 10000,
+      "store": "fake"
+    },
+    {
+      "baseline_op": "sqlite-write",
+      "op": "write-deny",
+      "p50_added_ms": 43.473,
+      "p50_ratio": 16.387311,
+      "p999_ratio": 14.097801,
+      "p99_ratio": 14.208194,
+      "preset": "medium",
+      "size": 10000,
+      "store": "fake"
+    },
+    {
+      "baseline_op": "sqlite-read",
+      "op": "read",
+      "p50_added_ms": 184.04985,
+      "p50_ratio": 248.661778,
+      "p999_ratio": 132.512833,
+      "p99_ratio": 132.764462,
+      "preset": "permissive",
+      "size": 10000,
+      "store": "fake"
+    },
+    {
+      "baseline_op": "sqlite-write",
+      "op": "write",
+      "p50_added_ms": 99.0591,
+      "p50_ratio": 36.062065,
+      "p999_ratio": 34.052415,
+      "p99_ratio": 34.153187,
+      "preset": "permissive",
+      "size": 10000,
+      "store": "fake"
+    },
+    {
+      "baseline_op": "sqlite-write",
+      "op": "write-deny",
+      "p50_added_ms": 40.1739,
+      "p50_ratio": 15.219591,
+      "p999_ratio": 13.085755,
+      "p99_ratio": 13.160485,
+      "preset": "permissive",
+      "size": 10000,
+      "store": "fake"
+    },
+    {
+      "baseline_op": "sqlite-read",
+      "op": "read",
+      "p50_added_ms": 101.8181,
+      "p50_ratio": 138.008814,
+      "p999_ratio": 106.772938,
+      "p99_ratio": 102.551729,
+      "preset": "strict",
+      "size": 10000,
+      "store": "fake"
+    },
+    {
+      "baseline_op": "sqlite-write",
+      "op": "write",
+      "p50_added_ms": 71.13035,
+      "p50_ratio": 26.176657,
+      "p999_ratio": 28.263829,
+      "p99_ratio": 28.060027,
+      "preset": "strict",
+      "size": 10000,
+      "store": "fake"
+    },
+    {
+      "baseline_op": "sqlite-write",
+      "op": "write-deny",
+      "p50_added_ms": 24.12555,
+      "p50_ratio": 9.539262,
+      "p999_ratio": 8.849097,
+      "p99_ratio": 8.878297,
+      "preset": "strict",
+      "size": 10000,
+      "store": "fake"
+    },
+    {
+      "baseline_op": "sqlite-read",
+      "op": "read",
+      "p50_added_ms": 106.47135,
+      "p50_ratio": 5916.075,
+      "p999_ratio": 58444.535508,
+      "p99_ratio": 3293.818424,
+      "preset": "medium",
+      "size": 100,
+      "store": "files"
+    },
+    {
+      "baseline_op": "sqlite-write",
+      "op": "write",
+      "p50_added_ms": 8.58,
+      "p50_ratio": 4.304003,
+      "p999_ratio": 1.931801,
+      "p99_ratio": 3.252733,
+      "preset": "medium",
+      "size": 100,
+      "store": "files"
+    },
+    {
+      "baseline_op": "sqlite-write",
+      "op": "write-deny",
+      "p50_added_ms": 1.04015,
+      "p50_ratio": 1.400543,
+      "p999_ratio": 7.451303,
+      "p99_ratio": 3.673559,
+      "preset": "medium",
+      "size": 100,
+      "store": "files"
+    },
+    {
+      "baseline_op": "sqlite-read",
+      "op": "read",
+      "p50_added_ms": 97.31025,
+      "p50_ratio": 5407.125,
+      "p999_ratio": 2606.584594,
+      "p99_ratio": 2265.721325,
+      "preset": "permissive",
+      "size": 100,
+      "store": "files"
+    },
+    {
+      "baseline_op": "sqlite-write",
+      "op": "write",
+      "p50_added_ms": 7.87265,
+      "p50_ratio": 4.031615,
+      "p999_ratio": 1.738644,
+      "p99_ratio": 3.053087,
+      "preset": "permissive",
+      "size": 100,
+      "store": "files"
+    },
+    {
+      "baseline_op": "sqlite-write",
+      "op": "write-deny",
+      "p50_added_ms": 1.38575,
+      "p50_ratio": 1.533627,
+      "p999_ratio": 0.898612,
+      "p99_ratio": 1.550448,
+      "preset": "permissive",
+      "size": 100,
+      "store": "files"
+    },
+    {
+      "baseline_op": "sqlite-read",
+      "op": "read",
+      "p50_added_ms": 108.4534,
+      "p50_ratio": 6026.188889,
+      "p999_ratio": 3906.623309,
+      "p99_ratio": 2672.418765,
+      "preset": "strict",
+      "size": 100,
+      "store": "files"
+    },
+    {
+      "baseline_op": "sqlite-write",
+      "op": "write",
+      "p50_added_ms": 5.3958,
+      "p50_ratio": 3.077825,
+      "p999_ratio": 10.968058,
+      "p99_ratio": 2.586961,
+      "preset": "strict",
+      "size": 100,
+      "store": "files"
+    },
+    {
+      "baseline_op": "sqlite-write",
+      "op": "write-deny",
+      "p50_added_ms": 0.7078,
+      "p50_ratio": 1.272561,
+      "p999_ratio": 0.868725,
+      "p99_ratio": 1.424856,
+      "preset": "strict",
+      "size": 100,
+      "store": "files"
+    },
+    {
+      "baseline_op": "sqlite-read",
+      "op": "read",
+      "p50_added_ms": 851.7768,
+      "p50_ratio": 10949.287918,
+      "p999_ratio": 9285.796112,
+      "p99_ratio": 8938.107935,
+      "preset": "medium",
+      "size": 1000,
+      "store": "files"
+    },
+    {
+      "baseline_op": "sqlite-write",
+      "op": "write",
+      "p50_added_ms": 20.6002,
+      "p50_ratio": 8.689798,
+      "p999_ratio": 7.21284,
+      "p99_ratio": 7.098017,
+      "preset": "medium",
+      "size": 1000,
+      "store": "files"
+    },
+    {
+      "baseline_op": "sqlite-write",
+      "op": "write-deny",
+      "p50_added_ms": 5.7638,
+      "p50_ratio": 3.151555,
+      "p999_ratio": 4.240261,
+      "p99_ratio": 3.782246,
+      "preset": "medium",
+      "size": 1000,
+      "store": "files"
+    },
+    {
+      "baseline_op": "sqlite-read",
+      "op": "read",
+      "p50_added_ms": 1041.0324,
+      "p50_ratio": 13381.879178,
+      "p999_ratio": 6708.890431,
+      "p99_ratio": 6748.108693,
+      "preset": "permissive",
+      "size": 1000,
+      "store": "files"
+    },
+    {
+      "baseline_op": "sqlite-write",
+      "op": "write",
+      "p50_added_ms": 15.992,
+      "p50_ratio": 6.969614,
+      "p999_ratio": 18.128881,
+      "p99_ratio": 13.152284,
+      "preset": "permissive",
+      "size": 1000,
+      "store": "files"
+    },
+    {
+      "baseline_op": "sqlite-write",
+      "op": "write-deny",
+      "p50_added_ms": 6.4425,
+      "p50_ratio": 3.404905,
+      "p999_ratio": 3.304581,
+      "p99_ratio": 3.295106,
+      "preset": "permissive",
+      "size": 1000,
+      "store": "files"
+    },
+    {
+      "baseline_op": "sqlite-read",
+      "op": "read",
+      "p50_added_ms": 1060.56295,
+      "p50_ratio": 13632.914525,
+      "p999_ratio": 7839.075562,
+      "p99_ratio": 7483.60569,
+      "preset": "strict",
+      "size": 1000,
+      "store": "files"
+    },
+    {
+      "baseline_op": "sqlite-write",
+      "op": "write",
+      "p50_added_ms": 14.4992,
+      "p50_ratio": 6.412371,
+      "p999_ratio": 6.712135,
+      "p99_ratio": 6.667646,
+      "preset": "strict",
+      "size": 1000,
+      "store": "files"
+    },
+    {
+      "baseline_op": "sqlite-write",
+      "op": "write-deny",
+      "p50_added_ms": 3.5483,
+      "p50_ratio": 2.324536,
+      "p999_ratio": 2.873886,
+      "p99_ratio": 2.804793,
+      "preset": "strict",
+      "size": 1000,
+      "store": "files"
+    }
+  ],
+  "percentile_method": "linear interpolation between closest ranks (numpy default, type 7)",
+  "population": [
+    {
+      "mean_write_ms": 4.271444,
+      "seconds": 0.427144,
+      "size": 100,
+      "store": "fake"
+    },
+    {
+      "mean_write_ms": 7.568447,
+      "seconds": 7.568447,
+      "size": 1000,
+      "store": "fake"
+    },
+    {
+      "mean_write_ms": 57.793156,
+      "seconds": 577.931556,
+      "size": 10000,
+      "store": "fake"
+    },
+    {
+      "mean_write_ms": 8.677952,
+      "seconds": 0.867795,
+      "size": 100,
+      "store": "files"
+    },
+    {
+      "mean_write_ms": 14.528898,
+      "seconds": 14.528898,
+      "size": 1000,
+      "store": "files"
+    }
+  ],
+  "samples": "research/results/h2-perf-budget-samples.jsonl",
+  "samples_sha256": "dc71de74c82d786f60e5c489456eca1639b419512faead0e0bfeaea670fc2282",
+  "suite": {
+    "at": "2026-11-21T12:00:00Z",
+    "hits": 10,
+    "iterations": {
+      "100": 200,
+      "1000": 50,
+      "10000": 30
+    },
+    "presets": [
+      "strict",
+      "medium",
+      "permissive"
+    ],
+    "sizes": [
+      100,
+      1000,
+      10000
+    ],
+    "skip": {
+      "files": [
+        10000
+      ]
+    },
+    "stores": [
+      "fake",
+      "files"
+    ],
+    "warmup": 10
+  },
+  "tinybench": "6.2.3",
+  "tolerance": {
+    "aggregate_band": 1.5,
+    "baseline_band": 4.0,
+    "machine_keys": [
+      "cpu",
+      "cores",
+      "memory_bytes",
+      "os",
+      "arch"
+    ],
+    "median_band": 3.0,
+    "why": "Set from real rerun noise (review finding X15-3): a second full run of the suite on the same machine, after the committed one and with nothing changed, moved plane cells' medians by at most a factor of 2.18 either way (the files adapter's allowed write at 100 items under strict), the bare node:sqlite cells' by at most 3.12 (the select at 100 items, a median of 0.018 ms), and each op's geometric mean of median ratios over its 15 plane cells by at most 1.13 (allowed writes). The per-cell bands, 3 for plane cells and 4 for bare cells, cover that noise with about a third more; they catch a cell that triples. The aggregate band is one-sided (decided under the lead's delegation after the final rerun of the review fix pass ran faster than the committed run): per op the geometric mean of new to committed median ratios must be at most 1.5, which catches an op whose every cell slows by half or more, such as every read twice as slow, which no per-cell band this wide could; a faster run passes, since the check exists to catch regressions. The per-cell bands stay two-sided, since a cell that moves that far in either direction makes the measurement itself suspect. The check also refuses samples from another machine, Node version or tinybench version."
+  }
+}

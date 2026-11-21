@@ -8,7 +8,7 @@ SHELL := bash
 PNPM ?= pnpm
 UV ?= uv
 
-.PHONY: help test test-invariants test-scale test-one test-e2e test-repro lint lint-docs api api-check ui bench run h1-table h1-figure l3-variance h3-lint-delta fixtures fault-workspace thesis engram dogfood-report verify-spec
+.PHONY: help test test-invariants test-scale test-one test-e2e test-repro lint lint-docs api api-check ui bench run h1-table h1-figure l3-variance h3-lint-delta perf-budget fixtures fault-workspace thesis engram dogfood-report verify-spec
 
 help: ## list targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | sed -E 's/:.*## /\t/' | expand -t 16
@@ -116,6 +116,18 @@ l3-variance: ## after the L3 pilot's live run (make run CONFIG=research/configs/
 
 h3-lint-delta: ## after H3's live model-lint run (make run CONFIG=research/configs/h3-lint-model.json MODEL=<provider/model> LIVE=1) and its model named in research/configs/h3-lint-delta.json: what card L3's model lints add to the deterministic floor per class, keyed and unkeyed apart, per seed and across seeds, replayed offline from that run's cassettes, into research/results/h3-lint-delta.json; FIXTURE=1 runs it on the scripted fixture run (research/configs/h3-lint-delta-fixture.json) into .engram/h3-lint-delta-fixture.json, not a result
 	$(UV) run python research/scripts/h3_lint_delta.py $(if $(filter 1,$(FIXTURE)),--config research/configs/h3-lint-delta-fixture.json --out .engram/h3-lint-delta-fixture.json,--config research/configs/h3-lint-delta.json --out research/results/h3-lint-delta.json)
+
+PERF_BUDGET := $(UV) run python research/scripts/perf_budget.py --config research/configs/perf-budget.json
+
+perf-budget: ## card X15: research/results/h2-perf-budget.json from the committed samples, research/results/h2-perf-budget-samples.jsonl (what make test-repro regenerates; no suite run); MEASURE=1 first reruns the plane-overhead suite (packages/core/bench/plane-overhead.ts) into those samples, about 15 to 25 minutes, replacing them; CHECK=1 is the rerun check instead, about 15 to 25 minutes: the suite into a temporary file (FRESH=<file> keeps it, or reads it when it exists), passing when every median lies within the config's per-cell band of the committed one, each op's geometric mean of median ratios at most its aggregate band (one-sided: a faster run passes), and every query count and starting log size equal; nothing committed is written
+ifeq ($(CHECK),1)
+	$(PERF_BUDGET) --rerun $(if $(FRESH),--fresh "$(FRESH)")
+else
+ifeq ($(MEASURE),1)
+	$(PERF_BUDGET) --measure
+endif
+	$(PERF_BUDGET) --out research/results/h2-perf-budget.json
+endif
 
 # Runner configs whose cassettes are fixtures, recorded from their scripted model by `make fixtures`.
 RUNNER_FIXTURES := rn1-gatemem-probe

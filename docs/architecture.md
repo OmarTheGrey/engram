@@ -111,6 +111,21 @@ Retention (card E2.4, ADR 0025): the pure `evaluateRetention` decides; an item p
 
 `packages/core` has no import from pi-ai. Model-based lints and the distiller receive a `ModelCall` injected at the boundary; inside pi it is built on the session's model runtime, in the runner it is scripted or cassette-backed. Every call is seeded, cached on (benchmark item, condition, preset, store, model, seed, prompt hash), and metered into a usage ledger (UsageRecord per call) that the runner writes to `usage.json` beside its results; it is not in the event log yet (ADR 0017).
 
+## Latency budget
+
+Proposed by card X15, for the lead's acceptance. What the plane costs in time is measured by the plane-overhead suite (`packages/core/bench/plane-overhead.ts`, tinybench), each (preset, op) cell on its own copy of a freshly populated store, and computed by `research/scripts/perf_budget.py` into `research/results/h2-perf-budget.json` from the committed samples (`make perf-budget`; `MEASURE=1` remeasures; `CHECK=1` reruns and compares: each cell's median within a two-sided band of the committed one, each op's geometric mean of median ratios at most 1.5). The budget is judged on the fake adapter, so it is the plane's own cost and not the store's, under preset medium, at p99:
+
+| call | store size | budget (p99) | measured p99 | met |
+|---|---|---|---|---|
+| Plane.read, ten items returned | 1,000 | 50 ms | 63.4 ms, a tail of 50 samples (p99 not resolved; median 15.4 ms) | no |
+| Plane.write, allowed | 1,000 | 50 ms | 14.4 ms | yes |
+| Plane.read, ten items returned | 10,000 | 100 ms, and at most 100 times bare node:sqlite's p99 | 203.4 ms (119 times) | no |
+| Plane.write, allowed | 10,000 | 100 ms, and at most 100 times bare node:sqlite's p99 | 163.3 ms (41 times) | no |
+
+The measured figures are the `budget` block of `research/results/h2-perf-budget.json`: one run on an Intel Core i9-14900HX (32 logical cores, 31.7 GiB of memory, Windows 11 build 26300, Node 24.14.0) shared with other agents (CPU load sampled every 30 s: mean 51 percent, from 0 to 100, with 30 to 75 node processes running), 50 timed calls per cell at 1,000 items and 30 at 10,000, so each p99 there lies between the two largest samples. The read at 1,000 items misses on its tail alone: its median is 15.4 ms. At 100 items a write adds about 2 ms at the median to a bare SQLite insert on the same disk, and a read about 5 ms. The three presets do the same work on the same store: their statements, rows read and starting logs are equal, and their medians differ by at most a factor of 2.1 within the run, which is the machine's load, since their stores are identical copies.
+
+The budget at 10,000 items is not met because every call reads whole tables while its statement count stays fixed (16 for a write, 6 for a denied write, 16 for a read): an allowed write reads the item projection three times (`retiredContent`, `enforceBudget`, `retentionUsage`), a denied write once, a read twice, and a read also hashes every reachable item three times; an allowed write also reads every read event in the log (`retentionUsage`), so its cost grows with the read history whatever the store's size. A scoped query per call would help the writes, not a read by a member of every scope. These are backlog rows (`docs/tasks/backlog.md`, card X15's section), not changed before the `prereg-v1` tag. The files adapter's read is dominated by its search, which reads every file (about 100 ms at 100 items, about one second at 1,000); it is reported and not budgeted, since it is the store's cost. Timings are never compared across machines, Node versions or tinybench versions.
+
 ## Interfaces
 
 ```
