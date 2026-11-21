@@ -110,6 +110,9 @@ export interface MeritRow {
   condition: string;
   arc_id: string;
   episode_index: number;
+  /** `none` unless a corruption sweep runs (`run_pilot.py --corrupt`). */
+  corrupt_mode: string;
+  corrupt_rate: number;
   task_id: string;
   kind: string;
   dependent: boolean;

@@ -76,8 +76,10 @@ function decisions(cell: MeritCellRun) {
   };
 }
 
-const keyOf = (r: Pick<MeritRow, "seed" | "arc_id" | "episode_index">) =>
-  `${r.seed}|${r.arc_id}|${r.episode_index}`;
+/** A row's episode: its world seed, arc, episode and corruption setting (a sweep runs each episode once per setting). */
+const keyOf = (
+  r: Pick<MeritRow, "seed" | "arc_id" | "episode_index" | "corrupt_mode" | "corrupt_rate">,
+) => `${r.seed}|${r.arc_id}|${r.episode_index}|${r.corrupt_mode}|${r.corrupt_rate}`;
 
 /**
  * The slice against MERIT's reference run of the same cell: the tasks (id,

@@ -19,6 +19,8 @@ const row = (episode: number, extra: Partial<MeritRow> = {}): MeritRow => ({
   condition: "C1",
   arc_id: "arc0-000",
   episode_index: episode,
+  corrupt_mode: "none",
+  corrupt_rate: 0,
   task_id: `arc0-000-e${episode}-indep-refund`,
   kind: "I_refund",
   dependent: false,
@@ -69,6 +71,17 @@ describe("the MERIT summary", () => {
     expect(c.episodes_mismatched).toEqual([]);
     expect(c.reference_condition).toBe("C1");
     expect(c.reference_success?.success).toBe(2);
+  });
+
+  it("compares only the reference's rows of the same corruption setting", () => {
+    const ours = cellOf("C1", [row(0)]);
+    const stale = row(0, { corrupt_mode: "stale", corrupt_rate: 0.3, success: false });
+    const c = compareWithReference(ours, [row(0), stale]);
+    expect(c.reference_success?.episodes).toBe(1);
+    expect(c.reference_success?.success).toBe(1);
+    expect(compareWithReference(ours, [stale]).episodes_mismatched).toEqual([
+      "arc0-000-e0-indep-refund",
+    ]);
   });
 
   it("names an episode whose task differs from the reference run's", () => {

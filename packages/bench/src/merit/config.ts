@@ -91,7 +91,9 @@ export function readMeritConfig(path: string): MeritConfig {
   }
   // Two cells with one item would share keys and output folders (cellItem).
   if (!unique(config.cells.map(cellItem))) {
-    throw new Error(`${path}: two cells have the same domain and difficulty (item ${config.cells.map(cellItem).join(", ")})`);
+    throw new Error(
+      `${path}: two cells have the same domain and difficulty (item ${config.cells.map(cellItem).join(", ")})`,
+    );
   }
   return { ...config, cassettes: resolve(dirname(path), config.cassettes) };
 }

@@ -10,7 +10,12 @@ import { fileURLToPath } from "node:url";
 import { fileCache, memoryCache } from "@engram/model";
 import { describe, expect, it } from "vitest";
 import { readMeritConfig } from "../../src/merit/config.ts";
-import { MERIT_ENV_DIR, MERIT_UPSTREAM_DIR, meritPython } from "../../src/merit/env.ts";
+import {
+  ensureMeritCheckout,
+  MERIT_ENV_DIR,
+  MERIT_UPSTREAM_DIR,
+  meritPython,
+} from "../../src/merit/env.ts";
 import { MeritRunError, runMerit } from "../../src/merit/launch.ts";
 import { summarise } from "../../src/merit/summary.ts";
 
@@ -37,6 +42,11 @@ const replayOnly = (dir: string) => {
 };
 
 describe.runIf(ready)("MERIT through the proxy and the plane", () => {
+  it("runs the checkout at the pin, unchanged (finding B7-9)", () => {
+    // Offline, so it only checks: HEAD is the pinned commit and no tracked file differs.
+    expect(ensureMeritCheckout(CHECKOUT, { ENGRAM_OFFLINE: "1" })).toBe(CHECKOUT);
+  });
+
   it("replays the fixture slice from the committed cassettes with zero new calls", async () => {
     const config = readMeritConfig(CONFIG);
     const result = await runMerit({

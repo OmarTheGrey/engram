@@ -18,8 +18,9 @@
 //   (the memory block in the system prompt) record for that order, and the
 //   full amount when they record none, as a memoryless agent would;
 // - "send me a message confirming the delivery address you have on file"
-//   sends the newest address its notes record for that customer, or says it
-//   cannot find one.
+//   sends the last address its notes give for that customer, in the order
+//   the notes list them (by time under C1's full replay, by rank under C2
+//   and C5, so not always the newest), or says it cannot find one.
 //
 // After its last tool call it replies with a short confirmation and no tool
 // call, which ends MERIT's loop. Usage is an estimate, a token per four
@@ -52,7 +53,7 @@ const ORDER = /\b(ORD-\d+)\b/;
 const NEW_ADDRESS = /address on file to: ([^\n]+?)(?:\. And |\n|$)/;
 const AGREED = /agreed amount of (\d+) cents for order (ORD-\d+)/;
 
-/** The newest amount the notes record as agreed for `order`, if any. */
+/** The last amount the notes give as agreed for `order`, in their order, if any. */
 export function agreedAmount(notes: string, order: string): number | undefined {
   let found: number | undefined;
   for (const m of notes.matchAll(new RegExp(AGREED.source, "g"))) {
@@ -61,7 +62,7 @@ export function agreedAmount(notes: string, order: string): number | undefined {
   return found;
 }
 
-/** The newest address the notes record for `customer`, if any: a line naming the customer and its new address. */
+/** The last address the notes give for `customer`, in their order, if any: a line naming the customer and its new address. */
 export function notedAddress(notes: string, customer: string): string | undefined {
   let found: string | undefined;
   for (const line of notes.split("\n")) {

@@ -49,6 +49,18 @@ describe("MERIT run config", () => {
     expect(() => readMeritConfig(path)).toThrow(/must not repeat/);
   });
 
+  it("refuses two cells with the same item, which would share keys and folders", () => {
+    const dir = mkdtempSync(join(tmpdir(), "engram-b7-config-"));
+    const path = join(dir, "c.json");
+    const config = JSON.parse(JSON.stringify(readMeritConfig(FIXTURE)));
+    const cell = { domain: "d1", difficulty: "easy", arcs: 1, episodes: 5 };
+    writeFileSync(
+      path,
+      JSON.stringify({ ...config, cassettes: "x", cells: [cell, { ...cell, arcs: 3 }] }),
+    );
+    expect(() => readMeritConfig(path)).toThrow(/same domain and difficulty/);
+  });
+
   it("refuses a condition the pre-registration does not run on MERIT", () => {
     const dir = mkdtempSync(join(tmpdir(), "engram-b7-config-"));
     const path = join(dir, "c.json");

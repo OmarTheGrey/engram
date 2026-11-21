@@ -35,7 +35,11 @@ function importLitellm(env: NodeJS.ProcessEnv) {
 
 describe.runIf(ready)("the MERIT process environment", () => {
   it("passes no provider key and keeps LiteLLM from loading a planted .env", () => {
-    const env = meritProcessEnv({ ...process.env, OPENAI_API_KEY: "sk-real", ANTHROPIC_API_KEY: "x" });
+    const env = meritProcessEnv({
+      ...process.env,
+      OPENAI_API_KEY: "sk-real",
+      ANTHROPIC_API_KEY: "x",
+    });
     expect(env.OPENAI_API_KEY).toBe("engram-cassette-proxy");
     expect(env.ANTHROPIC_API_KEY).toBeUndefined();
     expect(env.LITELLM_MODE).toBe("PRODUCTION");

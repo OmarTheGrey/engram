@@ -73,8 +73,8 @@ describe("run-merit.ts --record", () => {
     expect(
       fixtureRecordingRefusal(inside, REPO, { ENGRAM_UPDATE_FIXTURES: "1", ENGRAM_OFFLINE: "1" }),
     ).toMatch(/ENGRAM_OFFLINE/);
-    expect(fixtureRecordingRefusal(join(REPO, "fixtures"), REPO, { ENGRAM_UPDATE_FIXTURES: "1" })).toMatch(
-      /fixtures only/,
-    );
+    expect(
+      fixtureRecordingRefusal(join(REPO, "fixtures"), REPO, { ENGRAM_UPDATE_FIXTURES: "1" }),
+    ).toMatch(/fixtures only/);
   });
 });
