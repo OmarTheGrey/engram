@@ -39,7 +39,8 @@ function forbidden(i: MemoryItem): string[] {
     createHash("sha256").update(text).digest("hex"),
     hex(i.provenance.hash),
     i.provenance.ref,
-    ...(i.store_ref ? [i.store_ref.key] : []),
+    // The fake store keys an item by its id, which the span names on purpose.
+    ...(i.store_ref && i.store_ref.key !== i.id ? [i.store_ref.key] : []),
   ];
 }
 
@@ -152,7 +153,11 @@ describe("acceptance (card E8.13): no span carries memory content", () => {
     await plane.changeGrants(
       omar,
       id(1),
-      { add: [{ to: "person:sara", class: "semantic", mode: "read", expires: "2027-01-01T00:00:00Z" }] },
+      {
+        add: [
+          { to: "person:sara", class: "semantic", mode: "read", expires: "2027-01-01T00:00:00Z" },
+        ],
+      },
       AT,
     );
     // gate: a promotion into org asks for review; promote: a reviewer approves it.
@@ -329,12 +334,16 @@ describe("exportedReason keeps the clauses of known templates and withholds the 
       text: "mem0 is a memory store command; use the Engram memory tools; [withheld]",
       withheld: 1,
     });
-    expect(exportedReason(`the gate allowed the write (x) but the store failed: EACCES ${REF}`)).toEqual({
+    expect(
+      exportedReason(`the gate allowed the write (x) but the store failed: EACCES ${REF}`),
+    ).toEqual({
       text: "[withheld]",
       withheld: 1,
     });
     // Two withheld clauses side by side are one marker, counted twice.
-    expect(exportedReason(`a ${SECRET}; b ${SECRET}; episodic items are forbidden in team scope`)).toEqual({
+    expect(
+      exportedReason(`a ${SECRET}; b ${SECRET}; episodic items are forbidden in team scope`),
+    ).toEqual({
       text: "[withheld]; episodic items are forbidden in team scope",
       withheld: 2,
     });
