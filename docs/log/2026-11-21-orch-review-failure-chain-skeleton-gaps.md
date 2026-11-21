@@ -17,6 +17,6 @@ supersedes: none
 
 **Why.** The skeleton was listed from memory of the event's fields, and the erasure case was designed only for the honest path.
 
-**Result.** First, the skeleton omitted the reason, so a rewritten reason was undetected, though rule 3 makes it the audit trail. Second, a link with its salt deleted verified as erased, so anyone with database access could redact a field, delete its salt and hide an edit. Now every field is covered, and a redaction counts only when the chain holds the offboarding's own erase event for that item.
+**Result.** First, the skeleton omitted the reason, so a rewritten reason was undetected, though rule 3 makes it the audit trail. Second, a link with its salt deleted verified as erased, so anyone with database access could redact a field, delete its salt and hide an edit. The reason is now hashed and a redaction needs a chained record of the offboarding; the verification pass then corrected the field list again (see the entry on ADR 0038's fields).
 
-**Consequence.** Card E1.6's tamper matrix adds both cases: a rewritten reason, and a forged redaction with no erase event.
+**Consequence.** Card E1.6's tamper matrix adds both cases: a rewritten reason, and a forged redaction.
