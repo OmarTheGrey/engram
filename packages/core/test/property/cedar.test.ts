@@ -355,7 +355,12 @@ function checkRead(policy: Policy, decide: (r: CedarRequest) => CedarDecision, c
   expect(got.allow, where).toBe(engram.admitted);
   if (engram.admitted || READ_FORBIDS.has(engram.policy_id))
     expect(got.reasons, where).toContain(engram.policy_id);
-  return engram.check;
+  // Scope before grant: when a matrix row and a grant both admit, the
+  // evaluator names the row (review finding E2.12-2).
+  const row = `${policy.id}/read/${c.actor.level}`;
+  const both = got.reasons.includes(row) && got.reasons.includes(`${policy.id}/read/grants`);
+  if (both) expect(engram.policy_id, where).toBe(row);
+  return both ? "scope-and-grant" : engram.check;
 }
 
 function checkWrite(policy: Policy, decide: (r: CedarRequest) => CedarDecision, c: WriteCase) {
@@ -391,7 +396,8 @@ describe("the Cedar export agrees with the evaluator on the presets", () => {
       fc.assert(
         fc.property(arbReadCase, (c) => {
           const check = checkRead(policy, decide, c);
-          tally(readChecks, check);
+          tally(readChecks, check === "scope-and-grant" ? "scope" : check);
+          if (check === "scope-and-grant") tally(readChecks, check);
           if (cedarReadRequest(c.actor, c.item, c.at).context.grant !== undefined) flattened++;
         }),
         { numRuns: RUNS, seed: seedFor(readName) },
@@ -414,7 +420,15 @@ describe("the Cedar export agrees with the evaluator on the presets", () => {
     // Source isolation never decides on a preset: no preset allows a model,
     // compaction or external source outside person scope, so the allowed
     // sources refuse it first; generated policies reach it (below).
-    for (const check of ["scope", "grant", "excluded", "not-active", "expired", "outside-validity"])
+    for (const check of [
+      "scope",
+      "grant",
+      "scope-and-grant",
+      "excluded",
+      "not-active",
+      "expired",
+      "outside-validity",
+    ])
       expect(readChecks.get(check) ?? 0, `read check ${check}`).toBeGreaterThan(20);
     for (const check of [
       "admit",
@@ -520,7 +534,10 @@ describe("beyond the presets: generated policies", () => {
         for (const r of reads) {
           const check = checkRead(policy, decide, r);
           // Cases a duplicate taken would decide otherwise.
-          if (`${levelOf(r.item.scope)}/${r.item.class}` === retention && check === "scope")
+          if (
+            `${levelOf(r.item.scope)}/${r.item.class}` === retention &&
+            (check === "scope" || check === "scope-and-grant")
+          )
             tally(checks, "admitted at a duplicated retention rule");
           if (r.actor.level === read && check === "excluded")
             tally(checks, "excluded at a duplicated matrix row");
