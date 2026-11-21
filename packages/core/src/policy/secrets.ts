@@ -60,7 +60,8 @@
 //   and ITIN, UK National Insurance number, Spanish DNI), its validators
 //   (Luhn, ISO 13616 mod-97, the UK number length, the DNI check letter),
 //   its severities as tiers (high is BLOCK, low and medium are REVIEW), the
-//   upper-case environment-variable rule, and overlap resolution.
+//   upper-case environment-variable rule, the reads-as-words gate (a token
+//   spelt in words is not key material), and overlap resolution.
 // - Ported from gitleaks (https://github.com/gitleaks/gitleaks), see
 //   ../vendor/gitleaks-rules.ts, which scripts/gitleaks-rules.ts generates.
 
@@ -185,6 +186,34 @@ function isBenignOpaqueToken(s: string): boolean {
     /^[A-Za-z_][A-Za-z0-9_]*=\d+(?:\.\d+)+(?:[-+][A-Za-z0-9.]+)?$/.test(s) ||
     /^sha\d+-[A-Za-z0-9+/=]{8,}$/i.test(s)
   );
+}
+
+/** gitleaks: the passwords documentation writes in a URL (its curl and URL-credential allowlists). */
+const PLACEHOLDER_PASSWORD = /^(?:change(?:it|me)|pass(?:word)?|pwd|test|token|secret|\*+|x+)$/i;
+
+// caura: an identifier's pieces are words of two or more lower-case letters,
+// each with at most one capital in front, or an upper-case run. Each repeat
+// starts at a capital, so a failed match backtracks in linear time.
+const IDENTIFIER_PIECE = /^(?:[A-Z]?[a-z]{2,}(?:[A-Z][a-z]{2,})*|[A-Z]{2,})$/;
+const IDENTIFIER_BREAK = /[-_.0-9]+/;
+
+/** caura: `value` is spelt in words, split at `-`, `_`, `.` and digits (PlayerInventoryHandler). */
+export function readsAsWords(value: string): boolean {
+  const pieces = value.split(IDENTIFIER_BREAK).filter((p) => p !== "");
+  return pieces.length > 0 && pieces.every((p) => IDENTIFIER_PIECE.test(p));
+}
+
+/**
+ * Not key material: a token spelt in words (an IAM action, a class name), or
+ * a path or an assignment, one of whose `/`- or `=`-separated parts of four
+ * characters or more is spelt in words (`owner/repo-name`,
+ * `CONFIG=research/configs/x`). A random base64 run has such a part about
+ * never (card E2.9, measured on the benign corpus of secret_guard.py).
+ */
+export function wordy(token: string): boolean {
+  if (readsAsWords(token)) return true;
+  const parts = token.split(/[/=]+/).filter((p) => p !== "");
+  return parts.length > 1 && parts.some((p) => p.length >= 4 && readsAsWords(p));
 }
 
 /** walrus: a generated credential is mixed case, or carries digits, or base64 padding and separators. */
@@ -354,8 +383,10 @@ const VENDOR: GuardRule[] = [
     rx(/([A-Za-z][A-Za-z0-9+.-]{0,30}:\/\/)([^\s/@:?=&]+):([^\s/@?=&]+)@/g),
     {
       group: 3,
-      // A `${DB_PASS}` placeholder or an earlier marker is not a password (claude-mem).
-      validate: (v) => !/^[$<{]/.test(v),
+      // A `${DB_PASS}` placeholder or an earlier marker is not a password
+      // (claude-mem), nor is a documentation placeholder (gitleaks' allowlist
+      // for credentials in a URL), nor one or two characters.
+      validate: (v) => v.length > 2 && !/^[$<{]/.test(v) && !PLACEHOLDER_PASSWORD.test(v),
     },
   ),
   // walrus: a BIP-39 mnemonic, gated on the label naming it.
@@ -406,7 +437,10 @@ const HEURISTIC: GuardRule[] = [
   secret("labelled-key-material", rx(/[A-Za-z0-9+/_=-]{20,}/g), {
     tier: "review",
     validate: (v, text, start, end) =>
-      !/^[0-9a-fA-F]+$/.test(v) && looksLikeOpaqueToken(v) && labelled(text, start, end),
+      !/^[0-9a-fA-F]+$/.test(v) &&
+      looksLikeOpaqueToken(v) &&
+      !wordy(v) &&
+      labelled(text, start, end),
   }),
   // graphCTX's entropy rule, over base64-alphabet runs, with walrus' shape
   // guard: mixed case and a digit, not hexadecimal.
@@ -414,6 +448,7 @@ const HEURISTIC: GuardRule[] = [
     tier: "review",
     validate: (v) =>
       !isBenignOpaqueToken(v) &&
+      !wordy(v) &&
       shannonEntropy(v) > 4 &&
       /[a-z]/.test(v) &&
       /[A-Z]/.test(v) &&

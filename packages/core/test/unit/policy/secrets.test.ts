@@ -32,11 +32,13 @@ import {
   luhn,
   PII_ID,
   REDACTIONS,
+  readsAsWords,
   SCAN_LIMIT,
   SECRET_ID,
   SECRET_TABLE,
   scan,
   shannonEntropy,
+  wordy,
 } from "../../../src/policy/secrets.ts";
 import type { ContentGuards, MemoryItem, Policy } from "../../../src/schema.ts";
 import { GITLEAKS_LEFT_OUT, GITLEAKS_RULES } from "../../../src/vendor/gitleaks-rules.ts";
@@ -491,6 +493,8 @@ describe("false positives: identifiers that are never a secret", () => {
     "ec2:DescribeInstances",
     "dynamodb:BatchWriteItem",
     "lambda:InvokeFunction",
+    "ecr:GetAuthorizationToken",
+    "logs:CreateLogStream",
   ];
   const samples: [string, () => string][] = [
     ["a git SHA", () => `commit ${sha()} fixed the build`],
@@ -505,6 +509,36 @@ describe("false positives: identifiers that are never a secret", () => {
   ];
   test.each(samples)("%s is not flagged by either guard", (_name, make) => {
     for (let n = 0; n < 50; n++) expect(scan(make(), both)).toEqual([]);
+  });
+
+  test("IAM actions beside a credential word, and repository paths, are not key material", () => {
+    expect(
+      scan("the role needs secretsmanager:GetSecretValue and ecr:GetAuthorizationToken", both),
+    ).toEqual([]);
+    expect(
+      scan(
+        "the secret scanners: secretlint/secretlint-rule-preset-recommend and 9thLevelSoftware/Daem0n-MCP",
+        both,
+      ),
+    ).toEqual([]);
+    expect(
+      scan(
+        "make run CONFIG=research/configs/b1-gatemem-reference MODEL=openrouter/openai/gpt-5",
+        both,
+      ),
+    ).toEqual([]);
+    expect(readsAsWords("GetAuthorizationToken")).toBe(true);
+    expect(readsAsWords("Hynix-Memory-Roadmap-2026-Plan")).toBe(true);
+    expect(readsAsWords("Zq8kLmW2pR")).toBe(false);
+    expect(readsAsWords("--")).toBe(false);
+    expect(wordy("owner/repo-name")).toBe(true);
+    expect(wordy("a/b")).toBe(false);
+    expect(wordy(S.blob)).toBe(false);
+  });
+
+  test("a documentation placeholder in a URL is no password", () => {
+    for (const pw of ["password", "pw", "changeme", "xxxx", "****", "test"])
+      expect(scan(`postgres://user:${pw}@host:5432/db`, both), pw).toEqual([]);
   });
 
   test("every IAM action at once, in a policy document", () => {
