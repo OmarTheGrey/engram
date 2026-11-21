@@ -6,9 +6,7 @@
   "sessions_index": "../../fixtures/sessions/d1/index.json",
   "data": "../../fixtures/distill/d3-validate",
   "model": "scripted/d3-agent",
-  "seeds": [
-    1
-  ],
+  "seeds": [1],
   "preset": "medium",
   "threshold": 1,
   "at": "2026-11-21T13:00:00.000Z",
