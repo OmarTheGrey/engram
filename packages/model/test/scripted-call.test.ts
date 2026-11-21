@@ -1,6 +1,7 @@
 import { type ModelRequest, requestHash } from "@engram/core";
 import { describe, expect, test } from "vitest";
-import { scriptedModelCall } from "../src/scripted.ts";
+import type { ChatRequest } from "../src/cached.ts";
+import { scriptedChatCall, scriptedModelCall } from "../src/scripted.ts";
 
 const ask = (content: string, seed = 1): ModelRequest => ({
   model: "scripted/scripted-1",
@@ -29,5 +30,32 @@ describe("requestHash", () => {
     const b = { seed: a.seed, messages: a.messages, model: a.model };
     expect(requestHash(a)).toBe(requestHash(b));
     expect(requestHash(a)).toMatch(/^[0-9a-f]{64}$/);
+  });
+});
+
+describe("scriptedChatCall", () => {
+  const withTools: ChatRequest = {
+    ...ask("where is my order?"),
+    tools: [{ type: "function", function: { name: "get_order" } }],
+  };
+  const hash = requestHash(withTools as ModelRequest);
+
+  test("answers with tool calls, keyed on the whole request, tools included", async () => {
+    const toolCalls = [
+      { id: "c1", type: "function", function: { name: "get_order", arguments: "{}" } },
+    ];
+    const call = scriptedChatCall({ [hash]: { text: "", toolCalls } });
+    await expect(call(withTools)).resolves.toEqual({
+      text: "",
+      toolCalls,
+      usage: { input_tokens: 0, output_tokens: 0, cost_usd: 0 },
+    });
+    expect(hash).not.toBe(requestHash(ask("where is my order?")));
+  });
+
+  test("fails loudly on a request the table does not hold, naming its hash", async () => {
+    const call = scriptedChatCall({ [hash]: "ok" });
+    const other = ask("where is my order?");
+    await expect(call(other)).rejects.toThrow(requestHash(other));
   });
 });

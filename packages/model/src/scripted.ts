@@ -10,7 +10,8 @@ import {
   type ToolCall,
   type TranscriptContext,
 } from "@earendil-works/pi-ai";
-import { type ModelCall, requestHash } from "@engram/core";
+import { type ModelCall, type ModelRequest, requestHash } from "@engram/core";
+import type { ChatCall, ChatResponse } from "./cached.ts";
 
 type ScriptedToolCall = { id: string; name: string; arguments: ToolCall["arguments"] };
 
@@ -80,5 +81,27 @@ export function scriptedModelCall(table: Readonly<Record<string, string>>): Mode
       );
     }
     return { text, usage: { input_tokens: 0, output_tokens: 0, cost_usd: 0 } };
+  };
+}
+
+/** A scripted reply that may call tools: text, or text with OpenAI tool calls. */
+export type ScriptedChatReply = string | Pick<ChatResponse, "text" | "toolCalls" | "finishReason">;
+
+/**
+ * A ChatCall for the cassette proxy's tests (card B10): as `scriptedModelCall`,
+ * keyed on the hash of the whole request (tool definitions included), and a
+ * reply may carry tool calls. It costs nothing.
+ */
+export function scriptedChatCall(table: Readonly<Record<string, ScriptedChatReply>>): ChatCall {
+  return async (request) => {
+    const hash = requestHash(request as ModelRequest);
+    const reply = table[hash];
+    if (reply === undefined) {
+      throw new Error(
+        `scripted model has no answer for request ${hash} (model ${request.model}, seed ${request.seed}); add it to the table`,
+      );
+    }
+    const usage = { input_tokens: 0, output_tokens: 0, cost_usd: 0 };
+    return typeof reply === "string" ? { text: reply, usage } : { ...reply, usage };
   };
 }

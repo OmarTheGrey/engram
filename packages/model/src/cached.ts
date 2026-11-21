@@ -7,7 +7,6 @@ import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   canonicalJson,
-  type ModelCall,
   type ModelRequest,
   type ModelResponse,
   type ModelUsage,
@@ -31,6 +30,45 @@ export interface CallContext {
 export interface ServedResponse extends ModelResponse {
   upstream?: string;
 }
+
+/**
+ * A message the ModelRequest shape cannot hold, carried as the harness sent
+ * it (card B10): a tool result, an assistant turn with tool calls, a system
+ * message after the first, content in parts.
+ */
+export interface ChatMessage {
+  role: string;
+  [field: string]: unknown;
+}
+
+/**
+ * A ModelRequest widened with what a tool-use harness sends through the
+ * cassette proxy (card B10): messages the ModelRequest shape cannot hold, the
+ * tool definitions, the tool choice, and any other answer-changing parameter
+ * the proxy carries verbatim. Every field is part of the prompt hash; with
+ * none of them set it is a ModelRequest and hashes as one, so a ModelRequest
+ * is a ChatRequest.
+ */
+export interface ChatRequest extends Omit<ModelRequest, "messages"> {
+  messages: (ModelRequest["messages"][number] | ChatMessage)[];
+  /** OpenAI's `tools`, unchanged. */
+  tools?: unknown[];
+  /** OpenAI's `tool_choice`, unchanged. */
+  toolChoice?: unknown;
+  /** Every other request parameter the proxy received (`top_p`, `stop`, ...), unchanged. */
+  params?: Record<string, unknown>;
+}
+
+/** A reply that may call tools (card B10). A ModelResponse is one with no tool calls. */
+export interface ChatResponse extends ServedResponse {
+  /** OpenAI's `tool_calls`, unchanged. */
+  toolCalls?: unknown[];
+  /** OpenAI's `finish_reason`, when the upstream gave one. */
+  finishReason?: string;
+}
+
+/** A model call that may carry tool use: what the cassette proxy's upstream is. */
+export type ChatCall = (request: ChatRequest) => Promise<ChatResponse>;
 
 export interface CacheEntry {
   key: string;
@@ -95,33 +133,50 @@ export class TransientCallError extends Error {
   }
 }
 
-export function cacheKey(context: CallContext, request: ModelRequest): string {
+/**
+ * ADR 0017's key. A ChatRequest (card B10) is hashed whole, as
+ * `requestHash` hashes a ModelRequest: canonical JSON of every field, so its
+ * tool definitions and messages are in the prompt hash, and a ChatRequest
+ * with none of the widened fields set has the key of the same ModelRequest.
+ */
+export function cacheKey(context: CallContext, request: ChatRequest): string {
   return sha256(
     canonicalJson({
       ...context,
       model: request.model,
       seed: request.seed,
-      prompt: requestHash(request),
+      // requestHash is canonical JSON of the whole value; the widened fields are hashed with the rest.
+      prompt: requestHash(request as ModelRequest),
     }),
   );
 }
 
-export function cached(inner: ModelCall, options: CachedOptions): ModelCall {
+export function cached<
+  Req extends ChatRequest = ModelRequest,
+  Res extends ModelResponse = ModelResponse,
+>(inner: (request: Req) => Promise<Res>, options: CachedOptions): (request: Req) => Promise<Res> {
   const offline = () => options.offline ?? process.env.ENGRAM_OFFLINE === "1";
   /** Calls in flight by key, so concurrent identical calls reach the model once. */
-  const pending = new Map<string, Promise<ModelResponse>>();
+  const pending = new Map<string, Promise<Res>>();
   return async (request) => {
     const key = cacheKey(options.context, request);
     const hit = options.cache.get(key);
-    let response: ModelResponse;
+    let response: Res;
     if (hit) {
-      response = hit.response;
+      // An entry holds the response its call recorded, a ChatResponse's tool calls included.
+      response = hit.response as Res;
     } else {
       if (offline()) throw new OfflineMissError(key, options.context);
       let flight = pending.get(key);
       if (!flight) {
         flight = inner(request).then((r) => {
-          options.cache.set({ key, context: options.context, request, response: r });
+          // A ChatRequest is stored whole; the entry's type names the ModelRequest fields its readers use.
+          options.cache.set({
+            key,
+            context: options.context,
+            request: request as ModelRequest,
+            response: r,
+          });
           return r;
         });
         pending.set(key, flight);
