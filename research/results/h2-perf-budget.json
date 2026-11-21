@@ -1275,11 +1275,12 @@
   },
   "node": "v24.14.0",
   "notes": [
-    "Measured once on the machine named in `machine`, while about ten other coding agents ran builds and tests on it: the percentiles are an upper bound on this machine's quiet figures, and are never compared across machines.",
-    "Each cell's timed calls follow `suite.warmup` untimed ones; `n` is the number of timed calls. Where n is below 1,000 the p99.9 is interpolated between the two largest samples and is not a resolved tail; where n is below 100 the same holds for the p99.",
-    "The store of each size is written through the Plane under preset medium, as user-sourced semantic items in team scopes of at most 1,000 items, so no scope passes any preset's team budget; each preset's plane is then timed over that log and store. The log is a SQLite file in WAL mode in the temporary folder; the baseline is a bare node:sqlite file with the same pragmas, so the fsync of each commit is in both.",
-    "100,000 items is not measured: every Plane call here costs time linear in the projection (docs/log/2026-11-21-x15-finding-linear-projection-scans.md), so writing the store one item at a time through the Plane is quadratic: 10,000 items took 664 seconds on the fake (`population` below), and 100,000 would take on the order of 18 hours.",
-    "The files adapter is not measured at 10,000 items: its search reads every file in the folder on each read (docs/log/2026-11-21-x15-finding-files-search-linear.md), a median of 0.9 to 1.5 seconds per read at 1,000 items here, so the cell at 10,000 items would take roughly ten seconds a read, several minutes per preset after a population of several minutes more."
+    "Measured once, on the machine named in `machine`, while other coding agents ran builds and tests on it: CPU load sampled every 30 seconds during the run averaged 51 percent (from 0 to 100), with 30 to 75 node processes running. The figures are this machine's under that load; they are never compared across machines.",
+    "Each cell, one (preset, op), runs on its own copy of a store populated once per store and size (`start` gives the log's items and events when the cell began), so no cell inherits what an earlier one wrote or read (review finding X15-1). Each cell's timed calls follow `suite.warmup` untimed ones; `samples_ms` is in call order; `n` is the number of timed calls. Where n is below 1,000 the p99.9 is interpolated between the two largest samples and is not a resolved tail; where n is below 100 the same holds for the p99.",
+    "The store of each size is written through the Plane under preset medium, as user-sourced semantic items in team scopes of at most 1,000 items, so no scope passes any preset's team budget. The log is a SQLite file in WAL mode in the temporary folder; the baseline is a bare node:sqlite file with the same pragmas, a fresh table per op, so the fsync of each commit is in both. `baseline_of` says which baseline each op is compared with, and why.",
+    "`queries` counts what one steady call asks of the log: statements, the rows they return, and transactions. Statements stay fixed as the store grows; rows grow with it (an allowed write reads the projection three times, a denied write once, a read twice), and an allowed write also reads every read event in the log (docs/log/2026-11-21-x15-finding-whole-table-scans.md).",
+    "100,000 items is not measured: every Plane call here costs time linear in the store, so writing the store one item at a time through the Plane is quadratic: 10,000 items took 578 seconds on the fake (`population`), and 100,000 would take on the order of 16 hours by the same growth.",
+    "The files adapter is not measured at 10,000 items: its search reads every file in the folder on each read (docs/log/2026-11-21-x15-finding-files-search-revised.md), a median of 0.85 to 1.06 seconds per read at 1,000 items here, so a read at 10,000 items would take roughly ten seconds and the three read cells alone some twenty minutes."
   ],
   "overhead": [
     {
@@ -1845,6 +1846,7 @@
   "tinybench": "6.2.3",
   "tolerance": {
     "aggregate_band": 1.5,
+    "baseline_band": 4.0,
     "machine_keys": [
       "cpu",
       "cores",
@@ -1852,7 +1854,7 @@
       "os",
       "arch"
     ],
-    "median_band": null,
-    "why": null
+    "median_band": 3.0,
+    "why": "Set from real rerun noise (review finding X15-3): a second full run of the suite on the same machine, after the committed one and with nothing changed, moved plane cells' medians by at most a factor of 2.18 either way (the files adapter's allowed write at 100 items under strict), the bare node:sqlite cells' by at most 3.12 (the select at 100 items, a median of 0.018 ms), and each op's geometric mean of median ratios over its 15 plane cells by at most 1.13 (allowed writes). The per-cell bands, 3 for plane cells and 4 for bare cells, cover that noise with about a third more; they catch a cell that triples. The aggregate band, 1.5 per op, catches an op whose every cell slows by half or more, such as every read twice as slow, which no per-cell band this wide could. The check also refuses samples from another machine, Node version or tinybench version."
   }
 }

@@ -23,7 +23,8 @@ result is regenerated from them). `--rerun` is the rerun check: it runs the
 suite into a temporary file (or into `--fresh`, which it keeps, or reads
 `--fresh` when that file exists) and passes when
 - every cell's new median lies within the config's per-cell band of the
-  committed median,
+  committed median (`median_band` for plane cells, `baseline_band` for the
+  bare node:sqlite cells, whose sub-millisecond medians move more),
 - for each plane op, the geometric mean over its plane cells of the new to
   committed median ratios lies within the config's aggregate band, so a
   regression of every read cell by a factor the per-cell band admits still
@@ -246,6 +247,7 @@ def rerun_check(config: Mapping[str, Any], committed: Path, fresh: Path) -> list
     if problems:
         return problems
     band = float(config["tolerance"]["median_band"])
+    base_band = float(config["tolerance"]["baseline_band"])
     aggregate = float(config["tolerance"]["aggregate_band"])
     old_cells = {key(c): c for c in old}
     new_cells = {key(c): c for c in new}
@@ -253,10 +255,11 @@ def rerun_check(config: Mapping[str, Any], committed: Path, fresh: Path) -> list
         return ["the fresh run's cells differ from the committed ones"]
     ratios = median_ratios(old_cells, new_cells)
     for ck, ratio in ratios.items():
-        verdict = "ok" if 1 / band <= ratio <= band else "OUT"
+        width = base_band if ck[0] == "sqlite" else band
+        verdict = "ok" if 1 / width <= ratio <= width else "OUT"
         print(f"perf-budget: {verdict} {' '.join(map(str, ck))} median ratio {ratio:.3f}")
         if verdict != "ok":
-            problems.append(f"{ck}: median moved by {ratio:.3f}, outside 1/{band} to {band}")
+            problems.append(f"{ck}: median moved by {ratio:.3f}, outside 1/{width} to {width}")
         for field in ("queries", "start"):
             if old_cells[ck][field] != new_cells[ck][field]:
                 problems.append(

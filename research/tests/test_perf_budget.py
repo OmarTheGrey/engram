@@ -49,6 +49,7 @@ def config(percentiles: list[float] | None = None) -> dict[str, Any]:
         },
         "tolerance": {
             "median_band": 3.0,
+            "baseline_band": 4.0,
             "aggregate_band": 1.5,
             "machine_keys": ["cpu", "cores", "memory_bytes", "os", "arch"],
         },
@@ -207,6 +208,21 @@ def test_one_cell_outside_the_per_cell_band_fails(tmp_path: Path) -> None:
     problems = check(tmp_path, records(scale={("medium", "read"): 3.2}))
     assert problems == [
         "('fake', 100, 'medium', 'read'): median moved by 3.200, outside 1/3.0 to 3.0"
+    ]
+
+
+def test_a_bare_cell_is_judged_by_the_wider_baseline_band(tmp_path: Path) -> None:
+    new = records()
+    for r in new:
+        if r.get("op") == "sqlite-read":
+            r["samples_ms"] = [3.5 * v for v in r["samples_ms"]]
+    assert check(tmp_path, new) == []
+    for r in new:
+        if r.get("op") == "sqlite-read":
+            r["samples_ms"] = [1.2 * v for v in r["samples_ms"]]
+    problems = check(tmp_path, new)
+    assert problems == [
+        "('sqlite', 100, '', 'sqlite-read'): median moved by 4.200, outside 1/4.0 to 4.0"
     ]
 
 
