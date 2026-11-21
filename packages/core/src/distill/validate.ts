@@ -1,4 +1,4 @@
-// Replay validation (card D3; ADR 0011, ADR 0026, ADR 0042 proposed): the
+// Replay validation (card D3; ADR 0011, ADR 0026, ADR 0045 proposed): the
 // pure decision that admits a procedural candidate. Pure, like the policy
 // evaluators: no clock, no store, no model. The replayer (the runner's
 // replay-validate.ts) runs the sessions and the oracle; this file judges what

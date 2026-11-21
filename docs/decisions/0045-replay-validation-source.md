@@ -1,4 +1,4 @@
-# ADR 0042: The replay validation record's source: the plane derives it from the held-out outcomes a user-sourced actor presents
+# ADR 0045: The replay validation record's source: the plane derives it from the held-out outcomes a user-sourced actor presents
 
 Status: proposed, 2026-11-21
 Deciders: drafted by card D3 of the absorb plan; for the lead's acceptance
@@ -31,7 +31,7 @@ Supersedes: nothing. It fills the slot ADR 0026 left open ("the plane passes non
 - The plane trusts the outcomes as presented: a user who invents them is believed. That is the same trust a user-typed write gets, and the runner's cassettes make a fixture's outcomes reproducible.
 - The invariants' oracle (`promotionPermitted`, `packages/core/src/oracle.ts`, the lead's) still says a procedural candidate never lands, which stays sound because the invariants never present a replay. Extending invariant 2 to replays needs the oracle to see the replay, which this ADR does not record in the log.
 - Once candidates carry their sessions (card D2's `distill:<method>:<sessions>` ref), the plane could check `induced_from` against the candidate's own ref instead of taking the caller's list.
-- The number 0042 was free on main when drafted; a parallel card may claim it first, and then this file is renumbered.
+- Drafted as 0042 and renumbered 0045 the same day: cards E8.12 and E8.13 and the TUI design hold 0042 to 0044.
 
 ## Sources
 

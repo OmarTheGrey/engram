@@ -201,7 +201,7 @@ async function decideAndCommit(
       ),
       review: options.review === true,
       // The record is derived here from the replay's outcomes, never taken
-      // from the caller (card D3, ADR 0042 proposed).
+      // from the caller (card D3, ADR 0045 proposed).
       ...(options.replay === undefined ? {} : { validation: scoreReplay(options.replay).record }),
     },
     retiredContent(db, toScope),
