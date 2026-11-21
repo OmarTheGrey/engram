@@ -58,7 +58,7 @@ import {
   staleness,
 } from "./commit.ts";
 import { inWriteQueue } from "./queue.ts";
-import { enforceBudget } from "./retention.ts";
+import { budgetRefusal, enforceBudget } from "./retention.ts";
 import { refProblem, retiredContent } from "./write.ts";
 
 export { PROMOTE_CONFLICT_ID };
@@ -223,6 +223,20 @@ async function decideAndCommit(
       decision: "deny",
       reason: erasingReason(erasing),
       policy_id: ERASING_ID,
+    });
+    return { decision: "deny", item: null, event, events: [event] };
+  }
+  // A promotion whose landing would have to evict an item more trusted than
+  // it is refused under trust.protect_trusted, as a write is (card E2.11).
+  const roomless = budgetRefusal(deps, actor, d.promoted, "active", at);
+  if (roomless) {
+    const event = appendEvent(db, {
+      ...common,
+      id: newId(),
+      op: "promote",
+      decision: "deny",
+      reason: roomless.reason,
+      policy_id: roomless.policy_id,
     });
     return { decision: "deny", item: null, event, events: [event] };
   }

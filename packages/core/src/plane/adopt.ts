@@ -129,6 +129,7 @@ import {
 import { itemById, itemsByStoreRef } from "../items.ts";
 import type { PlaneDeps } from "../plane.ts";
 import { evaluateWrite, STORE_FAILURE_ID } from "../policy/evaluate.ts";
+import { shields } from "../policy/trust.ts";
 import { type MemoryEvent, type MemoryItem, MemoryItem as MemoryItemSchema } from "../schema.ts";
 import {
   ADOPT_ERASED_ID,
@@ -407,6 +408,10 @@ export async function adoptStoreItems(
         // adoption gives it, which the plane's item does not have (I-3). The
         // deny is recorded and the plane keeps the version it approved.
         if (stripOnly || deniedOnlyForSource(deps, adopter, item, held, at, sameContent)) return;
+        // Under trust.protect_trusted an import-sourced adopter never
+        // retires a more trusted item because the store's edit of it was
+        // denied: the plane keeps the version it approved (card E2.11).
+        if (shields(deps.policy, adopter, "import", held)) return;
         retire(
           held,
           `the store's version of item ${held.id} was denied (${event.policy_id}); the plane retires the version it held, which the store no longer has`,

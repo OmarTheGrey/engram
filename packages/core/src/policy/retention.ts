@@ -127,6 +127,13 @@ export interface RetentionOptions {
    */
   protect?: string;
   /**
+   * The items a budget eviction may choose (trust.protect_trusted, card
+   * E2.11, ADR 0040: never one more trusted than the write or sweep that
+   * triggered it, policy/trust.ts `evictable`). The others still count
+   * toward the budget. Absent, any active item may be chosen.
+   */
+  mayEvict?: (victim: MemoryItem) => boolean;
+  /**
    * Reasons name no item id, seq, read count or item count: the actor cannot
    * read the scope (review finding P4-4, as finding N3 for write denials).
    */
@@ -202,7 +209,8 @@ export function evaluateRetention(
       rule.eviction === "recency"
         ? byRecency
         : (a: MemoryItem, b: MemoryItem) => reads(a) - reads(b) || byRecency(a, b);
-    const candidates = active.filter((i) => i.id !== options.protect);
+    const mayEvict = options.mayEvict ?? (() => true);
+    const candidates = active.filter((i) => i.id !== options.protect && mayEvict(i));
     for (const victim of candidates.sort(order).slice(0, over)) {
       const why =
         rule.eviction === "recency"
@@ -221,4 +229,34 @@ export function evaluateRetention(
     }
   }
   return out;
+}
+
+/**
+ * How far `protect_trusted` would leave `scope`'s `cls` budget unmet (card
+ * E2.11, ADR 0040, decision 3): with `items` as they stand once a write
+ * lands, the overage of a recency or utility budget counted as the budget
+ * check counts it (active items not past their ttl), and how many of them the
+ * check may evict (`mayEvict`, never `protect`, the item the write lands).
+ * Null when nothing is over, the rule is manual (it evicts nothing), or there
+ * are enough eligible victims: then the write may land.
+ */
+export function evictionShortfall(
+  policy: Policy,
+  scope: string,
+  cls: MemoryClass,
+  items: readonly MemoryItem[],
+  at: string,
+  protect: string,
+  mayEvict: (victim: MemoryItem) => boolean,
+): { over: number; eligible: number; budget: number } | null {
+  const rule = retentionRule(policy, scope, cls);
+  if (!rule || rule.budget === null || rule.eviction === "manual") return null;
+  const active = items.filter(
+    (i) =>
+      i.scope === scope && i.class === cls && i.status === "active" && !isExpired(policy, i, at),
+  );
+  const over = active.length - rule.budget;
+  if (over <= 0) return null;
+  const eligible = active.filter((i) => i.id !== protect && mayEvict(i)).length;
+  return eligible >= over ? null : { over, eligible, budget: rule.budget };
 }

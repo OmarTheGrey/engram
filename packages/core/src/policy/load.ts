@@ -92,15 +92,25 @@ export function parsePolicy(text: string, source: string): Policy {
 export const PRESETS = ["strict", "medium", "permissive"] as const;
 export type PresetName = (typeof PRESETS)[number];
 
+/**
+ * Bundled presets that are no registered condition of H1 to H4, so never in
+ * PRESETS, which the runner's configs and the registered scripts take:
+ * `medium-trust`, the medium preset with both trust floors on (card E2.11,
+ * ADR 0040, decision 6).
+ */
+export const EXTRA_PRESETS = ["medium-trust"] as const;
+export type ExtraPresetName = (typeof EXTRA_PRESETS)[number];
+
 /** Where a bundled preset's YAML lives. */
-export function presetUrl(name: PresetName): URL {
-  if (!PRESETS.includes(name))
-    throw new Error(`unknown preset "${name}"; expected one of ${PRESETS.join(", ")}`);
+export function presetUrl(name: PresetName | ExtraPresetName): URL {
+  const known: readonly string[] = [...PRESETS, ...EXTRA_PRESETS];
+  if (!known.includes(name))
+    throw new Error(`unknown preset "${name}"; expected one of ${known.join(", ")}`);
   return new URL(`../../policies/${name}.yaml`, import.meta.url);
 }
 
 /** Load and validate a bundled preset by name. */
-export function loadPreset(name: PresetName): Policy {
+export function loadPreset(name: PresetName | ExtraPresetName): Policy {
   return parsePolicy(readFileSync(presetUrl(name), "utf8"), `policies/${name}.yaml`);
 }
 
@@ -146,7 +156,9 @@ const NOT_ENFORCED_YET = {
     // injection_screen is enforced by card E2.10 (policy/injection-screen.ts).
     max_content_bytes: "E2.9",
   },
-  trust: { unattested_floor: "E2.11", protect_trusted: "E2.11" },
+  // Both trust options are enforced by card E2.11 (policy/trust.ts). The key
+  // stays, so its options keep the YAML 1.1 quoting hint (OPTION_BLOCKS).
+  trust: {},
 } as const;
 const OPTION_BLOCKS: readonly string[] = Object.keys(NOT_ENFORCED_YET);
 
