@@ -70,6 +70,13 @@ import {
   UnpinnedData,
 } from "../src/count.ts";
 import type { ProbeResult } from "../src/gatemem-probe.ts";
+import {
+  countInduceConfig,
+  isInduceConfig,
+  readInduceConfig,
+  runInduceConfig,
+  writeInduceResult,
+} from "../src/induce.ts";
 import { JournalMismatch, type Stopped } from "../src/journal.ts";
 import {
   countFaultSetConfig,
@@ -489,6 +496,56 @@ async function runFaultSet(path: string, out: string, flags: Flags): Promise<Out
   return { code: 0, sessions: result.rows.length, calls: result.calls };
 }
 
+/**
+ * An induction config (card D2): candidate procedures induced from recorded
+ * pi sessions, by Agent Workflow Memory's induction through the config's
+ * cassettes and by its rule-based control, each written through the plane.
+ * It replays its committed cassettes (or records them from its script with
+ * --record), or is counted; it has no live run until card X11.
+ */
+async function runInduce(path: string, out: string, flags: Flags): Promise<Outcome> {
+  if (flags.live || flags.replay || flags.shard || flags.merge !== undefined || flags.resume) {
+    console.error(
+      "run.ts: an induction config replays its cassettes, records them (make fixtures) or is counted; a live induction is card X11, and it is not sharded or resumed",
+    );
+    return FAILED;
+  }
+  const config = readInduceConfig(path);
+  if (flags.count) {
+    const count = countInduceConfig(config, REPO);
+    mkdirSync(out, { recursive: true });
+    writeFileSync(join(out, "count.json"), `${JSON.stringify(count, null, 2)}\n`);
+    console.log(
+      [
+        `${count.config}: benchmark ${count.benchmark}, model ${count.model}, methods ${count.methods.join(", ")}`,
+        `data ${count.data}: ${count.sessions} sessions, ${count.examples} examples`,
+        `calls: ${count.calls} (one AWM induction per seed: ${count.seeds.join(", ")}), ${count.prompt_chars} prompt characters each`,
+        "no model was called; no cassette was read or written",
+        `written to ${join(out, "count.json")}`,
+      ].join("\n"),
+    );
+    return { code: 0, sessions: count.sessions, calls: { new: 0, cached: 0 } };
+  }
+  const result = await runInduceConfig(config, { offline: !flags.record });
+  writeInduceResult(result, out);
+  const lines = [
+    `${config.name}: ${config.items === "all" ? "all" : config.items.length} sessions x methods ${config.methods.join(", ")} x seeds ${config.seeds.join(", ")}, model ${config.model}, preset ${config.preset}`,
+    `model calls: ${result.calls.new} new, ${result.calls.cached} from cassettes`,
+    ...result.rows.flatMap((r) => [
+      `  ${r.method} seed ${r.seed}: ${r.examples.length} examples, ${r.skipped.length} skipped${r.sequence === undefined ? "" : r.sequence === null ? ", no shared run of tool calls" : `, run ${r.sequence.tools.join(" ")} on ${r.sequence.support} examples`}`,
+      ...r.candidates.map((c) =>
+        c.status === "candidate"
+          ? `    candidate ${c.skill_name} (tools ${(c.tools ?? []).join(" ")}): write ${c.write?.decision} ${c.write?.policy_id}`
+          : `    rejected ${JSON.stringify(c.title)}: ${c.reason}`,
+      ),
+    ]),
+    runFooter("pipeline", false, "no scorer; the candidates are card D3's input"),
+    `written to ${out}`,
+  ];
+  console.log(lines.join("\n"));
+  return { code: 0, sessions: result.rows.length, calls: result.calls };
+}
+
 /** COUNT=1: the config's sessions (a shard's, with SHARD=) into count.json in `out`; no model, no cassette. */
 async function countOne(config: AnyRunnerConfig, out: string, shard?: Shard): Promise<Outcome> {
   const counted = await countConfig(config, {
@@ -507,6 +564,7 @@ async function countOne(config: AnyRunnerConfig, out: string, shard?: Shard): Pr
 
 /** Run, replay, record or count one config into `out`. */
 async function runOne(path: string, out: string, flags: Flags): Promise<Outcome> {
+  if (isInduceConfig(path)) return runInduce(path, out, flags);
   if (isLongMemEvalConfig(path)) return runLongMemEval(path, out, flags);
   if (
     (flags.shard || flags.merge !== undefined) &&

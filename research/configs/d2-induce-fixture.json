@@ -1,0 +1,26 @@
+{
+  "name": "d2-induce-fixture",
+  "kind": "pipeline",
+  "benchmark": "distill",
+  "data": "../../fixtures/sessions/d1",
+  "items": [
+    "d1-01.jsonl",
+    "d1-02.jsonl",
+    "d1-04.jsonl",
+    "d1-05.jsonl",
+    "d1-06.jsonl",
+    "d1-07.jsonl",
+    "d1-09.jsonl",
+    "d1-10.jsonl",
+    "d1-18.jsonl",
+    "d1-22.jsonl",
+    "d1-23.jsonl"
+  ],
+  "methods": ["awm", "rule"],
+  "model": "scripted/induce-1",
+  "seeds": [1],
+  "preset": "medium",
+  "scope": "person:fixture",
+  "script": "../../fixtures/distill/d2-induce-script.json",
+  "cassettes": "../../fixtures/cassettes/d2-induce-fixture"
+}
