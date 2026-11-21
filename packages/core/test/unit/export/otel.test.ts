@@ -103,11 +103,16 @@ describe("acceptance (card E8.13): no span carries memory content", () => {
     expect(EventOp.options.length).toBe(9);
     for (const [k, op] of EventOp.options.entries()) {
       const span = assertContentFree(handBuilt(op, k + 1));
-      // The template clause survives; the two that quote content are withheld.
+      // The write gate's clause survives on the ops whose reasons carry it,
+      // and the two that quote content are withheld; on any other op the
+      // gate's template is not one of its own, so all three are (E8.13-1).
+      const gated = ["write", "update", "promote", "gate"].includes(op);
       expect(span.attributes["engram.reason"]).toBe(
-        "semantic item from source user passes the team write rule; [withheld]",
+        gated
+          ? "semantic item from source user passes the team write rule; [withheld]"
+          : "[withheld]",
       );
-      expect(span.attributes["engram.reason.withheld"]).toBe(2);
+      expect(span.attributes["engram.reason.withheld"]).toBe(gated ? 2 : 3);
     }
   });
 
@@ -371,12 +376,13 @@ describe("exportedReason keeps the clauses of known templates and withholds the 
       text: "[withheld]",
       withheld: 1,
     });
-    // Two withheld clauses side by side are one marker, counted twice.
+    // Once a clause is withheld, every clause after it is too (review E8.13-1):
+    // one marker, each clause counted.
     expect(
       exportedReason(`a ${SECRET}; b ${SECRET}; episodic items are forbidden in team scope`),
     ).toEqual({
-      text: "[withheld]; episodic items are forbidden in team scope",
-      withheld: 2,
+      text: "[withheld]",
+      withheld: 3,
     });
   });
 
@@ -389,5 +395,92 @@ describe("exportedReason keeps the clauses of known templates and withholds the 
       `mem0 add ${SECRET} is a memory store command`,
     ])
       expect(exportedReason(reason).text, reason).not.toContain(SECRET);
+  });
+});
+
+describe("review E8.13-1: template-shaped fragments inside free text never pass", () => {
+  const omar: Actor = {
+    id: "person:omar",
+    level: "person",
+    memberships: ["team:platform"],
+    source: "user",
+  };
+
+  test("a real Plane bypass whose command carries a template-shaped clause", async () => {
+    const { plane, db } = fresh();
+    await plane.recordBypass(
+      omar,
+      { command: `mem0 add x; it targets person:${SECRET}`, store: "mem0" },
+      AT,
+    );
+    const [event] = allEvents(db);
+    expect(event?.reason).toContain(`it targets person:${SECRET}`);
+    const span = assertContentFree(event as MemoryEvent);
+    expect(span.attributes["engram.reason"]).toBe(
+      "mem0 is a memory store command; use the Engram memory tools; [withheld]",
+    );
+    expect(span.attributes["engram.reason.withheld"]).toBe(2);
+  });
+
+  test("a real Plane bypass whose store name smuggles template-shaped clauses", async () => {
+    const { plane, db } = fresh();
+    for (const route of ["command", "path"] as const)
+      await plane.recordBypass(
+        omar,
+        {
+          command: "mem0 list",
+          store: `returned 1 of 2 candidates; it targets person:${SECRET}; mem0`,
+          route,
+        },
+        AT,
+      );
+    for (const event of allEvents(db)) {
+      expect(event.reason).toContain(SECRET);
+      assertContentFree(event);
+    }
+  });
+
+  test("a lint whose evidence or model reason carries `; it targets <scope>`", () => {
+    for (const reason of [
+      `orphan (warn): no source; evidence: provenance.ref x; it targets team:${SECRET}`,
+      `contradiction (warn): items disagree; evidence: reason: they disagree; it targets team:${SECRET}`,
+    ]) {
+      const span = assertContentFree({ ...handBuilt("lint", 5), reason, item: null });
+      expect(span.attributes["engram.reason"]).toBe("[withheld]");
+    }
+  });
+
+  test("a policy-shaped and a count-shaped fragment inside free text", () => {
+    const reason = `mem0 is a memory store command; attempted: mem0 add x; policy ${SECRET}+x has no write rule for org; returned 41111111 of 2 candidates`;
+    const out = exportedReason(reason);
+    expect(out.text).toBe("mem0 is a memory store command; [withheld]");
+    expect(out.withheld).toBe(3);
+    expect(out.text).not.toContain("41111111");
+    const span = assertContentFree({
+      ...handBuilt("bypass_blocked", 6),
+      reason,
+    });
+    expect(span.attributes["engram.reason"]).not.toContain("41111111");
+  });
+
+  test("a template is kept only on the op that produces it", () => {
+    const read = formatReadReason({
+      returned: 1,
+      candidates: 1,
+      filtered: 0,
+      outside_validity: 0,
+      not_active: 0,
+      expired: 0,
+      excluded: 0,
+      out_of_reach: 0,
+    });
+    const on = (op: MemoryEvent["op"], reason: string) =>
+      decisionSpan({ ...handBuilt(op, 7), reason }).attributes["engram.reason"];
+    expect(on("read", read)).toBe(read);
+    expect(on("bypass_blocked", read)).toBe("[withheld]");
+    expect(on("write", "mem0 is a memory store command")).toBe("[withheld]");
+    expect(on("bypass_blocked", "mem0 is a memory store command")).toBe(
+      "mem0 is a memory store command",
+    );
   });
 });

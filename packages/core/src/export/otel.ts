@@ -112,10 +112,15 @@ const SCREEN = String.raw`the injection screen \((?:default|hardened) profile, a
  * counts (plane/read-reason.ts), the injection screen (card E2.10), the
  * content guards (card E2.9), the bypass record (plane/bypass.ts) and
  * retention (policy/retention.ts). A producer not listed, or one whose
- * wording changes, is withheld: the failure is closed.
+ * wording changes, is withheld: the failure is closed. Each family is kept
+ * only on the ops whose reasons it comes from (OP_TEMPLATES), so a field a
+ * caller sets at the head of a reason (a bypass's store name) cannot pass as
+ * another producer's clauses (review E8.13-1).
  */
-const TEMPLATES: readonly RegExp[] = [
-  // The write gate.
+const compile = (sources: readonly string[]) => sources.map((s) => new RegExp(`^${s}$`));
+
+/** The write gate, the provenance note, the injection screen and the content guards. */
+const GATE_TEMPLATES = compile([
   `${CLASS} item from source ${KIND} passes the ${LEVEL} write rule`,
   `${CLASS} items are forbidden in ${LEVEL} scope`,
   `source ${KIND} is not allowed in ${LEVEL} scope`,
@@ -130,12 +135,6 @@ const TEMPLATES: readonly RegExp[] = [
   "grants let others read, never write",
   `provenance set by the plane: source ${KIND}, actor ${PRINCIPAL}`,
   "provenance as claimed by the caller",
-  // The read's counts.
-  `returned ${N} of ${N} candidates`,
-  String.raw`${N} filtered \(${N} outside the validity window, ${N} not active, ${N} past their ttl, ${N} by a grant's class or expiry\)`,
-  `${N} cut by the read limit`,
-  `${N} projected (?:item|items) outside the reader's reach were not candidates`,
-  `validity windows judged at ${TIME}`,
   // The injection screen.
   `${SCREEN} scores ${N} at threshold ${N}: ${HITS}`,
   `${SCREEN} fails closed: rule ${NAME} (?:threw ${ERROR_NAME}|${N} characters exceed its bound of ${N})`,
@@ -152,12 +151,27 @@ const TEMPLATES: readonly RegExp[] = [
   `the content is ${N} characters, beyond the ${N} a content guard scans(?:, so it fails closed)?`,
   "a guard in block denies what it cannot scan",
   `the content guard rule ${GUARD_KIND} failed, so it fails closed`,
-  // The bypass record; its `attempted:` clause is never a template.
+]);
+
+/** The read's counts. */
+const READ_TEMPLATES = compile([
+  `returned ${N} of ${N} candidates`,
+  String.raw`${N} filtered \(${N} outside the validity window, ${N} not active, ${N} past their ttl, ${N} by a grant's class or expiry\)`,
+  `${N} cut by the read limit`,
+  `${N} projected (?:item|items) outside the reader's reach were not candidates`,
+  `validity windows judged at ${TIME}`,
+]);
+
+/** The bypass record (plane/bypass.ts); its `attempted:` clause is never a template. */
+const BYPASS_TEMPLATES = compile([
   `${NAME} is a memory store command`,
   "use the Engram memory tools",
   `the path is inside the root of store ${NAME}`,
   "a memory tool result the Engram extension did not produce was withheld from the model",
-  // Retention.
+]);
+
+/** Retention's retire and evict reasons (policy/retention.ts). */
+const RETENTION_TEMPLATES = compile([
   String.raw`item ${UUID} expired at ${TIME} \(valid_from ${TIME} plus ttl ${N}s, from ${TTL_SOURCE}\)`,
   String.raw`an item in ${SCOPE} passed its ttl \(from ${TTL_SOURCE}\)`,
   "retired, kept in the log and the store",
@@ -167,7 +181,33 @@ const TEMPLATES: readonly RegExp[] = [
   String.raw`evicted the least read \(${N} reads returned it; last change seq ${N}\): item ${UUID}`,
   "an item was evicted by (?:recency|utility)",
   "eviction is manual, so nothing is evicted and a person decides",
-].map((source) => new RegExp(`^${source}$`));
+]);
+
+/**
+ * The templates each op's reasons may keep. A promotion, its gate and a
+ * grant change embed the write gate's reason; a lint's reason is its
+ * finding's message and evidence, never kept (its id and severity are
+ * attributes of their own).
+ */
+const OP_TEMPLATES: Record<z.infer<typeof EventOp>, readonly RegExp[]> = {
+  write: GATE_TEMPLATES,
+  update: GATE_TEMPLATES,
+  promote: GATE_TEMPLATES,
+  gate: GATE_TEMPLATES,
+  read: READ_TEMPLATES,
+  retire: RETENTION_TEMPLATES,
+  evict: RETENTION_TEMPLATES,
+  bypass_blocked: BYPASS_TEMPLATES,
+  lint: [],
+};
+
+/** Every family: what `exportedReason` judges a reason against when no op is named. */
+const ALL_TEMPLATES = [
+  ...GATE_TEMPLATES,
+  ...READ_TEMPLATES,
+  ...BYPASS_TEMPLATES,
+  ...RETENTION_TEMPLATES,
+];
 
 /** What adoption puts before every reason (plane/commit.ts ADOPTION_PREFIX and the store's name). */
 const ADOPTED = new RegExp(`^(adopted from store ${NAME}: )(.*)$`, "s");
@@ -191,17 +231,24 @@ function clauses(reason: string): string[] {
   return out;
 }
 
-const known = (clause: string) => TEMPLATES.some((t) => t.test(clause));
-
 /**
- * The reason as a span carries it: each clause kept when its whole text is a
- * template's, else replaced by `[withheld]` (adjacent ones merged into one
- * marker); `withheld` counts the clauses replaced.
+ * The reason as a span carries it: its clauses kept, in order, while each
+ * whole clause is a template of `op`'s (any family's when `op` is not
+ * named); from the first clause that is not, that clause and every clause
+ * after it are one `[withheld]` marker, and `withheld` counts them all. Free
+ * text in a reason (a bypass's command, a lint's evidence, a store's error)
+ * may hold fragments shaped like a template, split at its own `; `, so
+ * nothing after it is judged (review E8.13-1). Every producer puts its free
+ * text at the tail, so no clause kept before this rule is lost.
  */
-export function exportedReason(reason: string): { text: string; withheld: number } {
+export function exportedReason(
+  reason: string,
+  op?: z.infer<typeof EventOp>,
+): { text: string; withheld: number } {
+  const templates = op === undefined ? ALL_TEMPLATES : OP_TEMPLATES[op];
+  const all = clauses(reason);
   const parts: string[] = [];
-  let withheld = 0;
-  for (const [i, raw] of clauses(reason).entries()) {
+  for (const [i, raw] of all.entries()) {
     let clause = raw;
     let prefix = "";
     const adopted = i === 0 ? ADOPTED.exec(raw) : null;
@@ -209,13 +256,13 @@ export function exportedReason(reason: string): { text: string; withheld: number
       prefix = adopted[1] as string;
       clause = adopted[2] as string;
     }
-    if (known(clause)) parts.push(`${prefix}${clause}`);
-    else {
-      withheld++;
-      if (parts.at(-1) !== WITHHELD) parts.push(WITHHELD);
+    if (!templates.some((t) => t.test(clause))) {
+      parts.push(WITHHELD);
+      return { text: parts.join("; "), withheld: all.length - i };
     }
+    parts.push(`${prefix}${clause}`);
   }
-  return { text: parts.join("; "), withheld };
+  return { text: parts.join("; "), withheld: 0 };
 }
 
 /** A lint event's lint id and severity, from its reason's head `<lint id> (<severity>): `. */
@@ -225,7 +272,7 @@ const LINT_HEAD = new RegExp(`^(${NAME}) \\((info|warn|error)\\): `);
 export function decisionSpan(event: MemoryEvent): DecisionSpan {
   const name = OPERATION_NAMES[event.op];
   const hex = event.id.replaceAll("-", "").toLowerCase();
-  const reason = exportedReason(event.reason);
+  const reason = exportedReason(event.reason, event.op);
   const a: Record<string, string | number | boolean> = {
     "gen_ai.operation.name": name,
     "engram.event.id": event.id,
