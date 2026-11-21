@@ -351,7 +351,14 @@ export interface HttpListening {
  */
 export function serveHttp(
   makeServer: (actor?: Actor) => Server,
-  options: { host?: string; port: number; auth: ServeAuth; asserted?: string } & HttpSessionOptions,
+  options: {
+    host?: string;
+    port: number;
+    auth: ServeAuth;
+    asserted?: string;
+    /** The clock credentials are judged at, ISO 8601 UTC; the wall clock unless injected. */
+    clock?: () => string;
+  } & HttpSessionOptions,
 ): Promise<HttpListening> {
   const host = options.host ?? "127.0.0.1";
   const credentials = options.auth.insecureLoopback !== true;
