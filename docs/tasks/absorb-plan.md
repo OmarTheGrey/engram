@@ -207,7 +207,7 @@ Existing cards the plan rewrites: B7, D1, D2 and D3. All others are new. D4 (dri
 
 **23. X14. The red-team harness.**
 - *Why.* E2.9, E2.10 and E2.11 claim to stop things. A claim like that needs an attack suite it did not write for itself, with benign controls, or it is marketing. The harness turns the three cards into one table the thesis can cite.
-- *How.* A seeded, replayable suite against `Plane.write` and `Plane.read` under the registered conditions, extending the poisoning arm: OWASP's 23 scenarios with their severity grades, pinned public payload sets, and benign controls scored with Wilson intervals. `make redteam` offline from cassettes. A live run waits for its arm to be registered.
+- *How.* A seeded, replayable suite against `Plane.write` and `Plane.read` under the registered conditions, extending the poisoning arm: OWASP's 21 AMSB scenarios at `b052787cc342` (15 attacks and 6 benign controls) with their severity grades, pinned public payload sets, and benign controls scored with Wilson intervals. `make redteam` offline from cassettes. A live run waits for its arm to be registered.
 - *Absorbs.* The AMSB corpus of OWASP's Agent Memory Guard (Apache-2.0, copy, as data with attribution), the deepset and Lakera payload sets (Apache-2.0 and MIT, depend, pinned), the probe structure of garak and PyRIT (ideas).
 - *Acceptance.* An offline run from cassettes and a `make test-repro` row.
 
