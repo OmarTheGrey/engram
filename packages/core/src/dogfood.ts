@@ -175,6 +175,7 @@ export const ENGRAM_RULES: readonly string[] = [
   "engram/retention/sweep",
   "engram/write/conflict",
   "engram/write/default-deny",
+  "engram/write/downgrade",
   "engram/write/erased",
   "engram/write/grant",
   "engram/write/injection-screen",
