@@ -7,6 +7,7 @@ export * from "./cached.ts";
 export * from "./proxy.ts";
 export { type RecordingPlace, recordingRefusal } from "./recording.ts";
 export {
+  isScriptedChatCall,
   type ScriptedChatReply,
   type ScriptedPiModel,
   type ScriptStep,

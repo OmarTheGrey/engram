@@ -33,7 +33,7 @@ import {
   RESERVED_HARNESSES,
   startProxy,
 } from "../src/proxy.ts";
-import { scriptedChatCall, scriptedModelCall } from "../src/scripted.ts";
+import { isScriptedChatCall, scriptedChatCall, scriptedModelCall } from "../src/scripted.ts";
 
 const open: ProxyHandle[] = [];
 afterEach(async () => {
@@ -631,18 +631,62 @@ describe("modes and refusals", () => {
     await expect(record(join(repo, ".engram", "runs", "x"), { repo: undefined })).rejects.toThrow(
       /needs the repository root/,
     );
+    const update = { ENGRAM_UPDATE_FIXTURES: "1" };
     await expect(
-      record(join(repo, ".engram", "runs", "x"), { recordFixtures: true }),
+      record(join(repo, ".engram", "runs", "x"), { recordFixtures: true, env: update }),
     ).rejects.toThrow(/fixtures\/ only/);
 
     await expect(record(join(repo, ".engram", "runs", "x"))).resolves.toBeDefined();
     await expect(record(join(repo, "..", "outside"))).resolves.toBeDefined();
-    await expect(record(fixtures, { recordFixtures: true })).resolves.toBeDefined();
+    await expect(record(fixtures, { recordFixtures: true, env: update })).resolves.toBeDefined();
     // Replay reads committed cassettes, as make run does: the guard is for recording only.
     await expect(proxy({ cache: fileCache(fixtures), repo })).resolves.toBeDefined();
     await expect(
       proxy({ cache: memoryCache(), record: "new_episodes", upstream: scriptedChatCall({}) }),
     ).resolves.toBeDefined();
+  });
+
+  test("recordFixtures needs ENGRAM_UPDATE_FIXTURES=1 and a scripted upstream", async () => {
+    const repo = tempRepo();
+    const fixtures = join(repo, "fixtures", "cassettes", "b10");
+    const update = { ENGRAM_UPDATE_FIXTURES: "1" };
+    const scripted = scriptedChatCall({});
+    // A plain async upstream, as a live pi-ai call would be: never a fixture.
+    const plain: ChatCall = async (request) => scripted(request);
+    const record = (extra: Partial<ProxyOptions>) =>
+      startProxy({
+        cache: memoryCache(),
+        record: "new_episodes",
+        upstream: scripted,
+        env: update,
+        repo,
+        recordFixtures: true,
+        ...extra,
+      }).then((h) => {
+        open.push(h);
+        return h;
+      });
+    await expect(record({ upstream: plain })).rejects.toThrow(ProxyRefused);
+    await expect(record({ upstream: plain })).rejects.toThrow(/scriptedChatCall/);
+    await expect(record({ cache: fileCache(fixtures), upstream: plain })).rejects.toThrow(
+      /scriptedChatCall/,
+    );
+    await expect(record({ env: {} })).rejects.toThrow(ProxyRefused);
+    await expect(record({ cache: fileCache(fixtures), env: {} })).rejects.toThrow(
+      /ENGRAM_UPDATE_FIXTURES=1/,
+    );
+    await expect(record({ env: { ENGRAM_UPDATE_FIXTURES: "0" } })).rejects.toThrow(
+      /ENGRAM_UPDATE_FIXTURES=1/,
+    );
+    await expect(record({ cache: fileCache(fixtures) })).resolves.toBeDefined();
+    expect(isScriptedChatCall(scripted)).toBe(true);
+    expect(isScriptedChatCall(plain)).toBe(false);
+    // The brand is a symbol no enumeration shows, so a copy of the call (a spread) does not carry it.
+    const brands = Object.getOwnPropertySymbols(scripted);
+    expect(brands).toHaveLength(1);
+    expect(brands.filter((b) => Object.prototype.propertyIsEnumerable.call(scripted, b))).toEqual(
+      [],
+    );
   });
 
   test("the context headers are the six cell fields", () => {
@@ -721,6 +765,18 @@ describe("checkHarnessEndpoint", () => {
     );
     expect(() => checkHarnessEndpoint("https://api.openai.com/v1", stated)).toThrow(
       /not the cassette proxy/,
+    );
+  });
+
+  test("an endpoint that names no port is on port 80", () => {
+    expect(() => checkHarnessEndpoint("http://127.0.0.1/v1", { port: 7400 })).toThrow(
+      /port 80, http's default, since it names none/,
+    );
+    expect(checkHarnessEndpoint("http://127.0.0.1/v1", { port: 80 })).toBe(
+      "http://127.0.0.1:80/v1",
+    );
+    expect(checkHarnessEndpoint("http://127.0.0.1:80/v1", { port: 80 })).toBe(
+      "http://127.0.0.1:80/v1",
     );
   });
 

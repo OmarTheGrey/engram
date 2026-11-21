@@ -223,7 +223,9 @@ export function memoryCache(): CacheStore {
  * One JSON file per entry, named by key: the cassette format. Only a missing
  * file is a miss; a file that does not parse is an error, so a damaged
  * cassette is never silently paid for again. Writes go to a temporary file
- * and are renamed into place.
+ * and are renamed into place. It creates `dir` (and its parents) when called,
+ * before any write: code that records into a folder runs `recordingRefusal`
+ * on it before building the cache, so a refused folder is never created.
  */
 export function fileCache(dir: string): CacheStore {
   mkdirSync(dir, { recursive: true });

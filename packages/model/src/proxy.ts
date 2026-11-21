@@ -58,6 +58,7 @@ import {
   type UsageRecord,
 } from "./cached.ts";
 import { recordingRefusal, within } from "./recording.ts";
+import { isScriptedChatCall } from "./scripted.ts";
 
 /** vcrpy's record modes the proxy offers: replay only, or record what is not yet recorded. */
 export type RecordMode = "none" | "new_episodes";
@@ -192,7 +193,9 @@ export interface ProxyOptions {
   committed?: readonly string[];
   /**
    * Record scripted cassettes into `<repo>/fixtures/`, as `make fixtures`
-   * does: the file cache's folder must then be inside `fixtures/`.
+   * does: accepted only with ENGRAM_UPDATE_FIXTURES=1 in `env` (the variable
+   * `make fixtures` sets) and an upstream made by `scriptedChatCall`, and the
+   * file cache's folder must then be inside `fixtures/` (verification V-1).
    */
   recordFixtures?: boolean;
 }
@@ -459,10 +462,24 @@ function asRequestError(e: unknown, key: string | undefined): ProxyRequestError 
  * The runner's live guard on the folder a recording writes (B10-8): a file
  * cache records under `<repo>/.engram/` or outside the repository, never
  * into `fixtures/` or a committed folder, unless `recordFixtures` asks for
- * `fixtures/` (and then only there). A cache that names no folder (a memory
- * cache) writes no file and is not checked.
+ * `fixtures/` (and then only there). `recordFixtures` itself is refused
+ * unless ENGRAM_UPDATE_FIXTURES=1 is set and the upstream is scripted, so no
+ * live, paid reply becomes a golden that `make test` replays (V-1). A cache
+ * that names no folder (a memory cache) writes no file and is not checked.
  */
-function refuseRecordingPlace(options: ProxyOptions) {
+function refuseRecordingPlace(options: ProxyOptions, env: NodeJS.ProcessEnv) {
+  if (options.recordFixtures === true) {
+    if (env.ENGRAM_UPDATE_FIXTURES !== "1") {
+      throw new ProxyRefused(
+        "recordFixtures needs ENGRAM_UPDATE_FIXTURES=1, which make fixtures sets; fixture cassettes are recorded by make fixtures only",
+      );
+    }
+    if (!isScriptedChatCall(options.upstream)) {
+      throw new ProxyRefused(
+        "recordFixtures needs an upstream made by scriptedChatCall; a live model's replies never become fixture cassettes",
+      );
+    }
+  }
   const dir = options.cache.dir;
   if (dir === undefined) return;
   if (options.repo === undefined) {
@@ -505,7 +522,7 @@ export async function startProxy(options: ProxyOptions): Promise<ProxyHandle> {
     if (options.upstream === undefined) {
       throw new ProxyRefused("record mode new_episodes needs an upstream to answer a miss");
     }
-    refuseRecordingPlace(options);
+    refuseRecordingPlace(options, env);
   }
   const fixed = checkedContext(options.context ?? {});
   const limit = options.maxBodyBytes ?? 64 * 1024 * 1024;
@@ -665,8 +682,9 @@ export class HarnessEndpointRefused extends Error {
  * `http://127.0.0.1:<port>/v1`. `expected` names the proxy's port: the
  * running proxy's handle, or `{ port }` as the research config states it
  * before the proxy starts on that port. Anything else is refused: another
- * host or scheme, credentials, a query or fragment, no port, a path other
- * than `/v1`, and any other port, since another loopback server (Ollama,
+ * host or scheme, credentials, a query or fragment, a path other than
+ * `/v1`, and any other port (no port named is port 80), since another
+ * loopback server (Ollama,
  * vLLM, a LiteLLM proxy server that forwards to a paid API) is not the
  * cassette proxy (review B10-1). ADR 0036 states the limit: this checks what
  * the harness was configured with, and cannot stop a harness that ignores
@@ -701,16 +719,18 @@ export function checkHarnessEndpoint(endpoint: unknown, expected: { port: number
   if (url.search !== "" || url.hash !== "") {
     throw new HarnessEndpointRefused(endpoint, "it carries a query or a fragment");
   }
-  if (url.port === "") throw new HarnessEndpointRefused(endpoint, "it names no port");
   if (url.pathname !== "/v1" && url.pathname !== "/v1/") {
     throw new HarnessEndpointRefused(endpoint, "the proxy's base path is /v1");
   }
-  const normal = `http://127.0.0.1:${url.port}/v1`;
-  if (Number(url.port) !== port) {
+  // URL leaves the port blank when none is named or when it is http's default, 80 (V-3).
+  const given = url.port === "" ? 80 : Number(url.port);
+  if (given !== port) {
+    const named =
+      url.port === "" ? "port 80, http's default, since it names none" : `port ${given}`;
     throw new HarnessEndpointRefused(
       endpoint,
-      `the cassette proxy of this run is on port ${port}, at http://127.0.0.1:${port}/v1`,
+      `it is on ${named}, and the cassette proxy of this run is on port ${port}, at http://127.0.0.1:${port}/v1`,
     );
   }
-  return normal;
+  return `http://127.0.0.1:${given}/v1`;
 }
