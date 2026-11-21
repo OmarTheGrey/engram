@@ -66,3 +66,21 @@ Mnemowall (https://github.com/Mnemowall/mnemowall-sdk, commit
   This product is licensed under the Apache License, Version 2.0 (see LICENSE).
 
 Modified here: see the header of injection-screen.ts.
+
+------------------------------------------------------------------------
+Claude-Mem
+
+packages/core/test/unit/lint/near-duplicate.test.ts copies the golden vectors
+of tests/dedup/fixtures/golden.json, and packages/core/src/lint/near-duplicate.ts
+ports src/services/dedup/ (idf.ts, tfidfCosine.ts, idfVeto.ts, nearDuplicate.ts),
+from Claude-Mem (https://github.com/thedotmack/claude-mem, commit
+f1bb834527637231e23575e2a70c57375efdac04), whose NOTICE reads:
+
+  Claude-Mem
+  Copyright 2026 Alex Newman
+
+  This product includes software developed for the Claude-Mem project.
+
+  Licensed under the Apache License, Version 2.0.
+
+Modified here: see the header of near-duplicate.ts.

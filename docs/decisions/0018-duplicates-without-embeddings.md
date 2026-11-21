@@ -28,6 +28,10 @@ Amendment made when implementing card L1, 2026-11-06, accepted on 2026-11-20 und
 
 - The exact duplicate lint uses the strict form (`strictContentHash`): an active item is flagged when an active item of the same scope and class with a smaller id (earlier, since ids are UUIDv7) has the same strict hash; the earliest is kept and not flagged. Flagging is advisory, so not merging is the safe direction: "US" and "us" stay two items, while whitespace and format characters do not separate them. Retired and candidate items are not compared. The near-duplicate form (MinHash) is not part of card L1.
 
+Note made when implementing card L5, 2026-11-21 (the promise of the decision kept; drafted by card L5 of the absorb plan, for the lead's acceptance):
+
+- The near-duplicate form is a deterministic lint of its own id, `near-duplicate-tier` (`packages/core/src/lint/near-duplicate.ts`, beside `duplicates()` in `lint/det.ts`), run only when a policy lists that id; no registered preset does, so `duplicate` stays exact-only and every registered lint report is unchanged (`packages/core/test/unit/lint/near-duplicate-presets.test.ts`). It reads its fixed threshold from `lints.thresholds.near-duplicate` (0.85 when unset). MinHash with a fixed seed: 128 permutations in 32 bands of 4 rows, over character 3-grams of text under 32 words and word 2-grams from 32. A pair it estimates at or above the threshold is then held to a precision tier: an IDF-weighted cosine over the scope's items at the same threshold, and vetoes when each side holds a rare term the other lacks, when a number of one kind differs, or when a word one side negates the other states plainly. Exact copies stay the exact lint's. No embedding is used.
+
 ## Alternatives considered
 
 No alternatives were recorded beyond the recommendation.
