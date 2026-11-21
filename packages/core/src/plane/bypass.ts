@@ -6,10 +6,13 @@
 // reason keeps what was attempted (finding R7-9), on one line, cut to a fixed
 // length and with what looks like a secret replaced by `<redacted>`, so the
 // log tells `mem0 delete --all` from `mem0 list` without holding a key.
+// The secret patterns are the redactor's entries of the content guard's one
+// table (policy/secrets.ts, card E2.9, ADR 0039), applied in its order.
 import { z } from "zod";
 import { type Actor, InvalidCallError } from "../actor.ts";
 import { appendEvent } from "../events.ts";
 import type { Bypass, PlaneDeps } from "../plane.ts";
+import { REDACTION_LONG_TOKEN, REDACTIONS, SECRET_NAME } from "../policy/secrets.ts";
 import type { MemoryEvent } from "../schema.ts";
 import { checkCall } from "./write.ts";
 
@@ -25,32 +28,15 @@ export const MAX_ATTEMPT_LENGTH = 160;
 
 /** What replaces a secret the table matches. */
 export const REDACTED_SECRET = "<redacted>";
-const REDACTED = REDACTED_SECRET;
-const SECRET_NAME =
-  "[A-Za-z0-9_]*(?:KEY|TOKEN|SECRET|PASSWORD|PASSWD|PWD|AUTH|CREDENTIALS?)[A-Za-z0-9_]*";
-const VALUE = `(?:'[^']*'|"[^"]*"|\\S+)`;
-
-/** Secret patterns and what replaces each match; `$1` keeps the name or flag before the value. */
-const SECRETS: [RegExp, string][] = [
-  // NAME=value where the name says it holds a secret.
-  [new RegExp(`(\\b${SECRET_NAME}=)${VALUE}`, "gi"), `$1${REDACTED}`],
-  // --api-key value, --token=value, --password value.
-  [
-    new RegExp(
-      `(--?(?:api[-_]?key|key|token|secret|password|passwd|pass|auth)(?:=|\\s+))${VALUE}`,
-      "gi",
-    ),
-    `$1${REDACTED}`,
-  ],
-  // Authorization: Bearer value.
-  [/(\bBearer\s+)[^\s'"]+/gi, `$1${REDACTED}`],
-  // Credentials in a URL.
-  [/(:\/\/)[^\s/@'"]+@/g, `$1${REDACTED}@`],
-  // Strings that look like a key whatever stands before them.
-  [/\bsk-[A-Za-z0-9_-]{8,}/g, REDACTED],
-];
-/** Any run of 32 or more key characters: every UUID, git SHA and long hash matches it too. */
-const LONG_TOKEN: [RegExp, string] = [/\b[A-Za-z0-9_-]{32,}\b/g, REDACTED];
+/**
+ * Secret patterns and what replaces each match; `$1` keeps the name or flag
+ * before the value. They are the redactor's entries of the content guard's
+ * one table (policy/secrets.ts, card E2.9, ADR 0039), in its order; the last,
+ * any run of 32 or more key characters (every UUID, git SHA and long hash
+ * matches it too), is kept apart.
+ */
+const SECRETS = REDACTIONS.filter(([p]) => p !== REDACTION_LONG_TOKEN[0]);
+const LONG_TOKEN = REDACTION_LONG_TOKEN;
 
 /**
  * `text` with every match of the secret table replaced by `<redacted>`, its

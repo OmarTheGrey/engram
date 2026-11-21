@@ -140,12 +140,11 @@ function schemaProblems(issue: z.core.$ZodIssue, js: unknown): Located[] {
  * entries when it lands.
  */
 const NOT_ENFORCED_YET = {
-  content_guards: {
-    secrets: "E2.9",
-    pii: "E2.9",
-    // injection_screen is enforced by card E2.10 (policy/injection-screen.ts).
-    max_content_bytes: "E2.9",
-  },
+  // Every content_guards option is enforced: injection_screen by card E2.10
+  // (policy/injection-screen.ts), secrets, pii and max_content_bytes by card
+  // E2.9 (policy/secrets.ts). The key stays, so its options keep the YAML 1.1
+  // quoting hint (OPTION_BLOCKS).
+  content_guards: {},
   trust: { unattested_floor: "E2.11", protect_trusted: "E2.11" },
 } as const;
 const OPTION_BLOCKS: readonly string[] = Object.keys(NOT_ENFORCED_YET);
@@ -239,11 +238,9 @@ function semanticProblems(policy: Policy): Located[] {
     for (const [option, card] of Object.entries(options)) {
       const value = set?.[option];
       if (value === undefined || value === "off") continue;
-      const until =
-        option === "max_content_bytes" ? "leave it out" : 'set it to "off" or leave it out';
       out.push({
         path: [block, option],
-        message: `${block}.${option} is not enforced yet: card ${card} enforces it; until then ${until}`,
+        message: `${block}.${option} is not enforced yet: card ${card} enforces it; until then set it to "off" or leave it out`,
       });
     }
   }
