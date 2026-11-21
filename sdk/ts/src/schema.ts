@@ -102,6 +102,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/who-can-read/item": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Who can read one item now (card E2.13): a symbolic set of readers, each with the rule or grant that admits it. Answered only for an actor who may read the item or its scope; grant holders named to its owner only; anyone else gets the refusal an unknown id gets. Appends no event. */
+        post: operations["whoCanReadItem"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/who-can-read/scope": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Who can read a scope's items by the read matrix (card E2.13), each entry with its rule. Answered only for an actor who may read the scope as a member. Appends no event. */
+        post: operations["whoCanRead"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/retain": {
         parameters: {
             query?: never;
@@ -597,6 +631,66 @@ export interface components {
             event: components["schemas"]["MemoryEvent"];
         };
         RetainRequest: {
+            actor: components["schemas"]["Actor"];
+            scope: string;
+        };
+        /** @description One entry of a who-can-read answer: every member of a scope reading as a level (the read matrix row that admits them), or every actor a live grant on the item names (the grant that admits them). */
+        ReaderEntry: {
+            /** @constant */
+            kind: "members";
+            /** @description Every actor that is a member of this scope... */
+            scope: string;
+            /**
+             * @description ...and reads as this level.
+             * @enum {string}
+             */
+            level: "person" | "role" | "team" | "org";
+            policy_id: string;
+            reason: string;
+        } | {
+            /** @constant */
+            kind: "grant";
+            /** @description Every actor whose id the grant's `to` matches (exactly, or by prefix before a final `*`). */
+            to: string;
+            /** @description The grant's place on the item, as a read's grants_used names it: `grants[<i>]:<to>`. */
+            grant: string;
+            grant_detail: components["schemas"]["Grant"];
+            policy_id: string;
+            reason: string;
+        };
+        /** @description Who can read an item or a scope (card E2.13): a symbolic set of readers, each entry with the rule or grant that admits it, from the rules that decide a read. Answered only for an actor who may read the item or its scope; grant holders named to the item's owner only (decision item 53). */
+        WhoCanReadAnswer: {
+            /** @description False when the plane refuses to answer; every other field is then empty. */
+            answered: boolean;
+            /** @description The item id or scope asked about, as given. */
+            target: string;
+            /**
+             * Format: date-time
+             * @description The time the answer is judged at: the read's access time, never before the log's head.
+             */
+            at: string;
+            /** @description Why the plane answered as it did, or why it refused. */
+            reason: string;
+            /** @description The symbolic reader set: an actor may read the target exactly when an entry admits it. */
+            readers: components["schemas"]["ReaderEntry"][];
+            /** @description Which grants an item's answer shows: all to its owner, yours (only those naming the asker) to anyone else; null for a scope (grants are on items) and for a refusal. */
+            grants_shown: ("all" | "yours") | null;
+            /** @description Why nobody may read the item now (its status, ttl or validity window), or null. */
+            closed: {
+                policy_id: string;
+                reason: string;
+            } | null;
+            /** @description To the owner only: the item's grants that admit nobody now, each with why. */
+            dormant: {
+                grant: string;
+                reason: string;
+            }[];
+        };
+        WhoCanReadItemRequest: {
+            actor: components["schemas"]["Actor"];
+            item_id: string;
+        };
+        WhoCanReadScopeRequest: {
             actor: components["schemas"]["Actor"];
             scope: string;
         };
@@ -1358,6 +1452,162 @@ export interface operations {
             };
             /** @description the workspace has no store */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    whoCanReadItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WhoCanReadItemRequest"];
+            };
+        };
+        responses: {
+            /** @description the result; a policy decision of any kind is 200 with its event */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WhoCanReadAnswer"];
+                };
+            };
+            /** @description the request fails its schema, or the plane refused the call (InvalidCallError) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description the Host or Origin is not this loopback server's, or the actor may not explain this read */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description no such route, or the read id names no read event */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description the body is over the size limit */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description the body is not application/json */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description an unexpected error; the body carries no internals */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    whoCanRead: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WhoCanReadScopeRequest"];
+            };
+        };
+        responses: {
+            /** @description the result; a policy decision of any kind is 200 with its event */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WhoCanReadAnswer"];
+                };
+            };
+            /** @description the request fails its schema, or the plane refused the call (InvalidCallError) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description the Host or Origin is not this loopback server's, or the actor may not explain this read */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description no such route, or the read id names no read event */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description the body is over the size limit */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description the body is not application/json */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description an unexpected error; the body carries no internals */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };
