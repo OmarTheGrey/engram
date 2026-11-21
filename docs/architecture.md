@@ -113,11 +113,11 @@ Retention (card E2.4, ADR 0025): the pure `evaluateRetention` decides; an item p
 
 ## Latency budget
 
-Proposed by card X15, for the lead's acceptance. What the plane costs in time is measured by the plane-overhead suite (`packages/core/bench/plane-overhead.ts`, tinybench), each (preset, op) cell on its own copy of a freshly populated store, and computed by `research/scripts/perf_budget.py` into `research/results/h2-perf-budget.json` from the committed samples (`make perf-budget`; `MEASURE=1` remeasures; `CHECK=1` reruns and compares). The budget is judged on the fake adapter, so it is the plane's own cost and not the store's, under preset medium, at p99:
+Proposed by card X15, for the lead's acceptance. What the plane costs in time is measured by the plane-overhead suite (`packages/core/bench/plane-overhead.ts`, tinybench), each (preset, op) cell on its own copy of a freshly populated store, and computed by `research/scripts/perf_budget.py` into `research/results/h2-perf-budget.json` from the committed samples (`make perf-budget`; `MEASURE=1` remeasures; `CHECK=1` reruns and compares: each cell's median within a two-sided band of the committed one, each op's geometric mean of median ratios at most 1.5). The budget is judged on the fake adapter, so it is the plane's own cost and not the store's, under preset medium, at p99:
 
 | call | store size | budget (p99) | measured p99 | met |
 |---|---|---|---|---|
-| Plane.read, ten items returned | 1,000 | 50 ms | 63.4 ms | no |
+| Plane.read, ten items returned | 1,000 | 50 ms | 63.4 ms, a tail of 50 samples (p99 not resolved; median 15.4 ms) | no |
 | Plane.write, allowed | 1,000 | 50 ms | 14.4 ms | yes |
 | Plane.read, ten items returned | 10,000 | 100 ms, and at most 100 times bare node:sqlite's p99 | 203.4 ms (119 times) | no |
 | Plane.write, allowed | 10,000 | 100 ms, and at most 100 times bare node:sqlite's p99 | 163.3 ms (41 times) | no |

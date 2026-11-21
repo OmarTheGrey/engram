@@ -26,9 +26,12 @@ suite into a temporary file (or into `--fresh`, which it keeps, or reads
   committed median (`median_band` for plane cells, `baseline_band` for the
   bare node:sqlite cells, whose sub-millisecond medians move more),
 - for each plane op, the geometric mean over its plane cells of the new to
-  committed median ratios lies within the config's aggregate band, so a
+  committed median ratios is at most the config's aggregate band, so a
   regression of every read cell by a factor the per-cell band admits still
-  fails,
+  fails; this bound is one-sided, since the check exists to catch
+  regressions and a faster run is not one (the per-cell bands stay
+  two-sided: a cell that moves that far either way makes the measurement
+  suspect),
 - and every query count and every cell's starting log size is equal.
 It refuses samples from another machine, Node version or tinybench version,
 since timings are never compared across them.
@@ -266,12 +269,11 @@ def rerun_check(config: Mapping[str, Any], committed: Path, fresh: Path) -> list
                     f"{ck}: {field} differ: {old_cells[ck][field]} then {new_cells[ck][field]}"
                 )
     for op, g in geometric_means(ratios).items():
-        verdict = "ok" if 1 / aggregate <= g <= aggregate else "OUT"
+        verdict = "ok" if g <= aggregate else "OUT"
         print(f"perf-budget: {verdict} {op} geometric mean of median ratios {g:.3f}")
         if verdict != "ok":
             problems.append(
-                f"{op}: the geometric mean of its median ratios is {g:.3f}, "
-                f"outside 1/{aggregate} to {aggregate}"
+                f"{op}: the geometric mean of its median ratios is {g:.3f}, above {aggregate}"
             )
     return problems
 

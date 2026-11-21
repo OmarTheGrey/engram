@@ -230,9 +230,13 @@ def test_every_read_cell_twice_as_slow_fails_on_the_geometric_mean(tmp_path: Pat
     """Review finding X15-3: the per-cell band admits 2x, the aggregate band does not."""
     slow = records(scale={(p, "read"): 2.0 for p in PRESETS})
     problems = check(tmp_path, slow)
-    assert problems == [
-        "read: the geometric mean of its median ratios is 2.000, outside 1/1.5 to 1.5"
-    ]
+    assert problems == ["read: the geometric mean of its median ratios is 2.000, above 1.5"]
+
+
+def test_every_cell_faster_passes_the_one_sided_aggregate_band(tmp_path: Path) -> None:
+    """The lead's decision after the fix pass: a faster run is not a regression."""
+    fast = records(scale={(p, op): 0.4 for p in PRESETS for op in OPS})
+    assert check(tmp_path, fast) == []
 
 
 def test_the_rerun_check_fails_on_a_changed_query_count(tmp_path: Path) -> None:
