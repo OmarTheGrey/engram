@@ -120,11 +120,13 @@ h3-lint-delta: ## after H3's live model-lint run (make run CONFIG=research/confi
 
 PERF_BUDGET := $(UV) run python research/scripts/perf_budget.py --config research/configs/perf-budget.json
 
-perf-budget: ## card X15: rerun the plane-overhead suite (packages/core/bench/plane-overhead.ts) into research/results/h2-perf-budget-samples.jsonl, then research/results/h2-perf-budget.json from those samples (make test-repro regenerates it from the committed samples); several minutes; CHECK=1 is the rerun check instead: the suite into a temporary file, passing when every median lies within the config's tolerance band of the committed one and every query count is equal, nothing written
+perf-budget: ## card X15: research/results/h2-perf-budget.json from the committed samples, research/results/h2-perf-budget-samples.jsonl (what make test-repro regenerates; no suite run); MEASURE=1 first reruns the plane-overhead suite (packages/core/bench/plane-overhead.ts) into those samples, about 25 minutes, replacing them; CHECK=1 is the rerun check instead, about 25 minutes: the suite into a temporary file (FRESH=<file> keeps it, or reads it when it exists), passing when every median lies within the config's per-cell band of the committed one, each op's geometric mean of median ratios within its aggregate band, and every query count and starting log size equal; nothing committed is written
 ifeq ($(CHECK),1)
-	$(PERF_BUDGET) --rerun
+	$(PERF_BUDGET) --rerun $(if $(FRESH),--fresh "$(FRESH)")
 else
+ifeq ($(MEASURE),1)
 	$(PERF_BUDGET) --measure
+endif
 	$(PERF_BUDGET) --out research/results/h2-perf-budget.json
 endif
 

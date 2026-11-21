@@ -2,12 +2,24 @@
   "name": "perf-budget",
   "kind": "measurement",
   "card": "X15",
-  "hypothesis": "H2",
+  "hypothesis": "none",
+  "filed_under": "research/results/h2-* only because research/tests/test_prereg.py maps every MANIFEST file to one hypothesis's results glob; the result is descriptive and decides no hypothesis, as card R4 filed its crosswalk under h1-* with hypothesis none (docs/tasks/backlog.md, row \"A results glob outside the hypotheses\")",
   "samples": "research/results/h2-perf-budget-samples.jsonl",
   "suite": {
-    "stores": ["fake", "files"],
-    "sizes": [100, 1000, 10000],
-    "presets": ["strict", "medium", "permissive"],
+    "stores": [
+      "fake",
+      "files"
+    ],
+    "sizes": [
+      100,
+      1000,
+      10000
+    ],
+    "presets": [
+      "strict",
+      "medium",
+      "permissive"
+    ],
     "hits": 10,
     "at": "2026-11-21T12:00:00Z",
     "iterations": {
@@ -17,13 +29,41 @@
     },
     "warmup": 10,
     "skip": {
-      "files": [10000]
+      "files": [
+        10000
+      ]
     }
   },
-  "percentiles": [50, 99, 99.9],
+  "percentiles": [
+    50,
+    99,
+    99.9
+  ],
+  "baseline_of": {
+    "write": {
+      "op": "sqlite-write",
+      "why": "an allowed write lands one item; the bare equivalent is one row inserted and committed on the same disk"
+    },
+    "write-deny": {
+      "op": "sqlite-write",
+      "why": "a denied write records exactly one row, its deny event, appended and committed in one transaction; the bare equivalent of recording one row durably is the same single-row insert, so the ratio is what the gate adds to the event's own write"
+    },
+    "read": {
+      "op": "sqlite-read",
+      "why": "a read returns the ten items holding the word in the reader's scopes; the bare equivalent is one SELECT of those rows"
+    }
+  },
   "tolerance": {
-    "median_band": 4.0,
-    "why": "the rerun check passes when every cell's new median lies within a factor of 4 of the committed one, either way, and every query count is equal. The band was set from the committed run itself, before any rerun: cells doing the same work under different presets differed by up to a factor of 3.86 in their medians within that one run (the files adapter's read at 100 items), since the machine was shared with about ten other agents. The check refuses samples from another machine."
+    "median_band": null,
+    "aggregate_band": 1.5,
+    "machine_keys": [
+      "cpu",
+      "cores",
+      "memory_bytes",
+      "os",
+      "arch"
+    ],
+    "why": null
   },
   "budget": [
     {

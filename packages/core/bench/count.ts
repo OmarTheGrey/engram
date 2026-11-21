@@ -1,8 +1,10 @@
 // A Db that counts what the plane asks of it (card X15): every `prepare`,
-// every statement execution (`run`, `get`, `all`), every `exec` and every
-// `transaction` call, nested ones included. It changes nothing the plane
-// sees; the counts depend only on the calls made and the log's state, so
-// they are deterministic and are asserted exactly (test/bench/count.test.ts).
+// every statement execution (`run`, `get`, `all`), the rows those return,
+// every `exec` and every `transaction` call, nested ones included. It
+// changes nothing the plane sees; the counts depend only on the calls made
+// and the log's state, so they are deterministic and are asserted exactly
+// (test/bench/count.test.ts). Statements stay constant while a call's work
+// grows with the log; the rows read show that growth (review finding X15-2).
 import type { Db, Param, Statement } from "../src/db/db.ts";
 
 export interface QueryCounts {
@@ -10,6 +12,8 @@ export interface QueryCounts {
   prepares: number;
   /** Statement executions: `run`, `get` and `all` on a prepared statement. */
   statements: number;
+  /** Rows the statements returned: each row of an `all`, one for a `get` that found a row. */
+  rows: number;
   /** `Db.exec` calls made by the caller (not the backend's own BEGIN and COMMIT). */
   execs: number;
   /** `Db.transaction` calls, nested ones (savepoints) included. */
@@ -23,7 +27,13 @@ export interface CountingDb {
   reset(): void;
 }
 
-const zero = (): QueryCounts => ({ prepares: 0, statements: 0, execs: 0, transactions: 0 });
+const zero = (): QueryCounts => ({
+  prepares: 0,
+  statements: 0,
+  rows: 0,
+  execs: 0,
+  transactions: 0,
+});
 
 export function countingDb(inner: Db): CountingDb {
   let c = zero();
@@ -43,11 +53,15 @@ export function countingDb(inner: Db): CountingDb {
         },
         get: (...p: Param[]) => {
           c.statements++;
-          return s.get(...p);
+          const row = s.get(...p);
+          if (row !== undefined) c.rows++;
+          return row;
         },
         all: (...p: Param[]) => {
           c.statements++;
-          return s.all(...p);
+          const rows = s.all(...p);
+          c.rows += rows.length;
+          return rows;
         },
       };
     },

@@ -6,23 +6,31 @@ Usage:
     uv run python research/scripts/perf_budget.py \\
         --config research/configs/perf-budget.json --measure
     uv run python research/scripts/perf_budget.py \\
-        --config research/configs/perf-budget.json --rerun
+        --config research/configs/perf-budget.json --rerun [--fresh <samples.jsonl>]
 
 Timings are not byte-stable, so the work is split in two (AGENTS.md rule 9).
 The suite, packages/core/bench/plane-overhead.ts, times Plane.write and
 Plane.read with tinybench on the fake and files adapters per store size and
-preset, beside a bare node:sqlite baseline, and writes every raw sample and
-every call's query counts to the samples file the config names, which is
-committed. This script computes the result from those committed samples, so
-`make test-repro` regenerates it byte for byte; it calls no model and runs no
-suite in that mode.
+preset, each cell on its own copy of a freshly populated store, beside a bare
+node:sqlite baseline, and writes every raw sample in call order, every call's
+query counts and each cell's starting log size to the samples file the config
+names, which is committed. This script computes the result from those
+committed samples, so `make test-repro` regenerates it byte for byte; it
+calls no model and runs no suite in that mode.
 
 `--measure` reruns the suite and replaces the committed samples (then the
 result is regenerated from them). `--rerun` is the rerun check: it runs the
-suite into a temporary file and passes when every cell's new median lies
-within the config's tolerance band of the committed median and every query
-count is equal; it refuses another machine's samples, since timings are never
-compared across machines.
+suite into a temporary file (or into `--fresh`, which it keeps, or reads
+`--fresh` when that file exists) and passes when
+- every cell's new median lies within the config's per-cell band of the
+  committed median,
+- for each plane op, the geometric mean over its plane cells of the new to
+  committed median ratios lies within the config's aggregate band, so a
+  regression of every read cell by a factor the per-cell band admits still
+  fails,
+- and every query count and every cell's starting log size is equal.
+It refuses samples from another machine, Node version or tinybench version,
+since timings are never compared across them.
 
 Percentiles are linear interpolation between closest ranks (numpy's default,
 Hyndman and Fan type 7) over each cell's samples.
@@ -41,8 +49,7 @@ from typing import Any
 from scripts.results_io import REPO, load_config, run_node, sha256_file, write_result
 
 ENTRY = "packages/core/bench/plane-overhead.ts"
-BASELINE_OF = {"write": "sqlite-write", "write-deny": "sqlite-write", "read": "sqlite-read"}
-MACHINE_KEYS = ("cpu", "cores", "memory_bytes", "os", "arch")
+Key = tuple[str, int, str, str]
 
 
 def percentile(samples: Sequence[float], q: float) -> float:
@@ -53,6 +60,11 @@ def percentile(samples: Sequence[float], q: float) -> float:
     lo = math.floor(h)
     hi = min(lo + 1, len(samples) - 1)
     return samples[lo] + (h - lo) * (samples[hi] - samples[lo])
+
+
+def pname(q: float) -> str:
+    """The field name of a percentile: p50, p99, p999."""
+    return "p" + format(q, "g").replace(".", "")
 
 
 def read_samples(
@@ -69,8 +81,13 @@ def read_samples(
     return lines[0], populate, cells
 
 
-def key(cell: Mapping[str, Any]) -> tuple[str, int, str, str]:
+def key(cell: Mapping[str, Any]) -> Key:
     return (str(cell["store"]), int(cell["size"]), str(cell["preset"] or ""), str(cell["op"]))
+
+
+def baseline_key(config: Mapping[str, Any], k: Key) -> Key:
+    """The bare node:sqlite cell a plane cell is compared with (the config's `baseline_of`)."""
+    return ("sqlite", k[1], "", str(config["baseline_of"][k[3]]["op"]))
 
 
 def stats(cell: Mapping[str, Any], percentiles: Sequence[float]) -> dict[str, Any]:
@@ -87,9 +104,10 @@ def stats(cell: Mapping[str, Any], percentiles: Sequence[float]) -> dict[str, An
         "min_ms": samples[0],
         "max_ms": samples[-1],
         "queries": cell["queries"],
+        "start": cell["start"],
     }
     for q in percentiles:
-        out[f"p{format(q, 'g').replace('.', '')}_ms"] = percentile(samples, q)
+        out[f"{pname(q)}_ms"] = percentile(samples, q)
     return out
 
 
@@ -102,17 +120,17 @@ def check_header(header: Mapping[str, Any], config: Mapping[str, Any]) -> None:
 
 
 def budget_rows(
-    rules: Sequence[Mapping[str, Any]], cells: Mapping[tuple[str, int, str, str], dict[str, Any]]
+    config: Mapping[str, Any], cells: Mapping[Key, dict[str, Any]]
 ) -> list[dict[str, Any]]:
-    """Each budget rule against the measurement: an absolute limit or a multiple of the baseline."""
+    """Each budget rule against the measurement: a limit and, if set, a multiple of the baseline."""
     rows = []
-    for rule in rules:
+    for rule in config["budget"]:
         k = (str(rule["store"]), int(rule["size"]), str(rule["preset"]), str(rule["op"]))
         if k not in cells:
             raise ValueError(f"budget {rule['name']}: no cell {k}")
         stat = f"{rule['stat']}_ms"
         measured = cells[k][stat]
-        base = cells[("sqlite", k[1], "", BASELINE_OF[k[3]])][stat]
+        base = cells[baseline_key(config, k)][stat]
         row: dict[str, Any] = {
             **rule,
             "measured_ms": measured,
@@ -140,22 +158,23 @@ def build(config: Mapping[str, Any], samples_path: Path) -> dict[str, Any]:
     for k, cell in sorted(cells.items()):
         if k[0] == "sqlite":
             continue
-        base = cells[("sqlite", k[1], "", BASELINE_OF[k[3]])]
-        overhead.append(
-            {
-                "store": k[0],
-                "size": k[1],
-                "preset": k[2],
-                "op": k[3],
-                "baseline_op": base["op"],
-                "p50_added_ms": cell["p50_ms"] - base["p50_ms"],
-                "p50_ratio": cell["p50_ms"] / base["p50_ms"],
-                "p99_ratio": cell["p99_ms"] / base["p99_ms"],
-            }
-        )
+        base = cells[baseline_key(config, k)]
+        row: dict[str, Any] = {
+            "store": k[0],
+            "size": k[1],
+            "preset": k[2],
+            "op": k[3],
+            "baseline_op": base["op"],
+            "p50_added_ms": cell["p50_ms"] - base["p50_ms"],
+        }
+        for q in percentiles:
+            name = pname(q)
+            row[f"{name}_ratio"] = cell[f"{name}_ms"] / base[f"{name}_ms"]
+        overhead.append(row)
     return {
         "card": "X15",
         "hypothesis": config["hypothesis"],
+        "filed_under": config["filed_under"],
         "samples": config["samples"],
         "samples_sha256": sha256_file(samples_path),
         "suite": header["suite"],
@@ -163,6 +182,7 @@ def build(config: Mapping[str, Any], samples_path: Path) -> dict[str, Any]:
         "tinybench": header["tinybench"],
         "machine": header["machine"],
         "notes": config["notes"],
+        "baseline_of": config["baseline_of"],
         "percentile_method": "linear interpolation between closest ranks (numpy default, type 7)",
         "cells": [cells[k] for k in sorted(cells)],
         "population": [
@@ -175,7 +195,7 @@ def build(config: Mapping[str, Any], samples_path: Path) -> dict[str, Any]:
             for p in sorted(populate, key=lambda p: (p["store"], p["size"]))
         ],
         "overhead": overhead,
-        "budget": budget_rows(config["budget"], cells),
+        "budget": budget_rows(config, cells),
         "tolerance": config["tolerance"],
     }
 
@@ -184,36 +204,71 @@ def measure(config_path: Path, out: Path) -> None:
     run_node([ENTRY, "--config", str(config_path), "--out", str(out)])
 
 
+def identity(header: Mapping[str, Any], keys: Sequence[str]) -> dict[str, Any]:
+    """What must match for two runs to be compared: the machine, Node and tinybench."""
+    out = {k: header["machine"][k] for k in keys}
+    out["node"] = header["node"]
+    out["tinybench"] = header["tinybench"]
+    return out
+
+
+def median_ratios(
+    old: Mapping[Key, Mapping[str, Any]], new: Mapping[Key, Mapping[str, Any]]
+) -> dict[Key, float]:
+    return {
+        k: percentile(sorted(new[k]["samples_ms"]), 50)
+        / percentile(sorted(old[k]["samples_ms"]), 50)
+        for k in sorted(old)
+    }
+
+
+def geometric_means(ratios: Mapping[Key, float]) -> dict[str, float]:
+    """Per plane op, the geometric mean of its plane cells' median ratios."""
+    by_op: dict[str, list[float]] = {}
+    for k, r in ratios.items():
+        if k[0] != "sqlite":
+            by_op.setdefault(k[3], []).append(r)
+    return {op: math.exp(sum(map(math.log, rs)) / len(rs)) for op, rs in sorted(by_op.items())}
+
+
 def rerun_check(config: Mapping[str, Any], committed: Path, fresh: Path) -> list[str]:
     """The problems of a fresh run against the committed samples; empty when it passes."""
     old_header, _, old = read_samples(committed)
     new_header, _, new = read_samples(fresh)
-    problems = []
-    for k in MACHINE_KEYS:
-        if old_header["machine"][k] != new_header["machine"][k]:
-            problems.append(
-                f"machine {k} differs ({old_header['machine'][k]!r} committed, "
-                f"{new_header['machine'][k]!r} now): timings are not compared across machines"
-            )
+    keys = config["tolerance"]["machine_keys"]
+    a, b = identity(old_header, keys), identity(new_header, keys)
+    problems = [
+        f"{k} differs ({a[k]!r} committed, {b[k]!r} now): timings are not compared across "
+        "machines, Node versions or tinybench versions"
+        for k in a
+        if a[k] != b[k]
+    ]
     if problems:
         return problems
     band = float(config["tolerance"]["median_band"])
+    aggregate = float(config["tolerance"]["aggregate_band"])
     old_cells = {key(c): c for c in old}
     new_cells = {key(c): c for c in new}
     if sorted(old_cells) != sorted(new_cells):
         return ["the fresh run's cells differ from the committed ones"]
-    for ck in sorted(old_cells):
-        a = percentile(sorted(old_cells[ck]["samples_ms"]), 50)
-        b = percentile(sorted(new_cells[ck]["samples_ms"]), 50)
-        ratio = b / a
+    ratios = median_ratios(old_cells, new_cells)
+    for ck, ratio in ratios.items():
         verdict = "ok" if 1 / band <= ratio <= band else "OUT"
-        print(f"perf-budget: {verdict} {' '.join(map(str, ck))} median {a:.4f} -> {b:.4f} ms")
+        print(f"perf-budget: {verdict} {' '.join(map(str, ck))} median ratio {ratio:.3f}")
         if verdict != "ok":
             problems.append(f"{ck}: median moved by {ratio:.3f}, outside 1/{band} to {band}")
-        if old_cells[ck]["queries"] != new_cells[ck]["queries"]:
+        for field in ("queries", "start"):
+            if old_cells[ck][field] != new_cells[ck][field]:
+                problems.append(
+                    f"{ck}: {field} differ: {old_cells[ck][field]} then {new_cells[ck][field]}"
+                )
+    for op, g in geometric_means(ratios).items():
+        verdict = "ok" if 1 / aggregate <= g <= aggregate else "OUT"
+        print(f"perf-budget: {verdict} {op} geometric mean of median ratios {g:.3f}")
+        if verdict != "ok":
             problems.append(
-                f"{ck}: query counts differ: {old_cells[ck]['queries']} then "
-                f"{new_cells[ck]['queries']}"
+                f"{op}: the geometric mean of its median ratios is {g:.3f}, "
+                f"outside 1/{aggregate} to {aggregate}"
             )
     return problems
 
@@ -229,6 +284,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--measure", action="store_true", help="rerun the suite into the samples file"
     )
     mode.add_argument("--rerun", action="store_true", help="the rerun check against the samples")
+    parser.add_argument("--fresh", type=Path, help="with --rerun: the fresh samples, kept or read")
     args = parser.parse_args(argv)
     config = load_config(args.config)
     samples = REPO / str(config["samples"])
@@ -237,8 +293,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
     if args.rerun:
         with tempfile.TemporaryDirectory() as tmp:
-            fresh = Path(tmp) / "samples.jsonl"
-            measure(args.config, fresh)
+            fresh = args.fresh or Path(tmp) / "samples.jsonl"
+            if not fresh.exists():
+                measure(args.config, fresh)
             problems = rerun_check(config, samples, fresh)
         for p in problems:
             print(f"perf-budget: FAIL {p}")

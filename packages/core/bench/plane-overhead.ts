@@ -5,31 +5,55 @@
 //   node packages/core/bench/plane-overhead.ts --config research/configs/perf-budget.json --out <samples.jsonl>
 //
 // It reads the config's `suite` block and writes one JSON line per record: a
-// header (the suite block echoed, Node, tinybench, the machine), then one
-// line per (store, size, preset, op) with every timed sample in
-// milliseconds, sorted, and the calls' query counts. Timings are not
-// byte-stable, so this file is the measurement and research/scripts/
-// perf_budget.py computes the committed result from it (AGENTS.md rule 9).
+// header (the suite block echoed, Node, tinybench, the machine), one line
+// per (store, size) with the time the population took, and one line per
+// (store, size, preset, op) with every timed sample in milliseconds, in call
+// order, the calls' query counts and the log's size when the cell began.
+// Timings are not byte-stable, so this file is the measurement and
+// research/scripts/perf_budget.py computes the committed result from it
+// (AGENTS.md rule 9).
 //
-// Per (store, size) one log and store are populated through the Plane under
-// preset medium (workload.ts), then each preset's plane is timed over them.
-// Query counts come from a second plane over the same log through
-// countingDb, called once before each cell is timed, so the timed plane's Db
+// Per (store, size) one template log and store are populated through the
+// Plane under preset medium (workload.ts). Every cell, each (preset, op),
+// then runs on its own copy of that template (review finding X15-1): the
+// log file and the files adapter's folder are copied, and the fake's
+// records are written into a fresh fake, so no cell inherits the items,
+// events or reads an earlier cell added, and the run order cannot favour a
+// preset. Query counts come from a second plane over the copy through
+// countingDb, called once before the cell is timed, so the timed plane's Db
 // is not wrapped. The log is a SQLite file in WAL mode in a fresh temporary
 // folder, as `engram` keeps it; the files adapter's folder sits beside it.
+//
+// tinybench drives the warm-up and the timed calls; each call's duration is
+// measured around the awaited call with performance.now and handed to
+// tinybench as its `overriddenDuration`, so the samples kept are in call
+// order and are, sorted, exactly the samples tinybench holds (checked).
 import { readFileSync, writeFileSync } from "node:fs";
-import { mkdtemp, rm } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, rm } from "node:fs/promises";
 import { cpus, platform, release, tmpdir, totalmem } from "node:os";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
 import { createFakeAdapter, createFilesAdapter } from "@engram/adapters";
 import { Bench } from "tinybench";
 import type { Adapter } from "../src/adapter.ts";
+import type { Db } from "../src/db/db.ts";
 import { migrate } from "../src/db/migrate.ts";
 import { openSqlite } from "../src/db/sqlite.ts";
+import { accessTime } from "../src/plane/read.ts";
 import { loadPreset, PRESETS, type PresetName } from "../src/policy/load.ts";
+import type { MemoryItem } from "../src/schema.ts";
 import { countingDb, type QueryCounts } from "./count.ts";
-import { BASELINE_OPS, call, OPS, type Op, openBaseline, planeOver, populate } from "./workload.ts";
+import {
+  BASELINE_OPS,
+  backgroundScope,
+  call,
+  OPS,
+  type Op,
+  openBaseline,
+  planeOver,
+  populate,
+  scopeCount,
+} from "./workload.ts";
 
 export type StoreName = "fake" | "files";
 
@@ -56,9 +80,12 @@ export interface CellRecord {
   op: Op | (typeof BASELINE_OPS)[number];
   iterations: number;
   warmup: number;
+  /** Every timed call's duration in milliseconds, in call order. */
   samples_ms: number[];
   /** What one call asks of the Db; null for the baseline, which is one statement by construction. */
   queries: QueryCounts | null;
+  /** The log (items and events) or the baseline table (items) when the cell began, before its probe call. */
+  start: { items: number; events: number | null };
 }
 
 /** How long writing the store of `size` items through the Plane took, one write at a time. */
@@ -96,7 +123,10 @@ function header(suite: SuiteConfig): HeaderRecord {
   };
 }
 
-/** Times `fn(n)` with tinybench: `warmup` untimed calls, then exactly `iterations` timed ones. */
+/**
+ * Times `fn(n)` with tinybench: `warmup` untimed calls, then exactly
+ * `iterations` timed ones. Returns the timed durations in call order.
+ */
 async function time(
   name: string,
   fn: (n: number) => unknown,
@@ -105,6 +135,8 @@ async function time(
   first: number,
 ): Promise<number[]> {
   let n = first;
+  let phase: string | undefined;
+  const ordered: number[] = [];
   const bench = new Bench({
     name,
     time: 0,
@@ -115,16 +147,39 @@ async function time(
     retainSamples: true,
     throws: true,
   });
-  bench.add(name, async () => {
-    await fn(n++);
-  });
+  bench.add(
+    name,
+    async () => {
+      const t0 = performance.now();
+      await fn(n++);
+      const ms = performance.now() - t0;
+      if (phase === "run") ordered.push(ms);
+      return { overriddenDuration: ms };
+    },
+    {
+      async: true,
+      beforeEach(mode) {
+        phase = mode;
+      },
+    },
+  );
   await bench.run();
   const task = bench.tasks[0];
   const samples =
     task?.result && "latency" in task.result ? task.result.latency.samples : undefined;
-  if (!samples || samples.length !== iterations)
+  if (!samples || samples.length !== iterations || ordered.length !== iterations)
     throw new Error(`${name}: expected ${iterations} samples, got ${samples?.length ?? 0}`);
-  return [...samples];
+  const sorted = [...ordered].sort((a, b) => a - b);
+  if (sorted.some((ms, i) => ms !== samples[i]))
+    throw new Error(`${name}: the call-order samples are not tinybench's samples`);
+  return ordered;
+}
+
+/** How many items and events the log holds. */
+function logSize(db: Db): { items: number; events: number } {
+  const count = (table: string) =>
+    Number(db.prepare(`SELECT count(*) AS n FROM ${table}`).get()?.n ?? 0);
+  return { items: count("items"), events: count("events") };
 }
 
 async function openStore(store: StoreName, dir: string): Promise<Adapter> {
@@ -145,9 +200,10 @@ export async function* runSuite(
     const iterations = iterationsAt(suite, size);
     const dir = await mkdtemp(join(tmpdir(), "engram-x15-"));
     try {
-      const baseline = openBaseline(join(dir, "baseline.db"), size, hits);
-      try {
-        for (const op of BASELINE_OPS) {
+      // Each baseline op on its own fresh table of `size` rows, as each plane cell.
+      for (const [k, op] of BASELINE_OPS.entries()) {
+        const baseline = openBaseline(join(dir, `baseline-${k}.db`), size, hits);
+        try {
           const samples = await time(op, baseline.call(op), iterations, warmup, 0);
           progress(`sqlite ${size} ${op}`);
           yield {
@@ -160,10 +216,11 @@ export async function* runSuite(
             warmup,
             samples_ms: samples,
             queries: null,
+            start: { items: size, events: null },
           };
+        } finally {
+          baseline.close();
         }
-      } finally {
-        baseline.close();
       }
     } finally {
       await rm(dir, { recursive: true, force: true });
@@ -189,26 +246,58 @@ async function* storeCells(
 ): AsyncGenerator<PopulateRecord | CellRecord> {
   const { warmup, hits, at } = suite;
   const iterations = iterationsAt(suite, size);
-  const db = openSqlite(join(dir, "engram.db"));
+  // The template: populated once, then closed, so its WAL is checkpointed
+  // into the database file before the file is copied.
+  const template = join(dir, "template");
+  await mkdir(template);
+  let ids = 0;
+  const next = () => ++ids;
+  let records: MemoryItem[] = [];
+  const db = openSqlite(join(template, "engram.db"));
+  let ms = 0;
   try {
     migrate(db);
-    const adapter = await openStore(store, dir);
-    let ids = 0;
-    const next = () => ++ids;
+    const adapter = await openStore(store, template);
     const started = performance.now();
     await populate(planeOver(db, adapter, loadPreset("medium"), next), size, hits, at);
-    const ms = performance.now() - started;
-    progress(`${store} ${size} populated in ${Math.round(ms)} ms`);
-    yield { record: "populate", store, size, ms };
-    const counting = countingDb(db);
-    for (const preset of suite.presets) {
-      const policy = loadPreset(preset);
-      const timed = planeOver(db, adapter, policy, next);
-      const probe = planeOver(counting.db, adapter, policy, next);
-      // Each cell's calls are numbered from their own range: the probe call
-      // is 0, the warm-up and timed calls follow it.
-      for (const op of OPS) {
+    ms = performance.now() - started;
+    if (store === "fake") {
+      const scopes = Array.from({ length: scopeCount(size) }, (_, k) => backgroundScope(k));
+      records = (await Promise.all(scopes.map((scope) => adapter.list(scope)))).flat();
+    }
+  } finally {
+    db.close();
+  }
+  progress(`${store} ${size} populated in ${Math.round(ms)} ms`);
+  yield { record: "populate", store, size, ms };
+  const templateIds = ids;
+  let k = 0;
+  for (const preset of suite.presets) {
+    const policy = loadPreset(preset);
+    for (const op of OPS) {
+      const cell = join(dir, `cell-${k++}`);
+      await cp(template, cell, { recursive: true });
+      const cellDb = openSqlite(join(cell, "engram.db"));
+      try {
+        const adapter = await openStore(store, cell);
+        // The fake keeps its records in memory: its copy is the template's
+        // records written into a fresh fake, as `cp` copies the files
+        // adapter's folder; the log copy already holds their events.
+        for (const record of records) await adapter.write(record);
+        const start = logSize(cellDb);
+        // Every cell numbers its events from where the template stopped.
+        let cellIds = templateIds;
+        const nextId = () => ++cellIds;
+        const counting = countingDb(cellDb);
+        const timed = planeOver(cellDb, adapter, policy, nextId);
+        const probe = planeOver(counting.db, adapter, policy, nextId);
+        // A Db handle's first look at the log's head reads every event
+        // (plane/read.ts, logHead); the probe's handle takes it before it is
+        // counted, so the counts are a steady call's, as the timed calls are
+        // after their warm-up.
+        accessTime(counting.db, at);
         counting.reset();
+        // The probe call is 0; the warm-up and timed calls follow it.
         await call(probe, op, preset, size, hits, at)(0);
         const queries = counting.counts();
         const samples = await time(
@@ -229,11 +318,13 @@ async function* storeCells(
           warmup,
           samples_ms: samples,
           queries,
+          start,
         };
+      } finally {
+        cellDb.close();
+        await rm(cell, { recursive: true, force: true });
       }
     }
-  } finally {
-    db.close();
   }
 }
 
