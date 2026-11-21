@@ -18,6 +18,7 @@
 //   engram/write/source-isolation   model and compaction content stays in person scope (ADR 0004, 0007)
 //   engram/write/retired-content    a model, compaction or tool write restates content retired in its scope (ADR 0025)
 //   engram/write/default-deny       no write rule for the item's scope level (D6)
+//   engram/write/injection-screen   held as a candidate by the injection screen (ADR 0039, policy/injection-screen.ts)
 //   engram/write/schema             the item failed the schema
 //   engram/write/store-failure      the store failed after the gate allowed the write (D6)
 //   engram/read/default-deny        no read matrix row for the actor's level (D6)
@@ -29,6 +30,7 @@ import { contentHash } from "../content-hash.ts";
 import { canonicalJson } from "../model.ts";
 import type { Grant, MemoryItem, Policy, ScopeLevel } from "../schema.ts";
 import { compareTimestamps } from "../time.ts";
+import { INJECTION_SCREEN_ID, injectionHold } from "./injection-screen.ts";
 import { itemExpiry } from "./retention.ts";
 
 export const WRITE_MEMBERSHIP_ID = "engram/write/membership";
@@ -416,6 +418,17 @@ export function evaluateWrite(
         RETIRED_CONTENT_ID,
       );
   }
+  // The injection screen (card E2.10, ADR 0039): off unless the policy's
+  // content_guards turn it on; a hold is a review, so a person promotes it.
+  const screened = injectionHold(policy, item);
+  if (screened !== null)
+    return {
+      decision: "allow",
+      status: item.status === "active" ? "candidate" : item.status,
+      check: "review",
+      reason: screened,
+      policy_id: INJECTION_SCREEN_ID,
+    };
   if (rule.requires_review)
     return {
       decision: "allow",
