@@ -15,31 +15,44 @@
 //     is one Cedar can name (every allow, and every deny but a read no matrix
 //     row or grant admits, which Cedar denies with no policy at all);
 //   - no Cedar evaluation error on any request, since Cedar skips a policy
-//     whose condition errs, and a skipped forbid would hide a disagreement.
+//     whose condition errs, and a skipped forbid would hide a disagreement;
+//   - scope before grant: when both a matrix row and the grant permit admit a
+//     read, the evaluator names the row (review finding E2.12-2);
+//   - one id per Cedar policy, so no duplicate rule overwrites another, and
+//     the first of duplicated rules decides (review finding E2.12-1).
 //
-// Agreement is claimed modulo grants (ADR 0041, decision 5). Excluded
-// classes of request, each with its reason:
-//   1. Writes where the item or the projected item carries grants. The write
-//      path's grant rules (a pattern's shape, a grant repeated, the owner's
-//      consent to a grant change, a class change under grants, the expiry of
-//      an added grant) are judgements over strings and lists of grants that
-//      Cedar cannot iterate, and the export does not translate them. Every
-//      generated write carries no grants on either item.
-//   2. The promotion gate's in-place transition (evaluateWrite's `promotion`
-//      option): it exempts a rewrite only from a grant rule, so it is inert
-//      without grants and falls under class 1.
+// Agreement is claimed modulo grants (ADR 0041, decision 5). Excluded and
+// flattened classes of request, each with its reason:
+//   1. Excluded: writes the evaluator decides by a rule judged grant by grant
+//      (`engram/write/grant` for a grant's shape or another class than the
+//      item's, `engram/grant/unchanged` for a grant repeated,
+//      `engram/grant/expired` for a grant added already expired). Each
+//      judges every element of a list, and Cedar's language has no
+//      quantifier over a set; flattening one would be the encoder computing
+//      the verdict, which tests nothing. Such writes are counted, not
+//      compared. An untrusted source carrying grants is translated and
+//      compared, though it shares `engram/write/grant`.
+//   2. Flattened: the grant rules a whole item decides (review finding
+//      E2.12-3). The request says whether the projected item carries
+//      grants, whether the item does, whether the rewrite changes them (the
+//      evaluator's sameGrants, or a class change under grants) and whether
+//      it is the promotion gate's in-place transition; Cedar judges the
+//      actor's source and identity, `engram/grant/source`,
+//      `engram/grant/owner` and the opaque refusal.
 //   3. Policies with content guards or trust options on: exportCedar refuses
-//      them (tested below), since the injection screen's patterns are not
-//      translated.
-//   4. Instants finer than a nanosecond: the Cedar instant is epoch seconds
-//      and nanoseconds; the encoder refuses a finer one (tested below).
-//   5. Not excluded but flattened: reads of an item with a grant matching the
-//      reader. The encoder matches each grant's `to` against the reader and
-//      checks its class (grantMatches, as the evaluator does), so those two
-//      are not checked independently; Cedar judges `honour_grants`, the
-//      latest expiry against the read time, and the precedence of scope over
-//      grant. Such reads are counted apart.
-// The write's `at` is not generated: only the grant rules read it.
+//      them (tested below), since the guards' and the injection screen's
+//      patterns over content are not translated.
+//   4. Instants finer than a nanosecond, or not on the calendar: the Cedar
+//      instant is epoch seconds and nanoseconds; the encoder refuses them
+//      (tested below).
+//   5. Flattened: reads of an item with a grant matching the reader. The
+//      encoder matches each grant's `to` against the reader and checks its
+//      class (grantMatches, as the evaluator does), so those two are not
+//      checked independently; Cedar judges `honour_grants`, the latest expiry
+//      against the read time, and the precedence of scope over grant. Such
+//      reads are counted apart.
+//
+// Runs and seeds are set below (ENGRAM_CEDAR_RUNS, ENGRAM_CEDAR_SEED_OFFSET).
 import * as cedar from "@cedar-policy/cedar-wasm/nodejs";
 import fc from "fast-check";
 import { describe, expect, test } from "vitest";
