@@ -214,15 +214,16 @@ function world(backend: Backend) {
 }
 type World = ReturnType<typeof world>;
 
-const person = (n: number, over: Partial<MemoryItem> = {}) =>
-  item(n, { scope: "person:dana", owner: dana.id, content: SECRET, ...over });
-const role = (n: number, over: Partial<MemoryItem> = {}) =>
+type Over = Parameters<typeof item>[1];
+const person = (n: number, over: Over = {}) =>
+  item(n, { scope: "person:dana", owner: dana.id, content: SECRET, ...over } as Over);
+const role = (n: number, over: Over = {}) =>
   item(n, {
     scope: "role:release",
     owner: dana.id,
     content: "The release train leaves at 3.",
     ...over,
-  });
+  } as Over);
 
 async function seed(h: Handle, it: MemoryItem): Promise<MemoryItem> {
   const r = await h.plane.write(dana, it, AT);

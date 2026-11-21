@@ -103,6 +103,8 @@ export interface Failpoints {
   /** The point it died at, if it did. */
   readonly diedAt: Point | undefined;
   hits(point: Point): number;
+  /** Disarms every point (a paused call stays paused until its release). */
+  clear(): void;
 }
 
 /** One handle's failpoints, none armed. */
@@ -298,5 +300,8 @@ export function failpoints(): Failpoints {
       return diedAt;
     },
     hits: (point) => counts.get(point) ?? 0,
+    clear: () => {
+      armings.length = 0;
+    },
   };
 }
