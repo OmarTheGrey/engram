@@ -16,11 +16,11 @@
 // it from the scripted model, so the committed cassettes are always made by
 // one command. Only `scripted/...` models are wired: a live MERIT run is card X7.
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
-import { isAbsolute, join, relative, resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { type CacheStore, fileCache } from "@engram/model";
-import { readMeritConfig } from "../src/merit/config.ts";
+import { fixtureRecordingRefusal, readMeritConfig } from "../src/merit/config.ts";
 import {
   ensureMeritCheckout,
   ensureMeritEnv,
@@ -63,9 +63,9 @@ async function main(): Promise<number> {
       record: { type: "boolean", default: false },
     },
   });
-  const checkout = ensureMeritCheckout(values.upstream);
-  const python = ensureMeritEnv(values.env, checkout);
   if (values.prepare) {
+    const checkout = ensureMeritCheckout(values.upstream);
+    const python = ensureMeritEnv(values.env, checkout);
     console.log(`merit: checkout ${checkout} at the pin, environment ${python}`);
     return 0;
   }
@@ -83,26 +83,16 @@ async function main(): Promise<number> {
     return 2;
   }
   if (values.record) {
-    if (process.env.ENGRAM_OFFLINE === "1") {
-      console.error(
-        "run-merit: --record makes model calls; unset ENGRAM_OFFLINE (make fixtures does)",
-      );
+    // Checked before anything is fetched, emptied or made: fileCache creates its folder.
+    const refusal = fixtureRecordingRefusal(config.cassettes, repo, process.env);
+    if (refusal !== undefined) {
+      console.error(`run-merit: ${refusal}`);
       return 2;
     }
-    if (process.env.ENGRAM_UPDATE_FIXTURES !== "1") {
-      console.error(
-        "run-merit: --record writes fixture cassettes, which make fixtures records (it sets ENGRAM_UPDATE_FIXTURES=1)",
-      );
-      return 2;
-    }
-    // Checked before the folder is emptied or a file cache made, since fileCache creates its folder.
-    const inFixtures = relative(join(repo, "fixtures"), config.cassettes);
-    if (inFixtures === "" || inFixtures.startsWith("..") || isAbsolute(inFixtures)) {
-      console.error(
-        `run-merit: --record records into ${join(repo, "fixtures")} only, and ${config.cassettes} is not inside it`,
-      );
-      return 2;
-    }
+  }
+  const checkout = ensureMeritCheckout(values.upstream);
+  const python = ensureMeritEnv(values.env, checkout);
+  if (values.record) {
     rmSync(config.cassettes, { recursive: true, force: true });
     mkdirSync(config.cassettes, { recursive: true });
   }

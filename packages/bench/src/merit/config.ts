@@ -4,7 +4,7 @@
 // which of the pre-registration's conditions, on which stores and seeds, and
 // where the cassettes are.
 import { readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { z } from "zod";
 
 /** merit-bench at the pin in packages/bench/PINS.md (MIT; depend, run as an external process). */
@@ -89,6 +89,10 @@ export function readMeritConfig(path: string): MeritConfig {
   if (!unique(config.conditions) || !unique(config.stores) || !unique(config.seeds)) {
     throw new Error(`${path}: conditions, stores and seeds must not repeat`);
   }
+  // Two cells with one item would share keys and output folders (cellItem).
+  if (!unique(config.cells.map(cellItem))) {
+    throw new Error(`${path}: two cells have the same domain and difficulty (item ${config.cells.map(cellItem).join(", ")})`);
+  }
   return { ...config, cassettes: resolve(dirname(path), config.cassettes) };
 }
 
@@ -136,4 +140,30 @@ export function runCells(config: MeritConfig): MeritRunCell[] {
     }
   }
   return out;
+}
+
+/**
+ * Why `run-merit.ts --record` may not record into `cassettes`, or undefined
+ * when it may: recording reaches a model (refused under ENGRAM_OFFLINE=1),
+ * writes fixture cassettes, which only `make fixtures` does (it sets
+ * ENGRAM_UPDATE_FIXTURES=1, the variable card B10's proxy asks for), and
+ * only into a folder inside `<repo>/fixtures/`. Checked before the folder is
+ * emptied or a file cache made, since fileCache creates its folder.
+ */
+export function fixtureRecordingRefusal(
+  cassettes: string,
+  repo: string,
+  env: NodeJS.ProcessEnv,
+): string | undefined {
+  if (env.ENGRAM_OFFLINE === "1") {
+    return "--record makes model calls; unset ENGRAM_OFFLINE (make fixtures does)";
+  }
+  if (env.ENGRAM_UPDATE_FIXTURES !== "1") {
+    return "--record writes fixture cassettes, which make fixtures records (it sets ENGRAM_UPDATE_FIXTURES=1)";
+  }
+  const inFixtures = relative(join(resolve(repo), "fixtures"), resolve(cassettes));
+  if (inFixtures === "" || inFixtures.startsWith("..") || isAbsolute(inFixtures)) {
+    return `--record records into ${join(repo, "fixtures")} only, and ${cassettes} is not inside it`;
+  }
+  return undefined;
 }
