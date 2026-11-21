@@ -6,20 +6,9 @@
   "filed_under": "research/results/h2-* only because research/tests/test_prereg.py maps every MANIFEST file to one hypothesis's results glob; the result is descriptive and decides no hypothesis, as card R4 filed its crosswalk under h1-* with hypothesis none (docs/tasks/backlog.md, row \"A results glob outside the hypotheses\")",
   "samples": "research/results/h2-perf-budget-samples.jsonl",
   "suite": {
-    "stores": [
-      "fake",
-      "files"
-    ],
-    "sizes": [
-      100,
-      1000,
-      10000
-    ],
-    "presets": [
-      "strict",
-      "medium",
-      "permissive"
-    ],
+    "stores": ["fake", "files"],
+    "sizes": [100, 1000, 10000],
+    "presets": ["strict", "medium", "permissive"],
     "hits": 10,
     "at": "2026-11-21T12:00:00Z",
     "iterations": {
@@ -29,16 +18,10 @@
     },
     "warmup": 10,
     "skip": {
-      "files": [
-        10000
-      ]
+      "files": [10000]
     }
   },
-  "percentiles": [
-    50,
-    99,
-    99.9
-  ],
+  "percentiles": [50, 99, 99.9],
   "baseline_of": {
     "write": {
       "op": "sqlite-write",
@@ -57,13 +40,7 @@
     "median_band": 3.0,
     "baseline_band": 4.0,
     "aggregate_band": 1.5,
-    "machine_keys": [
-      "cpu",
-      "cores",
-      "memory_bytes",
-      "os",
-      "arch"
-    ],
+    "machine_keys": ["cpu", "cores", "memory_bytes", "os", "arch"],
     "why": "Set from real rerun noise (review finding X15-3): a second full run of the suite on the same machine, after the committed one and with nothing changed, moved plane cells' medians by at most a factor of 2.18 either way (the files adapter's allowed write at 100 items under strict), the bare node:sqlite cells' by at most 3.12 (the select at 100 items, a median of 0.018 ms), and each op's geometric mean of median ratios over its 15 plane cells by at most 1.13 (allowed writes). The per-cell bands, 3 for plane cells and 4 for bare cells, cover that noise with about a third more; they catch a cell that triples. The aggregate band, 1.5 per op, catches an op whose every cell slows by half or more, such as every read twice as slow, which no per-cell band this wide could. The check also refuses samples from another machine, Node version or tinybench version."
   },
   "budget": [
