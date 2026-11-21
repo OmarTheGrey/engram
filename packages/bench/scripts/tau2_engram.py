@@ -30,6 +30,7 @@ judge is called.
 """
 
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -138,13 +139,17 @@ def main(job_path):
             "extra_headers": {"x-engram-item": item},
         }
 
-    rows = []
+    tasks_path = out / "tasks.jsonl"
+    memory_path = out / "memory.jsonl"
+    tasks_path.write_bytes(b"")
+    memory_path.write_bytes(b"")
+    logged = 0
     for t in job["tasks"]:
         task = by_id[t["id"]]
         if memory is not None:
             memory.task = task.id
         basis = task.evaluation_criteria.reward_basis if task.evaluation_criteria else []
-        evaluation = EvaluationType.ENV if RewardType.NL_ASSERTION in basis else EvaluationType.ALL
+        needs_judge = RewardType.NL_ASSERTION in basis
         config = TextRunConfig(
             domain=domain,
             agent=agent_name,
@@ -156,17 +161,65 @@ def main(job_path):
             max_steps=job["max_steps"],
             max_errors=job["max_errors"],
         )
-        simulation = run_single_task(config, task, seed=job["seed"], evaluation_type=evaluation)
-        path = out / "simulations" / f"{task.id}.json"
-        path.write_text(simulation.model_dump_json(indent=2), encoding="utf-8")
-        rows.append({"task": task.id, "evaluation": evaluation.value, "simulation": str(path)})
-
-    lines = "".join(json.dumps(r, sort_keys=True) + "\n" for r in rows)
-    (out / "tasks.jsonl").write_bytes(lines.encode("utf-8"))
-    log = memory.log if memory is not None else []
-    memory_lines = "".join(json.dumps(e, sort_keys=True) + "\n" for e in log)
-    (out / "memory.jsonl").write_bytes(memory_lines.encode("utf-8"))
+        row = {"task": task.id, "evaluation": EvaluationType.ALL.value}
+        try:
+            with JudgeRoute(t["judge_base_url"] if needs_judge else None):
+                simulation = run_single_task(
+                    config, task, seed=job["seed"], evaluation_type=EvaluationType.ALL
+                )
+            path = out / "simulations" / f"{task.id}.json"
+            path.write_text(simulation.model_dump_json(indent=2), encoding="utf-8")
+            row.update(simulation=str(path), error=None)
+        except Exception as e:  # one task's failure is its row; the next task still runs
+            row.update(simulation=None, error=f"{type(e).__name__}: {e}"[:2000])
+        # Written as each task ends, so a stopped process keeps the tasks it finished.
+        append(tasks_path, [row])
+        log = memory.log if memory is not None else []
+        append(memory_path, log[logged:])
+        logged = len(log)
     return 0
+
+
+def append(path, rows):
+    with path.open("ab") as f:
+        for r in rows:
+            f.write((json.dumps(r, sort_keys=True) + "\n").encode("utf-8"))
+
+
+class JudgeRoute:
+    """Routes tau2's NL-assertion judge to the task's judge proxy, for this task only.
+
+    tau2 calls its judge with its own model and arguments
+    (`DEFAULT_LLM_NL_ASSERTIONS`, `DEFAULT_LLM_NL_ASSERTIONS_ARGS`, no
+    `api_base` among them), so LiteLLM takes the OpenAI base URL and key from
+    the environment: they are set while the task runs and put back after to
+    the launcher's dead loopback address (tau2Env), so no other call reaches
+    the judge's proxy and nothing reaches a provider.
+    """
+
+    def __init__(self, base_url):
+        self.base_url = base_url
+        self.saved = {}
+
+    def __enter__(self):
+        if self.base_url is not None:
+            for name, value in (
+                ("OPENAI_BASE_URL", self.base_url),
+                ("OPENAI_API_BASE", self.base_url),
+                # LiteLLM's OpenAI client needs a key; the proxy reads none.
+                ("OPENAI_API_KEY", "engram-cassette-proxy"),
+            ):
+                self.saved[name] = os.environ.get(name)
+                os.environ[name] = value
+        return self
+
+    def __exit__(self, *exc):
+        for name, value in self.saved.items():
+            if value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = value
+        return False
 
 
 if __name__ == "__main__":

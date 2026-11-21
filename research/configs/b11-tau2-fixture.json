@@ -20,7 +20,9 @@
   "temperature": 0,
   "max_steps": 30,
   "max_errors": 10,
+  "timeout_s": 1800,
   "memory_time": "2024-05-15T15:00:00Z",
   "script": "../../fixtures/bench/tau2/script.json",
-  "cassettes": "../../fixtures/cassettes/b11-tau2-fixture"
+  "cassettes": "../../fixtures/cassettes/b11-tau2-fixture",
+  "expected": "../../fixtures/bench/tau2/expected-results.jsonl"
 }

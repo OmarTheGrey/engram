@@ -57,6 +57,15 @@
               "confidence": 0.9
             }
           },
+          {
+            "name": "memory_write",
+            "arguments": {
+              "scope": "person:tau2-agent",
+              "class": "episodic",
+              "content": "Olivia Gonzalez cancelled reservation Z7GOZK on 2024-05-15.",
+              "confidence": 0.9
+            }
+          },
           { "name": "cancel_reservation", "arguments": { "reservation_id": "Z7GOZK" } }
         ]
       },
@@ -69,7 +78,7 @@
       "All right. ###STOP###"
     ],
     "agent": [
-      { "calls": [{ "name": "memory_read", "arguments": { "query": "reservation" } }] },
+      { "calls": [{ "name": "memory_read", "arguments": { "query": "reservation change" } }] },
       { "calls": [{ "name": "get_user_details", "arguments": { "user_id": "aarav_garcia_1177" } }] },
       { "text": "I am sorry, I cannot change this reservation today." }
     ]

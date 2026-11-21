@@ -82,6 +82,24 @@ describe("the scripted tau2 upstream", () => {
     expect(isScripted(async (r: ChatRequest) => agent(r))).toBe(false);
   });
 
+  test("the judge answers in the JSON tau2's NL-assertion evaluator parses, and only when scripted", async () => {
+    const judged = scriptedTau2("retail/1", { ...script, judge: { met: false } });
+    expect(isScripted(judged.judge)).toBe(true);
+    const reply = await judged.judge({ model: "gpt-4.1-2025-04-14", messages: [], seed: 1 });
+    expect(JSON.parse(reply.text)).toEqual({
+      results: [
+        {
+          expectedOutcome: "every expected outcome of the task",
+          reasoning: "scripted verdict",
+          metExpectation: false,
+        },
+      ],
+    });
+    await expect(
+      scriptedTau2("airline/19", script).judge({ model: "m", messages: [], seed: 1 }),
+    ).rejects.toThrow(/no judge verdict/);
+  });
+
   test("answers the user simulator by the turns it has taken", async () => {
     const turn = (n: number): ChatRequest => ({
       model: "scripted/tau2-user",

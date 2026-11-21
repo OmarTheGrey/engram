@@ -1,6 +1,6 @@
 // `make bench BENCH=tau2` (card B11): tau2-bench at its pin on the fixture
-// slice, every agent and user-simulator call through the cassette proxy, and
-// the memory of C2 and C5 through the store and the plane.
+// slice, every agent, user-simulator and judge call through the cassette
+// proxy, and the memory of C2 and C5 through the store and the plane.
 //
 //   node packages/bench/scripts/run-tau2.ts --setup
 //   ENGRAM_OFFLINE=1 node packages/bench/scripts/run-tau2.ts --config research/configs/b11-tau2-fixture.json --out .engram/bench/tau2
@@ -12,16 +12,16 @@
 // A run replays the committed cassettes, which are read and never written.
 // Under ENGRAM_OFFLINE=1 (make bench) a miss is an error; run without it, a
 // miss is answered by the scripted upstream and recorded under <out>/cassettes.
-// --record (make fixtures only, never offline) empties the config's cassette
-// folder and records every call into it from the scripted upstream, the user
-// simulator's included: only scripted models are wired (no live model before
-// card X11).
+// --record (make fixtures only: ENGRAM_UPDATE_FIXTURES=1, never offline)
+// empties the config's cassette folder, records every call into it from the
+// scripted upstream, and writes the config's expected results; only scripted
+// models are wired (no live model before card X11).
 //
 // Writes results.jsonl (one row per condition, seed and task), usage.jsonl
 // (the runner's ledger, card RV1), memory.jsonl (every memory call) and
-// summary.json to --out.
-import { spawn } from "node:child_process";
-import { existsSync, mkdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+// summary.json to --out. Exits 1 when a call missed, a tau2 process failed, a
+// task raised, or results.jsonl differs from the config's expected results.
+import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join, resolve, sep } from "node:path";
 import { parseArgs } from "node:util";
 import { createFilesAdapter } from "@engram/adapters";
@@ -33,7 +33,6 @@ import {
   readTau2Config,
   readTau2Script,
   runTau2,
-  type Served,
   scriptedTau2,
   setupTau2,
   summarize,
@@ -42,7 +41,6 @@ import {
 
 const repo = resolve(import.meta.dirname, "..", "..", "..");
 const driver = join(import.meta.dirname, "tau2_engram.py");
-const cli = join(repo, "packages", "cli", "src", "main.ts");
 
 /** The committed cassettes, read and never written; misses are recorded under `recordedDir`. */
 function readOnly(committedDir: string, recordedDir: string): CacheStore {
@@ -53,59 +51,6 @@ function readOnly(committedDir: string, recordedDir: string): CacheStore {
     get: (key) => committed.get(key) ?? recorded.get(key),
     set: (entry) => recorded.set(entry),
   };
-}
-
-/** `engram serve` on a scratch log and files store, on a free loopback port. */
-function startPlane(dir: string, preset: string): Promise<Served> {
-  return new Promise((done, fail) => {
-    const child = spawn(
-      process.execPath,
-      [
-        cli,
-        "serve",
-        "--store",
-        "files",
-        "--root",
-        join(dir, "store"),
-        "--owner",
-        AGENT_OWNER,
-        "--db",
-        join(dir, "log.db"),
-        "--policy",
-        preset,
-        "--port",
-        "0",
-      ],
-      { cwd: repo, stdio: ["ignore", "pipe", "pipe"] },
-    );
-    let seen = "";
-    const stopped = new Promise<void>((r) => child.on("close", () => r()));
-    const timer = setTimeout(() => {
-      child.kill();
-      fail(new Error(`engram serve did not start within 60 s: ${seen}`));
-    }, 60_000);
-    child.stdout.on("data", (c: Buffer) => {
-      seen += c.toString("utf8");
-      const m = /listening on (http:\/\/127\.0\.0\.1:\d+)/.exec(seen);
-      if (m?.[1] !== undefined) {
-        clearTimeout(timer);
-        done({
-          url: m[1],
-          close: async () => {
-            child.kill();
-            await stopped;
-          },
-        });
-      }
-    });
-    child.stderr.on("data", (c: Buffer) => {
-      seen += c.toString("utf8");
-    });
-    child.on("error", (e) => {
-      clearTimeout(timer);
-      fail(e);
-    });
-  });
 }
 
 const jsonl = (rows: readonly unknown[]) =>
@@ -138,7 +83,7 @@ async function main(): Promise<number> {
   if (values.setup) {
     const problems = checkTau2(paths);
     if (problems.length === 0) {
-      console.log(`tau2: ready at ${paths.upstream} (pin checked), Python ${paths.python}`);
+      console.log(`tau2: ready at ${paths.upstream} (pin, Python and lock checked)`);
       return 0;
     }
     setupTau2(paths, process.env);
@@ -206,17 +151,17 @@ async function main(): Promise<number> {
     record: offline ? "none" : "new_episodes",
     ...(values.record ? { recordFixtures: true } : { committed: [config.cassettes] }),
     upstream: (item, role) => {
-      let pair = upstreams.get(item);
-      if (pair === undefined) {
+      let scripted = upstreams.get(item);
+      if (scripted === undefined) {
         const own = script[item];
         if (own === undefined) throw new Error(`run-tau2: the script has no task ${item}`);
-        pair = scriptedTau2(item, own);
-        upstreams.set(item, pair);
+        scripted = scriptedTau2(item, own);
+        upstreams.set(item, scripted);
       }
-      return pair[role];
+      // The branded function itself: the proxy refuses a wrapper when recording fixtures.
+      return scripted[role];
     },
     openStore: (dir) => createFilesAdapter({ root: dir, owner: AGENT_OWNER }),
-    startPlane,
     env: process.env,
   });
   const sizeOf = (key: string) => {
@@ -227,23 +172,56 @@ async function main(): Promise<number> {
     return 0;
   };
   const summary = summarize(result.rows, result.usage, sizeOf);
-  writeFileSync(join(out, "results.jsonl"), jsonl(result.rows));
+  const results = jsonl(result.rows);
+  writeFileSync(join(out, "results.jsonl"), results);
   writeFileSync(join(out, "usage.jsonl"), jsonl(result.usage));
   writeFileSync(join(out, "memory.jsonl"), jsonl(result.memory));
   writeFileSync(join(out, "summary.json"), `${JSON.stringify(sorted(summary), null, 2)}\n`);
   const lines = [
     `tau2 ${config.domain} (${config.split} split): ${config.tasks.length} tasks under ${config.conditions.join(", ")}, seeds ${config.seeds.join(", ")}`,
-    `model calls: ${summary.calls.new} new, ${summary.calls.cached} from cassettes (agent ${summary.roles.agent.calls}, user simulator ${summary.roles.user.calls})`,
+    `model calls: ${summary.calls.new} new, ${summary.calls.cached} from cassettes (agent ${summary.roles.agent.calls}, user simulator ${summary.roles.user.calls}, judge ${summary.roles.judge.calls})`,
     ...Object.entries(summary.conditions).map(
       ([c, s]) =>
-        `${c}: reward (database hash) ${s.reward.toFixed(3)}, tau2 reward ${s.tau2_reward.toFixed(3)}, steps ${s.steps.toFixed(1)}, memory writes denied ${s.memory_writes_denied}`,
+        `${c}: tau2 reward ${s.tau2_reward.toFixed(3)}, database hash ${s.db_reward.toFixed(3)}, steps ${s.steps.toFixed(1)}, memory writes denied ${s.memory_writes_denied}, tasks failed ${s.failed}`,
     ),
-    `cassettes: agent ${summary.roles.agent.cassettes} (${summary.roles.agent.cassette_bytes} bytes), user simulator ${summary.roles.user.cassettes} (${summary.roles.user.cassette_bytes} bytes), the user simulator's share ${summary.user_cassette_share.toFixed(3)}`,
+    `cassettes: agent ${summary.roles.agent.cassettes} (${summary.roles.agent.cassette_bytes} bytes), user simulator ${summary.roles.user.cassettes} (${summary.roles.user.cassette_bytes} bytes), judge ${summary.roles.judge.cassettes}, the user simulator's share ${summary.user_cassette_share.toFixed(3)}`,
     `cost: ${summary.cost_usd.toFixed(6)} USD (scripted models)`,
-    `written to ${out}`,
   ];
+  let failed = result.errors.length > 0 || result.failures.length > 0;
+  for (const f of result.failures) {
+    lines.push(`tau2 exited ${f.code} under ${f.condition}, seed ${f.seed}; log ${f.log}`);
+  }
+  for (const row of result.rows.filter((r) => r.error !== null)) {
+    failed = true;
+    lines.push(`task ${row.task} failed under ${row.condition}, seed ${row.seed}: ${row.error}`);
+  }
+  const first = result.errors[0];
+  if (first !== undefined) {
+    lines.push(
+      `proxy errors: ${result.errors.length}, the first ${first.status} ${first.code} on ${first.task} (${first.role}): ${first.message}`,
+    );
+  }
+  if (config.expected !== undefined) {
+    if (values.record) {
+      // A recording that failed leaves the expected results as they were.
+      if (!failed) writeFileSync(config.expected, results);
+      lines.push(
+        failed
+          ? `expected results not written: the recording failed`
+          : `expected results written to ${config.expected}`,
+      );
+    } else if (!existsSync(config.expected) || readFileSync(config.expected, "utf8") !== results) {
+      failed = true;
+      lines.push(
+        `results.jsonl differs from the expected results ${config.expected}; a change to a reward, a step or a memory decision must be re-recorded by make fixtures`,
+      );
+    } else {
+      lines.push(`results equal the expected results ${config.expected}`);
+    }
+  }
+  lines.push(`written to ${out}`);
   console.log(lines.join("\n"));
-  return result.errors.length === 0 ? 0 : 1;
+  return failed ? 1 : 0;
 }
 
 main().then(

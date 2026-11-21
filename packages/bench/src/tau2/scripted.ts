@@ -37,6 +37,12 @@ export const TaskScript = z.strictObject({
   user: z.array(z.string().min(1)).min(1),
   /** The agent's replies, in order: a message to the user, or tool calls. */
   agent: z.array(AgentStepSchema).min(1),
+  /**
+   * The NL-assertion judge's verdict, for a task whose reward basis has NL
+   * assertions (retail): one result, met or not, in the JSON tau2's
+   * NLAssertionsEvaluator parses. Absent: a judge call is an error.
+   */
+  judge: z.strictObject({ met: z.boolean() }).optional(),
 });
 export type TaskScript = z.infer<typeof TaskScript>;
 
@@ -70,11 +76,11 @@ export function agentSteps(script: TaskScript, tools: ReadonlySet<string>): Agen
   });
 }
 
-/** The scripted agent and user simulator of one task, each branded by `asScripted` (card B10). */
+/** The scripted agent, user simulator and judge of one task, each branded by `asScripted` (card B10). */
 export function scriptedTau2(
   item: string,
   script: TaskScript,
-): { agent: ChatCall; user: ChatCall } {
+): { agent: ChatCall; user: ChatCall; judge: ChatCall } {
   const agent: ChatCall = async (request): Promise<ChatResponse> => {
     const tools = offered(request);
     const steps = agentSteps(script, tools);
@@ -116,6 +122,21 @@ export function scriptedTau2(
     }
     return { text, usage };
   };
+  const judge: ChatCall = async (): Promise<ChatResponse> => {
+    if (script.judge === undefined) {
+      throw new Error(`scripted tau2 judge: the script of ${item} has no judge verdict`);
+    }
+    const verdict = {
+      results: [
+        {
+          expectedOutcome: "every expected outcome of the task",
+          reasoning: "scripted verdict",
+          metExpectation: script.judge.met,
+        },
+      ],
+    };
+    return { text: JSON.stringify(verdict), usage };
+  };
   // Branded, so the proxy may record their replies as fixture cassettes (make fixtures only).
-  return { agent: asScripted(agent), user: asScripted(user) };
+  return { agent: asScripted(agent), user: asScripted(user), judge: asScripted(judge) };
 }

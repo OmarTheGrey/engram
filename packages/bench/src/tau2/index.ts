@@ -4,5 +4,7 @@ export * from "./config.ts";
 export * from "./env.ts";
 export * from "./launcher.ts";
 export * from "./memory.ts";
+export * from "./plane.ts";
+export * from "./result.ts";
 export * from "./scripted.ts";
 export * from "./summary.ts";

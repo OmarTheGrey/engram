@@ -9,13 +9,12 @@ descriptions and parameters of packages/pi-extension/src/tools.ts, the write
 result of `writeResultText` and the read in the memory tag of
 packages/pi-extension/src/tag.ts (`tagUngovernedRead` for C2, `tagRecall`
 for C5). packages/bench/test/tau2/shim.test.ts checks both against those
-files. One difference from the runner's C5 tag: no `read_id`, since
-`engram serve` draws read ids at random and a prompt holding one would never
-replay from a cassette (docs/log/2026-11-21-b11-decision-no-read-id.md).
+files. The read id is C5's plane's, seeded (packages/bench/src/tau2/plane.ts),
+so a prompt holding one replays (docs/log/2026-11-21-b11-decision-read-id.md).
 
 Each call crosses to memory over loopback HTTP with the bodies of
 `engram serve`'s routes (`POST /api/v1/items`, `POST /api/v1/read`): C5's URL
-is `engram serve`, C2's is the launcher's ungoverned store
+is `engram serve`'s app in the launcher, C2's is the launcher's ungoverned store
 (packages/bench/src/tau2/memory.ts). The actor is the launcher's, its source
 `model`, as the pi extension sets for agent tool calls (ADR 0004, D4).
 """
@@ -117,10 +116,10 @@ def tag_ungoverned_read(items):
 
 
 def tag_governed_read(read, limit):
-    """tag.ts, tagRecall (C5) over an /api/v1/read response, without the read id.
+    """tag.ts, tagRecall (C5) over an /api/v1/read response, the read id its event's.
 
     The items in the order of their explanations' ranks, cut to the
-    runner's read limit (`engram serve` cuts none), each with its rule.
+    runner's read limit (which C5's core pipeline has cut already), each with its rule.
     """
     by_id = {i["id"]: i for i in read["items"]}
     items = []
@@ -137,7 +136,12 @@ def tag_governed_read(read, limit):
                 "policy_id": e["policy_id"],
             }
         )
-    return tag_read(read["filtered"], items[:limit], policy_id=read["event"]["policy_id"])
+    return tag_read(
+        read["filtered"],
+        items[:limit],
+        read_id=read["event"]["id"],
+        policy_id=read["event"]["policy_id"],
+    )
 
 
 def item_id(*parts):
@@ -207,6 +211,8 @@ class Memory:
         self.run = run
         self.task = None
         self.log = []
+        # Each write's item id comes from this count, not from the model's tool call id.
+        self.writes = 0
 
     def call(self, name, arguments, tool_call_id):
         """The text the model is shown for one memory call."""
@@ -226,7 +232,8 @@ class Memory:
             text = "memory_write: scope and content must be strings"
             self._entry("memory_write", tool_call_id, decision="malformed", text=text)
             return text
-        ident = item_id(self.run, self.task or "", tool_call_id)
+        self.writes += 1
+        ident = item_id(self.run, str(self.writes))
         item = memory_item(arguments, tool_call_id, self.actor, self.at, ident)
         result = _post(f"{self.url}/api/v1/items", {"actor": self.actor, "item": item})
         stored = result.get("item")

@@ -1,9 +1,11 @@
-// What a tau2 run reports (card B11): per condition its tasks' mean reward
-// (the database hash check), tau2's own mean reward and mean steps; the calls
-// the ledger counted, new and from cassettes, per role; and the cassettes the
-// run's calls are keyed to, per role, which is what a deposit of them holds
-// (ADR 0036): the user simulator's share is the cost note card B11 asks for.
-import type { Role, TaskRow, UsageRow } from "./launcher.ts";
+// What a tau2 run reports (card B11): per condition its tasks' mean tau2
+// reward (H5's metric), the mean of the database hash check alone, mean
+// steps and the tasks that failed; the calls the ledger counted, new and
+// from cassettes, per role; and the cassettes the run's calls are keyed to,
+// per role, which is what a deposit of them holds (ADR 0036): the user
+// simulator's share is the cost note card B11 asks for.
+import { ROLES, type Role, type UsageRow } from "./launcher.ts";
+import type { TaskRow } from "./result.ts";
 
 export interface RoleCount {
   calls: number;
@@ -18,8 +20,9 @@ export interface Tau2Summary {
     string,
     {
       tasks: number;
-      reward: number;
+      failed: number;
       tau2_reward: number;
+      db_reward: number;
       steps: number;
       memory_writes_denied: number;
     }
@@ -47,14 +50,15 @@ export function summarize(
     const own = rows.filter((r) => r.condition === condition);
     conditions[condition] = {
       tasks: own.length,
-      reward: fixed(mean(own.map((r) => r.reward))),
+      failed: own.filter((r) => r.error !== null).length,
       tau2_reward: fixed(mean(own.map((r) => r.tau2_reward))),
+      db_reward: fixed(mean(own.map((r) => r.db_reward))),
       steps: fixed(mean(own.map((r) => r.steps))),
       memory_writes_denied: own.reduce((a, r) => a + r.memory_writes_denied, 0),
     };
   }
   const roles = {} as Record<Role, RoleCount>;
-  for (const role of ["agent", "user"] as const) {
+  for (const role of ROLES) {
     const own = usage.filter((u) => u.role === role);
     const keys = [...new Set(own.map((u) => u.key))];
     roles[role] = {
@@ -65,7 +69,7 @@ export function summarize(
       cassette_bytes: keys.reduce((a, k) => a + sizeOf(k), 0),
     };
   }
-  const bytes = roles.agent.cassette_bytes + roles.user.cassette_bytes;
+  const bytes = ROLES.reduce((a, r) => a + roles[r].cassette_bytes, 0);
   return {
     conditions,
     calls: {

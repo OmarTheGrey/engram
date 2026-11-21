@@ -82,11 +82,19 @@ export const Tau2Config = z.strictObject({
   temperature: z.number().min(0),
   max_steps: z.number().int().positive(),
   max_errors: z.number().int().positive(),
+  /** How long one tau2 process, one (condition, seed), may run before it is stopped. */
+  timeout_s: z.number().int().positive(),
   /** The time every memory item is dated: tau2's own clock for the domain, so nothing reads the wall clock. */
   memory_time: z.iso.datetime(),
   /** The scripted upstream's replies; only scripted models are wired (no live model before card X11). */
   script: z.string().optional(),
   cassettes: z.string(),
+  /**
+   * The results.jsonl the slice must reproduce, byte for byte: written by
+   * `--record` (make fixtures), compared on every other run, so a change to
+   * a reward or a step count fails the acceptance (review B11-4).
+   */
+  expected: z.string().optional(),
 });
 export type Tau2Config = z.infer<typeof Tau2Config>;
 
@@ -97,6 +105,7 @@ export function readTau2Config(path: string): Tau2Config {
   return {
     ...config,
     cassettes: resolve(base, config.cassettes),
+    ...(config.expected === undefined ? {} : { expected: resolve(base, config.expected) }),
     ...(config.script === undefined ? {} : { script: resolve(base, config.script) }),
   };
 }
@@ -105,5 +114,5 @@ export function readTau2Config(path: string): Tau2Config {
 export const isScriptedModel = (model: string) => model.startsWith("scripted/");
 
 /** The item a task's calls are keyed under: `<domain>/<task>/<role>`, the harness added by the proxy. */
-export const taskItem = (domain: string, task: string, role: "agent" | "user") =>
+export const taskItem = (domain: string, task: string, role: "agent" | "user" | "judge") =>
   `${domain}/${task}/${role}`;

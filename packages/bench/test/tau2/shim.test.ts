@@ -68,7 +68,7 @@ describe("the tau2 shim's memory tools are the runner's", () => {
     expect(render({ kind: "store", items: [] })).toBe(tagUngovernedRead([]));
   });
 
-  test("renders C5's read as tagRecall does, without the read id, in rank order, cut to the limit", () => {
+  test("renders C5's read as tagRecall does, its read id included, in rank order, cut to the limit", () => {
     const read = {
       items: stored.map((s) => ({ ...s, class: "semantic" })),
       explanations: [
@@ -76,10 +76,10 @@ describe("the tau2 shim's memory tools are the runner's", () => {
         { item_id: stored[0]?.id, rank: 2, policy_id: "preset.medium/read/team" },
       ],
       filtered: 3,
-      event: { policy_id: "preset.medium/read/person" },
+      event: { id: "01920000-0000-7000-9000-000000000007", policy_id: "preset.medium/read/person" },
     };
     const details = {
-      read_id: "READ",
+      read_id: "01920000-0000-7000-9000-000000000007",
       policy_id: "preset.medium/read/person",
       filtered: 3,
       explanations: [],
@@ -94,7 +94,7 @@ describe("the tau2 shim's memory tools are the runner's", () => {
         },
       ],
     };
-    const expected = tagRecall(details).replace(' read_id="READ"', "");
+    const expected = tagRecall(details);
     expect(render({ kind: "plane", read, limit: 1 })).toBe(expected);
   });
 
