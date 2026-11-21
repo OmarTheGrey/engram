@@ -12,6 +12,8 @@ Three products on one plane:
 
 And one research question: what does enforcing memory governance at the boundary cost, compared with asking the model to behave, across stores and models?
 
+What is new, to our knowledge: the first deterministic, event-logged, replayable control plane across memory stores, with a pre-registered measurement of its governance tax. HEAMS (arXiv 2611.20144) and SAFE-Mem (arXiv 2610.22959) are the nearest neighbours; `docs/research/positioning.md` states how Engram differs from each.
+
 Engram is built on [pi](https://pi.dev): the plane runs inside the pi process as an extension, intercepts writes in `tool_call` and reads in `context`, mirrors every decision into the pi session, reaches any model through pi-ai, and mines procedures from pi session trees. Claude Code and Codex are reached through the MCP server. See `docs/decisions/0001-pi-as-base.md`.
 
 ## Status
