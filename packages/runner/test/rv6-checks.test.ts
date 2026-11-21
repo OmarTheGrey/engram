@@ -27,7 +27,14 @@ describe("the smoke run: a handful of fixture items, C1 to C5, both arms, with t
     const h1 = readRunnerConfig(join(CONFIGS, "h1-gatemem.json"));
     expect(gm.kind).toBe("pipeline");
     expect(gm.conditions).toEqual(["C1", "C2", "C3", "C4", "C5"]);
-    for (const k of ["preset", "store", "c4_verdicts", "read_limit", "judge"] as const) {
+    for (const k of [
+      "preset",
+      "store",
+      "c4_verdicts",
+      "read_limit",
+      "turn_limit",
+      "judge",
+    ] as const) {
       expect(gm[k], k).toEqual(h1[k]);
     }
     expect(configJudge(gm)).toEqual(PAPER_JUDGE_CONFIG);
@@ -39,6 +46,7 @@ describe("the smoke run: a handful of fixture items, C1 to C5, both arms, with t
     const mi = readMemInvConfig(SMOKE_MEM_INV);
     expect(mi.kind).toBe("pipeline");
     expect(mi.store).toBe("mem0");
+    expect(mi.turn_limit).toBe(readMemInvConfig(join(CONFIGS, "h1-mem-inv.json")).turn_limit);
     const miCount = await countConfig(mi);
     expect(miCount.sessions).toBe(20);
     expect(Object.keys(miCount.item_kinds)).toHaveLength(5);

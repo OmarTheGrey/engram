@@ -19,6 +19,7 @@
   "cassettes": "../../.engram/runs/smoke-h1-gatemem/cassettes",
   "c4_verdicts": "engram",
   "read_limit": 20,
+  "turn_limit": 8,
   "spend_ceiling_usd": 5,
   "judge": {
     "model": "openrouter/openai/gpt-4o",

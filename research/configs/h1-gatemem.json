@@ -13,6 +13,6 @@
   "c4_verdicts": "engram",
   "read_limit": 20,
   "turn_limit": 8,
-  "spend_ceiling_usd": 1560.26,
+  "spend_ceiling_usd": 945.29,
   "judge": { "model": "openrouter/openai/gpt-4o", "temperature": 0, "max_tokens": 4096 }
 }

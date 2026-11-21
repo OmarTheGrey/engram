@@ -11,5 +11,6 @@
   "store": "mem0",
   "cassettes": "../../.engram/runs/smoke-h1-mem-inv/cassettes",
   "read_limit": 20,
+  "turn_limit": 8,
   "spend_ceiling_usd": 3
 }
