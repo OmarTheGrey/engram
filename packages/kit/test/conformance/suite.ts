@@ -140,9 +140,7 @@ async function seed(w: ReturnType<typeof workspace>) {
   const dana = { ...BOUND, source: "user" as const };
   const eve = { id: "person:eve", level: "person" as const, memberships: ["person:eve"] };
   // Through the plane directly: the seed is not the adapter's call.
-  await w.inPlane(() =>
-    w.ws.plane.write(dana, item(1, "person:dana", dana.id, DANA_FACT), NOW),
-  );
+  await w.inPlane(() => w.ws.plane.write(dana, item(1, "person:dana", dana.id, DANA_FACT), NOW));
   await w.inPlane(() =>
     w.ws.plane.write({ ...eve, source: "user" }, item(2, "person:eve", eve.id, EVE_FACT), NOW),
   );
@@ -220,7 +218,10 @@ export function staticViolations(root: string): string[] {
       if (FORBIDDEN_DEPENDENCIES.includes(dep)) problems.push(`${field} names ${dep}`);
   for (const file of sourceFiles(join(root, "src")))
     for (const { spec, typeOnly } of imports(readFileSync(file, "utf8"))) {
-      const name = spec.split("/").slice(0, spec.startsWith("@") ? 2 : 1).join("/");
+      const name = spec
+        .split("/")
+        .slice(0, spec.startsWith("@") ? 2 : 1)
+        .join("/");
       if (FORBIDDEN_IMPORTS.includes(spec) || FORBIDDEN_IMPORTS.includes(name))
         problems.push(`${file} imports ${spec}`);
       // Core opens logs and builds planes over stores; an adapter takes its types only.
@@ -241,25 +242,28 @@ export function kitConformance(subject: KitAdapterSubject): ConformanceCase[] {
       check(problems.length === 0, `store reached outside the plane: ${problems.join("; ")}`);
     }),
 
-    c("every store call happens inside a plane request, and the store holds only what the plane allowed", async () => {
-      const w = workspace();
-      await seed(w);
-      const { instance } = build(subject, w);
-      await instance.write({ content: "dana prefers short summaries", scope: "person:dana" });
-      const shown = await instance.read({ query: "deploys" });
-      check(w.outside.length === 0, `store called outside the plane: ${w.outside.join(", ")}`);
-      check(shown.includes(DANA_FACT), `the read did not show the reader's own fact: ${shown}`);
-      check(!shown.includes("payroll"), `the read showed another person's fact: ${shown}`);
-      const allowed = new Set(
-        w.ws.plane
-          .events()
-          .filter((e) => e.op === "write" && e.decision === "allow")
-          .map((e) => e.item_id),
-      );
-      for (const scope of ["person:dana", "person:eve", "team:platform"])
-        for (const held of await w.store.list(scope))
-          check(allowed.has(held.id), `the store holds ${held.id}, which no allow event wrote`);
-    }),
+    c(
+      "every store call happens inside a plane request, and the store holds only what the plane allowed",
+      async () => {
+        const w = workspace();
+        await seed(w);
+        const { instance } = build(subject, w);
+        await instance.write({ content: "dana prefers short summaries", scope: "person:dana" });
+        const shown = await instance.read({ query: "deploys" });
+        check(w.outside.length === 0, `store called outside the plane: ${w.outside.join(", ")}`);
+        check(shown.includes(DANA_FACT), `the read did not show the reader's own fact: ${shown}`);
+        check(!shown.includes("payroll"), `the read showed another person's fact: ${shown}`);
+        const allowed = new Set(
+          w.ws.plane
+            .events()
+            .filter((e) => e.op === "write" && e.decision === "allow")
+            .map((e) => e.item_id),
+        );
+        for (const scope of ["person:dana", "person:eve", "team:platform"])
+          for (const held of await w.store.list(scope))
+            check(allowed.has(held.id), `the store holds ${held.id}, which no allow event wrote`);
+      },
+    ),
 
     c("a denied write surfaces as EngramRejected carrying the log's deny event", async () => {
       const w = workspace();
@@ -275,13 +279,13 @@ export function kitConformance(subject: KitAdapterSubject): ConformanceCase[] {
         `the rejection carries ${JSON.stringify(error.event)}, the log ends with ${JSON.stringify(last)}`,
       );
       check(error.event.actor === BOUND.id, `the deny event names ${error.event.actor}`);
-      check(
-        (await w.store.list("team:platform")).length === 0,
-        "the store got the denied item",
-      );
+      check((await w.store.list("team:platform")).length === 0, "the store got the denied item");
       // An unknown scope is refused the same way.
       const outsider = await rejection(instance.write({ content: "x", scope: "person:eve" }));
-      check(outsider instanceof EngramRejected, `a write into another person's scope surfaced as ${String(outsider)}`);
+      check(
+        outsider instanceof EngramRejected,
+        `a write into another person's scope surfaced as ${String(outsider)}`,
+      );
     }),
 
     c("model output cannot change the actor, its source or the item's provenance", async () => {
@@ -308,7 +312,10 @@ export function kitConformance(subject: KitAdapterSubject): ConformanceCase[] {
       actor.memberships.push("person:eve");
       (actor as { id: string }).id = "person:eve";
       const after = await rejection(instance.write({ content: "eve's note", scope: "person:eve" }));
-      check(after instanceof EngramRejected, "a write after the actor object changed was not refused");
+      check(
+        after instanceof EngramRejected,
+        "a write after the actor object changed was not refused",
+      );
       check(after.event.actor === BOUND.id, `the actor became ${after.event.actor}`);
     }),
   ];
