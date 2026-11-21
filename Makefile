@@ -17,8 +17,8 @@ test: ## layers 1 to 5 and 7 (vitest) and research tests (pytest)
 	$(PNPM) exec vitest run
 	$(UV) run pytest research || [ $$? -eq 5 ]
 
-test-invariants: ## the seven invariants against the real Plane, with counterexample and seed (issue #1)
-	ENGRAM_INVARIANTS=1 $(PNPM) --filter core exec vitest run test/property/invariants.test.ts
+test-invariants: ## the seven invariants against the real Plane, with counterexample and seed (issue #1), and card E1.4's stateful model of the Plane
+	ENGRAM_INVARIANTS=1 $(PNPM) --filter core exec vitest run test/property/invariants.test.ts test/property/stateful.test.ts
 
 test-scale: ## card RV1: H1's GateMem results at full size (26,616 rows, about 540 million characters) written and read back a line at a time; slow, writes about half a gigabyte to the temp folder
 	ENGRAM_SCALE=1 $(PNPM) --filter runner exec vitest run test/scale.test.ts
