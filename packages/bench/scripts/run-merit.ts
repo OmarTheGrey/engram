@@ -81,7 +81,9 @@ async function main(): Promise<number> {
   }
   if (values.record) {
     if (process.env.ENGRAM_OFFLINE === "1") {
-      console.error("run-merit: --record makes model calls; unset ENGRAM_OFFLINE (make fixtures does)");
+      console.error(
+        "run-merit: --record makes model calls; unset ENGRAM_OFFLINE (make fixtures does)",
+      );
       return 2;
     }
     rmSync(config.cassettes, { recursive: true, force: true });

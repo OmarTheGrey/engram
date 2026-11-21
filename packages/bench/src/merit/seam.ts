@@ -219,7 +219,10 @@ async function planeBackend(
   const base = workspaceOf(deps);
   const workspace = {
     ...base,
-    plane: { ...base.plane, read: (actor: Actor, query: Parameters<typeof core.read>[1]) => core.read(actor, query) },
+    plane: {
+      ...base.plane,
+      read: (actor: Actor, query: Parameters<typeof core.read>[1]) => core.read(actor, query),
+    },
   };
   const server = await listen(workspace, { port: 0, now: () => MERIT_READ_AT, ui: null });
   const scopes = () => [...new Set(currentScopes(db))].sort();

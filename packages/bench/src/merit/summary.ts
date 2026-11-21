@@ -62,8 +62,8 @@ function taskSuccess(rows: readonly MeritRow[]) {
 
 /** The plane's decisions over a cell's arcs: write and read events by decision. */
 function decisions(cell: MeritCellRun) {
+  if (cell.run.condition !== "C5") return null;
   const events = cell.events.flat();
-  if (cell.events.length === 0) return null;
   const count = (op: string, decision: string) =>
     events.filter((e) => e.op === op && e.decision === decision).length;
   return {
