@@ -5,18 +5,10 @@
 // repository holds a string a secret scanner would take for a real key
 // (docs/conventions/absorption.md: fixtures are synthetic; rule 12).
 import { describe, expect, test } from "vitest";
+import { admission } from "../../../scripts/admission.ts";
 import { type GateFixture, gateFixtures, gateFixtureText } from "../../../scripts/faults.ts";
-import {
-  BACKTRACKING_BOUND_MS,
-  GITLEAKS_COMMIT,
-  readToml,
-  translate,
-} from "../../../scripts/gitleaks-rules.ts";
-import {
-  ADVERSARIAL_LENGTH,
-  adversarialInputs,
-  FILLERS,
-} from "../../../src/policy/backtracking.ts";
+import { GITLEAKS_COMMIT, readToml, translate } from "../../../scripts/gitleaks-rules.ts";
+import { adversarialInputs, FILLERS } from "../../../src/policy/backtracking.ts";
 import { evaluateWrite } from "../../../src/policy/evaluate.ts";
 import {
   CONTENT_SIZE_ID,
@@ -208,12 +200,33 @@ describe("the stage in evaluateWrite: the policy decides the outcome", () => {
     );
   });
 
-  test("a reason lists three matches and counts the rest", () => {
+  test("a reason lists three matches and counts the rest, when no match decides early", () => {
+    // pii blocks and nothing is personal data: every secret is held, so the
+    // scan runs to the end.
     const d = decide(
-      guarded({ secrets: "block" }),
+      guarded({ secrets: "review", pii: "block" }),
       [S.aws, S.github, S.stripe, S.google, S.slack].join(" "),
     );
     expect(d.reason).toMatch(/^the content holds 5 matches: .+ and 2 more; /);
+  });
+
+  test("the scan stops at the first match that decides (E2.9-1)", () => {
+    const text = [S.aws, S.github, S.stripe].join(" ");
+    expect(decide(guarded({ secrets: "block" }), text).reason).toBe(
+      "the content holds secret/aws-access-key (20 characters); the policy's secrets guard blocks it",
+    );
+    // With no guard in block, the first match of any kind decides the hold.
+    expect(decide(guarded({ secrets: "review" }), text).reason).toMatch(
+      /^the content holds secret\/aws-access-key \(20 characters\); /,
+    );
+    // A deciding match is never displaced by an overlapping one that does not decide.
+    const overlapping: GuardRule[] = [
+      { kind: "secret/wide", guard: "secrets", tier: "block", pattern: /abcdef/dg },
+      { kind: "pii/narrow", guard: "pii", tier: "block", pattern: /cd/dg },
+    ];
+    const kept = scan("abcdef", both, overlapping, (f) => f.guard === "pii");
+    expect(kept.map((f) => f.kind)).toEqual(["pii/narrow"]);
+    expect(scan("abcdef", both, overlapping).map((f) => f.kind)).toEqual(["secret/wide"]);
   });
 
   test("a candidate write stays a candidate", () => {
@@ -223,11 +236,35 @@ describe("the stage in evaluateWrite: the policy decides the outcome", () => {
     });
   });
 
-  test("an item landing retired is never judged: rejecting a held candidate retires it", () => {
+  test("a new item written retired is judged (E2.9-4)", () => {
     expect(decide(guarded({ secrets: "block" }), content, { status: "retired" })).toMatchObject({
-      decision: "allow",
-      check: "admit",
+      decision: "deny",
+      check: "content-guard",
+      policy_id: SECRET_ID,
     });
+    expect(decide(guarded({ secrets: "review" }), content, { status: "retired" })).toMatchObject({
+      decision: "allow",
+      status: "retired",
+      check: "review",
+    });
+  });
+
+  test("retiring a held candidate unchanged is not judged: that is how it is rejected", () => {
+    const held = withContent(content, { status: "candidate" });
+    const rejected = withContent(content, { status: "retired", version: 2 });
+    expect(
+      evaluateWrite(guarded({ secrets: "block" }), writer, rejected, held, new Map()),
+    ).toMatchObject({ decision: "allow", check: "admit" });
+    // Retiring it with new content is judged.
+    expect(
+      evaluateWrite(
+        guarded({ secrets: "block" }),
+        writer,
+        withContent(`${content}.`, { status: "retired", version: 2 }),
+        held,
+        new Map(),
+      ),
+    ).toMatchObject({ check: "content-guard" });
   });
 
   test("a rewrite of an active item keeping its content is not judged again", () => {
@@ -254,6 +291,24 @@ describe("the stage in evaluateWrite: the policy decides the outcome", () => {
     ).toMatchObject({ check: "content-guard" });
   });
 
+  test("an unchanged rewrite that moves the item or changes its class is judged (E2.9-3)", () => {
+    const policy = guarded({ secrets: "block" });
+    const existing = withContent(content, { scope: "person:omar" });
+    const moved = withContent(content, { scope: "team:platform", version: 2 });
+    expect(evaluateWrite(policy, writer, moved, existing, new Map())).toMatchObject({
+      check: "content-guard",
+      policy_id: SECRET_ID,
+    });
+    const reclassed = withContent(content, { scope: "person:omar", class: "episodic", version: 2 });
+    const anyClass = {
+      ...policy,
+      write: policy.write.map((w) => ({ ...w, forbidden_classes: [] })),
+    };
+    expect(evaluateWrite(anyClass, writer, reclassed, existing, new Map())).toMatchObject({
+      check: "content-guard",
+    });
+  });
+
   test("the guard runs after every access check: a non-member learns nothing of the content", () => {
     const d = evaluateWrite(
       guarded({ secrets: "block" }),
@@ -277,14 +332,22 @@ describe("the stage in evaluateWrite: the policy decides the outcome", () => {
     expect(d.reason).not.toContain("org scope requires review");
   });
 
-  test("structured content is scanned through its keys and string values", () => {
+  test("structured content is scanned through its keys, string values and numbers", () => {
     expect(decide(guarded({ secrets: "block" }), { deploy: { key: S.aws } })).toMatchObject({
       check: "content-guard",
     });
     expect(decide(guarded({ secrets: "block" }), { [S.github]: ["x", 3, null] })).toMatchObject({
       check: "content-guard",
     });
-    expect(contentText({ a: ["b", { c: "d" }], e: 1, f: true })).toBe("a\nb\nc\nd\ne\n\nf\n");
+    expect(contentText({ a: ["b", { c: "d" }], e: 1, f: true })).toBe("a\nb\nc\nd\ne\n1\nf\n");
+    expect(contentText(12n)).toBe("12");
+  });
+
+  test("a card number stored as a number is scanned (E2.9-2)", () => {
+    expect(decide(guarded({ pii: "block" }), { card: Number(S.card) })).toMatchObject({
+      decision: "deny",
+      policy_id: PII_ID,
+    });
   });
 });
 
@@ -412,7 +475,75 @@ describe("the value never leaks", () => {
   });
 });
 
+describe("the limits research/configs/secret-guard.json states (E2.9-5)", () => {
+  // Each is an evasion the review confirmed. When a change closes one, this
+  // test fails, and the limit leaves the config with it.
+  const key = S.aws;
+  test.each([
+    ["a zero-width space inside a key", `key ${key.slice(0, 8)}​${key.slice(8)}`],
+    [
+      "a key split across a line break",
+      `key ${key.slice(0, 10)}
+${key.slice(10)}`,
+    ],
+    ["a key in base64", `key ${Buffer.from(key).toString("base64")}`],
+    [
+      "a key in full-width characters",
+      `key ${[...key.slice(0, 4)].map((c) => String.fromCharCode(c.charCodeAt(0) + 0xfee0)).join("")}${key.slice(4)}`,
+    ],
+    ["a bare 9-digit SSN", "my number is 123456789"],
+    ["hexadecimal after sha256:", `api key sha256:${S.hex}`],
+  ])("%s is not found as its kind", (_what, text) => {
+    // At most the entropy rule holds a long encoded run at REVIEW.
+    expect(kinds(scan(text, both)).filter((k) => k !== "secret/high-entropy")).toEqual([]);
+  });
+
+  test("a key split between a JSON key and its value is not found", () => {
+    expect(
+      decide(guarded({ secrets: "block" }), { [key.slice(0, 10)]: key.slice(10) }),
+    ).toMatchObject({
+      check: "admit",
+    });
+  });
+});
+
 describe("the review-held candidate goes the promotion path", () => {
+  test("its owner rejects it by retiring it unchanged, under block as under review (E2.9-4)", async () => {
+    for (const mode of ["review", "block"] as const) {
+      const { plane, deps } = fresh(guarded({ secrets: "review" }));
+      const it = withContent(`the deploy key is ${S.aws}`);
+      const held = await plane.write(writer, it, AT);
+      expect(held.item?.status).toBe("candidate");
+      deps.policy.content_guards = { secrets: mode };
+      const rejected = await plane.write(
+        writer,
+        { ...(held.item as MemoryItem), status: "retired", version: 2, store_ref: null },
+        AT,
+      );
+      expect(rejected.event.decision).toBe("allow");
+      expect(rejected.item?.status).toBe("retired");
+    }
+  });
+
+  test("the promotion's reasons name the content guard, not the scope (E2.9-7)", async () => {
+    const { plane } = fresh(guarded({ secrets: "review" }));
+    const it = withContent(`the deploy key is ${S.aws}`);
+    await plane.write(writer, it, AT);
+    const reviewer = {
+      ...writer,
+      id: "person:dana",
+      memberships: ["person:dana", "team:platform"],
+    };
+    const asked = await plane.promote(writer, it.id, "team:platform", AT);
+    expect(asked.event.reason).toContain(`the content guard holds it (${SECRET_ID})`);
+    expect(asked.event.reason).not.toContain("team:platform requires review");
+    const promoted = await plane.promote(reviewer, it.id, "team:platform", AT, { review: true });
+    expect(promoted.event.reason).toContain(
+      `the content guard held it (${SECRET_ID}), which person:dana gave`,
+    );
+    expect(promoted.event.reason).not.toContain("scope requires review");
+  });
+
   test("no read returns it; a reviewer may promote it, after which reads do", async () => {
     const { plane } = fresh(guarded({ secrets: "review" }));
     const it = withContent(`the deploy key is ${S.aws}`);
@@ -595,7 +726,45 @@ describe("each hand-written rule finds what it names", () => {
     ["pii/us-itin", "ITIN 912781234"],
     ["pii/es-dni", "dni 12345678Z"],
     ["pii/es-dni", "NIF 12345678 Z"],
+    ["secret/docker-pat", j("dckr", "_pat_", draw(r, ALNUM, 27))],
+    ["secret/linear-key", j("lin", "_api_", draw(r, ALNUM, 40))],
+    ["secret/notion-token", j("nt", "n_", draw(r, ALNUM, 46))],
+    ["secret/sendgrid-key", j("S", "G.", draw(r, ALNUM, 22), ".", draw(r, ALNUM, 43))],
+    ["secret/digitalocean-token", j("do", "p_v1_", draw(r, HEX, 64))],
+    ["secret/shopify-token", j("shp", "at_", draw(r, HEX, 32))],
+    ["secret/pypi-token", j("py", "pi-AgE", draw(r, ALNUM, 60))],
+    ["secret/databricks-token", j("da", "pi", draw(r, HEX, 32))],
+    ["secret/vault-token", j("hv", "s.", draw(r, ALNUM, 100))],
+    ["secret/nvidia-nim-key", j("nva", "pi-", draw(r, ALNUM, 40))],
+    ["secret/groq-key", j("gs", "k_", draw(r, ALNUM, 52))],
+    ["secret/xai-key", j("xa", "i-", draw(r, ALNUM, 80))],
+    ["secret/perplexity-key", j("ppl", "x-", draw(r, ALNUM, 48))],
+    ["secret/supabase-token", j("sb", "p_", draw(r, HEX, 40))],
+    ["secret/sentry-token", j("sntr", "yu_", draw(r, HEX, 64))],
+    ["secret/grafana-token", j("gl", "sa_", draw(r, ALNUM, 32), "_", draw(r, HEX, 8))],
+    ["secret/postman-key", j("PM", "AK-", draw(r, HEX, 24), "-", draw(r, HEX, 34))],
+    ["secret/pulumi-token", j("pu", "l-", draw(r, HEX, 40))],
+    ["secret/doppler-token", j("dp", ".pt.", draw(r, ALNUM, 43))],
+    ["secret/heroku-key", j("HR", "KU-AA", draw(r, ALNUM, 58))],
+    ["secret/atlassian-token", j("ATA", "TT3", draw(r, ALNUM, 186))],
+    [
+      "secret/slack-webhook",
+      j("https://hooks.", "slack.com/services/T01ABCDEF/B02GHIJKL/", draw(r, ALNUM, 24)),
+    ],
+    [
+      "secret/discord-webhook",
+      j("https://discord.com/api/", "webhooks/123456789012345678/", draw(r, ALNUM, 68)),
+    ],
+    ["secret/env-credential", j("STORAGE_ACCESS_KEY=", draw(r, ALNUM, 24))],
+    ["secret/hex-near-keyword", `api key ${S.hex}`],
   ];
+
+  test("every hand-written rule's kind has a positive case (E2.9-6)", () => {
+    const kinds = new Set(
+      GUARD_RULES.filter((g) => !g.kind.startsWith("secret/gitleaks/")).map((g) => g.kind),
+    );
+    expect([...kinds].filter((k) => !cases.some(([c]) => c === k))).toEqual([]);
+  });
   test.each(cases)("%s", (kind, text) => {
     expect(kinds(scan(text, both))).toContain(kind);
   });
@@ -629,6 +798,9 @@ describe("each hand-written rule finds what it names", () => {
     expect(
       kinds(scan(`a UUID ${"0".repeat(8)}-0000-7000-8000-${"0".repeat(12)} and ${S.aws}`, both)),
     ).toEqual(["secret/aws-access-key"]);
+    expect(
+      kinds(scan(`${S.aws} before a UUID ${"0".repeat(8)}-0000-7000-8000-${"0".repeat(12)}`, both)),
+    ).toEqual(["secret/aws-access-key"]);
     const odd: GuardRule[] = [
       { kind: "secret/empty", guard: "secrets", tier: "block", pattern: /y?/dg },
       { kind: "secret/absent", guard: "secrets", tier: "block", pattern: /x(z)?/dg, group: 1 },
@@ -656,7 +828,7 @@ describe("each hand-written rule finds what it names", () => {
     expect(kinds(scan(`prefix${S.aws}`, both))).not.toContain("secret/aws-access-key");
   });
 
-  test("overlapping matches resolve to one: the longer, then the BLOCK tier", () => {
+  test("overlapping matches resolve to one: the BLOCK tier, then the earlier rule", () => {
     const found = scan(`token ${S.github}`, both);
     expect(found).toHaveLength(1);
     expect(found[0]?.tier).toBe("block");
@@ -668,6 +840,16 @@ describe("each hand-written rule finds what it names", () => {
       "QPZRY9X8GF2TVDW0S3JN54KHCE6MUA7L".repeat(2).slice(0, 58),
     );
     expect(kinds(scan(text, both))).toContain("secret/gitleaks/age-secret-key");
+    // Its line runs to the next line break, which ends it.
+    expect(
+      kinds(
+        scan(
+          `${text}
+the next line`,
+          both,
+        ),
+      ),
+    ).toContain("secret/gitleaks/age-secret-key");
   });
 
   test("a gitleaks rule's allowlist and stopwords hold", () => {
@@ -714,27 +896,60 @@ describe("backtracking: every rule is timed before it is admitted", () => {
     expect(adversarialInputs(["x".repeat(10)], 4).at(-1)).toBe("xxxxxxxxxx");
   });
 
-  // Half the generator's length, under the same bound: a linear rule takes a
-  // few milliseconds here; a catastrophic one takes seconds.
-  const LENGTH = ADVERSARIAL_LENGTH / 2;
-  test.each(GUARD_RULES.map((r, i) => [i, r.kind, r] as const))(
-    "rule %i, %s, runs every adversarial input within the bound",
+  // Admission (scripts/admission.ts): growth from n to 4n under 6 times, and
+  // cost under 20 times gitleaks' keyword prefix, both machine-independent
+  // ratios. The hand rules are judged here; gitleaks' rules by the generator,
+  // whose verdicts the generated table records.
+  const HAND = GUARD_RULES.filter((r) => !r.kind.startsWith("secret/gitleaks/"));
+  test.each(HAND.map((r, i) => [i, r.kind, r] as const))(
+    "hand rule %i, %s, is admitted",
     (_i, _kind, rule) => {
-      for (const input of adversarialInputs(rule.keywords ?? [], LENGTH)) {
-        const start = performance.now();
-        for (const _ of input.matchAll(rule.pattern)) {
-          // every match, as the scan takes them
-        }
-        expect(performance.now() - start).toBeLessThan(BACKTRACKING_BOUND_MS);
-      }
+      expect(
+        admission(rule.pattern.source, rule.pattern.flags.replace("d", ""), rule.keywords ?? []),
+      ).toEqual({ admitted: true });
     },
   );
 
-  test("a rule over the bound is left out of the table", () => {
-    const left = new Set(GITLEAKS_LEFT_OUT.map(([id]) => id));
-    expect(left.size).toBeGreaterThan(0);
+  test("admission refuses a quadratic rule and a slow linear one", () => {
+    // A long local part with no `@`: every start rescans the run (the email
+    // rule before its anchor).
+    expect(admission("\\b[A-Za-z0-9._%+-]+@[a-z]+\\.[a-z]{2,}", "", [], 1024)).toMatchObject({
+      admitted: false,
+      why: expect.stringContaining("grows faster than linearly"),
+    });
+    // A doubled lazy prefix: linear, and dozens of times slower.
+    expect(
+      admission(
+        "[\\w.-]{0,50}?(?:[\\w.-]{0,50}?(?:key)(?:[ \\t\\w.-]{0,20}))=",
+        "i",
+        ["key"],
+        1024,
+      ),
+    ).toMatchObject({ admitted: false, why: expect.stringContaining("costs over") });
+  });
+
+  test("the generator left out what admission refused, and says why", () => {
+    const left = new Map(GITLEAKS_LEFT_OUT);
     expect(GITLEAKS_RULES.some((r) => left.has(r.id))).toBe(false);
-    expect(GITLEAKS_LEFT_OUT.some(([, why]) => why.includes("backtracking bound"))).toBe(true);
+    expect(left.get("curl-auth-user")).toContain("grows faster than linearly");
+    expect(left.get("okta-access-token")).toContain("costs over");
+  });
+
+  test("a full guard on SCAN_LIMIT characters finishes in under a second (E2.9-1)", () => {
+    const fill = (unit: string) =>
+      unit.repeat(Math.ceil(SCAN_LIMIT / unit.length)).slice(0, SCAN_LIMIT);
+    for (const unit of ["a@b.co ", "aZ0-"])
+      for (const content_guards of [
+        { pii: "review" },
+        { secrets: "block", pii: "block" },
+        { secrets: "review", pii: "block" },
+      ] as ContentGuards[]) {
+        const start = performance.now();
+        contentGuard(guarded(content_guards), withContent(fill(unit)), undefined);
+        expect(performance.now() - start, `${unit} ${JSON.stringify(content_guards)}`).toBeLessThan(
+          1000,
+        );
+      }
   });
 });
 

@@ -3,7 +3,7 @@
 Usage:
     uv run python research/scripts/secret_guard.py \\
         --config research/configs/secret-guard.json \\
-        --out research/results/secret-guard.json
+        --out research/results/h1-secret-guard.json
 
 Three sets of texts, every one synthetic or already public in this repository
 (rule 12: nothing from dogfood, and no real secret):
@@ -26,7 +26,11 @@ The detector is TypeScript (packages/core/src/policy/secrets.ts) and is not
 reimplemented here: packages/core/scripts/secret-guard.ts scans each text and
 writes back kinds, tiers and lengths, never a value. The result holds counts,
 rates with 95 percent Wilson intervals, and the paths of the benign
-paragraphs flagged, never their text.
+paragraphs flagged, never their text; and, from the config, the note that the
+benign rate is in-sample (the gates were tuned on the same corpus) and the
+evasions the guard is known to miss. The file is named h1- only because every
+MANIFEST row must match one hypothesis's results glob; it tests no hypothesis
+("hypothesis": "none"), as research/results/h1-crosswalk.json does not.
 """
 
 from __future__ import annotations
@@ -447,6 +451,9 @@ def run(config: Mapping[str, Any]) -> dict[str, Any]:
     return {
         "name": config["name"],
         "card": "E2.9",
+        "hypothesis": config["hypothesis"],
+        "in_sample": config["in_sample"],
+        "limits": list(config["limits"]),
         "rules": shape,
         "policy": (
             "content_guards: secrets block, pii block "

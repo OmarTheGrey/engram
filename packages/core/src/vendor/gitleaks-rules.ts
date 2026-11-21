@@ -8,7 +8,7 @@
 // keywords, entropy floors and allowlists are gitleaks'; descriptions,
 // file-path rules and path allowlists are left out (card E2.9).
 //
-// 212 of 222 rules admitted; 10 left out (GITLEAKS_LEFT_OUT).
+// 210 of 222 rules admitted; 12 left out (GITLEAKS_LEFT_OUT).
 
 /** One gitleaks rule as JavaScript: its source and flags are compiled with `g` added. */
 export interface GitleaksRule {
@@ -376,56 +376,6 @@ export const GITLEAKS_RULES: readonly GitleaksRule[] = [
     "flags": "i",
     "keywords": [
       "contentful"
-    ]
-  },
-  {
-    "id": "curl-auth-header",
-    "source": "\\bcurl\\b(?:.*?|.*?(?:[\\r\\n]{1,2}.*?){1,5})[ \\t\\n\\r](?:-H|--header)(?:=|[ \\t]{0,5})(?:\"(?i:(?:Authorization:[ \\t]{0,5}(?:Basic[ \\t]([a-z0-9+/]{8,}={0,3})|(?:Bearer|(?:Api-)?Token)[ \\t]([\\w=~@.+/-]{8,})|([\\w=~@.+/-]{8,}))|(?:(?:X-(?:[a-z]+-)?)?(?:Api-?)?(?:Key|Token)):[ \\t]{0,5}([\\w=~@.+/-]{8,}))\")|(?i:'(?i:(?:Authorization:[ \\t]{0,5}(?:Basic[ \\t]([a-z0-9+/]{8,}={0,3})|(?:Bearer|(?:Api-)?Token)[ \\t]([\\w=~@.+/-]{8,})|([\\w=~@.+/-]{8,}))|(?:(?:X-(?:[a-z]+-)?)?(?:Api-?)?(?:Key|Token)):[ \\t]{0,5}([\\w=~@.+/-]{8,}))')))(?:\\B|\\s|$)",
-    "flags": "",
-    "keywords": [
-      "curl"
-    ],
-    "entropy": 2.75
-  },
-  {
-    "id": "curl-auth-user",
-    "source": "\\bcurl\\b(?:.*|.*(?:[\\r\\n]{1,2}.*){1,5})[ \\t\\n\\r](?:-u|--user)(?:=|[ \\t]{0,5})(\"(:[^\"]{3,}|[^:\"]{3,}:|[^:\"]{3,}:[^\"]{3,})\"|'([^:']{3,}:[^']{3,})'|((?:\"[^\"]{3,}\"|'[^']{3,}'|[\\w$@.-]+):(?:\"[^\"]{3,}\"|'[^']{3,}'|[\\w${}@.-]+)))(?:\\s|$)",
-    "flags": "",
-    "keywords": [
-      "curl"
-    ],
-    "entropy": 2,
-    "allow": [
-      {
-        "target": "secret",
-        "regexes": [
-          [
-            "[^:]+:(?:change(?:it|me)|pass(?:word)?|pwd|test|token|\\*+|x+)",
-            ""
-          ],
-          [
-            "['\"]?<[^>]+>['\"]?:['\"]?<[^>]+>|<[^:]+:[^>]+>['\"]?",
-            ""
-          ],
-          [
-            "[^:]+:\\[[^\\]]+]",
-            ""
-          ],
-          [
-            "['\"]?[^:]+['\"]?:['\"]?\\$(?:\\d|\\w+|\\{(?:\\d|\\w+)})['\"]?",
-            ""
-          ],
-          [
-            "\\$\\([^)]+\\):\\$\\([^)]+\\)",
-            ""
-          ],
-          [
-            "['\"]?\\$?{{[^}]+}}['\"]?:['\"]?\\$?{{[^}]+}}['\"]?",
-            ""
-          ]
-        ],
-        "stopwords": []
-      }
     ]
   },
   {
@@ -3597,11 +3547,19 @@ export const GITLEAKS_ALLOW: GitleaksAllow = {
 export const GITLEAKS_LEFT_OUT: readonly [id: string, why: string][] = [
   [
     "cisco-meraki-api-key",
-    "it exceeds the backtracking bound of 200 ms"
+    "it costs over 20 times gitleaks' usual keyword prefix on the same inputs"
   ],
   [
     "cohere-api-token",
-    "it exceeds the backtracking bound of 200 ms"
+    "it costs over 20 times gitleaks' usual keyword prefix on the same inputs"
+  ],
+  [
+    "curl-auth-header",
+    "it grows faster than linearly (over 6 times from n to 4n, and again from 4n to 16n)"
+  ],
+  [
+    "curl-auth-user",
+    "it grows faster than linearly (over 6 times from n to 4n, and again from 4n to 16n)"
   ],
   [
     "freemius-secret-key",
@@ -3621,7 +3579,7 @@ export const GITLEAKS_LEFT_OUT: readonly [id: string, why: string][] = [
   ],
   [
     "okta-access-token",
-    "it exceeds the backtracking bound of 200 ms"
+    "it costs over 20 times gitleaks' usual keyword prefix on the same inputs"
   ],
   [
     "pkcs12-file",
@@ -3629,11 +3587,11 @@ export const GITLEAKS_LEFT_OUT: readonly [id: string, why: string][] = [
   ],
   [
     "privateai-api-token",
-    "it exceeds the backtracking bound of 200 ms"
+    "it costs over 20 times gitleaks' usual keyword prefix on the same inputs"
   ],
   [
     "sumologic-access-id",
-    "it exceeds the backtracking bound of 200 ms"
+    "it costs over 20 times gitleaks' usual keyword prefix on the same inputs"
   ]
 ];
 

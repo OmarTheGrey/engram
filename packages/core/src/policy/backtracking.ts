@@ -25,7 +25,9 @@ export const FILLERS: readonly string[] = [
   "\n",
   ":",
   '"',
+  "@",
   "aZ0-",
+  "a@b.co ",
 ];
 
 /** How long each timed input is, in UTF-16 code units. */

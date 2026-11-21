@@ -1,8 +1,11 @@
 // Generates packages/core/src/vendor/gitleaks-rules.ts from gitleaks' rule
 // file at a pinned commit (card E2.9, ADR 0039, ADR 0037 mode port, as
 // generated data). Only the rules that translate to a JavaScript regular
-// expression and pass the backtracking bound are admitted; every other rule
-// is listed in the output with why it was left out.
+// expression and pass admission (scripts/admission.ts: growth under 6 times
+// from n to 4n, and cost under 20 times gitleaks' keyword prefix, both ratios
+// of timings on one machine, so the verdict does not depend on its speed)
+// are admitted; every other rule is listed in the output with why it was
+// left out. `make gitleaks-rules` runs it.
 //
 //   node packages/core/scripts/gitleaks-rules.ts [--toml <gitleaks.toml>] [--out <file.ts>]
 //
@@ -27,14 +30,12 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
-import { adversarialInputs } from "../src/policy/backtracking.ts";
+import { admission } from "./admission.ts";
 
 export const GITLEAKS_REPOSITORY = "gitleaks/gitleaks";
 export const GITLEAKS_COMMIT = "5f6ec56cfa6f8c67648d863582c7ae2f206d5c1c";
 export const GITLEAKS_TOML_SHA256 =
   "e163e53b9e7e8a8511e77271e2b323ed057759542a6d988258afe3a1fa329caf";
-/** A rule whose matchAll over one adversarial input takes longer is not admitted. */
-export const BACKTRACKING_BOUND_MS = 200;
 
 const REPO = resolve(import.meta.dirname, "../../..");
 const DEFAULT_TOML = join(
@@ -258,23 +259,6 @@ export function translate(pattern: string): Translated {
 }
 
 // ---------------------------------------------------------------------------
-// The backtracking bound.
-
-/** The slowest matchAll over the rule's adversarial inputs, in milliseconds. */
-export function slowestRun(source: string, flags: string, keywords: readonly string[]): number {
-  const re = new RegExp(source, `${flags}g`);
-  let slowest = 0;
-  for (const input of adversarialInputs(keywords)) {
-    const start = performance.now();
-    for (const _ of input.matchAll(re)) {
-      // every match is found, as the scan finds them
-    }
-    slowest = Math.max(slowest, performance.now() - start);
-  }
-  return slowest;
-}
-
-// ---------------------------------------------------------------------------
 // The output.
 
 interface OutAllow {
@@ -332,8 +316,9 @@ export function generate(text: string): string {
       continue;
     }
     const keywords = strings(r.keywords).map((k) => k.toLowerCase());
-    if (slowestRun(tr.source, tr.flags, keywords) > BACKTRACKING_BOUND_MS) {
-      left.push([id, `it exceeds the backtracking bound of ${BACKTRACKING_BOUND_MS} ms`]);
+    const admitted = admission(tr.source, tr.flags, keywords);
+    if (!admitted.admitted) {
+      left.push([id, admitted.why]);
       continue;
     }
     const out: OutRule = { id, source: tr.source, flags: tr.flags, keywords };

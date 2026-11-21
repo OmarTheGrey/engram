@@ -666,9 +666,9 @@ const MODEL_SPECS: Record<string, Spec> = {
 // The write gate's content guards (card E2.9, ADR 0039) have theirs under
 // `gate/`: a fault a guard must stop at the write and a near-miss it must let
 // through, each write with the decision, status and rule declared here by
-// hand, and the log the Plane produced. The values are the documentation
-// examples of their issuers (AWS's EXAMPLE key, the 4111 test card) and
-// strings made up here, never a real secret (rule 12).
+// hand, and the log the Plane produced. The values are the issuers'
+// documentation examples (the 4111 test card) and strings made up here,
+// never a real secret (rule 12).
 
 export interface GateFixture {
   description: string;
@@ -700,7 +700,9 @@ type GateWrite = [
   status: MemoryItem["status"] | null,
   policy_id: string,
 ];
-const AWS_EXAMPLE = ["AKIA", "IOSFODNN7", "EXAMPLE"].join("");
+// Made up here: AWS's own documented example key (AKIA...EXAMPLE) is allowed,
+// as gitleaks allows it (card E2.9 review, E2.9-8).
+const AWS_EXAMPLE = ["AKIA", "QWERTYUIOP", "ASDFGH"].join("");
 const ADMIT = "fixture.guards/write/team";
 const GATE_SPECS: Record<
   string,

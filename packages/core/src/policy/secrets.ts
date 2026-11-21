@@ -30,8 +30,10 @@
 //   (GENERIC_REDACTION_PATTERNS, with keyedLookbehind, GENERIC_VALUE and the
 //   bounded whitespace), and the 1M-character scan cap that fails closed.
 //   Modified: names in kebab case, patterns that a claude-mem product key or
-//   a JSON-escaped capture needed left out, the url and cookie patterns
-//   replaced (below), no replacement markers.
+//   a JSON-escaped capture needed left out, the url pattern replaced
+//   (below), the cookie pattern left out (a cookie header names preferences
+//   as often as sessions), no replacement markers, and AWS's documented
+//   example keys allowed, as gitleaks allows them.
 // - Copied from walrus-memory (https://github.com/MystenLabs/walrus-memory),
 //   services/server/scripts/mcp/tools/redaction.ts at commit
 //   856fb01793fdb4301cc1b1a9c8673c4c55595f08, Apache License 2.0: refusing
@@ -41,6 +43,10 @@
 //   (HEX_RUN, HEX_CREDENTIAL_LABEL, HEX_LABEL_AFTER, the 48-character window,
 //   OPAQUE_RUN with looksLikeOpaqueToken); the seed-phrase rule; and the
 //   shape guard of the high-entropy rule (mixed case and a digit, not hex).
+//   Modified: no redaction, so no placeholders and no salvage check; the
+//   label gate takes a credential word only beside the value or in an
+//   assignment, and `token` and `seed` only in an assignment (E2.9-8);
+//   graphCTX's credential words are added to the label.
 // - Copied from graphCTX (https://github.com/coder-company/graphCTX),
 //   src/security/secrets.ts at commit c74644cd1808aef35fb8aa0e4368d0dba76f086d,
 //   Copyright (c) 2026 coder-company, MIT License: shannonEntropy,
@@ -79,10 +85,18 @@ export const GUARD_FAILURE_ID = "engram/write/guard-failure";
 /**
  * Content longer than this, in UTF-16 code units, is not scanned: with a guard
  * on, it is held as a candidate (decision 6; claude-mem's cap, which fails
- * closed the same way). Every rule is timed on inputs far below it, and the
- * work per rule is linear, so the bound keeps one write's scan bounded.
+ * closed the same way). claude-mem scans 1M characters; this guard scans
+ * 64K, what admission covers (card E2.9 review, E2.9-1): each rule is
+ * admitted only when its time grows less than 6 times from n to 4n on the
+ * adversarial inputs (and again from 4n to 16n, n = 4,096, so up to this
+ * limit) and costs at most 20 times gitleaks' keyword prefix
+ * (scripts/admission.ts). That is evidence of linear growth up to the limit,
+ * not a proof of it: a regular expression's worst input may be one no
+ * adversarial input resembles. On content holding every gitleaks keyword
+ * over and over, the slowest found, a full scan of 64K characters took about
+ * 1.8 s on a loaded machine; most text scans in milliseconds.
  */
-export const SCAN_LIMIT = 1024 * 1024;
+export const SCAN_LIMIT = 64 * 1024;
 
 export type GuardName = "secrets" | "pii";
 export type Tier = "block" | "review";
@@ -101,8 +115,8 @@ export interface GuardRule {
   keywords?: readonly string[];
   /** The value's Shannon entropy must exceed this. */
   entropy?: number;
-  /** What must hold of the value, given the content and the value's span. */
-  validate?: (value: string, text: string, start: number, end: number) => boolean;
+  /** What must hold of the value, given the content, the value's span and the whole match. */
+  validate?: (value: string, text: string, start: number, end: number, match: string) => boolean;
 }
 
 /** An entry of the one table: a guard rule, a redaction for plane/bypass.ts, or both. */
@@ -223,22 +237,59 @@ function looksLikeOpaqueToken(token: string): boolean {
   return (lower && upper) || /[0-9]/.test(token) || /[+/=]/.test(token);
 }
 
-// walrus: words that make an adjacent hex or opaque run key material, searched
-// in the 48 characters before it, or in the joining phrase after it.
+// walrus: words that make an adjacent hex or opaque run key material.
 // graphCTX's `token`, `password` and `passwd` are added; `credential` stays
 // out, as walrus leaves it out (a file name like credentials.json is prose).
-const LABEL_WINDOW = 48;
-const CREDENTIAL_LABEL =
-  /private[\s_-]*key|secret[\s_-]*key|delegate[\s_-]*key|delegate[\s_-]*private|signing[\s_-]*key|priv[\s_-]*key|encryption[\s_-]*keys?(?![A-Za-z0-9])|enc[\s_-]*keys?(?![A-Za-z0-9])|api[\s_-]*key|access[\s_-]*key|auth[\s_-]*key|db[\s_-]*pass(?:word)?s?(?![A-Za-z0-9])|secret|seed|mnemonic|passphrase|token|passw(?:or)?d/i;
+// Before the value, walrus searched a 48-character window for the word
+// anywhere; that held a git SHA or a cache key a sentence away from "token" or
+// "seed" (card E2.9 review, E2.9-8). Now a strong word must stand right
+// before the value (`api key 4f3c...`, `signing key: ...`, `the secret is
+// ...`), and the weak words `token` and `seed`, which ordinary prose uses
+// for other things, only in an assignment (`token=...`, `seed: ...`). After
+// the value, walrus' joining phrase is kept (`4f3c... is my private key`).
+const LABEL_WINDOW = 64;
+const STRONG_LABEL =
+  "private[\\s_-]*key|secret[\\s_-]*key|delegate[\\s_-]*key|delegate[\\s_-]*private|signing[\\s_-]*key|priv[\\s_-]*key|encryption[\\s_-]*keys?|enc[\\s_-]*keys?|api[\\s_-]*key|access[\\s_-]*key|auth[\\s_-]*key|db[\\s_-]*pass(?:word)?s?|secret|mnemonic|passphrase|passw(?:or)?d";
+const WEAK_LABEL = "token|seed";
+const LABEL_BEFORE = new RegExp(
+  `(?:(?:${STRONG_LABEL})[\\w.-]{0,24}["'\`]?\\s{0,3}(?:[:=]|=>|is|was)?|(?:${WEAK_LABEL})[\\w.-]{0,24}["'\`]?\\s{0,3}(?:[:=]|=>))\\s{0,3}["'\`]?$`,
+  "i",
+);
 const LABEL_AFTER =
   /^[^A-Za-z0-9]{0,4}(?:is|was)?[^A-Za-z0-9]{0,4}(?:my|the|our|his|her|their)?[^A-Za-z0-9]{0,4}(?:delegate[\s_-]*)?(?:private[\s_-]*key|secret[\s_-]*key|priv[\s_-]*key|encryption[\s_-]*keys?(?![A-Za-z0-9])|enc[\s_-]*keys?(?![A-Za-z0-9])|seed|mnemonic|passphrase|api[\s_-]*key|db[\s_-]*pass(?:word)?s?(?![A-Za-z0-9]))/i;
 
 function labelled(text: string, start: number, end: number): boolean {
   return (
-    CREDENTIAL_LABEL.test(text.slice(Math.max(0, start - LABEL_WINDOW), start)) ||
+    LABEL_BEFORE.test(text.slice(Math.max(0, start - LABEL_WINDOW), start)) ||
     LABEL_AFTER.test(text.slice(end, end + LABEL_WINDOW))
   );
 }
+
+/**
+ * How far a rule looks for the line around a match. Bounded, so a text with
+ * no line break and many matches is not scanned back to its start for each
+ * (card E2.9 review, E2.9-1).
+ */
+const LINE_REACH = 1024;
+
+/** The text of `text`'s line before `start`, at most LINE_REACH characters of it. */
+function lineBefore(text: string, start: number): string {
+  const window = text.slice(Math.max(0, start - LINE_REACH), start);
+  return window.slice(window.lastIndexOf("\n") + 1);
+}
+
+/** The line around [start, end), at most LINE_REACH characters to each side. */
+function lineAround(text: string, start: number, end: number): string {
+  const after = text.slice(end, end + LINE_REACH);
+  const cut = after.indexOf("\n");
+  return (
+    lineBefore(text, start) + text.slice(start, end) + (cut === -1 ? after : after.slice(0, cut))
+  );
+}
+
+/** A git commit trailer naming a person by address (E2.9-8). */
+const TRAILER =
+  /^\s{0,8}(?:signed-off-by|co-authored-by|reviewed-by|acked-by|tested-by|reported-by|suggested-by|helped-by|author|committer):/i;
 
 // ---------------------------------------------------------------------------
 // The table.
@@ -302,7 +353,11 @@ const pii = (
 
 /** The vendor table (claude-mem), with Hindsight's ASCII boundaries where claude-mem had none. */
 const VENDOR: GuardRule[] = [
-  secret("aws-access-key", token("(?:AKIA|ASIA)[0-9A-Z]{16}")),
+  // AWS's documented example key ends EXAMPLE; gitleaks allows it, and so
+  // does this rule (E2.9-8).
+  secret("aws-access-key", token("(?:AKIA|ASIA)[0-9A-Z]{16}"), {
+    validate: (v) => !v.endsWith("EXAMPLE"),
+  }),
   secret(
     "aws-secret-key",
     new RegExp(
@@ -446,7 +501,9 @@ const HEURISTIC: GuardRule[] = [
   // guard: mixed case and a digit, not hexadecimal.
   secret("high-entropy", rx(/[A-Za-z0-9+/_=-]{24,}/g), {
     tier: "review",
+    // AWS's documented example secret key ends EXAMPLEKEY (E2.9-8).
     validate: (v) =>
+      !v.endsWith("EXAMPLEKEY") &&
       !isBenignOpaqueToken(v) &&
       !wordy(v) &&
       shannonEntropy(v) > 4 &&
@@ -459,7 +516,16 @@ const HEURISTIC: GuardRule[] = [
 
 /** Personal data (caura), as data: severity high is BLOCK, low and medium REVIEW. */
 const PERSONAL: GuardRule[] = [
-  pii("email", "review", rx(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g)),
+  // Anchored at the start of the local part (card E2.9 review, E2.9-1): with
+  // `\b` alone every position of a long run of local-part characters was a
+  // start, which is quadratic. A commit trailer's address is the author's
+  // signature, not a fact about anyone (E2.9-8).
+  pii(
+    "email",
+    "review",
+    rx(/(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g),
+    { validate: (_v, text, start) => !TRAILER.test(lineBefore(text, start)) },
+  ),
   pii("phone", "review", rx(/\+\d{1,3}[\s.-]?(?:\(?\d{1,4}\)?[\s.-]?){2,5}\d{2,4}/g)),
   pii("phone", "review", rx(/(?<!\d)(?:\(\d{3}\)\s?|\d{3}[-.\s])\d{3}[-.\s]\d{4}\b/g)),
   pii("phone", "review", rx(/(?<!\d)0[12378]\d{1,3}[ -]\d{3,4}[ -]?\d{3,4}\b/g), {
@@ -545,12 +611,9 @@ const GITLEAKS: GuardRule[] = GITLEAKS_RULES.map((r) => {
     pattern: new RegExp(r.source, `${r.flags}gd`),
     group: r.group ?? "first",
     keywords: r.keywords,
-    validate: (v, text, start, end) => {
+    validate: (v, text, start, end, match) => {
       if (generic && !/[0-9]/.test(v)) return false;
-      const lineStart = text.lastIndexOf("\n", start - 1) + 1;
-      const lineEnd = text.indexOf("\n", end);
-      const line = text.slice(lineStart, lineEnd === -1 ? text.length : lineEnd);
-      const match = text.slice(start, end);
+      const line = lineAround(text, start, end);
       return (
         !allowed(GITLEAKS_ALLOW, GLOBAL_ALLOW, v, match, line) &&
         !allows.some(([a, compiled]) => allowed(a, compiled, v, match, line))
@@ -655,22 +718,91 @@ function valueSpan(m: RegExpExecArray, group: GuardRule["group"]): [number, numb
   return indices[group ?? 0] ?? null;
 }
 
+/** The benign spans' index: sorted, disjoint, searched by binary search. */
+function benignSpans(text: string): (s: number, e: number) => boolean {
+  const spans = [...text.matchAll(BENIGN)].map((m) => [m.index, m.index + m[0].length] as const);
+  return (start, end) => {
+    let lo = 0;
+    let hi = spans.length - 1;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      const [bs, be] = spans[mid] as readonly [number, number];
+      if (be <= start) lo = mid + 1;
+      else if (bs > start) hi = mid - 1;
+      else return end <= be;
+    }
+    return false;
+  };
+}
+
+type Ranked = Finding & { rank: readonly [number, number, number] };
+
+const byRank = (a: Ranked, b: Ranked) =>
+  a.rank[0] - b.rank[0] || a.rank[1] - b.rank[1] || a.rank[2] - b.rank[2];
+
+/**
+ * One finding per region, the most specific kept: a finding that decides the
+ * write first, then the BLOCK tier, then the rule earlier in the table
+ * (vendor rules before gitleaks', specific before heuristic). Sort and sweep
+ * (card E2.9 review, E2.9-1): sorted by start, the findings split into
+ * clusters that overlap one another, and only within a cluster is the
+ * greedy choice by rank made, against the cluster's kept spans by binary
+ * search. Findings of different clusters never overlap, so this keeps what
+ * a greedy choice over all of them would keep.
+ */
+function resolve(found: Ranked[]): Finding[] {
+  found.sort((a, b) => a.start - b.start || a.end - b.end);
+  const kept: Finding[] = [];
+  let cluster: Ranked[] = [];
+  let reach = -1;
+  const flush = () => {
+    cluster.sort(byRank);
+    const spans: Finding[] = [];
+    for (const f of cluster) {
+      let lo = 0;
+      let hi = spans.length;
+      while (lo < hi) {
+        const mid = (lo + hi) >> 1;
+        if ((spans[mid] as Finding).start < f.start) lo = mid + 1;
+        else hi = mid;
+      }
+      const before = spans[lo - 1];
+      const after = spans[lo];
+      if ((before && before.end > f.start) || (after && after.start < f.end)) continue;
+      const { rank: _rank, ...plain } = f;
+      spans.splice(lo, 0, plain);
+    }
+    kept.push(...spans);
+  };
+  for (const f of found) {
+    if (f.start >= reach && cluster.length > 0) {
+      flush();
+      cluster = [];
+    }
+    cluster.push(f);
+    reach = Math.max(reach, f.end);
+  }
+  if (cluster.length > 0) flush();
+  return kept;
+}
+
 /**
  * Every match of the enabled guards' rules in `text`, in order of start, with
- * overlaps resolved (after caura): one match per region, the most specific
- * kept, a span overlapping one kept already dropped. A rule that throws is a
+ * overlaps resolved (after caura, by resolve). With `decides`, the scan stops
+ * at the first match that decides the write (card E2.9 review, E2.9-1), and
+ * that match is never displaced by another. A rule that throws is a
  * GuardFailure.
  */
 export function scan(
   text: string,
   guards: ReadonlySet<GuardName>,
   rules: readonly GuardRule[] = GUARD_RULES,
+  decides?: (f: Finding) => boolean,
 ): Finding[] {
   const lower = text.toLowerCase();
-  const benign = [...text.matchAll(BENIGN)].map((m) => [m.index, m.index + m[0].length] as const);
-  const inBenign = (s: number, e: number) => benign.some(([bs, be]) => bs <= s && e <= be);
-  const found: (Finding & { rule: number })[] = [];
-  for (const [index, rule] of rules.entries()) {
+  const inBenign = benignSpans(text);
+  const found: Ranked[] = [];
+  scanning: for (const [index, rule] of rules.entries()) {
     if (!guards.has(rule.guard)) continue;
     if (rule.keywords && !rule.keywords.some((k) => lower.includes(k))) continue;
     try {
@@ -681,44 +813,28 @@ export function scan(
         const [start, end] = span;
         const value = text.slice(start, end);
         if (rule.entropy !== undefined && shannonEntropy(value) <= rule.entropy) continue;
-        if (rule.validate && !rule.validate(value, text, start, end)) continue;
+        if (rule.validate && !rule.validate(value, text, start, end, m[0])) continue;
         if (inBenign(start, end)) continue;
-        found.push({
-          kind: rule.kind,
-          guard: rule.guard,
-          tier: rule.tier,
-          start,
-          end,
-          rule: index,
-        });
+        const f: Finding = { kind: rule.kind, guard: rule.guard, tier: rule.tier, start, end };
+        const decisive = decides?.(f) === true;
+        found.push({ ...f, rank: [decisive ? 0 : 1, rule.tier === "block" ? 0 : 1, index] });
+        if (decisive) break scanning;
       }
     } catch {
       throw new GuardFailure(rule.kind);
     }
   }
-  // The most specific match keeps its region: the BLOCK tier first, then the
-  // rule earlier in the table (vendor rules before gitleaks', specific before
-  // heuristic), then the earlier start. Sorting is stable, so a tie keeps
-  // the order found.
-  const rank = (f: Finding & { rule: number }) => [f.tier === "block" ? 0 : 1, f.rule, f.start];
-  found.sort((a, b) => {
-    const [x, y] = [rank(a), rank(b)];
-    return (
-      (x[0] as number) - (y[0] as number) ||
-      (x[1] as number) - (y[1] as number) ||
-      (x[2] as number) - (y[2] as number)
-    );
-  });
-  const kept: Finding[] = [];
-  for (const { rule: _rule, ...f } of found)
-    if (kept.every((k) => f.end <= k.start || k.end <= f.start)) kept.push(f);
-  kept.sort((a, b) => a.start - b.start);
-  return kept;
+  return resolve(found);
 }
 
-/** The text a guard scans: a string as it is; structured content as its keys and string values, one per line. */
+/**
+ * The text a guard scans: a string as it is; structured content as its keys,
+ * string values and numbers (as JSON writes them), one per line, so a card
+ * number stored as a number is scanned too (card E2.9 review, E2.9-2).
+ */
 export function contentText(content: unknown): string {
   if (typeof content === "string") return content;
+  if (typeof content === "number" || typeof content === "bigint") return String(content);
   if (Array.isArray(content)) return content.map(contentText).join("\n");
   if (content !== null && typeof content === "object")
     return Object.entries(content)
@@ -753,10 +869,12 @@ export function describeFindings(findings: readonly Finding[]): string {
  * write through to the rest of the gate.
  *
  * - No block, or every guard off: null.
- * - An item landing retired is never judged: retiring what a guard would
- *   refuse is how a held candidate is rejected.
- * - A rewrite of an active item that keeps its content is not judged again:
- *   that content was admitted, and a reviewer may have promoted it.
+ * - A rewrite that keeps the item's content, scope and class is not judged
+ *   again when the item is active (that content was admitted, and a reviewer
+ *   may have promoted it) or when it lands retired (rejecting a held
+ *   candidate is retiring it). Anything else is judged: a new item written
+ *   retired, a move to another scope, a class change (card E2.9 review,
+ *   E2.9-3 and E2.9-4).
  * - `max_content_bytes`: larger content is denied (`engram/write/content-size`).
  * - With `secrets` or `pii` on: content beyond SCAN_LIMIT, or a rule that
  *   throws, holds the write (`engram/write/guard-failure`, decision 6). A
@@ -771,9 +889,12 @@ export function contentGuard(
   rules: readonly GuardRule[] = GUARD_RULES,
 ): WriteDecision | null {
   const guards = policy.content_guards;
-  if (!guards || item.status === "retired") return null;
+  if (!guards) return null;
   if (
-    existing?.status === "active" &&
+    existing !== undefined &&
+    (existing.status === "active" || item.status === "retired") &&
+    existing.scope === item.scope &&
+    existing.class === item.class &&
     canonicalJson(existing.content) === canonicalJson(item.content)
   )
     return null;
@@ -809,9 +930,14 @@ export function contentGuard(
       `the content is ${text.length} characters, beyond the ${SCAN_LIMIT} a content guard scans, so it fails closed`,
       GUARD_FAILURE_ID,
     );
+  // A BLOCK-tier match of a guard in block denies; with no guard in block,
+  // any match holds. Either way the scan may stop there.
+  const anyBlock = mode("secrets") === "block" || mode("pii") === "block";
+  const decides = (f: Finding) =>
+    anyBlock ? f.tier === "block" && mode(f.guard) === "block" : true;
   let findings: Finding[];
   try {
-    findings = scan(text, on, rules);
+    findings = scan(text, on, rules, decides);
   } catch (e) {
     // scan throws nothing but a GuardFailure, which names the rule alone.
     const { kind } = e as GuardFailure;
@@ -820,7 +946,7 @@ export function contentGuard(
   if (findings.length === 0) return null;
   const id = (f: Finding) => (f.guard === "secrets" ? SECRET_ID : PII_ID);
   const what = describeFindings(findings);
-  const blocking = findings.find((f) => f.tier === "block" && mode(f.guard) === "block");
+  const blocking = anyBlock ? findings.find(decides) : undefined;
   if (blocking)
     return deny(`${what}; the policy's ${blocking.guard} guard blocks it`, id(blocking));
   const first = findings[0] as Finding;
