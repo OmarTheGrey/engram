@@ -104,6 +104,56 @@ describe.skipIf(skip !== undefined)("an item's page on the provenance fixture", 
       .poll(async () => (await graphItems()).length + (await graphEvents()).length)
       .toBe(count);
   };
+  /**
+   * Makes `who` the viewer, unless it is already: from the workspace page,
+   * through the picker, then waits for the lanes of a read that viewer made,
+   * so nothing on screen is the previous viewer's. Each test sets its own
+   * viewer and opens its own item, so any one of them runs alone (`-t`).
+   */
+  const as = async (who: "dana" | "sam") => {
+    const actor = fixture.workload.actors[who] as { id: string; memberships: string[] };
+    const current = await page.getByTestId("viewer-current").textContent();
+    if (current?.endsWith(` ${actor.id}`)) return;
+    await page.goto(`${server.url}/#/`);
+    await viewAs(page, actor.id, actor.memberships);
+    await expect
+      .poll(async () => {
+        const lanesRead = page.getByTestId("lanes-read");
+        if ((await lanesRead.count()) === 0) return null;
+        const readId = await lanesRead.textContent();
+        return fixture.workspace.plane.events().find((e) => e.id === readId)?.actor ?? null;
+      })
+      .toBe(actor.id);
+  };
+  /** The note's id is nowhere: not in the page's HTML, its URL or its title. */
+  const noTraceOfTheNote = async () => {
+    expect(await page.content()).not.toContain(NOTE);
+    expect(page.url()).not.toContain(NOTE);
+    expect(await page.title()).not.toContain(NOTE);
+  };
+  /**
+   * Activates everything the item page offers (each graph node, each row of
+   * its event table, each pair of versions) and checks for the note after
+   * each step.
+   */
+  const exerciseWithoutTheNote = async () => {
+    for (const id of await attr('[data-testid="graph-node"]', "data-id")) {
+      await page.locator(`.react-flow__node[data-id="${id}"]`).click();
+      await noTraceOfTheNote();
+    }
+    const rows = page.getByTestId("item-timeline-row");
+    for (let i = 0; i < (await rows.count()); i++) {
+      await rows.nth(i).click();
+      await noTraceOfTheNote();
+    }
+    const versions = await attr('[data-testid="version-before"] option', "value");
+    for (const before of versions)
+      for (const after of versions) {
+        await page.getByTestId("version-before").selectOption(before);
+        await page.getByTestId("version-after").selectOption(after);
+        await noTraceOfTheNote();
+      }
+  };
 
   beforeAll(async () => {
     if (builtUi() === null)
@@ -122,27 +172,39 @@ describe.skipIf(skip !== undefined)("an item's page on the provenance fixture", 
   });
 
   it("loads the graph library only on the item page", async () => {
-    const chunks = () =>
-      page.evaluate(() =>
-        performance
-          .getEntriesByType("resource")
-          .map((r) => r.name)
-          .filter((n) => /ItemPage/.test(n)),
-      );
-    expect(await chunks()).toEqual([]);
-    // The entry bundle holds no xyflow code: its class names are not in it.
-    const src = await page.locator('script[type="module"]').getAttribute("src");
-    const entry = await (await fetch(new URL(src ?? "", server.url))).text();
-    expect(entry.length).toBeGreaterThan(0);
-    expect(entry).not.toContain("react-flow__");
-    await page
-      .locator(`[data-testid="lane-item"][data-id="${CHECKLIST}"] [data-testid="lane-item-open"]`)
-      .click();
-    await page.locator(`[data-testid="item-page"][data-id="${CHECKLIST}"]`).waitFor();
-    expect((await chunks()).length).toBeGreaterThan(0);
+    // A page of its own, so no earlier test has loaded the item page in it.
+    const fresh = await browser.newPage();
+    const own = watch(fresh, server);
+    try {
+      await fresh.goto(`${server.url}/`);
+      await fresh.getByTestId("lane-item").first().waitFor();
+      const chunks = () =>
+        fresh.evaluate(() =>
+          performance
+            .getEntriesByType("resource")
+            .map((r) => r.name)
+            .filter((n) => /ItemPage/.test(n)),
+        );
+      expect(await chunks()).toEqual([]);
+      // The entry bundle holds no xyflow code: its class names are not in it.
+      const src = await fresh.locator('script[type="module"]').getAttribute("src");
+      const entry = await (await fetch(new URL(src ?? "", server.url))).text();
+      expect(entry.length).toBeGreaterThan(0);
+      expect(entry).not.toContain("react-flow__");
+      await fresh
+        .locator(`[data-testid="lane-item"][data-id="${CHECKLIST}"] [data-testid="lane-item-open"]`)
+        .click();
+      await fresh.locator(`[data-testid="item-page"][data-id="${CHECKLIST}"]`).waitFor();
+      expect((await chunks()).length).toBeGreaterThan(0);
+      expect(own.failures).toEqual([]);
+    } finally {
+      await fresh.close();
+    }
   });
 
   it("shows the item, its lineage and the decisions about them as a graph", async () => {
+    await as("dana");
+    await open(CHECKLIST);
     const decisions = decisionsOn("dana", [NOTE, TEAM, CHECKLIST]);
     // The three writes allowed, the rewrite allowed and the rewrite denied.
     expect(decisions.map((e) => `${e.decision}`)).toEqual([
@@ -175,6 +237,9 @@ describe.skipIf(skip !== undefined)("an item's page on the provenance fixture", 
   });
 
   it("lays the graph out by dagre: each version below the versions its lineage names", async () => {
+    await as("dana");
+    await open(CHECKLIST);
+    await settledGraph(3 + decisionsOn("dana", [NOTE, TEAM, CHECKLIST]).length);
     const top = async (id: string) => {
       const box = await page.locator(`[data-testid="graph-node"][data-id="${id}"]`).boundingBox();
       if (!box) throw new Error(`node ${id} has no box`);
@@ -194,13 +259,25 @@ describe.skipIf(skip !== undefined)("an item's page on the provenance fixture", 
         ).toBe(true);
   });
 
-  it("opens an ancestor's page from the graph's list with the keyboard", async () => {
-    // The graph's nodes take the focus too (xyflow), each with a label.
-    const node = page.locator(
-      `.react-flow__node:has([data-testid="graph-node"][data-id="${TEAM}"])`,
-    );
+  it("opens a node with Enter or Space, and an ancestor's page from the graph's list", async () => {
+    await as("dana");
+    await open(CHECKLIST);
+    await settledGraph(3 + decisionsOn("dana", [NOTE, TEAM, CHECKLIST]).length);
+    // The graph's nodes take the focus (xyflow), each with a label.
+    const node = page.locator(`.react-flow__node[data-id="${TEAM}"]`);
     expect(await node.getAttribute("tabindex")).toBe("0");
     expect(await node.getAttribute("aria-label")).toContain(TEAM);
+    // Enter on an item node shows it beside the graph.
+    await node.focus();
+    await page.keyboard.press("Enter");
+    await expect.poll(() => page.getByTestId("graph-active").textContent()).toContain(TEAM);
+    // Space on an event node shows the event's detail.
+    const write = writeOf(CHECKLIST, 1);
+    await page.locator(`.react-flow__node[data-id="${write.id}"]`).focus();
+    await page.keyboard.press(" ");
+    await expect.poll(() => page.getByTestId("event-detail").textContent()).toContain(write.id);
+    expect(await page.getByTestId("graph-active").count()).toBe(0);
+    // The list's link to the ancestor, from the keyboard.
     await page.locator(`[data-testid="graph-list-item"][data-id="${TEAM}"] a`).focus();
     await page.keyboard.press("Enter");
     await page.locator(`[data-testid="item-page"][data-id="${TEAM}"]`).waitFor();
@@ -208,6 +285,7 @@ describe.skipIf(skip !== undefined)("an item's page on the provenance fixture", 
   });
 
   it("diffs two versions side by side, with the event that made the later one", async () => {
+    await as("dana");
     await open(TEAM);
     const options = await attr('[data-testid="version-after"] option', "value");
     // The note it was written from, and its two versions; the denied rewrite made none.
@@ -231,18 +309,28 @@ describe.skipIf(skip !== undefined)("an item's page on the provenance fixture", 
   });
 
   it("lists the events naming the item in its own table", async () => {
-    const naming = fixture
-      .timelineOf(fixture.viewer)
-      .filter((e) => e.item_id === TEAM || (e.item_ids ?? []).includes(TEAM));
-    expect(
-      await page
-        .getByTestId("item-timeline-row")
-        .evaluateAll((rows) => rows.map((r) => r.getAttribute("data-id"))),
-    ).toEqual(naming.map((e) => e.id));
+    // A reload: the page's events are then the log as it is now, its own read included.
+    await page.goto(`${server.url}/#/item/${TEAM}`);
+    await page.reload();
+    await page.locator(`[data-testid="item-page"][data-id="${TEAM}"]`).waitFor();
+    await as("dana");
+    const naming = () =>
+      fixture
+        .timelineOf(fixture.viewer)
+        .filter((e) => e.item_id === TEAM || (e.item_ids ?? []).includes(TEAM))
+        .map((e) => e.id);
+    await expect
+      .poll(() =>
+        page
+          .getByTestId("item-timeline-row")
+          .evaluateAll((rows) => rows.map((r) => r.getAttribute("data-id"))),
+      )
+      .toEqual(naming());
+    expect(naming().length).toBeGreaterThan(3);
   });
 
   it("shows sam, who cannot read the note, no node, edge or count that reveals it", async () => {
-    await viewAs(page, "person:sam", ["person:sam", "team:core"]);
+    await as("sam");
     await open(CHECKLIST);
     const decisions = decisionsOn("sam", [TEAM, CHECKLIST]);
     await settledGraph(2 + decisions.length);
@@ -260,10 +348,11 @@ describe.skipIf(skip !== undefined)("an item's page on the provenance fixture", 
     expect(await page.getByTestId("graph-summary").textContent()).toBe(
       `2 items and ${decisions.length} decisions this viewer may see.`,
     );
-    // The items sam reads carry the note's id in their lineage; the page shows none of it.
-    const html = await page.getByTestId("item-page").innerHTML();
-    expect(html).not.toContain(NOTE);
+    // The items sam reads carry the note's id in their lineage; the page shows none of it,
+    // as it loads and after every node, row and pair of versions is activated.
+    await noTraceOfTheNote();
     expect(await page.getByTestId("item-page").textContent()).not.toMatch(/\b3 items\b/);
+    await exerciseWithoutTheNote();
 
     // From the team item: the checklist written from it below, nothing above it.
     await open(TEAM);
@@ -275,7 +364,8 @@ describe.skipIf(skip !== undefined)("an item's page on the provenance fixture", 
     expect(await attr('[data-testid="version-after"] option', "value")).toEqual(
       [writeOf(TEAM, 1).id, writeOf(TEAM, 2).id].sort(),
     );
-    expect(await page.getByTestId("item-page").innerHTML()).not.toContain(NOTE);
+    await noTraceOfTheNote();
+    await exerciseWithoutTheNote();
 
     // The note's own page, asked for by its id, shows nothing of it.
     await open(NOTE);
@@ -285,6 +375,7 @@ describe.skipIf(skip !== undefined)("an item's page on the provenance fixture", 
   });
 
   it("follows the colour scheme: the graph's nodes change with it", async () => {
+    await as("dana");
     await open(CHECKLIST);
     const node = page.locator(`[data-testid="graph-node"][data-id="${CHECKLIST}"]`);
     await node.waitFor();
@@ -303,6 +394,8 @@ describe.skipIf(skip !== undefined)("an item's page on the provenance fixture", 
   });
 
   it("goes back to the workspace, and fetched nothing but its own server, with no error", async () => {
+    await as("dana");
+    await open(CHECKLIST);
     await page.getByTestId("item-back").click();
     await page.getByTestId("timeline-row").first().waitFor();
     expect(await page.getByTestId("item-page").count()).toBe(0);
