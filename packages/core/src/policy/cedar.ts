@@ -43,7 +43,7 @@
 //                32-bit halves: for non-negative doubles the order of the bits
 //                is the order of the numbers, so a floor compares exactly
 import { contentHash } from "../content-hash.ts";
-import type { MemoryItem, Policy, ScopeLevel } from "../schema.ts";
+import { type MemoryItem, type Policy, type ScopeLevel, Timestamp } from "../schema.ts";
 import {
   GRANT_OWNER_ID,
   grantMatches,
@@ -469,7 +469,10 @@ const INSTANT = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d+))?Z$/;
  */
 export function cedarInstant(ts: string): { s: number; ns: number } {
   const m = INSTANT.exec(ts);
-  if (!m?.[1]) throw new CedarExportError(`not a UTC ISO 8601 timestamp with a Z: ${ts}`);
+  // The schema's Timestamp refuses a day or an hour no calendar has, which
+  // Date.parse would read as NaN or as another day (review finding E2.12-5).
+  if (!m?.[1] || !Timestamp.safeParse(ts).success)
+    throw new CedarExportError(`not a UTC ISO 8601 timestamp with a Z: ${ts}`);
   const fraction = m[2] ?? "";
   if (/[1-9]/.test(fraction.slice(9)))
     throw new CedarExportError(

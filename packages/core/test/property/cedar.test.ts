@@ -690,6 +690,11 @@ describe("the classes the export excludes", () => {
   test("class 4: an instant finer than a nanosecond is refused, a nanosecond is carried", () => {
     expect(() => cedarInstant("2026-10-25T12:00:00.0000000001Z")).toThrow(CedarExportError);
     expect(() => cedarInstant("not a time")).toThrow(CedarExportError);
+    // Not a calendar instant: refused, never encoded as NaN or as another day
+    // (review finding E2.12-5).
+    expect(() => cedarInstant("2026-13-01T00:00:00Z")).toThrow(CedarExportError);
+    expect(() => cedarInstant("2026-02-30T00:00:00Z")).toThrow(CedarExportError);
+    expect(() => cedarInstant("2026-10-25T24:00:00Z")).toThrow(CedarExportError);
     expect(cedarInstant("2026-10-25T12:00:00.000000001000Z")).toEqual({ s: 1792929600, ns: 1 });
     expect(cedarInstant("1969-12-31T23:59:59.5Z")).toEqual({ s: -1, ns: 500_000_000 });
   });
