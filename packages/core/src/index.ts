@@ -14,6 +14,7 @@ export {
 export { openSqlite } from "./db/sqlite.ts";
 export * from "./distill/episode.ts";
 export * from "./distill/scrub.ts";
+export * from "./distill/skill.ts";
 export * from "./distill.ts";
 export * from "./events.ts";
 export * from "./items.ts";

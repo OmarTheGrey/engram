@@ -1,0 +1,52 @@
+{
+  "errors": {
+    "blank-description": ["Field 'description' must be a non-empty string"],
+    "compatibility-501": ["Compatibility exceeds 500 character limit (501 chars)"],
+    "consecutive-hyphens": ["Skill name cannot contain consecutive hyphens"],
+    "description-1024": [],
+    "description-1025": ["Description exceeds 1024 character limit (1025 chars)"],
+    "directory-mismatch": ["Directory name 'other-name' must match skill name 'skill-name'"],
+    "emitted-awm": [],
+    "emitted-long": [],
+    "emitted-no-tools": [],
+    "emitted-unicode-quotes": [],
+    "empty-name": ["Field 'name' must be a non-empty string"],
+    "invalid-characters": [
+      "Skill name 'pdf_processing' contains invalid characters. Only letters, digits, and hyphens are allowed."
+    ],
+    "leading-hyphen": ["Skill name cannot start or end with a hyphen"],
+    "minimal": [],
+    "missing-description": ["Missing required field in frontmatter: description"],
+    "missing-name": ["Missing required field in frontmatter: name"],
+    "name-64": [],
+    "name-65": [
+      "Skill name 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' exceeds 64 character limit (65 chars)"
+    ],
+    "name-with-space": [
+      "Skill name 'pdf processing' contains invalid characters. Only letters, digits, and hyphens are allowed."
+    ],
+    "no-frontmatter": ["SKILL.md must start with YAML frontmatter (---)"],
+    "not-a-mapping": ["SKILL.md frontmatter must be a YAML mapping"],
+    "optional-fields": [],
+    "quoted-values": [],
+    "trailing-hyphen": ["Skill name cannot start or end with a hyphen"],
+    "two-errors": [
+      "Skill name 'Bad--Name' must be lowercase",
+      "Skill name cannot contain consecutive hyphens",
+      "Directory name 'x' must match skill name 'Bad--Name'",
+      "Missing required field in frontmatter: description"
+    ],
+    "unclosed-frontmatter": ["SKILL.md frontmatter not properly closed with ---"],
+    "unicode-lowercase-name": [],
+    "unknown-fields": [
+      "Unexpected fields in frontmatter: author, version. Only ['allowed-tools', 'compatibility', 'description', 'license', 'metadata', 'name'] are allowed."
+    ],
+    "uppercase-name": ["Skill name 'PDF-Processing' must be lowercase"]
+  },
+  "upstream": {
+    "commit": "83021e2be457a9b6679148719c1f6074f0ad975e",
+    "function": "skills_ref.validator.validate",
+    "package": "skills-ref 0.1.0",
+    "repository": "https://github.com/agentskills/agentskills"
+  }
+}
