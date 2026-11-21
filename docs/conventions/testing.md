@@ -40,6 +40,7 @@ This file is owned by the lead. Changing it needs a second reviewer and a `decis
 - Stores are faked, not mocked: `packages/adapters/src/fake/` is a complete in-memory adapter that passes the conformance suite. Every test above layer 1 that needs a store uses it unless the test is specifically about a real store.
 - Models are scripted, not mocked: `packages/model/src/scripted.ts` (`scriptedModelCall`, ADR 0033) is a `ModelCall` that answers from a table keyed on a hash of the request, and fails loudly on an unknown key. Real-model tests use the cache as a cassette: the first run records under a seed, later runs replay with zero calls. Cassettes are committed as fixtures under `fixtures/cassettes/` and are the only way a real model enters CI. A runner config's scripted cassettes are recorded only by `make fixtures`, which records them afresh; `make run` replays, and a miss is an error.
 - Time is injected. Nothing in `packages/core` reads the clock; validity and retention tests pass a clock.
+  Correction (card R4): the Postgres transport (`packages/core/src/db/postgres.ts`, `postgres-worker.ts`) reads `Date.now()` for its connection and query timeouts; no decision or event time comes from it.
 - Randomness is seeded. Any test that samples takes its seed from the test name; a failing case prints the seed and the case so it can be rerun by itself.
 
 ## Fixtures

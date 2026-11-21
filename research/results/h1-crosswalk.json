@@ -1,0 +1,2329 @@
+{
+  "card": "R4",
+  "claims": [
+    {
+      "claim": "No read returns an item whose scope matrix or grants exclude the reader.",
+      "gap": null,
+      "id": "C01",
+      "invariant": 1,
+      "limits": "The actor is self-asserted on every surface (ADR 0027): the filter holds for the identity a surface declares, not for an authenticated person.",
+      "obligations": [
+        {
+          "id": "GDPR-5-1-f",
+          "relation": "bears on",
+          "why": "the read filter is a technical measure against unauthorised processing of memory content"
+        },
+        {
+          "id": "GDPR-25-2",
+          "relation": "bears on",
+          "why": "accessibility by default is limited to the scopes a reader belongs to and the grants that name it"
+        },
+        {
+          "id": "GDPR-32-1-b",
+          "relation": "bears on",
+          "why": "evidence for the confidentiality of what a reader is given"
+        }
+      ],
+      "source": "AGENTS.md (What this is; make test-invariants); docs/architecture.md (invariant 1); docs/conventions/testing.md",
+      "status": "evidenced",
+      "tests": [
+        {
+          "describe": [
+            "invariants"
+          ],
+          "file": "packages/core/test/property/invariants.test.ts",
+          "it": "invariant 1: no read returns an item the actor's scope and grants exclude"
+        },
+        {
+          "describe": [
+            "acceptance (card E2.2)"
+          ],
+          "file": "packages/core/test/unit/plane/read.test.ts",
+          "it": "a cross-scope read is denied and the explanation lists the filtered-out count"
+        }
+      ],
+      "unmapped": null
+    },
+    {
+      "claim": "No write lands in a scope whose policy forbids its class or its source.",
+      "gap": null,
+      "id": "C02",
+      "invariant": 2,
+      "limits": "Holds for writes that cross the plane; a write made to the store outside it is the no-bypass rows' concern (C34, C35). Within what a rule admits, a co-member less trusted than an item's owner may rewrite, retire or evict that item (packages/core/test/counterexamples/trust.test.ts, GH-38; card E2.11 is the opt-in fix).",
+      "obligations": [
+        {
+          "id": "AIA-15-5",
+          "relation": "bears on",
+          "why": "the write gate is a deterministic defence against a third party altering what the system later reads (memory poisoning)"
+        },
+        {
+          "id": "GDPR-5-1-f",
+          "relation": "bears on",
+          "why": "protection against unauthorised processing at the point content enters memory"
+        },
+        {
+          "id": "GDPR-32-1-b",
+          "relation": "bears on",
+          "why": "evidence for the integrity of what memory holds"
+        }
+      ],
+      "source": "AGENTS.md (What this is); docs/architecture.md (invariant 2); docs/conventions/testing.md; ADR 0007",
+      "status": "evidenced",
+      "tests": [
+        {
+          "describe": [
+            "invariants"
+          ],
+          "file": "packages/core/test/property/invariants.test.ts",
+          "it": "invariant 2: no write lands in a scope whose policy forbids its class or source"
+        },
+        {
+          "describe": [
+            "Plane.write"
+          ],
+          "file": "packages/core/test/unit/plane/write.test.ts",
+          "it": "denies a forbidden-class write without calling the adapter, with one event"
+        }
+      ],
+      "unmapped": null
+    },
+    {
+      "claim": "Every read or write appends exactly one event, and every denial carries a reason and a policy id.",
+      "gap": null,
+      "id": "C03",
+      "invariant": 3,
+      "limits": "The log is not tamper-evident: no hash chain or signature protects it yet (ADR 0038 decides one; card E1.6 builds it).",
+      "obligations": [
+        {
+          "id": "AIA-12-1",
+          "relation": "bears on",
+          "why": "every decision of the plane is recorded automatically as an event"
+        },
+        {
+          "id": "AIA-12-2-a",
+          "relation": "bears on",
+          "why": "each denial names the rule and the reason, which is how a risky write or read is identified afterwards"
+        },
+        {
+          "id": "GDPR-5-2",
+          "relation": "bears on",
+          "why": "a controller can show from the log what was decided and under which rule"
+        },
+        {
+          "id": "GDPR-24-1",
+          "relation": "bears on",
+          "why": "the per-decision record is material for demonstrating that processing followed the policy"
+        }
+      ],
+      "source": "AGENTS.md (What this is; rule 3); docs/conventions/testing.md (invariant 3); ADR 0007 (decision D6)",
+      "status": "evidenced",
+      "tests": [
+        {
+          "describe": [
+            "invariants"
+          ],
+          "file": "packages/core/test/property/invariants.test.ts",
+          "it": "invariant 3: every read or write appends exactly one event, and a denial carries a reason and a policy id"
+        },
+        {
+          "describe": [
+            "Plane.write: every outcome is an event (decision D6)"
+          ],
+          "file": "packages/core/test/unit/plane/write.test.ts",
+          "it": "an adapter that throws after an allow leaves one store-failure event, and rethrows"
+        }
+      ],
+      "unmapped": null
+    },
+    {
+      "claim": "Replaying the events of any write sequence gives the same state, store and read results: the log is the source of truth.",
+      "gap": null,
+      "id": "C04",
+      "invariant": 4,
+      "limits": null,
+      "obligations": [
+        {
+          "id": "AIA-12-2",
+          "relation": "bears on",
+          "why": "the functioning of the plane can be traced, and reconstructed, from its events alone"
+        },
+        {
+          "id": "GDPR-5-2",
+          "relation": "bears on",
+          "why": "a past state of memory can be shown from the log, not only asserted"
+        }
+      ],
+      "source": "docs/conventions/testing.md (invariant 4); docs/architecture.md (MemoryEvent)",
+      "status": "evidenced",
+      "tests": [
+        {
+          "describe": [
+            "invariants"
+          ],
+          "file": "packages/core/test/property/invariants.test.ts",
+          "it": "invariant 4: replaying the events of any write sequence gives the same state, store and reads"
+        },
+        {
+          "describe": [],
+          "enclosed": "forEachBackend (packages/core/test/db/backends.ts) loops over the backends and runs the block in one describe per backend; the SQLite describe has no skip condition, so the test runs",
+          "file": "packages/core/test/replay/rebuild.test.ts",
+          "it": "rebuild equals incremental for any event sequence"
+        }
+      ],
+      "unmapped": null
+    },
+    {
+      "claim": "After any write sequence no scope holds more active items of a class than its budget; every retire or evict event carries a reason and a policy id, and replay reproduces them.",
+      "gap": null,
+      "id": "C05",
+      "invariant": 5,
+      "limits": "The budgets are the operator's policy values; the preset numbers are proposed values (ADR 0025).",
+      "obligations": [
+        {
+          "id": "GDPR-5-1-c",
+          "relation": "bears on",
+          "why": "a budget bounds how much a scope holds active of each class; in tension as C26 is, since an evicted item is retired, not deleted, and the store keeps it"
+        },
+        {
+          "id": "GDPR-25-2",
+          "relation": "bears on",
+          "why": "the amount of data kept active by default is set by policy and enforced on every write"
+        }
+      ],
+      "source": "AGENTS.md (make test-invariants); docs/conventions/testing.md (invariant 5); ADR 0025",
+      "status": "evidenced",
+      "tests": [
+        {
+          "describe": [
+            "invariants"
+          ],
+          "file": "packages/core/test/property/invariants.test.ts",
+          "it": "invariant 5: after any write sequence no scope holds more active items of a class than its budget, every retire or evict event carries a reason and a policy id, and replay reproduces them"
+        },
+        {
+          "describe": [
+            "acceptance (card E2.4): budget exceeded evicts per policy; events recorded"
+          ],
+          "file": "packages/core/test/unit/plane/retention.test.ts",
+          "it": "recency: the write that goes over evicts the oldest, in the same call"
+        }
+      ],
+      "unmapped": null
+    },
+    {
+      "claim": "Adoption of what a store already holds never records a provenance kind more trusted than the plane holds for the item's id.",
+      "gap": null,
+      "id": "C06",
+      "invariant": 6,
+      "limits": null,
+      "obligations": [
+        {
+          "id": "AIA-15-5",
+          "relation": "bears on",
+          "why": "editing a store record outside the plane cannot raise agent-written content to trusted content"
+        },
+        {
+          "id": "GDPR-32-1-b",
+          "relation": "bears on",
+          "why": "evidence for the integrity of provenance across edits made outside the plane"
+        }
+      ],
+      "source": "AGENTS.md (make test-invariants); docs/conventions/testing.md (invariant 6); ADR 0004 (card RV4); docs/dogfood.md (limit 4)",
+      "status": "evidenced",
+      "tests": [
+        {
+          "describe": [
+            "invariants"
+          ],
+          "file": "packages/core/test/property/invariants.test.ts",
+          "it": "invariant 6: adoption never records a provenance kind more trusted than the plane holds for the item's id"
+        }
+      ],
+      "unmapped": null
+    },
+    {
+      "claim": "Adoption never records a grant the plane does not hold for the item's id, so a grant typed into a store record does nothing.",
+      "gap": null,
+      "id": "C07",
+      "invariant": 7,
+      "limits": null,
+      "obligations": [
+        {
+          "id": "GDPR-25-2",
+          "relation": "bears on",
+          "why": "an item is not made readable to others by an edit nobody decided through the plane"
+        },
+        {
+          "id": "GDPR-7-1",
+          "relation": "bears on",
+          "why": "where a deployment rests sharing on consent, a grant on record is one its owner made through the plane, not one written into a file"
+        }
+      ],
+      "source": "AGENTS.md (make test-invariants); docs/conventions/testing.md (invariant 7); ADR 0007 (card RV4); docs/dogfood.md (limit 4)",
+      "status": "evidenced",
+      "tests": [
+        {
+          "describe": [
+            "invariants"
+          ],
+          "file": "packages/core/test/property/invariants.test.ts",
+          "it": "invariant 7: adoption never records a grant the plane does not hold for the item's id"
+        }
+      ],
+      "unmapped": null
+    },
+    {
+      "claim": "Across two handles over one log, with an offboarding among their operations, no reader gets an erased item back and the store holds the projection, whatever the interleaving.",
+      "gap": null,
+      "id": "C08",
+      "invariant": 1,
+      "limits": "A promotion or derived write into a team or role scope that crashes after its bytes land and after the sweep can stay dormant in that store (ADR 0010, verification pass 4).",
+      "obligations": [
+        {
+          "id": "GDPR-17-1",
+          "relation": "bears on",
+          "why": "an erasure is not undone by a concurrent writer on another process"
+        },
+        {
+          "id": "GDPR-32-1-b",
+          "relation": "bears on",
+          "why": "evidence for integrity under concurrent access to one log"
+        }
+      ],
+      "source": "AGENTS.md (make test-invariants); ADR 0007 (card E2.6); ADR 0010 (card E2.6)",
+      "status": "evidenced",
+      "tests": [
+        {
+          "describe": [
+            "invariants"
+          ],
+          "file": "packages/core/test/property/invariants.test.ts",
+          "it": "invariant 1 across two handles: no reader gets an erased item back, and the store holds the projection, whatever the interleaving"
+        },
+        {
+          "describe": [
+            "an erased id"
+          ],
+          "enclosed": "forEachBackend (packages/core/test/db/backends.ts) loops over the backends and runs the block in one describe per backend; the SQLite describe has no skip condition, so the test runs",
+          "file": "packages/core/test/unit/plane/cross-handle.test.ts",
+          "it": "a write under an erased id is refused, and the refusal names the erased scope only to its members"
+        }
+      ],
+      "unmapped": null
+    },
+    {
+      "claim": "Every recall can be explained: each item a read returns carries its score components, rank, admitting rule, grants used and validity window.",
+      "gap": null,
+      "id": "C09",
+      "invariant": null,
+      "limits": "The explanation says why an item was admitted and how it ranked, not why a model acted on it.",
+      "obligations": [
+        {
+          "id": "AIA-13-3-b-iv",
+          "relation": "bears on",
+          "why": "the plane can give information relevant to explaining what memory it supplied"
+        },
+        {
+          "id": "AIA-14-4-c",
+          "relation": "bears on",
+          "why": "an overseer can read why each recalled item was given to the model"
+        }
+      ],
+      "source": "AGENTS.md (What this is; What not to do); docs/architecture.md (read path); ADR 0009",
+      "status": "evidenced",
+      "tests": [
+        {
+          "describe": [
+            "Plane.read"
+          ],
+          "file": "packages/core/test/unit/plane/read.test.ts",
+          "it": "explains each item with rank, components, admitting rule, grants and validity"
+        },
+        {
+          "describe": [
+            "Plane.explain"
+          ],
+          "file": "packages/core/test/unit/plane/read.test.ts",
+          "it": "returns the explanations persisted for that read, in rank order"
+        }
+      ],
+      "unmapped": null
+    },
+    {
+      "claim": "Explanations of a read are returned only to the actor who made it.",
+      "gap": null,
+      "id": "C10",
+      "invariant": null,
+      "limits": null,
+      "obligations": [
+        {
+          "id": "GDPR-5-1-f",
+          "relation": "bears on",
+          "why": "an explanation names items and scores, so it is withheld from anyone but the reader"
+        },
+        {
+          "id": "GDPR-32-1-b",
+          "relation": "bears on",
+          "why": "confidentiality of the audit trail of a read"
+        }
+      ],
+      "source": "ADR 0009 (decision D5, finding R7-13)",
+      "status": "evidenced",
+      "tests": [
+        {
+          "describe": [
+            "Plane.explain"
+          ],
+          "file": "packages/core/test/unit/plane/read.test.ts",
+          "it": "refuses another actor's read, revealing none of its explanations (finding R5-12)"
+        },
+        {
+          "describe": [
+            "over the in-memory transport"
+          ],
+          "file": "packages/mcp/test/mcp.test.ts",
+          "it": "refuses another actor's read id in explain"
+        }
+      ],
+      "unmapped": null
+    },
+    {
+      "claim": "A read reveals nothing about items out of the reader's reach; the read event, the audit record, keeps the full counts.",
+      "gap": null,
+      "id": "C11",
+      "invariant": null,
+      "limits": null,
+      "obligations": [
+        {
+          "id": "GDPR-5-1-f",
+          "relation": "bears on",
+          "why": "no side channel of a read discloses another scope's items"
+        },
+        {
+          "id": "GDPR-25-2",
+          "relation": "bears on",
+          "why": "unreachable items stay inaccessible by default, counts and ranks included"
+        },
+        {
+          "id": "AIA-12-1",
+          "relation": "bears on",
+          "why": "the event keeps what the reader is not shown, so the log stays complete"
+        }
+      ],
+      "source": "docs/architecture.md (read path); ADR 0009 (decision D5, finding N1)",
+      "status": "evidenced",
+      "tests": [
+        {
+          "describe": [
+            "reads reveal nothing about unreachable items (decision D5)"
+          ],
+          "file": "packages/core/test/property/read-leak.test.ts",
+          "it": "a read's items, explanations, scores and filtered count ignore unreachable items"
+        },
+        {
+          "describe": [
+            "Plane.read reveals nothing about items the reader cannot reach (decision D5)"
+          ],
+          "file": "packages/core/test/unit/plane/read.test.ts",
+          "it": "the read event, the audit record, keeps the full counts"
+        }
+      ],
+      "unmapped": null
+    },
+    {
+      "claim": "The plane, not the caller, sets an item's provenance from the source the harness gives the actor.",
+      "gap": null,
+      "id": "C12",
+      "invariant": null,
+      "limits": "A write whose actor names no source keeps the kind and actor its caller claims, and the event's reason says so; packages/core/test/counterexamples/trust.test.ts (GH-39) pins this, including a sourceless write claiming user into team scope, which is allowed.",
+      "obligations": [
+        {
+          "id": "AIA-12-2",
+          "relation": "bears on",
+          "why": "each event records where its content came from as the system saw it, not as a model claimed"
+        },
+        {
+          "id": "AIA-15-5",
+          "relation": "bears on",
+          "why": "a model cannot raise its own content's trust by claiming another source"
+        }
+      ],
+      "source": "ADR 0004 (decision D4); docs/architecture.md (write path); docs/dogfood.md (limit 3)",
+      "status": "evidenced",
+      "tests": [
+        {
+          "describe": [
+            "Plane.write: the plane sets provenance (decision D4, finding R5-6)"
+          ],
+          "file": "packages/core/test/unit/plane/write.test.ts",
+          "it": "a harness-set source overrides the kind and actor the caller claims"
+        },
+        {
+          "describe": [
+            "over the in-memory transport"
+          ],
+          "file": "packages/mcp/test/mcp.test.ts",
+          "it": "labels a write model even when the launch actor carries source user (R3-5)"
+        }
+      ],
+      "unmapped": null
+    },
+    {
+      "claim": "Model, compaction and external content cannot leave person scope without a gate pass, and carries no grants.",
+      "gap": null,
+      "id": "C13",
+      "invariant": 2,
+      "limits": "No surface labels content external yet (ADR 0004, schema version 1). Content is model content only as a harness labels it: a sourceless write claiming user is judged as user (C12; packages/core/test/counterexamples/trust.test.ts, GH-39).",
+      "obligations": [
+        {
+          "id": "AIA-15-5",
+          "relation": "bears on",
+          "why": "untrusted content cannot spread to shared scopes, which limits a poisoning to the person it reached"
+        },
+        {
+          "id": "GDPR-25-2",
+          "relation": "bears on",
+          "why": "agent-written content is not made accessible to others by default"
+        }
+      ],
+      "source": "ADR 0004; ADR 0007; ADR 0021 (decision D4); docs/architecture.md (write path)",
+      "status": "evidenced",
+      "tests": [
+        {
+          "describe": [
+            "Plane.write"
+          ],
+          "file": "packages/core/test/unit/plane/write.test.ts",
+          "it": "denies model content outside person scope under the source-isolation rule"
+        },
+        {
+          "describe": [
+            "evaluateWrite"
+          ],
+          "file": "packages/core/test/unit/policy/evaluate.test.ts",
+          "it": "denies external content outside person scope even when the rule lists external"
+        },
+        {
+          "describe": [
+            "acceptance (card E2.5): a widening is judged as a write into the target"
+          ],
+          "file": "packages/core/test/unit/plane/promote.test.ts",
+          "it": "model-written content stays in person scope, however reviewed"
+        },
+        {
+          "describe": [
+            "a grant change the gate refuses is one deny event, and nothing changes"
+          ],
+          "file": "packages/core/test/unit/plane/grants.test.ts",
+          "it": "model content carries no grants"
+        }
+      ],
+      "unmapped": null
+    },
+    {
+      "claim": "The store is never written without an event: a store failure after an allow appends a deny event and rethrows.",
+      "gap": null,
+      "id": "C14",
+      "invariant": null,
+      "limits": null,
+      "obligations": [
+        {
+          "id": "AIA-12-1",
+          "relation": "bears on",
+          "why": "a failed store call is recorded as well as a successful one"
+        },
+        {
+          "id": "GDPR-32-1-b",
+          "relation": "bears on",
+          "why": "the log and the store do not silently diverge"
+        }
+      ],
+      "source": "docs/architecture.md (write path); ADR 0007 (decision D6)",
+      "status": "evidenced",
+      "tests": [
+        {
+          "describe": [
+            "Plane.write: every outcome is an event (decision D6)"
+          ],
+          "file": "packages/core/test/unit/plane/write.test.ts",
+          "it": "a ref from another adapter is a store failure: one event, nothing projected"
+        },
+        {
+          "describe": [
+            "the store"
+          ],
+          "file": "packages/core/test/unit/plane/grants.test.ts",
+          "it": "a store failure after the gate allowed is one deny event, and the call throws"
+        }
+      ],
+      "unmapped": null
+    },
+    {
+      "claim": "Writers on different handles over one log are ordered by the log's lock: a decision made stale by another process is refused with its own event, and a committed grant removal stands.",
+      "gap": null,
+      "id": "C15",
+      "invariant": null,
+      "limits": null,
+      "obligations": [
+        {
+          "id": "GDPR-32-1-b",
+          "relation": "bears on",
+          "why": "integrity of memory under two processes sharing one log"
+        },
+        {
+          "id": "GDPR-7-3",
+          "relation": "bears on",
+          "why": "where a deployment rests sharing on consent, a withdrawn grant is not brought back by a concurrent writer"
+        }
+      ],
+      "source": "ADR 0007 (card E2.6); docs/architecture.md (write path)",
+      "status": "evidenced",
+      "tests": [
+        {
+          "describe": [
+            "a committed decision on another handle"
+          ],
+          "enclosed": "forEachBackend (packages/core/test/db/backends.ts) loops over the backends and runs the block in one describe per backend; the SQLite describe has no skip condition, so the test runs",
+          "file": "packages/core/test/unit/plane/cross-handle.test.ts",
+          "it": "R5: a grant change held while another grant change commits is refused, and the store holds the projection"
+        },
+        {
+          "describe": [
+            "a committed decision on another handle"
+          ],
+          "enclosed": "forEachBackend (packages/core/test/db/backends.ts) loops over the backends and runs the block in one describe per backend; the SQLite describe has no skip condition, so the test runs",
+          "file": "packages/core/test/unit/plane/cross-handle.test.ts",
+          "it": "R4: a handover held at its store write while the owner removes a grant keeps the removal and hands over the new version"
+        },
+        {
+          "describe": [
+            "a committed decision on another handle"
+          ],
+          "enclosed": "forEachBackend (packages/core/test/db/backends.ts) loops over the backends and runs the block in one describe per backend; the SQLite describe has no skip condition, so the test runs",
+          "file": "packages/core/test/unit/plane/cross-handle.test.ts",
+          "it": "R8: the conflict's deny event carries a reason and a policy id, no item, and is not shown to the grantee"
+        }
+      ],
+      "unmapped": null
+    },
+    {
+      "claim": "Validity is bi-temporal: a read judges validity windows at its valid_at time and access at its own time, never before the log's head, so a past time cannot reopen an expired grant.",
+      "gap": null,
+      "id": "C16",
+      "invariant": null,
+      "limits": "Writes, promotions and grant changes take the time a surface gives them; only the server's clock bounds them (ADR 0027).",
+      "obligations": [
+        {
+          "id": "GDPR-5-1-d",
+          "relation": "bears on",
+          "why": "a superseded or no longer valid fact is not served as current"
+        },
+        {
+          "id": "GDPR-5-1-f",
+          "relation": "bears on",
+          "why": "a backdated read cannot regain access that has ended"
+        }
+      ],
+      "source": "ADR 0005 (card RV5); docs/dogfood.md (limit 8)",
+      "status": "evidenced",
+      "tests": [
+        {
+          "describe": [
+            "a read's valid_at"
+          ],
+          "file": "packages/core/test/unit/plane/read-time.test.ts",
+          "it": "cannot bring back what a grant's expiry closed at the read's time"
+        },
+        {
+          "describe": [
+            "Plane.read"
+          ],
+          "file": "packages/core/test/unit/plane/read.test.ts",
+          "it": "excludes an item outside its validity window at the query time, and counts it"
+        },
+        {
+          "describe": [
+            "RV-CORE-3: an access decision is never judged before the log's head"
+          ],
+          "file": "packages/core/test/unit/plane/read-time.test.ts",
+          "it": "a read named at a time before the last read cannot reopen an expired grant (the review's repro)"
+        }
+      ],
+      "unmapped": null
+    },
+    {
+      "claim": "Grants are explicit, scoped by class, and expire: a grant to everyone, to a bare wildcard, or without a class or an expiry is denied, and an expired grant admits nothing.",
+      "gap": null,
+      "id": "C17",
+      "invariant": null,
+      "limits": "The read filter still honours a grant without class or expiry on an item that never passed the gate (ADR 0021, decision D4); no maximum expiry is set (ADR 0034, open question).",
+      "obligations": [
+        {
+          "id": "GDPR-25-2",
+          "relation": "bears on",
+          "why": "a grant cannot make an item accessible to an indefinite number of persons"
+        },
+        {
+          "id": "GDPR-7-1",
+          "relation": "bears on",
+          "why": "where a deployment rests sharing on consent, each grant on record names whom, which class and until when the owner allowed; a grant is not itself the data subject's consent"
+        }
+      ],
+      "source": "ADR 0021 (decision D4); ADR 0006 (decision D4)",
+      "status": "evidenced",
+      "tests": [
+        {
+          "describe": [
+            "evaluateWrite: who may write (decision D4)"
+          ],
+          "file": "packages/core/test/unit/policy/evaluate.test.ts",
+          "it": "denies a grant to everyone or to a bare kind wildcard"
+        },
+        {
+          "describe": [
+            "evaluateWrite: who may write (decision D4)"
+          ],
+          "file": "packages/core/test/unit/policy/evaluate.test.ts",
+          "it": "denies a grant without a class or without an expiry"
+        },
+        {
+          "describe": [
+            "acceptance (card E9.4): a grant change is recorded as an event"
+          ],
+          "file": "packages/core/test/unit/plane/grants.test.ts",
+          "it": "a grant expires: the read filter stops honouring it with no further event"
+        },
+        {
+          "describe": [
+            "evaluateRead"
+          ],
+          "file": "packages/core/test/unit/policy/evaluate.test.ts",
+          "it": "does not admit through a grant for another class"
+        }
+      ],
+      "unmapped": null
+    },
+    {
+      "claim": "Only the item's owner, user-sourced and a member of its scope, changes its grants, and each change is one update event.",
+      "gap": null,
+      "id": "C18",
+      "invariant": null,
+      "limits": "Identity and source are self-asserted (ADR 0027): the owner's agent posting as the owner with source user reads exactly as the owner, a blind spot the dogfood report's tests name. A first write may carry grants, and with no source its claimed kind stands (packages/core/test/counterexamples/trust.test.ts, GH-39); this row is about changing the grants of an item that exists.",
+      "obligations": [
+        {
+          "id": "GDPR-7-1",
+          "relation": "bears on",
+          "why": "where a deployment rests sharing on consent, a grant on record is an act of the item's owner, logged as one event"
+        }
+      ],
+      "source": "docs/architecture.md (grant changes); docs/dogfood.md (what a zero cannot show)",
+      "status": "evidenced",
+      "tests": [
+        {
+          "describe": [
+            "grant changes"
+          ],
+          "file": "packages/core/test/property/grants.test.ts",
+          "it": "a grant change is one update event and lands exactly when the oracle permits it"
+        },
+        {
+          "describe": [
+            "a grant change the gate refuses is one deny event, and nothing changes"
+          ],
+          "file": "packages/core/test/unit/plane/grants.test.ts",
+          "it": "a member who is not the owner may not change the grants"
+        },
+        {
+          "describe": [
+            "a grant change the gate refuses is one deny event, and nothing changes"
+          ],
+          "file": "packages/core/test/unit/plane/grants.test.ts",
+          "it": "an agent acting for the owner may not change the grants"
+        }
+      ],
+      "unmapped": null
+    },
+    {
+      "claim": "Removing a grant is one event, after which the grantee reads nothing through it.",
+      "gap": null,
+      "id": "C19",
+      "invariant": null,
+      "limits": "What the grantee already read stays wherever its harness keeps it, such as Claude Code's transcripts (docs/dogfood.md, limit 7).",
+      "obligations": [
+        {
+          "id": "GDPR-7-3",
+          "relation": "bears on",
+          "why": "where a deployment rests sharing on consent, withdrawal is one act of the owner, as simple as the grant, and takes effect on the next read"
+        }
+      ],
+      "source": "docs/architecture.md (grant changes); ADR 0021",
+      "status": "evidenced",
+      "tests": [
+        {
+          "describe": [
+            "acceptance (card E9.4): a grant change is recorded as an event"
+          ],
+          "file": "packages/core/test/unit/plane/grants.test.ts",
+          "it": "the owner removes it: a second update event, and the grantee reads nothing"
+        }
+      ],
+      "unmapped": null
+    },
+    {
+      "claim": "A person scope is never readable by others without a live grant, and a role context never reads a person scope.",
+      "gap": null,
+      "id": "C20",
+      "invariant": null,
+      "limits": null,
+      "obligations": [
+        {
+          "id": "GDPR-25-2",
+          "relation": "bears on",
+          "why": "by default a person's memory is accessible to nobody else without that person's grant"
+        }
+      ],
+      "source": "ADR 0021; AGENTS.md (What this is: Twin)",
+      "status": "evidenced",
+      "tests": [
+        {
+          "describe": [
+            "acceptance (card E9.2): a cross-person read is denied in the fixture"
+          ],
+          "file": "packages/core/test/unit/profiles/twin.test.ts",
+          "it": "Sam, a teammate, sees nothing of Dana's person scope without a live grant"
+        },
+        {
+          "describe": [
+            "acceptance (card E9.2): the twin profile loads"
+          ],
+          "file": "packages/core/test/unit/profiles/twin.test.ts",
+          "it": "a role context never reads a person scope, and a role takes no personal classes or sources"
+        }
+      ],
+      "unmapped": null
+    },
+    {
+      "claim": "Offboarding hands each role scope the leaver holds to a successor, one update event per item.",
+      "gap": null,
+      "id": "C21",
+      "invariant": null,
+      "limits": null,
+      "obligations": [],
+      "source": "ADR 0021 (card E9.7)",
+      "status": "evidenced",
+      "tests": [
+        {
+          "describe": [
+            "acceptance (card E9.7): offboarding Dana, Sam succeeds her in role:lead"
+          ],
+          "file": "packages/core/test/unit/plane/offboard.test.ts",
+          "it": "the successor reads the role items, and they are his"
+        }
+      ],
+      "unmapped": "continuity of role memory is an organisational property; no article of either act cited here asks for it"
+    },
+    {
+      "claim": "Offboarding erases the person scope: its items leave the store and the projection, their content is redacted in the log, replay honours the erasure, and a deletion report names by id what was done and what it cannot reach.",
+      "gap": null,
+      "id": "C22",
+      "invariant": null,
+      "limits": "The erasure does not reach a store's own history (Letta's git), pi session files that mirrored the events, backups, or a harness's transcripts; for a record a store refuses to delete, the log keeps a merging content hash, which short content can be guessed from (ADR 0010).",
+      "obligations": [
+        {
+          "id": "GDPR-17-1",
+          "relation": "bears on",
+          "why": "the plane's means of erasing a person's memory, store and log included"
+        },
+        {
+          "id": "GDPR-5-2",
+          "relation": "bears on",
+          "why": "the deletion report records what was erased and what was out of reach"
+        },
+        {
+          "id": "AIA-19-1",
+          "relation": "bears on",
+          "why": "the redaction keeps each event, its decision and reason, and removes only the content, which is where the six-month log keeping gives way to data protection law"
+        }
+      ],
+      "source": "ADR 0010 (card E9.7); ADR 0021; docs/architecture.md (lifecycle)",
+      "status": "evidenced",
+      "tests": [
+        {
+          "describe": [
+            "acceptance (card E9.7): offboarding Dana, Sam succeeds her in role:lead"
+          ],
+          "file": "packages/core/test/unit/plane/offboard.test.ts",
+          "it": "the person items are gone from the store and the index, and stay gone"
+        },
+        {
+          "describe": [
+            "acceptance (card E9.7): offboarding Dana, Sam succeeds her in role:lead"
+          ],
+          "file": "packages/core/test/unit/plane/offboard.test.ts",
+          "it": "the deletion report names what was done and what it cannot reach, by id only"
+        },
+        {
+          "describe": [
+            "an erasure event on replay"
+          ],
+          "file": "packages/core/test/replay/erasure.test.ts",
+          "it": "the projection rebuilt from the log equals the incremental one"
+        }
+      ],
+      "unmapped": null
+    },
+    {
+      "claim": "An erased item does not come back: a write or a store record under an erased id is refused and deleted, and erased content left in a store is refused in that scope under any id.",
+      "gap": null,
+      "id": "C23",
+      "invariant": null,
+      "limits": "A Claude Code memory file left in the store is adopted again once its content changes in any way (ADR 0010, open question).",
+      "obligations": [
+        {
+          "id": "GDPR-17-1",
+          "relation": "bears on",
+          "why": "erased data is not reinstated by a later write, a restored copy or a moved folder"
+        }
+      ],
+      "source": "ADR 0010 (cards E2.6 and RV4); docs/dogfood.md (setup, step 3)",
+      "status": "evidenced",
+      "tests": [
+        {
+          "describe": [
+            "an erased id"
+          ],
+          "enclosed": "forEachBackend (packages/core/test/db/backends.ts) loops over the backends and runs the block in one describe per backend; the SQLite describe has no skip condition, so the test runs",
+          "file": "packages/core/test/unit/plane/cross-handle.test.ts",
+          "it": "a record under an erased id that reappears in the store (a write that was in flight, a restored copy) is never adopted, and deleted"
+        },
+        {
+          "describe": [
+            "offboarding a person whose memory is an adopted Claude Code folder"
+          ],
+          "file": "packages/adapters/test/plane/offboard-files.test.ts",
+          "it": "erases the imported items, names the files left in the folder, and re-adoption brings none back"
+        },
+        {
+          "describe": [
+            "offboarding a person whose memory is an adopted Claude Code folder"
+          ],
+          "file": "packages/adapters/test/plane/offboard-files.test.ts",
+          "it": "a case, width or invisible-character edit of an erased file is still refused"
+        }
+      ],
+      "unmapped": null
+    },
+    {
+      "claim": "Lint evidence about an erased item is redacted from every lint event, keeping the lint id, severity and rule.",
+      "gap": null,
+      "id": "C24",
+      "invariant": null,
+      "limits": null,
+      "obligations": [
+        {
+          "id": "GDPR-17-1",
+          "relation": "bears on",
+          "why": "the erasure reaches derived records about the item, not only the item"
+        }
+      ],
+      "source": "ADR 0010 (post-merge fixes of 2026-11-13)",
+      "status": "evidenced",
+      "tests": [
+        {
+          "describe": [
+            "lint evidence about an erased item"
+          ],
+          "file": "packages/core/test/unit/plane/offboard-edges.test.ts",
+          "it": "is redacted from every lint event, keeping the lint id, severity and rule"
+        }
+      ],
+      "unmapped": null
+    },
+    {
+      "claim": "Only a user-sourced member of the person scope may offboard it; an agent is refused with one deny event.",
+      "gap": null,
+      "id": "C25",
+      "invariant": null,
+      "limits": "Without authentication this holds as far as the machine does (ADR 0027).",
+      "obligations": [
+        {
+          "id": "AIA-14-1",
+          "relation": "bears on",
+          "why": "the one irreversible operation is reserved to a person"
+        },
+        {
+          "id": "GDPR-32-1-b",
+          "relation": "bears on",
+          "why": "an agent cannot destroy memory it was not given the right to erase"
+        }
+      ],
+      "source": "ADR 0021 (card E9.7)",
+      "status": "evidenced",
+      "tests": [
+        {
+          "describe": [
+            "who may offboard"
+          ],
+          "file": "packages/core/test/unit/plane/offboard.test.ts",
+          "it": "an agent cannot: one deny event and nothing changes"
+        }
+      ],
+      "unmapped": null
+    },
+    {
+      "claim": "Retention never deletes: a budget eviction or an expiry retires the item by event, and the store keeps its bytes.",
+      "gap": null,
+      "id": "C26",
+      "invariant": 5,
+      "limits": "Both tests assert, past their titles, that the store still holds the retired item's bytes: the eviction's and the expiry's. Deletion of content happens only by erasure (C22).",
+      "obligations": [
+        {
+          "id": "AIA-12-1",
+          "relation": "bears on",
+          "why": "retired items stay replayable, so the record of what memory held is kept"
+        },
+        {
+          "id": "GDPR-5-1-e",
+          "relation": "bears on",
+          "why": "in tension: retiring keeps the content stored, so storage limitation rests on erasure and on the operator's choice of ttls"
+        }
+      ],
+      "source": "ADR 0010; ADR 0025; docs/architecture.md (lifecycle)",
+      "status": "evidenced",
+      "tests": [
+        {
+          "describe": [
+            "acceptance (card E2.4): budget exceeded evicts per policy; events recorded"
+          ],
+          "file": "packages/core/test/unit/plane/retention.test.ts",
+          "it": "recency: the write that goes over evicts the oldest, in the same call"
+        },
+        {
+          "describe": [
+            "expiry"
+          ],
+          "file": "packages/core/test/unit/plane/retention.test.ts",
+          "it": "retain retires expired items with op retire, then the budget, and reports both"
+        }
+      ],
+      "unmapped": null
+    },
+    {
+      "claim": "An item past its ttl is excluded at read before any sweep, and a sweep then retires it with op retire.",
+      "gap": null,
+      "id": "C27",
+      "invariant": 1,
+      "limits": "A sweep retires by ttl only in the actor's own person scope or for a user-sourced actor (ADR 0025, P4-6), so expired shared items are unreadable but not retired until a person sweeps.",
+      "obligations": [
+        {
+          "id": "GDPR-5-1-e",
+          "relation": "bears on",
+          "why": "an item is not used beyond the period the policy sets for its class and scope; in tension as C26 is, since expiry retires the item and the store keeps it"
+        },
+        {
+          "id": "GDPR-30-1-f",
+          "relation": "bears on",
+          "why": "in tension: the ttl a policy sets per class and scope is a stated time limit, but it retires the item and keeps its bytes (C26), so it is a limit on use, not on erasure"
+        }
+      ],
+      "source": "ADR 0025 (decision 2); docs/architecture.md (lifecycle)",
+      "status": "evidenced",
+      "tests": [
+        {
+          "describe": [
+            "expiry"
+          ],
+          "file": "packages/core/test/unit/plane/retention.test.ts",
+          "it": "an expired item is excluded at read before any sweep, counted in filtered"
+        },
+        {
+          "describe": [
+            "expiry"
+          ],
+          "file": "packages/core/test/unit/plane/retention.test.ts",
+          "it": "retain retires expired items with op retire, then the budget, and reports both"
+        }
+      ],
+      "unmapped": null
+    },
+    {
+      "claim": "A manual eviction rule evicts nothing and asks a person, as one evict event with decision ask.",
+      "gap": null,
+      "id": "C28",
+      "invariant": null,
+      "limits": null,
+      "obligations": [
+        {
+          "id": "AIA-14-1",
+          "relation": "bears on",
+          "why": "the decision of what to forget is left to a natural person where the policy says so"
+        },
+        {
+          "id": "AIA-14-4-d",
+          "relation": "bears on",
+          "why": "the person decides instead of the system"
+        }
+      ],
+      "source": "ADR 0025 (decision 3)",
+      "status": "evidenced",
+      "tests": [
+        {
+          "describe": [
+            "acceptance (card E2.4): budget exceeded evicts per policy; events recorded"
+          ],
+          "file": "packages/core/test/unit/plane/retention.test.ts",
+          "it": "manual: nothing is evicted, one evict event with decision ask names the overage"
+        }
+      ],
+      "unmapped": null
+    },
+    {
+      "claim": "A model, compaction or tool write restating content retired in its scope is denied.",
+      "gap": null,
+      "id": "C29",
+      "invariant": 2,
+      "limits": "Exact match after normalisation only; a paraphrase passes (ADR 0018).",
+      "obligations": [
+        {
+          "id": "AIA-15-5",
+          "relation": "bears on",
+          "why": "an agent cannot relearn what retention or review removed by restating it"
+        }
+      ],
+      "source": "ADR 0025 (decision 5); ADR 0007 (card E2.4)",
+      "status": "evidenced",
+      "tests": [
+        {
+          "describe": [
+            "retired content stays out (engram/write/retired-content)"
+          ],
+          "file": "packages/core/test/unit/plane/retention.test.ts",
+          "it": "a model source restating retired content is denied, normalised"
+        },
+        {
+          "describe": [
+            "retired content stays out (engram/write/retired-content)"
+          ],
+          "file": "packages/core/test/unit/plane/retention.test.ts",
+          "it": "a compaction source restating retired content is denied, normalised"
+        },
+        {
+          "describe": [
+            "retired content stays out (engram/write/retired-content)"
+          ],
+          "file": "packages/core/test/unit/plane/retention.test.ts",
+          "it": "a tool source restating retired content is denied, normalised"
+        }
+      ],
+      "unmapped": null
+    },
+    {
+      "claim": "A retired item can be reinstated by an allowed update event.",
+      "gap": "no Plane method or surface reinstates an item yet (ADR 0025, decision 6 names a follow-up card), and no test exercises a reinstatement",
+      "id": "C30",
+      "invariant": null,
+      "limits": null,
+      "obligations": [
+        {
+          "id": "AIA-14-4-d",
+          "relation": "bears on",
+          "why": "reinstatement would let a person reverse an eviction the system made"
+        }
+      ],
+      "source": "ADR 0010 (decision); ADR 0025 (decision 6); docs/architecture.md (lifecycle)",
+      "status": "not evidenced",
+      "tests": [],
+      "unmapped": null
+    },
+    {
+      "claim": "Every lint finding is one lint event carrying the lint, severity and evidence, and every deterministic lint has a flag fixture and a near-miss fixture.",
+      "gap": null,
+      "id": "C31",
+      "invariant": null,
+      "limits": null,
+      "obligations": [
+        {
+          "id": "AIA-12-2-a",
+          "relation": "bears on",
+          "why": "a finding about memory quality is recorded as an event that names its evidence"
+        },
+        {
+          "id": "AIA-12-2-c",
+          "relation": "bears on",
+          "why": "lint events are recorded events relevant to monitoring the operation of the system"
+        },
+        {
+          "id": "AIA-26-5",
+          "relation": "bears on",
+          "why": "lint events are material a deployer's monitoring can read"
+        }
+      ],
+      "source": "ADR 0008; docs/architecture.md (lints)",
+      "status": "evidenced",
+      "tests": [
+        {
+          "describe": [
+            "Plane.lint"
+          ],
+          "file": "packages/core/test/unit/lint/det.test.ts",
+          "it": "records each finding as one lint event whose reason carries the lint, severity and evidence"
+        },
+        {
+          "describe": [
+            "the fault catalogue"
+          ],
+          "file": "packages/core/test/unit/lint/det.test.ts",
+          "it": "has a flag and a near-miss fixture for every deterministic lint"
+        }
+      ],
+      "unmapped": null
+    },
+    {
+      "claim": "Stale memory is flagged: the expired-validity lint flags an item past its window or ttl, and the source-changed lint an item whose source no longer hashes to what it recorded.",
+      "gap": null,
+      "id": "C32",
+      "invariant": null,
+      "limits": "A lint flags; it does not correct. The expired-validity lint is reliable only on keyed items (ADR 0005).",
+      "obligations": [
+        {
+          "id": "GDPR-5-1-d",
+          "relation": "bears on",
+          "why": "a step towards finding memory that is no longer accurate or up to date"
+        }
+      ],
+      "source": "ADR 0008; ADR 0004 (the hash); ADR 0005",
+      "status": "evidenced",
+      "tests": [
+        {
+          "describe": [
+            "expired-validity"
+          ],
+          "file": "packages/core/test/unit/lint/det.test.ts",
+          "it": "flags an active item whose valid_to is not after the lint time"
+        },
+        {
+          "describe": [
+            "source-changed"
+          ],
+          "file": "packages/core/test/unit/lint/det.test.ts",
+          "it": "flags an item whose source now hashes to something else"
+        }
+      ],
+      "unmapped": null
+    },
+    {
+      "claim": "Model-based lints run only through an injected ModelCall, record each finding with its usage, and leave the log as it was when a call fails.",
+      "gap": null,
+      "id": "C33",
+      "invariant": null,
+      "limits": "A model lint's precision is only as good as the model follows its instruction to treat inputs as data (ADR 0008, review L3-6).",
+      "obligations": [
+        {
+          "id": "AIA-12-1",
+          "relation": "bears on",
+          "why": "each model judgement that becomes a finding is recorded with the model, seed and usage"
+        }
+      ],
+      "source": "AGENTS.md (rule 4); ADR 0008 (card L3); docs/architecture.md (model access)",
+      "status": "evidenced",
+      "tests": [
+        {
+          "describe": [
+            "Plane.lint with a lint model"
+          ],
+          "file": "packages/core/test/unit/plane/lint-model.test.ts",
+          "it": "without a lint model the model lints do not run and the report has no judgments"
+        },
+        {
+          "describe": [
+            "Plane.lint with a lint model"
+          ],
+          "file": "packages/core/test/unit/plane/lint-model.test.ts",
+          "it": "records each model finding as a lint event with its usage, after the deterministic ones"
+        },
+        {
+          "describe": [
+            "Plane.lint with a lint model"
+          ],
+          "file": "packages/core/test/unit/plane/lint-model.test.ts",
+          "it": "a call that fails rejects the lint and appends nothing, deterministic findings included"
+        }
+      ],
+      "unmapped": null
+    },
+    {
+      "claim": "Store commands are blocked in pi's user_bash and tool_call handlers wherever a store name stands, file tools are blocked inside a store root, and each block is a bypass_blocked event.",
+      "gap": null,
+      "id": "C34",
+      "invariant": null,
+      "limits": "A store name or path a variable, alias or script supplies at run time is out of reach of any text check (ADR 0014, decision D10).",
+      "obligations": [
+        {
+          "id": "AIA-15-5",
+          "relation": "bears on",
+          "why": "the path around the gate that an agent could exploit is closed for the spellings a text check can see"
+        },
+        {
+          "id": "AIA-12-2-a",
+          "relation": "bears on",
+          "why": "each attempt to bypass the plane is recorded"
+        },
+        {
+          "id": "GDPR-32-1-b",
+          "relation": "bears on",
+          "why": "evidence for the integrity of the store against ungoverned writes"
+        }
+      ],
+      "source": "AGENTS.md (rule 2; What not to do); ADR 0014; docs/architecture.md (no-bypass)",
+      "status": "evidenced",
+      "tests": [
+        {
+          "describe": [
+            "R7-1: store commands and store paths are blocked in a pi session (decision D10)"
+          ],
+          "file": "packages/pi-extension/test/attacks.test.ts",
+          "it": "every command the review found reaching a store CLI is blocked in the bash tool"
+        },
+        {
+          "describe": [
+            "R7-1: store commands and store paths are blocked in a pi session (decision D10)"
+          ],
+          "file": "packages/pi-extension/test/attacks.test.ts",
+          "it": "pi's file tools and bash file access are blocked inside a store root"
+        },
+        {
+          "describe": [
+            "PX1: the Engram extension on the Plane in a pi SDK session"
+          ],
+          "file": "packages/pi-extension/test/plane.test.ts",
+          "it": "a store command in user_bash is blocked as a bypass_blocked event without running"
+        }
+      ],
+      "unmapped": null
+    },
+    {
+      "claim": "Outside pi, the Claude Code hook runs the same checks and records each block as source model.",
+      "gap": null,
+      "id": "C35",
+      "invariant": null,
+      "limits": "Weaker than inside pi (ADR 0022): Claude Code's own auto memory and transcripts stay outside the plane (docs/dogfood.md, limit 7).",
+      "obligations": [
+        {
+          "id": "AIA-15-5",
+          "relation": "bears on",
+          "why": "the same defence for a harness the plane does not host"
+        },
+        {
+          "id": "AIA-12-2-a",
+          "relation": "bears on",
+          "why": "each blocked call is recorded in the Engram log"
+        }
+      ],
+      "source": "docs/architecture.md (no-bypass); ADR 0014 (card E8.4); docs/dogfood.md (connect Claude Code)",
+      "status": "evidenced",
+      "tests": [
+        {
+          "describe": [
+            "engram hook claude-code"
+          ],
+          "file": "packages/cli/test/hook.test.ts",
+          "it": "denies a Bash command naming a store and records the block in the log"
+        },
+        {
+          "describe": [
+            "engram hook claude-code"
+          ],
+          "file": "packages/cli/test/hook.test.ts",
+          "it": "denies a file tool inside a --root and lets one outside it go on"
+        },
+        {
+          "describe": [
+            "claudeCodeHook"
+          ],
+          "file": "packages/mcp/test/hook.test.ts",
+          "it": "records the block as source model whatever source the actor it was given claims (card RV5, RV-SRF-8)"
+        }
+      ],
+      "unmapped": null
+    },
+    {
+      "claim": "A blocked bypass's reason keeps what was attempted, with values that look like secrets replaced by a marker.",
+      "gap": null,
+      "id": "C36",
+      "invariant": null,
+      "limits": "A pattern-based scrub: a secret of an unknown shape can pass.",
+      "obligations": [
+        {
+          "id": "GDPR-5-1-c",
+          "relation": "bears on",
+          "why": "the log keeps the attempt it needs, not the credentials it carried"
+        },
+        {
+          "id": "GDPR-32-1-b",
+          "relation": "bears on",
+          "why": "confidentiality of credentials that reach the log"
+        }
+      ],
+      "source": "ADR 0014 (finding R7-9)",
+      "status": "evidenced",
+      "tests": [
+        {
+          "describe": [
+            "bypassAttempt: what the reason keeps of an attempt"
+          ],
+          "file": "packages/core/test/unit/plane/bypass.test.ts",
+          "it": "OPENAI_API_KEY=sk-abc123def456ghi mem0 add x"
+        },
+        {
+          "describe": [
+            "bypassAttempt: what the reason keeps of an attempt"
+          ],
+          "file": "packages/core/test/unit/plane/bypass.test.ts",
+          "it": "curl -H 'Authorization: Bearer abc.def.ghi' https://api.mem0.ai"
+        }
+      ],
+      "unmapped": null
+    },
+    {
+      "claim": "Inside pi, every decision is also mirrored into the session as an engram.event custom entry, in order and nothing else.",
+      "gap": null,
+      "id": "C37",
+      "invariant": null,
+      "limits": null,
+      "obligations": [
+        {
+          "id": "AIA-12-1",
+          "relation": "bears on",
+          "why": "the session record and the Engram log hold the same decisions"
+        },
+        {
+          "id": "AIA-26-6",
+          "relation": "bears on",
+          "why": "the deployer holds the decisions in a second record it controls, the session file"
+        }
+      ],
+      "source": "AGENTS.md (rule 3); docs/architecture.md (write path, step 4)",
+      "status": "evidenced",
+      "tests": [
+        {
+          "describe": [
+            "PX1: the Engram extension on the Plane in a pi SDK session"
+          ],
+          "file": "packages/pi-extension/test/plane.test.ts",
+          "it": "every event in the Engram log is mirrored into the session, in order, and nothing else"
+        },
+        {
+          "describe": [
+            "S0.5 interception on the Plane, through a pi SDK session"
+          ],
+          "file": "packages/pi-extension/test/interception.test.ts",
+          "it": "every engram.event entry is the MemoryEvent in the Engram log"
+        }
+      ],
+      "unmapped": null
+    },
+    {
+      "claim": "Inside pi, the gate decides in tool_call and a write lands only when the tool runs, so a write a later handler blocks or an abort stops never reaches the store as allowed.",
+      "gap": null,
+      "id": "C38",
+      "invariant": null,
+      "limits": null,
+      "obligations": [
+        {
+          "id": "AIA-15-5",
+          "relation": "bears on",
+          "why": "the gate cannot be raced by another extension in the same session"
+        },
+        {
+          "id": "AIA-12-1",
+          "relation": "bears on",
+          "why": "the logged decision is the one that took effect"
+        }
+      ],
+      "source": "AGENTS.md (rule 2); ADR 0007 (decision D12); docs/architecture.md (write path, step 2)",
+      "status": "evidenced",
+      "tests": [
+        {
+          "describe": [
+            "PX1: the Engram extension on the Plane in a pi SDK session"
+          ],
+          "file": "packages/pi-extension/test/plane.test.ts",
+          "it": "a write the policy forbids is blocked, and the same event is in the log and the session (Gate A)"
+        },
+        {
+          "describe": [
+            "R7-3 and R7-4: a write lands only when the tool runs (decision D12)"
+          ],
+          "file": "packages/pi-extension/test/attacks.test.ts",
+          "it": "a write a later extension blocks reaches neither the store nor the log as allowed"
+        },
+        {
+          "describe": [
+            "R7-3 and R7-4: a write lands only when the tool runs (decision D12)"
+          ],
+          "file": "packages/pi-extension/test/attacks.test.ts",
+          "it": "a write aborted before it runs reaches neither the store nor the log"
+        }
+      ],
+      "unmapped": null
+    },
+    {
+      "claim": "Only the Engram extension's own reads reach the model as governed memory; a forged result or memory tag from anything else is withheld or defused.",
+      "gap": null,
+      "id": "C39",
+      "invariant": null,
+      "limits": "A handler of another extension that runs after Engram's can still change what is sent (ADR 0009, decision D11).",
+      "obligations": [
+        {
+          "id": "AIA-15-5",
+          "relation": "bears on",
+          "why": "content cannot pass as governed memory without crossing the read filter"
+        },
+        {
+          "id": "AIA-14-4-c",
+          "relation": "bears on",
+          "why": "what the model is told is governed memory is only what the plane admitted and can explain"
+        }
+      ],
+      "source": "ADR 0009 (decision D11, defect 3); docs/architecture.md (read path, step 3)",
+      "status": "evidenced",
+      "tests": [
+        {
+          "describe": [
+            "R7-2: only the extension's own reads reach the model (decision D11)"
+          ],
+          "file": "packages/pi-extension/test/attacks.test.ts",
+          "it": "forged details from another extension's tool_result handler are withheld"
+        },
+        {
+          "describe": [
+            "round 2, defect 3: forged memory tags never reach the model as governed"
+          ],
+          "file": "packages/pi-extension/test/attacks.test.ts",
+          "it": "another extension's tool result"
+        }
+      ],
+      "unmapped": null
+    },
+    {
+      "claim": "Compaction, branch summaries and pi's bug-report summary are made without memory text.",
+      "gap": null,
+      "id": "C40",
+      "invariant": null,
+      "limits": null,
+      "obligations": [
+        {
+          "id": "GDPR-5-1-c",
+          "relation": "bears on",
+          "why": "memory content is not copied into summaries and session files that outlive the read"
+        }
+      ],
+      "source": "ADR 0009 (finding R7-15, defects 5 and 6); docs/architecture.md (read path, step 3)",
+      "status": "evidenced",
+      "tests": [
+        {
+          "describe": [
+            "R7-15: compaction summarises without the memory text"
+          ],
+          "file": "packages/pi-extension/test/attacks.test.ts",
+          "it": "the summarisation request and the summary carry no memory content"
+        },
+        {
+          "describe": [
+            "round 2, defect 5: a bug-report summary carries no memory text"
+          ],
+          "file": "packages/pi-extension/test/attacks.test.ts",
+          "it": "the session keeps placeholders, so summarizeForBugReport sends none"
+        }
+      ],
+      "unmapped": null
+    },
+    {
+      "claim": "A recorded pi session replays through the plane to the same decisions, with zero model calls.",
+      "gap": null,
+      "id": "C41",
+      "invariant": 4,
+      "limits": null,
+      "obligations": [
+        {
+          "id": "AIA-12-2",
+          "relation": "bears on",
+          "why": "a session's governance decisions can be reproduced by a third party from the session file"
+        },
+        {
+          "id": "GDPR-5-2",
+          "relation": "bears on",
+          "why": "a decision can be shown again, not only reported"
+        }
+      ],
+      "source": "docs/architecture.md (write path, step 4; card PX2)",
+      "status": "evidenced",
+      "tests": [
+        {
+          "describe": [],
+          "file": "packages/pi-extension/test/replay.test.ts",
+          "it": "replays through the plane to its .expected.json decisions, with zero model calls"
+        },
+        {
+          "describe": [
+            "the recorded policy (review of PR #32)"
+          ],
+          "file": "packages/pi-extension/test/replay.test.ts",
+          "it": "a replay is deterministic: the same session replays to the same events"
+        }
+      ],
+      "unmapped": null
+    },
+    {
+      "claim": "The simulator replays a recorded workload under a candidate policy on scratch logs and stores, with zero model calls, leaving the plane's own log and store untouched.",
+      "gap": null,
+      "id": "C42",
+      "invariant": null,
+      "limits": null,
+      "obligations": [
+        {
+          "id": "GDPR-25-1",
+          "relation": "bears on",
+          "why": "a policy's effect can be measured before it governs processing"
+        },
+        {
+          "id": "GDPR-32-1-d",
+          "relation": "bears on",
+          "why": "a means of assessing a measure's effect on recorded use"
+        }
+      ],
+      "source": "docs/architecture.md (interfaces: simulate); AGENTS.md (engram simulate)",
+      "status": "evidenced",
+      "tests": [
+        {
+          "describe": [
+            "acceptance (card E8.9): the fixture workload under two presets"
+          ],
+          "file": "packages/core/test/unit/plane/simulate.test.ts",
+          "it": "the plane's own log and store are never read or written"
+        },
+        {
+          "describe": [
+            "acceptance (card E8.9): the fixture workload under two presets"
+          ],
+          "file": "packages/core/test/unit/plane/simulate.test.ts",
+          "it": "medium against strict: strict's floors deny three writes, its ttl expires one, and recall falls"
+        }
+      ],
+      "unmapped": null
+    },
+    {
+      "claim": "The gate decides with no model: packages/core and packages/adapters import no pi package, and the write gate's evaluator gives the same decision for the same inputs.",
+      "gap": null,
+      "id": "C43",
+      "invariant": null,
+      "limits": "The import rule checks pi packages, not every network client: no test shows that core makes no network call of any kind. Determinism is tested for evaluateWrite, not for every Plane call.",
+      "obligations": [
+        {
+          "id": "AIA-12-2",
+          "relation": "bears on",
+          "why": "a decision can be recomputed from its inputs, which the event records"
+        },
+        {
+          "id": "AIA-15-1",
+          "relation": "bears on",
+          "why": "the gate gives the same decision for the same inputs throughout"
+        }
+      ],
+      "source": "AGENTS.md (rule 4; What not to do); ADR 0007 (decision); docs/architecture.md (model access)",
+      "status": "evidenced",
+      "tests": [
+        {
+          "describe": [],
+          "file": "scripts/test/pi-import-rule.test.ts",
+          "it": "rejects every pi import in packages/core"
+        },
+        {
+          "describe": [],
+          "file": "scripts/test/pi-import-rule.test.ts",
+          "it": "rejects every pi import in packages/adapters"
+        },
+        {
+          "describe": [
+            "evaluateWrite"
+          ],
+          "file": "packages/core/test/unit/policy/evaluate.test.ts",
+          "it": "is deterministic: the same inputs give the same decision"
+        }
+      ],
+      "unmapped": null
+    },
+    {
+      "claim": "Decision and event times are injected: every Plane call and evaluator judges at the time its caller gives it, and packages/core draws no randomness; only the Postgres transport reads the clock, for its connection and query timeouts.",
+      "gap": "no test or lint rule checks that no decision or event time comes from the clock; the claim as first stated (nothing in packages/core reads the clock) is contradicted by Date.now() in packages/core/src/db/postgres-worker.ts (lines 34, 41, 54) and postgres.ts (lines 211, 229)",
+      "id": "C44",
+      "invariant": null,
+      "limits": null,
+      "obligations": [
+        {
+          "id": "AIA-12-2",
+          "relation": "bears on",
+          "why": "an event's time is the one its surface gave, so a replay reaches the same decisions"
+        }
+      ],
+      "source": "docs/conventions/testing.md (fakes, not mocks; corrected by card R4); docs/architecture.md (lifecycle: nothing runs on a timer); packages/core/src/db/postgres.ts and postgres-worker.ts",
+      "status": "not evidenced",
+      "tests": [],
+      "unmapped": null
+    },
+    {
+      "claim": "The HTTP and MCP surfaces listen on loopback only and refuse a foreign Origin or a rebound Host.",
+      "gap": null,
+      "id": "C45",
+      "invariant": null,
+      "limits": "There is no authentication: the actor is self-asserted (ADR 0027), so any local process can act as anyone.",
+      "obligations": [
+        {
+          "id": "GDPR-32-1-b",
+          "relation": "bears on",
+          "why": "the surfaces are not reachable from another machine or a web page"
+        }
+      ],
+      "source": "docs/architecture.md (interfaces); AGENTS.md (engram serve, engram mcp)",
+      "status": "evidenced",
+      "tests": [
+        {
+          "describe": [
+            "the loopback listener"
+          ],
+          "file": "packages/server/test/security.test.ts",
+          "it": "refuses to listen on any other host"
+        },
+        {
+          "describe": [
+            "the Origin rule"
+          ],
+          "file": "packages/server/test/security.test.ts",
+          "it": "refuses a cross-origin request, and records nothing"
+        },
+        {
+          "describe": [
+            "over streamable HTTP"
+          ],
+          "file": "packages/mcp/test/mcp.test.ts",
+          "it": "refuses to listen on a host that is not loopback"
+        },
+        {
+          "describe": [
+            "the Host rule"
+          ],
+          "file": "packages/server/test/security.test.ts",
+          "it": "refuses a rebound DNS name, and records nothing"
+        },
+        {
+          "describe": [
+            "over streamable HTTP"
+          ],
+          "file": "packages/mcp/test/mcp.test.ts",
+          "it": "refuses a foreign Origin and a rebound Host"
+        }
+      ],
+      "unmapped": null
+    },
+    {
+      "claim": "Episodic content becomes semantic only after k confirmations by distinct trusted actors or the approval of a user-sourced reviewer who does not own it.",
+      "gap": null,
+      "id": "C46",
+      "invariant": 2,
+      "limits": null,
+      "obligations": [
+        {
+          "id": "AIA-14-1",
+          "relation": "bears on",
+          "why": "widening what memory treats as fact is gated on corroboration or a person's review"
+        },
+        {
+          "id": "GDPR-5-1-d",
+          "relation": "bears on",
+          "why": "a single unconfirmed statement is not raised to a fact"
+        }
+      ],
+      "source": "ADR 0011 (card E2.5); docs/architecture.md (policy: promotion)",
+      "status": "evidenced",
+      "tests": [
+        {
+          "describe": [
+            "acceptance (card E2.5): episodic to semantic only after k confirmations"
+          ],
+          "file": "packages/core/test/unit/policy/promotion.test.ts",
+          "it": "promotes at k confirmations by distinct actors with trusted sources"
+        },
+        {
+          "describe": [
+            "acceptance (card E2.5): episodic to semantic only after k confirmations"
+          ],
+          "file": "packages/core/test/unit/policy/promotion.test.ts",
+          "it": "does not promote one confirmation short of k (the k boundary)"
+        },
+        {
+          "describe": [
+            "acceptance (card E2.5): the review path records the approver"
+          ],
+          "file": "packages/core/test/unit/policy/promotion.test.ts",
+          "it": "the owner cannot approve their own item"
+        },
+        {
+          "describe": [
+            "acceptance (card E2.5): the review path records the approver"
+          ],
+          "file": "packages/core/test/unit/policy/promotion.test.ts",
+          "it": "a user-sourced member of the target who is not the owner may promote below k"
+        }
+      ],
+      "unmapped": null
+    },
+    {
+      "claim": "A procedural candidate becomes active only with a replay validation record meeting replay_k of replay_n.",
+      "gap": null,
+      "id": "C47",
+      "invariant": null,
+      "limits": "Until card D3 supplies replay records, no procedural candidate becomes active through the plane (ADR 0011).",
+      "obligations": [
+        {
+          "id": "AIA-15-1",
+          "relation": "bears on",
+          "why": "a procedure is admitted on measured success, not on being written"
+        }
+      ],
+      "source": "ADR 0011; AGENTS.md (What this is: Distill)",
+      "status": "evidenced",
+      "tests": [
+        {
+          "describe": [
+            "acceptance (card E2.5): procedural candidates need a validation record"
+          ],
+          "file": "packages/core/test/unit/policy/promotion.test.ts",
+          "it": "a candidate without a validation record stays candidate"
+        },
+        {
+          "describe": [
+            "acceptance (card E2.5): procedural candidates need a validation record"
+          ],
+          "file": "packages/core/test/unit/policy/promotion.test.ts",
+          "it": "a record meeting replay_k of replay_n makes it active in place"
+        }
+      ],
+      "unmapped": null
+    },
+    {
+      "claim": "Active procedures carry a smoothed success rate; a drop below threshold or a changed environment hash retires them, and a human rejection narrows the trigger.",
+      "gap": "not built: the smoothed success rate is a later schema change (ADR 0011, D4) and drift retirement waits for card D3; no test exists",
+      "id": "C48",
+      "invariant": null,
+      "limits": null,
+      "obligations": [
+        {
+          "id": "AIA-15-1",
+          "relation": "bears on",
+          "why": "retirement on drift would keep an admitted procedure performing consistently"
+        },
+        {
+          "id": "AIA-14-4-d",
+          "relation": "bears on",
+          "why": "a human rejection would override the system's admission"
+        }
+      ],
+      "source": "ADR 0011 (decision); AGENTS.md (What this is: Distill, retired on drift)",
+      "status": "not evidenced",
+      "tests": [],
+      "unmapped": null
+    },
+    {
+      "claim": "The twin dogfood's violation report replays a member's log through the invariants' oracle and prints only counts and fixed keys, no content, id or name.",
+      "gap": null,
+      "id": "C49",
+      "invariant": null,
+      "limits": "The report cannot see an actor's source, so the owner's agent posting a grant change as the owner, and a first write naming another owner, read as permitted (docs/dogfood.md, what a zero cannot show).",
+      "obligations": [
+        {
+          "id": "GDPR-32-1-d",
+          "relation": "bears on",
+          "why": "a means of testing the plane's measures on real use, judged by an oracle independent of the plane's evaluator"
+        },
+        {
+          "id": "GDPR-5-1-c",
+          "relation": "bears on",
+          "why": "the evaluation leaves the member's machine as counts only"
+        }
+      ],
+      "source": "docs/dogfood.md (the report); AGENTS.md (rule 12; make dogfood-report)",
+      "status": "evidenced",
+      "tests": [
+        {
+          "describe": [
+            "the violation report on a realistic two weeks"
+          ],
+          "file": "packages/core/test/unit/dogfood-report.test.ts",
+          "it": "the printed report holds no content, id or name, only counts and fixed keys"
+        },
+        {
+          "describe": [
+            "the report finds each planted violation"
+          ],
+          "file": "packages/core/test/unit/dogfood-report.test.ts",
+          "it": "a read returning an item after its grant was removed"
+        }
+      ],
+      "unmapped": null
+    },
+    {
+      "claim": "The Knowledge and Twin profiles run on dogfood data with zero recorded violations (Gate D).",
+      "gap": "the two weeks have not started (they wait for the lead's go), no member report is committed, and no card covers the Knowledge profile's dogfood",
+      "id": "C50",
+      "invariant": null,
+      "limits": null,
+      "obligations": [
+        {
+          "id": "GDPR-32-1-d",
+          "relation": "bears on",
+          "why": "a run on real use would test the measures outside fixtures"
+        }
+      ],
+      "source": "docs/dogfood.md (the twin dogfood); docs/roadmap.md (Gate D)",
+      "status": "not evidenced",
+      "tests": [],
+      "unmapped": null
+    }
+  ],
+  "hypothesis": "none",
+  "name": "crosswalk",
+  "obligations": [
+    {
+      "article": "12",
+      "claims": [
+        "C03",
+        "C11",
+        "C14",
+        "C26",
+        "C33",
+        "C37",
+        "C38"
+      ],
+      "heading": "Record-keeping",
+      "id": "AIA-12-1",
+      "instrument": "ai-act",
+      "paragraph": "1",
+      "point": null,
+      "quote": "High-risk AI systems shall technically allow for the automatic recording of events (logs) over the lifetime of the system."
+    },
+    {
+      "article": "12",
+      "claims": [
+        "C04",
+        "C12",
+        "C41",
+        "C43",
+        "C44"
+      ],
+      "heading": "Record-keeping",
+      "id": "AIA-12-2",
+      "instrument": "ai-act",
+      "paragraph": "2",
+      "point": null,
+      "quote": "In order to ensure a level of traceability of the functioning of a high-risk AI system that is appropriate to the intended purpose of the system, logging capabilities shall enable the recording of events relevant for:"
+    },
+    {
+      "article": "12",
+      "claims": [
+        "C03",
+        "C31",
+        "C34",
+        "C35"
+      ],
+      "heading": "Record-keeping",
+      "id": "AIA-12-2-a",
+      "instrument": "ai-act",
+      "paragraph": "2",
+      "point": "a",
+      "quote": "identifying situations that may result in the high-risk AI system presenting a risk within the meaning of Article 79(1) or in a substantial modification;"
+    },
+    {
+      "article": "12",
+      "claims": [
+        "C31"
+      ],
+      "heading": "Record-keeping",
+      "id": "AIA-12-2-c",
+      "instrument": "ai-act",
+      "paragraph": "2",
+      "point": "c",
+      "quote": "monitoring the operation of high-risk AI systems referred to in Article 26(5)."
+    },
+    {
+      "article": "13",
+      "claims": [
+        "C09"
+      ],
+      "heading": "Transparency and provision of information to deployers",
+      "id": "AIA-13-3-b-iv",
+      "instrument": "ai-act",
+      "paragraph": "3",
+      "point": "b.iv",
+      "quote": "where applicable, the technical capabilities and characteristics of the high-risk AI system to provide information that is relevant to explain its output;"
+    },
+    {
+      "article": "14",
+      "claims": [
+        "C25",
+        "C28",
+        "C46"
+      ],
+      "heading": "Human oversight",
+      "id": "AIA-14-1",
+      "instrument": "ai-act",
+      "paragraph": "1",
+      "point": null,
+      "quote": "High-risk AI systems shall be designed and developed in such a way, including with appropriate human-machine interface tools, that they can be effectively overseen by natural persons during the period in which they are in use."
+    },
+    {
+      "article": "14",
+      "claims": [
+        "C09",
+        "C39"
+      ],
+      "heading": "Human oversight",
+      "id": "AIA-14-4-c",
+      "instrument": "ai-act",
+      "paragraph": "4",
+      "point": "c",
+      "quote": "to correctly interpret the high-risk AI system’s output, taking into account, for example, the interpretation tools and methods available;"
+    },
+    {
+      "article": "14",
+      "claims": [
+        "C28",
+        "C30",
+        "C48"
+      ],
+      "heading": "Human oversight",
+      "id": "AIA-14-4-d",
+      "instrument": "ai-act",
+      "paragraph": "4",
+      "point": "d",
+      "quote": "to decide, in any particular situation, not to use the high-risk AI system or to otherwise disregard, override or reverse the output of the high-risk AI system;"
+    },
+    {
+      "article": "15",
+      "claims": [
+        "C43",
+        "C47",
+        "C48"
+      ],
+      "heading": "Accuracy, robustness and cybersecurity",
+      "id": "AIA-15-1",
+      "instrument": "ai-act",
+      "paragraph": "1",
+      "point": null,
+      "quote": "High-risk AI systems shall be designed and developed in such a way that they achieve an appropriate level of accuracy, robustness, and cybersecurity, and that they perform consistently in those respects throughout their lifecycle."
+    },
+    {
+      "article": "15",
+      "claims": [
+        "C02",
+        "C06",
+        "C12",
+        "C13",
+        "C29",
+        "C34",
+        "C35",
+        "C38",
+        "C39"
+      ],
+      "heading": "Accuracy, robustness and cybersecurity",
+      "id": "AIA-15-5",
+      "instrument": "ai-act",
+      "paragraph": "5",
+      "point": null,
+      "quote": "High-risk AI systems shall be resilient against attempts by unauthorised third parties to alter their use, outputs or performance by exploiting system vulnerabilities."
+    },
+    {
+      "article": "19",
+      "claims": [
+        "C22"
+      ],
+      "heading": "Automatically generated logs",
+      "id": "AIA-19-1",
+      "instrument": "ai-act",
+      "paragraph": "1",
+      "point": null,
+      "quote": "the logs shall be kept for a period appropriate to the intended purpose of the high-risk AI system, of at least six months, unless provided otherwise in the applicable Union or national law, in particular in Union law on the protection of personal data."
+    },
+    {
+      "article": "26",
+      "claims": [
+        "C31"
+      ],
+      "heading": "Obligations of deployers of high-risk AI systems",
+      "id": "AIA-26-5",
+      "instrument": "ai-act",
+      "paragraph": "5",
+      "point": null,
+      "quote": "Deployers shall monitor the operation of the high-risk AI system on the basis of the instructions for use"
+    },
+    {
+      "article": "26",
+      "claims": [
+        "C37"
+      ],
+      "heading": "Obligations of deployers of high-risk AI systems",
+      "id": "AIA-26-6",
+      "instrument": "ai-act",
+      "paragraph": "6",
+      "point": null,
+      "quote": "Deployers of high-risk AI systems shall keep the logs automatically generated by that high-risk AI system to the extent such logs are under their control, for a period appropriate to the intended purpose of the high-risk AI system, of at least six months"
+    },
+    {
+      "article": "5",
+      "claims": [
+        "C05",
+        "C36",
+        "C40",
+        "C49"
+      ],
+      "heading": "Principles relating to processing of personal data",
+      "id": "GDPR-5-1-c",
+      "instrument": "gdpr",
+      "paragraph": "1",
+      "point": "c",
+      "quote": "adequate, relevant and limited to what is necessary in relation to the purposes for which they are processed (‘data minimisation’);"
+    },
+    {
+      "article": "5",
+      "claims": [
+        "C16",
+        "C32",
+        "C46"
+      ],
+      "heading": "Principles relating to processing of personal data",
+      "id": "GDPR-5-1-d",
+      "instrument": "gdpr",
+      "paragraph": "1",
+      "point": "d",
+      "quote": "accurate and, where necessary, kept up to date; every reasonable step must be taken to ensure that personal data that are inaccurate, having regard to the purposes for which they are processed, are erased or rectified without delay (‘accuracy’);"
+    },
+    {
+      "article": "5",
+      "claims": [
+        "C26",
+        "C27"
+      ],
+      "heading": "Principles relating to processing of personal data",
+      "id": "GDPR-5-1-e",
+      "instrument": "gdpr",
+      "paragraph": "1",
+      "point": "e",
+      "quote": "kept in a form which permits identification of data subjects for no longer than is necessary for the purposes for which the personal data are processed;"
+    },
+    {
+      "article": "5",
+      "claims": [
+        "C01",
+        "C02",
+        "C10",
+        "C11",
+        "C16"
+      ],
+      "heading": "Principles relating to processing of personal data",
+      "id": "GDPR-5-1-f",
+      "instrument": "gdpr",
+      "paragraph": "1",
+      "point": "f",
+      "quote": "processed in a manner that ensures appropriate security of the personal data, including protection against unauthorised or unlawful processing and against accidental loss, destruction or damage, using appropriate technical or organisational measures (‘integrity and confidentiality’)."
+    },
+    {
+      "article": "5",
+      "claims": [
+        "C03",
+        "C04",
+        "C22",
+        "C41"
+      ],
+      "heading": "Principles relating to processing of personal data",
+      "id": "GDPR-5-2",
+      "instrument": "gdpr",
+      "paragraph": "2",
+      "point": null,
+      "quote": "The controller shall be responsible for, and be able to demonstrate compliance with, paragraph 1 (‘accountability’)."
+    },
+    {
+      "article": "7",
+      "claims": [
+        "C07",
+        "C17",
+        "C18"
+      ],
+      "heading": "Conditions for consent",
+      "id": "GDPR-7-1",
+      "instrument": "gdpr",
+      "paragraph": "1",
+      "point": null,
+      "quote": "Where processing is based on consent, the controller shall be able to demonstrate that the data subject has consented to processing of his or her personal data."
+    },
+    {
+      "article": "7",
+      "claims": [
+        "C15",
+        "C19"
+      ],
+      "heading": "Conditions for consent",
+      "id": "GDPR-7-3",
+      "instrument": "gdpr",
+      "paragraph": "3",
+      "point": null,
+      "quote": "The data subject shall have the right to withdraw his or her consent at any time."
+    },
+    {
+      "article": "17",
+      "claims": [
+        "C08",
+        "C22",
+        "C23",
+        "C24"
+      ],
+      "heading": "Right to erasure (‘right to be forgotten’)",
+      "id": "GDPR-17-1",
+      "instrument": "gdpr",
+      "paragraph": "1",
+      "point": null,
+      "quote": "The data subject shall have the right to obtain from the controller the erasure of personal data concerning him or her without undue delay and the controller shall have the obligation to erase personal data without undue delay where one of the following grounds applies:"
+    },
+    {
+      "article": "24",
+      "claims": [
+        "C03"
+      ],
+      "heading": "Responsibility of the controller",
+      "id": "GDPR-24-1",
+      "instrument": "gdpr",
+      "paragraph": "1",
+      "point": null,
+      "quote": "the controller shall implement appropriate technical and organisational measures to ensure and to be able to demonstrate that processing is performed in accordance with this Regulation."
+    },
+    {
+      "article": "25",
+      "claims": [
+        "C42"
+      ],
+      "heading": "Data protection by design and by default",
+      "id": "GDPR-25-1",
+      "instrument": "gdpr",
+      "paragraph": "1",
+      "point": null,
+      "quote": "both at the time of the determination of the means for processing and at the time of the processing itself, implement appropriate technical and organisational measures"
+    },
+    {
+      "article": "25",
+      "claims": [
+        "C01",
+        "C05",
+        "C07",
+        "C11",
+        "C13",
+        "C17",
+        "C20"
+      ],
+      "heading": "Data protection by design and by default",
+      "id": "GDPR-25-2",
+      "instrument": "gdpr",
+      "paragraph": "2",
+      "point": null,
+      "quote": "That obligation applies to the amount of personal data collected, the extent of their processing, the period of their storage and their accessibility. In particular, such measures shall ensure that by default personal data are not made accessible without the individual's intervention to an indefinite number of natural persons."
+    },
+    {
+      "article": "30",
+      "claims": [
+        "C27"
+      ],
+      "heading": "Records of processing activities",
+      "id": "GDPR-30-1-f",
+      "instrument": "gdpr",
+      "paragraph": "1",
+      "point": "f",
+      "quote": "where possible, the envisaged time limits for erasure of the different categories of data;"
+    },
+    {
+      "article": "32",
+      "claims": [
+        "C01",
+        "C02",
+        "C06",
+        "C08",
+        "C10",
+        "C14",
+        "C15",
+        "C25",
+        "C34",
+        "C36",
+        "C45"
+      ],
+      "heading": "Security of processing",
+      "id": "GDPR-32-1-b",
+      "instrument": "gdpr",
+      "paragraph": "1",
+      "point": "b",
+      "quote": "the ability to ensure the ongoing confidentiality, integrity, availability and resilience of processing systems and services;"
+    },
+    {
+      "article": "32",
+      "claims": [
+        "C42",
+        "C49",
+        "C50"
+      ],
+      "heading": "Security of processing",
+      "id": "GDPR-32-1-d",
+      "instrument": "gdpr",
+      "paragraph": "1",
+      "point": "d",
+      "quote": "a process for regularly testing, assessing and evaluating the effectiveness of technical and organisational measures for ensuring the security of the processing."
+    }
+  ],
+  "relation": "bears on",
+  "sources": {
+    "ai-act": {
+      "amended_by": "Regulation (EU) 2026/1744 (Digital Omnibus on AI), OJ L, 2026/1744, 24.7.2026, http://publications.europa.eu/resource/celex/32026R1744, read 2026-11-21. Its amending provisions change the text of none of Articles 12, 13, 14, 15, 19 and 26 cited here. Its point (18) adds Article 42(3), under which high-risk AI systems within the scope of Regulation (EU) 2024/2847 for which the conditions of its Article 12(1) hold are deemed to comply with the cybersecurity requirements set out in Article 15; that bears on rows AIA-15-1 and AIA-15-5. Its new Article 113, third paragraph, point (c) makes Chapter III, Sections 1 to 3, with the exception of Article 6(5), apply from 2 December 2027 for high-risk systems under Article 6(2) and Annex III and from 2 August 2028 under Article 6(1) and Annex I.",
+      "eli": "http://data.europa.eu/eli/reg/2024/1689/oj",
+      "file": "32024R1689.xhtml",
+      "oj": "OJ L, 2024/1689, 12.7.2024",
+      "read": "2026-11-21",
+      "sha256": "8f0b656302f9864cc87e040c371f209a9d65ae1a6cecc25ca5eb737e872d721a",
+      "short": "AI Act",
+      "title": "Regulation (EU) 2024/1689 of the European Parliament and of the Council of 13 June 2024 laying down harmonised rules on artificial intelligence (Artificial Intelligence Act)",
+      "url": "http://publications.europa.eu/resource/celex/32024R1689"
+    },
+    "gdpr": {
+      "amended_by": "The text as published in the Official Journal; corrigenda were not read. No article number cited here is changed by a corrigendum the Publications Office lists for this act, which was not checked either.",
+      "eli": "http://data.europa.eu/eli/reg/2016/679/oj",
+      "file": "32016R0679.xhtml",
+      "oj": "OJ L 119, 4.5.2016, p. 1",
+      "read": "2026-11-21",
+      "sha256": "962539af03738bf552319ff4ce42d69e5f95a576307c4dfed7bf87e81b646b9d",
+      "short": "GDPR",
+      "title": "Regulation (EU) 2016/679 of the European Parliament and of the Council of 27 April 2016 on the protection of natural persons with regard to the processing of personal data and on the free movement of such data (General Data Protection Regulation)",
+      "url": "http://publications.europa.eu/resource/celex/32016R0679"
+    }
+  },
+  "statement": "Engram supplies evidence about how a memory control plane behaves: each row names a claim, the test in this repository that proves it, and an article of the EU AI Act or the GDPR the evidence bears on. A row never says that Engram, or a deployment using it, meets an obligation. Whether a deployment is compliant depends on its purpose, its operator and facts the plane cannot see.",
+  "summary": {
+    "claims": 50,
+    "claims_unmapped": [
+      "C21"
+    ],
+    "evidenced": 46,
+    "not_evidenced": [
+      "C30",
+      "C44",
+      "C48",
+      "C50"
+    ],
+    "obligations": 27,
+    "obligations_without_claim": [],
+    "test_files": 32,
+    "tests": 105
+  }
+}
