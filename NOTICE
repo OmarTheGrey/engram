@@ -66,3 +66,15 @@ Mnemowall (https://github.com/Mnemowall/mnemowall-sdk, commit
   This product is licensed under the Apache License, Version 2.0 (see LICENSE).
 
 Modified here: see the header of injection-screen.ts.
+
+------------------------------------------------------------------------
+Remnic (supersession chain)
+
+packages/core/src/supersede.ts (resolveSupersessionHead) and its tests in
+packages/core/test/unit/supersede.test.ts copy Remnic's supersession chain
+resolver (https://github.com/joshuaswarren/remnic, commit
+ce22909cc219e36d0e31b1158a4ab74f175008a0,
+packages/remnic-core/src/shared-context/supersession-chain.ts), under the MIT
+License, whose copyright line and permission notice are given in the Remnic
+entry above: Copyright (c) 2025 Joshua Warren. Modified here: see the header
+of supersede.ts.
