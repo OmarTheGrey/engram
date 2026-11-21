@@ -176,3 +176,151 @@ Every row of 3.1 to 3.7 maps to a control. The check the implementation must pas
 | piping and scripting | yes | no, by design: the TUI is for people; it prints the commands to script with |
 | check, events, policy, grants | no command today | yes, through the four commands of 3.6 if the lead accepts them |
 | distill | 501 | shows the 501 line naming card D2 |
+
+## 4. Principles
+
+1. **The TUI teaches the CLI.** Every action is labelled in plain language with its exact command line beside it, kept up to date as the form changes (`engram write --content "..." --scope person:dana`). Before an action runs, the confirmation shows the command; after it runs, the result shows it again with its exit code. `c` copies it (OSC 52, which Windows Terminal, iTerm2, kitty, WezTerm and tmux with `set-clipboard on` accept; where the copy cannot be confirmed the status bar says "printed on exit" instead). Quitting prints the session's commands to stdout, one a line, under `# engram tui: the commands this session ran`, so a person can paste them into a script.
+2. **Nothing new is decided here.** The TUI shows what the plane decided, in the inspector's words: the decision, the reason, the policy id, the explanation. It holds no policy `if` (AGENTS.md rule 1). A form validates only what the CLI's own usage checks validate, with the same messages (9.4).
+3. **One call per action, the same call.** An action is the plain command's client call, through the same `connect`, so it behaves the same in process and against `--server`, and prints the same text when shown in plain view (6.2).
+4. **Calm by default.** Nothing moves unless work is under way; nothing beeps; no colour carries meaning alone; the screen never scrolls under the reader's cursor.
+5. **Every state is a screen.** Empty, loading, error, offline, refused and denied each have a designed state with a next step (section 10). A blank pane is a bug.
+6. **No dead ends.** Every screen has `esc` back, `?` help and the palette. Every error names the field or flag at fault and puts the cursor there.
+7. **Safe by construction.** Anything that writes an item, retires, promotes, changes a grant, imports or erases asks first and names what it will do and whether it can be undone (9.5). Reads and lints, which only append audit events, do not ask; the first read of a store folder in a session says once that reading adopts its memories into the log (8.5).
+
+## 5. Entry and compatibility
+
+### 5.1 How the TUI is entered
+
+`engram tui [options]`. One entry, chosen over the alternatives for these reasons:
+
+- **Bare `engram` stays as it is.** It prints the help to stderr and exits 2, and `packages/cli/test/commands.test.ts` pins that byte for byte. Making the same word do two things depending on TTY detection surprises people in tmux, over SSH and in Git Bash's mintty, where Node may see pipes. Bare `engram` on a TTY opening the TUI is offered to the lead as an option (section 14, item 1); if accepted it is one branch in `run`, after the TTY checks of 5.2, and the non-TTY behaviour stays pinned.
+- **Not `engram ui`.** "ui" already names the web inspector (`packages/ui`, `make ui`, served by `engram serve`). Two things called ui would confuse the help, the docs and the thesis.
+- **`tui` is a new command name**, so no existing script or test can call it by accident.
+
+`engram tui` takes the workspace flags (`--server`, `--store`, `--root`, `--owner`, `--import-valid-from`, `--policy`, `--db`, `--as`, `--level`, `--member`, and in flight `--otlp`, `--export-jsonl`), which prefill the workspace bar, plus its own:
+
+| flag | meaning |
+|---|---|
+| `--line` | line mode: the plain CLI with prompts (11.6) |
+| `--no-color` | no colour; also `NO_COLOR` set to anything non-empty |
+| `--high-contrast` | the high-contrast palette (11.3) |
+| `--ascii` | ASCII box drawing and symbols (11.7) |
+| `--reduced-motion` | no animation: the busy indicator is a static word (11.5) |
+| `--no-mouse` | do not capture the mouse; the terminal's own selection works |
+| `--screen <name>` | open on a screen (`read`, `write`, `doctor` and every registry name), for docs and demos |
+
+### 5.2 When the TUI refuses to start
+
+The TUI must never start, and must never draw a single escape sequence, when any of these holds. It then prints one line to stderr and exits 2:
+
+| condition | line printed |
+|---|---|
+| stdout is not a TTY | `engram tui: stdout is not a terminal; run the plain commands (engram --help lists them)` |
+| stdin is not a TTY | `engram tui: stdin is not a terminal; run the plain commands (engram --help lists them)` |
+| `CI` is set and non-empty | `engram tui: CI is set; run the plain commands (engram --help lists them)` |
+| `TERM` is `dumb` | `engram tui: TERM is dumb; try engram tui --line, or the plain commands` |
+| `--json` anywhere on the line | `engram tui: --json is for scripts; run the plain command with --json` |
+| an unknown flag | the CLI's usage error shape, `engram tui: <parseArgs message>`, plus the "did you mean" line (12.2) |
+
+Git Bash note, from the spike (ADR 0044): under Git for Windows' mintty without a pseudoconsole, Node sees pipes, so the first row applies and the person is told to run the plain commands; under Windows Terminal, conhost or mintty with ConPTY, Node sees a TTY and the TUI starts. The line also suggests `winpty engram tui` when `MSYSTEM` is set and stdin is a pipe.
+
+The TUI is a human surface. Inside a pi session, ADR 0014 already blocks `engram` by name, so a model cannot start it either.
+
+### 5.3 What stays byte for byte
+
+Every existing invocation of every existing command keeps its exact stdout, stderr and exit code. In particular: `HELP` for the existing commands, every text and `--json` output, every usage error message, the hook's JSON and `mcp`'s stdout. The help snapshot changes only by the lines each new command adds (`tui`, `check`, `events`, `policy`, `grants`), exactly as cards E9.8 and E2.13 add theirs; section 12 lists every change.
+
+## 6. Architecture
+
+### 6.1 One registry
+
+`packages/cli/src/registry.ts` (new, card E8.15a) is the single description of the CLI. Each entry:
+
+```ts
+interface CommandSpec {
+  name: string;                    // "read", "hook claude-code", "key create"
+  summary: string;                 // the HELP line, verbatim
+  group: "memory" | "policy" | "surfaces" | "machine" | "data";
+  positionals: PositionalSpec[];   // name, label, required, picker ("item" | "read" | "scope" | "file")
+  options: Record<string, OptionSpec>;  // the parseArgs config the handler already uses, plus label,
+                                   // help line, default text, control ("text" | "scope" | "time" | "number" |
+                                   // "choice" | "file" | "list" | "toggle"), "advanced" flag, and the card
+                                   // that added it
+  helpSection: string[];           // the "<name> options:" block of HELP, verbatim
+  exitCodes: { code: number; when: string }[];
+  writes: "none" | "audit" | "state" | "erase";  // drives confirmation (9.5); "audit" appends events only
+  handler: (args: string[], io: Io) => Promise<number>;
+  card?: string;                   // set while the command is in flight
+}
+```
+
+- `run.ts` keeps its exported `run` and `HELP`, built from the registry. The test that pins `HELP` keeps passing, which proves the registry reproduces the text byte for byte before any new command is added.
+- The handlers keep their own `parse(...)` calls with the same option objects, now read from the registry, so parsing and its error messages do not change.
+- The TUI builds its home menu, palette, forms, help overlay and parity test from the registry. A new command, such as `engram export` from E9.8, is one registry entry; it then appears in `--help`, the palette and a generated form with no TUI code. A hand-made screen (Read, Write, Doctor and the others in section 8) is an optional richer view over the same entry.
+
+### 6.2 One call, the same call
+
+- A TUI action builds the argument vector the plain command would get (`["write", "--content", "...", "--scope", "person:dana", ...]`) from the form and the workspace bar. That vector is the command line shown and copied, quoted for the shell detected (POSIX quoting under bash and zsh, PowerShell quoting when `PSModulePath` is set and `SHELL` is not).
+- To run it, the TUI calls the command's client call through `connect(io, flags, ...)` with the same flags, so in process and `--server` behave as the CLI does. The command modules expose each command as two parts: `prepare(values, io)` (the flag checks, the actor, the request body; throws the same `UsageError`) and `call(conn, request)` (the one client call), with `readCommand` and the rest kept as `prepare`, `call`, `print`. The TUI renders the typed response; its plain view renders it with the same `format.ts` functions, so the text is the CLI's.
+- Commands that are not plane calls: `doctor` runs its checks through the same `doctorCommand` with an `Io` whose `out` the TUI captures (`--json`, parsed), so the checks are not duplicated. `serve` and `mcp` run their own handlers with an `Io.stop` the TUI aborts. The hook is never run by the TUI; its screen writes the Claude Code settings snippet (8.15).
+
+### 6.3 Rules it keeps
+
+- **No policy logic** (rule 1). Everything a screen shows about a decision is a field the response carries. Grouping and labels reuse the inspector's pure functions where they exist (`buildLanes`, `laneGroups`, `filterEvents`, `eventDetail`, `explainView`, `provenanceGraph`, `itemVersions`, `itemEvents`, `grantFrom`, `grantLabel`), imported from `@engram/ui` through a subpath export of its pure modules only (`@engram/ui/view`), never React; card E8.15c adds that export, which changes no inspector behaviour.
+- **Stores through the plane** (rule 2). The TUI opens no store and no log itself; the workspace does, inside `connect`.
+- **The clock.** The TUI reads time only through `Io.now`, where and when the plain command does: never for a decision, only for what the CLI prints. `--at` is offered on Read only; on other screens it appears only when "Test clock" is on, as the CLI requires `--test-clock`.
+- **Ids** come from `Io.newId`, as in the CLI.
+- **pi packages.** Only `@earendil-works/pi-tui`, and only under `packages/cli/src/tui/`; ADR 0044 amends ADR 0033's list and adds a biome restriction keeping pi-tui out of every other CLI file and out of core and the adapters.
+
+### 6.4 Modules
+
+```
+packages/cli/src/registry.ts          the command registry (E8.15a)
+packages/cli/src/tui/main.ts          engram tui: flags, the refusals of 5.2, theme, start and stop
+packages/cli/src/tui/term.ts          the TuiTerminal seam: ProcessTerminal in main, FakeTerminal in tests
+packages/cli/src/tui/theme.ts         palettes (default, high contrast, no colour), glyph sets (unicode, ascii)
+packages/cli/src/tui/app.ts           the router, the status bar, the key map, overlays (help, palette, confirm)
+packages/cli/src/tui/workspace.ts     the workspace bar state, flags in and argument vectors out
+packages/cli/src/tui/argv.ts          argument vector to a shell-quoted command line
+packages/cli/src/tui/forms.ts         a form generated from a CommandSpec; field validation by the CLI's checks
+packages/cli/src/tui/screens/*.ts     one file per screen of section 8
+packages/cli/src/tui/line.ts          line mode (node:readline only, no pi-tui)
+packages/cli/test/tui/*.test.ts       the layers of section 13
+```
+
+## 7. Information architecture
+
+```
+Home ─┬─ Memory ── Read and explain ── Explain ── Item page (provenance, versions, events naming it)
+      │            Write ── (check preview) ── Result
+      │            Promote ── Result
+      │            Grants ── Result (undo)                       needs engram grants (3.6)
+      │            Who can read                                  in flight, card E2.13
+      │            Supersede                                     in flight, card L6
+      ├─ Policy ── Lint ── Findings
+      │            Retention sweep ── Result
+      │            Simulate ── Comparison ── Changed steps
+      │            Policy view                                   needs engram policy (3.6)
+      ├─ Audit ─── Events (timeline) ── Event detail ── Item page needs engram events (3.6)
+      │            Log verify                                    in flight, card E1.6
+      ├─ Data ──── Export                                        in flight, card E9.8
+      │            Import ── Per-row decisions                   in flight, card E9.8
+      │            Procedures                                    501 until card D2
+      ├─ Surfaces  Serve (HTTP API and inspector)
+      │            MCP server
+      │            Claude Code hook setup
+      │            Keys                                          in flight, card E8.12
+      └─ Machine ─ Doctor
+Overlays everywhere: Workspace (ctrl+o), Help (?), Palette (ctrl+p or :), Confirm, Plain view (v), JSON view (J)
+```
+
+The home screen groups the registry by `group`. First run (8.2) replaces Home until a log, a policy and an actor are named. Every screen has the same frame:
+
+```
+row 1        title bar: "engram", the screen, the connection (in process or server), the actor
+rows 2..n-2  the screen
+row n-1      command line: the exact command this screen would run now, or the last one run, with its exit code
+row n        key hints for this screen, then "? help  ctrl+p commands  esc back"
+```
+
+The command line row is what makes the TUI teach: it is always on screen and always exact.
