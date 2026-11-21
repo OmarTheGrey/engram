@@ -41,3 +41,6 @@ Their words, our words. Use the right-hand column in code, documents and the the
 | invariant 1 | no read returns an item its scope or grants exclude |
 | invariant 2 | no write lands in a scope that forbids its class or source |
 | governance tax | the utility and cost difference between the governed and ungoverned conditions |
+| content_guards | an optional policy block (ADR 0039): `secrets` and `pii`, each off, review (hold as a candidate) or block (deny); `injection_screen`, off, default or hardened; `max_content_bytes`, the largest content admitted. Absent means off; read by nothing until cards E2.9 and E2.10 |
+| trust | an optional policy block (ADR 0040): `unattested_floor`, off or on, records a write with no attested source at the least trusted kind; `protect_trusted`, off or on, stops a less trusted source rewriting, retiring or evicting a more trusted active item. Absent means off; read by nothing until card E2.11 |
+| compatible change | a schema field that is additive, optional and without a default, whose absence parses and serialises byte for byte as before; it keeps `schema_version` (ADR 0002, decision D2) |

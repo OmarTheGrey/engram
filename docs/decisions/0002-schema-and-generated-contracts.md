@@ -29,6 +29,14 @@ Amendments made by the schema version 1 PR, 2026-11-06 (branch `schema-v1`, step
 - `schema_version` is 1. A read event carries `item_ids`, the ids of the items it returned in rank order (absent on other ops), so utility replays from the log (ADR 0025, finding P4-5). `ProvenanceKind` gains `external` (ADR 0004's amendment of the same day). Policy documents say `schema_version: 1`; the bundled presets and the fixtures were bumped by command.
 - Migration 4 upgrades a version 0 log in place on SQLite and Postgres: every stored event, item, explanation and carried item says version 1, and each read event's `item_ids` are its explanation rows in rank order (migration 3 wrote one per returned item in the read's own transaction). No other field is rewritten (`packages/core/test/db/schema-v1.test.ts`). A version 0 policy file no longer loads and is bumped by hand; there is no reader of version 0 records after the migration.
 
+Amendment made by card E2.8, 2026-11-21 (branch `e2-8-policy-schema`), accepted under the lead's delegation of that day:
+
+- Decision D2: a compatible change keeps the version. A schema field that is purely additive, optional and without a default, whose absence parses and serialises byte for byte as before, is a compatible change: it does not bump `schema_version` and needs no migration. The next breaking change bumps it. AGENTS.md rule 5 stays as written, and reads so for compatible additions: the change is still its own PR, with `make api` and the fixtures.
+- Applied first to the policy's `content_guards` block (ADR 0039) and `trust` block (ADR 0040), each option in them optional too; `schema_version` stays 1.
+- Why. The policy shares `SCHEMA_VERSION` with items and events. C3 and C4 embed the parsed policy, `schema_version` included, in their prompts (`policyInstruction`, `packages/runner/src/conditions.ts`), and the cache key hashes the prompt, so a bump would move 46 committed cassette keys (`fixtures/cassettes/x1-h1-gatemem`, `x1-h1-mem-inv`, `x1-h1-gatemem-rag` and `rn1-gatemem-probe`). It would also move the fault set's `policy.json` and `states.jsonl`, whose hashes `research/configs/h3-lint-model.json` pins. Both are registered (`docs/log/2026-11-21-e2-8-version-bump-moves-cassette-keys.md`).
+- Cost. Code built before the change rejects a policy file that uses the new blocks, since the policy is a strict object. Every reader (core, the generated clients, the Python types) is in this repository and ships in the same PR.
+- Checked by `packages/core/test/unit/policy/presets.test.ts`: each registered preset parses to the sha256 it had before the change.
+
 ## Alternatives considered
 
 (a) Zod 4 as the single source, JSON Schema via `z.toJSONSchema`, Python types generated from the JSON Schema. (b) JSON Schema hand-written, codegen both ways. (c) TypeBox.
