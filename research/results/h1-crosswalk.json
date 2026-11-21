@@ -49,7 +49,7 @@
       "gap": null,
       "id": "C02",
       "invariant": 2,
-      "limits": "Holds for writes that cross the plane; a write made to the store outside it is the no-bypass rows' concern (C34, C35).",
+      "limits": "Holds for writes that cross the plane; a write made to the store outside it is the no-bypass rows' concern (C34, C35). Within what a rule admits, a co-member less trusted than an item's owner may rewrite, retire or evict that item (packages/core/test/counterexamples/trust.test.ts, GH-38; card E2.11 is the opt-in fix).",
       "obligations": [
         {
           "id": "AIA-15-5",
@@ -165,6 +165,7 @@
         },
         {
           "describe": [],
+          "enclosed": "forEachBackend (packages/core/test/db/backends.ts) loops over the backends and runs the block in one describe per backend; the SQLite describe has no skip condition, so the test runs",
           "file": "packages/core/test/replay/rebuild.test.ts",
           "it": "rebuild equals incremental for any event sequence"
         }
@@ -181,7 +182,7 @@
         {
           "id": "GDPR-5-1-c",
           "relation": "bears on",
-          "why": "a budget bounds how much a scope holds of each class"
+          "why": "a budget bounds how much a scope holds active of each class; in tension as C26 is, since an evicted item is retired, not deleted, and the store keeps it"
         },
         {
           "id": "GDPR-25-2",
@@ -255,7 +256,7 @@
         {
           "id": "GDPR-7-1",
           "relation": "bears on",
-          "why": "a grant on record is one its owner made through the plane, not one written into a file"
+          "why": "where a deployment rests sharing on consent, a grant on record is one its owner made through the plane, not one written into a file"
         }
       ],
       "source": "AGENTS.md (make test-invariants); docs/conventions/testing.md (invariant 7); ADR 0007 (card RV4); docs/dogfood.md (limit 4)",
@@ -303,6 +304,7 @@
           "describe": [
             "an erased id"
           ],
+          "enclosed": "forEachBackend (packages/core/test/db/backends.ts) loops over the backends and runs the block in one describe per backend; the SQLite describe has no skip condition, so the test runs",
           "file": "packages/core/test/unit/plane/cross-handle.test.ts",
           "it": "a write under an erased id is refused, and the refusal names the erased scope only to its members"
         }
@@ -433,7 +435,7 @@
       "gap": null,
       "id": "C12",
       "invariant": null,
-      "limits": "A harness that sets no source leaves the caller's claim standing, and the event's reason says so.",
+      "limits": "A write whose actor names no source keeps the kind and actor its caller claims, and the event's reason says so; packages/core/test/counterexamples/trust.test.ts (GH-39) pins this, including a sourceless write claiming user into team scope, which is allowed.",
       "obligations": [
         {
           "id": "AIA-12-2",
@@ -471,7 +473,7 @@
       "gap": null,
       "id": "C13",
       "invariant": 2,
-      "limits": "No surface labels content external yet (ADR 0004, schema version 1).",
+      "limits": "No surface labels content external yet (ADR 0004, schema version 1). Content is model content only as a harness labels it: a sourceless write claiming user is judged as user (C12; packages/core/test/counterexamples/trust.test.ts, GH-39).",
       "obligations": [
         {
           "id": "AIA-15-5",
@@ -571,7 +573,7 @@
         {
           "id": "GDPR-7-3",
           "relation": "bears on",
-          "why": "a withdrawn grant is not brought back by a concurrent writer"
+          "why": "where a deployment rests sharing on consent, a withdrawn grant is not brought back by a concurrent writer"
         }
       ],
       "source": "ADR 0007 (card E2.6); docs/architecture.md (write path)",
@@ -581,6 +583,7 @@
           "describe": [
             "a committed decision on another handle"
           ],
+          "enclosed": "forEachBackend (packages/core/test/db/backends.ts) loops over the backends and runs the block in one describe per backend; the SQLite describe has no skip condition, so the test runs",
           "file": "packages/core/test/unit/plane/cross-handle.test.ts",
           "it": "R5: a grant change held while another grant change commits is refused, and the store holds the projection"
         },
@@ -588,6 +591,7 @@
           "describe": [
             "a committed decision on another handle"
           ],
+          "enclosed": "forEachBackend (packages/core/test/db/backends.ts) loops over the backends and runs the block in one describe per backend; the SQLite describe has no skip condition, so the test runs",
           "file": "packages/core/test/unit/plane/cross-handle.test.ts",
           "it": "R4: a handover held at its store write while the owner removes a grant keeps the removal and hands over the new version"
         },
@@ -595,6 +599,7 @@
           "describe": [
             "a committed decision on another handle"
           ],
+          "enclosed": "forEachBackend (packages/core/test/db/backends.ts) loops over the backends and runs the block in one describe per backend; the SQLite describe has no skip condition, so the test runs",
           "file": "packages/core/test/unit/plane/cross-handle.test.ts",
           "it": "R8: the conflict's deny event carries a reason and a policy id, no item, and is not shown to the grantee"
         }
@@ -635,6 +640,13 @@
           ],
           "file": "packages/core/test/unit/plane/read.test.ts",
           "it": "excludes an item outside its validity window at the query time, and counts it"
+        },
+        {
+          "describe": [
+            "RV-CORE-3: an access decision is never judged before the log's head"
+          ],
+          "file": "packages/core/test/unit/plane/read-time.test.ts",
+          "it": "a read named at a time before the last read cannot reopen an expired grant (the review's repro)"
         }
       ],
       "unmapped": null
@@ -654,7 +666,7 @@
         {
           "id": "GDPR-7-1",
           "relation": "bears on",
-          "why": "each grant names whom, which class and until when, which is what a record of consent needs"
+          "why": "where a deployment rests sharing on consent, each grant on record names whom, which class and until when the owner allowed; a grant is not itself the data subject's consent"
         }
       ],
       "source": "ADR 0021 (decision D4); ADR 0006 (decision D4)",
@@ -680,6 +692,13 @@
           ],
           "file": "packages/core/test/unit/plane/grants.test.ts",
           "it": "a grant expires: the read filter stops honouring it with no further event"
+        },
+        {
+          "describe": [
+            "evaluateRead"
+          ],
+          "file": "packages/core/test/unit/policy/evaluate.test.ts",
+          "it": "does not admit through a grant for another class"
         }
       ],
       "unmapped": null
@@ -689,12 +708,12 @@
       "gap": null,
       "id": "C18",
       "invariant": null,
-      "limits": "Identity and source are self-asserted (ADR 0027): the owner's agent posting as the owner with source user reads exactly as the owner, a blind spot the dogfood report's tests name.",
+      "limits": "Identity and source are self-asserted (ADR 0027): the owner's agent posting as the owner with source user reads exactly as the owner, a blind spot the dogfood report's tests name. A first write may carry grants, and with no source its claimed kind stands (packages/core/test/counterexamples/trust.test.ts, GH-39); this row is about changing the grants of an item that exists.",
       "obligations": [
         {
           "id": "GDPR-7-1",
           "relation": "bears on",
-          "why": "a grant on record is an act of the item's owner, logged as one event"
+          "why": "where a deployment rests sharing on consent, a grant on record is an act of the item's owner, logged as one event"
         }
       ],
       "source": "docs/architecture.md (grant changes); docs/dogfood.md (what a zero cannot show)",
@@ -734,7 +753,7 @@
         {
           "id": "GDPR-7-3",
           "relation": "bears on",
-          "why": "withdrawal is one act of the owner, as simple as the grant, and takes effect on the next read"
+          "why": "where a deployment rests sharing on consent, withdrawal is one act of the owner, as simple as the grant, and takes effect on the next read"
         }
       ],
       "source": "docs/architecture.md (grant changes); ADR 0021",
@@ -873,6 +892,7 @@
           "describe": [
             "an erased id"
           ],
+          "enclosed": "forEachBackend (packages/core/test/db/backends.ts) loops over the backends and runs the block in one describe per backend; the SQLite describe has no skip condition, so the test runs",
           "file": "packages/core/test/unit/plane/cross-handle.test.ts",
           "it": "a record under an erased id that reappears in the store (a write that was in flight, a restored copy) is never adopted, and deleted"
         },
@@ -955,7 +975,7 @@
       "gap": null,
       "id": "C26",
       "invariant": 5,
-      "limits": "The test's title names the eviction; its assertion that the store still holds the evicted bytes is inside it. Deletion of content happens only by erasure (C22).",
+      "limits": "Both tests assert, past their titles, that the store still holds the retired item's bytes: the eviction's and the expiry's. Deletion of content happens only by erasure (C22).",
       "obligations": [
         {
           "id": "AIA-12-1",
@@ -977,6 +997,13 @@
           ],
           "file": "packages/core/test/unit/plane/retention.test.ts",
           "it": "recency: the write that goes over evicts the oldest, in the same call"
+        },
+        {
+          "describe": [
+            "expiry"
+          ],
+          "file": "packages/core/test/unit/plane/retention.test.ts",
+          "it": "retain retires expired items with op retire, then the budget, and reports both"
         }
       ],
       "unmapped": null
@@ -991,12 +1018,12 @@
         {
           "id": "GDPR-5-1-e",
           "relation": "bears on",
-          "why": "an item is not used beyond the period the policy sets for its class and scope"
+          "why": "an item is not used beyond the period the policy sets for its class and scope; in tension as C26 is, since expiry retires the item and the store keeps it"
         },
         {
           "id": "GDPR-30-1-f",
           "relation": "bears on",
-          "why": "the policy's ttl per class and scope is a stated time limit a record of processing can cite"
+          "why": "in tension: the ttl a policy sets per class and scope is a stated time limit, but it retires the item and keeps its bytes (C26), so it is a limit on use, not on erasure"
         }
       ],
       "source": "ADR 0025 (decision 2); docs/architecture.md (lifecycle)",
@@ -1071,7 +1098,21 @@
             "retired content stays out (engram/write/retired-content)"
           ],
           "file": "packages/core/test/unit/plane/retention.test.ts",
-          "it": "only retired items of the same scope count, and different content passes"
+          "it": "a model source restating retired content is denied, normalised"
+        },
+        {
+          "describe": [
+            "retired content stays out (engram/write/retired-content)"
+          ],
+          "file": "packages/core/test/unit/plane/retention.test.ts",
+          "it": "a compaction source restating retired content is denied, normalised"
+        },
+        {
+          "describe": [
+            "retired content stays out (engram/write/retired-content)"
+          ],
+          "file": "packages/core/test/unit/plane/retention.test.ts",
+          "it": "a tool source restating retired content is denied, normalised"
         }
       ],
       "unmapped": null
@@ -1572,11 +1613,11 @@
       "unmapped": null
     },
     {
-      "claim": "The gate decides deterministically, with no model: packages/core and packages/adapters import no pi package, and the same inputs give the same decision.",
+      "claim": "The gate decides with no model: packages/core and packages/adapters import no pi package, and the write gate's evaluator gives the same decision for the same inputs.",
       "gap": null,
       "id": "C43",
       "invariant": null,
-      "limits": "The import rule checks pi packages, not every network client: a test that core makes no network call of any kind does not exist.",
+      "limits": "The import rule checks pi packages, not every network client: no test shows that core makes no network call of any kind. Determinism is tested for evaluateWrite, not for every Plane call.",
       "obligations": [
         {
           "id": "AIA-12-2",
@@ -1613,8 +1654,8 @@
       "unmapped": null
     },
     {
-      "claim": "Nothing in packages/core reads the clock or draws randomness: time is injected at the boundary.",
-      "gap": "no test or lint rule checks that core reads no clock or randomness; it holds by review and by the tests that pass a clock",
+      "claim": "Decision and event times are injected: every Plane call and evaluator judges at the time its caller gives it, and packages/core draws no randomness; only the Postgres transport reads the clock, for its connection and query timeouts.",
+      "gap": "no test or lint rule checks that no decision or event time comes from the clock; the claim as first stated (nothing in packages/core reads the clock) is contradicted by Date.now() in packages/core/src/db/postgres-worker.ts (lines 34, 41, 54) and postgres.ts (lines 211, 229)",
       "id": "C44",
       "invariant": null,
       "limits": null,
@@ -1625,7 +1666,7 @@
           "why": "an event's time is the one its surface gave, so a replay reaches the same decisions"
         }
       ],
-      "source": "docs/conventions/testing.md (fakes, not mocks); docs/architecture.md (lifecycle: nothing runs on a timer)",
+      "source": "docs/conventions/testing.md (fakes, not mocks; corrected by card R4); docs/architecture.md (lifecycle: nothing runs on a timer); packages/core/src/db/postgres.ts and postgres-worker.ts",
       "status": "not evidenced",
       "tests": [],
       "unmapped": null
@@ -1666,6 +1707,20 @@
           ],
           "file": "packages/mcp/test/mcp.test.ts",
           "it": "refuses to listen on a host that is not loopback"
+        },
+        {
+          "describe": [
+            "the Host rule"
+          ],
+          "file": "packages/server/test/security.test.ts",
+          "it": "refuses a rebound DNS name, and records nothing"
+        },
+        {
+          "describe": [
+            "over streamable HTTP"
+          ],
+          "file": "packages/mcp/test/mcp.test.ts",
+          "it": "refuses a foreign Origin and a rebound Host"
         }
       ],
       "unmapped": null
@@ -1711,6 +1766,13 @@
           ],
           "file": "packages/core/test/unit/policy/promotion.test.ts",
           "it": "the owner cannot approve their own item"
+        },
+        {
+          "describe": [
+            "acceptance (card E2.5): the review path records the approver"
+          ],
+          "file": "packages/core/test/unit/policy/promotion.test.ts",
+          "it": "a user-sourced member of the target who is not the owner may promote below k"
         }
       ],
       "unmapped": null
@@ -1828,6 +1890,7 @@
       "unmapped": null
     }
   ],
+  "hypothesis": "none",
   "name": "crosswalk",
   "obligations": [
     {
@@ -2223,7 +2286,7 @@
   "relation": "bears on",
   "sources": {
     "ai-act": {
-      "amended_by": "Regulation (EU) 2026/1744 (Digital Omnibus on AI), OJ L, 2026/1744, 24.7.2026, http://publications.europa.eu/resource/celex/32026R1744, read 2026-11-21: its amending provisions name none of Articles 12, 13, 14, 15, 19 and 26 cited here, and its new Article 113 point (c) makes Chapter III, Sections 1 to 3 (Articles 6 to 27) apply from 2 December 2027 for high-risk systems under Article 6(2) and Annex III and from 2 August 2028 under Article 6(1) and Annex I.",
+      "amended_by": "Regulation (EU) 2026/1744 (Digital Omnibus on AI), OJ L, 2026/1744, 24.7.2026, http://publications.europa.eu/resource/celex/32026R1744, read 2026-11-21. Its amending provisions change the text of none of Articles 12, 13, 14, 15, 19 and 26 cited here. Its point (18) adds Article 42(3), under which high-risk AI systems within the scope of Regulation (EU) 2024/2847 for which the conditions of its Article 12(1) hold are deemed to comply with the cybersecurity requirements set out in Article 15; that bears on rows AIA-15-1 and AIA-15-5. Its new Article 113, third paragraph, point (c) makes Chapter III, Sections 1 to 3, with the exception of Article 6(5), apply from 2 December 2027 for high-risk systems under Article 6(2) and Annex III and from 2 August 2028 under Article 6(1) and Annex I.",
       "eli": "http://data.europa.eu/eli/reg/2024/1689/oj",
       "file": "32024R1689.xhtml",
       "oj": "OJ L, 2024/1689, 12.7.2024",
@@ -2261,6 +2324,6 @@
     "obligations": 27,
     "obligations_without_claim": [],
     "test_files": 32,
-    "tests": 97
+    "tests": 105
   }
 }

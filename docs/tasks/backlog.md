@@ -228,9 +228,12 @@ From `docs/tasks/absorb-plan.md` and the PR that merged it into the roadmap.
 
 ## Follow-ups from card R4 (2026-11-21)
 
-Claims the crosswalk (`docs/compliance/README.md`) marks not evidenced. A test for each is out of R4's scope.
+Claims the crosswalk (`docs/compliance/README.md`) marks not evidenced, and what the crosswalk itself leaves open. Building any of them is out of R4's scope (`docs/log/2026-11-21-r4-decision-backlog-rows.md`).
 
 | item | what is left | where it is recorded |
 |---|---|---|
-| Crosswalk C30: reinstatement | ADR 0010 and ADR 0025 (decision 6) say a retired item can be reinstated by an allowed update event; no Plane method or surface does it and no test exercises it | `research/configs/crosswalk.json`, claim C30 |
-| Crosswalk C44: no clock in core | that packages/core reads no clock and draws no randomness holds by review only; a lint rule or a test (as `scripts/test/pi-import-rule.test.ts` does for pi imports) would evidence it | `research/configs/crosswalk.json`, claim C44 |
+| Crosswalk C30: reinstatement | a feature to build before any test: ADR 0010 and ADR 0025 (decision 6) say a retired item can be reinstated by an allowed update event, but no Plane method or surface reinstates one, so there is nothing yet for a test to exercise; the follow-up card ADR 0025 names builds the surface, then its test | `research/configs/crosswalk.json`, claim C30 |
+| Crosswalk C44: injected time | the claim as first written (nothing in packages/core reads the clock) is false: the Postgres transport calls `Date.now()` for its timeouts (`packages/core/src/db/postgres-worker.ts` lines 34, 41, 54; `postgres.ts` lines 211, 229). Restated, decision and event times are injected and only the transport reads the clock; no test or lint rule shows it. A lint rule refusing clock and randomness calls in packages/core outside `src/db/postgres*.ts` (as `scripts/test/pi-import-rule.test.ts` does for pi imports) would evidence it | `research/configs/crosswalk.json`, claim C44; `docs/conventions/testing.md` (correction) |
+| Crosswalk C48: procedure drift | not built: the smoothed success rate is a later schema change (ADR 0011, D4) and retirement on drift, a changed environment hash or a human rejection waits for card D3; the claim gets its test with that card | `research/configs/crosswalk.json`, claim C48 |
+| Crosswalk C50: Gate D's dogfood | the twin dogfood's two weeks wait for the lead's go (`docs/dogfood.md`), no member report is committed, and no card covers the Knowledge profile's dogfood (backlog row "Knowledge profile dogfood"); the claim is evidenced by the committed reports, not by a test | `research/configs/crosswalk.json`, claim C50 |
+| A results glob outside the hypotheses | `research/tests/test_prereg.py` maps every MANIFEST row to one hypothesis's results glob, so the crosswalk, which tests no hypothesis, is filed as `research/results/h1-crosswalk.json`; a pre-registration amendment adding a glob for results outside H1 to H5 (and renaming the file) is card R2's or the answers card's to propose | `docs/log/2026-11-21-r4-decision-result-under-h1.md` |
