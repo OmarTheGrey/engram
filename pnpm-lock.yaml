@@ -47,19 +47,21 @@ importers:
 
   packages/bench:
     dependencies:
+      '@engram/adapters':
+        specifier: workspace:*
+        version: link:../adapters
       '@engram/core':
         specifier: workspace:*
         version: link:../core
       '@engram/model':
         specifier: workspace:*
         version: link:../model
+      '@engram/server':
+        specifier: workspace:*
+        version: link:../server
       zod:
         specifier: 4.6.7
         version: 4.6.7
-    devDependencies:
-      '@engram/adapters':
-        specifier: workspace:*
-        version: link:../adapters
 
   packages/cli:
     dependencies:

@@ -1,0 +1,21 @@
+{
+  "name": "b7-merit-fixture",
+  "kind": "pipeline",
+  "benchmark": "merit",
+  "cells": [
+    {
+      "domain": "d1",
+      "difficulty": "easy",
+      "arcs": 2,
+      "episodes": 5,
+      "reference": "runs/phasec/mini3-d1-easy/results.jsonl"
+    }
+  ],
+  "world_seeds": 1,
+  "conditions": ["C1", "C2", "C5"],
+  "stores": ["fake", "mem0", "letta"],
+  "seeds": [1],
+  "preset": "medium",
+  "model": "scripted/merit-d1",
+  "cassettes": "../../fixtures/cassettes/b7-merit-fixture"
+}
