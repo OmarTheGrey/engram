@@ -1,0 +1,77 @@
+{
+  "airline/6": {
+    "user": [
+      "Hi. I added travel insurance to my reservation PEP4E0 but it is not showing online. My user id is sophia_taylor_9065.",
+      "Everyone else in my family has insurance on this trip. Please add it to mine.",
+      "Fine, thank you. ###STOP###"
+    ],
+    "agent": [
+      { "calls": [{ "name": "memory_read", "arguments": { "query": "reservation insurance" } }] },
+      { "calls": [{ "name": "get_reservation_details", "arguments": { "reservation_id": "PEP4E0" } }] },
+      {
+        "text": "Reservation PEP4E0 has no travel insurance, and the policy does not allow adding insurance after a reservation is booked."
+      },
+      {
+        "calls": [
+          {
+            "name": "memory_write",
+            "arguments": {
+              "scope": "team:tau2-airline",
+              "content": "Travel insurance cannot be added to a reservation after it is booked.",
+              "confidence": 0.9
+            }
+          },
+          {
+            "name": "memory_write",
+            "arguments": {
+              "scope": "person:tau2-agent",
+              "content": "Insurance requests on a booked reservation are refused by the policy.",
+              "confidence": 0.9
+            }
+          }
+        ]
+      },
+      { "text": "I am sorry: insurance cannot be added to a booked reservation. Is there anything else I can help with?" }
+    ]
+  },
+  "airline/19": {
+    "user": [
+      "Hi, I am Olivia Gonzalez, user id olivia_gonzalez_2305. I want a later return flight to Newark on the 28th, I do not remember the reservation id.",
+      "Then please cancel it with my travel insurance, I feel unwell.",
+      "Thank you. ###STOP###"
+    ],
+    "agent": [
+      { "calls": [{ "name": "memory_read", "arguments": { "query": "reservation insurance" } }] },
+      { "calls": [{ "name": "get_user_details", "arguments": { "user_id": "olivia_gonzalez_2305" } }] },
+      { "calls": [{ "name": "get_reservation_details", "arguments": { "reservation_id": "Z7GOZK" } }] },
+      {
+        "text": "Reservation Z7GOZK is basic economy, which cannot be modified. It has travel insurance, so it can be cancelled. Shall I cancel it?"
+      },
+      {
+        "calls": [
+          {
+            "name": "memory_write",
+            "arguments": {
+              "scope": "person:tau2-agent",
+              "content": "A basic economy reservation cannot be modified; with travel insurance it can be cancelled for health reasons.",
+              "confidence": 0.9
+            }
+          },
+          { "name": "cancel_reservation", "arguments": { "reservation_id": "Z7GOZK" } }
+        ]
+      },
+      { "text": "Reservation Z7GOZK is cancelled, and the refund goes to the original payment method." }
+    ]
+  },
+  "airline/16": {
+    "user": [
+      "Hi, I am Aarav Garcia, user id aarav_garcia_1177. I want to move my trip from ATL to PHL to the next day, on the cheapest economy flight.",
+      "All right. ###STOP###"
+    ],
+    "agent": [
+      { "calls": [{ "name": "memory_read", "arguments": { "query": "reservation" } }] },
+      { "calls": [{ "name": "get_user_details", "arguments": { "user_id": "aarav_garcia_1177" } }] },
+      { "text": "I am sorry, I cannot change this reservation today." }
+    ]
+  }
+}

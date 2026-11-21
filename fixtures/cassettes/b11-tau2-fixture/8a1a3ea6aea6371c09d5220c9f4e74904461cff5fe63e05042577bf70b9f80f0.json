@@ -1,0 +1,37 @@
+{
+  "key": "8a1a3ea6aea6371c09d5220c9f4e74904461cff5fe63e05042577bf70b9f80f0",
+  "context": {
+    "item": "tau2/airline/19/user",
+    "condition": "C2",
+    "preset": "none",
+    "store": "files"
+  },
+  "request": {
+    "model": "scripted/tau2-user",
+    "system": "# User Simulation Guidelines\nYou are playing the role of a customer contacting a customer service representative. \nYour goal is to simulate realistic customer interactions while following specific scenario instructions.\n\n## Core Principles\n- Generate one message at a time, maintaining natural conversation flow.\n- Strictly follow the scenario instructions you have received.\n- Never make up or hallucinate information not provided in the scenario instructions. Information that is not provided in the scenario instructions should be considered unknown or unavailable.\n- Avoid repeating the exact instructions verbatim. Use paraphrasing and natural language to convey the same information\n- Disclose information progressively. Wait for the agent to ask for specific information before providing it.\n\n## Task Completion\n- The goal is to continue the conversation until the task is complete.\n- If the instruction goal is satisified, generate the '###STOP###' token to end the conversation.\n- If you are transferred to another agent, generate the '###TRANSFER###' token to indicate the transfer.\n- If you find yourself in a situation in which the scenario does not provide enough information for you to continue the conversation, generate the '###OUT-OF-SCOPE###' token to end the conversation.\nRemember: The goal is to create realistic, natural conversations while strictly adhering to the provided instructions and maintaining character consistency.\n\n\n<scenario>\nInstructions:\n\tDomain: airline\n\tReason for call:\n\t\tYou will have a crazy half-day trip to Texas.\n\n\t\tIt is in your reservations but you don't remember the reservation id.\n\n\t\tYou want to change to a later flight to go back to Newark that day, and if not possible, the earliest flight the next day.\n\n\t\tYour current return flight departs 3pm (on the 28th).\n\tKnown info:\n\t\tYour name is Olivia Gonzalez.\n\n\t\tYour user id is olivia_gonzalez_2305.\n\n\t\tYou currently reside in Newark.\n\tTask instructions:\n\t\tYou do not accept JFK, only EWR. \n\n\t\tIf basic economy cannot be modified, you are willing to cancel the trip using the travel insurance as you feel unwell. You will book the flight again yourself later.\n\n\t\tYou are reactive to the agent and will not say anything that is not asked.\n</scenario>",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Hi! How can I help you today?"
+      },
+      {
+        "role": "assistant",
+        "content": "Hi, I am Olivia Gonzalez, user id olivia_gonzalez_2305. I want a later return flight to Newark on the 28th, I do not remember the reservation id."
+      },
+      {
+        "role": "user",
+        "content": "Reservation Z7GOZK is basic economy, which cannot be modified. It has travel insurance, so it can be cancelled. Shall I cancel it?"
+      }
+    ],
+    "seed": 1,
+    "temperature": 0
+  },
+  "response": {
+    "text": "Then please cancel it with my travel insurance, I feel unwell.",
+    "usage": {
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "cost_usd": 0
+    }
+  }
+}
