@@ -57,6 +57,10 @@ Policy  (typed objects, one pure evaluator; ADR 0006)
   retention:  ttl per class and scope, budget per scope, eviction (recency | utility | manual) that retires, never deletes
   promotion:  episodic to semantic after k confirmations or review; procedural candidate to active after replay validation
   lints:      enabled set and thresholds
+  content_guards?: secrets and pii (off | review | block), injection_screen (off | default | hardened), max_content_bytes; ADR 0039;
+              secrets, pii and max_content_bytes enforced by card E2.9, injection_screen by card E2.10
+  trust?:     unattested_floor and protect_trusted (off | on); ADR 0040; enforced by card E2.11
+              both blocks optional, absent means off; until its card lands the loader refuses any value but off (ADR 0002, D2)
 
 Lints  (each finding is an event)
   deterministic: expired validity, source changed (hash), scope or class mismatch, missing provenance, orphaned source, duplicate (hash, MinHash)

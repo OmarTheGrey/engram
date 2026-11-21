@@ -258,6 +258,61 @@
       ],
       "additionalProperties": false
     },
+    "content_guards": {
+      "type": "object",
+      "properties": {
+        "secrets": {
+          "type": "string",
+          "enum": [
+            "off",
+            "review",
+            "block"
+          ]
+        },
+        "pii": {
+          "type": "string",
+          "enum": [
+            "off",
+            "review",
+            "block"
+          ]
+        },
+        "injection_screen": {
+          "type": "string",
+          "enum": [
+            "off",
+            "default",
+            "hardened"
+          ]
+        },
+        "max_content_bytes": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "additionalProperties": false
+    },
+    "trust": {
+      "type": "object",
+      "properties": {
+        "unattested_floor": {
+          "type": "string",
+          "enum": [
+            "off",
+            "on"
+          ]
+        },
+        "protect_trusted": {
+          "type": "string",
+          "enum": [
+            "off",
+            "on"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
     "schema_version": {
       "type": "number",
       "const": 1

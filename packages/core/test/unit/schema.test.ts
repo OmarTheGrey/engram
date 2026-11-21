@@ -8,7 +8,16 @@ import { fileURLToPath } from "node:url";
 import { Ajv2020 } from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
 import { describe, expect, test } from "vitest";
-import { CONTRACTS, SCHEMA_VERSION, SHARED } from "../../src/schema.ts";
+import {
+  CONTRACTS,
+  ContentGuards,
+  GuardMode,
+  InjectionScreen,
+  SCHEMA_VERSION,
+  SHARED,
+  Trust,
+  TrustSwitch,
+} from "../../src/schema.ts";
 
 const ROOT = fileURLToPath(new URL("../../../../", import.meta.url));
 const SDK = join(ROOT, "sdk", "schema");
@@ -31,6 +40,27 @@ test("sdk/schema holds exactly one generated file per contract and shared defini
 
 test("the schema version is 1", () => {
   expect(SCHEMA_VERSION).toBe(1);
+});
+
+// Card E2.8: the option names and values of ADRs 0039 and 0040 and card E2.8,
+// pinned, so a renamed or added value is a deliberate schema change.
+test("the content_guards and trust options and their values are exactly the registered ones", () => {
+  expect(GuardMode.options).toEqual(["off", "review", "block"]);
+  expect(InjectionScreen.options).toEqual(["off", "default", "hardened"]);
+  expect(TrustSwitch.options).toEqual(["off", "on"]);
+  expect(Object.keys(ContentGuards.shape)).toEqual([
+    "secrets",
+    "pii",
+    "injection_screen",
+    "max_content_bytes",
+  ]);
+  expect(Object.keys(Trust.shape)).toEqual(["unattested_floor", "protect_trusted"]);
+  const guards = ContentGuards.shape;
+  expect(guards.secrets.unwrap()).toBe(GuardMode);
+  expect(guards.pii.unwrap()).toBe(GuardMode);
+  expect(guards.injection_screen.unwrap()).toBe(InjectionScreen);
+  expect(Trust.shape.unattested_floor.unwrap()).toBe(TrustSwitch);
+  expect(Trust.shape.protect_trusted.unwrap()).toBe(TrustSwitch);
 });
 
 describe.each(Object.keys(CONTRACTS))("%s", (name) => {

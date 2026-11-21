@@ -2,8 +2,10 @@
 // Each case starts from a valid policy document and breaks one line of it; the
 // error must name that line (1-based) and the field.
 import { describe, expect, test } from "vitest";
+import { parse as parseYaml } from "yaml";
 import { LINT_IDS, LINT_THRESHOLD_KEYS } from "../../../src/lint.ts";
 import { PolicyError, type PolicyProblem, parsePolicy } from "../../../src/policy/load.ts";
+import { GuardMode, InjectionScreen, Policy, TrustSwitch } from "../../../src/schema.ts";
 
 const VALID = `id: test-policy
 version: 1
@@ -283,5 +285,115 @@ describe("rejects lint ids and threshold keys outside the registry (D2, ADR 0008
       `  thresholds: {${LINT_THRESHOLD_KEYS.map((k) => `${k}: 1`).join(", ")}}`,
     );
     expect(parsePolicy(text, "test.yaml").lints.enabled).toEqual([...LINT_IDS]);
+  });
+});
+
+// Card E2.8: the optional content_guards and trust blocks (ADRs 0039 and
+// 0040). Every value of every option passes the schema; until the card that
+// enforces an option lands, the loader refuses any value but `off`, naming
+// that card, so a policy never sets a guard that is silently ignored.
+describe("the content_guards and trust blocks", () => {
+  // Inserted before `schema_version`, so content_guards is line 36.
+  const OFF = [
+    "content_guards:",
+    "  secrets: off",
+    "  pii: off",
+    "  injection_screen: off",
+    "trust:",
+    "  unattested_floor: off",
+    "  protect_trusted: off",
+    "",
+  ].join("\n");
+  const withBlocks = (blocks: string) =>
+    VALID.replace("schema_version: 1\n", `${blocks}schema_version: 1\n`);
+  /** The document with one option of one block set to `value`; the option is line 37. */
+  const withOption = (block: string, option: string, value: string) =>
+    withBlocks(`${block}:\n  ${option}: ${value}\n`);
+
+  test("a policy without them has neither key", () => {
+    const policy = parsePolicy(VALID, "test.yaml");
+    expect("content_guards" in policy).toBe(false);
+    expect("trust" in policy).toBe(false);
+  });
+
+  test("a policy with every option off loads, each value as written", () => {
+    const policy = parsePolicy(withBlocks(OFF), "test.yaml");
+    expect(policy.content_guards).toEqual({ secrets: "off", pii: "off", injection_screen: "off" });
+    expect(policy.trust).toEqual({ unattested_floor: "off", protect_trusted: "off" });
+  });
+
+  test("every option may be left out of its block", () => {
+    const policy = parsePolicy(withBlocks("content_guards: {}\ntrust: {}\n"), "test.yaml");
+    expect(policy.content_guards).toEqual({});
+    expect(policy.trust).toEqual({});
+  });
+
+  // Each option, every value its schema admits, and the card that enforces it.
+  const OPTIONS: [block: string, option: string, values: string[], card: string][] = [
+    ["content_guards", "secrets", [...GuardMode.options], "E2.9"],
+    ["content_guards", "pii", [...GuardMode.options], "E2.9"],
+    ["content_guards", "injection_screen", [...InjectionScreen.options], "E2.10"],
+    ["content_guards", "max_content_bytes", ["1", "65536"], "E2.9"],
+    ["trust", "unattested_floor", [...TrustSwitch.options], "E2.11"],
+    ["trust", "protect_trusted", [...TrustSwitch.options], "E2.11"],
+  ];
+  describe.each(OPTIONS)("%s.%s", (block, option, values, card) => {
+    test.each(values)("%s passes the schema; only off loads, until its card", (value) => {
+      const text = withOption(block, option, value);
+      const parsed = Policy.safeParse(parseYaml(text));
+      expect(parsed.error).toBeUndefined();
+      if (value === "off") {
+        expect(parsePolicy(text, "test.yaml")[block as "trust"]).toEqual({ [option]: "off" });
+        return;
+      }
+      const [p, ...rest] = problemsOf(text);
+      expect(rest).toEqual([]);
+      expect(p).toMatchObject({ path: [block, option], line: 37 });
+      expect(p?.message).toContain(`card ${card}`);
+      expect(p?.message).toContain("not enforced yet");
+    });
+  });
+
+  test("an unknown value inside content_guards is reported at its line", () => {
+    const [p, ...rest] = problemsOf(withOption("content_guards", "secrets", "redact"));
+    expect(rest).toEqual([]);
+    expect(p).toMatchObject({ path: ["content_guards", "secrets"], line: 37 });
+    expect(p?.message).not.toContain("quote the value");
+  });
+
+  test("an unknown value inside trust is reported at its line", () => {
+    const [p, ...rest] = problemsOf(withOption("trust", "protect_trusted", "maybe"));
+    expect(rest).toEqual([]);
+    expect(p).toMatchObject({ path: ["trust", "protect_trusted"], line: 37 });
+  });
+
+  test("a value YAML 1.1 reads as a boolean is reported with a hint to quote it", () => {
+    for (const [block, option] of [
+      ["trust", "unattested_floor"],
+      ["content_guards", "secrets"],
+    ] as const) {
+      const text = `%YAML 1.1\n---\n${withOption(block, option, "on")}`;
+      const [p, ...rest] = problemsOf(text);
+      expect(rest).toEqual([]);
+      expect(p?.path).toEqual([block, option]);
+      expect(p?.message).toContain("quote the value");
+    }
+  });
+
+  test("an unknown option inside a block is reported at its key", () => {
+    const text = withBlocks(OFF.replace("  pii: off", "  pii: off\n  pan: block"));
+    const [p, ...rest] = problemsOf(text);
+    expect(rest).toEqual([]);
+    expect(p?.path).toEqual(["content_guards"]);
+    expect(p?.message).toMatch(/pan/);
+    expect(p?.line).toBe(39);
+  });
+
+  test("a size limit that is not a positive integer is rejected by the schema", () => {
+    for (const bad of ["0", "-1", "1.5", "null"]) {
+      const [p] = problemsOf(withOption("content_guards", "max_content_bytes", bad));
+      expect(p?.path, bad).toEqual(["content_guards", "max_content_bytes"]);
+      expect(p?.message, bad).not.toContain("not enforced yet");
+    }
   });
 });

@@ -147,7 +147,7 @@ Existing cards the plan rewrites: B7, D1, D2 and D3. All others are new. D4 (dri
 
 **13. E2.8. Policy schema: content guards and trust floors.**
 - *Why.* Cards 14, 15 and 20 each need a policy option, and rule 5 puts every schema change in a pull request of its own. One schema change is cheaper and safer than three.
-- *How.* A schema-only pull request: a `content_guards` block (secrets, personal data, injection screen off, default or hardened, a size limit) and two trust options (a floor for writes with no attested source, and protection of more trusted items), all defaulting to today's behaviour. Bump `schema_version`, add the migration, run `make api`, update fixtures. Nothing else.
+- *How.* A schema-only pull request: a `content_guards` block (secrets, personal data, injection screen off, default or hardened, a size limit) and two trust options (a floor for writes with no attested source, and protection of more trusted items), all defaulting to today's behaviour. `schema_version` stays 1 and no migration is added, by ADR 0002's decision D2 (an additive, optional field of the never-persisted policy document; a bump would move 46 committed cassette keys and H3's pinned hashes). Run `make api`, update fixtures. Until its card lands, the loader refuses any value of an option but `off`. Nothing else.
 - *Absorbs.* Nothing.
 - *Acceptance.* `make api-check` and `make test`. Decisions: items 50 and 51 (ADRs 0039 and 0040).
 

@@ -102,7 +102,7 @@ If a command you need is not here, add it to the Makefile and to this list in th
 2. Reads and writes to any store go through `Plane.read` and `Plane.write`. Never call an adapter directly outside its own tests. Inside pi, the only path to a store is the Engram tools, and the `tool_call` handler is where the gate runs.
 3. Every policy decision emits a MemoryEvent with `reason` and `policy_id` to the Engram log, and a `custom` entry (`customType: "engram.event"`) to the pi session. A decision without both is a bug.
 4. The plane never calls a model. Model-based lints and the distiller receive a `ModelCall` function injected at the boundary; inside pi it is built on pi-ai through the session's model runtime. `packages/core` has no import from pi-ai.
-5. Schema changes are one PR: edit `packages/core/src/schema.ts`, bump `schema_version`, add a migration, run `make api`, update fixtures. Nothing else goes in that PR.
+5. Schema changes are one PR: edit `packages/core/src/schema.ts`, bump `schema_version`, add a migration, run `make api`, update fixtures. Nothing else goes in that PR. The one exception is a purely additive, optional field of a contract that is never persisted (today the policy document): it needs no bump and no migration (ADR 0002, decision D2).
 6. Every sampled model call takes a seed from the experiment config. No unseeded randomness anywhere under `packages/bench`, `packages/runner` or `research/`.
 7. Every model call in a run is cached, keyed on (benchmark item, condition, preset, store, model, seed, prompt hash). A re-run with the same config makes zero new calls.
 8. Benchmarks are pinned in `packages/bench/PINS.md`. Never update a pin mid-experiment. Updating a pin is its own PR with the diff in results explained.
