@@ -585,7 +585,7 @@ async function runReplay(path: string, out: string, flags: Flags): Promise<Outco
     return FAILED;
   }
   if (flags.count) {
-    const count = countReplayConfig(config, REPO);
+    const count = await countReplayConfig(config, REPO);
     mkdirSync(out, { recursive: true });
     writeFileSync(join(out, "count.json"), `${JSON.stringify(count, null, 2)}\n`);
     console.log(
@@ -596,7 +596,7 @@ async function runReplay(path: string, out: string, flags: Flags): Promise<Outco
           (c) =>
             `  ${c.name}: induced from ${c.induced_from.length} tasks, replayed on ${c.held_out.length} held-out tasks, ${c.sessions} sessions`,
         ),
-        "no model was called; no cassette was read or written",
+        "no replay model was called and no replay cassette read; the candidates are D2's, its induction replayed from its committed cassette",
         `written to ${join(out, "count.json")}`,
       ].join("\n"),
     );
@@ -606,7 +606,7 @@ async function runReplay(path: string, out: string, flags: Flags): Promise<Outco
   writeReplayResult(result, out);
   const lines = [
     `${config.name}: ${result.rows.length} sessions, model ${config.model}, preset ${config.preset}, threshold ${config.threshold}`,
-    `model calls: ${result.calls.new} new, ${result.calls.cached} from cassettes`,
+    `model calls: ${result.calls.new} new, ${result.calls.cached} from cassettes (D2's induction: ${result.induce_calls.new} new, ${result.induce_calls.cached} from its cassette)`,
     ...result.candidates.map(
       (c) =>
         `  ${c.name}: ${c.record.k} of ${c.record.n} held-out tasks pass with it (${c.record.baseline} of ${c.record.n} without it); promote ${c.event.decision} (${c.event.policy_id}): ${c.status}`,

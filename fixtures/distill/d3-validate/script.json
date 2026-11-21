@@ -1,312 +1,862 @@
 {
-  "_comment": "Card D3's scripted agent: the steps of each replay session, keyed <task>/without or <task>/with/<candidate>. It answers only while make fixtures records the cassettes; make run replays them. The fixture asserts the pipeline, not a model's behaviour: the steps are written so the lookup-first candidate passes 4 of 5 held-out tasks (2 of 5 without it) and the delivered-assumption candidate 3 of 5 (4 of 5 without it).",
+  "_comment": "Card D3's scripted agent: the steps of each replay session, keyed <task>/without or <task>/with/<candidate skill name>, answered only while make fixtures records the cassettes. The fixture asserts the pipeline, not a model: the steps are written so edit-a-file-and-check-the-edit passes 4 of 5 held-out tasks (2 of 5 without a procedure), inspect-a-source-file-before-changing-it and run-a-command-then-read-what-it-points-at 3 of 5, and the rule control call-read-then-read, whose steps read src/load.ts, the path of its induction sessions, 1 of 5: the drift case (SKILL.nb, Library Drift), below having no procedure.",
   "sessions": {
-    "d3/t1-address-pending/without": [
+    "synthetic/rename-symbol-11/without": [
       {
         "toolCall": {
-          "id": "call_1",
-          "name": "update_address",
+          "id": "call_4",
+          "name": "edit",
           "arguments": {
-            "order_id": "W101",
-            "address": "12 Elm St"
+            "path": "src/rows.ts",
+            "old": "function parseRow(",
+            "new": "function parseRecord("
           }
         }
       },
       {
-        "text": "Done: order W101 now ships to 12 Elm St."
+        "toolCall": {
+          "id": "call_5",
+          "name": "edit",
+          "arguments": {
+            "path": "src/load.ts",
+            "old": "import { parseRow }",
+            "new": "import { parseRecord }"
+          }
+        }
+      },
+      {
+        "toolCall": {
+          "id": "call_6",
+          "name": "edit",
+          "arguments": {
+            "path": "src/load.ts",
+            "old": "map(parseRow)",
+            "new": "map(parseRecord)"
+          }
+        }
+      },
+      {
+        "text": "Renamed parseRow to parseRecord."
       }
     ],
-    "d3/t2-address-pending/without": [
+    "synthetic/fix-failing-test-32/without": [
       {
         "toolCall": {
-          "id": "call_1",
-          "name": "update_address",
+          "id": "call_7",
+          "name": "edit",
           "arguments": {
-            "order_id": "W102",
-            "address": "9 Pine Rd"
+            "path": "src/totals.ts",
+            "old": "reduce((a, b) => a + b)",
+            "new": "reduce((a, b) => a + b, 0)"
           }
         }
       },
       {
-        "text": "Done: order W102 now ships to 9 Pine Rd."
+        "text": "Fixed the total."
       }
     ],
-    "d3/t3-cancel-pending/without": [
+    "synthetic/remove-dead-code-15/without": [
       {
         "toolCall": {
-          "id": "call_1",
-          "name": "cancel_order",
+          "id": "call_8",
+          "name": "edit",
           "arguments": {
-            "order_id": "W103",
-            "reason": "ordered by mistake"
+            "path": "src/format.ts",
+            "old": "export function legacyFormat() {}\n",
+            "new": ""
           }
         }
       },
       {
-        "text": "Order W103 is cancelled."
+        "text": "Removed legacyFormat."
       }
     ],
-    "d3/t4-refund-broken/without": [
+    "synthetic/bump-timeout-16/without": [
       {
         "toolCall": {
-          "id": "call_1",
-          "name": "refund_item",
+          "id": "call_9",
+          "name": "edit",
           "arguments": {
-            "order_id": "W104",
-            "sku": "lamp-1"
+            "path": "src/fetch.ts",
+            "old": "timeout: 5",
+            "new": "timeout: 10"
           }
         }
       },
       {
-        "text": "I refunded the lamp from order W104."
+        "text": "The timeout is now 10 seconds."
       }
     ],
-    "d3/t5-address-delivered/without": [
+    "synthetic/log-level-29/without": [
       {
         "toolCall": {
-          "id": "call_1",
-          "name": "update_address",
+          "id": "call_10",
+          "name": "edit",
           "arguments": {
-            "order_id": "W105",
-            "address": "4 Oak Ave"
+            "path": "src/retry.ts",
+            "old": "log.info(\"retrying\"",
+            "new": "log.debug(\"retrying\""
           }
         }
       },
       {
-        "text": "Done: order W105 now ships to 4 Oak Ave."
+        "text": "Retries now log at debug."
       }
     ],
-    "d3/t6-cancel-delivered/without": [
+    "synthetic/rename-symbol-11/with/edit-a-file-and-check-the-edit": [
       {
         "toolCall": {
-          "id": "call_1",
-          "name": "cancel_order",
+          "id": "call_11",
+          "name": "edit",
           "arguments": {
-            "order_id": "W106",
-            "reason": "no longer needed"
+            "path": "src/rows.ts",
+            "old": "function parseRow(",
+            "new": "function parseRecord("
           }
         }
       },
       {
-        "text": "Order W106 is cancelled."
+        "toolCall": {
+          "id": "call_12",
+          "name": "read",
+          "arguments": {
+            "path": "src/rows.ts"
+          }
+        }
+      },
+      {
+        "toolCall": {
+          "id": "call_13",
+          "name": "edit",
+          "arguments": {
+            "path": "src/load.ts",
+            "old": "import { parseRow }",
+            "new": "import { parseRecord }"
+          }
+        }
+      },
+      {
+        "toolCall": {
+          "id": "call_14",
+          "name": "edit",
+          "arguments": {
+            "path": "src/load.ts",
+            "old": "map(parseRow)",
+            "new": "map(parseRecord)"
+          }
+        }
+      },
+      {
+        "toolCall": {
+          "id": "call_15",
+          "name": "read",
+          "arguments": {
+            "path": "src/load.ts"
+          }
+        }
+      },
+      {
+        "text": "Renamed and checked both files."
       }
     ],
-    "d3/t7-status-delivered/without": [
+    "synthetic/fix-failing-test-32/with/edit-a-file-and-check-the-edit": [
       {
         "toolCall": {
-          "id": "call_1",
-          "name": "get_order",
+          "id": "call_16",
+          "name": "edit",
           "arguments": {
-            "order_id": "W107"
+            "path": "src/totals.ts",
+            "old": "reduce((a, b) => a + b)",
+            "new": "reduce((a, b) => a + b, 0)"
           }
         }
       },
       {
-        "text": "Order W107 has been delivered."
+        "toolCall": {
+          "id": "call_17",
+          "name": "read",
+          "arguments": {
+            "path": "src/totals.ts"
+          }
+        }
+      },
+      {
+        "toolCall": {
+          "id": "call_18",
+          "name": "edit",
+          "arguments": {
+            "path": "src/totals.ts",
+            "old": "a + b, 1)",
+            "new": "a + b, 0)"
+          }
+        }
+      },
+      {
+        "toolCall": {
+          "id": "call_19",
+          "name": "read",
+          "arguments": {
+            "path": "src/totals.ts"
+          }
+        }
+      },
+      {
+        "text": "The first edit did not apply; the second did. The sum starts at 0."
       }
     ],
-    "d3/t8-status-pending/without": [
+    "synthetic/remove-dead-code-15/with/edit-a-file-and-check-the-edit": [
       {
         "toolCall": {
-          "id": "call_1",
-          "name": "get_order",
+          "id": "call_20",
+          "name": "edit",
           "arguments": {
-            "order_id": "W108"
+            "path": "src/format.ts",
+            "old": "export function legacyFormat() {}\n",
+            "new": ""
           }
         }
       },
       {
-        "text": "Order W108 has not shipped; its status is pending."
+        "toolCall": {
+          "id": "call_21",
+          "name": "read",
+          "arguments": {
+            "path": "src/format.ts"
+          }
+        }
+      },
+      {
+        "toolCall": {
+          "id": "call_22",
+          "name": "edit",
+          "arguments": {
+            "path": "src/format.ts",
+            "old": "\nexport function legacyFormat(x: number) {\n  return String(x);\n}\n",
+            "new": ""
+          }
+        }
+      },
+      {
+        "toolCall": {
+          "id": "call_23",
+          "name": "read",
+          "arguments": {
+            "path": "src/format.ts"
+          }
+        }
+      },
+      {
+        "text": "Removed legacyFormat, checked."
       }
     ],
-    "d3/t4-refund-broken/with/lookup-first": [
+    "synthetic/bump-timeout-16/with/edit-a-file-and-check-the-edit": [
       {
         "toolCall": {
-          "id": "call_1",
-          "name": "get_order",
+          "id": "call_24",
+          "name": "edit",
           "arguments": {
-            "order_id": "W104"
+            "path": "src/fetch.ts",
+            "old": "timeout: 5",
+            "new": "timeout: 10"
           }
         }
       },
       {
         "toolCall": {
-          "id": "call_2",
-          "name": "refund_item",
+          "id": "call_25",
+          "name": "read",
           "arguments": {
-            "order_id": "W104",
-            "sku": "lamp-2"
+            "path": "src/fetch.ts"
           }
         }
       },
       {
-        "text": "Order W104 is delivered; I refunded lamp-2, the one reported broken."
+        "toolCall": {
+          "id": "call_26",
+          "name": "edit",
+          "arguments": {
+            "path": "src/fetch.ts",
+            "old": "config.timeoutSeconds * 1000",
+            "new": "10 * 1000"
+          }
+        }
+      },
+      {
+        "toolCall": {
+          "id": "call_27",
+          "name": "read",
+          "arguments": {
+            "path": "src/fetch.ts"
+          }
+        }
+      },
+      {
+        "text": "The fetch timeout is 10 seconds."
       }
     ],
-    "d3/t5-address-delivered/with/lookup-first": [
+    "synthetic/log-level-29/with/edit-a-file-and-check-the-edit": [
       {
         "toolCall": {
-          "id": "call_1",
-          "name": "get_order",
+          "id": "call_28",
+          "name": "edit",
           "arguments": {
-            "order_id": "W105"
+            "path": "src/retry.ts",
+            "old": "log.info(\"retrying\"",
+            "new": "log.debug(\"retrying\""
           }
         }
       },
       {
-        "text": "Order W105 is already delivered, so its address cannot be changed."
+        "toolCall": {
+          "id": "call_29",
+          "name": "read",
+          "arguments": {
+            "path": "src/retry.ts"
+          }
+        }
+      },
+      {
+        "text": "Retries log at debug, checked."
       }
     ],
-    "d3/t6-cancel-delivered/with/lookup-first": [
+    "synthetic/rename-symbol-11/with/inspect-a-source-file-before-changing-it": [
       {
         "toolCall": {
-          "id": "call_1",
-          "name": "get_order",
+          "id": "call_30",
+          "name": "read",
           "arguments": {
-            "order_id": "W106"
+            "path": "src/rows.ts"
           }
         }
       },
       {
         "toolCall": {
-          "id": "call_2",
-          "name": "refund_item",
+          "id": "call_31",
+          "name": "read",
           "arguments": {
-            "order_id": "W106",
-            "sku": "kettle-1"
+            "path": "src/load.ts"
           }
         }
       },
       {
-        "text": "Order W106 is delivered and cannot be cancelled, so I refunded its kettle instead."
+        "toolCall": {
+          "id": "call_32",
+          "name": "edit",
+          "arguments": {
+            "path": "src/rows.ts",
+            "old": "function parseRow(",
+            "new": "function parseRecord("
+          }
+        }
+      },
+      {
+        "toolCall": {
+          "id": "call_33",
+          "name": "edit",
+          "arguments": {
+            "path": "src/load.ts",
+            "old": "import { parseRow }",
+            "new": "import { parseRecord }"
+          }
+        }
+      },
+      {
+        "toolCall": {
+          "id": "call_34",
+          "name": "edit",
+          "arguments": {
+            "path": "src/load.ts",
+            "old": "map(parseRow)",
+            "new": "map(parseRecord)"
+          }
+        }
+      },
+      {
+        "text": "Renamed parseRow to parseRecord."
       }
     ],
-    "d3/t7-status-delivered/with/lookup-first": [
+    "synthetic/fix-failing-test-32/with/inspect-a-source-file-before-changing-it": [
       {
         "toolCall": {
-          "id": "call_1",
-          "name": "get_order",
+          "id": "call_35",
+          "name": "read",
           "arguments": {
-            "order_id": "W107"
+            "path": "test/totals.test.ts"
           }
         }
       },
       {
-        "text": "Order W107 has been delivered."
+        "toolCall": {
+          "id": "call_36",
+          "name": "edit",
+          "arguments": {
+            "path": "test/totals.test.ts",
+            "old": "toBe(6)",
+            "new": "toBe(7)"
+          }
+        }
+      },
+      {
+        "text": "The test now expects 7, which total returns."
       }
     ],
-    "d3/t8-status-pending/with/lookup-first": [
+    "synthetic/remove-dead-code-15/with/inspect-a-source-file-before-changing-it": [
       {
         "toolCall": {
-          "id": "call_1",
-          "name": "get_order",
+          "id": "call_37",
+          "name": "read",
           "arguments": {
-            "order_id": "W108"
+            "path": "src/format.ts"
           }
         }
       },
       {
-        "text": "Order W108 has not shipped; its status is pending."
+        "toolCall": {
+          "id": "call_38",
+          "name": "edit",
+          "arguments": {
+            "path": "src/format.ts",
+            "old": "\nexport function legacyFormat(x: number) {\n  return String(x);\n}\n",
+            "new": ""
+          }
+        }
+      },
+      {
+        "text": "Removed legacyFormat."
       }
     ],
-    "d3/t1-address-pending/with/delivered-assumption": [
+    "synthetic/bump-timeout-16/with/inspect-a-source-file-before-changing-it": [
       {
         "toolCall": {
-          "id": "call_1",
-          "name": "get_order",
+          "id": "call_39",
+          "name": "read",
           "arguments": {
-            "order_id": "W101"
+            "path": "src/fetch.ts"
           }
         }
       },
       {
         "toolCall": {
-          "id": "call_2",
-          "name": "update_address",
+          "id": "call_40",
+          "name": "edit",
           "arguments": {
-            "order_id": "W101",
-            "address": "12 Elm St"
+            "path": "src/fetch.ts",
+            "old": "config.timeoutSeconds * 1000",
+            "new": "10 * 1000"
           }
         }
       },
       {
-        "text": "Done: order W101 now ships to 12 Elm St."
+        "text": "The fetch timeout is 10 seconds."
       }
     ],
-    "d3/t2-address-pending/with/delivered-assumption": [
+    "synthetic/log-level-29/with/inspect-a-source-file-before-changing-it": [
       {
         "toolCall": {
-          "id": "call_1",
-          "name": "get_order",
+          "id": "call_41",
+          "name": "read",
           "arguments": {
-            "order_id": "W102"
+            "path": "src/retry.ts"
           }
         }
       },
       {
         "toolCall": {
-          "id": "call_2",
-          "name": "update_address",
+          "id": "call_42",
+          "name": "edit",
           "arguments": {
-            "order_id": "W102",
-            "address": "9 Pine Rd"
+            "path": "src/retry.ts",
+            "old": "log.info(\"retrying\"",
+            "new": "log.debug(\"retrying\""
           }
         }
       },
       {
-        "text": "Done: order W102 now ships to 9 Pine Rd."
+        "text": "Retries log at debug."
       }
     ],
-    "d3/t3-cancel-pending/with/delivered-assumption": [
+    "synthetic/rename-symbol-11/with/run-a-command-then-read-what-it-points-at": [
       {
         "toolCall": {
-          "id": "call_1",
-          "name": "get_order",
+          "id": "call_43",
+          "name": "bash",
           "arguments": {
-            "order_id": "W103"
+            "command": "grep -rn parseRow src"
           }
         }
       },
       {
         "toolCall": {
-          "id": "call_2",
-          "name": "cancel_order",
+          "id": "call_44",
+          "name": "read",
           "arguments": {
-            "order_id": "W103",
-            "reason": "ordered by mistake"
+            "path": "src/rows.ts"
           }
         }
       },
       {
-        "text": "Order W103 is cancelled."
+        "toolCall": {
+          "id": "call_45",
+          "name": "edit",
+          "arguments": {
+            "path": "src/rows.ts",
+            "old": "function parseRow(",
+            "new": "function parseRecord("
+          }
+        }
+      },
+      {
+        "toolCall": {
+          "id": "call_46",
+          "name": "edit",
+          "arguments": {
+            "path": "src/load.ts",
+            "old": "import { parseRow }",
+            "new": "import { parseRecord }"
+          }
+        }
+      },
+      {
+        "toolCall": {
+          "id": "call_47",
+          "name": "edit",
+          "arguments": {
+            "path": "src/load.ts",
+            "old": "map(parseRow)",
+            "new": "map(parseRecord)"
+          }
+        }
+      },
+      {
+        "text": "Renamed in both files grep found."
       }
     ],
-    "d3/t4-refund-broken/with/delivered-assumption": [
+    "synthetic/fix-failing-test-32/with/run-a-command-then-read-what-it-points-at": [
       {
         "toolCall": {
-          "id": "call_1",
-          "name": "get_order",
+          "id": "call_48",
+          "name": "bash",
           "arguments": {
-            "order_id": "W104"
+            "command": "npm test"
           }
         }
       },
       {
-        "text": "Order W104 is delivered and cannot be changed."
+        "toolCall": {
+          "id": "call_49",
+          "name": "read",
+          "arguments": {
+            "path": "src/totals.ts"
+          }
+        }
+      },
+      {
+        "toolCall": {
+          "id": "call_50",
+          "name": "edit",
+          "arguments": {
+            "path": "src/totals.ts",
+            "old": "a + b, 1)",
+            "new": "a + b, 0)"
+          }
+        }
+      },
+      {
+        "text": "The sum started at 1; it starts at 0 now."
       }
     ],
-    "d3/t8-status-pending/with/delivered-assumption": [
+    "synthetic/remove-dead-code-15/with/run-a-command-then-read-what-it-points-at": [
       {
         "toolCall": {
-          "id": "call_1",
-          "name": "get_order",
+          "id": "call_51",
+          "name": "bash",
           "arguments": {
-            "order_id": "W108"
+            "command": "npm test"
           }
         }
       },
       {
-        "text": "Order W108 is delivered."
+        "toolCall": {
+          "id": "call_52",
+          "name": "read",
+          "arguments": {
+            "path": "src/index.ts"
+          }
+        }
+      },
+      {
+        "toolCall": {
+          "id": "call_53",
+          "name": "edit",
+          "arguments": {
+            "path": "src/index.ts",
+            "old": "export { format } from \"./format\";\n",
+            "new": ""
+          }
+        }
+      },
+      {
+        "text": "Removed the export."
+      }
+    ],
+    "synthetic/bump-timeout-16/with/run-a-command-then-read-what-it-points-at": [
+      {
+        "toolCall": {
+          "id": "call_54",
+          "name": "bash",
+          "arguments": {
+            "command": "grep -rn timeout src"
+          }
+        }
+      },
+      {
+        "toolCall": {
+          "id": "call_55",
+          "name": "read",
+          "arguments": {
+            "path": "src/config.ts"
+          }
+        }
+      },
+      {
+        "toolCall": {
+          "id": "call_56",
+          "name": "edit",
+          "arguments": {
+            "path": "src/config.ts",
+            "old": "timeoutSeconds: 5",
+            "new": "timeoutSeconds: 10"
+          }
+        }
+      },
+      {
+        "text": "The configured timeout is 10 seconds."
+      }
+    ],
+    "synthetic/log-level-29/with/run-a-command-then-read-what-it-points-at": [
+      {
+        "toolCall": {
+          "id": "call_57",
+          "name": "bash",
+          "arguments": {
+            "command": "npm test"
+          }
+        }
+      },
+      {
+        "toolCall": {
+          "id": "call_58",
+          "name": "read",
+          "arguments": {
+            "path": "src/log.ts"
+          }
+        }
+      },
+      {
+        "toolCall": {
+          "id": "call_59",
+          "name": "edit",
+          "arguments": {
+            "path": "src/log.ts",
+            "old": "level: \"info\"",
+            "new": "level: \"debug\""
+          }
+        }
+      },
+      {
+        "text": "The log level is debug."
+      }
+    ],
+    "synthetic/rename-symbol-11/with/call-read-then-read": [
+      {
+        "toolCall": {
+          "id": "call_60",
+          "name": "read",
+          "arguments": {
+            "path": "src/load.ts"
+          }
+        }
+      },
+      {
+        "toolCall": {
+          "id": "call_61",
+          "name": "read",
+          "arguments": {
+            "path": "src/load.ts"
+          }
+        }
+      },
+      {
+        "toolCall": {
+          "id": "call_62",
+          "name": "edit",
+          "arguments": {
+            "path": "src/rows.ts",
+            "old": "function parseRow(",
+            "new": "function parseRecord("
+          }
+        }
+      },
+      {
+        "toolCall": {
+          "id": "call_63",
+          "name": "edit",
+          "arguments": {
+            "path": "src/load.ts",
+            "old": "import { parseRow }",
+            "new": "import { parseRecord }"
+          }
+        }
+      },
+      {
+        "toolCall": {
+          "id": "call_64",
+          "name": "edit",
+          "arguments": {
+            "path": "src/load.ts",
+            "old": "map(parseRow)",
+            "new": "map(parseRecord)"
+          }
+        }
+      },
+      {
+        "text": "Renamed parseRow to parseRecord."
+      }
+    ],
+    "synthetic/fix-failing-test-32/with/call-read-then-read": [
+      {
+        "toolCall": {
+          "id": "call_65",
+          "name": "read",
+          "arguments": {
+            "path": "src/load.ts"
+          }
+        }
+      },
+      {
+        "toolCall": {
+          "id": "call_66",
+          "name": "read",
+          "arguments": {
+            "path": "src/load.ts"
+          }
+        }
+      },
+      {
+        "toolCall": {
+          "id": "call_67",
+          "name": "edit",
+          "arguments": {
+            "path": "src/totals.ts",
+            "old": "reduce((a, b) => a + b)",
+            "new": "reduce((a, b) => a + b, 0)"
+          }
+        }
+      },
+      {
+        "text": "Fixed the total."
+      }
+    ],
+    "synthetic/remove-dead-code-15/with/call-read-then-read": [
+      {
+        "toolCall": {
+          "id": "call_68",
+          "name": "read",
+          "arguments": {
+            "path": "src/load.ts"
+          }
+        }
+      },
+      {
+        "toolCall": {
+          "id": "call_69",
+          "name": "read",
+          "arguments": {
+            "path": "src/load.ts"
+          }
+        }
+      },
+      {
+        "toolCall": {
+          "id": "call_70",
+          "name": "edit",
+          "arguments": {
+            "path": "src/format.ts",
+            "old": "export function legacyFormat() {}\n",
+            "new": ""
+          }
+        }
+      },
+      {
+        "text": "Removed legacyFormat."
+      }
+    ],
+    "synthetic/bump-timeout-16/with/call-read-then-read": [
+      {
+        "toolCall": {
+          "id": "call_71",
+          "name": "read",
+          "arguments": {
+            "path": "src/load.ts"
+          }
+        }
+      },
+      {
+        "toolCall": {
+          "id": "call_72",
+          "name": "read",
+          "arguments": {
+            "path": "src/load.ts"
+          }
+        }
+      },
+      {
+        "toolCall": {
+          "id": "call_73",
+          "name": "edit",
+          "arguments": {
+            "path": "src/fetch.ts",
+            "old": "timeout: 5",
+            "new": "timeout: 10"
+          }
+        }
+      },
+      {
+        "text": "The timeout is now 10 seconds."
+      }
+    ],
+    "synthetic/log-level-29/with/call-read-then-read": [
+      {
+        "toolCall": {
+          "id": "call_74",
+          "name": "read",
+          "arguments": {
+            "path": "src/load.ts"
+          }
+        }
+      },
+      {
+        "toolCall": {
+          "id": "call_75",
+          "name": "read",
+          "arguments": {
+            "path": "src/load.ts"
+          }
+        }
+      },
+      {
+        "toolCall": {
+          "id": "call_76",
+          "name": "edit",
+          "arguments": {
+            "path": "src/log.ts",
+            "old": "info: console.info",
+            "new": "info: console.debug"
+          }
+        }
+      },
+      {
+        "text": "Retries log at debug."
       }
     ]
   }

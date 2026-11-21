@@ -1,53 +1,163 @@
 {
-  "_comment": "Card D3's replay task pool: eight synthetic retail support tasks over an invented order database, no real person or order. Each task's check is its own: a tau2-bench style database-state hash (the session's final database against the database its gold actions produce from the same start) or a stated outcome (the agent's final reply names it). The checks are read only by the oracle; nothing here reaches a prompt but the prompt.",
+  "_comment": "Card D3's replay task pool: tasks of card D1's fixture sessions (fixtures/sessions/d1/index.json), each with an invented starting repository, so card D2's candidates can be replayed on tasks they were not induced from. synthetic/bump-timeout-06 is one of the ten tasks D2 induced from: the split drops it, and the script has no session for it. Each check is the task's own, a repository-state hash in the manner of tau2-bench's database check: the session's final files against the files the gold edits produce from the same start. Synthetic content, no real person or repository.",
   "tasks": [
     {
-      "id": "d3/t1-address-pending",
-      "prompt": "Please change the shipping address on order W101 to 12 Elm St.",
-      "db": { "orders": { "W101": { "status": "pending", "address": "3 Birch Ln", "items": [{ "sku": "mug-1", "note": "" }], "refunded": [] } } },
-      "check": { "kind": "db-hash", "gold": [{ "name": "update_address", "arguments": { "order_id": "W101", "address": "12 Elm St" } }] }
+      "id": "synthetic/rename-symbol-11",
+      "prompt": "Rename parseRow to parseRecord everywhere.",
+      "files": {
+        "src/rows.ts": "export function parseRow(line: string) {\n  return line.split(\",\");\n}\n",
+        "src/load.ts": "import { parseRow } from \"./rows\";\nexport const load = (lines: string[]) => lines.map(parseRow);\n"
+      },
+      "commands": {
+        "grep -rn parseRow src": "src/rows.ts:1: export function parseRow\nsrc/load.ts:1: import { parseRow }\nsrc/load.ts:2: lines.map(parseRow)"
+      },
+      "check": {
+        "kind": "state-hash",
+        "gold": [
+          {
+            "name": "edit",
+            "arguments": {
+              "path": "src/rows.ts",
+              "old": "function parseRow(",
+              "new": "function parseRecord("
+            }
+          },
+          {
+            "name": "edit",
+            "arguments": {
+              "path": "src/load.ts",
+              "old": "import { parseRow }",
+              "new": "import { parseRecord }"
+            }
+          },
+          {
+            "name": "edit",
+            "arguments": {
+              "path": "src/load.ts",
+              "old": "map(parseRow)",
+              "new": "map(parseRecord)"
+            }
+          }
+        ]
+      }
     },
     {
-      "id": "d3/t2-address-pending",
-      "prompt": "I moved. Change the address on order W102 to 9 Pine Rd.",
-      "db": { "orders": { "W102": { "status": "pending", "address": "40 Cedar Ct", "items": [{ "sku": "towel-1", "note": "" }], "refunded": [] } } },
-      "check": { "kind": "db-hash", "gold": [{ "name": "update_address", "arguments": { "order_id": "W102", "address": "9 Pine Rd" } }] }
+      "id": "synthetic/fix-failing-test-32",
+      "prompt": "The test for totals fails; make it pass.",
+      "files": {
+        "src/totals.ts": "export const total = (xs: number[]) => xs.reduce((a, b) => a + b, 1);\n",
+        "test/totals.test.ts": "import { total } from \"../src/totals\";\ntest(\"total\", () => expect(total([1, 2, 3])).toBe(6));\n"
+      },
+      "commands": {
+        "npm test": "FAIL test/totals.test.ts: expected 6, received 7 (src/totals.ts:1)"
+      },
+      "check": {
+        "kind": "state-hash",
+        "gold": [
+          {
+            "name": "edit",
+            "arguments": {
+              "path": "src/totals.ts",
+              "old": "a + b, 1)",
+              "new": "a + b, 0)"
+            }
+          }
+        ]
+      }
     },
     {
-      "id": "d3/t3-cancel-pending",
-      "prompt": "Cancel order W103, I ordered it by mistake.",
-      "db": { "orders": { "W103": { "status": "pending", "address": "7 Maple Dr", "items": [{ "sku": "chair-1", "note": "" }], "refunded": [] } } },
-      "check": { "kind": "db-hash", "gold": [{ "name": "cancel_order", "arguments": { "order_id": "W103", "reason": "ordered by mistake" } }] }
+      "id": "synthetic/remove-dead-code-15",
+      "prompt": "Remove the unused legacyFormat helper.",
+      "files": {
+        "src/format.ts": "export function format(x: number) {\n  return x.toFixed(2);\n}\n\nexport function legacyFormat(x: number) {\n  return String(x);\n}\n",
+        "src/index.ts": "export { format } from \"./format\";\n"
+      },
+      "commands": {
+        "grep -rn legacyFormat src": "src/format.ts:5: export function legacyFormat(x: number) {"
+      },
+      "check": {
+        "kind": "state-hash",
+        "gold": [
+          {
+            "name": "edit",
+            "arguments": {
+              "path": "src/format.ts",
+              "old": "\nexport function legacyFormat(x: number) {\n  return String(x);\n}\n",
+              "new": ""
+            }
+          }
+        ]
+      }
     },
     {
-      "id": "d3/t4-refund-broken",
-      "prompt": "One of the lamps in order W104 arrived broken. Refund the broken one.",
-      "db": { "orders": { "W104": { "status": "delivered", "address": "2 Ash Way", "items": [{ "sku": "lamp-1", "note": "" }, { "sku": "lamp-2", "note": "reported broken on delivery" }], "refunded": [] } } },
-      "check": { "kind": "db-hash", "gold": [{ "name": "refund_item", "arguments": { "order_id": "W104", "sku": "lamp-2" } }] }
+      "id": "synthetic/bump-timeout-06",
+      "prompt": "Raise the fetch timeout from 5 to 10 seconds.",
+      "files": {
+        "src/fetch.ts": "import { config } from \"./config\";\nexport const fetchTimeoutMs = config.timeoutSeconds * 1000;\n",
+        "src/config.ts": "export const config = { timeoutSeconds: 5 };\n"
+      },
+      "commands": {},
+      "check": {
+        "kind": "state-hash",
+        "gold": [
+          {
+            "name": "edit",
+            "arguments": {
+              "path": "src/config.ts",
+              "old": "timeoutSeconds: 5",
+              "new": "timeoutSeconds: 10"
+            }
+          }
+        ]
+      }
     },
     {
-      "id": "d3/t5-address-delivered",
-      "prompt": "Change the address on order W105 to 4 Oak Ave.",
-      "db": { "orders": { "W105": { "status": "delivered", "address": "18 Elm St", "items": [{ "sku": "rug-1", "note": "" }], "refunded": [] } } },
-      "check": { "kind": "db-hash", "gold": [] }
+      "id": "synthetic/bump-timeout-16",
+      "prompt": "Raise the fetch timeout from 5 to 10 seconds.",
+      "files": {
+        "src/fetch.ts": "import { config } from \"./config\";\nexport const fetchTimeoutMs = config.timeoutSeconds * 1000;\n",
+        "src/config.ts": "export const config = { timeoutSeconds: 5 };\n"
+      },
+      "commands": {
+        "grep -rn timeout src": "src/config.ts:1: export const config = { timeoutSeconds: 5 };\nsrc/fetch.ts:2: export const fetchTimeoutMs = config.timeoutSeconds * 1000;"
+      },
+      "check": {
+        "kind": "state-hash",
+        "gold": [
+          {
+            "name": "edit",
+            "arguments": {
+              "path": "src/config.ts",
+              "old": "timeoutSeconds: 5",
+              "new": "timeoutSeconds: 10"
+            }
+          }
+        ]
+      }
     },
     {
-      "id": "d3/t6-cancel-delivered",
-      "prompt": "Cancel order W106, I do not need it any more.",
-      "db": { "orders": { "W106": { "status": "delivered", "address": "5 Fir Pl", "items": [{ "sku": "kettle-1", "note": "" }], "refunded": [] } } },
-      "check": { "kind": "db-hash", "gold": [] }
-    },
-    {
-      "id": "d3/t7-status-delivered",
-      "prompt": "What is the status of order W107?",
-      "db": { "orders": { "W107": { "status": "delivered", "address": "11 Yew Rd", "items": [{ "sku": "clock-1", "note": "" }], "refunded": [] } } },
-      "check": { "kind": "stated", "outcome": "delivered" }
-    },
-    {
-      "id": "d3/t8-status-pending",
-      "prompt": "Has order W108 shipped yet? What is its status?",
-      "db": { "orders": { "W108": { "status": "pending", "address": "6 Elder St", "items": [{ "sku": "vase-1", "note": "" }], "refunded": [] } } },
-      "check": { "kind": "stated", "outcome": "pending" }
+      "id": "synthetic/log-level-29",
+      "prompt": "Log retries at debug level, not info.",
+      "files": {
+        "src/retry.ts": "import { log } from \"./log\";\nexport function retry(n: number) {\n  log.info(\"retrying\", n);\n}\n",
+        "src/log.ts": "export const log = { level: \"info\", info: console.info, debug: console.debug };\n"
+      },
+      "commands": {
+        "npm test": "PASS 3 tests"
+      },
+      "check": {
+        "kind": "state-hash",
+        "gold": [
+          {
+            "name": "edit",
+            "arguments": {
+              "path": "src/retry.ts",
+              "old": "log.info(\"retrying\"",
+              "new": "log.debug(\"retrying\""
+            }
+          }
+        ]
+      }
     }
   ]
 }
