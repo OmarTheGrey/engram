@@ -31,8 +31,8 @@ lint: ## biome, tsc, ruff, mypy; CI runs the same
 	$(PNPM) exec biome check --error-on-warnings .
 	$(PNPM) exec tsc -p tsconfig.json
 	$(PNPM) exec tsc -p packages/ui/tsconfig.json
-	$(UV) run ruff check research
-	$(UV) run ruff format --check research
+	$(UV) run ruff check research packages/bench/scripts
+	$(UV) run ruff format --check research packages/bench/scripts
 	$(UV) run mypy
 
 lint-docs: ## log entries, em dashes, CLAUDE.md equals AGENTS.md; PR=<dir> checks a PR instead
