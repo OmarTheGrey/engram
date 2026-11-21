@@ -2,6 +2,8 @@
 
 Engram supplies evidence; it does not make a deployment compliant. Each row of the crosswalk below names a governance claim Engram makes, the test in this repository that proves it, and an article of the EU AI Act or the GDPR that the evidence bears on. No row says that Engram, or a system built with it, meets an obligation: whether a deployment is compliant turns on its purpose, its operator, its legal basis and facts the plane cannot see. This is not legal advice.
 
+Part of the Engram repository; start at the [root README](../../README.md).
+
 ## What the crosswalk is
 
 - **A claim** is a sentence Engram's own documents state about governance: AGENTS.md ("What this is", the rules, the invariants in its `make test-invariants` line), `docs/architecture.md`, the seven invariants (`docs/conventions/testing.md`, `packages/core/test/property/invariants.test.ts`), ADRs 0004 to 0011, 0014, 0021 and 0025, and `docs/dogfood.md`. Each row names where it comes from. Where a source states more than any test shows, the row states only what the named tests show, and its limits say what is left out.

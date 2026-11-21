@@ -328,13 +328,14 @@ describe("the content_guards and trust blocks", () => {
     expect(policy.trust).toEqual({});
   });
 
-  // Each option, every value its schema admits, and the card that enforces it;
-  // null for an option its card has landed (injection_screen, card E2.10).
+  // Each option, every value its schema admits, and the card that enforces
+  // it, or null once that card has landed (injection_screen, card E2.10;
+  // secrets, pii and max_content_bytes, card E2.9).
   const OPTIONS: [block: string, option: string, values: string[], card: string | null][] = [
-    ["content_guards", "secrets", [...GuardMode.options], "E2.9"],
-    ["content_guards", "pii", [...GuardMode.options], "E2.9"],
+    ["content_guards", "secrets", [...GuardMode.options], null],
+    ["content_guards", "pii", [...GuardMode.options], null],
     ["content_guards", "injection_screen", [...InjectionScreen.options], null],
-    ["content_guards", "max_content_bytes", ["1", "65536"], "E2.9"],
+    ["content_guards", "max_content_bytes", ["1", "65536"], null],
     // Both trust options landed with card E2.11 (policy/trust.ts).
     ["trust", "unattested_floor", [...TrustSwitch.options], null],
     ["trust", "protect_trusted", [...TrustSwitch.options], null],
@@ -344,8 +345,15 @@ describe("the content_guards and trust blocks", () => {
       const text = withOption(block, option, value);
       const parsed = Policy.safeParse(parseYaml(text));
       expect(parsed.error).toBeUndefined();
-      if (value === "off" || card === null) {
-        expect(parsePolicy(text, "test.yaml")[block as "trust"]).toEqual({ [option]: value });
+      if (card === null) {
+        const loaded = parsePolicy(text, "test.yaml")[block as "content_guards"];
+        expect(loaded).toEqual({
+          [option]: option === "max_content_bytes" ? Number(value) : value,
+        });
+        return;
+      }
+      if (value === "off") {
+        expect(parsePolicy(text, "test.yaml")[block as "trust"]).toEqual({ [option]: "off" });
         return;
       }
       const [p, ...rest] = problemsOf(text);
