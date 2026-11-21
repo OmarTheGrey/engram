@@ -14,15 +14,30 @@
 //           retention ttls), one permit per read matrix row, the grant permit
 //           when the policy honours grants, and the validity window
 //   write   membership of the item's scope and of the projected item's, the
-//           owner and version rules of a rewrite, the move rule, a default
-//           deny per level without a write rule, each write rule's forbidden
-//           classes, allowed sources and confidence floor, source isolation
-//           and the retired-content rule; `write_without_review` is the same
-//           gate where the rule does not require review
+//           owner and version rules of a rewrite, the move rule, the grant
+//           rules a whole item decides (only its owner, user- or
+//           import-sourced, changes its grants; only its owner rewrites an
+//           item carrying grants, the promotion gate's in-place transition
+//           apart; an untrusted source carries no grants), a default deny per
+//           level without a write rule, each write rule's forbidden classes,
+//           allowed sources and confidence floor, source isolation and the
+//           retired-content rule; `write_without_review` is the same gate
+//           where the rule does not require review
 // What is not (ADR 0041, decision 5; the test names each class it excludes):
-//   - grants on the write path: their well-formedness, the owner's consent to
-//     a grant change and the expiry of an added grant are judgements over
-//     strings and lists of grants that Cedar's language cannot iterate;
+//   - the grant rules judged grant by grant on the write path: a grant's
+//     shape (a pattern with a kind and a prefix, a class, an expiry), a grant
+//     repeated, a grant naming another class than the item's, a grant added
+//     already expired. Each is a judgement over every element of a list, and
+//     Cedar's language has no quantifier over a set; flattening one would
+//     mean the encoder computing the verdict itself, which tests nothing;
+//   - on the write path grants are flattened where a whole item decides: the
+//     request says whether the projected item carries grants, whether the
+//     rewrite changes them (a different multiset, or a class change while
+//     either carries some: the evaluator's sameGrants), whether the item
+//     carries any, and whether the write is the promotion gate's in-place
+//     transition (only the status and the version differ); Cedar judges the
+//     actor's source, its identity against the owner and the reach of the
+//     opaque refusal;
 //   - on the read path grants are flattened: the request carries, for the
 //     reader alone, the latest expiry among the item's grants whose `to`
 //     matches the reader and whose class is absent or the item's. Cedar then
@@ -42,18 +57,23 @@
 //   confidence   the IEEE 754 bits of the double as { hi, lo }, two unsigned
 //                32-bit halves: for non-negative doubles the order of the bits
 //                is the order of the numbers, so a floor compares exactly
+import type { Actor } from "../actor.ts";
 import { contentHash } from "../content-hash.ts";
+import { canonicalJson } from "../model.ts";
 import { type MemoryItem, type Policy, type ScopeLevel, Timestamp } from "../schema.ts";
 import {
   GRANT_OWNER_ID,
+  GRANT_SOURCE_ID,
   grantMatches,
   READ_STATUS_ID,
   READ_TTL_ID,
   READ_VALIDITY_ID,
   RETIRED_CONTENT_ID,
   SOURCE_ISOLATION_ID,
+  sameGrants,
   scopeLevel,
   WRITE_DEFAULT_DENY_ID,
+  WRITE_GRANT_ID,
   WRITE_MEMBERSHIP_ID,
   WRITE_MOVE_ID,
   WRITE_VERSION_ID,
@@ -104,7 +124,8 @@ namespace ${CEDAR_NAMESPACE} {
   // A scope such as person:omar or org; level is person, role, team or org.
   entity Scope = { level: String };
   // An actor is in the scopes it is a member of; level is the level it reads as.
-  entity Actor in [Scope] = { level: String };
+  // source is the provenance kind the harness set for what it writes, if any.
+  entity Actor in [Scope] = { level: String, source?: String };
   entity Item = {
     scope: Scope,
     owner: Actor,
@@ -133,10 +154,17 @@ namespace ${CEDAR_NAMESPACE} {
     principal: Actor,
     resource: Item,
     context: {
-      // The projected item of the same id, on a rewrite.
-      existing?: { scope: Scope, owner: Actor, version: Long },
+      // The projected item of the same id, on a rewrite; granted when it
+      // carries grants.
+      existing?: { scope: Scope, owner: Actor, version: Long, granted: Bool },
       // The content hashes of the items retired in the item's scope.
       retired: Set<String>,
+      // The flattened grants of the write: the item carries grants; the
+      // rewrite changes the grants (or the class under grants); the write is
+      // the promotion gate's in-place transition.
+      granted: Bool,
+      changes_grants: Bool,
+      in_place_promotion: Bool,
     },
   };
 }
@@ -358,6 +386,45 @@ export function exportCedar(policy: Policy): CedarExport {
     "a move by a writer who cannot read the item's scope is refused as a non-member's",
     forbid(writes, `${moves} && !${readable(policy, "context.existing.scope")}`),
   );
+  // The grant rules a whole item decides (ADR 0034; card RV7, RV-CORE-1).
+  add(
+    "write/grant/source",
+    GRANT_SOURCE_ID,
+    "a rewrite changing the grants is the owner's consent, given by the person: user- or import-sourced",
+    forbid(
+      writes,
+      'context.changes_grants && !(principal has source && ["user", "import"].contains(principal.source))',
+    ),
+  );
+  add(
+    "write/grant/owner",
+    GRANT_OWNER_ID,
+    "only the owner changes an item's grants",
+    forbid(
+      writes,
+      "context has existing && context.changes_grants && principal != context.existing.owner",
+    ),
+  );
+  const keeps =
+    "context has existing && !context.changes_grants && context.existing.granted && principal != context.existing.owner && !context.in_place_promotion";
+  add(
+    "write/grant/owner-rewrite",
+    GRANT_OWNER_ID,
+    "only the owner rewrites an item carrying grants, the promotion gate's in-place transition apart",
+    forbid(writes, `${keeps} && ${readable(policy, "context.existing.scope")}`),
+  );
+  add(
+    "write/grant/owner-rewrite/opaque",
+    WRITE_MEMBERSHIP_ID,
+    "a rewrite of a granted item by a writer who cannot read its scope is refused as a non-member's",
+    forbid(writes, `${keeps} && !${readable(policy, "context.existing.scope")}`),
+  );
+  add(
+    "write/grant/untrusted",
+    WRITE_GRANT_ID,
+    "model, compaction and external content carries no grants",
+    forbid(writes, `context.granted && ${inSet("resource.kind", ISOLATED_SOURCES)}`),
+  );
   const writeSeen = new Set<string>();
   for (const rule of policy.write) {
     if (writeSeen.has(rule.scope)) continue;
@@ -421,8 +488,8 @@ export function exportCedar(policy: Policy): CedarExport {
   const header = [
     `// Policy ${cedarString(p)} version ${policy.version} as Cedar (card E2.12, ADR 0041). Generated by exportCedar.`,
     "// Engram's typed evaluator is the authority; this text is for reading and analysis.",
-    `// Not exported: grants on the write path (${GRANT_OWNER_ID} and the grant rules), content guards, trust options.`,
-    "// Read grants are flattened into the request's context.grant.",
+    "// Not exported: the grant rules judged grant by grant (shape, repeats, class, expiry at addition), content guards, trust options.",
+    "// Grants are flattened into the request: context.grant on a read; granted, changes_grants and in_place_promotion on a write.",
   ].join("\n");
   return {
     schema: SCHEMA,
@@ -433,6 +500,12 @@ export function exportCedar(policy: Policy): CedarExport {
 
 // The request encoding. Policy-independent: everything that depends on the
 // policy is in the exported text.
+
+/** `item` is `existing` with only its status and version changed (evaluate.ts, the promotion gate's in-place transition). */
+function onlyStatusAndVersion(item: MemoryItem, existing: MemoryItem): boolean {
+  const rest = ({ status: _s, version: _v, ...other }: MemoryItem) => canonicalJson(other);
+  return rest(item) === rest(existing);
+}
 
 export interface CedarUid {
   type: string;
@@ -456,6 +529,9 @@ export interface CedarRequest {
 }
 
 export type CedarAction = "read" | "write" | "write_without_review";
+
+/** Who asks: the actor as the plane receives it (actor.ts), its source optional. */
+export type CedarActor = Pick<Actor, "id" | "level" | "memberships" | "source">;
 
 const uid = (type: string, id: string): CedarUid => ({ type: `${CEDAR_NAMESPACE}::${type}`, id });
 const ref = (u: CedarUid): Json => ({ __entity: { type: u.type, id: u.id } });
@@ -488,10 +564,13 @@ function scopeEntity(scope: string): CedarEntity {
   return { uid: uid("Scope", scope), attrs: { level: scopeLevel(scope) }, parents: [] };
 }
 
-function actorEntity(actor: { id: string; level: string; memberships: string[] }): CedarEntity {
+function actorEntity(actor: CedarActor): CedarEntity {
   return {
     uid: uid("Actor", actor.id),
-    attrs: { level: actor.level },
+    attrs:
+      actor.source === undefined
+        ? { level: actor.level }
+        : { level: actor.level, source: actor.source },
     parents: actor.memberships.map((m) => uid("Scope", m)),
   };
 }
@@ -515,7 +594,7 @@ function itemEntity(item: MemoryItem): CedarEntity {
 
 /** The entities of a request: the scopes named, the actor, and the item. */
 function entities(
-  actor: { id: string; level: string; memberships: string[] },
+  actor: CedarActor,
   item: MemoryItem,
   more: readonly string[] = [],
 ): CedarEntity[] {
@@ -531,7 +610,7 @@ function entities(
  * among them, absent when one of them never expires.
  */
 export function cedarReadRequest(
-  actor: { id: string; level: string; memberships: string[] },
+  actor: CedarActor,
   item: MemoryItem,
   at: string,
   validAt: string = at,
@@ -568,22 +647,39 @@ export function cedarReadRequest(
  * write_without_review (is it allowed and lands without review).
  * `existing` is the projected item of the same id; `retired` the content
  * hashes of the items retired in the item's scope, as the evaluator's map
- * keys them. Grants on either item are not encoded: the export does not
- * translate the write path's grant rules.
+ * keys them; `options.promotion` the promotion gate's in-place call, as
+ * evaluateWrite takes it. Grants are flattened: whether the projected item
+ * carries grants, whether the item does, whether the rewrite changes them
+ * (sameGrants, or a class change while either carries some), and whether the
+ * write is the in-place transition (nothing but the status and the version
+ * differ). The grant rules judged grant by grant are not encoded.
  */
 export function cedarWriteRequest(
-  actor: { id: string; level: string; memberships: string[] },
+  actor: CedarActor,
   item: MemoryItem,
   existing: MemoryItem | undefined,
   retired: ReadonlyMap<string, string>,
   action: Exclude<CedarAction, "read"> = "write",
+  options: { promotion?: boolean } = {},
 ): CedarRequest {
-  const context: { [key: string]: Json } = { retired: [...retired.keys()].sort() };
+  const prior = existing?.grants ?? [];
+  const reclasses =
+    existing !== undefined &&
+    item.class !== existing.class &&
+    (item.grants.length > 0 || prior.length > 0);
+  const context: { [key: string]: Json } = {
+    retired: [...retired.keys()].sort(),
+    granted: item.grants.length > 0,
+    changes_grants: existing !== undefined && (reclasses || !sameGrants(item.grants, prior)),
+    in_place_promotion:
+      existing !== undefined && options.promotion === true && onlyStatusAndVersion(item, existing),
+  };
   if (existing)
     context.existing = {
       scope: ref(uid("Scope", existing.scope)),
       owner: ref(uid("Actor", existing.owner)),
       version: existing.version,
+      granted: prior.length > 0,
     };
   return {
     principal: uid("Actor", actor.id),

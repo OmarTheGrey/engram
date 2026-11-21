@@ -58,15 +58,23 @@ import {
 import {
   evaluateRead,
   evaluateWrite,
+  GRANT_EXPIRED_ID,
+  GRANT_OWNER_ID,
+  GRANT_SOURCE_ID,
+  GRANT_UNCHANGED_ID,
+  liveGrants,
   READ_STATUS_ID,
   READ_TTL_ID,
   READ_VALIDITY_ID,
+  WRITE_GRANT_ID,
 } from "../../src/policy/evaluate.ts";
 import { loadPreset, PRESETS } from "../../src/policy/load.ts";
 import type { Grant, MemoryItem, Policy } from "../../src/schema.ts";
 import { addSeconds } from "../../src/time.ts";
 import {
+  arbGatedGrant,
   arbGrant,
+  arbGrantedItem,
   arbInstant,
   arbItem,
   arbPolicy,
@@ -78,9 +86,27 @@ import {
   seedFor,
 } from "../generators.ts";
 
-const RUNS = 1500;
-const GENERATED_RUNS = 1000;
-const DUPLICATED_RUNS = 150;
+/**
+ * Runs and seeds. The defaults are the committed run. A larger run, such as
+ * the one-off of 2026-11-21, is
+ *   ENGRAM_CEDAR_RUNS=20000 ENGRAM_CEDAR_SEED_OFFSET=7 make test-one T=packages/core/test/property/cedar.test.ts
+ * where ENGRAM_CEDAR_RUNS sets each preset property's runs (the generated and
+ * duplicated policies scale with it) and ENGRAM_CEDAR_SEED_OFFSET is added to
+ * every property's seed. A failure prints its seed, so it reruns alone.
+ */
+const envInt = (name: string, fallback: number) => {
+  const raw = process.env[name];
+  if (raw === undefined || raw === "") return fallback;
+  const n = Number(raw);
+  if (!Number.isSafeInteger(n) || n < 0) throw new Error(`${name} must be a whole number: ${raw}`);
+  return n;
+};
+const RUNS = envInt("ENGRAM_CEDAR_RUNS", 1500);
+const SEED_OFFSET = envInt("ENGRAM_CEDAR_SEED_OFFSET", 0);
+const GENERATED_RUNS = Math.ceil((RUNS * 2) / 3);
+const DUPLICATED_RUNS = Math.ceil(RUNS / 10);
+/** About 2 ms a run under load, with room: the shared 30 s timeout at the default. */
+const TIMEOUT = Math.max(30_000, RUNS * 20);
 const KINDS = ["user", "document", "tool", "model", "import", "compaction", "external"] as const;
 
 // ---- the Cedar side ----------------------------------------------------------
@@ -218,10 +244,12 @@ function arbActorFor(item: MemoryItem, extraScopes: readonly string[] = []): fc.
         minLength: 1 + extraScopes.length,
         maxLength: 1 + extraScopes.length,
       }),
+      source: fc.option(fc.constantFrom(...KINDS), { nil: undefined }),
     })
-    .map(({ id, level, memberships, joins }) => {
+    .map(({ id, level, memberships, joins, source }) => {
       const wanted = [item.scope, ...extraScopes].filter((_, i) => joins[i]);
-      return { id, level, memberships: [...new Set([...memberships, ...wanted])] };
+      const actor: Actor = { id, level, memberships: [...new Set([...memberships, ...wanted])] };
+      return source === undefined ? actor : { ...actor, source };
     });
 }
 
@@ -255,29 +283,75 @@ interface WriteCase {
   item: MemoryItem;
   existing: MemoryItem | undefined;
   retired: Map<string, string>;
+  /** The write's time, which only the grant rules read. */
+  at?: string;
+  /** The promotion gate's in-place transition (evaluateWrite's option). */
+  promotion?: boolean;
 }
 
+/**
+ * Grants for a write: none, grants the gate's shape rule accepts
+ * (arbGatedGrant), or any grants (arbGrantedItem's, a pattern too wide, no
+ * class or no expiry among them), so that the grant rules a whole item
+ * decides are reached and the per-grant rules too (review finding E2.12-3).
+ */
+const arbWriteGrants: fc.Arbitrary<Grant[]> = fc.oneof(
+  { arbitrary: fc.constant<Grant[]>([]), weight: 4 },
+  { arbitrary: fc.array(arbGatedGrant, { minLength: 1, maxLength: 2 }), weight: 2 },
+  { arbitrary: arbGrantedItem.map((x) => x.grants), weight: 1 },
+);
+
 const arbWriteItem: fc.Arbitrary<MemoryItem> = fc
-  .tuple(arbItem(), fc.constantFrom(...KINDS), arbConfidence)
-  .map(([item, kind, confidence]) => ({
+  .tuple(arbItem(), fc.constantFrom(...KINDS), arbConfidence, arbWriteGrants)
+  .map(([item, kind, confidence, grants]) => ({
     ...item,
     provenance: { ...item.provenance, kind },
     confidence,
+    grants,
   }));
 
-const arbWriteCase: fc.Arbitrary<WriteCase> = arbWriteItem.chain((item) =>
+/**
+ * A write: an item, often a rewrite of a projected item that carries the same
+ * grants, others or none, of the same class or another, sometimes the
+ * promotion gate's in-place transition of it (only the status and version
+ * changed), by an actor with or without a source, at an instant.
+ */
+const arbWriteCase: fc.Arbitrary<WriteCase> = arbWriteItem.chain((first) =>
   fc
-    .option(
-      fc.record({
-        base: arbItem(fc.constant(item.id)),
-        scope: fc.oneof(fc.constant(item.scope), arbScope),
-        owner: fc.oneof(fc.constant(item.owner), arbPrincipal),
-        version: fc.integer({ min: 1, max: 5 }),
-      }),
-      { nil: undefined },
-    )
-    .chain((e) => {
-      const existing = e && { ...e.base, scope: e.scope, owner: e.owner, version: e.version };
+    .record({
+      existing: fc.option(
+        fc.record({
+          base: arbItem(fc.constant(first.id)),
+          sameClass: fc.boolean(),
+          scope: fc.oneof(fc.constant(first.scope), arbScope),
+          owner: fc.oneof(fc.constant(first.owner), arbPrincipal),
+          version: fc.integer({ min: 1, max: 5 }),
+          grants: fc.oneof(fc.constant(first.grants), arbWriteGrants),
+        }),
+        { nil: undefined },
+      ),
+      inPlace: fc.boolean(),
+      promotion: fc.boolean(),
+      at: arbInstant,
+    })
+    .chain(({ existing: e, inPlace, promotion, at }) => {
+      const existing: MemoryItem | undefined = e && {
+        ...(e.sameClass
+          ? ({ ...e.base, class: first.class, content: first.content } as MemoryItem)
+          : e.base),
+        scope: e.scope,
+        owner: e.owner,
+        version: e.version,
+        grants: e.grants,
+      };
+      const item: MemoryItem =
+        existing && inPlace
+          ? {
+              ...existing,
+              status: first.status,
+              version: Math.max(existing.version, first.version),
+            }
+          : first;
       return fc.record({
         actor: arbActorFor(item, existing ? [existing.scope] : []),
         item: fc.constant(item),
@@ -297,8 +371,41 @@ const arbWriteCase: fc.Arbitrary<WriteCase> = arbWriteItem.chain((item) =>
                     ],
               ),
           ),
+        at: fc.constant(at),
+        promotion: fc.constant(promotion),
       });
     }),
+);
+
+/**
+ * The promotion gate's in-place transition of an item carrying grants: the
+ * projected item with gate-accepted grants and a user source, rewritten with
+ * only its status and version changed, by a member of its scope who is often
+ * not its owner. Mixed into the preset writes so the exemption decides often.
+ */
+const arbInPlaceCase: fc.Arbitrary<WriteCase> = fc
+  .tuple(arbWriteCase, fc.array(arbGatedGrant, { minLength: 1, maxLength: 2 }), fc.nat({ max: 1 }))
+  .map(([c, grants, bump]) => {
+    const from = c.existing ?? c.item;
+    const existing: MemoryItem = {
+      ...from,
+      id: c.item.id,
+      grants,
+      provenance: { ...from.provenance, kind: "user" },
+    };
+    return {
+      ...c,
+      existing,
+      item: { ...existing, status: c.item.status, version: existing.version + bump },
+      actor: { ...c.actor, memberships: [...new Set([...c.actor.memberships, existing.scope])] },
+      promotion: true,
+    };
+  });
+
+/** The writes the preset properties draw. */
+const arbPresetWriteCase: fc.Arbitrary<WriteCase> = fc.oneof(
+  { arbitrary: arbWriteCase, weight: 9 },
+  { arbitrary: arbInPlaceCase, weight: 1 },
 );
 
 /**
@@ -363,17 +470,35 @@ function checkRead(policy: Policy, decide: (r: CedarRequest) => CedarDecision, c
   return both ? "scope-and-grant" : engram.check;
 }
 
+/**
+ * Rules judged per grant (a grant's shape, a grant repeated, a class the item
+ * does not have, an expiry at or before the write): the export does not
+ * translate them, since Cedar cannot iterate a list (class 1). A write the
+ * evaluator decides by one is counted, not compared; the one exception is an
+ * untrusted source carrying grants, which the export does translate.
+ */
+const PER_GRANT_IDS = new Set([WRITE_GRANT_ID, GRANT_UNCHANGED_ID, GRANT_EXPIRED_ID]);
+const UNTRUSTED_KINDS = new Set(["model", "compaction", "external"]);
+
+/** The evaluator decided `c` by a per-grant rule the export does not translate. */
+function perGrant(policyId: string, c: WriteCase): boolean {
+  const untrustedGrants = c.item.grants.length > 0 && UNTRUSTED_KINDS.has(c.item.provenance.kind);
+  return PER_GRANT_IDS.has(policyId) && !(policyId === WRITE_GRANT_ID && untrustedGrants);
+}
+
 function checkWrite(policy: Policy, decide: (r: CedarRequest) => CedarDecision, c: WriteCase) {
-  const engram = evaluateWrite(policy, c.actor, c.item, c.existing, c.retired);
-  const written = decide(cedarWriteRequest(c.actor, c.item, c.existing, c.retired, "write"));
-  const unreviewed = decide(
-    cedarWriteRequest(c.actor, c.item, c.existing, c.retired, "write_without_review"),
-  );
+  const options = { promotion: c.promotion ?? false };
+  const engram = evaluateWrite(policy, c.actor, c.item, c.existing, c.retired, c.at, options);
+  if (perGrant(engram.policy_id, c)) return `excluded ${engram.policy_id}`;
+  const request = (action: "write" | "write_without_review") =>
+    cedarWriteRequest(c.actor, c.item, c.existing, c.retired, action, options);
+  const written = decide(request("write"));
+  const unreviewed = decide(request("write_without_review"));
   const where = `write: evaluator ${engram.decision} (${engram.check}, ${engram.policy_id}); Cedar write ${written.allow ? "allows" : "denies"} [${written.reasons.join(", ")}], without review ${unreviewed.allow ? "allows" : "denies"}`;
   expect(written.allow, where).toBe(engram.decision === "allow");
   expect(unreviewed.allow, where).toBe(engram.decision === "allow" && engram.check === "admit");
   expect(written.reasons, where).toContain(engram.policy_id);
-  return engram.check;
+  return engram.check === "grant" ? `grant ${engram.policy_id}` : engram.check;
 }
 
 const tally = (seen: Map<string, number>, key: string) => seen.set(key, (seen.get(key) ?? 0) + 1);
@@ -382,44 +507,92 @@ const tally = (seen: Map<string, number>, key: string) => seen.set(key, (seen.ge
 
 const presets = PRESETS.map((name) => ({ name, policy: loadPreset(name) }));
 
+/** The class of a read as the coverage guard counts it: the evaluator's check, scope and grant apart. */
+function readClass(policy: Policy, c: ReadCase): string {
+  const check = evaluateRead(policy, c.actor, c.item, c.at, c.validAt).check;
+  return check === "scope" && liveGrants(policy, c.actor, c.item, c.at).length > 0
+    ? "scope-and-grant"
+    : check;
+}
+
+/** The class of a write as checkWrite returns it, computed by the evaluator alone. */
+function writeClass(policy: Policy, c: WriteCase): string {
+  const engram = evaluateWrite(policy, c.actor, c.item, c.existing, c.retired, c.at, {
+    promotion: c.promotion ?? false,
+  });
+  if (perGrant(engram.policy_id, c)) return `excluded ${engram.policy_id}`;
+  return engram.check === "grant" ? `grant ${engram.policy_id}` : engram.check;
+}
+
+const readName = (name: string) => `${name}: every generated read is decided alike`;
+const writeName = (name: string) => `${name}: every generated write is decided alike`;
+
 describe("the Cedar export agrees with the evaluator on the presets", () => {
-  const readChecks = new Map<string, number>();
-  const writeChecks = new Map<string, number>();
-  let flattened = 0;
-
   for (const { name, policy } of presets) {
-    const exported = exportCedar(policy);
-    const decide = engine(exported, `preset-${name}`);
-
-    const readName = `${name}: every generated read is decided alike`;
-    test(readName, () => {
-      fc.assert(
-        fc.property(arbReadCase, (c) => {
-          const check = checkRead(policy, decide, c);
-          tally(readChecks, check === "scope-and-grant" ? "scope" : check);
-          if (check === "scope-and-grant") tally(readChecks, check);
-          if (cedarReadRequest(c.actor, c.item, c.at).context.grant !== undefined) flattened++;
-        }),
-        { numRuns: RUNS, seed: seedFor(readName) },
-      );
-    });
-
-    const writeName = `${name}: every generated write without grants is decided alike`;
-    test(writeName, () => {
-      fc.assert(
-        fc.property(arbWriteCase, (c) => {
-          tally(writeChecks, checkWrite(policy, decide, c));
-        }),
-        { numRuns: RUNS, seed: seedFor(writeName) },
-      );
-    });
+    const decide = engine(exportCedar(policy), `preset-${name}`);
+    test(
+      readName(name),
+      () => {
+        fc.assert(
+          fc.property(arbReadCase, (c) => {
+            checkRead(policy, decide, c);
+          }),
+          { numRuns: RUNS, seed: seedFor(readName(name)) + SEED_OFFSET },
+        );
+      },
+      TIMEOUT,
+    );
+    test(
+      writeName(name),
+      () => {
+        fc.assert(
+          fc.property(arbPresetWriteCase, (c) => {
+            checkWrite(policy, decide, c);
+          }),
+          { numRuns: RUNS, seed: seedFor(writeName(name)) + SEED_OFFSET },
+        );
+      },
+      TIMEOUT,
+    );
   }
 
   test("the generated requests reach every check the export translates", () => {
-    // Coverage guard: a check never reached is a check never compared.
+    // Coverage guard: a check never reached is a check never compared. It
+    // draws the same cases as the properties above, at the same seeds, and
+    // classifies them with the evaluator alone, so it runs on its own.
     // Source isolation never decides on a preset: no preset allows a model,
     // compaction or external source outside person scope, so the allowed
     // sources refuse it first; generated policies reach it (below).
+    const reads = new Map<string, number>();
+    const writes = new Map<string, number>();
+    let flattened = 0;
+    for (const { name, policy } of presets) {
+      const sample = { numRuns: RUNS, seed: seedFor(readName(name)) + SEED_OFFSET };
+      for (const c of fc.sample(arbReadCase, sample)) {
+        const check = readClass(policy, c);
+        tally(reads, check === "scope-and-grant" ? "scope" : check);
+        if (check === "scope-and-grant") tally(reads, check);
+        // Class 5: reads whose grants the encoder flattened are counted apart.
+        if (cedarReadRequest(c.actor, c.item, c.at).context.grant !== undefined) flattened++;
+      }
+      const writeSample = { numRuns: RUNS, seed: seedFor(writeName(name)) + SEED_OFFSET };
+      for (const c of fc.sample(arbPresetWriteCase, writeSample)) {
+        const check = writeClass(policy, c);
+        tally(writes, check);
+        // The promotion gate's in-place transition of a granted item, by
+        // someone other than its owner, that the evaluator lets through.
+        const context = cedarWriteRequest(c.actor, c.item, c.existing, c.retired, "write", {
+          promotion: c.promotion ?? false,
+        }).context;
+        if (
+          context.in_place_promotion === true &&
+          (c.existing?.grants.length ?? 0) > 0 &&
+          c.actor.id !== c.existing?.owner &&
+          (check === "admit" || check === "review")
+        )
+          tally(writes, "in-place exemption");
+      }
+    }
     for (const check of [
       "scope",
       "grant",
@@ -429,7 +602,7 @@ describe("the Cedar export agrees with the evaluator on the presets", () => {
       "expired",
       "outside-validity",
     ])
-      expect(readChecks.get(check) ?? 0, `read check ${check}`).toBeGreaterThan(20);
+      expect(reads.get(check) ?? 0, `read check ${check}`).toBeGreaterThan(20);
     for (const check of [
       "admit",
       "review",
@@ -440,9 +613,15 @@ describe("the Cedar export agrees with the evaluator on the presets", () => {
       "source-not-allowed",
       "below-floor",
       "retired-content",
+      `grant ${GRANT_OWNER_ID}`,
+      `grant ${GRANT_SOURCE_ID}`,
+      `grant ${WRITE_GRANT_ID}`,
+      "in-place exemption",
     ])
-      expect(writeChecks.get(check) ?? 0, `write check ${check}`).toBeGreaterThan(20);
-    // Class 5: reads whose grants the encoder flattened are counted apart.
+      expect(
+        writes.get(check) ?? 0,
+        `write check ${check}: ${JSON.stringify([...writes])}`,
+      ).toBeGreaterThan(20);
     expect(flattened).toBeGreaterThan(20);
   });
 });
@@ -509,54 +688,62 @@ const arbDuplicated = fc
 
 describe("beyond the presets: generated policies", () => {
   const name = "generated policies: every generated read and write is decided alike";
-  test(name, () => {
-    const checks = new Map<string, number>();
-    fc.assert(
-      fc.property(arbGeneratedPolicy, arbReadCase, arbWriteCase, (policy, r, w) => {
-        const decide = engine(exportCedar(policy), "generated");
-        tally(checks, `read ${checkRead(policy, decide, r)}`);
-        tally(checks, `write ${checkWrite(policy, decide, w)}`);
-      }),
-      { numRuns: GENERATED_RUNS, seed: seedFor(name) },
-    );
-    expect(checks.get("write no-rule") ?? 0).toBeGreaterThan(0);
-    expect(checks.get("write source-isolation") ?? 0).toBeGreaterThan(0);
-    expect(checks.get("read excluded") ?? 0).toBeGreaterThan(0);
-    expect(checks.get("write admit") ?? 0).toBeGreaterThan(0);
-  });
+  test(
+    name,
+    () => {
+      const checks = new Map<string, number>();
+      fc.assert(
+        fc.property(arbGeneratedPolicy, arbReadCase, arbWriteCase, (policy, r, w) => {
+          const decide = engine(exportCedar(policy), "generated");
+          tally(checks, `read ${checkRead(policy, decide, r)}`);
+          tally(checks, `write ${checkWrite(policy, decide, w)}`);
+        }),
+        { numRuns: GENERATED_RUNS, seed: seedFor(name) + SEED_OFFSET },
+      );
+      expect(checks.get("write no-rule") ?? 0).toBeGreaterThan(0);
+      expect(checks.get("write source-isolation") ?? 0).toBeGreaterThan(0);
+      expect(checks.get("read excluded") ?? 0).toBeGreaterThan(0);
+      expect(checks.get("write admit") ?? 0).toBeGreaterThan(0);
+    },
+    TIMEOUT,
+  );
 
   const dupName = "presets with duplicated rules: the first of each decides, on both sides";
-  test(dupName, () => {
-    const checks = new Map<string, number>();
-    fc.assert(
-      fc.property(arbDuplicated, ({ policy, write, read, retention, reads, writes }) => {
-        const decide = engine(exportCedar(policy), "duplicated");
-        for (const r of reads) {
-          const check = checkRead(policy, decide, r);
-          // Cases a duplicate taken would decide otherwise.
-          if (
-            `${levelOf(r.item.scope)}/${r.item.class}` === retention &&
-            (check === "scope" || check === "scope-and-grant")
-          )
-            tally(checks, "admitted at a duplicated retention rule");
-          if (r.actor.level === read && check === "excluded")
-            tally(checks, "excluded at a duplicated matrix row");
-        }
-        for (const w of writes) {
-          const check = checkWrite(policy, decide, w);
-          if (levelOf(w.item.scope) === write && (check === "admit" || check === "review"))
-            tally(checks, "allowed at a duplicated write rule");
-        }
-      }),
-      { numRuns: DUPLICATED_RUNS, seed: seedFor(dupName) },
-    );
-    for (const key of [
-      "allowed at a duplicated write rule",
-      "admitted at a duplicated retention rule",
-      "excluded at a duplicated matrix row",
-    ])
-      expect(checks.get(key) ?? 0, `${key}: ${JSON.stringify([...checks])}`).toBeGreaterThan(20);
-  });
+  test(
+    dupName,
+    () => {
+      const checks = new Map<string, number>();
+      fc.assert(
+        fc.property(arbDuplicated, ({ policy, write, read, retention, reads, writes }) => {
+          const decide = engine(exportCedar(policy), "duplicated");
+          for (const r of reads) {
+            const check = checkRead(policy, decide, r);
+            // Cases a duplicate taken would decide otherwise.
+            if (
+              `${levelOf(r.item.scope)}/${r.item.class}` === retention &&
+              (check === "scope" || check === "scope-and-grant")
+            )
+              tally(checks, "admitted at a duplicated retention rule");
+            if (r.actor.level === read && check === "excluded")
+              tally(checks, "excluded at a duplicated matrix row");
+          }
+          for (const w of writes) {
+            const check = checkWrite(policy, decide, w);
+            if (levelOf(w.item.scope) === write && (check === "admit" || check === "review"))
+              tally(checks, "allowed at a duplicated write rule");
+          }
+        }),
+        { numRuns: DUPLICATED_RUNS, seed: seedFor(dupName) + SEED_OFFSET },
+      );
+      for (const key of [
+        "allowed at a duplicated write rule",
+        "admitted at a duplicated retention rule",
+        "excluded at a duplicated matrix row",
+      ])
+        expect(checks.get(key) ?? 0, `${key}: ${JSON.stringify([...checks])}`).toBeGreaterThan(20);
+    },
+    TIMEOUT,
+  );
 
   test("duplicated write and retention rules: the first decides, on both sides", () => {
     const medium = loadPreset("medium");
@@ -666,6 +853,65 @@ describe("the export as text", () => {
   test("is pure: the same policy exports to the same text", () => {
     for (const { policy } of presets)
       expect(exportCedar(policy)).toEqual(exportCedar(structuredClone(policy)));
+  });
+});
+
+describe("grants on the write path (review finding E2.12-3)", () => {
+  const medium = loadPreset("medium");
+  const decide = engine(exportCedar(medium), "write-grants");
+  const base = fc.sample(arbItem(), { numRuns: 1, seed: 3 })[0] as MemoryItem;
+  const grant: Grant = {
+    to: "agent:pi",
+    class: "semantic",
+    mode: "read",
+    expires: "2027-01-01T00:00:00Z",
+  };
+  const existing: MemoryItem = {
+    ...base,
+    class: "semantic",
+    content: "the owner's text",
+    scope: "person:a",
+    owner: "person:sara",
+    version: 2,
+    status: "active",
+    confidence: 0.9,
+    grants: [grant],
+    provenance: { ...base.provenance, kind: "user" },
+  };
+  const at = "2026-10-25T12:00:00Z";
+  const omar: Actor = {
+    id: "person:omar",
+    level: "person",
+    memberships: ["person:a"],
+    source: "user",
+  };
+  const decideBoth = (c: WriteCase, promotion = false) =>
+    checkWrite(medium, decide, { ...c, at, promotion });
+
+  test("a co-member rewriting the owner's granted item is denied on both sides", () => {
+    const item = { ...existing, content: "another member's text", version: 3 };
+    expect(decideBoth({ actor: omar, item, existing, retired: new Map() })).toBe(
+      `grant ${GRANT_OWNER_ID}`,
+    );
+  });
+
+  test("a grant change by an actor neither user- nor import-sourced is denied on both sides", () => {
+    const owner: Actor = { ...omar, id: "person:sara", source: "model" };
+    const item = { ...existing, grants: [], version: 3 };
+    expect(decideBoth({ actor: owner, item, existing, retired: new Map() })).toBe(
+      `grant ${GRANT_SOURCE_ID}`,
+    );
+  });
+
+  test("the promotion gate's in-place transition of a granted item is allowed on both sides", () => {
+    const item = { ...existing, version: 3 };
+    expect(decideBoth({ actor: omar, item, existing, retired: new Map() }, true)).toBe("admit");
+  });
+
+  test("the owner changing the grants, user-sourced, is allowed on both sides", () => {
+    const owner: Actor = { ...omar, id: "person:sara" };
+    const item = { ...existing, grants: [], version: 3 };
+    expect(decideBoth({ actor: owner, item, existing, retired: new Map() })).toBe("admit");
   });
 });
 
