@@ -1,0 +1,28 @@
+{
+  "name": "@engram/ai-sdk",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Engram for the Vercel AI SDK: a language-model middleware that adds governed recall to the prompt, and remember and recall tools that call the plane.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@engram/kit": "workspace:*",
+    "@engram/pi-extension": "workspace:*",
+    "@engram/sdk": "workspace:*",
+    "zod": "4.6.7"
+  },
+  "peerDependencies": {
+    "@ai-sdk/provider": ">=4.0.36 <5"
+  },
+  "devDependencies": {
+    "@ai-sdk/provider": "4.0.36",
+    "@engram/adapters": "workspace:*",
+    "@engram/core": "workspace:*",
+    "@engram/server": "workspace:*"
+  }
+}

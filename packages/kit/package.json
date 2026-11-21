@@ -1,0 +1,23 @@
+{
+  "name": "@engram/kit",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "What every framework adapter repeats: a fixed actor, a namespace to scope mapper, a typed rejection; every call through the generated client.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./conformance": "./test/conformance/suite.ts"
+  },
+  "scripts": {
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@engram/pi-extension": "workspace:*",
+    "@engram/sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "@engram/adapters": "workspace:*",
+    "@engram/core": "workspace:*",
+    "@engram/server": "workspace:*"
+  }
+}

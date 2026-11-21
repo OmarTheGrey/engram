@@ -45,6 +45,34 @@ importers:
         specifier: 2.9.1
         version: 2.9.1
 
+  packages/ai-sdk:
+    dependencies:
+      '@engram/kit':
+        specifier: workspace:*
+        version: link:../kit
+      '@engram/pi-extension':
+        specifier: workspace:*
+        version: link:../pi-extension
+      '@engram/sdk':
+        specifier: workspace:*
+        version: link:../../sdk/ts
+      zod:
+        specifier: 4.6.7
+        version: 4.6.7
+    devDependencies:
+      '@ai-sdk/provider':
+        specifier: 4.0.36
+        version: 4.0.36
+      '@engram/adapters':
+        specifier: workspace:*
+        version: link:../adapters
+      '@engram/core':
+        specifier: workspace:*
+        version: link:../core
+      '@engram/server':
+        specifier: workspace:*
+        version: link:../server
+
   packages/bench:
     dependencies:
       '@engram/adapters':
@@ -108,6 +136,25 @@ importers:
       tinybench:
         specifier: 6.2.3
         version: 6.2.3
+
+  packages/kit:
+    dependencies:
+      '@engram/pi-extension':
+        specifier: workspace:*
+        version: link:../pi-extension
+      '@engram/sdk':
+        specifier: workspace:*
+        version: link:../../sdk/ts
+    devDependencies:
+      '@engram/adapters':
+        specifier: workspace:*
+        version: link:../adapters
+      '@engram/core':
+        specifier: workspace:*
+        version: link:../core
+      '@engram/server':
+        specifier: workspace:*
+        version: link:../server
 
   packages/mcp:
     dependencies:
@@ -283,6 +330,10 @@ importers:
         version: 0.17.0
 
 packages:
+
+  '@ai-sdk/provider@4.0.36':
+    resolution: {integrity: sha512-GqvWZSZdBelCGughlBdOoupT258rgM3YMbaLAS9WSZJ0vlt8c9vm3My+ZT31mYhiReMCMCF2qF2axnGbILpk1A==}
+    engines: {node: '>=22'}
 
   '@anthropic-ai/sdk@0.129.0':
     resolution: {integrity: sha512-MH7LB20kNpGLUpPTe2OG5XvL/KhX8HUO9XyBaFjgFk6TLS4Xjt0VPIuMKywe7POKKPslX+QxSlVok9e+8kG5Nw==}
@@ -1451,6 +1502,9 @@ packages:
   json-schema-typed@8.0.2:
     resolution: {integrity: sha512-fQhoXdcvc3V28x7C7BMs4P5+kNlgUURe2jmUT1T//oBRMDrqy1QPelJimwZGo7Hg9VPV3EQV5Bnq4hbFy2vetA==}
 
+  json-schema@0.4.0:
+    resolution: {integrity: sha512-es94M3nTIfsEPisRafak+HDLfHXnKBhV3vU5eqPcS3flIWqcxJWgXHXiey3YrpaNsanY5ei1VoYEbOzijuq9BA==}
+
   jwa@2.0.1:
     resolution: {integrity: sha512-hRF04fqJIP8Abbkq5NKGN0Bbr3JxlQ+qhZufXVr0DvujKy93ZCbXZMHDL4EOtodSbCWxOqR8MS1tXA5hwqCXDg==}
 
@@ -2355,6 +2409,10 @@ packages:
     resolution: {integrity: sha512-g8W2D2kU6a8untc053fX1uVBKzM7yqAxW/3zwk83+6RyF2+SKOuV+c0wBDhUwzV1PaGapmZH+rmcUzPf+3CGwg==}
 
 snapshots:
+
+  '@ai-sdk/provider@4.0.36':
+    dependencies:
+      json-schema: 0.4.0
 
   '@anthropic-ai/sdk@0.129.0(zod@4.6.7)':
     dependencies:
@@ -3557,6 +3615,8 @@ snapshots:
   json-schema-traverse@1.0.0: {}
 
   json-schema-typed@8.0.2: {}
+
+  json-schema@0.4.0: {}
 
   jwa@2.0.1:
     dependencies:
