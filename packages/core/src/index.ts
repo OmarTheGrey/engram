@@ -39,6 +39,7 @@ export * from "./policy/grants.ts";
 export * from "./policy/load.ts";
 export * from "./policy/promotion.ts";
 export * from "./policy/retention.ts";
+export * from "./portable.ts";
 export * from "./replay.ts";
 export * from "./schema.ts";
 export * from "./simulate.ts";

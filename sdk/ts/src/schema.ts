@@ -136,6 +136,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** The actor's memory bundle (card E9.8, docs/bundle.md): the items core's bundleRows picks, each with its visible events; nothing is written and no event appended. */
+        post: operations["export"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/policy": {
         parameters: {
             query?: never;
@@ -611,6 +628,49 @@ export interface components {
         PolicyResponse: {
             policy: components["schemas"]["Policy"];
             label: string;
+        };
+        BundleRow: {
+            item: components["schemas"]["MemoryItem"];
+            events: {
+                /** Format: uuid */
+                id: string;
+                seq: number;
+                /** Format: date-time */
+                ts: string;
+                /** @enum {string} */
+                op: "write" | "read" | "update" | "evict" | "promote" | "retire" | "lint" | "gate" | "bypass_blocked";
+                item_id: string | null;
+                actor: string;
+                scope_from: string | null;
+                scope_to: string | null;
+                /** @enum {string} */
+                decision: "allow" | "deny" | "ask";
+                reason: string;
+                policy_id: string;
+                usage?: {
+                    input_tokens: number;
+                    output_tokens: number;
+                    cost_usd: number;
+                };
+                item_ids?: string[];
+                /** @constant */
+                schema_version: 1;
+            }[];
+        };
+        ExportRequest: {
+            actor: components["schemas"]["Actor"];
+        };
+        /** @description The actor's memory bundle (docs/bundle.md): every item in its own person scope and its own items in the other scopes the read matrix lets it read, of every status, ordered by id, each with the events naming it that the actor may see. `engram export` writes it as JSONL, a header line then one row per line. */
+        ExportResponse: {
+            /** @constant */
+            format: "engram-bundle";
+            /** @constant */
+            version: 1;
+            /** Format: date-time */
+            exported_at: string;
+            exported_by: string;
+            policy: string;
+            rows: components["schemas"]["BundleRow"][];
         };
         LintRequest: {
             actor: components["schemas"]["Actor"];
@@ -1465,6 +1525,84 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EventsResponse"];
+                };
+            };
+            /** @description the request fails its schema, or the plane refused the call (InvalidCallError) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description the Host or Origin is not this loopback server's, or the actor may not explain this read */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description no such route, or the read id names no read event */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description the body is over the size limit */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description the body is not application/json */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description an unexpected error; the body carries no internals */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    export: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExportRequest"];
+            };
+        };
+        responses: {
+            /** @description the result; a policy decision of any kind is 200 with its event */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExportResponse"];
                 };
             };
             /** @description the request fails its schema, or the plane refused the call (InvalidCallError) */

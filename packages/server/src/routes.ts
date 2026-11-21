@@ -12,6 +12,9 @@
 import {
   type Actor,
   accessTime,
+  BUNDLE_FORMAT,
+  BUNDLE_VERSION,
+  bundleRows,
   currentItems,
   eventById,
   type MemoryItem,
@@ -203,6 +206,29 @@ export const ROUTES: readonly Route[] = [
       };
       return { events: visibleEvents(body.actor, events, view) };
     },
+  }),
+  route<z.infer<typeof C.ExportRequest>>({
+    id: "export",
+    method: "post",
+    path: "/export",
+    summary:
+      "The actor's memory bundle (card E9.8, docs/bundle.md): the items core's bundleRows picks, each with its visible events; nothing is written and no event appended.",
+    request: C.ExportRequest,
+    response: C.ExportResponse,
+    errors: [400],
+    handler: async ({ workspace, body, now }) => ({
+      format: BUNDLE_FORMAT,
+      version: BUNDLE_VERSION,
+      exported_at: now(),
+      exported_by: body.actor.id,
+      policy: policyLabel(workspace),
+      rows: bundleRows(
+        workspace.policy,
+        body.actor,
+        currentItems(workspace.deps.db),
+        workspace.plane.events(),
+      ),
+    }),
   }),
   route({
     id: "policy",
