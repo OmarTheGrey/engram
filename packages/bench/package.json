@@ -10,11 +10,10 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@engram/adapters": "workspace:*",
     "@engram/core": "workspace:*",
     "@engram/model": "workspace:*",
+    "@engram/server": "workspace:*",
     "zod": "4.6.7"
-  },
-  "devDependencies": {
-    "@engram/adapters": "workspace:*"
   }
 }

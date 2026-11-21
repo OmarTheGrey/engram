@@ -1,0 +1,144 @@
+{
+  "key": "1632bc95886843b192d5dfa07c54b5688474cf5a72a4e9b5fec79673aed36935",
+  "context": {
+    "item": "merit/d1-easy",
+    "condition": "C5",
+    "preset": "medium",
+    "store": "letta"
+  },
+  "request": {
+    "model": "scripted/merit-d1",
+    "system": "You are a customer-support agent. Resolve the user's request\nby calling tools. Verify facts with tools when unsure. When the task is done,\nreply with a short confirmation and no further tool calls.\n\nYou have no notes from previous sessions.",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Hi, this is customer CUST-1001. Please update my address on file to: 64 Elm Dr Apt 73, Georgetown"
+      }
+    ],
+    "seed": 1,
+    "temperature": 0,
+    "tools": [
+      {
+        "type": "function",
+        "function": {
+          "name": "get_order",
+          "description": "Look up an order by its ID (format ORD-XXXXXX).",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "order_id": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "order_id"
+            ]
+          }
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "refund",
+          "description": "Issue a refund for an order, in cents.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "order_id": {
+                "type": "string"
+              },
+              "amount_cents": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "order_id",
+              "amount_cents"
+            ]
+          }
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "update_address",
+          "description": "Update a customer's shipping address.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "customer_id": {
+                "type": "string"
+              },
+              "new_address": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "customer_id",
+              "new_address"
+            ]
+          }
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "get_policy",
+          "description": "Read a store policy value by key.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "key": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "key"
+            ]
+          }
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "send_message",
+          "description": "Send a message to a customer.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "customer_id": {
+                "type": "string"
+              },
+              "body": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "customer_id",
+              "body"
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "response": {
+    "text": "",
+    "toolCalls": [
+      {
+        "id": "call_1",
+        "type": "function",
+        "function": {
+          "name": "update_address",
+          "arguments": "{\"customer_id\":\"CUST-1001\",\"new_address\":\"64 Elm Dr Apt 73, Georgetown\"}"
+        }
+      }
+    ],
+    "finishReason": "tool_calls",
+    "usage": {
+      "input_tokens": 405,
+      "output_tokens": 42,
+      "cost_usd": 0
+    }
+  }
+}

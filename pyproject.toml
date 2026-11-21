@@ -20,6 +20,17 @@ select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF"]
 [tool.ruff.lint.isort]
 known-first-party = ["scripts", "engram_types", "analysis"]
 
+# packages/bench/scripts is linted too (card B7's review): two golden scripts
+# hold upstream's test strings byte for byte, no-break spaces and long lines
+# included, so those rules do not apply to them and the judge's is not
+# reformatted.
+[tool.ruff.lint.per-file-ignores]
+"packages/bench/scripts/upstream-edge-golden.py" = ["E501", "RUF001"]
+"packages/bench/scripts/upstream-judge-golden.py" = ["E501", "RUF001"]
+
+[tool.ruff.format]
+exclude = ["packages/bench/scripts/upstream-judge-golden.py"]
+
 [tool.mypy]
 python_version = "3.12"
 strict = true

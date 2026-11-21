@@ -1,0 +1,187 @@
+{
+  "key": "ddf83ea221eafaba613674ec91f463cdb8badfe239203188427c4f191fe75fc5",
+  "context": {
+    "item": "merit/d1-easy",
+    "condition": "C2",
+    "preset": "none",
+    "store": "letta"
+  },
+  "request": {
+    "model": "scripted/merit-d1",
+    "system": "You are a customer-support agent. Resolve the user's request\nby calling tools. Verify facts with tools when unsure. When the task is done,\nreply with a short confirmation and no further tool calls.\n\nRelevant notes from previous sessions:\n[memory shown]\n[memory shown]\n\n[user] Hi, this is customer CUST-1001. Please update my address on file to: 64 Elm Dr Apt 73, Georgetown\n[tool update_address] args={'customer_id': 'CUST-1001', 'new_address': '64 Elm Dr Apt 73, Georgetown'} -> {\"ok\": true, \"customer_id\": \"CUST-1001\", \"address\": \"64 Elm Dr Apt 73, Georgetown\"}\n[assistant] Done.\n[user] Hi, this is customer CUST-1001. I've moved — please update my address on file to: 52 Cedar Ln Apt 91, Fairfield\n[tool update_address] args={'customer_id': 'CUST-1001', 'new_address': '52 Cedar Ln Apt 91, Fairfield'} -> {\"ok\": true, \"customer_id\": \"C\n---\n[memory shown]\n\n[user] Hi, this is customer CUST-1001. Please update my address on file to: 64 Elm Dr Apt 73, Georgetown\n[tool update_address] args={'customer_id': 'CUST-1001', 'new_address': '64 Elm Dr Apt 73, Georgetown'} -> {\"ok\": true, \"customer_id\": \"CUST-1001\", \"address\": \"64 Elm Dr Apt 73, Georgetown\"}\n[assistant] Done.\n---\nUST-1001\", \"address\": \"52 Cedar Ln Apt 91, Fairfield\"}\n[assistant] Done.",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Hi, customer CUST-1001 again. Before you ship my replacement, send me a message confirming the delivery address you have on file for me. It must state the full address."
+      },
+      {
+        "role": "assistant",
+        "tool_calls": [
+          {
+            "function": {
+              "arguments": "{\"customer_id\":\"CUST-1001\",\"body\":\"The delivery address on file is 64 Elm Dr Apt 73, Georgetown.\"}",
+              "name": "send_message"
+            },
+            "id": "call_1",
+            "type": "function"
+          }
+        ],
+        "provider_specific_fields": {
+          "refusal": null
+        }
+      },
+      {
+        "role": "tool",
+        "tool_call_id": "call_1",
+        "content": "{\"ok\": true}"
+      },
+      {
+        "content": "Done.",
+        "role": "assistant",
+        "provider_specific_fields": {
+          "refusal": null
+        }
+      },
+      {
+        "role": "user",
+        "content": "Hello, this is customer CUST-1000, about order ORD-609532: the item arrived damaged. Your colleague agreed I'll get a partial refund of exactly 8084 cents. Do NOT process the refund yet — I still need to confirm with my bank, and I'll follow up when I'm ready. For now, just send me a message confirming this agreed amount of 8084 cents for order ORD-609532."
+      },
+      {
+        "role": "assistant",
+        "tool_calls": [
+          {
+            "function": {
+              "arguments": "{\"customer_id\":\"CUST-1000\",\"body\":\"Confirming the agreed amount of 8084 cents for order ORD-609532.\"}",
+              "name": "send_message"
+            },
+            "id": "call_5",
+            "type": "function"
+          }
+        ],
+        "provider_specific_fields": {
+          "refusal": null
+        }
+      },
+      {
+        "role": "tool",
+        "tool_call_id": "call_5",
+        "content": "{\"ok\": true}"
+      }
+    ],
+    "seed": 1,
+    "temperature": 0,
+    "tools": [
+      {
+        "type": "function",
+        "function": {
+          "name": "get_order",
+          "description": "Look up an order by its ID (format ORD-XXXXXX).",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "order_id": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "order_id"
+            ]
+          }
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "refund",
+          "description": "Issue a refund for an order, in cents.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "order_id": {
+                "type": "string"
+              },
+              "amount_cents": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "order_id",
+              "amount_cents"
+            ]
+          }
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "update_address",
+          "description": "Update a customer's shipping address.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "customer_id": {
+                "type": "string"
+              },
+              "new_address": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "customer_id",
+              "new_address"
+            ]
+          }
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "get_policy",
+          "description": "Read a store policy value by key.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "key": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "key"
+            ]
+          }
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "send_message",
+          "description": "Send a message to a customer.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "customer_id": {
+                "type": "string"
+              },
+              "body": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "customer_id",
+              "body"
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "response": {
+    "text": "Done.",
+    "finishReason": "stop",
+    "usage": {
+      "input_tokens": 973,
+      "output_tokens": 2,
+      "cost_usd": 0
+    }
+  }
+}

@@ -51,5 +51,6 @@ One line per dependency: name, version, reason, licence. Added in the same PR as
 | opentype.js | 1.3.4 | dev, docs/brand/source only (not a workspace package): outlines the Space Grotesk wordmark to SVG paths for the logo kit | MIT |
 | @fontsource/space-grotesk | 5.1.0 | dev, docs/brand/source only: the Space Grotesk font files the wordmark is outlined from; no font ships in the kit, only paths | OFL-1.1 |
 | @resvg/resvg-js | 2.6.2 | dev, docs/brand/source only: renders the kit's PNG exports (the social card for GitHub's preview) | MPL-2.0 |
+| merit-bench | commit `293933d96b1d1849e1f20d1bb324def5de9ed33f` (2026-09-15, the pin in packages/bench/PINS.md) | MERIT's harness for H2, run unmodified as an external process by `make bench BENCH=merit` (card B7): fetched into `.engram/upstream/merit-bench`, never vendored, nothing copied; its own environment in `.engram/merit-env` (Python 3.11.14, upstream's `requirements-lock.txt` as pinned at the commit, litellm 1.91.1 among it, plus colorama 0.4.6 on Windows), outside the pnpm and uv workspaces | MIT |
 
 Install size of the Mem0 adapter: mem0ai, better-sqlite3, compromise, @cloudflare/workers-types, openai 4, axios, zod 3 and uuid together take about 45 MB of `node_modules/.pnpm` (measured with `du -shc` over their folders on 2026-10-25, before their own dependencies). Only packages/adapters depends on them.

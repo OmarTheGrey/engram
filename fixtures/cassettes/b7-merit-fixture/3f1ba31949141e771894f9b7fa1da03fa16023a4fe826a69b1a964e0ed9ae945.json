@@ -1,0 +1,144 @@
+{
+  "key": "3f1ba31949141e771894f9b7fa1da03fa16023a4fe826a69b1a964e0ed9ae945",
+  "context": {
+    "item": "merit/d1-easy",
+    "condition": "C2",
+    "preset": "none",
+    "store": "fake"
+  },
+  "request": {
+    "model": "scripted/merit-d1",
+    "system": "You are a customer-support agent. Resolve the user's request\nby calling tools. Verify facts with tools when unsure. When the task is done,\nreply with a short confirmation and no further tool calls.\n\nRelevant notes from previous sessions:\nant] Done.\n[user] Hi, this is \n---\n[memory shown]\nI've moved — pl\n---\nease update my address on file to: 217 Birch Way Apt 5, Springfield\n[tool update_address] args={'customer_id': 'CUST-1001', 'new_address': '217 Birch Way Apt 5, Springfield'} -> {\"ok\": true, \"customer_id\": \"CUST-1001\", \"address\": \"217 Birch Way Apt 5, Springfield\"}\n[assistant] Done.\n[user] Hi, following up on order ORD-773494 — please now process the partial refund we agreed on earlier. You should have the exact amount in your notes.\n[tool refund] args={'order_id': 'ORD-773494', 'amount_cents': 4287} -> {\"ok\": true, \"order_i\n---\nd\": \"ORD-773494\", \"refunded_cents\":\n---\nI've moved — pl\n---\nease update my address on file to: 217 Birch Way Apt 5, Springfield\n[tool update_address] args={'customer_id': 'CUST-1001', 'new_address': '217 Birch Way Apt 5, Springfield'} -> {\"ok\": true, \"customer_id\": \"CUST-1001\", \"address\": \"217 Birch Way Apt 5, Springfield\"}\n[assistant] Done.\n[user] Hi, following up on order ORD-773494 — please now process the partial refund we agreed on earlier. You should have the exact amount in your notes.\n[tool refund] args={'order_id': 'ORD-773494', 'amount_cents': 4287} -> {\"ok\": true, \"order_id\": \"ORD-7\n---\nUST-1001. I've moved — pl\n---\nease update my address on file to: 217 Birch Way Apt 5, Springfield\n[tool update_address] args={'customer_id': 'CUST-1001', 'new_address': '217 Birch Way Apt 5, Springfield'} -> {\"ok\": true, \"customer_id\": \"CUST-1001\", \"address\": \"217 Birch Way Apt 5, Springfield\"}\n[assistant] Done.\n---\nnt] Done.\n[user] I'd like a full refund on order ORD-897926, please.\n[tool get_order] args={'order_id': 'ORD-897926'} -> {\"id\": \"ORD-897926\", \"customer_id\": \"CUST-1000\", \"item\": \"coffee grinder\", \"amount_cents\": 12500, \"status\": \"delivered\", \"ship_address\": \"271 Maple St, Fairfield\n---\n[memory shown]\nI've moved — pl\n---\nease update my address on file to: 217 Birch Way Apt 5, Springfield\n[tool update_address] args={'customer_id': 'CUST-1001', 'new_address': '217 Birch Way Apt 5, Springfield'} -> {\"ok\": true, \"customer_id\": \"CUST-1001\", \"address\": \"217 Birch Way Apt 5, Springfield\"}\n[assistant] Done.\n[user] Hi, following up on order ORD-773494 — please now process the partial refund we agreed on earlier. You should have the exact amount in your notes.\n[tool refund] args={'order_id': 'ORD-773494', 'amount_cents': 4287} -> {\"ok\": true, \"order_id\": \"ORD-773494\", \"refunded_cents\":\n---\nI've moved — pl\n---\nease update my address on file to: 217 Birch Way Apt 5, Springfield\n[tool update_address] args={'customer_id': 'CUST-1001', 'new_address': '217 Birch Way Apt 5, Springfield'} -> {\"ok\": true, \"customer_id\": \"CUST-1001\", \"address\": \"217 Birch Way Apt 5, Springfield\"}\n[assistant] Done.\n[user] Hi, following up on order ORD-773494 — please now process the partial refund we agreed on earlier. You should have the exact amount in your notes.\n[tool refund] args={'order_id': 'ORD-773494', 'amount_cents': 4287} -> {\"ok\": true, \"order_id\": \"ORD-773494\", \"refunded_cents\": 4287}\n[assista\n---\nease update my address on file to: 217 Birch Way Apt 5, Springfield\n[tool update_address] args={'customer_id': 'CUST-1001', 'new_address': '217 Birch Way Apt 5, Springfield'} -> {\"ok\": true, \"customer_id\": \"CUST-1001\", \"address\": \"217 Birch Way Apt 5, Springfield\"}\n[assistant] Done.\n---\n73494\", \"refunded_cents\": 4287}\n[assista\n[user] Hi, customer CUST-1001 again. Before you ship my replacement, send me a message confirming the delivery address you have on file for me. It must state the full address.\n[tool send_message] args={'customer_id': 'CUST-1001', 'body': 'I could not find a delivery address in my notes.'} -> {\"ok\": true}\n[assistant] Done.",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Hi, this is customer CUST-1002. Please update my address on file to: 970 Cedar Ln Apt 99, Springfield"
+      }
+    ],
+    "seed": 1,
+    "temperature": 0,
+    "tools": [
+      {
+        "type": "function",
+        "function": {
+          "name": "get_order",
+          "description": "Look up an order by its ID (format ORD-XXXXXX).",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "order_id": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "order_id"
+            ]
+          }
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "refund",
+          "description": "Issue a refund for an order, in cents.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "order_id": {
+                "type": "string"
+              },
+              "amount_cents": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "order_id",
+              "amount_cents"
+            ]
+          }
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "update_address",
+          "description": "Update a customer's shipping address.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "customer_id": {
+                "type": "string"
+              },
+              "new_address": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "customer_id",
+              "new_address"
+            ]
+          }
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "get_policy",
+          "description": "Read a store policy value by key.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "key": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "key"
+            ]
+          }
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "send_message",
+          "description": "Send a message to a customer.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "customer_id": {
+                "type": "string"
+              },
+              "body": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "customer_id",
+              "body"
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "response": {
+    "text": "",
+    "toolCalls": [
+      {
+        "id": "call_1",
+        "type": "function",
+        "function": {
+          "name": "update_address",
+          "arguments": "{\"customer_id\":\"CUST-1002\",\"new_address\":\"970 Cedar Ln Apt 99, Springfield\"}"
+        }
+      }
+    ],
+    "finishReason": "tool_calls",
+    "usage": {
+      "input_tokens": 1368,
+      "output_tokens": 43,
+      "cost_usd": 0
+    }
+  }
+}
