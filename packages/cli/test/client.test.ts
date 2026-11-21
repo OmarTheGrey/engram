@@ -169,7 +169,7 @@ describe("--server and ENGRAM_SERVER_URL", () => {
       newId: () => testId(800_000 + ++n),
     });
     workspace.open();
-    server = await listen(workspace, { port: 0, now: () => NOW });
+    server = await listen(workspace, { port: 0, now: () => NOW, auth: { insecureLoopback: true } });
     return server;
   };
 

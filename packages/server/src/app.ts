@@ -4,8 +4,17 @@
 // socket at all, and `engram serve` puts the same function on a loopback port
 // (listen.ts).
 //
-// No authentication exists in v0, so a request is refused before any route
-// runs (ADR 0027 decision 4), each rule with a test that fails without it:
+// Authentication (card E8.12, ADR 0042): a served app (listen.ts) carries
+// `auth`. With credentials, every API request but GET /health needs a
+// bearer API key or token (auth.ts); the request's actor is bound to the
+// credential's, its sent source ignored, and each event it appends is
+// attested (attest.ts). Under `insecure-loopback` the body's actor is taken
+// as given, as before, and its events are attested as waived. With no
+// `auth` the app is the in-process client's (ADR 0027 decision 3): no
+// credential, no attestation.
+//
+// Whatever the auth, a request is refused before any route runs when it
+// breaks a rule of ADR 0027 decision 4, each with a test that fails without it:
 //   - Host: a loopback name with the server's port (127.0.0.1, localhost,
 //     [::1]), so a page whose DNS name was rebound to 127.0.0.1 is refused;
 //   - Origin: when present, the server's own origin and nothing else (a
@@ -30,6 +39,16 @@ import {
 import { Hono, type MiddlewareHandler } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import type { z } from "zod";
+import { type Attestation, attested, type Surface } from "./attest.ts";
+import {
+  authenticate,
+  bindActor,
+  type Credentials,
+  metadataPath,
+  type Principal,
+  protectedResourceMetadata,
+  wwwAuthenticate,
+} from "./auth.ts";
 import type { ErrorResponse } from "./contract.ts";
 import { API_PREFIX, ROUTES, type Route } from "./routes.ts";
 import { isApiPath, uiResponse } from "./static.ts";
@@ -41,6 +60,23 @@ export const MAX_BODY_BYTES = 1024 * 1024;
 export const DEFAULT_PORT = 7313;
 /** The names a loopback Host header may carry. */
 export const LOOPBACK_NAMES = ["127.0.0.1", "localhost", "[::1]"] as const;
+
+/**
+ * How a served app authenticates (ADR 0042 decision 5): credentials and the
+ * server's resource URL (its audience unless the issuer setup names one, and
+ * the subject of its protected-resource metadata), or the waiver.
+ */
+export type AppAuth =
+  | { mode: "insecure-loopback"; surface?: Surface }
+  | { mode: "credentials"; credentials: Credentials; resource: string; surface?: Surface };
+
+/** The public origin a resource URL adds to the Host and Origin guards, if any (decision 7). */
+export function publicOriginOf(auth: AppAuth | undefined): string | undefined {
+  if (auth?.mode !== "credentials") return undefined;
+  const url = new URL(auth.resource);
+  const loopback = (LOOPBACK_NAMES as readonly string[]).includes(url.hostname.toLowerCase());
+  return loopback ? undefined : url.origin;
+}
 
 export interface AppOptions {
   /** The port the server is reached on; the Host and Origin rules name it. */
@@ -54,6 +90,8 @@ export interface AppOptions {
    * / beside the API; none when null or absent (static.ts).
    */
   ui?: string | null;
+  /** How a served app authenticates; absent for the in-process client (ADR 0027 decision 3). */
+  auth?: AppAuth;
 }
 
 type ErrorBody = z.infer<typeof ErrorResponse>;
@@ -97,9 +135,15 @@ const WITH_BODY = new Set(["POST", "PUT", "PATCH"]);
  * request with a body says application/json. The MCP server's streamable
  * HTTP transport (packages/mcp) runs behind the same middleware.
  */
-export function loopbackGuard(port: number): MiddlewareHandler {
+export function loopbackGuard(port: number, publicOrigin?: string): MiddlewareHandler {
   const hosts = new Set(allowedHosts(port));
   const origins = new Set([...hosts].map((h) => `http://${h}`));
+  // An authenticated server behind a TLS proxy is also reached by its
+  // resource URL's public name (ADR 0042 decision 7).
+  if (publicOrigin !== undefined) {
+    hosts.add(new URL(publicOrigin).host.toLowerCase());
+    origins.add(publicOrigin.toLowerCase());
+  }
   return async (c, next) => {
     // Under @hono/node-server the URL is built from the Host header; in
     // process it is the client's base URL. Either way both must be loopback.
@@ -119,9 +163,57 @@ export function loopbackGuard(port: number): MiddlewareHandler {
   };
 }
 
+/** The principal each authenticated request was bound to, by its Request. */
+export type Principals = WeakMap<Request, Principal>;
+
+/**
+ * The credential check of ADR 0042 decision 5 as one middleware: a path
+ * `needsCredential` names needs a bearer credential the server accepts; a
+ * 401 names the protected-resource metadata. The MCP server's HTTP
+ * transport runs behind the same middleware.
+ */
+export function credentialGuard(
+  credentials: Credentials,
+  resource: string,
+  now: () => string,
+  principals: Principals,
+  needsCredential: (pathname: string, method: string) => boolean,
+): MiddlewareHandler {
+  return async (c, next) => {
+    const { pathname } = new URL(c.req.url);
+    if (!needsCredential(pathname, c.req.method)) return next();
+    const outcome = await authenticate(credentials, c.req.header("authorization"), {
+      now: now(),
+      audience: resource,
+    });
+    if (!outcome.ok) {
+      const response = failure(
+        outcome.status,
+        outcome.status === 401 ? "unauthorized" : "forbidden_actor",
+        outcome.message,
+      );
+      if (outcome.status === 401)
+        response.headers.set("www-authenticate", wwwAuthenticate(resource, outcome.invalidToken));
+      return response;
+    }
+    principals.set(c.req.raw, outcome.principal);
+    await next();
+  };
+}
+
+/** Serves the protected-resource metadata (RFC 9728) at its well-known paths. */
+export function serveMetadata(app: Hono, credentials: Credentials, resource: string): void {
+  const document = protectedResourceMetadata(resource, credentials);
+  const paths = new Set([metadataPath(resource), "/.well-known/oauth-protected-resource"]);
+  for (const path of paths) app.get(path, () => Response.json(document));
+}
+
+const HEALTH = `${API_PREFIX}/health`;
+
 export function createApp(workspace: Workspace, options: AppOptions): Hono {
   const app = new Hono();
-  app.use("*", loopbackGuard(options.port));
+  const auth = options.auth;
+  app.use("*", loopbackGuard(options.port, publicOriginOf(auth)));
   app.use(
     "*",
     bodyLimit({
@@ -130,8 +222,23 @@ export function createApp(workspace: Workspace, options: AppOptions): Hono {
         failure(413, "payload_too_large", `request bodies are limited to ${MAX_BODY_BYTES} bytes`),
     }),
   );
+  const principals: Principals = new WeakMap();
+  if (auth?.mode === "credentials") {
+    serveMetadata(app, auth.credentials, auth.resource);
+    app.use(
+      "*",
+      credentialGuard(
+        auth.credentials,
+        auth.resource,
+        options.now,
+        principals,
+        // Every API path but the health check; the inspector's files are public.
+        (pathname, method) => isApiPath(pathname) && !(pathname === HEALTH && method === "GET"),
+      ),
+    );
+  }
 
-  for (const r of ROUTES) register(app, r, workspace, options);
+  for (const r of ROUTES) register(app, r, workspace, options, principals);
 
   // The inspector's files, after the guards above and outside the API's
   // space: any path whose first segment is `api`, however spelled, gets the
@@ -152,7 +259,17 @@ export function createApp(workspace: Workspace, options: AppOptions): Hono {
   return app;
 }
 
-function register(app: Hono, r: Route, workspace: Workspace, options: AppOptions): void {
+/** The actor a parsed body names, if it has one. */
+const bodyActor = (body: unknown) =>
+  (body as { actor?: Parameters<typeof bindActor>[1] } | undefined)?.actor;
+
+function register(
+  app: Hono,
+  r: Route,
+  workspace: Workspace,
+  options: AppOptions,
+  principals: Principals,
+): void {
   app.on(r.method.toUpperCase(), honoPath(r.path), async (c) => {
     let body: unknown;
     if (r.request !== undefined) {
@@ -171,16 +288,60 @@ function register(app: Hono, r: Route, workspace: Workspace, options: AppOptions
         );
       body = parsed.data;
     }
-    try {
-      const result = await r.handler({
+    // ADR 0042 decisions 3 and 4: an authenticated request acts as its
+    // credential's actor, narrowed to the memberships it names; another id,
+    // level or membership is refused before the Plane is called, and the
+    // source it sent is replaced by the credential's.
+    const principal = principals.get(c.req.raw);
+    const claimed = bodyActor(body);
+    if (principal !== undefined && claimed !== undefined) {
+      const bound = bindActor(principal.actor, claimed);
+      if (!bound.ok) return failure(403, "forbidden_actor", bound.message);
+      body = { ...(body as object), actor: bound.actor };
+    }
+    const attestation = attestationOf(options.auth, principal, claimed?.id);
+    const call = () =>
+      r.handler({
         workspace,
         body,
         params: c.req.param() as Record<string, string>,
         now: options.now,
       });
+    try {
+      const result = await (attestation === undefined ? call() : attested(attestation, call));
       return c.json(result as object, 200);
     } catch (e) {
       return mapError(e, options.onError);
     }
   });
+}
+
+/**
+ * What the side table records for a served request's events (ADR 0042
+ * decision 8): the credential, or the waiver and the id the body asserted;
+ * nothing in process.
+ */
+function attestationOf(
+  auth: AppAuth | undefined,
+  principal: Principal | undefined,
+  claimedId: string | undefined,
+): Attestation | undefined {
+  if (auth === undefined) return undefined;
+  const surface = auth.surface ?? "http";
+  if (principal !== undefined)
+    return {
+      surface,
+      method: principal.method,
+      actor: principal.actor.id,
+      issuer: principal.issuer,
+      subject: principal.subject,
+    };
+  if (auth.mode !== "insecure-loopback") return undefined;
+  return {
+    surface,
+    method: "insecure_loopback",
+    actor: claimedId ?? "unattributed",
+    issuer: null,
+    subject: null,
+  };
 }
