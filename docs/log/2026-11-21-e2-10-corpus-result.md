@@ -16,7 +16,7 @@ evidence:
 supersedes: none
 ---
 
-**What.** The corpus run writes 74 entries through the real gate under off, default and hardened (MANIFEST row `research/results/h1-injection-screen.json`, sha256 `50e02648...`, commit pending).
+**What.** The corpus run writes 74 entries through the real gate under off, default and hardened (MANIFEST row `research/results/h1-injection-screen.json`, sha256 `50e02648...`, commit `ad06927`).
 
 **Why.** Card E2.10 asks for the escape rate and the false-hold rate on a corpus with benign controls.
 
