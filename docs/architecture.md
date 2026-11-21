@@ -6,6 +6,8 @@
 
 Engram is a control plane between agents and the stores that hold their long-term memory. Every write and every read crosses the plane. The plane records the operation as an append-only event, applies the policy for the scope, attaches provenance and validity, filters what comes back, and can explain any recall. The store does not change: the plane owns the metadata, the store owns the bytes. The plane never calls a model. It is built on pi (ADR 0001): the pi extension is where writes and reads are intercepted, the pi session tree is the episodic record, and pi-ai is how any model is reached by the parts that need one.
 
+What is new, to our knowledge: the first deterministic, event-logged, replayable control plane across memory stores, with a pre-registered measurement of its governance tax (the analysis is registered as `prereg-v1`, tagged and deposited before the first run, ADR 0023). Each of those words is a condition with its limits (replay rebuilds state from the log and decisions from a recorded workload, ADR 0032; store independence is a design property, ADR 0035). `docs/research/positioning.md` states the claim and how it differs from its two nearest neighbours, HEAMS (arXiv 2611.20144), whose governance layer wraps any memory system with retention and recall policies, and SAFE-Mem (arXiv 2610.22959), which admits each claim by its kind, authority and scope.
+
 ## Layers
 
 ```

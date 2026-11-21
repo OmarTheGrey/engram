@@ -218,7 +218,7 @@ Written on 2026-11-21 by seventeen research agents and four gap agents, each not
 Distilled from the 65 notes. Each line names the notes that force it.
 
 ### Novelty claims
-- "First deterministic policy on memory reads" is no longer safe. A production multi-tenant memory service with scopes, a trust ladder and provenance exists (2606.24535), and typed deterministic admission has been measured on the read side (2610.11188). What remains defensible: a store-agnostic plane over existing stores, a replayable append-only event log mirrored into the harness session, and a measured governance tax across stores and models. Rewrite the novelty paragraph in the proposal and the overview accordingly.
+- "First deterministic policy on memory reads" is no longer safe. A production multi-tenant memory service with scopes, a trust ladder and provenance exists (2606.24535), and typed deterministic admission has been measured on the read side (2610.11188). What remains defensible: a store-agnostic plane over existing stores, a replayable append-only event log mirrored into the harness session, and a pre-registered measurement of the governance tax (see `docs/research/positioning.md`). Rewrite the novelty paragraph in the proposal and the overview accordingly.
 - Write-time origin binding is proven necessary and sufficient against laundering (2606.24322, 2609.01836). Engram's provenance comes from the harness, not from a judge, which is the difference to state against GhostWriter/AM-Sentry (2607.06595).
 - MemOS's MemCube is the nearest published item schema and its MemGovernance includes calling context as a permission input (2507.03724). Engram's policy input lacks calling context; add it or justify its absence in ADR 0006.
 
