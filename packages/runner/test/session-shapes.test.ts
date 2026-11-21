@@ -87,12 +87,40 @@ const SHAPES: Record<string, (pi: SessionManager) => void> = {
     pi.appendLabelChange(u, "checkpoint");
   },
   "a recovery's context edits": (pi) => {
-    user(pi, "go");
+    // pi's order after a length cut (docs/compaction.md "Overflow and Length
+    // Recovery Ordering"): omit the attempt and its results, compact, retry.
+    const u = user(pi, "go");
     const a = assistant(pi, "reading everything", [call("c1")], "length");
     const r = result(pi, "c1", "a very long output");
     pi.appendContextEdit(a, null);
     pi.appendContextEdit(r, null);
+    pi.appendCompaction("The agent was asked to go.", u, 30000);
     assistant(pi, "reading less");
+  },
+  "two omitted retries": (pi) => {
+    // pi's _prepareRetry omits each failed attempt before it retries.
+    user(pi, "go");
+    const e1 = assistant(pi, "attempt 1", [], "error");
+    pi.appendContextEdit(e1, null);
+    const e2 = assistant(pi, "attempt 2", [], "error");
+    pi.appendContextEdit(e2, null);
+    assistant(pi, "fine");
+  },
+  "replacements of every editable kind": (pi) => {
+    const u = user(pi, "long prompt");
+    const c = pi.appendCustomMessageEntry("engram.explain", "recall shown", true);
+    const a = assistant(pi, "long answer", [call("c1")], "toolUse");
+    const r = result(pi, "c1", "big output");
+    pi.appendContextEdit(u, { content: "short prompt" });
+    pi.appendContextEdit(c, {
+      content: [
+        { type: "text", text: "r" },
+        { type: "image", data: "AAAA", mimeType: "image/png" },
+      ],
+    });
+    pi.appendContextEdit(a, { content: "short answer" });
+    pi.appendContextEdit(r, { content: "small output" });
+    assistant(pi, "end");
   },
   "a replacement edit": (pi) => {
     const u = user(pi, "go with the long prompt");
@@ -129,6 +157,16 @@ function written(build: (pi: SessionManager) => void): string {
   const lines = [pi.getHeader(), ...pi.getEntries()];
   return `${lines.map((l) => JSON.stringify(l)).join("\n")}\n`;
 }
+
+/** The text of a message's content as the episode writes it: text blocks joined, an image as `[image]`. */
+const contentText = (content: unknown): string =>
+  typeof content === "string"
+    ? content
+    : (content as { type: string; text?: string }[])
+        .flatMap((b) =>
+          b.type === "text" ? [b.text ?? ""] : b.type === "image" ? ["[image]"] : [],
+        )
+        .join("\n");
 
 const stepIds = (e: Episode) => [
   ...e.steps.map((s) => s.entry_id),
@@ -175,6 +213,21 @@ describe.each(Object.entries(SHAPES))("pi and the parser agree on %s", (_name, b
     expect(omittedHere.sort()).toEqual(omittedByPi.sort());
   });
 
+  test("each replaced step carries the text pi's projection puts in its place", () => {
+    const projected = new Map(
+      pi.buildSessionProjection().entries.map((p) => [p.sourceEntry.id, p.messages]),
+    );
+    const replaced = episode.steps.filter((s) => s.replacement !== undefined);
+    for (const s of replaced) {
+      const target = s.kind === "function" && s.result_entry_id ? s.result_entry_id : s.entry_id;
+      const [message] = projected.get(target) ?? [];
+      expect(message, target).toBeDefined();
+      expect(s.replacement, target).toBe(contentText((message as { content: unknown }).content));
+    }
+    const edits = entries.filter((e) => e.type === "context_edit" && e.replacement !== null);
+    expect(replaced.length).toBe(edits.length);
+  });
+
   test("no step is in two branches, except one call's results sharing its entry", () => {
     const ids = stepIds(episode);
     const counted = new Map<string, number>();
@@ -198,6 +251,14 @@ test("the nested shape: branch B is left inside branch A, and A's steps are not 
   ).toEqual([
     [null, ["attempt A step 1", "attempt A step 2"]],
     [0, ["attempt B"]],
+  ]);
+});
+
+test("the retry shape: two omitted retries are two attempts", () => {
+  const episode = episodeOf(parseSessionJsonl(written(SHAPES["two omitted retries"] as never)));
+  expect(episode.omitted.map((o) => [o.entry_ids.length, o.stop_reason])).toEqual([
+    [1, "error"],
+    [1, "error"],
   ]);
 });
 

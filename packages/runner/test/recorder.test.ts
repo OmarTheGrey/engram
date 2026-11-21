@@ -75,7 +75,7 @@ describe("acceptance (card D1): the fifty fixture sessions, recorded through the
         const episode = episodeOfItem(item);
         expect(item.provenance.ref).toBe(`pi-session:${s.session_id}`);
         expect(item.provenance.kind).toBe(
-          s.branch === "summary" || s.compacted ? "compaction" : "model",
+          s.branch === "summary" || s.compacted || s.recovered ? "compaction" : "model",
         );
         expect(item.provenance.actor).toBe(OWNER);
         expect(item.provenance.model).toBe("scripted/scripted-1");

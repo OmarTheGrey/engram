@@ -16,7 +16,8 @@
 // new branch continues from, its fromId the abandoned leaf) or a plain
 // `branch` (the next entry is another child of an earlier one).
 // Some sessions also hold pi's recovery from a length cut: the cut
-// response, then a `context_edit` that omits it from the model's context.
+// response, a `context_edit` that omits it from the model's context, the
+// recovery's compaction, then the retry.
 //
 // The content is synthetic: invented tasks over an invented repository, no
 // real person, secret or session (AGENTS.md rule 12).
@@ -52,7 +53,7 @@ export interface SessionFixture {
   /** `summary` when the abandoned branch was left with pi's branch summary, `plain` without one, null when none. */
   branch: "summary" | "plain" | null;
   compacted: boolean;
-  /** Whether an attempt cut at its length limit was then omitted by a context edit, as pi's recovery does. */
+  /** Whether an attempt cut at its length limit was omitted by a context edit and followed by pi's recovery compaction. */
   recovered: boolean;
 }
 
@@ -329,11 +330,14 @@ function session(
   }
   const rounds = 1 + Math.floor(rand() * 3);
   for (let i = 0; i < rounds; i++) toolRound(false);
-  // pi's recovery after a length cut (agent-session.js `_omitRecoveryAttempt`,
-  // docs/compaction.md): the cut response stays in the file and a context
-  // edit omits it from the model's context before the retry.
+  // pi's recovery after a length cut, in pi's order (docs/compaction.md
+  // "Overflow and Length Recovery Ordering"; agent-session.js
+  // `_omitRecoveryAttempt` then `_runAutoCompaction("overflow", true)`): the
+  // cut response stays in the file, a context edit omits it from the
+  // model's context, a compaction is appended, and the retry follows.
   const recovered = rand() < 0.15;
   if (recovered) {
+    const beforeCut = leaf as string;
     const cut = assistant(
       [{ type: "text", text: "Reading every file of the repository at once" }],
       "length",
@@ -344,6 +348,15 @@ function session(
         ...base,
         targetId: cut.id,
         replacement: null,
+      }),
+    );
+    append(
+      (base): CompactionEntry => ({
+        type: "compaction",
+        ...base,
+        summary: `Before a response hit its length limit the agent was working on: ${task.prompt}`,
+        firstKeptEntryId: beforeCut,
+        tokensBefore: 20000 + Math.floor(rand() * 10000),
       }),
     );
   }
