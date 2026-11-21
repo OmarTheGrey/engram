@@ -2,11 +2,15 @@
 // Owned by the lead: changing this file needs a second reviewer and a
 // `decision` log entry. It never has a skip.
 //
-// All seven run against the real Plane (createPlane), with the read filter of
+// All eight run against the real Plane (createPlane), with the read filter of
 // card E2.2, the write gate of card E2.3 and retention of card E2.4, under
 // random policies. Invariants 6 and 7 (card RV4) judge adoption: it never
 // records a kind more trusted, or a grant, that the plane does not hold for
-// the item's id (see adoptionCase at the end of this file). Invariants
+// the item's id (see adoptionCase at the end of this file). Invariant 8
+// (card E2.11, ADR 0040) judges the trust floors with both options on: no
+// committed item more trusted than its actor attests, and no write or
+// eviction by a less trusted source that changes or removes a more trusted
+// active item unless its owner acted as user (see trustWalk). Invariants
 // 1 and 2 were red by design against a stub that admitted everything until
 // those cards landed (issue #1); they are now asserted directly, in `make test`
 // and in `make test-invariants` alike. A failure prints the counterexample and
@@ -134,12 +138,16 @@ import {
   seedFor,
 } from "../generators.ts";
 import {
+  attestedKind,
   budgetVictims,
+  floorProblem,
   grantsAlike,
   pastTtl,
   patternCovers,
   promotionPermitted,
+  protectionProblem,
   readable,
+  replayEvent,
   sameContent,
   sameStrictContent,
   TRUST,
@@ -1352,6 +1360,20 @@ describe("invariants", () => {
     expect(
       seen.adoptedHeld > 0 && seen.grantDropped > 0 && seen.grantKept > 0,
       `invariant 7 needs adoptions of ids the plane held, a grant the record carried that adoption dropped, and a grant the plane held that adoption kept; it saw ${JSON.stringify(seen)}`,
+    ).toBe(true);
+  }, 240_000);
+
+  const I8 =
+    "invariant 8: with the trust options on, no committed item is more trusted than its actor's attested source, and no allowed write or eviction by a less trusted source changes or removes a more trusted active item unless its owner acted as user";
+  test(I8, async () => {
+    const seen = trustCounters();
+    await fc.assert(
+      fc.asyncProperty(arbTrustCase, (c) => trustWalk(c, seen)),
+      { numRuns: RUNS, seed: seedFor(I8) },
+    );
+    expect(
+      Object.values(seen).every((n) => n > 0),
+      `invariant 8 needs floored writes, rewrites and retires denied for trust, writes denied rather than evict a more trusted item, evictions that passed over a more trusted item, sweeps held back, adoptions denied for trust, and allowed rewrites; it saw ${JSON.stringify(seen)}`,
     ).toBe(true);
   }, 240_000);
 });
@@ -3112,4 +3134,327 @@ async function adoptionCase(
       else if (after) state.set(e.item_id, after);
     }
   }
+}
+
+// Invariant 8 (card E2.11, ADR 0040, decision 7; a `decision` log entry
+// records the change, and the change needed a second reviewer). With
+// trust.unattested_floor and trust.protect_trusted on, a walk of writes,
+// rewrites, retires by status, sweeps (some under every budget one) and
+// adoptions of hand-edited records, by three co-members of a person and a
+// team scope who write as every source or none, claiming any kind. After
+// each step, every event it appended is judged against the oracle's own
+// replay of the log: no allowed write records a kind more trusted than its
+// actor attests (`floorProblem`), and no allowed write or eviction by a less
+// trusted source changes or removes a more trusted active item unless its
+// owner acted as user (`protectionProblem`). Every budget check, a write's or
+// an adoption's, evicts exactly the oracle's victims among the items the
+// write's kind may evict (`budgetVictims` with `eligible`), and so does every
+// sweep, at its sweeper's attested kind; no scope ends a step over a budget;
+// replay reproduces the state. Guards require floored writes, rewrites and
+// retires denied for trust, writes denied rather than evict a more trusted
+// item, evictions that passed over a more trusted item, sweeps held back,
+// adoptions denied for trust, and allowed rewrites at an equal or more
+// trusted kind.
+
+const T_SCOPES = ["person:a", "team:t"] as const;
+const T_ACTORS = ["person:a", "person:b", "agent:x"] as const;
+const T_POOL = [1, 2, 3, 4, 5, 6].map((n) => `01960000-0000-7000-8000-00000000000${n}`);
+const T_WORDS = ["alpha", "beta", "gamma", "delta"] as const;
+const T_ADOPTER: Actor = { id: "person:a", level: "person", memberships: [...T_SCOPES] };
+
+/** Every write admitted, persons read everything, a budget per scope and class, both options on. */
+const trustPolicy = (budget: number, eviction: "recency" | "utility"): Policy => ({
+  ...ADMIT_ALL,
+  id: "trust-floors",
+  read: {
+    matrix: [{ reader: "person", may_read: ["person", "role", "team", "org"] }],
+    honour_grants: false,
+  },
+  retention: T_SCOPES.flatMap((scope) =>
+    (["episodic", "semantic"] as const).map((cls) => ({
+      scope: levelOf(scope) as "person" | "team",
+      class: cls,
+      ttl: null,
+      budget,
+      eviction,
+    })),
+  ),
+  trust: { unattested_floor: "on", protect_trusted: "on" },
+});
+
+type TrustStep =
+  | {
+      op: "write";
+      who: number;
+      source: Kind | null;
+      /** The pool id: a rewrite when the plane holds it, else a new item. */
+      n: number;
+      scope: number;
+      cls: "episodic" | "semantic";
+      claim: Kind;
+      retire: boolean;
+      word: number;
+    }
+  | { op: "sweep"; who: number; source: Kind | null; scope: number; tight: boolean }
+  /** Edit the store's record of a pool id by hand, then adopt its scope. */
+  | { op: "adopt"; n: number };
+
+const arbTrustSource = fc.option(fc.constantFrom<Kind>(...KINDS), { nil: null, freq: 3 });
+const arbTrustStep: fc.Arbitrary<TrustStep> = fc.oneof(
+  {
+    weight: 6,
+    arbitrary: fc.record({
+      op: fc.constant("write" as const),
+      who: fc.integer({ min: 0, max: T_ACTORS.length - 1 }),
+      source: arbTrustSource,
+      n: fc.integer({ min: 0, max: T_POOL.length - 1 }),
+      scope: fc.integer({ min: 0, max: T_SCOPES.length - 1 }),
+      cls: fc.constantFrom<"episodic" | "semantic">("episodic", "semantic"),
+      claim: fc.constantFrom<Kind>(...KINDS),
+      retire: fc.boolean(),
+      word: fc.integer({ min: 0, max: T_WORDS.length - 1 }),
+    }),
+  },
+  {
+    weight: 2,
+    arbitrary: fc.record({
+      op: fc.constant("sweep" as const),
+      who: fc.integer({ min: 0, max: T_ACTORS.length - 1 }),
+      source: arbTrustSource,
+      scope: fc.integer({ min: 0, max: T_SCOPES.length - 1 }),
+      tight: fc.boolean(),
+    }),
+  },
+  {
+    weight: 1,
+    arbitrary: fc.record({
+      op: fc.constant("adopt" as const),
+      n: fc.integer({ min: 0, max: T_POOL.length - 1 }),
+    }),
+  },
+);
+
+const arbTrustCase = fc.record({
+  budget: fc.integer({ min: 1, max: 3 }),
+  eviction: fc.constantFrom<"recency" | "utility">("recency", "utility"),
+  steps: fc.array(arbTrustStep, { minLength: 4, maxLength: 16 }),
+});
+
+const trustCounters = () => ({
+  floored: 0,
+  rewriteDenied: 0,
+  retireDenied: 0,
+  writeDeniedForBudget: 0,
+  evictedAround: 0,
+  sweepHeldBack: 0,
+  adoptionDenied: 0,
+  rewroteAtTrust: 0,
+});
+
+/** One invariant 8 walk. */
+async function trustWalk(
+  c: { budget: number; eviction: "recency" | "utility"; steps: TrustStep[] },
+  seen: ReturnType<typeof trustCounters>,
+): Promise<void> {
+  const policy = trustPolicy(c.budget, c.eviction);
+  const tight = { ...trustPolicy(1, c.eviction), id: "trust-floors-tight" };
+  const { db, adapter, plane, under, newId } = freshPlane(policy);
+  const tightPlane = under(tight);
+  const actorOf = (who: number, source: Kind | null): Actor => ({
+    id: T_ACTORS[who] as string,
+    level: "person",
+    memberships: [...T_SCOPES],
+    ...(source === null ? {} : { source }),
+  });
+  /** May an eviction at `kind` by `actor` choose `victim`, as the oracle reads protection? */
+  const eligibleFor = (p: Policy, actor: Actor, kind: Kind) => (victim: MemoryItem) =>
+    protectionProblem(
+      p,
+      actor,
+      victim,
+      { op: "evict", decision: "allow", actor: actor.id, item_id: victim.id } as MemoryEvent,
+      kind,
+    ) === undefined;
+  const ruleFor = (p: Policy, scope: string, cls: MemoryItem["class"]) =>
+    p.retention.find((r) => r.scope === levelOf(scope) && r.class === cls);
+  const activeAt = (seq: number, scope: string, cls: MemoryItem["class"]) =>
+    (seq < 0 ? [] : itemsAt(db, seq)).filter(
+      (x) => x.scope === scope && x.class === cls && x.status === "active",
+    );
+  /** The oracle's own replay of the log, up to the events judged so far. */
+  const state = new Map<string, MemoryItem>();
+
+  for (const [k, step] of c.steps.entries()) {
+    const at = stepTime(k);
+    const start = allEvents(db).length;
+    const lastSeq = start === 0 ? -1 : (allEvents(db).at(-1)?.seq ?? -1);
+    let actor: Actor;
+    let sweepPolicy: Policy | null = null;
+    let sweepScope = "";
+    if (step.op === "write") {
+      actor = actorOf(step.who, step.source);
+      const id = T_POOL[step.n] as string;
+      const held = itemById(db, id);
+      const word = T_WORDS[step.word] as string;
+      const claim = {
+        kind: step.claim,
+        ref: "doc/1",
+        hash: `sha256:${"0".repeat(64)}`,
+        actor: "person:carol",
+      };
+      const written: MemoryItem = held
+        ? ({
+            ...held,
+            version: held.version + 1,
+            store_ref: null,
+            content: `${word} rewritten by ${actor.id}`,
+            status: step.retire ? "retired" : "active",
+            provenance: claim,
+          } as MemoryItem)
+        : ({
+            id,
+            class: step.cls,
+            scope: T_SCOPES[step.scope],
+            owner: actor.id,
+            content: `${word} from ${actor.id}`,
+            provenance: claim,
+            confidence: 0.9,
+            valid_from: "2026-10-01T00:00:00Z",
+            valid_to: null,
+            ttl: null,
+            grants: [],
+            version: 1,
+            lineage: [],
+            status: "active",
+            store_ref: null,
+            schema_version: 1,
+          } as MemoryItem);
+      await plane.write(actor, written, at);
+    } else if (step.op === "sweep") {
+      actor = actorOf(step.who, step.source);
+      sweepPolicy = step.tight ? tight : policy;
+      sweepScope = T_SCOPES[step.scope] as string;
+      await (step.tight ? tightPlane : plane).retain(actor, sweepScope, at);
+    } else {
+      actor = { ...T_ADOPTER, source: "import" };
+      const held = itemById(db, T_POOL[step.n] as string);
+      if (held?.store_ref && held.status === "active") {
+        await adapter.write({
+          ...held,
+          store_ref: null,
+          content: `${String(held.content)} (edited by hand)`,
+        } as MemoryItem);
+        for (const scope of T_SCOPES)
+          await adoptStoreItems({ db, adapter, policy, newId }, T_ADOPTER, scope, at);
+      }
+    }
+
+    const events = allEvents(db).slice(start);
+    const why = (e: MemoryEvent) =>
+      `step ${k} (${JSON.stringify(step)}), event ${e.op}/${e.decision} ${e.item_id} ${e.policy_id}: ${e.reason}`;
+    /** The kind of the landing whose budget check the evictions that follow belong to. */
+    let trigger: Kind | undefined;
+    for (const [j, e] of events.entries()) {
+      const before = e.item_id ? state.get(e.item_id) : undefined;
+      if (e.op === "write" && e.decision === "deny" && e.policy_id === "engram/write/downgrade") {
+        if (e.reason.startsWith("adopted from store ")) seen.adoptionDenied++;
+        else if (e.reason.includes("would have to evict")) seen.writeDeniedForBudget++;
+        else if (e.reason.includes(" write retires ")) seen.retireDenied++;
+        else seen.rewriteDenied++;
+      }
+      if (e.op === "write" && e.decision === "allow" && e.item) {
+        trigger = e.item.provenance.kind;
+        if (!actor.source && e.item.provenance.kind === "external") seen.floored++;
+        if (before?.status === "active" && e.item.status === "active") seen.rewroteAtTrust++;
+        // The write's budget check follows its event directly (invariant 5).
+        const slot: MemoryEvent[] = [];
+        for (const f of events.slice(j + 1)) {
+          if (f.op !== "evict") break;
+          slot.push(f);
+        }
+        const rule = ruleFor(policy, e.item.scope, e.item.class);
+        if (rule && rule.budget !== null && e.item.status === "active") {
+          const active = activeAt(e.seq, e.item.scope, e.item.class);
+          const changed = lastChanged(allEvents(db), e.seq);
+          const eligible = eligibleFor(policy, actor, e.item.provenance.kind);
+          const expected = budgetVictims(
+            rule.eviction,
+            rule.budget,
+            active,
+            changed,
+            new Map(),
+            e.item.id,
+            eligible,
+          );
+          const plain = budgetVictims(
+            rule.eviction,
+            rule.budget,
+            active,
+            changed,
+            new Map(),
+            e.item.id,
+          );
+          expect(
+            slot.map((f) => [f.op, f.decision, f.item_id]),
+            `the budget check evicts exactly the oracle's eligible victims: ${why(e)}`,
+          ).toEqual((expected as string[]).map((v) => ["evict", "allow", v]));
+          if (JSON.stringify(plain) !== JSON.stringify(expected)) seen.evictedAround++;
+        }
+      }
+      expect(floorProblem(policy, actor, e), why(e)).toBeUndefined();
+      expect(
+        protectionProblem(policy, actor, before, e, step.op === "sweep" ? undefined : trigger),
+        why(e),
+      ).toBeUndefined();
+      replayEvent(state, e);
+    }
+
+    if (sweepPolicy) {
+      // The sweep's evictions, class by class, at the sweeper's attested kind.
+      const expected: (string | null)[][] = [];
+      let unrestricted = 0;
+      for (const cls of ["episodic", "semantic", "procedural"] as const) {
+        const rule = ruleFor(sweepPolicy, sweepScope, cls);
+        if (!rule || rule.budget === null) continue;
+        const active = activeAt(lastSeq, sweepScope, cls);
+        const changed = lastChanged(allEvents(db), lastSeq);
+        const eligible = eligibleFor(sweepPolicy, actor, attestedKind(actor));
+        const victims = budgetVictims(
+          rule.eviction,
+          rule.budget,
+          active,
+          changed,
+          new Map(),
+          undefined,
+          eligible,
+        );
+        unrestricted += Math.max(0, active.length - rule.budget);
+        for (const v of victims as string[]) expected.push(["evict", "allow", v]);
+      }
+      expect(
+        events.map((e) => [e.op, e.decision, e.item_id]),
+        `the sweep of ${sweepScope} by ${actor.id} (${actor.source ?? "no source"}) at step ${k}`,
+      ).toEqual(expected);
+      if (expected.length < unrestricted) seen.sweepHeldBack++;
+    }
+
+    // No scope ends a step over a budget of the plane's own policy: a write
+    // that would need a more trusted victim was denied (sweeps under the
+    // tightened policy only evict).
+    for (const scope of T_SCOPES)
+      for (const cls of ["episodic", "semantic"] as const) {
+        const rule = ruleFor(policy, scope, cls);
+        const held = currentItems(db).filter(
+          (x) => x.scope === scope && x.class === cls && x.status === "active",
+        );
+        expect(
+          held.length,
+          `${scope} ${cls} holds ${held.length} active items over a budget of ${rule?.budget} after step ${k}`,
+        ).toBeLessThanOrEqual(rule?.budget ?? Number.POSITIVE_INFINITY);
+      }
+  }
+
+  const final = currentItems(db);
+  rebuild(db);
+  expect(currentItems(db), "replay reproduces the state").toEqual(final);
 }

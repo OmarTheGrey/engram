@@ -35,6 +35,16 @@
 // and its reading of who may change what an item's grants admit
 // (`grantsChanged`, `priorVersion`, `grantChangeProblem`; ADR 0034,
 // decision 6) and `withinValidity`, at the end of the file.
+//
+// Trust floors (card E2.11, ADR 0040; a `decision` log entry records the
+// change) add invariant 8's readings, at the end of the file: under
+// trust.unattested_floor no allowed write records a kind more trusted than
+// its actor attests (`floorProblem`), and under trust.protect_trusted no
+// allowed write or budget eviction by a less trusted source changes or
+// removes a more trusted active item unless its owner acted as user
+// (`protectionProblem`). `writeForbidden` judges a sourceless writer at the
+// least trusted kind when the floor is on, and `budgetVictims` takes the
+// items an eviction may choose. Trust is ranked by the oracle's own `TRUST`.
 import type { Actor } from "./actor.ts";
 import type { Grant, MemoryEvent, MemoryItem, Policy } from "./schema.ts";
 import { compareTimestamps } from "./time.ts";
@@ -116,9 +126,14 @@ export function grantsAlike(a: Grant, b: Grant): boolean {
   return compareTimestamps(a.expires, b.expires) === 0;
 }
 
-/** The provenance kind the plane evaluates: the harness's source when it sets one. */
-export const effectiveKind = (actor: Actor, item: MemoryItem) =>
-  actor.source ?? item.provenance.kind;
+/**
+ * The provenance kind the plane evaluates: the harness's source when it sets
+ * one; otherwise, when the policy's trust.unattested_floor is on (card
+ * E2.11), the least trusted kind, else what the item claims.
+ */
+export const effectiveKind = (actor: Actor, item: MemoryItem, policy?: Policy) =>
+  actor.source ??
+  (policy?.trust?.unattested_floor === "on" ? leastTrustedKind() : item.provenance.kind);
 
 /**
  * Invariant 2: does the policy forbid `item`'s class or source in its scope,
@@ -141,7 +156,7 @@ export function writeForbidden(
   retiredByEvent: readonly MemoryItem[] = [],
 ): boolean {
   if (!actor.memberships.some((m) => m === item.scope)) return true;
-  const kind = effectiveKind(actor, item);
+  const kind = effectiveKind(actor, item, policy);
   const untrusted = kind === "model" || kind === "compaction" || kind === "external";
   const relearns = untrusted || kind === "tool";
   if (
@@ -214,7 +229,9 @@ export function sameContent(a: unknown, b: unknown): boolean {
  * reads returned (`reads`), then the least recently changed; the lower id
  * breaks what is left. `protect`, the item a write just landed, counts but
  * is never chosen (review finding P4-1). The caller leaves items past their
- * ttl out of `active` (P4-2).
+ * ttl out of `active` (P4-2). `eligible`, when given, is what an eviction may
+ * choose (trust.protect_trusted, card E2.11): the others count but are never
+ * chosen, so fewer victims than the overage are named when too few qualify.
  */
 export function budgetVictims(
   eviction: Policy["retention"][number]["eviction"],
@@ -223,6 +240,7 @@ export function budgetVictims(
   lastChanged: ReadonlyMap<string, number>,
   reads: ReadonlyMap<string, number>,
   protect?: string,
+  eligible: (item: MemoryItem) => boolean = () => true,
 ): string[] | "ask" {
   if (active.length <= budget) return [];
   if (eviction === "manual") return "ask";
@@ -237,10 +255,10 @@ export function budgetVictims(
     return a.id < b.id;
   };
   // The item a write just landed is never its own check's victim (P4-1).
-  const left = active.filter((i) => i.id !== protect);
+  const left = active.filter((i) => i.id !== protect && eligible(i));
   let over = active.length - budget;
   const victims: string[] = [];
-  while (over-- > 0) {
+  while (over-- > 0 && left.length > 0) {
     let pick = 0;
     for (let j = 1; j < left.length; j++)
       if (worse(left[j] as MemoryItem, left[pick] as MemoryItem)) pick = j;
@@ -260,6 +278,9 @@ export const TRUST = [
   "external",
 ] as const;
 const SCOPE_RANK = ["person", "role", "team", "org"];
+/** The least trusted kind, `TRUST`'s last. */
+const leastTrustedKind = (): MemoryItem["provenance"]["kind"] =>
+  TRUST[TRUST.length - 1] ?? "external";
 
 /**
  * The strict reading of "the same content" for promotions (review findings
@@ -707,6 +728,74 @@ export function grantChangeProblem(
     if (before === undefined) return "a grant change on an item no allowed event left";
     if (before.status !== "active") return `a grant change on a ${before.status} item`;
     if (!sameApartFromGrants(before, item)) return "a grant change that changes more than grants";
+  }
+  return undefined;
+}
+
+// Card E2.11 (ADR 0040): invariant 8, the trust floors. Judged from the log,
+// with the actor of each event as the caller knows it (the log records only
+// its id), and trust ranked by `TRUST`, written apart from core's order.
+
+type TrustKind = MemoryItem["provenance"]["kind"];
+const trustRank = (k: TrustKind) => TRUST.indexOf(k);
+
+/** The kind `actor` attests: its source, or the least trusted when it sets none. */
+export const attestedKind = (actor: Pick<Actor, "source">): TrustKind =>
+  actor.source ?? leastTrustedKind();
+
+/**
+ * Invariant 8, the floor: why the allowed write `e` records its item at a
+ * kind more trusted than its actor attests, or undefined. Judged only under
+ * trust.unattested_floor, and only for writes: a promotion's kind is the
+ * least trusted of its inputs (ADR 0026), and a grant change keeps the kind.
+ * A withdrawal or a narrowing puts back or narrows a version judged when it
+ * was made (card E2.6).
+ */
+export function floorProblem(policy: Policy, actor: Actor, e: MemoryEvent): string | undefined {
+  if (policy.trust?.unattested_floor !== "on") return undefined;
+  if (e.decision !== "allow" || e.op !== "write" || !e.item) return undefined;
+  if (e.policy_id === WITHDRAWN_RULE || e.policy_id === NARROWED_RULE) return undefined;
+  const ceiling = attestedKind(actor);
+  const kind = e.item.provenance.kind;
+  return trustRank(kind) < trustRank(ceiling)
+    ? `${e.actor} attests ${actor.source ?? "no source"}, but the write recorded item ${e.item.id} at ${kind}, more trusted than ${ceiling}`
+    : undefined;
+}
+
+/**
+ * Invariant 8, protection: why the allowed event `e` let a less trusted
+ * source change or remove `before`, the item of its id just before it, or
+ * undefined. Judged only under trust.protect_trusted, when `before` is
+ * active, for a write (a rewrite, or a retire by a status rewrite) at the
+ * kind it records, and for a budget eviction at `trigger`: the kind of the
+ * item whose landing triggered it, or, for a sweep, the sweeper's attested
+ * kind. The item's owner acting with source user is exempt. Not judged: a
+ * retire event (a ttl the item or its rule set, a promotion's supersession,
+ * an offboarding, or adoption retracting what the store no longer holds), a
+ * grant change, which changes no content or kind (ADR 0034), and a
+ * withdrawal or a narrowing (card E2.6).
+ */
+export function protectionProblem(
+  policy: Policy,
+  actor: Actor,
+  before: MemoryItem | undefined,
+  e: MemoryEvent,
+  trigger?: TrustKind,
+): string | undefined {
+  if (policy.trust?.protect_trusted !== "on") return undefined;
+  if (e.decision !== "allow" || !before || before.status !== "active") return undefined;
+  if (e.actor === before.owner && actor.source === "user") return undefined;
+  const held = before.provenance.kind;
+  if (e.op === "write" && e.item) {
+    if (e.policy_id === WITHDRAWN_RULE || e.policy_id === NARROWED_RULE) return undefined;
+    const kind = e.item.provenance.kind;
+    if (trustRank(kind) <= trustRank(held)) return undefined;
+    return `a ${kind} write by ${e.actor} ${e.item.status === "retired" ? "retired" : "rewrote"} active ${held} item ${before.id}`;
+  }
+  if (e.op === "evict") {
+    const by = trigger ?? attestedKind(actor);
+    if (trustRank(by) <= trustRank(held)) return undefined;
+    return `an eviction at ${by} by ${e.actor} removed active ${held} item ${before.id}`;
   }
   return undefined;
 }
