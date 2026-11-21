@@ -351,7 +351,6 @@ describe("exportedReason keeps the clauses of known templates and withholds the 
     "mem0 is a memory store command; use the Engram memory tools",
     "the path is inside the root of store files; use the Engram memory tools",
     "a memory tool result the Engram extension did not produce was withheld from the model",
-    `item ${id(3)} expired at 2026-10-25T12:01:00Z (valid_from 2026-10-25T12:00:00Z plus ttl 60s, from the item's own ttl); retired, kept in the log and the store`,
     "an item in person:omar passed its ttl (from the retention rule); retired, kept in the log and the store",
     `scope team:platform holds 4 active semantic items, budget 3; evicted the oldest by last change (seq 12): item ${id(1)}; retired, kept in the log and the store`,
     "scope team:platform is over its semantic budget; an item was evicted by recency; retired, kept in the log and the store",
@@ -395,6 +394,39 @@ describe("exportedReason keeps the clauses of known templates and withholds the 
       `mem0 add ${SECRET} is a memory store command`,
     ])
       expect(exportedReason(reason).text, reason).not.toContain(SECRET);
+  });
+});
+
+describe("review E8.13-2: an expiry is exported with no time or ttl value", () => {
+  const reason = `item ${id(3)} expired at 2026-10-25T12:01:00Z (valid_from 2026-10-25T12:00:00Z plus ttl 60s, from the item's own ttl); retired, kept in the log and the store`;
+  const tokens = `item ${id(3)} expired at [time] (valid_from [time] plus ttl [ttl]s, from the item's own ttl); retired, kept in the log and the store`;
+
+  test("the expiry template's time and ttl slots become fixed tokens", () => {
+    expect(exportedReason(reason, "retire")).toEqual({ text: tokens, withheld: 0 });
+  });
+
+  test("a real Plane's ttl retirement exports no validity window", async () => {
+    const omar: Actor = {
+      id: "person:omar",
+      level: "person",
+      memberships: ["person:omar"],
+      source: "user",
+    };
+    const policy = testPolicy({
+      retention: [
+        { scope: "person", class: "semantic", ttl: 60, budget: null, eviction: "recency" },
+      ],
+    });
+    const { plane, db } = fresh(policy);
+    const written = item(1, { scope: "person:omar", valid_from: "2026-10-25T11:00:00Z" });
+    await plane.write(omar, written, AT);
+    await plane.retain(omar, "person:omar", "2026-10-26T12:00:00Z");
+    const retired = allEvents(db).find((e) => e.op === "retire") as MemoryEvent;
+    expect(retired.reason).toContain("valid_from 2026-10-25T11:00:00Z plus ttl 60s");
+    const text = String(decisionSpan(retired).attributes["engram.reason"]);
+    expect(text).toContain("expired at [time] (valid_from [time] plus ttl [ttl]s");
+    expect(text).not.toMatch(/\d{4}-\d{2}-\d{2}T/);
+    expect(text).not.toContain("60s");
   });
 });
 

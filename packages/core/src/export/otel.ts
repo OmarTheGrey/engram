@@ -117,7 +117,30 @@ const SCREEN = String.raw`the injection screen \((?:default|hardened) profile, a
  * caller sets at the head of a reason (a bypass's store name) cannot pass as
  * another producer's clauses (review E8.13-1).
  */
-const compile = (sources: readonly string[]) => sources.map((s) => new RegExp(`^${s}$`));
+/**
+ * A clause template, and what a matching clause is exported as: the clause
+ * itself, or `out` (a replacement for its match) where a slot's value must
+ * not leave even though it is no content (review E8.13-2).
+ */
+interface Template {
+  re: RegExp;
+  out?: string;
+}
+
+const compile = (sources: readonly (string | Template)[]): Template[] =>
+  sources.map((s) => (typeof s === "string" ? { re: new RegExp(`^${s}$`) } : s));
+
+/**
+ * An item's expiry: its id is kept, but its expiry time, valid_from and ttl
+ * are exported as `[time]` and `[ttl]`, since validity windows never leave
+ * (ADR 0043, decision 3).
+ */
+const EXPIRY: Template = {
+  re: new RegExp(
+    String.raw`^item (${UUID}) expired at ${TIME} \(valid_from ${TIME} plus ttl ${N}s, from (${TTL_SOURCE})\)$`,
+  ),
+  out: "item $1 expired at [time] (valid_from [time] plus ttl [ttl]s, from $2)",
+};
 
 /** The write gate, the provenance note, the injection screen and the content guards. */
 const GATE_TEMPLATES = compile([
@@ -172,7 +195,7 @@ const BYPASS_TEMPLATES = compile([
 
 /** Retention's retire and evict reasons (policy/retention.ts). */
 const RETENTION_TEMPLATES = compile([
-  String.raw`item ${UUID} expired at ${TIME} \(valid_from ${TIME} plus ttl ${N}s, from ${TTL_SOURCE}\)`,
+  EXPIRY,
   String.raw`an item in ${SCOPE} passed its ttl \(from ${TTL_SOURCE}\)`,
   "retired, kept in the log and the store",
   `scope ${SCOPE} holds ${N} active ${CLASS} items, budget ${N}(?:: ${N} over)?`,
@@ -189,7 +212,7 @@ const RETENTION_TEMPLATES = compile([
  * finding's message and evidence, never kept (its id and severity are
  * attributes of their own).
  */
-const OP_TEMPLATES: Record<z.infer<typeof EventOp>, readonly RegExp[]> = {
+const OP_TEMPLATES: Record<z.infer<typeof EventOp>, readonly Template[]> = {
   write: GATE_TEMPLATES,
   update: GATE_TEMPLATES,
   promote: GATE_TEMPLATES,
@@ -256,11 +279,12 @@ export function exportedReason(
       prefix = adopted[1] as string;
       clause = adopted[2] as string;
     }
-    if (!templates.some((t) => t.test(clause))) {
+    const t = templates.find((t) => t.re.test(clause));
+    if (t === undefined) {
       parts.push(WITHHELD);
       return { text: parts.join("; "), withheld: all.length - i };
     }
-    parts.push(`${prefix}${clause}`);
+    parts.push(`${prefix}${t.out === undefined ? clause : clause.replace(t.re, t.out)}`);
   }
   return { text: parts.join("; "), withheld: 0 };
 }
