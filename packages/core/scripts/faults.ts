@@ -172,6 +172,11 @@ const claimUnit = (n: number, verdict: "flag" | "pass") => ({
 const INCIDENT =
   "Incident 42: the payment service failed for 20 minutes on Tuesday because a certificate expired.";
 const ROTA = "The on-call rota changes every Monday at 09:00.";
+// The near-duplicate tier's fixtures (card L5).
+const PREFERENCE = "Dana prefers short answers and dislikes long preambles in replies.";
+const PIPELINE =
+  "The deploy pipeline runs the unit tests, then the integration tests, then a canary in one region for thirty minutes, and only after the canary stays healthy does it roll out to every region, one at a time, with a pause of ten minutes between regions.";
+const ALLERGY = "Dana is allergic to peanuts and carries an epinephrine pen.";
 
 const SPECS: Record<string, Spec> = {
   "expired-validity.flag": {
@@ -467,6 +472,70 @@ const SPECS: Record<string, Spec> = {
           provenance: { kind: "document", ref: "doc:release", hash: ZERO, actor: "person:dana" },
         }),
         T(3),
+      );
+    },
+    flags: [],
+  },
+  "near-duplicate-tier.flag": {
+    description:
+      "Three restatements in team:core under the default threshold (0.85), none an exact copy: a sentence with its final full stop turned into an exclamation mark, a preference with one word added, and a 46-word procedure with one word added (compared by word 2-grams); the later of each pair is flagged, naming the earlier, and an unrelated rota item is not.",
+    lint_id: "near-duplicate-tier",
+    kind: "flag",
+    steps: async (p) => {
+      await written(p, DANA, item(1, { content: SOURCE_TEXT }), T(0));
+      await written(p, DANA, item(2, { content: "The release freeze starts on Friday!" }), T(1));
+      await written(p, DANA, item(3, { content: PREFERENCE }), T(2));
+      await written(
+        p,
+        DANA,
+        item(4, { content: PREFERENCE.replace("in replies", "in her replies") }),
+        T(3),
+      );
+      await written(p, DANA, item(5, { content: PIPELINE }), T(4));
+      await written(
+        p,
+        DANA,
+        item(6, { content: PIPELINE.replace("with a pause", "with a short pause") }),
+        T(5),
+      );
+      await written(p, DANA, item(7, { content: ROTA }), T(6));
+    },
+    flags: [fid(2), fid(4), fid(6)],
+  },
+  "near-duplicate-tier.near-miss": {
+    description:
+      "Pairs in team:core as alike as the flagged ones but saying something else, each stopped by the precision tier: a duration changed from 20 to 45 minutes (a number and a rare term differ), an allergy negated (polarity); the freeze moved from Friday to Monday, below the threshold; an exact copy of the freeze, which is the exact duplicate lint's; and the same allergy as an episodic item and in person:dana, another class and another scope: none flagged.",
+    lint_id: "near-duplicate-tier",
+    kind: "near-miss",
+    steps: async (p) => {
+      await written(p, DANA, item(1, { content: INCIDENT }), T(0));
+      await written(
+        p,
+        DANA,
+        item(2, { content: INCIDENT.replace("20 minutes", "45 minutes") }),
+        T(1),
+      );
+      await written(p, DANA, item(3, { content: ALLERGY }), T(2));
+      await written(
+        p,
+        DANA,
+        item(4, { content: ALLERGY.replace("is allergic", "is not allergic") }),
+        T(3),
+      );
+      await written(p, DANA, item(5, { content: SOURCE_TEXT }), T(4));
+      await written(p, DANA, item(6, { content: SOURCE_TEXT.replace("Friday", "Monday") }), T(5));
+      await written(p, DANA, item(7, { content: SOURCE_TEXT }), T(6));
+      await written(
+        p,
+        DANA,
+        item(8, { content: ALLERGY.replace("pen.", "pen!"), class: "episodic" }),
+        T(7),
+      );
+      await written(
+        p,
+        DANA,
+        item(9, { content: ALLERGY.replace("pen.", "pen!"), scope: "person:dana" }),
+        T(8),
       );
     },
     flags: [],

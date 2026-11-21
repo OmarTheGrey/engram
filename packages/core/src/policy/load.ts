@@ -234,6 +234,20 @@ function semanticProblems(policy: Policy): Located[] {
         key,
         message: `unknown threshold key "${key}"; expected one of ${LINT_THRESHOLD_KEYS.join(", ")}`,
       });
+  // Card L5: the tier reads its similarity from this key, so a policy that
+  // lists it must give a similarity. A policy that does not list it is not
+  // checked, so no registered preset is judged by this rule.
+  const similarity = policy.lints.thresholds["near-duplicate"];
+  if (
+    policy.lints.enabled.includes("near-duplicate-tier") &&
+    similarity !== undefined &&
+    !(similarity > 0 && similarity <= 1)
+  )
+    out.push({
+      path: ["lints", "thresholds"],
+      key: "near-duplicate",
+      message: `near-duplicate is ${similarity}; the near-duplicate-tier lint needs a similarity in (0, 1]`,
+    });
   for (const [block, options] of Object.entries(NOT_ENFORCED_YET)) {
     const set: Record<string, unknown> | undefined = policy[block as keyof typeof NOT_ENFORCED_YET];
     for (const [option, card] of Object.entries(options)) {

@@ -9,9 +9,10 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
 import type { FaultFixture } from "../../../scripts/faults.ts";
+import type { Actor } from "../../../src/actor.ts";
 import { appendEvent } from "../../../src/events.ts";
 import { loadPreset, PRESETS, type PresetName } from "../../../src/policy/load.ts";
-import type { Actor, LintFinding, MemoryEvent, Policy } from "../../../src/schema.ts";
+import type { LintFinding, MemoryEvent, Policy } from "../../../src/schema.ts";
 import { fresh } from "../plane/helpers.ts";
 
 const ROOT = join(import.meta.dirname, "../../../../..");
