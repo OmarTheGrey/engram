@@ -1,5 +1,5 @@
 {
-  "key": "0cf2a1d5ae05b82f0536177f0cc302e024bf919ed3ffae110108f0afaad3c8f6",
+  "key": "f6ef02b70b01cf71ed9674b1022fa66cd98346b72a3d3b052c529297e44e4b85",
   "context": {
     "item": "tau2/airline/19/agent",
     "condition": "C2",
@@ -34,7 +34,7 @@
       },
       {
         "role": "tool",
-        "content": "<engram:memory filtered=\"0\">\n<engram:item item_id=\"0cd3ca07-3891-78e9-85a4-2c1f3a5cf799\" scope=\"person:tau2-agent\" rank=\"1\">\nInsurance requests on a booked reservation are refused by the policy.\n</engram:item>\n<engram:item item_id=\"53739a0a-555b-7b11-bdcc-a0e00aaea8bc\" scope=\"team:tau2-airline\" rank=\"2\">\nTravel insurance cannot be added to a reservation after it is booked.\n</engram:item>\n</engram:memory>",
+        "content": "<engram:memory filtered=\"0\">\n<engram:item item_id=\"3e790c21-f3c2-7f64-bdfa-4a28bd079d4b\" scope=\"person:tau2-agent\" rank=\"1\">\nInsurance requests on a booked reservation are refused by the policy.\n</engram:item>\n<engram:item item_id=\"ff81417f-ef9e-7ecc-bd51-a77f84af8214\" scope=\"team:tau2-airline\" rank=\"2\">\nTravel insurance cannot be added to a reservation after it is booked.\n</engram:item>\n</engram:memory>",
         "tool_call_id": "call_airline_19_0_0"
       },
       {
@@ -74,14 +74,6 @@
         "role": "tool",
         "content": "{\"reservation_id\": \"Z7GOZK\", \"user_id\": \"olivia_gonzalez_2305\", \"origin\": \"EWR\", \"destination\": \"IAH\", \"flight_type\": \"round_trip\", \"cabin\": \"basic_economy\", \"flights\": [{\"flight_number\": \"HAT188\", \"origin\": \"EWR\", \"destination\": \"IAH\", \"date\": \"2024-05-28\", \"price\": 52}, {\"flight_number\": \"HAT207\", \"origin\": \"IAH\", \"destination\": \"EWR\", \"date\": \"2024-05-28\", \"price\": 87}], \"passengers\": [{\"first_name\": \"Olivia\", \"last_name\": \"Gonzalez\", \"dob\": \"1988-06-13\"}], \"payment_history\": [{\"payment_id\": \"gift_card_2200803\", \"amount\": 169}], \"created_at\": \"2024-05-13T19:41:32\", \"total_baggages\": 0, \"nonfree_baggages\": 0, \"insurance\": \"yes\", \"status\": null}",
         "tool_call_id": "call_airline_19_2_0"
-      },
-      {
-        "role": "assistant",
-        "content": "Reservation Z7GOZK is basic economy, which cannot be modified. It has travel insurance, so it can be cancelled. Shall I cancel it?"
-      },
-      {
-        "role": "user",
-        "content": "Then please cancel it with my travel insurance, I feel unwell."
       }
     ],
     "seed": 1,
@@ -762,25 +754,7 @@
     "toolChoice": "auto"
   },
   "response": {
-    "text": "",
-    "toolCalls": [
-      {
-        "id": "call_airline_19_4_0",
-        "type": "function",
-        "function": {
-          "name": "memory_write",
-          "arguments": "{\"scope\":\"person:tau2-agent\",\"content\":\"A basic economy reservation cannot be modified; with travel insurance it can be cancelled for health reasons.\",\"confidence\":0.9}"
-        }
-      },
-      {
-        "id": "call_airline_19_4_1",
-        "type": "function",
-        "function": {
-          "name": "cancel_reservation",
-          "arguments": "{\"reservation_id\":\"Z7GOZK\"}"
-        }
-      }
-    ],
+    "text": "Reservation Z7GOZK is basic economy, which cannot be modified. It has travel insurance, so it can be cancelled. Shall I cancel it?",
     "usage": {
       "input_tokens": 0,
       "output_tokens": 0,

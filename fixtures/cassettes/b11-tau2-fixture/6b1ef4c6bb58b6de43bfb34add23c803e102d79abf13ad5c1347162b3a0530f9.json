@@ -1,9 +1,9 @@
 {
-  "key": "645d6554981ade5b2a5310d33eccd70b4de1e9778d5a331fa37d0d04a3875e9c",
+  "key": "6b1ef4c6bb58b6de43bfb34add23c803e102d79abf13ad5c1347162b3a0530f9",
   "context": {
-    "item": "tau2/airline/19/agent",
-    "condition": "C5",
-    "preset": "medium",
+    "item": "tau2/airline/16/agent",
+    "condition": "C2",
+    "preset": "none",
     "store": "files"
   },
   "request": {
@@ -16,17 +16,17 @@
       },
       {
         "role": "user",
-        "content": "Hi, I am Olivia Gonzalez, user id olivia_gonzalez_2305. I want a later return flight to Newark on the 28th, I do not remember the reservation id."
+        "content": "Hi, I am Aarav Garcia, user id aarav_garcia_1177. I want to move my trip from ATL to PHL to the next day, on the cheapest economy flight."
       },
       {
         "role": "assistant",
         "tool_calls": [
           {
-            "id": "call_airline_19_0_0",
+            "id": "call_airline_16_0_0",
             "name": "memory_read",
             "function": {
               "name": "memory_read",
-              "arguments": "{\"query\": \"reservation insurance\"}"
+              "arguments": "{\"query\": \"reservation change\"}"
             },
             "type": "function"
           }
@@ -34,18 +34,18 @@
       },
       {
         "role": "tool",
-        "content": "<engram:memory policy_id=\"preset.medium/read/person\" filtered=\"0\">\n<engram:item item_id=\"bb4161bf-73d1-712c-99d9-a286c667cddd\" scope=\"person:tau2-agent\" rank=\"1\" policy_id=\"preset.medium/read/person\">\nInsurance requests on a booked reservation are refused by the policy.\n</engram:item>\n</engram:memory>",
-        "tool_call_id": "call_airline_19_0_0"
+        "content": "<engram:memory filtered=\"0\">\n<engram:item item_id=\"0873d494-12e5-744b-8ab8-578ff0e01d88\" scope=\"person:tau2-agent\" rank=\"1\">\nA basic economy reservation cannot be modified; with travel insurance it can be cancelled for health reasons.\n</engram:item>\n<engram:item item_id=\"3e790c21-f3c2-7f64-bdfa-4a28bd079d4b\" scope=\"person:tau2-agent\" rank=\"2\">\nInsurance requests on a booked reservation are refused by the policy.\n</engram:item>\n<engram:item item_id=\"76cb546e-eab0-71c6-8f5b-37ad01a0dba6\" scope=\"person:tau2-agent\" rank=\"3\">\nOlivia Gonzalez cancelled reservation Z7GOZK on 2024-05-15.\n</engram:item>\n<engram:item item_id=\"ff81417f-ef9e-7ecc-bd51-a77f84af8214\" scope=\"team:tau2-airline\" rank=\"4\">\nTravel insurance cannot be added to a reservation after it is booked.\n</engram:item>\n</engram:memory>",
+        "tool_call_id": "call_airline_16_0_0"
       },
       {
         "role": "assistant",
         "tool_calls": [
           {
-            "id": "call_airline_19_1_0",
+            "id": "call_airline_16_1_0",
             "name": "get_user_details",
             "function": {
               "name": "get_user_details",
-              "arguments": "{\"user_id\": \"olivia_gonzalez_2305\"}"
+              "arguments": "{\"user_id\": \"aarav_garcia_1177\"}"
             },
             "type": "function"
           }
@@ -53,27 +53,8 @@
       },
       {
         "role": "tool",
-        "content": "{\"user_id\": \"olivia_gonzalez_2305\", \"name\": {\"first_name\": \"Olivia\", \"last_name\": \"Gonzalez\"}, \"address\": {\"address1\": \"334 Laurel Lane\", \"address2\": \"Suite 970\", \"city\": \"Los Angeles\", \"country\": \"USA\", \"state\": \"CA\", \"zip\": \"90504\"}, \"email\": \"olivia.gonzalez4421@example.com\", \"dob\": \"1988-06-13\", \"payment_methods\": {\"gift_card_2200803\": {\"source\": \"gift_card\", \"id\": \"gift_card_2200803\", \"amount\": 123.0}, \"credit_card_9969263\": {\"source\": \"credit_card\", \"id\": \"credit_card_9969263\", \"brand\": \"mastercard\", \"last_four\": \"9475\"}}, \"saved_passengers\": [{\"first_name\": \"Mei\", \"last_name\": \"Johansson\", \"dob\": \"1981-09-25\"}, {\"first_name\": \"Yara\", \"last_name\": \"Lopez\", \"dob\": \"1975-09-15\"}], \"membership\": \"regular\", \"reservations\": [\"Z7GOZK\", \"K67C4W\", \"THY2DG\"]}",
-        "tool_call_id": "call_airline_19_1_0"
-      },
-      {
-        "role": "assistant",
-        "tool_calls": [
-          {
-            "id": "call_airline_19_2_0",
-            "name": "get_reservation_details",
-            "function": {
-              "name": "get_reservation_details",
-              "arguments": "{\"reservation_id\": \"Z7GOZK\"}"
-            },
-            "type": "function"
-          }
-        ]
-      },
-      {
-        "role": "tool",
-        "content": "{\"reservation_id\": \"Z7GOZK\", \"user_id\": \"olivia_gonzalez_2305\", \"origin\": \"EWR\", \"destination\": \"IAH\", \"flight_type\": \"round_trip\", \"cabin\": \"basic_economy\", \"flights\": [{\"flight_number\": \"HAT188\", \"origin\": \"EWR\", \"destination\": \"IAH\", \"date\": \"2024-05-28\", \"price\": 52}, {\"flight_number\": \"HAT207\", \"origin\": \"IAH\", \"destination\": \"EWR\", \"date\": \"2024-05-28\", \"price\": 87}], \"passengers\": [{\"first_name\": \"Olivia\", \"last_name\": \"Gonzalez\", \"dob\": \"1988-06-13\"}], \"payment_history\": [{\"payment_id\": \"gift_card_2200803\", \"amount\": 169}], \"created_at\": \"2024-05-13T19:41:32\", \"total_baggages\": 0, \"nonfree_baggages\": 0, \"insurance\": \"yes\", \"status\": null}",
-        "tool_call_id": "call_airline_19_2_0"
+        "content": "{\"user_id\": \"aarav_garcia_1177\", \"name\": {\"first_name\": \"Aarav\", \"last_name\": \"Garcia\"}, \"address\": {\"address1\": \"833 Highland Drive\", \"address2\": \"Suite 740\", \"city\": \"Denver\", \"country\": \"USA\", \"state\": \"CO\", \"zip\": \"80211\"}, \"email\": \"aarav.garcia6639@example.com\", \"dob\": \"1992-09-13\", \"payment_methods\": {\"certificate_7473723\": {\"source\": \"certificate\", \"id\": \"certificate_7473723\", \"amount\": 150.0}, \"gift_card_8887175\": {\"source\": \"gift_card\", \"id\": \"gift_card_8887175\", \"amount\": 35.0}}, \"saved_passengers\": [{\"first_name\": \"Lei\", \"last_name\": \"Ito\", \"dob\": \"1990-12-07\"}], \"membership\": \"gold\", \"reservations\": [\"M05KNL\", \"UHDAHF\"]}",
+        "tool_call_id": "call_airline_16_1_0"
       }
     ],
     "seed": 1,
@@ -754,7 +735,7 @@
     "toolChoice": "auto"
   },
   "response": {
-    "text": "Reservation Z7GOZK is basic economy, which cannot be modified. It has travel insurance, so it can be cancelled. Shall I cancel it?",
+    "text": "I am sorry, I cannot change this reservation today.",
     "usage": {
       "input_tokens": 0,
       "output_tokens": 0,

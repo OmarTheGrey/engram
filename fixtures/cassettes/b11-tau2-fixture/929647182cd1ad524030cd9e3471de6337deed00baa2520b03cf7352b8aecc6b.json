@@ -1,9 +1,9 @@
 {
-  "key": "274f94615044cd182e2ac6e85c317b12533da15b154690518f7175d003f1df45",
+  "key": "929647182cd1ad524030cd9e3471de6337deed00baa2520b03cf7352b8aecc6b",
   "context": {
     "item": "tau2/airline/19/agent",
-    "condition": "C2",
-    "preset": "none",
+    "condition": "C5",
+    "preset": "medium",
     "store": "files"
   },
   "request": {
@@ -34,7 +34,7 @@
       },
       {
         "role": "tool",
-        "content": "<engram:memory filtered=\"0\">\n<engram:item item_id=\"0cd3ca07-3891-78e9-85a4-2c1f3a5cf799\" scope=\"person:tau2-agent\" rank=\"1\">\nInsurance requests on a booked reservation are refused by the policy.\n</engram:item>\n<engram:item item_id=\"53739a0a-555b-7b11-bdcc-a0e00aaea8bc\" scope=\"team:tau2-airline\" rank=\"2\">\nTravel insurance cannot be added to a reservation after it is booked.\n</engram:item>\n</engram:memory>",
+        "content": "<engram:memory read_id=\"01920000-0000-7000-9000-000000000004\" policy_id=\"preset.medium/read/person\" filtered=\"0\">\n<engram:item item_id=\"e0ef4f04-70bf-72c8-9ceb-8a1b32a18b1c\" scope=\"person:tau2-agent\" rank=\"1\" policy_id=\"preset.medium/read/person\">\nInsurance requests on a booked reservation are refused by the policy.\n</engram:item>\n</engram:memory>",
         "tool_call_id": "call_airline_19_0_0"
       },
       {
@@ -97,6 +97,15 @@
           },
           {
             "id": "call_airline_19_4_1",
+            "name": "memory_write",
+            "function": {
+              "name": "memory_write",
+              "arguments": "{\"scope\": \"person:tau2-agent\", \"class\": \"episodic\", \"content\": \"Olivia Gonzalez cancelled reservation Z7GOZK on 2024-05-15.\", \"confidence\": 0.9}"
+            },
+            "type": "function"
+          },
+          {
+            "id": "call_airline_19_4_2",
             "name": "cancel_reservation",
             "function": {
               "name": "cancel_reservation",
@@ -108,13 +117,18 @@
       },
       {
         "role": "tool",
-        "content": "stored 24223a98-dba1-7621-9fc7-5169bb535fd6 in person:tau2-agent as active",
+        "content": "stored 56e70fc7-fbbe-7d9c-b5c7-766f7aafeb08 in person:tau2-agent as active",
         "tool_call_id": "call_airline_19_4_0"
       },
       {
         "role": "tool",
-        "content": "{\"reservation_id\": \"Z7GOZK\", \"user_id\": \"olivia_gonzalez_2305\", \"origin\": \"EWR\", \"destination\": \"IAH\", \"flight_type\": \"round_trip\", \"cabin\": \"basic_economy\", \"flights\": [{\"flight_number\": \"HAT188\", \"origin\": \"EWR\", \"destination\": \"IAH\", \"date\": \"2024-05-28\", \"price\": 52}, {\"flight_number\": \"HAT207\", \"origin\": \"IAH\", \"destination\": \"EWR\", \"date\": \"2024-05-28\", \"price\": 87}], \"passengers\": [{\"first_name\": \"Olivia\", \"last_name\": \"Gonzalez\", \"dob\": \"1988-06-13\"}], \"payment_history\": [{\"payment_id\": \"gift_card_2200803\", \"amount\": 169}, {\"payment_id\": \"gift_card_2200803\", \"amount\": -169}], \"created_at\": \"2024-05-13T19:41:32\", \"total_baggages\": 0, \"nonfree_baggages\": 0, \"insurance\": \"yes\", \"status\": \"cancelled\"}",
+        "content": "stored d73b3f70-727c-7074-b072-110349a5b16a in person:tau2-agent as active",
         "tool_call_id": "call_airline_19_4_1"
+      },
+      {
+        "role": "tool",
+        "content": "{\"reservation_id\": \"Z7GOZK\", \"user_id\": \"olivia_gonzalez_2305\", \"origin\": \"EWR\", \"destination\": \"IAH\", \"flight_type\": \"round_trip\", \"cabin\": \"basic_economy\", \"flights\": [{\"flight_number\": \"HAT188\", \"origin\": \"EWR\", \"destination\": \"IAH\", \"date\": \"2024-05-28\", \"price\": 52}, {\"flight_number\": \"HAT207\", \"origin\": \"IAH\", \"destination\": \"EWR\", \"date\": \"2024-05-28\", \"price\": 87}], \"passengers\": [{\"first_name\": \"Olivia\", \"last_name\": \"Gonzalez\", \"dob\": \"1988-06-13\"}], \"payment_history\": [{\"payment_id\": \"gift_card_2200803\", \"amount\": 169}, {\"payment_id\": \"gift_card_2200803\", \"amount\": -169}], \"created_at\": \"2024-05-13T19:41:32\", \"total_baggages\": 0, \"nonfree_baggages\": 0, \"insurance\": \"yes\", \"status\": \"cancelled\"}",
+        "tool_call_id": "call_airline_19_4_2"
       }
     ],
     "seed": 1,

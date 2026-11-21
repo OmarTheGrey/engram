@@ -1,9 +1,9 @@
 {
-  "key": "c7b99118e64d33e85cad2506bf5384094453970546bed6d0f099747122e94a0e",
+  "key": "3ca3705073f66c1422fc96a6d42c62777e4987986cc5ca0f3822ed4b027c0037",
   "context": {
-    "item": "tau2/airline/16/agent",
-    "condition": "C2",
-    "preset": "none",
+    "item": "tau2/airline/6/agent",
+    "condition": "C5",
+    "preset": "medium",
     "store": "files"
   },
   "request": {
@@ -16,17 +16,17 @@
       },
       {
         "role": "user",
-        "content": "Hi, I am Aarav Garcia, user id aarav_garcia_1177. I want to move my trip from ATL to PHL to the next day, on the cheapest economy flight."
+        "content": "Hi. I added travel insurance to my reservation PEP4E0 but it is not showing online. My user id is sophia_taylor_9065."
       },
       {
         "role": "assistant",
         "tool_calls": [
           {
-            "id": "call_airline_16_0_0",
+            "id": "call_airline_6_0_0",
             "name": "memory_read",
             "function": {
               "name": "memory_read",
-              "arguments": "{\"query\": \"reservation\"}"
+              "arguments": "{\"query\": \"reservation insurance\"}"
             },
             "type": "function"
           }
@@ -34,8 +34,8 @@
       },
       {
         "role": "tool",
-        "content": "<engram:memory filtered=\"0\">\n<engram:item item_id=\"0cd3ca07-3891-78e9-85a4-2c1f3a5cf799\" scope=\"person:tau2-agent\" rank=\"1\">\nInsurance requests on a booked reservation are refused by the policy.\n</engram:item>\n<engram:item item_id=\"24223a98-dba1-7621-9fc7-5169bb535fd6\" scope=\"person:tau2-agent\" rank=\"2\">\nA basic economy reservation cannot be modified; with travel insurance it can be cancelled for health reasons.\n</engram:item>\n<engram:item item_id=\"53739a0a-555b-7b11-bdcc-a0e00aaea8bc\" scope=\"team:tau2-airline\" rank=\"3\">\nTravel insurance cannot be added to a reservation after it is booked.\n</engram:item>\n</engram:memory>",
-        "tool_call_id": "call_airline_16_0_0"
+        "content": "<engram:memory read_id=\"01920000-0000-7000-9000-000000000001\" policy_id=\"preset.medium/read/person\" filtered=\"0\">\nno memories\n</engram:memory>",
+        "tool_call_id": "call_airline_6_0_0"
       }
     ],
     "seed": 1,
@@ -719,11 +719,11 @@
     "text": "",
     "toolCalls": [
       {
-        "id": "call_airline_16_1_0",
+        "id": "call_airline_6_1_0",
         "type": "function",
         "function": {
-          "name": "get_user_details",
-          "arguments": "{\"user_id\":\"aarav_garcia_1177\"}"
+          "name": "get_reservation_details",
+          "arguments": "{\"reservation_id\":\"PEP4E0\"}"
         }
       }
     ],

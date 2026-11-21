@@ -704,7 +704,7 @@
         "type": "function",
         "function": {
           "name": "memory_read",
-          "arguments": "{\"query\":\"reservation\"}"
+          "arguments": "{\"query\":\"reservation change\"}"
         }
       }
     ],

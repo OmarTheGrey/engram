@@ -1,7 +1,7 @@
 {
-  "key": "2c6bb7e009dcfb97f3b3ea6c0eae78ae539435585eecf4067879ed8e1694859f",
+  "key": "65886804fb7a0eefdc72db34cf173cdc96ea5037bc3e74803a3cfaaef4a49e54",
   "context": {
-    "item": "tau2/airline/16/agent",
+    "item": "tau2/airline/19/agent",
     "condition": "C5",
     "preset": "medium",
     "store": "files"
@@ -16,17 +16,17 @@
       },
       {
         "role": "user",
-        "content": "Hi, I am Aarav Garcia, user id aarav_garcia_1177. I want to move my trip from ATL to PHL to the next day, on the cheapest economy flight."
+        "content": "Hi, I am Olivia Gonzalez, user id olivia_gonzalez_2305. I want a later return flight to Newark on the 28th, I do not remember the reservation id."
       },
       {
         "role": "assistant",
         "tool_calls": [
           {
-            "id": "call_airline_16_0_0",
+            "id": "call_airline_19_0_0",
             "name": "memory_read",
             "function": {
               "name": "memory_read",
-              "arguments": "{\"query\": \"reservation\"}"
+              "arguments": "{\"query\": \"reservation insurance\"}"
             },
             "type": "function"
           }
@@ -34,18 +34,18 @@
       },
       {
         "role": "tool",
-        "content": "<engram:memory policy_id=\"preset.medium/read/person\" filtered=\"0\">\n<engram:item item_id=\"bb4161bf-73d1-712c-99d9-a286c667cddd\" scope=\"person:tau2-agent\" rank=\"1\" policy_id=\"preset.medium/read/person\">\nInsurance requests on a booked reservation are refused by the policy.\n</engram:item>\n<engram:item item_id=\"dec23c30-332c-764f-934f-6b35f70b559a\" scope=\"person:tau2-agent\" rank=\"2\" policy_id=\"preset.medium/read/person\">\nA basic economy reservation cannot be modified; with travel insurance it can be cancelled for health reasons.\n</engram:item>\n</engram:memory>",
-        "tool_call_id": "call_airline_16_0_0"
+        "content": "<engram:memory read_id=\"01920000-0000-7000-9000-000000000004\" policy_id=\"preset.medium/read/person\" filtered=\"0\">\n<engram:item item_id=\"e0ef4f04-70bf-72c8-9ceb-8a1b32a18b1c\" scope=\"person:tau2-agent\" rank=\"1\" policy_id=\"preset.medium/read/person\">\nInsurance requests on a booked reservation are refused by the policy.\n</engram:item>\n</engram:memory>",
+        "tool_call_id": "call_airline_19_0_0"
       },
       {
         "role": "assistant",
         "tool_calls": [
           {
-            "id": "call_airline_16_1_0",
+            "id": "call_airline_19_1_0",
             "name": "get_user_details",
             "function": {
               "name": "get_user_details",
-              "arguments": "{\"user_id\": \"aarav_garcia_1177\"}"
+              "arguments": "{\"user_id\": \"olivia_gonzalez_2305\"}"
             },
             "type": "function"
           }
@@ -53,8 +53,8 @@
       },
       {
         "role": "tool",
-        "content": "{\"user_id\": \"aarav_garcia_1177\", \"name\": {\"first_name\": \"Aarav\", \"last_name\": \"Garcia\"}, \"address\": {\"address1\": \"833 Highland Drive\", \"address2\": \"Suite 740\", \"city\": \"Denver\", \"country\": \"USA\", \"state\": \"CO\", \"zip\": \"80211\"}, \"email\": \"aarav.garcia6639@example.com\", \"dob\": \"1992-09-13\", \"payment_methods\": {\"certificate_7473723\": {\"source\": \"certificate\", \"id\": \"certificate_7473723\", \"amount\": 150.0}, \"gift_card_8887175\": {\"source\": \"gift_card\", \"id\": \"gift_card_8887175\", \"amount\": 35.0}}, \"saved_passengers\": [{\"first_name\": \"Lei\", \"last_name\": \"Ito\", \"dob\": \"1990-12-07\"}], \"membership\": \"gold\", \"reservations\": [\"M05KNL\", \"UHDAHF\"]}",
-        "tool_call_id": "call_airline_16_1_0"
+        "content": "{\"user_id\": \"olivia_gonzalez_2305\", \"name\": {\"first_name\": \"Olivia\", \"last_name\": \"Gonzalez\"}, \"address\": {\"address1\": \"334 Laurel Lane\", \"address2\": \"Suite 970\", \"city\": \"Los Angeles\", \"country\": \"USA\", \"state\": \"CA\", \"zip\": \"90504\"}, \"email\": \"olivia.gonzalez4421@example.com\", \"dob\": \"1988-06-13\", \"payment_methods\": {\"gift_card_2200803\": {\"source\": \"gift_card\", \"id\": \"gift_card_2200803\", \"amount\": 123.0}, \"credit_card_9969263\": {\"source\": \"credit_card\", \"id\": \"credit_card_9969263\", \"brand\": \"mastercard\", \"last_four\": \"9475\"}}, \"saved_passengers\": [{\"first_name\": \"Mei\", \"last_name\": \"Johansson\", \"dob\": \"1981-09-25\"}, {\"first_name\": \"Yara\", \"last_name\": \"Lopez\", \"dob\": \"1975-09-15\"}], \"membership\": \"regular\", \"reservations\": [\"Z7GOZK\", \"K67C4W\", \"THY2DG\"]}",
+        "tool_call_id": "call_airline_19_1_0"
       }
     ],
     "seed": 1,
@@ -735,7 +735,17 @@
     "toolChoice": "auto"
   },
   "response": {
-    "text": "I am sorry, I cannot change this reservation today.",
+    "text": "",
+    "toolCalls": [
+      {
+        "id": "call_airline_19_2_0",
+        "type": "function",
+        "function": {
+          "name": "get_reservation_details",
+          "arguments": "{\"reservation_id\":\"Z7GOZK\"}"
+        }
+      }
+    ],
     "usage": {
       "input_tokens": 0,
       "output_tokens": 0,

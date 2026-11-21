@@ -1,5 +1,5 @@
 {
-  "key": "d49029d100e2e2df409cd81f4dce5af3f32d1d135ee0d772afc1f31129dd599e",
+  "key": "50efc7bbbefb920a8989cc784613c797b5b38c85977ad9273896a99b471ad685",
   "context": {
     "item": "tau2/airline/6/agent",
     "condition": "C5",
@@ -34,7 +34,7 @@
       },
       {
         "role": "tool",
-        "content": "<engram:memory policy_id=\"preset.medium/read/person\" filtered=\"0\">\nno memories\n</engram:memory>",
+        "content": "<engram:memory read_id=\"01920000-0000-7000-9000-000000000001\" policy_id=\"preset.medium/read/person\" filtered=\"0\">\nno memories\n</engram:memory>",
         "tool_call_id": "call_airline_6_0_0"
       },
       {

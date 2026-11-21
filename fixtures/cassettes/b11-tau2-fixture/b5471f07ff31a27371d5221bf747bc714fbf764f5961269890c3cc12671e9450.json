@@ -1,9 +1,9 @@
 {
-  "key": "70db784cdb7c6d11fe056bc89427125c2ec67a7803eb1270230bd08343668416",
+  "key": "b5471f07ff31a27371d5221bf747bc714fbf764f5961269890c3cc12671e9450",
   "context": {
-    "item": "tau2/airline/6/agent",
-    "condition": "C2",
-    "preset": "none",
+    "item": "tau2/airline/19/agent",
+    "condition": "C5",
+    "preset": "medium",
     "store": "files"
   },
   "request": {
@@ -16,13 +16,13 @@
       },
       {
         "role": "user",
-        "content": "Hi. I added travel insurance to my reservation PEP4E0 but it is not showing online. My user id is sophia_taylor_9065."
+        "content": "Hi, I am Olivia Gonzalez, user id olivia_gonzalez_2305. I want a later return flight to Newark on the 28th, I do not remember the reservation id."
       },
       {
         "role": "assistant",
         "tool_calls": [
           {
-            "id": "call_airline_6_0_0",
+            "id": "call_airline_19_0_0",
             "name": "memory_read",
             "function": {
               "name": "memory_read",
@@ -34,68 +34,8 @@
       },
       {
         "role": "tool",
-        "content": "<engram:memory filtered=\"0\">\nno memories\n</engram:memory>",
-        "tool_call_id": "call_airline_6_0_0"
-      },
-      {
-        "role": "assistant",
-        "tool_calls": [
-          {
-            "id": "call_airline_6_1_0",
-            "name": "get_reservation_details",
-            "function": {
-              "name": "get_reservation_details",
-              "arguments": "{\"reservation_id\": \"PEP4E0\"}"
-            },
-            "type": "function"
-          }
-        ]
-      },
-      {
-        "role": "tool",
-        "content": "{\"reservation_id\": \"PEP4E0\", \"user_id\": \"sophia_taylor_9065\", \"origin\": \"CLT\", \"destination\": \"PHX\", \"flight_type\": \"one_way\", \"cabin\": \"basic_economy\", \"flights\": [{\"flight_number\": \"HAT176\", \"origin\": \"CLT\", \"destination\": \"DTW\", \"date\": \"2024-05-20\", \"price\": 51}, {\"flight_number\": \"HAT097\", \"origin\": \"DTW\", \"destination\": \"PHX\", \"date\": \"2024-05-20\", \"price\": 77}], \"passengers\": [{\"first_name\": \"Sophia\", \"last_name\": \"Taylor\", \"dob\": \"1999-05-27\"}], \"payment_history\": [{\"payment_id\": \"credit_card_9302073\", \"amount\": 128}], \"created_at\": \"2024-05-05T05:10:43\", \"total_baggages\": 0, \"nonfree_baggages\": 0, \"insurance\": \"no\", \"status\": null}",
-        "tool_call_id": "call_airline_6_1_0"
-      },
-      {
-        "role": "assistant",
-        "content": "Reservation PEP4E0 has no travel insurance, and the policy does not allow adding insurance after a reservation is booked."
-      },
-      {
-        "role": "user",
-        "content": "Everyone else in my family has insurance on this trip. Please add it to mine."
-      },
-      {
-        "role": "assistant",
-        "tool_calls": [
-          {
-            "id": "call_airline_6_3_0",
-            "name": "memory_write",
-            "function": {
-              "name": "memory_write",
-              "arguments": "{\"scope\": \"team:tau2-airline\", \"content\": \"Travel insurance cannot be added to a reservation after it is booked.\", \"confidence\": 0.9}"
-            },
-            "type": "function"
-          },
-          {
-            "id": "call_airline_6_3_1",
-            "name": "memory_write",
-            "function": {
-              "name": "memory_write",
-              "arguments": "{\"scope\": \"person:tau2-agent\", \"content\": \"Insurance requests on a booked reservation are refused by the policy.\", \"confidence\": 0.9}"
-            },
-            "type": "function"
-          }
-        ]
-      },
-      {
-        "role": "tool",
-        "content": "stored 53739a0a-555b-7b11-bdcc-a0e00aaea8bc in team:tau2-airline as active",
-        "tool_call_id": "call_airline_6_3_0"
-      },
-      {
-        "role": "tool",
-        "content": "stored 0cd3ca07-3891-78e9-85a4-2c1f3a5cf799 in person:tau2-agent as active",
-        "tool_call_id": "call_airline_6_3_1"
+        "content": "<engram:memory read_id=\"01920000-0000-7000-9000-000000000004\" policy_id=\"preset.medium/read/person\" filtered=\"0\">\n<engram:item item_id=\"e0ef4f04-70bf-72c8-9ceb-8a1b32a18b1c\" scope=\"person:tau2-agent\" rank=\"1\" policy_id=\"preset.medium/read/person\">\nInsurance requests on a booked reservation are refused by the policy.\n</engram:item>\n</engram:memory>",
+        "tool_call_id": "call_airline_19_0_0"
       }
     ],
     "seed": 1,
@@ -776,7 +716,17 @@
     "toolChoice": "auto"
   },
   "response": {
-    "text": "I am sorry: insurance cannot be added to a booked reservation. Is there anything else I can help with?",
+    "text": "",
+    "toolCalls": [
+      {
+        "id": "call_airline_19_1_0",
+        "type": "function",
+        "function": {
+          "name": "get_user_details",
+          "arguments": "{\"user_id\":\"olivia_gonzalez_2305\"}"
+        }
+      }
+    ],
     "usage": {
       "input_tokens": 0,
       "output_tokens": 0,

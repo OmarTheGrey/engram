@@ -1,5 +1,5 @@
 {
-  "key": "e999368e489425830b1637a4403c68c50dbafec2632a678626b7ddf44e2f2bb5",
+  "key": "2cc10b509a7726bbe1a0ac6722dc41b3cfe7f2bdc4595a5e576ea752feea1a86",
   "context": {
     "item": "tau2/airline/19/agent",
     "condition": "C2",
@@ -34,7 +34,7 @@
       },
       {
         "role": "tool",
-        "content": "<engram:memory filtered=\"0\">\n<engram:item item_id=\"0cd3ca07-3891-78e9-85a4-2c1f3a5cf799\" scope=\"person:tau2-agent\" rank=\"1\">\nInsurance requests on a booked reservation are refused by the policy.\n</engram:item>\n<engram:item item_id=\"53739a0a-555b-7b11-bdcc-a0e00aaea8bc\" scope=\"team:tau2-airline\" rank=\"2\">\nTravel insurance cannot be added to a reservation after it is booked.\n</engram:item>\n</engram:memory>",
+        "content": "<engram:memory filtered=\"0\">\n<engram:item item_id=\"3e790c21-f3c2-7f64-bdfa-4a28bd079d4b\" scope=\"person:tau2-agent\" rank=\"1\">\nInsurance requests on a booked reservation are refused by the policy.\n</engram:item>\n<engram:item item_id=\"ff81417f-ef9e-7ecc-bd51-a77f84af8214\" scope=\"team:tau2-airline\" rank=\"2\">\nTravel insurance cannot be added to a reservation after it is booked.\n</engram:item>\n</engram:memory>",
         "tool_call_id": "call_airline_19_0_0"
       }
     ],

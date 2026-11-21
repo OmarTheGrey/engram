@@ -1,7 +1,7 @@
 {
-  "key": "c3cb5fc0731ffddef90d16d302bd285bdf208ff0ed10241278ab1efa25667b43",
+  "key": "14ef2b69fa5c071b803a80e86f447e6d654530c5f5c63fe029d2e82aaf6c97b6",
   "context": {
-    "item": "tau2/airline/19/agent",
+    "item": "tau2/airline/16/agent",
     "condition": "C5",
     "preset": "medium",
     "store": "files"
@@ -16,17 +16,17 @@
       },
       {
         "role": "user",
-        "content": "Hi, I am Olivia Gonzalez, user id olivia_gonzalez_2305. I want a later return flight to Newark on the 28th, I do not remember the reservation id."
+        "content": "Hi, I am Aarav Garcia, user id aarav_garcia_1177. I want to move my trip from ATL to PHL to the next day, on the cheapest economy flight."
       },
       {
         "role": "assistant",
         "tool_calls": [
           {
-            "id": "call_airline_19_0_0",
+            "id": "call_airline_16_0_0",
             "name": "memory_read",
             "function": {
               "name": "memory_read",
-              "arguments": "{\"query\": \"reservation insurance\"}"
+              "arguments": "{\"query\": \"reservation change\"}"
             },
             "type": "function"
           }
@@ -34,8 +34,8 @@
       },
       {
         "role": "tool",
-        "content": "<engram:memory policy_id=\"preset.medium/read/person\" filtered=\"0\">\n<engram:item item_id=\"bb4161bf-73d1-712c-99d9-a286c667cddd\" scope=\"person:tau2-agent\" rank=\"1\" policy_id=\"preset.medium/read/person\">\nInsurance requests on a booked reservation are refused by the policy.\n</engram:item>\n</engram:memory>",
-        "tool_call_id": "call_airline_19_0_0"
+        "content": "<engram:memory read_id=\"01920000-0000-7000-9000-000000000007\" policy_id=\"preset.medium/read/person\" filtered=\"0\">\n<engram:item item_id=\"56e70fc7-fbbe-7d9c-b5c7-766f7aafeb08\" scope=\"person:tau2-agent\" rank=\"1\" policy_id=\"preset.medium/read/person\">\nA basic economy reservation cannot be modified; with travel insurance it can be cancelled for health reasons.\n</engram:item>\n<engram:item item_id=\"d73b3f70-727c-7074-b072-110349a5b16a\" scope=\"person:tau2-agent\" rank=\"2\" policy_id=\"preset.medium/read/person\">\nOlivia Gonzalez cancelled reservation Z7GOZK on 2024-05-15.\n</engram:item>\n<engram:item item_id=\"e0ef4f04-70bf-72c8-9ceb-8a1b32a18b1c\" scope=\"person:tau2-agent\" rank=\"3\" policy_id=\"preset.medium/read/person\">\nInsurance requests on a booked reservation are refused by the policy.\n</engram:item>\n</engram:memory>",
+        "tool_call_id": "call_airline_16_0_0"
       }
     ],
     "seed": 1,
@@ -719,11 +719,11 @@
     "text": "",
     "toolCalls": [
       {
-        "id": "call_airline_19_1_0",
+        "id": "call_airline_16_1_0",
         "type": "function",
         "function": {
           "name": "get_user_details",
-          "arguments": "{\"user_id\":\"olivia_gonzalez_2305\"}"
+          "arguments": "{\"user_id\":\"aarav_garcia_1177\"}"
         }
       }
     ],
