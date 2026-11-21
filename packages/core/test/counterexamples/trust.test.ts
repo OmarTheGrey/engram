@@ -956,7 +956,12 @@ describe("E2.11 the owner's rules under the trust options", () => {
     // A change in the class: recorded again.
     await plane.write(
       owner("user"),
-      { ...(itemById(db, id(2)) as MemoryItem), version: 2, store_ref: null, content: "fact 2b" },
+      {
+        ...(itemById(db, id(2)) as MemoryItem),
+        version: 2,
+        store_ref: null,
+        content: "fact 2b",
+      } as MemoryItem,
       LATER,
     );
     const later = await tight.retain(coMember("model"), SCOPE, LATER);
