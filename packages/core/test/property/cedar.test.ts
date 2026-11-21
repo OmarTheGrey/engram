@@ -79,6 +79,8 @@ import {
 } from "../generators.ts";
 
 const RUNS = 1500;
+const GENERATED_RUNS = 1000;
+const DUPLICATED_RUNS = 150;
 const KINDS = ["user", "document", "tool", "model", "import", "compaction", "external"] as const;
 
 // ---- the Cedar side ----------------------------------------------------------
@@ -91,6 +93,12 @@ interface CedarDecision {
 
 /** A Cedar engine over one export: the schema and policy set parsed once. */
 function engine(exported: CedarExport, name: string): (req: CedarRequest) => CedarDecision {
+  // A repeated id would overwrite a policy here and hide it from Cedar.
+  const ids = exported.rules.map((r) => r.id);
+  if (new Set(ids).size !== ids.length)
+    throw new Error(
+      `the export repeats a rule id: ${ids.filter((id, i) => ids.indexOf(id) !== i)}`,
+    );
   const staticPolicies = Object.fromEntries(exported.rules.map((r) => [r.id, r.text]));
   const engramOf = new Map(exported.rules.map((r) => [r.id, r.engram]));
   const schemaParsed = cedar.preparseSchema(name, exported.schema);
@@ -294,9 +302,15 @@ const arbWriteCase: fc.Arbitrary<WriteCase> = arbWriteItem.chain((item) =>
 );
 
 /**
- * A generated policy with ttl rules, and sometimes a duplicate of a write
- * rule, a matrix row and a retention rule appended: the evaluator takes the
- * first of each, and so must the export.
+ * A generated policy with ttl rules, and in half the draws a duplicate of its
+ * first write rule (allowing no source), of its first matrix row (reading
+ * every level) and of its first retention rule (a ttl of one second)
+ * appended. The evaluator takes the first of each, and so must the export:
+ * a duplicate taken would deny a write, admit a read or expire an item the
+ * evaluator does not. The coverage guards below require cases decided at a
+ * duplicated rule, and the engine refuses an export that repeats a rule id,
+ * which would let the last duplicate overwrite the first (review finding
+ * E2.12-1).
  */
 const arbGeneratedPolicy: fc.Arbitrary<Policy> = fc
   .tuple(arbPolicy, arbTtlRules, fc.boolean(), fc.constantFrom(...FLOORS))
@@ -419,22 +433,147 @@ describe("the Cedar export agrees with the evaluator on the presets", () => {
   });
 });
 
+const levelOf = (scope: string) => (scope === "org" ? "org" : scope.split(":")[0]);
+
+/**
+ * A preset with a duplicate appended of the write rule of one level (allowing
+ * no source, the review flipped, another floor), of the matrix row of one
+ * reader (reading every level) and of the retention rule of one level and
+ * class (a ttl of one second), with twenty reads and twenty writes. Each
+ * duplicate is of the rule that decides one of the cases the preset allows,
+ * so that every such case is one a duplicate taken would decide otherwise
+ * (review finding E2.12-1).
+ */
+const arbDuplicated = fc
+  .tuple(
+    fc.constantFrom(...PRESETS),
+    fc.constantFrom(...FLOORS),
+    fc.array(arbReadCase, { minLength: 20, maxLength: 20 }),
+    fc.array(arbWriteCase, { minLength: 20, maxLength: 20 }),
+  )
+  .map(([name, floor, reads, writes]) => {
+    const preset = loadPreset(name);
+    const allowed = writes.find((w) => {
+      const d = evaluateWrite(preset, w.actor, w.item, w.existing, w.retired);
+      return d.decision === "allow";
+    });
+    const write = levelOf((allowed ?? (writes[0] as WriteCase)).item.scope);
+    const admitted = reads.find(
+      (r) => evaluateRead(preset, r.actor, r.item, r.at, r.validAt).check === "scope",
+    );
+    const keyOf = (r: ReadCase) => `${levelOf(r.item.scope)}/${r.item.class}`;
+    const kept =
+      preset.retention.find((x) => admitted && `${x.scope}/${x.class}` === keyOf(admitted)) ??
+      (preset.retention[0] as Policy["retention"][number]);
+    const excluded = reads.find(
+      (r) => evaluateRead(preset, r.actor, r.item, r.at, r.validAt).check === "excluded",
+    );
+    const read = (excluded ?? (reads[0] as ReadCase)).actor.level;
+    const rule = preset.write.find((x) => x.scope === write) as Policy["write"][number];
+    const row = preset.read.matrix.find(
+      (x) => x.reader === read,
+    ) as Policy["read"]["matrix"][number];
+    const policy: Policy = {
+      ...preset,
+      write: [
+        ...preset.write,
+        {
+          ...rule,
+          allowed_sources: [],
+          requires_review: !rule.requires_review,
+          confidence_floor: floor,
+        },
+      ],
+      read: {
+        ...preset.read,
+        matrix: [...preset.read.matrix, { ...row, may_read: [...SCOPE_LEVELS] }],
+      },
+      retention: [...preset.retention, { ...kept, ttl: 1 }],
+    };
+    return { policy, write, read, retention: `${kept.scope}/${kept.class}`, reads, writes };
+  });
+
 describe("beyond the presets: generated policies", () => {
   const name = "generated policies: every generated read and write is decided alike";
-  const checks = new Map<string, number>();
   test(name, () => {
+    const checks = new Map<string, number>();
     fc.assert(
       fc.property(arbGeneratedPolicy, arbReadCase, arbWriteCase, (policy, r, w) => {
         const decide = engine(exportCedar(policy), "generated");
         tally(checks, `read ${checkRead(policy, decide, r)}`);
         tally(checks, `write ${checkWrite(policy, decide, w)}`);
       }),
-      { numRuns: 400, seed: seedFor(name) },
+      { numRuns: GENERATED_RUNS, seed: seedFor(name) },
     );
     expect(checks.get("write no-rule") ?? 0).toBeGreaterThan(0);
     expect(checks.get("write source-isolation") ?? 0).toBeGreaterThan(0);
     expect(checks.get("read excluded") ?? 0).toBeGreaterThan(0);
     expect(checks.get("write admit") ?? 0).toBeGreaterThan(0);
+  });
+
+  const dupName = "presets with duplicated rules: the first of each decides, on both sides";
+  test(dupName, () => {
+    const checks = new Map<string, number>();
+    fc.assert(
+      fc.property(arbDuplicated, ({ policy, write, read, retention, reads, writes }) => {
+        const decide = engine(exportCedar(policy), "duplicated");
+        for (const r of reads) {
+          const check = checkRead(policy, decide, r);
+          // Cases a duplicate taken would decide otherwise.
+          if (`${levelOf(r.item.scope)}/${r.item.class}` === retention && check === "scope")
+            tally(checks, "admitted at a duplicated retention rule");
+          if (r.actor.level === read && check === "excluded")
+            tally(checks, "excluded at a duplicated matrix row");
+        }
+        for (const w of writes) {
+          const check = checkWrite(policy, decide, w);
+          if (levelOf(w.item.scope) === write && (check === "admit" || check === "review"))
+            tally(checks, "allowed at a duplicated write rule");
+        }
+      }),
+      { numRuns: DUPLICATED_RUNS, seed: seedFor(dupName) },
+    );
+    for (const key of [
+      "allowed at a duplicated write rule",
+      "admitted at a duplicated retention rule",
+      "excluded at a duplicated matrix row",
+    ])
+      expect(checks.get(key) ?? 0, `${key}: ${JSON.stringify([...checks])}`).toBeGreaterThan(20);
+  });
+
+  test("duplicated write and retention rules: the first decides, on both sides", () => {
+    const medium = loadPreset("medium");
+    const person = medium.write.find((x) => x.scope === "person");
+    if (!person) throw new Error("medium has a person write rule");
+    const policy: Policy = {
+      ...medium,
+      write: [...medium.write, { ...person, allowed_sources: [], requires_review: true }],
+      retention: [
+        ...medium.retention,
+        { scope: "person", class: "semantic", ttl: 1, budget: null, eviction: "recency" },
+      ],
+    };
+    const decide = engine(exportCedar(policy), "duplicates");
+    const base = fc.sample(arbItem(), { numRuns: 1, seed: 1 })[0] as MemoryItem;
+    const item: MemoryItem = {
+      ...base,
+      class: "semantic",
+      content: "a fact",
+      scope: "person:a",
+      status: "active",
+      confidence: 0.9,
+      valid_from: "2026-10-25T12:00:00Z",
+      valid_to: null,
+      ttl: null,
+      grants: [],
+      provenance: { ...base.provenance, kind: "user" },
+    };
+    const actor: Actor = { id: "person:omar", level: "person", memberships: ["person:a"] };
+    const at = "2026-10-25T12:00:10Z";
+    expect(
+      checkWrite(policy, decide, { actor, item, existing: undefined, retired: new Map() }),
+    ).toBe("admit");
+    expect(checkRead(policy, decide, { actor, item, at, validAt: at })).toBe("scope");
   });
 });
 
@@ -473,6 +612,17 @@ describe("the export as text", () => {
     // The parts come back in Cedar's order, not the text's.
     expect([...engramIds].sort()).toEqual(exported.rules.map((r) => r.engram).sort());
     expect(engramIds).toContain(`${policy.id}/write/person`);
+  });
+
+  test("names every rule with an id of its own", () => {
+    const policies = [
+      ...presets.map((p) => p.policy),
+      ...fc.sample(arbGeneratedPolicy, { numRuns: 200, seed: seedFor("unique ids") }),
+    ];
+    for (const policy of policies) {
+      const ids = exportCedar(policy).rules.map((r) => r.id);
+      expect(new Set(ids).size, policy.id).toBe(ids.length);
+    }
   });
 
   test("is pure: the same policy exports to the same text", () => {
