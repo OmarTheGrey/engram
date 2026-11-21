@@ -3218,7 +3218,18 @@ type TrustStep =
    * handle while `lead`, on the first, has decided and is writing the store,
    * so it lands between `lead`'s decision and its commit (review E2.11-2).
    */
-  | { op: "race"; lead: TrustWrite | TrustPromote; other: TrustWrite };
+  | {
+      op: "race";
+      lead: TrustWrite | TrustPromote;
+      other: TrustWrite;
+      /**
+       * When the lead is a promotion, aim the other write at its target: a new
+       * semantic item in the promoted item's scope, so it can fill the
+       * target's budget between the promotion's decision and its commit,
+       * written by a person so a less trusted promotion may not evict it.
+       */
+      aim: boolean;
+    };
 
 const arbTrustSource = fc.option(fc.constantFrom<Kind>(...KINDS), { nil: null, freq: 3 });
 const arbTrustWrite: fc.Arbitrary<TrustWrite> = fc.record({
@@ -3264,6 +3275,7 @@ const arbTrustStep: fc.Arbitrary<TrustStep> = fc.oneof(
       op: fc.constant("race" as const),
       lead: fc.oneof(arbTrustWrite, arbTrustPromote),
       other: arbTrustWrite,
+      aim: fc.boolean(),
     }),
   },
 );
@@ -3287,6 +3299,7 @@ const trustCounters = () => ({
   promotionDeniedForBudget: 0,
   raced: 0,
   refusedAtCommit: 0,
+  promotionRefusedAtCommit: 0,
 });
 
 const SUPERSEDED = /\/promotion\/superseded$/;
@@ -3407,7 +3420,10 @@ async function trustWalk(
     for (const [j, e] of events.entries()) {
       const before = e.item_id ? state.get(e.item_id) : undefined;
       if (e.decision === "deny" && e.policy_id === DOWNGRADE) {
-        if (e.reason.includes("before it was committed")) seen.refusedAtCommit++;
+        if (e.reason.includes("before it was committed")) {
+          seen.refusedAtCommit++;
+          if (e.op === "promote") seen.promotionRefusedAtCommit++;
+        }
         if (e.op === "promote") seen.promotionDeniedForBudget++;
         else if (e.reason.startsWith("adopted from store ")) seen.adoptionDenied++;
         else if (e.reason.includes("would have to evict")) seen.writeDeniedForBudget++;
@@ -3501,8 +3517,23 @@ async function trustWalk(
     } else if (step.op === "race") {
       let mid = -1;
       let otherActor: Actor | undefined;
+      let other = step.other;
+      const target =
+        step.lead.op === "promote" ? itemById(db, T_POOL[step.lead.n] as string) : null;
+      if (step.aim && target) {
+        const free = T_POOL.findIndex((id) => itemById(db, id) === undefined);
+        other = {
+          ...other,
+          cls: "semantic",
+          scope: T_SCOPES.indexOf(target.scope as (typeof T_SCOPES)[number]),
+          n: free === -1 ? other.n : free,
+          retire: false,
+          // A person writes it, so a less trusted promotion may not evict it.
+          source: "user",
+        };
+      }
       midWrite = async () => {
-        const [actor, it] = written(step.other);
+        const [actor, it] = written(other);
         otherActor = actor;
         await planeB.write(actor, it, at);
         mid = allEvents(db).length;
@@ -3512,16 +3543,16 @@ async function trustWalk(
         // The lead never reached the store: the other write runs after it.
         midWrite = null;
         const leadEnd = allEvents(db).length;
-        const [actor, it] = written(step.other);
+        const [actor, it] = written(other);
         await planeB.write(actor, it, at);
         judge(leadActor, allEvents(db).slice(start, leadEnd), false, `${label}, lead`);
         judge(actor, allEvents(db).slice(leadEnd), false, `${label}, other after`);
-        countFloor(step.other, allEvents(db).slice(leadEnd));
+        countFloor(other, allEvents(db).slice(leadEnd));
       } else {
         seen.raced++;
         judge(otherActor as Actor, allEvents(db).slice(start, mid), false, `${label}, other`);
         judge(leadActor, allEvents(db).slice(mid), false, `${label}, lead after`);
-        countFloor(step.other, allEvents(db).slice(start, mid));
+        countFloor(other, allEvents(db).slice(start, mid));
       }
       if (step.lead.op === "write") countFloor(step.lead, allEvents(db).slice(start));
     } else if (step.op === "sweep") {
