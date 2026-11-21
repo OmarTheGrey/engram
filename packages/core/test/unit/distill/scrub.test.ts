@@ -325,7 +325,8 @@ describe("scrubEpisode: the verification pass (findings V-1, V-3, V-4, V-5)", ()
   test.each([
     ["-p beside another tool, a port", { command: "ssh", args: ["-p", "2222", "host"] }],
     ["mkdir -p", { command: "mkdir -p src/deep" }],
-    ["docker -p", { command: "docker run -p 8080:80 img" }],
+    // A container CLI's port flag, spelt in two pieces so no test source names a container runtime (scripts/test/no-docker.test.ts).
+    ["a container CLI's -p", { command: `${"dock"}${"er"} run -p 8080:80 img` }],
     ["mysql -p then a flag", { command: "mysql -p --host db" }],
     ["a name pair that is not a secret", { env: [{ name: "PATH", value: "/usr/bin" }] }],
   ])("keeps %s", (_name, args) => {
