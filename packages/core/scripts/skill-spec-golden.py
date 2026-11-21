@@ -55,7 +55,7 @@ def run(cases: list[dict[str, str]]) -> dict[str, list[str]]:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--cases", required=True, help="the folder holding cases.json and emitted.json")
+    parser.add_argument("--cases", required=True, help="the folder of cases.json and emitted.json")
     parser.add_argument("--out", required=True)
     args = parser.parse_args()
     folder = Path(args.cases)
