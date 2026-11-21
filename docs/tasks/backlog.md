@@ -203,3 +203,12 @@ From the core review (RV-CORE-1 to 10); each needs the lead.
 | A grant over text the owner never saw | `Plane.changeGrants` takes no expected version or content hash, so the owner may grant an item a co-holder rewrote before it carried any grant (review finding RV7-R6 of PR #61); an expected version on the call, refused when the item moved on, would close it | `docs/log/2026-11-20-rv7-review-finding-grant-without-expected-version.md`; ADR 0034, RV7 amendment |
 | A promotion out of the owner's reach | a reviewed promotion by a co-holder into a scope the owner is not a member of retires the source and leaves the owner reading nothing; since the review fix pass of PR #61 it carries no grant, but the owner still loses the item (ADR 0026's widening) | `docs/log/2026-11-20-rv7-review-decision-promotion-drops-grants.md`; ADR 0006, RV7 amendment |
 | First-write forgery | named by the review of PR #61 (RV7-R9) as an ADR 0034 limit, not a regression of card RV7: the row "A first write naming another owner" above holds it | `docs/log/2026-11-19-e9-4-verification-finding-first-write-owner.md` |
+
+## Follow-ups from card RV8 (2026-11-21)
+
+From the review fix pass of PR #65; each needs the lead.
+
+| item | what is left | where it is recorded |
+|---|---|---|
+| LongMemEval's audit allocation | the pre-registration registers no sampling rule for LongMemEval's audit, and a uniform draw of 50 holds few abstention questions; the recommendation is a stratified draw with at least 5 abstention items, registered before the audit of 23 to 28 November (one function in `label_audit_sample.py` and its seed) | `docs/log/2026-11-21-rv8-review-finding-lme-audit-stratified.md` |
+| The frontier axis to register | ttl at 7 days and budget 50 each move both benchmarks at non-degenerate values (item 21); the lead chooses which axes are registered by amendment before X6 | `docs/log/2026-11-21-rv8-review-finding-axes-quantified.md` |

@@ -1,4 +1,4 @@
-"""The label audit's agreement: two or three members' sheets as disagreement rates and kappas.
+"""The label audit's agreement: the three members' sheets (Omar, Mohamad, Shady) as kappas.
 
 Usage:
     uv run python research/scripts/label_audit_agreement.py \\
@@ -10,9 +10,9 @@ config's is refused, naming both (review of PR #43, P43-5), so a
 three-member audit cannot be reported on two of its members.
 
 The lead named three members on 2026-11-19 (decision sheet item 16, changed:
-`docs/log/2026-11-19-lead-decision-16-three-members.md`). With two members
-the report is exactly what it was for two; what three change is said at the
-end of this docstring.
+`docs/log/2026-11-19-lead-decision-16-three-members.md`). A config that names
+two members still reports exactly as it did for two (kept for the tests and
+for a reduced audit); what three change is said at the end of this docstring.
 
 The benchmark labels come from the pinned data through the sampler's own
 seeded draw (research/scripts/label_audit_sample.py `draw`), never from a
@@ -64,6 +64,17 @@ unchanged; `stop` stays null until every member's key sheets exist, unless
 the rejections already pass the threshold, and some but not all members'
 key sheets are refused.
 
+Card RV8 makes the rule and the response config values, for the lead's
+answers to lead-decisions items 5 and 6: `reject_quorum` (2: both of two,
+two of three; 1 is any one, 3 all three) and `on_stop` (`pause`, the
+pre-registration's text, the runs waiting for an amendment; or `drop`, item
+6a, the rejected items dropped and listed). Each benchmark's report gives
+`reject_quorum` and `action`, what a tripped stop means. LongMemEval
+(research/configs/label-audit-longmemeval.json) is judged as MEM-INV-Bench
+is: an item is rejected when the quorum labels its answerability otherwise
+than the benchmark (an `_abs` question is unanswerable), or answers no on its
+key, the benchmark's answer.
+
 The pre-registration reports the members' disagreement rate (ADR 0015). The
 output holds counts and references only, no benchmark text, and is written
 byte-stable. A blank or unknown label, or a sheet whose items differ from
@@ -84,8 +95,17 @@ from scripts.label_audit_sample import AuditItem, draw, phase_1_labels
 from scripts.results_io import REPO, load_config, write_result
 
 YES_NO = ("yes", "no")
-# An item is rejected when at least this many members reject it: both of two, two of three.
+# The default rejection quorum: both of two, two of three (lead-decisions item 5a). The CLI
+# takes it from the config's `reject_quorum`; 1 is "any one", the number of members "all".
 REJECT_QUORUM = 2
+# What a tripped stop means (lead-decisions item 6): the config's `on_stop`.
+ON_STOP = {
+    "pause": "the benchmark's runs wait for an amendment (the pre-registration's text)",
+    "drop": "the rejected items are dropped, listed in v1, and the runs proceed (item 6a)",
+}
+# Benchmarks whose rejection also counts members' phase-1 labels against the benchmark's.
+LABEL_REJECTS = ("mem-inv-bench", "longmemeval")
+NUMBER = {1: "one", 2: "two", 3: "three"}
 
 
 def cohen_kappa(first: Sequence[str], second: Sequence[str]) -> float | None:
@@ -158,6 +178,8 @@ def compare(
     members: Sequence[str],
     *,
     stop_share: float,
+    quorum: int = REJECT_QUORUM,
+    on_stop: str = "pause",
 ) -> dict[str, Any]:
     """One benchmark's agreement and stopping rule; the benchmark labels from the draw's items."""
     refs = [i.ref for i in items]
@@ -188,20 +210,22 @@ def compare(
             "no": {m: ok[m].count("no") for m in members},
         }
         keys_no = {
-            r for k, r in enumerate(refs) if sum(ok[m][k] == "no" for m in members) >= REJECT_QUORUM
+            r for k, r in enumerate(refs) if sum(ok[m][k] == "no" for m in members) >= quorum
         }
     against_truth = [
-        r
-        for k, r in enumerate(refs)
-        if sum(labels[m][k] != truth[k] for m in members) >= REJECT_QUORUM
+        r for k, r in enumerate(refs) if sum(labels[m][k] != truth[k] for m in members) >= quorum
     ]
-    if len(members) == 2:
+    n = len(members)
+    if n == 2 and quorum == 2:
         who, again, errors = "both members", "both", "both_against_benchmark"
     else:
-        who, again = "at least two of the three members", "at least two"
-        errors = "two_or_more_against_benchmark"
-    if benchmark == "mem-inv-bench":
-        rule = f"{who} label otherwise than the family, or {again} answer no on the keys"
+        count = NUMBER.get(quorum, str(quorum))
+        total = NUMBER.get(n, str(n))
+        who, again = f"at least {count} of the {total} members", f"at least {count}"
+        errors = f"{count}_or_more_against_benchmark"
+    if benchmark in LABEL_REJECTS:
+        what = "the family" if benchmark == "mem-inv-bench" else "the benchmark's answerability"
+        rule = f"{who} label otherwise than {what}, or {again} answer no on the keys"
         rejected_set = keys_no | set(against_truth)
     else:
         rule = f"{who} answer no on the keys"
@@ -209,6 +233,13 @@ def compare(
     rejected = [r for r in refs if r in rejected_set]
     over = len(rejected) > stop_share * len(refs)
     stop: bool | None = over if all(present) else (True if over else None)
+    action: dict[str, Any]
+    if stop is True:
+        action = {"on_stop": on_stop, "means": ON_STOP[on_stop]}
+        if on_stop == "drop":
+            action["kept"] = len(refs) - len(rejected)
+    else:
+        action = {"on_stop": on_stop, "means": None}
     return {
         "items": len(refs),
         "members": list(members),
@@ -221,6 +252,8 @@ def compare(
         "rejected": {"rule": rule, "refs": rejected, "count": len(rejected)},
         "stop_share": stop_share,
         "stop": stop,
+        "reject_quorum": quorum,
+        "action": action,
     }
 
 
@@ -230,14 +263,22 @@ def compare_dir(
     drawn: Mapping[str, Sequence[AuditItem]],
     *,
     stop_share: float,
+    quorum: int = REJECT_QUORUM,
+    on_stop: str = "pause",
 ) -> dict[str, Any]:
-    """Every benchmark of the draw, from the two or three members' sheets in `directory`."""
+    """Every benchmark of the draw, from the members' sheets in `directory`."""
     if len(members) not in (2, 3) or len(set(members)) != len(members):
         raise ValueError("the audit compares two or three distinct members")
     if not 0.0 < stop_share < 1.0:
         raise ValueError("stop_share must lie in (0, 1)")
+    if not 1 <= quorum <= len(members):
+        raise ValueError(f"reject_quorum must lie in 1..{len(members)}, not {quorum}")
+    if on_stop not in ON_STOP:
+        raise ValueError(f"on_stop must be one of {sorted(ON_STOP)}, not {on_stop!r}")
     return {
-        b: compare(b, items, directory, members, stop_share=stop_share)
+        b: compare(
+            b, items, directory, members, stop_share=stop_share, quorum=quorum, on_stop=on_stop
+        )
         for b, items in sorted(drawn.items())
     }
 
@@ -261,15 +302,22 @@ def main(argv: Sequence[str] | None = None) -> int:
             f"--members names {', '.join(members)}, but the config's members are "
             f"{', '.join(configured)}"
         )
-    result = compare_dir(directory, members, draw(config), stop_share=float(config["stop_share"]))
+    result = compare_dir(
+        directory,
+        members,
+        draw(config),
+        stop_share=float(config["stop_share"]),
+        quorum=int(config["reject_quorum"]),
+        on_stop=str(config["on_stop"]),
+    )
     out = args.out if args.out is not None else directory / "agreement.json"
     write_result(out, result)
     for benchmark, r in result.items():
         b = r["label"]["between_members"]
-        if len(members) == 2:
-            agree, reject = f"kappa {b['kappa']}", "both reject"
-        else:
-            agree, reject = f"Fleiss' kappa {b['fleiss_kappa']}", "two or more reject"
+        q = r["reject_quorum"]
+        two = len(members) == 2
+        agree = f"kappa {b['kappa']}" if two else f"Fleiss' kappa {b['fleiss_kappa']}"
+        reject = f"{q} or more of {len(members)} reject"
         print(
             f"label-audit: {benchmark}: {r['items']} items, members disagree on "
             f"{b['disagreements']} ({b['rate']:.3f}), {agree}; {reject} "

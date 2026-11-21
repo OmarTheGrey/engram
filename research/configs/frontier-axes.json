@@ -1,0 +1,194 @@
+{
+  "name": "frontier-axes",
+  "kind": "measurement",
+  "hypothesis": "H2",
+  "baseline": "medium",
+  "gatemem": {
+    "data": ".engram/upstream/gatemem/bench/data",
+    "manifest": "fixtures/bench/gatemem/manifest.json",
+    "fetch": true
+  },
+  "longmemeval": {
+    "data": {
+      "path": ".engram/upstream/longmemeval/data/longmemeval_s_cleaned.json",
+      "dataset": "https://huggingface.co/datasets/xiaowu0162/longmemeval-cleaned",
+      "revision": "98d7416c24c778c2fee6e6f3006e7a073259d48f",
+      "file": "longmemeval_s_cleaned.json",
+      "sha256": "d6f21ea9d60a0d56f34a05b609c79c88a451d2ae03597821ea3d5a9678c3a442"
+    },
+    "fetch": true,
+    "clock": "read_time",
+    "real_time": "2026-11-19T00:00:00.000Z"
+  },
+  "axes": {
+    "baseline": "preset medium as it is, H1's and H2's primary preset",
+    "grants": "read.honour_grants: whether a read grant admits another person's item",
+    "scope_width": "read.matrix's person row: which levels a person-level reader may read",
+    "budget": "retention budget of person-scope episodic items (eviction by recency at the write that passes it)",
+    "ttl": "retention ttl of person-scope episodic items, in seconds",
+    "sources": "an extra axis beside the four asked for: whether model content is admitted to person scope at write"
+  },
+  "variants": [
+    { "name": "medium", "axis": "baseline", "value": "medium", "base": "medium" },
+    {
+      "name": "grants-off",
+      "axis": "grants",
+      "value": false,
+      "base": "medium",
+      "set": [{ "path": ["read", "honour_grants"], "value": false }]
+    },
+    {
+      "name": "scope-person-only",
+      "axis": "scope_width",
+      "value": "person",
+      "base": "medium",
+      "set": [
+        { "path": ["read", "matrix", { "reader": "person" }, "may_read"], "value": ["person"] }
+      ]
+    },
+    {
+      "name": "scope-no-person",
+      "axis": "scope_width",
+      "value": "role,team,org",
+      "base": "medium",
+      "set": [
+        {
+          "path": ["read", "matrix", { "reader": "person" }, "may_read"],
+          "value": ["role", "team", "org"]
+        }
+      ]
+    },
+    {
+      "name": "budget-25",
+      "axis": "budget",
+      "value": 25,
+      "base": "medium",
+      "set": [
+        { "path": ["retention", { "scope": "person", "class": "episodic" }, "budget"], "value": 25 }
+      ]
+    },
+    {
+      "name": "budget-50",
+      "axis": "budget",
+      "value": 50,
+      "base": "medium",
+      "set": [
+        { "path": ["retention", { "scope": "person", "class": "episodic" }, "budget"], "value": 50 }
+      ]
+    },
+    {
+      "name": "budget-100",
+      "axis": "budget",
+      "value": 100,
+      "base": "medium",
+      "set": [
+        {
+          "path": ["retention", { "scope": "person", "class": "episodic" }, "budget"],
+          "value": 100
+        }
+      ]
+    },
+    {
+      "name": "budget-200",
+      "axis": "budget",
+      "value": 200,
+      "base": "medium",
+      "set": [
+        {
+          "path": ["retention", { "scope": "person", "class": "episodic" }, "budget"],
+          "value": 200
+        }
+      ]
+    },
+    {
+      "name": "budget-400",
+      "axis": "budget",
+      "value": 400,
+      "base": "medium",
+      "set": [
+        {
+          "path": ["retention", { "scope": "person", "class": "episodic" }, "budget"],
+          "value": 400
+        }
+      ]
+    },
+    {
+      "name": "ttl-1d",
+      "axis": "ttl",
+      "value": 86400,
+      "base": "medium",
+      "set": [
+        { "path": ["retention", { "scope": "person", "class": "episodic" }, "ttl"], "value": 86400 }
+      ]
+    },
+    {
+      "name": "ttl-7d",
+      "axis": "ttl",
+      "value": 604800,
+      "base": "medium",
+      "set": [
+        {
+          "path": ["retention", { "scope": "person", "class": "episodic" }, "ttl"],
+          "value": 604800
+        }
+      ]
+    },
+    {
+      "name": "ttl-30d",
+      "axis": "ttl",
+      "value": 2592000,
+      "base": "medium",
+      "set": [
+        {
+          "path": ["retention", { "scope": "person", "class": "episodic" }, "ttl"],
+          "value": 2592000
+        }
+      ]
+    },
+    {
+      "name": "ttl-180d",
+      "axis": "ttl",
+      "value": 15552000,
+      "base": "medium",
+      "set": [
+        {
+          "path": ["retention", { "scope": "person", "class": "episodic" }, "ttl"],
+          "value": 15552000
+        }
+      ]
+    },
+    {
+      "name": "ttl-365d",
+      "axis": "ttl",
+      "value": 31536000,
+      "base": "medium",
+      "set": [
+        {
+          "path": ["retention", { "scope": "person", "class": "episodic" }, "ttl"],
+          "value": 31536000
+        }
+      ]
+    },
+    {
+      "name": "ttl-none",
+      "axis": "ttl",
+      "value": null,
+      "base": "medium",
+      "set": [
+        { "path": ["retention", { "scope": "person", "class": "episodic" }, "ttl"], "value": null }
+      ]
+    },
+    {
+      "name": "no-model-source",
+      "axis": "sources",
+      "value": "user,document,tool,import,compaction",
+      "base": "medium",
+      "set": [
+        {
+          "path": ["write", { "scope": "person" }, "allowed_sources"],
+          "value": ["user", "document", "tool", "import", "compaction"]
+        }
+      ]
+    }
+  ]
+}

@@ -26,12 +26,15 @@ from __future__ import annotations
 
 import csv
 import json
+from collections import Counter
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
 import pytest
 
 from scripts import label_audit_agreement as agreement
+from scripts import label_audit_draw
 from scripts import label_audit_sample as sample
 from scripts.results_io import REPO, load_config
 
@@ -596,3 +599,198 @@ def test_the_cli_takes_its_members_from_the_config_by_default(tmp_path: Path) ->
     result = json.loads(out.read_text(encoding="utf-8"))
     assert result["mem-inv-bench"]["members"] == list(THREE)
     assert "fleiss_kappa" in result["mem-inv-bench"]["label"]["between_members"]
+
+
+# Card RV8: LongMemEval's kit, and the rejection rule and the stop's response as config values.
+
+
+def planted_longmemeval(n: int = 60) -> list[dict[str, Any]]:
+    """`n` questions, every fifth an abstention, each with one evidence and one other session."""
+    out = []
+    for i in range(n):
+        qid = f"q{i:03d}" + ("_abs" if i % 5 == 0 else "")
+        out.append(
+            {
+                "question_id": qid,
+                "question_type": "knowledge-update" if i % 2 else "multi-session",
+                "question": f"Where is item {i}?",
+                "answer": f"in drawer {i}",
+                "question_date": "2023/05/30 (Tue) 04:48",
+                "haystack_dates": ["2023/05/01 (Mon) 10:00", "2023/05/02 (Tue) 10:00"],
+                "haystack_session_ids": [f"answer_{qid}", f"noise_{qid}"],
+                "haystack_sessions": [
+                    [
+                        {"role": "user", "content": f"I put item {i} away.", "has_answer": True},
+                        {"role": "assistant", "content": "Noted."},
+                    ],
+                    [{"role": "user", "content": "Unrelated chat."}],
+                ],
+                "answer_session_ids": [f"answer_{qid}"],
+            }
+        )
+    return out
+
+
+def lme_config(**overrides: Any) -> dict[str, Any]:
+    config = dict(load_config(REPO / "research/configs/label-audit-longmemeval.json"))
+    config.update(overrides)
+    return config
+
+
+def test_the_longmemeval_config_registers_fifty_items_and_the_three_members() -> None:
+    config = lme_config()
+    assert config["longmemeval"]["per_benchmark"] == 50
+    assert config["members"] == ["omar", "mohamad", "shady"]
+    assert (config["reject_quorum"], config["stop_share"], config["on_stop"]) == (2, 0.1, "pause")
+    assert config["seed"] == load_config(REPO / "research/configs/label-audit.json")["seed"]
+
+
+def test_the_longmemeval_sample_is_a_seeded_draw_without_replacement() -> None:
+    qs = planted_longmemeval()
+    first = sample.longmemeval_items(qs, 50, 7)
+    assert [i.item for i in first] == [i.item for i in sample.longmemeval_items(qs, 50, 7)]
+    assert [i.item for i in first] != [i.item for i in sample.longmemeval_items(qs, 50, 8)]
+    assert len({i.item for i in first}) == 50
+    assert [i.ref for i in first] == [f"L{n:02d}" for n in range(1, 51)]
+    # The input order does not move the draw: it sorts by question id first.
+    assert [i.item for i in first] == [i.item for i in sample.longmemeval_items(qs[::-1], 50, 7)]
+    assert all((i.label == "unanswerable") == ("_abs" in i.item) for i in first)
+
+
+def test_a_longmemeval_context_shows_the_evidence_sessions_and_no_label() -> None:
+    qs = planted_longmemeval()
+    for item in sample.longmemeval_items(qs, 50, 7):
+        q = next(q for q in qs if f"longmemeval/{q['question_id']}" == item.item)
+        text = item.context_text
+        assert q["question"] in text
+        assert "I put item" in text  # the evidence session
+        assert "Unrelated chat." not in text  # another session
+        hidden = (
+            q["question_id"],
+            "_abs",
+            "answer_",
+            "has_answer",
+            q["question_type"],
+            "abstention",
+        )
+        for h in hidden:
+            assert h not in text, h
+        assert q["answer"] not in text
+        assert item.keys == (q["answer"],)
+
+
+def lme_audit(
+    tmp_path: Path, members: Sequence[str], label: Any, no: dict[str, set[str]]
+) -> dict[str, list[sample.AuditItem]]:
+    drawn = {"longmemeval": sample.longmemeval_items(planted_longmemeval(), 50, 7)}
+    sample.write_phase_1(drawn, list(members), tmp_path)
+    for m in members:
+        fill(tmp_path, drawn, m, lambda item, m=m: label(m, item))
+        fill_keys(tmp_path, drawn, m, no.get(m, set()))
+    return drawn
+
+
+def test_longmemeval_rejects_on_answerability_or_keys_at_the_quorum(tmp_path: Path) -> None:
+    def label(member: str, item: sample.AuditItem) -> str:
+        flip = {"ana": {"L01", "L02"}, "ben": {"L01"}, "cy": {"L03"}}[member]
+        other = "answerable" if item.label == "unanswerable" else "unanswerable"
+        return other if item.ref in flip else item.label
+
+    no = {"ana": {"L10", "L11"}, "ben": {"L10"}, "cy": {"L11", "L03"}}
+    drawn = lme_audit(tmp_path, THREE, label, no)
+    members = list(THREE)
+    r = agreement.compare_dir(tmp_path, members, drawn, stop_share=0.1)["longmemeval"]
+    # Two of three: L01 (two labels), L10 and L11 (two noes); L03 (one label, one no) is not.
+    assert r["rejected"]["refs"] == ["L01", "L10", "L11"]
+    assert "answerability" in r["rejected"]["rule"]
+    assert r["label"]["two_or_more_against_benchmark"] == ["L01"]
+    assert r["stop"] is False
+    assert r["action"] == {"on_stop": "pause", "means": None}
+    # Any one: every item someone rejects.
+    one = agreement.compare_dir(tmp_path, members, drawn, stop_share=0.1, quorum=1)
+    assert one["longmemeval"]["rejected"]["refs"] == ["L01", "L02", "L03", "L10", "L11"]
+    assert one["longmemeval"]["reject_quorum"] == 1
+    assert "one_or_more_against_benchmark" in one["longmemeval"]["label"]
+    # All three: nothing here.
+    three = agreement.compare_dir(tmp_path, members, drawn, stop_share=0.1, quorum=3)
+    assert three["longmemeval"]["rejected"]["refs"] == []
+
+
+def test_the_stops_response_is_the_configs(tmp_path: Path) -> None:
+    six = {f"L{n:02d}" for n in range(1, 7)}
+    drawn = lme_audit(tmp_path, THREE, lambda m, i: i.label, {m: six for m in THREE})
+    members = list(THREE)
+    pause = agreement.compare_dir(tmp_path, members, drawn, stop_share=0.1)["longmemeval"]
+    assert pause["stop"] is True and pause["action"]["on_stop"] == "pause"
+    assert "amendment" in pause["action"]["means"]
+    drop = agreement.compare_dir(tmp_path, members, drawn, stop_share=0.1, on_stop="drop")
+    assert drop["longmemeval"]["action"]["on_stop"] == "drop"
+    assert drop["longmemeval"]["action"]["kept"] == 44
+    with pytest.raises(ValueError, match="on_stop"):
+        agreement.compare_dir(tmp_path, members, drawn, stop_share=0.1, on_stop="ignore")
+    with pytest.raises(ValueError, match="reject_quorum"):
+        agreement.compare_dir(tmp_path, members, drawn, stop_share=0.1, quorum=4)
+
+
+def test_the_cli_takes_the_quorum_and_the_response_from_its_config(tmp_path: Path) -> None:
+    config_path, out = cli_audit(tmp_path, list(THREE))
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    config.update(reject_quorum=1, on_stop="drop")
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+    argv = ["--config", str(config_path), "--dir", str(tmp_path), "--out", str(out)]
+    assert agreement.main(argv) == 0
+    result = json.loads(out.read_text(encoding="utf-8"))["mem-inv-bench"]
+    assert result["reject_quorum"] == 1 and result["action"]["on_stop"] == "drop"
+
+
+def test_both_audit_configs_carry_the_rule_and_the_response() -> None:
+    for name in ("label-audit.json", "label-audit-longmemeval.json"):
+        config = load_config(REPO / "research/configs" / name)
+        assert config["reject_quorum"] == 2, name
+        assert config["on_stop"] in agreement.ON_STOP, name
+
+
+def test_the_draw_record_holds_no_id_label_or_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    items = sample.longmemeval_items(planted_longmemeval(), 50, 7)
+    monkeypatch.setattr(label_audit_draw, "draw", lambda config: {"longmemeval": items})
+    result = label_audit_draw.compute(lme_config())
+    text = json.dumps(result)
+    for i in items:
+        assert i.item.split("/", 1)[1] not in text
+        assert i.keys[0] not in text
+    b = result["benchmarks"]["longmemeval"]
+    assert b["items"] == 50 and b["stop_at_rejected"] == 6
+    assert sorted(b["context_sha256"]) == [i.ref for i in items]
+    # The auditors read this repository: no count per kind (it would give the abstention
+    # share or the attack share away); the counts live in the key beside the sheets.
+    assert "by_kind" not in b and "by_kind" not in text
+    assert "abstention" not in text
+    key = label_audit_draw.compute_key(lme_config())
+    assert key["benchmarks"]["longmemeval"]["by_kind"] == dict(
+        sorted(Counter(i.kind for i in items).items())
+    )
+
+
+def test_the_key_goes_where_the_sheets_go_and_the_committed_draw_holds_no_kind(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    items = sample.longmemeval_items(planted_longmemeval(), 50, 7)
+    monkeypatch.setattr(label_audit_draw, "draw", lambda config: {"longmemeval": items})
+    config_path = tmp_path / "c.json"
+    config_path.write_text(json.dumps(lme_config()), encoding="utf-8")
+    out = tmp_path / "draw.json"
+    key = tmp_path / "key.json"
+    argv = ["--config", str(config_path), "--out", str(out), "--key-out", str(key)]
+    assert label_audit_draw.main(argv) == 0
+    assert "by_kind" not in out.read_text(encoding="utf-8")
+    assert "by_kind" in key.read_text(encoding="utf-8")
+    inside = REPO / "research" / "results" / "key.json"
+    with pytest.raises(ValueError):
+        label_audit_draw.main(
+            ["--config", str(config_path), "--out", str(out), "--key-out", str(inside)]
+        )
+
+
+def test_the_committed_draws_hold_no_count_per_kind() -> None:
+    for name in ("h1-label-audit.json", "h2-label-audit-longmemeval.json"):
+        assert "by_kind" not in (REPO / "research/results" / name).read_text(encoding="utf-8")
