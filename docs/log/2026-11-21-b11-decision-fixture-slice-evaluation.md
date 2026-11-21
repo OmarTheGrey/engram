@@ -8,8 +8,8 @@ pillar: research
 hypothesis: H5
 evidence:
   - research/configs/b11-tau2-fixture.json
-  - fixtures/bench/tau2/script.json
-  - fixtures/bench/tau2/expected-results.jsonl
+  - fixtures/tau2/script.json
+  - fixtures/tau2/expected-results.jsonl
 supersedes: docs/log/2026-11-21-b11-decision-fixture-slice.md
 ---
 

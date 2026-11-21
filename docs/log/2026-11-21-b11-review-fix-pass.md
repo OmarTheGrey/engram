@@ -11,7 +11,7 @@ evidence:
   - packages/bench/src/tau2/result.ts
   - packages/bench/test/tau2/plane.test.ts
   - packages/bench/test/tau2/result.test.ts
-  - fixtures/bench/tau2/expected-results.jsonl
+  - fixtures/tau2/expected-results.jsonl
   - "make bench BENCH=tau2"
 supersedes: none
 ---

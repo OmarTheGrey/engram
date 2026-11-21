@@ -8,7 +8,7 @@ pillar: research
 hypothesis: H5
 evidence:
   - research/configs/b11-tau2-fixture.json
-  - fixtures/bench/tau2/script.json
+  - fixtures/tau2/script.json
   - packages/bench/PINS.md
 supersedes: none
 ---

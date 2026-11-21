@@ -9,7 +9,7 @@ hypothesis: H5
 evidence:
   - packages/bench/src/tau2/plane.ts
   - packages/bench/test/tau2/plane.test.ts
-  - fixtures/bench/tau2/script.json
+  - fixtures/tau2/script.json
 supersedes: none
 ---
 

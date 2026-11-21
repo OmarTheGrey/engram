@@ -20,7 +20,7 @@ describe("tau2's run config", () => {
   test("the fixture config parses and its paths resolve against its folder", () => {
     const config = readTau2Config(FIXTURE);
     expect(config.cassettes).toBe(join(REPO, "fixtures", "cassettes", "b11-tau2-fixture"));
-    expect(config.script).toBe(join(REPO, "fixtures", "bench", "tau2", "script.json"));
+    expect(config.script).toBe(join(REPO, "fixtures", "tau2", "script.json"));
     expect(config.conditions).toEqual(["C1", "C2", "C5"]);
   });
 
