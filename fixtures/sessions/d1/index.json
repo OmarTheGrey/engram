@@ -1,0 +1,456 @@
+{
+  "seed": 1,
+  "count": 50,
+  "sessions": [
+    {
+      "file": "d1-01.jsonl",
+      "session_id": "cd38e0d4-3e62-4dc2-b801-dcf42945e1d9",
+      "task_id": "synthetic/rename-symbol-01",
+      "verdict": "success",
+      "abandoned": 0,
+      "branch": null,
+      "compacted": true
+    },
+    {
+      "file": "d1-02.jsonl",
+      "session_id": "150332ce-6232-4769-94fa-fbdd82ca557d",
+      "task_id": "synthetic/fix-failing-test-02",
+      "verdict": "failure",
+      "abandoned": 0,
+      "branch": null,
+      "compacted": false
+    },
+    {
+      "file": "d1-03.jsonl",
+      "session_id": "425626f9-fcd1-4264-9c10-fcd1536f36b7",
+      "task_id": "synthetic/add-flag-03",
+      "verdict": "failure",
+      "abandoned": 0,
+      "branch": null,
+      "compacted": false
+    },
+    {
+      "file": "d1-04.jsonl",
+      "session_id": "990b7a49-4239-43c0-905d-13ed49582414",
+      "task_id": "synthetic/update-docs-04",
+      "verdict": "success",
+      "abandoned": 1,
+      "branch": "summary",
+      "compacted": true
+    },
+    {
+      "file": "d1-05.jsonl",
+      "session_id": "05239226-543a-4bc8-8144-a4c43741beba",
+      "task_id": "synthetic/remove-dead-code-05",
+      "verdict": "success",
+      "abandoned": 0,
+      "branch": null,
+      "compacted": true
+    },
+    {
+      "file": "d1-06.jsonl",
+      "session_id": "ad58f890-1500-4c2b-b085-b66ff2faf89c",
+      "task_id": "synthetic/bump-timeout-06",
+      "verdict": "failure",
+      "abandoned": 1,
+      "branch": "summary",
+      "compacted": false
+    },
+    {
+      "file": "d1-07.jsonl",
+      "session_id": "33820ea0-d387-4923-8f52-0104d30516b5",
+      "task_id": "synthetic/type-error-07",
+      "verdict": "success",
+      "abandoned": 0,
+      "branch": null,
+      "compacted": false
+    },
+    {
+      "file": "d1-08.jsonl",
+      "session_id": "fd0064f9-0dc3-4311-9886-367862ae51d2",
+      "task_id": "synthetic/add-test-08",
+      "verdict": "success",
+      "abandoned": 1,
+      "branch": "summary",
+      "compacted": true
+    },
+    {
+      "file": "d1-09.jsonl",
+      "session_id": "e12f0bf8-89e4-4909-9c6e-f6bf8ef17e1c",
+      "task_id": "synthetic/log-level-09",
+      "verdict": "success",
+      "abandoned": 1,
+      "branch": "summary",
+      "compacted": false
+    },
+    {
+      "file": "d1-10.jsonl",
+      "session_id": "61f67e43-fd95-437d-830f-733198d5a522",
+      "task_id": "synthetic/sort-output-10",
+      "verdict": "success",
+      "abandoned": 0,
+      "branch": null,
+      "compacted": false
+    },
+    {
+      "file": "d1-11.jsonl",
+      "session_id": "f75bb40e-68fa-43a5-bfbe-f33ffc579b99",
+      "task_id": "synthetic/rename-symbol-11",
+      "verdict": "success",
+      "abandoned": 1,
+      "branch": "plain",
+      "compacted": false
+    },
+    {
+      "file": "d1-12.jsonl",
+      "session_id": "b9780e51-42cd-456b-ace1-c28f037c20a7",
+      "task_id": "synthetic/fix-failing-test-12",
+      "verdict": "success",
+      "abandoned": 0,
+      "branch": null,
+      "compacted": false
+    },
+    {
+      "file": "d1-13.jsonl",
+      "session_id": "f2dc8ed2-2dff-4d85-9db3-c805185a4eb1",
+      "task_id": "synthetic/add-flag-13",
+      "verdict": "success",
+      "abandoned": 1,
+      "branch": "plain",
+      "compacted": false
+    },
+    {
+      "file": "d1-14.jsonl",
+      "session_id": "d22c906b-9861-4478-961d-3b70178aff6b",
+      "task_id": "synthetic/update-docs-14",
+      "verdict": "success",
+      "abandoned": 0,
+      "branch": null,
+      "compacted": false
+    },
+    {
+      "file": "d1-15.jsonl",
+      "session_id": "570ad1c1-a8dd-4d07-85ac-8bcdc0e5aa0a",
+      "task_id": "synthetic/remove-dead-code-15",
+      "verdict": "success",
+      "abandoned": 0,
+      "branch": null,
+      "compacted": false
+    },
+    {
+      "file": "d1-16.jsonl",
+      "session_id": "c60d578a-0c3f-4b03-93c8-9ee6c5f37f4f",
+      "task_id": "synthetic/bump-timeout-16",
+      "verdict": "failure",
+      "abandoned": 0,
+      "branch": null,
+      "compacted": false
+    },
+    {
+      "file": "d1-17.jsonl",
+      "session_id": "7199caa3-c161-47fb-8ebd-d9df28d84c23",
+      "task_id": "synthetic/type-error-17",
+      "verdict": "failure",
+      "abandoned": 1,
+      "branch": "summary",
+      "compacted": false
+    },
+    {
+      "file": "d1-18.jsonl",
+      "session_id": "98c79d06-d114-4805-87c1-a43ac2ab1874",
+      "task_id": "synthetic/add-test-18",
+      "verdict": "success",
+      "abandoned": 1,
+      "branch": "summary",
+      "compacted": true
+    },
+    {
+      "file": "d1-19.jsonl",
+      "session_id": "f7f4e704-d397-4299-bb86-cc74e9999fc2",
+      "task_id": "synthetic/log-level-19",
+      "verdict": "failure",
+      "abandoned": 1,
+      "branch": "plain",
+      "compacted": false
+    },
+    {
+      "file": "d1-20.jsonl",
+      "session_id": "0880dc54-ac95-477e-9135-e405e55f8b6e",
+      "task_id": "synthetic/sort-output-20",
+      "verdict": "success",
+      "abandoned": 1,
+      "branch": "summary",
+      "compacted": false
+    },
+    {
+      "file": "d1-21.jsonl",
+      "session_id": "0ffe1c24-0e46-41b7-8835-7d79a54906d9",
+      "task_id": "synthetic/rename-symbol-21",
+      "verdict": "success",
+      "abandoned": 1,
+      "branch": "summary",
+      "compacted": true
+    },
+    {
+      "file": "d1-22.jsonl",
+      "session_id": "666c7e6e-53cf-4d2b-b687-b4e75c500927",
+      "task_id": "synthetic/fix-failing-test-22",
+      "verdict": "failure",
+      "abandoned": 0,
+      "branch": null,
+      "compacted": false
+    },
+    {
+      "file": "d1-23.jsonl",
+      "session_id": "d1fa1c45-76b9-4a91-87b2-778283fa0eb8",
+      "task_id": "synthetic/add-flag-23",
+      "verdict": "success",
+      "abandoned": 1,
+      "branch": "summary",
+      "compacted": false
+    },
+    {
+      "file": "d1-24.jsonl",
+      "session_id": "b7b2e0f0-222e-439e-825e-13bb6b067aeb",
+      "task_id": "synthetic/update-docs-24",
+      "verdict": "success",
+      "abandoned": 1,
+      "branch": "plain",
+      "compacted": true
+    },
+    {
+      "file": "d1-25.jsonl",
+      "session_id": "e043fc66-b5af-4c88-8742-bd2b5812e15e",
+      "task_id": "synthetic/remove-dead-code-25",
+      "verdict": "failure",
+      "abandoned": 0,
+      "branch": null,
+      "compacted": false
+    },
+    {
+      "file": "d1-26.jsonl",
+      "session_id": "173bdbbd-f279-4036-bd7f-abe37b8f3450",
+      "task_id": "synthetic/bump-timeout-26",
+      "verdict": "success",
+      "abandoned": 1,
+      "branch": "summary",
+      "compacted": false
+    },
+    {
+      "file": "d1-27.jsonl",
+      "session_id": "93efe4eb-8f1a-4388-879b-23515b90c108",
+      "task_id": "synthetic/type-error-27",
+      "verdict": "success",
+      "abandoned": 1,
+      "branch": "summary",
+      "compacted": false
+    },
+    {
+      "file": "d1-28.jsonl",
+      "session_id": "9586bdea-4045-47c6-a0e1-9220f394096b",
+      "task_id": "synthetic/add-test-28",
+      "verdict": "success",
+      "abandoned": 0,
+      "branch": null,
+      "compacted": false
+    },
+    {
+      "file": "d1-29.jsonl",
+      "session_id": "7c5aeb76-cc43-4b1f-bb8b-6b2ea676a107",
+      "task_id": "synthetic/log-level-29",
+      "verdict": "success",
+      "abandoned": 1,
+      "branch": "plain",
+      "compacted": false
+    },
+    {
+      "file": "d1-30.jsonl",
+      "session_id": "c7414279-158f-4806-b3a4-b956c4788623",
+      "task_id": "synthetic/sort-output-30",
+      "verdict": "failure",
+      "abandoned": 1,
+      "branch": "summary",
+      "compacted": false
+    },
+    {
+      "file": "d1-31.jsonl",
+      "session_id": "00eb63da-db74-436a-ab3e-384750e8eb00",
+      "task_id": "synthetic/rename-symbol-31",
+      "verdict": "success",
+      "abandoned": 1,
+      "branch": "summary",
+      "compacted": false
+    },
+    {
+      "file": "d1-32.jsonl",
+      "session_id": "6ced6e9d-fae6-4aed-b59e-5c741ddca22c",
+      "task_id": "synthetic/fix-failing-test-32",
+      "verdict": "failure",
+      "abandoned": 1,
+      "branch": "plain",
+      "compacted": false
+    },
+    {
+      "file": "d1-33.jsonl",
+      "session_id": "424e746a-61bf-42c4-b998-f49d77a4defc",
+      "task_id": "synthetic/add-flag-33",
+      "verdict": "success",
+      "abandoned": 0,
+      "branch": null,
+      "compacted": false
+    },
+    {
+      "file": "d1-34.jsonl",
+      "session_id": "79609b63-7394-4f29-9058-28467a8ed80e",
+      "task_id": "synthetic/update-docs-34",
+      "verdict": "success",
+      "abandoned": 0,
+      "branch": null,
+      "compacted": false
+    },
+    {
+      "file": "d1-35.jsonl",
+      "session_id": "8b18eed3-f029-43a0-8ad4-046740a08238",
+      "task_id": "synthetic/remove-dead-code-35",
+      "verdict": "success",
+      "abandoned": 1,
+      "branch": "summary",
+      "compacted": false
+    },
+    {
+      "file": "d1-36.jsonl",
+      "session_id": "b988e1fe-1cd8-49f9-8b60-dd7e10761908",
+      "task_id": "synthetic/bump-timeout-36",
+      "verdict": "success",
+      "abandoned": 0,
+      "branch": null,
+      "compacted": false
+    },
+    {
+      "file": "d1-37.jsonl",
+      "session_id": "06aa76e0-fdc3-449d-a0e1-ca377b8b9487",
+      "task_id": "synthetic/type-error-37",
+      "verdict": "success",
+      "abandoned": 1,
+      "branch": "plain",
+      "compacted": false
+    },
+    {
+      "file": "d1-38.jsonl",
+      "session_id": "3edea25d-4ea1-4510-8577-093420440f31",
+      "task_id": "synthetic/add-test-38",
+      "verdict": "success",
+      "abandoned": 1,
+      "branch": "summary",
+      "compacted": false
+    },
+    {
+      "file": "d1-39.jsonl",
+      "session_id": "c588e9f9-3558-421c-8e5a-4b009fc53521",
+      "task_id": "synthetic/log-level-39",
+      "verdict": "success",
+      "abandoned": 0,
+      "branch": null,
+      "compacted": false
+    },
+    {
+      "file": "d1-40.jsonl",
+      "session_id": "5328a9df-a6bd-4a56-a3d9-86aaa6e14db2",
+      "task_id": "synthetic/sort-output-40",
+      "verdict": "failure",
+      "abandoned": 0,
+      "branch": null,
+      "compacted": true
+    },
+    {
+      "file": "d1-41.jsonl",
+      "session_id": "76c1b62e-70ea-4203-b445-55851fab5e6e",
+      "task_id": "synthetic/rename-symbol-41",
+      "verdict": "success",
+      "abandoned": 1,
+      "branch": "plain",
+      "compacted": true
+    },
+    {
+      "file": "d1-42.jsonl",
+      "session_id": "8ab365ca-8c28-4730-8db3-870e76de167b",
+      "task_id": "synthetic/fix-failing-test-42",
+      "verdict": "failure",
+      "abandoned": 1,
+      "branch": "summary",
+      "compacted": false
+    },
+    {
+      "file": "d1-43.jsonl",
+      "session_id": "e9ed07d1-8b40-46f4-b75d-191da1aa5011",
+      "task_id": "synthetic/add-flag-43",
+      "verdict": "failure",
+      "abandoned": 0,
+      "branch": null,
+      "compacted": false
+    },
+    {
+      "file": "d1-44.jsonl",
+      "session_id": "b77de2a7-c67b-4be6-978e-4443408b0939",
+      "task_id": "synthetic/update-docs-44",
+      "verdict": "success",
+      "abandoned": 1,
+      "branch": "summary",
+      "compacted": false
+    },
+    {
+      "file": "d1-45.jsonl",
+      "session_id": "e30eb132-a607-4798-be54-682619001b19",
+      "task_id": "synthetic/remove-dead-code-45",
+      "verdict": "success",
+      "abandoned": 0,
+      "branch": null,
+      "compacted": true
+    },
+    {
+      "file": "d1-46.jsonl",
+      "session_id": "0f59e2af-e971-411e-afa8-abc273cf81ac",
+      "task_id": "synthetic/bump-timeout-46",
+      "verdict": "failure",
+      "abandoned": 0,
+      "branch": null,
+      "compacted": false
+    },
+    {
+      "file": "d1-47.jsonl",
+      "session_id": "9833a772-eb64-4ef3-853f-3d2b3ed7cd10",
+      "task_id": "synthetic/type-error-47",
+      "verdict": "failure",
+      "abandoned": 0,
+      "branch": null,
+      "compacted": false
+    },
+    {
+      "file": "d1-48.jsonl",
+      "session_id": "227ba1f4-cbbf-443b-aec3-21130fe27eec",
+      "task_id": "synthetic/add-test-48",
+      "verdict": "success",
+      "abandoned": 0,
+      "branch": null,
+      "compacted": false
+    },
+    {
+      "file": "d1-49.jsonl",
+      "session_id": "258d8bc8-8c2c-4280-af8d-c0514a77ae88",
+      "task_id": "synthetic/log-level-49",
+      "verdict": "success",
+      "abandoned": 1,
+      "branch": "plain",
+      "compacted": false
+    },
+    {
+      "file": "d1-50.jsonl",
+      "session_id": "c2550704-db5e-46e5-a1e8-7476f0ee4282",
+      "task_id": "synthetic/sort-output-50",
+      "verdict": "failure",
+      "abandoned": 0,
+      "branch": null,
+      "compacted": false
+    }
+  ]
+}
