@@ -225,3 +225,12 @@ From `docs/tasks/absorb-plan.md` and the PR that merged it into the roadmap.
 | The answers card before R2 | the 48 decisions of 2026-11-20 are not yet written into the pre-registration, the ADRs and the roadmap; card R2 edits the same pre-registration section and waits for it | `docs/tasks/lead-decisions.md`; `docs/tasks/R2.md` |
 | Surfaces with no attested source | done on branch e2-7-trust-counterexamples (card E2.7): every surface listed with file and line; HTTP clients and library callers are the open paths | `docs/log/2026-11-21-orch-finding-unattested-provenance-by-design.md`; `docs/log/2026-11-21-e2-7-finding-gh-39-surfaces.md` |
 | Sources for C6 and C7 | neither condition is built (`packages/runner/src/config.ts`); the cards that add them (X10 for C6; for C7, if it is still built after item 25 of `docs/tasks/lead-decisions.md`, the MCP path of ADR 0022) must give every actor that writes, promotes or sweeps a harness-set source, or GH-39 (a sourceless write keeps its claimed kind, in the write gate, promotion and the retired-content rule) becomes reachable from a registered condition | `docs/log/2026-11-21-e2-7-finding-gh-39-promotion-and-relearning.md` |
+
+## Follow-ups from card R4 (2026-11-21)
+
+Claims the crosswalk (`docs/compliance/README.md`) marks not evidenced. A test for each is out of R4's scope.
+
+| item | what is left | where it is recorded |
+|---|---|---|
+| Crosswalk C30: reinstatement | ADR 0010 and ADR 0025 (decision 6) say a retired item can be reinstated by an allowed update event; no Plane method or surface does it and no test exercises it | `research/configs/crosswalk.json`, claim C30 |
+| Crosswalk C44: no clock in core | that packages/core reads no clock and draws no randomness holds by review only; a lint rule or a test (as `scripts/test/pi-import-rule.test.ts` does for pi imports) would evidence it | `research/configs/crosswalk.json`, claim C44 |
