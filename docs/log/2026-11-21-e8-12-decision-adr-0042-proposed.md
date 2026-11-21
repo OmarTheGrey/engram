@@ -20,4 +20,4 @@ supersedes: none
 
 **Result.** The operator's subjects file maps an exact issuer and subject, and the key file a key, to one actor with its level, memberships and source. No claim sets any of them, a request may only narrow its memberships, and a source sent on an authenticated call is ignored. A served surface needs a credential flag or `--insecure-loopback`. Each event it appends gets a row in a side table (migration 6). `OWNER_DECIDES` gains 0042.
 
-**Consequence.** The implementation follows the ADR. If the lead picks (b) or (c), the mapping changes in `packages/server/src/auth.ts` only.
+**Consequence.** Option (b) or (c) would change `packages/server/src/auth.ts` only.
