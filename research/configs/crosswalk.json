@@ -279,14 +279,34 @@
       "source": "AGENTS.md (What this is; make test-invariants); docs/architecture.md (invariant 1); docs/conventions/testing.md",
       "invariant": 1,
       "tests": [
-        {"file": "packages/core/test/property/invariants.test.ts", "describe": ["invariants"], "it": "invariant 1: no read returns an item the actor's scope and grants exclude"},
-        {"file": "packages/core/test/unit/plane/read.test.ts", "describe": ["acceptance (card E2.2)"], "it": "a cross-scope read is denied and the explanation lists the filtered-out count"}
+        {
+          "file": "packages/core/test/property/invariants.test.ts",
+          "describe": ["invariants"],
+          "it": "invariant 1: no read returns an item the actor's scope and grants exclude"
+        },
+        {
+          "file": "packages/core/test/unit/plane/read.test.ts",
+          "describe": ["acceptance (card E2.2)"],
+          "it": "a cross-scope read is denied and the explanation lists the filtered-out count"
+        }
       ],
       "limits": "The actor is self-asserted on every surface (ADR 0027): the filter holds for the identity a surface declares, not for an authenticated person.",
       "obligations": [
-        {"id": "GDPR-5-1-f", "relation": "bears on", "why": "the read filter is a technical measure against unauthorised processing of memory content"},
-        {"id": "GDPR-25-2", "relation": "bears on", "why": "accessibility by default is limited to the scopes a reader belongs to and the grants that name it"},
-        {"id": "GDPR-32-1-b", "relation": "bears on", "why": "evidence for the confidentiality of what a reader is given"}
+        {
+          "id": "GDPR-5-1-f",
+          "relation": "bears on",
+          "why": "the read filter is a technical measure against unauthorised processing of memory content"
+        },
+        {
+          "id": "GDPR-25-2",
+          "relation": "bears on",
+          "why": "accessibility by default is limited to the scopes a reader belongs to and the grants that name it"
+        },
+        {
+          "id": "GDPR-32-1-b",
+          "relation": "bears on",
+          "why": "evidence for the confidentiality of what a reader is given"
+        }
       ]
     },
     {
@@ -295,14 +315,34 @@
       "source": "AGENTS.md (What this is); docs/architecture.md (invariant 2); docs/conventions/testing.md; ADR 0007",
       "invariant": 2,
       "tests": [
-        {"file": "packages/core/test/property/invariants.test.ts", "describe": ["invariants"], "it": "invariant 2: no write lands in a scope whose policy forbids its class or source"},
-        {"file": "packages/core/test/unit/plane/write.test.ts", "describe": ["Plane.write"], "it": "denies a forbidden-class write without calling the adapter, with one event"}
+        {
+          "file": "packages/core/test/property/invariants.test.ts",
+          "describe": ["invariants"],
+          "it": "invariant 2: no write lands in a scope whose policy forbids its class or source"
+        },
+        {
+          "file": "packages/core/test/unit/plane/write.test.ts",
+          "describe": ["Plane.write"],
+          "it": "denies a forbidden-class write without calling the adapter, with one event"
+        }
       ],
       "limits": "Holds for writes that cross the plane; a write made to the store outside it is the no-bypass rows' concern (C34, C35).",
       "obligations": [
-        {"id": "AIA-15-5", "relation": "bears on", "why": "the write gate is a deterministic defence against a third party altering what the system later reads (memory poisoning)"},
-        {"id": "GDPR-5-1-f", "relation": "bears on", "why": "protection against unauthorised processing at the point content enters memory"},
-        {"id": "GDPR-32-1-b", "relation": "bears on", "why": "evidence for the integrity of what memory holds"}
+        {
+          "id": "AIA-15-5",
+          "relation": "bears on",
+          "why": "the write gate is a deterministic defence against a third party altering what the system later reads (memory poisoning)"
+        },
+        {
+          "id": "GDPR-5-1-f",
+          "relation": "bears on",
+          "why": "protection against unauthorised processing at the point content enters memory"
+        },
+        {
+          "id": "GDPR-32-1-b",
+          "relation": "bears on",
+          "why": "evidence for the integrity of what memory holds"
+        }
       ]
     },
     {
@@ -311,15 +351,39 @@
       "source": "AGENTS.md (What this is; rule 3); docs/conventions/testing.md (invariant 3); ADR 0007 (decision D6)",
       "invariant": 3,
       "tests": [
-        {"file": "packages/core/test/property/invariants.test.ts", "describe": ["invariants"], "it": "invariant 3: every read or write appends exactly one event, and a denial carries a reason and a policy id"},
-        {"file": "packages/core/test/unit/plane/write.test.ts", "describe": ["Plane.write: every outcome is an event (decision D6)"], "it": "an adapter that throws after an allow leaves one store-failure event, and rethrows"}
+        {
+          "file": "packages/core/test/property/invariants.test.ts",
+          "describe": ["invariants"],
+          "it": "invariant 3: every read or write appends exactly one event, and a denial carries a reason and a policy id"
+        },
+        {
+          "file": "packages/core/test/unit/plane/write.test.ts",
+          "describe": ["Plane.write: every outcome is an event (decision D6)"],
+          "it": "an adapter that throws after an allow leaves one store-failure event, and rethrows"
+        }
       ],
       "limits": "The log is not tamper-evident: no hash chain or signature protects it yet (ADR 0038 decides one; card E1.6 builds it).",
       "obligations": [
-        {"id": "AIA-12-1", "relation": "bears on", "why": "every decision of the plane is recorded automatically as an event"},
-        {"id": "AIA-12-2-a", "relation": "bears on", "why": "each denial names the rule and the reason, which is how a risky write or read is identified afterwards"},
-        {"id": "GDPR-5-2", "relation": "bears on", "why": "a controller can show from the log what was decided and under which rule"},
-        {"id": "GDPR-24-1", "relation": "bears on", "why": "the per-decision record is material for demonstrating that processing followed the policy"}
+        {
+          "id": "AIA-12-1",
+          "relation": "bears on",
+          "why": "every decision of the plane is recorded automatically as an event"
+        },
+        {
+          "id": "AIA-12-2-a",
+          "relation": "bears on",
+          "why": "each denial names the rule and the reason, which is how a risky write or read is identified afterwards"
+        },
+        {
+          "id": "GDPR-5-2",
+          "relation": "bears on",
+          "why": "a controller can show from the log what was decided and under which rule"
+        },
+        {
+          "id": "GDPR-24-1",
+          "relation": "bears on",
+          "why": "the per-decision record is material for demonstrating that processing followed the policy"
+        }
       ]
     },
     {
@@ -328,12 +392,28 @@
       "source": "docs/conventions/testing.md (invariant 4); docs/architecture.md (MemoryEvent)",
       "invariant": 4,
       "tests": [
-        {"file": "packages/core/test/property/invariants.test.ts", "describe": ["invariants"], "it": "invariant 4: replaying the events of any write sequence gives the same state, store and reads"},
-        {"file": "packages/core/test/replay/rebuild.test.ts", "describe": [], "it": "rebuild equals incremental for any event sequence"}
+        {
+          "file": "packages/core/test/property/invariants.test.ts",
+          "describe": ["invariants"],
+          "it": "invariant 4: replaying the events of any write sequence gives the same state, store and reads"
+        },
+        {
+          "file": "packages/core/test/replay/rebuild.test.ts",
+          "describe": [],
+          "it": "rebuild equals incremental for any event sequence"
+        }
       ],
       "obligations": [
-        {"id": "AIA-12-2", "relation": "bears on", "why": "the functioning of the plane can be traced, and reconstructed, from its events alone"},
-        {"id": "GDPR-5-2", "relation": "bears on", "why": "a past state of memory can be shown from the log, not only asserted"}
+        {
+          "id": "AIA-12-2",
+          "relation": "bears on",
+          "why": "the functioning of the plane can be traced, and reconstructed, from its events alone"
+        },
+        {
+          "id": "GDPR-5-2",
+          "relation": "bears on",
+          "why": "a past state of memory can be shown from the log, not only asserted"
+        }
       ]
     },
     {
@@ -342,13 +422,31 @@
       "source": "AGENTS.md (make test-invariants); docs/conventions/testing.md (invariant 5); ADR 0025",
       "invariant": 5,
       "tests": [
-        {"file": "packages/core/test/property/invariants.test.ts", "describe": ["invariants"], "it": "invariant 5: after any write sequence no scope holds more active items of a class than its budget, every retire or evict event carries a reason and a policy id, and replay reproduces them"},
-        {"file": "packages/core/test/unit/plane/retention.test.ts", "describe": ["acceptance (card E2.4): budget exceeded evicts per policy; events recorded"], "it": "recency: the write that goes over evicts the oldest, in the same call"}
+        {
+          "file": "packages/core/test/property/invariants.test.ts",
+          "describe": ["invariants"],
+          "it": "invariant 5: after any write sequence no scope holds more active items of a class than its budget, every retire or evict event carries a reason and a policy id, and replay reproduces them"
+        },
+        {
+          "file": "packages/core/test/unit/plane/retention.test.ts",
+          "describe": [
+            "acceptance (card E2.4): budget exceeded evicts per policy; events recorded"
+          ],
+          "it": "recency: the write that goes over evicts the oldest, in the same call"
+        }
       ],
       "limits": "The budgets are the operator's policy values; the preset numbers are proposed values (ADR 0025).",
       "obligations": [
-        {"id": "GDPR-5-1-c", "relation": "bears on", "why": "a budget bounds how much a scope holds of each class"},
-        {"id": "GDPR-25-2", "relation": "bears on", "why": "the amount of data kept active by default is set by policy and enforced on every write"}
+        {
+          "id": "GDPR-5-1-c",
+          "relation": "bears on",
+          "why": "a budget bounds how much a scope holds of each class"
+        },
+        {
+          "id": "GDPR-25-2",
+          "relation": "bears on",
+          "why": "the amount of data kept active by default is set by policy and enforced on every write"
+        }
       ]
     },
     {
@@ -357,11 +455,23 @@
       "source": "AGENTS.md (make test-invariants); docs/conventions/testing.md (invariant 6); ADR 0004 (card RV4); docs/dogfood.md (limit 4)",
       "invariant": 6,
       "tests": [
-        {"file": "packages/core/test/property/invariants.test.ts", "describe": ["invariants"], "it": "invariant 6: adoption never records a provenance kind more trusted than the plane holds for the item's id"}
+        {
+          "file": "packages/core/test/property/invariants.test.ts",
+          "describe": ["invariants"],
+          "it": "invariant 6: adoption never records a provenance kind more trusted than the plane holds for the item's id"
+        }
       ],
       "obligations": [
-        {"id": "AIA-15-5", "relation": "bears on", "why": "editing a store record outside the plane cannot raise agent-written content to trusted content"},
-        {"id": "GDPR-32-1-b", "relation": "bears on", "why": "evidence for the integrity of provenance across edits made outside the plane"}
+        {
+          "id": "AIA-15-5",
+          "relation": "bears on",
+          "why": "editing a store record outside the plane cannot raise agent-written content to trusted content"
+        },
+        {
+          "id": "GDPR-32-1-b",
+          "relation": "bears on",
+          "why": "evidence for the integrity of provenance across edits made outside the plane"
+        }
       ]
     },
     {
@@ -370,11 +480,23 @@
       "source": "AGENTS.md (make test-invariants); docs/conventions/testing.md (invariant 7); ADR 0007 (card RV4); docs/dogfood.md (limit 4)",
       "invariant": 7,
       "tests": [
-        {"file": "packages/core/test/property/invariants.test.ts", "describe": ["invariants"], "it": "invariant 7: adoption never records a grant the plane does not hold for the item's id"}
+        {
+          "file": "packages/core/test/property/invariants.test.ts",
+          "describe": ["invariants"],
+          "it": "invariant 7: adoption never records a grant the plane does not hold for the item's id"
+        }
       ],
       "obligations": [
-        {"id": "GDPR-25-2", "relation": "bears on", "why": "an item is not made readable to others by an edit nobody decided through the plane"},
-        {"id": "GDPR-7-1", "relation": "bears on", "why": "a grant on record is one its owner made through the plane, not one written into a file"}
+        {
+          "id": "GDPR-25-2",
+          "relation": "bears on",
+          "why": "an item is not made readable to others by an edit nobody decided through the plane"
+        },
+        {
+          "id": "GDPR-7-1",
+          "relation": "bears on",
+          "why": "a grant on record is one its owner made through the plane, not one written into a file"
+        }
       ]
     },
     {
@@ -383,13 +505,29 @@
       "source": "AGENTS.md (make test-invariants); ADR 0007 (card E2.6); ADR 0010 (card E2.6)",
       "invariant": 1,
       "tests": [
-        {"file": "packages/core/test/property/invariants.test.ts", "describe": ["invariants"], "it": "invariant 1 across two handles: no reader gets an erased item back, and the store holds the projection, whatever the interleaving"},
-        {"file": "packages/core/test/unit/plane/cross-handle.test.ts", "describe": ["an erased id"], "it": "a write under an erased id is refused, and the refusal names the erased scope only to its members"}
+        {
+          "file": "packages/core/test/property/invariants.test.ts",
+          "describe": ["invariants"],
+          "it": "invariant 1 across two handles: no reader gets an erased item back, and the store holds the projection, whatever the interleaving"
+        },
+        {
+          "file": "packages/core/test/unit/plane/cross-handle.test.ts",
+          "describe": ["an erased id"],
+          "it": "a write under an erased id is refused, and the refusal names the erased scope only to its members"
+        }
       ],
       "limits": "A promotion or derived write into a team or role scope that crashes after its bytes land and after the sweep can stay dormant in that store (ADR 0010, verification pass 4).",
       "obligations": [
-        {"id": "GDPR-17-1", "relation": "bears on", "why": "an erasure is not undone by a concurrent writer on another process"},
-        {"id": "GDPR-32-1-b", "relation": "bears on", "why": "evidence for integrity under concurrent access to one log"}
+        {
+          "id": "GDPR-17-1",
+          "relation": "bears on",
+          "why": "an erasure is not undone by a concurrent writer on another process"
+        },
+        {
+          "id": "GDPR-32-1-b",
+          "relation": "bears on",
+          "why": "evidence for integrity under concurrent access to one log"
+        }
       ]
     },
     {
@@ -398,13 +536,29 @@
       "source": "AGENTS.md (What this is; What not to do); docs/architecture.md (read path); ADR 0009",
       "invariant": null,
       "tests": [
-        {"file": "packages/core/test/unit/plane/read.test.ts", "describe": ["Plane.read"], "it": "explains each item with rank, components, admitting rule, grants and validity"},
-        {"file": "packages/core/test/unit/plane/read.test.ts", "describe": ["Plane.explain"], "it": "returns the explanations persisted for that read, in rank order"}
+        {
+          "file": "packages/core/test/unit/plane/read.test.ts",
+          "describe": ["Plane.read"],
+          "it": "explains each item with rank, components, admitting rule, grants and validity"
+        },
+        {
+          "file": "packages/core/test/unit/plane/read.test.ts",
+          "describe": ["Plane.explain"],
+          "it": "returns the explanations persisted for that read, in rank order"
+        }
       ],
       "limits": "The explanation says why an item was admitted and how it ranked, not why a model acted on it.",
       "obligations": [
-        {"id": "AIA-13-3-b-iv", "relation": "bears on", "why": "the plane can give information relevant to explaining what memory it supplied"},
-        {"id": "AIA-14-4-c", "relation": "bears on", "why": "an overseer can read why each recalled item was given to the model"}
+        {
+          "id": "AIA-13-3-b-iv",
+          "relation": "bears on",
+          "why": "the plane can give information relevant to explaining what memory it supplied"
+        },
+        {
+          "id": "AIA-14-4-c",
+          "relation": "bears on",
+          "why": "an overseer can read why each recalled item was given to the model"
+        }
       ]
     },
     {
@@ -413,12 +567,28 @@
       "source": "ADR 0009 (decision D5, finding R7-13)",
       "invariant": null,
       "tests": [
-        {"file": "packages/core/test/unit/plane/read.test.ts", "describe": ["Plane.explain"], "it": "refuses another actor's read, revealing none of its explanations (finding R5-12)"},
-        {"file": "packages/mcp/test/mcp.test.ts", "describe": ["over the in-memory transport"], "it": "refuses another actor's read id in explain"}
+        {
+          "file": "packages/core/test/unit/plane/read.test.ts",
+          "describe": ["Plane.explain"],
+          "it": "refuses another actor's read, revealing none of its explanations (finding R5-12)"
+        },
+        {
+          "file": "packages/mcp/test/mcp.test.ts",
+          "describe": ["over the in-memory transport"],
+          "it": "refuses another actor's read id in explain"
+        }
       ],
       "obligations": [
-        {"id": "GDPR-5-1-f", "relation": "bears on", "why": "an explanation names items and scores, so it is withheld from anyone but the reader"},
-        {"id": "GDPR-32-1-b", "relation": "bears on", "why": "confidentiality of the audit trail of a read"}
+        {
+          "id": "GDPR-5-1-f",
+          "relation": "bears on",
+          "why": "an explanation names items and scores, so it is withheld from anyone but the reader"
+        },
+        {
+          "id": "GDPR-32-1-b",
+          "relation": "bears on",
+          "why": "confidentiality of the audit trail of a read"
+        }
       ]
     },
     {
@@ -427,13 +597,35 @@
       "source": "docs/architecture.md (read path); ADR 0009 (decision D5, finding N1)",
       "invariant": null,
       "tests": [
-        {"file": "packages/core/test/property/read-leak.test.ts", "describe": ["reads reveal nothing about unreachable items (decision D5)"], "it": "a read's items, explanations, scores and filtered count ignore unreachable items"},
-        {"file": "packages/core/test/unit/plane/read.test.ts", "describe": ["Plane.read reveals nothing about items the reader cannot reach (decision D5)"], "it": "the read event, the audit record, keeps the full counts"}
+        {
+          "file": "packages/core/test/property/read-leak.test.ts",
+          "describe": ["reads reveal nothing about unreachable items (decision D5)"],
+          "it": "a read's items, explanations, scores and filtered count ignore unreachable items"
+        },
+        {
+          "file": "packages/core/test/unit/plane/read.test.ts",
+          "describe": [
+            "Plane.read reveals nothing about items the reader cannot reach (decision D5)"
+          ],
+          "it": "the read event, the audit record, keeps the full counts"
+        }
       ],
       "obligations": [
-        {"id": "GDPR-5-1-f", "relation": "bears on", "why": "no side channel of a read discloses another scope's items"},
-        {"id": "GDPR-25-2", "relation": "bears on", "why": "unreachable items stay inaccessible by default, counts and ranks included"},
-        {"id": "AIA-12-1", "relation": "bears on", "why": "the event keeps what the reader is not shown, so the log stays complete"}
+        {
+          "id": "GDPR-5-1-f",
+          "relation": "bears on",
+          "why": "no side channel of a read discloses another scope's items"
+        },
+        {
+          "id": "GDPR-25-2",
+          "relation": "bears on",
+          "why": "unreachable items stay inaccessible by default, counts and ranks included"
+        },
+        {
+          "id": "AIA-12-1",
+          "relation": "bears on",
+          "why": "the event keeps what the reader is not shown, so the log stays complete"
+        }
       ]
     },
     {
@@ -442,13 +634,29 @@
       "source": "ADR 0004 (decision D4); docs/architecture.md (write path); docs/dogfood.md (limit 3)",
       "invariant": null,
       "tests": [
-        {"file": "packages/core/test/unit/plane/write.test.ts", "describe": ["Plane.write: the plane sets provenance (decision D4, finding R5-6)"], "it": "a harness-set source overrides the kind and actor the caller claims"},
-        {"file": "packages/mcp/test/mcp.test.ts", "describe": ["over the in-memory transport"], "it": "labels a write model even when the launch actor carries source user (R3-5)"}
+        {
+          "file": "packages/core/test/unit/plane/write.test.ts",
+          "describe": ["Plane.write: the plane sets provenance (decision D4, finding R5-6)"],
+          "it": "a harness-set source overrides the kind and actor the caller claims"
+        },
+        {
+          "file": "packages/mcp/test/mcp.test.ts",
+          "describe": ["over the in-memory transport"],
+          "it": "labels a write model even when the launch actor carries source user (R3-5)"
+        }
       ],
       "limits": "A harness that sets no source leaves the caller's claim standing, and the event's reason says so.",
       "obligations": [
-        {"id": "AIA-12-2", "relation": "bears on", "why": "each event records where its content came from as the system saw it, not as a model claimed"},
-        {"id": "AIA-15-5", "relation": "bears on", "why": "a model cannot raise its own content's trust by claiming another source"}
+        {
+          "id": "AIA-12-2",
+          "relation": "bears on",
+          "why": "each event records where its content came from as the system saw it, not as a model claimed"
+        },
+        {
+          "id": "AIA-15-5",
+          "relation": "bears on",
+          "why": "a model cannot raise its own content's trust by claiming another source"
+        }
       ]
     },
     {
@@ -457,15 +665,39 @@
       "source": "ADR 0004; ADR 0007; ADR 0021 (decision D4); docs/architecture.md (write path)",
       "invariant": 2,
       "tests": [
-        {"file": "packages/core/test/unit/plane/write.test.ts", "describe": ["Plane.write"], "it": "denies model content outside person scope under the source-isolation rule"},
-        {"file": "packages/core/test/unit/policy/evaluate.test.ts", "describe": ["evaluateWrite"], "it": "denies external content outside person scope even when the rule lists external"},
-        {"file": "packages/core/test/unit/plane/promote.test.ts", "describe": ["acceptance (card E2.5): a widening is judged as a write into the target"], "it": "model-written content stays in person scope, however reviewed"},
-        {"file": "packages/core/test/unit/plane/grants.test.ts", "describe": ["a grant change the gate refuses is one deny event, and nothing changes"], "it": "model content carries no grants"}
+        {
+          "file": "packages/core/test/unit/plane/write.test.ts",
+          "describe": ["Plane.write"],
+          "it": "denies model content outside person scope under the source-isolation rule"
+        },
+        {
+          "file": "packages/core/test/unit/policy/evaluate.test.ts",
+          "describe": ["evaluateWrite"],
+          "it": "denies external content outside person scope even when the rule lists external"
+        },
+        {
+          "file": "packages/core/test/unit/plane/promote.test.ts",
+          "describe": ["acceptance (card E2.5): a widening is judged as a write into the target"],
+          "it": "model-written content stays in person scope, however reviewed"
+        },
+        {
+          "file": "packages/core/test/unit/plane/grants.test.ts",
+          "describe": ["a grant change the gate refuses is one deny event, and nothing changes"],
+          "it": "model content carries no grants"
+        }
       ],
       "limits": "No surface labels content external yet (ADR 0004, schema version 1).",
       "obligations": [
-        {"id": "AIA-15-5", "relation": "bears on", "why": "untrusted content cannot spread to shared scopes, which limits a poisoning to the person it reached"},
-        {"id": "GDPR-25-2", "relation": "bears on", "why": "agent-written content is not made accessible to others by default"}
+        {
+          "id": "AIA-15-5",
+          "relation": "bears on",
+          "why": "untrusted content cannot spread to shared scopes, which limits a poisoning to the person it reached"
+        },
+        {
+          "id": "GDPR-25-2",
+          "relation": "bears on",
+          "why": "agent-written content is not made accessible to others by default"
+        }
       ]
     },
     {
@@ -474,12 +706,28 @@
       "source": "docs/architecture.md (write path); ADR 0007 (decision D6)",
       "invariant": null,
       "tests": [
-        {"file": "packages/core/test/unit/plane/write.test.ts", "describe": ["Plane.write: every outcome is an event (decision D6)"], "it": "a ref from another adapter is a store failure: one event, nothing projected"},
-        {"file": "packages/core/test/unit/plane/grants.test.ts", "describe": ["the store"], "it": "a store failure after the gate allowed is one deny event, and the call throws"}
+        {
+          "file": "packages/core/test/unit/plane/write.test.ts",
+          "describe": ["Plane.write: every outcome is an event (decision D6)"],
+          "it": "a ref from another adapter is a store failure: one event, nothing projected"
+        },
+        {
+          "file": "packages/core/test/unit/plane/grants.test.ts",
+          "describe": ["the store"],
+          "it": "a store failure after the gate allowed is one deny event, and the call throws"
+        }
       ],
       "obligations": [
-        {"id": "AIA-12-1", "relation": "bears on", "why": "a failed store call is recorded as well as a successful one"},
-        {"id": "GDPR-32-1-b", "relation": "bears on", "why": "the log and the store do not silently diverge"}
+        {
+          "id": "AIA-12-1",
+          "relation": "bears on",
+          "why": "a failed store call is recorded as well as a successful one"
+        },
+        {
+          "id": "GDPR-32-1-b",
+          "relation": "bears on",
+          "why": "the log and the store do not silently diverge"
+        }
       ]
     },
     {
@@ -488,13 +736,33 @@
       "source": "ADR 0007 (card E2.6); docs/architecture.md (write path)",
       "invariant": null,
       "tests": [
-        {"file": "packages/core/test/unit/plane/cross-handle.test.ts", "describe": ["a committed decision on another handle"], "it": "R5: a grant change held while another grant change commits is refused, and the store holds the projection"},
-        {"file": "packages/core/test/unit/plane/cross-handle.test.ts", "describe": ["a committed decision on another handle"], "it": "R4: a handover held at its store write while the owner removes a grant keeps the removal and hands over the new version"},
-        {"file": "packages/core/test/unit/plane/cross-handle.test.ts", "describe": ["a committed decision on another handle"], "it": "R8: the conflict's deny event carries a reason and a policy id, no item, and is not shown to the grantee"}
+        {
+          "file": "packages/core/test/unit/plane/cross-handle.test.ts",
+          "describe": ["a committed decision on another handle"],
+          "it": "R5: a grant change held while another grant change commits is refused, and the store holds the projection"
+        },
+        {
+          "file": "packages/core/test/unit/plane/cross-handle.test.ts",
+          "describe": ["a committed decision on another handle"],
+          "it": "R4: a handover held at its store write while the owner removes a grant keeps the removal and hands over the new version"
+        },
+        {
+          "file": "packages/core/test/unit/plane/cross-handle.test.ts",
+          "describe": ["a committed decision on another handle"],
+          "it": "R8: the conflict's deny event carries a reason and a policy id, no item, and is not shown to the grantee"
+        }
       ],
       "obligations": [
-        {"id": "GDPR-32-1-b", "relation": "bears on", "why": "integrity of memory under two processes sharing one log"},
-        {"id": "GDPR-7-3", "relation": "bears on", "why": "a withdrawn grant is not brought back by a concurrent writer"}
+        {
+          "id": "GDPR-32-1-b",
+          "relation": "bears on",
+          "why": "integrity of memory under two processes sharing one log"
+        },
+        {
+          "id": "GDPR-7-3",
+          "relation": "bears on",
+          "why": "a withdrawn grant is not brought back by a concurrent writer"
+        }
       ]
     },
     {
@@ -503,13 +771,29 @@
       "source": "ADR 0005 (card RV5); docs/dogfood.md (limit 8)",
       "invariant": null,
       "tests": [
-        {"file": "packages/core/test/unit/plane/read-time.test.ts", "describe": ["a read's valid_at"], "it": "cannot bring back what a grant's expiry closed at the read's time"},
-        {"file": "packages/core/test/unit/plane/read.test.ts", "describe": ["Plane.read"], "it": "excludes an item outside its validity window at the query time, and counts it"}
+        {
+          "file": "packages/core/test/unit/plane/read-time.test.ts",
+          "describe": ["a read's valid_at"],
+          "it": "cannot bring back what a grant's expiry closed at the read's time"
+        },
+        {
+          "file": "packages/core/test/unit/plane/read.test.ts",
+          "describe": ["Plane.read"],
+          "it": "excludes an item outside its validity window at the query time, and counts it"
+        }
       ],
       "limits": "Writes, promotions and grant changes take the time a surface gives them; only the server's clock bounds them (ADR 0027).",
       "obligations": [
-        {"id": "GDPR-5-1-d", "relation": "bears on", "why": "a superseded or no longer valid fact is not served as current"},
-        {"id": "GDPR-5-1-f", "relation": "bears on", "why": "a backdated read cannot regain access that has ended"}
+        {
+          "id": "GDPR-5-1-d",
+          "relation": "bears on",
+          "why": "a superseded or no longer valid fact is not served as current"
+        },
+        {
+          "id": "GDPR-5-1-f",
+          "relation": "bears on",
+          "why": "a backdated read cannot regain access that has ended"
+        }
       ]
     },
     {
@@ -518,14 +802,34 @@
       "source": "ADR 0021 (decision D4); ADR 0006 (decision D4)",
       "invariant": null,
       "tests": [
-        {"file": "packages/core/test/unit/policy/evaluate.test.ts", "describe": ["evaluateWrite: who may write (decision D4)"], "it": "denies a grant to everyone or to a bare kind wildcard"},
-        {"file": "packages/core/test/unit/policy/evaluate.test.ts", "describe": ["evaluateWrite: who may write (decision D4)"], "it": "denies a grant without a class or without an expiry"},
-        {"file": "packages/core/test/unit/plane/grants.test.ts", "describe": ["acceptance (card E9.4): a grant change is recorded as an event"], "it": "a grant expires: the read filter stops honouring it with no further event"}
+        {
+          "file": "packages/core/test/unit/policy/evaluate.test.ts",
+          "describe": ["evaluateWrite: who may write (decision D4)"],
+          "it": "denies a grant to everyone or to a bare kind wildcard"
+        },
+        {
+          "file": "packages/core/test/unit/policy/evaluate.test.ts",
+          "describe": ["evaluateWrite: who may write (decision D4)"],
+          "it": "denies a grant without a class or without an expiry"
+        },
+        {
+          "file": "packages/core/test/unit/plane/grants.test.ts",
+          "describe": ["acceptance (card E9.4): a grant change is recorded as an event"],
+          "it": "a grant expires: the read filter stops honouring it with no further event"
+        }
       ],
       "limits": "The read filter still honours a grant without class or expiry on an item that never passed the gate (ADR 0021, decision D4); no maximum expiry is set (ADR 0034, open question).",
       "obligations": [
-        {"id": "GDPR-25-2", "relation": "bears on", "why": "a grant cannot make an item accessible to an indefinite number of persons"},
-        {"id": "GDPR-7-1", "relation": "bears on", "why": "each grant names whom, which class and until when, which is what a record of consent needs"}
+        {
+          "id": "GDPR-25-2",
+          "relation": "bears on",
+          "why": "a grant cannot make an item accessible to an indefinite number of persons"
+        },
+        {
+          "id": "GDPR-7-1",
+          "relation": "bears on",
+          "why": "each grant names whom, which class and until when, which is what a record of consent needs"
+        }
       ]
     },
     {
@@ -534,13 +838,29 @@
       "source": "docs/architecture.md (grant changes); docs/dogfood.md (what a zero cannot show)",
       "invariant": null,
       "tests": [
-        {"file": "packages/core/test/property/grants.test.ts", "describe": ["grant changes"], "it": "a grant change is one update event and lands exactly when the oracle permits it"},
-        {"file": "packages/core/test/unit/plane/grants.test.ts", "describe": ["a grant change the gate refuses is one deny event, and nothing changes"], "it": "a member who is not the owner may not change the grants"},
-        {"file": "packages/core/test/unit/plane/grants.test.ts", "describe": ["a grant change the gate refuses is one deny event, and nothing changes"], "it": "an agent acting for the owner may not change the grants"}
+        {
+          "file": "packages/core/test/property/grants.test.ts",
+          "describe": ["grant changes"],
+          "it": "a grant change is one update event and lands exactly when the oracle permits it"
+        },
+        {
+          "file": "packages/core/test/unit/plane/grants.test.ts",
+          "describe": ["a grant change the gate refuses is one deny event, and nothing changes"],
+          "it": "a member who is not the owner may not change the grants"
+        },
+        {
+          "file": "packages/core/test/unit/plane/grants.test.ts",
+          "describe": ["a grant change the gate refuses is one deny event, and nothing changes"],
+          "it": "an agent acting for the owner may not change the grants"
+        }
       ],
       "limits": "Identity and source are self-asserted (ADR 0027): the owner's agent posting as the owner with source user reads exactly as the owner, a blind spot the dogfood report's tests name.",
       "obligations": [
-        {"id": "GDPR-7-1", "relation": "bears on", "why": "a grant on record is an act of the item's owner, logged as one event"}
+        {
+          "id": "GDPR-7-1",
+          "relation": "bears on",
+          "why": "a grant on record is an act of the item's owner, logged as one event"
+        }
       ]
     },
     {
@@ -549,11 +869,19 @@
       "source": "docs/architecture.md (grant changes); ADR 0021",
       "invariant": null,
       "tests": [
-        {"file": "packages/core/test/unit/plane/grants.test.ts", "describe": ["acceptance (card E9.4): a grant change is recorded as an event"], "it": "the owner removes it: a second update event, and the grantee reads nothing"}
+        {
+          "file": "packages/core/test/unit/plane/grants.test.ts",
+          "describe": ["acceptance (card E9.4): a grant change is recorded as an event"],
+          "it": "the owner removes it: a second update event, and the grantee reads nothing"
+        }
       ],
       "limits": "What the grantee already read stays wherever its harness keeps it, such as Claude Code's transcripts (docs/dogfood.md, limit 7).",
       "obligations": [
-        {"id": "GDPR-7-3", "relation": "bears on", "why": "withdrawal is one act of the owner, as simple as the grant, and takes effect on the next read"}
+        {
+          "id": "GDPR-7-3",
+          "relation": "bears on",
+          "why": "withdrawal is one act of the owner, as simple as the grant, and takes effect on the next read"
+        }
       ]
     },
     {
@@ -562,11 +890,23 @@
       "source": "ADR 0021; AGENTS.md (What this is: Twin)",
       "invariant": null,
       "tests": [
-        {"file": "packages/core/test/unit/profiles/twin.test.ts", "describe": ["acceptance (card E9.2): a cross-person read is denied in the fixture"], "it": "Sam, a teammate, sees nothing of Dana's person scope without a live grant"},
-        {"file": "packages/core/test/unit/profiles/twin.test.ts", "describe": ["acceptance (card E9.2): the twin profile loads"], "it": "a role context never reads a person scope, and a role takes no personal classes or sources"}
+        {
+          "file": "packages/core/test/unit/profiles/twin.test.ts",
+          "describe": ["acceptance (card E9.2): a cross-person read is denied in the fixture"],
+          "it": "Sam, a teammate, sees nothing of Dana's person scope without a live grant"
+        },
+        {
+          "file": "packages/core/test/unit/profiles/twin.test.ts",
+          "describe": ["acceptance (card E9.2): the twin profile loads"],
+          "it": "a role context never reads a person scope, and a role takes no personal classes or sources"
+        }
       ],
       "obligations": [
-        {"id": "GDPR-25-2", "relation": "bears on", "why": "by default a person's memory is accessible to nobody else without that person's grant"}
+        {
+          "id": "GDPR-25-2",
+          "relation": "bears on",
+          "why": "by default a person's memory is accessible to nobody else without that person's grant"
+        }
       ]
     },
     {
@@ -575,7 +915,11 @@
       "source": "ADR 0021 (card E9.7)",
       "invariant": null,
       "tests": [
-        {"file": "packages/core/test/unit/plane/offboard.test.ts", "describe": ["acceptance (card E9.7): offboarding Dana, Sam succeeds her in role:lead"], "it": "the successor reads the role items, and they are his"}
+        {
+          "file": "packages/core/test/unit/plane/offboard.test.ts",
+          "describe": ["acceptance (card E9.7): offboarding Dana, Sam succeeds her in role:lead"],
+          "it": "the successor reads the role items, and they are his"
+        }
       ],
       "unmapped": "continuity of role memory is an organisational property; no article of either act cited here asks for it",
       "obligations": []
@@ -586,15 +930,39 @@
       "source": "ADR 0010 (card E9.7); ADR 0021; docs/architecture.md (lifecycle)",
       "invariant": null,
       "tests": [
-        {"file": "packages/core/test/unit/plane/offboard.test.ts", "describe": ["acceptance (card E9.7): offboarding Dana, Sam succeeds her in role:lead"], "it": "the person items are gone from the store and the index, and stay gone"},
-        {"file": "packages/core/test/unit/plane/offboard.test.ts", "describe": ["acceptance (card E9.7): offboarding Dana, Sam succeeds her in role:lead"], "it": "the deletion report names what was done and what it cannot reach, by id only"},
-        {"file": "packages/core/test/replay/erasure.test.ts", "describe": ["an erasure event on replay"], "it": "the projection rebuilt from the log equals the incremental one"}
+        {
+          "file": "packages/core/test/unit/plane/offboard.test.ts",
+          "describe": ["acceptance (card E9.7): offboarding Dana, Sam succeeds her in role:lead"],
+          "it": "the person items are gone from the store and the index, and stay gone"
+        },
+        {
+          "file": "packages/core/test/unit/plane/offboard.test.ts",
+          "describe": ["acceptance (card E9.7): offboarding Dana, Sam succeeds her in role:lead"],
+          "it": "the deletion report names what was done and what it cannot reach, by id only"
+        },
+        {
+          "file": "packages/core/test/replay/erasure.test.ts",
+          "describe": ["an erasure event on replay"],
+          "it": "the projection rebuilt from the log equals the incremental one"
+        }
       ],
       "limits": "The erasure does not reach a store's own history (Letta's git), pi session files that mirrored the events, backups, or a harness's transcripts; for a record a store refuses to delete, the log keeps a merging content hash, which short content can be guessed from (ADR 0010).",
       "obligations": [
-        {"id": "GDPR-17-1", "relation": "bears on", "why": "the plane's means of erasing a person's memory, store and log included"},
-        {"id": "GDPR-5-2", "relation": "bears on", "why": "the deletion report records what was erased and what was out of reach"},
-        {"id": "AIA-19-1", "relation": "bears on", "why": "the redaction keeps each event, its decision and reason, and removes only the content, which is where the six-month log keeping gives way to data protection law"}
+        {
+          "id": "GDPR-17-1",
+          "relation": "bears on",
+          "why": "the plane's means of erasing a person's memory, store and log included"
+        },
+        {
+          "id": "GDPR-5-2",
+          "relation": "bears on",
+          "why": "the deletion report records what was erased and what was out of reach"
+        },
+        {
+          "id": "AIA-19-1",
+          "relation": "bears on",
+          "why": "the redaction keeps each event, its decision and reason, and removes only the content, which is where the six-month log keeping gives way to data protection law"
+        }
       ]
     },
     {
@@ -603,13 +971,29 @@
       "source": "ADR 0010 (cards E2.6 and RV4); docs/dogfood.md (setup, step 3)",
       "invariant": null,
       "tests": [
-        {"file": "packages/core/test/unit/plane/cross-handle.test.ts", "describe": ["an erased id"], "it": "a record under an erased id that reappears in the store (a write that was in flight, a restored copy) is never adopted, and deleted"},
-        {"file": "packages/adapters/test/plane/offboard-files.test.ts", "describe": ["offboarding a person whose memory is an adopted Claude Code folder"], "it": "erases the imported items, names the files left in the folder, and re-adoption brings none back"},
-        {"file": "packages/adapters/test/plane/offboard-files.test.ts", "describe": ["offboarding a person whose memory is an adopted Claude Code folder"], "it": "a case, width or invisible-character edit of an erased file is still refused"}
+        {
+          "file": "packages/core/test/unit/plane/cross-handle.test.ts",
+          "describe": ["an erased id"],
+          "it": "a record under an erased id that reappears in the store (a write that was in flight, a restored copy) is never adopted, and deleted"
+        },
+        {
+          "file": "packages/adapters/test/plane/offboard-files.test.ts",
+          "describe": ["offboarding a person whose memory is an adopted Claude Code folder"],
+          "it": "erases the imported items, names the files left in the folder, and re-adoption brings none back"
+        },
+        {
+          "file": "packages/adapters/test/plane/offboard-files.test.ts",
+          "describe": ["offboarding a person whose memory is an adopted Claude Code folder"],
+          "it": "a case, width or invisible-character edit of an erased file is still refused"
+        }
       ],
       "limits": "A Claude Code memory file left in the store is adopted again once its content changes in any way (ADR 0010, open question).",
       "obligations": [
-        {"id": "GDPR-17-1", "relation": "bears on", "why": "erased data is not reinstated by a later write, a restored copy or a moved folder"}
+        {
+          "id": "GDPR-17-1",
+          "relation": "bears on",
+          "why": "erased data is not reinstated by a later write, a restored copy or a moved folder"
+        }
       ]
     },
     {
@@ -618,10 +1002,18 @@
       "source": "ADR 0010 (post-merge fixes of 2026-11-13)",
       "invariant": null,
       "tests": [
-        {"file": "packages/core/test/unit/plane/offboard-edges.test.ts", "describe": ["lint evidence about an erased item"], "it": "is redacted from every lint event, keeping the lint id, severity and rule"}
+        {
+          "file": "packages/core/test/unit/plane/offboard-edges.test.ts",
+          "describe": ["lint evidence about an erased item"],
+          "it": "is redacted from every lint event, keeping the lint id, severity and rule"
+        }
       ],
       "obligations": [
-        {"id": "GDPR-17-1", "relation": "bears on", "why": "the erasure reaches derived records about the item, not only the item"}
+        {
+          "id": "GDPR-17-1",
+          "relation": "bears on",
+          "why": "the erasure reaches derived records about the item, not only the item"
+        }
       ]
     },
     {
@@ -630,12 +1022,24 @@
       "source": "ADR 0021 (card E9.7)",
       "invariant": null,
       "tests": [
-        {"file": "packages/core/test/unit/plane/offboard.test.ts", "describe": ["who may offboard"], "it": "an agent cannot: one deny event and nothing changes"}
+        {
+          "file": "packages/core/test/unit/plane/offboard.test.ts",
+          "describe": ["who may offboard"],
+          "it": "an agent cannot: one deny event and nothing changes"
+        }
       ],
       "limits": "Without authentication this holds as far as the machine does (ADR 0027).",
       "obligations": [
-        {"id": "AIA-14-1", "relation": "bears on", "why": "the one irreversible operation is reserved to a person"},
-        {"id": "GDPR-32-1-b", "relation": "bears on", "why": "an agent cannot destroy memory it was not given the right to erase"}
+        {
+          "id": "AIA-14-1",
+          "relation": "bears on",
+          "why": "the one irreversible operation is reserved to a person"
+        },
+        {
+          "id": "GDPR-32-1-b",
+          "relation": "bears on",
+          "why": "an agent cannot destroy memory it was not given the right to erase"
+        }
       ]
     },
     {
@@ -644,12 +1048,26 @@
       "source": "ADR 0010; ADR 0025; docs/architecture.md (lifecycle)",
       "invariant": 5,
       "tests": [
-        {"file": "packages/core/test/unit/plane/retention.test.ts", "describe": ["acceptance (card E2.4): budget exceeded evicts per policy; events recorded"], "it": "recency: the write that goes over evicts the oldest, in the same call"}
+        {
+          "file": "packages/core/test/unit/plane/retention.test.ts",
+          "describe": [
+            "acceptance (card E2.4): budget exceeded evicts per policy; events recorded"
+          ],
+          "it": "recency: the write that goes over evicts the oldest, in the same call"
+        }
       ],
       "limits": "The test's title names the eviction; its assertion that the store still holds the evicted bytes is inside it. Deletion of content happens only by erasure (C22).",
       "obligations": [
-        {"id": "AIA-12-1", "relation": "bears on", "why": "retired items stay replayable, so the record of what memory held is kept"},
-        {"id": "GDPR-5-1-e", "relation": "bears on", "why": "in tension: retiring keeps the content stored, so storage limitation rests on erasure and on the operator's choice of ttls"}
+        {
+          "id": "AIA-12-1",
+          "relation": "bears on",
+          "why": "retired items stay replayable, so the record of what memory held is kept"
+        },
+        {
+          "id": "GDPR-5-1-e",
+          "relation": "bears on",
+          "why": "in tension: retiring keeps the content stored, so storage limitation rests on erasure and on the operator's choice of ttls"
+        }
       ]
     },
     {
@@ -658,13 +1076,29 @@
       "source": "ADR 0025 (decision 2); docs/architecture.md (lifecycle)",
       "invariant": 1,
       "tests": [
-        {"file": "packages/core/test/unit/plane/retention.test.ts", "describe": ["expiry"], "it": "an expired item is excluded at read before any sweep, counted in filtered"},
-        {"file": "packages/core/test/unit/plane/retention.test.ts", "describe": ["expiry"], "it": "retain retires expired items with op retire, then the budget, and reports both"}
+        {
+          "file": "packages/core/test/unit/plane/retention.test.ts",
+          "describe": ["expiry"],
+          "it": "an expired item is excluded at read before any sweep, counted in filtered"
+        },
+        {
+          "file": "packages/core/test/unit/plane/retention.test.ts",
+          "describe": ["expiry"],
+          "it": "retain retires expired items with op retire, then the budget, and reports both"
+        }
       ],
       "limits": "A sweep retires by ttl only in the actor's own person scope or for a user-sourced actor (ADR 0025, P4-6), so expired shared items are unreadable but not retired until a person sweeps.",
       "obligations": [
-        {"id": "GDPR-5-1-e", "relation": "bears on", "why": "an item is not used beyond the period the policy sets for its class and scope"},
-        {"id": "GDPR-30-1-f", "relation": "bears on", "why": "the policy's ttl per class and scope is a stated time limit a record of processing can cite"}
+        {
+          "id": "GDPR-5-1-e",
+          "relation": "bears on",
+          "why": "an item is not used beyond the period the policy sets for its class and scope"
+        },
+        {
+          "id": "GDPR-30-1-f",
+          "relation": "bears on",
+          "why": "the policy's ttl per class and scope is a stated time limit a record of processing can cite"
+        }
       ]
     },
     {
@@ -673,11 +1107,25 @@
       "source": "ADR 0025 (decision 3)",
       "invariant": null,
       "tests": [
-        {"file": "packages/core/test/unit/plane/retention.test.ts", "describe": ["acceptance (card E2.4): budget exceeded evicts per policy; events recorded"], "it": "manual: nothing is evicted, one evict event with decision ask names the overage"}
+        {
+          "file": "packages/core/test/unit/plane/retention.test.ts",
+          "describe": [
+            "acceptance (card E2.4): budget exceeded evicts per policy; events recorded"
+          ],
+          "it": "manual: nothing is evicted, one evict event with decision ask names the overage"
+        }
       ],
       "obligations": [
-        {"id": "AIA-14-1", "relation": "bears on", "why": "the decision of what to forget is left to a natural person where the policy says so"},
-        {"id": "AIA-14-4-d", "relation": "bears on", "why": "the person decides instead of the system"}
+        {
+          "id": "AIA-14-1",
+          "relation": "bears on",
+          "why": "the decision of what to forget is left to a natural person where the policy says so"
+        },
+        {
+          "id": "AIA-14-4-d",
+          "relation": "bears on",
+          "why": "the person decides instead of the system"
+        }
       ]
     },
     {
@@ -686,11 +1134,19 @@
       "source": "ADR 0025 (decision 5); ADR 0007 (card E2.4)",
       "invariant": 2,
       "tests": [
-        {"file": "packages/core/test/unit/plane/retention.test.ts", "describe": ["retired content stays out (engram/write/retired-content)"], "it": "only retired items of the same scope count, and different content passes"}
+        {
+          "file": "packages/core/test/unit/plane/retention.test.ts",
+          "describe": ["retired content stays out (engram/write/retired-content)"],
+          "it": "only retired items of the same scope count, and different content passes"
+        }
       ],
       "limits": "Exact match after normalisation only; a paraphrase passes (ADR 0018).",
       "obligations": [
-        {"id": "AIA-15-5", "relation": "bears on", "why": "an agent cannot relearn what retention or review removed by restating it"}
+        {
+          "id": "AIA-15-5",
+          "relation": "bears on",
+          "why": "an agent cannot relearn what retention or review removed by restating it"
+        }
       ]
     },
     {
@@ -701,7 +1157,11 @@
       "tests": [],
       "gap": "no Plane method or surface reinstates an item yet (ADR 0025, decision 6 names a follow-up card), and no test exercises a reinstatement",
       "obligations": [
-        {"id": "AIA-14-4-d", "relation": "bears on", "why": "reinstatement would let a person reverse an eviction the system made"}
+        {
+          "id": "AIA-14-4-d",
+          "relation": "bears on",
+          "why": "reinstatement would let a person reverse an eviction the system made"
+        }
       ]
     },
     {
@@ -710,13 +1170,33 @@
       "source": "ADR 0008; docs/architecture.md (lints)",
       "invariant": null,
       "tests": [
-        {"file": "packages/core/test/unit/lint/det.test.ts", "describe": ["Plane.lint"], "it": "records each finding as one lint event whose reason carries the lint, severity and evidence"},
-        {"file": "packages/core/test/unit/lint/det.test.ts", "describe": ["the fault catalogue"], "it": "has a flag and a near-miss fixture for every deterministic lint"}
+        {
+          "file": "packages/core/test/unit/lint/det.test.ts",
+          "describe": ["Plane.lint"],
+          "it": "records each finding as one lint event whose reason carries the lint, severity and evidence"
+        },
+        {
+          "file": "packages/core/test/unit/lint/det.test.ts",
+          "describe": ["the fault catalogue"],
+          "it": "has a flag and a near-miss fixture for every deterministic lint"
+        }
       ],
       "obligations": [
-        {"id": "AIA-12-2-a", "relation": "bears on", "why": "a finding about memory quality is recorded as an event that names its evidence"},
-        {"id": "AIA-12-2-c", "relation": "bears on", "why": "lint events are recorded events relevant to monitoring the operation of the system"},
-        {"id": "AIA-26-5", "relation": "bears on", "why": "lint events are material a deployer's monitoring can read"}
+        {
+          "id": "AIA-12-2-a",
+          "relation": "bears on",
+          "why": "a finding about memory quality is recorded as an event that names its evidence"
+        },
+        {
+          "id": "AIA-12-2-c",
+          "relation": "bears on",
+          "why": "lint events are recorded events relevant to monitoring the operation of the system"
+        },
+        {
+          "id": "AIA-26-5",
+          "relation": "bears on",
+          "why": "lint events are material a deployer's monitoring can read"
+        }
       ]
     },
     {
@@ -725,12 +1205,24 @@
       "source": "ADR 0008; ADR 0004 (the hash); ADR 0005",
       "invariant": null,
       "tests": [
-        {"file": "packages/core/test/unit/lint/det.test.ts", "describe": ["expired-validity"], "it": "flags an active item whose valid_to is not after the lint time"},
-        {"file": "packages/core/test/unit/lint/det.test.ts", "describe": ["source-changed"], "it": "flags an item whose source now hashes to something else"}
+        {
+          "file": "packages/core/test/unit/lint/det.test.ts",
+          "describe": ["expired-validity"],
+          "it": "flags an active item whose valid_to is not after the lint time"
+        },
+        {
+          "file": "packages/core/test/unit/lint/det.test.ts",
+          "describe": ["source-changed"],
+          "it": "flags an item whose source now hashes to something else"
+        }
       ],
       "limits": "A lint flags; it does not correct. The expired-validity lint is reliable only on keyed items (ADR 0005).",
       "obligations": [
-        {"id": "GDPR-5-1-d", "relation": "bears on", "why": "a step towards finding memory that is no longer accurate or up to date"}
+        {
+          "id": "GDPR-5-1-d",
+          "relation": "bears on",
+          "why": "a step towards finding memory that is no longer accurate or up to date"
+        }
       ]
     },
     {
@@ -739,13 +1231,29 @@
       "source": "AGENTS.md (rule 4); ADR 0008 (card L3); docs/architecture.md (model access)",
       "invariant": null,
       "tests": [
-        {"file": "packages/core/test/unit/plane/lint-model.test.ts", "describe": ["Plane.lint with a lint model"], "it": "without a lint model the model lints do not run and the report has no judgments"},
-        {"file": "packages/core/test/unit/plane/lint-model.test.ts", "describe": ["Plane.lint with a lint model"], "it": "records each model finding as a lint event with its usage, after the deterministic ones"},
-        {"file": "packages/core/test/unit/plane/lint-model.test.ts", "describe": ["Plane.lint with a lint model"], "it": "a call that fails rejects the lint and appends nothing, deterministic findings included"}
+        {
+          "file": "packages/core/test/unit/plane/lint-model.test.ts",
+          "describe": ["Plane.lint with a lint model"],
+          "it": "without a lint model the model lints do not run and the report has no judgments"
+        },
+        {
+          "file": "packages/core/test/unit/plane/lint-model.test.ts",
+          "describe": ["Plane.lint with a lint model"],
+          "it": "records each model finding as a lint event with its usage, after the deterministic ones"
+        },
+        {
+          "file": "packages/core/test/unit/plane/lint-model.test.ts",
+          "describe": ["Plane.lint with a lint model"],
+          "it": "a call that fails rejects the lint and appends nothing, deterministic findings included"
+        }
       ],
       "limits": "A model lint's precision is only as good as the model follows its instruction to treat inputs as data (ADR 0008, review L3-6).",
       "obligations": [
-        {"id": "AIA-12-1", "relation": "bears on", "why": "each model judgement that becomes a finding is recorded with the model, seed and usage"}
+        {
+          "id": "AIA-12-1",
+          "relation": "bears on",
+          "why": "each model judgement that becomes a finding is recorded with the model, seed and usage"
+        }
       ]
     },
     {
@@ -754,15 +1262,43 @@
       "source": "AGENTS.md (rule 2; What not to do); ADR 0014; docs/architecture.md (no-bypass)",
       "invariant": null,
       "tests": [
-        {"file": "packages/pi-extension/test/attacks.test.ts", "describe": ["R7-1: store commands and store paths are blocked in a pi session (decision D10)"], "it": "every command the review found reaching a store CLI is blocked in the bash tool"},
-        {"file": "packages/pi-extension/test/attacks.test.ts", "describe": ["R7-1: store commands and store paths are blocked in a pi session (decision D10)"], "it": "pi's file tools and bash file access are blocked inside a store root"},
-        {"file": "packages/pi-extension/test/plane.test.ts", "describe": ["PX1: the Engram extension on the Plane in a pi SDK session"], "it": "a store command in user_bash is blocked as a bypass_blocked event without running"}
+        {
+          "file": "packages/pi-extension/test/attacks.test.ts",
+          "describe": [
+            "R7-1: store commands and store paths are blocked in a pi session (decision D10)"
+          ],
+          "it": "every command the review found reaching a store CLI is blocked in the bash tool"
+        },
+        {
+          "file": "packages/pi-extension/test/attacks.test.ts",
+          "describe": [
+            "R7-1: store commands and store paths are blocked in a pi session (decision D10)"
+          ],
+          "it": "pi's file tools and bash file access are blocked inside a store root"
+        },
+        {
+          "file": "packages/pi-extension/test/plane.test.ts",
+          "describe": ["PX1: the Engram extension on the Plane in a pi SDK session"],
+          "it": "a store command in user_bash is blocked as a bypass_blocked event without running"
+        }
       ],
       "limits": "A store name or path a variable, alias or script supplies at run time is out of reach of any text check (ADR 0014, decision D10).",
       "obligations": [
-        {"id": "AIA-15-5", "relation": "bears on", "why": "the path around the gate that an agent could exploit is closed for the spellings a text check can see"},
-        {"id": "AIA-12-2-a", "relation": "bears on", "why": "each attempt to bypass the plane is recorded"},
-        {"id": "GDPR-32-1-b", "relation": "bears on", "why": "evidence for the integrity of the store against ungoverned writes"}
+        {
+          "id": "AIA-15-5",
+          "relation": "bears on",
+          "why": "the path around the gate that an agent could exploit is closed for the spellings a text check can see"
+        },
+        {
+          "id": "AIA-12-2-a",
+          "relation": "bears on",
+          "why": "each attempt to bypass the plane is recorded"
+        },
+        {
+          "id": "GDPR-32-1-b",
+          "relation": "bears on",
+          "why": "evidence for the integrity of the store against ungoverned writes"
+        }
       ]
     },
     {
@@ -771,14 +1307,34 @@
       "source": "docs/architecture.md (no-bypass); ADR 0014 (card E8.4); docs/dogfood.md (connect Claude Code)",
       "invariant": null,
       "tests": [
-        {"file": "packages/cli/test/hook.test.ts", "describe": ["engram hook claude-code"], "it": "denies a Bash command naming a store and records the block in the log"},
-        {"file": "packages/cli/test/hook.test.ts", "describe": ["engram hook claude-code"], "it": "denies a file tool inside a --root and lets one outside it go on"},
-        {"file": "packages/mcp/test/hook.test.ts", "describe": ["claudeCodeHook"], "it": "records the block as source model whatever source the actor it was given claims (card RV5, RV-SRF-8)"}
+        {
+          "file": "packages/cli/test/hook.test.ts",
+          "describe": ["engram hook claude-code"],
+          "it": "denies a Bash command naming a store and records the block in the log"
+        },
+        {
+          "file": "packages/cli/test/hook.test.ts",
+          "describe": ["engram hook claude-code"],
+          "it": "denies a file tool inside a --root and lets one outside it go on"
+        },
+        {
+          "file": "packages/mcp/test/hook.test.ts",
+          "describe": ["claudeCodeHook"],
+          "it": "records the block as source model whatever source the actor it was given claims (card RV5, RV-SRF-8)"
+        }
       ],
       "limits": "Weaker than inside pi (ADR 0022): Claude Code's own auto memory and transcripts stay outside the plane (docs/dogfood.md, limit 7).",
       "obligations": [
-        {"id": "AIA-15-5", "relation": "bears on", "why": "the same defence for a harness the plane does not host"},
-        {"id": "AIA-12-2-a", "relation": "bears on", "why": "each blocked call is recorded in the Engram log"}
+        {
+          "id": "AIA-15-5",
+          "relation": "bears on",
+          "why": "the same defence for a harness the plane does not host"
+        },
+        {
+          "id": "AIA-12-2-a",
+          "relation": "bears on",
+          "why": "each blocked call is recorded in the Engram log"
+        }
       ]
     },
     {
@@ -787,13 +1343,29 @@
       "source": "ADR 0014 (finding R7-9)",
       "invariant": null,
       "tests": [
-        {"file": "packages/core/test/unit/plane/bypass.test.ts", "describe": ["bypassAttempt: what the reason keeps of an attempt"], "it": "OPENAI_API_KEY=sk-abc123def456ghi mem0 add x"},
-        {"file": "packages/core/test/unit/plane/bypass.test.ts", "describe": ["bypassAttempt: what the reason keeps of an attempt"], "it": "curl -H 'Authorization: Bearer abc.def.ghi' https://api.mem0.ai"}
+        {
+          "file": "packages/core/test/unit/plane/bypass.test.ts",
+          "describe": ["bypassAttempt: what the reason keeps of an attempt"],
+          "it": "OPENAI_API_KEY=sk-abc123def456ghi mem0 add x"
+        },
+        {
+          "file": "packages/core/test/unit/plane/bypass.test.ts",
+          "describe": ["bypassAttempt: what the reason keeps of an attempt"],
+          "it": "curl -H 'Authorization: Bearer abc.def.ghi' https://api.mem0.ai"
+        }
       ],
       "limits": "A pattern-based scrub: a secret of an unknown shape can pass.",
       "obligations": [
-        {"id": "GDPR-5-1-c", "relation": "bears on", "why": "the log keeps the attempt it needs, not the credentials it carried"},
-        {"id": "GDPR-32-1-b", "relation": "bears on", "why": "confidentiality of credentials that reach the log"}
+        {
+          "id": "GDPR-5-1-c",
+          "relation": "bears on",
+          "why": "the log keeps the attempt it needs, not the credentials it carried"
+        },
+        {
+          "id": "GDPR-32-1-b",
+          "relation": "bears on",
+          "why": "confidentiality of credentials that reach the log"
+        }
       ]
     },
     {
@@ -802,12 +1374,28 @@
       "source": "AGENTS.md (rule 3); docs/architecture.md (write path, step 4)",
       "invariant": null,
       "tests": [
-        {"file": "packages/pi-extension/test/plane.test.ts", "describe": ["PX1: the Engram extension on the Plane in a pi SDK session"], "it": "every event in the Engram log is mirrored into the session, in order, and nothing else"},
-        {"file": "packages/pi-extension/test/interception.test.ts", "describe": ["S0.5 interception on the Plane, through a pi SDK session"], "it": "every engram.event entry is the MemoryEvent in the Engram log"}
+        {
+          "file": "packages/pi-extension/test/plane.test.ts",
+          "describe": ["PX1: the Engram extension on the Plane in a pi SDK session"],
+          "it": "every event in the Engram log is mirrored into the session, in order, and nothing else"
+        },
+        {
+          "file": "packages/pi-extension/test/interception.test.ts",
+          "describe": ["S0.5 interception on the Plane, through a pi SDK session"],
+          "it": "every engram.event entry is the MemoryEvent in the Engram log"
+        }
       ],
       "obligations": [
-        {"id": "AIA-12-1", "relation": "bears on", "why": "the session record and the Engram log hold the same decisions"},
-        {"id": "AIA-26-6", "relation": "bears on", "why": "the deployer holds the decisions in a second record it controls, the session file"}
+        {
+          "id": "AIA-12-1",
+          "relation": "bears on",
+          "why": "the session record and the Engram log hold the same decisions"
+        },
+        {
+          "id": "AIA-26-6",
+          "relation": "bears on",
+          "why": "the deployer holds the decisions in a second record it controls, the session file"
+        }
       ]
     },
     {
@@ -816,13 +1404,33 @@
       "source": "AGENTS.md (rule 2); ADR 0007 (decision D12); docs/architecture.md (write path, step 2)",
       "invariant": null,
       "tests": [
-        {"file": "packages/pi-extension/test/plane.test.ts", "describe": ["PX1: the Engram extension on the Plane in a pi SDK session"], "it": "a write the policy forbids is blocked, and the same event is in the log and the session (Gate A)"},
-        {"file": "packages/pi-extension/test/attacks.test.ts", "describe": ["R7-3 and R7-4: a write lands only when the tool runs (decision D12)"], "it": "a write a later extension blocks reaches neither the store nor the log as allowed"},
-        {"file": "packages/pi-extension/test/attacks.test.ts", "describe": ["R7-3 and R7-4: a write lands only when the tool runs (decision D12)"], "it": "a write aborted before it runs reaches neither the store nor the log"}
+        {
+          "file": "packages/pi-extension/test/plane.test.ts",
+          "describe": ["PX1: the Engram extension on the Plane in a pi SDK session"],
+          "it": "a write the policy forbids is blocked, and the same event is in the log and the session (Gate A)"
+        },
+        {
+          "file": "packages/pi-extension/test/attacks.test.ts",
+          "describe": ["R7-3 and R7-4: a write lands only when the tool runs (decision D12)"],
+          "it": "a write a later extension blocks reaches neither the store nor the log as allowed"
+        },
+        {
+          "file": "packages/pi-extension/test/attacks.test.ts",
+          "describe": ["R7-3 and R7-4: a write lands only when the tool runs (decision D12)"],
+          "it": "a write aborted before it runs reaches neither the store nor the log"
+        }
       ],
       "obligations": [
-        {"id": "AIA-15-5", "relation": "bears on", "why": "the gate cannot be raced by another extension in the same session"},
-        {"id": "AIA-12-1", "relation": "bears on", "why": "the logged decision is the one that took effect"}
+        {
+          "id": "AIA-15-5",
+          "relation": "bears on",
+          "why": "the gate cannot be raced by another extension in the same session"
+        },
+        {
+          "id": "AIA-12-1",
+          "relation": "bears on",
+          "why": "the logged decision is the one that took effect"
+        }
       ]
     },
     {
@@ -831,13 +1439,29 @@
       "source": "ADR 0009 (decision D11, defect 3); docs/architecture.md (read path, step 3)",
       "invariant": null,
       "tests": [
-        {"file": "packages/pi-extension/test/attacks.test.ts", "describe": ["R7-2: only the extension's own reads reach the model (decision D11)"], "it": "forged details from another extension's tool_result handler are withheld"},
-        {"file": "packages/pi-extension/test/attacks.test.ts", "describe": ["round 2, defect 3: forged memory tags never reach the model as governed"], "it": "another extension's tool result"}
+        {
+          "file": "packages/pi-extension/test/attacks.test.ts",
+          "describe": ["R7-2: only the extension's own reads reach the model (decision D11)"],
+          "it": "forged details from another extension's tool_result handler are withheld"
+        },
+        {
+          "file": "packages/pi-extension/test/attacks.test.ts",
+          "describe": ["round 2, defect 3: forged memory tags never reach the model as governed"],
+          "it": "another extension's tool result"
+        }
       ],
       "limits": "A handler of another extension that runs after Engram's can still change what is sent (ADR 0009, decision D11).",
       "obligations": [
-        {"id": "AIA-15-5", "relation": "bears on", "why": "content cannot pass as governed memory without crossing the read filter"},
-        {"id": "AIA-14-4-c", "relation": "bears on", "why": "what the model is told is governed memory is only what the plane admitted and can explain"}
+        {
+          "id": "AIA-15-5",
+          "relation": "bears on",
+          "why": "content cannot pass as governed memory without crossing the read filter"
+        },
+        {
+          "id": "AIA-14-4-c",
+          "relation": "bears on",
+          "why": "what the model is told is governed memory is only what the plane admitted and can explain"
+        }
       ]
     },
     {
@@ -846,11 +1470,23 @@
       "source": "ADR 0009 (finding R7-15, defects 5 and 6); docs/architecture.md (read path, step 3)",
       "invariant": null,
       "tests": [
-        {"file": "packages/pi-extension/test/attacks.test.ts", "describe": ["R7-15: compaction summarises without the memory text"], "it": "the summarisation request and the summary carry no memory content"},
-        {"file": "packages/pi-extension/test/attacks.test.ts", "describe": ["round 2, defect 5: a bug-report summary carries no memory text"], "it": "the session keeps placeholders, so summarizeForBugReport sends none"}
+        {
+          "file": "packages/pi-extension/test/attacks.test.ts",
+          "describe": ["R7-15: compaction summarises without the memory text"],
+          "it": "the summarisation request and the summary carry no memory content"
+        },
+        {
+          "file": "packages/pi-extension/test/attacks.test.ts",
+          "describe": ["round 2, defect 5: a bug-report summary carries no memory text"],
+          "it": "the session keeps placeholders, so summarizeForBugReport sends none"
+        }
       ],
       "obligations": [
-        {"id": "GDPR-5-1-c", "relation": "bears on", "why": "memory content is not copied into summaries and session files that outlive the read"}
+        {
+          "id": "GDPR-5-1-c",
+          "relation": "bears on",
+          "why": "memory content is not copied into summaries and session files that outlive the read"
+        }
       ]
     },
     {
@@ -859,12 +1495,28 @@
       "source": "docs/architecture.md (write path, step 4; card PX2)",
       "invariant": 4,
       "tests": [
-        {"file": "packages/pi-extension/test/replay.test.ts", "describe": [], "it": "replays through the plane to its .expected.json decisions, with zero model calls"},
-        {"file": "packages/pi-extension/test/replay.test.ts", "describe": ["the recorded policy (review of PR #32)"], "it": "a replay is deterministic: the same session replays to the same events"}
+        {
+          "file": "packages/pi-extension/test/replay.test.ts",
+          "describe": [],
+          "it": "replays through the plane to its .expected.json decisions, with zero model calls"
+        },
+        {
+          "file": "packages/pi-extension/test/replay.test.ts",
+          "describe": ["the recorded policy (review of PR #32)"],
+          "it": "a replay is deterministic: the same session replays to the same events"
+        }
       ],
       "obligations": [
-        {"id": "AIA-12-2", "relation": "bears on", "why": "a session's governance decisions can be reproduced by a third party from the session file"},
-        {"id": "GDPR-5-2", "relation": "bears on", "why": "a decision can be shown again, not only reported"}
+        {
+          "id": "AIA-12-2",
+          "relation": "bears on",
+          "why": "a session's governance decisions can be reproduced by a third party from the session file"
+        },
+        {
+          "id": "GDPR-5-2",
+          "relation": "bears on",
+          "why": "a decision can be shown again, not only reported"
+        }
       ]
     },
     {
@@ -873,12 +1525,28 @@
       "source": "docs/architecture.md (interfaces: simulate); AGENTS.md (engram simulate)",
       "invariant": null,
       "tests": [
-        {"file": "packages/core/test/unit/plane/simulate.test.ts", "describe": ["acceptance (card E8.9): the fixture workload under two presets"], "it": "the plane's own log and store are never read or written"},
-        {"file": "packages/core/test/unit/plane/simulate.test.ts", "describe": ["acceptance (card E8.9): the fixture workload under two presets"], "it": "medium against strict: strict's floors deny three writes, its ttl expires one, and recall falls"}
+        {
+          "file": "packages/core/test/unit/plane/simulate.test.ts",
+          "describe": ["acceptance (card E8.9): the fixture workload under two presets"],
+          "it": "the plane's own log and store are never read or written"
+        },
+        {
+          "file": "packages/core/test/unit/plane/simulate.test.ts",
+          "describe": ["acceptance (card E8.9): the fixture workload under two presets"],
+          "it": "medium against strict: strict's floors deny three writes, its ttl expires one, and recall falls"
+        }
       ],
       "obligations": [
-        {"id": "GDPR-25-1", "relation": "bears on", "why": "a policy's effect can be measured before it governs processing"},
-        {"id": "GDPR-32-1-d", "relation": "bears on", "why": "a means of assessing a measure's effect on recorded use"}
+        {
+          "id": "GDPR-25-1",
+          "relation": "bears on",
+          "why": "a policy's effect can be measured before it governs processing"
+        },
+        {
+          "id": "GDPR-32-1-d",
+          "relation": "bears on",
+          "why": "a means of assessing a measure's effect on recorded use"
+        }
       ]
     },
     {
@@ -887,14 +1555,34 @@
       "source": "AGENTS.md (rule 4; What not to do); ADR 0007 (decision); docs/architecture.md (model access)",
       "invariant": null,
       "tests": [
-        {"file": "scripts/test/pi-import-rule.test.ts", "describe": [], "it": "rejects every pi import in packages/core"},
-        {"file": "scripts/test/pi-import-rule.test.ts", "describe": [], "it": "rejects every pi import in packages/adapters"},
-        {"file": "packages/core/test/unit/policy/evaluate.test.ts", "describe": ["evaluateWrite"], "it": "is deterministic: the same inputs give the same decision"}
+        {
+          "file": "scripts/test/pi-import-rule.test.ts",
+          "describe": [],
+          "it": "rejects every pi import in packages/core"
+        },
+        {
+          "file": "scripts/test/pi-import-rule.test.ts",
+          "describe": [],
+          "it": "rejects every pi import in packages/adapters"
+        },
+        {
+          "file": "packages/core/test/unit/policy/evaluate.test.ts",
+          "describe": ["evaluateWrite"],
+          "it": "is deterministic: the same inputs give the same decision"
+        }
       ],
       "limits": "The import rule checks pi packages, not every network client: a test that core makes no network call of any kind does not exist.",
       "obligations": [
-        {"id": "AIA-12-2", "relation": "bears on", "why": "a decision can be recomputed from its inputs, which the event records"},
-        {"id": "AIA-15-1", "relation": "bears on", "why": "the gate gives the same decision for the same inputs throughout"}
+        {
+          "id": "AIA-12-2",
+          "relation": "bears on",
+          "why": "a decision can be recomputed from its inputs, which the event records"
+        },
+        {
+          "id": "AIA-15-1",
+          "relation": "bears on",
+          "why": "the gate gives the same decision for the same inputs throughout"
+        }
       ]
     },
     {
@@ -905,7 +1593,11 @@
       "tests": [],
       "gap": "no test or lint rule checks that core reads no clock or randomness; it holds by review and by the tests that pass a clock",
       "obligations": [
-        {"id": "AIA-12-2", "relation": "bears on", "why": "an event's time is the one its surface gave, so a replay reaches the same decisions"}
+        {
+          "id": "AIA-12-2",
+          "relation": "bears on",
+          "why": "an event's time is the one its surface gave, so a replay reaches the same decisions"
+        }
       ]
     },
     {
@@ -914,13 +1606,29 @@
       "source": "docs/architecture.md (interfaces); AGENTS.md (engram serve, engram mcp)",
       "invariant": null,
       "tests": [
-        {"file": "packages/server/test/security.test.ts", "describe": ["the loopback listener"], "it": "refuses to listen on any other host"},
-        {"file": "packages/server/test/security.test.ts", "describe": ["the Origin rule"], "it": "refuses a cross-origin request, and records nothing"},
-        {"file": "packages/mcp/test/mcp.test.ts", "describe": ["over streamable HTTP"], "it": "refuses to listen on a host that is not loopback"}
+        {
+          "file": "packages/server/test/security.test.ts",
+          "describe": ["the loopback listener"],
+          "it": "refuses to listen on any other host"
+        },
+        {
+          "file": "packages/server/test/security.test.ts",
+          "describe": ["the Origin rule"],
+          "it": "refuses a cross-origin request, and records nothing"
+        },
+        {
+          "file": "packages/mcp/test/mcp.test.ts",
+          "describe": ["over streamable HTTP"],
+          "it": "refuses to listen on a host that is not loopback"
+        }
       ],
       "limits": "There is no authentication: the actor is self-asserted (ADR 0027), so any local process can act as anyone.",
       "obligations": [
-        {"id": "GDPR-32-1-b", "relation": "bears on", "why": "the surfaces are not reachable from another machine or a web page"}
+        {
+          "id": "GDPR-32-1-b",
+          "relation": "bears on",
+          "why": "the surfaces are not reachable from another machine or a web page"
+        }
       ]
     },
     {
@@ -929,13 +1637,33 @@
       "source": "ADR 0011 (card E2.5); docs/architecture.md (policy: promotion)",
       "invariant": 2,
       "tests": [
-        {"file": "packages/core/test/unit/policy/promotion.test.ts", "describe": ["acceptance (card E2.5): episodic to semantic only after k confirmations"], "it": "promotes at k confirmations by distinct actors with trusted sources"},
-        {"file": "packages/core/test/unit/policy/promotion.test.ts", "describe": ["acceptance (card E2.5): episodic to semantic only after k confirmations"], "it": "does not promote one confirmation short of k (the k boundary)"},
-        {"file": "packages/core/test/unit/policy/promotion.test.ts", "describe": ["acceptance (card E2.5): the review path records the approver"], "it": "the owner cannot approve their own item"}
+        {
+          "file": "packages/core/test/unit/policy/promotion.test.ts",
+          "describe": ["acceptance (card E2.5): episodic to semantic only after k confirmations"],
+          "it": "promotes at k confirmations by distinct actors with trusted sources"
+        },
+        {
+          "file": "packages/core/test/unit/policy/promotion.test.ts",
+          "describe": ["acceptance (card E2.5): episodic to semantic only after k confirmations"],
+          "it": "does not promote one confirmation short of k (the k boundary)"
+        },
+        {
+          "file": "packages/core/test/unit/policy/promotion.test.ts",
+          "describe": ["acceptance (card E2.5): the review path records the approver"],
+          "it": "the owner cannot approve their own item"
+        }
       ],
       "obligations": [
-        {"id": "AIA-14-1", "relation": "bears on", "why": "widening what memory treats as fact is gated on corroboration or a person's review"},
-        {"id": "GDPR-5-1-d", "relation": "bears on", "why": "a single unconfirmed statement is not raised to a fact"}
+        {
+          "id": "AIA-14-1",
+          "relation": "bears on",
+          "why": "widening what memory treats as fact is gated on corroboration or a person's review"
+        },
+        {
+          "id": "GDPR-5-1-d",
+          "relation": "bears on",
+          "why": "a single unconfirmed statement is not raised to a fact"
+        }
       ]
     },
     {
@@ -944,12 +1672,24 @@
       "source": "ADR 0011; AGENTS.md (What this is: Distill)",
       "invariant": null,
       "tests": [
-        {"file": "packages/core/test/unit/policy/promotion.test.ts", "describe": ["acceptance (card E2.5): procedural candidates need a validation record"], "it": "a candidate without a validation record stays candidate"},
-        {"file": "packages/core/test/unit/policy/promotion.test.ts", "describe": ["acceptance (card E2.5): procedural candidates need a validation record"], "it": "a record meeting replay_k of replay_n makes it active in place"}
+        {
+          "file": "packages/core/test/unit/policy/promotion.test.ts",
+          "describe": ["acceptance (card E2.5): procedural candidates need a validation record"],
+          "it": "a candidate without a validation record stays candidate"
+        },
+        {
+          "file": "packages/core/test/unit/policy/promotion.test.ts",
+          "describe": ["acceptance (card E2.5): procedural candidates need a validation record"],
+          "it": "a record meeting replay_k of replay_n makes it active in place"
+        }
       ],
       "limits": "Until card D3 supplies replay records, no procedural candidate becomes active through the plane (ADR 0011).",
       "obligations": [
-        {"id": "AIA-15-1", "relation": "bears on", "why": "a procedure is admitted on measured success, not on being written"}
+        {
+          "id": "AIA-15-1",
+          "relation": "bears on",
+          "why": "a procedure is admitted on measured success, not on being written"
+        }
       ]
     },
     {
@@ -960,8 +1700,16 @@
       "tests": [],
       "gap": "not built: the smoothed success rate is a later schema change (ADR 0011, D4) and drift retirement waits for card D3; no test exists",
       "obligations": [
-        {"id": "AIA-15-1", "relation": "bears on", "why": "retirement on drift would keep an admitted procedure performing consistently"},
-        {"id": "AIA-14-4-d", "relation": "bears on", "why": "a human rejection would override the system's admission"}
+        {
+          "id": "AIA-15-1",
+          "relation": "bears on",
+          "why": "retirement on drift would keep an admitted procedure performing consistently"
+        },
+        {
+          "id": "AIA-14-4-d",
+          "relation": "bears on",
+          "why": "a human rejection would override the system's admission"
+        }
       ]
     },
     {
@@ -970,13 +1718,29 @@
       "source": "docs/dogfood.md (the report); AGENTS.md (rule 12; make dogfood-report)",
       "invariant": null,
       "tests": [
-        {"file": "packages/core/test/unit/dogfood-report.test.ts", "describe": ["the violation report on a realistic two weeks"], "it": "the printed report holds no content, id or name, only counts and fixed keys"},
-        {"file": "packages/core/test/unit/dogfood-report.test.ts", "describe": ["the report finds each planted violation"], "it": "a read returning an item after its grant was removed"}
+        {
+          "file": "packages/core/test/unit/dogfood-report.test.ts",
+          "describe": ["the violation report on a realistic two weeks"],
+          "it": "the printed report holds no content, id or name, only counts and fixed keys"
+        },
+        {
+          "file": "packages/core/test/unit/dogfood-report.test.ts",
+          "describe": ["the report finds each planted violation"],
+          "it": "a read returning an item after its grant was removed"
+        }
       ],
       "limits": "The report cannot see an actor's source, so the owner's agent posting a grant change as the owner, and a first write naming another owner, read as permitted (docs/dogfood.md, what a zero cannot show).",
       "obligations": [
-        {"id": "GDPR-32-1-d", "relation": "bears on", "why": "a means of testing the plane's measures on real use, judged by an oracle independent of the plane's evaluator"},
-        {"id": "GDPR-5-1-c", "relation": "bears on", "why": "the evaluation leaves the member's machine as counts only"}
+        {
+          "id": "GDPR-32-1-d",
+          "relation": "bears on",
+          "why": "a means of testing the plane's measures on real use, judged by an oracle independent of the plane's evaluator"
+        },
+        {
+          "id": "GDPR-5-1-c",
+          "relation": "bears on",
+          "why": "the evaluation leaves the member's machine as counts only"
+        }
       ]
     },
     {
@@ -987,7 +1751,11 @@
       "tests": [],
       "gap": "the two weeks have not started (they wait for the lead's go), no member report is committed, and no card covers the Knowledge profile's dogfood",
       "obligations": [
-        {"id": "GDPR-32-1-d", "relation": "bears on", "why": "a run on real use would test the measures outside fixtures"}
+        {
+          "id": "GDPR-32-1-d",
+          "relation": "bears on",
+          "why": "a run on real use would test the measures outside fixtures"
+        }
       ]
     }
   ]
