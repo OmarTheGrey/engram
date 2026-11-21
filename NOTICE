@@ -66,3 +66,19 @@ Mnemowall (https://github.com/Mnemowall/mnemowall-sdk, commit
   This product is licensed under the Apache License, Version 2.0 (see LICENSE).
 
 Modified here: see the header of injection-screen.ts.
+
+------------------------------------------------------------------------
+Agent Workflow Memory
+
+packages/core/src/distill/induce.ts copies, with adaptations, the induction
+instruction of webarena/prompt/instruction.txt and follows the prompt assembly
+of webarena/induce_prompt.py from Agent Workflow Memory
+(https://github.com/zorazrw/agent-workflow-memory, commit
+8c0ff8cd11d648c8fceb99e4e42f37e3b75381b1), by Zora Zhiruo Wang, Jiayuan Mao,
+Daniel Fried and Graham Neubig:
+
+  Licensed under the Apache License, Version 2.0 (see LICENSE). The project
+  ships no NOTICE file and no copyright line at that commit. Modified here:
+  rewritten from web navigation to tool-use sessions, with sentences added on
+  negative evidence and the output format; see the header of induce.ts and
+  docs/log/2026-11-21-d2-decision-prompt-adaptation.md.
