@@ -13,7 +13,14 @@ import { migrate } from "../../src/db/migrate.ts";
 import { openSqlite } from "../../src/db/sqlite.ts";
 import { type Actor, createPlane, type ReadResult } from "../../src/plane.ts";
 import type { MemoryItem, Policy } from "../../src/schema.ts";
-import { arbActor, arbGatedItem, arbInstant, arbPolicy, seedFor } from "../generators.ts";
+import { compareTimestamps } from "../../src/time.ts";
+import {
+  arbActor,
+  arbGatedItemWithValidTo,
+  arbInstant,
+  arbPolicy,
+  seedFor,
+} from "../generators.ts";
 import { AT, item, testPolicy } from "../unit/plane/helpers.ts";
 import { patternCovers } from "./oracle.ts";
 
@@ -93,7 +100,7 @@ const flags = fc.array(fc.boolean(), { minLength: 8, maxLength: 8 });
 
 const scenario = fc
   .record({
-    pool: fc.uniqueArray(arbGatedItem, { selector: (i) => i.id, maxLength: 8 }),
+    pool: fc.uniqueArray(arbGatedItemWithValidTo, { selector: (i) => i.id, maxLength: 8 }),
     hide: flags,
     // A visible item that carries a grant to the reader, so its scope is searched.
     bridge: flags,
@@ -142,8 +149,19 @@ function build(policy: Policy, reader: Actor, s: Scenario) {
           { to: reader.id, mode: "read", class: out.class, expires: "2099-01-01T00:00:00Z" },
         ],
       };
-    if (s.hide[i])
+    // A hidden item names the reader in no grant while grants are honoured;
+    // when they are not, some hidden items keep a live grant naming the reader,
+    // which must still admit nothing (card RV7, core review finding RV-CORE-6).
+    if (s.hide[i] && policy.read.honour_grants)
       out = { ...out, grants: out.grants.filter((g) => !patternCovers(g.to, reader.id)) };
+    else if (s.hide[i] && s.bridge[i] && trusted)
+      out = {
+        ...out,
+        grants: [
+          ...out.grants,
+          { to: reader.id, mode: "read", class: out.class, expires: "2099-01-01T00:00:00Z" },
+        ],
+      };
     return out;
   });
   const bridged = shaped.filter((_, i) => !s.hide[i] && s.bridge[i]).map((i) => i.scope);
@@ -168,7 +186,7 @@ interface Scenario {
 describe("reads reveal nothing about unreachable items (decision D5)", () => {
   const NAME = "a read's items, explanations, scores and filtered count ignore unreachable items";
   test(NAME, async () => {
-    const seen = { interfering: 0, hiddenHits: 0 };
+    const seen = { interfering: 0, hiddenHits: 0, ignoredGrant: 0, validityEnded: 0 };
     await fc.assert(
       fc.asyncProperty(
         // Grants honoured in three cases of four, so bridged scopes are common.
@@ -181,6 +199,20 @@ describe("reads reveal nothing about unreachable items (decision D5)", () => {
         async (policy, reader, { s, text, search, cap }, at) => {
           const { all, hidden, visible } = build(policy, reader, s);
           if (hidden.length > 0) seen.interfering++;
+          if (
+            !policy.read.honour_grants &&
+            hidden.some((h) => h.grants.some((g) => patternCovers(g.to, reader.id)))
+          )
+            seen.ignoredGrant++;
+          if (
+            all.some(
+              (x) =>
+                x.valid_to !== null &&
+                compareTimestamps(x.valid_from, at) <= 0 &&
+                compareTimestamps(x.valid_to, at) <= 0,
+            )
+          )
+            seen.validityEnded++;
           // Hidden items the store's search would find in a scope the plane searches.
           const searched = new Set(
             visible.filter((v) => reachable(policy, reader, v)).map((v) => v.scope),
@@ -217,6 +249,13 @@ describe("reads reveal nothing about unreachable items (decision D5)", () => {
       seen.hiddenHits,
       "cases where the store finds a hidden item in a scope the plane searches",
     ).toBeGreaterThan(RUNS / 20);
+    expect(
+      seen.ignoredGrant,
+      "cases where grants are not honoured and a hidden item names the reader in a grant",
+    ).toBeGreaterThan(RUNS / 20);
+    expect(seen.validityEnded, "cases with an item whose validity ended").toBeGreaterThan(
+      RUNS / 20,
+    );
   }, 120_000);
 });
 

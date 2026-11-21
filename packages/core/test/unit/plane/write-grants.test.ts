@@ -22,12 +22,12 @@ import { readFileSync } from "node:fs";
 import { describe, expect, test } from "vitest";
 import { allEvents } from "../../../src/events.ts";
 import { itemById } from "../../../src/items.ts";
-import { type Actor, adoptStoreItems } from "../../../src/plane.ts";
-import { WRITE_GRANT_ID } from "../../../src/policy/evaluate.ts";
+import { type Actor, adoptStoreItems, offboard } from "../../../src/plane.ts";
+import { evaluateWrite, WRITE_GRANT_ID, WRITE_MOVE_ID } from "../../../src/policy/evaluate.ts";
 import { GRANT_OWNER_ID, GRANT_SOURCE_ID, GRANT_UNCHANGED_ID } from "../../../src/policy/grants.ts";
 import { parsePolicy } from "../../../src/policy/load.ts";
 import type { Grant, MemoryItem } from "../../../src/schema.ts";
-import { fresh, id, item } from "./helpers.ts";
+import { fresh, id, item, testPolicy } from "./helpers.ts";
 
 const PROFILE = new URL("../../../../pi-package/profiles/twin.yaml", import.meta.url);
 const twin = () => parsePolicy(readFileSync(PROFILE, "utf8"), "twin.yaml");
@@ -100,15 +100,14 @@ describe("I1: a rewrite that changes the grants is a grant change", () => {
     expect((await env.plane.read(zed, { at: LATER })).items.map((i) => i.id)).toEqual([id(1)]);
   });
 
-  test("a co-holder's rewrite that keeps the grants, in another order or not, is judged as before", async () => {
+  test("the owner's rewrite that keeps the grants, in another order or not, is no grant change", async () => {
     const env = await seeded();
     const r = await env.plane.write(dana, rewrite(env.role, { grants: [toSam, toZed] }), AT);
     expect(r.event.decision).toBe("allow");
     const kept = itemById(env.db, id(1)) as MemoryItem;
     const reordered = rewrite(kept, { grants: [toZed, toSam], content: "The train leaves at 4." });
-    // Lee is a member and the owner is unchanged: a content rewrite keeping the grants is not a grant change.
-    const byLee = await env.plane.write(lee, { ...reordered, owner: dana.id }, LATER);
-    expect(byLee.event.decision).toBe("allow");
+    const byDana = await env.plane.write(dana, reordered, LATER);
+    expect(byDana.event).toMatchObject({ decision: "allow", policy_id: "profile.twin/write/role" });
   });
 
   // Card RV4 (RV-ADP-4): a grant reaches the log only through the plane.
@@ -251,5 +250,250 @@ describe("V-4: a rewrite that changes the class of an item carrying grants is a 
   test("a co-holder's class change of an item carrying no grant is judged as before", async () => {
     const { env, it } = await roleItem([]);
     expect((await env.plane.write(lee, asSkill(it), LATER)).event.decision).toBe("allow");
+  });
+});
+
+// Core review finding RV-CORE-1 (card RV7, ADR 0034's amendment): a grant is
+// its owner's consent to what the item says, so a rewrite of an item carrying
+// grants is the owner's only, whatever it changes. Before, Lee, a role
+// co-holder, could rewrite Dana's granted item and Sam then read Lee's text
+// under owner person:dana.
+describe("RV-CORE-1: a rewrite of an item carrying grants is its owner's", () => {
+  const sam: Actor = { id: "person:sam", level: "person", memberships: ["person:sam"] };
+
+  test("a co-holder's content rewrite keeping the grants is denied, and the grantee still reads the owner's text", async () => {
+    const env = await seeded();
+    const before = itemById(env.db, id(1));
+    const r = await env.plane.write(lee, rewrite(env.role, { content: "Lee's text" }), LATER);
+    expect(r.event).toMatchObject({ decision: "deny", policy_id: GRANT_OWNER_ID });
+    expect(r.event.reason).toContain("only its owner person:dana");
+    expect(itemById(env.db, id(1))).toEqual(before);
+    const read = await env.plane.read(sam, { at: LATER });
+    expect(read.items.map((i) => i.content)).toEqual(["The release train leaves at 3."]);
+  });
+
+  test("the owner's content rewrite keeping the grants lands", async () => {
+    const env = await seeded();
+    const r = await env.plane.write(dana, rewrite(env.role, { content: "At 4 now." }), LATER);
+    expect(r.event.decision).toBe("allow");
+    const read = await env.plane.read(sam, { at: LATER });
+    expect(read.items.map((i) => i.content)).toEqual(["At 4 now."]);
+  });
+
+  test("a co-holder's rewrite of an item whose grants have all expired is still the owner's", async () => {
+    const env = fresh(twin());
+    const old = { ...toSam, expires: "2026-11-01T00:00:00Z" };
+    const it = item(9, { scope: ROLE, owner: dana.id, content: "Old.", grants: [old] });
+    expect((await env.plane.write(dana, it, AT)).event.decision).toBe("allow");
+    const r = await env.plane.write(lee, rewrite(it, { content: "New." }), LATER);
+    expect(r.event).toMatchObject({ decision: "deny", policy_id: GRANT_OWNER_ID });
+  });
+
+  test("a co-holder's rewrite of an item carrying no grant is judged as before", async () => {
+    const env = fresh(twin());
+    const it = item(10, { scope: ROLE, owner: dana.id, content: "Shared." });
+    expect((await env.plane.write(dana, it, AT)).event.decision).toBe("allow");
+    const r = await env.plane.write(lee, rewrite(it, { content: "Shared, edited." }), LATER);
+    expect(r.event.decision).toBe("allow");
+  });
+
+  test("a co-holder's adoption of a store edit to the owner's granted item is refused; the owner's lands", async () => {
+    const env = await seeded();
+    const stored = itemById(env.db, id(1)) as MemoryItem;
+    await env.adapter.write({
+      ...stored,
+      version: stored.version + 1,
+      content: "Edited in the store.",
+    } as MemoryItem);
+    const byLee = await adoptStoreItems(env.deps, lee, ROLE, LATER);
+    expect(byLee).toMatchObject({ allowed: 0, denied: 1 });
+    expect(itemById(env.db, id(1))?.content).toBe("The release train leaves at 3.");
+    const fresher = {
+      ...stored,
+      version: stored.version + 2,
+      content: "Edited by Dana.",
+    } as MemoryItem;
+    await env.adapter.write(fresher);
+    const byDana = await adoptStoreItems(env.deps, dana, ROLE, LATER);
+    expect(byDana).toMatchObject({ allowed: 1, denied: 0 });
+    expect(itemById(env.db, id(1))?.content).toBe("Edited by Dana.");
+  });
+
+  test("after a handover the successor owns the granted item and may rewrite it", async () => {
+    const env = await seeded();
+    const successor: Actor = {
+      id: "person:sam",
+      level: "person",
+      memberships: ["person:sam", ROLE],
+      source: "user",
+    };
+    const report = await offboard(
+      env.deps,
+      dana,
+      { person: dana.id, roles: [{ scope: ROLE, successor: successor.id }] },
+      LATER,
+    );
+    expect(report.decision).toBe("allow");
+    const handed = itemById(env.db, id(1)) as MemoryItem;
+    expect(handed.owner).toBe(successor.id);
+    const r = await env.plane.write(successor, rewrite(handed, { content: "Sam's train." }), LATER);
+    expect(r.event.decision).toBe("allow");
+    const byLee = await env.plane.write(lee, rewrite(handed, { content: "Lee's train." }), LATER);
+    expect(byLee.event).toMatchObject({ decision: "deny", policy_id: GRANT_OWNER_ID });
+  });
+
+  test("a reviewer's in-place promotion of the owner's granted candidate lands", async () => {
+    // The test policy's org rule requires review: Dana's org item lands as a candidate; Lee reviews it.
+    const env = fresh(testPolicy());
+    const scopes = ["person:dana", "org"];
+    const owner: Actor = { id: dana.id, level: "person", memberships: scopes, source: "user" };
+    const reviewer: Actor = { id: lee.id, level: "person", memberships: scopes, source: "user" };
+    const it = item(11, { scope: "org", owner: dana.id, content: "Org fact.", grants: [toSam] });
+    expect((await env.plane.write(owner, it, AT)).event.decision).toBe("allow");
+    expect(itemById(env.db, id(11))?.status).toBe("candidate");
+    const p = await env.plane.promote(reviewer, id(11), "org", LATER, { review: true });
+    expect(p.event.decision).toBe("allow");
+    expect(itemById(env.db, id(11))?.status).toBe("active");
+  });
+});
+
+// Core review finding RV-CORE-2 (card RV7, ADR 0006's amendment): only the
+// owner changes an item's scope on a rewrite. Before, Lee could move Dana's
+// granted role item into person:lee: Dana read nothing, her grant change was
+// refused as a non-member's, and Sam kept reading a grant nobody could remove.
+describe("RV-CORE-2: only the owner moves an item to another scope", () => {
+  test("a co-holder's move of the owner's item into the co-holder's person scope is denied, and the owner keeps control", async () => {
+    const env = await seeded();
+    const before = itemById(env.db, id(1));
+    const moved = { ...env.role, version: 2, scope: "person:lee" } as MemoryItem;
+    const r = await env.plane.write(lee, moved, LATER);
+    expect(r.event).toMatchObject({ decision: "deny", policy_id: WRITE_MOVE_ID });
+    // Review fix pass 2 (RV7-R10b): the check is pinned, not just the rule id.
+    expect(evaluateWrite(env.policy, lee, moved, before, new Map(), LATER).check).toBe("move");
+    expect(r.event.reason).toContain("only its owner person:dana");
+    expect(itemById(env.db, id(1))).toEqual(before);
+    expect((await env.plane.read(dana, { at: LATER })).items.map((i) => i.id)).toEqual([id(1)]);
+    const removed = await env.plane.changeGrants(dana, id(1), { remove: [toSam] }, LATER);
+    expect(removed.event).toMatchObject({ decision: "allow", policy_id: "engram/grant/change" });
+    const sam: Actor = { id: "person:sam", level: "person", memberships: ["person:sam"] };
+    expect((await env.plane.read(sam, { at: LATER })).items).toEqual([]);
+  });
+
+  test("a co-holder's move of an item carrying no grant is denied too", async () => {
+    const env = fresh(twin());
+    const it = item(12, { scope: ROLE, owner: dana.id, content: "Plain." });
+    expect((await env.plane.write(dana, it, AT)).event.decision).toBe("allow");
+    const moved = { ...it, version: 2, scope: "person:lee" } as MemoryItem;
+    const r = await env.plane.write(lee, moved, LATER);
+    expect(r.event).toMatchObject({ decision: "deny", policy_id: WRITE_MOVE_ID });
+  });
+
+  test("a mover who may not read the item's scope learns neither its scope nor its owner", async () => {
+    // Lee in a role context: a member of person:lee and the role, reading no person scope.
+    const env = fresh(twin());
+    const it = item(13, { scope: "person:lee", owner: dana.id, content: "Odd." });
+    expect((await env.plane.write(lee, it, AT)).event.decision).toBe("allow");
+    const roleContext: Actor = { ...lee, level: "role" };
+    const moved = { ...it, version: 2, scope: ROLE } as MemoryItem;
+    const r = await env.plane.write(roleContext, moved, LATER);
+    // Review fix pass of PR #61 (RV7-R5): the rule id would name the check, so the opaque refusal takes the membership rule's.
+    expect(r.event).toMatchObject({ decision: "deny", policy_id: "engram/write/membership" });
+    expect(r.event.reason).not.toContain("person:dana");
+    expect(r.event.reason).toContain("an item you cannot access");
+  });
+
+  test("the owner's own move lands", async () => {
+    const env = await seeded();
+    const moved = { ...env.role, version: 2, scope: "person:dana" } as MemoryItem;
+    const r = await env.plane.write(dana, moved, LATER);
+    expect(r.event.decision).toBe("allow");
+    expect(itemById(env.db, id(1))?.scope).toBe("person:dana");
+  });
+});
+
+// Review fix pass of PR #61. RV7-R1: a co-holder took the owner's granted item
+// by promoting it into a scope the owner is not in; the new version kept the
+// grants, and nobody could remove them. A new version a non-owner makes
+// carries no grants (a grant is its owner's consent to one item), and the
+// promotion's reason says so. RV7-R4: the in-place exemption is the
+// promotion gate's alone. RV7-R5: the owner-rewrite refusal is opaque to a
+// writer who cannot read the item's scope.
+describe("review fix pass of PR #61", () => {
+  const sam: Actor = { id: "person:sam", level: "person", memberships: ["person:sam"] };
+  const leeInTeam: Actor = { ...lee, memberships: ["person:lee", ROLE, "team:x"] };
+
+  test("RV7-R1: a co-holder's promotion of the owner's granted item into another scope carries no grant", async () => {
+    const env = await seeded();
+    const p = await env.plane.promote(leeInTeam, id(1), "team:x", LATER, { review: true });
+    expect(p.event.decision).toBe("allow");
+    expect(p.event.reason).toContain("1 grant of its owner person:dana is not carried");
+    const promoted = p.item as MemoryItem;
+    expect(promoted).toMatchObject({ scope: "team:x", owner: dana.id, grants: [] });
+    expect((await env.plane.read(sam, { at: LATER })).items).toEqual([]);
+  });
+
+  test("RV7-R1: the owner's own new version keeps the grants", async () => {
+    // An episodic person item of Dana's, granted to Sam, promoted by Dana on
+    // three confirmations: a new version (class semantic) she makes herself.
+    const env = fresh(twin());
+    const episodic = { ...toSam, class: "episodic" as const };
+    const own = item(30, {
+      class: "episodic",
+      scope: "person:dana",
+      owner: dana.id,
+      content: "Deploys run on Tuesdays.",
+      grants: [episodic],
+    } as Partial<MemoryItem>);
+    expect((await env.plane.write(dana, own, AT)).event.decision).toBe("allow");
+    for (const [n, who] of [
+      [31, "person:a"],
+      [32, "person:b"],
+      [33, "person:c"],
+    ] as const) {
+      const confirming = item(n, {
+        class: "episodic",
+        scope: "person:dana",
+        owner: who,
+        content: "Deploys run on Tuesdays.",
+      } as Partial<MemoryItem>);
+      const writer: Actor = {
+        id: who,
+        level: "person",
+        memberships: ["person:dana"],
+        source: "user",
+      };
+      expect((await env.plane.write(writer, confirming, AT)).event.decision).toBe("allow");
+    }
+    const p = await env.plane.promote(dana, id(30), "person:dana", LATER);
+    expect(p.event.decision).toBe("allow");
+    expect(p.item?.grants).toEqual([episodic]);
+    expect(p.event.reason).not.toContain("is not carried");
+  });
+
+  test("RV7-R4: a co-holder's status-only rewrite through Plane.write is no promotion", async () => {
+    const env = await seeded();
+    // No harness source: the provenance stays as claimed, so only status and version differ.
+    const sourceless: Actor = { id: lee.id, level: "person", memberships: lee.memberships };
+    // The projected item itself (its store_ref set), so nothing but the status and the version differ.
+    const retired = rewrite(itemById(env.db, id(1)) as MemoryItem, { status: "retired" });
+    const r = await env.plane.write(sourceless, retired, LATER);
+    expect(r.event).toMatchObject({ decision: "deny", policy_id: GRANT_OWNER_ID });
+  });
+
+  test("RV7-R5: a writer who cannot read the scope learns neither the owner nor that the item carries grants", async () => {
+    const env = fresh(twin());
+    const it = item(14, { scope: "person:lee", owner: dana.id, content: "Odd.", grants: [toSam] });
+    expect((await env.plane.write(lee, it, AT)).event.decision).toBe("allow");
+    const roleContext: Actor = {
+      id: "agent:lee-role",
+      level: "role",
+      memberships: ["person:lee", ROLE],
+    };
+    const r = await env.plane.write(roleContext, rewrite(it, { content: "Edited." }), LATER);
+    // The rule id would name the check, so the opaque refusal takes the membership rule's.
+    expect(r.event).toMatchObject({ decision: "deny", policy_id: "engram/write/membership" });
+    expect(r.event.reason).toContain("an item you cannot access");
+    expect(r.event.reason).not.toContain("grant");
+    expect(r.event.reason).not.toContain("person:dana");
   });
 });

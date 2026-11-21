@@ -833,6 +833,11 @@ describe("invariants", () => {
       refusedForClass: 0,
       refusedForExpiry: 0,
       reclassed: 0,
+      ownerRewroteGranted: 0,
+      coholderRewriteRefused: 0,
+      ownerMoved: 0,
+      coholderMoveRefused: 0,
+      coholderPromotedGranted: 0,
     });
     const first = counters();
     const second = counters();
@@ -1001,6 +1006,14 @@ describe("invariants", () => {
                       (e.op === "update" && e.policy_id === "engram/grant/change")),
                   `event ${e.seq} changed what the grants of ${it.id} admit, by ${e.actor} (${e.op}, ${e.policy_id}), not its owner's write or grant change`,
                 ).toBe(true);
+              // What a grantee reads, its owner wrote or consented to by a grant
+              // given after (card RV7, RV-CORE-1): every allowed change of an item
+              // that carried grants was its owner's.
+              if (before !== undefined && prev.length > 0)
+                expect(
+                  e.actor,
+                  `event ${e.seq} rewrote ${it.id}, which carried grants, by ${e.actor} (${e.op}, ${e.policy_id}), not its owner`,
+                ).toBe(e.item.owner);
               before = e.item;
             }
           }
@@ -1051,6 +1064,55 @@ describe("invariants", () => {
             seen.reclassed++;
           }
           checkWrite(result.event, result.retention);
+          continue;
+        }
+        if (step.kind === "rewrite") {
+          // A rewrite of a held item's text, moving it to the walk's other scope
+          // or not, by its owner or a co-holder (card RV7, RV-CORE-1 and 2).
+          const actor = GRANTERS[step.who];
+          const live = currentItems(db).filter((x) => x.status !== "retired");
+          const target = live[step.pick % Math.max(1, live.length)];
+          if (!target) continue;
+          const word = WORDS[(WORDS.indexOf(wordOf(target) as (typeof WORDS)[number]) + 1) % 3];
+          const scope = step.move
+            ? (I5_SCOPES.find((x) => x !== target.scope) as string)
+            : target.scope;
+          const rewritten = {
+            ...target,
+            scope,
+            content: target.class === "procedural" ? { body: word, tools: [] } : word,
+            version: target.version + 1,
+            store_ref: null,
+          } as MemoryItem;
+          const result = await plane.write(actor, rewritten, at);
+          if (result.event.decision !== "allow") {
+            if (step.who === "coholder" && target.grants.length > 0) seen.coholderRewriteRefused++;
+            if (step.who === "coholder" && step.move) seen.coholderMoveRefused++;
+            continue;
+          }
+          if (target.grants.length > 0 || step.move)
+            expect(actor, "only the owner rewrites an item carrying grants, or moves an item").toBe(
+              WRITER5,
+            );
+          if (target.grants.length > 0) seen.ownerRewroteGranted++;
+          if (step.move) seen.ownerMoved++;
+          checkWrite(result.event, result.retention);
+          continue;
+        }
+        if (step.kind === "promote") {
+          // A promotion into the walk's team scope, reviewed, by the owner or a
+          // co-holder (review finding RV7-R1 of PR #61): a new version a
+          // non-owner makes carries none of the owner's grants.
+          const actor = GRANTERS[step.who];
+          const live = currentItems(db).filter((x) => x.status === "active");
+          const target = live[step.pick % Math.max(1, live.length)];
+          if (!target) continue;
+          const result = await plane.promote(actor, target.id, "team:b", at, { review: true });
+          if (result.event.decision !== "allow" || !result.item) continue;
+          if (result.item.id !== target.id && actor !== WRITER5) {
+            expect(result.item.grants, "a co-holder's new version carries no grant").toEqual([]);
+            if (target.grants.length > 0) seen.coholderPromotedGranted++;
+          }
           continue;
         }
         if (step.kind === "grant") {
@@ -1166,6 +1228,20 @@ describe("invariants", () => {
       const log = allEvents(db);
       for (const e of log.filter((x) => x.op === "retire" || x.op === "evict")) {
         expect(e.reason, `event ${e.seq} has a reason`).not.toBe("");
+        // The retire that supersedes a promotion's source (the grant walk's
+        // promotions, RV7-R1) names the promotion rule, and only for an item an
+        // allowed promotion just took a new version of.
+        const superseded =
+          e.op === "retire" &&
+          /^budgeted\/promotion\/superseded$/.test(e.policy_id) &&
+          log.some(
+            (x) =>
+              x.op === "promote" &&
+              x.decision === "allow" &&
+              x.seq === e.seq - 1 &&
+              x.item?.lineage[0] === e.item_id,
+          );
+        if (superseded) continue;
         expect(e.policy_id, `event ${e.seq} names a retention or adoption rule`).toMatch(
           /^(budgeted(-tight)?\/retention\/(person|team)\/(episodic|semantic|procedural)|engram\/retention\/(item-ttl|membership)|engram\/adopt\/retract)$/,
         );
@@ -1186,6 +1262,11 @@ describe("invariants", () => {
       refusedForClass,
       refusedForExpiry,
       reclassed,
+      ownerRewroteGranted,
+      coholderRewriteRefused,
+      ownerMoved,
+      coholderMoveRefused,
+      coholderPromotedGranted,
       ...budgets
     } = first;
     expect(
@@ -1208,10 +1289,15 @@ describe("invariants", () => {
       refusedForClass: second.refusedForClass,
       refusedForExpiry: second.refusedForExpiry,
       reclassed: second.reclassed,
+      ownerRewroteGranted: second.ownerRewroteGranted,
+      coholderRewriteRefused: second.coholderRewriteRefused,
+      ownerMoved: second.ownerMoved,
+      coholderMoveRefused: second.coholderMoveRefused,
+      coholderPromotedGranted: second.coholderPromotedGranted,
     };
     expect(
       Object.values(grants).every((n) => n > 0),
-      `invariant 5's grant walk needs allowed grant changes, reads a changed grant admitted, reads refused after a removal, for a grant's class and for its expiry, and class changes of items carrying grants; it saw ${JSON.stringify(second)}`,
+      `invariant 5's grant walk needs allowed grant changes, reads a changed grant admitted, reads refused after a removal, for a grant's class and for its expiry, class changes of items carrying grants, owner rewrites of items carrying grants and owner moves, co-holder rewrites and moves refused, and co-holder promotions of items carrying grants; it saw ${JSON.stringify(second)}`,
     ).toBe(true);
   }, 240_000);
 
@@ -1364,6 +1450,19 @@ type Step =
       /** Remove the item's first grant, when it has one. */
       remove: boolean;
     }
+  | {
+      /** A rewrite of a held item's text, moving it to the other scope or not (card RV7). */
+      kind: "rewrite";
+      who: "owner" | "coholder";
+      pick: number;
+      move: boolean;
+    }
+  | {
+      /** A reviewed promotion into the team scope (review finding RV7-R1 of PR #61). */
+      kind: "promote";
+      who: "owner" | "coholder";
+      pick: number;
+    }
   | { kind: "retain"; scope: string; who: keyof typeof SWEEPERS; tight: boolean }
   | { kind: "adopt"; item: MemoryItem };
 
@@ -1490,12 +1589,29 @@ const arbReclass: fc.Arbitrary<Step> = fc
     to: fc.constantFrom<MemoryItem["class"]>("episodic", "semantic", "procedural"),
   })
   .map((r): Step => ({ kind: "reclass", ...r }));
+/** A rewrite by the owner or a co-holder, moving the item or not (card RV7, RV-CORE-1 and 2). */
+const arbRewrite: fc.Arbitrary<Step> = fc
+  .record({
+    who: fc.constantFrom<"owner" | "coholder">("owner", "coholder", "coholder"),
+    pick: fc.nat({ max: 15 }),
+    move: fc.boolean(),
+  })
+  .map((r): Step => ({ kind: "rewrite", ...r }));
+/** A reviewed promotion by the owner or a co-holder (review finding RV7-R1 of PR #61). */
+const arbPromote: fc.Arbitrary<Step> = fc
+  .record({
+    who: fc.constantFrom<"owner" | "coholder">("owner", "coholder", "coholder"),
+    pick: fc.nat({ max: 15 }),
+  })
+  .map((r): Step => ({ kind: "promote", ...r }));
 const arbGrantSteps = fc.array(
   fc.oneof(
     { arbitrary: arbStep, weight: 6 },
     { arbitrary: arbGrantStep, weight: 2 },
     { arbitrary: arbGrantedWrite, weight: 2 },
     { arbitrary: arbReclass, weight: 1 },
+    { arbitrary: arbRewrite, weight: 1 },
+    { arbitrary: arbPromote, weight: 1 },
     {
       arbitrary: fc
         .constantFrom(...WORDS)

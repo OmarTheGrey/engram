@@ -128,7 +128,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** The events the actor may see: those in its member scopes and those it made, each item shown only if the read filter would return it (visibleEvents). */
+        /** The events the actor may see: those naming a member scope the read matrix lets its level read, and those it made that name no scope; each item shown only if the read filter would return it (visibleEvents). */
         post: operations["events"];
         delete?: never;
         options?: never;

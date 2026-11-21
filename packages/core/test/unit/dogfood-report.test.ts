@@ -742,7 +742,9 @@ describe("review fix pass: the real plane's promotions, retention and offboardin
     const promoted = await plane.promote(LEE, ID(80), "person:dana", day(1, 12), { review: true });
     allow(promoted.event);
     expect(promoted.item?.class).toBe("semantic");
-    expect(promoted.item?.grants.map((g) => g.class)).toEqual(["episodic"]);
+    // Card RV7 (review finding RV7-R1 of PR #61): a new version Lee, not the
+    // owner, makes carries none of Dana's grants; before, it kept the dormant one.
+    expect(promoted.item?.grants).toEqual([]);
     allow((await plane.write(DANA, newItem(ID(81), "sem one"), day(2))).event);
     allow(
       (await plane.changeGrants(DANA, ID(81), { add: [sam({ expires: day(12) })] }, day(2, 10)))

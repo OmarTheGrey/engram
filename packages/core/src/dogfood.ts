@@ -178,6 +178,7 @@ export const ENGRAM_RULES: readonly string[] = [
   "engram/write/erased",
   "engram/write/grant",
   "engram/write/membership",
+  "engram/write/move",
   "engram/write/retired-content",
   "engram/write/schema",
   "engram/write/source-isolation",

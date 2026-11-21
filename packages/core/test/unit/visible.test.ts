@@ -8,7 +8,7 @@ import { UnknownReadError } from "../../src/actor.ts";
 import { itemById } from "../../src/items.ts";
 import type { MemoryItem } from "../../src/schema.ts";
 import { eventVisibleTo, visibleEvents } from "../../src/visible.ts";
-import { AT, fresh, id, item } from "./plane/helpers.ts";
+import { AT, fresh, id, item, testPolicy } from "./plane/helpers.ts";
 
 const omar = {
   id: "person:omar",
@@ -81,9 +81,19 @@ describe("visibleEvents", () => {
       policy_id: "p",
       schema_version: 1 as const,
     };
-    expect(eventVisibleTo(ali, event)).toBe(true);
-    expect(eventVisibleTo({ id: "person:x", memberships: ["org"] }, event)).toBe(true);
-    expect(eventVisibleTo({ id: "person:x", memberships: ["team:other"] }, event)).toBe(false);
+    const policy = testPolicy();
+    const x = (memberships: string[]) => ({
+      id: "person:x",
+      level: "person" as const,
+      memberships,
+    });
+    expect(eventVisibleTo(ali, event, policy)).toBe(true);
+    expect(eventVisibleTo(x(["org"]), event, policy)).toBe(true);
+    expect(eventVisibleTo(x(["team:other"]), event, policy)).toBe(false);
+    // A member whose level the read matrix stops sees it no more (RV-CORE-4).
+    const team = { ...x(["team:platform"]), level: "team" as const };
+    expect(eventVisibleTo(team, event, policy)).toBe(true);
+    expect(eventVisibleTo({ ...team, level: "role" as const }, event, policy)).toBe(false);
   });
 
   it("keeps the log's order", async () => {
@@ -95,7 +105,7 @@ describe("visibleEvents", () => {
 });
 
 describe("the items events carry (review finding R3-4)", () => {
-  it("withholds an item in a scope the read matrix does not let the viewer read, keeping the event", async () => {
+  it("shows no event of a member scope the read matrix does not let the viewer read (RV-CORE-4)", async () => {
     const w = await workload();
     await w.plane.write({ ...omar, source: "user" }, item(3, { scope: "person:omar" }), AT);
     // A team-level reader may read team and org scopes only, whatever it is a member of.
@@ -105,9 +115,8 @@ describe("the items events carry (review finding R3-4)", () => {
       memberships: ["person:omar", "team:platform"],
     };
     const seen = visibleEvents(teamReader, w.plane.events(), view(w));
-    const personal = seen.find((e) => e.scope_to === "person:omar");
-    expect(personal).toMatchObject({ op: "write", decision: "allow" });
-    expect(personal?.item).toBeUndefined();
+    // Before card RV7 the event was shown with its item withheld; now it is not shown.
+    expect(seen.find((e) => e.scope_to === "person:omar")).toBeUndefined();
     expect(seen.find((e) => e.scope_to === "team:platform")?.item?.content).toBe("fact number 1");
   });
 

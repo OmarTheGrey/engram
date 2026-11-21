@@ -3,6 +3,7 @@
 // timestamps are generated, never read from the clock.
 import fc from "fast-check";
 import type { MemoryEvent, MemoryItem, Policy } from "../src/schema.ts";
+import { addSeconds } from "../src/time.ts";
 
 export const SCOPE_LEVELS = ["person", "role", "team", "org"] as const;
 export const CLASSES = ["episodic", "semantic", "procedural"] as const;
@@ -279,6 +280,29 @@ export const arbGatedItem: fc.Arbitrary<MemoryItem> = fc
     ...item,
     valid_from,
     grants: ["model", "compaction", "external"].includes(item.provenance.kind) ? [] : grants,
+  }));
+
+/**
+ * A gated item whose validity window ends half the time (card RV7, core review
+ * finding RV-CORE-7): `valid_to` an instant from the colliding pool or the
+ * wide range (before its start too: an item never valid), or a second or a
+ * year after its start, so a window that ends is often still open at a read.
+ * A separate arbitrary, so the draws of every property using arbGatedItem
+ * stay as they were.
+ */
+export const arbGatedItemWithValidTo: fc.Arbitrary<MemoryItem> = fc
+  .tuple(
+    arbGatedItem,
+    fc.oneof(
+      { arbitrary: fc.constant<"open">("open"), weight: 2 },
+      { arbitrary: arbInstant, weight: 1 },
+      { arbitrary: fc.constantFrom(1, 31_536_000), weight: 1 },
+    ),
+  )
+  .map(([item, end]) => ({
+    ...item,
+    valid_to:
+      end === "open" ? null : typeof end === "number" ? addSeconds(item.valid_from, end) : end,
   }));
 
 /**

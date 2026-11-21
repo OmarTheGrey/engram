@@ -241,6 +241,11 @@ export function reviewerProblem(
     return `${actor.id} confirmed item ${item.id} by restating it and cannot also approve its promotion`;
   if (actor.source !== "user")
     return `${actor.id} acts with source ${actor.source ?? "none"}; only a user-sourced actor can approve`;
+  // Defence in depth (card RV7, core review finding RV-CORE-9): within
+  // evaluatePromotion this never decides, since the promoted item is first
+  // judged as a write into the target, whose membership check refuses a
+  // non-member. It stays so the rule holds for any other caller of this
+  // exported function, and reads as ADR 0026 states it.
   if (!actor.memberships.includes(target))
     return `${actor.id} is not a member of ${target}, so cannot approve a promotion into it`;
   return null;
@@ -417,6 +422,12 @@ export function evaluatePromotion(
           status: "active",
           version: item.version + 1,
           lineage: [item.id, ...base.confirming],
+          // A grant is its owner's consent to one item, so a new version made
+          // by anyone else carries none (card RV7, review finding RV7-R1 of
+          // PR #61): otherwise a co-holder could promote the owner's granted
+          // item into a scope the owner is not in, where the owner could no
+          // longer remove the grants.
+          grants: actor.id === item.owner ? item.grants : [],
           provenance: {
             ...item.provenance,
             kind: leastTrusted([item.provenance.kind, ...counted.confirming.map((c) => c.kind)]),
@@ -432,6 +443,11 @@ export function evaluatePromotion(
     promoted,
     transition === "in-place" ? item : undefined,
     retired,
+    undefined,
+    // An in-place promotion changes only the status and the version, so a
+    // reviewer who is not the owner may make it on an item carrying grants
+    // (card RV7: the owner's rule of RV-CORE-1 exempts exactly this).
+    { promotion: transition === "in-place" },
   );
   if (write.decision === "deny")
     return deny("write", `as a write into ${target}: ${write.reason}`, write.policy_id);
@@ -492,11 +508,16 @@ export function evaluatePromotion(
         : `reviewed with ${counted.count} confirmation${counted.count === 1 ? "" : "s"}`;
   const rule =
     met === "confirmed" ? "episodic-to-semantic" : met === "validated" ? "procedural" : "review";
+  const lost = item.grants.length - (promoted.grants?.length ?? 0);
+  const dropped =
+    lost > 0
+      ? `; ${lost} grant${lost === 1 ? "" : "s"} of its owner ${item.owner} ${lost === 1 ? "is" : "are"} not carried to the new version, which ${actor.id} made: a grant is its owner's consent to one item`
+      : "";
   return {
     ...base,
     decision: "allow",
     check: met,
-    reason: `${what}: ${why}${approved}; ${targetReview ? `${scopeLevel(target)} scope requires review, which ${actor.id} gave` : write.reason}`,
+    reason: `${what}: ${why}${approved}; ${targetReview ? `${scopeLevel(target)} scope requires review, which ${actor.id} gave` : write.reason}${dropped}`,
     policy_id: promotionRuleId(policy, rule),
     transition,
     promoted,

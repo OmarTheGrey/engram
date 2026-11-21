@@ -6,9 +6,11 @@
 // claude-code`, a PreToolUse hook). The surface records what it blocks with
 // Plane.recordBypass. The text and path rules and their limits are in
 // no-bypass/shell.ts and no-bypass/paths.ts.
+import { homedir } from "node:os";
 import { resolve, sep } from "node:path";
 import {
   ancestorOfRoot,
+  expandHome,
   LOOPBACK_HOST,
   storeRootOf,
   toolPaths,
@@ -400,11 +402,212 @@ export function shellBypass(command: string, check: BypassCheck): Bypass | undef
     const word = asUncPath(unc[0]);
     if (uncDrivePath(word) !== undefined) words.push(word);
   }
-  for (const word of words) {
-    if (reaches(word, check, false)) return path;
-    if (globReachesRoot(word, check.cwd, check.roots)) return path;
+  // A protected file's folders are judged by ancestorOfRoot, below the given
+  // folders only (R3-13), so a walk over the project is no hit for them.
+  const recursive = check.ancestorsBelow === undefined && walksTree(words);
+  for (const cwd of workingDirs(command, check)) {
+    const at = { ...check, cwd };
+    for (const word of words) {
+      if (reaches(word, at, recursive)) return path;
+      if (globReachesRoot(word, cwd, check.roots)) return path;
+    }
   }
   return undefined;
+}
+
+/**
+ * Quoting a shell removes inside a command name: a backslash or a pair of
+ * quotes between its letters (`\cd`, `"cd"`, `c''d`) runs the same command
+ * (review finding RV7-R3 of PR #61).
+ */
+const NAME_QUOTES = String.raw`[\\'"]*`;
+/** A command name as a pattern that admits NAME_QUOTES around and between its letters. */
+const quotedName = (name: string) =>
+  `${NAME_QUOTES}${[...name].map((c) => (c === "-" ? "\\-" : c)).join(NAME_QUOTES)}${NAME_QUOTES}`;
+/** Commands that change the folder later words are read from: `cd`, `pushd`, and their PowerShell and cmd names. */
+const CD_WORD = `(?:${["cd", "pushd", "chdir", "set-location", "push-location", "sl"]
+  .map(quotedName)
+  .join("|")})`;
+/** Where a command word may start in the raw text: its start, after a separator, a quote, a backtick or a paren. */
+const CD_START = String.raw`(?:^|[\s;&|("'\x60])`;
+/** One shell word as written: double-quoted, single-quoted, or a run up to a separator. */
+const RAW_WORD = String.raw`("[^"]*"|'[^']*'|[^\s;&|()"'\x60]+)`;
+/** Options before a `cd` target: `-P`, the end of options `--`, cmd's `/d`. */
+const CD_OPTIONS = String.raw`(?:(?:-[A-Za-z]+|--|/d)\s+)*`;
+/** `cd dir`, options skipped: the target is the group. */
+const CD_TARGET = new RegExp(String.raw`${CD_START}${CD_WORD}\s+${CD_OPTIONS}${RAW_WORD}`, "gi");
+/** A bare `cd`, which goes to the home folder. */
+const CD_HOME = new RegExp(String.raw`${CD_START}${CD_WORD}(?=\s*(?:$|[;&|)\n]))`, "gi");
+/** One `cd dir &&` at the very start of the text: every later word runs in `dir` or not at all (RV7-R7). */
+const LEADING_CD = new RegExp(String.raw`^\s*${CD_WORD}\s+${CD_OPTIONS}${RAW_WORD}\s*&&`, "i");
+/**
+ * `-C dir` and `-Cdir` (git, make, tar, env), `--directory dir` or
+ * `--directory=dir` (make, tar), and `--chdir dir` or `--chdir=dir` (env).
+ */
+const DIR_OPTION = new RegExp(
+  String.raw`\s(?:-C(?:=|\s*)|--directory(?:=|\s+)|--chdir(?:=|\s+))${RAW_WORD}`,
+  "g",
+);
+/**
+ * A single-quoted `-m` or `--message` of a version-control tool in command
+ * position (first in its segment, after wrappers and assignments): a message
+ * that never runs, so a `cd` inside it moves nothing. Anywhere else, as in
+ * `bash -c -m '...'`, the quoted text may be a script (RV7-R3).
+ */
+const VCS_MESSAGE =
+  /((?:^|[;&|\n(])\s*(?:[\w./=-]+\s+)*?(?:git|hg|svn|jj|bzr)(?:\.exe)?\s[^;&|\n']*?)(?:-m|--message)(?:=|\s+)'[^']*'/gi;
+/** How many folders one command may be read from, at most. */
+const MAX_DIRS = 32;
+
+/** A folder a `cd` names, with no expansion left for the shell (`$`, a backtick, a glob). */
+const literalDir = (dir: string) => dir !== "-" && !/[$\x60*?[\]{}]/.test(dir);
+const unquote = (word: string) => word.replace(/^["']|["']$/g, "");
+
+/**
+ * Whether every word of `rest` runs only after the commands before it
+ * succeeded: it holds no `;`, `||`, single `&` or newline outside quotes.
+ * Pipes and `&&` are fine, and so are the `&` of a redirection (`2>&1`,
+ * `&>`) and of `|&`. A double-quoted string holding `$(` or a backtick runs
+ * a script, so it counts as holding a separator; inside single quotes
+ * nothing runs. Errs towards false (RV7-R7b).
+ */
+function joinedByAndOnly(rest: string): boolean {
+  for (let i = 0; i < rest.length; i++) {
+    const c = rest[i] as string;
+    if (c === "\\" || c === "`") {
+      // an escaped separator is read as a separator; a backtick is a substitution or a PowerShell escape
+      if (c === "`") return false;
+      const next = rest[i + 1];
+      if (next === ";" || next === "&" || next === "|") return false;
+      i++;
+    } else if (c === "'") {
+      const end = rest.indexOf("'", i + 1);
+      if (end < 0) return false;
+      i = end;
+    } else if (c === '"') {
+      let j = i + 1;
+      for (; j < rest.length && rest[j] !== '"'; j++) {
+        if (rest[j] === "\\") j++;
+        else if (rest[j] === "`" || (rest[j] === "$" && rest[j + 1] === "(")) return false;
+      }
+      if (j >= rest.length) return false;
+      i = j;
+    } else if (c === ";" || c === "\n" || c === "\r") {
+      return false;
+    } else if (c === "|") {
+      if (rest[i + 1] === "|") return false;
+      if (rest[i + 1] === "&") i++;
+    } else if (c === "&") {
+      if (rest[i + 1] === "&") i++;
+      else if (rest[i - 1] === ">" || rest[i - 1] === "<" || rest[i + 1] === ">") continue;
+      else return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * Every folder a word of `command` may be resolved against (card RV7, core
+ * review finding RV-CORE-5; review fix pass of PR #61, RV7-R3 and R7): the
+ * cwd, and every folder a `cd`, `pushd`, `Push-Location`, `-C`,
+ * `--directory` or `--chdir` in it names, each resolved against the cwd and
+ * every folder named before it, so `cd .. && cat mem/a.md` and `cd /a; cd b`
+ * are followed; a bare `cd` adds the home folder. The text is read as
+ * written, quotes and nested scripts included, erring towards blocking: a
+ * word is checked against folders the command may never enter. One
+ * narrowing: a chain of literal `cd dir &&` at the very start of the command
+ * replaces the cwd when everything after it is joined by `&&` and pipes alone
+ * (so every later word runs there or not at all), and `cd src && grep -r TODO .`
+ * is judged in `src` alone; after a `;`, `||`, a single `&` or a newline a word
+ * runs in the old folder if the `cd` failed, so the cwd stays.
+ */
+function workingDirs(command: string, check: BypassCheck): string[] {
+  const home = check.home ?? homedir();
+  let text = command;
+  for (let before = ""; before !== text; ) {
+    before = text;
+    text = text.replace(VCS_MESSAGE, "$1 ");
+  }
+  const resolveIn = (base: string, dir: string) => resolve(base, expandHome(dir, home) ?? dir);
+  let dirs = [check.cwd];
+  let moved: string | undefined;
+  let rest = text;
+  for (let m = LEADING_CD.exec(rest); m; m = LEADING_CD.exec(rest)) {
+    const dir = unquote(m[1] as string);
+    if (!literalDir(dir)) break;
+    moved = resolveIn(moved ?? check.cwd, dir);
+    rest = rest.slice(m[0].length);
+  }
+  // The chain moves the later words only when each runs after the `cd`
+  // succeeded: joined by `&&` and pipes alone (RV7-R7b of the second review
+  // pass). After `;`, `||`, a single `&` or a newline a word still runs in the
+  // old folder when the `cd` failed.
+  if (moved !== undefined && joinedByAndOnly(rest)) dirs = [moved];
+  const named: { at: number; dir: string }[] = [];
+  for (const re of [CD_TARGET, DIR_OPTION])
+    for (const m of text.matchAll(re))
+      named.push({ at: m.index ?? 0, dir: unquote(m[1] as string) });
+  for (const m of text.matchAll(CD_HOME)) named.push({ at: m.index ?? 0, dir: home });
+  named.sort((a, b) => a.at - b.at);
+  for (const { dir } of named) {
+    for (const base of [...dirs]) {
+      if (dirs.length >= MAX_DIRS) break;
+      const next = resolveIn(base, dir);
+      if (!dirs.includes(next)) dirs.push(next);
+    }
+  }
+  return dirs;
+}
+
+/** Commands that always walk the trees their paths name. */
+const WALKERS = new Set(["find", "rg", "ag", "ack", "fd", "tree", "du", "tar", "rsync"]);
+/**
+ * Commands that walk a tree under a flag, with the short flag letters that
+ * make them do so (PowerShell's `-r` included); the long forms
+ * `--recursive`, `-Recurse` (any prefix of at least `-rec`) and cp's
+ * `--archive` count too.
+ */
+const WALK_FLAGS: Readonly<Record<string, string>> = {
+  grep: "rR",
+  egrep: "rR",
+  fgrep: "rR",
+  cp: "rRa",
+  scp: "r",
+  rm: "rR",
+  ls: "R",
+  chmod: "R",
+  chown: "R",
+  chgrp: "R",
+  zip: "r",
+  diff: "r",
+  "get-childitem": "r",
+  gci: "r",
+  dir: "r",
+  "remove-item": "r",
+  "copy-item": "r",
+};
+
+/**
+ * Whether `command`'s words include a command that walks a directory tree
+ * (RV-CORE-5): then every word is also a hit when a root lies inside the
+ * folder it names (`grep -r x ~`, `find .. -name a.md`, `cp -r ~ /tmp`), as
+ * for pi's grep and find tools. Judged over the whole command, not per
+ * segment, erring towards blocking. A walk with no path, from the folder
+ * holding a root (`find`, `rg x`), is not seen: ADR 0014's stated limit.
+ */
+function walksTree(words: readonly string[]): boolean {
+  const names = words.map((w) =>
+    (w.split(/[\\/]/).pop() ?? "").toLowerCase().replace(/\.exe$/, ""),
+  );
+  if (names.some((n) => WALKERS.has(n))) return true;
+  const flagged = names.filter((n) => WALK_FLAGS[n] !== undefined);
+  if (flagged.length === 0) return false;
+  return words.some((w) => {
+    if (/^--(?:recursive|archive)$/i.test(w) || /^-rec(?:u(?:r(?:s(?:e)?)?)?)?$/i.test(w))
+      return true;
+    if (!/^-[A-Za-z]+$/.test(w)) return false;
+    return flagged.some((n) => [...(WALK_FLAGS[n] as string)].some((l) => w.includes(l)));
+  });
 }
 
 /**
