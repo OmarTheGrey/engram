@@ -44,3 +44,18 @@ Their words, our words. Use the right-hand column in code, documents and the the
 | content_guards | an optional policy block (ADR 0039): `secrets` and `pii`, each off, review (hold as a candidate) or block (deny); `injection_screen`, off, default or hardened; `max_content_bytes`, the largest content admitted. Absent means off; until card E2.9 (secrets, pii, max_content_bytes) or E2.10 (injection_screen) lands, the loader refuses any value but off |
 | trust | an optional policy block (ADR 0040): `unattested_floor`, off or on, records a write with no attested source at the least trusted kind; `protect_trusted`, off or on, stops a less trusted source rewriting, retiring or evicting a more trusted active item. Absent means off; until card E2.11 lands, the loader refuses on |
 | compatible change | the one exception to rule 5: a field of a never-persisted contract (today the policy document) that is additive, optional and without a default, whose absence parses and serialises byte for byte as before; it needs no `schema_version` bump and no migration (ADR 0002, decision D2). A persisted contract still bumps and migrates |
+
+## Project terms
+
+| term | meaning |
+|---|---|
+| preset | one of the three bundled policies, `strict`, `medium` and `permissive` (`packages/core/policies/`); C5 runs at medium unless a hypothesis sweeps presets |
+| profile | a policy file for one product, with its screens: `knowledge.yaml` (Govern) and `twin.yaml` (Twin) in `packages/pi-package/profiles/` |
+| condition | how memory reaches the agent in an experiment, C1 to C7 (`docs/research/preregistration.md`, Conditions) |
+| cassette | a recorded model reply, stored under its cache key (benchmark item, condition, preset, store, model, seed, prompt hash) and replayed so a rerun makes no new call (ADR 0017); committed fixture cassettes are in `fixtures/cassettes/` |
+| task card | one unit of work, `docs/tasks/<id>.md`, with a goal, files, dependencies, an acceptance command and what is out of scope; one card per pull request |
+| card id | an epic letter and a number: E for the plane and its surfaces (E0 contracts, E1 event log, E2 policy, E8 surfaces, E9 profiles), A adapters, L lints, B benchmarks, X experiments, D procedures (Distill), R research documents, PX and RN pi integration, RV the review cards of November 2026 |
+| absorb plan | `docs/tasks/absorb-plan.md`: thirty pull requests chosen on 2026-11-21 to take in what is worth taking from open-source projects and recent papers, under ADR 0037 |
+| gate | a go or no-go checkpoint of the roadmap with written criteria, A to D (`docs/roadmap.md`, Phases and gates) |
+| MemFS | Letta Code's memory: a git repository of Markdown files with YAML frontmatter, every edit a commit; the Letta adapter's store (ADR 0028) |
+| decision Dn | a decision of a review fix pass, recorded in the ADR it amends (for example decision D4, on who may write and how provenance is set, in ADR 0004); "decision sheet item N" and "lead-decisions item N" refer to `docs/research/prereg-v1-decisions.md` and `docs/tasks/lead-decisions.md` |
