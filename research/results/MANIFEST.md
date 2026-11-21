@@ -22,4 +22,4 @@ One row per results file. A results file exists only if `research/scripts/<scrip
 | research/results/h2-frontier-axes.json | research/configs/frontier-axes.json | research/scripts/frontier_axes.py | 03d5a76 | 5f208b78489b78a2364edf8b2dc1a5d16a4baa8a3a4be5033b5d313debc4180f | none |
 | research/results/h1-crosswalk.json | research/configs/crosswalk.json | research/scripts/crosswalk.py | a0e7113 | e51bbc8567333f320e74cdcc4e6892a32a4d422ae53295d4849833e49ed957c0 | none |
 | research/results/h1-injection-screen.json | research/configs/injection-screen.json | research/scripts/injection_screen.py | 540be321 | 3e35dd39db1ae69b49047678164434c8cf22b0f13c153ffca8e31da5a269b0a4 | none |
-| research/results/h2-perf-budget.json | research/configs/perf-budget.json | research/scripts/perf_budget.py | pending | 34a50562e892461ef177c3d90ff37ee438cffe47ea5909c9c73f6dd5ac46953b | none |
+| research/results/h2-perf-budget.json | research/configs/perf-budget.json | research/scripts/perf_budget.py | ab116f4 | 305c42e6024b03ef7c4675d0f2d77028a9b6be8b475837d4c63d3c2a1e0e2ae1 | none |
