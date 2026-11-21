@@ -111,7 +111,7 @@ function workspace() {
   };
   const client = createEngramClient({
     baseUrl: "http://127.0.0.1:7313",
-    fetch: (request) => inPlane(() => app.fetch(request)),
+    fetch: (request) => inPlane(async () => app.fetch(request)),
   });
   return { db, store, ws, client, outside, inPlane };
 }

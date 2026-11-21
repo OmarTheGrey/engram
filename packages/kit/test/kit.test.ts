@@ -29,7 +29,10 @@ function setup() {
     newId: () => `01980000-0000-7000-8000-${String(++n).padStart(12, "0")}`,
   });
   const app = createApp(ws, { port: 7313, now: () => NOW });
-  const client = createEngramClient({ baseUrl: "http://127.0.0.1:7313", fetch: app.fetch });
+  const client = createEngramClient({
+    baseUrl: "http://127.0.0.1:7313",
+    fetch: async (r) => app.fetch(r),
+  });
   let m = 0;
   const kit = createKit({
     client,
