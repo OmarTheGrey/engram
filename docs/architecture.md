@@ -111,6 +111,19 @@ Retention (card E2.4, ADR 0025): the pure `evaluateRetention` decides; an item p
 
 `packages/core` has no import from pi-ai. Model-based lints and the distiller receive a `ModelCall` injected at the boundary; inside pi it is built on the session's model runtime, in the runner it is scripted or cassette-backed. Every call is seeded, cached on (benchmark item, condition, preset, store, model, seed, prompt hash), and metered into a usage ledger (UsageRecord per call) that the runner writes to `usage.json` beside its results; it is not in the event log yet (ADR 0017).
 
+## Latency budget
+
+Proposed by card X15, for the lead's acceptance. What the plane costs in time is measured by the plane-overhead suite (`packages/core/bench/plane-overhead.ts`, tinybench) and computed by `research/scripts/perf_budget.py` into `research/results/h2-perf-budget.json` from the committed samples (`make perf-budget`; `make perf-budget CHECK=1` reruns and compares the medians within the config's band). The budget is judged on the fake adapter, so it is the plane's own cost and not the store's, under preset medium, at p99:
+
+| call | store size | budget (p99) | measured p99 | met |
+|---|---|---|---|---|
+| Plane.read, ten items returned | 1,000 | 50 ms | 38.7 ms | yes |
+| Plane.write, allowed | 1,000 | 50 ms | 30.3 ms | yes |
+| Plane.read, ten items returned | 10,000 | 100 ms, and at most 100 times bare node:sqlite's p99 | 361.2 ms (261 times) | no |
+| Plane.write, allowed | 10,000 | 100 ms | 310.5 ms | no |
+
+The measured figures are the `budget` block of `research/results/h2-perf-budget.json`, one run on an Intel Core i9-14900HX (32 logical cores, 31.7 GiB of memory, Windows 11 build 26300, Node 24.14.0) shared with about ten other agents, 50 timed calls per cell at 1,000 items and 30 at 10,000, so the p99 there is close to the largest sample. At 100 items a write adds about 2 to 7 ms at the median to a bare SQLite insert on the same disk, and a read about 6 to 7 ms; the strict, medium and permissive presets do the same work and differ only within the run's noise (medians up to a factor of 2.2 apart on the fake), and their query counts are equal apart from one statement fewer on a strict read. The budget at 10,000 items is not met because every call scans the whole projection (`retiredContent` on every write, denied ones included, and `currentItems` twice on every read), so time grows linearly with the store while the queries per call stay at 16 for a write, 6 for a denied write and 16 for a read. That is a backlog row (`docs/tasks/backlog.md`, "The plane's linear scans"), not changed before the `prereg-v1` tag. The files adapter's read is dominated by its search, which reads every file (about one second at 1,000 items); it is reported in the result and not budgeted, since it is the store's cost. Timings are never compared across machines.
+
 ## Interfaces
 
 ```

@@ -1,0 +1,1541 @@
+{
+  "budget": [
+    {
+      "baseline_ms": 0.079907,
+      "limit_ms": 50.0,
+      "measured_ms": 38.724567,
+      "met": true,
+      "name": "read-1000",
+      "op": "read",
+      "preset": "medium",
+      "ratio": 484.620459,
+      "size": 1000,
+      "stat": "p99",
+      "store": "fake",
+      "why": "a governed read of ten items from a store of 1,000 within 50 ms at p99, on the fake, so the plane's own cost stays a small share of a model turn"
+    },
+    {
+      "baseline_ms": 5.475083,
+      "limit_ms": 50.0,
+      "measured_ms": 30.328686,
+      "met": true,
+      "name": "write-1000",
+      "op": "write",
+      "preset": "medium",
+      "ratio": 5.539402,
+      "size": 1000,
+      "stat": "p99",
+      "store": "fake",
+      "why": "an allowed write into a store of 1,000 within 50 ms at p99, on the fake"
+    },
+    {
+      "baseline_ms": 1.384489,
+      "limit_ms": 100.0,
+      "max_ratio": 100.0,
+      "measured_ms": 361.215752,
+      "met": false,
+      "name": "read-10000",
+      "op": "read",
+      "preset": "medium",
+      "ratio": 260.901858,
+      "size": 10000,
+      "stat": "p99",
+      "store": "fake",
+      "why": "a governed read from a store of 10,000 within 100 ms at p99, on the fake: the target for a team-sized store, and within 100 times the bare node:sqlite baseline's p99 at the same size"
+    },
+    {
+      "baseline_ms": 7.380422,
+      "limit_ms": 100.0,
+      "max_ratio": 100.0,
+      "measured_ms": 310.523422,
+      "met": false,
+      "name": "write-10000",
+      "op": "write",
+      "preset": "medium",
+      "ratio": 42.073939,
+      "size": 10000,
+      "stat": "p99",
+      "store": "fake",
+      "why": "an allowed write into a store of 10,000 within 100 ms at p99, on the fake, and within 100 times the bare node:sqlite baseline's p99 at the same size"
+    }
+  ],
+  "card": "X15",
+  "cells": [
+    {
+      "max_ms": 13.7586,
+      "mean_ms": 6.776235,
+      "min_ms": 5.1982,
+      "n": 200,
+      "op": "read",
+      "p50_ms": 6.3709,
+      "p999_ms": 13.551819,
+      "p99_ms": 11.543677,
+      "preset": "medium",
+      "queries": {
+        "execs": 0,
+        "prepares": 7,
+        "statements": 16,
+        "transactions": 2
+      },
+      "size": 100,
+      "store": "fake"
+    },
+    {
+      "max_ms": 23.4183,
+      "mean_ms": 7.50032,
+      "min_ms": 5.3938,
+      "n": 200,
+      "op": "write",
+      "p50_ms": 7.13155,
+      "p999_ms": 22.008325,
+      "p99_ms": 12.801868,
+      "preset": "medium",
+      "queries": {
+        "execs": 0,
+        "prepares": 17,
+        "statements": 16,
+        "transactions": 3
+      },
+      "size": 100,
+      "store": "fake"
+    },
+    {
+      "max_ms": 10.1836,
+      "mean_ms": 4.631269,
+      "min_ms": 3.569,
+      "n": 200,
+      "op": "write-deny",
+      "p50_ms": 4.39125,
+      "p999_ms": 9.829997,
+      "p99_ms": 8.237212,
+      "preset": "medium",
+      "queries": {
+        "execs": 0,
+        "prepares": 7,
+        "statements": 6,
+        "transactions": 1
+      },
+      "size": 100,
+      "store": "fake"
+    },
+    {
+      "max_ms": 22.1497,
+      "mean_ms": 8.230193,
+      "min_ms": 5.9092,
+      "n": 200,
+      "op": "read",
+      "p50_ms": 7.4921,
+      "p999_ms": 21.614947,
+      "p99_ms": 17.481807,
+      "preset": "permissive",
+      "queries": {
+        "execs": 0,
+        "prepares": 7,
+        "statements": 16,
+        "transactions": 2
+      },
+      "size": 100,
+      "store": "fake"
+    },
+    {
+      "max_ms": 22.1455,
+      "mean_ms": 9.969453,
+      "min_ms": 6.0227,
+      "n": 200,
+      "op": "write",
+      "p50_ms": 9.8922,
+      "p999_ms": 21.935276,
+      "p99_ms": 19.81497,
+      "preset": "permissive",
+      "queries": {
+        "execs": 0,
+        "prepares": 17,
+        "statements": 16,
+        "transactions": 3
+      },
+      "size": 100,
+      "store": "fake"
+    },
+    {
+      "max_ms": 13.3654,
+      "mean_ms": 5.205635,
+      "min_ms": 4.0692,
+      "n": 200,
+      "op": "write-deny",
+      "p50_ms": 4.8225,
+      "p999_ms": 12.5018,
+      "p99_ms": 8.639897,
+      "preset": "permissive",
+      "queries": {
+        "execs": 0,
+        "prepares": 7,
+        "statements": 6,
+        "transactions": 1
+      },
+      "size": 100,
+      "store": "fake"
+    },
+    {
+      "max_ms": 25.4347,
+      "mean_ms": 6.285447,
+      "min_ms": 4.5733,
+      "n": 200,
+      "op": "read",
+      "p50_ms": 5.6801,
+      "p999_ms": 24.274729,
+      "p99_ms": 16.371271,
+      "preset": "strict",
+      "queries": {
+        "execs": 0,
+        "prepares": 6,
+        "statements": 15,
+        "transactions": 2
+      },
+      "size": 100,
+      "store": "fake"
+    },
+    {
+      "max_ms": 17.9046,
+      "mean_ms": 4.903753,
+      "min_ms": 3.3549,
+      "n": 200,
+      "op": "write",
+      "p50_ms": 4.6074,
+      "p999_ms": 16.596712,
+      "p99_ms": 9.696028,
+      "preset": "strict",
+      "queries": {
+        "execs": 0,
+        "prepares": 17,
+        "statements": 16,
+        "transactions": 3
+      },
+      "size": 100,
+      "store": "fake"
+    },
+    {
+      "max_ms": 8.7666,
+      "mean_ms": 4.183925,
+      "min_ms": 3.3148,
+      "n": 200,
+      "op": "write-deny",
+      "p50_ms": 3.92215,
+      "p999_ms": 8.256842,
+      "p99_ms": 6.138868,
+      "preset": "strict",
+      "queries": {
+        "execs": 0,
+        "prepares": 7,
+        "statements": 6,
+        "transactions": 1
+      },
+      "size": 100,
+      "store": "fake"
+    },
+    {
+      "max_ms": 42.4641,
+      "mean_ms": 23.214562,
+      "min_ms": 14.1894,
+      "n": 50,
+      "op": "read",
+      "p50_ms": 21.7506,
+      "p999_ms": 42.090147,
+      "p99_ms": 38.724567,
+      "preset": "medium",
+      "queries": {
+        "execs": 0,
+        "prepares": 7,
+        "statements": 16,
+        "transactions": 2
+      },
+      "size": 1000,
+      "store": "fake"
+    },
+    {
+      "max_ms": 32.9152,
+      "mean_ms": 19.525082,
+      "min_ms": 13.148,
+      "n": 50,
+      "op": "write",
+      "p50_ms": 18.73145,
+      "p999_ms": 32.656549,
+      "p99_ms": 30.328686,
+      "preset": "medium",
+      "queries": {
+        "execs": 0,
+        "prepares": 17,
+        "statements": 16,
+        "transactions": 3
+      },
+      "size": 1000,
+      "store": "fake"
+    },
+    {
+      "max_ms": 21.8632,
+      "mean_ms": 13.090324,
+      "min_ms": 6.3762,
+      "n": 50,
+      "op": "write-deny",
+      "p50_ms": 12.41065,
+      "p999_ms": 21.817904,
+      "p99_ms": 21.410244,
+      "preset": "medium",
+      "queries": {
+        "execs": 0,
+        "prepares": 7,
+        "statements": 6,
+        "transactions": 1
+      },
+      "size": 1000,
+      "store": "fake"
+    },
+    {
+      "max_ms": 43.7234,
+      "mean_ms": 22.261248,
+      "min_ms": 12.1149,
+      "n": 50,
+      "op": "read",
+      "p50_ms": 21.0805,
+      "p999_ms": 43.616639,
+      "p99_ms": 42.655788,
+      "preset": "permissive",
+      "queries": {
+        "execs": 0,
+        "prepares": 7,
+        "statements": 16,
+        "transactions": 2
+      },
+      "size": 1000,
+      "store": "fake"
+    },
+    {
+      "max_ms": 29.3517,
+      "mean_ms": 19.004998,
+      "min_ms": 11.1633,
+      "n": 50,
+      "op": "write",
+      "p50_ms": 18.5105,
+      "p999_ms": 29.285168,
+      "p99_ms": 28.686378,
+      "preset": "permissive",
+      "queries": {
+        "execs": 0,
+        "prepares": 17,
+        "statements": 16,
+        "transactions": 3
+      },
+      "size": 1000,
+      "store": "fake"
+    },
+    {
+      "max_ms": 22.3851,
+      "mean_ms": 12.666898,
+      "min_ms": 8.5307,
+      "n": 50,
+      "op": "write-deny",
+      "p50_ms": 12.26575,
+      "p999_ms": 22.124792,
+      "p99_ms": 19.782024,
+      "preset": "permissive",
+      "queries": {
+        "execs": 0,
+        "prepares": 7,
+        "statements": 6,
+        "transactions": 1
+      },
+      "size": 1000,
+      "store": "fake"
+    },
+    {
+      "max_ms": 36.757,
+      "mean_ms": 21.315154,
+      "min_ms": 11.7764,
+      "n": 50,
+      "op": "read",
+      "p50_ms": 20.9162,
+      "p999_ms": 36.689204,
+      "p99_ms": 36.079036,
+      "preset": "strict",
+      "queries": {
+        "execs": 0,
+        "prepares": 6,
+        "statements": 15,
+        "transactions": 2
+      },
+      "size": 1000,
+      "store": "fake"
+    },
+    {
+      "max_ms": 27.2156,
+      "mean_ms": 16.280396,
+      "min_ms": 9.1271,
+      "n": 50,
+      "op": "write",
+      "p50_ms": 16.02785,
+      "p999_ms": 27.104777,
+      "p99_ms": 26.107367,
+      "preset": "strict",
+      "queries": {
+        "execs": 0,
+        "prepares": 17,
+        "statements": 16,
+        "transactions": 3
+      },
+      "size": 1000,
+      "store": "fake"
+    },
+    {
+      "max_ms": 25.5263,
+      "mean_ms": 12.507864,
+      "min_ms": 6.5503,
+      "n": 50,
+      "op": "write-deny",
+      "p50_ms": 11.8087,
+      "p999_ms": 25.298886,
+      "p99_ms": 23.252161,
+      "preset": "strict",
+      "queries": {
+        "execs": 0,
+        "prepares": 7,
+        "statements": 6,
+        "transactions": 1
+      },
+      "size": 1000,
+      "store": "fake"
+    },
+    {
+      "max_ms": 369.4144,
+      "mean_ms": 278.992633,
+      "min_ms": 233.4215,
+      "n": 30,
+      "op": "read",
+      "p50_ms": 273.3924,
+      "p999_ms": 368.594535,
+      "p99_ms": 361.215752,
+      "preset": "medium",
+      "queries": {
+        "execs": 0,
+        "prepares": 7,
+        "statements": 16,
+        "transactions": 2
+      },
+      "size": 10000,
+      "store": "fake"
+    },
+    {
+      "max_ms": 312.492,
+      "mean_ms": 227.824633,
+      "min_ms": 184.9715,
+      "n": 30,
+      "op": "write",
+      "p50_ms": 223.01465,
+      "p999_ms": 312.295142,
+      "p99_ms": 310.523422,
+      "preset": "medium",
+      "queries": {
+        "execs": 0,
+        "prepares": 17,
+        "statements": 16,
+        "transactions": 3
+      },
+      "size": 10000,
+      "store": "fake"
+    },
+    {
+      "max_ms": 92.9904,
+      "mean_ms": 78.49194,
+      "min_ms": 64.3869,
+      "n": 30,
+      "op": "write-deny",
+      "p50_ms": 78.55525,
+      "p999_ms": 92.983933,
+      "p99_ms": 92.92573,
+      "preset": "medium",
+      "queries": {
+        "execs": 0,
+        "prepares": 7,
+        "statements": 6,
+        "transactions": 1
+      },
+      "size": 10000,
+      "store": "fake"
+    },
+    {
+      "max_ms": 379.0856,
+      "mean_ms": 236.078853,
+      "min_ms": 197.0493,
+      "n": 30,
+      "op": "read",
+      "p50_ms": 234.2474,
+      "p999_ms": 375.973088,
+      "p99_ms": 347.96048,
+      "preset": "permissive",
+      "queries": {
+        "execs": 0,
+        "prepares": 7,
+        "statements": 16,
+        "transactions": 2
+      },
+      "size": 10000,
+      "store": "fake"
+    },
+    {
+      "max_ms": 282.5318,
+      "mean_ms": 209.015383,
+      "min_ms": 177.8444,
+      "n": 30,
+      "op": "write",
+      "p50_ms": 200.70025,
+      "p999_ms": 282.350831,
+      "p99_ms": 280.722113,
+      "preset": "permissive",
+      "queries": {
+        "execs": 0,
+        "prepares": 17,
+        "statements": 16,
+        "transactions": 3
+      },
+      "size": 10000,
+      "store": "fake"
+    },
+    {
+      "max_ms": 113.9207,
+      "mean_ms": 74.83628,
+      "min_ms": 62.5511,
+      "n": 30,
+      "op": "write-deny",
+      "p50_ms": 72.08465,
+      "p999_ms": 113.313707,
+      "p99_ms": 107.850768,
+      "preset": "permissive",
+      "queries": {
+        "execs": 0,
+        "prepares": 7,
+        "statements": 6,
+        "transactions": 1
+      },
+      "size": 10000,
+      "store": "fake"
+    },
+    {
+      "max_ms": 525.9329,
+      "mean_ms": 315.084477,
+      "min_ms": 249.2679,
+      "n": 30,
+      "op": "read",
+      "p50_ms": 305.55165,
+      "p999_ms": 521.17266,
+      "p99_ms": 478.330502,
+      "preset": "strict",
+      "queries": {
+        "execs": 0,
+        "prepares": 6,
+        "statements": 15,
+        "transactions": 2
+      },
+      "size": 10000,
+      "store": "fake"
+    },
+    {
+      "max_ms": 310.5871,
+      "mean_ms": 207.7849,
+      "min_ms": 171.5044,
+      "n": 30,
+      "op": "write",
+      "p50_ms": 199.86035,
+      "p999_ms": 309.918389,
+      "p99_ms": 303.89999,
+      "preset": "strict",
+      "queries": {
+        "execs": 0,
+        "prepares": 17,
+        "statements": 16,
+        "transactions": 3
+      },
+      "size": 10000,
+      "store": "fake"
+    },
+    {
+      "max_ms": 104.3848,
+      "mean_ms": 77.00622,
+      "min_ms": 64.1677,
+      "n": 30,
+      "op": "write-deny",
+      "p50_ms": 74.1419,
+      "p999_ms": 104.009328,
+      "p99_ms": 100.630083,
+      "preset": "strict",
+      "queries": {
+        "execs": 0,
+        "prepares": 7,
+        "statements": 6,
+        "transactions": 1
+      },
+      "size": 10000,
+      "store": "fake"
+    },
+    {
+      "max_ms": 1147.021,
+      "mean_ms": 591.683788,
+      "min_ms": 316.7889,
+      "n": 200,
+      "op": "read",
+      "p50_ms": 601.5087,
+      "p999_ms": 1138.151331,
+      "p99_ms": 903.727001,
+      "preset": "medium",
+      "queries": {
+        "execs": 0,
+        "prepares": 7,
+        "statements": 16,
+        "transactions": 2
+      },
+      "size": 100,
+      "store": "files"
+    },
+    {
+      "max_ms": 60.973,
+      "mean_ms": 16.711379,
+      "min_ms": 11.3802,
+      "n": 200,
+      "op": "write",
+      "p50_ms": 15.68185,
+      "p999_ms": 57.172438,
+      "p99_ms": 33.181807,
+      "preset": "medium",
+      "queries": {
+        "execs": 0,
+        "prepares": 17,
+        "statements": 16,
+        "transactions": 3
+      },
+      "size": 100,
+      "store": "files"
+    },
+    {
+      "max_ms": 15.2705,
+      "mean_ms": 5.396484,
+      "min_ms": 4.0244,
+      "n": 200,
+      "op": "write-deny",
+      "p50_ms": 5.23835,
+      "p999_ms": 14.228158,
+      "p99_ms": 9.971022,
+      "preset": "medium",
+      "queries": {
+        "execs": 0,
+        "prepares": 7,
+        "statements": 6,
+        "transactions": 1
+      },
+      "size": 100,
+      "store": "files"
+    },
+    {
+      "max_ms": 1665.5558,
+      "mean_ms": 955.054872,
+      "min_ms": 440.6562,
+      "n": 200,
+      "op": "read",
+      "p50_ms": 967.3978,
+      "p999_ms": 1632.449842,
+      "p99_ms": 1469.026425,
+      "preset": "permissive",
+      "queries": {
+        "execs": 0,
+        "prepares": 7,
+        "statements": 16,
+        "transactions": 2
+      },
+      "size": 100,
+      "store": "files"
+    },
+    {
+      "max_ms": 212.4683,
+      "mean_ms": 24.964547,
+      "min_ms": 10.9192,
+      "n": 200,
+      "op": "write",
+      "p50_ms": 23.46355,
+      "p999_ms": 184.296069,
+      "p99_ms": 48.407292,
+      "preset": "permissive",
+      "queries": {
+        "execs": 0,
+        "prepares": 17,
+        "statements": 16,
+        "transactions": 3
+      },
+      "size": 100,
+      "store": "files"
+    },
+    {
+      "max_ms": 12.4363,
+      "mean_ms": 6.827005,
+      "min_ms": 4.6419,
+      "n": 200,
+      "op": "write-deny",
+      "p50_ms": 6.7305,
+      "p999_ms": 12.410709,
+      "p99_ms": 10.318097,
+      "preset": "permissive",
+      "queries": {
+        "execs": 0,
+        "prepares": 7,
+        "statements": 6,
+        "transactions": 1
+      },
+      "size": 100,
+      "store": "files"
+    },
+    {
+      "max_ms": 1022.2583,
+      "mean_ms": 276.055924,
+      "min_ms": 180.6398,
+      "n": 200,
+      "op": "read",
+      "p50_ms": 250.6121,
+      "p999_ms": 1019.421535,
+      "p99_ms": 648.242942,
+      "preset": "strict",
+      "queries": {
+        "execs": 0,
+        "prepares": 6,
+        "statements": 15,
+        "transactions": 2
+      },
+      "size": 100,
+      "store": "files"
+    },
+    {
+      "max_ms": 50.4694,
+      "mean_ms": 10.851959,
+      "min_ms": 6.8705,
+      "n": 200,
+      "op": "write",
+      "p50_ms": 9.8985,
+      "p999_ms": 49.151881,
+      "p99_ms": 39.731488,
+      "preset": "strict",
+      "queries": {
+        "execs": 0,
+        "prepares": 17,
+        "statements": 16,
+        "transactions": 3
+      },
+      "size": 100,
+      "store": "files"
+    },
+    {
+      "max_ms": 14.4747,
+      "mean_ms": 4.269108,
+      "min_ms": 3.2025,
+      "n": 200,
+      "op": "write-deny",
+      "p50_ms": 3.84965,
+      "p999_ms": 13.283685,
+      "p99_ms": 8.053209,
+      "preset": "strict",
+      "queries": {
+        "execs": 0,
+        "prepares": 7,
+        "statements": 6,
+        "transactions": 1
+      },
+      "size": 100,
+      "store": "files"
+    },
+    {
+      "max_ms": 2156.6234,
+      "mean_ms": 1211.590556,
+      "min_ms": 756.259,
+      "n": 50,
+      "op": "read",
+      "p50_ms": 1204.26105,
+      "p999_ms": 2135.6764,
+      "p99_ms": 1947.153398,
+      "preset": "medium",
+      "queries": {
+        "execs": 0,
+        "prepares": 7,
+        "statements": 16,
+        "transactions": 2
+      },
+      "size": 1000,
+      "store": "files"
+    },
+    {
+      "max_ms": 33.0268,
+      "mean_ms": 22.02061,
+      "min_ms": 17.2106,
+      "n": 50,
+      "op": "write",
+      "p50_ms": 21.5456,
+      "p999_ms": 32.905834,
+      "p99_ms": 31.817137,
+      "preset": "medium",
+      "queries": {
+        "execs": 0,
+        "prepares": 17,
+        "statements": 16,
+        "transactions": 3
+      },
+      "size": 1000,
+      "store": "files"
+    },
+    {
+      "max_ms": 15.7944,
+      "mean_ms": 7.918848,
+      "min_ms": 6.5755,
+      "n": 50,
+      "op": "write-deny",
+      "p50_ms": 7.2691,
+      "p999_ms": 15.580005,
+      "p99_ms": 13.650454,
+      "preset": "medium",
+      "queries": {
+        "execs": 0,
+        "prepares": 7,
+        "statements": 6,
+        "transactions": 1
+      },
+      "size": 1000,
+      "store": "files"
+    },
+    {
+      "max_ms": 3841.1393,
+      "mean_ms": 1607.783424,
+      "min_ms": 1100.7475,
+      "n": 50,
+      "op": "read",
+      "p50_ms": 1515.05105,
+      "p999_ms": 3829.111628,
+      "p99_ms": 3720.862577,
+      "preset": "permissive",
+      "queries": {
+        "execs": 0,
+        "prepares": 7,
+        "statements": 16,
+        "transactions": 2
+      },
+      "size": 1000,
+      "store": "files"
+    },
+    {
+      "max_ms": 40.3931,
+      "mean_ms": 26.383972,
+      "min_ms": 20.6556,
+      "n": 50,
+      "op": "write",
+      "p50_ms": 26.3216,
+      "p999_ms": 40.106842,
+      "p99_ms": 37.53052,
+      "preset": "permissive",
+      "queries": {
+        "execs": 0,
+        "prepares": 17,
+        "statements": 16,
+        "transactions": 3
+      },
+      "size": 1000,
+      "store": "files"
+    },
+    {
+      "max_ms": 260.5673,
+      "mean_ms": 14.724718,
+      "min_ms": 6.9944,
+      "n": 50,
+      "op": "write-deny",
+      "p50_ms": 8.73055,
+      "p999_ms": 249.175011,
+      "p99_ms": 146.644407,
+      "preset": "permissive",
+      "queries": {
+        "execs": 0,
+        "prepares": 7,
+        "statements": 6,
+        "transactions": 1
+      },
+      "size": 1000,
+      "store": "files"
+    },
+    {
+      "max_ms": 1253.8399,
+      "mean_ms": 921.274734,
+      "min_ms": 644.2777,
+      "n": 50,
+      "op": "read",
+      "p50_ms": 925.65225,
+      "p999_ms": 1251.487092,
+      "p99_ms": 1230.311815,
+      "preset": "strict",
+      "queries": {
+        "execs": 0,
+        "prepares": 6,
+        "statements": 15,
+        "transactions": 2
+      },
+      "size": 1000,
+      "store": "files"
+    },
+    {
+      "max_ms": 203.8167,
+      "mean_ms": 35.031296,
+      "min_ms": 19.8792,
+      "n": 50,
+      "op": "write",
+      "p50_ms": 28.0763,
+      "p999_ms": 202.561021,
+      "p99_ms": 191.259911,
+      "preset": "strict",
+      "queries": {
+        "execs": 0,
+        "prepares": 17,
+        "statements": 16,
+        "transactions": 3
+      },
+      "size": 1000,
+      "store": "files"
+    },
+    {
+      "max_ms": 239.9519,
+      "mean_ms": 13.380648,
+      "min_ms": 7.0431,
+      "n": 50,
+      "op": "write-deny",
+      "p50_ms": 8.0573,
+      "p999_ms": 229.038958,
+      "p99_ms": 130.822481,
+      "preset": "strict",
+      "queries": {
+        "execs": 0,
+        "prepares": 7,
+        "statements": 6,
+        "transactions": 1
+      },
+      "size": 1000,
+      "store": "files"
+    },
+    {
+      "max_ms": 0.0787,
+      "mean_ms": 0.018777,
+      "min_ms": 0.0168,
+      "n": 200,
+      "op": "sqlite-read",
+      "p50_ms": 0.0178,
+      "p999_ms": 0.070601,
+      "p99_ms": 0.028397,
+      "preset": null,
+      "queries": null,
+      "size": 100,
+      "store": "sqlite"
+    },
+    {
+      "max_ms": 6.3861,
+      "mean_ms": 3.106065,
+      "min_ms": 2.2595,
+      "n": 200,
+      "op": "sqlite-write",
+      "p50_ms": 2.795,
+      "p999_ms": 6.314997,
+      "p99_ms": 5.983953,
+      "preset": null,
+      "queries": null,
+      "size": 100,
+      "store": "sqlite"
+    },
+    {
+      "max_ms": 0.0827,
+      "mean_ms": 0.069456,
+      "min_ms": 0.0659,
+      "n": 50,
+      "op": "sqlite-read",
+      "p50_ms": 0.0689,
+      "p999_ms": 0.082421,
+      "p99_ms": 0.079907,
+      "preset": null,
+      "queries": null,
+      "size": 1000,
+      "store": "sqlite"
+    },
+    {
+      "max_ms": 6.8585,
+      "mean_ms": 2.882238,
+      "min_ms": 2.3045,
+      "n": 50,
+      "op": "sqlite-write",
+      "p50_ms": 2.60505,
+      "p999_ms": 6.720158,
+      "p99_ms": 5.475083,
+      "preset": null,
+      "queries": null,
+      "size": 1000,
+      "store": "sqlite"
+    },
+    {
+      "max_ms": 1.3862,
+      "mean_ms": 1.031993,
+      "min_ms": 0.7279,
+      "n": 30,
+      "op": "sqlite-read",
+      "p50_ms": 0.9879,
+      "p999_ms": 1.386029,
+      "p99_ms": 1.384489,
+      "preset": null,
+      "queries": null,
+      "size": 10000,
+      "store": "sqlite"
+    },
+    {
+      "max_ms": 8.0295,
+      "mean_ms": 3.527323,
+      "min_ms": 2.4094,
+      "n": 30,
+      "op": "sqlite-write",
+      "p50_ms": 2.95915,
+      "p999_ms": 7.964592,
+      "p99_ms": 7.380422,
+      "preset": null,
+      "queries": null,
+      "size": 10000,
+      "store": "sqlite"
+    }
+  ],
+  "hypothesis": "H2",
+  "machine": {
+    "arch": "x64",
+    "cores": 32,
+    "cpu": "Intel(R) Core(TM) i9-14900HX",
+    "memory_bytes": 34070192128,
+    "os": "win32 10.0.26300"
+  },
+  "node": "v24.14.0",
+  "notes": [
+    "Measured once on the machine named in `machine`, while about ten other coding agents ran builds and tests on it: the percentiles are an upper bound on this machine's quiet figures, and are never compared across machines.",
+    "Each cell's timed calls follow `suite.warmup` untimed ones; `n` is the number of timed calls. Where n is below 1,000 the p99.9 is interpolated between the two largest samples and is not a resolved tail; where n is below 100 the same holds for the p99.",
+    "The store of each size is written through the Plane under preset medium, as user-sourced semantic items in team scopes of at most 1,000 items, so no scope passes any preset's team budget; each preset's plane is then timed over that log and store. The log is a SQLite file in WAL mode in the temporary folder; the baseline is a bare node:sqlite file with the same pragmas, so the fsync of each commit is in both.",
+    "100,000 items is not measured: every Plane call here costs time linear in the projection (docs/log/2026-11-21-x15-finding-linear-projection-scans.md), so writing the store one item at a time through the Plane is quadratic: 10,000 items took 664 seconds on the fake (`population` below), and 100,000 would take on the order of 18 hours.",
+    "The files adapter is not measured at 10,000 items: its search reads every file in the folder on each read (docs/log/2026-11-21-x15-finding-files-search-linear.md), a median of 0.9 to 1.5 seconds per read at 1,000 items here, so the cell at 10,000 items would take roughly ten seconds a read, several minutes per preset after a population of several minutes more."
+  ],
+  "overhead": [
+    {
+      "baseline_op": "sqlite-read",
+      "op": "read",
+      "p50_added_ms": 6.3531,
+      "p50_ratio": 357.91573,
+      "p99_ratio": 406.510441,
+      "preset": "medium",
+      "size": 100,
+      "store": "fake"
+    },
+    {
+      "baseline_op": "sqlite-write",
+      "op": "write",
+      "p50_added_ms": 4.33655,
+      "p50_ratio": 2.551538,
+      "p99_ratio": 2.139366,
+      "preset": "medium",
+      "size": 100,
+      "store": "fake"
+    },
+    {
+      "baseline_op": "sqlite-write",
+      "op": "write-deny",
+      "p50_added_ms": 1.59625,
+      "p50_ratio": 1.571109,
+      "p99_ratio": 1.37655,
+      "preset": "medium",
+      "size": 100,
+      "store": "fake"
+    },
+    {
+      "baseline_op": "sqlite-read",
+      "op": "read",
+      "p50_added_ms": 7.4743,
+      "p50_ratio": 420.904494,
+      "p99_ratio": 615.621615,
+      "preset": "permissive",
+      "size": 100,
+      "store": "fake"
+    },
+    {
+      "baseline_op": "sqlite-write",
+      "op": "write",
+      "p50_added_ms": 7.0972,
+      "p50_ratio": 3.539249,
+      "p99_ratio": 3.311351,
+      "preset": "permissive",
+      "size": 100,
+      "store": "fake"
+    },
+    {
+      "baseline_op": "sqlite-write",
+      "op": "write-deny",
+      "p50_added_ms": 2.0275,
+      "p50_ratio": 1.725403,
+      "p99_ratio": 1.443844,
+      "preset": "permissive",
+      "size": 100,
+      "store": "fake"
+    },
+    {
+      "baseline_op": "sqlite-read",
+      "op": "read",
+      "p50_added_ms": 5.6623,
+      "p50_ratio": 319.106742,
+      "p99_ratio": 576.514104,
+      "preset": "strict",
+      "size": 100,
+      "store": "fake"
+    },
+    {
+      "baseline_op": "sqlite-write",
+      "op": "write",
+      "p50_added_ms": 1.8124,
+      "p50_ratio": 1.648444,
+      "p99_ratio": 1.620338,
+      "preset": "strict",
+      "size": 100,
+      "store": "fake"
+    },
+    {
+      "baseline_op": "sqlite-write",
+      "op": "write-deny",
+      "p50_added_ms": 1.12715,
+      "p50_ratio": 1.403274,
+      "p99_ratio": 1.025888,
+      "preset": "strict",
+      "size": 100,
+      "store": "fake"
+    },
+    {
+      "baseline_op": "sqlite-read",
+      "op": "read",
+      "p50_added_ms": 21.6817,
+      "p50_ratio": 315.683599,
+      "p99_ratio": 484.620459,
+      "preset": "medium",
+      "size": 1000,
+      "store": "fake"
+    },
+    {
+      "baseline_op": "sqlite-write",
+      "op": "write",
+      "p50_added_ms": 16.1264,
+      "p50_ratio": 7.190438,
+      "p99_ratio": 5.539402,
+      "preset": "medium",
+      "size": 1000,
+      "store": "fake"
+    },
+    {
+      "baseline_op": "sqlite-write",
+      "op": "write-deny",
+      "p50_added_ms": 9.8056,
+      "p50_ratio": 4.764074,
+      "p99_ratio": 3.910488,
+      "preset": "medium",
+      "size": 1000,
+      "store": "fake"
+    },
+    {
+      "baseline_op": "sqlite-read",
+      "op": "read",
+      "p50_added_ms": 21.0116,
+      "p50_ratio": 305.95791,
+      "p99_ratio": 533.817913,
+      "preset": "permissive",
+      "size": 1000,
+      "store": "fake"
+    },
+    {
+      "baseline_op": "sqlite-write",
+      "op": "write",
+      "p50_added_ms": 15.90545,
+      "p50_ratio": 7.105622,
+      "p99_ratio": 5.239442,
+      "preset": "permissive",
+      "size": 1000,
+      "store": "fake"
+    },
+    {
+      "baseline_op": "sqlite-write",
+      "op": "write-deny",
+      "p50_added_ms": 9.6607,
+      "p50_ratio": 4.708451,
+      "p99_ratio": 3.6131,
+      "preset": "permissive",
+      "size": 1000,
+      "store": "fake"
+    },
+    {
+      "baseline_op": "sqlite-read",
+      "op": "read",
+      "p50_added_ms": 20.8473,
+      "p50_ratio": 303.573295,
+      "p99_ratio": 451.512834,
+      "preset": "strict",
+      "size": 1000,
+      "store": "fake"
+    },
+    {
+      "baseline_op": "sqlite-write",
+      "op": "write",
+      "p50_added_ms": 13.4228,
+      "p50_ratio": 6.152607,
+      "p99_ratio": 4.768397,
+      "preset": "strict",
+      "size": 1000,
+      "store": "fake"
+    },
+    {
+      "baseline_op": "sqlite-write",
+      "op": "write-deny",
+      "p50_added_ms": 9.20365,
+      "p50_ratio": 4.533003,
+      "p99_ratio": 4.246906,
+      "preset": "strict",
+      "size": 1000,
+      "store": "fake"
+    },
+    {
+      "baseline_op": "sqlite-read",
+      "op": "read",
+      "p50_added_ms": 272.4045,
+      "p50_ratio": 276.740966,
+      "p99_ratio": 260.901858,
+      "preset": "medium",
+      "size": 10000,
+      "store": "fake"
+    },
+    {
+      "baseline_op": "sqlite-write",
+      "op": "write",
+      "p50_added_ms": 220.0555,
+      "p50_ratio": 75.364429,
+      "p99_ratio": 42.073939,
+      "preset": "medium",
+      "size": 10000,
+      "store": "fake"
+    },
+    {
+      "baseline_op": "sqlite-write",
+      "op": "write-deny",
+      "p50_added_ms": 75.5961,
+      "p50_ratio": 26.546559,
+      "p99_ratio": 12.590842,
+      "preset": "medium",
+      "size": 10000,
+      "store": "fake"
+    },
+    {
+      "baseline_op": "sqlite-read",
+      "op": "read",
+      "p50_added_ms": 233.2595,
+      "p50_ratio": 237.11651,
+      "p99_ratio": 251.327732,
+      "preset": "permissive",
+      "size": 10000,
+      "store": "fake"
+    },
+    {
+      "baseline_op": "sqlite-write",
+      "op": "write",
+      "p50_added_ms": 197.7411,
+      "p50_ratio": 67.823615,
+      "p99_ratio": 38.036052,
+      "preset": "permissive",
+      "size": 10000,
+      "store": "fake"
+    },
+    {
+      "baseline_op": "sqlite-write",
+      "op": "write-deny",
+      "p50_added_ms": 69.1255,
+      "p50_ratio": 24.359918,
+      "p99_ratio": 14.61309,
+      "preset": "permissive",
+      "size": 10000,
+      "store": "fake"
+    },
+    {
+      "baseline_op": "sqlite-read",
+      "op": "read",
+      "p50_added_ms": 304.56375,
+      "p50_ratio": 309.294109,
+      "p99_ratio": 345.492454,
+      "preset": "strict",
+      "size": 10000,
+      "store": "fake"
+    },
+    {
+      "baseline_op": "sqlite-write",
+      "op": "write",
+      "p50_added_ms": 196.9012,
+      "p50_ratio": 67.539783,
+      "p99_ratio": 41.176506,
+      "preset": "strict",
+      "size": 10000,
+      "store": "fake"
+    },
+    {
+      "baseline_op": "sqlite-write",
+      "op": "write-deny",
+      "p50_added_ms": 71.18275,
+      "p50_ratio": 25.055134,
+      "p99_ratio": 13.634733,
+      "preset": "strict",
+      "size": 10000,
+      "store": "fake"
+    },
+    {
+      "baseline_op": "sqlite-read",
+      "op": "read",
+      "p50_added_ms": 601.4909,
+      "p50_ratio": 33792.623595,
+      "p99_ratio": 31824.735042,
+      "preset": "medium",
+      "size": 100,
+      "store": "files"
+    },
+    {
+      "baseline_op": "sqlite-write",
+      "op": "write",
+      "p50_added_ms": 12.88685,
+      "p50_ratio": 5.61068,
+      "p99_ratio": 5.545132,
+      "preset": "medium",
+      "size": 100,
+      "store": "files"
+    },
+    {
+      "baseline_op": "sqlite-write",
+      "op": "write-deny",
+      "p50_added_ms": 2.44335,
+      "p50_ratio": 1.874186,
+      "p99_ratio": 1.666294,
+      "preset": "medium",
+      "size": 100,
+      "store": "files"
+    },
+    {
+      "baseline_op": "sqlite-read",
+      "op": "read",
+      "p50_added_ms": 967.38,
+      "p50_ratio": 54348.191011,
+      "p99_ratio": 51731.747191,
+      "preset": "permissive",
+      "size": 100,
+      "store": "files"
+    },
+    {
+      "baseline_op": "sqlite-write",
+      "op": "write",
+      "p50_added_ms": 20.66855,
+      "p50_ratio": 8.39483,
+      "p99_ratio": 8.089517,
+      "preset": "permissive",
+      "size": 100,
+      "store": "files"
+    },
+    {
+      "baseline_op": "sqlite-write",
+      "op": "write-deny",
+      "p50_added_ms": 3.9355,
+      "p50_ratio": 2.40805,
+      "p99_ratio": 1.724294,
+      "preset": "permissive",
+      "size": 100,
+      "store": "files"
+    },
+    {
+      "baseline_op": "sqlite-read",
+      "op": "read",
+      "p50_added_ms": 250.5943,
+      "p50_ratio": 14079.331461,
+      "p99_ratio": 22827.867098,
+      "preset": "strict",
+      "size": 100,
+      "store": "files"
+    },
+    {
+      "baseline_op": "sqlite-write",
+      "op": "write",
+      "p50_added_ms": 7.1035,
+      "p50_ratio": 3.541503,
+      "p99_ratio": 6.639672,
+      "preset": "strict",
+      "size": 100,
+      "store": "files"
+    },
+    {
+      "baseline_op": "sqlite-write",
+      "op": "write-deny",
+      "p50_added_ms": 1.05465,
+      "p50_ratio": 1.377335,
+      "p99_ratio": 1.345801,
+      "preset": "strict",
+      "size": 100,
+      "store": "files"
+    },
+    {
+      "baseline_op": "sqlite-read",
+      "op": "read",
+      "p50_added_ms": 1204.19215,
+      "p50_ratio": 17478.389692,
+      "p99_ratio": 24367.744976,
+      "preset": "medium",
+      "size": 1000,
+      "store": "files"
+    },
+    {
+      "baseline_op": "sqlite-write",
+      "op": "write",
+      "p50_added_ms": 18.94055,
+      "p50_ratio": 8.270705,
+      "p99_ratio": 5.811261,
+      "preset": "medium",
+      "size": 1000,
+      "store": "files"
+    },
+    {
+      "baseline_op": "sqlite-write",
+      "op": "write-deny",
+      "p50_added_ms": 4.66405,
+      "p50_ratio": 2.790388,
+      "p99_ratio": 2.493196,
+      "preset": "medium",
+      "size": 1000,
+      "store": "files"
+    },
+    {
+      "baseline_op": "sqlite-read",
+      "op": "read",
+      "p50_added_ms": 1514.98215,
+      "p50_ratio": 21989.129894,
+      "p99_ratio": 46564.913919,
+      "preset": "permissive",
+      "size": 1000,
+      "store": "files"
+    },
+    {
+      "baseline_op": "sqlite-write",
+      "op": "write",
+      "p50_added_ms": 23.71655,
+      "p50_ratio": 10.104067,
+      "p99_ratio": 6.854786,
+      "preset": "permissive",
+      "size": 1000,
+      "store": "files"
+    },
+    {
+      "baseline_op": "sqlite-write",
+      "op": "write-deny",
+      "p50_added_ms": 6.1255,
+      "p50_ratio": 3.351394,
+      "p99_ratio": 26.783961,
+      "preset": "permissive",
+      "size": 1000,
+      "store": "files"
+    },
+    {
+      "baseline_op": "sqlite-read",
+      "op": "read",
+      "p50_added_ms": 925.58335,
+      "p50_ratio": 13434.720607,
+      "p99_ratio": 15396.796462,
+      "preset": "strict",
+      "size": 1000,
+      "store": "files"
+    },
+    {
+      "baseline_op": "sqlite-write",
+      "op": "write",
+      "p50_added_ms": 25.47125,
+      "p50_ratio": 10.777643,
+      "p99_ratio": 34.932788,
+      "preset": "strict",
+      "size": 1000,
+      "store": "files"
+    },
+    {
+      "baseline_op": "sqlite-write",
+      "op": "write-deny",
+      "p50_added_ms": 5.45225,
+      "p50_ratio": 3.092954,
+      "p99_ratio": 23.894155,
+      "preset": "strict",
+      "size": 1000,
+      "store": "files"
+    }
+  ],
+  "percentile_method": "linear interpolation between closest ranks (numpy default, type 7)",
+  "population": [
+    {
+      "mean_write_ms": 4.027303,
+      "seconds": 0.40273,
+      "size": 100,
+      "store": "fake"
+    },
+    {
+      "mean_write_ms": 10.218538,
+      "seconds": 10.218538,
+      "size": 1000,
+      "store": "fake"
+    },
+    {
+      "mean_write_ms": 66.406026,
+      "seconds": 664.060256,
+      "size": 10000,
+      "store": "fake"
+    },
+    {
+      "mean_write_ms": 9.067408,
+      "seconds": 0.906741,
+      "size": 100,
+      "store": "files"
+    },
+    {
+      "mean_write_ms": 20.894179,
+      "seconds": 20.894179,
+      "size": 1000,
+      "store": "files"
+    }
+  ],
+  "samples": "research/results/h2-perf-budget-samples.jsonl",
+  "samples_sha256": "d90ff7f18486e1a9f29d3df0d591f1cccddd65c9ac711e10912908b225deb9b9",
+  "suite": {
+    "at": "2026-11-21T12:00:00Z",
+    "hits": 10,
+    "iterations": {
+      "100": 200,
+      "1000": 50,
+      "10000": 30
+    },
+    "presets": [
+      "strict",
+      "medium",
+      "permissive"
+    ],
+    "sizes": [
+      100,
+      1000,
+      10000
+    ],
+    "skip": {
+      "files": [
+        10000
+      ]
+    },
+    "stores": [
+      "fake",
+      "files"
+    ],
+    "warmup": 10
+  },
+  "tinybench": "6.2.3",
+  "tolerance": {
+    "median_band": 4.0,
+    "why": "the rerun check passes when every cell's new median lies within a factor of 4 of the committed one, either way, and every query count is equal. The band was set from the committed run itself, before any rerun: cells doing the same work under different presets differed by up to a factor of 3.86 in their medians within that one run (the files adapter's read at 100 items), since the machine was shared with about ten other agents. The check refuses samples from another machine."
+  }
+}
