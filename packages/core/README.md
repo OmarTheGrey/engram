@@ -18,11 +18,11 @@ The plane itself: the schema, the event log, the policy engine, the lints, expla
 | `src/schema.ts` | the Zod contract: `MemoryItem`, `MemoryEvent`, `Policy`, `Explanation`, `LintFinding`, `Grant`. JSON Schema, OpenAPI, the TypeScript client and the Python types are generated from it |
 | `src/plane.ts` | `createPlane(deps)` and the `Plane` interface: `write`, `checkWrite`, `read`, `promote`, `changeGrants`, `retain`, `lint`, `simulate`, `recordBypass`, `explain`, `events`, and `distill` (not implemented, card D2) |
 | `src/plane/` | one file per operation: `write.ts`, `read.ts`, `retrieve.ts` (the core retrieval pipeline), `promote.ts`, `grants.ts`, `retention.ts`, `lint.ts`, `simulate.ts`, `adopt.ts` (taking in what a store already holds), `offboard.ts` (handover, erasure and the deletion report; a core function, no surface calls it yet), `commit.ts` (the commit protocol under the log's lock), `bypass.ts`, `before-read.ts` |
-| `src/policy/` | the pure evaluator: `evaluate.ts` (`evaluateWrite`, `evaluateRead`, the grant rule), `load.ts` (YAML loading, `loadPreset`, `PRESETS`), `retention.ts`, `promotion.ts`, `grants.ts` |
+| `src/policy/` | the pure evaluator: `evaluate.ts` (`evaluateWrite`, `evaluateRead`, the grant rule), `load.ts` (YAML loading, `loadPreset`, `PRESETS`), `retention.ts`, `promotion.ts`, `grants.ts`, and `injection-screen.ts` (card E2.10: weighted rules that hold an instruction to the agent as a candidate; a floor, not a defence) |
 | `policies/` | the three presets, `strict.yaml`, `medium.yaml`, `permissive.yaml` |
 | `src/events.ts`, `src/items.ts`, `src/replay.ts` | appending events, the projection of the item set, and `itemsAt(db, seq)`, which rebuilds the item set at any event from the log alone |
 | `src/db/` | the `Db` interface, `openSqlite` (node:sqlite) and `openPostgres`, and the migrations |
-| `src/lint/` | `det.ts`, the deterministic lints (expired validity, changed source, scope or class mismatch, missing provenance, orphaned source, duplicate), and `model.ts`, the model-based ones (contradiction, unsupported claim) |
+| `src/lint/` | `det.ts`, the deterministic lints (expired validity, changed source, scope or class mismatch, missing provenance, orphaned source, duplicate, injection signature), and `model.ts`, the model-based ones (contradiction, unsupported claim) |
 | `src/no-bypass.ts` | `shellBypass` and `toolBypass`: does a shell command or a file tool reach a store or the log directly? Used by the pi extension and the Claude Code hook |
 | `src/visible.ts` | `visibleEvents`: which events a viewer may see |
 | `src/oracle.ts`, `src/dogfood.ts` | the invariants' oracles, written independently of the evaluator, and the twin dogfood's violation report built on them |
@@ -79,5 +79,6 @@ The tests are in layers (`docs/conventions/testing.md`): `test/unit/` (pure func
 
 Cards of the absorb plan ([`docs/tasks/absorb-plan.md`](../../docs/tasks/absorb-plan.md)) that land here:
 
-- **Landing:** E2.9, the secret and personal-data guard at the write gate, and E2.10, the deterministic injection screen, both behind the `content_guards` block E2.8 added (off by default and in every registered preset); X15, the plane's latency against bare SQLite, in `packages/core/bench/`.
+- **Merged on 2026-11-21:** E2.10, the deterministic injection screen (`src/policy/injection-screen.ts`), behind the `content_guards` block E2.8 added, off by default and in every registered preset.
+- **Landing:** E2.9, the secret and personal-data guard at the write gate, behind the same block; X15, the plane's latency against bare SQLite, in `packages/core/bench/`.
 - **Next:** L5 (near-duplicate lint), L6 (a supersession helper that proposes end dates), E2.11 (trust floors, opt-in, with an eighth invariant), E1.6 (a tamper-evident event log that keeps erasure possible), L7 (a local NLI tier for the contradiction lint, through an injected scorer), D2 (`Plane.distill` with Agent Workflow Memory), E2.12 (the policy exported to Cedar, with a differential test), E2.13 (`whoCanRead`), E8.13 (decisions as OpenTelemetry spans).

@@ -27,7 +27,7 @@ A number typed into a document by hand does not exist. A live run's numbers beco
 
 ## What is measured so far
 
-Only offline results: the rows of `results/MANIFEST.md` on 2026-11-21 cover what the plane admits and reaches on GateMem and MEM-INV-Bench, the C4 walk and verdict agreement, the cost estimates of every registered run, the H4 power simulation and its Holm levels, GateMem's refusal-leak checkpoints, the LongMemEval ttl sensitivity, the seeded-fault set and the deterministic lint floor, the label-audit draws and the claims crosswalk (`h1-crosswalk.json`, which tests no hypothesis and is filed under H1's glob). No live model result exists yet; H1's live runs start on 1 December, after the `prereg-v1` tag.
+Only offline results: the rows of `results/MANIFEST.md` on 2026-11-21 cover what the plane admits and reaches on GateMem and MEM-INV-Bench, the C4 walk and verdict agreement, the cost estimates of every registered run, the H4 power simulation and its Holm levels, GateMem's refusal-leak checkpoints, the LongMemEval ttl sensitivity, the seeded-fault set and the deterministic lint floor, the label-audit draws, the claims crosswalk (`h1-crosswalk.json`, which tests no hypothesis and is filed under H1's glob), and card E2.10's injection-screen corpus run (`h1-injection-screen.json`, an engineering check that enters no registered analysis until its arm is registered). No live model result exists yet; H1's live runs start on 1 December, after the `prereg-v1` tag.
 
 ## Reproduce
 
@@ -47,4 +47,4 @@ For the live experiments, the pipeline is in AGENTS.md's command list: `make run
 
 - The label audit's agreement (23 to 28 November) into `results/` and the pre-registration, then the `prereg-v1` tag.
 - H1's table and figure from the live runs (`make h1-table`, `make h1-figure`), then H2's frontier, H3's lint recovery, H4's equivalence and H5's procedures, each with its MANIFEST rows.
-- X15's overhead result (landing), and the engineering checks of the absorb cards (the injection-screen corpus of E2.10, the false-positive result of E2.9, X14's red-team run), each named under the hypothesis it serves and reported as no arm's result until the lead registers the arm.
+- X15's overhead result (landing), and the engineering checks of the other absorb cards (the false-positive result of E2.9, X14's red-team run), each named under the hypothesis it serves and reported as no arm's result until the lead registers the arm.
