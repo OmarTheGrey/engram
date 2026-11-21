@@ -76,3 +76,7 @@ Unblocks A1 to A4. Changing this decision needs a new ADR that supersedes this o
 ## Sources
 
 - `docs/decisions/README.md` (the proposal)
+
+Amendment of 2026-11-21, recording answers given on 2026-11-20 under the lead's delegation (`docs/tasks/lead-decisions.md`), carried by the answers card; the lead may overturn any:
+
+- Item 41: memory search means one thing on every store. A hit is an item holding any query term, and core ranks the hits (`rankForRead`, as the shared retrieval of ADR 0009's amendment does); no adapter's own search decides what a read returns. Today the files and Letta adapters keep an item only when every term is in its content and the Mem0 adapter ranks by embedding similarity (finding RV-ADP-6), so the adapters and the conformance suite change in a card of their own (backlog). The registered conditions are unaffected, since none uses a store's search (ADR 0031, decision 2).

@@ -37,3 +37,7 @@ Unblocks E1.1, E1.2, replay tests, the policy simulator. Changing this decision 
 ## Sources
 
 - `docs/decisions/README.md` (the proposal)
+
+Amendment of 2026-11-21, recording answers given on 2026-11-21 under the lead's delegation (`docs/tasks/lead-decisions.md`), carried by the answers card; the lead may overturn any:
+
+- Item 49: ADR 0038 amends this one. The log stays the source of truth; a hash chain in a side table over each whole event, with the parts an erasure removes held as salted commitments, signed checkpoints and a manifest per offboarding make an edit of it detectable while erasure stays possible. No event body changes. Built by card E1.6, after Gate C.

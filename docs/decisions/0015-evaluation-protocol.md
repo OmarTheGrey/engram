@@ -50,3 +50,9 @@ Unblocks B1 to B9, X1. Changing this decision needs a new ADR that supersedes th
 - `docs/decisions/README.md` (the proposal)
 - `packages/bench/PINS.md`
 - `docs/research/preregistration.md`
+
+Amendment of 2026-11-21, recording answers given on 2026-11-20 under the lead's delegation (`docs/tasks/lead-decisions.md`), carried by the answers card; the lead may overturn any:
+
+- Items 5 and 6: the orchestrator's two-of-three rule and the kappas, proposed above, are confirmed. When more than 10 percent of a benchmark's audited items are rejected, the rejected items are dropped, listed in the pre-registration, and its runs proceed, in place of waiting for an amendment. The audit runs from 23 to 28 November (item 18).
+- Item 7: two live checks run before the tag: the smoke run on fixture items and B1, GateMem's long-context reference agent, against card RV6's band (U 40 to 50, A 0 to 12, F 0 to 6 of 50) and pass rule.
+- Items 24 and 25: MemoryAgentBench stays pinned and is run by no hypothesis, since H4 runs on GateMem only (ADR 0035); C7 stays defined and is run by no hypothesis, and the harness claim is stated as untested. The protocol's six benchmarks and seven conditions are still the defined set.

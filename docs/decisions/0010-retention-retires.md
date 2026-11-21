@@ -49,6 +49,8 @@ Amendments made by card RV4, 2026-11-20 (branch `rv4`; proposed, for the lead's 
 
 ## Open questions for the lead
 
+Answered on 2026-11-20 under the lead's delegation (`docs/tasks/lead-decisions.md`, item 38); the answers are in the amendment of 2026-11-21 at the end of this ADR.
+
 - Should a person scope that a completed offboarding erased refuse every later write and adoption, so the scope stays empty unless the person is re-added? Card E2.6 treats a later write and a later record alike and accepts both.
 - Content the person wrote before the offboarding under a fresh id with no lineage to the erased items (a write decided before the mark whose writer crashed after its bytes landed and after the sweep, or a copy the person made by hand) is not recognisable as erased content and is adopted as the person's. Should the plane keep content hashes of every erased version, beyond the left-in-store records ADR 0010 already allows, to refuse such copies? That trades a hash of erased content in the log against content that comes back.
 - A Claude Code memory file the plane cannot delete (`NotDeletableError`) is refused while it holds the erased content, and adopted again, under the erased id and with the erased text, once its content changes in any way. Claude Code appends to these files routinely, so one appended line brings the erased text back into the projection (verification finding V4-6 of PR #50). Card E2.6 keeps the rule as ADR 0010's amendment of 2026-11-13 set it. Should an edited left-in-store record instead be adopted only under a fresh id, or only with the erased lines removed?
@@ -65,3 +67,11 @@ Unblocks E2.5, X9, Twin erasure. Changing this decision needs a new ADR that sup
 ## Sources
 
 - `docs/decisions/README.md` (the proposal)
+
+Amendment of 2026-11-21, recording answers given on 2026-11-20 under the lead's delegation (`docs/tasks/lead-decisions.md`), carried by the answers card; the lead may overturn any:
+
+- Item 38 answers the open questions above, each with option (a):
+  - An offboarded person scope refuses every later write and adoption, so it stays empty unless the person is added again. Not built: card E2.6's code accepts both (backlog).
+  - The plane keeps the merging content hashes of erased content, to refuse a copy written under a new id. Built for the records an erasure left in a store or did not find there (card E2.6 and RV4's amendments above); not built for an erased item whose record was deleted, whose hash the log does not keep (backlog).
+  - Erasure does not reach a promotion out of the person scope made before the offboarding: it is the scope's knowledge. This is what the code does.
+  - A Claude Code file the plane could not delete is refused while it holds any erased content, even after it is appended to. Not built: today an edited left-in-store record is adopted again once its content changes in any way (verification finding V4-6 of PR #50; backlog).

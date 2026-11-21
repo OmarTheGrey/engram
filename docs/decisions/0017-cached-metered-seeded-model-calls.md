@@ -39,3 +39,9 @@ Unblocks X1, every experiment. Changing this decision needs a new ADR that super
 ## Sources
 
 - `docs/decisions/README.md` (the proposal)
+
+Amendment of 2026-11-21, recording answers given on 2026-11-20 under the lead's delegation (`docs/tasks/lead-decisions.md`), carried by the answers card; the lead may overturn any:
+
+- Item 13: LongMemEval's judge is the paper's model through OpenRouter's seeded chat completions, `openrouter/openai/gpt-4o-2024-08-06`; this ADR holds without an exception.
+- The review cards' table, row RV6: each model and judge is pinned to its maker's own OpenRouter endpoint where OpenRouter lists one, otherwise to the cheapest endpoint that honours `seed`, with `allow_fallbacks: false` (`openrouter_provider`). The endpoints are named in each config before its first live run; the upstream that served each call is recorded either way.
+- Items 27 and 29: ADR 0036 (cassettes deposited on Zenodo and fetched by sha256; a local cassette proxy for the outside harnesses) extends this ADR.

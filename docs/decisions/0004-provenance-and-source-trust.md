@@ -52,3 +52,8 @@ Unblocks E1.2, E2.1, lints L1, seeded faults L2. Changing this decision needs a 
 - `docs/decisions/README.md` (the proposal)
 - `docs/readings/litreview/2606.24322-origin-bound-authority.md`
 - `docs/readings/litreview/2605.30771-eywa.md`
+
+Amendment of 2026-11-21, recording answers given on 2026-11-21 under the lead's delegation (`docs/tasks/lead-decisions.md`), carried by the answers card; the lead may overturn any:
+
+- Item 51: ADR 0040 amends decision D4. A write whose actor names no source keeps the provenance it claims today; card E2.7 proves the gap with tests first, and card E2.11 then adds an opt-in floor that records such a write at the least trusted kind, off in the H1 to H4 presets. If E2.7 confirms a gap that can move a registered H1 to H4 number, it goes to the lead before the `prereg-v1` tag (ADR 0040, decision 8).
+- Item 55: an imported memory (card E9.8) is written by a dedicated import actor with provenance kind `import`, every row lands as a candidate, and grants are dropped. A bundle never states its own trust, as adoption never raises trust (this ADR's amendment of card RV4).
