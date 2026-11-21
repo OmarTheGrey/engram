@@ -8,6 +8,11 @@ import { z } from "zod";
  * 1 (2026-11-06): read events carry the ids they returned (`item_ids`), and
  * provenance has the kind `external`, ranked below every other. Migration 4
  * upgrades a version 0 log.
+ *
+ * A purely additive, optional field with no default, whose absence parses
+ * and serialises byte for byte as before, is a compatible change and keeps
+ * the version (ADR 0002, amendment of 2026-11-21): the policy's
+ * `content_guards` and `trust` blocks (card E2.8) were added so.
  */
 export const SCHEMA_VERSION = 1;
 const schemaVersion = z.literal(SCHEMA_VERSION);
@@ -176,6 +181,40 @@ export const RetentionRule = z.strictObject({
   eviction: z.enum(["recency", "utility", "manual"]),
 });
 
+/** A content guard's outcome on a match (ADR 0039): none, hold as a candidate, or deny. */
+export const GuardMode = z.enum(["off", "review", "block"]);
+/** An opt-in trust option (ADR 0040). */
+export const TrustSwitch = z.enum(["off", "on"]);
+
+/**
+ * Deterministic content guards at the write gate (ADR 0039). Optional, with
+ * no default, and so is every option in it: an absent block or option is
+ * off, and a policy without the block parses to the object it parsed to
+ * before (ADR 0002, amendment of 2026-11-21). Read by nothing yet (cards
+ * E2.9 and E2.10).
+ */
+export const ContentGuards = z.strictObject({
+  /** Credentials and keys in content. */
+  secrets: GuardMode.optional(),
+  /** Personal data in content. */
+  pii: GuardMode.optional(),
+  /** Standing directives in content a person did not type; `default` or `hardened` rule set. */
+  injection_screen: z.enum(["off", "default", "hardened"]).optional(),
+  /** Largest content admitted, in bytes; absent means no limit. */
+  max_content_bytes: z.int().positive().optional(),
+});
+
+/**
+ * Trust floors (ADR 0040). Optional, with no default, as `ContentGuards` is;
+ * absent means off. Read by nothing yet (card E2.11).
+ */
+export const Trust = z.strictObject({
+  /** A write whose actor has no attested source is recorded at the least trusted kind. */
+  unattested_floor: TrustSwitch.optional(),
+  /** A less trusted source never rewrites, retires or evicts a more trusted active item. */
+  protect_trusted: TrustSwitch.optional(),
+});
+
 /** Typed policy objects evaluated by one pure function (ADR 0006). */
 export const Policy = z.strictObject({
   id: z.string().min(1),
@@ -197,6 +236,8 @@ export const Policy = z.strictObject({
     enabled: z.array(z.string().min(1)),
     thresholds: z.record(z.string(), z.number()),
   }),
+  content_guards: ContentGuards.optional(),
+  trust: Trust.optional(),
   schema_version: schemaVersion,
 });
 
@@ -244,6 +285,8 @@ export function contractJsonSchemas(): Record<string, unknown> {
 export type MemoryItem = z.infer<typeof MemoryItem>;
 export type MemoryEvent = z.infer<typeof MemoryEvent>;
 export type Policy = z.infer<typeof Policy>;
+export type ContentGuards = z.infer<typeof ContentGuards>;
+export type Trust = z.infer<typeof Trust>;
 export type Grant = z.infer<typeof Grant>;
 export type Explanation = z.infer<typeof Explanation>;
 export type LintFinding = z.infer<typeof LintFinding>;

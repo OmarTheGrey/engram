@@ -2,7 +2,7 @@
 #   filename:  Policy.json
 
 from __future__ import annotations
-from typing import Literal
+from typing import Literal, NotRequired
 from typing_extensions import TypedDict
 
 
@@ -59,6 +59,18 @@ class Lints(TypedDict, closed=True):
     thresholds: dict[str, float]
 
 
+class ContentGuards(TypedDict, closed=True):
+    secrets: NotRequired[Literal["off", "review", "block"]]
+    pii: NotRequired[Literal["off", "review", "block"]]
+    injection_screen: NotRequired[Literal["off", "default", "hardened"]]
+    max_content_bytes: NotRequired[int]
+
+
+class Trust(TypedDict, closed=True):
+    unattested_floor: NotRequired[Literal["off", "on"]]
+    protect_trusted: NotRequired[Literal["off", "on"]]
+
+
 class Policy(TypedDict, closed=True):
     id: str
     version: int
@@ -67,4 +79,6 @@ class Policy(TypedDict, closed=True):
     retention: list[RetentionItem]
     promotion: Promotion
     lints: Lints
+    content_guards: NotRequired[ContentGuards]
+    trust: NotRequired[Trust]
     schema_version: Literal[1]

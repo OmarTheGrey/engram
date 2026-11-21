@@ -402,6 +402,21 @@ export interface components {
                     [key: string]: number;
                 };
             };
+            content_guards?: {
+                /** @enum {string} */
+                secrets?: "off" | "review" | "block";
+                /** @enum {string} */
+                pii?: "off" | "review" | "block";
+                /** @enum {string} */
+                injection_screen?: "off" | "default" | "hardened";
+                max_content_bytes?: number;
+            };
+            trust?: {
+                /** @enum {string} */
+                unattested_floor?: "off" | "on";
+                /** @enum {string} */
+                protect_trusted?: "off" | "on";
+            };
             /** @constant */
             schema_version: 1;
         };
