@@ -14,7 +14,9 @@
 //   src/services/sqlite/dedup-store.ts (a term in at most `vetoDf` items is
 //   rare). Changed: the veto fires only when each side holds a rare term the
 //   other lacks (a substitution), not on a rare term one side adds; the
-//   tokens drop edge punctuation. The golden vectors of
+//   shared-token guard asks for min(2, |A|, |B|) shared distinct tokens, not
+//   2, so a one-token text can match one-token text; the tokens drop edge
+//   punctuation. The golden vectors of
 //   tests/dedup/fixtures/golden.json are ported as tests.
 // - DeusData/codebase-memory-mcp at 1111d9a9e1380a0429ef2250f63223706af6289a,
 //   MIT (LICENSE read at the commit), port of src/simhash/minhash.c's layout:
@@ -58,6 +60,14 @@ export const DEFAULT_NEAR_DUPLICATE_THRESHOLD = 0.85;
 export const RARE_TERM_DF = 10;
 /** Shared tokens required before the cosine is trusted (claude-mem's `minSharedTokens`). */
 export const MIN_SHARED_TOKENS = 2;
+/**
+ * The most earlier members of one LSH bucket an item reads, and the most
+ * earlier candidates it estimates, the earliest by id (review finding L5-4).
+ * Without it a templated corpus is quadratic; with it the pass does at most
+ * 64 estimates and 32 x 64 bucket reads per item, at the cost of missing a
+ * near-duplicate that only shares crowded buckets past the first 64.
+ */
+export const CANDIDATE_CAP = 64;
 
 // ---------------------------------------------------------------- text
 
@@ -110,9 +120,12 @@ export function shingles(toks: readonly string[], kind: "char" | "word"): Set<st
   const out = new Set<string>();
   if (toks.length === 0) return out;
   if (kind === "char") {
-    const s = toks.join(" ");
-    if (s.length <= CHAR_SHINGLE) out.add(s);
-    else for (let i = 0; i + CHAR_SHINGLE <= s.length; i++) out.add(s.slice(i, i + CHAR_SHINGLE));
+    // Code points, not UTF-16 units: an astral character is one character (review finding L5-7).
+    const cps = Array.from(toks.join(" "));
+    if (cps.length <= CHAR_SHINGLE) out.add(cps.join(""));
+    else
+      for (let i = 0; i + CHAR_SHINGLE <= cps.length; i++)
+        out.add(cps.slice(i, i + CHAR_SHINGLE).join(""));
   } else if (toks.length <= WORD_SHINGLE) out.add(toks.join(" "));
   else
     for (let i = 0; i + WORD_SHINGLE <= toks.length; i++)
@@ -279,7 +292,8 @@ const MONTHS = [
   "november",
   "december",
 ];
-const NUMBER = /\d+(?:[.:/-]\d+)*/g;
+// A leading minus is kept when no letter or digit precedes it, so -20 is not 20 while ffmpeg-7.1 reads 7.1.
+const NUMBER = /(?<![\p{L}\p{N}])-?\d+(?:[.:/-]\d+)*|\d+(?:[.:/-]\d+)*/gu;
 
 /**
  * The numbers of a text by kind (hermes-dreaming's idea): times (with a
@@ -297,7 +311,8 @@ export function numbersByKind(text: string): Map<string, Set<string>> {
   const plain = text.replace(/(\d),(?=\d{3}(?!\d))/g, "$1");
   for (const m of plain.matchAll(NUMBER)) {
     const n = m[0];
-    const dated = /[/-]/.test(n) || (n.match(/\./g)?.length ?? 0) >= 2;
+    const body = n.startsWith("-") ? n.slice(1) : n;
+    const dated = /[/-]/.test(body) || (body.match(/\./g)?.length ?? 0) >= 2;
     const kind = n.includes(":") ? "time" : dated ? "date" : "number";
     add(kind, kind === "number" ? n : n.replace(/\d+/g, (d) => String(Number(d))));
   }
@@ -413,6 +428,8 @@ export interface NearDuplicateStats {
   similar: number;
   /** Of those, how many each veto stopped, first veto first (rare term, number, polarity), and the cosine or shared-token guard. */
   vetoed: { rare_term: number; number: number; polarity: number; cosine: number };
+  /** Items whose earlier candidates were cut at CANDIDATE_CAP (review finding L5-4). */
+  capped: number;
 }
 
 /** Why the precision tier refused a similar pair, or null when it admits it. */
@@ -442,8 +459,11 @@ export function precisionVeto(
  * the earliest earlier item of its class whose estimated Jaccard similarity
  * and IDF cosine reach `threshold` and which no veto refuses. An item whose
  * strict content hash an earlier item of its class shares is the exact lint's
- * (`duplicate`) and takes no part. IDF is over every item given. Near-linear:
- * only pairs sharing an LSH band are estimated.
+ * (`duplicate`) and takes no part. IDF is over every item given. Only pairs
+ * sharing an LSH band are estimated, at most CANDIDATE_CAP per item: linear in
+ * the items with a bound of 64 estimates each, near-linear in practice on
+ * varied text (1,351 estimates for 10,000 items in the test), and capped,
+ * not exhaustive, on templated text.
  */
 export function findNearDuplicates(
   items: readonly MemoryItem[],
@@ -458,6 +478,7 @@ export function findNearDuplicates(
     candidates: 0,
     similar: 0,
     vetoed: { rare_term: 0, number: 0, polarity: 0, cosine: 0 },
+    capped: 0,
   };
 
   // IDF over the scope's items: document frequency of each token.
@@ -493,17 +514,31 @@ export function findNearDuplicates(
       seen.add(h);
       return true;
     });
-    // A pair's kind is that of its shorter text. A text gets a character
-    // signature when a pair of it could be of that kind and reach the
-    // threshold (Jaccard is at most the ratio of the sizes), a word one likewise.
+    // A pair's kind is that of its shorter text: by characters when it has
+    // fewer than WORD_SHINGLE_FLOOR words, else by word pairs. Every text of
+    // WORD_SHINGLE_FLOOR words or more gets a word signature. Every shorter
+    // text gets a character one, and so does a longer text whose character
+    // shingle set is small enough to reach the threshold with one of them:
+    // Jaccard is at most the ratio of the two set sizes, so a longer text
+    // with more than M / threshold character shingles, M the largest set of a
+    // shorter text in the class, cannot (review finding L5-2).
+    const charSets = distinct.map((p) => shingles(p.toks, "char"));
+    let largestShort = 0;
+    distinct.forEach((p, i) => {
+      if (shingleKind(p.toks.length) === "char")
+        largestShort = Math.max(largestShort, (charSets[i] as Set<string>).size);
+    });
     const buckets = { char: new Map<string, number[]>(), word: new Map<string, number[]>() };
     distinct.forEach((p, index) => {
-      const words = p.toks.length;
       const kinds: ("char" | "word")[] = [];
-      if (words < WORD_SHINGLE_FLOOR / threshold) kinds.push("char");
-      if (words >= WORD_SHINGLE_FLOOR * threshold) kinds.push("word");
+      const own = shingleKind(p.toks.length);
+      if (own === "char" || (charSets[index] as Set<string>).size * threshold <= largestShort)
+        kinds.push("char");
+      if (own === "word") kinds.push("word");
       for (const kind of kinds) {
-        const sig = signature(shingles(p.toks, kind));
+        const sig = signature(
+          kind === "char" ? (charSets[index] as Set<string>) : shingles(p.toks, kind),
+        );
         p.sigs[kind] = sig;
         for (const key of bandKeys(sig)) {
           const bucket = buckets[kind].get(key);
@@ -513,18 +548,32 @@ export function findNearDuplicates(
       }
     });
     distinct.forEach((p, j) => {
+      // At most CANDIDATE_CAP earlier members of each bucket are read, and at
+      // most CANDIDATE_CAP earlier candidates estimated, the earliest by id:
+      // a templated corpus fills buckets with hundreds of items, and reading
+      // them all made the pass quadratic (review finding L5-4).
       const earlier = new Set<number>();
+      let cut = false;
       for (const kind of ["char", "word"] as const) {
         const sig = p.sigs[kind];
         if (sig === undefined) continue;
-        for (const key of bandKeys(sig))
+        for (const key of bandKeys(sig)) {
+          let read = 0;
           for (const i of buckets[kind].get(key) ?? []) {
             if (i >= j) break;
+            if (read++ === CANDIDATE_CAP) {
+              cut = true;
+              break;
+            }
             const q = distinct[i] as Prepared;
             if (shingleKind(Math.min(q.toks.length, p.toks.length)) === kind) earlier.add(i);
           }
+        }
       }
-      for (const i of [...earlier].sort((x, y) => x - y)) {
+      const ordered = [...earlier].sort((x, y) => x - y);
+      if (ordered.length > CANDIDATE_CAP) cut = true;
+      if (cut) stats.capped++;
+      for (const i of ordered.slice(0, CANDIDATE_CAP)) {
         const q = distinct[i] as Prepared;
         const kind = shingleKind(Math.min(q.toks.length, p.toks.length));
         stats.candidates++;

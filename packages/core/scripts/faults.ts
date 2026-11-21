@@ -504,7 +504,7 @@ const SPECS: Record<string, Spec> = {
   },
   "near-duplicate-tier.near-miss": {
     description:
-      "Pairs in team:core as alike as the flagged ones but saying something else, each stopped by the precision tier: a duration changed from 20 to 45 minutes (a number and a rare term differ), an allergy negated (polarity); the freeze moved from Friday to Monday, below the threshold; an exact copy of the freeze, which is the exact duplicate lint's; and the same allergy as an episodic item and in person:dana, another class and another scope: none flagged.",
+      "Pairs in team:core as alike as the flagged ones but saying something else, each stopped by the precision tier: a duration changed from 20 to 45 minutes, stopped by the rare-term veto (20 and 45 each occur in one item; the number veto, which runs after it, would refuse it too), and an allergy negated, stopped by the polarity veto; the freeze moved from Friday to Monday, below the threshold; an exact copy of the freeze, which is the exact duplicate lint's; and the same allergy as an episodic item and in person:dana, another class and another scope: none flagged.",
     lint_id: "near-duplicate-tier",
     kind: "near-miss",
     steps: async (p) => {

@@ -10,6 +10,7 @@ import { strictContentHash } from "../../../src/content-hash.ts";
 import { type LintContext, lintScope, nearDuplicates } from "../../../src/lint/det.ts";
 import {
   bandKeys,
+  CANDIDATE_CAP,
   CHAR_SHINGLE,
   candidateProbability,
   comparableText,
@@ -416,6 +417,99 @@ describe("findNearDuplicates", () => {
     );
     expect(one).toHaveLength(2);
   });
+  // Review finding L5-1: each veto stops, inside the pass, a pair only it stops.
+  test("the number veto alone stops a room changed from 4 to 5 when both numbers are common in the scope", () => {
+    const meeting =
+      "The quarterly planning meeting of the platform team is held in room 4 on the third floor.";
+    // Twenty items that hold both 4 and 5, so neither is a rare term (df over 10).
+    const fillers = Array.from(
+      { length: 20 },
+      (_, i) => `Ticket ${i + 100} lists steps 4 and 5 of release ${i}.`,
+    );
+    const items = [meeting, meeting.replace("room 4", "room 5"), ...fillers].map((content, i) =>
+      item(i + 1, { content }),
+    );
+    const { matches, stats } = find(items);
+    expect(matches.map((m) => m.item.id)).not.toContain(id(2));
+    expect(stats.vetoed).toMatchObject({ number: 1, rare_term: 0 });
+  });
+  test("the rare-term veto alone stops a long text with one rare word swapped, its cosine at the threshold or above", () => {
+    const pipeline =
+      "The deploy pipeline runs the unit tests, then the integration tests, then a canary in one region for thirty minutes, and only after the canary stays healthy does it roll out the Postgres migration to every region, one at a time, with a pause of ten minutes between regions.";
+    const a = { text: comparableText(pipeline), toks: toks(pipeline) };
+    const swapped = pipeline.replace("Postgres", "Cassandra");
+    const b = { text: comparableText(swapped), toks: toks(swapped) };
+    const n = 2;
+    const df = (t: string) => (a.toks.includes(t) && b.toks.includes(t) ? 2 : 1);
+    expect(idfCosine(a.toks, b.toks, (t) => idf(df(t), n))).toBeGreaterThanOrEqual(0.85);
+    expect(numberVeto(a.text, b.text)).toBeNull();
+    expect(polarityVeto(a.toks, b.toks)).toBeNull();
+    const { matches, stats } = find([
+      item(1, { content: pipeline }),
+      item(2, { content: swapped }),
+    ]);
+    expect(matches).toEqual([]);
+    expect(stats).toMatchObject({ similar: 1, vetoed: { rare_term: 1 } });
+  });
+  // Review finding L5-2: the length pruning must bound shingle sets, not words.
+  test("a 31-word text and the same text with seven words added are compared by characters and flagged", () => {
+    const short = Array.from({ length: 31 }, (_, i) => `word${i}`).join(" ");
+    const long = `${short} and and and and and and and`;
+    const ta = toks(short);
+    const tb = toks(long);
+    expect(jaccard(shingles(ta, "char"), shingles(tb, "char"))).toBeGreaterThan(0.9);
+    const { matches } = find([item(1, { content: short }), item(2, { content: long })]);
+    expect(matches.map((m) => [m.item.id, m.kind])).toEqual([[id(2), "char"]]);
+  });
+  // Review finding L5-5.
+  test("a negative number is not its positive: -20 degrees and 20 degrees are vetoed", () => {
+    expect(numberVeto("it was -20 degrees at night", "it was 20 degrees at night")).toEqual([
+      "number",
+      "-20",
+      "20",
+    ]);
+    expect(numberVeto("ffmpeg-7.1 builds", "ffmpeg 7.1 builds")).toBeNull();
+    const { matches, stats } = find([
+      item(1, { content: "The cold store was kept at -20 degrees all night." }),
+      item(2, { content: "The cold store was kept at 20 degrees all night." }),
+    ]);
+    expect(matches).toEqual([]);
+    expect(stats.vetoed.number).toBe(1);
+  });
+  test("known limit: a subject and object swap that keeps the shingles alike is flagged", () => {
+    const a =
+      "The weekly report on the payments migration was sent by Alice to Bob before the review on the platform board.";
+    const b =
+      "The weekly report on the payments migration was sent by Bob to Alice before the review on the platform board.";
+    const { matches } = find([item(1, { content: a }), item(2, { content: b })]);
+    expect(matches.map((m) => m.item.id)).toEqual([id(2)]);
+    // A short swap stays apart: character 3-gram similarity 0.64, under every registered threshold.
+    const s = shingles(toks("Alice reports to Bob"), "char");
+    const t = shingles(toks("Bob reports to Alice"), "char");
+    expect(jaccard(s, t)).toBeCloseTo(0.64, 2);
+  });
+  // Review finding L5-7: character shingles are code points, never half a surrogate pair.
+  test("shingles an astral character as one character", () => {
+    const smile = String.fromCodePoint(0x1f600);
+    const set = shingles([`a${smile}b`], "char");
+    expect([...set]).toEqual([`a${smile}b`]);
+    for (const s of shingles([`go ${smile}${smile} now`], "char"))
+      expect(s.isWellFormed()).toBe(true);
+  });
+  // Review finding L5-4: templated text must not make the pass quadratic.
+  test("stays bounded on 4,000 templated items: candidates capped per item, well inside a generous time", () => {
+    const items = Array.from({ length: 4_000 }, (_, i) =>
+      item(i + 1, {
+        content: `Order ${1000 + i} for customer ${5000 + (i % 97)} shipped from warehouse ${i % 13} on day ${i % 28}.`,
+      }),
+    );
+    const started = performance.now();
+    const { stats } = find(items);
+    const ms = performance.now() - started;
+    expect(stats.candidates).toBeLessThanOrEqual(CANDIDATE_CAP * stats.items);
+    expect(stats.capped).toBeGreaterThan(0);
+    expect(ms).toBeLessThan(60_000);
+  }, 120_000);
   test("refuses a threshold outside (0, 1]", () => {
     expect(() => find([], 0)).toThrow(/not in \(0, 1\]/);
     expect(() => find([], 1.5)).toThrow(/not in \(0, 1\]/);
