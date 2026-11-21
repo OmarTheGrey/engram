@@ -11,8 +11,9 @@
 // memory tool (C1), and a step left with no call is skipped, so one script
 // serves every condition and the C1 conversation is the same task without
 // the memory steps.
-import type { ChatCall, ChatRequest, ChatResponse } from "@engram/model";
+
 import { readFileSync } from "node:fs";
+import type { ChatCall, ChatRequest, ChatResponse } from "@engram/model";
 import { z } from "zod";
 
 /** The memory tools' names, as packages/pi-extension/src/tools.ts declares them. */
@@ -23,16 +24,19 @@ const ScriptCall = z.strictObject({
   arguments: z.record(z.string(), z.unknown()),
 });
 
-const AgentStep = z.union([
+const AgentStepSchema = z.union([
   z.strictObject({ text: z.string().min(1) }),
   z.strictObject({ calls: z.array(ScriptCall).min(1) }),
 ]);
+
+/** One reply of the scripted agent: a message to the user, or tool calls. */
+export type AgentStep = z.infer<typeof AgentStepSchema>;
 
 export const TaskScript = z.strictObject({
   /** The user simulator's turns, in order; the last one ends the task (tau2's ###STOP###). */
   user: z.array(z.string().min(1)).min(1),
   /** The agent's replies, in order: a message to the user, or tool calls. */
-  agent: z.array(AgentStep).min(1),
+  agent: z.array(AgentStepSchema).min(1),
 });
 export type TaskScript = z.infer<typeof TaskScript>;
 
@@ -58,8 +62,8 @@ function offered(request: ChatRequest): Set<string> {
 const isMemory = (name: string) => (MEMORY_TOOLS as readonly string[]).includes(name);
 
 /** The agent's steps under the tools a request offers. */
-export function agentSteps(script: TaskScript, tools: ReadonlySet<string>) {
-  return script.agent.flatMap((step) => {
+export function agentSteps(script: TaskScript, tools: ReadonlySet<string>): AgentStep[] {
+  return script.agent.flatMap((step): AgentStep[] => {
     if ("text" in step) return [step];
     const calls = step.calls.filter((c) => !isMemory(c.name) || tools.has(c.name));
     return calls.length === 0 ? [] : [{ calls }];
@@ -67,7 +71,10 @@ export function agentSteps(script: TaskScript, tools: ReadonlySet<string>) {
 }
 
 /** The scripted agent and user simulator of one task. */
-export function scriptedTau2(item: string, script: TaskScript): { agent: ChatCall; user: ChatCall } {
+export function scriptedTau2(
+  item: string,
+  script: TaskScript,
+): { agent: ChatCall; user: ChatCall } {
   const agent: ChatCall = async (request): Promise<ChatResponse> => {
     const tools = offered(request);
     const steps = agentSteps(script, tools);

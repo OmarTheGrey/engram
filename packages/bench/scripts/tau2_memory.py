@@ -73,10 +73,7 @@ def refusal_text(event):
 def _escape(text):
     """tag.ts, escapeMarkup: `&` first, then the angle brackets and quotes."""
     return (
-        text.replace("&", "&amp;")
-        .replace("<", "&lt;")
-        .replace(">", "&gt;")
-        .replace('"', "&quot;")
+        text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
     )
 
 
@@ -90,12 +87,14 @@ def tag_read(filtered, items, read_id=None, policy_id=None):
     `items` are dicts with item_id, scope, rank, content and, under C5,
     policy_id (the rule that admitted the item).
     """
-    head = f'<engram:memory{_attr("read_id", read_id)}{_attr("policy_id", policy_id)} filtered="{filtered}">'
-    body = [
-        f'<engram:item{_attr("item_id", i["item_id"])}{_attr("scope", i["scope"])} rank="{i["rank"]}"'
-        f'{_attr("policy_id", i.get("policy_id"))}>\n{_escape(i["content"])}\n</engram:item>'
-        for i in items
-    ]
+    rules = _attr("read_id", read_id) + _attr("policy_id", policy_id)
+    head = f'<engram:memory{rules} filtered="{filtered}">'
+    body = []
+    for i in items:
+        where = _attr("item_id", i["item_id"]) + _attr("scope", i["scope"])
+        rule = _attr("policy_id", i.get("policy_id"))
+        content = _escape(i["content"])
+        body.append(f'<engram:item{where} rank="{i["rank"]}"{rule}>\n{content}\n</engram:item>')
     return "\n".join([head, *(body if body else ["no memories"]), "</engram:memory>"])
 
 
@@ -221,7 +220,9 @@ class Memory:
         self.log.append({"task": self.task, "tool": name, "tool_call_id": tool_call_id, **fields})
 
     def _write(self, arguments, tool_call_id):
-        if not isinstance(arguments.get("scope"), str) or not isinstance(arguments.get("content"), str):
+        if not isinstance(arguments.get("scope"), str) or not isinstance(
+            arguments.get("content"), str
+        ):
             text = "memory_write: scope and content must be strings"
             self._entry("memory_write", tool_call_id, decision="malformed", text=text)
             return text
@@ -284,7 +285,7 @@ def _out(text):
 
 
 def _selftest(command):
-    """`render` reads {kind, ...} on stdin and prints what the model would be shown (the tests' entry)."""
+    """The tests' entry: `tools`, or `render` reading {kind, ...} on stdin."""
     if command == "tools":
         _out(json.dumps([dict(t) for t in MEMORY_TOOLS]))
         return 0

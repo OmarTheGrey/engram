@@ -274,7 +274,9 @@ export async function runTau2(options: Tau2Options): Promise<Tau2Result> {
           const first = misses[0];
           throw new Tau2RunFailed(
             `tau2 stopped (exit ${code}) under ${condition}, seed ${seed}; log ${join(dir, "tau2.log")}${
-              first ? `; first proxy error: ${first.status} ${first.code} on ${first.task} (${first.role}): ${first.message}` : ""
+              first
+                ? `; first proxy error: ${first.status} ${first.code} on ${first.task} (${first.role}): ${first.message}`
+                : ""
             }`,
           );
         }

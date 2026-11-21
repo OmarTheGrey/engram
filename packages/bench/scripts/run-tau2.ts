@@ -159,12 +159,16 @@ async function main(): Promise<number> {
     }
   }
   if (values.record && offline) {
-    console.error("run-tau2: --record makes model calls; unset ENGRAM_OFFLINE (make fixtures does)");
+    console.error(
+      "run-tau2: --record makes model calls; unset ENGRAM_OFFLINE (make fixtures does)",
+    );
     return 2;
   }
   const problems = checkTau2(paths);
   if (problems.length > 0) {
-    console.error(`run-tau2: ${problems.join("; ")}; run node packages/bench/scripts/run-tau2.ts --setup`);
+    console.error(
+      `run-tau2: ${problems.join("; ")}; run node packages/bench/scripts/run-tau2.ts --setup`,
+    );
     return 2;
   }
   const out = resolve(values.out);

@@ -16,7 +16,13 @@ export interface RoleCount {
 export interface Tau2Summary {
   conditions: Record<
     string,
-    { tasks: number; reward: number; tau2_reward: number; steps: number; memory_writes_denied: number }
+    {
+      tasks: number;
+      reward: number;
+      tau2_reward: number;
+      steps: number;
+      memory_writes_denied: number;
+    }
   >;
   calls: { total: number; new: number; cached: number };
   roles: Record<Role, RoleCount>;
@@ -25,7 +31,8 @@ export interface Tau2Summary {
   cost_usd: number;
 }
 
-const mean = (xs: readonly number[]) => (xs.length === 0 ? 0 : xs.reduce((a, b) => a + b, 0) / xs.length);
+const mean = (xs: readonly number[]) =>
+  xs.length === 0 ? 0 : xs.reduce((a, b) => a + b, 0) / xs.length;
 /** Six decimals: the summary is byte-stable across platforms. */
 const fixed = (x: number) => Number(x.toFixed(6));
 

@@ -35,16 +35,15 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from tau2_memory import MEMORY_TOOL_NAMES, MEMORY_TOOLS, Memory  # noqa: E402
-
-from tau2.agent.llm_agent import LLMAgent  # noqa: E402
-from tau2.data_model.message import MultiToolMessage, ToolMessage  # noqa: E402
-from tau2.data_model.simulation import TextRunConfig  # noqa: E402
-from tau2.data_model.tasks import RewardType  # noqa: E402
-from tau2.evaluator.evaluator import EvaluationType  # noqa: E402
-from tau2.registry import registry  # noqa: E402
-from tau2.runner import get_tasks, load_task_splits, run_single_task  # noqa: E402
-from tau2.utils.llm_utils import generate  # noqa: E402
+from tau2.agent.llm_agent import LLMAgent
+from tau2.data_model.message import MultiToolMessage, ToolMessage
+from tau2.data_model.simulation import TextRunConfig
+from tau2.data_model.tasks import RewardType
+from tau2.evaluator.evaluator import EvaluationType
+from tau2.registry import registry
+from tau2.runner import get_tasks, load_task_splits, run_single_task
+from tau2.utils.llm_utils import generate
+from tau2_memory import MEMORY_TOOL_NAMES, MEMORY_TOOLS, Memory
 
 MEMORY_AGENT = "engram_memory_agent"
 # Memory calls one agent turn may make before it must answer the user or call a domain tool.
@@ -99,7 +98,8 @@ class EngramMemoryAgent(LLMAgent):
                 # The agent's history keeps the whole reply; the orchestrator gets its domain calls.
                 return reply.model_copy(update={"tool_calls": rest}), state
         raise RuntimeError(
-            f"the agent made {MAX_MEMORY_ROUNDS} memory calls in a row without answering or calling a domain tool"
+            f"the agent made {MAX_MEMORY_ROUNDS} memory calls in a row"
+            " without answering or calling a domain tool"
         )
 
 
@@ -144,9 +144,7 @@ def main(job_path):
         if memory is not None:
             memory.task = task.id
         basis = task.evaluation_criteria.reward_basis if task.evaluation_criteria else []
-        evaluation = (
-            EvaluationType.ENV if RewardType.NL_ASSERTION in basis else EvaluationType.ALL
-        )
+        evaluation = EvaluationType.ENV if RewardType.NL_ASSERTION in basis else EvaluationType.ALL
         config = TextRunConfig(
             domain=domain,
             agent=agent_name,

@@ -42,7 +42,9 @@ export function checkTau2(paths: Tau2Paths): string[] {
   } else {
     const head = run("git", ["rev-parse", "HEAD"], paths.upstream);
     if (head.out !== TAU2_PIN.commit) {
-      problems.push(`${paths.upstream} is at ${head.out || "no commit"}, not the pin ${TAU2_PIN.commit}`);
+      problems.push(
+        `${paths.upstream} is at ${head.out || "no commit"}, not the pin ${TAU2_PIN.commit}`,
+      );
     }
     const changed = run("git", ["status", "--porcelain"], paths.upstream);
     if (!changed.ok || changed.out !== "") {
@@ -51,7 +53,8 @@ export function checkTau2(paths: Tau2Paths): string[] {
       );
     }
   }
-  if (!existsSync(paths.python)) problems.push(`tau2's Python environment is missing: ${paths.python}`);
+  if (!existsSync(paths.python))
+    problems.push(`tau2's Python environment is missing: ${paths.python}`);
   return problems;
 }
 
@@ -76,12 +79,10 @@ export function setupTau2(paths: Tau2Paths, env: NodeJS.ProcessEnv = process.env
     step("git", ["checkout", "-q", "--detach", TAU2_PIN.commit], paths.upstream);
   }
   if (!existsSync(paths.python)) {
-    step(
-      "uv",
-      ["sync", "--frozen", "--no-dev", "--python", TAU2_PYTHON_VERSION],
-      paths.upstream,
-      { ...env, UV_PROJECT_ENVIRONMENT: paths.venv },
-    );
+    step("uv", ["sync", "--frozen", "--no-dev", "--python", TAU2_PYTHON_VERSION], paths.upstream, {
+      ...env,
+      UV_PROJECT_ENVIRONMENT: paths.venv,
+    });
   }
   const problems = checkTau2(paths);
   if (problems.length > 0) throw new Error(`tau2-bench's environment: ${problems.join("; ")}`);
