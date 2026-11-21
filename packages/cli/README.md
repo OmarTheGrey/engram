@@ -1,0 +1,69 @@
+# @engram/cli
+
+The `engram` command. It calls core and the adapters through the HTTP API's generated client and holds no policy logic. Back to the [root README](../../README.md).
+
+## Rules
+
+- **One client call per command** (card E8.2, ADR [0027](../../docs/decisions/0027-http-contract-client-and-inspector.md)). In process, the client's fetch is the server app over the workspace the flags open, so no command needs a running server; with `--server <url>` (or `ENGRAM_SERVER_URL`) the same call goes over HTTP to `engram serve`.
+- **No policy `if`** (AGENTS.md rule 1). The CLI builds the actor from `--as`, `--level` and `--member` and prints what the Plane decided.
+- **It never calls an adapter** (rule 2). The workspace opener in `@engram/server` opens the log, the policy and the store.
+- **Writes are recorded as source `user`** by the acting principal, whatever the item claims.
+- **The clock is the real one.** Only `read --at` changes the time validity windows are judged at; `--at` on any other command is refused unless `--test-clock` (tests and fixtures only) is given in process.
+- **Identity is self-asserted.** `--as` and `--member` are taken as given; there is no authentication yet.
+
+## Commands
+
+| command | what it does |
+|---|---|
+| `engram write` | write one item through the write gate (`--content` or `--file`, `--scope`, `--class`, `--confidence`, `--valid-from`, `--valid-to`) |
+| `engram read [query]` | adopt the store's own memories, then read through the plane and explain every returned item |
+| `engram explain <readId>` | the explanations a read recorded, for the reader who made it only |
+| `engram promote <itemId> --to <scope>` | promote through the promotion gate; `--review` approves as a reviewer |
+| `engram retain --scope <scope>` | sweep one scope's retention: expired items retired, budgets enforced |
+| `engram lint --scope <scope>` | the policy's deterministic lints over one scope; exit 1 on a finding |
+| `engram simulate --workload <file> --policy <p> --candidate <p>` | replay a recorded workload under two policies on scratch logs and stores; `--json` for the report |
+| `engram serve` | the HTTP API and the inspector on loopback (default port 7313) |
+| `engram mcp` | the MCP server for Claude Code and Codex, over stdio or `--http <port>` |
+| `engram hook claude-code` | the Claude Code PreToolUse hook that blocks store bypasses |
+| `engram doctor` | check the log (never creating one), the policy, the store, the adapters, provider keys by name only, benchmark pins, the pi pin and Node |
+
+Shared flags: `--store files|letta`, `--root <folder>`, `--owner <id>`, `--policy strict|medium|permissive|<file>`, `--db <sqlite file|:memory:|postgres://...>` (default `ENGRAM_DB_URL`, else `<home>/.engram/engram.db`), `--json`. `engram --help` prints them all.
+
+## Main modules
+
+| module | what it holds |
+|---|---|
+| `src/main.ts` | the entry point (`bin: engram`) |
+| `src/run.ts` | `run(argv, io)` and the help text; every id and time comes from the injected `Io`, so a run with a fixed `Io` is reproducible |
+| `src/commands.ts` | the commands that reach the plane, each one client call |
+| `src/connect.ts` | the in-process client, or the client to `--server` |
+| `src/serve.ts`, `src/mcp.ts`, `src/hook.ts` | `engram serve`, `engram mcp` and `engram hook claude-code` |
+| `src/doctor.ts` | `engram doctor`: one line per check with its reason; secrets in a Postgres URL are never printed |
+| `src/format.ts` | the human-readable output |
+| `src/setup.ts`, `src/store.ts`, `src/uuid.ts` | the actor and flag checks, the workspace re-exports, `uuidv7` |
+
+## Use
+
+From a clone, `node packages/cli/src/main.ts <command>` or `make engram ARGS="<command> ..."`:
+
+```sh
+engram write --root /tmp/demo/memory --owner alice --db /tmp/demo/engram.db --content "The deploy key rotates every 90 days."
+engram read deploy --root /tmp/demo/memory --owner alice --db /tmp/demo/engram.db
+engram explain <read id> --owner alice --db /tmp/demo/engram.db
+engram read --root ~/.claude/projects/<project>/memory --owner alice     # your own Claude Code memory, adopted as person:alice
+```
+
+## Test
+
+```sh
+pnpm --filter cli exec vitest run
+make test-e2e        # layer 6: doctor and a write, read, explain smoke on SQLite and embedded Postgres, on a temp folder and on a Letta repository
+```
+
+`test/commands.test.ts` holds the help snapshot (card E8.2's acceptance) and `test/main.test.ts` runs the binary as a process; there is a test file per command (`write`, `read`, `explain`, `promote`, `simulate`, `doctor`, `hook`), and `test/redaction.property.test.ts` checks that no secret in a Postgres URL reaches the output.
+
+## What is next
+
+- Card E9.8: `engram export` (a portable JSONL bundle of what the actor owns) and `engram import` (every row a governed candidate write by a dedicated import actor, grants dropped).
+- Card E1.6: `engram log verify`, which checks the tamper-evident chain of the event log.
+- Card E2.13: who can read an item, through the generated client.
