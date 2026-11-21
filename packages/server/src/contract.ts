@@ -63,6 +63,24 @@ export const ReadRequest = z.strictObject({
   at: validAt,
 });
 
+/** A read of one item by its id (card E8.14); the id is the path's `itemId`. */
+export const ReadByIdRequest = z.strictObject({ actor: Actor, at: validAt });
+
+export const ScopesRequest = z.strictObject({ actor: Actor });
+export const VisibleScope = z
+  .strictObject({ scope: z.string(), via: z.enum(["membership", "grant"]) })
+  .meta({
+    description:
+      "A scope the actor can see: `membership`, a member scope the read matrix lets its level read; `grant`, otherwise, the scope of an item a read now admits through a live grant (card E8.14).",
+  });
+export const ScopesResponse = z.strictObject({
+  scopes: z.array(VisibleScope),
+  event: MemoryEvent,
+  policy: z
+    .string()
+    .meta({ description: "The policy the listing was decided under: <id> v<version>." }),
+});
+
 export const RetentionReport = z.strictObject({
   decision: z.enum(["allow", "deny"]),
   events: z.array(MemoryEvent),
@@ -232,6 +250,10 @@ export const COMPONENTS = {
   CheckResponse,
   ReadRequest,
   ReadResponse,
+  ReadByIdRequest,
+  ScopesRequest,
+  VisibleScope,
+  ScopesResponse,
   StoreSync,
   RetentionReport,
   AdoptReport,

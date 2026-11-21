@@ -116,6 +116,51 @@ describe("the routes, through the generated client, on the fake store", () => {
     expect(C.ExplainResponse.parse(data).counts?.filtered).toBe(read.filtered);
   });
 
+  it("readById: the item the actor may read, with its explanation and one read event (card E8.14)", async () => {
+    const { client } = testWorkspace();
+    await client.POST("/api/v1/items", {
+      body: { actor: { ...dana, source: "user" }, item: itemFor(1) },
+    });
+    const { data, response } = await client.POST("/api/v1/read/{itemId}", {
+      params: { path: { itemId: id(501) } },
+      body: { actor: dana },
+    });
+    hit.add("readById");
+    expect(response.status).toBe(200);
+    const body = C.ReadResponse.parse(data);
+    expect(body.items.map((i) => i.id)).toEqual([id(501)]);
+    expect(body.explanations[0]?.item_id).toBe(id(501));
+    expect(body.event).toMatchObject({ op: "read", ts: NOW, item_ids: [id(501)] });
+    expect(body.event.reason).toContain(`read by id ${id(501)}`);
+    expect(body.policy).toBe("preset.medium v1");
+  });
+
+  it("readById: another person's item answers as an id the log never held, and a bad id is 400", async () => {
+    const { client } = testWorkspace();
+    await client.POST("/api/v1/items", {
+      body: { actor: { ...dana, source: "user" }, item: itemFor(1) },
+    });
+    const ask = (itemId: string) =>
+      client.POST("/api/v1/read/{itemId}", { params: { path: { itemId } }, body: { actor: eve } });
+    const hidden = C.ReadResponse.parse((await ask(id(501))).data);
+    const unknown = C.ReadResponse.parse((await ask(id(599))).data);
+    expect([hidden.items, hidden.explanations, hidden.filtered]).toEqual([[], [], 0]);
+    expect([unknown.items, unknown.explanations, unknown.filtered]).toEqual([[], [], 0]);
+    const bad = await ask("not-an-id");
+    expect(bad.response.status).toBe(400);
+  });
+
+  it("listScopes: the member scopes the actor may read, and one read event (card E8.14)", async () => {
+    const { client, workspace } = testWorkspace();
+    const { data, response } = await client.POST("/api/v1/scopes", { body: { actor: dana } });
+    hit.add("listScopes");
+    expect(response.status).toBe(200);
+    const body = C.ScopesResponse.parse(data);
+    expect(body.scopes).toEqual([{ scope: "person:dana", via: "membership" }]);
+    expect(body.event).toMatchObject({ op: "read", actor: dana.id, ts: NOW, item_ids: [] });
+    expect(workspace.plane.events()).toEqual([body.event]);
+  });
+
   it("explain: a read event whose reason predates the ttl category has null counts", async () => {
     const { client, db } = testWorkspace();
     // The reason the read path wrote before card E2.4 added "past their ttl".

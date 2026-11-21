@@ -285,6 +285,192 @@
         }
       }
     },
+    "/api/v1/read/{itemId}": {
+      "post": {
+        "operationId": "readById",
+        "summary": "Read one item by its id through the plane's read filter as the actor at the server's clock (card E8.14): the item and its explanation when the actor may read it, nothing otherwise, and one read event; with a store, the same sweep and adoption as /read run first.",
+        "parameters": [
+          {
+            "name": "itemId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReadByIdRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "the result; a policy decision of any kind is 200 with its event",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "the request fails its schema, or the plane refused the call (InvalidCallError)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "the Host or Origin is not this loopback server's, or the actor may not explain this read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "no such route, or the read id names no read event",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "the body is over the size limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "the body is not application/json",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "an unexpected error; the body carries no internals",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/scopes": {
+      "post": {
+        "operationId": "listScopes",
+        "summary": "The scopes the actor can see at the server's clock (card E8.14): its member scopes the read matrix lets its level read, and the scope of every item a read would admit through a live grant; one read event records the decision.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScopesRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "the result; a policy decision of any kind is 200 with its event",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScopesResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "the request fails its schema, or the plane refused the call (InvalidCallError)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "the Host or Origin is not this loopback server's, or the actor may not explain this read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "no such route, or the read id names no read event",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "the body is over the size limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "the body is not application/json",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "an unexpected error; the body carries no internals",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/explain/{readId}": {
       "post": {
         "operationId": "explain",
@@ -2545,6 +2731,81 @@
           "filtered",
           "event",
           "sync",
+          "policy"
+        ],
+        "additionalProperties": false
+      },
+      "ReadByIdRequest": {
+        "type": "object",
+        "properties": {
+          "actor": {
+            "$ref": "#/components/schemas/Actor"
+          },
+          "at": {
+            "description": "The time validity windows are judged at, UTC ISO 8601, when the reader asks what was true at another time. The read itself happens at the server's clock: its event's ts, and the time status, ttl and grant expiry are judged at. It sweeps nothing, and the read event's reason records it.",
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          }
+        },
+        "required": [
+          "actor"
+        ],
+        "additionalProperties": false
+      },
+      "ScopesRequest": {
+        "type": "object",
+        "properties": {
+          "actor": {
+            "$ref": "#/components/schemas/Actor"
+          }
+        },
+        "required": [
+          "actor"
+        ],
+        "additionalProperties": false
+      },
+      "VisibleScope": {
+        "type": "object",
+        "properties": {
+          "scope": {
+            "type": "string"
+          },
+          "via": {
+            "type": "string",
+            "enum": [
+              "membership",
+              "grant"
+            ]
+          }
+        },
+        "required": [
+          "scope",
+          "via"
+        ],
+        "additionalProperties": false,
+        "description": "A scope the actor can see: `membership`, a member scope the read matrix lets its level read; `grant`, otherwise, the scope of an item a read now admits through a live grant (card E8.14)."
+      },
+      "ScopesResponse": {
+        "type": "object",
+        "properties": {
+          "scopes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VisibleScope"
+            }
+          },
+          "event": {
+            "$ref": "#/components/schemas/MemoryEvent"
+          },
+          "policy": {
+            "type": "string",
+            "description": "The policy the listing was decided under: <id> v<version>."
+          }
+        },
+        "required": [
+          "scopes",
+          "event",
           "policy"
         ],
         "additionalProperties": false
