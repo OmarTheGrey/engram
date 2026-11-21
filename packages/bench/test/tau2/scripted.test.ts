@@ -1,4 +1,4 @@
-import type { ChatRequest } from "@engram/model";
+import { type ChatRequest, isScripted } from "@engram/model";
 import { describe, expect, test } from "vitest";
 import { agentSteps, scriptedTau2, type TaskScript } from "../../src/tau2/scripted.ts";
 
@@ -74,6 +74,12 @@ describe("the scripted tau2 upstream", () => {
     await expect(agent(agentRequest([tool("memory_read")], 1))).rejects.toThrow(
       /calls cancel_reservation, which the request does not offer/,
     );
+  });
+
+  test("both are branded scripted, so make fixtures may record them and nothing else", () => {
+    expect(isScripted(agent)).toBe(true);
+    expect(isScripted(user)).toBe(true);
+    expect(isScripted(async (r: ChatRequest) => agent(r))).toBe(false);
   });
 
   test("answers the user simulator by the turns it has taken", async () => {

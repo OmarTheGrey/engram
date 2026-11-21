@@ -140,8 +140,8 @@ fixtures: ## regenerate golden files and scripted cassettes; refuses without MSG
 	rm -rf fixtures/sessions/d1 && node packages/runner/scripts/session-fixtures.ts --seed 1 --out fixtures/sessions/d1
 	ENGRAM_UPDATE_FIXTURES=1 $(PNPM) --filter pi-extension exec vitest run test/interception.test.ts test/retention.test.ts
 	env -u ENGRAM_OFFLINE node packages/bench/scripts/run-gatemem.ts --config fixtures/bench/gatemem/run-config.json --out .engram/bench/gatemem-record --record
-	env -u ENGRAM_OFFLINE node packages/bench/scripts/run-tau2.ts --setup
-	env -u ENGRAM_OFFLINE node packages/bench/scripts/run-tau2.ts --config research/configs/b11-tau2-fixture.json --out .engram/bench/tau2-record --record
+	env -u ENGRAM_OFFLINE ENGRAM_UPDATE_FIXTURES=1 node packages/bench/scripts/run-tau2.ts --setup
+	env -u ENGRAM_OFFLINE ENGRAM_UPDATE_FIXTURES=1 node packages/bench/scripts/run-tau2.ts --config research/configs/b11-tau2-fixture.json --out .engram/bench/tau2-record --record
 	$(UV) run python -I packages/bench/scripts/vendor-mem-inv-bench.py --upstream "$(MEM_INV_UPSTREAM)" --fetch --out fixtures/bench/mem-inv-bench
 	$(UV) run python -I packages/bench/scripts/upstream-mem-inv-golden.py --upstream "$(MEM_INV_UPSTREAM)" --fixtures fixtures/bench/mem-inv-bench --out fixtures/bench/mem-inv-bench/upstream-golden.json
 	env -u ENGRAM_OFFLINE node packages/bench/scripts/vendor-longmemeval.ts --upstream "$(LONGMEMEVAL_UPSTREAM)" --fetch --out fixtures/bench/longmemeval

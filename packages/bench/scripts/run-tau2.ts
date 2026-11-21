@@ -22,14 +22,14 @@
 // summary.json to --out.
 import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { join, resolve, sep } from "node:path";
 import { parseArgs } from "node:util";
 import { createFilesAdapter } from "@engram/adapters";
-import { type CacheStore, fileCache, memoryCache } from "@engram/model";
+import { type CacheStore, fileCache, memoryCache, recordingRefusal } from "@engram/model";
 import {
   AGENT_OWNER,
   checkTau2,
-  isScripted,
+  isScriptedModel,
   readTau2Config,
   readTau2Script,
   runTau2,
@@ -151,7 +151,7 @@ async function main(): Promise<number> {
   }
   const config = readTau2Config(values.config);
   for (const model of [config.agent_model, config.user_model]) {
-    if (!isScripted(model) || config.script === undefined) {
+    if (!isScriptedModel(model) || config.script === undefined) {
       console.error(
         `run-tau2: model ${model} is not scripted; live models are not wired (card X11 runs H5)`,
       );
@@ -162,6 +162,24 @@ async function main(): Promise<number> {
     console.error(
       "run-tau2: --record makes model calls; unset ENGRAM_OFFLINE (make fixtures does)",
     );
+    return 2;
+  }
+  if (values.record && process.env.ENGRAM_UPDATE_FIXTURES !== "1") {
+    console.error(
+      "run-tau2: --record writes fixture cassettes, which only make fixtures does (ENGRAM_UPDATE_FIXTURES=1)",
+    );
+    return 2;
+  }
+  const recorded = join(resolve(values.out), "cassettes");
+  // Checked before any file cache is built, since fileCache creates its folder (card B10).
+  const fixtures = join(repo, "fixtures");
+  const refusal = values.record
+    ? config.cassettes.startsWith(`${fixtures}${sep}`)
+      ? undefined
+      : `--record writes into fixtures/ only, and ${config.cassettes} is not in it`
+    : recordingRefusal(recorded, { repo, committed: [config.cassettes] });
+  if (refusal !== undefined) {
+    console.error(`run-tau2: ${refusal}`);
     return 2;
   }
   const problems = checkTau2(paths);
@@ -178,7 +196,7 @@ async function main(): Promise<number> {
   if (values.record) rmSync(config.cassettes, { recursive: true, force: true });
   const cache = values.record
     ? fileCache(config.cassettes)
-    : readOnly(config.cassettes, join(out, "cassettes"));
+    : readOnly(config.cassettes, recorded);
   const upstreams = new Map<string, ReturnType<typeof scriptedTau2>>();
   const result = await runTau2({
     config,

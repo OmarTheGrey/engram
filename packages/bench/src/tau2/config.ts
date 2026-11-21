@@ -101,8 +101,8 @@ export function readTau2Config(path: string): Tau2Config {
   };
 }
 
-/** Whether a model is answered by the scripted upstream. */
-export const isScripted = (model: string) => model.startsWith("scripted/");
+/** Whether a config's model id names the scripted upstream (`scripted/...`). */
+export const isScriptedModel = (model: string) => model.startsWith("scripted/");
 
 /** The item a task's calls are keyed under: `<domain>/<task>/<role>`, the harness added by the proxy. */
 export const taskItem = (domain: string, task: string, role: "agent" | "user") =>

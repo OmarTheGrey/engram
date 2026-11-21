@@ -13,7 +13,7 @@
 // the memory steps.
 
 import { readFileSync } from "node:fs";
-import type { ChatCall, ChatRequest, ChatResponse } from "@engram/model";
+import { asScripted, type ChatCall, type ChatRequest, type ChatResponse } from "@engram/model";
 import { z } from "zod";
 
 /** The memory tools' names, as packages/pi-extension/src/tools.ts declares them. */
@@ -70,7 +70,7 @@ export function agentSteps(script: TaskScript, tools: ReadonlySet<string>): Agen
   });
 }
 
-/** The scripted agent and user simulator of one task. */
+/** The scripted agent and user simulator of one task, each branded by `asScripted` (card B10). */
 export function scriptedTau2(
   item: string,
   script: TaskScript,
@@ -116,5 +116,6 @@ export function scriptedTau2(
     }
     return { text, usage };
   };
-  return { agent, user };
+  // Branded, so the proxy may record their replies as fixture cassettes (make fixtures only).
+  return { agent: asScripted(agent), user: asScripted(user) };
 }
