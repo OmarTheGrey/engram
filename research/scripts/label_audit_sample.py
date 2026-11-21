@@ -7,8 +7,8 @@ Usage:
         --config research/configs/label-audit.json --phase 2 --member <name> [--out ...]
 
 Plan decision 9 of docs/tasks/prereg-v1-plan.md (ADR 0015; pre-registration,
-Benchmarks: "before any run, 50 items per benchmark are label-audited by two
-members and the disagreement rate is reported"), redesigned after the
+Benchmarks: "before any run, 50 items per benchmark are label-audited by members
+of the team and the disagreement rate is reported"), redesigned after the
 review of PR 4's part A (P4A-3) so that no member reads a benchmark's label
 before giving their own. The config names the members; the lead named three
 on 2026-11-19 (decision sheet item 16), and the sheets are written for each.

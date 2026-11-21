@@ -34,6 +34,11 @@
     "item_1": "d-lead",
     "item_2": "a",
     "item_47": "c",
+    "reasoning": {
+      "mode": "off",
+      "off_honoured_tokens": { "low": 0, "high": 0 },
+      "why": "item 1: reasoning off. The high estimate's 1,024 tokens a call apply only where the off switch is ignored (GLM 5.3 Flash keeps its 4,096); DeepSeek v4 pro and Mistral Large 4 honour the switch. The registered figures (totals) keep the 1,024 allowance, and totals_with_allowance here is that sensitivity."
+    },
     "exclude": [
       { "run": "h4-memoryagentbench", "why": "item 24: H4 runs on GateMem only" },
       {
@@ -41,7 +46,10 @@
         "store": ["files", "letta"],
         "why": "item 20: the store family leaves H4's equivalence test (ADR 0035); the mem0 arm and the model and condition arms stay"
       },
-      { "condition": "C7", "why": "item 25: C7's test is dropped, C7 equals C5 in benchmark sessions" }
+      {
+        "condition": "C7",
+        "why": "item 25: C7's test is dropped, C7 equals C5 in benchmark sessions"
+      }
     ]
   },
   "ceiling_factor": 1.25,
@@ -607,6 +615,8 @@
           "store": "mem0",
           "role": "M1",
           "utility": true,
+          "shared_with": "h1-gatemem",
+          "count": "The same cells as H1's (item, condition, preset, store, model, seed): H1 runs every GateMem checkpoint at C2 and C5 on Mem0 and M1, preset medium, three seeds, and H4's 761 draw is a subset of them, whatever X9 draws. Their cassettes serve both (rule 7), so no new call.",
           "status": "built (the probe), no config is written"
         },
         {
@@ -632,6 +642,8 @@
           "condition": "C2",
           "store": "mem0",
           "role": "M1",
+          "shared_with": "h1-gatemem",
+          "count": "The same cells as H1's (item, condition, preset, store, model, seed): H1 runs every GateMem checkpoint at C2 and C5 on Mem0 and M1, preset medium, three seeds, and H4's 761 draw is a subset of them, whatever X9 draws. Their cassettes serve both (rule 7), so no new call.",
           "status": "built (the probe), no config is written"
         },
         {
@@ -644,7 +656,7 @@
       "preset": "medium",
       "seeds": [1, 2, 3],
       "status": "per arm",
-      "count": "761 access and forgetting checkpoints per arm (pre-registration, H4; the draw is fixed in card X9), three seeds, the shape the two kinds' mean; the store arms also read the 728 utility checkpoints for the utility gap; C7 reads unfiltered, so C2's shape. Counted as new: whether the mem0 arms on M1 reuse H1's cells depends on X9's draw",
+      "count": "761 access and forgetting checkpoints per arm (pre-registration, H4; the draw is fixed in card X9), three seeds, the shape the two kinds' mean; the store arms also read the 728 utility checkpoints for the utility gap; C7 reads unfiltered, so C2's shape. The Mem0 arms of C5 and C2 on M1 are H1's own cells (their arm rows say so and are not counted again); the other arms are new",
       "groups": [
         {
           "kind": "violation",

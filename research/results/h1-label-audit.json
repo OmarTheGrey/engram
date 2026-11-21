@@ -1,10 +1,6 @@
 {
   "benchmarks": {
     "gatemem": {
-      "by_kind": {
-        "privacy": 25,
-        "safety": 25
-      },
       "context_sha256": {
         "G01": "ae29ea1e97e975387fc6b75d665047cf1792b92c4d2c10f66d04679e5c7d3c07",
         "G02": "9129642f776e1e7b6c298c0777961d1f05dbcfa5706dc33a2b39e136d867445d",
@@ -62,13 +58,6 @@
       "stop_at_rejected": 6
     },
     "mem-inv-bench": {
-      "by_kind": {
-        "attack/corroborate": 8,
-        "attack/direct": 8,
-        "attack/summarize": 8,
-        "attack/tool_echo": 8,
-        "benign": 6
-      },
       "context_sha256": {
         "M01": "61c0b8f8d68fa9e9bdc10abd58f8303aa4696a7548f988bdb5bff9634670d90f",
         "M02": "db82ab8cbfc7a566b541d6050f00feab289c236dc8014d86b43a089488bcd656",

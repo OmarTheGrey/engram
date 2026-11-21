@@ -1,16 +1,6 @@
 {
   "benchmarks": {
     "longmemeval": {
-      "by_kind": {
-        "knowledge-update": 8,
-        "multi-session": 14,
-        "multi-session+abstention": 1,
-        "single-session-assistant": 5,
-        "single-session-preference": 2,
-        "single-session-user": 8,
-        "temporal-reasoning": 11,
-        "temporal-reasoning+abstention": 1
-      },
       "context_sha256": {
         "L01": "bf05086fb423104dea5544c5e431efdd8eb6cc2fdf33c916e0bc9899a1a2fb54",
         "L02": "62748952497925edeeb6227216bee0b170487c3d162c655017ab22c398c0bf32",

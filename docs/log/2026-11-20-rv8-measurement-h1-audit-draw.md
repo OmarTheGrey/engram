@@ -16,6 +16,6 @@ supersedes: none
 
 **Why.** The same script serves both configs, so H1's draw, unchanged by this card, is pinned beside LongMemEval's.
 
-**Result.** GateMem 50 (25 privacy, 25 safety), stop at 6 rejected; MEM-INV-Bench 38 (8 per attack channel, 6 benign), stop at 4. Both match the pre-registration's counts.
+**Result.** GateMem 50, stop at 6 rejected; MEM-INV-Bench 38, stop at 4; no count per kind, since the members read this repository. Both sizes match the pre-registration's.
 
 **Consequence.** A change to the sampler that moved H1's draw now fails `make test-repro`.

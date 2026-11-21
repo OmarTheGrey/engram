@@ -16,6 +16,6 @@ supersedes: none
 
 **Why.** RV-DES-17 asked for LongMemEval's audit with the registered size and rule; the Benchmarks section says only that other benchmarks are audited with a kit their card builds.
 
-**Result.** GateMem's rule is a seeded draw per kind of the items the primary metric is computed on (25 access control, 25 forgetting). LongMemEval's accuracy is computed on all 500 questions, one kind, so the kit draws 50 at random without replacement with seed 20261103, as GateMem's config. No number was invented; the draw holds 2 abstention questions of the 30.
+**Result.** GateMem's rule is a seeded draw per kind of the items the primary metric is computed on (25 access control, 25 forgetting). LongMemEval's accuracy is computed on all 500 questions, one kind, so the kit draws 50 at random without replacement with seed 20261103, as GateMem's config. No number was invented. The draw holds few abstention questions; the count is in the key, not here, since the members read this repository.
 
 **Consequence.** For the lead: the tagged text should name LongMemEval's rule (this one, or stratified by question type) before the audit; changing it is one function and its seed.

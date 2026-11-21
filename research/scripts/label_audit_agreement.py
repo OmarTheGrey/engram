@@ -1,4 +1,4 @@
-"""The label audit's agreement: two or three members' sheets as disagreement rates and kappas.
+"""The label audit's agreement: the three members' sheets (Omar, Mohamad, Shady) as kappas.
 
 Usage:
     uv run python research/scripts/label_audit_agreement.py \\
@@ -10,9 +10,9 @@ config's is refused, naming both (review of PR #43, P43-5), so a
 three-member audit cannot be reported on two of its members.
 
 The lead named three members on 2026-11-19 (decision sheet item 16, changed:
-`docs/log/2026-11-19-lead-decision-16-three-members.md`). With two members
-the report is exactly what it was for two; what three change is said at the
-end of this docstring.
+`docs/log/2026-11-19-lead-decision-16-three-members.md`). A config that names
+two members still reports exactly as it did for two (kept for the tests and
+for a reduced audit); what three change is said at the end of this docstring.
 
 The benchmark labels come from the pinned data through the sampler's own
 seeded draw (research/scripts/label_audit_sample.py `draw`), never from a
@@ -266,7 +266,7 @@ def compare_dir(
     quorum: int = REJECT_QUORUM,
     on_stop: str = "pause",
 ) -> dict[str, Any]:
-    """Every benchmark of the draw, from the two or three members' sheets in `directory`."""
+    """Every benchmark of the draw, from the members' sheets in `directory`."""
     if len(members) not in (2, 3) or len(set(members)) != len(members):
         raise ValueError("the audit compares two or three distinct members")
     if not 0.0 < stop_share < 1.0:

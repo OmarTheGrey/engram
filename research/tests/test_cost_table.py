@@ -177,13 +177,72 @@ def test_the_decisions_drop_h4s_store_family_its_memoryagentbench_set_and_c7() -
     assert (spec["item_1"], spec["item_2"], spec["item_47"]) == ("d-lead", "a", "c")
 
 
-def test_decided_totals_change_h4_only() -> None:
+def test_decided_totals_change_h4_only_once_the_allowance_is_kept() -> None:
     _, rows, sets, flags = built()
     reg = cost_table.totals(rows, CONFIG, sets, flags)["openrouter-prices"]["1d-lead/2a/47c"]
-    dec = cost_table.decided(rows, CONFIG, sets, flags)["totals"]["openrouter-prices"]["d-lead"]
+    out = cost_table.decided(rows, CONFIG, sets, flags)
+    dec = out["totals_with_allowance"]["openrouter-prices"]["d-lead"]
     for h in ("H1", "H2", "H3", "H5"):
         assert dec["by_hypothesis"][h] == pytest.approx(reg["by_hypothesis"][h]), h
     assert dec["by_hypothesis"]["H4"]["high"] < reg["by_hypothesis"]["H4"]["high"]
     assert dec["calls"]["high"] < reg["calls"]["high"]
     assert dec["unpriced_models"] == []
     assert dec["ceiling"] == pytest.approx(1.25 * dec["dollars"]["high"])
+
+
+def test_decided_reasoning_is_off_where_the_switch_is_honoured_and_the_ceiling_follows() -> None:
+    _, rows, sets, flags = built()
+    out = cost_table.decided(rows, CONFIG, sets, flags)
+    off = out["totals"]["openrouter-prices"]["d-lead"]
+    allowed = out["totals_with_allowance"]["openrouter-prices"]["d-lead"]
+    assert out["reasoning"]["mode"] == "off"
+    assert off["dollars"]["low"] == pytest.approx(allowed["dollars"]["low"])
+    assert off["dollars"]["high"] < allowed["dollars"]["high"]
+    assert off["ceiling"] == pytest.approx(1.25 * off["dollars"]["high"])
+    assert off["by_hypothesis"]["H1"]["high"] == pytest.approx(1252, rel=0.01)
+    assert off["dollars"]["high"] == pytest.approx(5217, rel=0.01)
+    # The registered figures keep the allowance.
+    reg = cost_table.totals(rows, CONFIG, sets, flags)["openrouter-prices"]["1d-lead/2a/47c"]
+    assert reg["by_hypothesis"]["H1"]["high"] == pytest.approx(1691, rel=0.01)
+
+
+def test_the_allowance_stays_for_a_model_whose_off_switch_is_ignored() -> None:
+    _, rows, sets, flags = built()
+    glm = CONFIG["options"]["item_1"]["d-lead"]["M2"]
+    assert flags[glm]["can_turn_reasoning_off"] is False
+    off_rows = cost_table.with_reasoning_off(rows, CONFIG["decisions"]["reasoning"])
+    row = next(r for r in rows if r["caller"] == "model under test")
+    off = next(r for r in off_rows if r["id"] == row["id"])
+    assert cost_table.dollars(off, glm, sets["openrouter-prices"], flags) == pytest.approx(
+        cost_table.dollars(row, glm, sets["openrouter-prices"], flags)
+    )
+    m1 = CONFIG["options"]["item_1"]["d-lead"]["M1"]
+    after = cost_table.dollars(off, m1, sets["openrouter-prices"], flags)
+    before = cost_table.dollars(row, m1, sets["openrouter-prices"], flags)
+    assert after is not None and before is not None and after["high"] < before["high"]
+
+
+def test_rows_carry_the_decided_dollars_and_their_ceiling() -> None:
+    _, rows, sets, flags = built()
+    table = cost_table.table(rows, CONFIG, sets, flags, "openrouter-prices")
+    r = next(r for r in table if r["id"].startswith("h1-gatemem/C5"))
+    for model, d in r["dollars_decided"].items():
+        assert d["ceiling"] == pytest.approx(1.25 * d["high"])
+        assert d["high"] <= r["dollars"][model]["high"]
+
+
+def test_h4s_mem0_arms_on_m1_at_c2_and_c5_are_h1s_cells_and_enter_no_total() -> None:
+    _, rows, sets, flags = built()
+    by_id = {r["id"]: r for r in rows}
+    shared = {"h4-gatemem/C5/medium/mem0/M1", "h4-gatemem/C2/medium/mem0/M1"}
+    for rid in shared:
+        for suffix in ("", "/judge"):
+            assert by_id[rid + suffix]["shared_with"] == "h1-gatemem", rid
+    for r in rows:
+        if r["run"] == "h4-gatemem" and r["id"] not in shared | {s + "/judge" for s in shared}:
+            assert r["shared_with"] is None, r["id"]
+    a = cost_table.totals(rows, CONFIG, sets, flags)["openrouter-prices"]
+    b = cost_table.totals([r for r in rows if r["id"] not in shared], CONFIG, sets, flags)[
+        "openrouter-prices"
+    ]
+    assert a["1a/2a/47c"]["dollars"] == b["1a/2a/47c"]["dollars"]

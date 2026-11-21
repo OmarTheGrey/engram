@@ -261,6 +261,8 @@ def cells(run: Mapping[str, Any]) -> Iterator[dict[str, Any]]:
                 "model": arm.get("model"),
                 "arm_utility": bool(arm.get("utility", False)),
                 "status": arm.get("status", run["status"]),
+                "shared_with": arm.get("shared_with"),
+                "count": arm.get("count"),
             }
         return
     roles = run.get("roles") or [run.get("role")]
@@ -334,8 +336,8 @@ def build_rows(
                 "store": cell["store"],
                 "seeds": list(run["seeds"]),
                 "status": cell["status"],
-                "count": run["count"],
-                "shared_with": run.get("shared_with"),
+                "count": cell.get("count") or run["count"],
+                "shared_with": cell.get("shared_with") or run.get("shared_with"),
             }
             rows.append(
                 {
@@ -584,6 +586,7 @@ def decided(
     """
     spec = config["decisions"]
     keep = [r for r in rows if kept(r, spec["exclude"])]
+    reasoning_off = with_reasoning_off(keep, spec["reasoning"])
     dropped = [r["id"] for r in rows if not kept(r, spec["exclude"])]
     key = f"2{spec['item_2']}/47{spec['item_47']}"
     out: dict[str, Any] = {
@@ -594,10 +597,40 @@ def decided(
         "exclude": spec["exclude"],
         "rows_dropped": dropped,
         "rows_kept": len(keep),
+        "reasoning": spec["reasoning"],
         "totals": {},
+        "totals_with_allowance": {},
     }
+    options = sorted(config["options"]["item_1"])
+    for name, t in totals(reasoning_off, config, sets, flags).items():
+        out["totals"][name] = {o1: t[f"1{o1}/{key}"] for o1 in options}
+    # The sensitivity: the registered allowance for a model whose off switch is honoured.
     for name, t in totals(keep, config, sets, flags).items():
-        out["totals"][name] = {o1: t[f"1{o1}/{key}"] for o1 in sorted(config["options"]["item_1"])}
+        out["totals_with_allowance"][name] = {o1: t[f"1{o1}/{key}"] for o1 in options}
+    return out
+
+
+def with_reasoning_off(
+    rows: Sequence[Mapping[str, Any]], reasoning: Mapping[str, Any]
+) -> list[dict[str, Any]]:
+    """Rows with the high estimate's allowance for an honoured off switch set to the decided tokens.
+
+    Only `off_honoured` changes: a model whose off switch is ignored keeps its allowance.
+    """
+    tokens = reasoning["off_honoured_tokens"]
+    out = []
+    for row in rows:
+        estimates = {
+            e: {
+                **row["estimates"][e],
+                "reasoning_tokens_per_call": {
+                    **row["estimates"][e]["reasoning_tokens_per_call"],
+                    "off_honoured": tokens[e],
+                },
+            }
+            for e in ESTIMATES
+        }
+        out.append({**row, "estimates": estimates})
     return out
 
 
@@ -608,22 +641,30 @@ def table(
     flags: Mapping[str, Mapping[str, Any]],
     primary: str,
 ) -> list[dict[str, Any]]:
-    """The committed rows: counts, tokens, dollars and ceilings per model at the primary prices."""
+    """The committed rows: counts, tokens, dollars and ceilings per model at the primary prices.
+
+    `dollars` is the registered figure (the high estimate's reasoning allowance
+    included); `dollars_decided` is the same row with reasoning off where the
+    model honours the switch, the figure the run's ceiling comes from.
+    """
     out = []
+    off_rows = {r["id"]: r for r in with_reasoning_off(rows, config["decisions"]["reasoning"])}
     for row in rows:
         tokens = row_tokens(row)
-        priced = {}
+        priced: dict[str, Any] = {}
+        priced_decided: dict[str, Any] = {}
         for model in row_models(row, config["options"]["item_1"]):
-            d = dollars(row, model, sets[primary], flags)
-            priced[model] = (
-                None
-                if d is None
-                else {
-                    "low": d["low"],
-                    "high": d["high"],
-                    "ceiling": config["ceiling_factor"] * d["high"],
-                }
-            )
+            for target, source in ((priced, row), (priced_decided, off_rows[row["id"]])):
+                d = dollars(source, model, sets[primary], flags)
+                target[model] = (
+                    None
+                    if d is None
+                    else {
+                        "low": d["low"],
+                        "high": d["high"],
+                        "ceiling": config["ceiling_factor"] * d["high"],
+                    }
+                )
         out.append(
             {
                 "id": row["id"],
@@ -652,6 +693,7 @@ def table(
                 "prompt_tokens": {e: tokens[e]["input"] for e in ESTIMATES},
                 "completion_tokens": {e: tokens[e]["output"] for e in ESTIMATES},
                 "dollars": priced,
+                "dollars_decided": priced_decided,
             }
         )
     return out

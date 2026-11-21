@@ -761,4 +761,36 @@ def test_the_draw_record_holds_no_id_label_or_key(monkeypatch: pytest.MonkeyPatc
     b = result["benchmarks"]["longmemeval"]
     assert b["items"] == 50 and b["stop_at_rejected"] == 6
     assert sorted(b["context_sha256"]) == [i.ref for i in items]
-    assert b["by_kind"] == dict(sorted(Counter(i.kind for i in items).items()))
+    # The auditors read this repository: no count per kind (it would give the abstention
+    # share or the attack share away); the counts live in the key beside the sheets.
+    assert "by_kind" not in b and "by_kind" not in text
+    assert "abstention" not in text
+    key = label_audit_draw.compute_key(lme_config())
+    assert key["benchmarks"]["longmemeval"]["by_kind"] == dict(
+        sorted(Counter(i.kind for i in items).items())
+    )
+
+
+def test_the_key_goes_where_the_sheets_go_and_the_committed_draw_holds_no_kind(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    items = sample.longmemeval_items(planted_longmemeval(), 50, 7)
+    monkeypatch.setattr(label_audit_draw, "draw", lambda config: {"longmemeval": items})
+    config_path = tmp_path / "c.json"
+    config_path.write_text(json.dumps(lme_config()), encoding="utf-8")
+    out = tmp_path / "draw.json"
+    key = tmp_path / "key.json"
+    argv = ["--config", str(config_path), "--out", str(out), "--key-out", str(key)]
+    assert label_audit_draw.main(argv) == 0
+    assert "by_kind" not in out.read_text(encoding="utf-8")
+    assert "by_kind" in key.read_text(encoding="utf-8")
+    inside = REPO / "research" / "results" / "key.json"
+    with pytest.raises(ValueError):
+        label_audit_draw.main(
+            ["--config", str(config_path), "--out", str(out), "--key-out", str(inside)]
+        )
+
+
+def test_the_committed_draws_hold_no_count_per_kind() -> None:
+    for name in ("h1-label-audit.json", "h2-label-audit-longmemeval.json"):
+        assert "by_kind" not in (REPO / "research/results" / name).read_text(encoding="utf-8")

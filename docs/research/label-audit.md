@@ -116,7 +116,7 @@ H2 and H3 run on LongMemEval, so its 50 items are audited before their first run
 - **The rule.** As on MEM-INV-Bench: an item is rejected when `reject_quorum` members label its answerability otherwise than the benchmark, or that many answer `no` on its key. Two of one kind are needed.
 - **The stop.** `stop` is true at 6 or more of the 50 rejected.
 
-Draw, fill and compare exactly as in Steps above, with `--config research/configs/label-audit-longmemeval.json` in each command. The draw itself is recorded without any id, label or key, as counts per kind and each reference's context sha256: `research/results/h2-label-audit-longmemeval.json` (and H1's draw, `research/results/h1-label-audit.json`), from `research/scripts/label_audit_draw.py`. Check that your context files hash to it before you start.
+Draw, fill and compare exactly as in Steps above, with `--config research/configs/label-audit-longmemeval.json` in each command. The draw itself is recorded without any id, label or key, as each reference's context sha256 and one hash over the hidden fields, with no count per kind (the counts would give away how many items are unanswerable or attacks; `--key-out` writes them to a key outside the results folder, for the one who runs the audit): `research/results/h2-label-audit-longmemeval.json` (and H1's draw, `research/results/h1-label-audit.json`), from `research/scripts/label_audit_draw.py`. Check that your context files hash to it before you start.
 
 ## Files
 
