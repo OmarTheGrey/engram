@@ -82,6 +82,7 @@ describe("acceptance (card D1): the fifty fixture sessions, recorded through the
         expect(episode.task_id).toBe(s.task_id);
         expect(episode.outcome.verdict).toBe(s.verdict);
         expect(episode.abandoned).toHaveLength(s.abandoned);
+        expect(episode.omitted).toHaveLength(s.recovered ? 1 : 0);
         for (const b of episode.abandoned) expect(b.outcome.verdict).toBe("failure");
         expect(episode.steps.length).toBeGreaterThan(2);
       }
@@ -143,6 +144,29 @@ describe("the recorder", () => {
       const [event] = plane.events();
       expect(event?.item?.provenance.kind).toMatch(/^(model|compaction)$/);
       expect(event?.reason).toContain("provenance set by the plane");
+    } finally {
+      db.close();
+    }
+  });
+
+  test("a session older than the episodic ttl is stored and read back: validity runs from the recording", async () => {
+    // The fixture session started on 2026-10-01; medium keeps person
+    // episodic items 90 days. Recorded five months later it must still read.
+    const late = "2027-03-01T00:00:00.000Z";
+    const { plane, options, db } = setup({ at: late });
+    try {
+      const r = await recordSession(first, "a.jsonl", options);
+      expect(r).toMatchObject({ status: "stored", event: { decision: "allow" } });
+      const read = await plane.read(actor, { at: late });
+      expect(read.items).toHaveLength(1);
+      const [item] = read.items;
+      expect(item?.valid_from).toBe(late);
+      const episode = episodeOfItem(item as MemoryItem);
+      expect(episode.started_at).toBe("2026-10-01T09:00:00.000Z");
+      expect(episode.ended_at).not.toBeNull();
+      expect(Date.parse(episode.ended_at as string)).toBeGreaterThan(
+        Date.parse(episode.started_at as string),
+      );
     } finally {
       db.close();
     }

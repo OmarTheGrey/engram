@@ -12,8 +12,14 @@
 //   decision D4): a session mixes user, model and tool content, and an item
 //   derived from others takes the least trusted of its inputs, so an episode
 //   is `model`, or `compaction` when a model-written summary (a compaction or
-//   a branch summary) is in it.
-// - The item is the episode, as JSON content, valid from the session's start,
+//   a branch summary) is in it. A session holding content fetched from the
+//   web would be `external` by the same rule; nothing in a session marks
+//   such content today, so the recorder cannot see it (backlog row
+//   "Recorder: external content in sessions").
+// - The item is the episode, as JSON content, valid from the time it is
+//   recorded (the item is this session as the plane learned it, so retention
+//   runs from then; the session's own start and end are the episode's
+//   `started_at` and `ended_at`),
 //   with the session file's sha256 as the hash of its evidence and the final
 //   leaf as its session entry.
 import { createHash } from "node:crypto";
@@ -28,7 +34,6 @@ import {
   type Plane,
   parseSessionJsonl,
   scrubEpisode,
-  Timestamp,
 } from "@engram/core";
 
 export interface RecorderOptions {
@@ -97,7 +102,6 @@ export async function recordSession(
   const episode = scrubbed.episode;
   const source = episodeSource(episode);
   const actor: Actor = { ...options.actor, source };
-  const validFrom = Timestamp.safeParse(parsed.timestamp).success ? parsed.timestamp : options.at;
   const item: MemoryItem = {
     id: options.newId(),
     class: "episodic",
@@ -115,7 +119,7 @@ export async function recordSession(
     // The episode is what the file records, exactly; whether the work in it
     // was right is its outcome, not its confidence.
     confidence: 1,
-    valid_from: validFrom,
+    valid_from: options.at,
     valid_to: null,
     ttl: null,
     grants: [],

@@ -15,6 +15,8 @@
 // then either `branchWithSummary` (a branch_summary child of the entry the
 // new branch continues from, its fromId the abandoned leaf) or a plain
 // `branch` (the next entry is another child of an earlier one).
+// Some sessions also hold pi's recovery from a length cut: the cut
+// response, then a `context_edit` that omits it from the model's context.
 //
 // The content is synthetic: invented tasks over an invented repository, no
 // real person, secret or session (AGENTS.md rule 12).
@@ -23,6 +25,7 @@ import type { AssistantMessage, Tool, ToolCall, Usage } from "@earendil-works/pi
 import type {
   BranchSummaryEntry,
   CompactionEntry,
+  ContextEditEntry,
   CustomEntry,
   FileEntry,
   ModelChangeEntry,
@@ -49,6 +52,8 @@ export interface SessionFixture {
   /** `summary` when the abandoned branch was left with pi's branch summary, `plain` without one, null when none. */
   branch: "summary" | "plain" | null;
   compacted: boolean;
+  /** Whether an attempt cut at its length limit was then omitted by a context edit, as pi's recovery does. */
+  recovered: boolean;
 }
 
 export interface SessionFixtureSet {
@@ -324,6 +329,24 @@ function session(
   }
   const rounds = 1 + Math.floor(rand() * 3);
   for (let i = 0; i < rounds; i++) toolRound(false);
+  // pi's recovery after a length cut (agent-session.js `_omitRecoveryAttempt`,
+  // docs/compaction.md): the cut response stays in the file and a context
+  // edit omits it from the model's context before the retry.
+  const recovered = rand() < 0.15;
+  if (recovered) {
+    const cut = assistant(
+      [{ type: "text", text: "Reading every file of the repository at once" }],
+      "length",
+    );
+    append(
+      (base): ContextEditEntry => ({
+        type: "context_edit",
+        ...base,
+        targetId: cut.id,
+        replacement: null,
+      }),
+    );
+  }
   const compacted = rand() < 0.15;
   if (compacted) {
     const kept = leaf as string;
@@ -357,6 +380,7 @@ function session(
       abandoned: branch === null ? 0 : 1,
       branch,
       compacted,
+      recovered,
     },
   };
 }

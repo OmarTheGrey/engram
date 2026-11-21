@@ -48,6 +48,7 @@ describe("the generator", () => {
     expect(s.some((x) => x.branch === "plain")).toBe(true);
     expect(s.some((x) => x.branch === null)).toBe(true);
     expect(s.some((x) => x.compacted)).toBe(true);
+    expect(s.some((x) => x.recovered)).toBe(true);
     expect(new Set(s.map((x) => x.verdict))).toEqual(new Set(["success", "failure"]));
   });
 });
