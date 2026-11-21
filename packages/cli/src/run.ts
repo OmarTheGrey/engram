@@ -14,7 +14,7 @@ import {
   simulateCommand,
   writeCommand,
 } from "./commands.ts";
-import type { Fetch } from "./connect.ts";
+import { drainExports, type Fetch } from "./connect.ts";
 import { doctorCommand } from "./doctor.ts";
 import { hookCommand } from "./hook.ts";
 import { mcpCommand } from "./mcp.ts";
@@ -164,6 +164,15 @@ doctor options:
   --root <folder>             a store folder: readable, and its memories adopted through the plane
                               on an in-memory log (counts only)
 
+export options (read, write, promote, retain, lint, serve, mcp, hook claude-code):
+  --otlp <url>                send each decision as an OpenTelemetry span to this OTLP/HTTP
+                              traces endpoint (default $ENGRAM_OTLP_URL; none if unset)
+  --export-jsonl <file>       append each decision as one JSON span a line to <file>
+                              (default $ENGRAM_EXPORT_JSONL; none if unset)
+  off unless named; OTEL_* variables never turn it on. A span carries the decision, its
+  rule, the actor, scopes and ids, never the memory's content (ADR 0043). In process
+  only: with --server, give them to engram serve
+
 output:
   --json                      machine-readable output
   -h, --help                  this text
@@ -207,5 +216,8 @@ export async function run(argv: string[], io: Io): Promise<number> {
   } catch (e) {
     io.err(`engram ${command}: ${(e as Error).message}\n`);
     return e instanceof UsageError ? 2 : 1;
+  } finally {
+    // A decision export still sending (card E8.13) finishes before the command does.
+    await drainExports();
   }
 }
