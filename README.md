@@ -1,3 +1,5 @@
+<p align="center"><img src="docs/brand/engram-banner.svg" alt="Engram, a control plane for agent memory" width="100%"></p>
+
 # Engram
 
 The memory control plane for agentic AI. Engram sits between agents and the stores that hold their long-term memory, and enforces policy on every read and write: who may write what into which scope, who may read it back, how long it is valid, where it came from, and why a given recall happened. The store does not change. The model is never called by the plane.

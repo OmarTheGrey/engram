@@ -1,0 +1,14 @@
+{
+  "name": "engram-brand",
+  "private": true,
+  "type": "module",
+  "description": "Builds the Engram logo kit in docs/brand (not a workspace package).",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "devDependencies": {
+    "@fontsource/space-grotesk": "5.1.0",
+    "@resvg/resvg-js": "2.6.2",
+    "opentype.js": "1.3.4"
+  }
+}
