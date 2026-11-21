@@ -13,11 +13,14 @@
 // returned): a store that drops, nulls, truncates or re-encodes any field
 // fails. Optional methods (search, history) are tested when the adapter has
 // them; a capability flag that claims native search or history requires the
-// method.
+// method. The capability-honesty cases (card A5) hold each flag to what it
+// promises: a store claiming native validity keeps every window it is given,
+// hides nothing for being outside it and derives none of it, and a claim of
+// native graph is refused while the contract has no method to show a graph.
 import { readFileSync } from "node:fs";
 import { MemoryItem } from "@engram/core";
 import { beforeEach, describe, expect, test } from "vitest";
-import type { Adapter, StoreRef } from "../../src/contract.ts";
+import type { Adapter, Capabilities, StoreRef } from "../../src/contract.ts";
 
 /**
  * The fixture corpus (fixtures/stores/conformance-corpus.json): a base item,
@@ -92,13 +95,40 @@ const foreign = (adapter: Adapter, ref: StoreRef): StoreRef => ({
 
 export type Factory = () => Adapter | Promise<Adapter>;
 
-/** One conformance case: a group, a name, the optional method it needs, and its body. */
+/**
+ * One conformance case: a group, a name, the optional method it needs, the
+ * capability it holds the adapter to (it runs only on an adapter that claims
+ * it), and its body.
+ */
 export interface ConformanceCase {
   group: string;
   name: string;
   needs?: "search" | "history";
+  claims?: keyof Capabilities;
   run(adapter: Adapter): Promise<void> | void;
 }
+
+/** A validity window closed long before any clock this suite runs on, and one not yet open. */
+const PAST = { valid_from: "2001-01-01T00:00:00Z", valid_to: "2002-01-01T00:00:00Z" };
+const FUTURE = { valid_from: "2999-01-01T00:00:00Z", valid_to: null };
+/** The base item with an open window, then with that window closed (an invalidation). */
+const OPEN: MemoryItem = { ...BASE, valid_to: null };
+const CLOSED: MemoryItem = { ...BASE, valid_to: "2026-11-01T00:00:00Z" };
+/** Two items outside their windows at any time this suite runs, found by one phrase. */
+const OUTSIDE: MemoryItem[] = [
+  {
+    ...BASE,
+    id: "01920000-0000-7000-8000-0000000a5001",
+    content: "Windowed policy, long closed.",
+    ...PAST,
+  },
+  {
+    ...BASE,
+    id: "01920000-0000-7000-8000-0000000a5002",
+    content: "Windowed policy, not yet open.",
+    ...FUTURE,
+  },
+];
 
 export const CASES: ConformanceCase[] = [
   ...LABELLED.map(
@@ -365,6 +395,73 @@ export const CASES: ConformanceCase[] = [
       expect(await adapter.history?.(ref)).toHaveLength(1);
     },
   },
+  {
+    group: "capability honesty",
+    name: "a store claiming native validity stores a rewrite that only closes or reopens the window",
+    claims: "native_validity",
+    async run(adapter) {
+      const ref = await adapter.write(OPEN);
+      await adapter.write(CLOSED);
+      expect(await adapter.read(ref)).toEqual(stored(CLOSED, ref));
+      expect(await adapter.list(BASE.scope)).toEqual([stored(CLOSED, ref)]);
+      await adapter.write(OPEN);
+      expect(await adapter.read(ref)).toEqual(stored(OPEN, ref));
+    },
+  },
+  {
+    // The plane judges validity at the reader's time, as it judges status
+    // (ADR 0031): a store that drops what is outside its window at its own
+    // clock, as Mem0's read-time expiry filter does, hides it from the plane.
+    group: "capability honesty",
+    name: "a store claiming native validity hides nothing from list or search for being outside its window",
+    claims: "native_validity",
+    async run(adapter) {
+      const refs = new Map<string, StoreRef>();
+      for (const item of OUTSIDE) refs.set(item.id, await adapter.write(item));
+      const expected = OUTSIDE.map((i) => stored(i, refs.get(i.id) as StoreRef)).sort(byId);
+      expect((await adapter.list(BASE.scope)).sort(byId)).toEqual(expected);
+      if (adapter.search) {
+        const hits = await adapter.search("windowed policy", [BASE.scope]);
+        expect(hits.sort(byId)).toEqual(expected);
+      }
+    },
+  },
+  {
+    group: "capability honesty",
+    name: "a store claiming native validity derives no window field from its own bookkeeping",
+    claims: "native_validity",
+    async run(adapter) {
+      const written = await writeCorpus(adapter);
+      for (const item of await adapter.list(BASE.scope)) {
+        expect(item.valid_from).toBe(written.get(item.id)?.valid_from);
+        const derived = adapter.derivedFields?.(item) ?? [];
+        expect(derived).not.toContain("valid_from");
+        expect(derived).not.toContain("valid_to");
+      }
+    },
+  },
+  {
+    group: "capability honesty",
+    name: "a store claiming native validity keeps each version's own window in history, oldest first",
+    claims: "native_validity",
+    needs: "history",
+    async run(adapter) {
+      const ref = await adapter.write(OPEN);
+      await adapter.write(CLOSED);
+      expect(await adapter.history?.(ref)).toEqual([stored(OPEN, ref), stored(CLOSED, ref)]);
+    },
+  },
+  {
+    // No contract method returns a node's neighbours (the absorb plan
+    // dropped `neighbors?`; ADR 0031 and ADR 0035 keep ranking and validity
+    // in core), so no store can show a graph, and a claim would pass an
+    // empty bar. A graph store first needs a contract amendment.
+    group: "capability honesty",
+    name: "a claim of native graph is refused while the contract has no graph method",
+    run(adapter) {
+      expect(adapter.capabilities.native_graph, "native_graph claimed").toBe(false);
+    },
+  },
 ];
 
 /**
@@ -387,8 +484,12 @@ export const LEXICAL_CASES: ConformanceCase[] = [
   },
 ];
 
-const lacks = (adapter: Adapter, c: ConformanceCase) =>
-  c.needs !== undefined && typeof adapter[c.needs] !== "function";
+/** Why the adapter skips this case: the method it needs, or the capability it does not claim. */
+const lacks = (adapter: Adapter, c: ConformanceCase): string | undefined => {
+  if (c.needs !== undefined && typeof adapter[c.needs] !== "function") return `no ${c.needs}`;
+  if (c.claims !== undefined && !adapter.capabilities[c.claims]) return `claims no ${c.claims}`;
+  return undefined;
+};
 
 export function conformance(name: string, factory: Factory): void {
   describe(`adapter conformance: ${name}`, () => {
@@ -401,7 +502,8 @@ export function conformance(name: string, factory: Factory): void {
       describe(group, () => {
         for (const c of CASES.filter((x) => x.group === group)) {
           test(c.name, async ({ skip }) => {
-            if (lacks(adapter, c)) return skip(`no ${c.needs}`);
+            const why = lacks(adapter, c);
+            if (why) return skip(why);
             await c.run(adapter);
           });
         }
@@ -414,7 +516,8 @@ export function lexicalSearchRecall(name: string, factory: Factory): void {
   for (const c of LEXICAL_CASES) {
     test(`lexical search recall: ${name} ${c.name}`, async () => {
       const adapter = await factory();
-      if (lacks(adapter, c)) throw new Error(`${name} has no ${c.needs}`);
+      const why = lacks(adapter, c);
+      if (why) throw new Error(`${name}: ${why}`);
       await c.run(adapter);
     });
   }
@@ -424,6 +527,8 @@ export interface CaseOutcome {
   case: string;
   outcome: "pass" | "fail" | "skip";
   error?: string;
+  /** Why a skipped case did not run. */
+  skipped?: string;
 }
 
 /**
@@ -438,8 +543,9 @@ export async function runCases(
   for (const c of [...CASES, ...(options.lexical ? LEXICAL_CASES : [])]) {
     const label = `${c.group}: ${c.name}`;
     const adapter = await factory();
-    if (lacks(adapter, c)) {
-      outcomes.push({ case: label, outcome: "skip" });
+    const why = lacks(adapter, c);
+    if (why) {
+      outcomes.push({ case: label, outcome: "skip", skipped: why });
       continue;
     }
     try {

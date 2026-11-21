@@ -13,6 +13,7 @@ import { createFakeAdapter } from "../../src/fake/index.ts";
 import { createFilesAdapter } from "../../src/files/index.ts";
 import { createLettaAdapter } from "../../src/letta/index.ts";
 import { createMem0Adapter } from "../../src/mem0/index.ts";
+import { createValidityAdapter } from "./validity.ts";
 
 export interface RegisteredAdapter {
   name: string;
@@ -69,6 +70,15 @@ export const ADAPTERS: RegisteredAdapter[] = [
     name: "fake without search or history",
     factory: () => createFakeAdapter({ search: false, history: false }),
     lexical: false,
+  },
+  {
+    // The fake with a validity index of its own, claiming native validity
+    // (validity.ts, card A5), so the capability-honesty cases run on a store
+    // that claims the capability; the plane never reads the flag, so every
+    // plane test on the registry runs on it unchanged.
+    name: "fake with native validity",
+    factory: () => createValidityAdapter(),
+    lexical: true,
   },
   {
     // Open-source Mem0 in-process: its own SQLite vector store in memory,
