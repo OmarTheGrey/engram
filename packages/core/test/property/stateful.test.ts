@@ -404,17 +404,17 @@ function ownersLaundering(log: readonly MemoryEvent[], detail: string): boolean 
 }
 
 /**
- * Finding E14-F6 as pinned: `held` was retired by adoption's retraction
- * right after that adoption, by someone other than its owner, denied the
- * store's record under the owner rule (only the owner rewrites an item
- * carrying grants).
+ * Finding E14-F6 as pinned: `held` is retired, and the last adoption of its
+ * store record, by someone other than its owner, denied it under the owner
+ * rule (only the owner rewrites an item carrying grants), followed by
+ * nothing but adoption's retraction. The retraction is absent when the item
+ * was retired already (an eviction), so the record stays denied either way.
  */
 function retractedOverCoholder(log: readonly MemoryEvent[], held: MemoryItem): boolean {
-  const mine = log.filter((e) => e.item_id === held.id);
-  const [deny, retract] = mine.slice(-2);
+  const mine = log.filter((e) => e.item_id === held.id && e.policy_id !== "engram/adopt/retract");
+  const deny = mine.at(-1);
   return (
     held.status === "retired" &&
-    retract?.policy_id === "engram/adopt/retract" &&
     deny?.decision === "deny" &&
     deny.policy_id === "engram/grant/owner" &&
     deny.reason.startsWith(ADOPTED) &&
@@ -1421,7 +1421,13 @@ describe("the Plane as a state machine", () => {
   // ENGRAM_STATEFUL_STRICT=F6 fails first at ENGRAM_STATEFUL_PATH=
   // 43:3:3:3:9:8:12:12:12 ENGRAM_STATEFUL_REPLAY=GLDADBCD/L:VN, where Lee's
   // removal of Sam's grant from the role item he was handed is killed after
-  // its store write. Pinned as it stands today.
+  // its store write. And so does an owner's item evicted before the
+  // adoption: the 2,000-run deep run of the fix pass fails at
+  // ENGRAM_STATEFUL_PATH=1794:4:2:3:4:8:1:3:5:5:9:10:10:10:10
+  // ENGRAM_STATEFUL_REPLAY=DARAEBCA//h:Vd, where Lee's killed rewrite of his
+  // granted role item is followed by his write of another, whose budget check
+  // evicts the first; Dana's adoption denies the crashed record and nothing
+  // retracts or reconciles it. Pinned as it stands today.
   test("E14-F6: after the owner's crashed rewrite of a granted role item, a co-holder's adoption retires the owner's item for good", async () => {
     const cmds = [
       new Write({ who: "lee", scope: 1 }),
