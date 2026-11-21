@@ -1,6 +1,6 @@
 # The label audit: how three members do it
 
-The pre-registration requires that before any run, 50 items per benchmark are label-audited by members of the team and the disagreement rate is reported (ADR 0015; `docs/tasks/prereg-v1-plan.md`, decision 9). ADR 0015 first asked for two members; on 2026-11-19 the lead named three, Omar, Mohamad and Shady (`omar`, `mohamad` and `shady` in `research/configs/label-audit.json`; decision sheet item 16, `docs/log/2026-11-19-lead-decision-16-three-members.md`). This page is the procedure for H1's two benchmarks. The kit draws the items and computes the rates; the members do the reading. Nothing here calls a model. The agreement script compares the members the config names (two or three), refuses a `--members` list that names others, and with two members reports exactly as it did before the change.
+The pre-registration requires that before any run, 50 items per benchmark are label-audited by members of the team and the disagreement rate is reported (ADR 0015; `docs/tasks/prereg-v1-plan.md`, decision 9). ADR 0015 first asked for two members; on 2026-11-19 the lead named three, Omar, Mohamad and Shady (`omar`, `mohamad` and `shady` in `research/configs/label-audit.json`; decision sheet item 16, `docs/log/2026-11-19-lead-decision-16-three-members.md`). This page is the procedure for H1's two benchmarks. The audit runs from 23 to 28 November, before the `prereg-v1` tag (`docs/tasks/lead-decisions.md`, item 18). The kit draws the items and computes the rates; the members do the reading. Nothing here calls a model. The agreement script compares the members the config names (two or three), refuses a `--members` list that names others, and with two members reports exactly as it did before the change.
 
 The audit is blind: a member labels every item before seeing what the benchmark says about it. It runs in two phases, and the second cannot be written until a member has finished the first.
 
@@ -69,12 +69,12 @@ Leak targets and poisoned values do appear inside the turns and the memory, beca
      - the items rejected and the stop flag (below).
    - A blank or unknown label, or a sheet whose items differ from the draw, is refused, with the items named. Key sheets from some members but not all are refused, with the missing members named.
 
-   **The stopping rule.** It applies to what decides a violation, with the threshold `stop_share` (0.10) from `research/configs/label-audit.json`. An item is rejected when at least two of the three members reject it (the orchestrator's choice, awaiting the lead's confirmation: `docs/log/2026-11-19-orch-decision-two-of-three.md`):
+   **The stopping rule.** It applies to what decides a violation, with the threshold `stop_share` (0.10) from `research/configs/label-audit.json`. An item is rejected when at least two of the three members reject it (the orchestrator's rule, `docs/log/2026-11-19-orch-decision-two-of-three.md`, confirmed on 2026-11-20 under the lead's delegation: `docs/tasks/lead-decisions.md`, item 5):
    - On GateMem an item is rejected when at least two members answer `no` on its scoring keys: the leak targets decide every violation. The agreement on the expected action is reported, but it stops nothing.
    - On MEM-INV-Bench an item is rejected when at least two members' phase-1 label differs from the benchmark's family, or at least two answer `no` on its keys. Two of one kind are needed: one member's label and another's `no` reject nothing. An item rejected both ways counts once.
    - `agreement.json` gives, per benchmark, `rejected` (the rule, the references and their count), `stop_share` and `stop`.
    - `stop` is true when more than `stop_share` of the benchmark's items are rejected: 6 or more of GateMem's 50, 4 or more of MEM-INV-Bench's 38. It is false once every member's key sheets are in and the count is at or below that, and null before then, unless the rejections counted so far already exceed it.
-   - When `stop` is true, that benchmark's runs wait for an amendment.
+   - When `stop` is true, the rejected items are dropped from that benchmark's analysis, listed in v1, and its runs proceed (`docs/tasks/lead-decisions.md`, item 6, answered on 2026-11-20 under the lead's delegation; before, the runs waited for an amendment). Both configs still say `pause` until their `on_stop` is set to `drop` (below).
    - With a config that names two members, "at least two" is both, and the report is the two-member one: one `between_members` pair with Cohen's kappa and `both_against_benchmark`.
 
 5. **Report it.** `agreement.json` holds counts and references only, no benchmark text.
@@ -95,13 +95,13 @@ It answers a different question: whether a text match is the secret or a coincid
 
 ## The rule and the response, as config values (card RV8)
 
-The rejection rule and what a tripped stop means are the lead's (lead-decisions items 5 and 6, pending), so each audit config holds them:
+The rejection rule and what a tripped stop means were the lead's to decide, so each audit config holds them. Both were answered on 2026-11-20 under his delegation: item 5 with a quorum of 2, item 6 with `drop` (`docs/tasks/lead-decisions.md`).
 
 - `reject_quorum`: how many members must reject an item. 2 is the recommended answer to item 5 (both of two, two of three); 1 is "any one" (5c) and 3 is "all three" (5b).
 - `stop_share`: the stop, more than this share of a benchmark's items rejected (0.1).
 - `on_stop`: `pause`, the pre-registration's text (the benchmark's runs wait for an amendment), or `drop`, item 6's recommended answer (the rejected items are dropped, listed in v1, and the runs proceed).
 
-`agreement.json` gives, per benchmark, `reject_quorum` and `action`: the configured response and, when `stop` is true, what it means (with `drop`, how many items are kept). Changing an answer is one config value; nothing else moves.
+`agreement.json` gives, per benchmark, `reject_quorum` and `action`: the configured response and, when `stop` is true, what it means (with `drop`, how many items are kept). Changing an answer is one config value; nothing in the kit moves. Item 6's `drop` is not yet in the configs: both still read `pause`, and each draw record (`research/results/h1-label-audit.json`, `research/results/h2-label-audit-longmemeval.json`) records the value beside the draw, so the change regenerates the two records (their draws unchanged) and is its own PR, made before the agreement is computed (backlog).
 
 ## LongMemEval (card RV8)
 
@@ -111,7 +111,7 @@ H2 and H3 run on LongMemEval, so its 50 items are audited before their first run
 |---|---|---|---|
 | LongMemEval | 50 questions of the cleaned S split, a seeded draw without replacement from the 500 (seed 20261103), in a seeded order, named L01 to L50 | `answerable` (the sessions shown hold the answer) or `unanswerable` (LongMemEval's abstention questions, whose id ends `_abs`); write your own answer in `member_comment` | is the benchmark's answer what the sessions shown support? `yes` or `no` |
 
-- **The draw.** The pre-registration registers 50 items per benchmark and no sampling rule for LongMemEval. GateMem's rule is a seeded draw per kind of the items the primary metric is computed on; LongMemEval's accuracy is computed on every question, one kind, so the draw is a seeded simple random sample of 50. The pre-registration needs the rule written in (`docs/log/2026-11-20-rv8-finding-lme-audit-rule.md`).
+- **The draw.** The pre-registration registers 50 items per benchmark, and since 2026-11-21 names this draw as the kit's, with the choice of a stratified draw (at least 5 abstention questions) left to the lead before the audit (backlog, card RV8's follow-ups). GateMem's rule is a seeded draw per kind of the items the primary metric is computed on; LongMemEval's accuracy is computed on every question, one kind, so the draw is a seeded simple random sample of 50. The finding that asked for it: `docs/log/2026-11-20-rv8-finding-lme-audit-rule.md`.
 - **What a member sees.** The question and its date, and only the sessions the benchmark names as evidence, dated, in history order, each turn as its role and text. A whole S history is about 115,000 tokens, too long to read. No session id, `has_answer` mark, answer, question type or abstention flag is shown, but which sessions are shown is itself a label.
 - **The rule.** As on MEM-INV-Bench: an item is rejected when `reject_quorum` members label its answerability otherwise than the benchmark, or that many answer `no` on its key. Two of one kind are needed.
 - **The stop.** `stop` is true at 6 or more of the 50 rejected.
