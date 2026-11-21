@@ -34,7 +34,9 @@ sdk/                      generated: JSON Schema, sdk/openapi.json, the TypeScri
 docs/                     architecture, decisions, tasks, research, readings, deps, glossary
 docs/architecture.md      the architecture: layers, memory model, write and read paths, interfaces (living document)
 docs/roadmap.md           phases, gates, week plan and the task cards; cards are expanded into docs/tasks/
-docs/conventions/         documentation.md (the log, thesis consolidation), testing.md (layers, fakes, fixtures)
+docs/conventions/         documentation.md (the log, thesis consolidation), testing.md (layers, fakes, fixtures), absorption.md (taking open-source code or data: licences, modes, the register)
+docs/absorbed.md          the register of everything copied or ported from open-source projects (ADR 0037); NOTICE at the root holds the notices their licences require
+docs/tasks/absorb-plan.md the thirty pull requests of 2026-11-21 and why; the research behind them is docs/research/absorb/
 docs/log/                 one typed, dated entry per step; consolidated into thesis drafts by `make thesis`
 fixtures/                 sessions, stores, faults, cassettes; regenerated only by `make fixtures`
 .pi/                      project extensions, skills and prompt templates for working in this repo
@@ -111,6 +113,7 @@ If a command you need is not here, add it to the Makefile and to this list in th
 13. Written content in this repository uses no em dashes. Commas, periods, or a restructured sentence.
 14. Every PR adds a log entry under `docs/log/` in the format of `docs/conventions/documentation.md`. CI rejects a PR without one. Failures are logged like successes.
 15. Tests follow `docs/conventions/testing.md`: fakes not mocks, scripted or cassette models, injected clock and seeds, acceptance test before implementation, invariants file always on. A card without the tests that convention requires is not done.
+16. Code or data taken from an open-source project follows `docs/conventions/absorption.md` (ADR 0037). Copy or port only from MIT, ISC, BSD, Apache-2.0, Unlicense or CC0 sources, with the licence read at the commit taken from, a row in `docs/absorbed.md` and the required notice in `NOTICE`, in the same PR. Any other licence is read for ideas only.
 
 ## How to work a task card
 
@@ -132,6 +135,7 @@ Cards live in `docs/tasks/<id>.md`. Each has a goal, the files you may touch, wh
 - A log entry exists for the card, and one per failure met on the way.
 - An event log excerpt or a pi session fixture demonstrating the change is in the PR description.
 - `docs/deps.md` updated if a dependency was added.
+- `docs/absorbed.md` and `NOTICE` updated if code or data was copied or ported (rule 16).
 - AGENTS.md updated if a rule or a command changed.
 - `docs/decisions/` has a new ADR if the card made a choice that another card could have made differently.
 

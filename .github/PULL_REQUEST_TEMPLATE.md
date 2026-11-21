@@ -24,6 +24,7 @@ Acceptance: `<command>`
 - [ ] make test passes
 - [ ] tests required by docs/conventions/testing.md are included
 - [ ] docs/deps.md updated if a dependency was added
+- [ ] docs/absorbed.md and NOTICE updated if code or data was copied or ported (ADR 0037)
 - [ ] AGENTS.md updated if a rule or command changed
 - [ ] ADR added if a choice another card could have made differently
 - [ ] no em dashes in prose

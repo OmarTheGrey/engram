@@ -212,3 +212,15 @@ From the review fix pass of PR #65; each needs the lead.
 |---|---|---|
 | LongMemEval's audit allocation | the pre-registration registers no sampling rule for LongMemEval's audit, and a uniform draw of 50 holds few abstention questions; the recommendation is a stratified draw with at least 5 abstention items, registered before the audit of 23 to 28 November (one function in `label_audit_sample.py` and its seed) | `docs/log/2026-11-21-rv8-review-finding-lme-audit-stratified.md` |
 | The frontier axis to register | ttl at 7 days and budget 50 each move both benchmarks at non-degenerate values (item 21); the lead chooses which axes are registered by amendment before X6 | `docs/log/2026-11-21-rv8-review-finding-axes-quantified.md` |
+
+## Follow-ups from the absorb plan (2026-11-21)
+
+From `docs/tasks/absorb-plan.md` and the PR that merged it into the roadmap.
+
+| item | what is left | where it is recorded |
+|---|---|---|
+| The register's check | `make lint-docs` does not yet fail when `docs/absorbed.md` names a missing file (ADR 0037, decision 8); the first card that adds a row builds it | `docs/decisions/0037-absorbing-open-source.md` |
+| The 136 plans not selected | candidates, not commitments: crypto-shredded erasure and the encrypted person scope first, then derived-from edges, the approval workflow, dense retrieval as a registered proposal, ingestion after Gate D | `docs/research/absorb/long-list.md`; `docs/tasks/absorb-plan.md`, section 7 |
+| Stale status lines | several merged cards still say "awaiting review" in their `Status:` line (for example L2, L3, L4, E9.4, E9.5); one housekeeping PR sets each to its merge | `docs/tasks/` |
+| The answers card before R2 | the 48 decisions of 2026-11-20 are not yet written into the pre-registration, the ADRs and the roadmap; card R2 edits the same pre-registration section and waits for it | `docs/tasks/lead-decisions.md`; `docs/tasks/R2.md` |
+| Surfaces with no attested source | nobody has listed which callers can reach `Plane.write` with an actor that names no source; card E2.7 lists them | `docs/log/2026-11-21-orch-finding-unattested-provenance-by-design.md` |

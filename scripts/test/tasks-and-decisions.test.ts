@@ -3,7 +3,9 @@
 // with a `decision` log entry that cites it. OWNER_DECIDES lists any ADR left
 // for the owner to decide. The lead accepted ADRs 0031 to 0033 on 2026-11-19
 // (docs/log/2026-11-19-lead-decision-adrs-accepted.md); ADR 0034, proposed
-// by card E9.4, is the one left for the owner.
+// by card E9.4, is the one left for the owner. ADRs 0038 to 0041, proposed by
+// the absorb plan on 2026-11-21, were accepted that day under the lead's
+// delegation (docs/log/2026-11-21-orch-decision-adrs-0038-0041-accepted.md).
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { describe, expect, test } from "vitest";
 import { parseFrontmatter } from "../lib/frontmatter.ts";
