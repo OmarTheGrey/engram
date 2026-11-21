@@ -58,7 +58,7 @@ import {
   type UsageRecord,
 } from "./cached.ts";
 import { recordingRefusal, within } from "./recording.ts";
-import { isScriptedChatCall } from "./scripted.ts";
+import { isScripted } from "./scripted.ts";
 
 /** vcrpy's record modes the proxy offers: replay only, or record what is not yet recorded. */
 export type RecordMode = "none" | "new_episodes";
@@ -194,8 +194,9 @@ export interface ProxyOptions {
   /**
    * Record scripted cassettes into `<repo>/fixtures/`, as `make fixtures`
    * does: accepted only with ENGRAM_UPDATE_FIXTURES=1 in `env` (the variable
-   * `make fixtures` sets) and an upstream made by `scriptedChatCall`, and the
-   * file cache's folder must then be inside `fixtures/` (verification V-1).
+   * `make fixtures` sets) and an upstream branded by `asScripted` (every
+   * `scriptedChatCall` is; a harness's own scripted agent is wrapped in it),
+   * and the file cache's folder must then be inside `fixtures/` (V-1).
    */
   recordFixtures?: boolean;
 }
@@ -474,9 +475,9 @@ function refuseRecordingPlace(options: ProxyOptions, env: NodeJS.ProcessEnv) {
         "recordFixtures needs ENGRAM_UPDATE_FIXTURES=1, which make fixtures sets; fixture cassettes are recorded by make fixtures only",
       );
     }
-    if (!isScriptedChatCall(options.upstream)) {
+    if (!isScripted(options.upstream)) {
       throw new ProxyRefused(
-        "recordFixtures needs an upstream made by scriptedChatCall; a live model's replies never become fixture cassettes",
+        "recordFixtures needs a scripted upstream branded by asScripted (scriptedChatCall, or a harness's scripted agent wrapped in asScripted); a live model's replies never become fixture cassettes",
       );
     }
   }

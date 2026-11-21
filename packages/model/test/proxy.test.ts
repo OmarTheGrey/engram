@@ -33,7 +33,13 @@ import {
   RESERVED_HARNESSES,
   startProxy,
 } from "../src/proxy.ts";
-import { isScriptedChatCall, scriptedChatCall, scriptedModelCall } from "../src/scripted.ts";
+import {
+  asScripted,
+  isScripted,
+  isScriptedChatCall,
+  scriptedChatCall,
+  scriptedModelCall,
+} from "../src/scripted.ts";
 
 const open: ProxyHandle[] = [];
 afterEach(async () => {
@@ -667,9 +673,9 @@ describe("modes and refusals", () => {
         return h;
       });
     await expect(record({ upstream: plain })).rejects.toThrow(ProxyRefused);
-    await expect(record({ upstream: plain })).rejects.toThrow(/scriptedChatCall/);
+    await expect(record({ upstream: plain })).rejects.toThrow(/branded by asScripted/);
     await expect(record({ cache: fileCache(fixtures), upstream: plain })).rejects.toThrow(
-      /scriptedChatCall/,
+      /branded by asScripted/,
     );
     await expect(record({ env: {} })).rejects.toThrow(ProxyRefused);
     await expect(record({ cache: fileCache(fixtures), env: {} })).rejects.toThrow(
@@ -679,14 +685,60 @@ describe("modes and refusals", () => {
       /ENGRAM_UPDATE_FIXTURES=1/,
     );
     await expect(record({ cache: fileCache(fixtures) })).resolves.toBeDefined();
-    expect(isScriptedChatCall(scripted)).toBe(true);
-    expect(isScriptedChatCall(plain)).toBe(false);
+    expect(isScripted(scripted)).toBe(true);
+    expect(isScripted(plain)).toBe(false);
+    expect(isScriptedChatCall).toBe(isScripted);
     // The brand is a symbol no enumeration shows, so a copy of the call (a spread) does not carry it.
     const brands = Object.getOwnPropertySymbols(scripted);
     expect(brands).toHaveLength(1);
     expect(brands.filter((b) => Object.prototype.propertyIsEnumerable.call(scripted, b))).toEqual(
       [],
     );
+  });
+
+  test("a harness's own scripted agent, wrapped in asScripted, records fixtures and replays them", async () => {
+    const repo = tempRepo();
+    const fixtures = join(repo, "fixtures", "cassettes", "b10-agent");
+    const update = { ENGRAM_UPDATE_FIXTURES: "1" };
+    const context = { ...CELL, harness: "tau2", item: "retail-1" };
+    // A stand-in for a harness's scripted agent (MERIT's, tau2-bench's): its own code, not scriptedChatCall.
+    let answered = 0;
+    const agent: ChatCall = async () => {
+      answered++;
+      return {
+        text: "scripted agent reply",
+        usage: { input_tokens: 0, output_tokens: 0, cost_usd: 0 },
+      };
+    };
+    const start = (upstream: ChatCall, env: NodeJS.ProcessEnv) =>
+      startProxy({
+        cache: fileCache(fixtures),
+        context,
+        record: "new_episodes",
+        upstream,
+        env,
+        repo,
+        recordFixtures: true,
+      }).then((h) => {
+        open.push(h);
+        return h;
+      });
+    await expect(start(agent, update)).rejects.toThrow(/branded by asScripted/);
+    const branded = asScripted(agent);
+    expect(branded).toBe(agent);
+    expect(isScripted(agent)).toBe(true);
+    await expect(start(branded, {})).rejects.toThrow(/ENGRAM_UPDATE_FIXTURES=1/);
+    // A wrapper around a branded call is not branded.
+    await expect(start(async (r) => branded(r), update)).rejects.toThrow(/branded by asScripted/);
+
+    const recording = await start(branded, update);
+    expect((await post(recording, ask("hi"))).status).toBe(200);
+    await recording.close();
+    const replay = await proxy({ cache: fileCache(fixtures), context });
+    const again = await post(replay, ask("hi"));
+    expect(again.headers.get("x-engram-cache-hit")).toBe("true");
+    expect((await completion(again)).choices[0]?.message.content).toBe("scripted agent reply");
+    expect(answered).toBe(1);
   });
 
   test("the context headers are the six cell fields", () => {
