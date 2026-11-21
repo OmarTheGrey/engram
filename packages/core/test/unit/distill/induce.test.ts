@@ -33,7 +33,10 @@ class Builder {
   entries: SessionEntry[] = [];
   private n = 0;
   private callN = 0;
-  constructor(private readonly prefix: string) {}
+  private readonly prefix: string;
+  constructor(prefix: string) {
+    this.prefix = prefix;
+  }
   private id() {
     this.n++;
     return `${this.prefix}${this.n.toString(16).padStart(8 - this.prefix.length, "0")}`;
