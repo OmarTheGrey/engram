@@ -4,20 +4,45 @@
 // "group: case name" as `runCases` reports it), so a weakened case or corpus
 // item shows up even when an incidental case still fails. They are never
 // registered in registry.ts, so the normal conformance run does not see them.
+// The capability-honesty ones (card A5) are the validity double or the fake
+// claiming a capability they do not keep.
 import { isDeepStrictEqual } from "node:util";
 import type { MemoryItem } from "@engram/core";
 import type { Adapter, StoreRef } from "../../src/contract.ts";
 import { createFakeAdapter } from "../../src/fake/index.ts";
+import { createValidityAdapter } from "./validity.ts";
 
 type Patch = (inner: Adapter) => Partial<Adapter>;
 
-/** The fake (search and history on) with some methods replaced. */
-function broken(patch: Patch): () => Adapter {
+/** The fake (search and history on), or another honest adapter, with some methods replaced. */
+function broken(patch: Patch, base: () => Adapter = () => createFakeAdapter()): () => Adapter {
   return () => {
-    const inner = createFakeAdapter();
+    const inner = base();
     return { ...inner, ...patch(inner) } as Adapter;
   };
 }
+
+/** The validity double with some methods replaced: a store claiming native validity. */
+const brokenValidity = (patch: Patch) => broken(patch, () => createValidityAdapter());
+
+/** The fake claiming more than it has. */
+const claiming = (capabilities: Partial<Adapter["capabilities"]>, options = {}) =>
+  broken(
+    (inner) => ({ capabilities: { ...inner.capabilities, ...capabilities } }),
+    () => createFakeAdapter(options),
+  );
+
+/** Is the item outside its validity window at the wall clock: the store's own clock, not the reader's. */
+const outsideNow = (item: MemoryItem) => {
+  const now = Date.now();
+  return (
+    Date.parse(item.valid_from) > now ||
+    (item.valid_to !== null && Date.parse(item.valid_to) <= now)
+  );
+};
+
+/** A capability-honesty case, by its `runCases` label. */
+const honesty = (name: string) => `capability honesty: ${name}`;
 
 /** The fake keys items by id, so a wrapper can build the ref an id lives under. */
 const refOf = (inner: Adapter, id: string): StoreRef => ({ adapter: inner.name, key: id });
@@ -203,5 +228,75 @@ export const BROKEN_ADAPTERS: BrokenAdapter[] = [
       delete: (ref) => inner.delete({ adapter: inner.name, key: ref.key }),
     })),
     fails: ["store_ref opacity: delete refuses a ref from another adapter and deletes nothing"],
+  },
+  {
+    name: "claims native validity and keeps the first window it was given",
+    factory: brokenValidity((inner) => ({
+      async write(item) {
+        const current = await inner.read(refOf(inner, item.id));
+        const window = current && { valid_from: current.valid_from, valid_to: current.valid_to };
+        return inner.write(window ? ({ ...item, ...window } as MemoryItem) : item);
+      },
+    })),
+    fails: [
+      honesty(
+        "a store claiming native validity stores a rewrite that only closes or reopens the window",
+      ),
+    ],
+  },
+  {
+    name: "claims native validity and hides what is outside its window at its own clock",
+    factory: brokenValidity((inner) => ({
+      list: async (scope) => (await inner.list(scope)).filter((i) => !outsideNow(i)),
+      search: async (query, scopes) =>
+        ((await inner.search?.(query, scopes)) ?? []).filter((i) => !outsideNow(i)),
+    })),
+    fails: [
+      honesty(
+        "a store claiming native validity hides nothing from list or search for being outside its window",
+      ),
+    ],
+  },
+  {
+    name: "claims native validity and derives valid_from from its own bookkeeping",
+    factory: brokenValidity(() => ({ derivedFields: () => ["valid_from"] })),
+    fails: [
+      honesty("a store claiming native validity derives no window field from its own bookkeeping"),
+    ],
+  },
+  {
+    name: "claims native validity and stamps every past version with the latest window",
+    factory: brokenValidity((inner) => ({
+      async history(ref) {
+        const latest = await inner.read(ref);
+        const versions = (await inner.history?.(ref)) ?? [];
+        return latest
+          ? versions.map(
+              (v) =>
+                ({ ...v, valid_from: latest.valid_from, valid_to: latest.valid_to }) as MemoryItem,
+            )
+          : versions;
+      },
+    })),
+    fails: [
+      honesty(
+        "a store claiming native validity keeps each version's own window in history, oldest first",
+      ),
+    ],
+  },
+  {
+    name: "claims native graph",
+    factory: claiming({ native_graph: true }),
+    fails: [honesty("a claim of native graph is refused while the contract has no graph method")],
+  },
+  {
+    name: "claims native history without a history method",
+    factory: claiming({ native_history: true }, { history: false }),
+    fails: ["history (when supported): a capability claiming native history has a history method"],
+  },
+  {
+    name: "claims native search without a search method",
+    factory: claiming({ native_search: true }, { search: false }),
+    fails: ["search (when supported): a capability claiming native search has a search method"],
   },
 ];
