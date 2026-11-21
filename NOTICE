@@ -66,6 +66,44 @@ Mnemowall (https://github.com/Mnemowall/mnemowall-sdk, commit
   This product is licensed under the Apache License, Version 2.0 (see LICENSE).
 
 Modified here: see the header of injection-screen.ts.
+--------------------------------------------------------------------------------
+packages/core/src/policy/secrets.ts and the test vectors of
+packages/core/test/unit/policy/secrets-upstream.test.ts (card E2.9) contain
+portions of:
+
+Claude-Mem (https://github.com/thedotmack/claude-mem), src/utils/redaction.ts
+  Claude-Mem
+  Copyright 2026 Alex Newman
+  This product includes software developed for the Claude-Mem project.
+  Licensed under the Apache License, Version 2.0.
+
+walrus-memory (https://github.com/MystenLabs/walrus-memory),
+services/server/scripts/mcp/tools/redaction.ts
+  Licensed under the Apache License, Version 2.0. The repository carries no
+  NOTICE file at the commit taken.
+
+graphCTX (https://github.com/coder-company/graphCTX), src/security/secrets.ts
+  Copyright (c) 2026 coder-company
+  Licensed under the MIT License.
+
+Ported, with their notices kept as a courtesy:
+
+Hindsight (https://github.com/vectorize-io/hindsight)
+  Copyright (c) 2025 Vectorize AI, Inc.
+  Licensed under the MIT License.
+
+Caura (https://github.com/caura-ai/caura), common/governance/pii_patterns.py
+  Caura
+  Copyright 2026 Caura (https://caura.ai)
+  This product is licensed under the Apache License, Version 2.0.
+  "Caura" is a trademark of Caura.
+
+--------------------------------------------------------------------------------
+packages/core/src/vendor/gitleaks-rules.ts (card E2.9) is generated from:
+
+gitleaks (https://github.com/gitleaks/gitleaks), config/gitleaks.toml
+  Copyright (c) 2019 Zachary Rice
+  Licensed under the MIT License.
 
 ------------------------------------------------------------------------
 Remnic (supersession chain)
@@ -78,3 +116,22 @@ packages/remnic-core/src/shared-context/supersession-chain.ts), under the MIT
 License, whose copyright line and permission notice are given in the Remnic
 entry above: Copyright (c) 2025 Joshua Warren. Modified here: see the header
 of supersede.ts.
+
+Ported by card L6, with their notices kept as a courtesy:
+
+gaptime (https://github.com/davccavalcante/gaptime, commit
+9835236c1d6d571a724213c958b62c157285b26c), src/temporal/intervals.ts, in
+packages/core/src/lint/intervals.ts; its NOTICE reads in part:
+  @takk/gaptime
+  Copyright 2026 David C Cavalcante / Takk Innovate Studio
+  This product includes software developed by David C Cavalcante
+  (https://takk.ag - davcavalcante@proton.me / say@takk.ag).
+  Licensed under the Apache License, Version 2.0.
+
+Graphiti (https://github.com/getzep/graphiti, commit
+9b8a4630092084734b080f2e6f409c2c23bdcc3a),
+graphiti_core/utils/maintenance/edge_operations.py, in
+packages/core/src/lint/supersession.ts:
+  Copyright 2024, Zep Software, Inc.
+  Licensed under the Apache License, Version 2.0. The repository carries no
+  NOTICE file at the commit taken.

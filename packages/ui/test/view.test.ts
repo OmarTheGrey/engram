@@ -11,10 +11,12 @@ import {
   FILTER_CATEGORIES,
   filterEvents,
   filterOptions,
+  itemHref,
   keepSelection,
   NO_FILTER,
   otherReaderLine,
   parseMemberships,
+  parseRoute,
   scopeText,
   validityText,
   viewerFrom,
@@ -164,11 +166,12 @@ describe("the timeline", () => {
     event(4, { op: "promote", scope_from: "person:dana", scope_to: "team:core" }),
   ];
 
-  it("offers the scopes, ops and decisions the visible events carry", () => {
+  it("offers the scopes, ops, decisions and actors the visible events carry", () => {
     expect(filterOptions(events)).toEqual({
       scopes: ["person:dana", "team:core"],
       ops: ["promote", "read", "write"],
       decisions: ["allow", "deny"],
+      actors: ["person:dana", "person:eve"],
     });
   });
 
@@ -185,6 +188,14 @@ describe("the timeline", () => {
     expect(seqs({ decision: "deny" })).toEqual([3]);
     expect(seqs({ scope: "team:core", decision: "allow" })).toEqual([1, 4]);
     expect(seqs({ scope: "org" })).toEqual([]);
+  });
+
+  it("filters by actor (card E8.11), alone and with the others", () => {
+    const seqs = (f: Partial<typeof NO_FILTER>) =>
+      filterEvents(events, { ...NO_FILTER, ...f }).map((e) => e.seq);
+    expect(seqs({ actor: "person:eve" })).toEqual([3]);
+    expect(seqs({ actor: "person:dana", scope: "team:core" })).toEqual([1, 4]);
+    expect(seqs({ actor: "person:eve", decision: "allow" })).toEqual([]);
   });
 
   it("prints the scope column and an event's every field", () => {
@@ -308,5 +319,25 @@ describe("the explain view", () => {
     const view = explainView(dana, read, { ...response, counts: null });
     if (view.kind !== "own") throw new Error(view.kind);
     expect(view.categories).toEqual([]);
+  });
+});
+
+describe("the inspector's pages (card E8.11)", () => {
+  it("reads an item's page from the location hash, and the workspace from anything else", () => {
+    expect(parseRoute(itemHref(id(3)))).toEqual({ page: "item", itemId: id(3) });
+    expect(itemHref(id(3))).toBe(`#/item/${id(3)}`);
+    expect(parseRoute("")).toEqual({ page: "workspace" });
+    expect(parseRoute("#/")).toEqual({ page: "workspace" });
+    expect(parseRoute("#/item/")).toEqual({ page: "workspace" });
+    expect(parseRoute("#/elsewhere/x")).toEqual({ page: "workspace" });
+  });
+
+  it("decodes an escaped id, and refuses one with a slash", () => {
+    expect(parseRoute(`#/item/${encodeURIComponent("a b")}`)).toEqual({
+      page: "item",
+      itemId: "a b",
+    });
+    expect(parseRoute("#/item/a/b")).toEqual({ page: "workspace" });
+    expect(parseRoute("#/item/%E0%A4%A")).toEqual({ page: "workspace" });
   });
 });
