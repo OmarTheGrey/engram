@@ -14,7 +14,7 @@ evidence:
 supersedes: none
 ---
 
-**What.** B11 adapted to B10's final fixture-recording contract (`066b1a9`). The scripted agent and user simulator are branded with `asScripted`, and the proxy gets the branded functions themselves. `--record` needs `ENGRAM_UPDATE_FIXTURES=1`, which both `make fixtures` lines set, and writes only inside `fixtures/`. Every other run checks its recording folder with `recordingRefusal` before a file cache creates it. The config's model check is renamed `isScriptedModel`, so it does not shadow `@engram/model`'s `isScripted`.
+**What.** B11 adapted to B10's final fixture-recording contract (`066b1a9`). The scripted agent and user simulator are branded with `asScripted`, and the proxy gets the branded functions themselves. `--record` needs `ENGRAM_UPDATE_FIXTURES=1`, which both `make fixtures` lines set, and writes only inside `fixtures/`. Every other run checks its recording folder with `recordingRefusal` before a file cache creates it. The config's model check is now `isScriptedModel`.
 
 **Why.** B10's proxy now records fixture cassettes only from a branded upstream, and only under that variable.
 
