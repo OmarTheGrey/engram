@@ -48,5 +48,8 @@ One line per dependency: name, version, reason, licence. Added in the same PR as
 | @types/react | 19.3.0 | dev, packages/ui: React type definitions for TypeScript 7 | MIT |
 | @types/react-dom | 19.3.0 | dev, packages/ui: react-dom type definitions | MIT |
 | playwright | 1.64.1 | dev, root: drives Chromium in layer 6 (`test/e2e/inspector.e2e.test.ts`) as a library from vitest, not `@playwright/test`; pulls in `playwright-core` (Apache-2.0); the browser itself comes from `pnpm exec playwright install chromium` into the user's cache (Chromium, BSD-3-Clause), never from node_modules | Apache-2.0 |
+| opentype.js | 1.3.4 | dev, docs/brand/source only (not a workspace package): outlines the Space Grotesk wordmark to SVG paths for the logo kit | MIT |
+| @fontsource/space-grotesk | 5.1.0 | dev, docs/brand/source only: the Space Grotesk font files the wordmark is outlined from; no font ships in the kit, only paths | OFL-1.1 |
+| @resvg/resvg-js | 2.6.2 | dev, docs/brand/source only: renders the kit's PNG exports (the social card for GitHub's preview) | MPL-2.0 |
 
 Install size of the Mem0 adapter: mem0ai, better-sqlite3, compromise, @cloudflare/workers-types, openai 4, axios, zod 3 and uuid together take about 45 MB of `node_modules/.pnpm` (measured with `du -shc` over their folders on 2026-10-25, before their own dependencies). Only packages/adapters depends on them.
