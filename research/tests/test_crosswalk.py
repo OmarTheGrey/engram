@@ -176,6 +176,7 @@ def planted_config() -> dict[str, Any]:
                 "claim": "a read never returns an item outside the reader's scopes and grants",
                 "source": "AGENTS.md",
                 "invariant": 1,
+                "limits": "the actor is self-asserted",
                 "tests": [
                     {"file": "a.test.ts", "describe": ["outer", "inner"], "it": "nested test"}
                 ],
@@ -275,10 +276,12 @@ def test_the_table_lists_each_claim_with_its_evidence_and_citations(tree: Path) 
     result, _ = cw.build(tree, planted_config())
     table = cw.render_table(result)
     lines = table.splitlines()
-    assert lines[0] == "| id | claim | evidence | obligations it bears on |"
+    assert lines[0] == "| id | claim | evidence | obligations it bears on | limits |"
     assert "(invariant 1)" in lines[2] and "GDPR Art. 5(1)(f)" in lines[2]
     assert "`a.test.ts`: outer > inner > nested test" in lines[2]
     assert "**not evidenced**: no test checks it" in lines[3]
+    assert lines[2].endswith("| the actor is self-asserted |")
+    assert lines[3].endswith("|  |")
 
 
 def test_write_table_replaces_only_the_marked_block(tmp_path: Path) -> None:

@@ -473,8 +473,8 @@ def cite(ob: Mapping[str, Any], sources: Mapping[str, Any]) -> str:
 def render_table(result: Mapping[str, Any]) -> str:
     obligations = {ob["id"]: ob for ob in result["obligations"]}
     lines = [
-        "| id | claim | evidence | obligations it bears on |",
-        "|---|---|---|---|",
+        "| id | claim | evidence | obligations it bears on | limits |",
+        "|---|---|---|---|---|",
     ]
     for row in result["claims"]:
         if row["tests"]:
@@ -487,7 +487,10 @@ def render_table(result: Mapping[str, Any]) -> str:
         if not cites:
             cites = f"none cited: {row['unmapped']}"
         claim = row["claim"] + (f" (invariant {row['invariant']})" if row["invariant"] else "")
-        lines.append(f"| {row['id']} | {_cell(claim)} | {_cell(evidence)} | {_cell(cites)} |")
+        limits = _cell(row["limits"] or "")
+        lines.append(
+            f"| {row['id']} | {_cell(claim)} | {_cell(evidence)} | {_cell(cites)} | {limits} |"
+        )
     return "\n".join(lines) + "\n"
 
 
