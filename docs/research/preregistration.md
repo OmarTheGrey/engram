@@ -175,8 +175,170 @@ The analysis code is this section, executable: `research/analysis/` (the bootstr
 
 ## Proposed amendments, not yet registered
 
+Nothing in this section is registered, and nothing in it runs as an experiment. Each entry is a proposal: the lead registers each arm separately, by amendment, before its run (lead-decisions item 56, answered on 2026-11-21 under the lead's delegation; registering an arm stays with the lead). A registration moves the arm's text into the registered sections above, adds a row to the Versions table, and, where the arm needs data that `packages/bench/PINS.md` does not pin, follows a pin pull request of its own (rule 8). Until its registration no config under `research/configs/` runs an arm as an experiment, and a number it produces is exploratory. Adding or editing a proposal here is not a new version of this document. The proposals were written by card R2 of `docs/tasks/absorb-plan.md` (research plans R-001, R-014, R-015 and R-017 of `docs/research/absorb/long-list.md`), before H1's data exist.
+
+Rules every proposal below keeps, unless its entry says otherwise:
+
+- **Holm.** No proposal adds to the Holm family, which stays the five hypotheses of the Statistics section. A sixth member would change `holm()`'s family and the 5p bound by which H1 is read at Gate C, both registered; an arm that wants a confirmatory test has to propose that change to the Statistics section as well, and none here does. Every arm is a secondary result of the hypothesis it names, unadjusted, or descriptive.
+- **Statistics.** Only the registered ones: a Wilson score interval at 95 percent for a rate, with the item as its unit; the paired BCa bootstrap of the Statistics section (10,000 resamples, its seed from the arm's config seed and a hash of the contrast) for a paired difference, reported as an interval; and the equivalence score test where an arm claims equivalence. A secondary contrast reports its one-sided p-value for reference, and nothing is decided by it.
+- **Seeds.** An arm that calls a model takes seeds 1, 2 and 3 from its config and caches every call on ADR 0017's key (rules 6 and 7); a variant of a condition is a preset of its own name (for example `medium+screen-default`), so its cache keys never collide with a registered cell's. A model-free arm draws whatever it samples from one generator seed in its config and runs once, since a run without a sampled call is exact.
+- **Models.** An arm on a model reports each model slot apart and never pools them, after MemDelta (`docs/readings/litreview/2606.29914-memdelta.md`).
+- **Defaults.** Every behaviour an arm measures is off in the presets strict, medium and permissive and in every H1 to H4 config (ADRs 0039 and 0040, decision 8 and decision 6); an arm turns it on in its own preset only.
+- **Cost.** Each entry counts its sessions and calls. A dollar figure here is a bound scaled from a registered spend ceiling of the Models section; before registration the arm is counted by its config's `COUNT=1` and priced by the cost table (`research/configs/cost-table.json`), and a live run carries a ceiling of 1.25 times its high estimate (lead-decisions item 3).
+
+### Scheduled by the absorb plan
+
+#### P1. The red-team arm (card X14)
+
+- **Serves:** descriptive, outside Holm. It measures what the content guards (cards E2.9 and E2.10) and the trust floors (card E2.11) stop and what they wrongly stop, beside H1's poisoning arm, which it extends and does not replace (ADR 0029).
+- **Design:** a model-free suite against `Plane.write` and `Plane.read`. The corpus: (i) the AMSB scenarios of OWASP's Agent Memory Guard (Apache-2.0) at commit `b052787cc342`, read on 2026-11-21 in `src/agent_memory_guard/bench/scenarios.py`: 21 scenarios, 15 attacks in five families (prompt injection 4, sensitive data 3, protected key 3, memory persistence 4, size anomaly 1) and 6 benign controls, each a short sequence of writes then a read-back after a context reset, graded low, medium, high or critical with weights 1 to 4. The absorb plan and card X14 say 23 scenarios; the count is 21 at that commit, and the card counts it again at the commit it takes. (ii) Two payload sets, each to be pinned first: `deepset/prompt-injections` at revision `4f61ecb038e9` (662 rows, its label marking injections) and `Lakera/gandalf_ignore_instructions` at revision `04737b65e90a` (1,000 rows). (iii) Benign controls: AMSB's six, deepset's rows not labelled injection, and card E2.9's false-positive set (git hashes, UUIDs and benign technical text). Every attack and payload enters by two routes: the write route, a write through `Plane.write` by an actor whose attested source is each of `user`, `document`, `tool`, `model` and `external` in turn (`user` is the control for the injection screen's source rule, ADR 0039 decision 5); and the read route, the same content placed in the store outside the plane and adopted at read (`packages/core/src/plane/adopt.ts`, card RV4). Settings: the store directly (C2's write path, no gate); C5 at medium with every guard off, as registered; C5 with card E2.9's guards at `block`; with the injection screen `default`, then `hardened`; with card E2.11's trust preset; and with all of them on. C1, C3 and C4 add nothing to a model-free arm (C3 and C4 differ from C2 only in the prompt), and C7 has C5's write gate, so none is run. MEM-INV-Bench's 38 cases are not in the corpus; a table maps each AMSB family to the laundering channels it shares, so nothing is counted twice. The card names its interfaces after MemForm's Selection and Path, which the literature note defines as retention and consolidation order (`docs/readings/litreview/2610.14431-memform.md`); this arm's routes are a write and an adopted read instead, and an attack on retention or promotion order is a later extension.
+- **Metric and statistic:** per setting, route, source kind and family: the attack survival rate (an attack survives when its canary substring comes back in a later read by the scenario's reader, AMSB's own rule, with no model in the loop) and the benign false-hold rate (a benign control held as a candidate or denied; Engram never rewrites content, so a mangled control cannot occur), each with a Wilson interval. The contrast of a guard on against off is the paired difference by attack, with the paired BCa bootstrap interval. AMSB's severity-weighted defence rate and grade are reported as AMSB defines them, descriptive, with no interval, beside the unweighted rates: the weights are AMSB's, not ours.
+- **Seeds:** no model is called. The order of the payloads and any sample of them is drawn from the config's seed; the run is once.
+- **Stopping rule:** fixed sample: every scenario and every payload row of the pinned revisions, once per setting, route and source kind.
+- **Cost:** zero model calls. A live sub-arm, in which a model acts on what survived, is not part of this proposal; it would be an entry of its own, counted with `COUNT=1`.
+- **Holm:** adds nothing.
+- **Limits stated beside the table:** 15 AMSB attacks are a small sample; a corpus chosen by its defenders is optimistic; every rule table is English-centred.
+
+#### P2. The deterministic injection screen as a floor beside the poisoning arm (card E2.10)
+
+- **Serves:** H1's poisoning arm, as a secondary and descriptive floor beside it, outside Holm. It never changes H1's registered C5, which runs with the screen off.
+- **Design:** two parts. Part A, model-free: MEM-INV-Bench's 38 cases at `cf3c9a4` (`fixtures/bench/mem-inv-bench/full/`) are written through `Plane.write` as card B4's harness writes them, under preset medium with `content_guards.injection_screen` set to `default`, then `hardened` (ADR 0039). For each attack case, whether the poisoned entry is held as a candidate; for each legitimate case, whether any of its entries is held. On GateMem, every memory write of the 91 episodes is screened the same way, and the share held is the screen's utility cost on benign memory. Card E2.10's own corpus result, its escape and false-hold rates on a corpus with benign controls, is reported beside them. Part B, on M1: MEM-INV-Bench under C5 with the screen `default` and under C5 with it `hardened`, every case, preset medium otherwise, store Mem0 as H1's arm (decision sheet item 2), scored exactly as H1's Metric scores it. The agent notes of channel `summarize` are the ones H1's run records, replayed from its cassettes; the screen decides whether each note is admitted. Under medium the plane admits every entry of every case (`research/results/h1-mem-inv-admission.json`), so the screen is the first mechanism on this arm that removes poison from C5's read.
+- **Metric and statistic:** Part A: the escape rate (attack cases whose poisoned entry is admitted active) and the false-hold rate (legitimate cases with a held entry; GateMem writes held), each with a Wilson interval, per profile. Part B: the violation rate HIT over HIT and REFUSED per condition with a Wilson interval, and C5 minus C5 with the screen, paired by case after averaging seeds, with the paired BCa bootstrap interval; H1's exclusion reasons and `read_before_action` per condition, as H1's Analysis reports them.
+- **Seeds:** Part A calls no model and runs once. Part B: seeds 1, 2 and 3; each profile is its own preset name in the cache key.
+- **Stopping rule:** fixed sample: Part A every case and every GateMem write, once per profile; Part B every case, three seeds, once per profile, under its ceiling.
+- **Cost:** Part A zero. Part B 114 sessions per profile, 228 in all, at most 8 calls each (`turn_limit`), with no judge (MEM-INV-Bench's scorer is a rule bucketer; an UNREAD reply goes to the two readers as in H1). H1's MEM-INV-Bench ceiling is 4.65 dollars for 456 sessions, so the two profiles are bounded near 2.33 dollars at those prices.
+- **Holm:** adds nothing.
+
+#### P3. The local NLI tier of the contradiction lint, for H3 (card L7)
+
+- **Serves:** H3, as a secondary tier beside its primary test, outside Holm, reported as the deterministic tier is reported.
+- **Design:** C6 with the contradiction lint in three bands: a local natural-language-inference scorer, `cross-encoder/nli-deberta-v3-small` pinned by revision and sha256 and run through ONNX (`docs/readings/litreview/repo-nli-onnx-stack.md`), flags a pair above the upper threshold, drops it below the lower, and sends the pairs between to the model contradiction lint on M1 with card L3's prompt as amended (lead-decisions item 44). The unsupported-claim lint is unchanged. Both thresholds are set on card L3's model fault fixtures (`fixtures/faults/model`) and frozen in the arm's config before the full set is scored; they are never tuned on it. First, before anything else, the same pairs are scored on two machines against a stated tolerance; a scorer that differs beyond it is treated as a cached call whose score is never recomputed. The training data of the chosen model is checked first: a model trained on non-commercial data (ANLI) is not used. The corpus is card L2's full seeded-fault set (`research/configs/h3-fault-set.json`, `research/results/h3-fault-set.json`: 500 states; the contradiction lint's subtypes `conflict` and `superseded`, 1,000 faults and 1,000 near-misses). An optional utility part runs C6 with the tiered lint on LongMemEval, all 500 questions, and reports C6 with the tier minus C5 beside H3's primary contrast.
+- **Metric and statistic:** precision and recall per fault class, keyed and unkeyed apart, with Wilson intervals, as H3's Analysis reports them, beside the model tier's (`research/scripts/h3_lint_delta.py`); the model calls the tier saves, the band's calls over the model tier's on the same pairs, descriptive; the recall the tier gives up, model tier minus tier paired by labelled item, with the paired BCa bootstrap interval. The utility part: the paired BCa bootstrap of C6 with the tier minus C5, unadjusted.
+- **Seeds:** the scorer draws nothing and is cached on the model's hash, the runtime's version and the pair's hash; the band's model calls take seeds 1, 2 and 3, as H3's model tier does.
+- **Stopping rule:** fixed sample: the full fault set, three seeds, once; the utility part all 500 questions, three seeds, once, under its ceiling.
+- **Cost:** the scorer makes no hosted call. The band's model calls are a subset of the pairs H3's model-lint run sends, so they are bounded by its 95,217 calls (lead-decisions item 47); the arm reports the exact count. The model-lint configs take no spend ceiling yet (Models section, backlog), so this part waits for that field. The utility part is 1,500 answer sessions and 1,500 judge calls plus its band calls, bounded near H2's C5 baseline ceiling of 205.76 dollars plus the lint calls.
+- **Holm:** adds nothing.
+
+#### P4. The near-duplicate tier of the duplicate lint, for H3 (card L5)
+
+- **Serves:** H3's deterministic claim (precision on natural memory, lead-decisions item 45), as a secondary tier, outside Holm.
+- **Design:** the duplicate lint with the near-duplicate threshold set (`near-duplicate` in `LINT_THRESHOLD_KEYS`, `packages/core/src/lint.ts`): word-shingle MinHash with a fixed seed for candidates, then a precision tier with an IDF-weighted cosine and vetoes on differing rare terms, numbers and polarity (ADR 0018). The threshold is fixed in the config from the fault catalogue (`fixtures/faults/`) before LongMemEval's memory is linted. Three measures: (a) on the fault catalogue, agreement of the MinHash estimate with datasketch as an oracle, a check of the implementation, not a recall; (b) on LongMemEval's own memory as card L2's base holds it (246,750 turns of the S split), the near-duplicate findings beyond the 967 exact-duplicate ones (`research/results/h3-fault-set.json`), and their precision from an audit sample of 50 findings drawn by the config's seed and judged by members of the team, as card L2's audit is; (c) optional, C6 with the deterministic tier and the near-duplicate threshold set, minus C5, on LongMemEval.
+- **Metric and statistic:** (a) the agreement rate with a Wilson interval; (b) the count, and precision with a Wilson interval; (c) the paired BCa bootstrap interval, unadjusted. Recall on natural memory has no labels and is not reported.
+- **Seeds:** (a) and (b) call no model: the MinHash seed and the audit draw's seed are in the config, and each runs once. (c) takes seeds 1, 2 and 3.
+- **Stopping rule:** fixed sample: the whole catalogue, the whole base, one audit sample of 50, and for (c) all 500 questions, three seeds.
+- **Cost:** zero model calls for (a) and (b). (c) is 1,500 answer sessions and 1,500 judge calls, bounded near H2's C5 baseline ceiling of 205.76 dollars. With the threshold unset, every committed result stays byte-identical (card L5's acceptance).
+- **Holm:** adds nothing.
+
+#### P5. The paired fault-injection arm, for H3
+
+- **Serves:** H3, as a secondary and descriptive result, outside Holm: it states the plane's recovery from corrupted governance state as a paired number.
+- **Design:** after Governance-State Corruption (`docs/readings/litreview/2610.30698-governance-state-corruption.md`), matched clean, corrupted and enforced states, model-free. The bases are LongMemEval's 500 questions of the cleaned S split, each one's memory written through the plane at preset medium as card B5 writes it, read at B5's read time. Three fault operators from the paper: deletion (an active item removed, or retired without a governed event), temporal supersession (a superseded version made current again) and missing metadata (an item's provenance ref or validity window removed). Each is applied at one of two places: the projection and store, with the log intact; or the log itself, an event edited. One fault per base, operator and place, drawn by the config's seed: 3,000 pairs. Clean is B5's read; corrupted is the same read over the corrupted state; enforced is the plane's own recovery: for a projection fault, the projection rebuilt by replay from the log; for a log fault, the deterministic lints the preset lists, then the read; and, once card E1.6 has merged, whether `engram log verify` detects the edit, as a further column. A projection fault is recovered by replay by construction, so its recovery rate is a regression check of the replay property, not evidence for H3; the log faults carry the arm's information.
+- **Metric and statistic:** the change rate, the share of pairs whose admitted read (its item ids and order at the read limit of 20) differs between clean and corrupted, and the recovery rate, the share of changed pairs whose enforced read equals the clean one, each per operator and place with a Wilson interval.
+- **Seeds:** no model is called; the fault draw uses the config's seed; the run is once.
+- **Stopping rule:** fixed sample: every base, operator and place, once.
+- **Cost:** zero model calls. Accuracy downstream of a corrupted state is not proposed; it would be 1,500 answer sessions and 1,500 judge calls per state, and an entry of its own.
+- **Holm:** adds nothing.
+
+#### P6. The erasure-residue check
+
+- **Serves:** no hypothesis; descriptive, outside Holm. It checks Twin's offboarding claim (ADRs 0010 and 0021) on the plane's own fixtures. The research report that proposed it called it H6 (`docs/research/absorb/09-twin-privacy.md`, AB-TWN-5); a sixth hypothesis would change the Holm family, so it is proposed as a check.
+- **Design:** after AfterDeleteBench's matched control and the Forgetting Residue Score (`docs/readings/litreview/2610.31366-afterdeletebench.md`, `2606.10062-deployment-time-memorization.md`), neither with released code. A fixture workspace of 20 person scopes, each holding 10 canary facts, synthetic strings from the config's seed (rule 12): 200 exposed canaries, and 200 never-exposed canaries from the same generator that are never written. The derived tiers per person: a summary item in the person scope written by a scripted model from committed cassettes, quoting some canaries; an item promoted to a team scope; an item in another scope that shares a store ref; the lint events that name an item; and, once card D2 has merged, a candidate procedure distilled from the person's sessions. Each person is then offboarded. Each canary, and its content hash, is searched for in each tier: the projection, the explanation rows, every event body in the log (content, reason, provenance ref, evidence hash), the store's records (files, Mem0 and Letta, including the MemFS repository's git history), the derived items, and the bytes of the log's database file (SQLite, including free pages and the write-ahead log; embedded Postgres). The never-exposed canaries are searched the same way. A promoted item is reported as retained by decision (lead-decisions item 38, option a: promotions made before the offboarding stay as the scope's knowledge), never as residue. The check runs on today's erasure by redaction, and again after any later change to erasure.
+- **Metric and statistic:** the residue rate per tier, the share of exposed canaries found, with a Wilson interval; the never-exposed canaries' found rate in each tier, with a Wilson interval, as its false-positive floor.
+- **Seeds:** no live call; the canary generator and the scripted summaries draw from the config's seed; the run is once per backend and store.
+- **Stopping rule:** fixed sample: every canary, every tier, every backend and store, once.
+- **Cost:** zero new model calls.
+- **Holm:** adds nothing.
+- **Limit:** the search is verbatim and by hash. Recovery of an erased fact by a model composing fragments, AfterDeleteBench's attack, is not measured; it would need a live arm.
+
+#### P7. The trust-floor preset as an arm (card E2.11)
+
+- **Serves:** descriptive, outside Holm: what card E2.11's preset changes, and a check that it leaves the registered measurements as they are wherever it should.
+- **Design:** four parts, all model-free. The arm compares preset medium with medium plus the two options `trust.unattested_floor` and `trust.protect_trusted` on (ADR 0040), so that only the floors vary; card E2.11's new preset is that one, or, if it differs from medium in anything else, the arm uses medium with the two options on and says so. (a) Decision identity: the events of a recorded run are replayed under the trust preset and every write and read decision, and every read's result, is compared with the recorded one. Under C5 a session's model requests depend on the preset only through those decisions, so identical decisions mean identical requests, which a replay from cassettes cannot show directly, since the preset's name is part of the cache key. It runs on the fixture runs first and on H1's and H2's live runs once they exist. The benchmarks' harnesses attest a source on every write (`packages/bench/src/gatemem/plane.ts`, `mem-inv-bench/plane.ts`, `longmemeval/plane.ts`), so the floor should not bite there; whether an eviction or rewrite does is what the replay finds. A difference on a registered benchmark is the trust gap ADR 0040, decision 8, sends to the lead, and is reported to him, not folded into this arm. (b) Card E2.7's lattice: seven writer kinds by seven victim kinds, for rewrite, retire and eviction, and a write with no source, each cell's outcome under medium and under the trust preset. (c) Card X14's rows for the trust preset (P1). (d) `engram simulate` on a recorded workload with medium as the baseline and the trust preset as the candidate: decisions changed, the utility proxy and evictions.
+- **Metric and statistic:** (a) the count and share of sessions with any differing decision, with a Wilson interval over sessions, per benchmark and condition; (b) a table of outcomes, no statistic; (c) as P1; (d) the simulator's report.
+- **Seeds:** no model is called; each part runs once.
+- **Stopping rule:** fixed: every session of each run named, every cell, once.
+- **Cost:** zero model calls.
+- **Holm:** adds nothing.
+
+### Not scheduled
+
+Candidates beyond the thirty cards, written down so that a later registration has a text to start from. None has a card in the absorb plan; each would need one.
+
+#### U1. The read-side marking and taint arms (not scheduled)
+
+- **Serves:** descriptive, outside Holm, both arms.
+- **Design:** arm M, C5 with tier-aware datamarking in the shared memory tag (Spotlighting, `docs/readings/litreview/2403.14720-spotlighting.md`) against C5 as built, on MEM-INV-Bench's 38 cases on M1: under medium C5's read on this arm is C2's plus the plane's tag (H1's Analysis), so this is where presentation is isolated, and the prior from What to Admit and How to Present (`2610.11188-admit-and-present.md`) is that presentation moves little. Arm T, C5 with session taint (a write made after a read of less trusted content is stamped with the least trusted kind read, through `leastTrusted`) and a capability rule (CaMeL and FIDES, `2503.18813-camel.md`, `2505.23643-fides.md`, ideas only) against C5, on the same cases for the violation rate and on GateMem's 728 utility checkpoints for its cost. Both need cards that do not exist yet: trust labels, the tag marking, a `taint_rules` schema pull request and the taint in the write path (`docs/research/absorb/18b-read-side-ifc.md`).
+- **Metric and statistic:** HIT over HIT and REFUSED as H1 scores it, and GateMem U as H1's MGS defines it, each with a Wilson interval; C5 minus C5 with the arm, paired, with the paired BCa bootstrap interval.
+- **Seeds:** 1, 2 and 3; each arm its own preset name.
+- **Stopping rule:** fixed: every case and every utility checkpoint, three seeds, once.
+- **Cost:** arm M, 114 sessions (bounded near 1.16 dollars at H1's MEM-INV-Bench ceiling). Arm T, 114 sessions and 2,184 GateMem utility sessions with 2,184 to 6,552 judge calls, about 8 percent of H1's GateMem sessions and so near 128 dollars at its ceiling.
+- **Holm:** adds nothing.
+
+#### U2. The dense retrieval condition (not scheduled)
+
+- **Serves:** H2, descriptive, outside Holm.
+- **Design:** the shared retrieval of C2 to C5 is registered as one lexical pipeline, so a dense arm changes it for every condition it runs: it is a pair, C2 and C5 with an explainable hybrid of the lexical score and a dense component in core, never C5 alone, which would confound retrieval with governance. LongMemEval's 500 questions on M1. It needs an ADR amending ADR 0009, a policy option by its own schema pull request and an embedder dependency (`docs/research/absorb/03-retrieval.md`, AB-RET-2 and AB-RET-6). The evidence that lexical retrieval is already near saturation on LongMemEval-S is why the absorb plan leaves it out (section 7).
+- **Metric and statistic:** LongMemEval accuracy; hybrid minus lexical within each condition, and the change in C2 minus C5, with the paired BCa bootstrap interval.
+- **Seeds:** 1, 2 and 3.
+- **Stopping rule:** fixed: 500 questions, two conditions, three seeds, once.
+- **Cost:** 3,000 answer sessions and 3,000 judge calls, bounded near H2's two LongMemEval ceilings, 203.44 and 205.76 dollars.
+- **Holm:** adds nothing.
+
+#### U3. The framework seam (not scheduled)
+
+- **Serves:** descriptive, outside Holm; no hypothesis.
+- **Design:** a coverage table, not a condition. A framework adapter (the Vercel AI SDK middleware of card E8.14, then LangGraph and Mastra) reads through the same plane, so in a benchmark session it equals C5, as C7 does (lead-decisions item 25); what can differ is which behaviours its seam can govern. One scripted suite of twelve behaviours (an allowed write, a denied write, a supersession, a cross-person read denied, a grant read allowed, an expired item hidden, an offboarded person hidden, an explanation by read id, and the rest) runs through each adapter (`docs/research/absorb/12-frameworks.md`, AB-FWK-7).
+- **Metric and statistic:** pass or fail per behaviour and adapter; no statistic.
+- **Seeds:** none; no model is called.
+- **Stopping rule:** every behaviour on every shipped adapter, once.
+- **Cost:** zero model calls.
+- **Holm:** adds nothing.
+
+#### U4. Ingestion poisoning (not scheduled)
+
+- **Serves:** H1's poisoning arm, descriptive, outside Holm.
+- **Design:** a fixture set of hostile documents (zero-width text, white-on-white text, off-page text, metadata and alt text) ingested through the governed ingest pipeline, with its sanitiser off and on, and the gate's decision recorded (`docs/research/absorb/11-ingestion.md`, AB-ING-5). It extends P1's write route to ingestion. The ingestion track is parked until after Gate D (absorb plan, section 7).
+- **Metric and statistic:** the share of hostile spans that reach an admitted item, per technique, sanitiser off and on, with a Wilson interval, and the benign documents' false-hold rate.
+- **Seeds:** the fixture generator's seed from the config; no model is called.
+- **Stopping rule:** the whole fixture set, once per setting.
+- **Cost:** zero model calls.
+- **Holm:** adds nothing.
+
+#### U5. A forgetting evaluation, lethe's ForgetEval (not scheduled)
+
+- **Serves:** descriptive, outside Holm; no hypothesis.
+- **Design:** ForgetEval of lethe (MIT) at commit `b6053b7bdacc`, read on 2026-11-21: five families (supersession, decay, amnesia, purge, drift) generated from templates, five times n per family (250 cases at its standard size), and an adversarial set whose size the repository states two ways (385 in its README, 112 in `docs/forgeteval_adversarial.md`), so the card counts it at the pin; its model-drafted cases are fixed data, and no model is called to use them. Each case's mutations go through the plane by item id (supersede, retire, offboard, a validity window) and its probe through `Plane.read`; scoring is ForgetEval's substring rule (pass, fail or not applicable) plus a residue column for erased content. Two null systems give the floors, one that forgets everything and one that forgets nothing, and the discriminating subset is the cases on which they differ (`docs/research/absorb/19-github-scout.md`, GH-56).
+- **Metric and statistic:** the pass rate per family, on all cases and on the discriminating subset, for the plane and for both null systems, with Wilson intervals.
+- **Seeds:** the generator's seed from the config; no model is called.
+- **Stopping rule:** every generated and adversarial case at the pin, once.
+- **Cost:** zero model calls.
+- **Holm:** adds nothing.
+
+### Benchmark intake note
+
+Benchmarks considered on 2026-11-21 for any later amendment. Each licence was read at its source that day (the repository's licence file or the dataset card's licence field) and is recorded with the revision read. Data is admissible when its licence is permissive or CC-BY-4.0 (`docs/conventions/absorption.md`); a non-commercial or no-derivatives term, inherited or direct, excludes it. Costs are sessions per condition over three seeds; a dollar figure needs the benchmark's context lengths and judge read at the pin, which the card that pins it does. Under lead-decisions item 9 the registered hypotheses' designs are fixed before H1's data exist, so a benchmark taken in after 1 December enters a descriptive arm of its own, never a registered hypothesis's primary set. A benchmark that calls a model reports each model slot apart (MemDelta).
+
+| benchmark | source and revision | data licence, as read | size | admissible | cost per condition |
+|---|---|---|---|---|---|
+| LongMemEval-V2 (arXiv 2605.12493) | `github.com/xiaowu0162/LongMemEval-V2` at `2cc8c540bdb8`; HF `xiaowu0162/longmemeval-v2` at `f152293e2355` | Apache-2.0, data (dataset card) and code (licence file) | 451 questions over 1,870 task trajectories from WebArena-style and ServiceNow-style environments | yes; the environments' own terms are not stated, and the card checks them | 1,353 sessions, plus its judge if it has one |
+| Memora (arXiv 2604.20006) | `github.com/geniesinc/Memora` at `a6493188efc8` | Apache-2.0 for the repository, data included | 600 questions over 10 personas | yes | 1,800 sessions |
+| AgentMemBench (arXiv 2608.00009) | no code or data release found | none | 491 scored turns from 110 conversations (paper) | no: unreleased, and built on LoCoMo (CC-BY-NC-4.0) and MSC (GPL-3.0 on its mirror) | none |
+| StreamMemBench (arXiv 2606.14571) | `github.com/landian60/StreamMemBench` at `b32965525da5` | MIT on the repository; its dataset card states no data licence | 2,854 evidence-task items | not until resolved: derived from EgoLife, whose repository licence (S-Lab License 1.0) allows redistribution for non-commercial purposes only | not counted |
+| DolphinBench (arXiv 2609.24971) | `github.com/mem0ai/dolphinbench` at `81cb6f8405b4` | Apache-2.0 for the repository, dataset included | 600 tests over 3 simulated users of about 500,000 tokens each | yes; authored by Mem0's maker, whose store is one Engram wraps, which a result would state | 1,800 sessions, each over a long history |
+| MemDerive (arXiv 2610.25373) | anonymous mirrors only (`anonymous.4open.science/r/DeriveMem-67C6`, `/r/DerivEval-6799`), no commit | CC-BY-4.0 on the data; its evaluator adapts a judge prompt under CC-BY-NC-4.0 | 1,503 queries over 10 worlds | the data yes, the evaluator's judge prompt no; not pinnable until a commit exists (rule 8) | 4,509 sessions |
+| EvalMem (arXiv 2609.22231) | `github.com/ZeyuuLiu/EvalMem` at `f8bda3528b3f` | MIT on the code; its DynaMem-Bench data is regenerated by a builder, not committed | 962 validated asks | yes, pinned as the builder's commit and seed | 2,886 sessions |
+| STALE (arXiv 2605.06527) | `github.com/icedreamc/STALE` at `ea7d391103a1`; HF `STALEproj/STALE` at `617c51dc200b` | CC-BY-4.0 on the data, MIT on the code; distractors from LongMemEval (MIT, its licence shipped) | 400 instances, 1,200 queries | yes | 3,600 sessions |
+| PersonaMem (arXiv 2504.14225) | `github.com/bowen-upenn/PersonaMem` at `d07e6ade22e8`; HF `bowen-upenn/PersonaMem-v1` at `a8076d5608c9` | MIT, data and code | 589, 2,727 and 2,674 questions in its 32k, 128k and 1M splits | not until checked: its personas are generated from PersonaHub (CC-BY-NC-SA-4.0), and how much of it the release carries was not checked | not counted |
+| AfterDeleteBench (arXiv 2610.31366) | no release (the paper defers its code to acceptance) | none | 200 profiles per split (paper) | no; its design is used in P6 as an idea | none |
+| HaluMem (arXiv 2511.03506) | `packages/bench/PINS.md`, candidates | CC-BY-NC-ND-4.0 on code and data, confirmed on 2026-11-21 | | no, and not proposed again (the lead's decision of 2026-11-19) | none |
+
+The data the scheduled arms would take, read the same day: OWASP Agent Memory Guard's AMSB scenarios, Apache-2.0 at `b052787cc342` (the repository was pushed to that day and is still changing, so the pin matters); lethe's ForgetEval, MIT at `b6053b7bdacc`; `deepset/prompt-injections`, whose card states `apache-2.0` at its top level and `cc-by-4.0` inside `dataset_info`, both admissible; Lakera's `gandalf_ignore_instructions` (1,000 rows), `mosscap_prompt_injection` (278,945 rows) and `gandalf_summarization` (140 rows), each MIT; MemForm's code and accepted items (994 multiple-choice, 897 free-form), MIT at `26c1b869c694`, with its construction pipeline withheld; AgentDojo, MIT at `089ed468cf3e`. No row moves into `packages/bench/PINS.md` from this note: each pin is its own pull request (rule 8).
+
+### Earlier entries
+
 - HaluMem (roadmap card B8) for H3's per-operation error rate: not pinned, so not part of v1. Checked on 2026-11-19: CC-BY-NC-ND-4.0 on its code and its data (`packages/bench/PINS.md`, candidates); the lead decided the same day to leave it unregistered.
 - MPBench for H1's poisoning arm beside MEM-INV-Bench, if it is released before card X3 starts (ADR 0029, decision 4): a candidate in `packages/bench/PINS.md`, not pinned.
+- The baseline matrix of memory architectures, labelled algorithm re-implementations, is `docs/research/baselines.md`; none is proposed as an arm yet.
 
 ## Versions
 
