@@ -8,6 +8,8 @@ Dates assume a start on Monday 5 October 2026 and submission in the last week of
 
 **Status: living document, subject to change.** This roadmap is the plan as of its date. Phases, cards, estimates, tooling and ordering will change if the team decides to, or finds a better approach. Known deltas since v1: the plane is built on pi (ADR 0001), so cards E0.1, E0.3, E8.1 and E8.3 are to be rewritten and cards PX1 to PX3 and RN1 to RN2 added (see docs/decisions/README.md and docs/tasks/step-0.md). Decisions that change this document are recorded as ADRs and log entries, and the current version always lives in the repository.
 
+**The absorb plan, 2026-11-21.** Thirty pull requests were added from the absorb and state-of-the-art research of that day: twenty-six new cards, and cards B7, D1, D2 and D3 rewritten. The list, with why and how for each, is `docs/tasks/absorb-plan.md`; the cards are in the section "The absorb plan" under Task cards, their weeks under "The absorb plan in the week plan", and their cost under Effort budget. The plan moves D1 to D3 and B7 earlier than the week plan below says.
+
 1.  [Planning principles](#principles)
 2.  [Phases and gates](#phases)
 3.  [Timeline at a glance](#gantt)
@@ -180,6 +182,28 @@ W26
 
 Buffer. If unused, spend on the third adapter spike or the legal appendix outline.
 
+### The absorb plan in the week plan
+
+Added on 2026-11-21 (`docs/tasks/absorb-plan.md`). These cards need no API key and are worked beside the cards above. Where a week is full, a live run and its analysis come first and an absorb card moves to the next week. Before the `prereg-v1` tag on 30 November only documents and tests merge.
+
+| Week | Dates | Research lane | Product lane |
+|---|---|---|---|
+| W8 | 23 to 29 Nov | R2 proposed arms, R3 novelty claim, E2.7 trust counterexamples, A5 conformance cases, E1.4 stateful test and crash windows | |
+| W9 | 30 Nov to 6 Dec | B10 cassette proxy, X15 plane overhead | |
+| W10 | 7 to 13 Dec | R4 crosswalk, E1.5 Quint model | |
+| W11 | 14 to 20 Dec | B7 MERIT, B11 tau2-bench, D1 session recorder, E2.8 policy schema | |
+| W12 | 21 to 27 Dec | E2.9 secret and personal-data guard, E2.10 injection screen, L5 near-duplicate lint, L6 supersession helper | |
+| W13 | 28 Dec to 3 Jan | D2 induction, D3 replay gate, E2.11 trust floors | |
+| W14 | 4 to 10 Jan | E1.6 tamper-evident log, L7 local NLI tier, X14 red-team harness | |
+| W15 | 11 to 17 Jan | | E2.13 who can read, E8.11 inspector graph, table and diff, E9.8 import and export |
+| W16 | 18 to 24 Jan | | E2.12 Cedar export |
+| W17 | 25 to 31 Jan | | E8.12 verified actors, E8.13 OpenTelemetry export |
+| W18 | 1 to 7 Feb | | E8.14 framework kit and AI SDK middleware |
+
+Moved by the plan: B7 from W13 to W11, D1 from W17 to W11, D2 and D3 from W18 to W13. They need no key, and tau2-bench (B11) gives the replay gate its oracle before H5's runs. X11 (H5's runs) stays in W19.
+
+Friday demonstrations the plan adds: W8, the counterexample tests' findings and a shrunk failing sequence from the stateful test; W9, a Python harness replayed through the proxy with zero new calls; W12, a write holding a secret denied with a reason that does not hold it; W13, the first admitted skill, five weeks earlier than planned; W14, `engram log verify` catching an edited row after an offboarding; W15, the provenance graph in the inspector.
+
 ## Task cards
 
 Cards are grouped by epic. The dependency column is satisfied by earlier cards. Acceptance is a command the card creates; it must pass locally and in CI before the PR merges. Paste a card into a coding-agent session with the template at the end of this section.
@@ -240,7 +264,7 @@ Cards are grouped by epic. The dependency column is satisfied by earlier cards. 
 | B4   | MPBench through the plane: write phase and retrieval phase cross the gate                  | B2, E2.3       | bench/mpbench/plane.py | one attack runs under enforced condition            |
 | B5   | LongMemEval harness through the plane; category breakdown                                  | E2.2           | bench/longmemeval/     | ungoverned baseline on the primary model            |
 | B6   | LongMemEval enforced baseline (preset medium)                                              | B5, E2.3       | bench/longmemeval/     | results/lme_baseline.csv                            |
-| B7   | MERIT harness through the plane with cost accounting                                       | E2.2           | bench/merit/           | one task runs; cost recorded                        |
+| B7   | MERIT harness through the plane with cost accounting (rewritten 2026-11-21: through the cassette proxy) | E2.2, B10 | bench/merit/           | one task runs; cost recorded                        |
 | B8   | HaluMem harness: per-operation error rate                                                  | E2.3           | bench/halumem/         | baseline table                                      |
 | B9   | MemoryAgentBench forgetting split under retention presets                                  | E2.4           | bench/mab/             | results/forgetting.csv                              |
 
@@ -269,7 +293,7 @@ Cards are grouped by epic. The dependency column is satisfied by earlier cards. 
 |------|--------------------------------------------------------------------------------------------------------------------------------------------------------|----------|------------------------|-------------------------------------------------------------------|
 | D1   | Session recorder for tau2 tasks and a repository task set; sessions stored as episodic items                                                           | E2.3     | procedures/record.py   | fifty sessions recorded with task ids                             |
 | D2   | Induction using a published method (Agent Workflow Memory or Trace2Skill, cited); candidates as procedural items with SKILL.md body and tool allowlist | D1       | procedures/induce.py   | candidates produced for a fixture session set                     |
-| D3   | Replay validation gate: re-run originating tasks with the candidate installed; admit at or above threshold via promote                                 | D2, E2.5 | procedures/validate.py | a failing candidate stays candidate; a passing one becomes active |
+| D3   | Replay validation gate: re-run originating tasks with the candidate installed; admit at or above threshold via promote                                 | D2, E2.5, B11 | procedures/validate.py | a failing candidate stays candidate; a passing one becomes active |
 | D4   | Drift detection: periodic re-validation; retire below threshold (kill list item 1)                                                                     | D3       | procedures/drift.py    | fixture with a changed task retires the skill                     |
 
 ### E8. Surfaces
@@ -299,6 +323,39 @@ Cards are grouped by epic. The dependency column is satisfied by earlier cards. 
 | E9.6 | Procedures screens: candidate queue with validation scores                                                       | D3, E8.8   | ui/                     | admit from the UI writes a promote event                                    |
 | E9.7 | Offboarding: hand role scope to a successor, delete person scope, emit a deletion report (kill list item 2)      | E9.2, E1.3 | core/plane/offboard.py  | fixture: successor reads role items; person items gone from store and index |
 
+### The absorb plan, 2026-11-21
+
+Twenty-six cards added by `docs/tasks/absorb-plan.md`, which also rewrote cards B7, D1, D2 and D3 above. Each card file holds the full steps, the sources it absorbs with their licences (ADR 0037), and its decision if it waits on one. The Files column names each card's main path in the TypeScript layout (the tables above keep roadmap v1's shorthand); the card files give the full list.
+
+| Card  | Goal                                                                                                                                                   | Depends         | Files                                              | Acceptance                                |
+|-------|--------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------|----------------------------------------------------|-------------------------------------------|
+| R2    | Pre-registration: every arm the absorb plan would run, written as a proposal; nothing registered                                                       | answers card    | docs/research/preregistration.md                   | `make lint-docs`; `test_prereg.py`        |
+| R3    | The novelty claim restated against HEAMS and SAFE-Mem                                                                                                  | none            | docs/research/positioning.md, README.md            | `make lint-docs`                          |
+| R4    | Claims to tests to obligations: a crosswalk file and the script that checks every named test exists                                                    | none            | research/scripts/crosswalk.py, docs/compliance/    | `make test-repro` row                     |
+| E1.4  | A stateful model-based test of the Plane (fast-check commands) and crash-window tests with a test-side failpoint                                       | none            | packages/core/test/property/stateful.test.ts       | `make test-invariants`                    |
+| E1.5  | A Quint model of the commit and erasure protocol, with a broken variant the checker must refute                                                        | none            | specs/commit.qnt                                   | `make verify-spec`                        |
+| E1.6  | Tamper-evident event log that keeps erasure possible: side-table chain, signed checkpoints, `engram log verify`                                        | ADR 0038        | packages/core/src/log/chain.ts                     | chain invariant on SQLite and Postgres    |
+| A5    | Conformance cases for validity, history and graph claims; a revocation grid per store; ADR 0013 amended for Mem0 version 3                             | A4              | packages/adapters/test/conformance/                | `make test`                               |
+| E2.7  | Counterexample tests for the two suspected trust gaps, as known-failing tests                                                                          | none            | packages/core/test/counterexamples/                | the test file runs; `make test` green     |
+| E2.8  | Schema-only: the policy's content guards and trust options, all off by default                                                                         | ADRs 0039, 0040 | packages/core/src/schema.ts                        | `make api-check`                          |
+| E2.9  | Secret and personal-data guard at the write gate: deny or hold, the reason never holds the value                                                       | E2.8            | packages/core/src/policy/secrets.ts                | unit tests; false-positive result         |
+| E2.10 | Deterministic injection screen for content a person did not type; reported as a floor with both error rates                                            | E2.8            | packages/core/src/policy/injection-screen.ts       | a test per rule; corpus result            |
+| E2.11 | Trust floors: unattested writes land at the least trusted kind; a less trusted source never changes or evicts a more trusted item; opt-in; invariant 8 | E2.7, E2.8      | packages/core/src/plane/write.ts, policy/          | `make test-invariants`                    |
+| E2.12 | Policy exported to Cedar, with a differential property test against the evaluator                                                                      | ADR 0041        | packages/core/src/policy/cedar.ts                  | the property test                         |
+| E2.13 | Who can read this memory: a symbolic reader set with reasons, in core, the CLI and the inspector                                                       | E9.4            | packages/core/src/plane/who-can-read.ts            | equals brute-force enumeration            |
+| L5    | Near-duplicate lint: MinHash candidates and an IDF-veto precision tier; byte-identical when unset                                                      | L1, L4          | packages/core/src/lint/det.ts                      | `make test`; hashes unchanged             |
+| L6    | Supersession helper: proposes end dates and review flags; a cycle-safe head resolver; never retires by itself                                          | none            | packages/core/src/supersede.ts                     | property test                             |
+| L7    | Local NLI tier for the contradiction lint: injected scorer, cached scores, only the uncertain band reaches the model                                   | R2, L3          | packages/core/src/lint/, packages/model/src/nli.ts | replayed run, zero new scores             |
+| B10   | Cassette proxy in @engram/model: outside harnesses reach models only through the cached, seeded call (ADR 0036)                                        | none            | packages/model/src/proxy.ts                        | a miss is an error; second run zero calls |
+| B11   | tau2-bench through the plane and the proxy, as an external process at its pin                                                                          | B10             | packages/bench/src/tau2/                           | slice replayed with zero new calls        |
+| X14   | Red-team harness: AMSB scenarios and pinned payload sets against write and read, with benign controls                                                  | R2, E2.9, E2.10 | packages/bench/src/redteam/                        | `make redteam` offline                    |
+| X15   | Plane overhead: latency percentiles and query counts against bare SQLite, as a result and a budget                                                     | none            | packages/core/bench/                               | `make test-repro` row                     |
+| E8.11 | Inspector: provenance graph, virtualised event table, version diff, with a leak test                                                                   | E8.5            | packages/ui/src/                                   | `make test-e2e`                           |
+| E8.12 | Verified actors: bearer tokens and hashed API keys on the HTTP surfaces; ADR first                                                                     | none            | packages/server/src/, packages/mcp/src/            | every event's actor authenticated         |
+| E8.13 | Decisions exported as OpenTelemetry spans, off by default, never carrying content                                                                      | none            | packages/core/src/export/otel.ts                   | content-free mapping test                 |
+| E8.14 | Framework kit (by-id read, scope list) and a Vercel AI SDK middleware                                                                                  | none            | packages/kit/, packages/ai-sdk/                    | `make api-check`; adapter conformance     |
+| E9.8  | Memory import and export: a portable bundle; imports are governed candidate writes                                                                     | none            | packages/cli/src/import/                           | round-trip test                           |
+
 ### Card prompt template
 
     You are implementing task card {ID} in the Engram repository. Read AGENTS.md first.
@@ -322,6 +379,11 @@ The critical path to the first result is `E0.2 → E0.3 → E1.1 → E1.2 → A1
 | L3 model-based lints                   | L4, X10                             | 2 weeks | Deterministic lints alone for H3; model-based reported as pilot                      |
 | D2 induction                           | D3, X11, H5                         | 1 week  | Use the simplest published method; H5 on tau2 only                                   |
 | Hosted model access                    | X7, X8                              | none    | Report frontier on local plus one hosted; state as limitation                        |
+| B10 cassette proxy                     | B7, B11, D3, X7 (MERIT), X11        | 2 weeks | Nothing to absorb, so it is built first; MERIT and tau2 are run offline only until it lands |
+| B11 tau2 spike                         | D3's oracle, X11, H5                | 2 weeks | If tau2 cannot be routed through the proxy unmodified, H5 runs on the repository task set and the limit is stated |
+| Lead's items 50 and 51 (ADRs 0039, 0040) | E2.8, then E2.9, E2.10, E2.11, X14 | 3 weeks | The schema PR waits on the answer; the guards are built behind it on a branch         |
+| Lead's item 49 (ADR 0038)              | E1.6                                | 5 weeks | The chain is designed in the ADR; nothing is built before it is accepted              |
+| The arms' registration (R2)            | L7, X14 results entering the thesis | none    | The engineering lands and runs offline; the numbers stay out of the thesis until registered |
 
 ## Effort budget
 
@@ -343,6 +405,17 @@ Four members at about 16 hours per week for 26 weeks, roughly 52 full-time-equiv
 | **Total**                |               | **46.0**  |                      |
 
 Gap of about two FTE-weeks against 44 plannable. Kill list items 1 and 2 (D4 and E9.7) are worth about 1.5 together; item 3 (B9) is 0.5. The base case closes the gap without touching anything the thesis needs.
+
+**The absorb plan's cost (2026-11-21).** At this budget's rates (a small card 0.25, a medium 0.5, a large 1.0 FTE-week) the thirty pull requests come to 16.5 FTE-weeks: 12.5 on the research lane (cards 1 to 23 of `docs/tasks/absorb-plan.md`) and 4.0 on the product lane (cards 24 to 30). Cards B7 and D1 to D3 are already in the table above (about 3.0), so the net addition is about 13.5.
+
+| Absorb plan stage | Cards | FTE-weeks |
+|---|---|---|
+| Before the tag (W8) | R2, R3, E2.7, A5, E1.4 | 1.5 |
+| Research spine (W9 to W14) | B10, X15, R4, E1.5, B7, B11, D1, E2.8, E2.9, E2.10, L5, L6, D2, D3, E2.11, E1.6, L7, X14 | 11.0 |
+| Product lane (W15 to W18) | E2.13, E8.11, E9.8, E2.12, E8.12, E8.13, E8.14 | 4.0 |
+| **Total** | 30 | **16.5** |
+
+The table above has no room for that at its original rates. The plan rests on the pace observed so far, not on the estimate: by 21 November, the end of W7, the engineering of cards the week plan places in W11 to W15 is merged (E2.4, E8.9, L2, L3, L4, E9.4), with E9.7 from the kill list. That pace is not measured in FTE-weeks anywhere, so it is an observation and not a rate. Re-estimate at Gate C from the absorb cards merged by then; if fewer than seven of the nine cards placed before Gate C are merged, the product lane is cut first, in the order the kill list gives.
 
 ## Compute and data budget
 
@@ -424,7 +497,9 @@ Gap of about two FTE-weeks against 44 plannable. Kill list items 1 and 2 (D4 and
 4.  E8.10 diff view and inspector polish
 5.  D4 procedural drift detection (keep admission by replay). Last, because Distill is a core sell.
 
-**Never cut:** E0, E1, A1, A3, A4, E2.1 to E2.3, E2.5, L1, L2, L4, B1 to B6, D1 to D3, R1, X1 to X6, X9, X10, X11, X13.
+**Never cut:** E0, E1, A1, A3, A4, E2.1 to E2.3, E2.5, L1, L2, L4, B1 to B6, D1 to D3, R1, X1 to X6, X9, X10, X11, X13. From the absorb plan: R2, R3, E2.7, A5, E1.4, B10 and B11 (H5 cannot run without the last two).
+
+**The absorb plan's cut order** (2026-11-21), applied before the list above is touched, last card first: E8.14, E8.13, E8.12, E2.12, E9.8, E8.11, E2.13 (the product lane), then L7, E1.5, X15, R4, L6, L5, X14, E1.6. The content guards (E2.8 to E2.10) and the trust floors (E2.11) are cut only together with X14, since a guard that is not measured is not reported.
 
 ## Appendix: deferred items
 

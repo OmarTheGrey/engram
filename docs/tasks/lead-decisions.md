@@ -171,13 +171,46 @@ These need answering before the frontier work (X5) starts.
     - (a) Keep as is.
     - (b) Send the request.
 
+## E. The absorb plan, 2026-11-21
+
+Open as of 2026-11-21. These come from `docs/tasks/absorb-plan.md`, the thirty pull requests chosen from that day's research. None blocks the `prereg-v1` tag or H1's runs. The first card that waits on one is E2.8 in the week of 14 December. Answer as before, for example "49a 50a".
+
+49. **The tamper-evident log's design (ADR 0038, card E1.6).** A hash chain makes an edit of the log detectable, and offboarding has to edit the log to erase a person's content.
+    - (a) Accept ADR 0038: a chain in a side table over a skeleton of each event that holds no content, salted commitments for the fields an erasure removes, signed checkpoints with the key held by the operator. Erasure by key destruction stays a later decision.
+    - (b) A chain over full event bodies, with an erasure recorded as a redaction entry. Simpler, and the digest of a short erased value stays guessable.
+    - (c) No chain: state in the thesis that the log is append-only by convention.
+50. **Content guards at the write gate (ADR 0039, cards E2.8 to E2.10).** The gate does not look at content today.
+    - (a) Accept ADR 0039: deterministic detectors for secrets, personal data and injected instructions; a match denies the write or holds it as a candidate, never rewrites it; off in every registered preset.
+    - (b) Secrets and personal data only, without the injection screen.
+    - (c) Leave the gate as it is and keep content safety out of scope.
+51. **Trust floors (ADR 0040, cards E2.7, E2.8 and E2.11).** A write whose actor names no source keeps the provenance it claims, and an eviction may ignore how trusted its victim is (the second is unconfirmed until card E2.7's tests run).
+    - (a) Accept ADR 0040: prove both with tests first; then a floor for unattested writes and protection of more trusted items, both opt-in and off in the H1 to H4 presets, on in a new preset, with an eighth invariant.
+    - (b) Make both the default now, and amend the registered conditions before the tag.
+    - (c) Test and document only; change nothing.
+52. **Cedar (ADR 0041, card E2.12).** ADR 0006 deferred Cedar to after the thesis.
+    - (a) Accept ADR 0041: export the policy to Cedar and test the evaluator against Cedar's engine; the typed evaluator stays the authority and a disagreement is a finding.
+    - (b) Keep ADR 0006's deferral and drop card E2.12.
+53. **What "who can read this memory" reveals (card E2.13).**
+    - (a) It answers only for an actor who may already read the item or who owns the scope, and names grant holders to the owner only.
+    - (b) Any member of the scope sees the full reader set, grant holders included.
+54. **Verified actors (card E8.12).** Every surface takes the actor's id on trust today.
+    - (a) Tokens from an external issuer verified with jose, plus hashed API keys for the local server; an ADR fixes how a token's subject maps to an actor before any code; no identity provider is bundled.
+    - (b) Bundle an identity provider (better-auth) so sign-up and sessions work out of the box.
+    - (c) Stay on loopback with self-asserted actors until after the thesis.
+55. **The trust of imported memories (card E9.8).**
+    - (a) A dedicated import actor with provenance kind `import`; every imported row starts as a candidate; grants are dropped; a ChatGPT parser only once a real export is seen to contain memories.
+    - (b) Imported rows keep the provenance and status their bundle states when the bundle came from Engram.
+56. **The pre-registration proposals (card R2).**
+    - (a) One documents-only pull request adds every proposed arm to the section "Proposed amendments, not yet registered"; you register each arm separately, by amendment, before its run.
+    - (b) One pull request per arm, each opened only when its card is about to run.
+
 ## Decided on 2026-11-20, under the lead's delegation
 
 On 2026-11-20 the lead delegated the open decisions to the orchestrating session. It closes every item it can and brings back only the highest-priority ones it cannot. These answers are binding until the lead overturns one, and each carries its reason.
 
 Prices come from `research/results/h2-cost-table.json` (card RV8, OpenRouter's list of 2026-11-20; on branch `rv8` until that card merges). Two decisions needed new ADRs: [ADR 0035](../decisions/0035-store-independence-is-a-design-property.md) and [ADR 0036](../decisions/0036-cassettes-beyond-the-repository.md).
 
-**Put to the lead:** item 1, the three models, which the lead answered the same day (row 1 below). Nothing is open now.
+**Put to the lead:** item 1, the three models, which the lead answered the same day (row 1 below). Nothing is open now. (Items 49 to 56, added on 2026-11-21 in section E, came later and are open.)
 
 ### A. Gate C
 
