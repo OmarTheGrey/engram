@@ -73,7 +73,7 @@ BENCH_OUT ?= .engram/bench/$(BENCH)
 
 GATEMEM_DATA ?= .engram/upstream/gatemem/bench/data
 
-bench: ## run one benchmark on its fixture subset with the scripted model, offline: make bench BENCH=gatemem or BENCH=longmemeval; DRY=1 (gatemem) counts the live run's calls on the full set, and its keys with MODEL=
+bench: ## run one benchmark on its fixture subset with the scripted model, offline: make bench BENCH=gatemem, BENCH=longmemeval or BENCH=merit (MERIT's pinned harness through the cassette proxy and the plane; fetches the checkout and installs its Python 3.11 environment under .engram/ once); DRY=1 (gatemem) counts the live run's calls on the full set, and its keys with MODEL=
 ifeq ($(BENCH),gatemem)
 ifeq ($(DRY),1)
 	node packages/bench/scripts/dry-run-gatemem.ts --config fixtures/bench/gatemem/run-config.json --data "$(GATEMEM_DATA)" --fetch --out "$(BENCH_OUT)-dry" $(if $(MODEL),--model "$(MODEL)") $(if $(SEED),--seed "$(SEED)")
@@ -82,8 +82,11 @@ else
 endif
 else ifeq ($(BENCH),longmemeval)
 	ENGRAM_OFFLINE=1 node packages/runner/scripts/run.ts --config research/configs/b5-longmemeval-plane.json --out "$(BENCH_OUT)"
+else ifeq ($(BENCH),merit)
+	env -u ENGRAM_OFFLINE node packages/bench/scripts/run-merit.ts --prepare
+	ENGRAM_OFFLINE=1 node packages/bench/scripts/run-merit.ts --config research/configs/b7-merit-fixture.json --out "$(BENCH_OUT)"
 else
-	@echo "bench: BENCH=$(BENCH) has no runner; gatemem (card B1) and longmemeval (card B5) exist, the others land with cards B2 to B9"; exit 2
+	@echo "bench: BENCH=$(BENCH) has no runner; gatemem (card B1), longmemeval (card B5) and merit (card B7) exist, the others land with cards B2 to B9"; exit 2
 endif
 
 RUN_OUT ?= .engram/runs/$(basename $(notdir $(CONFIG)))
@@ -138,6 +141,7 @@ fixtures: ## regenerate golden files and scripted cassettes; refuses without MSG
 	env -u ENGRAM_OFFLINE node packages/bench/scripts/vendor-longmemeval.ts --upstream "$(LONGMEMEVAL_UPSTREAM)" --fetch --out fixtures/bench/longmemeval
 	node packages/bench/scripts/fault-set.ts --data fixtures/bench/longmemeval/questions.jsonl --config research/configs/h3-fault-set.json --out fixtures/fault-sets/longmemeval
 	node packages/runner/scripts/fault-set-script.ts --config research/configs/h3-lint-model-fixture.json --out fixtures/lint/h3-lint-model-script.json
+	env -u ENGRAM_OFFLINE node packages/bench/scripts/run-merit.ts --config research/configs/b7-merit-fixture.json --out .engram/bench/merit-record --record
 	for name in $(RUNNER_FIXTURES); do \
 	  rm -rf "fixtures/cassettes/$$name"; \
 	  env -u ENGRAM_OFFLINE node packages/runner/scripts/run.ts --config "research/configs/$$name.json" --out ".engram/runs/$$name" --record; \
