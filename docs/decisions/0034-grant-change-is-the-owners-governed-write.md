@@ -70,4 +70,3 @@ Amendment of 2026-11-21, recording answers given on 2026-11-20 under the lead's 
 - Item 35: decision 6 is amended. An owner's promotion keeps the grant, which then admits nothing across a class change; a promotion by anyone but the owner carries no grants (RV7's amendment above).
 - Item 36: a non-owner sees only the grants that name them, in core and not only in the inspector, so decision 9's follow-up is decided. Not built (backlog). Item 53 follows the same rule for "who can read this memory" (card E2.13).
 - The review cards' table, row RV7: expired grants count for the owner rule, and the owner's own agent, acting under the owner's id, may rewrite. RV7's amendment above is accepted on these answers.
-- The review cards' table, row RV4: the verifier of PR #58 counts as the invariants file's second reviewer and approved invariants 6 and 7; RV4's amendment above keeps its own status.

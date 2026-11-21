@@ -34,6 +34,8 @@ Evidence is cited as a results file with the first eight characters of its sha25
 
 **Lead:** change (2026-11-20, the lead's own answer, `docs/log/2026-11-20-lead-decision-models.md`): M1 `openrouter/deepseek/deepseek-v4-pro-0813`, M2 `openrouter/z-ai/glm-5.3-flash`, M3 `openrouter/mistralai/mistral-large-4-0`; reasoning off; the judges as registered. pi-ai 1.3.0's catalogue maps M2's reasoning off to nothing, which the Reasoning bullet above excludes; v1's Models section states the conflict for the lead (`docs/log/2026-11-21-answers-finding-m2-reasoning-off.md`).
 
+**Lead:** amend the rule (2026-11-21, the lead's own answer, `docs/tasks/lead-decisions.md`, item 57): M2 stays; a model that cannot switch reasoning off runs at its provider's default effort on a pinned endpoint, its reasoning tokens metered and its cost estimated with the reasoning allowance, and the report says so; the comparison across models is across configurations, each stated (`docs/log/2026-11-21-answers-decision-lead-m2-reasoning.md`).
+
 ## 2. The store H1 runs on
 
 **Question.** Which store do H1's two arms run on?

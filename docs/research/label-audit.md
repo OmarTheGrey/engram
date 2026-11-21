@@ -74,13 +74,13 @@ Leak targets and poisoned values do appear inside the turns and the memory, beca
    - On MEM-INV-Bench an item is rejected when at least two members' phase-1 label differs from the benchmark's family, or at least two answer `no` on its keys. Two of one kind are needed: one member's label and another's `no` reject nothing. An item rejected both ways counts once.
    - `agreement.json` gives, per benchmark, `rejected` (the rule, the references and their count), `stop_share` and `stop`.
    - `stop` is true when more than `stop_share` of the benchmark's items are rejected: 6 or more of GateMem's 50, 4 or more of MEM-INV-Bench's 38. It is false once every member's key sheets are in and the count is at or below that, and null before then, unless the rejections counted so far already exceed it.
-   - When `stop` is true, the rejected items are dropped from that benchmark's analysis, listed in v1, and its runs proceed (`docs/tasks/lead-decisions.md`, item 6, answered on 2026-11-20 under the lead's delegation; before, the runs waited for an amendment). Both configs still say `pause` until their `on_stop` is set to `drop` (below).
+   - A rejected item is excluded from its benchmark's analysis and listed in v1 whether or not `stop` is true; `stop` decides only what happens to the runs (the coordinator's decision of 2026-11-21, `docs/log/2026-11-21-answers-decision-rejected-items-excluded.md`). When `stop` is true, the runs proceed and the trip is reported (`docs/tasks/lead-decisions.md`, item 6, answered on 2026-11-20 under the lead's delegation; before, the runs waited for an amendment). Both configs still say `pause` until their `on_stop` is set to `drop` (below).
    - With a config that names two members, "at least two" is both, and the report is the two-member one: one `between_members` pair with Cohen's kappa and `both_against_benchmark`.
 
 5. **Report it.** `agreement.json` holds counts and references only, no benchmark text.
    - Write a `finding` log entry (`docs/conventions/documentation.md`) with the rates and kappas per benchmark (Fleiss' and each pair's Cohen's), the sha256 of `agreement.json`, the references rejected, and each benchmark's `stop`.
    - The pre-registration reports the members' disagreement rate per benchmark.
-   - An item rejected is a candidate label error. List it in v1; do not silently drop it.
+   - An item rejected is a candidate label error. List it in v1, and exclude it from the analysis; never drop it silently.
 
 Do not commit the sheets or the context files: they hold benchmark content, and filled sheets are a member's own reading.
 

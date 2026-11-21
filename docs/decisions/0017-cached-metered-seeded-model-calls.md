@@ -45,3 +45,7 @@ Amendment of 2026-11-21, recording answers given on 2026-11-20 under the lead's 
 - Item 13: LongMemEval's judge is the paper's model through OpenRouter's seeded chat completions, `openrouter/openai/gpt-4o-2024-08-06`; this ADR holds without an exception.
 - The review cards' table, row RV6: each model and judge is pinned to its maker's own OpenRouter endpoint where OpenRouter lists one, otherwise to the cheapest endpoint that honours `seed`, with `allow_fallbacks: false` (`openrouter_provider`). The endpoints are named in each config before its first live run; the upstream that served each call is recorded either way.
 - Items 27 and 29: ADR 0036 (cassettes deposited on Zenodo and fetched by sha256; a local cassette proxy for the outside harnesses) extends this ADR.
+
+Amendment of 2026-11-21, the answers card's review fix pass, under the lead's delegation and his answer of that day (`docs/tasks/lead-decisions.md`, item 59):
+
+- The metered cost is pi-ai 1.3.0's: each call's `cost_usd` is `calculateCost` over the model's catalogue price, which for M1 is half OpenRouter's list price. Spend ceilings are therefore set in these ledger dollars, and the pre-registration's Models section gives each model's ratio of list to catalogue price. A card that records the cost OpenRouter reports for each call would make the ledger bound real spend directly (backlog). A programme-wide cap at the API credit held pauses any run that would cross it; until the runner totals the ledger across runs, the operator does it by hand between shards.

@@ -310,3 +310,13 @@ On 2026-11-21 the lead delegated items 49 to 56 as well: close them with the bes
 | E2.8, the schema version | an additive, optional field of the never-persisted policy document does not bump schema_version (ADR 0002, D2) | The bump would move 46 committed cassette keys (C3 and C4 embed the parsed policy, `schema_version` included, in their prompts) and H3's pinned fault-set hashes, nine days before the tag (`docs/log/2026-11-21-e2-8-version-bump-moves-cassette-keys.md`) |
 
 **What stays with the lead.** Two things this delegation does not cover, because they change the pre-registration: registering any proposed arm (item 56 only writes the proposals), and what to do if card E2.7 confirms a trust gap that can move a registered H1 to H4 number. The second comes back as a finding before the `prereg-v1` tag.
+
+### The lead's own answers, 2026-11-21
+
+Three questions the answers card's review raised (findings ANS-2 and ANS-6 of its review, and the spend against the credit) went to the lead, who answered them himself the same day. They are the lead's answers, not answers under the delegation.
+
+| item | answer | reason |
+|---|---|---|
+| 57, M2's reasoning (ANS-2) | keep GLM 5.3 Flash as M2 and amend v1's Models rule: a model that cannot switch reasoning off runs at its provider's default effort on a pinned endpoint, its reasoning tokens are metered, its cost is estimated with the reasoning allowance, and the report says so; M1 and M3 run with reasoning off, so the comparison across models (H4, and H2's subsets) is across configurations, each stated | pi-ai 1.3.0 maps GLM 5.3 Flash's reasoning off to nothing (`docs/log/2026-11-21-answers-finding-m2-reasoning-off.md`), and the lead keeps his choice of three makers |
+| 58, H3's fallback (ANS-6) | if card L3's pilot shows a standard deviation across seeds above 0.05 on precision or recall for a lint, the deterministic tier becomes H3's primary test and the model tier is reported as secondary; the rule is fixed before any pilot data | item 23 made the model tier primary and item 43 set the bound, but nothing said what a pilot above the bound does to the primary test |
+| 59, the spend cap | keep each run's ceiling at 1.25 times its high estimate in ledger dollars, and add a cap over the whole programme equal to the API credit held; a run that would cross it pauses, and the lead decides whether to resume. The runner support (a ledger total across runs, checked before each session, the cap read from a config or the environment) is a card for before 1 December; until it is built, the operator checks the total by hand between shards | the per-run ceilings sum to more than the credit the lead requests (`docs/log/2026-11-21-rv8-review-finding-credit-request-reasoning-off.md`) |

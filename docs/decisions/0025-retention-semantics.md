@@ -55,7 +55,7 @@ Amendment made by the schema version 1 PR, 2026-11-06 (branch `schema-v1`), its 
 
 - Finding P4-5 is closed: utility counts the read events that returned an item, by their `item_ids` (schema version 1), not the explanation rows, so a database rebuilt from the log or a log replayed elsewhere decides a utility eviction again (`packages/core/test/unit/plane/retention.test.ts`, "utility replays from the log alone"). Migration 4 filled in the ids of every older read from its explanation rows. A utility eviction's reason says how many reads returned the victim ("N reads returned it"). Counting reads is a scan of the read events, parsing each body, once per write whose scope and class have any budget (recency or utility alike) and once per sweep; an index or a counter is left until a workload needs it.
 
-Amendment proposed by card RV5, 2026-11-20 (finding RV-SRF-1 of the repository review of the surfaces). Status: accepted on 2026-11-20 under the lead's delegation (`docs/tasks/lead-decisions.md`, item 19); the lead may overturn it; drafted by the card's agent.
+Amendment proposed by card RV5, 2026-11-20 (finding RV-SRF-1 of the repository review of the surfaces). Status: proposed, for the lead's acceptance; drafted by the card's agent.
 
 - **What runs before a read is one core function**, `syncBeforeRead(plane, { reader, now, store?, sweep?, onSweep? })` (`packages/core/src/plane/before-read.ts`), used by the HTTP server's read route (and so by `engram read` and `engram mcp`, which call it) and by the pi extension's `before_agent_start`. Before it, the read route ran `Plane.retain` as the store's owner at the request's `at` for every reader, so a reader who may not sweep the owner's scope (`POST /retain` refuses it, decision 4) retired the owner's items by naming a future time, and an honest reader with a clock running ahead retired them for good (decision 6: nothing reinstates them). Reproduced: eve's read `--at 2030-01-01` retired omar's episodic item, the retire event dated 2030 and made by `person:omar`.
 - It sweeps the store's scope as its owner only when the reader is the owner, and only at `now`, the surface's own clock; a time the caller supplies is never passed to it (ADR 0027, amendment of RV5). Any other reader's read sweeps nothing: budgets hold through the write path (decision 3), and reads exclude expired items whoever sweeps (decision 2). The scopes in `sweep` are swept as the reader itself, decided by `mayRetireByTtl` as before (finding P4-6). The store's own memories are adopted as the owner whoever reads (decision D8), through `adoptStoreItems` unchanged. The owner gets the whole report; any other reader only its own sweeps (R3-3).
@@ -82,9 +82,7 @@ Card E2.4's acceptance ("budget exceeded evicts per policy; events recorded") ha
 - `docs/readings/litreview/2609.05441-merit.md` (utility accounting)
 - `docs/readings/litreview/2304.03442-generative-agents.md` (recency and importance in retrieval)
 
-Amendment of 2026-11-21, recording answers given on 2026-11-20 under the lead's delegation (`docs/tasks/lead-decisions.md`), carried by the answers card; the lead may overturn any:
-
-- Item 19: RV5's amendment above is accepted with ADR 0005's and ADR 0027's: a read with a requested time sweeps nothing, and only the owner's read sweeps, at the surface's clock.
+Note of 2026-11-21, the answers card's review fix pass: lead-decisions item 19 accepts the access clock of ADRs 0005 and 0027 (the server and core own the time an access is judged at). It does not decide this ADR's RV5 amendment above, which sets who sweeps and when (only the owner's read, at the surface's clock), so that amendment stays proposed, for the lead.
 
 Amendment of 2026-11-21, recording answers given on 2026-11-21 under the lead's delegation (`docs/tasks/lead-decisions.md`), carried by the answers card; the lead may overturn any:
 
