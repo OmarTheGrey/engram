@@ -18,7 +18,7 @@ One line per dependency: name, version, reason, licence. Added in the same PR as
 | @earendil-works/pi-coding-agent | 1.3.0 | the harness the plane runs in (ADR 0001); pi-extension, the runner's SDK sessions (card RN1), and the pi package (card PX3; a peer dependency, the exact version for development) | MIT |
 | @earendil-works/pi-ai | 1.3.0 | model access and the faux provider behind the scripted model; pi-extension, runner and @engram/model (ADR 0033) only | MIT |
 | typebox | 1.3.27 | tool parameter schemas for pi tools, the version pi itself uses; pi-extension and the runner's ungoverned C2 and C3 tools (card RN1) | MIT |
-| zod | 4.6.7 | the schema in packages/core (ADR 0002) and its JSON Schema export; also the GateMem file loader and run config in packages/bench (card B1) and the runner config in packages/runner (card RN1) | MIT |
+| zod | 4.6.7 | the schema in packages/core (ADR 0002) and its JSON Schema export; also the GateMem file loader and run config in packages/bench (card B1), the runner config in packages/runner (card RN1) and the remember and recall tools' input schemas in packages/ai-sdk (card E8.14) | MIT |
 | ajv | 8.20.0 | dev: validates fixtures against the generated JSON Schema (draft 2020-12) | MIT |
 | ajv-formats | 3.0.1 | dev: date-time and uuid formats for ajv | MIT |
 | datamodel-code-generator | 0.86.0 | dev: generates research/engram_types from sdk/schema | MIT |
@@ -57,5 +57,6 @@ One line per dependency: name, version, reason, licence. Added in the same PR as
 | tau2 (tau2-bench) | tag v1.0.1, fc0055dc4e0a316c3f83133267fbd6faaa770992 | card B11: the benchmark harness run as an external process in its own environment under .engram (not a package of this repository; pinned in packages/bench/PINS.md) | MIT |
 | litellm | 1.81.11 (tau2's uv.lock at the tag) | card B11: tau2's model client, inside tau2's environment only; only its client-side `api_base` override is used, pointed at the cassette proxy; nothing from its `enterprise/` folder | MIT outside `enterprise/` |
 | tinybench | 6.2.3 | dev, packages/core only: times Plane.write and Plane.read in the plane-overhead suite, `packages/core/bench/plane-overhead.ts` (card X15); published 2026-11-01 | MIT |
+| @ai-sdk/provider | 4.0.36 (dev; peer `>=4.0.36 <5`) | packages/ai-sdk only (card E8.14): the Vercel AI SDK's `LanguageModelV4Middleware` and prompt types, imported as types only, so nothing of it loads at run time; a peer dependency with the development version pinned exactly, published 2026-11-05, licence read in the 4.0.36 tarball's LICENSE (Copyright 2023 Vercel, Inc.); pulls in `json-schema` 0.4.0 ((AFL-2.1 OR BSD-3-Clause), types only for Engram) | Apache-2.0 |
 
 Install size of the Mem0 adapter: mem0ai, better-sqlite3, compromise, @cloudflare/workers-types, openai 4, axios, zod 3 and uuid together take about 45 MB of `node_modules/.pnpm` (measured with `du -shc` over their folders on 2026-10-25, before their own dependencies). Only packages/adapters depends on them.

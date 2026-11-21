@@ -13,7 +13,7 @@ The HTTP API over core (card E8.1, ADR [0027](../../docs/decisions/0027-http-con
 
 | module | what it holds |
 |---|---|
-| `src/routes.ts` | `ROUTES` under `/api/v1`: `/items`, `/items/check`, `/read`, `/explain/{readId}`, `/promote`, `/grants`, `/retain`, `/events` (what `visibleEvents` lets the viewer see), `/policy`, `/lint`, `/simulate`, `/distill`, `/bypass`, `/viewer`, `/health` |
+| `src/routes.ts` | `ROUTES` under `/api/v1`: `/items`, `/items/check`, `/read`, `/read/{itemId}` (one item by its id, card E8.14), `/scopes` (the scopes the actor can see, card E8.14), `/explain/{readId}`, `/promote`, `/grants`, `/retain`, `/events` (what `visibleEvents` lets the viewer see), `/policy`, `/lint`, `/simulate`, `/distill`, `/bypass`, `/viewer`, `/health` |
 | `src/contract.ts` | the request and response schemas, built from core's |
 | `src/app.ts` | `createApp(workspace, options)`: the guards, the error mapping, and the app as a fetch function |
 | `src/openapi.ts` | `openApiDocument()`, the OpenAPI 3.1 document of the table |
