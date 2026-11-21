@@ -1,0 +1,31 @@
+{
+  "key": "a72c9ac5b88c506af2b7ad9c76240798854e4082fdb1070766ff90985c6effd7",
+  "context": {
+    "item": "d3/t2-address-pending",
+    "condition": "replay/without",
+    "preset": "none",
+    "store": "none"
+  },
+  "request": {
+    "model": "scripted/d3-agent",
+    "messages": [
+      {
+        "role": "user",
+        "content": "{\"content\":\"\",\"role\":\"system\",\"sections\":{\"cwd\":\"<cwd>\\n{cwd}\\n</cwd>\",\"preamble\":\"You are a retail support agent. Act on the user's orders only through the tools you are given, then reply to the user in one short message.\"},\"toolsAdded\":[{\"description\":\"Look up one order by its id: its status, address, items and refunds.\",\"name\":\"get_order\",\"parameters\":{\"properties\":{\"order_id\":{\"type\":\"string\"}},\"required\":[\"order_id\"],\"type\":\"object\"}},{\"description\":\"Change the shipping address of an order.\",\"name\":\"update_address\",\"parameters\":{\"properties\":{\"address\":{\"type\":\"string\"},\"order_id\":{\"type\":\"string\"}},\"required\":[\"order_id\",\"address\"],\"type\":\"object\"}},{\"description\":\"Cancel an order, with the user's reason.\",\"name\":\"cancel_order\",\"parameters\":{\"properties\":{\"order_id\":{\"type\":\"string\"},\"reason\":{\"type\":\"string\"}},\"required\":[\"order_id\",\"reason\"],\"type\":\"object\"}},{\"description\":\"Refund one item of an order by its sku.\",\"name\":\"refund_item\",\"parameters\":{\"properties\":{\"order_id\":{\"type\":\"string\"},\"sku\":{\"type\":\"string\"}},\"required\":[\"order_id\",\"sku\"],\"type\":\"object\"}}]}"
+      },
+      {
+        "role": "user",
+        "content": "{\"content\":[{\"text\":\"I moved. Change the address on order W102 to 9 Pine Rd.\",\"type\":\"text\"}],\"role\":\"user\"}"
+      }
+    ],
+    "seed": 1
+  },
+  "response": {
+    "text": "{\"content\":[{\"arguments\":{\"address\":\"9 Pine Rd\",\"order_id\":\"W102\"},\"id\":\"call_1\",\"name\":\"update_address\",\"type\":\"toolCall\"}],\"stopReason\":\"toolUse\"}",
+    "usage": {
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "cost_usd": 0
+    }
+  }
+}
