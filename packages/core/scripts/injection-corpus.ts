@@ -105,14 +105,21 @@ async function run(entries: Entry[], profile: Profile) {
       schema_version: 1,
     } as MemoryItem;
     const r = await plane.write(actor, item, AT);
+    // The policy admits every kind, so any outcome but an allow (active, or a
+    // candidate the screen held) is a broken run, never a write "not held"
+    // (review finding E2.10-9).
+    const held = r.event.policy_id === INJECTION_SCREEN_ID;
+    if (r.event.decision !== "allow" || r.item?.status !== (held ? "candidate" : "active"))
+      throw new Error(
+        `${e.id} under ${profile}: ${r.event.decision} ${r.item?.status ?? "no item"} by ${r.event.policy_id}; expected an allow`,
+      );
     rows.push({
       id: e.id,
       profile,
       decision: r.event.decision,
       status: r.item?.status ?? null,
-      held: r.event.policy_id === INJECTION_SCREEN_ID,
-      failed_closed:
-        r.event.policy_id === INJECTION_SCREEN_ID && r.event.reason.includes("fails closed"),
+      held,
+      failed_closed: held && r.event.reason.includes("fails closed"),
     });
   }
   db.close();

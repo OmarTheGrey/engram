@@ -7,15 +7,62 @@ Portions of this product are copied from other open-source projects. Each is
 listed below with the notice its licence requires. The full register, with
 commits and locations, is docs/absorbed.md (ADR 0037).
 
+------------------------------------------------------------------------
+Remnic
+
 packages/core/src/policy/injection-screen.ts copies parts of Remnic
 (https://github.com/joshuaswarren/remnic, commit ce22909cc219e36d0e31b1158a4ab74f175008a0,
-packages/remnic-core/src/security/injection-screen.ts):
-  Copyright (c) 2025 Joshua Warren
-  Licensed under the MIT License.
+packages/remnic-core/src/security/injection-screen.ts), under the MIT License:
 
-fixtures/injection-screen/corpus.json copies the AMSB scenario payloads of
-OWASP Agent Memory Guard (https://github.com/OWASP/www-project-agent-memory-guard,
-commit b052787cc3426ff5f5f7e8e0eecb514052a168ba,
-src/agent_memory_guard/bench/scenarios.py), by Vaishnavi Gudur, Anshul
-Rajkumar and the project's contributors.
-  Licensed under the Apache License, Version 2.0. The project ships no NOTICE file.
+  MIT License
+
+  Copyright (c) 2025 Joshua Warren
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in all
+  copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  SOFTWARE.
+
+------------------------------------------------------------------------
+OWASP Agent Memory Guard
+
+packages/core/src/policy/injection-screen.ts copies the pattern text of
+src/agent_memory_guard/detectors/injection.py, memory_persistence_injection.py
+and standing_directive.py, and fixtures/injection-screen/corpus.json copies the
+AMSB scenario payloads of src/agent_memory_guard/bench/scenarios.py, from OWASP
+Agent Memory Guard (https://github.com/OWASP/www-project-agent-memory-guard,
+commit b052787cc3426ff5f5f7e8e0eecb514052a168ba):
+
+  Copyright 2026 OWASP Foundation
+
+  Licensed under the Apache License, Version 2.0 (see LICENSE). The project
+  ships no NOTICE file at that commit. Its authors file names Vaishnavi Gudur
+  and Anshul Rajkumar. Modified here: see the header of injection-screen.ts.
+
+------------------------------------------------------------------------
+Mnemowall
+
+packages/core/src/policy/injection-screen.ts copies the pattern text of
+packages/python/src/mnemowall/signals/s3_sinks.py and s4_obfuscation.py from
+Mnemowall (https://github.com/Mnemowall/mnemowall-sdk, commit
+37da9daecadc127667cd436ca421d4361fe7a03e), whose NOTICE reads:
+
+  Mnemowall
+  Copyright 2026 The Mnemowall Authors
+
+  This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+Modified here: see the header of injection-screen.ts.

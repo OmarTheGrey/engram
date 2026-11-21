@@ -22,10 +22,14 @@
 //   conditional-trigger, response-control, tool-routing); the
 //   imperative-to-agent separator no longer takes a full stop or a hyphen
 //   and its bare "to" is dropped ("the model. Use", "model-run", "the model
-//   to use" are prose); ignore-previous also takes "any" (as OWASP's does);
-//   no finding carries an excerpt (ADR 0039, item 4).
-// - Ported from OWASP/www-project-agent-memory-guard, commit
-//   b052787cc3426ff5f5f7e8e0eecb514052a168ba, Apache License 2.0:
+//   to use" are prose); imperative-to-agent reads only the kinds a person
+//   did not type (a person addressing their own assistant is how a memory is
+//   written, decision of 2026-11-21); ignore-previous also takes "any", "all
+//   of", "your" and "the ... above"; no finding carries an excerpt (ADR
+//   0039, item 4).
+// - Copied from OWASP/www-project-agent-memory-guard, commit
+//   b052787cc3426ff5f5f7e8e0eecb514052a168ba, Apache License 2.0,
+//   Copyright 2026 OWASP Foundation (NOTICE): the pattern text of
 //   src/agent_memory_guard/detectors/injection.py (authority-escalation:
 //   its patterns other than the ignore family, with word boundaries added
 //   around "you are now"'s targets), memory_persistence_injection.py
@@ -33,14 +37,18 @@
 //   showed quadratic on a run of newlines) and standing_directive.py
 //   (standing-directive), with the latter two's condition that only
 //   content from a source the user does not control is screened.
-// - Ported from Mnemowall/mnemowall-sdk, commit
-//   37da9daecadc127667cd436ca421d4361fe7a03e, Apache License 2.0:
+// - Copied from Mnemowall/mnemowall-sdk, commit
+//   37da9daecadc127667cd436ca421d4361fe7a03e, Apache License 2.0,
+//   Copyright 2026 The Mnemowall Authors (NOTICE): the pattern text of
 //   packages/python/src/mnemowall/signals/s3_sinks.py (exfil-sink: image
 //   URLs with a query, credential paths, download-and-run shell commands,
 //   screened only from untrusted sources as Mnemowall's are) and s4_obfuscation.py
 //   (obfuscation: tag characters, bidi controls, invisible characters inside
 //   a word, mixed-script words, short base64 that decodes to readable text;
-//   and the hash-length exception for hex runs) and its NFKC fold.
+//   and the hash-length exception for hex runs) and its NFKC fold. Changed
+//   here: hex runs weigh 2 under default (Mnemowall's own risk for them is
+//   0.4), and encoded-blob skips SSH public keys, media data URIs and JWTs
+//   (decision of 2026-11-21).
 import type { MemoryItem, Policy, Provenance } from "../schema.ts";
 
 type ProvenanceKind = Provenance["kind"];
@@ -122,7 +130,7 @@ const AGENT_VERBS =
 
 const IMPERATIVE_TO_AGENT: ScreenRule = {
   id: "imperative-to-agent",
-  kinds: "all",
+  kinds: "screened",
   reads: "normalised",
   bound: SCREEN_BOUND,
   signals: [
@@ -154,7 +162,12 @@ const IGNORE_PREVIOUS: ScreenRule = {
     pattern(
       "reset",
       both(4),
-      /\b(?:ignore|disregard|skip|forget|dismiss)\s+(?:all\s+|any\s+)?(?:the\s+)?(?:previous|prior|above|earlier|preceding)\s+(?:instructions?|directions?|rules?|messages?|context)\b/i,
+      /\b(?:ignore|disregard|skip|forget|dismiss)\s+(?:(?:all|any)\s+(?:of\s+)?)?(?:the\s+|your\s+)?(?:previous|prior|above|earlier|preceding)\s+(?:instructions?|directions?|rules?|messages?|context)\b/i,
+    ),
+    pattern(
+      "above",
+      both(4),
+      /\b(?:ignore|disregard|forget|dismiss)\s+(?:(?:all|any)\s+(?:of\s+)?)?(?:the\s+|your\s+)?(?:instructions?|directions?|rules?)\s+above\b/i,
     ),
     pattern(
       "do-not-follow",
@@ -262,8 +275,33 @@ const MEMORY_PERSISTENCE: ScreenRule = {
   ],
 };
 
-const HEX = /^[0-9a-fA-F]+$/;
+/** A hex run, bare or `0x`-prefixed: hex-run judges it, base64-run leaves it alone. */
+const HEX = /^(?:0x)?[0-9a-fA-F]+$/;
 const BASE64_RUN = /[A-Za-z0-9+/]{121,}={0,2}/g;
+/**
+ * The tokens a blob can sit in, one pass and disjoint: base64, base64url, and
+ * the separators of a data URI and a JWT. Each token is judged whole, by
+ * anchored patterns, so no exemption scans past its own token.
+ */
+const TOKEN = /[A-Za-z0-9+/=_.:;,-]+/g;
+/** A JWT: three base64url segments, the first two JSON objects (`eyJ` is `{"`). */
+const JWT = /^eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
+/** A data URI of an image, font, audio or video; a text payload is not exempt. */
+const MEDIA_DATA_URI =
+  /^data:(?:image|font|audio|video)\/[A-Za-z0-9.+-]+;base64,[A-Za-z0-9+/]+={0,2}$/i;
+/** An SSH public key's body (the wire format starts `AAAA`), after its key type and a space. */
+const SSH_KEY_BODY = /^AAAA[A-Za-z0-9+/]+={0,3}$/;
+const SSH_KEY_TYPE =
+  /(?:^|\s)(?:ssh-(?:rsa|ed25519|dss)|ecdsa-sha2-nistp(?:256|384|521)|sk-ssh-ed25519@openssh\.com)[ \t]+$/;
+
+/** A token encoded-blob leaves alone: an SSH public key, a media data URI or a JWT (decision of 2026-11-21). */
+function benignEncoding(text: string, token: string, at: number): boolean {
+  return (
+    JWT.test(token) ||
+    MEDIA_DATA_URI.test(token) ||
+    (SSH_KEY_BODY.test(token) && SSH_KEY_TYPE.test(text.slice(Math.max(0, at - 48), at)))
+  );
+}
 
 const ENCODED_BLOB: ScreenRule = {
   id: "encoded-blob",
@@ -272,12 +310,15 @@ const ENCODED_BLOB: ScreenRule = {
   bound: SCREEN_BOUND,
   signals: [
     // Longer than a SHA-512 digest (128 hex characters, Mnemowall's exception).
-    pattern("hex-run", both(5), /[0-9a-fA-F]{129,}/),
+    pattern("hex-run", graded, /[0-9a-fA-F]{129,}/),
     {
       id: "base64-run",
       weight: both(5),
       find: (text) => {
-        for (const m of text.matchAll(BASE64_RUN)) if (!HEX.test(m[0])) return m[0].length;
+        for (const token of text.matchAll(TOKEN)) {
+          if (token[0].length < 121 || benignEncoding(text, token[0], token.index)) continue;
+          for (const m of token[0].matchAll(BASE64_RUN)) if (!HEX.test(m[0])) return m[0].length;
+        }
         return null;
       },
     },
@@ -410,7 +451,9 @@ export const SCREEN_RULES: readonly ScreenRule[] = [
 // fires if it fires on either; non-ASCII spaces and ASCII space runs fold to
 // one space; newlines survive. Mnemowall's NFKC fold comes first, so
 // full-width and compatibility letters read as ASCII.
-const INVISIBLE_FORMATTING = /[\u00AD\u200B-\u200F\u2060\u2028\u2029\uFEFF]/g;
+// U+034F (combining grapheme joiner) and U+180E join the class as alternatives:
+// a combining mark inside a character class is one biome refuses (review E2.10-5).
+const INVISIBLE_FORMATTING = /[\u00AD\u180E\u200B-\u200F\u2060\u2028\u2029\uFEFF]|\u034F/g;
 const NON_ASCII_SPACE_LIKE = /[\f\v\u0085\u1680\u00A0\u2000-\u200A\u202F\u205F\u3000]/g;
 const ASCII_SPACE_RUN = /[ \t]{2,}/g;
 
@@ -431,13 +474,19 @@ export function normalised(raw: string): readonly string[] {
 /**
  * An item's content as the screen reads it: a string as it is; a record or
  * procedural content as `key: value` lines, nested values in order, as
- * OWASP's `_stringify` does. Iterative, so no depth of nesting can throw.
+ * OWASP's `_stringify` does. Iterative, so no depth of nesting overflows
+ * the stack; a cycle throws (the screen then fails closed: screenContent).
  */
 export function contentText(content: unknown): string {
   const out: string[] = [];
   const stack: { value: unknown; prefix: string }[] = [{ value: content, prefix: "" }];
+  const seen = new WeakSet<object>();
   while (stack.length > 0) {
     const { value, prefix } = stack.pop() as { value: unknown; prefix: string };
+    if (value !== null && typeof value === "object") {
+      if (seen.has(value)) throw new TypeError("the content refers to itself");
+      seen.add(value);
+    }
     if (Array.isArray(value)) {
       for (let i = value.length - 1; i >= 0; i--)
         stack.push({ value: value[i], prefix: i === 0 ? prefix : "" });
@@ -464,7 +513,12 @@ export function screenText(
   profile: ScreenProfile,
   rules: readonly ScreenRule[] = SCREEN_RULES,
 ): ScreenResult {
-  const readings = { raw: [text], normalised: normalised(text) };
+  let readings: Record<ScreenRule["reads"], readonly string[]>;
+  try {
+    readings = { raw: [text], normalised: normalised(text) };
+  } catch (e) {
+    return fail(profile, [], "normalisation", `threw ${errorName(e)}`);
+  }
   const hits: ScreenHit[] = [];
   for (const rule of rules) {
     if (rule.kinds === "screened" && !SCREENED_KINDS.has(kind)) continue;
@@ -487,22 +541,43 @@ export function screenText(
           }
         }
     } catch (e) {
-      const name = e instanceof Error ? e.constructor.name : typeof e;
-      return fail(profile, hits, rule.id, `threw ${name}`);
+      return fail(profile, hits, rule.id, `threw ${errorName(e)}`);
     }
   }
   const score = hits.reduce((s, h) => s + h.weight, 0);
   return { profile, score, hits, failure: null, held: score >= SCREEN_THRESHOLD };
 }
 
+/** An error's class name, never its message, which may quote the content. */
+const errorName = (e: unknown): string => (e instanceof Error ? e.constructor.name : typeof e);
+
 function fail(profile: ScreenProfile, hits: ScreenHit[], rule: string, why: string): ScreenResult {
   const score = hits.reduce((s, h) => s + h.weight, 0);
   return { profile, score, hits, failure: { rule, why }, held: true };
 }
 
+/**
+ * Screens content of provenance `kind`: its text (contentText), then the
+ * rules. Content whose text cannot be read (a cycle) fails closed.
+ */
+export function screenContent(
+  content: unknown,
+  kind: ProvenanceKind,
+  profile: ScreenProfile,
+  rules: readonly ScreenRule[] = SCREEN_RULES,
+): ScreenResult {
+  let text: string;
+  try {
+    text = contentText(content);
+  } catch (e) {
+    return fail(profile, [], "content-text", `threw ${errorName(e)}`);
+  }
+  return screenText(text, kind, profile, rules);
+}
+
 /** Screens an item's content under its own provenance kind. */
 export function screenItem(item: MemoryItem, profile: ScreenProfile): ScreenResult {
-  return screenText(contentText(item.content), item.provenance.kind, profile);
+  return screenContent(item.content, item.provenance.kind, profile);
 }
 
 /** The profile a policy's gate stage screens with, or null when the stage is off. */
@@ -533,7 +608,7 @@ export function injectionHold(
 ): string | null {
   const profile = screenProfile(policy);
   if (profile === null) return null;
-  const result = screenText(contentText(item.content), item.provenance.kind, profile, rules);
+  const result = screenContent(item.content, item.provenance.kind, profile, rules);
   if (!result.held) return null;
   return `${describeScreen(result)}; held as a candidate until a reviewer promotes it`;
 }
