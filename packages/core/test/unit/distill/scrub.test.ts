@@ -358,3 +358,117 @@ describe("scrubEpisode: the verification pass (findings V-1, V-3, V-4, V-5)", ()
     expect(performance.now() - started).toBeLessThan(1000);
   });
 });
+
+describe("scrubEpisode: the second verification pass (findings W-1 to W-6)", () => {
+  const S = "hunter2xyz";
+
+  test.each([
+    "mcp__firebase-auth__list_users",
+    "mcp__vault-pass__unlock",
+    "set-password_policy",
+    "mcp__x__refresh-token_now",
+    "mcp__my-key__x",
+  ])("a tool name with a secret word in it is not held: %s", (tool) => {
+    expect(scrubEpisode(episode({ steps: [fn({ tool })] })).held).toEqual([]);
+  });
+
+  test("a URL credential in a name read with underscores as spaces is held", () => {
+    const out = scrubEpisode(episode({ steps: [fn({ tool: "mcp__fetch__https://u:p@h" })] }));
+    expect(out.held).toEqual(["steps[0].tool"]);
+  });
+
+  test.each([
+    [`SECRET_KEY = '${S}'`, "SECRET_KEY = '<redacted>'"],
+    [`aws_secret_access_key = ${S}`, "aws_secret_access_key = <redacted>"],
+    [`{"secret_key": "${S}"}`, '{"secret_key": "<redacted>"}'],
+    [`{"secretKey":"${S}"}`, '{"secretKey":"<redacted>"}'],
+    [`{"private_key": "${S}"}`, '{"private_key": "<redacted>"}'],
+    [`DB_PWD: ${S}`, "DB_PWD: <redacted>"],
+    [`{"pwd": "${S}"}`, '{"pwd": "<redacted>"}'],
+  ])("a name the table treats as a secret's loses its value in text: %s", (input, kept) => {
+    expect(scrubText(input)).toBe(kept);
+  });
+
+  test.each([
+    "const token = await getToken();",
+    "if (password === undefined) throw new Error('missing')",
+    "if (token !== null) return",
+    "def check(password: str, token: str) -> bool:",
+    "interface Opts { token: string; password?: string }",
+    "password: null",
+    '{"secret": false, "pass": true}',
+    "token: {",
+    "password = [",
+    "token_count: 7",
+    "password_hash = bcrypt(pw)",
+    '"max_tokens": 1024',
+    "author: Jane Doe",
+  ])("code, a literal, a type or an opening structure is kept: %s", (line) => {
+    expect(scrubText(line)).toBe(line);
+  });
+
+  test("a value never runs past a newline", () => {
+    expect(scrubText('password: "\nnext line" stays')).toBe('password: "\nnext line" stays');
+    expect(scrubText("token:\nnext")).toBe("token:\nnext");
+    expect(scrubText("password: abc\nnext")).toBe("password: <redacted>\nnext");
+  });
+
+  test.each([
+    ["argv -pvalue in a mysql array", { argv: ["mysql", "-u", "root", `-p${S}`] }],
+    ["argv -pvalue beside a mysql command", { command: "mysql", args: [`-p${S}`] }],
+    ["a secret flag then an object", { argv: ["--password", { v: S }] }],
+    ["a secret flag then an array", { argv: ["--token", [S]] }],
+    ["curl -u in a command", { command: `curl -u admin:${S} https://x` }],
+    ["curl --user in a command", { command: `curl --user admin:${S} https://x` }],
+  ])("redacts %s", (_name, args) => {
+    const out = scrubEpisode(episode({ steps: [fn({ arguments: args })] }));
+    expect(out.held).toEqual([]);
+    expect(JSON.stringify(out.episode)).not.toContain(S);
+  });
+
+  test("a PEM private key loses its body, terminated or cut off, and keeps its frame", () => {
+    const body = `b3BlbnNzaC1rZXktdjE${S}\nQyNTUxOQAAACD`;
+    const pem = `-----BEGIN OPENSSH PRIVATE KEY-----\n${body}\n-----END OPENSSH PRIVATE KEY-----`;
+    const out = scrubText(`cat > id <<EOF\n${pem}\nEOF`);
+    expect(out).toBe(
+      "cat > id <<EOF\n-----BEGIN OPENSSH PRIVATE KEY-----\n<redacted>\n-----END OPENSSH PRIVATE KEY-----\nEOF",
+    );
+    expect(scrubText(out)).toBe(out);
+    expect(scrubText(`-----BEGIN RSA PRIVATE KEY-----\n${body}`)).toBe(
+      "-----BEGIN RSA PRIVATE KEY-----\n<redacted>\n",
+    );
+    const cert = "-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----";
+    expect(scrubText(cert)).toBe(cert);
+  });
+
+  test("the command rules are linear: 30,000 repetitions finish under a second", () => {
+    const json = JSON.stringify(
+      Array.from({ length: 30_000 }, (_, i) => ({ Image: "mysql:8", Names: `db-${i}` })),
+    );
+    const words = "mysql -h db curl -s x ".repeat(30_000);
+    for (const line of [json, words]) {
+      const started = performance.now();
+      scrubText(line);
+      expect(performance.now() - started).toBeLessThan(1000);
+    }
+  });
+});
+
+describe("scrubEpisode: stated limits, kept (E2.9's content guard is the covering control)", () => {
+  const S = "hunter2xyz";
+  test.each([
+    ["escaped JSON", `{\\"password\\": \\"${S}\\"}`],
+    ["a header pair array", JSON.stringify([["X-Api-Key", S]])],
+    ["an escaped quote inside a value", `password: "ab\\"${S}"`],
+    [
+      "a ParameterKey and ParameterValue pair",
+      JSON.stringify({ ParameterKey: "DBPassword", ParameterValue: S }),
+    ],
+    ["os.environ assignment", `os.environ["API_KEY"] = "${S}"`],
+    ["XML", `<password>${S}</password>`],
+    ["Go's :=", `password := "${S}"`],
+    ["an arrow", `password => "${S}"`],
+  ])("%s keeps the secret", (_name, text) => {
+    expect(scrubText(text)).toContain(S);
+  });
+});
