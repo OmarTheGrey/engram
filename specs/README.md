@@ -2,6 +2,8 @@
 
 `specs/commit.qnt` is a [Quint](https://github.com/informalsystems/quint) model of the protocol card E2.6 built: several handles (processes) over one event log and one store, each deciding at the log's head and appending conditionally, with offboarding's mark, erasure and sweep, adoption, and a write after an erasure (card E1.5). `make verify-spec` checks it. It runs outside `make test`.
 
+Part of the Engram repository; start at the [root README](../README.md).
+
 This is bounded checking of a model, not a proof of the code. The model is written by hand from `packages/core/src/plane/` and can drift from it; each transition names, in a comment, the function and file it models.
 
 ## What is modelled
