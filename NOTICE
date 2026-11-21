@@ -67,7 +67,9 @@ Mnemowall (https://github.com/Mnemowall/mnemowall-sdk, commit
 
 Modified here: see the header of injection-screen.ts.
 --------------------------------------------------------------------------------
-packages/core/src/policy/secrets.ts (card E2.9) contains portions of:
+packages/core/src/policy/secrets.ts and the test vectors of
+packages/core/test/unit/policy/secrets-upstream.test.ts (card E2.9) contain
+portions of:
 
 Claude-Mem (https://github.com/thedotmack/claude-mem), src/utils/redaction.ts
   Claude-Mem

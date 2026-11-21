@@ -8,7 +8,7 @@ pillar: research
 hypothesis: none
 evidence:
   - research/scripts/secret_guard.py
-  - research/results/secret-guard.json
+  - research/results/h1-secret-guard.json
 supersedes: none
 ---
 

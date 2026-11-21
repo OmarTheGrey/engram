@@ -7,15 +7,15 @@ chapter: results
 pillar: research
 hypothesis: none
 evidence:
-  - research/results/secret-guard.json
+  - research/results/h1-secret-guard.json
   - research/configs/secret-guard.json
   - research/scripts/secret_guard.py
   - research/results/MANIFEST.md
-  - "uv run python research/scripts/secret_guard.py --config research/configs/secret-guard.json --out research/results/secret-guard.json"
+  - "uv run python research/scripts/secret_guard.py --config research/configs/secret-guard.json --out research/results/h1-secret-guard.json"
 supersedes: none
 ---
 
-**What.** The guard's coverage and false-positive rate, the MANIFEST row `research/results/secret-guard.json` (sha256 7a54d247..., commit pending).
+**What.** The guard's coverage and false-positive rate, the MANIFEST row `research/results/h1-secret-guard.json` (sha256 7a54d247..., commit pending).
 
 **Why.** ADR 0039: each guard ships with a false-positive measurement on benign technical text, as a rule-9 result.
 
