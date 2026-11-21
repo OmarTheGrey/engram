@@ -4,7 +4,7 @@
 // holds the write as a candidate (evaluate.ts) and the deterministic lint
 // `injection-signature` flags a stored item (lint/det.ts). Pure: no clock, no
 // randomness, no model, no store. It is a floor with a measured escape rate
-// and false-hold rate (research/results/injection-screen.json), never a
+// and false-hold rate (research/results/h1-injection-screen.json), never a
 // defence: a careful attacker writes around any regular expression, and the
 // patterns are English.
 //

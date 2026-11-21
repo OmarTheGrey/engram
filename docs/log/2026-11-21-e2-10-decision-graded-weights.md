@@ -8,7 +8,7 @@ pillar: plane
 hypothesis: none
 evidence:
   - packages/core/src/policy/injection-screen.ts
-  - research/results/injection-screen.json
+  - research/results/h1-injection-screen.json
 supersedes: none
 ---
 

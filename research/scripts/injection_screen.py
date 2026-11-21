@@ -3,7 +3,7 @@
 Usage:
     uv run python research/scripts/injection_screen.py \\
         --config research/configs/injection-screen.json \\
-        --out research/results/injection-screen.json
+        --out research/results/h1-injection-screen.json
 
 Every corpus entry is written through the real Plane once per profile of
 `content_guards.injection_screen` (off, default, hardened) by

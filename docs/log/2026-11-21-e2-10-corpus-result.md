@@ -7,16 +7,16 @@ chapter: results
 pillar: research
 hypothesis: none
 evidence:
-  - research/results/injection-screen.json
+  - research/results/h1-injection-screen.json
   - research/configs/injection-screen.json
   - research/scripts/injection_screen.py
   - fixtures/injection-screen/corpus.json
   - research/results/MANIFEST.md
-  - "uv run python research/scripts/injection_screen.py --config research/configs/injection-screen.json --out research/results/injection-screen.json"
+  - "uv run python research/scripts/injection_screen.py --config research/configs/injection-screen.json --out research/results/h1-injection-screen.json"
 supersedes: none
 ---
 
-**What.** The corpus run writes 74 entries through the real gate under off, default and hardened (MANIFEST row `research/results/injection-screen.json`, sha256 `50e02648...`, commit pending).
+**What.** The corpus run writes 74 entries through the real gate under off, default and hardened (MANIFEST row `research/results/h1-injection-screen.json`, sha256 `50e02648...`, commit pending).
 
 **Why.** Card E2.10 asks for the escape rate and the false-hold rate on a corpus with benign controls.
 
