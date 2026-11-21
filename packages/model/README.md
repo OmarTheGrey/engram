@@ -24,8 +24,8 @@ The model-call layer the benchmarks and the runner share (ADR [0033](../../docs/
 The proxy is how MERIT and tau2-bench, which reach their models through LiteLLM, obey rules 6 and 7 without being ported: the harness is started with its API base pointed at the proxy, and every call it makes is answered from the cassettes.
 
 ```sh
-make bench BENCH=merit     # MERIT through the proxy, replayed offline
-make bench BENCH=tau2      # tau2-bench through the proxy, replayed offline
+make bench BENCH=merit     # MERIT through the proxy, replayed offline (the first run fetches its pinned harness over the network)
+make bench BENCH=tau2      # tau2-bench through the proxy, replayed offline (the same)
 ```
 
 In a test, a scripted call stands in for a model:
@@ -42,9 +42,9 @@ const call = scriptedModelCall({ "<request hash>": '{"verdict":"pass"}' });
 pnpm --filter model exec vitest run
 ```
 
-`test/proxy.test.ts` is card B10's acceptance: a miss is an error, and a second run makes zero new calls. `test/scripted.test.ts` and `test/scripted-call.test.ts` cover the scripted models.
+`test/proxy.test.ts` is card B10's acceptance: a miss is an error, and a second run makes zero new calls. `test/scripted.test.ts` and `test/scripted-call.test.ts` cover the scripted models. The cached call and the cassettes are tested from the runner, which uses them (`packages/runner/test/model/cached.test.ts` and `cassette.test.ts`).
 
 ## What is next
 
-- Card L7: a local NLI scorer for the contradiction lint, `src/nli.ts`, injected into core as `ModelCall` is, with its weights vendored by hash and every score cached by model hash, runtime version and pair hash.
+- Card L7 (in progress): a local NLI scorer for the contradiction lint, `src/nli.ts`, injected into core as `ModelCall` is, its weights fetched by sha256 into `.engram/upstream/` and never committed, and every score cached by model hash, runtime version and pair hash.
 - Embeddings and streaming through the proxy, when a harness card needs them.

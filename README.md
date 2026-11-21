@@ -2,9 +2,9 @@
 
 # Engram
 
-Engram is a control plane for the long-term memory of AI agents. It sits between an agent and the store that holds its memory (a folder of Markdown, Mem0, Letta) and decides every write and every read by a typed policy: who may write what into which scope, who may read it back, how long it stays valid, and where it came from. Every decision is appended to an event log with its reason and the rule that made it, and every item a read returns can be explained. The store keeps its bytes and is not changed. The plane never calls a model.
+Engram is a control plane for the long-term memory of AI agents. It sits between an agent and the store that holds its memory (a folder of Markdown files such as Claude Code's memory, an in-process Mem0, or a Letta MemFS repository, which is git-backed Markdown) and decides every write and every read by a typed policy: who may write what into which scope, who may read it back, how long it stays valid, and where it came from. Every decision is appended to an event log with its reason and the rule that made it, and every item a read returns can be explained. The store's own code is not changed: it keeps the bytes, and the plane keeps the metadata (scope, provenance, validity, grants, status). The plane never calls a model.
 
-Engram is a graduation project at Egypt University of Informatics with a thesis attached, and it carries a pre-registered experiment: what does enforcing memory governance at the boundary cost, compared with asking the model to behave?
+Engram is a graduation project at Egypt University of Informatics with a thesis attached, and it carries an experiment programme whose design is pre-registered (v0 tagged, v1 tagged before the first run): what does enforcing memory governance at the boundary cost, compared with asking the model to behave?
 
 ## Contents
 
@@ -29,13 +29,13 @@ Agents now keep memory across sessions: facts about a user, decisions of a team,
 
 | mechanism | what it does |
 |---|---|
-| write gate | `Plane.write` checks the writer's membership of the target scope, the item's class, its source (user, document, tool, model, import, compaction, external) and its confidence against the policy before the store is touched. A denied write never reaches the store. |
+| write gate | `Plane.write` checks the writer's membership of the target scope, the item's class, its source (user, document, tool, model, import, compaction, external) and its confidence against the policy before the store is touched. When the policy turns them on (they are off by default and in every registered preset), content guards also screen the content for secrets, personal data and instructions injected for the agent. A denied write never reaches the store. |
 | read filter | `Plane.read` admits only items in scopes the reader may read, or reached through a grant that names it, and only inside their validity window and time to live. Filtering comes before ranking, so hidden items never take a place in the results. |
 | event log | Every decision appends one `MemoryEvent` with the actor, the scopes, the decision (allow, deny or ask), a `reason` and a `policy_id`. The log is the source of truth: the item set is a projection of it. SQLite by default, Postgres as an option. |
 | explain | Every item a read returns carries its score components (relevance, confidence, recency), its rank, the rule that admitted it, the grants it used and its validity window. `Plane.explain` returns them to the reader who made the read, and to no one else. |
 | replay | The item set as it stood after any event can be rebuilt from the log alone (`itemsAt`), and a recorded workload can be replayed under another policy to see what would change (`Plane.simulate`, `engram simulate`). |
 
-Terms such as *scope*, *grant*, *provenance* and *governance tax* are defined in the [glossary](docs/glossary.md).
+Terms such as *scope*, *grant*, *provenance*, *preset*, *cassette*, *task card*, *card id*, *gate*, *MemFS*, *absorb plan* and *governance tax* are defined in the [glossary](docs/glossary.md). A *preset* is one of three bundled policies, strict, medium and permissive; a *task card* is one unit of work under `docs/tasks/`, named by an id such as E2.9 (its epic and number).
 
 **Three products** sit on the one plane, each a policy profile plus a few screens:
 
@@ -55,13 +55,13 @@ The novelty claim, exactly as card R3 restated it in [`docs/research/positioning
 
 Each word is a condition, and the claim is only as strong as the weakest:
 
-- **Deterministic.** Every decision is a pure function of the typed policy, the actor, the item and the time; no model makes or informs it.
+- **Deterministic.** Every decision is a pure function of the typed policy, the actor, the item and the time, evaluated by code. No model makes a decision or sets a trust-bearing input: the provenance kind and the actor come from the harness, and the scope, class and confidence a writing agent chooses are checked against the policy.
 - **Event-logged.** Every decision is a `MemoryEvent` with a reason and a policy id, and the log is the source of truth.
 - **Replayable.** State is rebuilt from the log alone (except items later erased by offboarding, which never come back), and a recorded workload replays every decision under any policy. A single decision cannot be decided again from events alone, because a denied write's event carries no item and a read's event carries no query (ADR [0032](docs/decisions/0032-simulator-replays-recorded-calls.md)).
 - **Across memory stores.** One adapter contract, one conformance suite, three adapters. Store independence is a design property (ADR [0035](docs/decisions/0035-store-independence-is-a-design-property.md)); the request-identity check meant to prove it is not built yet, and the registered H1 runs use one store, Mem0.
 - **Pre-registered measurement of its governance tax.** H1 and H2 register the cost of enforcement before any run. The analysis is to be tagged `prereg-v1` and deposited before the first run (ADR [0023](docs/decisions/0023-preregistration-in-repo.md)); today only `prereg-v0` is tagged, and nothing has run. The claim is about what is registered, not about a result.
 
-What the claim no longer says: "the first governance layer over existing stores" (HEAMS, arXiv 2611.20144, ships one), "the first measured governance tax", and "the first to log each decision with its reason". The positioning document gives the evidence for each withdrawal and compares Engram with HEAMS and SAFE-Mem (arXiv 2610.22959) row by row.
+What the claim no longer says: "the first governance layer over existing stores" (HEAMS, arXiv 2611.20144, ships one), "the first measured governance tax", "the first to log each decision with its reason", and "the first deterministic policy on memory reads" (withdrawn in October; HEAMS offers deterministic rules too). The positioning document gives the evidence for each withdrawal and compares Engram with HEAMS and SAFE-Mem (arXiv 2610.22959) row by row.
 
 ## How it fits together
 
@@ -82,7 +82,7 @@ Two rules keep this buildable by four people and their coding agents: logic live
 
 ## Status, 2026-11-21
 
-The project started on 5 October 2026 and submits in the last week of March 2027 ([`docs/roadmap.md`](docs/roadmap.md)). It is in week 7, phase 2 ("First result"). Gate A was declared passed with two exceptions on 2026-10-29 ([log](docs/log/2026-10-29-gate-a-milestone-corrected.md)); Gate B's engineering was done the same day and proposed as passed with exceptions that wait on the pre-registration ([log](docs/log/2026-10-29-gate-b-engineering-done.md)).
+The project started on 5 October 2026 and submits in the last week of March 2027 ([`docs/roadmap.md`](docs/roadmap.md)). It is in week 7, phase 2 ("First result"). A *gate* is a go or no-go checkpoint with written criteria; there are four, A to D. Gate A was declared passed with two exceptions on 2026-10-29 ([log](docs/log/2026-10-29-gate-a-milestone-corrected.md)); Gate B's engineering was done the same day and proposed as passed with exceptions that wait on the pre-registration ([log](docs/log/2026-10-29-gate-b-engineering-done.md)).
 
 **What works, merged on main.**
 
@@ -93,12 +93,27 @@ The project started on 5 October 2026 and submits in the last week of March 2027
 - The simulator, and three policy presets (strict, medium, permissive) plus the Knowledge and Twin profiles.
 - Benchmark harnesses through the plane: GateMem, LongMemEval and MEM-INV-Bench in TypeScript; MERIT and tau2-bench run unmodified as external Python processes through the cassette proxy (card B10), so their model calls are cached and seeded too.
 - The experiment runner: conditions C1 to C5 as pi SDK sessions, cassettes, live and replay modes, resume, shards and spend ceilings.
-- The review cards RV1 to RV8, the November literature review (111 notes, [`docs/readings/litreview/`](docs/readings/litreview/README.md)) and the absorb plan ([`docs/tasks/absorb-plan.md`](docs/tasks/absorb-plan.md)).
-- Of the absorb plan's first fifteen pull requests, thirteen merged on 2026-11-21: R3 (positioning), E2.7 (trust counterexample tests), E2.8 (policy schema for content guards and trust floors), A5 (conformance and revocation grid), B10 (cassette proxy), R4 (claims crosswalk, [`docs/compliance/`](docs/compliance/README.md)), E1.4 (stateful test and crash windows), B7 (MERIT), E1.5 (Quint model, [`specs/`](specs/README.md)), R2 (proposed arms, [`docs/research/baselines.md`](docs/research/baselines.md)), D1 (session recorder), B11 (tau2-bench) and E2.10 (the deterministic injection screen: an instruction to the agent in content a person did not type is held as a candidate, off by default and in every registered preset, reported as a floor with its escape and false-hold rates). The answers card carried decisions 1 to 59 into the pre-registration the same day.
+- The review cards RV1 to RV8, the November literature review (111 notes, [`docs/readings/litreview/`](docs/readings/litreview/README.md)) and the absorb plan ([`docs/tasks/absorb-plan.md`](docs/tasks/absorb-plan.md)): thirty pull requests, chosen on 2026-11-21, that take in what is worth taking from open-source projects and recent papers.
+- All fifteen of the absorb plan's first pull requests, merged on 2026-11-21:
+  - R2: the proposed arms, written as proposals in the pre-registration's [section "Proposed amendments, not yet registered"](docs/research/preregistration.md#proposed-amendments-not-yet-registered), with the baseline matrix in [`docs/research/baselines.md`](docs/research/baselines.md);
+  - R3: the novelty claim restated against its nearest neighbours ([`docs/research/positioning.md`](docs/research/positioning.md));
+  - R4: the claims crosswalk ([`docs/compliance/`](docs/compliance/README.md));
+  - E2.7: characterisation tests of two suspected trust gaps, both confirmed;
+  - E2.8: the policy schema for content guards and trust floors;
+  - E2.9: the secret and personal-data guard at the write gate (deny or hold as a candidate, the reason naming only the kind and the length);
+  - E2.10: the deterministic injection screen (an instruction to the agent in content a person did not type is held as a candidate), reported as a floor with its escape and false-hold rates;
+  - A5: conformance cases for capability claims, and a revocation grid per store;
+  - E1.4: a stateful model-based test of the Plane, with crash windows;
+  - E1.5: a Quint model of the commit and erasure protocol ([`specs/`](specs/README.md));
+  - B10: the cassette proxy; B7: MERIT; B11: tau2-bench;
+  - D1: the session recorder;
+  - X15: the plane's latency against bare SQLite, with a proposed budget.
 
-**Landing now.** E2.9 (the secret and personal-data guard at the write gate) and X15 (the plane's latency overhead against bare SQLite).
+  E2.9's and E2.10's guards are off by default and in every registered preset. The answers card carried decisions 1 to 59 into the pre-registration the same day.
 
-**What is measured.** Only offline results so far, each regenerated by a script from a config and listed in [`research/results/MANIFEST.md`](research/results/MANIFEST.md): what the plane admits on GateMem and MEM-INV-Bench, the H4 power simulation, the deterministic lint floor on LongMemEval's memory, the seeded-fault set, the cost table, the label-audit draws, the claims crosswalk and the injection screen's corpus run. For example, every registered run is estimated at 1,159 to 5,227 dollars ([`research/results/h2-cost-table.json`](research/results/h2-cost-table.json), the `decided` block). No live model result exists yet.
+**In progress.** The absorb plan's cards 16 to 30, started on 2026-11-21 (listed under [What is next](#what-is-next)); none has merged.
+
+**What is measured.** Only offline results so far, each regenerated by a script from a config and listed in [`research/results/MANIFEST.md`](research/results/MANIFEST.md): what the plane admits on GateMem and MEM-INV-Bench, the H4 power simulation, the deterministic lint floor on LongMemEval's memory, the seeded-fault set, the cost table, the label-audit draws, the claims crosswalk, the injection screen's corpus run (`h1-injection-screen.json`), the secret guard's in-sample rate (`h1-secret-guard.json`) and the plane's latency budget (`h2-perf-budget.json`). For example, all registered runs together are estimated at 1,159 to 5,227 dollars at OpenRouter's list prices ([`research/results/h2-cost-table.json`](research/results/h2-cost-table.json), the `decided` block). No live model result exists yet.
 
 **What is pending.** The label audit (23 to 28 November), the `prereg-v1` tag and its Zenodo deposit (by 30 November), and then H1's live runs (from 1 December).
 
@@ -106,8 +121,9 @@ The project started on 5 October 2026 and submits in the last week of March 2027
 
 - Identity is self-asserted: `--as` and `--member` are taken as given, and the HTTP and MCP surfaces listen on loopback only with no authentication (ADR [0027](docs/decisions/0027-http-contract-client-and-inspector.md); card E8.12 is the fix).
 - The event log is append-only by convention, not tamper-evident (ADR [0038](docs/decisions/0038-tamper-evident-log-that-keeps-erasure.md); card E1.6 builds the chain).
-- Within what a rule admits, a less trusted co-member can rewrite, retire or evict a more trusted item; card E2.7's tests pin this, and card E2.11 is the opt-in fix.
-- Outside pi the guarantee is weaker: MCP has no `context` filter, and Codex has no hook (ADR [0022](docs/decisions/0022-other-harnesses-through-mcp.md)).
+- Within what a rule admits, a less trusted co-member can rewrite, retire or evict a more trusted item; card E2.7's tests pin this (GH-38), and card E2.11 is the opt-in fix, in progress.
+- A caller that sends no source, such as an HTTP client or a library call, is taken at the provenance kind it claims, so it can write as `user`. E2.7 confirmed this as GH-39; card E2.11's trust floor is the opt-in fix, in progress.
+- Outside pi the guarantee is weaker: MCP reads are filtered by scope and grants, but nothing governs what the harness already holds in its context (condition C7), and Codex has no hook (ADR [0022](docs/decisions/0022-other-harnesses-through-mcp.md)).
 - `Plane.distill` is not implemented (card D2), and condition C6 (enforcement with lints) is not built in the runner yet.
 
 ## Quick start
@@ -116,7 +132,11 @@ You need Node 24 or later, [pnpm](https://pnpm.io) and [uv](https://docs.astral.
 
 ### 1. Install and test
 
-The `engram` command is `packages/cli/src/main.ts`. From a clone, run it as `node packages/cli/src/main.ts <command>` or `make engram ARGS="<command> ..."`; the examples below write `engram` for short.
+The `engram` command is `packages/cli/src/main.ts`. From a clone, run it as `node packages/cli/src/main.ts <command>` or `make engram ARGS="<command> ..."`. The examples below write `engram` for short; to type them as written, run this once in the clone's root:
+
+```sh
+alias engram="node $PWD/packages/cli/src/main.ts"
+```
 
 ```sh
 git clone <this repository> engram && cd engram
@@ -155,7 +175,15 @@ The read prints each returned item with its score components and admitting rule,
 engram explain <read id> --owner alice --db /tmp/engram-demo/engram.db
 ```
 
-Now try someone else. A read as `--as person:bob` returns nothing and counts one item out of reach; a write as bob into `person:alice` is denied with `policy engram/write/membership` and exits 1. Every one of these is an event in the log.
+Now try someone else:
+
+```sh
+engram read deploy --root /tmp/engram-demo/memory --owner alice --db /tmp/engram-demo/engram.db --as person:bob
+engram write --root /tmp/engram-demo/memory --owner alice --db /tmp/engram-demo/engram.db \
+  --as person:bob --scope person:alice --content "x"
+```
+
+The read as bob returns nothing and counts one item out of his reach; the write as bob into `person:alice` is denied with `policy engram/write/membership` and exits 1. Every one of these is an event in the log.
 
 ### 3. The HTTP API and the inspector
 
@@ -174,7 +202,7 @@ Then open `http://127.0.0.1:7313/` for the inspector and `http://127.0.0.1:7313/
 - Claude Code: [`claude-code/.mcp.json`](fixtures/harness/claude-code/.mcp.json) for the server, and [`claude-code/.claude/settings.json`](fixtures/harness/claude-code/.claude/settings.json) for the PreToolUse hook `engram hook claude-code`, which denies shell commands and file tools that would touch the store or the log.
 - Codex: [`codex/config.toml`](fixtures/harness/codex/config.toml), MCP only.
 
-The fixtures call `engram`; put the CLI on your path, or replace `engram` with `node <clone>/packages/cli/src/main.ts`. `make test-e2e` runs both handshakes.
+The fixtures call `engram`; put the CLI on your path, or replace `engram` with `node <clone>/packages/cli/src/main.ts`. `make test-e2e` runs both handshakes (it builds the inspector with `make ui` and needs Chromium, `pnpm exec playwright install chromium`).
 
 ### 5. pi, with the extension
 
@@ -183,7 +211,7 @@ npm i -g @earendil-works/pi-coding-agent@1.3.0
 pi                   # in the clone; accept project trust once
 ```
 
-The repository's [`.pi/settings.json`](.pi/settings.json) loads the Engram pi package ([`packages/pi-package`](packages/pi-package/README.md)), so the session gets the memory tools, the `engram` skill and the `/engram` prompt template. The package reads `ENGRAM_ROOT`, `ENGRAM_STORE`, `ENGRAM_POLICY`, `ENGRAM_OWNER`, `ENGRAM_AS` and `ENGRAM_MEMBER`; by default the store is `.engram/memory` in the project and the actor is `person:<your login>`.
+The repository's [`.pi/settings.json`](.pi/settings.json) loads the Engram pi package ([`packages/pi-package`](packages/pi-package/README.md)), so the session gets the memory tools, the `engram` skill and the `/engram` prompt template. The package reads `ENGRAM_ROOT`, `ENGRAM_STORE`, `ENGRAM_POLICY`, `ENGRAM_OWNER`, `ENGRAM_AS`, `ENGRAM_MEMBER` and `ENGRAM_DB_URL`; by default the store is `.engram/memory` in the project, the log is `<home>/.engram/engram.db`, and the actor is `person:<your login>`.
 
 ## Common commands
 
@@ -196,9 +224,9 @@ A selection, grouped. [AGENTS.md, "Commands"](AGENTS.md#commands) is the full li
 | one test file | `make test-one T=<path>` |
 | the invariants against the real Plane | `make test-invariants` |
 | lint code and docs | `make lint`, `make lint-docs` |
-| end to end (CLI, MCP, hook, inspector in Chromium) | `make test-e2e` (first: `pnpm exec playwright install chromium`) |
+| end to end (CLI, MCP, hook, inspector in Chromium) | `make test-e2e` (it runs `make ui` itself; once first: `pnpm exec playwright install chromium`) |
 | regenerate the contracts and clients | `make api`; `make api-check` fails on a diff |
-| the Quint model of the commit protocol | `make verify-spec` |
+| the Quint model of the commit protocol | `make verify-spec` (Quint through npx, fetched on first use; Apalache's bounded check only with a JVM on the path) |
 | the CLI | `engram write \| read \| promote \| explain \| retain \| lint \| simulate \| serve \| mcp \| hook claude-code \| doctor` |
 | a benchmark on its fixture subset, offline | `make bench BENCH=gatemem` (also `longmemeval`, `merit`, `tau2`; MERIT and tau2 fetch their pinned harness once) |
 | replay a runner config from its cassettes | `make run CONFIG=research/configs/rn1-gatemem-probe.json` |
@@ -257,12 +285,17 @@ The question: what does enforcing memory governance at the boundary cost, compar
 | [`specs/`](specs/README.md) | the Quint model of the commit and erasure protocol |
 | `sdk/` | generated JSON Schema, OpenAPI and TypeScript client; do not edit |
 | [`docs/`](docs/README.md) | architecture, roadmap, decisions, tasks, research, readings, log, conventions |
-| [`fixtures/`](fixtures/) | sessions, stores, faults, cassettes, benchmark subsets; regenerated only by `make fixtures` |
+| [`fixtures/`](fixtures/) | sessions, stores, faults, cassettes (recorded model replies, replayed so a rerun calls no model), benchmark subsets; regenerated only by `make fixtures` |
+| [`scripts/`](scripts/) | the repository's own checks: `make lint-docs` (prose, log entries, the PR gate) and their tests |
+| [`test/e2e/`](test/e2e/) | layer 6, `make test-e2e`: the CLI, the MCP handshakes, the hook and the inspector in Chromium |
+| [`.pi/`](.pi/) | pi's project settings (loading the Engram package), the appended system prompt and the prompt templates for working on this repository |
+| [`.claude/`](.claude/) | Claude Code's settings and commands for working on this repository |
+| [`.github/`](.github/) | the PR template |
 | [`AGENTS.md`](AGENTS.md) | the operating manual; `CLAUDE.md` is a checked copy |
 
 ## Contributing
 
-Read [`AGENTS.md`](AGENTS.md) in full first: its rules are binding on people and coding agents alike. In short:
+Read [`AGENTS.md`](AGENTS.md) in full first: its rules are binding on people and coding agents alike. A new team member then reads the required tier of [`docs/readings/README.md`](docs/readings/README.md) and writes a note per paper, then [`docs/decisions/0001-pi-as-base.md`](docs/decisions/0001-pi-as-base.md) and [`docs/architecture.md`](docs/architecture.md). In short:
 
 1. **Work is cut into task cards** under [`docs/tasks/`](docs/tasks/), each with a goal, the files it may touch, its dependencies, an acceptance command and what is out of scope. One card per pull request; its title is the card id and goal. Start only when every card it depends on is merged.
 2. **Plan, test first, implement.** Propose the plan in the PR description, write the acceptance test before the code, and follow [`docs/conventions/testing.md`](docs/conventions/testing.md): fakes not mocks, scripted or cassette models, an injected clock and seeds.
@@ -277,7 +310,7 @@ A choice another card could have made differently gets an ADR under [`docs/decis
 - **By 30 November.** The label audit of H1's benchmarks by three members, the runner's remaining pre-tag work, the smoke run and the GateMem reference check (B1), then the `prereg-v1` tag and its Zenodo deposit. The eight pre-tag conditions are listed at the head of the pre-registration.
 - **1 to 8 December.** H1's live runs on M1: GateMem as four shards in parallel, then MEM-INV-Bench, then `make h1-table` and `make h1-figure`.
 - **13 December, Gate C.** If enforcement beats instruction, the programme continues as planned; if not, the thesis pivots to where boundary enforcement fails and why; an undecided read-out continues and lets the final Holm decide.
-- **The remaining fifteen absorb cards**, worked beside the live runs: L5 (near-duplicate lint), L6 (supersession helper), D2 (induction with Agent Workflow Memory, skills as SKILL.md) and D3 (the replay validation gate), E2.11 (trust floors), E1.6 (tamper-evident log), L7 (a local NLI tier for the contradiction lint), X14 (red-team harness), then the product lane: E2.13 (who can read this memory), E8.11 (provenance graph, event table and version diff in the inspector), E9.8 (memory import and export), E2.12 (policy exported to Cedar), E8.12 (verified actors), E8.13 (OpenTelemetry export) and E8.14 (a framework kit and a Vercel AI SDK middleware).
+- **The remaining fifteen absorb cards, in progress** since 2026-11-21 and worked beside the live runs: L5 (near-duplicate lint), L6 (supersession helper), D2 (induction with Agent Workflow Memory, skills as SKILL.md) and D3 (the replay validation gate), E2.11 (trust floors), E1.6 (tamper-evident log), L7 (a local NLI tier for the contradiction lint), X14 (red-team harness), then the product lane: E2.13 (who can read this memory), E8.11 (provenance graph, event table and version diff in the inspector), E9.8 (memory import and export), E2.12 (policy exported to Cedar), E8.12 (verified actors), E8.13 (OpenTelemetry export) and E8.14 (a framework kit and a Vercel AI SDK middleware).
 - **24 January 2027, Gate D.** The frontier figure on at least two policy levels, two stores (met by the request-identity check of ADR 0035, not by paid runs on each store) and two models, lint precision and recall on the seeded faults, and the Knowledge and Twin profiles on the team's own dogfood data with zero recorded violations ([`docs/dogfood.md`](docs/dogfood.md)).
 - **February and March.** H3 and H5, failure analysis, the reproduction script, the thesis and its defence.
 

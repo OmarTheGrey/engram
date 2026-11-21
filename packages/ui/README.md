@@ -40,11 +40,11 @@ engram serve --root <store folder> --owner alice --as person:alice --member pers
 ```sh
 pnpm --filter ui exec vitest run       # data.ts and view.ts, through the client in process, on fixture workspaces
 pnpm exec playwright install chromium  # once
-make test-e2e                          # the inspector in Chromium on fixtures/workspaces/inspector and fixtures/workspaces/twin
+make test-e2e                          # runs make ui itself, then the inspector in Chromium on fixtures/workspaces/inspector and fixtures/workspaces/twin
 ```
 
 ## What is next
 
-- Card E8.11: an item page with the provenance and decision graph, a virtualised event table and a version diff, with a leak test that no node appears for an item the viewer cannot read.
-- Card E2.13: a "who can read this" panel.
-- Open roadmap cards: E8.7 (lint findings with resolve actions), E8.8 (the review queue), E8.10 (a diff between two snapshots of a scope), E9.3 (Knowledge screens) and E9.6 (Procedures screens).
+- Card E8.11 (in progress): an item page with the provenance and decision graph, a virtualised event table and a version diff, with a leak test that no node appears for an item the viewer cannot read.
+- Card E2.13 (in progress): a "who can read this" panel.
+- Open roadmap cards, not started: E8.7 (lint findings with resolve actions), E8.8 (the review queue), E8.10 (a diff between two snapshots of a scope), E9.3 (Knowledge screens) and E9.6 (Procedures screens).

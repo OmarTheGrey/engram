@@ -47,5 +47,5 @@ make api-check              # the generated contract and clients match what is c
 
 ## What is next
 
-- Card E8.12 (verified actors): bearer tokens from an external issuer and hashed, prefixed API keys, with an invariant that every event's actor was authenticated; loopback without a token only behind an explicit flag. An ADR comes first.
-- Card E2.13 adds a who-can-read route, and card E8.14 a read by id and a scope list.
+- Card E8.12 (verified actors, in progress): bearer tokens from an external issuer and hashed, prefixed API keys, with an invariant that every event's actor was authenticated; loopback without a token only behind an explicit flag. An ADR comes first.
+- Cards E2.13 and E8.14, both in progress: a who-can-read route, and a read by id and a scope list.

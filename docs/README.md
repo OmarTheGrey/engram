@@ -15,7 +15,7 @@ The body of knowledge: how Engram is designed, why each choice was made, what is
 
 | folder | what it holds |
 |---|---|
-| [`decisions/`](decisions/README.md) | the ADRs, `NNNN-<slug>.md`, 0001 to 0041; the index gives each one's status |
+| [`decisions/`](decisions/README.md) | the ADRs, `NNNN-<slug>.md`, 0001 to 0041 on 2026-11-21: every one is decided except ADR 0034 (the grant change, proposed), plus any an in-progress card proposes; the index gives each one's status |
 | [`tasks/`](tasks/) | one file per task card (`<id>.md`: goal, files, dependencies, acceptance, status), and the plans that cut work into PRs: [`absorb-plan.md`](tasks/absorb-plan.md) (the thirty PRs of 2026-11-21), [`backlog.md`](tasks/backlog.md) (follow-ups by card), [`lead-decisions.md`](tasks/lead-decisions.md) (every decision put to the lead, with its answer), and the earlier plans (`step-0.md`, `gate-a-e0-e1-e2-plan.md`, `gate-b-plan.md`, `prereg-v1-plan.md`, `key-free-work-plan.md`) |
 | [`research/`](research/) | the experiment design: [`preregistration.md`](research/preregistration.md) (question, conditions, benchmarks, models, statistics, H1 to H5, the proposed arms), [`positioning.md`](research/positioning.md) (the novelty claim against HEAMS and SAFE-Mem), [`prereg-v1-decisions.md`](research/prereg-v1-decisions.md), [`label-audit.md`](research/label-audit.md), [`baselines.md`](research/baselines.md), [`mpbench-request.md`](research/mpbench-request.md) (a draft, not sent), and [`absorb/`](research/absorb/README.md), the research behind the absorb plan |
 | [`readings/`](readings/README.md) | the reading list by tier, and [`litreview/`](readings/litreview/README.md), one sourced note per paper (the source of truth for papers) and the frontier summary |
@@ -33,4 +33,4 @@ The body of knowledge: how Engram is designed, why each choice was made, what is
 
 ## Checks on this folder
 
-`make lint-docs` checks every log entry's frontmatter, that no prose holds an em dash, and that `CLAUDE.md` equals `AGENTS.md`. `scripts/test/tasks-and-decisions.test.ts` checks that every card in the roadmap has a file under `tasks/` and that every ADR in the index is decided, so keep the index's table format as it is.
+`make lint-docs` checks every log entry's frontmatter, that no prose holds an em dash, and that `CLAUDE.md` equals `AGENTS.md`. `scripts/test/tasks-and-decisions.test.ts` checks that every card in the roadmap has a file under `tasks/` and that every ADR in the index is decided, except those it names as the lead's to decide (ADR 0034 among them), so keep the index's table format as it is.

@@ -4,10 +4,10 @@ The `engram` command. It calls core and the adapters through the HTTP API's gene
 
 ## Rules
 
-- **One client call per command** (card E8.2, ADR [0027](../../docs/decisions/0027-http-contract-client-and-inspector.md)). In process, the client's fetch is the server app over the workspace the flags open, so no command needs a running server; with `--server <url>` (or `ENGRAM_SERVER_URL`) the same call goes over HTTP to `engram serve`.
+- **One client call per command** (card E8.2, ADR [0027](../../docs/decisions/0027-http-contract-client-and-inspector.md)), except `doctor`, `serve`, `mcp` and `hook`, which are not plane calls of their own. In process, the client's fetch is the server app over the workspace the flags open, so no command needs a running server; with `--server <url>` (or `ENGRAM_SERVER_URL`) the same call goes over HTTP to `engram serve`.
 - **No policy `if`** (AGENTS.md rule 1). The CLI builds the actor from `--as`, `--level` and `--member` and prints what the Plane decided.
-- **It never calls an adapter** (rule 2). The workspace opener in `@engram/server` opens the log, the policy and the store.
-- **Writes are recorded as source `user`** by the acting principal, whatever the item claims.
+- **It never calls an adapter outside the plane** (rule 2). The workspace opener in `@engram/server` opens the log, the policy and the store. The one exception is `engram doctor`: it builds its own Mem0 and Letta adapters, each on a temporary folder or an in-memory store, and checks them through a Plane on an in-memory log, except three calls (`history`, `delete`, `read`) its Letta check makes on its own probe, since the plane has neither history nor delete.
+- **Writes are recorded as source `user`** by the acting principal, whatever the item claims (decision D4 of ADR [0004](../../docs/decisions/0004-provenance-and-source-trust.md): the harness, not the caller, sets provenance).
 - **The clock is the real one.** Only `read --at` changes the time validity windows are judged at; `--at` on any other command is refused unless `--test-clock` (tests and fixtures only) is given in process.
 - **Identity is self-asserted.** `--as` and `--member` are taken as given; there is no authentication yet.
 
@@ -57,7 +57,8 @@ engram read --root ~/.claude/projects/<project>/memory --owner alice     # your 
 
 ```sh
 pnpm --filter cli exec vitest run
-make test-e2e        # layer 6: doctor and a write, read, explain smoke on SQLite and embedded Postgres, on a temp folder and on a Letta repository
+pnpm exec playwright install chromium   # once: make test-e2e also runs the inspector in Chromium
+make test-e2e        # builds the inspector (make ui) first; layer 6: doctor and a write, read, explain smoke on SQLite and embedded Postgres, on a temp folder and on a Letta repository
 ```
 
 `test/commands.test.ts` holds the help snapshot (card E8.2's acceptance) and `test/main.test.ts` runs the binary as a process; there is a test file per command (`write`, `read`, `explain`, `promote`, `simulate`, `doctor`, `hook`), and `test/redaction.property.test.ts` checks that no secret in a Postgres URL reaches the output.
@@ -67,3 +68,9 @@ make test-e2e        # layer 6: doctor and a write, read, explain smoke on SQLit
 - Card E9.8: `engram export` (a portable JSONL bundle of what the actor owns) and `engram import` (every row a governed candidate write by a dedicated import actor, grants dropped).
 - Card E1.6: `engram log verify`, which checks the tamper-evident chain of the event log.
 - Card E2.13: who can read an item, through the generated client.
+- Card E8.12: verified actors; `--as` stays for stdio, and the HTTP surfaces take tokens.
+- Card L6: supersession proposals (an end date for a fact a newer one replaces) applied as ordinary governed updates.
+- Card E2.11: the trust floors, opt-in options of the policy file the CLI loads.
+- Card E8.13: decisions exported as OpenTelemetry spans, off by default.
+
+All of these are in progress since 2026-11-21; none has merged.

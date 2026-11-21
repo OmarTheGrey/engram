@@ -7,18 +7,18 @@ One adapter per memory store, each implementing the one `Adapter` contract that 
 - **One contract for every store** (ADR [0013](../../docs/decisions/0013-adapter-contract-and-conformance.md)). The contract is `Adapter` in `packages/core/src/adapter.ts`, re-exported from `src/contract.ts`: `read`, `write`, `delete`, `list`, and optionally `search`, `history`, `diagnostics` and `derivedFields`, with capability flags (`native_validity`, `native_history`, `native_search`, `native_graph`).
 - **No adapter is called directly outside its own tests** (AGENTS.md rule 2). Everything else reaches a store through `Plane.read` and `Plane.write`.
 - **No store-specific branch in core.** A store that needs special handling gets it here, behind the contract.
-- **No conformance case is skipped for one adapter.** The registry has no skip list; a failing case is fixed, not excluded.
-- **No model, no network.** Mem0 runs in process with `infer: false`, so it never asks a model to extract or merge facts; the conformance suite installs a network guard.
+- **No conformance case is excluded for one adapter.** The registry has no skip list. A case is skipped only when the adapter lacks the optional method it needs or does not claim the capability it tests; a failing case is fixed, not excluded.
+- **No model, no network.** Mem0 runs in process with `infer: false`, so it never asks a model to extract or merge facts, and its embedding model is injected (`Embedder`, `src/embedder.ts`), as a `ModelCall` is: an adapter never builds a model client itself. The conformance suite installs a network guard.
 
 ## Main modules
 
 | module | store |
 |---|---|
 | `src/files/` | `createFilesAdapter({ root, owner })`: a folder of Markdown in Claude Code's auto-memory layout, one memory per file with YAML frontmatter. Files Claude Code or a person wrote list as read-only items owned by `person:<owner>`; `MEMORY.md` is left to Claude Code (card A3, review card RV3) |
-| `src/mem0/` | `createMem0Adapter({ embedder })`: open-source Mem0 (`mem0ai/oss`) in process, on its own local SQLite vector store; the whole item rides in Mem0's metadata, and telemetry is switched off before Mem0 loads (card A1) |
+| `src/mem0/` | `createMem0Adapter({ embedder })`, the embedder injected: open-source Mem0 (`mem0ai/oss`) in process, on its own local SQLite vector store; the whole item rides in Mem0's metadata, and telemetry is switched off before Mem0 loads (card A1) |
 | `src/letta/` | `createLettaAdapter({ root })`: a Letta MemFS repository, Letta Code's git-backed memory, on local disk; items are `engram/<id>.md` and every write is one commit; needs git on the path (card A2, ADR [0028](../../docs/decisions/0028-letta-adapter-over-memfs.md)) |
 | `src/fake/` | `createFakeAdapter()`: a complete in-memory adapter that passes the whole suite, used by every test above layer 1 that is not about a real store; `createHashingEmbedder()`, a deterministic embedder for Mem0 in tests and in the runner |
-| `src/fs-safe.ts`, `src/lock.ts` | safe paths inside a store root, and the folder lock between writers |
+| `src/fs-safe.ts`, `src/lock.ts`, `src/embedder.ts` | the file helpers the files and Letta adapters share (an atomic write through a temporary file, error codes), the lock file a store's writers share across instances and processes, and the `Embedder` interface |
 
 ## Use
 
@@ -50,6 +50,6 @@ make test-one T=packages/adapters/test/conformance/conformance.test.ts
 
 ## What is next
 
-- Card E8.14 adds a read by id and a scope list in core and a conformance test for a framework adapter kit.
+- Card E8.14 (in progress) adds a read by id and a scope list in core, and a framework kit and a Vercel AI SDK middleware as new packages, with an adapter conformance test; nothing in it changes this package's contract.
 - More stores (Zep through Graphiti, LangGraph Store, Redis Agent Memory Server) are deferred past the degree ([`docs/roadmap.md`](../../docs/roadmap.md), appendix); each would be one registry entry and must pass the same suite.
 - ADR 0035's request-identity check, which would compare every model request across the files, Mem0 and Letta stores, needs the files store in the runner first.
