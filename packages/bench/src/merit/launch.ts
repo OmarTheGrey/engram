@@ -75,6 +75,30 @@ const PASSED_ENV = [
   "LANG",
 ];
 
+/**
+ * The MERIT process's environment, built from nothing: what Python and
+ * sockets need from `env`, and no provider key, so a misconfigured endpoint
+ * cannot reach a provider with a real one.
+ *
+ * - OPENAI_API_KEY: a placeholder; LiteLLM needs one set, the proxy ignores it.
+ * - LITELLM_LOCAL_MODEL_COST_MAP: LiteLLM reads its price map from its package
+ *   instead of fetching it (its default is a network fetch).
+ * - LITELLM_MODE=PRODUCTION: LiteLLM 1.91.1 calls `dotenv.load_dotenv()` at
+ *   import unless the mode is other than DEV (`litellm/__init__.py`), and
+ *   python-dotenv walks up from LiteLLM's folder (or the working directory)
+ *   to the root, so a `.env` with provider keys would load (finding B7-2).
+ */
+export function meritProcessEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const childEnv: NodeJS.ProcessEnv = {};
+  for (const name of PASSED_ENV) if (env[name] !== undefined) childEnv[name] = env[name];
+  childEnv.OPENAI_API_KEY = "engram-cassette-proxy";
+  childEnv.LITELLM_LOCAL_MODEL_COST_MAP = "True";
+  childEnv.LITELLM_MODE = "PRODUCTION";
+  childEnv.NO_PROXY = "127.0.0.1";
+  childEnv.PYTHONIOENCODING = "utf-8";
+  return childEnv;
+}
+
 /** One ledger row: a call's usage and the run cell it belongs to (the runner's UsageRecord, card RV1). */
 export interface LedgerRow extends UsageRecord {
   cell: string;
@@ -275,14 +299,7 @@ export async function runMerit(options: MeritRunOptions): Promise<MeritRunResult
     };
     const planPath = join(out, "plan.json");
     writeFileSync(planPath, `${JSON.stringify(plan, null, 2)}\n`);
-    const childEnv: NodeJS.ProcessEnv = {};
-    for (const name of PASSED_ENV) if (env[name] !== undefined) childEnv[name] = env[name];
-    // The proxy ignores the key; LiteLLM needs one set. LiteLLM's price map is
-    // read from its package, never fetched (its default is a network fetch).
-    childEnv.OPENAI_API_KEY = "engram-cassette-proxy";
-    childEnv.LITELLM_LOCAL_MODEL_COST_MAP = "True";
-    childEnv.NO_PROXY = "127.0.0.1";
-    childEnv.PYTHONIOENCODING = "utf-8";
+    const childEnv = meritProcessEnv(env);
     const proc = await runProcess(
       options.python,
       ["-I", "-B", resolve(options.shim), planPath],
