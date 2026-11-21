@@ -146,7 +146,7 @@ describe("the derivations", () => {
   test("a name is the title folded to ASCII, lowercased, hyphenated and cut to 64", () => {
     expect(skillName("Rename a symbol, everywhere!")).toBe("rename-a-symbol-everywhere");
     expect(skillName("Créer un fichier")).toBe("creer-un-fichier");
-    const long = skillName("x".repeat(63) + " tail");
+    const long = skillName(`${"x".repeat(63)} tail`);
     expect(long).toBe("x".repeat(63));
     expect(() => skillName("!!!")).toThrow(SkillFormatError);
   });
