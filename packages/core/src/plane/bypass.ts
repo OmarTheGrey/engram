@@ -23,7 +23,9 @@ export const BYPASS_RESULT_ID = "engram/bypass/foreign-result";
 /** How long the attempt kept in a reason may be, marker included. */
 export const MAX_ATTEMPT_LENGTH = 160;
 
-const REDACTED = "<redacted>";
+/** What replaces a secret the table matches. */
+export const REDACTED_SECRET = "<redacted>";
+const REDACTED = REDACTED_SECRET;
 const SECRET_NAME =
   "[A-Za-z0-9_]*(?:KEY|TOKEN|SECRET|PASSWORD|PASSWD|PWD|AUTH|CREDENTIALS?)[A-Za-z0-9_]*";
 const VALUE = `(?:'[^']*'|"[^"]*"|\\S+)`;
@@ -46,13 +48,47 @@ const SECRETS: [RegExp, string][] = [
   [/(:\/\/)[^\s/@'"]+@/g, `$1${REDACTED}@`],
   // Strings that look like a key whatever stands before them.
   [/\bsk-[A-Za-z0-9_-]{8,}/g, REDACTED],
-  [/\b[A-Za-z0-9_-]{32,}\b/g, REDACTED],
 ];
+/** Any run of 32 or more key characters: every UUID, git SHA and long hash matches it too. */
+const LONG_TOKEN: [RegExp, string] = [/\b[A-Za-z0-9_-]{32,}\b/g, REDACTED];
+
+/**
+ * `text` with every match of the secret table replaced by `<redacted>`, its
+ * lines and length otherwise kept. The session recorder's scrub runs it too
+ * (card D1, distill/scrub.ts). `longTokens: false` leaves out the last rule,
+ * a run of 32 or more key characters, for names that are long by design
+ * (an MCP tool name, a model id); the attempt always applies it.
+ */
+export function redactSecrets(text: string, options: { longTokens?: boolean } = {}): string {
+  let kept = text;
+  for (const [pattern, replacement] of SECRETS) kept = kept.replace(pattern, replacement);
+  if (options.longTokens !== false) kept = kept.replace(LONG_TOKEN[0], LONG_TOKEN[1]);
+  return kept;
+}
+
+/**
+ * Whether a name (an environment variable's, an argument's) says it holds a
+ * secret: the table's first rule reads it, a hyphen counts as an underscore,
+ * and `pass`, `passphrase`, `pw` or `cookie` as a word of the name
+ * (`pass`, `db_pass`, `dbPass`, `gpg_passphrase`, `pw`, `Cookie`) counts
+ * too, as the flag rule counts `--pass`. Only the recorder's scrub reads it;
+ * the attempt never does.
+ */
+const SECRET_WORDS = new Set(["pass", "passphrase", "pw", "cookie"]);
+
+export function isSecretName(name: string): boolean {
+  const snake = name.replaceAll("-", "_");
+  if (new RegExp(`^${SECRET_NAME}$`, "i").test(snake)) return true;
+  const words = snake
+    .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+    .toLowerCase()
+    .split("_");
+  return words.some((w) => SECRET_WORDS.has(w));
+}
 
 /** What a bypass event's reason keeps of an attempt: one line, secrets removed, cut to MAX_ATTEMPT_LENGTH. */
 export function bypassAttempt(command: string): string {
-  let kept = command.replace(/\s*[\r\n]+\s*/g, " ").trim();
-  for (const [pattern, replacement] of SECRETS) kept = kept.replace(pattern, replacement);
+  const kept = redactSecrets(command.replace(/\s*[\r\n]+\s*/g, " ").trim());
   return kept.length <= MAX_ATTEMPT_LENGTH ? kept : `${kept.slice(0, MAX_ATTEMPT_LENGTH - 3)}...`;
 }
 

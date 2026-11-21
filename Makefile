@@ -134,6 +134,7 @@ fixtures: ## regenerate golden files and scripted cassettes; refuses without MSG
 	@[ -n "$(MSG)" ] || { echo "fixtures: refusing without MSG=<reason>"; exit 2; }
 	$(UV) run python research/scripts/consolidate_log.py --root fixtures/log/repo --out fixtures/log/expected
 	rm -rf fixtures/faults && node packages/core/scripts/faults.ts write fixtures/faults
+	rm -rf fixtures/sessions/d1 && node packages/runner/scripts/session-fixtures.ts --seed 1 --out fixtures/sessions/d1
 	ENGRAM_UPDATE_FIXTURES=1 $(PNPM) --filter pi-extension exec vitest run test/interception.test.ts test/retention.test.ts
 	env -u ENGRAM_OFFLINE node packages/bench/scripts/run-gatemem.ts --config fixtures/bench/gatemem/run-config.json --out .engram/bench/gatemem-record --record
 	$(UV) run python -I packages/bench/scripts/vendor-mem-inv-bench.py --upstream "$(MEM_INV_UPSTREAM)" --fetch --out fixtures/bench/mem-inv-bench

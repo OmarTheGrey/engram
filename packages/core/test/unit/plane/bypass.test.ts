@@ -7,6 +7,7 @@
 import { describe, expect, test } from "vitest";
 import { InvalidCallError } from "../../../src/actor.ts";
 import { currentItems } from "../../../src/events.ts";
+import { isSecretName, redactSecrets } from "../../../src/plane/bypass.ts";
 import {
   BYPASS_ID,
   BYPASS_PATH_ID,
@@ -112,6 +113,56 @@ describe("bypassAttempt: what the reason keeps of an attempt", () => {
     const kept = bypassAttempt(long);
     expect(kept.length).toBe(MAX_ATTEMPT_LENGTH);
     expect(kept.endsWith("...")).toBe(true);
+  });
+});
+
+describe("redactSecrets and isSecretName: the table on its own (card D1)", () => {
+  test("redacts as the attempt does but keeps lines and length", () => {
+    const text = `line one KEY=abc\n${"word ".repeat(40)}Bearer xyz`;
+    expect(redactSecrets(text)).toBe(
+      `line one KEY=<redacted>\n${"word ".repeat(40)}Bearer <redacted>`,
+    );
+  });
+
+  test("is idempotent", () => {
+    const once = redactSecrets("TOKEN=abc https://u:p@h sk-abcdefghijkl");
+    expect(redactSecrets(once)).toBe(once);
+  });
+
+  test("a name is a secret's by the table's name rule", () => {
+    const secret = ["api_key", "api-key", "GITHUB_TOKEN", "password", "authHeader"];
+    expect(secret.filter((n) => !isSecretName(n))).toEqual([]);
+    expect(["url", "path", "command", "file name"].filter(isSecretName)).toEqual([]);
+  });
+
+  test("pass as a word of a name is a secret's, as the flag rule reads --pass", () => {
+    expect(
+      [
+        "pass",
+        "PASS",
+        "db_pass",
+        "db-pass",
+        "dbPass",
+        "pass_word",
+        "gpg_passphrase",
+        "pw",
+        "db_pw",
+        "Cookie",
+        "sessionCookie",
+      ].filter((n) => !isSecretName(n)),
+    ).toEqual([]);
+    expect(
+      ["bypass", "passage", "compass", "passes", "power", "cookies_count"].filter(isSecretName),
+    ).toEqual([]);
+  });
+
+  test("longTokens false leaves out only the rule for a run of 32 or more key characters", () => {
+    const long = "mcp__a_very_long_server_name__and_a_long_tool_name";
+    expect(redactSecrets(long)).toBe("<redacted>");
+    expect(redactSecrets(long, { longTokens: false })).toBe(long);
+    expect(redactSecrets("TOKEN=abc sk-abcdefghijkl", { longTokens: false })).toBe(
+      "TOKEN=<redacted> <redacted>",
+    );
   });
 });
 

@@ -45,7 +45,7 @@ This file is owned by the lead. Changing it needs a second reviewer and a `decis
 
 ## Fixtures
 
-- `fixtures/sessions/`: pi session JSONL files (version 3) that exercise one behaviour each: a write denied, a read filtered, a bash bypass blocked, a branch abandoned, a compaction. Each has a sibling `.expected.json` with the decisions and events the plane must produce. Regenerated only by `make fixtures`, which fails if the diff is not explained in the PR.
+- `fixtures/sessions/`: pi session JSONL files (version 3) that exercise one behaviour each: a write denied, a read filtered, a bash bypass blocked, a branch abandoned, a compaction. Each has a sibling `.expected.json` with the decisions and events the plane must produce. Regenerated only by `make fixtures`, which fails if the diff is not explained in the PR. The exception is `fixtures/sessions/d1/` (card D1): fifty synthetic sessions for the session recorder, with one `index.json` of task ids, verdicts and tree shapes instead of an `.expected.json` each, written from seed 1 by `packages/runner/scripts/session-fixtures.ts`.
 - `fixtures/stores/`: snapshot states for each adapter at known points, used by replay and conformance tests.
 - `fixtures/faults/`: the seeded-fault catalogue (expired validity, changed source, scope mismatch, missing provenance, orphan, duplicate, contradiction, unsupported claim, each MPBench attack class). Every lint has a fixture that it must flag and a near-miss fixture that it must not.
 - `fixtures/cassettes/`: recorded model responses keyed by (benchmark item, condition, preset, store, model, seed, prompt hash) (ADR 0017).
