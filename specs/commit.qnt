@@ -28,7 +28,10 @@
 //
 // The constant CHECKED is the conditional append. The module `good` sets it;
 // the module `broken` removes it, so a write lands against a stale head, and
-// the checker must refute noStaleAppend there.
+// the checker must refute erasureHolds and noWriteWhileErasing there (and
+// noStaleAppend, which restates the removed check). The module
+// `knownGapThreeOffboardings` pins a leak the code has with a third
+// offboarding (specs/README.md).
 module commit {
   const HANDLES: Set[str]
   const ITEMS: Set[str]
@@ -71,13 +74,19 @@ module commit {
   // COUNTED_DENIES); a gate's deny changes nothing (P50-4).
   pure val COUNTED_DENIES = Set(WRITE_CONFLICT, ADOPT_ERASED)
 
-  // A store record. `ext` marks bytes an outside party wrote, not the plane.
-  type StoreRec = { present: bool, content: int, kind: int, ext: bool }
-  pure val ABSENT: StoreRec = { present: false, content: -1, kind: 0, ext: false }
+  // A store record. `kind` is its provenance as the record claims it, `meta`
+  // a field that is neither content nor provenance (a confidence, say), and
+  // `ext` marks bytes an outside party wrote, not the plane.
+  type StoreRec = { present: bool, content: int, kind: int, meta: int, ext: bool }
+  pure val ABSENT: StoreRec = { present: false, content: -1, kind: 0, meta: 0, ext: false }
 
   // A projected item (items.ts itemById); not live means no item.
-  type Item = { live: bool, content: int, kind: int }
-  pure val NONE: Item = { live: false, content: -1, kind: 0 }
+  type Item = { live: bool, content: int, kind: int, meta: int }
+  pure val NONE: Item = { live: false, content: -1, kind: 0, meta: 0 }
+
+  // The store record the plane writes for an item.
+  pure def recOf(it: Item): StoreRec =
+    { present: true, content: it.content, kind: it.kind, meta: it.meta, ext: false }
 
   // One log event (schema.ts MemoryEvent, reduced). `effect` is what the
   // event does to the projection (events.ts applyEvent): set, remove, none.
@@ -96,10 +105,19 @@ module commit {
     closes: int,
     // For an adoption: the kind of the plane's item of that id, -1 if none.
     known: int,
+    meta: int,
     // Ghost: the content as appended, never redacted; only the properties
     // read it, so a property can still tell a writer's own adopted bytes
     // after an erasure redacted both events.
     orig: int,
+    // Ghosts for an adoption: the kind the record claimed, and the content
+    // of the plane's item of that id at the decision (-1 if none).
+    claim: int,
+    knownContent: int,
+    // Ghosts at the append: an offboarding's mark was open by the ghost
+    // record of marks (gMarks), and the id was already erased (erasedIds).
+    gOpen: bool,
+    gErased: bool,
   }
 
   // A handle's call in progress. One record with a tag; unused fields keep
@@ -129,7 +147,8 @@ module commit {
               content: int, kind: int): Event = {
     seq: seq, rule: rule, decision: decision, iid: iid, effect: effect,
     content: content, kind: kind, adopted: false, basis: -1, closes: -1,
-    known: -1, orig: content,
+    known: -1, meta: 0, orig: content, claim: -1, knownContent: -1,
+    gOpen: false, gErased: false,
   }
 
   pure def minInt(a: int, b: int): int = if (a < b) a else b
@@ -142,7 +161,7 @@ module commit {
   // events.ts applyEvent over the log: the projection (items.ts itemById).
   pure def applyEv(p: str -> Item, e: Event): str -> Item =
     if (e.decision != "allow" or e.iid == "") p
-    else if (e.effect == "set") p.set(e.iid, { live: true, content: e.content, kind: e.kind })
+    else if (e.effect == "set") p.set(e.iid, { live: true, content: e.content, kind: e.kind, meta: e.meta })
     else if (e.effect == "remove") p.set(e.iid, NONE)
     else p
 
@@ -216,6 +235,11 @@ module commit {
   var erasedContent: Set[int]
   // Bound: how many outside edits the run has made.
   var edits: int
+  // Ghost: the begin marks still open, kept by the offboardings themselves
+  // and not read from the log. A begin adds its own; a report removes its
+  // own and every mark begun before it (the marks open when its own was
+  // appended, V-1); a stopped offboarding leaves its mark open.
+  var gMarks: Set[int]
   // Ghost: the last step taken, so a trace reads as a sequence of steps.
   var lastAction: Step
 
@@ -231,10 +255,17 @@ module commit {
     erasedIds' = Set(),
     erasedContent' = Set(),
     edits' = 0,
+    gMarks' = Set(),
     lastAction' = act("init", "", ""),
   }
 
-  action keepGhosts = all { erasedIds' = erasedIds, erasedContent' = erasedContent, edits' = edits }
+  action keepGhosts = all {
+    erasedIds' = erasedIds, erasedContent' = erasedContent, edits' = edits, gMarks' = gMarks,
+  }
+
+  // The ghost fields of an allowed change appended now to item x.
+  def ghosted(e: Event, x: str): Event =
+    { ...e, gOpen: gMarks.size() > 0, gErased: erasedIds.contains(x) }
 
   // ---------------------------------------------------- the gated write
 
@@ -267,7 +298,7 @@ module commit {
     val p = pc.get(h)
     all {
       p.tag == "decided",
-      store' = store.set(p.iid, { present: true, content: p.content, kind: p.kind, ext: false }),
+      store' = store.set(p.iid, { present: true, content: p.content, kind: p.kind, meta: 0, ext: false }),
       pc' = pc.set(h, { ...p, tag: "wrote" }),
       log' = log, nextContent' = nextContent, keepGhosts,
       lastAction' = act("storeWrite", h, p.iid),
@@ -288,7 +319,7 @@ module commit {
         log' = log,
         pc' = pc.set(h, { ...p, tag: "settling" }),
       } else all {
-        log' = log.append({ ...ev(log.length(), GATE_ALLOW, "allow", p.iid, "set", p.content, p.kind), basis: p.basis }),
+        log' = log.append(ghosted({ ...ev(log.length(), GATE_ALLOW, "allow", p.iid, "set", p.content, p.kind), basis: p.basis }, p.iid)),
         pc' = pc.set(h, IDLE),
       },
       store' = store, nextContent' = nextContent, keepGhosts,
@@ -330,7 +361,7 @@ module commit {
     all {
       p.tag == "settleStore",
       store' = store.set(p.iid,
-        if (p.desired.live) { present: true, content: p.desired.content, kind: p.desired.kind, ext: false }
+        if (p.desired.live) recOf(p.desired)
         else ABSENT),
       pc' = pc.set(h, { ...p, tag: "settleConfirm" }),
       log' = log, nextContent' = nextContent, keepGhosts,
@@ -341,13 +372,17 @@ module commit {
   // commit.ts settle, the second transaction: if nothing changed the item
   // since the state it wrote was read (and, when it wrote one back, no
   // offboarding began since), the withdrawal (if any) and the deny are
-  // appended; otherwise it settles again. SETTLE_ROUNDS is not bounded here.
+  // appended; otherwise it settles again. The code gives up and throws after
+  // SETTLE_ROUNDS (8); the model retries without limit and lacks that path.
+  // A withdrawal to nothing is a removal here; the code appends a retire,
+  // which leaves the item projected as retired.
   action settleConfirm(h: str): bool = {
     val p = pc.get(h)
     val again = touchedSince(log, p.iid, p.seen, -1) or (p.desired.live and erasureBegunSince(log, p.seen))
     val n = log.length()
     val withdrawal =
-      if (p.desired.live) ev(n, ADOPT_WITHDRAWN, "allow", p.iid, "set", p.desired.content, p.desired.kind)
+      if (p.desired.live)
+        ghosted({ ...ev(n, ADOPT_WITHDRAWN, "allow", p.iid, "set", p.desired.content, p.desired.kind), meta: p.desired.meta }, p.iid)
       else ev(n, ADOPT_WITHDRAWN, "allow", p.iid, "remove", -1, 0)
     val deny = ev(if (p.mend) n + 1 else n, WRITE_CONFLICT, "deny", p.iid, "none", -1, p.kind)
     all {
@@ -375,8 +410,10 @@ module commit {
     all {
       log' = log.append(ev(log.length(), BEGIN, "allow", "", "none", -1, 0)),
       pc' = pc.set(h, { ...IDLE, tag: "obDelete", begin: log.length(), doomed: doomed, remaining: doomed }),
+      gMarks' = gMarks.union(Set(log.length())),
     },
-    store' = store, nextContent' = nextContent, keepGhosts,
+    store' = store, nextContent' = nextContent,
+    erasedIds' = erasedIds, erasedContent' = erasedContent, edits' = edits,
     lastAction' = act("obBegin", h, ""),
   }
 
@@ -410,7 +447,7 @@ module commit {
       log' = erased.fold(redactedLog, (l, x) => l.append(ev(l.length(), ERASE, "allow", x, "remove", -1, 0))),
       erasedIds' = erasedIds.union(erased),
       erasedContent' = erasedContent.union(contents),
-      edits' = edits,
+      edits' = edits, gMarks' = gMarks,
       pc' = pc.set(h, { ...p, tag: "obSweepList" }),
       store' = store, nextContent' = nextContent,
       lastAction' = act("obErase", h, ""),
@@ -478,7 +515,10 @@ module commit {
   }
 
   // offboard.ts run, the put-back loop: read the head and the item under
-  // the lock; write it back; check again. Rounds are not bounded here.
+  // the lock; write it back; check again. When the read finds the item gone
+  // the loop ends and leaves what it last wrote, as the code's `break` does
+  // (the known gap, module knownGapThreeOffboardings). The code stops after
+  // four rounds; the model retries without limit and lacks that path.
   action obPutBackRead(h: str): bool = {
     val p = pc.get(h)
     val now = proj.get(p.iid)
@@ -495,7 +535,7 @@ module commit {
     val p = pc.get(h)
     all {
       p.tag == "obPutBackWrite",
-      store' = store.set(p.iid, { present: true, content: p.desired.content, kind: p.desired.kind, ext: false }),
+      store' = store.set(p.iid, recOf(p.desired)),
       pc' = pc.set(h, { ...p, tag: "obPutBackCheck" }),
       log' = log, nextContent' = nextContent, keepGhosts,
       lastAction' = act("obPutBackWrite", h, p.iid),
@@ -523,7 +563,9 @@ module commit {
       p.remaining == Set(),
       log' = log.append({ ...ev(log.length(), REPORT, "allow", "", "none", -1, 0), closes: p.begin }),
       pc' = pc.set(h, IDLE),
-      store' = store, nextContent' = nextContent, keepGhosts,
+      gMarks' = gMarks.filter(m => m > p.begin),
+      store' = store, nextContent' = nextContent,
+      erasedIds' = erasedIds, erasedContent' = erasedContent, edits' = edits,
       lastAction' = act("obReport", h, ""),
     }
   }
@@ -554,20 +596,27 @@ module commit {
 
   // adopt.ts adoptStoreItems and write.ts adoptWrite, one listed record, one
   // transaction: skipped when the projection holds it as listed; left to the
-  // advanced adoption when the log changed it, or began an erasure, since the
+  // next adoption when the log changed it, or began an erasure, since the
   // listing; refused and purged under an erased or swept id the projection
   // does not hold (engram/adopt/erased, adopt.ts erasedRefusal); refused while
-  // the scope is being erased; otherwise adopted at the least trusted of the
-  // record's claim, the plane's kind for the id, and import (adoptedItem).
+  // the scope is being erased; otherwise adopted (adoptedItem): a record whose
+  // content and provenance are as the plane holds them for the id keeps the
+  // plane's provenance (asHeld), any other takes the least trusted of its
+  // claim, the plane's kind for the id, and import. It is unchanged when the
+  // projection holds exactly what adoption would record (adopt.ts compares
+  // the adopted item, not the raw record).
   action adoptOne(h: str, x: str): bool = {
     val p = pc.get(h)
     val rec = p.listing.get(x)
     val known = proj.get(x)
-    val unchanged = known.live and known.content == rec.content
+    val asHeld = known.live and rec.content == known.content and rec.kind == known.kind
+    val kind = if (asHeld) known.kind
+               else minInt(minInt(rec.kind, if (known.live) known.kind else IMPORT), IMPORT)
+    val unchanged = known.live and known.content == rec.content and known.meta == rec.meta
+                    and known.kind == kind
     val deferred = touchedSince(log, x, p.seen, -1) or erasureBegunSince(log, p.seen)
     val refusedErased = not(known.live) and removedIn(log, x)
     val refusedErasing = erasureOpen(log)
-    val kind = minInt(minInt(rec.kind, if (known.live) known.kind else IMPORT), IMPORT)
     val n = log.length()
     val advanced = { ...p, remaining: p.remaining.exclude(Set(x)) }
     all {
@@ -582,8 +631,10 @@ module commit {
         log' = log.append({ ...ev(n, ERASING, "deny", x, "none", -1, rec.kind), adopted: true }),
         pc' = pc.set(h, advanced),
       } else all {
-        log' = log.append({ ...ev(n, GATE_ALLOW, "allow", x, "set", rec.content, kind), adopted: true,
-                            known: if (known.live) known.kind else -1 }),
+        log' = log.append(ghosted({ ...ev(n, GATE_ALLOW, "allow", x, "set", rec.content, kind), adopted: true,
+                                    meta: rec.meta, claim: rec.kind,
+                                    known: if (known.live) known.kind else -1,
+                                    knownContent: if (known.live) known.content else -1 }, x)),
         pc' = pc.set(h, advanced),
       },
       store' = store, nextContent' = nextContent, keepGhosts,
@@ -627,11 +678,23 @@ module commit {
   action outsideEdit(x: str, k: int): bool = all {
     nextContent < MAX_CONTENT,
     edits < MAX_EDITS,
-    store' = store.set(x, { present: true, content: nextContent, kind: k, ext: true }),
+    store' = store.set(x, { present: true, content: nextContent, kind: k, meta: 0, ext: true }),
     nextContent' = nextContent + 1,
     log' = log, pc' = pc,
-    erasedIds' = erasedIds, erasedContent' = erasedContent, edits' = edits + 1,
-    lastAction' = act("outsideEdit", x, ""),
+    erasedIds' = erasedIds, erasedContent' = erasedContent, edits' = edits + 1, gMarks' = gMarks,
+    lastAction' = act("outsideEdit", "", x),
+  }
+
+  // A person edits only a record's non-content field (its confidence), so
+  // its content and provenance stay as the plane holds them.
+  action outsideEditMeta(x: str): bool = all {
+    store.get(x).present,
+    edits < MAX_EDITS,
+    store' = store.set(x, { ...store.get(x), meta: edits + 1, ext: true }),
+    nextContent' = nextContent,
+    log' = log, pc' = pc,
+    erasedIds' = erasedIds, erasedContent' = erasedContent, edits' = edits + 1, gMarks' = gMarks,
+    lastAction' = act("outsideEditMeta", "", x),
   }
 
   // ----------------------------------------------------------------- step
@@ -664,15 +727,13 @@ module commit {
       adoptPurge(h),
       adoptDone(h),
       outsideEdit(x, k),
+      outsideEditMeta(x),
     }
   }
 
   // ------------------------------------------------------- the properties
 
-  // The open marks after the log's first n events.
-  def openBefore(n: int): bool = openMarks(log.slice(0, n)).size() > 0
-
-  // Property 1. No event is appended against a stale seen: every gated
+  // Property 1. No event is appended against a stale head: every gated
   // write's allow was appended with no counted change to its item between
   // its basis and its append (its own adopted bytes aside), and no
   // offboarding begun in that window.
@@ -709,21 +770,28 @@ module commit {
     })
 
   // Property 3. An offboarded scope accepts no later write: no allowed write,
-  // adoption or withdrawal into the person scope is appended while an
-  // erasure of it is open, and none under an erased id is ever appended. (A
-  // write under a fresh id after the report is accepted, ADR 0010's open
-  // question, and so is not a violation.)
+  // adoption or withdrawal into the person scope is appended while a mark is
+  // open by the offboardings' own ghost record (gMarks), and none under an
+  // id an erasure took out (erasedIds). It reads no log function the guards
+  // use. (A write under a fresh id after the report is accepted, ADR 0010's
+  // open question, and so is not a violation; and a later report closes an
+  // earlier mark by design, V-1, so a write is accepted while the earlier
+  // offboarding is still deleting and sweeping.)
   val noWriteWhileErasing =
     log.select(e => e.decision == "allow" and e.effect == "set")
-      .foldl(true, (ok, e) => ok and not(openBefore(e.seq)) and not(erasedIn(log.slice(0, e.seq), e.iid)))
+      .foldl(true, (ok, e) => ok and not(e.gOpen) and not(e.gErased))
 
-  // Property 4. Adoption never raises trust: every adoption records a kind
-  // no more trusted than import, than the record's claim, and than the
-  // plane's kind for the id; and every projected item more trusted than
-  // import is backed by a gated write of its content at that kind or above.
+  // Property 4. Adoption never raises trust (AGENTS.md invariant 6): every
+  // adoption records a kind no more trusted than the record's claim and
+  // than the plane's kind for the id, and no more trusted than import
+  // unless the record's content and provenance are as the plane holds them
+  // (write.ts adoptedItem, asHeld); and every projected item more trusted
+  // than import is backed by a gated write of its content at that kind or
+  // above.
   val adoptionNeverRaisesTrust =
     log.select(e => e.adopted and e.decision == "allow")
-      .foldl(true, (ok, e) => ok and e.kind <= IMPORT and (e.known < 0 or e.kind <= e.known))
+      .foldl(true, (ok, e) => ok and e.kind <= e.claim and (e.known < 0 or e.kind <= e.known)
+        and (e.kind <= IMPORT or (e.known >= 0 and e.orig == e.knownContent and e.claim == e.known)))
     and ITEMS.forall(x => {
       val it = proj.get(x)
       (it.live and it.kind > IMPORT) implies
@@ -762,6 +830,9 @@ module commit {
   // a rerun after a stopped offboarding, or an overlap (V-1).
   val sawReopen =
     log.foldl(false, (acc, e) => acc or (e.rule == REPORT and openMarks(log.slice(0, e.seq)).size() > 1))
+  // An adoption that kept the plane's provenance above import (asHeld).
+  val sawAsHeldAboveImport =
+    log.foldl(false, (acc, e) => acc or (e.adopted and e.decision == "allow" and e.kind > IMPORT))
   // An adoption over an item the plane holds at user trust.
   val sawAdoptionOverUser =
     log.foldl(false, (acc, e) => acc or (e.adopted and e.decision == "allow" and e.known == USER))
@@ -872,8 +943,27 @@ module good {
         safety,
       })
 
+  // A record whose content and provenance are as the plane holds them, with
+  // only its confidence edited by hand, is adopted at the plane's own kind,
+  // user, above import (write.ts adoptedItem, asHeld; E1.5-2): property 4
+  // allows exactly this.
+  run asHeldKeepsTrustTest =
+    init
+      .then(decide("h1", "a", USER)).then(storeWrite("h1")).then(commit("h1"))
+      .then(outsideEditMeta("a"))
+      .then(adoptList("h2")).then(adoptOne("h2", "a")).then(adoptDone("h2"))
+      .expect(all {
+        log[1].adopted and log[1].decision == "allow" and log[1].kind == USER,
+        proj.get("a").meta == 1,
+        adoptionNeverRaisesTrust,
+        safety,
+      })
+      .then(adoptList("h2")).then(adoptOne("h2", "a"))
+      .expect(lastAction.name == "adoptSkip")
+
   // A finding, not a property (log entry 2026-11-21-e1-5-finding-purge-
-  // after-swept-id): a write under a swept id is allowed (planeRefusal checks
+  // race-on-the-code, which supersedes 2026-11-21-e1-5-finding-purge-after-
+  // swept-id): a write under a swept id is allowed (planeRefusal checks
   // lastErasure only), adoption refuses that id and deletes its record
   // outside the lock (purgeOutcome), so a write committed between the two
   // loses its store record. All four properties still hold; this test pins
@@ -916,4 +1006,62 @@ module broken {
       .then(obBegin("h2"))
       .then(commit("h1"))
       .expect(all { not(noStaleAppend), not(noWriteWhileErasing) })
+
+  // Without the check, a rewrite decided before the mark brings an erased
+  // id back after the erasure: erasureHolds fails.
+  run erasedIdBackTest =
+    init
+      .then(decide("h1", "a", USER)).then(storeWrite("h1")).then(commit("h1"))
+      .then(decide("h1", "a", USER))
+      .then(obBegin("h2")).then(obDelete("h2", "a")).then(obErase("h2"))
+      .then(storeWrite("h1")).then(commit("h1"))
+      .expect(all { not(erasureHolds), not(noWriteWhileErasing), not(noStaleAppend) })
+}
+
+// A known gap of the code, pinned (log entry 2026-11-21-e1-5-finding-put-
+// back-leak): with three offboardings of one person, the sweep's put-back
+// (offboard.ts run, the loop after a changed swept record) reads the item,
+// a third offboarding erases it, and the put-back writes it back; on the
+// next round the item is gone and the loop ends without deleting what it
+// wrote. After both reports the store holds erased content. The `good`
+// module bounds offboardings at two, which hides this; this module allows
+// three. The test ends in not(erasureHolds) and so fails once the code (and
+// the model's obPutBackRead) delete the record when the item is gone or its
+// scope is being erased, as settle's `wanted` does.
+module knownGapThreeOffboardings {
+  import commit(
+    HANDLES = Set("h1", "h2", "h3"),
+    ITEMS = Set("a", "b"),
+    MAX_CONTENT = 6,
+    MAX_EDITS = 2,
+    MAX_OFFBOARDS = 3,
+    CHECKED = true
+  ).*
+
+  run putBackAcrossThirdErasureTest =
+    init
+      .then(decide("h3", "b", USER))
+      .then(obBegin("h1")).then(obBegin("h2"))
+      .then(obErase("h2")).then(obSweepList("h2")).then(obReport("h2"))
+      .then(storeWrite("h3")).then(commit("h3"))
+      .then(obErase("h1")).then(obSweepList("h1")).then(obSweepDecide("h1", "b"))
+      .then(settleRead("h3")).then(settleStore("h3")).then(settleConfirm("h3"))
+      .then(decide("h2", "b", USER)).then(storeWrite("h2")).then(commit("h2"))
+      .expect(proj.get("b").live)
+      .then(obSweepDel("h1")).then(obSweepCommit("h1"))
+      .expect(pc.get("h1").tag == "obPutBackRead")
+      .then(obPutBackRead("h1"))
+      .then(obBegin("h2")).then(obDelete("h2", "b")).then(obErase("h2")).then(obSweepList("h2"))
+      .then(obPutBackWrite("h1")).then(obPutBackCheck("h1")).then(obPutBackRead("h1"))
+      .then(obReport("h2"))
+      .then(obReport("h1"))
+      .expect(all {
+        erasedIds.contains("b"),
+        store.get("b").present,
+        erasedContent.contains(store.get("b").content),
+        HANDLES.forall(h => pc.get(h).tag == "idle"),
+        noStaleAppend,
+        noWriteWhileErasing,
+        not(erasureHolds),
+      })
 }
