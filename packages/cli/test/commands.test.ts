@@ -97,6 +97,8 @@ mcp options:
   --member <scope>            a scope that actor belongs to; repeatable
   --level <level>             the level it reads as (default its own)
   --http <port>               serve streamable HTTP on 127.0.0.1:<port> instead of stdio
+  --supersede                 also list memory_supersede: the supersession plan, and each close
+                              the agent accepts written through the gate as source model (off by default)
   --server <url> or the workspace flags above, as for the other commands
 
 hook claude-code options:

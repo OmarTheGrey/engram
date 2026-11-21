@@ -21,6 +21,7 @@ export async function mcpCommand(args: string[], io: Io): Promise<number> {
       member: ACTOR_OPTIONS.member,
       ...CLIENT_OPTIONS,
       http: { type: "string" },
+      supersede: { type: "boolean" },
     },
     false,
   );
@@ -47,7 +48,14 @@ export async function mcpCommand(args: string[], io: Io): Promise<number> {
   );
   try {
     const makeServer = () =>
-      createMcpServer({ client: conn.client, actor, now: io.now, newId: io.newId });
+      createMcpServer({
+        client: conn.client,
+        actor,
+        now: io.now,
+        newId: io.newId,
+        // Card L6's tool, off unless asked for: the four tools are condition C7's.
+        supersede: values.supersede === true,
+      });
     if (port === undefined) {
       if (io.stdin === undefined || io.stdout === undefined)
         throw new UsageError("engram mcp over stdio needs standard input and output");

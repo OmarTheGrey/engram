@@ -23,6 +23,16 @@
 // records each call at the ts its event got. `now` dates a written item's
 // validity only.
 //
+// memory_supersede (card L6) is off by default and is not one of the pi
+// extension's tools: the tool set of condition C7 stays the four above. A
+// server launched with `supersede` lists it fifth: the supersede route's
+// plan for an item (the head of its chain, a proposed close or a review
+// flag per ancestor the actor may read), and each id in `accept` one write
+// of a new version through the write gate as the launch actor with source
+// model, so the gate decides it with a model's provenance. The tool only
+// carries the agent's choice of a proposed close; core proposes, and
+// nothing is retired.
+//
 // The low-level Server is used, not McpServer, because the tools' input
 // schemas are the shared TypeBox (JSON Schema) definitions, which McpServer
 // would want restated in Zod.
@@ -51,6 +61,7 @@ import {
   type CallToolResult,
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
+import { Type } from "typebox";
 import { Value } from "typebox/value";
 
 export interface McpOptions {
@@ -69,6 +80,8 @@ export interface McpOptions {
    * #59, RV5-5).
    */
   maxSteps?: number;
+  /** List memory_supersede (card L6); off by default, so the four tools are C7's. */
+  supersede?: boolean;
 }
 
 /** The default bound on one session's recorded calls. */
@@ -77,6 +90,21 @@ export const MAX_SESSION_STEPS = 10_000;
 export const SERVER_INFO = { name: "engram", version: "0.0.0" };
 
 const TOOLS = [MEMORY_WRITE, MEMORY_READ, MEMORY_EXPLAIN, MEMORY_SIMULATE] as const;
+
+/** Card L6's tool, listed only when the server is launched with `supersede`. */
+export const MEMORY_SUPERSEDE = {
+  name: "memory_supersede",
+  label: "Memory supersede",
+  description:
+    "For an item whose lineage names older versions, the plane's proposals: which older items should end where this one begins (close) and which need a person's review. Without accept nothing is written; each id in accept, which must be a proposed close, is written as a new version through the write gate, which decides it.",
+  parameters: Type.Object({
+    item_id: Type.String(),
+    accept: Type.Optional(Type.Array(Type.String())),
+  }),
+} as const;
+
+const toolsOf = (supersede: boolean) =>
+  supersede ? ([...TOOLS, MEMORY_SUPERSEDE] as const) : TOOLS;
 
 const sha256 = (s: string) => `sha256:${createHash("sha256").update(s).digest("hex")}`;
 const text = (t: string, isError = false): CallToolResult => ({
@@ -99,8 +127,8 @@ function failure(answer: { error?: unknown; response: Response }): {
 }
 
 /** The tool list as MCP sends it: name, description, input schema (JSON Schema). */
-export function toolList() {
-  return TOOLS.map((t) => ({
+export function toolList(supersede = false) {
+  return toolsOf(supersede).map((t) => ({
     name: t.name,
     title: t.label,
     description: t.description,
@@ -116,6 +144,7 @@ export function createMcpServer(options: McpOptions): Server {
   /** The Plane calls this server made, in order: memory_simulate's workload (card E8.9). */
   const steps: WorkloadStep[] = [];
   const maxSteps = options.maxSteps ?? MAX_SESSION_STEPS;
+  const tools = toolsOf(options.supersede === true);
   let overflowed = false;
   const record = (step: WorkloadStep) => {
     if (steps.length < maxSteps) steps.push(step);
@@ -123,11 +152,13 @@ export function createMcpServer(options: McpOptions): Server {
   };
 
   const server = new Server(SERVER_INFO, { capabilities: { tools: {} } });
-  server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: toolList() }));
+  server.setRequestHandler(ListToolsRequestSchema, async () => ({
+    tools: toolList(options.supersede === true),
+  }));
   server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
     const { name } = request.params;
     const args = (request.params.arguments ?? {}) as Record<string, unknown>;
-    const tool = TOOLS.find((t) => t.name === name);
+    const tool = tools.find((t) => t.name === name);
     if (tool === undefined) return text(`engram: no tool named ${name}`, true);
     const given: unknown = args;
     if (!Value.Check(tool.parameters, given)) {
@@ -222,6 +253,23 @@ export function createMcpServer(options: McpOptions): Server {
         });
         if (answer.data === undefined) return text(failure(answer).message, true);
         return text(JSON.stringify(answer.data, null, 2));
+      }
+      case "memory_supersede": {
+        const accept = (args.accept as string[] | undefined) ?? [];
+        const answer = await client.POST("/api/v1/supersede", {
+          body: { actor: agent, item_id: String(args.item_id), accept },
+        });
+        if (answer.data === undefined) return text(failure(answer).message, true);
+        const plan = answer.data as unknown as {
+          head: { ok: boolean };
+          submitted: Extract<WorkloadStep, { op: "write" }>["item"][];
+          applied: { event: MemoryEvent }[];
+        };
+        // Each accepted close was one write: memory_simulate replays it as one.
+        for (const [i, { event }] of plan.applied.entries())
+          record({ op: "write", as: "agent", at: event.ts, item: plan.submitted[i] ?? {} });
+        const done = plan.head.ok && plan.applied.every((a) => a.event.decision === "allow");
+        return text(JSON.stringify(answer.data, null, 2), !done);
       }
     }
   });
