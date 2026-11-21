@@ -5,6 +5,7 @@
 // repository holds a string a secret scanner would take for a real key
 // (docs/conventions/absorption.md: fixtures are synthetic; rule 12).
 import { describe, expect, test } from "vitest";
+import { type GateFixture, gateFixtures, gateFixtureText } from "../../../scripts/faults.ts";
 import {
   BACKTRACKING_BOUND_MS,
   GITLEAKS_COMMIT,
@@ -769,4 +770,44 @@ describe("the gitleaks generator", () => {
       },
     ]);
   });
+});
+
+describe("the secret-in-content fault fixtures (fixtures/faults/gate)", () => {
+  const dir = new URL("../../../../../fixtures/faults/gate/", import.meta.url);
+  test("are what packages/core/scripts/faults.ts generates (make fixtures)", async () => {
+    const { readFile } = await import("node:fs/promises");
+    const built = await gateFixtures();
+    expect(Object.keys(built).sort()).toEqual([
+      "gate/secret-in-content.flag",
+      "gate/secret-in-content.near-miss",
+    ]);
+    for (const [name, f] of Object.entries(built)) {
+      const file = new URL(`${name.replace("gate/", "")}.json`, dir);
+      expect((await readFile(file, "utf8")).replaceAll("\r\n", "\n"), name).toBe(
+        gateFixtureText(f),
+      );
+    }
+  });
+
+  test.each(["flag", "near-miss"])(
+    "the %s fixture replays to its declared decisions",
+    async (kind) => {
+      const { readFile } = await import("node:fs/promises");
+      const f = JSON.parse(
+        await readFile(new URL(`secret-in-content.${kind}.json`, dir), "utf8"),
+      ) as GateFixture;
+      const { plane } = fresh(f.policy);
+      for (const w of f.writes) {
+        const r = await plane.write(f.actor, w.item, w.at);
+        expect([r.event.decision, r.item?.status ?? null, r.event.policy_id]).toEqual([
+          w.decision,
+          w.status,
+          w.policy_id,
+        ]);
+      }
+      expect(plane.events().map((e) => [e.decision, e.policy_id, e.reason])).toEqual(
+        f.events.map((e) => [e.decision, e.policy_id, e.reason]),
+      );
+    },
+  );
 });
