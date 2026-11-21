@@ -147,7 +147,9 @@ def main() -> int:
     sys.path.insert(0, upstream)
     import merit.memory as memory  # the checkout at the pin
 
-    pilot = runpy.run_path(os.path.join(upstream, "scripts", "run_pilot.py"), run_name="merit_pilot")
+    pilot = runpy.run_path(
+        os.path.join(upstream, "scripts", "run_pilot.py"), run_name="merit_pilot"
+    )
     for cell in plan["cells"]:
         spec = cell["memory"]
         if spec is not None:
