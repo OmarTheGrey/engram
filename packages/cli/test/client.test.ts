@@ -209,9 +209,12 @@ describe("engram serve", () => {
   it("listens on loopback, answers, and stops when told to", async () => {
     const stop = new AbortController();
     const db = join(await tempDir(), "engram.db");
-    const running = cli(["serve", "--port", "0", "--db", db, "--as", "person:dana"], {
-      stop: stop.signal,
-    });
+    const running = cli(
+      ["serve", "--insecure-loopback", "--port", "0", "--db", db, "--as", "person:dana"],
+      {
+        stop: stop.signal,
+      },
+    );
     // A stop that comes before or after the server is up ends it the same way.
     await new Promise((done) => setTimeout(done, 100));
     stop.abort();
@@ -227,18 +230,21 @@ describe("engram serve", () => {
     const lines: string[] = [];
     const db = join(await tempDir(), "engram.db");
     const { run } = await import("../src/run.ts");
-    const running = run(["serve", "--port", "0", "--db", db, "--as", "person:dana"], {
-      out: (s) => lines.push(s),
-      err: (s) => lines.push(s),
-      cwd: HOME,
-      home: HOME,
-      now: () => NOW,
-      newId: () => testId(900_001),
-      env: {},
-      nodeVersion: process.versions.node,
-      repo: undefined,
-      stop: stop.signal,
-    });
+    const running = run(
+      ["serve", "--insecure-loopback", "--port", "0", "--db", db, "--as", "person:dana"],
+      {
+        out: (s) => lines.push(s),
+        err: (s) => lines.push(s),
+        cwd: HOME,
+        home: HOME,
+        now: () => NOW,
+        newId: () => testId(900_001),
+        env: {},
+        nodeVersion: process.versions.node,
+        repo: undefined,
+        stop: stop.signal,
+      },
+    );
     let url: string | undefined;
     for (let i = 0; i < 200 && url === undefined; i++) {
       await new Promise((done) => setTimeout(done, 25));
@@ -254,7 +260,7 @@ describe("engram serve", () => {
   });
 
   it("refuses a host that is not loopback, exit 2", async () => {
-    const r = await cli(["serve", "--host", "0.0.0.0", "--db", ":memory:"]);
+    const r = await cli(["serve", "--insecure-loopback", "--host", "0.0.0.0", "--db", ":memory:"]);
     expect(r.code).toBe(2);
     expect(r.err).toContain("not a loopback address");
   });
