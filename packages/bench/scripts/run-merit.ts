@@ -111,7 +111,8 @@ async function main(): Promise<number> {
   const jsonl = (rows: readonly unknown[]) => rows.map((r) => `${JSON.stringify(r)}\n`).join("");
   writeFileSync(join(values.out, "usage.jsonl"), jsonl(result.ledger));
   for (const cell of result.cells) {
-    if (cell.events.length > 0) {
+    // C5 cells only: C2 and C1 keep no log, so they write no empty file (finding B7-6).
+    if (cell.events.flat().length > 0) {
       writeFileSync(join(values.out, cell.run.name, "events.jsonl"), jsonl(cell.events.flat()));
     }
   }

@@ -243,3 +243,8 @@ Claims the crosswalk (`docs/compliance/README.md`) marks not evidenced, and what
 | item | what is left | where it is recorded |
 |---|---|---|
 | Grants on laundered agent content (finding E14-F3) | a core card: refuse adding or widening a grant (in a write, a grant change or a promotion's new version) on an item any allowed version of which, or of the source it was promoted from, held untrusted content; today Dana re-saving her agent's identical text as a user-sourced write makes the item `user`, a grant to Sam is allowed and Sam reads the agent's words verbatim, which ADR 0021's decision D4 and its RV4 amendment forbid and the oracle counts as a violation; also, any rewrite of an agent item by the person raises its provenance and makes the dogfood report's `watch.provenance_raised` non-zero, so `docs/dogfood.md` (limit 4 and the `watch` row), which says it should stay 0, needs correcting with that card | `docs/log/2026-11-21-e1-4-review-finding-e14-f3-laundering.md`; `packages/core/test/property/stateful.test.ts` (E14-F3) |
+## Follow-ups from card B7 (2026-11-21)
+
+| item | what is left | where it is recorded |
+|---|---|---|
+| MERIT C1's cost (card X7) | MERIT's C1 is FullReplay, so its prompts grow with each arc toward the 60,000-character cap (about 15,000 tokens per call at the cap, several calls per episode); budget C1's spend before the live run, from the fixture slice's call shapes and MERIT's own reference runs' token counts | ADR 0031's amendment of 2026-11-21; `docs/log/2026-11-21-b7-decision-c1-adr-0031.md` |

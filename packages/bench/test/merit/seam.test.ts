@@ -61,9 +61,11 @@ describe("MERIT's memory seam", () => {
   it("C5 writes through Plane.write and reads through Plane.read, each with an event", async () => {
     const b = await open("plane", "fake", "medium");
     expect(b.base).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/api\/v1$/);
+    // The item claims a user source; the plane records the actor's (finding B7-4).
+    const claimed = shimItem(1, "[user] customer CUST-1001 moved to 1 Oak Ave");
     const w = await post(`${b.base}/items`, {
       actor: MERIT_ACTOR,
-      item: shimItem(1, "[user] customer CUST-1001 moved to 1 Oak Ave"),
+      item: { ...claimed, provenance: { ...claimed.provenance, kind: "user" } },
     });
     expect(w.status).toBe(200);
     expect((w.body.event as { decision: string }).decision).toBe("allow");
@@ -75,6 +77,7 @@ describe("MERIT's memory seam", () => {
     expect(events.every((e) => e.ts === MERIT_READ_AT)).toBe(true);
     // The plane, not the caller, sets the provenance: the actor's source.
     expect(events[0]?.item?.provenance.kind).toBe("model");
+    expect((w.body.item as { provenance: { kind: string } }).provenance.kind).toBe("model");
   });
 
   it("C5 denies a model-sourced write outside person scope at preset medium, and C2 stores it", async () => {

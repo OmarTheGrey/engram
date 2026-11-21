@@ -28,6 +28,14 @@ Three facts settled what the plan could not:
 6. **C4 on MEM-INV-Bench** is C3 plus each item's `channel` and `provenance` kind, over C2's top 20 (no walk, since there is no verdict to walk to). It carries no verdict: on this arm the plane's decision is the write gate's as well as the read filter's, and under H1's preset every entry is admitted, so a verdict would read `allowed` for every item.
 7. **The agent's own note is the model under test's**, written before the sessions with upstream's prompt, temperature 0.3 and 300 tokens; the reply is stripped, and an empty, whitespace-only, cut-off or failed reply falls back to the raw poison, as upstream's driver and `build_memory` do (a failed call is recorded, so a replay writes the same memory); once per case and model (upstream writes one per scenario and model for every trial), seeded with the config's first seed and cached like every call. The vendored case keeps the reference model's recorded note for runs without a model and the text it summarises (`summarized_from`).
 
+## Amendment (2026-11-21): C1 on MERIT and on tau2-bench
+
+Made by card B7 (branch `b7-merit-harness`, review finding B7-3), for MERIT, and recording card B11's choice for tau2-bench. Status: accepted, 2026-11-21, under the lead's delegation of that day (`docs/tasks/lead-decisions.md`, "Decided on 2026-11-21"). It applies decision 3's principle, C1 is the model with no memory system, on each benchmark's own terms, and changes no registered condition on GateMem or MEM-INV-Bench.
+
+- **C1 on MERIT is MERIT's own FullReplay** (its `C1`, `merit/memory.py` at `293933d`): no store, no memory seam and no memory tool; the model gets every prior transcript of its arc in the prompt (the last 60,000 characters), which is MERIT's long-context condition, as decision 3 makes GateMem's long-context agent C1. Its key names store `none` and preset `none`, as the runner's `statedPreset` does. MERIT's `C0` (no prior transcript at all) was the alternative; it is MERIT's floor, not the long-context reading the Conditions table gives C1 (`none; long context only`). Code: `packages/bench/src/merit/config.ts`, `MERIT_CONDITION_KEY` in `packages/bench/src/merit/launch.ts`.
+- **C1 on tau2-bench is tau2's own `LLMAgent` with no memory** (`llm_agent` at tag `v1.0.1`), card B11's choice (`docs/log/2026-11-21-b11-decision-conditions.md`, `packages/bench/src/tau2/config.ts` on branch `b11-tau2-harness`): tau2 has no long context beyond the conversation it runs, so C1 is tau2 unchanged, with no memory tool.
+- Consequence: C1's prompts on MERIT grow with the arc toward the 60,000-character cap, so card X7 budgets C1's cost before the live run (`docs/tasks/backlog.md`).
+
 ## Alternatives considered
 
 - **C4 with the RAG-Policy verdict by default** (the first draft): the benchmark's own policy content, but 27.7 percent of the verdicts differ from C5's policy, so C4 minus C5 would mix policy and mechanism. Kept as `gatemem-rag`.
