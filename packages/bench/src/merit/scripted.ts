@@ -25,7 +25,13 @@
 // call, which ends MERIT's loop. Usage is an estimate, a token per four
 // characters, so the ledger has something to sum; a scripted call costs
 // nothing.
-import type { ChatCall, ChatMessage, ChatRequest, ChatResponse } from "@engram/model";
+import {
+  asScripted,
+  type ChatCall,
+  type ChatMessage,
+  type ChatRequest,
+  type ChatResponse,
+} from "@engram/model";
 
 /** The scripted model's name in configs, keys and cassettes. */
 export const MERIT_SCRIPTED_MODEL = "scripted/merit-d1";
@@ -135,8 +141,13 @@ function refundFromOrder(order: string, results: string[]): Step {
 
 const tokens = (text: string) => Math.ceil(text.length / 4);
 
-/** The scripted D1 agent as the proxy's upstream. */
-export const scriptedMeritAgent: ChatCall = async (request): Promise<ChatResponse> => {
+/**
+ * The scripted D1 agent as the proxy's upstream, branded by `asScripted`, so
+ * the proxy records fixture cassettes from it (`recordFixtures`, under
+ * ENGRAM_UPDATE_FIXTURES=1, card B10). Pass this function itself: a wrapper
+ * around it carries no brand and is refused.
+ */
+export const scriptedMeritAgent: ChatCall = asScripted(async (request): Promise<ChatResponse> => {
   const messages = request.messages;
   let last = -1;
   messages.forEach((m, i) => {
@@ -165,4 +176,4 @@ export const scriptedMeritAgent: ChatCall = async (request): Promise<ChatRespons
     finishReason: "tool_calls",
     usage: { input_tokens: input, output_tokens: tokens(JSON.stringify(call)), cost_usd: 0 },
   };
-};
+});

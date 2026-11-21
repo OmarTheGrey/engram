@@ -11,11 +11,12 @@
 // --prepare fetches the checkout at the pin and installs MERIT's environment
 // when they are missing, and exits (make bench runs it first, without
 // ENGRAM_OFFLINE, then replays offline). --record (make fixtures only, never
-// offline) empties the config's cassette folder and records every call into
+// offline, and only under ENGRAM_UPDATE_FIXTURES=1, into a folder inside
+// fixtures/) empties the config's cassette folder and records every call into
 // it from the scripted model, so the committed cassettes are always made by
 // one command. Only `scripted/...` models are wired: a live MERIT run is card X7.
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { type CacheStore, fileCache } from "@engram/model";
@@ -73,6 +74,8 @@ async function main(): Promise<number> {
     return 2;
   }
   const config = readMeritConfig(values.config);
+  /** The repository root: make runs from it. */
+  const repo = resolve(process.cwd());
   if (config.model !== MERIT_SCRIPTED_MODEL) {
     console.error(
       `run-merit: model ${config.model} is not the scripted ${MERIT_SCRIPTED_MODEL}; a live MERIT run is card X7`,
@@ -83,6 +86,20 @@ async function main(): Promise<number> {
     if (process.env.ENGRAM_OFFLINE === "1") {
       console.error(
         "run-merit: --record makes model calls; unset ENGRAM_OFFLINE (make fixtures does)",
+      );
+      return 2;
+    }
+    if (process.env.ENGRAM_UPDATE_FIXTURES !== "1") {
+      console.error(
+        "run-merit: --record writes fixture cassettes, which make fixtures records (it sets ENGRAM_UPDATE_FIXTURES=1)",
+      );
+      return 2;
+    }
+    // Checked before the folder is emptied or a file cache made, since fileCache creates its folder.
+    const inFixtures = relative(join(repo, "fixtures"), config.cassettes);
+    if (inFixtures === "" || inFixtures.startsWith("..") || isAbsolute(inFixtures)) {
+      console.error(
+        `run-merit: --record records into ${join(repo, "fixtures")} only, and ${config.cassettes} is not inside it`,
       );
       return 2;
     }
@@ -98,9 +115,7 @@ async function main(): Promise<number> {
     cache: values.record ? fileCache(config.cassettes) : readOnly(config.cassettes),
     record: values.record,
     // make fixtures records the scripted cassettes into fixtures/; the proxy's guard allows nothing else there.
-    ...(values.record
-      ? { upstream: scriptedMeritAgent, repo: process.cwd(), recordFixtures: true }
-      : {}),
+    ...(values.record ? { upstream: scriptedMeritAgent, repo, recordFixtures: true } : {}),
   });
   const summary = summarise(result, { name: config.name, model: config.model, checkout });
   const jsonl = (rows: readonly unknown[]) => rows.map((r) => `${JSON.stringify(r)}\n`).join("");

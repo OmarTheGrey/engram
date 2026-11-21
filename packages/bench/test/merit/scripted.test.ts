@@ -1,4 +1,4 @@
-import type { ChatRequest } from "@engram/model";
+import { type ChatRequest, isScripted } from "@engram/model";
 import { describe, expect, it } from "vitest";
 import { agreedAmount, notedAddress, scriptedMeritAgent } from "../../src/merit/scripted.ts";
 
@@ -18,6 +18,11 @@ const call = (r: { toolCalls?: unknown[] }) =>
   (r.toolCalls?.[0] as { id: string; function: { name: string; arguments: string } }) ?? null;
 
 describe("the scripted MERIT D1 agent", () => {
+  it("carries the scripted brand the proxy requires to record fixture cassettes", () => {
+    expect(isScripted(scriptedMeritAgent)).toBe(true);
+    expect(isScripted((r: ChatRequest) => scriptedMeritAgent(r))).toBe(false);
+  });
+
   it("updates an address the user gives", async () => {
     const r = await scriptedMeritAgent(
       ask(NONE, {
