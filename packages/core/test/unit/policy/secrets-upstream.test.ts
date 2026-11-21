@@ -18,10 +18,8 @@
 // Modified: the sources redact, so "redacted" becomes "found" (a match of the
 // secrets guard) and "left alone" becomes "not found". Where this guard
 // decides otherwise on purpose, the vector is in DIVERGENT with the reason.
-// AWS's documented example secret key, which walrus builds two cases on,
-// ends EXAMPLEKEY and is allowed here, so those two end EXAMPLEKEz; two
-// short values (a bearer token, a Slack webhook path) are lengthened past
-// the guard's floors, and the reason is in DIVERGENT for the original.
+// Every ported vector is the source's own text; walrus' em dash is written
+// as an escape, since prose here takes none.
 // Literals are split as the sources split them, so push protection does not
 // take these fakes for keys.
 import { describe, expect, test } from "vitest";
@@ -153,7 +151,7 @@ describe("walrus-memory: found", () => {
     "Deploy key for the box:\n-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEAx7Vk9mJ0ZwQ3\n-----END RSA PRIVATE KEY-----",
     "Deploy key for the box:\n-----BEGIN OPENSSH PRIVATE KEY-----\nMIIEowIBAAKCAQEAx7Vk9mJ0ZwQ3\n",
     "Our session tokens look like eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dBjftJeZ4CVPmB92K27uhbUJU1p1r_wW1gFWFOEjXk and expire hourly",
-    "To call the API: Authorization: Bearer abc123xyz789abcdef then GET /v1/me",
+    "To call the API: Authorization: Bearer abc123xyz789 \u2014 then GET /v1/me",
     `My wallet recovery phrase is ${WORDS} and the wallet is on Sui mainnet`,
     `Notes from setup: delegatePrivateKey ${SEED} was written on this laptop`,
     `Notes from setup: "delegatePrivateKey": "${SEED}" is in the file`,
@@ -165,12 +163,14 @@ describe("walrus-memory: found", () => {
     `Wallet notes: seed_phrase: ${WORDS} for the mainnet wallet`,
     `Wallet notes: "mnemonic": "${WORDS}" for the mainnet wallet`,
     "The signing material is QWxhZGRpbjpvcGVuIHNlc2FtZQBcdefGHIjklMNOpqrSTUvwxYZ0123456789abcDEF0123 which I keep in the vault",
-    "AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEz",
+    "AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
     "DB_PASSWORD=hunter2SuperSecret",
     "SESSION_SECRET=abcd1234efgh5678",
     "my_api_key=abcd1234efgh5678",
     'Save my config: {"username": "alice", "password": "hunter2-prod-9xQ"} for staging',
-    "My AWS secret access key is wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEz for prod",
+    "My AWS secret access key is wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY for prod",
+    "AWS creds for staging: AKIAIOSFODNN7EXAMPLE and the secret key is wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+    "X_AUTH_TOKEN: abcd1234",
     "staging is postgres://admin:hunter2@db.internal:5432/app",
   ])("%s", (text) => {
     expect(found(text)).toBe(true);
@@ -215,7 +215,6 @@ describe("graphCTX: containsSecret", () => {
     "-----BEGIN ENCRYPTED PRIVATE KEY-----",
     "-----BEGIN DSA PRIVATE KEY-----",
     "-----BEGIN PGP PRIVATE KEY BLOCK-----",
-    "https://hooks.slack.com/services/T00000000/B00000000/FAKEfakeFAKEfake1234",
     "Authorization: Bearer plainlowentropytoken123",
     "token gh" + "p_" + "abcdefghijklmnopqrstuvwxyz0123456789",
     "token sk-FAKEFAKEFAKEFAKEFAKE0123abcd",
@@ -239,6 +238,24 @@ describe("graphCTX: containsSecret", () => {
  * what the source does, what the guard does, and why.
  */
 const DIVERGENT: [source: string, text: string, foundHere: boolean, why: string][] = [
+  [
+    "graphCTX: found",
+    "https://hooks.slack.com/services/T00000000/B00000000/FAKEfakeFAKEfake",
+    false,
+    "claude-mem's webhook rule wants a secret path of 20 characters or more; this one has 16",
+  ],
+  [
+    "walrus: found",
+    "POSTGRES_PASSWORD=hunter2",
+    false,
+    "claude-mem's generic value wants eight characters and a letter; a seven-character value stays",
+  ],
+  [
+    "graphCTX: found",
+    "Cookie: session_id=plainlowentropycookie123",
+    false,
+    "no cookie rule: a cookie header names preferences as often as sessions",
+  ],
   [
     "walrus: left alone (held here, REVIEW tier)",
     "The build id is 20260918T0930Z-linux-arm64-release-candidate",

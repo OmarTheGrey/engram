@@ -757,6 +757,7 @@ describe("each hand-written rule finds what it names", () => {
     ],
     ["secret/env-credential", j("STORAGE_ACCESS_KEY=", draw(r, ALNUM, 24))],
     ["secret/hex-near-keyword", `api key ${S.hex}`],
+    ["secret/labelled-distant", `the API token for prod is ${S.hex}`],
   ];
 
   test("every hand-written rule's kind has a positive case (E2.9-6)", () => {
@@ -1059,4 +1060,180 @@ describe("the secret-in-content fault fixtures (fixtures/faults/gate)", () => {
       );
     },
   );
+});
+
+describe("the verification pass (V-1 to V-9)", () => {
+  const sha40 = "4e04a32b9c1d0e8f7a6b5c4d3e2f1a0b9c8d7e6f";
+  const hex64 = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08";
+  const opaque = "Zx9Qw8Er7Ty6Ui5Op4As3Df2Gh1Jk0LmNbVcXz7";
+
+  // V-1: the three E2.9-8 fixes, each pinned by its probe.
+  test.each([
+    ["a cache key a sentence after seed", `run with seed 3, cache key ${hex64}`],
+    ["a token count beside a commit", `the token count for commit ${sha40} was 4096`],
+    ["a commit trailer's address", "Signed-off-by: Dana Kim <dana@example.org>"],
+    ["a co-author trailer", "Co-Authored-By: Claude <noreply@anthropic.com>"],
+  ])("%s is not held", (_what, text) => {
+    expect(scan(text, both)).toEqual([]);
+  });
+
+  test("the label gate wants the word right before the value, `token` and `seed` only in an assignment", () => {
+    // Inside the tight form the same values are held.
+    expect(kinds(scan(`seed: ${hex64}`, both))).toEqual(["secret/hex-near-keyword"]);
+    expect(kinds(scan(`the token=${hex64}`, both)).length).toBe(1);
+    expect(kinds(scan(`api key ${hex64}`, both))).toEqual(["secret/hex-near-keyword"]);
+  });
+
+  test("AWS's documented example keys are allowed, a made-up key is not", () => {
+    expect(scan(j("AKIA", "IOSFODNN7", "EXAMPLE"), both)).toEqual([]);
+    expect(scan(j("value wJalrXUtnFEMI/K7MDENG/", "bPxRfiCYEXAMPLEKEY"), both)).toEqual([]);
+    expect(kinds(scan(j("value wJalrXUtnFEMI/K7MDENG/", "bPxRfiCYEXAMPLEKEz"), both))).toEqual([
+      "secret/high-entropy",
+    ]);
+    expect(kinds(scan(S.aws, both))).toEqual(["secret/aws-access-key"]);
+  });
+
+  // V-3(b): only the trailer's own address is exempt.
+  test.each([
+    [
+      "an address later on an Author line",
+      "Author: meeting notes. The customer is jane.doe@gmail.com",
+    ],
+    ["a bare address on a Reported-by line", "Reported-by: customer jane.doe@gmail.com"],
+    [
+      "a trailer word far back on the line",
+      `Signed-off-by: ${"x".repeat(300)} <jane.doe@gmail.com>`,
+    ],
+    [
+      "a trailer address followed by more text",
+      "Signed-off-by: Dana <dana@example.org> and jane.doe@gmail.com",
+    ],
+  ])("%s is personal data", (_what, text) => {
+    expect(kinds(scan(text, both))).toContain("pii/email");
+  });
+
+  // V-3(c): a strong credential word up to four words before a long value.
+  test.each([
+    `The API token for prod is ${hex64}`,
+    `my github token is ${hex64}`,
+    `the secret for staging is ${hex64}`,
+    `The API token for prod is ${opaque}`,
+  ])("%s is held at REVIEW", (text) => {
+    const found = scan(text, both);
+    expect(found).toHaveLength(1);
+    expect(found[0]?.tier).toBe("review");
+  });
+
+  test("a git SHA-1 after a strong word is exempt, a word five words back does not count", () => {
+    expect(scan(`token count for commit ${sha40}`, both)).toEqual([]);
+    expect(scan(`the token we use in all of the builds is ${hex64}`, both)).toEqual([]);
+    // Within four words a trace id after "session token" is held too: only
+    // its meaning tells it from a credential (V-3 restores the wider reach).
+    expect(kinds(scan(`session token cache miss, trace ${hex64}`, both))).toEqual([
+      "secret/labelled-distant",
+    ]);
+  });
+
+  // V-3(a): padding past the scan limit.
+  test("content beyond SCAN_LIMIT is denied under block and held under review", () => {
+    const padded = `${"x".repeat(SCAN_LIMIT)} ${S.aws}`;
+    for (const content_guards of [{ secrets: "block" }, { pii: "block" }] as ContentGuards[])
+      expect(decide(guarded(content_guards), padded)).toMatchObject({
+        decision: "deny",
+        status: null,
+        policy_id: GUARD_FAILURE_ID,
+        reason: expect.stringContaining(`beyond the ${SCAN_LIMIT} a content guard scans`),
+      });
+    expect(decide(guarded({ secrets: "review" }), padded)).toMatchObject({
+      decision: "allow",
+      status: "candidate",
+      policy_id: GUARD_FAILURE_ID,
+    });
+  });
+
+  // V-2: the other E2.9-1 fixes.
+  test("the scan limit is at most 64K characters", () => {
+    expect(SCAN_LIMIT).toBeLessThanOrEqual(65536);
+  });
+
+  test("content holding every gitleaks keyword over and over scans in under 5 s", () => {
+    const keywords = [...new Set(GUARD_RULES.flatMap((r) => r.keywords ?? []))];
+    for (const sep of ["_", "a"]) {
+      const unit = `${keywords.join(sep)}${sep}`;
+      const text = unit.repeat(Math.ceil(SCAN_LIMIT / unit.length)).slice(0, SCAN_LIMIT);
+      const start = performance.now();
+      contentGuard(guarded({ secrets: "block", pii: "block" }), withContent(text), undefined);
+      expect(performance.now() - start, sep).toBeLessThan(5000);
+    }
+  });
+
+  test("a hundred thousand overlapping findings resolve in under a second", () => {
+    // Two rules whose matches chain into one cluster: a comparison of each
+    // finding with every kept one takes minutes here.
+    const chain: GuardRule[] = [
+      { kind: "secret/ab", guard: "secrets", tier: "block", pattern: /ab/dg },
+      { kind: "secret/ba", guard: "secrets", tier: "review", pattern: /ba/dg },
+    ];
+    const text = "ab".repeat(50_000);
+    const start = performance.now();
+    const found = scan(text, new Set(["secrets"]), chain);
+    expect(performance.now() - start).toBeLessThan(1000);
+    expect(found).toHaveLength(50_000);
+  });
+
+  test("many matches on one long line look for their line within a bound", () => {
+    // gitleaks' rules read the line around a match, and the email rule the
+    // line before an address: on a text with no line break, an unbounded
+    // search back to its start made this quadratic.
+    const line = (unit: string) =>
+      unit.repeat(Math.ceil(1_000_000 / unit.length)).slice(0, 1_000_000);
+    const github = j("gh", "p_", draw(lcg(3), ALNUM, 36), " ");
+    for (const [text, guards] of [
+      [line(github), new Set(["secrets"] as const)],
+      [line("a@b.co "), new Set(["pii"] as const)],
+    ] as const) {
+      const start = performance.now();
+      expect(scan(text, guards).length).toBeGreaterThan(20_000);
+      expect(performance.now() - start).toBeLessThan(5000);
+    }
+  });
+
+  // V-7: a held write landing retired says so.
+  test("a new item written retired and held is stored retired, and its reason says so", () => {
+    const d = decide(guarded({ secrets: "review" }), `the deploy key is ${S.aws}`, {
+      status: "retired",
+    });
+    expect(d).toMatchObject({ decision: "allow", status: "retired", check: "review" });
+    expect(d.reason).toContain("stored retired, as written, which no read or promotion returns");
+    expect(d.reason).not.toContain("until a reviewer promotes it");
+  });
+
+  // V-9: a rewrite that widens the grants is judged.
+  test("an unchanged rewrite that adds a grant is judged, one that keeps or narrows them is not", () => {
+    const policy = guarded({ secrets: "block" });
+    const grant = {
+      to: "person:dana",
+      class: "semantic" as const,
+      mode: "read" as const,
+      expires: "2027-01-01T00:00:00Z",
+    };
+    const content = `the deploy key is ${S.aws}`;
+    const existing = withContent(content, { grants: [grant] });
+    const kept = withContent(content, { grants: [grant], version: 2 });
+    const narrowed = withContent(content, { grants: [], version: 2 });
+    const widened = withContent(content, {
+      grants: [grant, { ...grant, to: "person:sara" }],
+      version: 2,
+    });
+    expect(evaluateWrite(policy, writer, kept, existing, new Map())).toMatchObject({
+      check: "admit",
+    });
+    expect(evaluateWrite(policy, writer, narrowed, existing, new Map())).toMatchObject({
+      check: "admit",
+    });
+    expect(evaluateWrite(policy, writer, widened, existing, new Map())).toMatchObject({
+      check: "content-guard",
+      policy_id: SECRET_ID,
+    });
+  });
 });

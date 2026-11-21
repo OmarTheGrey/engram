@@ -40,12 +40,14 @@
 //   instead of redacting and reporting kinds only; the backtracking bounds of
 //   URL_USERINFO (the scheme capped at 30 characters, no `?`, `=` or `&` in
 //   the userinfo); the label-gated hexadecimal and opaque key-material rules
-//   (HEX_RUN, HEX_CREDENTIAL_LABEL, HEX_LABEL_AFTER, the 48-character window,
-//   OPAQUE_RUN with looksLikeOpaqueToken); the seed-phrase rule; and the
+//   (HEX_RUN, HEX_CREDENTIAL_LABEL, HEX_LABEL_AFTER, OPAQUE_RUN with
+//   looksLikeOpaqueToken); the seed-phrase rule; and the
 //   shape guard of the high-entropy rule (mixed case and a digit, not hex).
 //   Modified: no redaction, so no placeholders and no salvage check; the
-//   label gate takes a credential word only beside the value or in an
-//   assignment, and `token` and `seed` only in an assignment (E2.9-8);
+//   label gate looks 64 characters back, not walrus' 48, and takes a
+//   credential word only beside the value or in an assignment, and `token`
+//   and `seed` only in an assignment (E2.9-8); a REVIEW rule of its own takes
+//   a strong credential word up to four words before a long value (V-3);
 //   graphCTX's credential words are added to the label.
 // - Copied from graphCTX (https://github.com/coder-company/graphCTX),
 //   src/security/secrets.ts at commit c74644cd1808aef35fb8aa0e4368d0dba76f086d,
@@ -84,17 +86,22 @@ export const GUARD_FAILURE_ID = "engram/write/guard-failure";
 
 /**
  * Content longer than this, in UTF-16 code units, is not scanned: with a guard
- * on, it is held as a candidate (decision 6; claude-mem's cap, which fails
- * closed the same way). claude-mem scans 1M characters; this guard scans
- * 64K, what admission covers (card E2.9 review, E2.9-1): each rule is
- * admitted only when its time grows less than 6 times from n to 4n on the
- * adversarial inputs (and again from 4n to 16n, n = 4,096, so up to this
- * limit) and costs at most 20 times gitleaks' keyword prefix
- * (scripts/admission.ts). That is evidence of linear growth up to the limit,
- * not a proof of it: a regular expression's worst input may be one no
- * adversarial input resembles. On content holding every gitleaks keyword
- * over and over, the slowest found, a full scan of 64K characters took about
- * 1.8 s on a loaded machine; most text scans in milliseconds.
+ * in block it is denied, otherwise held as a candidate (decision 6; card
+ * E2.9 verification, V-3). claude-mem scans 1M characters; this guard
+ * scans 64K, four times the longest input admission times (card E2.9 review,
+ * E2.9-1). Each rule is admitted only when its time grows less than 6 times
+ * from n = 4,096 to 4n = 16,384 characters on every adversarial input, and
+ * costs at most 20 times gitleaks' keyword prefix (scripts/admission.ts).
+ * Only a rule over the growth limit is timed again, from 4n to 16n (65,536),
+ * before it is refused; an admitted rule is timed up to 16,384 characters
+ * and no further, so the limit rests on linear growth seen up to a quarter
+ * of it. An input under 1 ms at 4n is not judged at all, and that floor is
+ * absolute, so how much is judged depends on the machine's speed. All of
+ * this is evidence of linear growth, not a proof: a regular expression's
+ * worst input may be one no adversarial input resembles. On content holding
+ * every gitleaks keyword over and over, the slowest found, a full scan of
+ * 64K characters takes about 1 to 3 s depending on load; most text scans in
+ * milliseconds.
  */
 export const SCAN_LIMIT = 64 * 1024;
 
@@ -258,6 +265,10 @@ const LABEL_BEFORE = new RegExp(
 const LABEL_AFTER =
   /^[^A-Za-z0-9]{0,4}(?:is|was)?[^A-Za-z0-9]{0,4}(?:my|the|our|his|her|their)?[^A-Za-z0-9]{0,4}(?:delegate[\s_-]*)?(?:private[\s_-]*key|secret[\s_-]*key|priv[\s_-]*key|encryption[\s_-]*keys?(?![A-Za-z0-9])|enc[\s_-]*keys?(?![A-Za-z0-9])|seed|mnemonic|passphrase|api[\s_-]*key|db[\s_-]*pass(?:word)?s?(?![A-Za-z0-9]))/i;
 
+/** A strong credential word, then up to four words, right before a value (V-3). */
+const DISTANT_LABEL =
+  /(?:^|[^A-Za-z0-9])(?:tokens?|secrets?|passwords?|passwd|api[\s_-]?keys?|credentials?)(?:[\s:=,'"`]+[\w./-]+){0,4}[\s:=,'"`]+$/i;
+
 function labelled(text: string, start: number, end: number): boolean {
   return (
     LABEL_BEFORE.test(text.slice(Math.max(0, start - LABEL_WINDOW), start)) ||
@@ -287,9 +298,28 @@ function lineAround(text: string, start: number, end: number): string {
   );
 }
 
-/** A git commit trailer naming a person by address (E2.9-8). */
-const TRAILER =
-  /^\s{0,8}(?:signed-off-by|co-authored-by|reviewed-by|acked-by|tested-by|reported-by|suggested-by|helped-by|author|committer):/i;
+/**
+ * A git trailer's own name and address (E2.9-8, narrowed by V-3): the line
+ * starts with the trailer's word, then a name, then the address in angle
+ * brackets closing the line, as git writes `Signed-off-by: Dana <dana@x.org>`.
+ * Only that address is exempt; any other on the line is judged.
+ */
+const TRAILER_BEFORE =
+  /^[ \t]{0,8}(?:signed-off-by|co-authored-by|reviewed-by|acked-by|tested-by|reported-by|suggested-by|helped-by|author|committer):[ \t]{1,8}[^<>@\n]{1,80}[ \t]<$/i;
+const TRAILER_AFTER = /^>[ \t]*(?:\r?\n|$)/;
+/** How far back a trailer's line may start: a trailer is short. */
+const TRAILER_REACH = 128;
+
+/** Whether the address at [start, end) is the one a git trailer's own form names. */
+function trailerAddress(text: string, start: number, end: number): boolean {
+  const from = Math.max(0, start - TRAILER_REACH);
+  const window = text.slice(from, start);
+  const cut = window.lastIndexOf("\n");
+  if (cut === -1 && from > 0) return false;
+  return (
+    TRAILER_BEFORE.test(window.slice(cut + 1)) && TRAILER_AFTER.test(text.slice(end, end + 16))
+  );
+}
 
 // ---------------------------------------------------------------------------
 // The table.
@@ -497,6 +527,20 @@ const HEURISTIC: GuardRule[] = [
       !wordy(v) &&
       labelled(text, start, end),
   }),
+  // A strong credential word up to four words before a long value (card
+  // E2.9 verification, V-3): "the API token for prod is <hex64>". The tight
+  // label above wants the word right beside the value; this wider reach is
+  // kept to strong words and values of 32 characters or more. A run of
+  // exactly 40 lowercase hexadecimal digits is a git SHA-1 and is exempt, so
+  // "token count for commit <sha>" passes.
+  secret("labelled-distant", rx(/[A-Za-z0-9+/_=-]{32,}/g), {
+    tier: "review",
+    validate: (v, text, start) =>
+      !(v.length === 40 && /^[0-9a-f]+$/.test(v)) &&
+      (/^(?:0x)?[0-9a-fA-F]+$/.test(v) ||
+        (/[a-z]/.test(v) && /[A-Z]/.test(v) && /[0-9]/.test(v) && !wordy(v))) &&
+      DISTANT_LABEL.test(text.slice(Math.max(0, start - LABEL_WINDOW), start)),
+  }),
   // graphCTX's entropy rule, over base64-alphabet runs, with walrus' shape
   // guard: mixed case and a digit, not hexadecimal.
   secret("high-entropy", rx(/[A-Za-z0-9+/_=-]{24,}/g), {
@@ -524,7 +568,7 @@ const PERSONAL: GuardRule[] = [
     "email",
     "review",
     rx(/(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g),
-    { validate: (_v, text, start) => !TRAILER.test(lineBefore(text, start)) },
+    { validate: (_v, text, start, end) => !trailerAddress(text, start, end) },
   ),
   pii("phone", "review", rx(/\+\d{1,3}[\s.-]?(?:\(?\d{1,4}\)?[\s.-]?){2,5}\d{2,4}/g)),
   pii("phone", "review", rx(/(?<!\d)(?:\(\d{3}\)\s?|\d{3}[-.\s])\d{3}[-.\s]\d{4}\b/g)),
@@ -873,11 +917,12 @@ export function describeFindings(findings: readonly Finding[]): string {
  *   again when the item is active (that content was admitted, and a reviewer
  *   may have promoted it) or when it lands retired (rejecting a held
  *   candidate is retiring it). Anything else is judged: a new item written
- *   retired, a move to another scope, a class change (card E2.9 review,
- *   E2.9-3 and E2.9-4).
+ *   retired, a move to another scope, a class change, a grant added (card
+ *   E2.9 review, E2.9-3 and E2.9-4; verification V-9).
  * - `max_content_bytes`: larger content is denied (`engram/write/content-size`).
- * - With `secrets` or `pii` on: content beyond SCAN_LIMIT, or a rule that
- *   throws, holds the write (`engram/write/guard-failure`, decision 6). A
+ * - With `secrets` or `pii` on: content beyond SCAN_LIMIT is denied when a
+ *   guard is in block and held otherwise, and a rule that throws holds the
+ *   write (`engram/write/guard-failure`, decision 6). A
  *   BLOCK-tier match of a guard in `block` denies; any other match of an
  *   enabled guard holds the write as a candidate. The rule id is the guard's
  *   (`engram/write/secret` or `engram/write/pii`) of the deciding match.
@@ -895,7 +940,9 @@ export function contentGuard(
     (existing.status === "active" || item.status === "retired") &&
     existing.scope === item.scope &&
     existing.class === item.class &&
-    canonicalJson(existing.content) === canonicalJson(item.content)
+    canonicalJson(existing.content) === canonicalJson(item.content) &&
+    // A rewrite that adds a grant widens who reads the content: judged (V-9).
+    item.grants.every((g) => existing.grants.some((h) => canonicalJson(g) === canonicalJson(h)))
   )
     return null;
   const deny = (reason: string, policy_id: string): WriteDecision => ({
@@ -905,11 +952,17 @@ export function contentGuard(
     reason,
     policy_id,
   });
+  // A write landing retired is stored retired, as written, and no read or
+  // promotion ever returns it (card E2.9 verification, V-7).
   const hold = (reason: string, policy_id: string): WriteDecision => ({
     decision: "allow",
     status: item.status === "active" ? "candidate" : item.status,
     check: "review",
-    reason: `${reason}; stored as a candidate until a reviewer promotes it`,
+    reason: `${reason}; ${
+      item.status === "retired"
+        ? "stored retired, as written, which no read or promotion returns"
+        : "stored as a candidate until a reviewer promotes it"
+    }`,
     policy_id,
   });
   const max = guards.max_content_bytes;
@@ -925,14 +978,18 @@ export function contentGuard(
   const on = new Set((["secrets", "pii"] as const).filter((g) => mode(g) !== "off"));
   if (on.size === 0) return null;
   const text = contentText(item.content);
-  if (text.length > SCAN_LIMIT)
-    return hold(
-      `the content is ${text.length} characters, beyond the ${SCAN_LIMIT} a content guard scans, so it fails closed`,
-      GUARD_FAILURE_ID,
-    );
   // A BLOCK-tier match of a guard in block denies; with no guard in block,
   // any match holds. Either way the scan may stop there.
   const anyBlock = mode("secrets") === "block" || mode("pii") === "block";
+  // Content beyond the scan limit is not scanned. Under block it is denied,
+  // since holding it would store whatever padding hid; under review it is
+  // held (card E2.9 verification, V-3).
+  if (text.length > SCAN_LIMIT) {
+    const why = `the content is ${text.length} characters, beyond the ${SCAN_LIMIT} a content guard scans`;
+    return anyBlock
+      ? deny(`${why}; a guard in block denies what it cannot scan`, GUARD_FAILURE_ID)
+      : hold(`${why}, so it fails closed`, GUARD_FAILURE_ID);
+  }
   const decides = (f: Finding) =>
     anyBlock ? f.tier === "block" && mode(f.guard) === "block" : true;
   let findings: Finding[];
