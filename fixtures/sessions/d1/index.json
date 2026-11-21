@@ -9,8 +9,8 @@
       "verdict": "success",
       "abandoned": 0,
       "branch": null,
-      "compacted": false,
-      "recovered": true
+      "compacted": true,
+      "recovered": false
     },
     {
       "file": "d1-02.jsonl",
@@ -36,21 +36,21 @@
       "file": "d1-04.jsonl",
       "session_id": "990b7a49-4239-43c0-905d-13ed49582414",
       "task_id": "synthetic/update-docs-04",
-      "verdict": "failure",
+      "verdict": "success",
       "abandoned": 1,
       "branch": "summary",
-      "compacted": false,
+      "compacted": true,
       "recovered": true
     },
     {
       "file": "d1-05.jsonl",
       "session_id": "05239226-543a-4bc8-8144-a4c43741beba",
       "task_id": "synthetic/remove-dead-code-05",
-      "verdict": "failure",
+      "verdict": "success",
       "abandoned": 0,
       "branch": null,
-      "compacted": false,
-      "recovered": true
+      "compacted": true,
+      "recovered": false
     },
     {
       "file": "d1-06.jsonl",
@@ -76,11 +76,11 @@
       "file": "d1-08.jsonl",
       "session_id": "fd0064f9-0dc3-4311-9886-367862ae51d2",
       "task_id": "synthetic/add-test-08",
-      "verdict": "success",
+      "verdict": "failure",
       "abandoned": 1,
       "branch": "summary",
-      "compacted": false,
-      "recovered": true
+      "compacted": true,
+      "recovered": false
     },
     {
       "file": "d1-09.jsonl",
@@ -179,7 +179,7 @@
       "verdict": "success",
       "abandoned": 1,
       "branch": "summary",
-      "compacted": false,
+      "compacted": true,
       "recovered": true
     },
     {
@@ -209,8 +209,8 @@
       "verdict": "success",
       "abandoned": 1,
       "branch": "summary",
-      "compacted": false,
-      "recovered": true
+      "compacted": true,
+      "recovered": false
     },
     {
       "file": "d1-22.jsonl",
@@ -226,11 +226,11 @@
       "file": "d1-23.jsonl",
       "session_id": "d1fa1c45-76b9-4a91-87b2-778283fa0eb8",
       "task_id": "synthetic/add-flag-23",
-      "verdict": "failure",
+      "verdict": "success",
       "abandoned": 1,
       "branch": "summary",
-      "compacted": true,
-      "recovered": false
+      "compacted": false,
+      "recovered": true
     },
     {
       "file": "d1-24.jsonl",
@@ -239,8 +239,8 @@
       "verdict": "success",
       "abandoned": 1,
       "branch": "plain",
-      "compacted": false,
-      "recovered": true
+      "compacted": true,
+      "recovered": false
     },
     {
       "file": "d1-25.jsonl",
@@ -286,11 +286,11 @@
       "file": "d1-29.jsonl",
       "session_id": "7c5aeb76-cc43-4b1f-bb8b-6b2ea676a107",
       "task_id": "synthetic/log-level-29",
-      "verdict": "failure",
+      "verdict": "success",
       "abandoned": 1,
       "branch": "plain",
-      "compacted": true,
-      "recovered": false
+      "compacted": false,
+      "recovered": true
     },
     {
       "file": "d1-30.jsonl",
@@ -306,11 +306,11 @@
       "file": "d1-31.jsonl",
       "session_id": "00eb63da-db74-436a-ab3e-384750e8eb00",
       "task_id": "synthetic/rename-symbol-31",
-      "verdict": "success",
+      "verdict": "failure",
       "abandoned": 1,
       "branch": "summary",
-      "compacted": true,
-      "recovered": false
+      "compacted": false,
+      "recovered": true
     },
     {
       "file": "d1-32.jsonl",
@@ -339,8 +339,8 @@
       "verdict": "success",
       "abandoned": 0,
       "branch": null,
-      "compacted": true,
-      "recovered": false
+      "compacted": false,
+      "recovered": true
     },
     {
       "file": "d1-35.jsonl",
@@ -349,8 +349,8 @@
       "verdict": "success",
       "abandoned": 1,
       "branch": "summary",
-      "compacted": true,
-      "recovered": false
+      "compacted": false,
+      "recovered": true
     },
     {
       "file": "d1-36.jsonl",
@@ -369,8 +369,8 @@
       "verdict": "success",
       "abandoned": 1,
       "branch": "plain",
-      "compacted": true,
-      "recovered": false
+      "compacted": false,
+      "recovered": true
     },
     {
       "file": "d1-38.jsonl",
@@ -396,20 +396,20 @@
       "file": "d1-40.jsonl",
       "session_id": "5328a9df-a6bd-4a56-a3d9-86aaa6e14db2",
       "task_id": "synthetic/sort-output-40",
-      "verdict": "failure",
+      "verdict": "success",
       "abandoned": 0,
       "branch": null,
-      "compacted": false,
-      "recovered": true
+      "compacted": true,
+      "recovered": false
     },
     {
       "file": "d1-41.jsonl",
       "session_id": "76c1b62e-70ea-4203-b445-55851fab5e6e",
       "task_id": "synthetic/rename-symbol-41",
-      "verdict": "failure",
+      "verdict": "success",
       "abandoned": 1,
       "branch": "plain",
-      "compacted": false,
+      "compacted": true,
       "recovered": true
     },
     {
@@ -449,8 +449,8 @@
       "verdict": "success",
       "abandoned": 0,
       "branch": null,
-      "compacted": false,
-      "recovered": true
+      "compacted": true,
+      "recovered": false
     },
     {
       "file": "d1-46.jsonl",
