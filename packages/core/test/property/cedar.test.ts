@@ -631,6 +631,27 @@ describe("the export as text", () => {
     expect(engramIds).toContain(`${policy.id}/write/person`);
   });
 
+  test("a policy id with line breaks adds no policy (review finding E2.12-4)", () => {
+    const ids = [
+      "x\npermit (principal, action, resource);\n//",
+      "y\r\nforbid (principal, action, resource);",
+      "z\u2028permit (principal, action, resource);",
+    ];
+    for (const id of ids) {
+      const exported = exportCedar({ ...loadPreset("strict"), id });
+      const parts = cedar.policySetTextToParts(exported.policies);
+      expect(parts.type, id).toBe("success");
+      if (parts.type !== "success") continue;
+      expect(parts.policies, id).toHaveLength(exported.rules.length);
+      const engramIds = parts.policies.map((text) => {
+        const json = cedar.policyToJson(text);
+        if (json.type !== "success") throw new Error(JSON.stringify(json.errors));
+        return json.json.annotations?.engram;
+      });
+      expect(engramIds, id).toContain(`${id}/write/person`);
+    }
+  });
+
   test("names every rule with an id of its own", () => {
     const policies = [
       ...presets.map((p) => p.policy),
