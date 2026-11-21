@@ -29,6 +29,7 @@ registered by amendment. No model is called.
 from __future__ import annotations
 
 import argparse
+import importlib.metadata
 import json
 import tempfile
 from collections.abc import Mapping, Sequence
@@ -41,6 +42,8 @@ from analysis.wilson import wilson
 from scripts.results_io import REPO, load_config, run_node, write_result
 
 ENTRY = "packages/core/scripts/near-duplicate-pairs.ts"
+# The agreement is also reported on the pairs whose estimate or exact similarity is at least this.
+NEAR = 0.7
 
 
 def rate(hits: int, n: int, confidence: float) -> dict[str, Any]:
@@ -87,6 +90,21 @@ def agreement(
         "tier_vs_oracle": mae("estimate", "oracle"),
         "tier_vs_exact": mae("estimate", "jaccard"),
         "oracle_vs_exact": mae("oracle", "jaccard"),
+    }
+    # Review finding L5-8: most catalogue pairs are far from every threshold,
+    # where any two estimators agree; the pairs near it are the test.
+    near = [p for p in pairs if p["estimate"] >= NEAR or p["jaccard"] >= NEAR]
+    out["near_pairs"] = {
+        "at_or_above": NEAR,
+        "pairs": len(near),
+        "by_threshold": {
+            f"{t:.2f}": rate(
+                sum((p["estimate"] >= t) == (p["oracle"] >= t) for p in near),
+                len(near),
+                confidence,
+            )
+            for t in thresholds
+        },
     }
     out["max_absolute_difference_tier_vs_oracle"] = (
         max(abs(p["estimate"] - p["oracle"]) for p in pairs) if n else None
@@ -166,6 +184,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     config = load_config(args.config)
     if config["oracle"]["package"] != "datasketch":
         raise SystemExit("near_duplicate: the oracle is datasketch")
+    installed = importlib.metadata.version("datasketch")
+    if installed != config["oracle"]["version"]:
+        raise SystemExit(
+            f"near_duplicate: datasketch {installed} is installed; the config pins "
+            f"{config['oracle']['version']}"
+        )
     with tempfile.TemporaryDirectory() as tmp:
         out = Path(tmp) / "pairs.json"
         run_node(

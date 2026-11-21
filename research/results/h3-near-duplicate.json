@@ -98,6 +98,39 @@
       "tier_vs_exact": 0.01623,
       "tier_vs_oracle": 0.023674
     },
+    "near_pairs": {
+      "at_or_above": 0.7,
+      "by_threshold": {
+        "0.80": {
+          "count": 19,
+          "n": 21,
+          "rate": 0.904762,
+          "wilson": [
+            0.710859,
+            0.973481
+          ]
+        },
+        "0.85": {
+          "count": 18,
+          "n": 21,
+          "rate": 0.857143,
+          "wilson": [
+            0.653639,
+            0.95019
+          ]
+        },
+        "0.90": {
+          "count": 13,
+          "n": 21,
+          "rate": 0.619048,
+          "wilson": [
+            0.408787,
+            0.79249
+          ]
+        }
+      },
+      "pairs": 21
+    },
     "pairs": 66
   },
   "fixtures": 16,
@@ -129,6 +162,7 @@
     "The oracle estimates the same Jaccard similarity the lint estimates, with other hash functions: agreement checks the implementation, not whether the lint finds what a person would call a duplicate (card R2's decision, docs/log/2026-11-21-r2-decision-l5-oracle-is-agreement.md).",
     "Precision and recall are on the tier's own two fixtures, written by the card's author with the vetoes in mind: they say the fixtures pass, nothing about natural memory.",
     "Small: the fault catalogue holds 66 compared pairs, so the Wilson intervals are wide.",
+    "Easy pairs: most compared pairs sit far below every threshold, where any two estimators agree; the agreement over all pairs flatters the implementation, and `near_pairs` (estimate or exact similarity at least 0.7) is the figure to read.",
     "English only: the number and polarity vetoes read English weekday and month names and English negations.",
     "Off in every registered preset and condition: no registered arm runs near-duplicate-tier."
   ],

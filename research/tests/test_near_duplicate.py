@@ -2,9 +2,14 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import Any
 
-from scripts.near_duplicate import agreement, labelled, oracle_estimate
+import pytest
+
+from scripts.near_duplicate import agreement, labelled, main, oracle_estimate
+from scripts.results_io import REPO
 
 
 def test_the_oracle_estimates_identical_sets_as_one_and_disjoint_ones_near_zero() -> None:
@@ -48,3 +53,23 @@ def test_labelled_scores_only_the_tiers_own_fixtures_item_by_item() -> None:
     assert (out["true_positives"], out["false_positives"], out["false_negatives"]) == (1, 1, 1)
     assert out["precision"]["rate"] == 0.5
     assert out["recall"]["rate"] == 0.5
+
+
+def test_agreement_reports_the_pairs_near_a_threshold_apart() -> None:
+    pairs = [
+        {"estimate": 0.9, "oracle": 0.84, "jaccard": 0.86},
+        {"estimate": 0.2, "oracle": 0.25, "jaccard": 0.72},
+        {"estimate": 0.1, "oracle": 0.1, "jaccard": 0.1},
+    ]
+    near = agreement(pairs, [0.85], 0.95)["near_pairs"]
+    assert near["pairs"] == 2
+    assert near["by_threshold"]["0.85"]["count"] == 1
+
+
+def test_main_refuses_a_datasketch_other_than_the_pinned_one(tmp_path: Path) -> None:
+    config = json.loads((REPO / "research/configs/near-duplicate.json").read_text(encoding="utf-8"))
+    config["oracle"]["version"] = "0.0.1"
+    path = tmp_path / "config.json"
+    path.write_text(json.dumps(config), encoding="utf-8")
+    with pytest.raises(SystemExit, match=r"the config pins 0.0.1"):
+        main(["--config", str(path), "--out", str(tmp_path / "out.json")])
