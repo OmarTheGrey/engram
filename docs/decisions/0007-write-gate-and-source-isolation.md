@@ -93,3 +93,12 @@ Unblocks E2.2, L2, the MPBench arm. Changing this decision needs a new ADR that 
 - `docs/decisions/README.md` (the proposal)
 - `docs/readings/litreview/2606.04329-mpbench.md`
 - `docs/readings/litreview/2606.24322-origin-bound-authority.md`
+
+Amendment of 2026-11-21, recording answers given on 2026-11-20 under the lead's delegation (`docs/tasks/lead-decisions.md`), carried by the answers card; the lead may overturn any:
+
+- Item 42: the confidence floor does not gate model and compaction sources. A write rule's floor compares `item.confidence`, a number the writer sets, so a model-sourced write passes any floor by claiming 1 (`docs/log/2026-11-20-rv7-finding-confidence-floor-gates-a-claim.md`). The floor is a check on what a source that measures its confidence reports; it is not a trust control for model or compaction content, which source isolation and the scope rules govern. Capping model confidence in core was not taken: it would still gate on a number the writer chose. No code changes.
+
+Amendment of 2026-11-21, recording answers given on 2026-11-21 under the lead's delegation (`docs/tasks/lead-decisions.md`), carried by the answers card; the lead may overturn any:
+
+- Item 50: ADR 0039 amends this ADR with a stage that looks at content: deterministic detectors for secrets, personal data and injected instructions, whose match denies the write or holds it as a candidate and never rewrites it, off in every registered preset (cards E2.8 to E2.10).
+- Item 51: ADR 0040's floors (cards E2.7 and E2.11) are opt-in and off in the H1 to H4 presets.

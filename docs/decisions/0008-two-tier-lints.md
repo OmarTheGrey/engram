@@ -39,3 +39,14 @@ Unblocks L1, L3, L4, X10. Changing this decision needs a new ADR that supersedes
 ## Sources
 
 - `docs/decisions/README.md` (the proposal)
+
+Amendment of 2026-11-21, recording answers given on 2026-11-20 under the lead's delegation (`docs/tasks/lead-decisions.md`), carried by the answers card; the lead may overturn any:
+
+- Item 43: the bound behind the roadmap's risk "model-based lint variance above bound" is a standard deviation across seeds of at most 0.05 on precision and on recall, per lint, on card L3's pilot.
+- Item 44: a later update of the same attribute counts as a contradiction. The contradiction prompt (`LINT_PROMPTS.contradiction`) is to be changed to say so, and its cassettes recorded again. Not done yet: the change also moves the prompt characters that `research/results/h3-lint-floor.json` and `research/results/h2-cost-table.json` record, so it is its own PR with those results regenerated (backlog).
+- Item 47: H3's live model-lint run covers all 500 questions, as registered (95,217 calls).
+- Card L3's proposed amendment above stays proposed; item 44 changes one of its requests once built.
+
+Amendment of 2026-11-21, recording the lead's own answer of that day (`docs/tasks/lead-decisions.md`, item 58):
+
+- If card L3's pilot shows a standard deviation across seeds above 0.05 on precision or recall for any lint, the deterministic tier becomes H3's primary test and the model tier is reported as secondary. The rule is registered before any pilot data.

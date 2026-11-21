@@ -81,3 +81,9 @@ Card E2.4's acceptance ("budget exceeded evicts per policy; events recorded") ha
 - `docs/readings/litreview/2610.18052-bemula-unlearning.md` (relearning and extraction suites)
 - `docs/readings/litreview/2609.05441-merit.md` (utility accounting)
 - `docs/readings/litreview/2304.03442-generative-agents.md` (recency and importance in retrieval)
+
+Note of 2026-11-21, the answers card's review fix pass: lead-decisions item 19 accepts the access clock of ADRs 0005 and 0027 (the server and core own the time an access is judged at). It does not decide this ADR's RV5 amendment above, which sets who sweeps and when (only the owner's read, at the surface's clock), so that amendment stays proposed, for the lead.
+
+Amendment of 2026-11-21, recording answers given on 2026-11-21 under the lead's delegation (`docs/tasks/lead-decisions.md`), carried by the answers card; the lead may overturn any:
+
+- Item 51: ADR 0040 amends the eviction order with an opt-in protection of more trusted items, off in the H1 to H4 presets (card E2.11).

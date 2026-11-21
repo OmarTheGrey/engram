@@ -25,7 +25,7 @@
     "openrouter/z-ai/glm-5.3-flash": {
       "reasoning": true,
       "can_turn_reasoning_off": false,
-      "why": "OpenRouter's list gives glm-5.3-flash the reasoning and reasoning_effort parameters, pi-ai 1.3.0's catalogue does not list it; priced as a reasoning model whose off is ignored, the upper bound (its output price is 0.0784 dollars per million, so the bound is small)"
+      "why": "OpenRouter's list gives glm-5.3-flash the reasoning and reasoning_effort parameters; pi-ai 1.3.0's catalogue lists it but maps reasoning off to nothing (thinkingLevelMap.off null), and h1-cost.json does not carry it, so its flags are set here; priced as a reasoning model whose off is ignored, the upper bound (its output price is 0.0784 dollars per million, so the bound is small)"
     }
   },
   "decisions": {

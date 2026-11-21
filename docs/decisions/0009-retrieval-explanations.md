@@ -67,7 +67,7 @@ Made by the post-merge integration fixes of 2026-11-13 (the review of the twelve
 
 ## Amendment (2026-11-20)
 
-Made by card RV7 (branch `rv7`, core review finding RV-CORE-4). Status: proposed, for the lead's acceptance:
+Made by card RV7 (branch `rv7`, core review finding RV-CORE-4). Status: accepted on 2026-11-20 under the lead's delegation (`docs/tasks/lead-decisions.md`, item 40); the lead may overturn it:
 
 - The amendment above showed a lint event to every member of the scope it lints. A member whose level the read matrix stops from reading that scope (a role context that is a member of a person scope, under the twin profile) then saw the scope's write events and a duplicate lint's reason, whose strict content hash can confirm a guess at short content, while Plane.read returned it nothing. Now an event is shown to a member of a scope it names only when the read matrix lets the member's level read that scope (`eventVisibleTo` in packages/core/src/visible.ts calls `readableScope`); the event's maker sees it besides only when it names no scope (review finding RV7-R2 of PR #61: a role context under the person's own id is the same maker). So a lint finding reaches exactly the members who may read the linted scope, and the evidence rule above applies among them. Tests: `packages/core/test/property/visible-events.test.ts` (the oracle's member cases now follow the read matrix; the review's twin repro on the real Plane) and `packages/core/test/unit/visible.test.ts`.
 
@@ -82,3 +82,7 @@ Unblocks E2.4, the inspector, the explanation evaluation. Changing this decision
 ## Sources
 
 - `docs/decisions/README.md` (the proposal)
+
+Amendment of 2026-11-21, recording answers given on 2026-11-20 under the lead's delegation (`docs/tasks/lead-decisions.md`), carried by the answers card; the lead may overturn any:
+
+- Item 40: an event is shown only to members whose read matrix covers its scope, and to its maker. RV7's amendment above is accepted, with ADR 0027's of the same card.

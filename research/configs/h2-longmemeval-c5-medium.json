@@ -11,5 +11,7 @@
   "store": "mem0",
   "cassettes": "../../.engram/runs/h2-longmemeval-c5-medium/cassettes",
   "read_limit": 20,
+  "turn_limit": 8,
+  "spend_ceiling_usd": 103.45,
   "judge": { "model": "openrouter/openai/gpt-4o-2024-08-06", "temperature": 0, "max_tokens": 10 }
 }

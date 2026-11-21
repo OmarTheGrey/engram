@@ -64,8 +64,12 @@ describe("B6's experiment configs", () => {
       );
       expect(c.script).toBeUndefined();
     }
-    // They differ in their name, condition and cassettes only.
-    const strip = ({ name, conditions, cassettes, ...rest }: typeof c2) => rest;
+    // They differ in their name, condition, cassettes and spend ceiling only:
+    // each ceiling is its own run's (lead-decisions item 3), checked against
+    // the cost table by research/tests/test_run_limits.py.
+    const strip = ({ name, conditions, cassettes, spend_ceiling_usd, ...rest }: typeof c2) => rest;
+    expect(c2.spend_ceiling_usd).toBeGreaterThan(0);
+    expect(c5.spend_ceiling_usd).toBeGreaterThan(0);
     expect(strip(c2)).toEqual(strip(c5));
   });
 

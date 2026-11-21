@@ -12,9 +12,12 @@ The registered family (finding RV-DES-12). `holm` adjusts over exactly the
 five registered hypotheses, `HYPOTHESES`, and refuses any other set of
 names: before this guard it took m from the p-values it was given, so a
 hypothesis that was not run silently lowered every other adjustment. A
-hypothesis with no p-value is refused too, never filled in: a caller that
-means "not run counts as p = 1" passes 1.0 for it explicitly, a rule the
-lead has yet to register (docs/log/2026-11-20-x4-holm-not-run-rule.md).
+hypothesis with no p-value is refused too, never filled in. The rule that a
+hypothesis not run counts as p = 1 is registered (lead-decisions item 8,
+answered on 2026-11-20 under the lead's delegation; the pre-registration's
+Statistics section): whoever assembles the final family passes 1.0 for it
+explicitly, and this module never supplies it (no caller does so yet;
+docs/log/2026-11-20-x4-holm-not-run-rule.md).
 `interim_bound` is H1's read-out before the other four exist, the m p
 bound of the same family, so the bound and the final adjustment use one m
 and can never disagree about it. `step_down` is the procedure over any

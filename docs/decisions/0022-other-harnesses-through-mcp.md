@@ -51,3 +51,7 @@ Unblocks E8.4, E8.5. Changing this decision needs a new ADR that supersedes this
 ## Sources
 
 - `docs/decisions/README.md` (the proposal)
+
+Amendment of 2026-11-21, recording answers given on 2026-11-20 under the lead's delegation (`docs/tasks/lead-decisions.md`), carried by the answers card; the lead may overturn any:
+
+- Item 25: the harness claim is stated as untested. C7, the governed tools without read filtering, equals C5 in benchmark sessions and the other harnesses cannot be seeded, so no hypothesis runs C7; Claude Code and Codex stay supported through MCP and the hook, with the interception limits this ADR states.

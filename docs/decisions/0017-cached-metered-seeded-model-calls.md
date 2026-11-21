@@ -39,3 +39,14 @@ Unblocks X1, every experiment. Changing this decision needs a new ADR that super
 ## Sources
 
 - `docs/decisions/README.md` (the proposal)
+
+Amendment of 2026-11-21, recording answers given on 2026-11-20 under the lead's delegation (`docs/tasks/lead-decisions.md`), carried by the answers card; the lead may overturn any:
+
+- Item 13: LongMemEval's judge is the paper's model through OpenRouter's seeded chat completions, `openrouter/openai/gpt-4o-2024-08-06`; this ADR holds without an exception.
+- The review cards' table, row RV6: each model and judge is pinned to its maker's own OpenRouter endpoint where OpenRouter lists one, otherwise to the cheapest endpoint that honours `seed`, with `allow_fallbacks: false` (`openrouter_provider`). The endpoints are named in each config before its first live run; the upstream that served each call is recorded either way.
+- Items 27 and 29: ADR 0036 (cassettes deposited on Zenodo and fetched by sha256; a local cassette proxy for the outside harnesses) extends this ADR.
+
+Amendment of 2026-11-21, the answers card's review and verification fix passes (`docs/tasks/lead-decisions.md`, item 59):
+
+- The lead's own answer: the per-run ceilings stay at 1.25 times each run's high estimate, and a programme-wide cap equals the API credit held; a run that would cross the cap pauses, and the lead decides whether to resume.
+- Added under the lead's delegation: the metered cost is pi-ai 1.3.0's (each call's `cost_usd` is `calculateCost` over the model's catalogue price, half OpenRouter's list price for M1), so the ceilings are set in these ledger dollars, and the pre-registration's Models section gives each model's list-to-catalogue ratio. The cap is in billed dollars: a card before 1 December has the runner convert each paid call's ledger cost by its model's recorded ratio, input and output apart, and a model with no recorded ratio refuses to run under the cap. Until it lands, the operator reads OpenRouter's credit balance at least every two hours while any shard runs and stops every shard when the credit left falls below one session's cost per running shard plus 10 percent. An HTTP 401, 402 or 403 from the provider stops a run. A card that records the cost OpenRouter reports for each call would make the ledger bound real spend directly (backlog).
