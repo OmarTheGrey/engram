@@ -13,6 +13,20 @@ export {
 } from "./app.ts";
 export * as contract from "./contract.ts";
 export {
+  type DecisionExport,
+  type DecisionSink,
+  EXPORT_JSONL_ENV,
+  type ExportConfig,
+  exportConfig,
+  exportsAnything,
+  jsonlSink,
+  OTLP_TIMEOUT_MS,
+  OTLP_URL_ENV,
+  openSinks,
+  otlpSink,
+  startExport,
+} from "./export.ts";
+export {
   isLoopbackAddress,
   isLoopbackHost,
   type Listening,

@@ -31,6 +31,7 @@ import { Hono, type MiddlewareHandler } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import type { z } from "zod";
 import type { ErrorResponse } from "./contract.ts";
+import type { DecisionExport } from "./export.ts";
 import { API_PREFIX, ROUTES, type Route } from "./routes.ts";
 import { isApiPath, uiResponse } from "./static.ts";
 import { NoStoreError, type Workspace } from "./workspace.ts";
@@ -54,6 +55,12 @@ export interface AppOptions {
    * / beside the API; none when null or absent (static.ts).
    */
   ui?: string | null;
+  /**
+   * The decision export (card E8.13, ADR 0043): flushed after every API
+   * call, so each event the call appended leaves as a span; none when absent,
+   * the default. A failed flush goes to `onError` and never fails the call.
+   */
+  decisions?: DecisionExport;
 }
 
 type ErrorBody = z.infer<typeof ErrorResponse>;
@@ -181,6 +188,12 @@ function register(app: Hono, r: Route, workspace: Workspace, options: AppOptions
       return c.json(result as object, 200);
     } catch (e) {
       return mapError(e, options.onError);
+    } finally {
+      try {
+        options.decisions?.flush();
+      } catch (e) {
+        options.onError?.(e);
+      }
     }
   });
 }
