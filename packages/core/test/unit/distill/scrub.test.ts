@@ -4,7 +4,7 @@
 // synthetic and planted.
 import { describe, expect, test } from "vitest";
 import type { Episode, Step } from "../../../src/distill/episode.ts";
-import { scrubEpisode } from "../../../src/distill/scrub.ts";
+import { scrubEpisode, scrubText } from "../../../src/distill/scrub.ts";
 import { REDACTED_SECRET } from "../../../src/plane/bypass.ts";
 
 /** A planted key: the shape of one, and nobody's. */
@@ -26,6 +26,8 @@ const episode = (over: Partial<Episode> = {}): Episode => ({
   format: "engram.episode/1",
   session_id: "0193a000-0000-4000-8000-000000000001",
   task_id: "synthetic/rename-1",
+  started_at: "2026-11-01T09:00:00.000Z",
+  ended_at: "2026-11-01T09:00:09.000Z",
   model: "scripted/scripted-1",
   steps: [
     { entry_id: "a0000001", kind: "user", text: "Rename foo" },
@@ -41,6 +43,7 @@ const episode = (over: Partial<Episode> = {}): Episode => ({
   ],
   outcome: { verdict: "success", reward: 1, stop_reason: "stop", leaf_id: "a0000004" },
   abandoned: [],
+  omitted: [],
   summarised: false,
   skipped_lines: 0,
   ...over,
@@ -78,6 +81,7 @@ describe("scrubEpisode", () => {
       abandoned: [
         {
           left_at: "a0000001",
+          left_from: null,
           leaf_id: "b0000001",
           summary: `tried ${PLANTED}`,
           outcome: { verdict: null, reward: null, stop_reason: null, leaf_id: "b0000001" },
@@ -170,5 +174,112 @@ describe("scrubEpisode", () => {
     const copy = structuredClone(e);
     scrubEpisode(e);
     expect(e).toEqual(copy);
+  });
+});
+
+describe("scrubEpisode: the review fix pass (findings D1-2, D1-3)", () => {
+  test("under a secret-named argument the whole value goes, an array or an object too", () => {
+    const e = episode({
+      steps: [
+        fn({
+          arguments: {
+            tokens: ["shorttok1"],
+            auth: { basic: "dXNlcjpwYXNz" },
+            pass: "hunter2",
+            api_key: null,
+            secret: true,
+          },
+        }),
+      ],
+    });
+    const out = scrubEpisode(e);
+    expect(out.episode.steps[0]).toMatchObject({
+      arguments: {
+        tokens: REDACTED_SECRET,
+        auth: REDACTED_SECRET,
+        pass: REDACTED_SECRET,
+        api_key: null,
+        secret: true,
+      },
+    });
+    expect(out.redacted).toBe(3);
+    expect(JSON.stringify(out.episode)).not.toMatch(/shorttok1|dXNlcjpwYXNz|hunter2/);
+  });
+
+  test.each([
+    ["curl -H 'X-Api-Key: abcd1234short' https://x", "curl -H 'X-Api-Key: <redacted>' https://x"],
+    [
+      "curl -H 'Authorization: Basic dXNlcjpwYXNz' https://x",
+      "curl -H 'Authorization: Basic <redacted>' https://x",
+    ],
+    ['{"token": "abc", "password": "x"}', '{"token": "<redacted>", "password": "<redacted>"}'],
+    ["password: hunter2", "password: <redacted>"],
+    ["DB_PASS=hunter2 psql", "DB_PASS=<redacted> psql"],
+  ])("the named-value rule redacts %s", (input, kept) => {
+    expect(scrubText(input)).toBe(kept);
+  });
+
+  test.each([
+    "max_tokens: 100",
+    "tokens: 5",
+    "token_count: 7",
+    "bypass: on",
+    "passage: two",
+    "the keyboard: fine",
+  ])("the named-value rule keeps %s", (input) => {
+    expect(scrubText(input)).toBe(input);
+  });
+
+  test("the named-value rule is idempotent and fast on a long line", () => {
+    const once = scrubText("Authorization: Bearer abc X-Api-Key: def");
+    expect(scrubText(once)).toBe(once);
+    const long = `${"a".repeat(200_000)} token`;
+    const started = performance.now();
+    scrubText(long);
+    expect(performance.now() - started).toBeLessThan(1000);
+  });
+
+  test("a key split across two fields is kept: the scrub's known limit", () => {
+    const e = episode({
+      steps: [
+        { entry_id: "a0000001", kind: "user", text: "the first half is abcd" },
+        { entry_id: "a0000002", kind: "user", text: "and the second half is efgh" },
+      ],
+    });
+    expect(scrubEpisode(e).redacted).toBe(0);
+  });
+
+  test("long tool names and model ids are not held, but a key in one is", () => {
+    const longTool = "mcp__a_very_long_server_name__and_a_long_tool_name";
+    const longModel = "provider/an-unusually-long-model-identifier-2026-11-01";
+    const ok = scrubEpisode(episode({ model: longModel, steps: [fn({ tool: longTool })] }));
+    expect(ok.held).toEqual([]);
+    // A key after a hyphen is held; one glued on by underscores is not (no
+    // word boundary for the table's sk- rule): a known limit for long names.
+    const bad = scrubEpisode(episode({ steps: [fn({ tool: `mcp-x-${PLANTED}` })] }));
+    expect(scrubEpisode(episode({ steps: [fn({ tool: `mcp__x__${PLANTED}` })] })).held).toEqual([]);
+    expect(bad.held).toEqual(["steps[0].tool"]);
+  });
+
+  test("what replaced an edited entry is scrubbed, and omitted entry ids are checked", () => {
+    const e = episode({
+      steps: [
+        {
+          entry_id: "a0000001",
+          kind: "user",
+          text: "x",
+          context: "replaced",
+          replacement: PLANTED,
+        },
+      ],
+      omitted: [{ entry_ids: ["a0000002", "y".repeat(40)], stop_reason: "length" }],
+    });
+    const out = scrubEpisode(e);
+    expect(JSON.stringify(out.episode)).not.toContain(PLANTED);
+    expect(out.episode.steps[0]).toMatchObject({
+      context: "replaced",
+      replacement: REDACTED_SECRET,
+    });
+    expect(out.held).toEqual(["omitted[0].entry_ids[1]"]);
   });
 });

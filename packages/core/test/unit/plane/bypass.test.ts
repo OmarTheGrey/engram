@@ -134,6 +134,22 @@ describe("redactSecrets and isSecretName: the table on its own (card D1)", () =>
     expect(secret.filter((n) => !isSecretName(n))).toEqual([]);
     expect(["url", "path", "command", "file name"].filter(isSecretName)).toEqual([]);
   });
+
+  test("pass as a word of a name is a secret's, as the flag rule reads --pass", () => {
+    expect(
+      ["pass", "PASS", "db_pass", "db-pass", "dbPass", "pass_word"].filter((n) => !isSecretName(n)),
+    ).toEqual([]);
+    expect(["bypass", "passage", "compass", "passes"].filter(isSecretName)).toEqual([]);
+  });
+
+  test("longTokens false leaves out only the rule for a run of 32 or more key characters", () => {
+    const long = "mcp__a_very_long_server_name__and_a_long_tool_name";
+    expect(redactSecrets(long)).toBe("<redacted>");
+    expect(redactSecrets(long, { longTokens: false })).toBe(long);
+    expect(redactSecrets("TOKEN=abc sk-abcdefghijkl", { longTokens: false })).toBe(
+      "TOKEN=<redacted> <redacted>",
+    );
+  });
 });
 
 describe("Plane.recordBypass checks the call (decision D6)", () => {

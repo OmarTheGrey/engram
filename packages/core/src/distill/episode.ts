@@ -4,15 +4,16 @@
 // reads the files and writes each episode through Plane.write.
 //
 // The format is pi's own, version 3, as @earendil-works/pi-coding-agent 1.3.0
-// writes and reads it: docs/session-format.md and docs/message-types.md of
-// that package, and dist/core/session-manager.d.ts for the entry types. Core
-// imports nothing from pi (AGENTS.md rule 4), so the shapes are read here as
-// plain data and only the fields named below are used. What this module
-// copies from pi's behaviour, and where pi does it in
+// writes and reads it: docs/session-format.md, docs/message-types.md and
+// docs/compaction.md of that package, and dist/core/session-manager.d.ts for
+// the entry types. Core imports nothing from pi (AGENTS.md rule 4), so the
+// shapes are read here as plain data and only the fields named below are
+// used. What this module copies from pi's behaviour, and where pi does it in
 // dist/core/session-manager.js:
 //
 // - Lines are parsed one by one and a malformed line is skipped
-//   (`parseSessionEntries`); the count of skipped lines is kept.
+//   (`parseSessionEntries`); the count of skipped lines is kept. A version of
+//   3 or more is current (`migrateToCurrentVersion` migrates only below 3).
 // - The current leaf of a loaded file is its last entry (`_buildIndex` sets
 //   `leafId` to each entry in file order), and the current branch is the
 //   path from that leaf to its root by `parentId` (`buildSessionPath`).
@@ -20,13 +21,27 @@
 //   the entry the new branch continues from, with `fromId` the abandoned
 //   leaf; a plain `branch` appends nothing, the next entry is simply another
 //   child of an earlier one; `resetLeaf` lets a later entry start a new root.
+// - A `context_edit` entry (`appendContextEdit`) names an earlier entry on
+//   its own branch (`targetId`) and either omits it from the model's context
+//   (`replacement: null`) or replaces its content (`replacement.content`);
+//   the latest edit of a target on a branch wins (`buildSessionProjection`).
+//   pi omits a failed attempt this way after a context overflow or a length
+//   cut, before it retries (agent-session.js `_omitRecoveryAttempt`,
+//   docs/compaction.md "Overflow and Length Recovery Ordering").
 //
 // An episode keeps the raw record, not the model's context: a compaction is
-// a step and the entries it summarised stay. The step names follow the span
-// vocabulary of the OpenAI Agents SDK traces (MIT, idea only, card D1's
-// "Absorbs"): a model turn is a `generation`, a tool call with its result a
-// `function`, an extension's message a `custom`; `user` and `summary` are
-// pi's own.
+// a step and the entries it summarised stay, and an edited entry stays as it
+// happened, marked `omitted` or `replaced` (with what replaced it). Steps a
+// recovery omitted are listed again as `omitted` attempts, negative evidence
+// beside the abandoned branches. Each entry off the final branch belongs to
+// one abandoned branch only: the first, in file order of the leaves, whose
+// path reaches it; a later branch that forks inside it is left at its fork
+// and names the branch it left (`left_from`).
+//
+// The step names follow the span vocabulary of the OpenAI Agents SDK traces
+// (MIT, idea only, card D1's "Absorbs"): a model turn is a `generation`, a
+// tool call with its result a `function`, an extension's message a
+// `custom`; `user` and `summary` are pi's own.
 import type { z } from "zod";
 import type { SessionEntry } from "../distill.ts";
 import type { JsonValue } from "../schema.ts";
@@ -40,7 +55,7 @@ export const EPISODE_FORMAT = "engram.episode/1";
 export const TASK_ENTRY = "engram.task";
 /** The pi `custom` entry giving a branch's verdict: `data: { verdict: "success" | "failure", reward?: number }`. */
 export const OUTCOME_ENTRY = "engram.outcome";
-/** The session version this parser reads; pi migrates older files to it when it loads them. */
+/** The oldest session version this parser reads; pi migrates older files to 3 when it loads them. */
 export const SESSION_VERSION = 3;
 
 /** A session file that has no episode: no header, an older version, or a broken tree. */
@@ -62,7 +77,14 @@ export interface ParsedSession {
   skipped_lines: number;
 }
 
-export type Step =
+/**
+ * How a later `context_edit` on the same branch changed a step's entry in the
+ * model's context; absent when no edit names it. `replacement` is the text
+ * that stood in the context from then on.
+ */
+export type ContextMark = { context?: "omitted" | "replaced"; replacement?: string };
+
+export type Step = (
   | { entry_id: string; kind: "user"; text: string }
   | {
       entry_id: string;
@@ -96,7 +118,9 @@ export type Step =
       /** A branch summary's abandoned leaf (pi's `fromId`); null for a compaction. */
       from_id: string | null;
     }
-  | { entry_id: string; kind: "custom"; custom_type: string; text: string };
+  | { entry_id: string; kind: "custom"; custom_type: string; text: string }
+) &
+  ContextMark;
 
 export type Outcome = {
   /** From the branch's last `engram.outcome` entry; null when it has none. */
@@ -109,14 +133,24 @@ export type Outcome = {
 
 /** A branch the session left: negative evidence for induction (ADR 0012). */
 export type AbandonedBranch = {
-  /** The entry on the final branch it forked from; null when it has a root of its own. */
+  /** The entry it forked from: on the final branch or on an earlier abandoned branch; null when it has a root of its own. */
   left_at: string | null;
+  /** The index in `abandoned` of the branch holding `left_at`; null when it is on the final branch or null. */
+  left_from: number | null;
   leaf_id: string;
   /** The `branch_summary` pi wrote when it was left (its `fromId` is this leaf); null when none. */
   summary: string | null;
   outcome: Outcome;
-  /** Its steps after `left_at`, in order. */
+  /** Its own steps after `left_at`, in order; no other branch repeats them. */
   steps: Step[];
+};
+
+/** Steps a context edit omitted on the final branch, one run of them: an attempt pi withdrew. */
+export type OmittedAttempt = {
+  /** The entries of the run, in order, tool results included. */
+  entry_ids: string[];
+  /** The stop reason of the run's last generation (pi omits after `length` or an overflow `error`); null when it has none. */
+  stop_reason: string | null;
 };
 
 export type Episode = {
@@ -124,6 +158,10 @@ export type Episode = {
   session_id: string;
   /** From the session's first `engram.task` entry; null when it has none. */
   task_id: string | null;
+  /** The header's timestamp, when the session started; null when it has none. */
+  started_at: string | null;
+  /** The timestamp of the session's last entry; null when it has none. */
+  ended_at: string | null;
   /** `provider/model` of the final branch's last assistant message; null when it has none. */
   model: string | null;
   /** The final branch's steps, root first. */
@@ -131,16 +169,25 @@ export type Episode = {
   outcome: Outcome;
   /** In file order of their leaves. */
   abandoned: AbandonedBranch[];
+  /** Runs of final-branch steps a context edit omitted, in order; negative evidence as abandoned branches are. */
+  omitted: OmittedAttempt[];
   /** Whether a model-written summary (a compaction or a branch summary) is anywhere in the episode. */
   summarised: boolean;
   skipped_lines: number;
 };
 
-/** The tree of a session: the final branch, and each other leaf's branch off it. */
+/** The tree of a session: the final branch, and each other leaf's own branch. */
 export interface SessionTree {
   /** Entry ids from the root to the final leaf. */
   final: string[];
-  branches: { leaf_id: string; left_at: string | null; segment: string[] }[];
+  /**
+   * One per leaf other than the final one, in file order: the entry it forked
+   * from (`left_at`), the earlier branch holding that entry (`parent`, an
+   * index here; null for the final branch or no entry), and its own entries.
+   * A branch whose entries hold no step claims none of them, so a later
+   * branch through them takes them.
+   */
+  branches: { leaf_id: string; left_at: string | null; parent: number | null; segment: string[] }[];
 }
 
 const isObject = (v: unknown): v is Record<string, unknown> =>
@@ -162,9 +209,9 @@ export function parseSessionJsonl(text: string): ParsedSession {
   if (!isObject(head) || head.type !== "session")
     throw new InvalidSessionError("the file has no session header on its first line");
   const version = head.version ?? 1;
-  if (version !== SESSION_VERSION)
+  if (typeof version !== "number" || !(version >= SESSION_VERSION))
     throw new InvalidSessionError(
-      `the session is version ${String(version)}; this parser reads version ${SESSION_VERSION}, which pi migrates a file to when it opens it`,
+      `the session is version ${String(version)}; this parser reads version ${SESSION_VERSION} and later, which pi migrates a file to when it opens it`,
     );
   if (typeof head.id !== "string" || head.id === "")
     throw new InvalidSessionError("the session header has no id");
@@ -203,31 +250,51 @@ function pathTo(leaf: SessionEntry, byId: Map<string, SessionEntry>): SessionEnt
   return path.reverse();
 }
 
-/** The final branch and every other leaf's branch, as pi's SessionManager would see them. */
+const message = (e: SessionEntry): Record<string, unknown> | null =>
+  e.type === "message" && isObject(e.message) ? e.message : null;
+
+/** Whether an entry gives at least one step (stepsOf below); the rest are bookkeeping. */
+function givesStep(e: SessionEntry): boolean {
+  const role = message(e)?.role;
+  if (role !== undefined)
+    return (
+      role === "user" || role === "assistant" || role === "toolResult" || role === "bashExecution"
+    );
+  return e.type === "compaction" || e.type === "branch_summary" || e.type === "custom_message";
+}
+
+/** The final branch and every other leaf's own branch, as pi's SessionManager would see the tree. */
 export function sessionTree(session: ParsedSession): SessionTree {
   const byId = new Map(session.entries.map((e) => [e.id, e]));
   const last = session.entries.at(-1);
   if (!last) return { final: [], branches: [] };
   const final = pathTo(last, byId).map((e) => e.id);
-  const onFinal = new Set(final);
+  // Which branch holds each claimed entry: -1 for the final branch.
+  const owner = new Map<string, number>(final.map((id) => [id, -1]));
   const parents = new Set(session.entries.flatMap((e) => (e.parentId ? [e.parentId] : [])));
-  const branches = session.entries
-    .filter((e) => !parents.has(e.id) && e.id !== last.id)
-    .map((leaf) => {
-      const path = pathTo(leaf, byId);
-      let fork = -1;
-      for (let i = path.length - 1; i >= 0; i--) {
-        if (onFinal.has((path[i] as SessionEntry).id)) {
-          fork = i;
-          break;
-        }
+  const branches: SessionTree["branches"] = [];
+  for (const leaf of session.entries) {
+    if (parents.has(leaf.id) || leaf.id === last.id) continue;
+    const path = pathTo(leaf, byId);
+    let fork = -1;
+    for (let i = path.length - 1; i >= 0; i--) {
+      if (owner.has((path[i] as SessionEntry).id)) {
+        fork = i;
+        break;
       }
-      return {
-        leaf_id: leaf.id,
-        left_at: fork < 0 ? null : (path[fork] as SessionEntry).id,
-        segment: path.slice(fork + 1).map((e) => e.id),
-      };
+    }
+    const segment = path.slice(fork + 1);
+    const leftAt = fork < 0 ? null : (path[fork] as SessionEntry).id;
+    const held = leftAt === null ? -1 : (owner.get(leftAt) as number);
+    const index = branches.length;
+    branches.push({
+      leaf_id: leaf.id,
+      left_at: leftAt,
+      parent: held < 0 ? null : held,
+      segment: segment.map((e) => e.id),
     });
+    if (segment.some(givesStep)) for (const e of segment) owner.set(e.id, index);
+  }
   return { final, branches };
 }
 
@@ -256,11 +323,33 @@ function json(value: unknown): EpisodeJson {
   }
 }
 
-const message = (e: SessionEntry): Record<string, unknown> | null =>
-  e.type === "message" && isObject(e.message) ? e.message : null;
+/** The latest context edit of each target on a path: null to omit, else the replacing text. */
+function editsOn(path: readonly SessionEntry[]): Map<string, string | null> {
+  const edits = new Map<string, string | null>();
+  for (const e of path) {
+    if (e.type !== "context_edit" || typeof e.targetId !== "string") continue;
+    edits.set(
+      e.targetId,
+      isObject(e.replacement) ? textOf((e.replacement as Record<string, unknown>).content) : null,
+    );
+  }
+  return edits;
+}
 
-/** The steps of `entries`, a contiguous run of one root-to-leaf path. */
-function stepsOf(entries: readonly SessionEntry[]): Step[] {
+/** The mark an edit of `id` gives a step; `withText` false for a function step under an edited call. */
+function markOf(
+  edits: Map<string, string | null>,
+  id: string | null,
+  withText = true,
+): ContextMark {
+  if (id === null || !edits.has(id)) return {};
+  const replacement = edits.get(id);
+  if (replacement === null || replacement === undefined) return { context: "omitted" };
+  return withText ? { context: "replaced", replacement } : { context: "replaced" };
+}
+
+/** The steps of `entries`, a contiguous run of one root-to-leaf path, under that path's edits. */
+function stepsOf(entries: readonly SessionEntry[], edits: Map<string, string | null>): Step[] {
   // Each tool call is joined to the first result for its id that follows it
   // on the same run (pi's ToolResultMessage.toolCallId).
   const results = new Map<string, SessionEntry>();
@@ -273,8 +362,10 @@ function stepsOf(entries: readonly SessionEntry[]): Step[] {
   const steps: Step[] = [];
   for (const e of entries) {
     const m = message(e);
+    const mark = markOf(edits, e.id);
     if (m) {
-      if (m.role === "user") steps.push({ entry_id: e.id, kind: "user", text: textOf(m.content) });
+      if (m.role === "user")
+        steps.push({ entry_id: e.id, kind: "user", text: textOf(m.content), ...mark });
       else if (m.role === "assistant") {
         const blocks = Array.isArray(m.content) ? m.content.filter(isObject) : [];
         const calls = blocks.filter((b) => b.type === "toolCall");
@@ -285,11 +376,14 @@ function stepsOf(entries: readonly SessionEntry[]): Step[] {
           model: `${str(m.provider)}/${str(m.model)}`,
           stop_reason: str(m.stopReason),
           tool_calls: calls.length,
+          ...mark,
         });
         for (const c of calls) {
           const r = typeof c.id === "string" ? results.get(c.id) : undefined;
           const rm = r ? message(r) : null;
           if (r) joined.add(r.id);
+          // An edit of the result marks the step with its text; else an edit of the call marks it.
+          const fnMark = r && edits.has(r.id) ? markOf(edits, r.id) : markOf(edits, e.id, false);
           steps.push({
             entry_id: e.id,
             kind: "function",
@@ -299,6 +393,7 @@ function stepsOf(entries: readonly SessionEntry[]): Step[] {
             result: rm ? textOf(rm.content) : null,
             is_error: rm ? rm.isError === true : null,
             result_entry_id: r ? r.id : null,
+            ...fnMark,
           });
         }
       } else if (m.role === "toolResult" && !joined.has(e.id))
@@ -311,6 +406,7 @@ function stepsOf(entries: readonly SessionEntry[]): Step[] {
           result: textOf(m.content),
           is_error: m.isError === true,
           result_entry_id: e.id,
+          ...mark,
         });
       else if (m.role === "bashExecution")
         steps.push({
@@ -322,6 +418,7 @@ function stepsOf(entries: readonly SessionEntry[]): Step[] {
           result: str(m.output),
           is_error: !(m.exitCode === 0 && m.cancelled !== true),
           result_entry_id: e.id,
+          ...mark,
         });
       // system messages (prompt and tool loadout) and other roles are not steps.
     } else if (e.type === "compaction" || e.type === "branch_summary")
@@ -338,11 +435,32 @@ function stepsOf(entries: readonly SessionEntry[]): Step[] {
         kind: "custom",
         custom_type: str(e.customType),
         text: textOf(e.content),
+        ...mark,
       });
     // model_change, thinking_level_change, usage, custom, label, session_info
     // and context_edit entries are bookkeeping, not steps.
   }
   return steps;
+}
+
+/** Runs of consecutive omitted steps: the attempts a context edit withdrew. */
+function omittedRuns(steps: readonly Step[]): OmittedAttempt[] {
+  const runs: OmittedAttempt[] = [];
+  let current: OmittedAttempt | null = null;
+  for (const s of steps) {
+    if (s.context !== "omitted") {
+      current = null;
+      continue;
+    }
+    if (current === null) {
+      current = { entry_ids: [], stop_reason: null };
+      runs.push(current);
+    }
+    for (const id of [s.entry_id, s.kind === "function" ? s.result_entry_id : null])
+      if (id !== null && !current.entry_ids.includes(id)) current.entry_ids.push(id);
+    if (s.kind === "generation") current.stop_reason = s.stop_reason;
+  }
+  return runs;
 }
 
 const custom = (e: SessionEntry, type: string): Record<string, unknown> | null =>
@@ -370,18 +488,24 @@ export function episodeOf(session: ParsedSession): Episode {
   const at = (ids: readonly string[]) => ids.map((id) => byId.get(id) as SessionEntry);
   const tree = sessionTree(session);
   const final = at(tree.final);
-  const steps = stepsOf(final);
+  const steps = stepsOf(final, editsOn(final));
   const summaries = new Map<string, string>();
   for (const e of session.entries)
     if (e.type === "branch_summary" && typeof e.fromId === "string")
       summaries.set(e.fromId, str(e.summary));
   const abandoned: AbandonedBranch[] = [];
-  for (const b of tree.branches) {
+  // A tree branch's index to its index in `abandoned`; a branch with no step
+  // is dropped, and claims nothing, so no kept branch is left from one.
+  const kept = new Map<number, number>();
+  for (const [i, b] of tree.branches.entries()) {
     const segment = at(b.segment);
-    const branchSteps = stepsOf(segment);
+    const leaf = byId.get(b.leaf_id) as SessionEntry;
+    const branchSteps = stepsOf(segment, editsOn(pathTo(leaf, byId)));
     if (branchSteps.length === 0) continue;
+    kept.set(i, abandoned.length);
     abandoned.push({
       left_at: b.left_at,
+      left_from: b.parent === null ? null : (kept.get(b.parent) ?? null),
       leaf_id: b.leaf_id,
       summary: summaries.get(b.leaf_id) ?? null,
       outcome: outcomeOf(segment, b.leaf_id),
@@ -397,14 +521,18 @@ export function episodeOf(session: ParsedSession): Episode {
     }
   }
   const generations = steps.filter((s) => s.kind === "generation");
+  const lastEntry = session.entries.at(-1);
   return {
     format: EPISODE_FORMAT,
     session_id: session.id,
     task_id: taskId,
+    started_at: session.timestamp === "" ? null : session.timestamp,
+    ended_at: lastEntry && lastEntry.timestamp !== "" ? lastEntry.timestamp : null,
     model: generations.at(-1)?.model ?? null,
     steps,
     outcome: outcomeOf(final, tree.final.at(-1) ?? null),
     abandoned,
+    omitted: omittedRuns(steps),
     summarised:
       [steps, ...abandoned.map((b) => b.steps)].some((run) =>
         run.some((s) => s.kind === "summary"),
