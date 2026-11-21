@@ -33,6 +33,7 @@ import {
   scopeLevel,
   type WriteDecision,
 } from "./evaluate.ts";
+import { INJECTION_SCREEN_ID } from "./injection-screen.ts";
 import { itemExpiry } from "./retention.ts";
 
 export const PROMOTE_MEMBERSHIP_ID = "engram/promote/membership";
@@ -452,6 +453,9 @@ export function evaluatePromotion(
   if (write.decision === "deny")
     return deny("write", `as a write into ${target}: ${write.reason}`, write.policy_id);
   const targetReview = write.check === "review";
+  // The injection screen holds the promoted item, not the target rule: the
+  // reason names the screen (card E2.10, review finding E2.10-6).
+  const screened = write.policy_id === INJECTION_SCREEN_ID;
 
   if (evidence.review) {
     const problem = reviewerProblem(actor, item, target, evidence.authors, counted.confirmers);
@@ -487,7 +491,7 @@ export function evaluatePromotion(
     ...base,
     decision: "ask",
     check: "review-needed",
-    reason: `${why}; ${target} requires review, so a reviewer (a user-sourced member of ${target} who does not own the item) must approve`,
+    reason: `${why}; ${screened ? `${write.reason}, so` : `${target} requires review, so`} a reviewer (a user-sourced member of ${target} who does not own the item) must approve`,
     policy_id: promotionRuleId(policy, "review"),
   });
   if (met === null) {
@@ -517,7 +521,7 @@ export function evaluatePromotion(
     ...base,
     decision: "allow",
     check: met,
-    reason: `${what}: ${why}${approved}; ${targetReview ? `${scopeLevel(target)} scope requires review, which ${actor.id} gave` : write.reason}${dropped}`,
+    reason: `${what}: ${why}${approved}; ${targetReview ? (screened ? `the injection screen held it, and ${actor.id} reviewed it` : `${scopeLevel(target)} scope requires review, which ${actor.id} gave`) : write.reason}${dropped}`,
     policy_id: promotionRuleId(policy, rule),
     transition,
     promoted,

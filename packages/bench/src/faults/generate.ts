@@ -28,7 +28,6 @@ import { createHash } from "node:crypto";
 import {
   type Actor,
   isExpired,
-  LINT_IDS,
   loadPreset,
   type MemoryEvent,
   type MemoryItem,
@@ -84,6 +83,23 @@ const ROLE_WRITER: Actor = { ...LINT_ACTOR, source: "user" };
 const NOTE_WRITER: Actor = { id: USER, level: "person", memberships: [USER], source: "model" };
 
 /**
+ * The lints this set's policy enables: every lint the plane had when card L2
+ * registered the set, frozen here so a lint added later (card E2.10's
+ * injection-signature) leaves the set's policy, its state hashes and H3's
+ * results as they are. Adding one is a change to the registered set.
+ */
+export const FAULT_SET_LINT_IDS = [
+  "expired-validity",
+  "source-changed",
+  "scope-class-mismatch",
+  "missing-provenance",
+  "orphan",
+  "duplicate",
+  "contradiction",
+  "unsupported-claim",
+] as const;
+
+/**
  * Preset medium with two changes for this set: no ttl in the person scope
  * (medium retires episodic items after 90 days, which would put most of a
  * LongMemEval history past its validity at the lint time; decision entry
@@ -95,7 +111,7 @@ function basePolicy(): Policy {
     ...medium,
     id: POLICY_ID,
     retention: medium.retention.map((r) => (r.scope === "person" ? { ...r, ttl: null } : r)),
-    lints: { ...medium.lints, enabled: [...LINT_IDS] },
+    lints: { ...medium.lints, enabled: [...FAULT_SET_LINT_IDS] },
   };
 }
 

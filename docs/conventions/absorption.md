@@ -41,7 +41,7 @@ A licence named in a README, on npm or in a research note is a hint. The licence
 ## Recording it
 
 - **`docs/absorbed.md`:** one row per copy or port: source, commit, licence, mode, what was taken, where it landed, the card.
-- **`NOTICE`:** for a copy, the notice the licence requires (for Apache-2.0, the source's own NOTICE content if it has one; for MIT and BSD, the copyright line and the licence name).
+- **`NOTICE`:** for a copy, the notice the licence requires (for Apache-2.0, the source's own NOTICE content if it has one; for MIT and BSD, the copyright line and the licence's permission notice text, which both licences require in every copy).
 - **`docs/deps.md`:** for a dependency, one row with the exact version, the reason and the licence. Pin a version that is at least two weeks old. Pi packages stay at exact versions as before.
 - **The log entry** for the card names what was absorbed and from where.
 

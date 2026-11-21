@@ -328,11 +328,12 @@ describe("the content_guards and trust blocks", () => {
     expect(policy.trust).toEqual({});
   });
 
-  // Each option, every value its schema admits, and the card that enforces it.
-  const OPTIONS: [block: string, option: string, values: string[], card: string][] = [
+  // Each option, every value its schema admits, and the card that enforces it;
+  // null for an option its card has landed (injection_screen, card E2.10).
+  const OPTIONS: [block: string, option: string, values: string[], card: string | null][] = [
     ["content_guards", "secrets", [...GuardMode.options], "E2.9"],
     ["content_guards", "pii", [...GuardMode.options], "E2.9"],
-    ["content_guards", "injection_screen", [...InjectionScreen.options], "E2.10"],
+    ["content_guards", "injection_screen", [...InjectionScreen.options], null],
     ["content_guards", "max_content_bytes", ["1", "65536"], "E2.9"],
     ["trust", "unattested_floor", [...TrustSwitch.options], "E2.11"],
     ["trust", "protect_trusted", [...TrustSwitch.options], "E2.11"],
@@ -342,8 +343,8 @@ describe("the content_guards and trust blocks", () => {
       const text = withOption(block, option, value);
       const parsed = Policy.safeParse(parseYaml(text));
       expect(parsed.error).toBeUndefined();
-      if (value === "off") {
-        expect(parsePolicy(text, "test.yaml")[block as "trust"]).toEqual({ [option]: "off" });
+      if (value === "off" || card === null) {
+        expect(parsePolicy(text, "test.yaml")[block as "trust"]).toEqual({ [option]: value });
         return;
       }
       const [p, ...rest] = problemsOf(text);

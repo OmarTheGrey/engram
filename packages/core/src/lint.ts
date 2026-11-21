@@ -22,6 +22,9 @@ export const DETERMINISTIC_LINT_IDS = [
   "missing-provenance",
   "orphan",
   "duplicate",
+  // Card E2.10 (ADR 0039): the injection screen's rules over stored content.
+  // No registered preset or profile lists it, so no registered lint run changes.
+  "injection-signature",
 ] as const;
 export type DeterministicLintId = (typeof DETERMINISTIC_LINT_IDS)[number];
 export const MODEL_LINT_IDS = ["contradiction", "unsupported-claim"] as const;
