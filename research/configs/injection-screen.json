@@ -1,0 +1,16 @@
+{
+  "name": "injection-screen",
+  "kind": "measurement",
+  "hypothesis": "none",
+  "wording": "a deterministic floor with a measured escape rate and false-hold rate, never a defence (ADR 0039, item 7)",
+  "corpus": "fixtures/injection-screen/corpus.json",
+  "profiles": ["off", "default", "hardened"],
+  "confidence": 0.95,
+  "limits": [
+    "English patterns only: content in another language passes the rules unread.",
+    "Evadable by construction: any regular expression can be written around, and the AMSB corpus carries one such evasion on purpose (persist-directive-evasion).",
+    "Optimistic: the attacks come from the same project as the OWASP detectors the rules port, and the synthetic controls were written by the card's author, who knew the rules.",
+    "Small: twelve attacks, forty-seven benign controls and fifteen tool-written preferences, so the Wilson intervals are wide.",
+    "Off in every registered preset and condition; no registered arm uses it (card R2)."
+  ]
+}

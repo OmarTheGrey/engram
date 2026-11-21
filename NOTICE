@@ -7,4 +7,15 @@ Portions of this product are copied from other open-source projects. Each is
 listed below with the notice its licence requires. The full register, with
 commits and locations, is docs/absorbed.md (ADR 0037).
 
-No third-party portions yet.
+packages/core/src/policy/injection-screen.ts copies parts of Remnic
+(https://github.com/joshuaswarren/remnic, commit ce22909cc219e36d0e31b1158a4ab74f175008a0,
+packages/remnic-core/src/security/injection-screen.ts):
+  Copyright (c) 2025 Joshua Warren
+  Licensed under the MIT License.
+
+fixtures/injection-screen/corpus.json copies the AMSB scenario payloads of
+OWASP Agent Memory Guard (https://github.com/OWASP/www-project-agent-memory-guard,
+commit b052787cc3426ff5f5f7e8e0eecb514052a168ba,
+src/agent_memory_guard/bench/scenarios.py), by Vaishnavi Gudur, Anshul
+Rajkumar and the project's contributors.
+  Licensed under the Apache License, Version 2.0. The project ships no NOTICE file.
