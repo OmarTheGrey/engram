@@ -24,7 +24,7 @@
 // and trust.protect_trusted on, now floored or denied. The cases above stay
 // as they are: with the options off, the plane does what they pin.
 import { describe, expect, test } from "vitest";
-import { allEvents, appendEvent } from "../../src/events.ts";
+import { allEvents, appendEvent, currentItems } from "../../src/events.ts";
 import { itemById } from "../../src/items.ts";
 import { type Actor, adoptStoreItems, createPlane } from "../../src/plane.ts";
 import {
@@ -1010,6 +1010,63 @@ describe("E2.11 the owner's rules under the trust options", () => {
     });
     expect(itemById(db, id(1))?.status).toBe("active");
     expect(itemById(db, id(2))?.status).toBe("active");
+  });
+
+  test("E2.11 another handle fills the target between a promotion's decision and its commit: the promotion is refused there (review E2.11-1)", async () => {
+    const budget = 1;
+    const policy: Policy = {
+      ...POLICY_ON,
+      retention: [{ scope: "person", class: "semantic", ttl: null, budget, eviction: "recency" }],
+      promotion: {
+        ...POLICY.promotion,
+        episodic_to_semantic: { confirmations: 1, or_review: true },
+      },
+    };
+    const { plane, db, adapter } = fresh(policy);
+    await plane.write(
+      owner("tool"),
+      item(2, { scope: SCOPE, owner: SCOPE, class: "episodic", content: "a tool note" }),
+      AT,
+    );
+    const theirs = item(1, {
+      scope: SCOPE,
+      owner: SCOPE,
+      content: "landed meanwhile",
+      provenance: { kind: "user", ref: "doc/1", hash: `sha256:${"0".repeat(64)}`, actor: SCOPE },
+    });
+    adapter.fault = async (written, store) => {
+      adapter.fault = null;
+      // Another handle's allowed write of a user semantic item, committed meanwhile.
+      const ref = await store.write(theirs);
+      appendEvent(db, {
+        id: id(800_001),
+        ts: AT,
+        op: "write",
+        item_id: theirs.id,
+        actor: SCOPE,
+        scope_from: null,
+        scope_to: SCOPE,
+        decision: "allow",
+        reason: "another handle's write",
+        policy_id: "trust/write/person",
+        item: { ...theirs, store_ref: ref },
+        schema_version: 1,
+      });
+      return store.write(written);
+    };
+    const promoted = await plane.promote(owner("tool"), id(2), SCOPE, LATER);
+    expect(promoted.event).toMatchObject({
+      op: "promote",
+      decision: "deny",
+      policy_id: DOWNGRADE_ID,
+    });
+    expect(promoted.event.reason).toContain("before it was committed");
+    const active = currentItems(db).filter(
+      (i) => i.scope === SCOPE && i.class === "semantic" && i.status === "active",
+    );
+    expect(active.length).toBeLessThanOrEqual(budget);
+    expect(itemById(db, id(1))?.status).toBe("active");
+    expect(allEvents(db).filter((e) => e.op === "evict")).toEqual([]);
   });
 });
 
