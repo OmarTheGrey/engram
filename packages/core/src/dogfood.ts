@@ -172,6 +172,7 @@ export const ENGRAM_RULES: readonly string[] = [
   "engram/read/validity",
   "engram/retention/item-ttl",
   "engram/retention/membership",
+  "engram/retention/protected",
   "engram/retention/sweep",
   "engram/write/conflict",
   "engram/write/content-size",

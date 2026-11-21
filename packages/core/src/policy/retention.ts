@@ -9,12 +9,19 @@
 //   <policy id>/retention/<level>/<class>   the policy's retention rule for that level and class
 //   engram/retention/item-ttl               the item's own ttl, when tighter than the rule's
 //   engram/retention/membership             the sweep's actor is not a member of the scope
+//   engram/retention/protected              trust.protect_trusted keeps part of an overage (card E2.11)
 import type { Actor } from "../actor.ts";
 import type { MemoryItem, Policy, ScopeLevel } from "../schema.ts";
 import { addSeconds, compareTimestamps } from "../time.ts";
 
 export const ITEM_TTL_ID = "engram/retention/item-ttl";
 export const RETENTION_MEMBERSHIP_ID = "engram/retention/membership";
+/**
+ * The rule of a sweep's record that trust.protect_trusted kept part of a
+ * budget overage: the items left over are more trusted than the eviction's
+ * source (card E2.11, review E2.11-5; ADR 0040).
+ */
+export const PROTECTED_ID = "engram/retention/protected";
 
 type MemoryClass = MemoryItem["class"];
 type RetentionRule = Policy["retention"][number];
@@ -36,9 +43,13 @@ export interface RetentionUsage {
 export interface Retirement {
   /** `retire` on expiry, `evict` on budget overage. */
   op: "retire" | "evict";
-  /** `ask` only for a manual rule's overage, which retires nothing. */
-  decision: "allow" | "ask";
-  /** The item retired; null for a manual rule's ask. */
+  /**
+   * `ask` only for a manual rule's overage, which retires nothing; `deny`
+   * only for the part of an overage trust.protect_trusted keeps
+   * (PROTECTED_ID), which retires nothing either.
+   */
+  decision: "allow" | "ask" | "deny";
+  /** The item retired; null for a manual rule's ask and a protected shortfall. */
   item_id: string | null;
   class: MemoryClass;
   reason: string;
@@ -211,7 +222,8 @@ export function evaluateRetention(
         : (a: MemoryItem, b: MemoryItem) => reads(a) - reads(b) || byRecency(a, b);
     const mayEvict = options.mayEvict ?? (() => true);
     const candidates = active.filter((i) => i.id !== options.protect && mayEvict(i));
-    for (const victim of candidates.sort(order).slice(0, over)) {
+    const chosen = candidates.sort(order).slice(0, over);
+    for (const victim of chosen) {
       const why =
         rule.eviction === "recency"
           ? `evicted the oldest by last change (seq ${changed(victim)})`
@@ -227,6 +239,17 @@ export function evaluateRetention(
         policy_id,
       });
     }
+    // The part of the overage protect_trusted keeps is recorded, so a budget
+    // left exceeded is never silent (AGENTS.md rule 3; review E2.11-5).
+    if (options.mayEvict && chosen.length < over)
+      out.push({
+        op: "evict",
+        decision: "deny",
+        item_id: null,
+        class: cls,
+        reason: `${held}${redact ? "" : `: ${over} over, ${over - chosen.length} left over after this sweep`}; the items left over its ${cls} budget are more trusted than the eviction's source, and trust.protect_trusted keeps them: a person, or a source as trusted, decides`,
+        policy_id: PROTECTED_ID,
+      });
   }
   return out;
 }

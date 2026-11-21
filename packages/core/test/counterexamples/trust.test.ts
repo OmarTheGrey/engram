@@ -35,6 +35,7 @@ import {
 } from "../../src/policy/evaluate.ts";
 import { loadPreset } from "../../src/policy/load.ts";
 import { leastTrusted, PROMOTE_NO_EVIDENCE_ID } from "../../src/policy/promotion.ts";
+import { PROTECTED_ID } from "../../src/policy/retention.ts";
 import { DOWNGRADE_ID } from "../../src/policy/trust.ts";
 import type { Grant, MemoryItem, Policy, Provenance } from "../../src/schema.ts";
 import type { Workload } from "../../src/simulate.ts";
@@ -925,6 +926,47 @@ describe("E2.11 the owner's rules under the trust options", () => {
     expect(unattested.evicted).toEqual([]);
     const byPerson = await tight.retain(owner("user"), SCOPE, LATER);
     expect(byPerson.evicted).toEqual([id(1)]);
+  });
+
+  test("E2.11 a sweep held back by protect_trusted records its shortfall once per state (review E2.11-5)", async () => {
+    const roomy: Policy = {
+      ...POLICY_ON,
+      retention: [
+        { scope: "person", class: "episodic", ttl: null, budget: 2, eviction: "recency" },
+      ],
+    };
+    const { plane, deps, db } = fresh(roomy);
+    for (const n of [1, 2])
+      await plane.write(
+        owner("user"),
+        item(n, { scope: SCOPE, owner: SCOPE, class: "episodic", content: `fact ${n}` }),
+        AT,
+      );
+    const tight = createPlane({ ...deps, policy: POLICY_ON });
+    const byAgent = await tight.retain(coMember("model"), SCOPE, LATER);
+    expect(byAgent.evicted).toEqual([]);
+    expect(byAgent.events.map((e) => [e.op, e.decision, e.item_id, e.policy_id])).toEqual([
+      ["evict", "deny", null, PROTECTED_ID],
+    ]);
+    expect(byAgent.events[0]?.reason).toContain("trust.protect_trusted");
+    expect(byAgent.events[0]?.reason).toContain("1 over");
+    // Nothing changed: the shortfall is not recorded again.
+    const again = await tight.retain(coMember("model"), SCOPE, LATER);
+    expect(again.events).toEqual([]);
+    // A change in the class: recorded again.
+    await plane.write(
+      owner("user"),
+      { ...(itemById(db, id(2)) as MemoryItem), version: 2, store_ref: null, content: "fact 2b" },
+      LATER,
+    );
+    const later = await tight.retain(coMember("model"), SCOPE, LATER);
+    expect(later.events.map((e) => [e.op, e.decision, e.policy_id])).toEqual([
+      ["evict", "deny", PROTECTED_ID],
+    ]);
+    // With the option off, the same sweep evicts and records no shortfall.
+    const off = createPlane({ ...deps, policy: { ...POLICY_ON, trust: {} } });
+    const unprotected = await off.retain(coMember("model"), SCOPE, LATER);
+    expect(unprotected.events.map((e) => [e.op, e.decision])).toEqual([["evict", "allow"]]);
   });
 
   test("E2.11 another handle fills the scope between the decision and the commit: the write is refused there, and the store put back", async () => {

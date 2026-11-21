@@ -29,6 +29,7 @@ import {
   evaluateRetention,
   evictionShortfall,
   mayRetireByTtl,
+  PROTECTED_ID,
   RETENTION_MEMBERSHIP_ID,
   type RetentionOptions,
   type RetentionUsage,
@@ -93,7 +94,9 @@ function commit(
  * The retirements to append: the evaluator's, less a manual rule's ask when
  * one was already recorded for that scope and rule since the last change to
  * any item of that class in the scope, so an unchanged overage is asked
- * about once, not on every sweep (review finding P4-12).
+ * about once, not on every sweep (review finding P4-12). A protected
+ * shortfall (PROTECTED_ID, card E2.11) is recorded once per state the same
+ * way, for its scope and class.
  */
 function decide(
   deps: PlaneDeps,
@@ -106,16 +109,25 @@ function decide(
   const usage = retentionUsage(deps.db);
   const redact = !readableScope(deps.policy, actor, scope);
   const out = evaluateRetention(deps.policy, scope, items, at, usage, { ...options, redact });
-  if (!out.some((r) => r.decision === "ask")) return out;
+  const once = (r: Retirement) => r.item_id === null && r.decision !== "allow";
+  if (!out.some(once)) return out;
   const asks = deps.db
     .prepare(
-      "SELECT seq, body FROM events WHERE op = 'evict' AND decision = 'ask' AND scope_to = ? ORDER BY seq DESC",
+      "SELECT seq, decision, body FROM events WHERE op = 'evict' AND decision IN ('ask', 'deny') AND item_id IS NULL AND scope_to = ? ORDER BY seq DESC",
     )
     .all(scope)
-    .map((row) => ({ seq: Number(row.seq), policy_id: JSON.parse(String(row.body)).policy_id }));
+    .map((row) => {
+      const body = JSON.parse(String(row.body)) as { policy_id: string; reason: string };
+      return { seq: Number(row.seq), decision: String(row.decision), ...body };
+    });
+  /** The same record: a manual rule's ask by its rule, a protected shortfall by its class. */
+  const same = (r: Retirement, a: (typeof asks)[number]) =>
+    a.decision === r.decision &&
+    a.policy_id === r.policy_id &&
+    (r.policy_id !== PROTECTED_ID || a.reason.includes(`its ${r.class} budget`));
   return out.filter((r) => {
-    if (r.decision !== "ask") return true;
-    const asked = asks.find((a) => a.policy_id === r.policy_id)?.seq;
+    if (!once(r)) return true;
+    const asked = asks.find((a) => same(r, a))?.seq;
     if (asked === undefined) return true;
     const latest = Math.max(
       -1,
