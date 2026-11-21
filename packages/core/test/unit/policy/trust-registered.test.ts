@@ -247,3 +247,26 @@ describe("the registered presets decide as before card E2.11", () => {
     expect({ registered, tightened: budgeted }).toEqual(BEFORE[name]);
   });
 });
+
+describe("the medium-trust preset (card E2.11)", () => {
+  test("is medium with both trust options on and external admitted in person scope, and nothing else", () => {
+    const medium = loadPreset("medium");
+    const trusted = loadPreset("medium-trust");
+    expect(trusted.trust).toEqual({ unattested_floor: "on", protect_trusted: "on" });
+    expect(trusted.id).toBe("preset.medium-trust");
+    const person = (p: Policy) => p.write.find((r) => r.scope === "person");
+    expect(person(trusted)?.allowed_sources).toEqual([
+      ...(person(medium)?.allowed_sources ?? []),
+      "external",
+    ]);
+    const rest = ({ id: _i, trust: _t, write: _w, ...other }: Policy) => other;
+    expect(rest(trusted)).toEqual(rest(medium));
+    expect(trusted.write.filter((r) => r.scope !== "person")).toEqual(
+      medium.write.filter((r) => r.scope !== "person"),
+    );
+  });
+
+  test("is not a registered preset", () => {
+    expect(PRESETS as readonly string[]).not.toContain("medium-trust");
+  });
+});
