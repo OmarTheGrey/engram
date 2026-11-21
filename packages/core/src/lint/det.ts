@@ -13,6 +13,9 @@
 //                         lineage id naming one absent, out of reach, evicted or retired other than by
 //                         its own supersession; outside the linted scope, a retired one reads as absent
 //   duplicate             same scope, class and strict content hash as an earlier active item (ADR 0018)
+//   injection-signature   the injection screen (policy/injection-screen.ts, card E2.10) holds the item's
+//                         content under its provenance kind: the policy's profile when it turns the
+//                         gate stage on, else the default profile; a floor, never a defence
 //
 // An item the linting actor cannot reach counts as absent, so a finding says
 // nothing about what the actor could not read (decision D5). A finding is
@@ -26,6 +29,7 @@
 import { strictContentHash } from "../content-hash.ts";
 import { DETERMINISTIC_LINT_IDS, type DeterministicLintId } from "../lint.ts";
 import { scopeLevel } from "../policy/evaluate.ts";
+import { describeScreen, screenItem, screenProfile } from "../policy/injection-screen.ts";
 import { promotionRuleId } from "../policy/promotion.ts";
 import { isExpired, itemExpiry } from "../policy/retention.ts";
 import { Id, type LintFinding, type MemoryItem, type Policy } from "../schema.ts";
@@ -45,6 +49,7 @@ export const DET_LINT_SEVERITY: Record<DeterministicLintId, LintFinding["severit
   "missing-provenance": "warn",
   orphan: "warn",
   duplicate: "warn",
+  "injection-signature": "warn",
 };
 
 /** What the lints read besides the item itself. */
@@ -219,12 +224,33 @@ export function duplicates(items: readonly MemoryItem[]): DetFinding[] {
   return out;
 }
 
+/**
+ * injection-signature: the item's content is what the injection screen would
+ * hold at the write gate (ADR 0039), judged under its own provenance kind, so
+ * a person's own standing preference is never flagged by the kind-conditioned
+ * rules. The evidence names rules, weights and match lengths, never content.
+ */
+export function injectionSignature(item: MemoryItem, ctx: LintContext): DetFinding | null {
+  const result = screenItem(item, screenProfile(ctx.policy) ?? "default");
+  if (!result.held) return null;
+  return finding(
+    "injection-signature",
+    item,
+    `its content reads as an instruction to the agent: ${describeScreen(result)}`,
+    [
+      ...result.hits.map((h) => `${h.rule}/${h.signal} weight ${h.weight}, ${h.length} characters`),
+      ...(result.failure ? [`rule ${result.failure.rule} ${result.failure.why}`] : []),
+    ],
+  );
+}
+
 const PER_ITEM = {
   "expired-validity": expiredValidity,
   "source-changed": sourceChanged,
   "scope-class-mismatch": scopeClassMismatch,
   "missing-provenance": missingProvenance,
   orphan,
+  "injection-signature": injectionSignature,
 } as const;
 
 /** Is `id` a deterministic lint id. */

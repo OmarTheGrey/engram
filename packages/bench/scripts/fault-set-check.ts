@@ -30,7 +30,6 @@ import {
   appendEvent,
   createPlane,
   currentItems,
-  LINT_IDS,
   type LintFinding,
   loadPreset,
   type MemoryItem,
@@ -39,7 +38,7 @@ import {
   type Policy,
   planModelLints,
 } from "@engram/core";
-import type { FaultState } from "../src/faults/generate.ts";
+import { FAULT_SET_LINT_IDS, type FaultState } from "../src/faults/generate.ts";
 import type { FaultLabel } from "../src/faults/labels.ts";
 
 /** The units card L3's lints would send in a state: pairs as `<earlier id>+<later id>`, and claim ids. */
@@ -61,10 +60,10 @@ export interface StateCheck {
 /** A LongMemEval item as B5 writes it: its ref names a session and turn. The generator never writes one. */
 export const isBaseItem = (item: MemoryItem) => item.provenance.ref.startsWith("longmemeval:");
 
-/** Preset medium with every lint enabled: what C6 would lint B5's state under. */
+/** Preset medium with every lint the set registers enabled (FAULT_SET_LINT_IDS): what C6 would lint B5's state under. */
 export function mediumWithEveryLint(): Policy {
   const medium = loadPreset("medium");
-  return { ...medium, lints: { ...medium.lints, enabled: [...LINT_IDS] } };
+  return { ...medium, lints: { ...medium.lints, enabled: [...FAULT_SET_LINT_IDS] } };
 }
 
 function open(state: FaultState, policy: Policy) {
