@@ -10,6 +10,8 @@ Dates assume a start on Monday 5 October 2026 and submission in the last week of
 
 **The absorb plan, 2026-11-21.** Thirty pull requests were added from the absorb and state-of-the-art research of that day: twenty-six new cards, and cards B7, D1, D2 and D3 rewritten. The list, with why and how for each, is `docs/tasks/absorb-plan.md`; the cards are in the section "The absorb plan" under Task cards, their weeks under "The absorb plan in the week plan", and their cost under Effort budget. The plan moves D1 to D3 and B7 earlier than the week plan below says. Its eight decisions (items 49 to 56 of `docs/tasks/lead-decisions.md`) were closed the same day under the lead's delegation, and ADRs 0038 to 0041 accepted.
 
+**The answers of 2026-11-20.** The lead chose the three models, and the orchestrating session answered every other open decision under his delegation (`docs/tasks/lead-decisions.md`, items 1 to 48 and the review cards' table). The answers card of 2026-11-21 carried them into the pre-registration, the ADRs and this roadmap: Gate C's undecided branch, Gate D's store and dogfood criteria, the dates, the variance bound, the spend ceiling and where the cassettes go. Two drafts are still owed to the lead: the kill list's rewrite (item 26, proposed below) and H5's prerequisites (item 30).
+
 1.  [Planning principles](#principles)
 2.  [Phases and gates](#phases)
 3.  [Timeline at a glance](#gantt)
@@ -47,9 +49,11 @@ Dates assume a start on Monday 5 October 2026 and submission in the last week of
 
 **Gate B, end of week 6.** Pass if: both adapters pass the conformance suite; a policy file denies a cross-scope read on both stores with the same event recorded; the event log reproduces a recorded workload's item set from events alone; GateMem probes run through the plane on the primary model; also, carried from Gate A as pass criteria of Gate B (Gate A declared passed with two exceptions on 2026-10-29, `docs/log/2026-10-29-gate-a-milestone-corrected.md`): (a) GateMem's reference numbers within tolerance, on the ported judge, once the pre-registration leaves the backlog; (b) the poisoning arm's benchmark chosen and dated (MPBench if released, else MEM-INV-Bench, else BF1). Fail response: drop the Letta adapter to files-plus-Mem0 and record the change as a limitation.
 
-**Gate C, end of week 10.** Pass if: H1 table exists on the primary model with intervals, for ungoverned, instruction-only and enforced conditions, on GateMem and MPBench. Decision: if enforcement beats instruction, continue as planned; if it does not, pivot the thesis to characterising where boundary enforcement fails and why, keep the plane, and reallocate phase 3's hosted sweeps to failure analysis.
+**Gate C, end of week 10.** Pass if: H1 table exists on the primary model with intervals, for ungoverned, instruction-only and enforced conditions, on GateMem and MPBench. Decision: if enforcement beats instruction, continue as planned; if it does not, pivot the thesis to characterising where boundary enforcement fails and why, keep the plane, and reallocate phase 3's hosted sweeps to failure analysis. If H1's read-out is undecided (p below 0.05, but 5p at or above it), continue as planned, report it as undecided, and let the final Holm over all five hypotheses decide (lead-decisions item 10). The poisoning arm runs on MEM-INV-Bench in MPBench's place (ADR 0029).
 
 **Gate D, end of week 16.** Pass if: the frontier figure exists for at least two policy levels on two stores and two models; seeded-fault lint precision and recall are tabulated; Knowledge and Twin profiles run on dogfood data with zero recorded violations. Fail response: kill list items 1 and 2, then 3.
+
+Gate D as answered on 2026-11-20 (`docs/tasks/lead-decisions.md`): "two stores" is met by the request-identity check on files, Mem0 and Letta, not by paid runs on each store (item 20, ADR 0035, decision 3). The Knowledge profile's dogfood runs beside the twin dogfood, by a card not yet written (item 28). "Zero recorded violations" is measured on the plane, with members' Claude Code auto memory off and the native memory path stated as outside it (item 33; `docs/dogfood.md`). The fail response's kill list is being rewritten, since its items 1 and 3 are done (item 26, under the kill list).
 
 ## Timeline at a glance
 
@@ -96,6 +100,8 @@ R: B3 GateMem through the plane, B4 MPBench through the plane, E1.3 replay-from-
 
 ### Phase 2. First result
 
+Dates set on 2026-11-20 (`docs/tasks/lead-decisions.md`, item 18): the label audit 23 to 28 November; the `prereg-v1` tag and its Zenodo deposit by 30 November; H1's live runs 1 to 8 December, the GateMem arm on 4 shards (card RV6). The smoke run and B1 run before the tag (item 7).
+
 W7
 
 R: X1 condition runner (ungoverned, instruction, enforced), primary provider wired with caching, B5 LongMemEval harness. P: E8.7 findings view, E9.1 Knowledge profile policy file. Friday: one GateMem probe runs under all three conditions.
@@ -128,7 +134,7 @@ R: L2 seeded-fault generator, L3 model-based lints (contradiction, unsupported),
 
 W14
 
-R: X7 frontier run, hosted model one, GateMem plus LongMemEval subset plus MERIT. P: E9.5 twin dogfood: every member runs a twin for two weeks. Friday: hosted points on the frontier.
+R: X7 frontier run, hosted model one, GateMem plus LongMemEval subset plus MERIT. P: E9.5 twin dogfood: every member runs a twin for two weeks (it may start earlier: cards E2.6, RV4 and RV7 are merged and the twin profile's values are accepted, so it waits only on each member's hook check and the lead's go; items 31 and 32). Friday: hosted points on the frontier.
 
 W15
 
@@ -281,7 +287,7 @@ Cards are grouped by epic. The dependency column is satisfied by earlier cards. 
 | X6   | Frontier run, primary model, Mem0 and Letta, GateMem and LongMemEval                                                                                      | X5, A2       | scripts/frontier.py            | results/frontier_local.csv                         |
 | X7   | Frontier run, second provider, subset plus MERIT                                                                                                          | X6, B7       | configs/frontier/hosted1.yaml  | results/frontier_hosted1.csv                       |
 | X8   | Frontier run, third provider; optional seeded open-weights arm for bit-exact reproduction if the lab can serve one                                        | X7           | configs/frontier/hosted2.yaml  | results/frontier_hosted2.csv                       |
-| X9   | H2 and H4 analysis: knee detection, cross-store violation equality test, utility gap; frontier figure                                                     | X6, X7, X8   | scripts/frontier_analysis.py   | results/frontier.png                               |
+| X9   | H2 and H4 analysis: knee detection, cross-model violation equivalence on GateMem (ADR 0035; the store family left H4), utility gap; frontier figure      | X6, X7, X8   | scripts/frontier_analysis.py   | results/frontier.png                               |
 | X10  | H3 recovery: enforced plus lints at matched budget on LongMemEval and HaluMem                                                                             | L4, B8       | scripts/recovery.py            | results/recovery.csv                               |
 | X11  | H5: tau2 and repository tasks with and without admitted skills; steps, success, violations                                                                | D3           | scripts/h5.py                  | results/h5.csv                                     |
 | X12  | Failure analysis: five worked examples per hypothesis where the method or the plane is wrong                                                              | X9, X10, X11 | docs/failure-analysis.md       | reviewed by two members                            |
@@ -418,11 +424,11 @@ The table above has no room for that at its original rates. The plan rests on th
 
 ## Compute and data budget
 
-- **Models.** Three hosted models from different providers, fixed in the pre-registration. The primary carries every sweep (X2, X3, X6, X10, X11, lint evaluation); the second and third run a fixed subset per benchmark (about 100 GateMem probes, 100 MPBench attacks, 200 LongMemEval questions, 50 MERIT tasks, at three conditions and two presets). Order of magnitude: low thousands of dollars across all three with caching; set a ceiling per provider and stop at it.
+- **Models.** Three hosted models from different providers, fixed in the pre-registration: M1 DeepSeek v4 pro, M2 GLM 5.3 Flash, M3 Mistral Large 4, all through OpenRouter (the lead's choice, 2026-11-20). The primary carries every sweep (X2, X3, X6, X10, X11, lint evaluation); the second and third run a fixed subset per benchmark (about 100 GateMem probes, 100 MPBench attacks, 200 LongMemEval questions, 50 MERIT tasks, at three conditions and two presets). Order of magnitude: low thousands of dollars across all three with caching (1,159 to 5,227 dollars for every registered run as decided, `research/results/h2-cost-table.json`); each run's ceiling is 1.25 times its high estimate, per provider, and a run stops at it (item 3).
 - **Optional seeded arm.** If the lab can serve an open-weights model, one seeded run of X2 and X6 gives bit-exact reproduction. It is an addition to the protocol, never a dependency; no card blocks on it.
 - **Caching.** Every model call keyed on (benchmark item, condition, preset, store, seed). A re-run with the same config makes zero new calls. This is X1's acceptance test and the single largest cost control.
 - **Data.** Benchmark data from pinned upstream commits, vendored. Seeded faults generated by L2 from benchmark memory states. Dogfood data stays on members' machines; only aggregate violation counts enter the repository.
-- **Storage.** Event logs and caches committed as compressed fixtures for the local-model runs so X13 works offline; hosted caches committed too, so reviewers can regenerate tables without credentials.
+- **Storage.** Event logs and caches committed as compressed fixtures for the local-model runs so X13 works offline. The hosted runs' cassettes, about 0.9 to 2 GB for H1, are deposited on Zenodo with a fetch script that checks each by sha256, so reviewers can regenerate tables without credentials (item 27, ADR 0036).
 
 ## Conventions and definition of done
 
@@ -483,8 +489,8 @@ The table above has no room for that at its original rates. The plan rests on th
 | Enforcement does not beat instruction | Gate C             | Pivot to failure characterisation; keep plane; reallocate X7 and X8 to X12 |
 | Letta adapter unstable                | Gate B             | Files plus Mem0 as the two paradigms; limitation stated                    |
 | Benchmark harness churn               | Any upstream break | Pins and vendored task files; re-implement probe format if needed          |
-| Model-based lint variance above bound | L3 pilot           | Deterministic lints as the floor; model-based secondary                    |
-| API spend hits ceiling                | During X6 to X8    | Stop; report the completed subset; the primary model carries the frontier  |
+| Model-based lint variance above bound (a standard deviation across seeds above 0.05 on precision or recall, per lint; item 43) | L3 pilot | Deterministic lints as the floor; model-based secondary; since H3's primary test is the model tier (item 23), the lead decides before H3's runs |
+| API spend hits ceiling (1.25 times the run's high estimate, per provider; item 3) | Any live run | Stop; report the completed subset; the primary model carries the frontier  |
 | Member unavailable two weeks          | Any time           | Owner column reassigns; kill list in order                                 |
 | Name collision                        | W1 check           | Fallbacks: Trace, Keep                                                     |
 
@@ -495,6 +501,8 @@ The table above has no room for that at its original rates. The plan rests on th
 3.  E8.9 simulator beyond the CLI
 4.  E8.10 diff view and inspector polish
 5.  D4 procedural drift detection (keep admission by replay). Last, because Distill is a core sell.
+
+**The kill list's rewrite, proposed for the lead** (item 26; drafted by the answers card of 2026-11-21, not yet in force). Items 1 (E9.7) and 3 (E8.9) are done, as item 26 records, and item 2 (B9) is no longer what H4 needs, since H4 runs on GateMem only (item 24). Proposed, in order: 1. B9 MemoryAgentBench forgetting split; 2. E8.10 diff view and inspector polish; 3. D4 procedural drift detection (keep admission by replay), last for the reason above. Gate D's fail response stays "items 1 and 2, then 3" over the new numbering. Gate C's undecided branch cuts nothing: the programme continues as planned (item 10).
 
 **Never cut:** E0, E1, A1, A3, A4, E2.1 to E2.3, E2.5, L1, L2, L4, B1 to B6, D1 to D3, R1, X1 to X6, X9, X10, X11, X13. From the absorb plan: R2, R3, E2.7, A5, E1.4, B10 and B11 (H5 cannot run without the last two).
 
