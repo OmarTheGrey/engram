@@ -769,6 +769,8 @@ describe("E2.11 the lattice under the trust options: a less trusted co-member ch
       expect(result.event.policy_id).toBe(DOWNGRADE_ID);
       expect(result.event.reason).toContain("would have to evict an item more trusted than it");
       expect(result.event.reason).toContain("no item there is as little trusted as the write");
+      // Refused at the decision, before the store is written.
+      expect(result.event.reason).not.toContain("before it was committed");
       expect(result.retention).toEqual([]);
       expect(itemById(db, id(1))).toMatchObject({ status: "active", provenance: { kind: victim } });
       expect(itemById(db, id(2))).toBeUndefined();
@@ -965,6 +967,21 @@ describe("E2.11 the owner's rules under the trust options", () => {
     expect(itemById(db, id(1))?.status).toBe("active");
     expect(itemById(db, id(2))).toBeUndefined();
     expect(allEvents(db).filter((e) => e.op === "evict")).toEqual([]);
+  });
+
+  test("E2.11 Plane.checkWrite reports the budget refusal the write would get, before anything is stored", async () => {
+    const { plane, adapter } = await withVictimOn("user", { class: "episodic" });
+    const writes = adapter.writes;
+    const check = await plane.checkWrite(
+      coMember("model"),
+      item(2, { scope: SCOPE, owner: "agent:helper", class: "episodic", content: "new" }),
+      LATER,
+    );
+    expect(check.decision).toBe("deny");
+    expect(check.policy_id).toBe(DOWNGRADE_ID);
+    expect(check.reason).toContain("would have to evict an item more trusted than it");
+    expect(check.reason).not.toContain("before it was committed");
+    expect(adapter.writes).toBe(writes);
   });
 
   test("E2.11 a promotion whose landing would evict a more trusted item is denied", async () => {

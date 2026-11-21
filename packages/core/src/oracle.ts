@@ -737,6 +737,8 @@ export function grantChangeProblem(
 // its id), and trust ranked by `TRUST`, written apart from core's order.
 
 type TrustKind = MemoryItem["provenance"]["kind"];
+/** The rule of adoption retiring a projected item (plane/adopt.ts), named by its string. */
+const ADOPT_RETRACT_RULE = "engram/adopt/retract";
 const trustRank = (k: TrustKind) => TRUST.indexOf(k);
 
 /** The kind `actor` attests: its source, or the least trusted when it sets none. */
@@ -769,9 +771,11 @@ export function floorProblem(policy: Policy, actor: Actor, e: MemoryEvent): stri
  * active, for a write (a rewrite, or a retire by a status rewrite) at the
  * kind it records, and for a budget eviction at `trigger`: the kind of the
  * item whose landing triggered it, or, for a sweep, the sweeper's attested
- * kind. The item's owner acting with source user is exempt. Not judged: a
- * retire event (a ttl the item or its rule set, a promotion's supersession,
- * an offboarding, or adoption retracting what the store no longer holds), a
+ * kind, and for adoption's retraction of an item whose edited store record
+ * the gate denied, at the adopter's kind. The item's owner acting with
+ * source user is exempt. Not judged: any other retire event (a ttl the item
+ * or its rule set, a promotion's supersession, an offboarding, or adoption
+ * retracting what the store no longer holds), a
  * grant change, which changes no content or kind (ADR 0034), and a
  * withdrawal or a narrowing (card E2.6).
  */
@@ -791,6 +795,18 @@ export function protectionProblem(
     const kind = e.item.provenance.kind;
     if (trustRank(kind) <= trustRank(held)) return undefined;
     return `a ${kind} write by ${e.actor} ${e.item.status === "retired" ? "retired" : "rewrote"} active ${held} item ${before.id}`;
+  }
+  // Adoption retracting the plane's item because the store's edit of it was
+  // denied removes it at the adopter's kind; retracting what the store no
+  // longer holds at all is not judged.
+  if (
+    e.op === "retire" &&
+    e.policy_id === ADOPT_RETRACT_RULE &&
+    e.reason.includes(" was denied (")
+  ) {
+    const by = attestedKind(actor);
+    if (trustRank(by) <= trustRank(held)) return undefined;
+    return `adoption at ${by} by ${e.actor} retracted active ${held} item ${before.id} after the store's edit was denied`;
   }
   if (e.op === "evict") {
     const by = trigger ?? attestedKind(actor);
