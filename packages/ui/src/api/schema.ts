@@ -204,6 +204,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/supersede": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** The supersession plan for a new version (card L6): the head of its chain and, for each ancestor the actor may read, a proposed close or a review flag; each accepted close is then one ordinary write through the gate. */
+        post: operations["supersede"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/bypass": {
         parameters: {
             query?: never;
@@ -843,6 +860,39 @@ export interface components {
         };
         EventResponse: {
             event: components["schemas"]["MemoryEvent"];
+        };
+        SupersessionChain: {
+            /** @constant */
+            ok: true;
+            head_id: string;
+            chain: string[];
+        } | {
+            /** @constant */
+            ok: false;
+            /** @enum {string} */
+            error: "unknown_id" | "cycle_detected" | "depth_exceeded";
+            chain: string[];
+        };
+        SupersessionProposal: {
+            item_id: string;
+            /** @enum {string} */
+            action: "close" | "review";
+            relation: ("before" | "after" | "meets" | "metBy" | "overlaps" | "overlappedBy" | "starts" | "startedBy" | "during" | "contains" | "finishes" | "finishedBy" | "equals") | null;
+            valid_to: string | null;
+            reason: string;
+        };
+        SupersedeRequest: {
+            actor: components["schemas"]["Actor"];
+            /** @description The new version, whose lineage names the items it supersedes; only items the actor may read take part. */
+            item_id: string;
+            /** @description Ids of candidates whose proposed close the caller accepts. Each is written as a new version in place through the write gate, which decides it; an id with no proposed close refuses the whole call (400) before anything is written. Absent or empty: the plan only. */
+            accept?: string[];
+        };
+        SupersedeResponse: {
+            item_id: string;
+            head: components["schemas"]["SupersessionChain"];
+            proposals: components["schemas"]["SupersessionProposal"][];
+            applied: components["schemas"]["WriteResponse"][];
         };
         ViewerResponse: {
             viewer: components["schemas"]["Actor"] | null;
@@ -1804,6 +1854,93 @@ export interface operations {
             };
             /** @description the Plane method's card has not landed; the body names it */
             501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    supersede: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SupersedeRequest"];
+            };
+        };
+        responses: {
+            /** @description the result; a policy decision of any kind is 200 with its event */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupersedeResponse"];
+                };
+            };
+            /** @description the request fails its schema, or the plane refused the call (InvalidCallError) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description the Host or Origin is not this loopback server's, or the actor may not explain this read */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description no such route, or the read id names no read event */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description the body is over the size limit */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description the body is not application/json */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description an unexpected error; the body carries no internals */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description the workspace has no store */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

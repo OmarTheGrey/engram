@@ -11,10 +11,12 @@
 // app.ts answers with 501 naming the card.
 import {
   type Actor,
+  acceptedClosures,
   accessTime,
   currentItems,
   eventById,
   type MemoryItem,
+  planSupersession,
   readCounts,
   syncBeforeRead,
   visibleEvents,
@@ -249,6 +251,32 @@ export const ROUTES: readonly Route[] = [
         body.sessions as unknown as Parameters<typeof workspace.plane.distill>[0],
         body.method,
       ),
+  }),
+  route<z.infer<typeof C.SupersedeRequest>>({
+    id: "supersede",
+    method: "post",
+    path: "/supersede",
+    summary:
+      "The supersession plan for a new version (card L6): the head of its chain and, for each ancestor the actor may read, a proposed close or a review flag; each accepted close is then one ordinary write through the gate.",
+    request: C.SupersedeRequest,
+    response: C.SupersedeResponse,
+    errors: [400, 503],
+    handler: async ({ workspace, body, now }) => {
+      const at = now();
+      const { db } = workspace.deps;
+      // Core plans and refuses an id with no proposed close; the gate decides each write.
+      const plan = planSupersession(
+        db,
+        workspace.policy,
+        body.actor,
+        body.item_id,
+        accessTime(db, at),
+      );
+      const applied = [];
+      for (const item of acceptedClosures(db, plan, body.accept ?? []))
+        applied.push(await workspace.plane.write(body.actor, item, at));
+      return { ...plan, applied };
+    },
   }),
   route<z.infer<typeof C.BypassRequest>>({
     id: "bypass",
