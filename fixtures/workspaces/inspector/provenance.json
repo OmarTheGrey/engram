@@ -1,0 +1,43 @@
+{
+  "description": "The item page's fixture workspace (card E8.11), under the inspector's policy (policy.yaml): a note in dana's person scope, a team item written from it (lineage naming the note) and rewritten once, a rewrite the gate denies because its version goes back, and a second team item whose lineage names the team item and the note. Sam is a member of team:core but not of person:dana, so the note is an ancestor he cannot read. Run through the generated client in process by packages/ui/test/workspace.ts; event ids come from a counter and every call names its time.",
+  "now": "2026-10-29T12:00:00.000Z",
+  "viewer": "dana",
+  "actors": {
+    "dana": { "id": "person:dana", "level": "person", "memberships": ["person:dana", "team:core"], "source": "user" },
+    "sam": { "id": "person:sam", "level": "person", "memberships": ["person:sam", "team:core"], "source": "user" }
+  },
+  "steps": [
+    {
+      "op": "write",
+      "as": "dana",
+      "at": "2026-10-24T09:00:00.000Z",
+      "item": { "id": "01980000-0000-7000-8000-000000000001", "scope": "person:dana", "content": "Draft: ask the team to move the release freeze to Monday.", "valid_from": "2026-10-24T00:00:00.000Z" }
+    },
+    {
+      "op": "write",
+      "as": "dana",
+      "at": "2026-10-24T09:05:00.000Z",
+      "item": { "id": "01980000-0000-7000-8000-000000000002", "scope": "team:core", "content": "The release freeze moves to Monday.", "valid_from": "2026-10-24T00:00:00.000Z", "lineage": ["01980000-0000-7000-8000-000000000001"] }
+    },
+    {
+      "op": "write",
+      "as": "dana",
+      "at": "2026-10-24T09:10:00.000Z",
+      "item": { "id": "01980000-0000-7000-8000-000000000002", "scope": "team:core", "content": "The release freeze moves to Tuesday, after the security review.", "valid_from": "2026-10-24T00:00:00.000Z", "version": 2, "lineage": ["01980000-0000-7000-8000-000000000001"] }
+    },
+    {
+      "op": "write",
+      "as": "dana",
+      "at": "2026-10-24T09:15:00.000Z",
+      "item": { "id": "01980000-0000-7000-8000-000000000002", "scope": "team:core", "content": "The release freeze is cancelled.", "valid_from": "2026-10-24T00:00:00.000Z", "version": 1, "lineage": ["01980000-0000-7000-8000-000000000001"] }
+    },
+    {
+      "op": "write",
+      "as": "dana",
+      "at": "2026-10-24T09:20:00.000Z",
+      "item": { "id": "01980000-0000-7000-8000-000000000003", "scope": "team:core", "content": "The deploy checklist covers the Tuesday freeze.", "valid_from": "2026-10-24T00:00:00.000Z", "lineage": ["01980000-0000-7000-8000-000000000002", "01980000-0000-7000-8000-000000000001"] }
+    },
+    { "op": "read", "as": "dana", "at": "2026-10-28T09:00:00.000Z" },
+    { "op": "read", "as": "sam", "at": "2026-10-28T09:30:00.000Z" }
+  ]
+}

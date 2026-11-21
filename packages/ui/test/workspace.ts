@@ -41,8 +41,8 @@ export interface Workload {
   steps: Step[];
 }
 
-export const workload = (dir = FIXTURE_DIR): Workload =>
-  JSON.parse(readFileSync(`${dir}workload.json`, "utf8")) as Workload;
+export const workload = (dir = FIXTURE_DIR, file = "workload.json"): Workload =>
+  JSON.parse(readFileSync(`${dir}${file}`, "utf8")) as Workload;
 
 /** An item as the fixture names it, with every other field at its plain default. */
 function itemOf(actor: Actor, over: Record<string, unknown>) {
@@ -76,12 +76,19 @@ export function clientOf(app: { fetch: (r: Request) => Response | Promise<Respon
 /** The inspector's fixture workspace (cards E8.5 and E8.6). */
 export const inspectorWorkspace = () => fixtureWorkspace(FIXTURE_DIR, `${FIXTURE_DIR}policy.yaml`);
 
+/**
+ * The item page's fixture workspace (card E8.11): lineage across person:dana
+ * and team:core, a rewrite and a denied rewrite, under the inspector's policy.
+ */
+export const provenanceWorkspace = () =>
+  fixtureWorkspace(FIXTURE_DIR, `${FIXTURE_DIR}policy.yaml`, "provenance.json");
+
 /** The twin screens' fixture workspace (card E9.4), under the twin profile. */
 export const twinWorkspace = () => fixtureWorkspace(TWIN_DIR, TWIN_PROFILE);
 
 /** The workspace after a fixture's workload, with each read's response by actor name. */
-export async function fixtureWorkspace(dir: string, policyFile: string) {
-  const w = workload(dir);
+export async function fixtureWorkspace(dir: string, policyFile: string, file = "workload.json") {
+  const w = workload(dir, file);
   const policy = parsePolicy(readFileSync(policyFile, "utf8"), policyFile);
   const db = openSqlite(":memory:");
   migrate(db);
@@ -135,4 +142,66 @@ export async function fixtureWorkspace(dir: string, policyFile: string) {
     });
   };
   return { workload: w, workspace, policy, viewer, app, client, reads, decisions, timelineOf };
+}
+
+/**
+ * A workspace with a long log (card E8.11): `count` writes by dana and sam
+ * under the inspector's policy, one event each, at one write a second from a
+ * fixed start. One in a hundred is allowed; the rest are below their scope's
+ * confidence floor, so the gate denies them, which is what keeps tens of
+ * thousands of events to seconds (a denied write never reaches the store).
+ * Written through Plane.write directly, not the client. Three in four go to
+ * team:core, the rest to the writer's person scope; the viewer is dana, who
+ * sees team:core's events and her own scope's, not sam's.
+ */
+export async function longLogWorkspace(count: number) {
+  const policyFile = `${FIXTURE_DIR}policy.yaml`;
+  const policy = parsePolicy(readFileSync(policyFile, "utf8"), policyFile);
+  const db = openSqlite(":memory:");
+  migrate(db);
+  let n = 0;
+  const dana: Actor = {
+    id: "person:dana",
+    level: "person",
+    memberships: ["person:dana", "team:core"],
+    source: "user",
+  };
+  const sam: Actor = {
+    id: "person:sam",
+    level: "person",
+    memberships: ["person:sam", "team:core"],
+    source: "user",
+  };
+  const workspace = workspaceOf(
+    {
+      db,
+      adapter: createFakeAdapter(),
+      policy,
+      newId: () => `01990000-0000-7000-8000-1${String(++n).padStart(11, "0")}`,
+    },
+    { viewer: dana },
+  );
+  const start = Date.parse("2026-10-01T00:00:00.000Z");
+  for (let i = 0; i < count; i++) {
+    const actor = i % 3 === 2 ? sam : dana;
+    const item = itemOf(actor, {
+      id: `01990000-0000-7000-8000-${String(i + 1).padStart(12, "0")}`,
+      scope: i % 4 === 3 ? actor.id : "team:core",
+      content: `Long log note ${i + 1}.`,
+      valid_from: "2026-10-01T00:00:00.000Z",
+      confidence: i % 100 === 0 ? 0.9 : 0.1,
+    }) as unknown as Parameters<typeof workspace.plane.write>[1];
+    await workspace.plane.write(actor, item, new Date(start + i * 1000).toISOString());
+  }
+  const now = new Date(start + count * 1000).toISOString();
+  /** What POST /events answers `actor` at `now`, as fixtureWorkspace's timelineOf. */
+  const timelineOf = (actor: Actor) => {
+    const items = new Map(currentItems(db).map((i) => [i.id, i]));
+    return visibleEvents(actor, workspace.plane.events(), {
+      policy,
+      at: now,
+      current: (id) => items.get(id),
+    });
+  };
+  return { workspace, policy, viewer: dana, now, timelineOf };
 }
