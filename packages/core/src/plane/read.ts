@@ -25,7 +25,15 @@
 // term), the read filter admits some, and the admitted ones are ranked by
 // that pipeline and cut to its limit. Without the option the read is as
 // above, unchanged.
-import { type Actor, ExplainDeniedError, UnknownReadError } from "../actor.ts";
+//
+// A read of one item by its id (Plane.readById, card E8.14) is the same read
+// with one candidate at most: the projected item under that id, if the
+// reader can reach it. The store is never searched and the core pipeline
+// never runs; the read filter, the explanation, the read event and its
+// explanation rows are the ones above, and the event's reason names the id
+// asked for (`; read by id <id>`). An id out of the reader's reach answers
+// exactly as an id the log never held (decision D5).
+import { type Actor, ExplainDeniedError, InvalidCallError, UnknownReadError } from "../actor.ts";
 import { strictContentHash } from "../content-hash.ts";
 import { appendEvent, currentItems } from "../events.ts";
 import type { PlaneDeps, ReadQuery, ReadResult } from "../plane.ts";
@@ -36,7 +44,7 @@ import {
   readableScope,
   readRuleId,
 } from "../policy/evaluate.ts";
-import { type Explanation, type MemoryItem, SCHEMA_VERSION } from "../schema.ts";
+import { type Explanation, Id, type MemoryItem, SCHEMA_VERSION } from "../schema.ts";
 import { compareTimestamps } from "../time.ts";
 import { formatReadReason } from "./read-reason.ts";
 import { matchesQuery, queryTerms, retrieve, scoreComponents } from "./retrieve.ts";
@@ -125,19 +133,44 @@ function current(
   return { order: [...hits, ...share.keys()], share };
 }
 
+/**
+ * Plane.readById (card E8.14): the read below restricted to the projected
+ * item under `itemId`, with no query text. A malformed id is refused with
+ * InvalidCallError before the log is touched, as a malformed actor or time is.
+ */
+export async function readOne(
+  deps: PlaneDeps,
+  actor: Actor,
+  itemId: string,
+  query: Omit<ReadQuery, "text">,
+): Promise<ReadResult> {
+  checkCall(actor, query?.at, "readById");
+  if (!Id.safeParse(itemId).success)
+    throw new InvalidCallError(
+      `Plane.readById: invalid item id ${JSON.stringify(itemId)}; expected a UUIDv7`,
+    );
+  return filteredRead(deps, actor, { at: query.at, valid_at: query.valid_at }, itemId);
+}
+
 export async function filteredRead(
   deps: PlaneDeps,
   actor: Actor,
   query: ReadQuery,
+  only?: string,
 ): Promise<ReadResult> {
   const { db, policy, newId } = deps;
-  checkCall(actor, query?.at, "read");
+  checkCall(actor, query?.at, only === undefined ? "read" : "readById");
   const requested = query.at;
   // The time validity windows are judged at (card RV5, findings RV-SRF-2
   // and RV-CORE-3): the reader's `valid_at` when it names one, else the time
   // it asked to read at. Access (status, ttl, grants), scoring and the
   // event's ts are judged at accessTime below, never before the log's head.
-  if (query.valid_at !== undefined) checkCall(actor, query.valid_at, "read (valid_at)");
+  if (query.valid_at !== undefined)
+    checkCall(
+      actor,
+      query.valid_at,
+      only === undefined ? "read (valid_at)" : "readById (valid_at)",
+    );
   const validAt = query.valid_at ?? requested;
   const snapshot = currentItems(db);
   const reach = snapshot.filter((i) => reachable(policy, actor, i));
@@ -146,9 +179,11 @@ export async function filteredRead(
   const scopes = [
     ...new Set(actor.memberships.filter((s) => readableScope(policy, actor, s))),
   ].sort();
-  const core = deps.retrieval?.pipeline === "core";
+  // A by-id read neither searches the store nor runs the core pipeline.
+  const core = only === undefined && deps.retrieval?.pipeline === "core";
   const terms = queryTerms(query.text);
-  const searched = core ? undefined : await matching(deps, reach, scopes, query.text);
+  const searched =
+    core || only !== undefined ? undefined : await matching(deps, reach, scopes, query.text);
   // Everything from here runs in one synchronous transaction, which holds
   // the log's write lock (BEGIN IMMEDIATE on SQLite, the advisory lock on
   // Postgres). A read is not in the write queue, and its snapshot is older
@@ -174,11 +209,14 @@ export async function filteredRead(
     const outOfReach = projected.length - live.length;
     const match = current(searched, snapshot, live, query.text);
     const hitRank = new Map(match?.order.map((id, r) => [id, r]));
-    const candidates = core
-      ? live.filter((i) => matchesQuery(i, terms))
-      : match
-        ? live.filter((i) => hitRank.has(i.id))
-        : live;
+    const candidates =
+      only !== undefined
+        ? live.filter((i) => i.id === only)
+        : core
+          ? live.filter((i) => matchesQuery(i, terms))
+          : match
+            ? live.filter((i) => hitRank.has(i.id))
+            : live;
 
     const counts: Record<ReadCheck, number> = {
       scope: 0,
@@ -255,6 +293,7 @@ export async function filteredRead(
         out_of_reach: outOfReach,
       },
       compareTimestamps(validAt, at) === 0 ? undefined : validAt,
+      only,
     );
     const appended = appendEvent(db, {
       id: newId(),

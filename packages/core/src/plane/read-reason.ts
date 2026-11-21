@@ -16,7 +16,9 @@
 // and a read limit (ADR 0009, proposed amendment of 2026-11-02), `cut`
 // admitted items ranked below the limit and were not returned (PR #25 review
 // round 3, V-6); any other read's reason has no such clause, and its counts
-// no `cut`.
+// no `cut`. A read of one item by its id (Plane.readById, card E8.14) ends
+// its reason with `; read by id <id>`, naming the id the reader asked for;
+// its counts are those of any read, over at most one candidate.
 import { z } from "zod";
 import type { MemoryEvent } from "../schema.ts";
 
@@ -51,8 +53,10 @@ export type ReadCounts = z.infer<typeof ReadCounts>;
  * the read's own (card RV5, finding RV-SRF-2), ends the reason with
  * `; validity windows judged at <time>`: the event's `ts` stays the read's
  * own time, and the schema has no field for the other (no schema change).
+ * `byId`, on a read of one item by its id (card E8.14), ends it with
+ * `; read by id <id>` after any validity clause.
  */
-export function formatReadReason(counts: ReadCounts, validAt?: string): string {
+export function formatReadReason(counts: ReadCounts, validAt?: string, byId?: string): string {
   const c = counts;
   return (
     `returned ${c.returned} of ${c.candidates} candidates; ${c.filtered} filtered ` +
@@ -62,14 +66,16 @@ export function formatReadReason(counts: ReadCounts, validAt?: string): string {
     (c.cut === undefined ? "" : `${c.cut} cut by the read limit; `) +
     `${c.out_of_reach} projected ${c.out_of_reach === 1 ? "item" : "items"} outside the reader's reach ` +
     "were not candidates" +
-    (validAt === undefined ? "" : `${VALID_AT_CLAUSE}${validAt}`)
+    (validAt === undefined ? "" : `${VALID_AT_CLAUSE}${validAt}`) +
+    (byId === undefined ? "" : `${BY_ID_CLAUSE}${byId}`)
   );
 }
 
 const VALID_AT_CLAUSE = "; validity windows judged at ";
+const BY_ID_CLAUSE = "; read by id ";
 
 const REASON =
-  /^returned (\d+) of (\d+) candidates; (\d+) filtered \((\d+) outside the validity window, (\d+) not active, (\d+) past their ttl, (\d+) by a grant's class or expiry\); (?:(\d+) cut by the read limit; )?(\d+) projected (item|items) outside the reader's reach were not candidates(?:; validity windows judged at (\S+))?$/;
+  /^returned (\d+) of (\d+) candidates; (\d+) filtered \((\d+) outside the validity window, (\d+) not active, (\d+) past their ttl, (\d+) by a grant's class or expiry\); (?:(\d+) cut by the read limit; )?(\d+) projected (item|items) outside the reader's reach were not candidates(?:; validity windows judged at (\S+))?(?:; read by id (\S+))?$/;
 
 /**
  * The time a read judged validity windows at when the reader named one
@@ -80,6 +86,16 @@ const REASON =
 export function readValidAt(event: Pick<MemoryEvent, "op" | "reason">): string | null {
   if (event.op !== "read" || parseReadReason(event.reason) === null) return null;
   return REASON.exec(event.reason)?.[11] ?? null;
+}
+
+/**
+ * The id a read of one item by its id asked for (formatReadReason's `byId`,
+ * card E8.14), else null: for any other read, any other event, and a reason
+ * the plane did not write.
+ */
+export function readByIdTarget(event: Pick<MemoryEvent, "op" | "reason">): string | null {
+  if (event.op !== "read" || parseReadReason(event.reason) === null) return null;
+  return REASON.exec(event.reason)?.[12] ?? null;
 }
 
 /**
