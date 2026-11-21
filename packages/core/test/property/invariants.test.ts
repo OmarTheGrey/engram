@@ -2069,7 +2069,10 @@ async function promotionsLandOnlyWherePermitted(name: string) {
  * session record and never pass to a model; `simulate` replays only the
  * workload it is given, on scratch logs and stores (card E8.9);
  * `changeGrants` refuses an outsider in the same words for a hidden and an
- * unknown item, naming no scope, and returns no item (card E9.4, ADR 0034).
+ * unknown item, naming no scope, and returns no item (card E9.4, ADR 0034);
+ * `readById` answers for the hidden item's id exactly as for an id the log
+ * never held, and `listScopes` lists no scope the outsider cannot read
+ * (card E8.14).
  */
 async function planeSurfaceLeaksNothing() {
   const SECRET = "the vault code is 4711";
@@ -2088,8 +2091,10 @@ async function planeSurfaceLeaksNothing() {
     "events",
     "explain",
     "lint",
+    "listScopes",
     "promote",
     "read",
+    "readById",
     "recordBypass",
     "retain",
     "simulate",
@@ -2146,6 +2151,19 @@ async function planeSurfaceLeaksNothing() {
   leaks("checkWrite", await plane.checkWrite(outsider, claim, at));
   const read = await plane.read(outsider, { text: "vault", at });
   leaks("read", read);
+  // A read of the hidden item by its id (card E8.14): nothing returned, and
+  // the same answer as for an id that names nothing.
+  const byId = await plane.readById(outsider, secret.id, { at });
+  leaks("readById", byId);
+  const noId = await plane.readById(outsider, "01960000-0000-7000-8000-00000000000a", { at });
+  expect([byId.items, byId.explanations, byId.filtered]).toEqual([
+    noId.items,
+    noId.explanations,
+    noId.filtered,
+  ]);
+  const listed = await plane.listScopes(outsider, at);
+  leaks("listScopes", listed);
+  expect(listed.scopes.map((s) => s.scope)).not.toContain("person:s");
   const promoted = await plane.promote(outsider, secret.id, "team:b", at, { review: true });
   leaks("promote", promoted);
   expect(promoted.item).toBeNull();
