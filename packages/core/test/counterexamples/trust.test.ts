@@ -21,9 +21,14 @@
 import { describe, expect, test } from "vitest";
 import { itemById } from "../../src/items.ts";
 import { type Actor, adoptStoreItems } from "../../src/plane.ts";
-import { GRANT_OWNER_ID, GRANT_SOURCE_ID, WRITE_GRANT_ID } from "../../src/policy/evaluate.ts";
+import {
+  GRANT_OWNER_ID,
+  GRANT_SOURCE_ID,
+  RETIRED_CONTENT_ID,
+  WRITE_GRANT_ID,
+} from "../../src/policy/evaluate.ts";
 import { loadPreset } from "../../src/policy/load.ts";
-import { leastTrusted } from "../../src/policy/promotion.ts";
+import { leastTrusted, PROMOTE_NO_EVIDENCE_ID } from "../../src/policy/promotion.ts";
 import type { Grant, MemoryItem, Policy, Provenance } from "../../src/schema.ts";
 import type { Workload } from "../../src/simulate.ts";
 import { AT, fresh, id, item, testPolicy } from "../unit/plane/helpers.ts";
@@ -63,6 +68,9 @@ const coMember = (kind: Kind): Actor => ({
   memberships: [SCOPE],
   source: kind,
 });
+
+/** A co-member of the owner's scope with no harness-set source. */
+const coMemberNoSource: Actor = { id: "agent:helper", level: "person", memberships: [SCOPE] };
 
 /**
  * Every kind admitted in person scope with no floor and no review, so only
@@ -296,6 +304,163 @@ describe("GH-38 the owner's rules that protect today, and where they stop", () =
   });
 });
 
+describe("GH-38 under the registered presets: team scope, where no synthetic policy is needed", () => {
+  const TEAM = "team:platform";
+  /** The owner, a member of the team. */
+  const alice = (source: Kind): Actor => ({
+    id: "person:alice",
+    level: "person",
+    memberships: ["person:alice", TEAM],
+    source,
+  });
+  /** A co-member of the team who is not the item's owner. */
+  const bob = (source: Kind): Actor => ({
+    id: "person:bob",
+    level: "person",
+    memberships: ["person:bob", TEAM],
+    source,
+  });
+  const teamItem = () => item(1, { scope: TEAM, owner: "person:alice", content: "alice's fact" });
+
+  async function ownerWrote(preset: "strict" | "medium" | "permissive", victim: Kind) {
+    const planeOf = fresh(loadPreset(preset));
+    const first = await planeOf.plane.write(alice(victim), teamItem(), AT);
+    expect(first.event.decision).toBe("allow");
+    return { ...planeOf, stored: itemById(planeOf.db, id(1)) as MemoryItem };
+  }
+
+  const pairs: [Kind, Kind][] = [
+    ["tool", "user"],
+    ["tool", "document"],
+    ["import", "user"],
+    ["document", "user"],
+  ];
+  const presetCells = (["medium", "permissive"] as const).flatMap((preset) =>
+    pairs.map(([writer, victim]) => ({ preset, writer, victim })),
+  );
+
+  describe.each(presetCells)(
+    "preset $preset, writer $writer, victim $victim",
+    ({ preset, writer, victim }) => {
+      test("GH-38 preset rewrite: the co-member's rewrite is allowed under the team write rule; the owner's item takes its text and kind", async () => {
+        const { plane, db, stored } = await ownerWrote(preset, victim);
+        expect(stored).toMatchObject({ status: "active", provenance: { kind: victim } });
+        const result = await plane.write(
+          bob(writer),
+          rewriteOf(stored, { content: "bob's text" }),
+          LATER,
+        );
+        expect(result.event.decision).toBe("allow");
+        expect(result.event.policy_id).toBe(`preset.${preset}/write/team`);
+        expect(itemById(db, id(1))).toMatchObject({
+          status: "active",
+          owner: "person:alice",
+          content: "bob's text",
+          provenance: { kind: writer, actor: "person:bob" },
+        });
+      });
+
+      test("GH-38 preset retire: the co-member's retire is allowed under the team write rule; the owner's item is retired at the writer's kind", async () => {
+        const { plane, db, stored } = await ownerWrote(preset, victim);
+        const result = await plane.write(
+          bob(writer),
+          rewriteOf(stored, { status: "retired" }),
+          LATER,
+        );
+        expect(result.event.decision).toBe("allow");
+        expect(result.event.policy_id).toBe(`preset.${preset}/write/team`);
+        expect(itemById(db, id(1))).toMatchObject({
+          status: "retired",
+          provenance: { kind: writer },
+        });
+      });
+    },
+  );
+
+  /** Under strict, team scope requires review: the owner's item lands a candidate and a reviewer promotes it in place. */
+  async function strictActive() {
+    const planeOf = await ownerWrote("strict", "user");
+    expect(planeOf.stored.status).toBe("candidate");
+    const reviewer: Actor = {
+      id: "person:rev",
+      level: "person",
+      memberships: ["person:rev", TEAM],
+      source: "user",
+    };
+    const promoted = await planeOf.plane.promote(reviewer, id(1), TEAM, AT, { review: true });
+    expect(promoted.event.decision).toBe("allow");
+    const stored = itemById(planeOf.db, id(1)) as MemoryItem;
+    expect(stored).toMatchObject({ status: "active", provenance: { kind: "user" } });
+    return { ...planeOf, stored };
+  }
+
+  test("GH-38 strict retire: a tool-sourced co-member retires the reviewed, active user item; allowed with no review (requires_review only turns active into candidate)", async () => {
+    const { plane, db, stored } = await strictActive();
+    const result = await plane.write(bob("tool"), rewriteOf(stored, { status: "retired" }), LATER);
+    expect(result.event.decision).toBe("allow");
+    expect(result.event.policy_id).toBe("preset.strict/write/team");
+    expect(itemById(db, id(1))).toMatchObject({ status: "retired", provenance: { kind: "tool" } });
+  });
+
+  test("GH-38 strict rewrite: a tool-sourced co-member's rewrite turns the reviewed, active user item back into a candidate, which reads no longer return", async () => {
+    const { plane, db, stored } = await strictActive();
+    const before = await plane.read(alice("user"), { text: "fact", at: LATER });
+    expect(before.items.map((i) => i.id)).toContain(id(1));
+    const result = await plane.write(
+      bob("tool"),
+      rewriteOf(stored, { content: "bob's fact" }),
+      LATER,
+    );
+    expect(result.event.decision).toBe("allow");
+    expect(result.event.policy_id).toBe("preset.strict/write/team");
+    expect(result.event.reason).toContain("team scope requires review");
+    expect(itemById(db, id(1))).toMatchObject({
+      status: "candidate",
+      content: "bob's fact",
+      provenance: { kind: "tool" },
+    });
+    const after = await plane.read(alice("user"), { text: "fact", at: LATER });
+    expect(after.items.map((i) => i.id)).not.toContain(id(1));
+  });
+
+  test("GH-38 strict, a refuted cell: an import-sourced co-member is refused by the team rule's sources, and the item stays active and user", async () => {
+    const { plane, db, stored } = await strictActive();
+    const result = await plane.write(
+      bob("import"),
+      rewriteOf(stored, { status: "retired" }),
+      LATER,
+    );
+    expect(result.event.decision).toBe("deny");
+    expect(result.event.policy_id).toBe("preset.strict/write/team");
+    expect(result.event.reason).toContain("source import is not allowed in team scope");
+    expect(itemById(db, id(1))).toMatchObject({ status: "active", provenance: { kind: "user" } });
+  });
+
+  test.each(["strict", "medium", "permissive"] as const)(
+    "GH-38 preset %s, person scope: a model-sourced non-owner co-member rewrites the owner's user item; allowed, the item becomes model",
+    async (preset) => {
+      const { plane, db } = fresh(loadPreset(preset));
+      await plane.write(
+        owner("user"),
+        item(1, { scope: SCOPE, owner: SCOPE, content: "the owner's fact" }),
+        AT,
+      );
+      const stored = itemById(db, id(1)) as MemoryItem;
+      const result = await plane.write(
+        coMember("model"),
+        rewriteOf(stored, { content: "the agent's text" }),
+        LATER,
+      );
+      expect(result.event.decision).toBe("allow");
+      expect(result.event.policy_id).toBe(`preset.${preset}/write/person`);
+      expect(itemById(db, id(1))).toMatchObject({
+        content: "the agent's text",
+        provenance: { kind: "model", actor: "agent:helper" },
+      });
+    },
+  );
+});
+
 describe("GH-39 floor: a write whose actor names no source", () => {
   const medium = loadPreset("medium");
   /** A caller with no harness-set source, a member of the team scope. */
@@ -378,6 +543,115 @@ describe("GH-39 floor: a write whose actor names no source", () => {
     const report = await adoptStoreItems(deps, owner(), SCOPE, AT);
     expect(report).toMatchObject({ allowed: 1, denied: 0 });
     expect(itemById(db, id(5))?.provenance).toMatchObject({ kind: "import", actor: SCOPE });
+  });
+
+  /** Two writers with no source (or labelled `source`) each write `content` into person:alice claiming user. */
+  async function confirmers(plane: ReturnType<typeof fresh>["plane"], source?: Kind) {
+    const out = [];
+    for (const [n, who] of [
+      [2, "agent:x"],
+      [3, "agent:y"],
+    ] as const) {
+      const writer: Actor = {
+        id: who,
+        level: "person",
+        memberships: [SCOPE],
+        ...(source ? { source } : {}),
+      };
+      out.push(
+        await plane.write(
+          writer,
+          item(n, {
+            scope: SCOPE,
+            owner: who,
+            class: "episodic",
+            content: "same fact",
+            kind: "user",
+          }),
+          AT,
+        ),
+      );
+    }
+    return out;
+  }
+
+  test("GH-39 promotion: two sourceless writers claiming user confirm the owner's episodic item under medium; the promotion is allowed and the promoted item is user", async () => {
+    const { plane } = fresh(medium);
+    await plane.write(
+      owner("user"),
+      item(1, { scope: SCOPE, owner: SCOPE, class: "episodic", content: "same fact" }),
+      AT,
+    );
+    const writes = await confirmers(plane);
+    expect(writes.map((w) => [w.event.decision, w.item?.provenance.kind])).toEqual([
+      ["allow", "user"],
+      ["allow", "user"],
+    ]);
+    const promoted = await plane.promote(owner("user"), id(1), SCOPE, LATER);
+    expect(promoted.event.decision).toBe("allow");
+    expect(promoted.event.policy_id).toBe("preset.medium/promotion/episodic-to-semantic");
+    expect(promoted.event.reason).toContain("3 confirmations by distinct actors");
+    expect(promoted.item).toMatchObject({ class: "semantic", provenance: { kind: "user" } });
+  });
+
+  test("GH-39 promotion control: the same two writers labelled model do not confirm; the promotion is denied (engram/promote/no-evidence)", async () => {
+    const { plane } = fresh(medium);
+    await plane.write(
+      owner("user"),
+      item(1, { scope: SCOPE, owner: SCOPE, class: "episodic", content: "same fact" }),
+      AT,
+    );
+    const writes = await confirmers(plane, "model");
+    expect(writes.map((w) => [w.event.decision, w.item?.provenance.kind])).toEqual([
+      ["allow", "model"],
+      ["allow", "model"],
+    ]);
+    const promoted = await plane.promote(owner("user"), id(1), SCOPE, LATER);
+    expect(promoted.event.decision).toBe("deny");
+    expect(promoted.event.policy_id).toBe(PROMOTE_NO_EVIDENCE_ID);
+    expect(promoted.item).toBeNull();
+  });
+
+  /** The owner's item 1, then item 2 whose write evicts it over a budget of one: item 1's content is retired. */
+  async function withRetiredContent() {
+    const planeOf = fresh(POLICY);
+    const { plane } = planeOf;
+    await plane.write(
+      owner("user"),
+      item(1, { scope: SCOPE, owner: SCOPE, class: "episodic", content: "an evicted fact" }),
+      AT,
+    );
+    const second = await plane.write(
+      owner("user"),
+      item(2, { scope: SCOPE, owner: SCOPE, class: "episodic", content: "another fact" }),
+      AT,
+    );
+    expect(second.retention.map((e) => [e.op, e.item_id])).toEqual([["evict", id(1)]]);
+    return planeOf;
+  }
+  /** Item 3, restating the evicted content, claiming user. */
+  const restating = item(3, {
+    scope: SCOPE,
+    owner: SCOPE,
+    class: "episodic",
+    content: "an evicted fact",
+    kind: "user",
+  });
+
+  test("GH-39 retired content: a sourceless write claiming user restates content an eviction retired; allowed, at kind user", async () => {
+    const { plane, db } = await withRetiredContent();
+    const result = await plane.write(coMemberNoSource, restating, LATER);
+    expect(result.event.decision).toBe("allow");
+    expect(result.event.policy_id).toBe("trust/write/person");
+    expect(itemById(db, id(3))).toMatchObject({ status: "active", provenance: { kind: "user" } });
+  });
+
+  test("GH-39 retired content control: the same write labelled model is denied (engram/write/retired-content)", async () => {
+    const { plane, db } = await withRetiredContent();
+    const result = await plane.write({ ...coMemberNoSource, source: "model" }, restating, LATER);
+    expect(result.event.decision).toBe("deny");
+    expect(result.event.policy_id).toBe(RETIRED_CONTENT_ID);
+    expect(itemById(db, id(3))).toBeUndefined();
   });
 
   test("GH-39 the simulator judges a workload actor with no source as the plane does: its claimed user item into team scope is allowed under medium", async () => {
