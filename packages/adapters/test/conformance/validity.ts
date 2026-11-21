@@ -9,7 +9,7 @@
 // bytes, and serves read, list and search from that index. Invalidating a
 // record closes its window and keeps the record; the store never hides a
 // record for being outside its window, because the plane judges validity at
-// the reader's time (ADR 0031, ADR 0035). History returns each version with
+// the reader's time (ADR 0005, with its RV5 amendment, `valid_at`). History returns each version with
 // the window it was written with. It has no graph: the Adapter contract has
 // no method to show one (ADR 0013, amendment of card A5).
 import type { MemoryItem } from "@engram/core";

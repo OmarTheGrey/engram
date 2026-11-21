@@ -31,6 +31,24 @@ describe("conformance meta-test", () => {
     expect(outcomes.length).toBeGreaterThan(CASES.filter((c) => c.claims).length);
   });
 
+  // The limit of the validity cases, as a test (ADR 0013, amendment of card
+  // A5): they are necessary, not sufficient. The fake keeps no validity of
+  // its own, only the whole item, yet with the flag forced on it passes every
+  // case held to native validity, so the suite cannot tell a native store
+  // from one that stores the plane's fields.
+  test("the fake with native validity forced on passes every validity case: the cases cannot see 'native'", async () => {
+    const forced = () => {
+      const fake = createFakeAdapter();
+      return { ...fake, capabilities: { ...fake.capabilities, native_validity: true } };
+    };
+    const outcomes = await runCases(forced, { lexical: true });
+    const held = CASES.filter((c) => c.claims === "native_validity").map(label);
+    expect(held.length).toBe(4);
+    expect(outcomes.filter((o) => held.includes(o.case))).toEqual(
+      held.map((c) => ({ case: c, outcome: "pass" })),
+    );
+  });
+
   test("every case a broken adapter names exists in the suite", async () => {
     const names = (await runCases(() => createFakeAdapter(), { lexical: true })).map((o) => o.case);
     for (const b of BROKEN_ADAPTERS) {

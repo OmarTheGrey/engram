@@ -410,8 +410,10 @@ export const CASES: ConformanceCase[] = [
   },
   {
     // The plane judges validity at the reader's time, as it judges status
-    // (ADR 0031): a store that drops what is outside its window at its own
-    // clock, as Mem0's read-time expiry filter does, hides it from the plane.
+    // (ADR 0005 and its RV5 amendment, the read's `valid_at`): a store that
+    // drops what is outside its window at its own clock, as Mem0's read-time
+    // expiry filter would if an adapter mapped `valid_to` to Mem0's
+    // `expirationDate` (this one never does), hides it from the plane.
     group: "capability honesty",
     name: "a store claiming native validity hides nothing from list or search for being outside its window",
     claims: "native_validity",
@@ -453,9 +455,10 @@ export const CASES: ConformanceCase[] = [
   },
   {
     // No contract method returns a node's neighbours (the absorb plan
-    // dropped `neighbors?`; ADR 0031 and ADR 0035 keep ranking and validity
-    // in core), so no store can show a graph, and a claim would pass an
-    // empty bar. A graph store first needs a contract amendment.
+    // dropped `neighbors?`: ADR 0031 ranks in core and ADR 0035 gives a
+    // store's own retrieval no consumer), so no store can show a graph, and
+    // a claim would pass an empty bar. A graph store first needs a contract
+    // amendment.
     group: "capability honesty",
     name: "a claim of native graph is refused while the contract has no graph method",
     run(adapter) {

@@ -17,23 +17,27 @@
 //              closed at the replacement's start, the paper's soft
 //              revocation), `expired` (its own ttl runs out then, Mem0's
 //              expiration date);
-//   insertion  `direct`, both versions and the mark through Plane.write, or
-//              `indirect`, both records written into the store by its own
-//              means (the adapter, never the plane), marks included, then
-//              adopted (adoptStoreItems, as `engram read` does) and read.
-//              Indirect here is the paper's "direct insertion": records in
-//              the store's own format with an explicit mark;
+//   insertion  `through the plane`, both versions and the mark through
+//              Plane.write, or `in the store`, both records written into the
+//              store by its own means (the adapter, never the plane), marks
+//              included, then adopted (adoptStoreItems, as `engram read`
+//              does) and read. "In the store" is the paper's "direct
+//              insertion": records in the store's own format with an
+//              explicit mark;
 //   reads      the plane's default read (no text, and text through the
 //              store's search) and the core retrieval pipeline (ADR 0009).
 //
-// Two rebirth rows follow a direct revocation with the old record put back
+// Two rebirth rows follow a revocation through the plane with the old record put back
 // in the store by its own means: restored as it was before the revocation (a
 // backup or a git revert), which adoption refuses, and re-edited at a higher
 // version, which adoption takes as the owner's import (ADR 0025 lets an
-// import restate retired content). Two rows pin what the plane does not
-// enforce today, each a `finding` in docs/log/: a replacement that names the
-// old version in its lineage and nothing else leaves the old version
-// admitted, and a replacement stated only in prose (the paper's "indirect
+// import restate retired content, and ADR 0004's narrowed D8 records the
+// edit as the owner's). Two rows pin what the plane does not do, each a
+// `finding` in docs/log/: a replacement that names the old version in its
+// lineage and closes nothing leaves the old version admitted (ADR 0005's
+// supersession is lineage plus the old version's closed `valid_to`, the
+// `closed` mark), ranked against its replacement in the store's own hit
+// order; and a replacement stated only in prose (the paper's "indirect
 // insertion") supersedes nothing the plane can see (the unkeyed-item wall).
 //
 // The harness is the conformance run's: the network guard, Mem0's home
@@ -154,9 +158,9 @@ function policyItem(n: string, content: string, over: Partial<MemoryItem> = {}):
 }
 
 type Mark = "retired" | "closed" | "expired";
-type Insertion = "direct" | "indirect";
+type Insertion = "through the plane" | "in the store";
 const MARKS: Mark[] = ["retired", "closed", "expired"];
-const INSERTIONS: Insertion[] = ["direct", "indirect"];
+const INSERTIONS: Insertion[] = ["through the plane", "in the store"];
 
 /** Scenario s's revoked version as first written: with its ttl when the mark is its expiry. */
 const revoked = (s: number, mark: Mark | "none") => {
@@ -229,7 +233,7 @@ async function allowed(setup: Setup, item: MemoryItem, at: string) {
 
 /** Revokes every scenario by `mark`, through the plane or by the store's own means then adoption. */
 async function revokeAll(setup: Setup, mark: Mark, insertion: Insertion) {
-  if (insertion === "direct") {
+  if (insertion === "through the plane") {
     for (const s of SCENARIOS.keys()) {
       await allowed(setup, revoked(s, mark), T0);
       await allowed(setup, replacement(s), T1);
@@ -296,11 +300,39 @@ function expectRevocationHolds({ mode, result, scenario }: Reading) {
   }
 }
 
+type Order = "old first" | "new first";
+const ORDERS: Order[] = ["old first", "new first"];
+
+interface LineagePair {
+  old: MemoryItem;
+  replacement: MemoryItem;
+  /** In write order. */
+  first: MemoryItem;
+  second: MemoryItem;
+}
+
+/**
+ * Scenario s's two versions for the lineage rows, the replacement naming the
+ * old version in its lineage and nothing closed. "old first" writes the old
+ * version first under the lower id (100 + s); "new first" writes the
+ * replacement first under the lower id, so both the write order and the id
+ * order are swapped.
+ */
+function lineagePair(s: number, order: Order): LineagePair {
+  const { title, revoked: was, replacement: now } = SCENARIOS[s] as (typeof SCENARIOS)[number];
+  const [oldN, newN] = order === "old first" ? [oldId(s), newId(s)] : [newId(s), oldId(s)];
+  const old = policyItem(oldN, `${title}: ${was}.`);
+  const replacement = policyItem(newN, `${title}: ${now}.`, { valid_from: T1, lineage: [oldN] });
+  return order === "old first"
+    ? { old, replacement, first: old, second: replacement }
+    : { old, replacement, first: replacement, second: old };
+}
+
 // Letta commits once per write (about 30 writes per cell), and the machine
 // may be loaded; each cell gets two minutes.
 const CELL_MS = 120_000;
 
-for (const { name, factory } of ADAPTERS) {
+for (const { name, factory, lexical } of ADAPTERS) {
   describe(`revocation grid on ${name}`, () => {
     for (const mark of MARKS) {
       for (const insertion of INSERTIONS) {
@@ -321,7 +353,7 @@ for (const { name, factory } of ADAPTERS) {
         `${mark}, rebirth by restore: the pre-revocation record put back in the store is refused`,
         async () => {
           const setup = await planeOver(factory);
-          await revokeAll(setup, mark, "direct");
+          await revokeAll(setup, mark, "through the plane");
           for (const s of SCENARIOS.keys()) {
             // The store's own means: the record as it was before the revocation.
             await setup.adapter.write(revoked(s, mark));
@@ -329,6 +361,17 @@ for (const { name, factory } of ADAPTERS) {
           const report = await adoptStoreItems(setup.deps, omar, SCOPE, T2);
           expect(report.denials.map((d) => d.policy_id)).toEqual(
             SCENARIOS.map(() => "engram/write/version"),
+          );
+          // A denied store version also retracts what the plane held of it
+          // (engram/adopt/retract) when that was not already retired. So in
+          // the closed row the retraction, not the closed window, is what
+          // keeps the old version out of these reads; in the retired row
+          // the version was retired already and nothing is retracted.
+          const retracts = setup.plane
+            .events()
+            .filter((e) => e.op === "retire" && e.policy_id === "engram/adopt/retract");
+          expect(retracts.map((e) => e.item_id).sort()).toEqual(
+            mark === "closed" ? [...SCENARIOS.keys()].map(oldId).sort() : [],
           );
           for (const reading of await readAll(setup)) expectRevocationHolds(reading);
         },
@@ -339,7 +382,7 @@ for (const { name, factory } of ADAPTERS) {
         `${mark}, rebirth by re-edit (finding): a re-activated record at a higher version is adopted as the owner's import`,
         async () => {
           const setup = await planeOver(factory);
-          await revokeAll(setup, mark, "direct");
+          await revokeAll(setup, mark, "through the plane");
           for (const s of SCENARIOS.keys()) {
             await setup.adapter.write({ ...revoked(s, mark), version: 3 });
           }
@@ -365,46 +408,61 @@ for (const { name, factory } of ADAPTERS) {
     }
 
     for (const insertion of INSERTIONS) {
-      test(
-        `lineage only, ${insertion} (finding): a replacement naming the old version in its lineage leaves it admitted`,
-        async () => {
-          const setup = await planeOver(factory);
-          if (insertion === "direct") {
-            for (const s of SCENARIOS.keys()) {
-              await allowed(setup, revoked(s, "none"), T0);
-              await allowed(setup, replacement(s), T1);
+      for (const order of ORDERS) {
+        test(
+          `lineage only, ${insertion}, ${order} (finding): both versions are admitted, ranked in the store's own order`,
+          async () => {
+            const setup = await planeOver(factory);
+            const pairs = [...SCENARIOS.keys()].map((s) => lineagePair(s, order));
+            for (const { first, second } of pairs) {
+              if (insertion === "through the plane") {
+                await allowed(setup, first, T1);
+                await allowed(setup, second, T1);
+              } else {
+                await setup.adapter.write(first);
+                await setup.adapter.write(second);
+              }
             }
-          } else {
-            for (const s of SCENARIOS.keys()) {
-              await setup.adapter.write(revoked(s, "none"));
-              await setup.adapter.write(replacement(s));
+            if (insertion === "in the store") {
+              expect((await adoptStoreItems(setup.deps, omar, SCOPE, T1)).denials).toEqual([]);
             }
-            expect((await adoptStoreItems(setup.deps, omar, SCOPE, T1)).denials).toEqual([]);
-          }
-          // Pinned as the plane behaves today (docs/log, the lineage finding):
-          // lineage decides which holder a store_ref resolves to
-          // (itemByStoreRef), not what a read admits. Every read of a scenario
-          // admits both versions, and where the store searches, its hit order
-          // ranks the old version above its replacement in some scenario.
-          const above: string[] = [];
-          for (const { mode, result, scenario } of await readAll(setup)) {
-            const ids = result.items.map((i) => i.id);
-            const asked = scenario === undefined ? [...SCENARIOS.keys()] : [scenario];
-            for (const s of asked) {
-              expect(ids, mode).toContain(oldId(s));
-              expect(ids, mode).toContain(newId(s));
-              if ((rankOf(result, oldId(s)) ?? 0) < (rankOf(result, newId(s)) ?? 0))
-                above.push(mode);
+            // Pinned as the plane behaves today (docs/log, the superseding
+            // lineage finding): lineage alone closes nothing, so every read
+            // admits both versions. The two match a title query alike, so a
+            // read through the store's search ranks them in the store's own
+            // hit order (relevance 1 - r/n, packages/core/src/plane/read.ts):
+            // for the fake, write order; for files and Letta, file name
+            // order, here id order; for Mem0, its embedding scores. Swapping
+            // the write order and the ids swaps the rank on the lexical
+            // stores. Without a store search, and on the core pipeline, the
+            // newer valid_from ranks the replacement first either way.
+            for (const { mode, result, scenario } of await readAll(setup)) {
+              const ids = result.items.map((i) => i.id);
+              const asked = scenario === undefined ? pairs : [pairs[scenario] as LineagePair];
+              for (const pair of asked) {
+                expect(ids, mode).toContain(pair.old.id);
+                expect(ids, mode).toContain(pair.replacement.id);
+              }
+              if (scenario === undefined) continue;
+              const pair = pairs[scenario] as LineagePair;
+              const planeOldFirst =
+                (rankOf(result, pair.old.id) ?? 0) < (rankOf(result, pair.replacement.id) ?? 0);
+              const title = (SCENARIOS[scenario] as (typeof SCENARIOS)[number]).title;
+              if (mode.startsWith("store search") && setup.adapter.search) {
+                const hits = (await setup.adapter.search(title, [SCOPE])).map((h) => h.id);
+                const storeOldFirst = hits.indexOf(pair.old.id) < hits.indexOf(pair.replacement.id);
+                expect(planeOldFirst, `${mode}: the plane follows the store's order`).toBe(
+                  storeOldFirst,
+                );
+                if (lexical) expect(storeOldFirst, mode).toBe(order === "old first");
+              } else {
+                expect(planeOldFirst, `${mode}: the replacement first`).toBe(false);
+              }
             }
-          }
-          if (setup.adapter.search) {
-            expect(above.filter((m) => m.startsWith("store search")).length).toBeGreaterThan(0);
-          } else {
-            expect(above).toEqual([]);
-          }
-        },
-        CELL_MS,
-      );
+          },
+          CELL_MS,
+        );
+      }
     }
 
     test(
