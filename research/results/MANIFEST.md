@@ -16,7 +16,7 @@ One row per results file. A results file exists only if `research/scripts/<scrip
 | research/results/h2-longmemeval-ttl.json | research/configs/h2-longmemeval-ttl.json | research/scripts/h2_longmemeval_ttl.py | 00c606e | 412941154b27162d6c55236c13ac6e609595d62c37010bb12eb842e43bde428a | none |
 | research/results/h2-longmemeval-cost.json | research/configs/h2-longmemeval-cost.json | research/scripts/h2_longmemeval_cost.py | 755c29d | 529b1450b56f154202543ad7aa045eee61e2c56cce5ed7c0169b934ec91a1cb8 | none |
 | research/results/h1-check-runs-cost.json | research/configs/h1-check-runs-cost.json | research/scripts/h1_check_runs_cost.py | 1347327 | fd5a250704aa3156632be4a83bf152e17e2f2f3bdc769ebde17890b215f4e41d | none |
-| research/results/h1-label-audit.json | research/configs/label-audit.json | research/scripts/label_audit_draw.py | 67ec4f7 | 92aef92a7c0a89f241b034e9823984e41a04adf4017243bbffb1304b029baad8 | none |
-| research/results/h2-label-audit-longmemeval.json | research/configs/label-audit-longmemeval.json | research/scripts/label_audit_draw.py | 67ec4f7 | a62a6313a32a787e503be2ae9d3cbb741b1584e679726cffd78b8aa1f5a583d4 | none |
-| research/results/h2-cost-table.json | research/configs/cost-table.json | research/scripts/cost_table.py | 79f7438 | 1d9b015f128d4f16bc3a13774e90abdc1c2beff449b75954269691a6d666f036 | none |
+| research/results/h1-label-audit.json | research/configs/label-audit.json | research/scripts/label_audit_draw.py | 19908e1 | 8d69b4e5a5871432ba0009bb560fd237606c743b73faadb41b16c55c1382b926 | none |
+| research/results/h2-label-audit-longmemeval.json | research/configs/label-audit-longmemeval.json | research/scripts/label_audit_draw.py | 19908e1 | 7bd9b9befb85ad96b4960cb093d78d8c8e69b51788f0020c2f813eb3049f096a | none |
+| research/results/h2-cost-table.json | research/configs/cost-table.json | research/scripts/cost_table.py | 19908e1 | 074d4fb068460e78916c215bebcbfe0f2ac637fa65eb0ba670da9d6063fec8c1 | none |
 | research/results/h2-frontier-axes.json | research/configs/frontier-axes.json | research/scripts/frontier_axes.py | 8c4db78 | 5f208b78489b78a2364edf8b2dc1a5d16a4baa8a3a4be5033b5d313debc4180f | none |
