@@ -194,9 +194,7 @@ async function main(): Promise<number> {
   mkdirSync(out, { recursive: true });
   const script = readTau2Script(config.script as string);
   if (values.record) rmSync(config.cassettes, { recursive: true, force: true });
-  const cache = values.record
-    ? fileCache(config.cassettes)
-    : readOnly(config.cassettes, recorded);
+  const cache = values.record ? fileCache(config.cassettes) : readOnly(config.cassettes, recorded);
   const upstreams = new Map<string, ReturnType<typeof scriptedTau2>>();
   const result = await runTau2({
     config,
