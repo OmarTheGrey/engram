@@ -23,3 +23,4 @@ One row per results file. A results file exists only if `research/scripts/<scrip
 | research/results/h1-crosswalk.json | research/configs/crosswalk.json | research/scripts/crosswalk.py | a0e7113 | e51bbc8567333f320e74cdcc4e6892a32a4d422ae53295d4849833e49ed957c0 | none |
 | research/results/h1-injection-screen.json | research/configs/injection-screen.json | research/scripts/injection_screen.py | 0ed347b4 | 3e35dd39db1ae69b49047678164434c8cf22b0f13c153ffca8e31da5a269b0a4 | none |
 | research/results/h2-perf-budget.json | research/configs/perf-budget.json | research/scripts/perf_budget.py | 0cab0dad | 0ebdd59c0d61bb2126725ba713b9c9c8c929785bef78e3da4b214828f5dbc254 | none |
+| research/results/h3-near-duplicate.json | research/configs/near-duplicate.json | research/scripts/near_duplicate.py | ed4e53c2 | 47823464002b3f94795bdb6ad7130b8a922aa30d7193cca128f5a76c4b094172 | none |
