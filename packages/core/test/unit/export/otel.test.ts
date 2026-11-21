@@ -58,7 +58,10 @@ function assertContentFree(event: MemoryEvent, extra: string[] = []) {
 }
 
 /** An item carrying the secret in its content, provenance, store key and a grant. */
-const secretItem = (n: number, over: Partial<MemoryItem> = {}): MemoryItem =>
+/** Overrides of a knowledge item (episodic or semantic), whose content is text. */
+type KnowledgeOver = Partial<Extract<MemoryItem, { class: "episodic" | "semantic" }>>;
+
+const secretItem = (n: number, over: KnowledgeOver = {}): MemoryItem =>
   item(n, {
     content: CONTENT,
     provenance: {
@@ -130,7 +133,7 @@ describe("acceptance (card E8.13): no span carries memory content", () => {
       content_guards: { injection_screen: "default" },
     });
     const { plane, db } = fresh(policy);
-    const mine = (n: number, over: Partial<MemoryItem> = {}) =>
+    const mine = (n: number, over: KnowledgeOver = {}) =>
       item(n, { content: `${CONTENT} (${n})`, provenance: secretItem(n).provenance, ...over });
 
     // write: allowed, denied (episodic is forbidden), and held by the injection screen.

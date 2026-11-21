@@ -85,7 +85,7 @@ export type DecisionSpan = z.infer<typeof DecisionSpanShape>;
 
 // The slots a template's place may hold: never free text.
 const N = String.raw`\d+(?:\.\d+)?`;
-const UUID = String.raw`[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}`;
+const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
 const alt = (values: readonly string[]) => `(?:${values.join("|")})`;
 const KIND = alt(ProvenanceKind.options);
 const CLASS = alt(MemoryClass.options);
@@ -97,7 +97,7 @@ const TIME = String.raw`\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z`;
 /** A store, rule or signal name. */
 const NAME = "[a-z0-9][a-z0-9-]*";
 /** A content guard's kind (card E2.9): `secret/<name>`, `pii/<name>` or `secret/gitleaks/<id>`. */
-const GUARD_KIND = String.raw`(?:secret|pii)(?:/[a-z0-9][a-z0-9-]*){1,2}`;
+const GUARD_KIND = "(?:secret|pii)(?:/[a-z0-9][a-z0-9-]*){1,2}";
 const ERROR_NAME = "[A-Z][A-Za-z]*";
 const TTL_SOURCE = "(?:the item's own ttl|the retention rule)";
 const HIT = String.raw`${NAME}/${NAME} \(weight ${N}, ${N} characters\)`;
