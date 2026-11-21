@@ -214,6 +214,8 @@ export const SupersedeResponse = z.strictObject({
   item_id: z.string(),
   head: SupersessionChain,
   proposals: z.array(SupersessionProposal),
+  /** The new version each accepted close sent to the write gate, in the order of `applied`. */
+  submitted: z.array(MemoryItem),
   applied: z.array(WriteResponse),
 });
 

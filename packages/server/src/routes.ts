@@ -272,10 +272,10 @@ export const ROUTES: readonly Route[] = [
         body.item_id,
         accessTime(db, at),
       );
+      const submitted = acceptedClosures(db, plan, body.accept ?? []);
       const applied = [];
-      for (const item of acceptedClosures(db, plan, body.accept ?? []))
-        applied.push(await workspace.plane.write(body.actor, item, at));
-      return { ...plan, applied };
+      for (const item of submitted) applied.push(await workspace.plane.write(body.actor, item, at));
+      return { ...plan, submitted, applied };
     },
   }),
   route<z.infer<typeof C.BypassRequest>>({

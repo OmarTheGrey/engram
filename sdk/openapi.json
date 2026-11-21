@@ -4335,6 +4335,12 @@
               "$ref": "#/components/schemas/SupersessionProposal"
             }
           },
+          "submitted": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MemoryItem"
+            }
+          },
           "applied": {
             "type": "array",
             "items": {
@@ -4346,6 +4352,7 @@
           "item_id",
           "head",
           "proposals",
+          "submitted",
           "applied"
         ],
         "additionalProperties": false

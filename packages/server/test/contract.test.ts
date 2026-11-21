@@ -240,6 +240,7 @@ describe("the routes, through the generated client, on the fake store", () => {
         valid_to: "2026-10-15T00:00:00.000Z",
       }),
     ]);
+    expect(body.submitted).toEqual([]);
     expect(body.applied).toEqual([]);
     expect(workspace.plane.events()).toHaveLength(before);
   });
@@ -249,7 +250,11 @@ describe("the routes, through the generated client, on the fake store", () => {
     const { data } = await client.POST("/api/v1/supersede", {
       body: { actor: owner, item_id: id(502), accept: [id(501)] },
     });
-    const [applied] = C.SupersedeResponse.parse(data).applied;
+    const body = C.SupersedeResponse.parse(data);
+    expect(body.submitted).toEqual([
+      expect.objectContaining({ id: id(501), version: 2, valid_to: "2026-10-15T00:00:00.000Z" }),
+    ]);
+    const [applied] = body.applied;
     expect(applied?.event).toMatchObject({
       op: "write",
       decision: "allow",
@@ -288,6 +293,7 @@ describe("the routes, through the generated client, on the fake store", () => {
       item_id: id(502),
       head: { ok: false, error: "unknown_id", chain: [] },
       proposals: [],
+      submitted: [],
       applied: [],
     });
   });

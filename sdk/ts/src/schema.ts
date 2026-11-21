@@ -892,6 +892,7 @@ export interface components {
             item_id: string;
             head: components["schemas"]["SupersessionChain"];
             proposals: components["schemas"]["SupersessionProposal"][];
+            submitted: components["schemas"]["MemoryItem"][];
             applied: components["schemas"]["WriteResponse"][];
         };
         ViewerResponse: {
