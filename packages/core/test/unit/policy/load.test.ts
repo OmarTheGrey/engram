@@ -285,3 +285,76 @@ describe("rejects lint ids and threshold keys outside the registry (D2, ADR 0008
     expect(parsePolicy(text, "test.yaml").lints.enabled).toEqual([...LINT_IDS]);
   });
 });
+
+// Card E2.8: the optional content_guards and trust blocks (ADRs 0039 and
+// 0040). Nothing reads them yet; the loader only accepts or rejects them.
+describe("the content_guards and trust blocks", () => {
+  // Inserted before `schema_version`, so content_guards is line 36.
+  const BLOCKS = [
+    "content_guards:",
+    "  secrets: block",
+    "  pii: review",
+    "  injection_screen: hardened",
+    "  max_content_bytes: 65536",
+    "trust:",
+    "  unattested_floor: on",
+    "  protect_trusted: off",
+    "",
+  ].join("\n");
+  const withBlocks = (blocks: string) =>
+    VALID.replace("schema_version: 1\n", `${blocks}schema_version: 1\n`);
+
+  test("a policy without them has neither key", () => {
+    const policy = parsePolicy(VALID, "test.yaml");
+    expect("content_guards" in policy).toBe(false);
+    expect("trust" in policy).toBe(false);
+  });
+
+  test("a policy with both blocks set parses, each value as written", () => {
+    const policy = parsePolicy(withBlocks(BLOCKS), "test.yaml");
+    expect(policy.content_guards).toEqual({
+      secrets: "block",
+      pii: "review",
+      injection_screen: "hardened",
+      max_content_bytes: 65536,
+    });
+    expect(policy.trust).toEqual({ unattested_floor: "on", protect_trusted: "off" });
+  });
+
+  test("every option may be left out of its block", () => {
+    const policy = parsePolicy(withBlocks("content_guards: {}\ntrust: {}\n"), "test.yaml");
+    expect(policy.content_guards).toEqual({});
+    expect(policy.trust).toEqual({});
+  });
+
+  test("an unknown value inside content_guards is reported at its line", () => {
+    const [p, ...rest] = problemsOf(
+      withBlocks(BLOCKS.replace("secrets: block", "secrets: redact")),
+    );
+    expect(rest).toEqual([]);
+    expect(p).toMatchObject({ path: ["content_guards", "secrets"], line: 37 });
+  });
+
+  test("an unknown value inside trust is reported at its line", () => {
+    const text = withBlocks(BLOCKS.replace("protect_trusted: off", "protect_trusted: maybe"));
+    const [p, ...rest] = problemsOf(text);
+    expect(rest).toEqual([]);
+    expect(p).toMatchObject({ path: ["trust", "protect_trusted"], line: 43 });
+  });
+
+  test("an unknown option inside a block is reported at its key", () => {
+    const text = withBlocks(BLOCKS.replace("  pii: review", "  pii: review\n  pan: block"));
+    const [p, ...rest] = problemsOf(text);
+    expect(rest).toEqual([]);
+    expect(p?.path).toEqual(["content_guards"]);
+    expect(p?.message).toMatch(/pan/);
+    expect(p?.line).toBe(39);
+  });
+
+  test("a size limit that is not a positive integer is rejected", () => {
+    for (const bad of ["0", "-1", "1.5", "null"]) {
+      const [p] = problemsOf(withBlocks(BLOCKS.replace("65536", bad)));
+      expect(p?.path, bad).toEqual(["content_guards", "max_content_bytes"]);
+    }
+  });
+});

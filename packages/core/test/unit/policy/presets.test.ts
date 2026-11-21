@@ -1,6 +1,7 @@
 // Acceptance for card E2.1: the three bundled presets load, and their
 // strictness is ordered. Stances are checked through the invariant oracles
 // (test/property/oracle.ts), the same reading of a policy the invariants use.
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { describe, expect, test } from "vitest";
 import { LINT_IDS, LINT_THRESHOLD_KEYS } from "../../../src/lint.ts";
@@ -288,4 +289,24 @@ test("the presets differ: strict forbids a write that permissive admits", () => 
 
 test("loadPreset refuses a name that is not a bundled preset", () => {
   expect(() => loadPreset("../schema" as PresetName)).toThrow(/unknown preset/);
+});
+
+// Card E2.8 (ADR 0002's amendment of 2026-11-21): the policy's optional
+// content_guards and trust blocks (ADRs 0039 and 0040) have no default, so a
+// preset without them parses to the object it parsed to before. C3 and C4
+// embed that object in their prompts and the cassette key hashes the prompt,
+// so a moved hash here would move their committed cassette keys. The hashes
+// were taken on main before the change.
+describe("card E2.8: each registered preset parses and serialises byte for byte as before", () => {
+  const BEFORE: Record<PresetName, string> = {
+    strict: "dda81773bc1e010da0831d947515e6d0b76e90e402ee26235bb2375104aa10b6",
+    medium: "d6da16ae501dbb7ac29038e65f13a066606093e18428a78a2fe96907ff5855f0",
+    permissive: "d2349a547842d245d82a04aa4a6babb709bec7f6f2470e7caee8785097501c23",
+  };
+  test.each(PRESETS)("%s", (name) => {
+    const policy = loadPreset(name);
+    expect(createHash("sha256").update(JSON.stringify(policy)).digest("hex")).toBe(BEFORE[name]);
+    expect("content_guards" in policy).toBe(false);
+    expect("trust" in policy).toBe(false);
+  });
 });
