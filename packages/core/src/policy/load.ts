@@ -81,7 +81,8 @@ export function parsePolicy(text: string, source: string): Policy {
     throw new PolicyError(source, [{ message, path: [], ...at(offset) }]);
   }
   const parsed = Policy.safeParse(js);
-  if (!parsed.success) throw fail(parsed.error.issues.flatMap((issue) => schemaProblems(issue)));
+  if (!parsed.success)
+    throw fail(parsed.error.issues.flatMap((issue) => schemaProblems(issue, js)));
   const semantic = semanticProblems(parsed.data);
   if (semantic.length > 0) throw fail(semantic);
   return parsed.data;
@@ -112,12 +113,42 @@ interface Located {
   atKey?: boolean;
 }
 
-function schemaProblems(issue: z.core.$ZodIssue): Located[] {
+function schemaProblems(issue: z.core.$ZodIssue, js: unknown): Located[] {
   const path = issue.path.filter((s): s is string | number => typeof s !== "symbol");
   if (issue.code === "unrecognized_keys")
     return issue.keys.map((key) => ({ path, key, message: `unknown field "${key}"` }));
+  // A YAML 1.1 document reads an unquoted on or off as a boolean (card E2.8).
+  const value = path.reduce<unknown>(
+    (node, seg) => (node !== null && typeof node === "object" ? (node as never)[seg] : undefined),
+    js,
+  );
+  if (OPTION_BLOCKS.includes(String(path[0])) && typeof value === "boolean")
+    return [
+      {
+        path,
+        message: `${issue.message}; quote the value: YAML 1.1 reads an unquoted on, off, yes or no as a boolean`,
+      },
+    ];
   return [{ path, message: issue.message }];
 }
+
+/**
+ * The options of the policy's content_guards and trust blocks (card E2.8,
+ * ADRs 0039 and 0040) that nothing enforces yet, each with the card that will
+ * enforce it. Until then the loader refuses any value but `off`, so a policy
+ * never sets a guard the plane silently ignores. Each card deletes its own
+ * entries when it lands.
+ */
+const NOT_ENFORCED_YET = {
+  content_guards: {
+    secrets: "E2.9",
+    pii: "E2.9",
+    injection_screen: "E2.10",
+    max_content_bytes: "E2.9",
+  },
+  trust: { unattested_floor: "E2.11", protect_trusted: "E2.11" },
+} as const;
+const OPTION_BLOCKS: readonly string[] = Object.keys(NOT_ENFORCED_YET);
 
 /**
  * Checks the schema cannot express. The evaluator looks a rule up by scope
@@ -203,6 +234,19 @@ function semanticProblems(policy: Policy): Located[] {
         key,
         message: `unknown threshold key "${key}"; expected one of ${LINT_THRESHOLD_KEYS.join(", ")}`,
       });
+  for (const [block, options] of Object.entries(NOT_ENFORCED_YET)) {
+    const set: Record<string, unknown> | undefined = policy[block as keyof typeof NOT_ENFORCED_YET];
+    for (const [option, card] of Object.entries(options)) {
+      const value = set?.[option];
+      if (value === undefined || value === "off") continue;
+      const until =
+        option === "max_content_bytes" ? "leave it out" : 'set it to "off" or leave it out';
+      out.push({
+        path: [block, option],
+        message: `${block}.${option} is not enforced yet: card ${card} enforces it; until then ${until}`,
+      });
+    }
+  }
   const { replay_k, replay_n } = policy.promotion.procedural;
   if (replay_k > replay_n)
     out.push({
