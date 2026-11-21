@@ -1,0 +1,28 @@
+{
+  "name": "b11-tau2-fixture",
+  "kind": "pipeline",
+  "benchmark": "tau2",
+  "pin": {
+    "repository": "https://github.com/sierra-research/tau2-bench",
+    "tag": "v1.0.1",
+    "commit": "fc0055dc4e0a316c3f83133267fbd6faaa770992"
+  },
+  "domain": "airline",
+  "split": "test",
+  "tasks": ["6", "19", "16"],
+  "conditions": ["C1", "C2", "C5"],
+  "seeds": [1],
+  "preset": "medium",
+  "store": "files",
+  "read_limit": 20,
+  "agent_model": "scripted/tau2-agent",
+  "user_model": "scripted/tau2-user",
+  "temperature": 0,
+  "max_steps": 30,
+  "max_errors": 10,
+  "timeout_s": 1800,
+  "memory_time": "2024-05-15T15:00:00Z",
+  "script": "../../fixtures/tau2/script.json",
+  "cassettes": "../../fixtures/cassettes/b11-tau2-fixture",
+  "expected": "../../fixtures/tau2/expected-results.jsonl"
+}

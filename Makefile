@@ -73,7 +73,7 @@ BENCH_OUT ?= .engram/bench/$(BENCH)
 
 GATEMEM_DATA ?= .engram/upstream/gatemem/bench/data
 
-bench: ## run one benchmark on its fixture subset with the scripted model, offline: make bench BENCH=gatemem, BENCH=longmemeval or BENCH=merit (MERIT's pinned harness through the cassette proxy and the plane; fetches the checkout and installs its Python 3.11 environment under .engram/ once); DRY=1 (gatemem) counts the live run's calls on the full set, and its keys with MODEL=
+bench: ## run one benchmark on its fixture subset with the scripted model, offline: make bench BENCH=gatemem, BENCH=longmemeval, BENCH=merit (MERIT's pinned harness through the cassette proxy and the plane; fetches the checkout and installs its Python 3.11 environment under .engram/ once) or BENCH=tau2 (tau2-bench at its pin in its own environment under .engram, fetched once, its agent and user-simulator calls replayed through the cassette proxy, card B11); DRY=1 (gatemem) counts the live run's calls on the full set, and its keys with MODEL=
 ifeq ($(BENCH),gatemem)
 ifeq ($(DRY),1)
 	node packages/bench/scripts/dry-run-gatemem.ts --config fixtures/bench/gatemem/run-config.json --data "$(GATEMEM_DATA)" --fetch --out "$(BENCH_OUT)-dry" $(if $(MODEL),--model "$(MODEL)") $(if $(SEED),--seed "$(SEED)")
@@ -85,8 +85,11 @@ else ifeq ($(BENCH),longmemeval)
 else ifeq ($(BENCH),merit)
 	env -u ENGRAM_OFFLINE node packages/bench/scripts/run-merit.ts --prepare
 	ENGRAM_OFFLINE=1 node packages/bench/scripts/run-merit.ts --config research/configs/b7-merit-fixture.json --out "$(BENCH_OUT)"
+else ifeq ($(BENCH),tau2)
+	node packages/bench/scripts/run-tau2.ts --setup
+	ENGRAM_OFFLINE=1 node packages/bench/scripts/run-tau2.ts --config research/configs/b11-tau2-fixture.json --out "$(BENCH_OUT)"
 else
-	@echo "bench: BENCH=$(BENCH) has no runner; gatemem (card B1), longmemeval (card B5) and merit (card B7) exist, the others land with cards B2 to B9"; exit 2
+	@echo "bench: BENCH=$(BENCH) has no runner; gatemem (card B1), longmemeval (card B5), merit (card B7) and tau2 (card B11) exist, the others land with cards B2 to B9"; exit 2
 endif
 
 RUN_OUT ?= .engram/runs/$(basename $(notdir $(CONFIG)))
@@ -137,6 +140,8 @@ fixtures: ## regenerate golden files and scripted cassettes; refuses without MSG
 	rm -rf fixtures/sessions/d1 && node packages/runner/scripts/session-fixtures.ts --seed 1 --out fixtures/sessions/d1
 	ENGRAM_UPDATE_FIXTURES=1 $(PNPM) --filter pi-extension exec vitest run test/interception.test.ts test/retention.test.ts
 	env -u ENGRAM_OFFLINE node packages/bench/scripts/run-gatemem.ts --config fixtures/bench/gatemem/run-config.json --out .engram/bench/gatemem-record --record
+	env -u ENGRAM_OFFLINE ENGRAM_UPDATE_FIXTURES=1 node packages/bench/scripts/run-tau2.ts --setup
+	env -u ENGRAM_OFFLINE ENGRAM_UPDATE_FIXTURES=1 node packages/bench/scripts/run-tau2.ts --config research/configs/b11-tau2-fixture.json --out .engram/bench/tau2-record --record
 	$(UV) run python -I packages/bench/scripts/vendor-mem-inv-bench.py --upstream "$(MEM_INV_UPSTREAM)" --fetch --out fixtures/bench/mem-inv-bench
 	$(UV) run python -I packages/bench/scripts/upstream-mem-inv-golden.py --upstream "$(MEM_INV_UPSTREAM)" --fixtures fixtures/bench/mem-inv-bench --out fixtures/bench/mem-inv-bench/upstream-golden.json
 	env -u ENGRAM_OFFLINE node packages/bench/scripts/vendor-longmemeval.ts --upstream "$(LONGMEMEVAL_UPSTREAM)" --fetch --out fixtures/bench/longmemeval
