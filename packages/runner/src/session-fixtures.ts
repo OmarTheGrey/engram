@@ -330,6 +330,21 @@ function session(
   }
   const rounds = 1 + Math.floor(rand() * 3);
   for (let i = 0; i < rounds; i++) toolRound(false);
+  const compacted = rand() < 0.15;
+  if (compacted) {
+    const kept = leaf as string;
+    append(
+      (base): CompactionEntry => ({
+        type: "compaction",
+        ...base,
+        summary: `The agent read ${task.files.join(" and ")} while working on: ${task.prompt}`,
+        firstKeptEntryId: kept,
+        tokensBefore: 1000 + Math.floor(rand() * 9000),
+      }),
+    );
+  }
+  // The recovery comes last before the final answer, so its retry follows
+  // its compaction directly, as pi writes it.
   // pi's recovery after a length cut, in pi's order (docs/compaction.md
   // "Overflow and Length Recovery Ordering"; agent-session.js
   // `_omitRecoveryAttempt` then `_runAutoCompaction("overflow", true)`): the
@@ -357,19 +372,6 @@ function session(
         summary: `Before a response hit its length limit the agent was working on: ${task.prompt}`,
         firstKeptEntryId: beforeCut,
         tokensBefore: 20000 + Math.floor(rand() * 10000),
-      }),
-    );
-  }
-  const compacted = rand() < 0.15;
-  if (compacted) {
-    const kept = leaf as string;
-    append(
-      (base): CompactionEntry => ({
-        type: "compaction",
-        ...base,
-        summary: `The agent read ${task.files.join(" and ")} while working on: ${task.prompt}`,
-        firstKeptEntryId: kept,
-        tokensBefore: 1000 + Math.floor(rand() * 9000),
       }),
     );
   }

@@ -53,6 +53,32 @@ describe("the generator", () => {
   });
 });
 
+test("each recovered fixture runs pi's order: length cut, omit edit, compaction, retry", () => {
+  const set = sessionFixtures(SESSION_FIXTURE_SEED, SESSION_FIXTURE_COUNT);
+  for (const s of set.index.sessions) {
+    const entries = parseSessionJsonl(read(s.file)).entries;
+    const cuts = entries.flatMap((e, i) =>
+      e.type === "message" && (e.message as { stopReason?: string }).stopReason === "length"
+        ? [i]
+        : [],
+    );
+    expect(cuts, s.file).toHaveLength(s.recovered ? 1 : 0);
+    if (!s.recovered) continue;
+    const i = cuts[0] as number;
+    const [cut, edit, compaction, retry] = entries.slice(i, i + 4);
+    expect(edit, s.file).toMatchObject({
+      type: "context_edit",
+      parentId: cut?.id,
+      targetId: cut?.id,
+      replacement: null,
+    });
+    expect(compaction, s.file).toMatchObject({ type: "compaction", parentId: edit?.id });
+    expect(retry?.type, s.file).toBe("message");
+    expect(retry?.parentId, s.file).toBe(compaction?.id);
+    expect((retry?.message as { role?: string } | undefined)?.role, s.file).toBe("assistant");
+  }
+});
+
 const leaves = (nodes: SessionTreeNode[]): string[] =>
   nodes.flatMap((n) => (n.children.length === 0 ? [n.entry.id] : leaves(n.children)));
 
