@@ -23,7 +23,9 @@ export const BYPASS_RESULT_ID = "engram/bypass/foreign-result";
 /** How long the attempt kept in a reason may be, marker included. */
 export const MAX_ATTEMPT_LENGTH = 160;
 
-const REDACTED = "<redacted>";
+/** What replaces a secret the table matches. */
+export const REDACTED_SECRET = "<redacted>";
+const REDACTED = REDACTED_SECRET;
 const SECRET_NAME =
   "[A-Za-z0-9_]*(?:KEY|TOKEN|SECRET|PASSWORD|PASSWD|PWD|AUTH|CREDENTIALS?)[A-Za-z0-9_]*";
 const VALUE = `(?:'[^']*'|"[^"]*"|\\S+)`;
@@ -49,10 +51,28 @@ const SECRETS: [RegExp, string][] = [
   [/\b[A-Za-z0-9_-]{32,}\b/g, REDACTED],
 ];
 
+/**
+ * `text` with every match of the secret table replaced by `<redacted>`, its
+ * lines and length otherwise kept. The session recorder's scrub runs it too
+ * (card D1, distill/scrub.ts).
+ */
+export function redactSecrets(text: string): string {
+  let kept = text;
+  for (const [pattern, replacement] of SECRETS) kept = kept.replace(pattern, replacement);
+  return kept;
+}
+
+/**
+ * Whether a name (an environment variable's, an argument's) says it holds a
+ * secret, as the table's first rule reads it; a hyphen counts as an underscore.
+ */
+export function isSecretName(name: string): boolean {
+  return new RegExp(`^${SECRET_NAME}$`, "i").test(name.replaceAll("-", "_"));
+}
+
 /** What a bypass event's reason keeps of an attempt: one line, secrets removed, cut to MAX_ATTEMPT_LENGTH. */
 export function bypassAttempt(command: string): string {
-  let kept = command.replace(/\s*[\r\n]+\s*/g, " ").trim();
-  for (const [pattern, replacement] of SECRETS) kept = kept.replace(pattern, replacement);
+  const kept = redactSecrets(command.replace(/\s*[\r\n]+\s*/g, " ").trim());
   return kept.length <= MAX_ATTEMPT_LENGTH ? kept : `${kept.slice(0, MAX_ATTEMPT_LENGTH - 3)}...`;
 }
 
