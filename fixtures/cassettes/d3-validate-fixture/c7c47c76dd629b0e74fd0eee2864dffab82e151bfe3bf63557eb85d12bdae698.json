@@ -1,0 +1,47 @@
+{
+  "key": "c7c47c76dd629b0e74fd0eee2864dffab82e151bfe3bf63557eb85d12bdae698",
+  "context": {
+    "item": "synthetic/rename-symbol-11",
+    "condition": "replay/with/call-read-then-read",
+    "preset": "none",
+    "store": "none"
+  },
+  "request": {
+    "model": "scripted/d3-agent",
+    "messages": [
+      {
+        "role": "user",
+        "content": "{\"content\":\"\",\"role\":\"system\",\"sections\":{\"addendum\":\"<addendum>\\n<procedure tools=\\\"read\\\">\\nFollow this procedure when it applies to the task.\\n---\\nname: call-read-then-read\\ndescription: \\\"Call read, then read, in this order: the run of tool calls found on the most successful sessions, 6 of 10. Use when a task resembles the sessions it was induced from.\\\"\\nallowed-tools: \\\"read\\\"\\nmetadata:\\n  engram-item: \\\"01920000-0000-7000-8000-000000000007\\\"\\n---\\n\\n# Call read, then read\\n\\nCall read, then read, in this order: the run of tool calls found on the most successful sessions, 6 of 10. Use when a task resembles the sessions it was induced from.\\n\\n## Steps\\n\\n1. Call `read`, as one session did:\\n\\n   ```\\n   read({{\\\"path\\\":\\\"src/load.ts\\\"}})\\n   ```\\n\\n2. Call `read`, as one session did:\\n\\n   ```\\n   read({{\\\"path\\\":\\\"src/load.ts\\\"}})\\n   ```\\n</procedure>\\n</addendum>\",\"cwd\":\"<cwd>\\n{cwd}\\n</cwd>\",\"preamble\":\"You are a coding agent in a small TypeScript repository. Change it only through the tools you are given, then reply in one short message.\"},\"toolsAdded\":[{\"description\":\"Read a file of the repository.\",\"name\":\"read\",\"parameters\":{\"properties\":{\"path\":{\"type\":\"string\"}},\"required\":[\"path\"],\"type\":\"object\"}},{\"description\":\"Replace the first occurrence of `old` with `new` in a file.\",\"name\":\"edit\",\"parameters\":{\"properties\":{\"new\":{\"type\":\"string\"},\"old\":{\"type\":\"string\"},\"path\":{\"type\":\"string\"}},\"required\":[\"path\",\"old\",\"new\"],\"type\":\"object\"}},{\"description\":\"Run a shell command in the repository.\",\"name\":\"bash\",\"parameters\":{\"properties\":{\"command\":{\"type\":\"string\"}},\"required\":[\"command\"],\"type\":\"object\"}}]}"
+      },
+      {
+        "role": "user",
+        "content": "{\"content\":[{\"text\":\"Rename parseRow to parseRecord everywhere.\",\"type\":\"text\"}],\"role\":\"user\"}"
+      },
+      {
+        "role": "assistant",
+        "content": "{\"content\":[{\"arguments\":{\"path\":\"src/load.ts\"},\"id\":\"call_60\",\"name\":\"read\",\"type\":\"toolCall\"}],\"role\":\"assistant\"}"
+      },
+      {
+        "role": "user",
+        "content": "{\"content\":[{\"text\":\"import {{ parseRow }} from \\\"./rows\\\";\\nexport const load = (lines: string[]) => lines.map(parseRow);\\n\",\"type\":\"text\"}],\"isError\":false,\"role\":\"toolResult\",\"toolCallId\":\"call_60\",\"toolName\":\"read\"}"
+      },
+      {
+        "role": "assistant",
+        "content": "{\"content\":[{\"arguments\":{\"path\":\"src/load.ts\"},\"id\":\"call_61\",\"name\":\"read\",\"type\":\"toolCall\"}],\"role\":\"assistant\"}"
+      },
+      {
+        "role": "user",
+        "content": "{\"content\":[{\"text\":\"import {{ parseRow }} from \\\"./rows\\\";\\nexport const load = (lines: string[]) => lines.map(parseRow);\\n\",\"type\":\"text\"}],\"isError\":false,\"role\":\"toolResult\",\"toolCallId\":\"call_61\",\"toolName\":\"read\"}"
+      }
+    ],
+    "seed": 1
+  },
+  "response": {
+    "text": "{\"content\":[{\"arguments\":{\"new\":\"function parseRecord(\",\"old\":\"function parseRow(\",\"path\":\"src/rows.ts\"},\"id\":\"call_62\",\"name\":\"edit\",\"type\":\"toolCall\"}],\"stopReason\":\"toolUse\"}",
+    "usage": {
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "cost_usd": 0
+    }
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "key": "bc2e4ebc8a0897a24288b36501593ac7316908b9e7dc71200eda0c13c11f3736",
+  "context": {
+    "item": "synthetic/bump-timeout-16",
+    "condition": "replay/without",
+    "preset": "none",
+    "store": "none"
+  },
+  "request": {
+    "model": "scripted/d3-agent",
+    "messages": [
+      {
+        "role": "user",
+        "content": "{\"content\":\"\",\"role\":\"system\",\"sections\":{\"cwd\":\"<cwd>\\n{cwd}\\n</cwd>\",\"preamble\":\"You are a coding agent in a small TypeScript repository. Change it only through the tools you are given, then reply in one short message.\"},\"toolsAdded\":[{\"description\":\"Read a file of the repository.\",\"name\":\"read\",\"parameters\":{\"properties\":{\"path\":{\"type\":\"string\"}},\"required\":[\"path\"],\"type\":\"object\"}},{\"description\":\"Replace the first occurrence of `old` with `new` in a file.\",\"name\":\"edit\",\"parameters\":{\"properties\":{\"new\":{\"type\":\"string\"},\"old\":{\"type\":\"string\"},\"path\":{\"type\":\"string\"}},\"required\":[\"path\",\"old\",\"new\"],\"type\":\"object\"}},{\"description\":\"Run a shell command in the repository.\",\"name\":\"bash\",\"parameters\":{\"properties\":{\"command\":{\"type\":\"string\"}},\"required\":[\"command\"],\"type\":\"object\"}}]}"
+      },
+      {
+        "role": "user",
+        "content": "{\"content\":[{\"text\":\"Raise the fetch timeout from 5 to 10 seconds.\",\"type\":\"text\"}],\"role\":\"user\"}"
+      }
+    ],
+    "seed": 1
+  },
+  "response": {
+    "text": "{\"content\":[{\"arguments\":{\"new\":\"timeout: 10\",\"old\":\"timeout: 5\",\"path\":\"src/fetch.ts\"},\"id\":\"call_9\",\"name\":\"edit\",\"type\":\"toolCall\"}],\"stopReason\":\"toolUse\"}",
+    "usage": {
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "cost_usd": 0
+    }
+  }
+}
