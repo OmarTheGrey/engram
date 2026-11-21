@@ -80,10 +80,58 @@ export const meritPython = (envDir: string) =>
     : join(envDir, "bin", "python");
 
 /**
+ * What the lock file does not list and pip adds on Windows for `click`,
+ * `pytest` and `tqdm` (finding B7-8): pinned by a constraints file, so the
+ * environment holds exact versions on every platform.
+ */
+export const MERIT_PLATFORM_PINS: readonly { requirement: string; platform: NodeJS.Platform }[] = [
+  { requirement: "colorama==0.4.6", platform: "win32" },
+];
+
+/** A `name==version` line as pip and uv print it, with the name normalised (PEP 503). */
+const normalise = (line: string) => {
+  const [name, version] = line.trim().split("==");
+  return `${(name ?? "").toLowerCase().replace(/[-_.]+/g, "-")}==${version ?? ""}`;
+};
+
+/** This platform's pins. */
+const platformPins = (platform: NodeJS.Platform) =>
+  MERIT_PLATFORM_PINS.filter((p) => p.platform === platform).map((p) => p.requirement);
+
+/** The packages the environment must hold, exactly: the lock file's, and this platform's pins. */
+export function expectedPackages(lockText: string, platform: NodeJS.Platform): string[] {
+  const lines = lockText
+    .split("\n")
+    .map((l) => l.replace(/#.*/, "").trim())
+    .filter((l) => l !== "");
+  return [...new Set([...lines, ...platformPins(platform)].map(normalise))].sort();
+}
+
+/** What `uv pip freeze` lists differs from `expected`: the lines missing and the lines extra. */
+export function packageDrift(freeze: string, expected: readonly string[]) {
+  const have = new Set(
+    freeze
+      .split("\n")
+      .map((l) => l.trim())
+      .filter((l) => l !== "" && !l.startsWith("#"))
+      .map(normalise),
+  );
+  const want = new Set(expected);
+  return {
+    missing: [...want].filter((p) => !have.has(p)).sort(),
+    extra: [...have].filter((p) => !want.has(p)).sort(),
+  };
+}
+
+const describeDrift = (d: { missing: string[]; extra: string[] }) =>
+  `missing ${d.missing.join(", ") || "none"}; extra ${d.extra.join(", ") || "none"}`;
+
+/**
  * MERIT's own environment: a uv virtual environment on Python 3.11 with the
- * checkout's requirements-lock.txt installed (with what each package needs
- * on this platform, as pip does). Reused while its marker names the same
- * Python and lock file; created or refreshed otherwise.
+ * checkout's requirements-lock.txt installed, constrained by the platform
+ * pins. Reused while its marker names the same Python and lock file and
+ * what is installed is exactly the lock's packages and the pins (checked
+ * with `uv pip freeze` every time); created or refreshed otherwise.
  */
 export function ensureMeritEnv(
   envDir: string,
@@ -93,25 +141,43 @@ export function ensureMeritEnv(
   const env = options.env ?? process.env;
   const uv = options.uv ?? env.UV ?? "uv";
   const lock = join(checkout, MERIT_PIN.requirements);
+  const lockText = readFileSync(lock, "utf8");
+  const expected = expectedPackages(lockText, process.platform);
   const want = {
     python: MERIT_PIN.python,
     requirements_sha256: createHash("sha256").update(readFileSync(lock)).digest("hex"),
+    platform_pins: platformPins(process.platform),
   };
   const python = meritPython(envDir);
   const marker = join(envDir, MARKER);
+  const freeze = () => run(uv, ["pip", "freeze", "--no-config", "--python", python]);
+  let stale = "missing";
   if (existsSync(python) && existsSync(marker)) {
-    const have = JSON.parse(readFileSync(marker, "utf8")) as typeof want;
-    if (have.python === want.python && have.requirements_sha256 === want.requirements_sha256) {
+    const have = JSON.parse(readFileSync(marker, "utf8")) as Partial<typeof want>;
+    const drift = packageDrift(freeze(), expected);
+    if (have.python !== want.python || have.requirements_sha256 !== want.requirements_sha256) {
+      stale = "installed from another Python or lock file";
+    } else if (drift.missing.length > 0 || drift.extra.length > 0) {
+      stale = `not the lock's packages (${describeDrift(drift)})`;
+    } else {
       return python;
     }
   }
   if (offline(env)) {
     throw new MeritSetupError(
-      `MERIT's environment at ${envDir} is missing or stale, and ENGRAM_OFFLINE=1 forbids installing it; run make bench BENCH=merit`,
+      `MERIT's environment at ${envDir} is ${stale}, and ENGRAM_OFFLINE=1 forbids installing it; run make bench BENCH=merit`,
     );
   }
   run(uv, ["venv", "--no-project", "--no-config", "--clear", "--python", MERIT_PIN.python, envDir]);
-  run(uv, ["pip", "install", "--no-config", "--python", python, "-r", lock]);
+  const constraints = join(envDir, "engram-constraints.txt");
+  writeFileSync(constraints, `${want.platform_pins.join("\n")}\n`);
+  run(uv, ["pip", "install", "--no-config", "--python", python, "-r", lock, "-c", constraints]);
+  const drift = packageDrift(freeze(), expected);
+  if (drift.missing.length > 0 || drift.extra.length > 0) {
+    throw new MeritSetupError(
+      `MERIT's environment installed other packages than the lock's (${describeDrift(drift)})`,
+    );
+  }
   writeFileSync(marker, `${JSON.stringify(want, null, 2)}\n`);
   return python;
 }
