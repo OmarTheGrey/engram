@@ -1,7 +1,9 @@
 // The crash windows of the store-then-log commits (card E1.4, ADR 0007's
 // amendment of 2026-11-19, plane/commit.ts): one case per window between
 // "the store was written" (or a record deleted) and "the event was
-// appended", in the write path (Plane.write and Plane.changeGrants), the
+// appended", in the write path (Plane.write and Plane.changeGrants, their
+// first commit and, after a conflict with another connection's commit,
+// their settling's write-back: W7 and G3), the
 // offboarding (handover, erasure, sweep, report) and the adapter-delete
 // paths (adoption's purge, a stale writer's settling). Each case stops one
 // handle at a named failpoint (test/helpers/failpoint.ts, ported from
@@ -454,6 +456,119 @@ forEachBackend((backend) => {
       ]);
       expect((await h.plane.read(sam, { at: LATER })).items).toEqual([]);
     });
+
+    test("G4 (finding E14-F1): a store that fails after persisting a grant change leaves one store-failure deny, and the store keeps the grant the log never recorded", async () => {
+      const w = world(backend);
+      const v1 = await seed(w.first, person(1));
+      w.first.fp.arm("store.write:after", { raise: 1 });
+      await expect(w.first.plane.changeGrants(dana, id(1), { add: [toSam] }, AT)).rejects.toThrow(
+        FailpointError,
+      );
+      const h = w.next();
+      expect(allowedFor(w, id(1))).toHaveLength(1);
+      expect(eventsByItem(w.log, id(1)).at(-1)?.policy_id).toBe("engram/write/store-failure");
+      expect((await h.plane.read(sam, { at: LATER })).items).toEqual([]);
+      const adopted = await recovers(w, h, { grantsLeft: [id(1)] });
+      expect(adopted.map((e) => [e.decision, e.item?.grants.length ?? null])).toEqual([
+        ["allow", 0],
+      ]);
+      expect((await h.plane.read(sam, { at: LATER })).items).toEqual([]);
+      // E14-F1 without a kill: the live handle's failure leaves the same record behind.
+      expect((await w.store.read(v1.store_ref as StoreRef))?.grants).toEqual([toSam]);
+    });
+
+    // A stale writer puts the store back as the log has it (plane/commit.ts,
+    // settle, step 4) before it appends its conflict deny. Killed before
+    // that write-back, it leaves its own refused bytes over the committed
+    // version, and the next adoption records them as the owner's import:
+    // the plane's own recovery undoes a committed decision (finding E14-F5).
+    // Killed after it, the store already holds the committed version.
+    for (const point of ["store.write:before", "store.write:after"] as const) {
+      const pinned = point === "store.write:before";
+      const label = pinned ? "W7 (finding E14-F5)" : "W7b";
+      test(`${label}: a stale rewrite killed at its settling's ${point}, after another connection's rewrite committed`, async () => {
+        const w = world(backend);
+        const v1 = await seed(w.first, person(1, { content: "Dana's first note." }));
+        const held = w.first.fp.arm(
+          "store.write:before",
+          "pause",
+          (hit) => hit.item?.content === "A's refused text.",
+        );
+        const pending = w.first.plane.write(
+          dana,
+          { ...v1, version: 2, content: "A's refused text.", store_ref: null } as MemoryItem,
+          AT,
+        );
+        await held.arrived;
+        const b = await w
+          .next()
+          .plane.write(
+            dana,
+            { ...v1, version: 2, content: "B's committed text.", store_ref: null } as MemoryItem,
+            AT,
+          );
+        expect(b.event.decision).toBe("allow");
+        w.first.fp.arm(point, "crash", (hit) => hit.item?.content === "B's committed text.");
+        held.release();
+        await expect(pending).rejects.toThrow(Crashed);
+        const h = w.next();
+        expect(itemById(w.log, id(1))?.content).toBe("B's committed text.");
+        expect((await w.store.read(v1.store_ref as StoreRef))?.content).toBe(
+          pinned ? "A's refused text." : "B's committed text.",
+        );
+        const adopted = await recovers(w, h);
+        if (!pinned) {
+          expect(adopted).toEqual([]);
+          return;
+        }
+        // E14-F5, as it stands today: the refused text replaces the committed one, as import.
+        expect(
+          adopted.map((e) => `${e.decision} ${e.item?.provenance.kind} ${e.item?.content}`),
+        ).toEqual(["allow import A's refused text."]);
+        expect(itemById(w.log, id(1))?.content).toBe("A's refused text.");
+      });
+    }
+
+    for (const point of ["store.write:before", "store.write:after"] as const) {
+      const pinned = point === "store.write:before";
+      const label = pinned ? "G3 (finding E14-F5)" : "G3b";
+      test(`${label}: a stale grant change killed at its settling's ${point}, after another connection's rewrite committed`, async () => {
+        const w = world(backend);
+        const v1 = await seed(w.first, person(1, { content: "Dana's first note." }));
+        const held = w.first.fp.arm(
+          "store.write:before",
+          "pause",
+          (hit) => (hit.item?.grants.length ?? 0) > 0,
+        );
+        const pending = w.first.plane.changeGrants(dana, id(1), { add: [toSam] }, AT);
+        await held.arrived;
+        const b = await w
+          .next()
+          .plane.write(
+            dana,
+            { ...v1, version: 2, content: "B's committed text.", store_ref: null } as MemoryItem,
+            AT,
+          );
+        expect(b.event.decision).toBe("allow");
+        w.first.fp.arm(point, "crash", (hit) => hit.item?.content === "B's committed text.");
+        held.release();
+        await expect(pending).rejects.toThrow(Crashed);
+        const h = w.next();
+        const record = await w.store.read(v1.store_ref as StoreRef);
+        expect(record?.content).toBe(pinned ? "Dana's first note." : "B's committed text.");
+        const adopted = await recovers(w, h, { grantsLeft: pinned ? [id(1)] : [] });
+        expect((await h.plane.read(sam, { at: LATER })).items).toEqual([]);
+        if (!pinned) {
+          expect(adopted).toEqual([]);
+          return;
+        }
+        // E14-F5, as it stands today: the old content comes back over B's rewrite, as import; the grant is dropped (E14-F1).
+        expect(
+          adopted.map((e) => `${e.decision} ${e.item?.provenance.kind} ${e.item?.content}`),
+        ).toEqual(["allow import Dana's first note."]);
+        expect(itemById(w.log, id(1))?.content).toBe("Dana's first note.");
+      });
+    }
   });
 
   describe("crash windows of the offboarding", () => {

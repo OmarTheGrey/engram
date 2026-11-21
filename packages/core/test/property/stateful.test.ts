@@ -1,12 +1,15 @@
 // A stateful model-based test of the Plane (card E1.4). fast-check's command
 // model (fc.commands, fc.asyncModelRun) generates sequences of every Plane
-// operation a member's twin sees, on the real Plane over one log and the fake
-// store, with the injected clock: write (by the owner, or by her agent with
-// source model), read (by the owner, a grantee, the role's successor, HR),
-// grant change, promote, retain, offboard, adopt, handle reopen and clock
-// advance. Writes, grant changes and offboardings may stop at a crash window
-// (test/helpers/failpoint.ts): the handle dies there and only a reopen
-// follows, as a restarted process.
+// operation two twins see, on the real Plane over one log and the fake store,
+// with the injected clock: write (by Dana, by her agent with source model, by
+// Lee, who holds the role with her and has a person scope of his own), read
+// (by Dana, her agent, Lee, HR and Sam, a grantee), grant change (by an
+// item's owner or a co-holder, RV7's rule), promote, retain, offboard
+// (Dana's), adopt, handle reopen and clock advance. Every command that names
+// an item draws it from the live projection when the command runs, so the
+// sequence acts on items that exist. Writes, grant changes and offboardings
+// may stop at a crash window (test/helpers/failpoint.ts): the handle dies
+// there and only a reopen follows, as a restarted process.
 //
 // After every command the log and the state are judged by the invariants'
 // oracle (src/oracle.ts, the lead's), never by the evaluator:
@@ -28,13 +31,20 @@
 // - until a crash, the store holds exactly what the projection holds.
 //
 // Each run ends with recovery on a fresh handle: offboarding again if an
-// erasure was left open, then an adoption of each scope, after which a second
-// adoption appends nothing and the store holds no record the log never
-// allowed. A failure prints the seed, the path and the shrunk command list
-// (fast-check's report); ENGRAM_STATEFUL_SEED and ENGRAM_STATEFUL_PATH replay
-// it. ENGRAM_STATEFUL_RUNS sets the run count (a deep run: 2000); the default
-// keeps the file well under the 30 s timeout. A vacuity check runs the same
-// model on two deliberately broken planes and requires it to catch both.
+// erasure was left open, then adoption of each scope until a pass appends
+// nothing, after which the store holds no record the log never allowed.
+// Guards require each default run to reach what the checks judge (allowed
+// promotions, evictions, granted reads, allowed grant changes and more).
+//
+// A failure prints the seed, the path and the replay path, and fast-check's
+// report with the shrunk command list. ENGRAM_STATEFUL_SEED,
+// ENGRAM_STATEFUL_PATH and ENGRAM_STATEFUL_REPLAY replay it (the replay path
+// is the `/*replayPath="..."*/` fast-check prints, which fc.commands needs
+// to skip the same commands). ENGRAM_STATEFUL_RUNS sets the run count (a
+// deep run: 2000); ENGRAM_STATEFUL_STRICT=1 judges the pinned gaps too;
+// ENGRAM_STATEFUL_SEEN=1 prints what the runs met. The default keeps the file
+// well under the 30 s timeout. A vacuity check runs the same model on two
+// deliberately broken planes and requires it to catch both.
 //
 // It complements the two-handle walk of invariants.test.ts (card E2.6),
 // which interleaves two handles' operations at the store's calls: this file
@@ -72,6 +82,7 @@ import {
   replayEvent,
   sameContent,
   TRUST,
+  UNTRUSTED_KINDS,
   withinValidity,
   writeForbidden,
 } from "./oracle.ts";
@@ -103,8 +114,9 @@ const tight = (): Policy => {
 const START = "2026-11-19T10:00:00Z";
 const UNTIL = "2026-12-19T00:00:00Z";
 const PERSON = "person:dana";
+const LEES = "person:lee";
 const ROLE = "role:release";
-const SCOPES = [PERSON, ROLE] as const;
+const SCOPES = [PERSON, ROLE, LEES] as const;
 
 const DANA: Actor = {
   id: "person:dana",
@@ -114,33 +126,54 @@ const DANA: Actor = {
 };
 /** Dana's agent: her principal, with the harness's source model. */
 const AGENT: Actor = { ...DANA, source: "model" };
+/** Lee holds the role with Dana (a co-holder of her role items) and has his own person scope. */
+const LEE: Actor = { id: "person:lee", level: "person", memberships: [LEES, ROLE], source: "user" };
+/** HR reviews promotions in both person scopes and offboards Dana. */
 const HR: Actor = {
   id: "person:hr",
   level: "person",
-  memberships: ["person:hr", PERSON, ROLE],
+  memberships: ["person:hr", PERSON, ROLE, LEES],
   source: "user",
 };
 const SAM: Actor = { id: "person:sam", level: "person", memberships: ["person:sam"] };
-const LEE: Actor = { id: "person:lee", level: "person", memberships: ["person:lee", ROLE] };
-const READERS = { dana: DANA, agent: AGENT, hr: HR, sam: SAM, lee: LEE } as const;
+const ACTORS = { dana: DANA, agent: AGENT, lee: LEE, hr: HR, sam: SAM } as const;
+type Who = keyof typeof ACTORS;
 /** The actors the dogfood report judges reads as, by id. */
 const DECLARED = [DANA, HR, SAM, LEE];
 const LEAVE: OffboardRequest = { person: PERSON, roles: [{ scope: ROLE, successor: LEE.id }] };
+/** Who adopts each scope: its person, and Dana for the role. */
+const ADOPTER: Record<string, Actor> = { [PERSON]: DANA, [ROLE]: DANA, [LEES]: LEE };
 
-/** Items 1 to 3 in Dana's person scope, 4 and 5 in the role. */
-const POOL = [1, 2, 3, 4, 5].map((n) => `01960000-0000-7000-8000-${String(n).padStart(12, "0")}`);
-const scopeOf = (pick: number) => (pick < 3 ? PERSON : ROLE);
+/** Ids for new items, per scope. */
+const POOL: Record<string, string[]> = {
+  [PERSON]: [1, 2, 3, 4].map((n) => itemId(n)),
+  [ROLE]: [5, 6, 7].map((n) => itemId(n)),
+  [LEES]: [8, 9].map((n) => itemId(n)),
+};
+function itemId(n: number) {
+  return `01960000-0000-7000-8000-${String(n).padStart(12, "0")}`;
+}
+/** The scopes each writer writes new items into. */
+const HOME: Record<"dana" | "agent" | "lee", readonly string[]> = {
+  dana: [PERSON, ROLE],
+  agent: [PERSON, ROLE],
+  lee: [LEES, ROLE],
+};
 
 // ------------------------------------------------------------------ model and system
 
 /** What a run saw, summed over every run, for the guards. */
 interface Seen {
   commands: Record<string, number>;
+  /** Denied events by op and rule, printed with ENGRAM_STATEFUL_SEEN for sizing the model. */
+  refusals: Record<string, number>;
   crashes: number;
   reopens: number;
   erased: number;
   offboardReruns: number;
   grantedReads: number;
+  grantChanges: number;
+  coholderRefusals: number;
   adopted: number;
   evicted: number;
   promoted: number;
@@ -152,14 +185,19 @@ interface Seen {
   heldUntrustedGrants: number;
   /** The most adoption passes one recovery needed until a pass appended nothing (E14-F4). */
   adoptionPasses: number;
+  /** Owners' items a co-holder's adoption retired over the owner's crashed bytes (E14-F6). */
+  coholderRetractions: number;
 }
 const newSeen = (): Seen => ({
   commands: {},
+  refusals: {},
   crashes: 0,
   reopens: 0,
   erased: 0,
   offboardReruns: 0,
   grantedReads: 0,
+  grantChanges: 0,
+  coholderRefusals: 0,
   adopted: 0,
   evicted: 0,
   promoted: 0,
@@ -168,7 +206,23 @@ const newSeen = (): Seen => ({
   storeGrantsLeft: 0,
   heldUntrustedGrants: 0,
   adoptionPasses: 0,
+  coholderRetractions: 0,
 });
+
+/** The pinned gaps the main property relaxes; `strict` judges them too. */
+type Gap = "F1" | "F3" | "F4" | "F6";
+const GAPS: readonly Gap[] = ["F1", "F3", "F4", "F6"];
+/** true for every gap, false for none, or the gaps to judge. */
+type Strict = boolean | readonly Gap[];
+const gapsOf = (strict: Strict): ReadonlySet<Gap> =>
+  new Set(strict === true ? GAPS : strict === false ? [] : strict);
+/** ENGRAM_STATEFUL_STRICT: 1 for every gap, or a list such as F1,F3. */
+const strictFromEnv = (): Strict => {
+  const v = env("ENGRAM_STATEFUL_STRICT");
+  if (v === undefined || v === "" || v === "0") return false;
+  if (v === "1") return true;
+  return v.split(",").map((g) => g.trim()) as Gap[];
+};
 
 interface Model {
   /** The handle is alive; after a crash only a reopen may follow. */
@@ -180,14 +234,18 @@ interface Model {
   /** Recovery ran (adoption of every scope on a fresh handle): the store is judged again. */
   recovered: boolean;
   /**
-   * Judge the two known gaps too. Off by default, each pinned by its own
-   * test below: finding E14-F1 (a crashed write or grant change that added a
-   * grant leaves that grant in the store's record for good; adoption drops
-   * it from the projection only), and finding E14-F3 (the plane lets the
-   * owner grant an item that once held her agent's content, which the
-   * oracle's replay counts as a violation).
+   * Judge the known gaps too. Off by default, each pinned by its own test
+   * below: finding E14-F1 (a write or grant change that added a grant,
+   * killed or failing after its store write, leaves that grant in the
+   * store's record for good; adoption drops it from the projection only),
+   * finding E14-F3 (the plane lets the owner grant an item that once held
+   * her agent's content, which the oracle's replay counts as a violation)
+   * finding E14-F4 (recovery may need a second adoption) and finding E14-F6
+   * (after the owner's crashed rewrite of an item carrying grants, a
+   * co-holder's adoption denies the record and retires the owner's item for
+   * good).
    */
-  strict: boolean;
+  strict: ReadonlySet<Gap>;
   /** Every content token written under each item id. */
   tokens: Map<string, Set<string>>;
   next: number;
@@ -250,6 +308,13 @@ async function surviving<T>(m: Model, r: Real, call: () => Promise<T>): Promise<
   }
 }
 
+/** The live items, in id order, that `keep` admits: what a command names. */
+function live(r: Real, keep: (i: MemoryItem) => boolean = () => true): MemoryItem[] {
+  return currentItems(r.base).filter((i) => i.status !== "retired" && keep(i));
+}
+const nth = <T>(xs: readonly T[], k: number): T | undefined =>
+  xs.length === 0 ? undefined : xs[k % xs.length];
+
 // ------------------------------------------------------------------ the judge
 
 /**
@@ -287,6 +352,76 @@ const ADOPTED = "adopted from store ";
 /** The oracle's words for finding E14-F3 (grantChangeProblem, src/oracle.ts). */
 const E14_F3 = "grants on an item that held untrusted content";
 
+/**
+ * Whether an oracle detail is finding E14-F3 as pinned: a grant on an item
+ * whose provenance was raised from an untrusted kind only by its owner's own
+ * user-sourced write of that id (not an adoption, not anyone else's event),
+ * or on a promotion's new version of such an item (the oracle carries the
+ * taint along the promotion's lineage, as `priorVersion` does). Any other
+ * route to the same message stays a violation.
+ */
+function ownersLaundering(log: readonly MemoryEvent[], detail: string): boolean {
+  const m = /^\w+ event (\d+) .* on (\S+): grants on an item that held untrusted content$/.exec(
+    detail,
+  );
+  if (!m) return false;
+  const seq = Number(m[1]);
+  const before = log.filter((e) => e.seq <= seq && e.decision === "allow" && e.item);
+  // The item, and the sources its promotions were made from.
+  const chain = new Set([m[2] as string]);
+  for (let grew = true; grew; ) {
+    grew = false;
+    for (const e of before)
+      if (e.op === "promote" && chain.has(e.item?.id as string)) {
+        const source = e.item?.lineage[0];
+        if (source !== undefined && !chain.has(source)) {
+          chain.add(source);
+          grew = true;
+        }
+      }
+  }
+  const kinds = new Map<string, MemoryItem["provenance"]["kind"]>();
+  const raisers: MemoryEvent[] = [];
+  for (const e of before) {
+    const id = e.item?.id as string;
+    if (!chain.has(id)) continue;
+    const was = kinds.get(id);
+    const now = (e.item as MemoryItem).provenance.kind;
+    if (was !== undefined && UNTRUSTED_KINDS.includes(was) && !UNTRUSTED_KINDS.includes(now))
+      raisers.push(e);
+    kinds.set(id, now);
+  }
+  return (
+    raisers.length > 0 &&
+    raisers.every(
+      (r) =>
+        r.op === "write" &&
+        r.item?.provenance.kind === "user" &&
+        r.actor === r.item.owner &&
+        !r.reason.startsWith(ADOPTED),
+    )
+  );
+}
+
+/**
+ * Finding E14-F6 as pinned: `held` was retired by adoption's retraction
+ * right after that adoption, by someone other than its owner, denied the
+ * store's record under the owner rule (only the owner rewrites an item
+ * carrying grants).
+ */
+function retractedOverCoholder(log: readonly MemoryEvent[], held: MemoryItem): boolean {
+  const mine = log.filter((e) => e.item_id === held.id);
+  const [deny, retract] = mine.slice(-2);
+  return (
+    held.status === "retired" &&
+    retract?.policy_id === "engram/adopt/retract" &&
+    deny?.decision === "deny" &&
+    deny.policy_id === "engram/grant/owner" &&
+    deny.reason.startsWith(ADOPTED) &&
+    deny.actor !== held.owner
+  );
+}
+
 /** Every check that holds after any command; `start` is the log's head before it. */
 async function judge(m: Model, r: Real, what: string, start: number, frozen: boolean) {
   const log = allEvents(r.base);
@@ -295,7 +430,9 @@ async function judge(m: Model, r: Real, what: string, start: number, frozen: boo
 
   // Invariant 1 over every read in the log, and every grant change (the dogfood report's replay).
   const { details } = dogfoodReport(log, r.policy, DECLARED);
-  const judged = m.strict ? details : details.filter((d) => !d.endsWith(E14_F3));
+  const judged = m.strict.has("F3")
+    ? details
+    : details.filter((d) => !(d.endsWith(E14_F3) && ownersLaundering(log, d)));
   m.seen.heldUntrustedGrants = Math.max(m.seen.heldUntrustedGrants, details.length - judged.length);
   expect(
     judged,
@@ -306,9 +443,14 @@ async function judge(m: Model, r: Real, what: string, start: number, frozen: boo
   for (const e of fresh) {
     expect(e.reason.length, at(`event ${e.seq} has a reason`)).toBeGreaterThan(0);
     expect(e.policy_id.length, at(`event ${e.seq} has a policy id`)).toBeGreaterThan(0);
-    if (e.decision === "deny") m.seen.denied++;
+    if (e.decision === "deny") {
+      m.seen.denied++;
+      const k = `${e.op} ${e.policy_id}`;
+      m.seen.refusals[k] = (m.seen.refusals[k] ?? 0) + 1;
+    }
     if (e.op === "evict" && e.decision === "allow") m.seen.evicted++;
     if (e.op === "promote" && e.decision === "allow") m.seen.promoted++;
+    if (e.policy_id === "engram/grant/change" && e.decision === "allow") m.seen.grantChanges++;
   }
 
   // Invariant 4: the projection is what the log replays to.
@@ -365,12 +507,17 @@ async function judge(m: Model, r: Real, what: string, start: number, frozen: boo
   }
 
   // Erasure: nothing erased projected; its content in no event's text and,
-  // until a crash, in no store record. Content a surviving item also holds is
-  // not the erased item's alone (a promotion's copy).
+  // until a crash, in no store record. Content any version of an item not
+  // erased also held is not the erased item's alone (a promotion's copy,
+  // rewritten since or not).
   const erased = erasedIds(log);
   for (const id of erased.keys())
     expect(itemById(r.base, id), at(`erased ${id} is projected`)).toBeUndefined();
-  const surviving = JSON.stringify(items.map((i) => i.content));
+  const surviving = JSON.stringify(
+    log
+      .filter((e) => e.decision === "allow" && e.item && !erased.has(e.item.id))
+      .map((e) => e.item?.content),
+  );
   const erasedOnly = [...erased.keys()]
     .flatMap((id) => [...(m.tokens.get(id) ?? [])])
     .filter((t) => !surviving.includes(t));
@@ -393,9 +540,13 @@ async function judge(m: Model, r: Real, what: string, start: number, frozen: boo
 
   // Until a crash, and after recovery, the store holds what the projection holds.
   if (settled) {
-    const lax = m.crashed && !m.strict;
+    const lax = m.crashed && !m.strict.has("F1");
     for (const held of items) {
       if (!held.store_ref) continue;
+      if (m.crashed && !m.strict.has("F6") && retractedOverCoholder(log, held)) {
+        m.seen.coholderRetractions++;
+        continue;
+      }
       const record = await r.store.read(held.store_ref);
       if (lax && record) {
         // E14-F1: the record may keep grants the projection dropped, never lack one it holds.
@@ -406,9 +557,9 @@ async function judge(m: Model, r: Real, what: string, start: number, frozen: boo
           ).toBe(true);
         if (record.grants.length > held.grants.length) m.seen.storeGrantsLeft++;
       }
-      const judged = (i: MemoryItem | undefined) =>
+      const shown = (i: MemoryItem | undefined) =>
         lax && i ? { ...unsourced(i), grants: null } : unsourced(i);
-      expect(judged(record), at(`the store's record of ${held.id}`)).toEqual(judged(held));
+      expect(shown(record), at(`the store's record of ${held.id}`)).toEqual(shown(held));
     }
     for (const record of listed)
       expect(
@@ -447,53 +598,71 @@ function armWrite(fp: Failpoints, crash: WriteCrash) {
   if (crash === "commit-after") fp.arm("commit:after", "crash", committing);
 }
 
+interface WriteArgs {
+  who: "dana" | "agent" | "lee";
+  /** A new item in one of the writer's home scopes, or a rewrite of a live item. */
+  target: "new" | "live";
+  /** Which home scope (new), and which item of the pool or of the live ones. */
+  scope: number;
+  pick: number;
+  grant: boolean;
+  episodic: boolean;
+  /** Keep the item's content as it stands (the same words, saved again). */
+  resave: boolean;
+  /** Write the version the projection holds instead of the next one. */
+  stale: boolean;
+  crash: WriteCrash;
+}
+
 class Write extends Step {
   readonly name = "write";
-  readonly who: "dana" | "agent";
-  readonly pick: number;
-  readonly grant: boolean;
-  readonly episodic: boolean;
-  readonly stale: boolean;
-  readonly crash: WriteCrash;
-  constructor(
-    who: "dana" | "agent",
-    pick: number,
-    grant: boolean,
-    episodic: boolean,
-    stale: boolean,
-    crash: WriteCrash,
-  ) {
+  readonly a: WriteArgs;
+  constructor(a: Partial<WriteArgs> & Pick<WriteArgs, "who">) {
     super();
-    this.who = who;
-    this.pick = pick;
-    this.grant = grant;
-    this.episodic = episodic;
-    this.stale = stale;
-    this.crash = crash;
+    this.a = {
+      target: "new",
+      scope: 0,
+      pick: 0,
+      grant: false,
+      episodic: false,
+      resave: false,
+      stale: false,
+      crash: "none",
+      ...a,
+    };
   }
   async act(m: Model, r: Real) {
-    const actor = this.who === "dana" ? DANA : AGENT;
-    const id = POOL[this.pick] as string;
-    const scope = scopeOf(this.pick);
+    const a = this.a;
+    const actor = ACTORS[a.who];
+    const target = a.target === "live" ? nth(live(r), a.pick) : undefined;
+    const home = HOME[a.who][a.scope % HOME[a.who].length] as string;
+    const id = target?.id ?? (nth(POOL[home] as string[], a.pick) as string);
     const held = itemById(r.base, id);
-    const cls = held?.class ?? (this.episodic && scope === PERSON ? "episodic" : "semantic");
-    const token = `zq${++m.next}x`;
-    m.tokens.set(id, (m.tokens.get(id) ?? new Set()).add(token));
+    const scope = held?.scope ?? home;
+    const cls =
+      held?.class ?? (a.episodic && scope.startsWith("person:") ? "episodic" : "semantic");
+    let content = held?.content;
+    if (!(a.resave && held)) {
+      const token = `zq${++m.next}x`;
+      m.tokens.set(id, (m.tokens.get(id) ?? new Set()).add(token));
+      content = `${actor.id}'s note ${token}`;
+    }
     const it = {
       id,
       class: cls,
       scope,
-      owner: held?.owner ?? DANA.id,
-      content: `Dana's note ${token}`,
-      provenance: { kind: "user", ref: "doc/1", hash: `sha256:${"0".repeat(64)}`, actor: DANA.id },
+      owner: held?.owner ?? actor.id,
+      content,
+      provenance: { kind: "user", ref: "doc/1", hash: `sha256:${"0".repeat(64)}`, actor: actor.id },
       confidence: 0.9,
-      valid_from: "2026-10-01T00:00:00Z",
+      // From the clock: a ttl counts from here (ADR 0025).
+      valid_from: held?.valid_from ?? m.at,
       valid_to: null,
       ttl: null,
-      grants: this.grant
+      grants: a.grant
         ? [{ to: SAM.id, class: cls, mode: "read", expires: UNTIL }]
         : (held?.grants ?? []),
-      version: this.stale ? (held?.version ?? 1) : (held?.version ?? 0) + 1,
+      version: a.stale ? (held?.version ?? 1) : (held?.version ?? 0) + 1,
       lineage: [],
       status: "active",
       store_ref: null,
@@ -501,7 +670,7 @@ class Write extends Step {
     } as MemoryItem;
     const retired = retiredByEvent(r.base);
     const start = logHead(r.base);
-    armWrite(r.handle.fp, this.crash);
+    armWrite(r.handle.fp, a.crash);
     const res = await surviving(m, r, () => r.handle.plane.write(actor, it, m.at));
     if (!res) return;
     const fresh = allEvents(r.base).filter((e) => e.seq > start);
@@ -518,24 +687,36 @@ class Write extends Step {
         `${this}: a denied write is one event`,
       ).toEqual([res.event.policy_id]);
       if (res.event.policy_id === "engram/offboard/erasing") m.seen.frozenRefusals++;
+      if (held && held.owner !== actor.id && /grant|owner|move/.test(res.event.policy_id))
+        m.seen.coholderRefusals++;
     }
   }
   toString() {
-    return `write(${this.who}, ${this.pick}${this.grant ? ", grant" : ""}${this.episodic ? ", episodic" : ""}${this.stale ? ", stale" : ""}${this.crash === "none" ? "" : `, crash ${this.crash}`})`;
+    const a = this.a;
+    const where =
+      a.target === "live" ? `live #${a.pick}` : `new ${HOME[a.who][a.scope % 2]} #${a.pick}`;
+    const flags = [
+      a.grant && "grant",
+      a.episodic && "episodic",
+      a.resave && "resave",
+      a.stale && "stale",
+      a.crash !== "none" && `crash ${a.crash}`,
+    ].filter(Boolean);
+    return `write(${a.who}, ${where}${flags.map((f) => `, ${f}`).join("")})`;
   }
 }
 
 class Read extends Step {
   readonly name = "read";
-  readonly reader: keyof typeof READERS;
+  readonly reader: Who;
   readonly text: boolean;
-  constructor(reader: keyof typeof READERS, text: boolean) {
+  constructor(reader: Who, text = false) {
     super();
     this.reader = reader;
     this.text = text;
   }
   async act(m: Model, r: Real) {
-    const reader = READERS[this.reader];
+    const reader = ACTORS[this.reader];
     const res = await r.handle.plane.read(reader, {
       at: m.at,
       ...(this.text ? { text: "note" } : {}),
@@ -558,75 +739,110 @@ class Read extends Step {
 
 class ChangeGrant extends Step {
   readonly name = "grant";
+  readonly who: "dana" | "lee";
+  /** Name one of the grantor's own live items, or any live item (a co-holder's change). */
+  readonly own: boolean;
   readonly pick: number;
   readonly add: boolean;
-  readonly to: "sam" | "lee";
+  /** The grantee: Sam, or the other of Dana and Lee. */
+  readonly toSam: boolean;
   readonly crash: boolean;
-  constructor(pick: number, add: boolean, to: "sam" | "lee", crash: boolean) {
+  constructor(
+    who: "dana" | "lee",
+    own: boolean,
+    pick: number,
+    add: boolean,
+    toSam = true,
+    crash = false,
+  ) {
     super();
+    this.who = who;
+    this.own = own;
     this.pick = pick;
     this.add = add;
-    this.to = to;
+    this.toSam = toSam;
     this.crash = crash;
   }
   async act(m: Model, r: Real) {
-    const id = POOL[this.pick] as string;
-    const held = itemById(r.base, id);
+    const actor = ACTORS[this.who];
+    // A removal names an item carrying a grant, when there is one.
+    const named = live(r, (i) => i.status === "active" && (!this.own || i.owner === actor.id));
+    const carrying = named.filter((i) => i.grants.length > 0);
+    const held =
+      nth(!this.add && carrying.length > 0 ? carrying : named, this.pick) ??
+      itemById(r.base, POOL[PERSON]?.[0] as string);
+    const id = held?.id ?? (POOL[PERSON]?.[0] as string);
     const grant: Grant = {
-      to: READERS[this.to].id,
+      to: this.toSam ? SAM.id : this.who === "dana" ? LEE.id : DANA.id,
       class: held?.class ?? "semantic",
       mode: "read",
       expires: UNTIL,
     };
     if (this.crash) r.handle.fp.arm("store.write:after", "crash");
-    await surviving(m, r, () =>
+    const res = await surviving(m, r, () =>
       r.handle.plane.changeGrants(
-        DANA,
+        actor,
         id,
         this.add ? { add: [grant] } : { remove: [held?.grants[0] ?? grant] },
         m.at,
       ),
     );
+    if (res?.decision === "deny" && held && held.owner !== actor.id) m.seen.coholderRefusals++;
   }
   toString() {
-    return `grant(${this.pick}, ${this.add ? "add" : "remove"} ${this.to}${this.crash ? ", crash store-after" : ""})`;
+    return `grant(${this.who}, ${this.own ? "own" : "any"} #${this.pick}, ${this.add ? "add" : "remove"} ${this.toSam ? "sam" : "other"}${this.crash ? ", crash store-after" : ""})`;
   }
 }
 
 class Promote extends Step {
   readonly name = "promote";
+  readonly by: "hr" | "dana" | "lee";
   readonly pick: number;
-  readonly by: "hr" | "dana";
   readonly widen: boolean;
   readonly review: boolean;
-  constructor(pick: number, by: "hr" | "dana", widen: boolean, review: boolean) {
+  constructor(by: "hr" | "dana" | "lee", pick: number, widen: boolean, review: boolean) {
     super();
-    this.pick = pick;
     this.by = by;
+    this.pick = pick;
     this.widen = widen;
     this.review = review;
   }
   async act(m: Model, r: Real) {
-    const id = POOL[this.pick] as string;
-    const to = this.widen ? ROLE : scopeOf(this.pick);
-    await r.handle.plane.promote(READERS[this.by], id, to, m.at, { review: this.review });
+    const actor = ACTORS[this.by];
+    // A promoter names an active item in a person scope it is a member of:
+    // the role is the widest scope here, so only a person item has a promotion.
+    const held = nth(
+      live(
+        r,
+        (i) =>
+          i.status === "active" &&
+          i.scope.startsWith("person:") &&
+          actor.memberships.includes(i.scope),
+      ),
+      this.pick,
+    );
+    const id = held?.id ?? (POOL[PERSON]?.[0] as string);
+    // In place for an episodic item (to semantic), unless widened; a
+    // semantic item has nothing to promote in place, so it is widened.
+    const to = held?.class === "episodic" && !this.widen ? held.scope : ROLE;
+    await r.handle.plane.promote(actor, id, to, m.at, { review: this.review });
   }
   toString() {
-    return `promote(${this.pick}, by ${this.by}${this.widen ? `, to ${ROLE}` : ""}${this.review ? ", review" : ""})`;
+    return `promote(${this.by}, #${this.pick}${this.widen ? `, to ${ROLE}` : ""}${this.review ? ", review" : ""})`;
   }
 }
 
 class Retain extends Step {
   readonly name = "retain";
   readonly scope: number;
-  readonly who: "dana" | "agent";
-  constructor(scope: number, who: "dana" | "agent") {
+  readonly who: "dana" | "agent" | "lee";
+  constructor(scope: number, who: "dana" | "agent" | "lee") {
     super();
     this.scope = scope;
     this.who = who;
   }
   async act(m: Model, r: Real) {
-    await r.handle.plane.retain(READERS[this.who], SCOPES[this.scope] as string, m.at);
+    await r.handle.plane.retain(ACTORS[this.who], SCOPES[this.scope] as string, m.at);
   }
   toString() {
     return `retain(${SCOPES[this.scope]}, by ${this.who})`;
@@ -673,22 +889,35 @@ class Offboard extends Step {
 class Adopt extends Step {
   readonly name = "adopt";
   readonly scope: number;
-  constructor(scope: number) {
+  /** For the role, which co-holder adopts it; a person scope is adopted by its person. */
+  readonly byLee: boolean;
+  constructor(scope: number, byLee = false) {
     super();
     this.scope = scope;
+    this.byLee = byLee;
+  }
+  private adopter() {
+    const scope = SCOPES[this.scope] as string;
+    return scope === ROLE && this.byLee ? LEE : (ADOPTER[scope] as Actor);
   }
   async act(m: Model, r: Real) {
-    await adoptStoreItems(r.handle.deps, DANA, SCOPES[this.scope] as string, m.at);
+    await adoptStoreItems(r.handle.deps, this.adopter(), SCOPES[this.scope] as string, m.at);
   }
   toString() {
-    return `adopt(${SCOPES[this.scope]})`;
+    return `adopt(${SCOPES[this.scope]}, by ${this.adopter().id})`;
   }
 }
 
 class Reopen extends Step {
   readonly name = "reopen";
-  override check() {
-    return true;
+  /** Reopen a live handle too; otherwise only after a crash (and skipped while alive). */
+  readonly always: boolean;
+  constructor(always = true) {
+    super();
+    this.always = always;
+  }
+  override check(m: Readonly<Model>) {
+    return this.always || !m.alive;
   }
   async act(m: Model, r: Real) {
     r.handle = r.open();
@@ -696,7 +925,7 @@ class Reopen extends Step {
     m.seen.reopens++;
   }
   toString() {
-    return "reopen()";
+    return this.always ? "reopen()" : "reopen(after crash)";
   }
 }
 
@@ -715,71 +944,118 @@ class Advance extends Step {
   }
 }
 
-const pick = fc.nat(4);
-const arbCommands = fc.commands(
-  [
-    fc
+/** `values`, each with its weight. */
+const weighted = <T>(...values: [T, number][]) =>
+  fc.oneof(...values.map(([v, weight]) => ({ arbitrary: fc.constant(v), weight })));
+
+const arbWrite = fc
+  .record({
+    who: weighted<"dana" | "agent" | "lee">(["dana", 4], ["agent", 2], ["lee", 2]),
+    target: weighted<"new" | "live">(["new", 1], ["live", 1]),
+    scope: fc.nat(1),
+    pick: fc.nat(3),
+    grant: weighted([false, 2], [true, 1]),
+    episodic: weighted([false, 2], [true, 1]),
+    resave: weighted([false, 5], [true, 1]),
+    stale: weighted([false, 9], [true, 1]),
+    crash: weighted<WriteCrash>(
+      ["none", 24],
+      ["store-after", 1],
+      ["commit-before", 1],
+      ["commit-after", 1],
+    ),
+  })
+  .map((a) => new Write(a));
+
+const arbCommand: fc.Arbitrary<Step> = fc.oneof(
+  { arbitrary: arbWrite, weight: 8 },
+  {
+    arbitrary: fc
       .tuple(
-        fc.constantFrom<"dana" | "agent">("dana", "dana", "agent"),
-        pick,
+        weighted<Who>(["sam", 4], ["dana", 3], ["lee", 2], ["agent", 1], ["hr", 1]),
         fc.boolean(),
-        fc.boolean(),
-        fc.constantFrom(false, false, false, true),
-        fc.constantFrom<WriteCrash>(
-          "none",
-          "none",
-          "none",
-          "none",
-          "none",
-          "none",
-          "store-after",
-          "commit-before",
-          "commit-after",
-        ),
       )
-      .map(([who, p, g, e, s, c]) => new Write(who, p, g, e, s, c)),
-    fc
+      .map(([w, t]) => new Read(w, t)),
+    weight: 6,
+  },
+  {
+    arbitrary: fc
       .tuple(
-        fc.constantFrom<keyof typeof READERS>("dana", "agent", "hr", "sam", "lee"),
-        fc.boolean(),
+        weighted<"dana" | "lee">(["dana", 3], ["lee", 2]),
+        weighted([true, 5], [false, 1]),
+        fc.nat(3),
+        weighted([true, 2], [false, 1]),
+        weighted([true, 3], [false, 1]),
+        weighted([false, 12], [true, 1]),
       )
-      .map(([who, t]) => new Read(who, t)),
-    fc
+      .map(([w, own, p, add, sam, c]) => new ChangeGrant(w, own, p, add, sam, c)),
+    weight: 4,
+  },
+  {
+    arbitrary: fc
       .tuple(
-        pick,
+        weighted<"hr" | "dana" | "lee">(["hr", 4], ["dana", 1], ["lee", 1]),
+        fc.nat(3),
         fc.boolean(),
-        fc.constantFrom<"sam" | "lee">("sam", "sam", "lee"),
-        fc.constantFrom(false, false, false, true),
+        weighted([true, 3], [false, 1]),
       )
-      .map(([p, a, to, c]) => new ChangeGrant(p, a, to, c)),
-    fc
-      .tuple(pick, fc.constantFrom<"hr" | "dana">("hr", "dana"), fc.boolean(), fc.boolean())
-      .map(([p, by, w, rv]) => new Promote(p, by, w, rv)),
-    fc
-      .tuple(fc.nat(1), fc.constantFrom<"dana" | "agent">("dana", "agent"))
+      .map(([by, p, w, rv]) => new Promote(by, p, w, rv)),
+    weight: 4,
+  },
+  {
+    arbitrary: fc
+      .tuple(fc.nat(2), weighted<"dana" | "agent" | "lee">(["dana", 2], ["agent", 1], ["lee", 1]))
       .map(([s, w]) => new Retain(s, w)),
-    fc
-      .constantFrom<OffboardCrash>("none", "none", "mark", "handover", "delete", "erase", "report")
-      .map((c) => new Offboard(c)),
-    fc.nat(1).map((s) => new Adopt(s)),
-    fc.constant(new Reopen()),
-    fc.constant(new Reopen()),
-    fc.constantFrom(1, 3600, 31 * 86_400, 100 * 86_400).map((s) => new Advance(s)),
-  ],
-  { maxCommands: MAX_COMMANDS, size: "max" },
+    weight: 2,
+  },
+  {
+    arbitrary: weighted<OffboardCrash>(
+      ["none", 3],
+      ["mark", 1],
+      ["handover", 1],
+      ["delete", 1],
+      ["erase", 1],
+      ["report", 1],
+    ).map((c) => new Offboard(c)),
+    weight: 1,
+  },
+  {
+    arbitrary: fc.tuple(fc.nat(2), fc.boolean()).map(([s, l]) => new Adopt(s, l)),
+    weight: 2,
+  },
+  { arbitrary: fc.constant(new Reopen(false)), weight: 4 },
+  { arbitrary: fc.constant(new Reopen(true)), weight: 1 },
+  {
+    arbitrary: weighted([1, 3], [3600, 3], [86_400, 2], [31 * 86_400, 1], [100 * 86_400, 1]).map(
+      (s) => new Advance(s),
+    ),
+    weight: 2,
+  },
 );
+
+/** The command lists; `replayPath` is fast-check's, printed with a counterexample. */
+const arbCommands = (replayPath?: string) =>
+  fc.commands([arbCommand], {
+    maxCommands: MAX_COMMANDS,
+    size: "max",
+    ...(replayPath === undefined ? {} : { replayPath }),
+  });
+
+const arbRun = (replayPath?: string) =>
+  fc.tuple(weighted<"twin" | "tight">(["twin", 1], ["tight", 2]), arbCommands(replayPath));
 
 /**
  * One run: the commands, then recovery on a fresh handle. Recovery completes:
- * no erasure left open, a second adoption of each scope appends nothing, the
- * store holds no record the log never allowed, and nothing erased survives.
+ * no erasure left open, adoption of each scope reaches a pass that appends
+ * nothing, the store holds no record the log never allowed, and nothing
+ * erased survives.
  */
 async function runModel(
   policyName: "twin" | "tight",
   cmds: Iterable<fc.AsyncCommand<Model, Real>>,
   seen: Seen,
   broken?: Breakage,
-  strict = false,
+  strict: Strict = false,
 ) {
   const policy = policyName === "twin" ? twin() : tight();
   const real = system(policy, broken);
@@ -788,7 +1064,7 @@ async function runModel(
     at: START,
     crashed: false,
     recovered: false,
-    strict,
+    strict: gapsOf(strict),
     tokens: new Map(),
     next: 0,
     seen,
@@ -806,12 +1082,13 @@ async function runModel(
   // Adoption until a pass appends nothing: strictly the second pass, else by
   // the third (finding E14-F4: a record one pass defers, because that pass's
   // own budget check changed its item, is adopted by the next).
-  const limit = strict ? 2 : 3;
+  const limit = gapsOf(strict).has("F4") ? 2 : 3;
   let appended: string[] = [];
   let passes = 0;
   do {
     const mid = logHead(real.base);
-    for (const scope of SCOPES) await adoptStoreItems(real.handle.deps, DANA, scope, at);
+    for (const scope of SCOPES)
+      await adoptStoreItems(real.handle.deps, ADOPTER[scope] as Actor, scope, at);
     passes++;
     appended = allEvents(real.base)
       .filter((e) => e.seq > mid)
@@ -831,7 +1108,53 @@ async function runModel(
   real.base.close();
 }
 
-const arbRun = fc.tuple(fc.constantFrom<"twin" | "tight">("twin", "tight"), arbCommands);
+type RunOut = fc.RunDetails<[["twin" | "tight", Iterable<fc.AsyncCommand<Model, Real>>]]>;
+
+/** The commands of a counterexample that ran (fast-check's wrappers mark them). */
+const ran = (out: RunOut) =>
+  [...((out.counterexample?.[0]?.[1] ?? []) as Iterable<{ hasRan?: boolean }>)]
+    .filter((c) => c.hasRan !== false)
+    .map(String);
+
+/** The three values that replay a failure: seed, path and fc.commands' replay path. */
+function replayOf(out: RunOut) {
+  const printed = String(out.counterexample?.[0]?.[1] ?? "");
+  return {
+    seed: out.seed,
+    path: out.counterexamplePath ?? "",
+    replayPath: /replayPath="([^"]*)"/.exec(printed)?.[1] ?? "",
+  };
+}
+
+/** Runs the model as a property; on failure throws the replay values and fast-check's report. */
+async function checkModel(
+  options: {
+    runs: number;
+    seed: number;
+    path?: string | undefined;
+    replayPath?: string | undefined;
+  },
+  seen: Seen,
+  broken?: Breakage,
+  strict: Strict = false,
+): Promise<RunOut> {
+  const out = (await fc.check(
+    fc.asyncProperty(arbRun(options.replayPath), ([policy, cmds]) =>
+      runModel(policy, cmds, seen, broken, strict),
+    ),
+    {
+      numRuns: options.runs,
+      seed: options.seed,
+      ...(options.path === undefined ? {} : { path: options.path, endOnFailure: true }),
+    },
+  )) as RunOut;
+  return out;
+}
+
+const replayLine = (out: RunOut) => {
+  const r = replayOf(out);
+  return `replay with ENGRAM_STATEFUL_SEED=${r.seed} ENGRAM_STATEFUL_PATH=${r.path} ENGRAM_STATEFUL_REPLAY=${r.replayPath}`;
+};
 
 describe("the Plane as a state machine", () => {
   const NAME =
@@ -841,20 +1164,24 @@ describe("the Plane as a state machine", () => {
     async () => {
       const seen = newSeen();
       const seed = env("ENGRAM_STATEFUL_SEED");
-      const path = env("ENGRAM_STATEFUL_PATH");
-      await fc.assert(
-        fc.asyncProperty(arbRun, ([policy, cmds]) => runModel(policy, cmds, seen)),
+      const out = await checkModel(
         {
-          numRuns: RUNS,
+          runs: RUNS,
           seed: seed === undefined ? seedFor(NAME) : Number(seed),
-          ...(path === undefined ? {} : { path }),
-          endOnFailure: false,
+          path: env("ENGRAM_STATEFUL_PATH"),
+          replayPath: env("ENGRAM_STATEFUL_REPLAY"),
         },
+        seen,
+        undefined,
+        strictFromEnv(),
       );
-      // ENGRAM_STATEFUL_SEEN=1 prints what the runs met, for sizing a deep run.
-      if (env("ENGRAM_STATEFUL_SEEN"))
-        process.stderr.write(`${JSON.stringify(seen)}
-`);
+      if (out.failed)
+        throw new Error(`${replayLine(out)}\n${fc.defaultReportMessage(out)}`, {
+          cause: out.errorInstance,
+        });
+      if (env("ENGRAM_STATEFUL_SEEN")) process.stderr.write(`${JSON.stringify(seen)}\n`);
+      // The guards hold for the default run only: a replay or a single path runs too little.
+      if (env("ENGRAM_STATEFUL_PATH") !== undefined) return;
       const kinds = [
         "write",
         "read",
@@ -866,84 +1193,214 @@ describe("the Plane as a state machine", () => {
         "reopen",
         "advance",
       ];
+      const floor = Math.max(1, Math.floor((20 * RUNS) / 200));
       expect(
         kinds.every((k) => (seen.commands[k] ?? 0) > 0) &&
           seen.crashes > 0 &&
           seen.reopens > 0 &&
           seen.erased > 0 &&
           seen.offboardReruns > 0 &&
-          seen.grantedReads > 0 &&
           seen.adopted > 0 &&
-          seen.evicted > 0 &&
-          seen.promoted > 0 &&
           seen.denied > 0 &&
-          seen.frozenRefusals > 0,
-        `the model needs every command, crashes and reopens, erasures, offboardings run again, granted reads, adoptions, evictions, promotions, denials and refusals in a frozen scope; it saw ${JSON.stringify(seen)}`,
+          seen.frozenRefusals > 0 &&
+          seen.coholderRefusals > 0 &&
+          seen.promoted >= floor &&
+          seen.evicted >= floor &&
+          seen.grantedReads >= floor &&
+          seen.grantChanges >= floor,
+        `the model needs every command, crashes and reopens, erasures, offboardings run again, adoptions, denials, refusals in a frozen scope and of a co-holder, and at least ${floor} each of allowed promotions, evictions, granted reads and allowed grant changes; it saw ${JSON.stringify(seen)}`,
       ).toBe(true);
     },
     Math.max(120_000, RUNS * 200),
   );
 
-  // The model's first counterexample (seed -19116893, path "1:2:1:1:1",
-  // shrunk four times): [twin, write(dana, 0, grant, crash commit-before),
-  // reopen()]. Pinned as it stands today; the main property judges the
-  // store's grants laxly after a crash until it is resolved.
+  // The model's counterexample for this gap, today: ENGRAM_STATEFUL_STRICT=F1
+  // at the default seed fails at ENGRAM_STATEFUL_SEED=-19116893
+  // ENGRAM_STATEFUL_PATH=20:2:6:8:0:0:0:0
+  // ENGRAM_STATEFUL_REPLAY=BABAEAEABJIAZAD:VVF, shrunk seven times, with
+  // [tight, write(dana, new person:dana #0, grant, crash store-after)]; this
+  // test runs that list and its sibling killed before the commit, the first
+  // counterexample of the model before the review fix pass. Pinned as it
+  // stands today; the main property judges the store's grants laxly after a
+  // crash until it is resolved.
   test("E14-F1: a crashed first write carrying a grant, then recovery: the store's record keeps the grant the log never recorded", async () => {
-    const cmds = [new Write("dana", 0, true, false, false, "commit-before"), new Reopen()];
-    await expect(runModel("twin", cmds, newSeen(), undefined, true)).rejects.toThrow(
-      /recovery: the store's record of 01960000-0000-7000-8000-000000000001/,
-    );
-    // And no reader is let in by it: the lax run passes every other check.
-    await runModel("twin", [...cmds, new Read("sam", false)], newSeen());
-  });
-
-  // The deep run's first counterexample (ENGRAM_STATEFUL_RUNS=3000, seed
-  // -19116893, path "1179:0:2:1:2:2", shrunk five times): [twin,
-  // write(agent, 0), write(dana, 0, grant)]. Her agent writes a person item
-  // (model content, allowed in person scope); Dana rewrites it with her own
-  // words and a grant to Sam, and the gate allows it, as it allows her grant
-  // change on it: the item's kind is now user. The oracle forbids grants on an
-  // item that ever held untrusted content (grantChangeProblem), so the
-  // dogfood report counts each as a violation. Pinned as it stands today.
-  test("E14-F3: the owner grants an item that once held her agent's content; the plane allows it, the oracle counts a violation", async () => {
-    const viaWrite = [
-      new Write("agent", 0, false, false, false, "none"),
-      new Write("dana", 0, true, false, false, "none"),
-    ];
-    const viaGrant = [
-      new Write("agent", 0, false, false, false, "none"),
-      new Write("dana", 0, false, false, false, "none"),
-      new ChangeGrant(0, true, "sam", false),
-    ];
-    for (const cmds of [viaWrite, viaGrant]) {
-      await expect(runModel("twin", cmds, newSeen(), undefined, true)).rejects.toThrow(
-        /grants on an item that held untrusted content/,
+    for (const crash of ["store-after", "commit-before"] as const) {
+      const cmds = [new Write({ who: "dana", grant: true, crash })];
+      await expect(runModel("tight", cmds, newSeen(), undefined, ["F1"]), crash).rejects.toThrow(
+        /recovery: the store's record of 01960000-0000-7000-8000-000000000001/,
       );
-      // The grant is honoured: Sam reads Dana's words.
-      const seen = newSeen();
-      await runModel("twin", [...cmds, new Read("sam", false)], seen);
-      expect(seen.grantedReads).toBe(1);
-      expect(seen.heldUntrustedGrants).toBe(1);
+      // And no reader is let in by it: the lax run passes every other check.
+      await runModel("tight", [...cmds, new Reopen(false), new Read("sam")], newSeen());
     }
   });
 
-  // The deep run's second counterexample (ENGRAM_STATEFUL_RUNS=4000, seed
-  // -19116893, path "3410:3:2:9:9:8", shrunk five times): under the tight
-  // budgets (one active semantic item in the role), a role write killed
-  // before its commit leaves item 4's bytes; a write of item 5 with a grant
-  // lands; a grant removal on item 5 is killed after its store write. The
-  // first adoption records item 4 and its budget check evicts item 5, so the
-  // listing of item 5 is stale and deferred (P50-7); the second adopts item
-  // 5's narrowed record, which evicts item 4; the third appends nothing.
-  // Pinned as it stands today: recovery converges, in two adoptions, not one.
+  test("E14-F1 (the first counterexample of the earlier model): a write killed inside its commit", async () => {
+    const cmds = [
+      new Write({ who: "dana", grant: true, crash: "commit-before" }),
+      new Reopen(false),
+    ];
+    await expect(runModel("twin", cmds, newSeen(), undefined, ["F1"])).rejects.toThrow(
+      /recovery: the store's record of 01960000-0000-7000-8000-000000000001/,
+    );
+    // And no reader is let in by it: the lax run passes every other check.
+    await runModel("twin", [...cmds, new Read("sam")], newSeen());
+  });
+
+  // The deep run's first counterexample before the review fix pass
+  // (ENGRAM_STATEFUL_RUNS=3000, seed -19116893, path "1179:0:2:1:2:2"):
+  // [twin, write(agent, 0), write(dana, 0, grant)]; today,
+  // ENGRAM_STATEFUL_STRICT=F3 (or 1) fails first at ENGRAM_STATEFUL_PATH=
+  // 12:2:1:1:1:1:5 ENGRAM_STATEFUL_REPLAY=LAAABBCAa:VF with [twin,
+  // write(agent, new person:dana #3, episodic), write(dana, new
+  // person:dana #3, grant, episodic)]. Her agent writes a person
+  // item (model content, allowed in person scope); Dana rewrites it, or saves
+  // the agent's very words again, as a user-sourced write, and the gate
+  // allows a grant on it, in that write or in a grant change after: the
+  // item's kind is now user. The oracle forbids grants on an item any allowed
+  // version of which held untrusted content (grantChangeProblem; the lead's
+  // decision of card E9.5, ADR 0021's RV4 amendment), so the dogfood report
+  // counts each as a violation; Sam reads the agent's text verbatim in the
+  // re-save. The main property filters only this route (ownersLaundering).
+  test("E14-F3: the owner grants an item that once held her agent's content, its words changed or not; the plane allows it, the oracle counts a violation", async () => {
+    const agentWrites = new Write({ who: "agent" });
+    const cases: [string, Step[]][] = [
+      [
+        "a rewrite carrying the grant",
+        [agentWrites, new Write({ who: "dana", target: "live", grant: true })],
+      ],
+      [
+        "a rewrite, then a grant change",
+        [
+          agentWrites,
+          new Write({ who: "dana", target: "live" }),
+          new ChangeGrant("dana", true, 0, true),
+        ],
+      ],
+      [
+        "a rewrite, a promotion into the role, then a grant change on the new version",
+        [
+          agentWrites,
+          new Write({ who: "dana", target: "live" }),
+          new Promote("hr", 0, true, true),
+          new ChangeGrant("dana", true, 0, true),
+        ],
+      ],
+      [
+        "the agent's words saved again, then a grant change",
+        [
+          agentWrites,
+          new Write({ who: "dana", target: "live", resave: true }),
+          new ChangeGrant("dana", true, 0, true),
+        ],
+      ],
+    ];
+    for (const [what, cmds] of cases) {
+      await expect(runModel("twin", cmds, newSeen(), undefined, ["F3"]), what).rejects.toThrow(
+        /grants on an item that held untrusted content/,
+      );
+      // The grant is honoured: Sam reads the item.
+      const seen = newSeen();
+      await runModel("twin", [...cmds, new Read("sam")], seen);
+      expect(seen.grantedReads, what).toBe(1);
+      expect(seen.heldUntrustedGrants, what).toBe(1);
+    }
+    // The re-save: what Sam reads is the agent's text, word for word.
+    const real = system(twin());
+    const m: Model = {
+      alive: true,
+      at: START,
+      crashed: false,
+      recovered: false,
+      strict: new Set(),
+      tokens: new Map(),
+      next: 0,
+      seen: newSeen(),
+    };
+    const resave = cases[3]?.[1] as Step[];
+    await fc.asyncModelRun(() => ({ model: m, real }), resave);
+    const agentText = allEvents(real.base).find((e) => e.op === "write")?.item?.content;
+    const read = await real.handle.plane.read(SAM, { at: m.at });
+    expect(read.items.map((i) => i.content)).toEqual([agentText]);
+    expect(read.items[0]?.provenance.kind).toBe("user");
+    real.base.close();
+  });
+
+  test("E14-F3's relaxation is narrow: a grant reached any other way still fails the model", () => {
+    const log = (raiser: Partial<MemoryEvent>): MemoryEvent[] => {
+      const base = {
+        ts: START,
+        item_id: itemId(1),
+        scope_from: null,
+        scope_to: PERSON,
+        decision: "allow",
+        schema_version: 1,
+      };
+      const item = (kind: MemoryItem["provenance"]["kind"]) =>
+        ({
+          id: itemId(1),
+          owner: DANA.id,
+          provenance: { kind },
+        }) as MemoryItem;
+      return [
+        {
+          ...base,
+          id: "e0",
+          seq: 0,
+          op: "write",
+          actor: DANA.id,
+          reason: "x",
+          policy_id: "p",
+          item: item("model"),
+        },
+        {
+          ...base,
+          id: "e1",
+          seq: 1,
+          op: "write",
+          actor: DANA.id,
+          reason: "x",
+          policy_id: "p",
+          item: item("user"),
+          ...raiser,
+        },
+      ] as MemoryEvent[];
+    };
+    const detail = `write event 1 at ${START} by person:dana (p) on ${itemId(1)}: ${E14_F3}`;
+    expect(ownersLaundering(log({}), detail)).toBe(true);
+    expect(ownersLaundering(log({ actor: LEE.id }), detail)).toBe(false);
+    expect(ownersLaundering(log({ reason: `${ADOPTED}fake: x` }), detail)).toBe(false);
+    expect(ownersLaundering(log({ op: "update" }), detail)).toBe(false);
+    expect(
+      ownersLaundering(
+        log({
+          item: { id: itemId(1), owner: DANA.id, provenance: { kind: "import" } } as MemoryItem,
+        }),
+        detail,
+      ),
+    ).toBe(false);
+  });
+
+  // Today ENGRAM_STATEFUL_STRICT=F4 (2,000 runs) fails first at
+  // ENGRAM_STATEFUL_PATH=1448:4:14:14:19:17:15:16:16:16:17
+  // ENGRAM_STATEFUL_REPLAY=CFHBDB/e:VD, a seven-command list with two
+  // crashes. The deep run's second counterexample before the review fix pass
+  // (ENGRAM_STATEFUL_RUNS=4000, seed -19116893, path "3410:3:2:9:9:8"): under
+  // the tight budgets (one active semantic item in the role), a role write
+  // killed before its commit leaves item 5's bytes; a write of item 6 with a
+  // grant lands; a grant removal on item 6 is killed after its store write.
+  // The first adoption records item 5 and its budget check evicts item 6, so
+  // the listing of item 6 is stale and deferred (P50-7); the second adopts
+  // item 6's narrowed record, which evicts item 5; the third appends
+  // nothing. Pinned as it stands today: recovery converges, in two
+  // adoptions, not one.
   test("E14-F4: recovery after two crashed role writes under a budget of one needs a second adoption", async () => {
     const cmds = [
-      new Write("dana", 3, false, false, false, "commit-before"),
-      new Reopen(),
-      new Write("dana", 4, true, false, false, "none"),
-      new ChangeGrant(4, false, "sam", true),
+      new Write({ who: "dana", scope: 1, crash: "commit-before" }),
+      new Reopen(false),
+      new Write({ who: "dana", scope: 1, pick: 1, grant: true }),
+      new ChangeGrant("dana", true, 0, false, true, true),
     ];
-    await expect(runModel("tight", cmds, newSeen(), undefined, true)).rejects.toThrow(
+    await expect(runModel("tight", cmds, newSeen(), undefined, ["F4"])).rejects.toThrow(
       /recovery: adoption pass 2 still appends/,
     );
     const seen = newSeen();
@@ -951,35 +1408,74 @@ describe("the Plane as a state machine", () => {
     expect(seen.adoptionPasses).toBe(3);
   });
 
+  // Found by the reworked model's first default run (seed -19116893, path
+  // "179:2:1:4:4:4:4", replay path "JACACAa:VB", shrunk six times): [tight,
+  // write(lee, new role:release #0), grant(lee, own #0, add sam),
+  // write(lee, live #0, stale, crash commit-before)], then recovery, which
+  // adopts the role as Dana. Lee's granted item is committed; his rewrite of
+  // it is killed after its store write. Dana's adoption of the shared role
+  // denies the record (engram/grant/owner: only the owner rewrites an item
+  // carrying grants) and retracts Lee's committed item; Lee's own adoption
+  // after it changes nothing. The item stays retired, Sam loses the read, and
+  // the store keeps bytes the log denied. A grant removal works the same:
+  // ENGRAM_STATEFUL_STRICT=F6 fails first at ENGRAM_STATEFUL_PATH=
+  // 43:3:3:3:9:8:12:12:12 ENGRAM_STATEFUL_REPLAY=GLDADBCD/L:VN, where Lee's
+  // removal of Sam's grant from the role item he was handed is killed after
+  // its store write. Pinned as it stands today.
+  test("E14-F6: after the owner's crashed rewrite of a granted role item, a co-holder's adoption retires the owner's item for good", async () => {
+    const cmds = [
+      new Write({ who: "lee", scope: 1 }),
+      new ChangeGrant("lee", true, 0, true),
+      new Read("sam"),
+      new Write({ who: "lee", target: "live", crash: "commit-before" }),
+      new Reopen(false),
+      new Adopt(1),
+      new Adopt(1, true),
+      new Read("sam"),
+    ];
+    await expect(runModel("twin", cmds, newSeen(), undefined, ["F6"])).rejects.toThrow(
+      /recovery: the store's record of 01960000-0000-7000-8000-000000000005/,
+    );
+    const seen = newSeen();
+    await runModel("twin", cmds, seen);
+    expect(seen.grantedReads).toBe(1); // before the crash only
+    expect(seen.coholderRetractions).toBeGreaterThan(0);
+  });
+
   /** The model must fail on a broken plane, and shrink the failure to a short sequence. */
   async function caught(broken: Breakage, name: string) {
-    const out = await fc.check(
-      fc.asyncProperty(arbRun, ([policy, cmds]) => runModel(policy, cmds, newSeen(), broken)),
-      { numRuns: 200, seed: seedFor(name) },
-    );
+    const out = await checkModel({ runs: 200, seed: seedFor(name) }, newSeen(), broken);
     expect(out.failed, `${name}: the model did not catch the broken plane`).toBe(true);
-    // The commands of the shrunk counterexample that ran (fast-check's wrappers mark them).
-    const cmds = (out.counterexample?.[0]?.[1] ?? []) as Iterable<{ hasRan?: boolean }>;
-    return [...cmds].filter((c) => c.hasRan !== false).map(String);
+    return { out, shrunk: ran(out) };
   }
 
-  test("vacuity: a plane whose read also hands back the owner's person items is caught, and the failure shrinks", async () => {
-    const leaky: Breakage = (plane, deps) => ({
-      ...plane,
-      read: async (actor, query) => {
-        const res = await plane.read(actor, query);
-        const extra = currentItems(deps.db).filter(
-          (i) =>
-            i.scope === PERSON && i.status === "active" && !res.items.some((x) => x.id === i.id),
-        );
-        return { ...res, items: [...res.items, ...extra] };
-      },
-    });
-    const shrunk = await caught(leaky, "vacuity: a leaky read");
+  const leaky: Breakage = (plane, deps) => ({
+    ...plane,
+    read: async (actor, query) => {
+      const res = await plane.read(actor, query);
+      const extra = currentItems(deps.db).filter(
+        (i) => i.scope === PERSON && i.status === "active" && !res.items.some((x) => x.id === i.id),
+      );
+      return { ...res, items: [...res.items, ...extra] };
+    },
+  });
+
+  test("vacuity: a plane whose read also hands back the owner's person items is caught, and the failure shrinks and replays", async () => {
+    const { out, shrunk } = await caught(leaky, "vacuity: a leaky read");
     // Shrunk to a write into the person scope and a read by someone who is not its member.
     expect(shrunk.length, shrunk.join(" ")).toBeLessThanOrEqual(3);
     expect(shrunk.some((c) => c.startsWith("write(") || c.startsWith("promote("))).toBe(true);
     expect(shrunk.at(-1)).toMatch(/^read\((sam|lee)/);
+    // The printed seed, path and replay path give the same shrunk list back (review finding E1.4-1).
+    const r = replayOf(out);
+    expect(r.replayPath.length).toBeGreaterThan(0);
+    const again = await checkModel(
+      { runs: 1, seed: r.seed, path: r.path, replayPath: r.replayPath },
+      newSeen(),
+      leaky,
+    );
+    expect(again.failed, replayLine(out)).toBe(true);
+    expect(ran(again)).toEqual(shrunk);
   }, 120_000);
 
   test("vacuity: a plane whose agent writes into the role reach the store without the gate is caught", async () => {
@@ -990,8 +1486,11 @@ describe("the Plane as a state machine", () => {
         return plane.write(actor, it, at);
       },
     });
-    const shrunk = await caught(bypass, "vacuity: a gate bypass");
+    const { shrunk } = await caught(bypass, "vacuity: a gate bypass");
     expect(shrunk.length, shrunk.join(" ")).toBeLessThanOrEqual(2);
-    expect(shrunk[0]).toMatch(/^write\(agent, [34]/);
+    expect(
+      shrunk.some((c) => c.startsWith("write(agent, ")),
+      shrunk.join(" "),
+    ).toBe(true);
   }, 120_000);
 });
