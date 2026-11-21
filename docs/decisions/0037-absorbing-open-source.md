@@ -38,7 +38,7 @@ Supersedes: nothing. It extends ADR 0020 (the code is Apache-2.0) and rule 11 (a
 - New files: `docs/conventions/absorption.md` (the procedure), `docs/absorbed.md` (the register, empty until the first card), and the root `NOTICE`.
 - AGENTS.md gains rule 16 and the new paths. `docs/conventions/testing.md` is unchanged.
 - The thesis methods chapter can state what was absorbed, from where and under which licence, by reading the register.
-- Some attractive sources are closed to us as code: trufflehog (AGPL), elkjs (EPL or GPL), Arize Phoenix (Elastic). The cards name the permitted substitute.
+- Some attractive sources are closed to us as code, for example trufflehog (AGPL), elkjs (EPL or GPL) and Arize Phoenix (Elastic). The cards name the permitted substitute.
 - The check in `make lint-docs` is implemented by the first card that adds a register row; until then the register is empty and there is nothing to check.
 
 ## Sources

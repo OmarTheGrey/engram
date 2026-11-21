@@ -1,8 +1,8 @@
 # ADR 0039: Content guards at the write gate: deterministic detectors for secrets, personal data and injected instructions, off by default
 
-Status: proposed, 2026-11-21
-Deciders: drafted by the absorb plan (`docs/tasks/absorb-plan.md`, cards E2.8, E2.9 and E2.10); for the lead's acceptance (`docs/tasks/lead-decisions.md`, item 50)
-Supersedes: nothing. It would amend ADR 0007 (write gate rules and source isolation) with a stage that looks at content.
+Status: accepted, 2026-11-21, under the lead's delegation of that day (`docs/tasks/lead-decisions.md`, item 50, option a); the lead may overturn it
+Deciders: the orchestrating session, under the lead's delegation of 2026-11-21; drafted by the absorb plan (`docs/tasks/absorb-plan.md`, cards E2.8, E2.9 and E2.10)
+Supersedes: nothing. It amends ADR 0007 (write gate rules and source isolation) with a stage that looks at content.
 
 ## Context
 
@@ -11,12 +11,12 @@ Supersedes: nothing. It would amend ADR 0007 (write gate rules and source isolat
 - **The one redactor Engram has is elsewhere.** `packages/core/src/plane/bypass.ts` redacts secrets from the record of a blocked shell command (ADR 0014). It is not applied to memory content.
 - **Constraints.** Rule 4: the plane calls no model. The registered conditions of H1 to H4 must not change. The content hash identifies an item, so changing content at the gate changes its identity.
 
-## Decision (proposed)
+## Decision
 
 1. **A policy block, `content_guards`, off by default.** Its options: `secrets` and `pii`, each `off`, `review` or `block`; `injection_screen`, `off`, `default` or `hardened`; `max_content_bytes`. A policy without the block behaves as today. The schema change is its own pull request (card E2.8, rule 5).
 2. **Deterministic only.** The guards are regular-expression rule tables with validators (Luhn, mod-97), an entropy measure, and weighted pattern rules. No model. A model-based detector, if ever wanted, is a lint with an injected `ModelCall`, outside this decision.
-3. **Two outcomes, never a rewrite.** `block` denies the write. `review` admits it as a candidate, which no read returns until a person promotes it. The gate never redacts or masks content, because that would change the content hash and store something the writer did not write.
-4. **The reason never holds the value.** A decision's reason names the rule's kind (for example, `secret/aws-access-key`) and a fingerprint of the first and last four characters. The event log must not become the place the secret is kept.
+3. **Two outcomes, never a rewrite.** `block` denies the write. `review` admits it as a candidate, by the mechanism a rule's `requires_review` already uses (`packages/core/src/policy/evaluate.ts`), which no read returns until a person promotes it. The gate never redacts or masks content, because that would change the content hash and store something the writer did not write.
+4. **The reason never holds the value, nor any part of it.** A decision's reason names the rule's kind (for example, `secret/aws-access-key`) and the match's length. It holds no character of the value: the first and last four characters of an eight-character secret are the secret, and the event log is permanent. If repeated matches ever need to be correlated, a keyed hash is a later decision.
 5. **The injection screen depends on the source.** Its standing-directive and persistence rules apply only to content a person did not type (kinds external, tool, document, model and compaction). A person may tell their own memory to always do something.
 6. **A rule that fails, fails closed.** A rule that throws or exceeds its time bound holds the write as a candidate with that reason. Every rule passes a timeout test against catastrophic backtracking before it is admitted to the table.
 7. **It is a floor.** The documentation, the results and the thesis call the injection screen a deterministic floor with a measured escape rate and false-hold rate. It is never called a defence.
@@ -31,7 +31,7 @@ Supersedes: nothing. It would amend ADR 0007 (write gate rules and source isolat
 
 ## Consequences
 
-- Cards E2.8, E2.9 and E2.10 follow acceptance. Card X14 measures them.
+- Cards E2.8, E2.9 and E2.10 follow. Card X14 measures them.
 - Rule tables are absorbed under ADR 0037, with their sources in `docs/absorbed.md` and `NOTICE`.
 - False positives hold or deny legitimate writes. Each guard ships with a false-positive measurement on benign technical text, as a rule-9 result.
 - English-centred patterns miss other languages, and any regular expression can be evaded. Both are stated as limits.

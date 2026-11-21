@@ -1,21 +1,21 @@
 # ADR 0038: A tamper-evident event log that keeps erasure possible: a side-table hash chain over a content-free skeleton, with signed checkpoints
 
-Status: proposed, 2026-11-21
-Deciders: drafted by the absorb plan (`docs/tasks/absorb-plan.md`, card E1.6); for the lead's acceptance (`docs/tasks/lead-decisions.md`, item 49)
-Supersedes: nothing. It would amend ADR 0003 (the event log is the source of truth) with a way to detect that the log was changed.
+Status: accepted, 2026-11-21, under the lead's delegation of that day (`docs/tasks/lead-decisions.md`, item 49, option a); the lead may overturn it
+Deciders: the orchestrating session, under the lead's delegation of 2026-11-21; drafted by the absorb plan (`docs/tasks/absorb-plan.md`, card E1.6)
+Supersedes: nothing. It amends ADR 0003 (the event log is the source of truth) with a way to detect that the log was changed.
 
 ## Context
 
 - **The log is trusted, and nothing protects it.** Every guarantee Engram gives is read off the event log: replay, explanation, the invariants, the dogfood report. The log is append-only by convention. A row edited in SQLite or Postgres is not detected by anything.
-- **A plain hash chain breaks on erasure.** Offboarding (card E9.7, ADR 0010's amendments) redacts the content, the provenance reference and the evidence hash an erased item carries in every earlier event. A chain that hashes event bodies would stop verifying at the first erasure. Immutability and the right to erasure pull in opposite directions.
+- **A plain hash chain breaks on erasure.** Offboarding (card E9.7, ADRs 0021 and 0010) redacts the content, the provenance reference and the evidence hash an erased item carries in every earlier event. A chain that hashes event bodies would stop verifying at the first erasure. Immutability and the right to erasure pull in opposite directions.
 - **What exists to absorb.** The sweep found working designs under permitted licences: a hash chain with a genesis and a read-index cross-check (huqan, Apache-2.0), an ordered verifier with a tamper test matrix (world-model-mcp, MIT), Ed25519 signed head checkpoints (octopus-blackboard, Apache-2.0), and the tree and checkpoint formats of RFC 6962 and C2SP's tlog-checkpoint.
 - **Constraints.** No change to the event body schema (rule 5 would make it a schema PR, and committed results hash event files). Core does no key I/O. Both Db backends.
 
-## Decision (proposed)
+## Decision
 
 1. **A side table, not a new event field.** A table created in `packages/core/src/db/migrate.ts` holds, per event sequence number, the chain hash. `schema.ts` and the event bodies do not change, so every committed result and fixture stays byte-identical.
-2. **The chain hashes a skeleton.** The hashed record is the event's sequence number, type, time, actor, scope, item id, policy id, rule and decision: no content. Each field that offboarding may redact is represented by a salted commitment (a hash of the field with a per-event random salt kept in the side table).
-3. **Erasure deletes the salt.** When offboarding redacts an event, it deletes that event's salts. The commitments stay, the chain still verifies, and without the salt a commitment reveals nothing about a low-entropy value. The verifier reports such a link as verified and erased.
+2. **The chain hashes a skeleton that covers every field.** A field offboarding never redacts is hashed as it is: the sequence number, type, time, actor, scope, item id, policy id, rule, decision and reason (rule 3 makes the reason the audit trail, so a rewritten reason must be detected). Each field offboarding may redact (the content, the provenance reference, the evidence hash, and the parts of a lint event it redacts) is represented by a salted commitment: a hash of the field with a per-event random salt kept in the side table. The skeleton holds no content.
+3. **Erasure deletes the salt, and only a chained erasure counts.** When offboarding redacts an event, it deletes that event's salts. The commitments stay, the chain still verifies, and without the salt a commitment reveals nothing about a low-entropy value. The verifier reports such a link as erased only when the chain itself holds the offboarding's erase event for that item (`engram/offboard/erase`), whose own skeleton is chained. A redacted field or a missing salt with no such event is reported as tampering, so a redaction cannot be used to hide an edit.
 4. **One canonical form.** A single function serialises the skeleton for the writer and the verifier: UTC timestamps at fixed precision, integers only, keys in a fixed order, RFC 6962's leaf and node prefixes for domain separation.
 5. **Anchors.** Each log has a genesis record. A meta row holds the head hash and the event count, so truncating the tail is detected.
 6. **Where the chain starts.** After the migrations that rewrote bodies in place, with a backfill checkpoint that records the sequence number it starts at. Events before it are stated as unchained.
@@ -32,7 +32,7 @@ Supersedes: nothing. It would amend ADR 0003 (the event log is the source of tru
 
 ## Consequences
 
-- Card E1.6 implements this; nothing is built before the lead accepts it.
+- Card E1.6 implements this in the week the plan gives it (W14), after Gate C.
 - A write costs one more hash and one more row, inside the transaction card E2.6 already serialises.
 - Key custody is the operator's problem and the documentation says so. A signature proves the holder of the key saw that head, not that the log is true.
 - An operator with database access and the signing key can still rewrite history. The chain raises the cost and makes it detectable to anyone holding an earlier checkpoint.

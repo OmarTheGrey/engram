@@ -3,13 +3,14 @@
 // with a `decision` log entry that cites it. OWNER_DECIDES lists any ADR left
 // for the owner to decide. The lead accepted ADRs 0031 to 0033 on 2026-11-19
 // (docs/log/2026-11-19-lead-decision-adrs-accepted.md); ADR 0034, proposed
-// by card E9.4, is left for the owner, and so are ADRs 0038 to 0041, proposed
-// by the absorb plan on 2026-11-21 (docs/tasks/absorb-plan.md).
+// by card E9.4, is the one left for the owner. ADRs 0038 to 0041, proposed by
+// the absorb plan on 2026-11-21, were accepted that day under the lead's
+// delegation (docs/log/2026-11-21-orch-decision-adrs-0038-0041-accepted.md).
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { describe, expect, test } from "vitest";
 import { parseFrontmatter } from "../lib/frontmatter.ts";
 
-const OWNER_DECIDES = new Set<string>(["0034", "0038", "0039", "0040", "0041"]);
+const OWNER_DECIDES = new Set<string>(["0034"]);
 const ADDED_BY_ADR_0001 = ["PX1", "PX2", "PX3", "RN1", "RN2"];
 
 const roadmap = readFileSync("docs/roadmap.md", "utf8");

@@ -12,7 +12,7 @@ The lead asked for the research of 2026-11-21 to be cut down to at most thirty p
 
 Four tests, in this order.
 
-1. **It cannot endanger Gate C.** Before the `prereg-v1` tag on 30 November only documents and tests merge. Nothing here changes what a registered condition does: every behaviour change is behind a policy option that is off in the H1 to H4 presets.
+1. **It cannot endanger Gate C.** Before the `prereg-v1` tag on 30 November only documents, tests and test doubles in the test tree merge; nothing under any package's `src/` changes. Nothing here changes what a registered condition does: every behaviour change is behind a policy option that is off in the H1 to H4 presets.
 2. **It serves a hypothesis or closes a gap we found in our own code.** H2 and H5 need outside harnesses that obey the seed and cache rules. H3 needs a middle tier. The sweep found two likely trust gaps and that the write gate inspects no content.
 3. **It absorbs something we would otherwise write worse.** Rule tables for secrets, an injection screen, interval logic for supersession, a transparency-log design, a formal spec language.
 4. **It can be shown.** A Friday demo, a table for the thesis, or a screen.
@@ -30,11 +30,11 @@ ADR 0037 and `docs/conventions/absorption.md` hold the rules. In short:
 
 ## 4. The thirty, in order
 
-Lane R is the research spine, lane P the product. "Week" is the roadmap's week (W8 starts 23 November; Gate C is the end of W10, Gate D the end of W16).
+Lane R is the research spine, lane P the product. The "Depends on" column names only dependencies that are not yet merged; the card files and the roadmap's table also name the merged ones. "Week" is the roadmap's week (W8 starts 23 November; Gate C is the end of W10, Gate D the end of W16).
 
 | # | Card | Title | Lane | Week | Effort | Depends on |
 |---|---|---|---|---|---|---|
-| 1 | R2 | Pre-registration: the proposed arms, as proposals | R | W8 | S | none |
+| 1 | R2 | Pre-registration: the proposed arms, as proposals | R | W8 | S | the answers card |
 | 2 | R3 | The novelty claim restated against HEAMS and SAFE-Mem | R | W8 | S | none |
 | 3 | E2.7 | Counterexample tests for the two suspected trust gaps | R | W8 | S | none |
 | 4 | A5 | Conformance: validity, history, graph and revocation cases | R | W8 | S | none |
@@ -46,7 +46,7 @@ Lane R is the research spine, lane P the product. "Week" is the roadmap's week (
 | 10 | B7 | MERIT through the plane and the proxy | R | W11 | M | B10 |
 | 11 | B11 | tau2-bench through the plane and the proxy | R | W11 | M | B10 |
 | 12 | D1 | The session recorder | R | W11 | M | none |
-| 13 | E2.8 | Policy schema: content guards and trust floors | R | W11 | S | ADRs 0039, 0040 |
+| 13 | E2.8 | Policy schema: content guards and trust floors | R | W11 | S | none |
 | 14 | E2.9 | The secret and personal-data guard at the write gate | R | W12 | M | E2.8 |
 | 15 | E2.10 | The deterministic injection screen | R | W12 | M | E2.8 |
 | 16 | L5 | The near-duplicate lint ADR 0018 promised | R | W12 | M | none |
@@ -54,13 +54,13 @@ Lane R is the research spine, lane P the product. "Week" is the roadmap's week (
 | 18 | D2 | Induction: Agent Workflow Memory over pi sessions, skills as SKILL.md | R | W13 | L | D1 |
 | 19 | D3 | The replay validation gate | R | W13 | L | D2, B11 |
 | 20 | E2.11 | Trust floors in the write path and in retention | R | W13 | M | E2.7, E2.8 |
-| 21 | E1.6 | The tamper-evident event log | R | W14 | L | ADR 0038 |
+| 21 | E1.6 | The tamper-evident event log | R | W14 | L | none |
 | 22 | L7 | A local NLI tier for the contradiction lint | R | W14 | L | R2 |
 | 23 | X14 | The red-team harness | R | W14 | L | R2, E2.9, E2.10 |
 | 24 | E2.13 | Who can read this memory | P | W15 | M | none |
 | 25 | E8.11 | Inspector: the provenance graph, the event table, the version diff | P | W15 | M | none |
 | 26 | E9.8 | Memory import and export | P | W15 | M | none |
-| 27 | E2.12 | Policy exported to Cedar, with a differential test | P | W16 | M | ADR 0041 |
+| 27 | E2.12 | Policy exported to Cedar, with a differential test | P | W16 | M | none |
 | 28 | E8.12 | Verified actors | P | W17 | L | none |
 | 29 | E8.13 | Decisions exported as OpenTelemetry spans | P | W17 | M | none |
 | 30 | E8.14 | The framework kit and a Vercel AI SDK middleware | P | W18 | M | none |
@@ -85,13 +85,13 @@ Existing cards the plan rewrites: B7, D1, D2 and D3. All others are new. D4 (dri
 
 **3. E2.7. Counterexample tests for the two suspected trust gaps.**
 - *Why.* The source-level readers found two places where trust may be bypassed: a write whose actor names no source keeps whatever provenance kind it claims (documented behaviour, ADR 0004 decision D4; whether it is a gap depends on which surfaces can reach the plane without a source), and a budget eviction or a rewrite seems to ignore how trusted the victim is. They found them by reading, not by running. A claim like that is either proved or withdrawn before anything is fixed.
-- *How.* One new test file with known-failing tests (`it.fails`), so the suite stays green whichever way they come out: a seven by seven lattice of writer kind against victim kind for rewrite, retire and eviction, and a write with no source. Each confirmed gap becomes a `finding` log entry with its reproduction. Each refuted one becomes a `finding` too, and E2.11 shrinks.
+- *How.* One new test file of characterisation tests, each a plain test asserting what the plane does today, so the suite is green whichever way they come out and a confirmed gap is pinned: a seven by seven lattice of writer kind against victim kind for rewrite, retire and eviction, and a write with no source. It also lists how each surface sets the actor's source (the HTTP API takes it from the request body). Each confirmed gap becomes a `finding` log entry with its reproduction. Each refuted one becomes a `finding` too, and E2.11 shrinks.
 - *Absorbs.* The lattice test shape of dent8 (Apache-2.0 or MIT, idea), the unattested-write expectation of Veracium (MIT, idea).
 - *Acceptance.* `make test-one T=packages/core/test/counterexamples/trust.test.ts`.
 
 **4. A5. Conformance: validity, history, graph and revocation cases.**
 - *Why.* ADR 0013 lets an adapter claim `native_validity`, `native_history` and `native_graph`, and nothing tests the claims. And 2609.08258 shows two popular stores returning a revoked policy ranked above its replacement in all 81 of its cells. The plane should make that impossible on every store, and a test should say so.
-- *How.* Give the fake adapter a mode with validity, add a capability-honesty case to the conformance suite (a store that claims a capability must show it), and add a revocation grid per store: write, supersede, read through the plane, and assert the revoked item is never admitted and never outranks its replacement. Amend ADR 0013 for Mem0 version 3, which dropped graph memory from its open-source package. No contract change.
+- *How.* Add a test double with validity in the test tree (the fake adapter itself is not changed, since committed results use it), add a capability-honesty case to the conformance suite (a store that claims a capability must show it), and add a revocation grid per store: write, supersede, read through the plane, and assert the revoked item is never admitted and never outranks its replacement. Amend ADR 0013 for Mem0 version 3, which dropped graph memory from its open-source package. No contract change.
 - *Absorbs.* The scenario grid of Memory-Rebirth-Attack (Apache-2.0, idea), Zep's capability vocabulary (paper, idea).
 - *Acceptance.* `make test`.
 
@@ -105,7 +105,7 @@ Existing cards the plan rewrites: B7, D1, D2 and D3. All others are new. D4 (dri
 
 **6. B10. The cassette proxy for outside harnesses.**
 - *Why.* MERIT, tau2-bench and any other Python harness call models through LiteLLM, outside rules 6 and 7. H2 needs MERIT and H5 needs tau2. ADR 0036 decided on a local proxy; nothing mature exists to absorb (the three open cassette proxies found have at most two stars), so we build it on what we already have.
-- *How.* In `packages/model`: a loopback server speaking the OpenAI chat-completions API, serving each request through the existing cached, seeded call with ADR 0017's key. Replay by default, with a miss as an error; record only under the live flags; refused under `ENGRAM_OFFLINE=1`. Streaming, tool calls and embeddings return 501 until a harness needs them. A research config whose harness endpoint is not the proxy is refused.
+- *How.* In `packages/model`: a loopback server speaking the OpenAI chat-completions API, serving each request through the existing cached, seeded call with ADR 0017's key. Replay by default, with a miss as an error; record only under the live flags; refused under `ENGRAM_OFFLINE=1`. Tool definitions and tool calls pass through unchanged and are part of the key, since tau2 is a tool-use harness. Streaming and embeddings return 501 until a harness needs them. A research config whose harness endpoint is not the proxy is refused.
 - *Absorbs.* vcrpy's record-mode vocabulary and LiteLLM's cache-hit header (both MIT, idea). No new dependency: Node's `http`.
 - *Acceptance.* A replay test where a miss is an error and a second run makes zero new calls.
 
@@ -129,7 +129,7 @@ Existing cards the plan rewrites: B7, D1, D2 and D3. All others are new. D4 (dri
 
 **10. B7. MERIT through the plane and the proxy.**
 - *Why.* H2's frontier is registered on GateMem, LongMemEval and MERIT, and MERIT is the one that measures whether a remembered fact leads to a correct action, at a stated cost. Its card has been open since the roadmap was written.
-- *How.* MERIT is already pinned in `packages/bench/PINS.md`. Run its harness as an external process pointed at the proxy, map its memory calls to `Plane.read` and `Plane.write`, and replay a fixture slice offline with zero new calls. Cost accounting comes from the proxy's ledger.
+- *How.* MERIT is already pinned in `packages/bench/PINS.md`. Run its harness as an external process pointed at the proxy, map its memory calls to `Plane.read` and `Plane.write` (over loopback HTTP to `engram serve`, through a small Python shim), and replay a fixture slice offline with zero new calls. Cost accounting comes from the proxy's ledger.
 - *Absorbs.* MERIT's harness (MIT, pinned in `packages/bench/PINS.md`; depend, run as an external process, nothing copied).
 - *Acceptance.* A MERIT fixture slice replayed from cassettes, twice, the second run with zero new calls.
 
@@ -153,7 +153,7 @@ Existing cards the plan rewrites: B7, D1, D2 and D3. All others are new. D4 (dri
 
 **14. E2.9. The secret and personal-data guard at the write gate.**
 - *Why.* The write gate checks who is writing and where. It never looks at what. An API key or a card number pasted into a conversation is stored, and recalled, like any other fact. About a dozen of the repositories read have a guard for this, and every commercial competitor does.
-- *How.* A pure detector stage in `evaluateWrite`, driven by the policy: deny, or hold as a candidate. Two tiers: BLOCK for secrets and personal data, REVIEW for high-entropy strings. The reason names the kind and a first-and-last-four fingerprint, never the value. Rules come from tables with a timeout test against catastrophic backtracking, Luhn and mod-97 validators, and a false-positive script over git hashes, UUIDs and similar. Unify with the redactor already in `plane/bypass.ts`. Synthetic fixtures only.
+- *How.* A pure detector stage in `evaluateWrite`, driven by the policy: deny, or hold as a candidate. Two tiers: BLOCK for secrets and personal data, REVIEW for high-entropy strings. The reason names the kind and the match's length, and no character of the value. Rules come from tables with a timeout test against catastrophic backtracking, Luhn and mod-97 validators, and a false-positive script over git hashes, UUIDs and similar. Unify with the redactor already in `plane/bypass.ts`. Synthetic fixtures only.
 - *Absorbs.* The 45-pattern redaction table of claude-mem and the refuse-or-redact logic of walrus-memory (both Apache-2.0, copy), graphCTX's entropy rules (MIT, copy), Hindsight's lookarounds and caura's personal-data table (MIT and Apache-2.0, port), gitleaks' rule file as generated data (MIT, port). trufflehog is AGPL and is not used.
 - *Acceptance.* The unit tests, a coverage and false-positive result with a MANIFEST row, and `make test-invariants` still green.
 
@@ -189,13 +189,13 @@ Existing cards the plan rewrites: B7, D1, D2 and D3. All others are new. D4 (dri
 
 **20. E2.11. Trust floors in the write path and in retention.**
 - *Why.* This is the fix for whatever E2.7 confirms. If a write with no attested source can claim to be user-typed, the provenance model the thesis rests on has a hole. If an agent's write can evict or overwrite a person's item, source isolation is weaker than ADR 0007 says.
-- *How.* A write whose actor attests no source lands at the least trusted kind, with a reason. No write, eviction or retire by a less trusted source changes or removes a more trusted active item, unless its owner acts. Both behind the options E2.8 adds, off in the H1 to H4 presets so no registered number moves, on in a new preset. An eighth invariant, with the lattice test from E2.7 turned from failing to passing.
+- *How.* A write whose actor attests no source lands at the least trusted kind, with a reason (on the HTTP API the source stays self-asserted until card E8.12, a stated limit). No write, eviction or retire by a less trusted source changes or removes a more trusted active item, unless its owner acts. Both behind the options E2.8 adds, off in the H1 to H4 presets so no registered number moves, on in a new preset. An eighth invariant, and each of E2.7's characterisation tests gains its counterpart under the options.
 - *Absorbs.* dent8's authority checks (Apache-2.0 or MIT, port), Veracium's floor design (MIT, port).
 - *Acceptance.* `make test-invariants` with the new invariant; replay equality holds. Decision: item 51.
 
 **21. E1.6. The tamper-evident event log.**
-- *Why.* Every guarantee Engram gives is read off its log, and the log is append-only by convention: nothing stops a row being edited in the database. Offboarding makes this hard, because it rewrites event bodies to erase a person's content, which breaks any hash over the body. ADR 0038 proposes the design that keeps both.
-- *How.* A chain in a side table, hashing a skeleton of each event that holds no content, with salted commitments standing in for the fields offboarding redacts, so an erasure drops the salt and the chain still verifies. Signed checkpoints, with signing injected so core holds no key. `engram log verify`, and a property test that catches an injected edit, deletion, reorder and tail truncation across random operations including an offboarding, on SQLite and Postgres, as a new always-on invariant (the ninth if E2.11 has landed, the eighth otherwise). No change to `schema.ts`.
+- *Why.* Every guarantee Engram gives is read off its log, and the log is append-only by convention: nothing stops a row being edited in the database. Offboarding makes this hard, because it rewrites event bodies to erase a person's content, which breaks any hash over the body. ADR 0038 is the design that keeps both.
+- *How.* A chain in a side table, hashing a skeleton that covers every field of each event and holds no content, with salted commitments standing in for the fields offboarding redacts, so an erasure drops the salt and the chain still verifies. A redacted link is accepted only when the chain holds the offboarding's own erase event. Signed checkpoints, with signing injected so core holds no key. `engram log verify`, and a property test that catches an injected edit, deletion, reorder and tail truncation across random operations including an offboarding, on SQLite and Postgres, as a new always-on invariant (the ninth if E2.11 has landed, the eighth otherwise). No change to `schema.ts`.
 - *Absorbs.* huqan's hash chain (Apache-2.0, port), world-model-mcp's verifier and tamper matrix (MIT, port), octopus-blackboard's Ed25519 checkpoint signing (Apache-2.0, copy), the RFC 6962 tree and the C2SP checkpoint format (specifications).
 - *Acceptance.* `make test-invariants` with the chain invariant on both backends. Decision: item 49 (ADR 0038).
 
@@ -239,7 +239,7 @@ Existing cards the plan rewrites: B7, D1, D2 and D3. All others are new. D4 (dri
 
 **28. E8.12. Verified actors.**
 - *Why.* Every surface takes `--as` on trust: identity is self-asserted, and the architecture document lists it as a limit. A governance product whose actors are unauthenticated cannot be deployed beyond one laptop.
-- *How.* An ADR first, fixing how a token's issuer and subject map to an actor (a token never widens a grant). Then `engram serve` and the HTTP MCP server become an OAuth 2.1 resource server with audience-bound tokens, plus hashed, prefixed API keys with expiry. Loopback without a token only behind an explicit flag; stdio keeps `--as`. An invariant that every event's actor was authenticated.
+- *How.* An ADR first, fixing how a token's issuer and subject map to an actor and its source (a token never widens a grant, and a source sent by an authenticated client is ignored). Then `engram serve` and the HTTP MCP server become an OAuth 2.1 resource server with audience-bound tokens, plus hashed, prefixed API keys with expiry. Loopback without a token only behind an explicit flag; stdio keeps `--as`. An invariant that every event's actor was authenticated.
 - *Absorbs.* jose (MIT, depend), the key handling of TencentDB-Agent-Memory (MIT, copy).
 - *Acceptance.* The invariant, and the existing surface tests. Decision: item 54.
 
@@ -257,18 +257,18 @@ Existing cards the plan rewrites: B7, D1, D2 and D3. All others are new. D4 (dri
 
 ## 6. Decisions the plan needs
 
-Each is an item in `docs/tasks/lead-decisions.md` (49 to 56), with the recommendation as option (a). Cards that wait on one say so.
+Each is an item in `docs/tasks/lead-decisions.md` (49 to 56). All eight were closed on 2026-11-21 under the lead's delegation, each with option (a); the reasons are in that file's last section, and the lead may overturn any. Two things stay with the lead: registering any proposed arm, and what to do if card E2.7 confirms a trust gap that can move a registered number.
 
-| Item | Question | Blocks |
-|---|---|---|
-| 49 | The tamper-evident log's design (ADR 0038) | E1.6 |
-| 50 | Content guards at the write gate (ADR 0039) | E2.8, E2.9, E2.10 |
-| 51 | Trust floors and their defaults (ADR 0040) | E2.8, E2.11 |
-| 52 | Cedar as an export target (ADR 0041) | E2.12 |
-| 53 | What "who can read" reveals, and to whom | E2.13 |
-| 54 | How a token maps to an actor | E8.12 |
-| 55 | The trust of imported memories | E9.8 |
-| 56 | One batch of pre-registration proposals | R2 |
+| Item | Question | Answer | Was blocking |
+|---|---|---|---|
+| 49 | The tamper-evident log's design | ADR 0038 accepted | E1.6 |
+| 50 | Content guards at the write gate | ADR 0039 accepted, the injection screen included | E2.8, E2.9, E2.10 |
+| 51 | Trust floors and their defaults | ADR 0040 accepted: tests first, opt-in, off in the registered presets | E2.8, E2.11 |
+| 52 | Cedar as an export target | ADR 0041 accepted: export and differential test only | E2.12 |
+| 53 | What "who can read" reveals, and to whom | readers and the scope's owner only; grant holders to the owner | E2.13 |
+| 54 | How a token maps to an actor | an external issuer and local API keys; an ADR before code; no bundled identity provider | E8.12 |
+| 55 | The trust of imported memories | a dedicated import actor; every row a candidate; grants dropped | E9.8 |
+| 56 | One batch of pre-registration proposals | one batch; the lead registers each arm separately | R2 |
 
 ## 7. What is left out, and why
 

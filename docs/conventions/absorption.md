@@ -55,4 +55,4 @@ A licence named in a README, on npm or in a research note is a hint. The licence
 
 ## When the source cannot be used
 
-Say so in the card's log entry and name the substitute. The research already lists the known cases in `docs/research/absorb/long-list.md` ("Not absorbable"): for example trufflehog (AGPL), elkjs (EPL or GPL) and Arize Phoenix (Elastic).
+Say so in the card's log entry and name the substitute. The research lists the cases it found in `docs/research/absorb/long-list.md` ("Not absorbable"), for example elkjs (EPL or GPL), and the cards name others, for example trufflehog (AGPL) and Arize Phoenix (Elastic).
