@@ -1,0 +1,53 @@
+{
+  "_comment": "Card D3's replay task pool: eight synthetic retail support tasks over an invented order database, no real person or order. Each task's check is its own: a tau2-bench style database-state hash (the session's final database against the database its gold actions produce from the same start) or a stated outcome (the agent's final reply names it). The checks are read only by the oracle; nothing here reaches a prompt but the prompt.",
+  "tasks": [
+    {
+      "id": "d3/t1-address-pending",
+      "prompt": "Please change the shipping address on order W101 to 12 Elm St.",
+      "db": { "orders": { "W101": { "status": "pending", "address": "3 Birch Ln", "items": [{ "sku": "mug-1", "note": "" }], "refunded": [] } } },
+      "check": { "kind": "db-hash", "gold": [{ "name": "update_address", "arguments": { "order_id": "W101", "address": "12 Elm St" } }] }
+    },
+    {
+      "id": "d3/t2-address-pending",
+      "prompt": "I moved. Change the address on order W102 to 9 Pine Rd.",
+      "db": { "orders": { "W102": { "status": "pending", "address": "40 Cedar Ct", "items": [{ "sku": "towel-1", "note": "" }], "refunded": [] } } },
+      "check": { "kind": "db-hash", "gold": [{ "name": "update_address", "arguments": { "order_id": "W102", "address": "9 Pine Rd" } }] }
+    },
+    {
+      "id": "d3/t3-cancel-pending",
+      "prompt": "Cancel order W103, I ordered it by mistake.",
+      "db": { "orders": { "W103": { "status": "pending", "address": "7 Maple Dr", "items": [{ "sku": "chair-1", "note": "" }], "refunded": [] } } },
+      "check": { "kind": "db-hash", "gold": [{ "name": "cancel_order", "arguments": { "order_id": "W103", "reason": "ordered by mistake" } }] }
+    },
+    {
+      "id": "d3/t4-refund-broken",
+      "prompt": "One of the lamps in order W104 arrived broken. Refund the broken one.",
+      "db": { "orders": { "W104": { "status": "delivered", "address": "2 Ash Way", "items": [{ "sku": "lamp-1", "note": "" }, { "sku": "lamp-2", "note": "reported broken on delivery" }], "refunded": [] } } },
+      "check": { "kind": "db-hash", "gold": [{ "name": "refund_item", "arguments": { "order_id": "W104", "sku": "lamp-2" } }] }
+    },
+    {
+      "id": "d3/t5-address-delivered",
+      "prompt": "Change the address on order W105 to 4 Oak Ave.",
+      "db": { "orders": { "W105": { "status": "delivered", "address": "18 Elm St", "items": [{ "sku": "rug-1", "note": "" }], "refunded": [] } } },
+      "check": { "kind": "db-hash", "gold": [] }
+    },
+    {
+      "id": "d3/t6-cancel-delivered",
+      "prompt": "Cancel order W106, I do not need it any more.",
+      "db": { "orders": { "W106": { "status": "delivered", "address": "5 Fir Pl", "items": [{ "sku": "kettle-1", "note": "" }], "refunded": [] } } },
+      "check": { "kind": "db-hash", "gold": [] }
+    },
+    {
+      "id": "d3/t7-status-delivered",
+      "prompt": "What is the status of order W107?",
+      "db": { "orders": { "W107": { "status": "delivered", "address": "11 Yew Rd", "items": [{ "sku": "clock-1", "note": "" }], "refunded": [] } } },
+      "check": { "kind": "stated", "outcome": "delivered" }
+    },
+    {
+      "id": "d3/t8-status-pending",
+      "prompt": "Has order W108 shipped yet? What is its status?",
+      "db": { "orders": { "W108": { "status": "pending", "address": "6 Elder St", "items": [{ "sku": "vase-1", "note": "" }], "refunded": [] } } },
+      "check": { "kind": "stated", "outcome": "pending" }
+    }
+  ]
+}

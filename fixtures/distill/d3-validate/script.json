@@ -1,0 +1,313 @@
+{
+  "_comment": "Card D3's scripted agent: the steps of each replay session, keyed <task>/without or <task>/with/<candidate>. It answers only while make fixtures records the cassettes; make run replays them. The fixture asserts the pipeline, not a model's behaviour: the steps are written so the lookup-first candidate passes 4 of 5 held-out tasks (2 of 5 without it) and the delivered-assumption candidate 3 of 5 (4 of 5 without it).",
+  "sessions": {
+    "d3/t1-address-pending/without": [
+      {
+        "toolCall": {
+          "id": "call_1",
+          "name": "update_address",
+          "arguments": {
+            "order_id": "W101",
+            "address": "12 Elm St"
+          }
+        }
+      },
+      {
+        "text": "Done: order W101 now ships to 12 Elm St."
+      }
+    ],
+    "d3/t2-address-pending/without": [
+      {
+        "toolCall": {
+          "id": "call_1",
+          "name": "update_address",
+          "arguments": {
+            "order_id": "W102",
+            "address": "9 Pine Rd"
+          }
+        }
+      },
+      {
+        "text": "Done: order W102 now ships to 9 Pine Rd."
+      }
+    ],
+    "d3/t3-cancel-pending/without": [
+      {
+        "toolCall": {
+          "id": "call_1",
+          "name": "cancel_order",
+          "arguments": {
+            "order_id": "W103",
+            "reason": "ordered by mistake"
+          }
+        }
+      },
+      {
+        "text": "Order W103 is cancelled."
+      }
+    ],
+    "d3/t4-refund-broken/without": [
+      {
+        "toolCall": {
+          "id": "call_1",
+          "name": "refund_item",
+          "arguments": {
+            "order_id": "W104",
+            "sku": "lamp-1"
+          }
+        }
+      },
+      {
+        "text": "I refunded the lamp from order W104."
+      }
+    ],
+    "d3/t5-address-delivered/without": [
+      {
+        "toolCall": {
+          "id": "call_1",
+          "name": "update_address",
+          "arguments": {
+            "order_id": "W105",
+            "address": "4 Oak Ave"
+          }
+        }
+      },
+      {
+        "text": "Done: order W105 now ships to 4 Oak Ave."
+      }
+    ],
+    "d3/t6-cancel-delivered/without": [
+      {
+        "toolCall": {
+          "id": "call_1",
+          "name": "cancel_order",
+          "arguments": {
+            "order_id": "W106",
+            "reason": "no longer needed"
+          }
+        }
+      },
+      {
+        "text": "Order W106 is cancelled."
+      }
+    ],
+    "d3/t7-status-delivered/without": [
+      {
+        "toolCall": {
+          "id": "call_1",
+          "name": "get_order",
+          "arguments": {
+            "order_id": "W107"
+          }
+        }
+      },
+      {
+        "text": "Order W107 has been delivered."
+      }
+    ],
+    "d3/t8-status-pending/without": [
+      {
+        "toolCall": {
+          "id": "call_1",
+          "name": "get_order",
+          "arguments": {
+            "order_id": "W108"
+          }
+        }
+      },
+      {
+        "text": "Order W108 has not shipped; its status is pending."
+      }
+    ],
+    "d3/t4-refund-broken/with/lookup-first": [
+      {
+        "toolCall": {
+          "id": "call_1",
+          "name": "get_order",
+          "arguments": {
+            "order_id": "W104"
+          }
+        }
+      },
+      {
+        "toolCall": {
+          "id": "call_2",
+          "name": "refund_item",
+          "arguments": {
+            "order_id": "W104",
+            "sku": "lamp-2"
+          }
+        }
+      },
+      {
+        "text": "Order W104 is delivered; I refunded lamp-2, the one reported broken."
+      }
+    ],
+    "d3/t5-address-delivered/with/lookup-first": [
+      {
+        "toolCall": {
+          "id": "call_1",
+          "name": "get_order",
+          "arguments": {
+            "order_id": "W105"
+          }
+        }
+      },
+      {
+        "text": "Order W105 is already delivered, so its address cannot be changed."
+      }
+    ],
+    "d3/t6-cancel-delivered/with/lookup-first": [
+      {
+        "toolCall": {
+          "id": "call_1",
+          "name": "get_order",
+          "arguments": {
+            "order_id": "W106"
+          }
+        }
+      },
+      {
+        "toolCall": {
+          "id": "call_2",
+          "name": "refund_item",
+          "arguments": {
+            "order_id": "W106",
+            "sku": "kettle-1"
+          }
+        }
+      },
+      {
+        "text": "Order W106 is delivered and cannot be cancelled, so I refunded its kettle instead."
+      }
+    ],
+    "d3/t7-status-delivered/with/lookup-first": [
+      {
+        "toolCall": {
+          "id": "call_1",
+          "name": "get_order",
+          "arguments": {
+            "order_id": "W107"
+          }
+        }
+      },
+      {
+        "text": "Order W107 has been delivered."
+      }
+    ],
+    "d3/t8-status-pending/with/lookup-first": [
+      {
+        "toolCall": {
+          "id": "call_1",
+          "name": "get_order",
+          "arguments": {
+            "order_id": "W108"
+          }
+        }
+      },
+      {
+        "text": "Order W108 has not shipped; its status is pending."
+      }
+    ],
+    "d3/t1-address-pending/with/delivered-assumption": [
+      {
+        "toolCall": {
+          "id": "call_1",
+          "name": "get_order",
+          "arguments": {
+            "order_id": "W101"
+          }
+        }
+      },
+      {
+        "toolCall": {
+          "id": "call_2",
+          "name": "update_address",
+          "arguments": {
+            "order_id": "W101",
+            "address": "12 Elm St"
+          }
+        }
+      },
+      {
+        "text": "Done: order W101 now ships to 12 Elm St."
+      }
+    ],
+    "d3/t2-address-pending/with/delivered-assumption": [
+      {
+        "toolCall": {
+          "id": "call_1",
+          "name": "get_order",
+          "arguments": {
+            "order_id": "W102"
+          }
+        }
+      },
+      {
+        "toolCall": {
+          "id": "call_2",
+          "name": "update_address",
+          "arguments": {
+            "order_id": "W102",
+            "address": "9 Pine Rd"
+          }
+        }
+      },
+      {
+        "text": "Done: order W102 now ships to 9 Pine Rd."
+      }
+    ],
+    "d3/t3-cancel-pending/with/delivered-assumption": [
+      {
+        "toolCall": {
+          "id": "call_1",
+          "name": "get_order",
+          "arguments": {
+            "order_id": "W103"
+          }
+        }
+      },
+      {
+        "toolCall": {
+          "id": "call_2",
+          "name": "cancel_order",
+          "arguments": {
+            "order_id": "W103",
+            "reason": "ordered by mistake"
+          }
+        }
+      },
+      {
+        "text": "Order W103 is cancelled."
+      }
+    ],
+    "d3/t4-refund-broken/with/delivered-assumption": [
+      {
+        "toolCall": {
+          "id": "call_1",
+          "name": "get_order",
+          "arguments": {
+            "order_id": "W104"
+          }
+        }
+      },
+      {
+        "text": "Order W104 is delivered and cannot be changed."
+      }
+    ],
+    "d3/t8-status-pending/with/delivered-assumption": [
+      {
+        "toolCall": {
+          "id": "call_1",
+          "name": "get_order",
+          "arguments": {
+            "order_id": "W108"
+          }
+        }
+      },
+      {
+        "text": "Order W108 is delivered."
+      }
+    ]
+  }
+}

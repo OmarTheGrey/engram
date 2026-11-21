@@ -112,6 +112,13 @@ import {
   runMemInvConfig,
 } from "../src/mem-inv-probe.ts";
 import { SESSION_RETRY } from "../src/model/retry.ts";
+import {
+  countReplayConfig,
+  isReplayConfig,
+  readReplayConfig,
+  runReplayConfig,
+  writeReplayResult,
+} from "../src/replay-validate.ts";
 import { EVENTS_FILE, type RunnerOptions, runConfig } from "../src/run.ts";
 import {
   openRunJournal,
@@ -505,8 +512,62 @@ async function countOne(config: AnyRunnerConfig, out: string, shard?: Shard): Pr
   return { code: 0, sessions: count.sessions, calls: { new: 0, cached: 0 } };
 }
 
+/**
+ * A replay validation config (card D3): each candidate replayed on its
+ * held-out tasks without and with it installed, then promoted through the
+ * plane. Pipeline only (a scripted model, its committed cassettes); a live
+ * replay is H5's (card X11). Exits 1 when a candidate's status is not the
+ * fixture's label.
+ */
+async function runReplay(path: string, out: string, flags: Flags): Promise<Outcome> {
+  const config = readReplayConfig(path);
+  if (flags.live || flags.replay || flags.resume || flags.shard || flags.merge !== undefined) {
+    console.error(
+      `run.ts: ${config.name} is a replay validation pipeline config: it replays its cassettes, records them (make fixtures) or is counted (COUNT=1); LIVE=, REPLAY=, RESUME=, SHARD= and MERGE= do not apply`,
+    );
+    return FAILED;
+  }
+  if (flags.count) {
+    const count = countReplayConfig(config, REPO);
+    mkdirSync(out, { recursive: true });
+    writeFileSync(join(out, "count.json"), `${JSON.stringify(count, null, 2)}\n`);
+    console.log(
+      [
+        `${count.config}: model ${count.model}, data ${count.data}, seeds ${count.seeds.join(", ")}`,
+        `sessions: ${count.sessions} = ${count.baseline_sessions} without a candidate + ${count.candidate_sessions} with one`,
+        ...count.candidates.map(
+          (c) =>
+            `  ${c.name}: induced from ${c.induced_from.length} tasks, replayed on ${c.held_out.length} held-out tasks, ${c.sessions} sessions`,
+        ),
+        "no model was called; no cassette was read or written",
+        `written to ${join(out, "count.json")}`,
+      ].join("\n"),
+    );
+    return { code: 0, sessions: count.sessions, calls: { new: 0, cached: 0 } };
+  }
+  const result = await runReplayConfig(config, { offline: !flags.record });
+  writeReplayResult(result, out);
+  const lines = [
+    `${config.name}: ${result.rows.length} sessions, model ${config.model}, preset ${config.preset}, threshold ${config.threshold}`,
+    `model calls: ${result.calls.new} new, ${result.calls.cached} from cassettes`,
+    ...result.candidates.map(
+      (c) =>
+        `  ${c.name}: ${c.record.k} of ${c.record.n} held-out tasks pass with it (${c.record.baseline} of ${c.record.n} without it); promote ${c.event.decision} (${c.event.policy_id}): ${c.status}`,
+    ),
+    ...result.mismatches.map((m) => `MISMATCH: ${m}`),
+    `written to ${out}`,
+  ];
+  console.log(lines.join("\n"));
+  return {
+    code: result.mismatches.length > 0 ? 1 : 0,
+    sessions: result.rows.length,
+    calls: result.calls,
+  };
+}
+
 /** Run, replay, record or count one config into `out`. */
 async function runOne(path: string, out: string, flags: Flags): Promise<Outcome> {
+  if (isReplayConfig(path)) return runReplay(path, out, flags);
   if (isLongMemEvalConfig(path)) return runLongMemEval(path, out, flags);
   if (
     (flags.shard || flags.merge !== undefined) &&
