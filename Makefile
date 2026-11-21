@@ -8,7 +8,7 @@ SHELL := bash
 PNPM ?= pnpm
 UV ?= uv
 
-.PHONY: help test test-invariants test-scale test-one test-e2e test-repro lint lint-docs api api-check ui bench run h1-table h1-figure l3-variance h3-lint-delta perf-budget fixtures fault-workspace thesis engram dogfood-report verify-spec
+.PHONY: help test test-invariants test-scale test-one test-e2e test-repro lint lint-docs api api-check ui bench run h1-table h1-figure l3-variance h3-lint-delta fixtures fault-workspace gitleaks-rules thesis engram dogfood-report verify-spec perf-budget
 
 help: ## list targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | sed -E 's/:.*## /\t/' | expand -t 16
@@ -178,6 +178,9 @@ fault-workspace: ## a SQLite log and policy from one fault fixture, to lint with
 	@[ -n "$(FAULT)" ] || { echo "fault-workspace: give FAULT=<name> from fixtures/faults"; exit 2; }
 	rm -rf ".engram/faults/$(FAULT)"
 	node packages/core/scripts/faults.ts workspace "fixtures/faults/$(FAULT).json" ".engram/faults/$(FAULT)"
+
+gitleaks-rules: ## card E2.9: regenerate packages/core/src/vendor/gitleaks-rules.ts from gitleaks' rules at the pinned commit (fetched into .engram/upstream when missing); about five minutes
+	node packages/core/scripts/gitleaks-rules.ts
 
 dogfood-report: ## the twin dogfood's violation report over your own log, counts only: make dogfood-report ARGS="--as person:<you>"
 	@node packages/core/scripts/dogfood-report.ts $(ARGS)

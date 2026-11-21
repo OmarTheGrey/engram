@@ -2,7 +2,7 @@
 
 Everyone reads the first tier in full. Each track reads its own tier in full and skims the other. Optional papers are abstract plus a skim. One note per paper under `docs/readings/<arxiv-id>.md` using the template at the end.
 
-The literature review is in `litreview/`: one sourced note per paper (index in `litreview/README.md`, format in `litreview/TEMPLATE.md`) and the frontier summary as of 2026-10-17 in `litreview/sota-2026.md`.
+The literature review is in `litreview/`: one sourced note per paper (index in `litreview/README.md`, format in `litreview/TEMPLATE.md`) and the frontier summary in `litreview/sota-2026.md`, written as of 2026-10-17 with an update for November 2026. The November sweep of 2026-11-21 added 111 fact-checked notes, listed in `litreview/README.md` under "New, November 2026 sweep"; they are not on the tiers below. The research that turned that sweep into the absorb plan is `docs/research/absorb/`.
 
 
 ## Everyone, in full

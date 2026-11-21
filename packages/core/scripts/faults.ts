@@ -14,7 +14,7 @@
 // passes. These fixtures are also card L3's pilot set
 // (research/configs/l3-pilot.json) until card L2's seeded-fault set lands.
 //
-//   node packages/core/scripts/faults.ts write <dir>           regenerate fixtures/faults (make fixtures)
+//   node packages/core/scripts/faults.ts write <dir>           regenerate fixtures/faults (make fixtures), gate/ included
 //   node packages/core/scripts/faults.ts workspace <fixture> <dir>   a SQLite log and policy file to lint with the CLI
 //
 // A scope-class mismatch arises when a policy changes after a write, so a
@@ -663,6 +663,147 @@ const MODEL_SPECS: Record<string, Spec> = {
   },
 };
 
+// The write gate's content guards (card E2.9, ADR 0039) have theirs under
+// `gate/`: a fault a guard must stop at the write and a near-miss it must let
+// through, each write with the decision, status and rule declared here by
+// hand, and the log the Plane produced. The values are the issuers'
+// documentation examples (the 4111 test card) and strings made up here,
+// never a real secret (rule 12).
+
+export interface GateFixture {
+  description: string;
+  fault: "secret-in-content";
+  kind: "flag" | "near-miss";
+  policy: Policy;
+  actor: Actor;
+  writes: {
+    item: MemoryItem;
+    at: string;
+    decision: "allow" | "deny";
+    status: MemoryItem["status"] | null;
+    policy_id: string;
+  }[];
+  /** The log the writes produced, in seq order. */
+  events: MemoryEvent[];
+}
+
+/** WRITE_POLICY with the secrets guard blocking and the pii guard holding for review. */
+export const GUARD_POLICY: Policy = {
+  ...WRITE_POLICY,
+  id: "fixture.guards",
+  content_guards: { secrets: "block", pii: "review" },
+};
+
+type GateWrite = [
+  content: string,
+  decision: "allow" | "deny",
+  status: MemoryItem["status"] | null,
+  policy_id: string,
+];
+// Made up here: AWS's own documented example key (AKIA...EXAMPLE) is allowed,
+// as gitleaks allows it (card E2.9 review, E2.9-8).
+const AWS_EXAMPLE = ["AKIA", "QWERTYUIOP", "ASDFGH"].join("");
+const ADMIT = "fixture.guards/write/team";
+const GATE_SPECS: Record<
+  string,
+  { description: string; kind: "flag" | "near-miss"; writes: GateWrite[] }
+> = {
+  "gate/secret-in-content.flag": {
+    description:
+      "Content holding a secret or personal data under a policy whose secrets guard blocks and whose pii guard reviews: an AWS key id and a database URL with its password are denied, a card number is held as a candidate, and hex key material beside a credential word (a REVIEW-tier match) is held although the secrets guard blocks.",
+    kind: "flag",
+    writes: [
+      [`The deploy user's key id is ${AWS_EXAMPLE}.`, "deny", null, "engram/write/secret"],
+      [
+        "Staging is postgres://app:hunter2x@db.internal:5432/app.",
+        "deny",
+        null,
+        "engram/write/secret",
+      ],
+      ["Dana's card for travel is 4111 1111 1111 1111.", "allow", "candidate", "engram/write/pii"],
+      [
+        `The signing key is ${"0f1e2d3c4b5a6978".repeat(4)}.`,
+        "allow",
+        "candidate",
+        "engram/write/secret",
+      ],
+    ],
+  },
+  "gate/secret-in-content.near-miss": {
+    description:
+      "Technical text that looks like a secret and is not: a git SHA, a uuidv7 id, an Engram content hash, cloud IAM action names, a password policy and an IBAN failing mod-97: every write is admitted active.",
+    kind: "near-miss",
+    writes: [
+      [
+        "Commit 0f1e2d3c4b5a69780f1e2d3c4b5a69780f1e2d3c fixed the release build.",
+        "allow",
+        "active",
+        ADMIT,
+      ],
+      [
+        "Item 01950000-0000-7000-8000-000000000001 was retired on Friday.",
+        "allow",
+        "active",
+        ADMIT,
+      ],
+      [`Its provenance hash is sha256:${"0f1e2d3c".repeat(8)}.`, "allow", "active", ADMIT],
+      [
+        "The deploy role needs s3:GetObject, iam:PassRole and secretsmanager:GetSecretValue.",
+        "allow",
+        "active",
+        ADMIT,
+      ],
+      [
+        "The password policy requires 12 characters and a rotation every 90 days.",
+        "allow",
+        "active",
+        ADMIT,
+      ],
+      ["The old account GB83 WEST 1234 5698 7654 32 was closed.", "allow", "active", ADMIT],
+    ],
+  },
+};
+
+/** The content-guard fixtures, by path under fixtures/faults without `.json`. */
+export async function gateFixtures(): Promise<Record<string, GateFixture>> {
+  const out: Record<string, GateFixture> = {};
+  for (const [name, spec] of Object.entries(GATE_SPECS)) {
+    const db = openSqlite(":memory:");
+    migrate(db);
+    let n = 0;
+    const plane = createPlane({
+      db,
+      adapter: createFakeAdapter(),
+      policy: GUARD_POLICY,
+      newId: () => fid(900_000 + ++n),
+    });
+    const writes: GateFixture["writes"] = [];
+    for (const [i, [content, decision, status, policy_id]] of spec.writes.entries()) {
+      const it = item(i + 1, { content });
+      const at = T(i);
+      const r = await plane.write(DANA, it, at);
+      const got = [r.event.decision, r.item?.status ?? null, r.event.policy_id];
+      if (JSON.stringify(got) !== JSON.stringify([decision, status, policy_id]))
+        throw new Error(`gate fixture ${name}, write ${i + 1}: got ${JSON.stringify(got)}`);
+      writes.push({ item: it, at, decision, status, policy_id });
+    }
+    out[name] = {
+      description: spec.description,
+      fault: "secret-in-content",
+      kind: spec.kind,
+      policy: GUARD_POLICY,
+      actor: DANA,
+      writes,
+      events: plane.events(),
+    };
+    db.close();
+  }
+  return out;
+}
+
+/** A gate fixture as a file: two-space JSON with a final newline. */
+export const gateFixtureText = (f: GateFixture) => `${JSON.stringify(f, null, 2)}\n`;
+
 /** Every fault fixture, by file name without `.json`. */
 export async function faultFixtures(): Promise<Record<string, FaultFixture>> {
   const out: Record<string, FaultFixture> = {};
@@ -704,6 +845,10 @@ async function main(argv: string[]): Promise<void> {
     for (const [name, f] of Object.entries(await faultFixtures())) {
       mkdirSync(dirname(join(a, `${name}.json`)), { recursive: true });
       writeFileSync(join(a, `${name}.json`), fixtureText(f));
+    }
+    for (const [name, f] of Object.entries(await gateFixtures())) {
+      mkdirSync(dirname(join(a, `${name}.json`)), { recursive: true });
+      writeFileSync(join(a, `${name}.json`), gateFixtureText(f));
     }
     return;
   }
