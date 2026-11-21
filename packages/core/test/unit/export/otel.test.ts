@@ -189,6 +189,34 @@ describe("acceptance (card E8.13): no span carries memory content", () => {
   });
 });
 
+describe("the content guards' reasons (card E2.9) name kinds and lengths, and are kept whole", () => {
+  test("a secret denied and an address held: the reason is exported, the values are not", async () => {
+    // Built from parts, as secrets.test.ts does, so no scanner reads a key here.
+    const key = ["AK", "IA", "QWERTYUIOPASDFGH"].join("");
+    const email = ["dana.k", "@", "example.org"].join("");
+    const omar: Actor = {
+      id: "person:omar",
+      level: "person",
+      memberships: ["team:platform"],
+      source: "user",
+    };
+    const { plane, db } = fresh(
+      testPolicy({ content_guards: { secrets: "block", pii: "review" } }),
+    );
+    await plane.write(omar, item(1, { content: `the staging key is ${key}` }), AT);
+    await plane.write(omar, item(2, { content: `write to ${email} about it` }), AT);
+    const [denied, held] = allEvents(db);
+    expect(denied?.decision).toBe("deny");
+    expect(denied?.policy_id).toBe("engram/write/secret");
+    expect(held?.policy_id).toBe("engram/write/pii");
+    for (const e of [denied, held] as MemoryEvent[]) {
+      const span = assertContentFree(e, [key, email]);
+      expect(span.attributes["engram.reason"]).toBe(e.reason);
+      expect(span.attributes["engram.reason.withheld"]).toBe(0);
+    }
+  });
+});
+
 describe("the span's names follow the GenAI conventions at the pinned version", () => {
   test("pins semantic-conventions-genai v0.1.0 at its commit", () => {
     expect(GENAI_SEMCONV).toEqual({
