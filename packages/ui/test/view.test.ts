@@ -11,10 +11,10 @@ import {
   FILTER_CATEGORIES,
   filterEvents,
   filterOptions,
+  itemHref,
   keepSelection,
   NO_FILTER,
   otherReaderLine,
-  itemHref,
   parseMemberships,
   parseRoute,
   scopeText,
@@ -333,7 +333,10 @@ describe("the inspector's pages (card E8.11)", () => {
   });
 
   it("decodes an escaped id, and refuses one with a slash", () => {
-    expect(parseRoute(`#/item/${encodeURIComponent("a b")}`)).toEqual({ page: "item", itemId: "a b" });
+    expect(parseRoute(`#/item/${encodeURIComponent("a b")}`)).toEqual({
+      page: "item",
+      itemId: "a b",
+    });
     expect(parseRoute("#/item/a/b")).toEqual({ page: "workspace" });
     expect(parseRoute("#/item/%E0%A4%A")).toEqual({ page: "workspace" });
   });

@@ -12,7 +12,9 @@ const sides = (rows: DiffRow[]) =>
     r.after?.map((s) => s.text).join("") ?? null,
   ]);
 const marked = (rows: DiffRow[], change: "added" | "removed") =>
-  rows.flatMap((r) => [...(r.before ?? []), ...(r.after ?? [])].filter((s) => s.change === change)).map((s) => s.text);
+  rows
+    .flatMap((r) => [...(r.before ?? []), ...(r.after ?? [])].filter((s) => s.change === change))
+    .map((s) => s.text);
 
 describe("the text diff", () => {
   it("pairs a changed line with its replacement and marks the words that changed", () => {
@@ -20,8 +22,9 @@ describe("the text diff", () => {
     expect(sides(d.rows)).toEqual([
       ["changed", "The freeze moves to Monday.", "The freeze moves to Tuesday."],
     ]);
-    expect(marked(d.rows, "removed")).toEqual(["Monday."]);
-    expect(marked(d.rows, "added")).toEqual(["Tuesday."]);
+    // jsdiff's words: punctuation is a token of its own.
+    expect(marked(d.rows, "removed")).toEqual(["Monday"]);
+    expect(marked(d.rows, "added")).toEqual(["Tuesday"]);
     expect(d).toMatchObject({ added: 1, removed: 1, same: false });
   });
 

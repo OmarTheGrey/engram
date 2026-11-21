@@ -45,6 +45,10 @@ const launched = await launch();
 const skip = "skip" in launched ? launched.skip : undefined;
 // Written to stderr directly: vitest drops console output of a file whose tests all skip.
 if (skip) process.stderr.write(`[e2e] item page skipped: ${skip}\n`);
+// One browser for both suites, closed after the last.
+afterAll(async () => {
+  if ("browser" in launched) await launched.browser.close();
+});
 
 /** Collects requests to anything but the server, and errors on the page (a CSP refusal is one). */
 function watch(page: Page, server: Listening) {
@@ -92,9 +96,7 @@ describe.skipIf(skip !== undefined)("an item's page on the provenance fixture", 
     return e;
   };
   const open = async (itemId: string) => {
-    await page.evaluate((id) => {
-      window.location.hash = `#/item/${id}`;
-    }, itemId);
+    await page.goto(`${server.url}/#/item/${itemId}`);
     await page.locator(`[data-testid="item-page"][data-id="${itemId}"]`).waitFor();
   };
   const settledGraph = async (count: number) => {
@@ -115,7 +117,7 @@ describe.skipIf(skip !== undefined)("an item's page on the provenance fixture", 
   });
 
   afterAll(async () => {
-    await browser.close();
+    await page?.close();
     await server?.close();
   });
 
@@ -129,10 +131,8 @@ describe.skipIf(skip !== undefined)("an item's page on the provenance fixture", 
       );
     expect(await chunks()).toEqual([]);
     // The entry bundle holds no xyflow code: its class names are not in it.
-    const entry = await page.evaluate(async () => {
-      const src = document.querySelector<HTMLScriptElement>('script[type="module"]')?.src ?? "";
-      return (await fetch(src)).text();
-    });
+    const src = await page.locator('script[type="module"]').getAttribute("src");
+    const entry = await (await fetch(new URL(src ?? "", server.url))).text();
     expect(entry.length).toBeGreaterThan(0);
     expect(entry).not.toContain("react-flow__");
     await page
@@ -196,29 +196,30 @@ describe.skipIf(skip !== undefined)("an item's page on the provenance fixture", 
 
   it("opens an ancestor's page from the graph's list with the keyboard", async () => {
     // The graph's nodes take the focus too (xyflow), each with a label.
-    const node = page.locator(`.react-flow__node:has([data-testid="graph-node"][data-id="${TEAM}"])`);
+    const node = page.locator(
+      `.react-flow__node:has([data-testid="graph-node"][data-id="${TEAM}"])`,
+    );
     expect(await node.getAttribute("tabindex")).toBe("0");
     expect(await node.getAttribute("aria-label")).toContain(TEAM);
     await page.locator(`[data-testid="graph-list-item"][data-id="${TEAM}"] a`).focus();
     await page.keyboard.press("Enter");
     await page.locator(`[data-testid="item-page"][data-id="${TEAM}"]`).waitFor();
-    expect(await page.evaluate(() => window.location.hash)).toBe(`#/item/${TEAM}`);
+    expect(new URL(page.url()).hash).toBe(`#/item/${TEAM}`);
   });
 
   it("diffs two versions side by side, with the event that made the later one", async () => {
     await open(TEAM);
     const options = await attr('[data-testid="version-after"] option', "value");
     // The note it was written from, and its two versions; the denied rewrite made none.
-    expect(options).toEqual(
-      [writeOf(NOTE, 1).id, writeOf(TEAM, 1).id, writeOf(TEAM, 2).id].sort(),
-    );
+    expect(options).toEqual([writeOf(NOTE, 1).id, writeOf(TEAM, 1).id, writeOf(TEAM, 2).id].sort());
     expect(await page.getByTestId("version-before").inputValue()).toBe(writeOf(TEAM, 1).id);
     expect(await page.getByTestId("version-after").inputValue()).toBe(writeOf(TEAM, 2).id);
     const removed = await page.getByTestId("diff-removed").allTextContents();
     const added = await page.getByTestId("diff-added").allTextContents();
-    expect(removed.join("")).toContain("Monday.");
-    expect(added.join("")).toContain("Tuesday,");
-    expect(added.join("")).toContain("security review.");
+    expect(removed.join(" ")).toContain("Monday");
+    expect(added.join(" ")).toContain("Tuesday");
+    expect(added.join("")).toContain("security review");
+    expect(removed.join(" ")).not.toContain("freeze");
     const made = page.getByTestId("version-event");
     expect(await made.getAttribute("data-event")).toBe(writeOf(TEAM, 2).id);
     expect(await made.textContent()).toContain("fixture.inspector/write/team");
@@ -264,10 +265,13 @@ describe.skipIf(skip !== undefined)("an item's page on the provenance fixture", 
     expect(html).not.toContain(NOTE);
     expect(await page.getByTestId("item-page").textContent()).not.toMatch(/\b3 items\b/);
 
+    // From the team item: the checklist written from it below, nothing above it.
     await open(TEAM);
-    await settledGraph(1 + decisionsOn("sam", [TEAM]).length);
-    expect(await graphItems()).toEqual([TEAM]);
-    expect((await edges()).filter((e) => e.startsWith("lineage:"))).toEqual([]);
+    await settledGraph(2 + decisions.length);
+    expect(await graphItems()).toEqual([TEAM, CHECKLIST].sort());
+    expect((await edges()).filter((e) => e.startsWith("lineage:"))).toEqual([
+      `lineage:${TEAM}>${CHECKLIST}`,
+    ]);
     expect(await attr('[data-testid="version-after"] option', "value")).toEqual(
       [writeOf(TEAM, 1).id, writeOf(TEAM, 2).id].sort(),
     );
@@ -286,7 +290,8 @@ describe.skipIf(skip !== undefined)("an item's page on the provenance fixture", 
     await node.waitFor();
     const colours = () =>
       node.evaluate((n) => {
-        const s = getComputedStyle(n);
+        type Styles = { getComputedStyle(e: unknown): { backgroundColor: string; color: string } };
+        const s = (globalThis as unknown as Styles).getComputedStyle(n);
         return `${s.backgroundColor} ${s.color}`;
       });
     await page.emulateMedia({ colorScheme: "light" });
@@ -340,7 +345,7 @@ describe.skipIf(skip !== undefined)("the event table on a long log", () => {
   }, 240_000);
 
   afterAll(async () => {
-    await browser.close();
+    await page?.close();
     await server?.close();
   });
 
@@ -381,9 +386,9 @@ describe.skipIf(skip !== undefined)("the event table on a long log", () => {
     // By actor, from the keyboard.
     await page.getByTestId("sort-actor").focus();
     await page.keyboard.press("Enter");
-    expect(
-      await page.locator('th:has([data-testid="sort-actor"])').getAttribute("aria-sort"),
-    ).toBe("ascending");
+    expect(await page.locator('th:has([data-testid="sort-actor"])').getAttribute("aria-sort")).toBe(
+      "ascending",
+    );
   });
 
   it("filters by type, actor and scope together", async () => {

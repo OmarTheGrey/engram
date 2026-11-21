@@ -110,7 +110,16 @@ describe("which items the viewer may see", () => {
 describe("the provenance graph", () => {
   it("is the item, every ancestor the viewer may see, and the decisions about them", () => {
     const g = provenanceGraph(id(3), danaRead, danaLog);
-    expect(nodeIds(g)).toEqual([id(1), id(2), id(3), id(1000), id(1001), id(1002), id(1003), id(1004)]);
+    expect(nodeIds(g)).toEqual([
+      id(1),
+      id(2),
+      id(3),
+      id(1000),
+      id(1001),
+      id(1002),
+      id(1003),
+      id(1004),
+    ]);
     expect(edgeIds(g)).toEqual([
       `lineage:${id(1)}>${id(2)}`,
       `lineage:${id(2)}>${id(3)}`,
@@ -137,7 +146,9 @@ describe("the provenance graph", () => {
     ]);
     expect(g).toMatchObject({ items: 2, decisions: 4 });
     expect(JSON.stringify(g?.edges)).not.toContain(id(1));
-    expect(JSON.stringify(g?.nodes.map((n) => ({ ...n, state: undefined, event: undefined })))).not.toContain(id(1));
+    expect(
+      JSON.stringify(g?.nodes.map((n) => ({ ...n, state: undefined, event: undefined }))),
+    ).not.toContain(id(1));
   });
 
   it("follows the lineage the viewer may see to descendants, and stops at what it may not", () => {
@@ -197,7 +208,9 @@ describe("the versions to diff", () => {
     expect(versionText(item(1, { content: "plain" }))).toBe("plain");
     expect(versionText(item(1, { content: { a: 1 } }))).toBe('{\n  "a": 1\n}');
     const skill = { ...item(1), class: "procedural", content: { body: "do it", tools: ["bash"] } };
-    expect(versionText(skill as MemoryItem)).toBe('{\n  "body": "do it",\n  "tools": [\n    "bash"\n  ]\n}');
+    expect(versionText(skill as MemoryItem)).toBe(
+      '{\n  "body": "do it",\n  "tools": [\n    "bash"\n  ]\n}',
+    );
   });
 });
 
