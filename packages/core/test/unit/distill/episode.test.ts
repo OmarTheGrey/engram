@@ -586,4 +586,31 @@ describe("episodeOf: times", () => {
     expect(episode.started_at).toBe(T);
     expect(episode.ended_at).toBe("2026-11-01T09:30:00.000Z");
   });
+
+  test("a time that is not ISO 8601 is not kept, so it can carry nothing else", () => {
+    const lines = [header({ timestamp: "token=abc" }), ...linear().slice(1)];
+    lines[lines.length - 1] = { ...lines.at(-1), timestamp: "hunter2xyz" };
+    const episode = episodeOf(parseSessionJsonl(jsonl(lines)));
+    expect(episode.started_at).toBeNull();
+    expect(episode.ended_at).toBeNull();
+  });
+});
+
+describe("episodeOf: omitted retries (finding V-2)", () => {
+  test("each omitted retry is an attempt of its own, as pi's _prepareRetry omits each", () => {
+    // user, error, omit, error, omit, stop.
+    const lines = [
+      header(),
+      user("a0000001", null, "go"),
+      assistant("a0000002", "a0000001", [{ type: "text", text: "attempt 1" }], "error"),
+      entry("context_edit", "a0000003", "a0000002", { targetId: "a0000002", replacement: null }),
+      assistant("a0000004", "a0000003", [{ type: "text", text: "attempt 2" }], "error"),
+      entry("context_edit", "a0000005", "a0000004", { targetId: "a0000004", replacement: null }),
+      assistant("a0000006", "a0000005", [{ type: "text", text: "fine" }]),
+    ];
+    expect(episodeOf(parseSessionJsonl(jsonl(lines))).omitted).toEqual([
+      { entry_ids: ["a0000002"], stop_reason: "error" },
+      { entry_ids: ["a0000004"], stop_reason: "error" },
+    ]);
+  });
 });

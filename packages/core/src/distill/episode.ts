@@ -25,9 +25,12 @@
 //   its own branch (`targetId`) and either omits it from the model's context
 //   (`replacement: null`) or replaces its content (`replacement.content`);
 //   the latest edit of a target on a branch wins (`buildSessionProjection`).
-//   pi omits a failed attempt this way after a context overflow or a length
-//   cut, before it retries (agent-session.js `_omitRecoveryAttempt`,
-//   docs/compaction.md "Overflow and Length Recovery Ordering").
+//   pi omits a failed attempt this way on two paths (agent-session.js
+//   `_omitRecoveryAttempt`): after a context overflow or a length cut it
+//   omits the attempt and its tool results, appends a compaction and
+//   retries (docs/compaction.md "Overflow and Length Recovery Ordering");
+//   after a retryable error (`_prepareRetry`) it omits that one response
+//   and retries, once per failed attempt.
 //
 // An episode keeps the raw record, not the model's context: a compaction is
 // a step and the entries it summarised stay, and an edited entry stays as it
@@ -145,7 +148,7 @@ export type AbandonedBranch = {
   steps: Step[];
 };
 
-/** Steps a context edit omitted on the final branch, one run of them: an attempt pi withdrew. */
+/** One attempt pi withdrew on the final branch: an omitted generation and the omitted steps after it (its tool results). */
 export type OmittedAttempt = {
   /** The entries of the run, in order, tool results included. */
   entry_ids: string[];
@@ -158,9 +161,9 @@ export type Episode = {
   session_id: string;
   /** From the session's first `engram.task` entry; null when it has none. */
   task_id: string | null;
-  /** The header's timestamp, when the session started; null when it has none. */
+  /** The header's timestamp, when the session started; null when it has none or it is not an ISO 8601 time. */
   started_at: string | null;
-  /** The timestamp of the session's last entry; null when it has none. */
+  /** The timestamp of the session's last entry; null when it has none or it is not an ISO 8601 time. */
   ended_at: string | null;
   /** `provider/model` of the final branch's last assistant message; null when it has none. */
   model: string | null;
@@ -443,7 +446,7 @@ function stepsOf(entries: readonly SessionEntry[], edits: Map<string, string | n
   return steps;
 }
 
-/** Runs of consecutive omitted steps: the attempts a context edit withdrew. */
+/** The attempts context edits withdrew: one per omitted generation with the steps after it, or a run of other omitted steps. */
 function omittedRuns(steps: readonly Step[]): OmittedAttempt[] {
   const runs: OmittedAttempt[] = [];
   let current: OmittedAttempt | null = null;
@@ -452,7 +455,10 @@ function omittedRuns(steps: readonly Step[]): OmittedAttempt[] {
       current = null;
       continue;
     }
-    if (current === null) {
+    // Each omitted generation starts an attempt of its own: pi omits every
+    // failed retry separately (agent-session.js `_prepareRetry`), so two
+    // omitted generations in a row are two attempts, not one.
+    if (current === null || s.kind === "generation") {
       current = { entry_ids: [], stop_reason: null };
       runs.push(current);
     }
@@ -481,6 +487,11 @@ function outcomeOf(entries: readonly SessionEntry[], leafId: string | null): Out
   }
   return { verdict, reward, stop_reason: stop, leaf_id: leafId };
 }
+
+/** pi writes ISO 8601 times (`new Date().toISOString()`); anything else is not kept, so a time field carries nothing else. */
+const ISO_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
+const isoTime = (t: string | undefined): string | null =>
+  t !== undefined && ISO_TIME.test(t) ? t : null;
 
 /** The episode of a parsed session. */
 export function episodeOf(session: ParsedSession): Episode {
@@ -526,8 +537,8 @@ export function episodeOf(session: ParsedSession): Episode {
     format: EPISODE_FORMAT,
     session_id: session.id,
     task_id: taskId,
-    started_at: session.timestamp === "" ? null : session.timestamp,
-    ended_at: lastEntry && lastEntry.timestamp !== "" ? lastEntry.timestamp : null,
+    started_at: isoTime(session.timestamp),
+    ended_at: isoTime(lastEntry?.timestamp),
     model: generations.at(-1)?.model ?? null,
     steps,
     outcome: outcomeOf(final, tree.final.at(-1) ?? null),

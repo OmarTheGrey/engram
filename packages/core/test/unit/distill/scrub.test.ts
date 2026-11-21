@@ -254,11 +254,12 @@ describe("scrubEpisode: the review fix pass (findings D1-2, D1-3)", () => {
     const longModel = "provider/an-unusually-long-model-identifier-2026-11-01";
     const ok = scrubEpisode(episode({ model: longModel, steps: [fn({ tool: longTool })] }));
     expect(ok.held).toEqual([]);
-    // A key after a hyphen is held; one glued on by underscores is not (no
-    // word boundary for the table's sk- rule): a known limit for long names.
+    // A key after a hyphen is held, and so is one glued on by underscores,
+    // which a name check reads as word boundaries (finding V-8).
     const bad = scrubEpisode(episode({ steps: [fn({ tool: `mcp-x-${PLANTED}` })] }));
-    expect(scrubEpisode(episode({ steps: [fn({ tool: `mcp__x__${PLANTED}` })] })).held).toEqual([]);
     expect(bad.held).toEqual(["steps[0].tool"]);
+    const glued = scrubEpisode(episode({ steps: [fn({ tool: `mcp__x__${PLANTED}` })] }));
+    expect(glued.held).toEqual(["steps[0].tool"]);
   });
 
   test("what replaced an edited entry is scrubbed, and omitted entry ids are checked", () => {
@@ -281,5 +282,79 @@ describe("scrubEpisode: the review fix pass (findings D1-2, D1-3)", () => {
       replacement: REDACTED_SECRET,
     });
     expect(out.held).toEqual(["omitted[0].entry_ids[1]"]);
+  });
+});
+
+describe("scrubEpisode: the verification pass (findings V-1, V-3, V-4, V-5)", () => {
+  const S = "hunter2xyz";
+
+  test.each([
+    ['{"password": "correct horse battery staple"}', '{"password": "<redacted>"}'],
+    ['password: "correct horse battery staple"', 'password: "<redacted>"'],
+    ["password: 'correct horse battery staple'", "password: '<redacted>'"],
+    ["token: 'unclosed value", "token: '<redacted> value"],
+  ])("a quoted value goes whole: %s", (input, kept) => {
+    expect(scrubText(input)).toBe(kept);
+    expect(scrubText(kept)).toBe(kept);
+  });
+
+  test("a time that still matches is held: ended_at", () => {
+    const out = scrubEpisode(episode({ ended_at: `token=${PLANTED}` }));
+    expect(out.held).toEqual(["ended_at"]);
+    expect(scrubEpisode(episode({ started_at: `token=${PLANTED}` })).held).toEqual(["started_at"]);
+  });
+
+  test.each([
+    ["argv --password", { command: "mysql", args: ["--password", S] }],
+    ["argv -p beside mysql", { command: "mysql", args: ["-p", S] }],
+    ["argv -p in a mysql array", { argv: ["mysqldump", "-p", S, "db"] }],
+    ["env pair", { env: [{ name: "DB_PASSWORD", value: S }] }],
+    ["passphrase", { config: { passphrase: S } }],
+    ["pw", { login: { user: "a", pw: S } }],
+    ["cookie header object", { request: { headers: { Cookie: `session=${S}` } } }],
+    ["cookie header text", { command: `curl -H 'Cookie: session=${S}' https://x` }],
+    ["PASSPHRASE= in a command", { command: `PASSPHRASE=${S} gpg -d f` }],
+    ["mysql -p in a command", { command: `mysql -u root -p ${S} db` }],
+    ["mysql -pvalue in a command", { command: `mysql -u root -p${S} db` }],
+  ])("redacts %s", (_name, args) => {
+    const out = scrubEpisode(episode({ steps: [fn({ arguments: args })] }));
+    expect(out.held).toEqual([]);
+    expect(JSON.stringify(out.episode)).not.toContain(S);
+  });
+
+  test.each([
+    ["-p beside another tool, a port", { command: "ssh", args: ["-p", "2222", "host"] }],
+    ["mkdir -p", { command: "mkdir -p src/deep" }],
+    ["docker -p", { command: "docker run -p 8080:80 img" }],
+    ["mysql -p then a flag", { command: "mysql -p --host db" }],
+    ["a name pair that is not a secret", { env: [{ name: "PATH", value: "/usr/bin" }] }],
+  ])("keeps %s", (_name, args) => {
+    const out = scrubEpisode(episode({ steps: [fn({ arguments: args })] }));
+    expect(out.episode.steps[0]).toMatchObject({ arguments: args });
+    expect(out.redacted).toBe(0);
+  });
+
+  test.each([
+    "Author: Jane Doe <j@x>",
+    "commit 1a2b3c4d\nAuthor: Jane Doe <jane@example.test>\nDate:   Mon",
+    "authored: yes",
+  ])("keeps a git author line: %s", (line) => {
+    expect(scrubText(line)).toBe(line);
+  });
+
+  test.each([
+    ["Authorization: Bearer abc", "Authorization: Bearer <redacted>"],
+    ["X-Auth-Token: abc", "X-Auth-Token: <redacted>"],
+    ["auth: abc", "auth: <redacted>"],
+    ["oauth_token=abc", "oauth_token=<redacted>"],
+  ])("still redacts the auth names: %s", (input, kept) => {
+    expect(scrubText(input)).toBe(kept);
+  });
+
+  test("the MySQL rule is fast on a long line", () => {
+    const long = `mysql ${"a ".repeat(100_000)}`;
+    const started = performance.now();
+    scrubText(long);
+    expect(performance.now() - started).toBeLessThan(1000);
   });
 });

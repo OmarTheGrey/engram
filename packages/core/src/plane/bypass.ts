@@ -69,9 +69,13 @@ export function redactSecrets(text: string, options: { longTokens?: boolean } = 
 /**
  * Whether a name (an environment variable's, an argument's) says it holds a
  * secret: the table's first rule reads it, a hyphen counts as an underscore,
- * and `pass` as a word of the name (`pass`, `db_pass`, `dbPass`) counts too,
- * as the flag rule counts `--pass`.
+ * and `pass`, `passphrase`, `pw` or `cookie` as a word of the name
+ * (`pass`, `db_pass`, `dbPass`, `gpg_passphrase`, `pw`, `Cookie`) counts
+ * too, as the flag rule counts `--pass`. Only the recorder's scrub reads it;
+ * the attempt never does.
  */
+const SECRET_WORDS = new Set(["pass", "passphrase", "pw", "cookie"]);
+
 export function isSecretName(name: string): boolean {
   const snake = name.replaceAll("-", "_");
   if (new RegExp(`^${SECRET_NAME}$`, "i").test(snake)) return true;
@@ -79,7 +83,7 @@ export function isSecretName(name: string): boolean {
     .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
     .toLowerCase()
     .split("_");
-  return words.includes("pass");
+  return words.some((w) => SECRET_WORDS.has(w));
 }
 
 /** What a bypass event's reason keeps of an attempt: one line, secrets removed, cut to MAX_ATTEMPT_LENGTH. */

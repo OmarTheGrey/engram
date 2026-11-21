@@ -137,9 +137,23 @@ describe("redactSecrets and isSecretName: the table on its own (card D1)", () =>
 
   test("pass as a word of a name is a secret's, as the flag rule reads --pass", () => {
     expect(
-      ["pass", "PASS", "db_pass", "db-pass", "dbPass", "pass_word"].filter((n) => !isSecretName(n)),
+      [
+        "pass",
+        "PASS",
+        "db_pass",
+        "db-pass",
+        "dbPass",
+        "pass_word",
+        "gpg_passphrase",
+        "pw",
+        "db_pw",
+        "Cookie",
+        "sessionCookie",
+      ].filter((n) => !isSecretName(n)),
     ).toEqual([]);
-    expect(["bypass", "passage", "compass", "passes"].filter(isSecretName)).toEqual([]);
+    expect(
+      ["bypass", "passage", "compass", "passes", "power", "cookies_count"].filter(isSecretName),
+    ).toEqual([]);
   });
 
   test("longTokens false leaves out only the rule for a run of 32 or more key characters", () => {
