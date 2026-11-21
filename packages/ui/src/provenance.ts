@@ -9,8 +9,13 @@
 // becomes a node only when the server gave the viewer something of that item
 // itself: its state (a read returned it, or a visible event carries it, which
 // visibleEvents allows only when the read filter would return it now), or an
-// allowed write or promotion of it among the viewer's events (visibleEvents
-// shows those only to a reader of its scope). Otherwise the id leaves no
+// allowed write or promotion of it among the viewer's events. visibleEvents
+// shows a write only to a reader of its scope, and a promotion to a reader
+// of its target or of its source scope (core's visible.ts): a reader of the
+// source alone sees the promoted item's id in that event and, withheld, not
+// its state, so the item page shows a node whose content is not shown,
+// linked by no lineage (its lineage is in the state withheld). That is the
+// event the timeline already shows, not a leak. Otherwise the id leaves no
 // node, no edge and no count, and nothing on the page says one was left out.
 import type { MemoryEvent, MemoryItem } from "./api/index.ts";
 

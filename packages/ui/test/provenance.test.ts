@@ -160,6 +160,28 @@ describe("the provenance graph", () => {
     ]);
   });
 
+  it("shows a reader of a promotion's source the promoted item as a node, without its content or lineage", () => {
+    // Dana's team item promoted to org, a scope this viewer cannot read:
+    // visibleEvents shows the promotion (its source scope is readable) and
+    // withholds the promoted item's state, lineage included.
+    const promoted = item(20, { scope: "org", lineage: [id(2)] });
+    const promotion = event(6, {
+      op: "promote",
+      item_id: promoted.id,
+      scope_from: "team:core",
+      scope_to: "org",
+    });
+    const log = [...samLog, promotion];
+    expect(knownItems(samRead, log).get(promoted.id)).toEqual({ id: promoted.id, state: null });
+    const g = provenanceGraph(promoted.id, samRead, log);
+    expect(nodeIds(g)).toEqual([promoted.id, promotion.id]);
+    expect(edgeIds(g)).toEqual([`decision:${promoted.id}>${promotion.id}`]);
+    expect(g?.nodes[0]).toMatchObject({ kind: "item", focus: true, state: null });
+    expect(itemVersions(promoted.id, samRead, log)).toEqual([]);
+    // From its source, nothing links to it: its lineage is in the state withheld.
+    expect(nodeIds(provenanceGraph(id(2), samRead, log))).not.toContain(promoted.id);
+  });
+
   it("is null for an item the viewer may see nothing of", () => {
     expect(provenanceGraph(id(1), samRead, samLog)).toBeNull();
     expect(provenanceGraph(id(99), danaRead, danaLog)).toBeNull();
