@@ -11,6 +11,7 @@ commands:
   read [query]      read through the plane and explain every returned item
   write             write one item through the plane's write gate
   promote <itemId>  promote an item through the plane's promotion gate
+  supersede <itemId>  propose end dates for the versions an item supersedes; apply accepted ones
   explain <readId>  the explanations a read recorded
   retain            sweep one scope's retention: expired items retired, budgets enforced
   lint              run the policy's deterministic lints over a scope, each finding with its reason
@@ -25,7 +26,7 @@ over the workspace its flags name, or to a running server:
   --server <url>              call engram serve at <url> (default $ENGRAM_SERVER_URL);
                               the server's own flags then name the log, policy and store
 
-store options (read, write, promote, retain, lint, serve, mcp):
+store options (read, write, promote, supersede, retain, lint, serve, mcp):
   --store <name>              the store adapter: files or letta (default files)
   --root <folder>             the store folder: a Claude Code memory folder (files),
                               or a MemFS repository or an empty folder (letta)
@@ -35,7 +36,7 @@ store options (read, write, promote, retain, lint, serve, mcp):
   --db <path|url>             the event log: a SQLite file, :memory: for none, or postgres://...
                               (default $ENGRAM_DB_URL, else <home>/.engram/engram.db)
 
-actor options (read, write, promote, explain, retain, lint):
+actor options (read, write, promote, supersede, explain, retain, lint):
   --as <principal>            who acts (default person:<owner>)
   --level <level>             person, role, team or org (default the actor's own level)
   --member <scope>            a scope the actor belongs to; repeatable (default the actor's scope)
@@ -59,6 +60,14 @@ promote options:
   limit: the CLI does not authenticate. --as and --member are taken as given, so the
   distinct-actor and reviewer rules hold only as far as this single-user machine does;
   a promotion with --review is only as trustworthy as the machine it ran on
+
+supersede options:
+  --accept <id>               apply the proposed close of this ancestor: one write of a new
+                              version through the write gate; repeatable. Without it, the plan only
+  the plan names the head of the item's chain and, for each ancestor the actor may read, a
+  close (valid_to set to the item's valid_from) or a review flag; nothing is retired, and an
+  id with no proposed close refuses the call before anything is written; exit 1 on an
+  unresolved chain or a write the gate did not allow
 
 explain options:
   --db <path|url>  --policy <preset|path>  and --as or --owner: only the reader may explain a read

@@ -434,6 +434,83 @@ export async function promoteCommand(args: string[], io: Io): Promise<number> {
   }
 }
 
+/**
+ * `engram supersede <item-id> [--accept <id>]...` (card L6): one call to the
+ * supersede route as a user-sourced actor. Core plans (the head of the
+ * item's chain, a proposed close or a review flag for each ancestor the
+ * actor may read); each --accept is one ordinary write of a new version
+ * through the write gate, which decides it. Exit 0 when the chain resolves
+ * and every accepted close was allowed, 1 otherwise.
+ */
+export async function supersedeCommand(args: string[], io: Io): Promise<number> {
+  const { values, positionals } = parse(
+    args,
+    {
+      ...STORE_OPTIONS,
+      ...ACTOR_OPTIONS,
+      ...CLIENT_OPTIONS,
+      accept: { type: "string", multiple: true },
+    },
+    true,
+  );
+  const [itemId, ...rest] = positionals;
+  if (itemId === undefined || rest.length > 0)
+    throw new UsageError("give exactly one item id: engram supersede <item-id> [--accept <id>]...");
+  const accept = values.accept ?? [];
+  for (const id of [itemId, ...accept])
+    if (!Id.safeParse(id).success) throw new UsageError(`${id} is not an item id (a UUIDv7)`);
+  const clock = callClock(values, io);
+  const actor = buildActor(values, values.owner, "user");
+  const { conn } = session(clock.io, values, { requireStore: true }, () => actor);
+  try {
+    const answer = result(
+      await conn.client.POST("/api/v1/supersede", { body: { actor, item_id: itemId, accept } }),
+    );
+    const plan = answer as unknown as {
+      item_id: string;
+      head:
+        | { ok: true; head_id: string; chain: string[] }
+        | { ok: false; error: string; chain: string[] };
+      proposals: {
+        item_id: string;
+        action: "close" | "review";
+        relation: string | null;
+        valid_to: string | null;
+        reason: string;
+      }[];
+      applied: { item: MemoryItem | null; event: MemoryEvent }[];
+    };
+    const allowed = plan.head.ok && plan.applied.every((a) => a.event.decision === "allow");
+    if (values.json) {
+      io.out(`${JSON.stringify(plan, null, 2)}\n`);
+      return allowed ? 0 : 1;
+    }
+    const lines = [
+      plan.head.ok
+        ? `head ${plan.head.head_id}, chain ${plan.head.chain.join(" -> ")}`
+        : `${plan.head.error}: the chain from ${plan.item_id} does not resolve (${plan.head.chain.join(" -> ") || "nothing readable"}); nothing proposed`,
+    ];
+    if (plan.head.ok && plan.proposals.length === 0) lines.push("nothing to propose");
+    for (const p of plan.proposals)
+      lines.push(
+        p.action === "close"
+          ? `close ${p.item_id}: valid_to ${p.valid_to} (${p.relation}); ${p.reason}`
+          : `review ${p.item_id} (${p.relation ?? "no relation"}): ${p.reason}`,
+      );
+    for (const { event, item } of plan.applied) lines.push("", ...decisionLines(event, item));
+    const open = plan.proposals.filter((p) => p.action === "close" && !accept.includes(p.item_id));
+    if (open.length > 0)
+      lines.push(
+        "",
+        `to apply: engram supersede ${plan.item_id} ${open.map((p) => `--accept ${p.item_id}`).join(" ")}`,
+      );
+    io.out(`${[...lines, logHint(conn)].join("\n")}\n`);
+    return allowed ? 0 : 1;
+  } finally {
+    conn.close();
+  }
+}
+
 export async function explainCommand(args: string[], io: Io): Promise<number> {
   const { values, positionals } = parse(
     args,
