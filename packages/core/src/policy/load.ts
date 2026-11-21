@@ -143,7 +143,7 @@ const NOT_ENFORCED_YET = {
   content_guards: {
     secrets: "E2.9",
     pii: "E2.9",
-    injection_screen: "E2.10",
+    // injection_screen is enforced by card E2.10 (policy/injection-screen.ts).
     max_content_bytes: "E2.9",
   },
   trust: { unattested_floor: "E2.11", protect_trusted: "E2.11" },
