@@ -162,6 +162,8 @@ Surfaces
   HTTP           packages/server, a Hono app over one route table (ADR 0027): /api/v1/items, /items/check, /read,
                  /explain/{readId}, /promote, /grants, /retain, /events (visibleEvents), /policy, /lint, /simulate,
                  /distill (501 naming D2), /bypass, /viewer, /health; a decision is 200 with its event;
+                 a bearer API key or token, or --insecure-loopback (ADR 0042); RFC 9728 metadata at
+                 /.well-known/oauth-protected-resource; each served event attested (event_attestations);
                  loopback Host and Origin only, JSON bodies only, no CORS, 1 MiB bodies; OpenAPI generated
                  into sdk/openapi.json, the client into sdk/ts and packages/ui/src/api
   CLI            engram write | read | promote | explain | retain | lint | simulate (--candidate), each one client call, in
@@ -180,5 +182,5 @@ See `AGENTS.md` for the authoritative map. In short: `packages/core` (plane, no 
 
 - Calling context as a policy input: absent in v1, justified in ADR 0006's amendments (the harness enters through `actor.source` and memberships); a per-tool context is v2 with a policy language.
 - Whether the distiller stores strategies as well as procedures (ADR 0012 says procedures only in v1).
-- Authentication for the HTTP and MCP surfaces: none in v0; both listen on loopback only and the actor is self-asserted (ADR 0027).
+- Authentication for the HTTP and MCP surfaces (card E8.12, ADR 0042, proposed): `engram serve` and `engram mcp --http` accept a bearer API key (`--keys`, made by `engram key`) or a JWT of one external issuer (`--issuer`, `--jwks`, `--subjects`), which names the actor the operator configured; a sent source is ignored and claims never widen a membership; each event they append is attested in the side table `event_attestations` (migration 6). Without a credential flag they start only with `--insecure-loopback`, where the actor is self-asserted as before (ADR 0027). stdio and the in-process CLI keep `--as`, self-asserted on one machine. The inspector sends no credential yet, so it works under the waiver only.
 - Cedar or another policy language: noted as v2 in ADR 0006.
