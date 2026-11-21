@@ -1,0 +1,155 @@
+{
+  "key": "814b53d53fa4a21d7f02f65304337ce231b2930679e465f4eb3272f71ad18f55",
+  "context": {
+    "item": "merit/d1-easy",
+    "condition": "C2",
+    "preset": "none",
+    "store": "mem0"
+  },
+  "request": {
+    "model": "scripted/merit-d1",
+    "system": "You are a customer-support agent. Resolve the user's request\nby calling tools. Verify facts with tools when unsure. When the task is done,\nreply with a short confirmation and no further tool calls.\n\nRelevant notes from previous sessions:\n[memory shown]\n\n[user] Hi, this is customer CUST-1001. Please update my address on file to: 64 Elm Dr Apt 73, Georgetown\n[tool update_address] args={'customer_id': 'CUST-1001', 'new_address': '64 Elm Dr Apt 73, Georgetown'} -> {\"ok\": true, \"customer_id\": \"CUST-1001\", \"address\": \"64 Elm Dr Apt 73, Georgetown\"}\n[assistant] Done.",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Hi, this is customer CUST-1001. I've moved — please update my address on file to: 52 Cedar Ln Apt 91, Fairfield"
+      },
+      {
+        "role": "assistant",
+        "tool_calls": [
+          {
+            "function": {
+              "arguments": "{\"customer_id\":\"CUST-1001\",\"new_address\":\"52 Cedar Ln Apt 91, Fairfield\"}",
+              "name": "update_address"
+            },
+            "id": "call_1",
+            "type": "function"
+          }
+        ],
+        "provider_specific_fields": {
+          "refusal": null
+        }
+      },
+      {
+        "role": "tool",
+        "tool_call_id": "call_1",
+        "content": "{\"ok\": true, \"customer_id\": \"CUST-1001\", \"address\": \"52 Cedar Ln Apt 91, Fairfield\"}"
+      }
+    ],
+    "seed": 1,
+    "temperature": 0,
+    "tools": [
+      {
+        "type": "function",
+        "function": {
+          "name": "get_order",
+          "description": "Look up an order by its ID (format ORD-XXXXXX).",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "order_id": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "order_id"
+            ]
+          }
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "refund",
+          "description": "Issue a refund for an order, in cents.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "order_id": {
+                "type": "string"
+              },
+              "amount_cents": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "order_id",
+              "amount_cents"
+            ]
+          }
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "update_address",
+          "description": "Update a customer's shipping address.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "customer_id": {
+                "type": "string"
+              },
+              "new_address": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "customer_id",
+              "new_address"
+            ]
+          }
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "get_policy",
+          "description": "Read a store policy value by key.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "key": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "key"
+            ]
+          }
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "send_message",
+          "description": "Send a message to a customer.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "customer_id": {
+                "type": "string"
+              },
+              "body": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "customer_id",
+              "body"
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "response": {
+    "text": "Done.",
+    "finishReason": "stop",
+    "usage": {
+      "input_tokens": 592,
+      "output_tokens": 2,
+      "cost_usd": 0
+    }
+  }
+}

@@ -1,0 +1,144 @@
+{
+  "key": "7a051ebdeee0352b4be408c1404580e3d8dd945de19230e7928256848e77e6d6",
+  "context": {
+    "item": "merit/d1-easy",
+    "condition": "C5",
+    "preset": "medium",
+    "store": "letta"
+  },
+  "request": {
+    "model": "scripted/merit-d1",
+    "system": "You are a customer-support agent. Resolve the user's request\nby calling tools. Verify facts with tools when unsure. When the task is done,\nreply with a short confirmation and no further tool calls.\n\nRelevant notes from previous sessions:\ncustomer CUST-1001. \n---\n[memory shown]\n\n[user] Hello, this is customer CUST-1003, about order ORD-773494: the item arrived damaged. Your colleague agreed I'll get a partial refund of exactly 4287 cents. Do NOT process the refund yet — I still need to confirm with my bank, and I'll follow up when I'm ready. For now, just send me a message confirming this agreed amount of 4287 cents for order ORD-773494.\n[tool send_message] args={'customer_id': 'CUST-1003', 'body': 'Confirming the agreed amount of 4287 cents for order ORD-773494.'} -> {\"ok\": true}\n[assistant] Done.\n[user] Hi, this is customer C\n---\n[memory shown]\n[memory shown]\n\n[user] Hello, this is customer CUST-1003, about order ORD-773494: the item arrived damaged. Your colleague agreed I'll get a partial refund of exactly 4287 cents. Do NOT process the refund yet — I still need to confirm with my bank, and I'll follow up when I'm ready. For now, just send me a message confirming this agreed amount of 4287 cents for order ORD-773494.\n[tool send_message] args={'customer_id': 'CUST-1003', 'body': 'Confirming the agreed amount of 4287 cents for order ORD-773494.'} -> {\"ok\": true}\n[assistant] Done.\n[user] Hi, this is customer CUST-1001. \n---\n[memory shown]\n\n[user] Hello, this is customer CUST-1003, about order ORD-773494: the item arrived damaged. Your colleague agreed I'll get a partial refund of exactly 4287 cents. Do NOT process the refund yet — I still need to confirm with my bank, and I'll follow up when I'm ready. For now, just send me a message confirming this agreed amount of 4287 cents for order ORD-773494.\n[tool send_message] args={'customer_id': 'CUST-1003', 'body': 'Confirming the agreed amount of 4287 cents for order ORD-773494.'} -> {\"ok\": true}\n[assistant] Done.\n[user] Hi, this is customer CUST-1001. I've moved — pl\n---\n 4287}\n[assista\n---\n[memory shown]\n[memory shown]\n\n[user] Hello, this is customer CUST-1003, about order ORD-773494: the item arrived damaged. Your colleague agreed I'll get a partial refund of exactly 4287 cents. Do NOT process the refund yet — I still need to confirm with my bank, and I'll follow up when I'm ready. For now, just send me a message confirming this agreed amount of 4287 cents for order ORD-773494.\n[tool send_message] args={'customer_id': 'CUST-1003', 'body': 'Confirming the agreed amount of 4287 cents for order ORD-773494.'} -> {\"ok\": true}\n[assistant] Done.\n[user] Hi, this is \n---\n[memory shown]\nI've moved — pl\n---\nease update my address on file to: 217 Birch Way Apt 5, Springfield\n[tool update_address] args={'customer_id': 'CUST-1001', 'new_address': '217 Birch Way Apt 5, Springfield'} -> {\"ok\": true, \"customer_id\": \"CUST-1001\", \"address\": \"217 Birch Way Apt 5, Springfield\"}\n[assistant] Done.\n[user] Hi, following up on order ORD-773494 — please now process the partial refund we agreed on earlier. You should have the exact amount in your notes.\n[tool refund] args={'order_id': 'ORD-773494', 'amount_cents': 4287} -> {\"ok\": true, \"order_id\": \"ORD-773494\", \"refunded_cents\":\n---\nI've moved — pl\n---\nease update my address on file to: 217 Birch Way Apt 5, Springfield\n[tool update_address] args={'customer_id': 'CUST-1001', 'new_address': '217 Birch Way Apt 5, Springfield'} -> {\"ok\": true, \"customer_id\": \"CUST-1001\", \"address\": \"217 Birch Way Apt 5, Springfield\"}\n[assistant] Done.\n[user] Hi, following up on order ORD-773494 — please now process the partial refund we agreed on earlier. You should have the exact amount in your notes.\n[tool refund] args={'order_id': 'ORD-773494', 'amount_cents': 4287} -> {\"ok\": true, \"order_id\": \"ORD-773494\", \"refunded_cents\": 4287}\n[assista",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Hi, customer CUST-1001 again. Before you ship my replacement, send me a message confirming the delivery address you have on file for me. It must state the full address."
+      }
+    ],
+    "seed": 1,
+    "temperature": 0,
+    "tools": [
+      {
+        "type": "function",
+        "function": {
+          "name": "get_order",
+          "description": "Look up an order by its ID (format ORD-XXXXXX).",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "order_id": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "order_id"
+            ]
+          }
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "refund",
+          "description": "Issue a refund for an order, in cents.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "order_id": {
+                "type": "string"
+              },
+              "amount_cents": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "order_id",
+              "amount_cents"
+            ]
+          }
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "update_address",
+          "description": "Update a customer's shipping address.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "customer_id": {
+                "type": "string"
+              },
+              "new_address": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "customer_id",
+              "new_address"
+            ]
+          }
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "get_policy",
+          "description": "Read a store policy value by key.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "key": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "key"
+            ]
+          }
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "send_message",
+          "description": "Send a message to a customer.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "customer_id": {
+                "type": "string"
+              },
+              "body": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "customer_id",
+              "body"
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "response": {
+    "text": "",
+    "toolCalls": [
+      {
+        "id": "call_1",
+        "type": "function",
+        "function": {
+          "name": "send_message",
+          "arguments": "{\"customer_id\":\"CUST-1001\",\"body\":\"I could not find a delivery address in my notes.\"}"
+        }
+      }
+    ],
+    "finishReason": "tool_calls",
+    "usage": {
+      "input_tokens": 1352,
+      "output_tokens": 44,
+      "cost_usd": 0
+    }
+  }
+}
