@@ -20,6 +20,8 @@
 //   engram/promote/duplicate                     an active item of the target class already holds the content there
 //   engram/promote/no-evidence                   too few confirmations, no reviewer, or no validation record
 //   engram/promote/reviewer                      the actor asked to approve but is not a reviewer
+//   engram/promote/validation-source             a replay validation record presented by an actor that
+//                                                is not user-sourced (card D3)
 // A promotion the target's write rule refuses is denied under that rule's own
 // id (`<policy id>/write/<level>`, `engram/write/membership`, ...), since a
 // promotion is evaluated as a write into the target scope (ADR 0026, item 5).
@@ -67,6 +69,7 @@ export function hiddenCharacters(content: unknown): number {
 export const PROMOTE_NOT_CANDIDATE_ID = "engram/promote/not-candidate";
 export const PROMOTE_NO_EVIDENCE_ID = "engram/promote/no-evidence";
 export const PROMOTE_REVIEWER_ID = "engram/promote/reviewer";
+export const PROMOTE_VALIDATION_SOURCE_ID = "engram/promote/validation-source";
 
 type Kind = MemoryItem["provenance"]["kind"];
 
@@ -134,6 +137,18 @@ export interface PromotionTarget {
 export interface ValidationRecord {
   k: number;
   n: number;
+  /** The reward a held-out task had to reach to pass, when the record came from a replay (card D3). */
+  threshold?: number;
+  /** How many of the `n` tasks passed without the procedure, when the record came from a replay. */
+  baseline?: number;
+}
+
+/** `4 of 5`, or for a replay's record `4 of 5 held-out tasks at or above 1 with the procedure (2 of 5 without it)`. */
+export function recordText(v: ValidationRecord): string {
+  const at = v.threshold === undefined ? "" : ` held-out tasks at or above ${v.threshold}`;
+  const base =
+    v.baseline === undefined ? "" : ` with the procedure (${v.baseline} of ${v.n} without it)`;
+  return `${v.k} of ${v.n}${at}${base}`;
 }
 
 export interface PromotionEvidence {
@@ -170,6 +185,7 @@ export type PromotionCheck =
   | "duplicate"
   | "write"
   | "reviewer"
+  | "validation-source"
   | "no-evidence"
   | "review-needed"
   | "confirmed"
@@ -317,7 +333,9 @@ export function canReach(policy: Policy, actor: Actor, item: MemoryItem, at: str
  *    (`engram/promote/reviewer`).
  * 7. Evidence: an episodic item needs k confirmations or, when `or_review`
  *    holds, a reviewer; a procedural candidate needs a validation record
- *    meeting replay_k of replay_n, which a review cannot replace; anything
+ *    meeting replay_k of replay_n, which a review cannot replace and only a
+ *    user-sourced actor may present (`engram/promote/validation-source`,
+ *    card D3); anything
  *    else (a semantic candidate, a widening of an active item) needs a
  *    reviewer. Missing evidence that a review could supply asks when the
  *    target requires review, else denies (`engram/promote/no-evidence`).
@@ -475,10 +493,20 @@ export function evaluatePromotion(
   } else if (item.class === "procedural" && item.status === "candidate") {
     reviewable = false;
     const v = evidence.validation;
+    // A replay record is evidence a caller presents (card D3, ADR 0042
+    // proposed): an agent presenting one for its own procedure would grant
+    // itself the authority ADR 0026 withholds (2609.01836), so only a
+    // user-sourced actor, the person who ran the replay, may present one.
+    if (v && actor.source !== "user")
+      return deny(
+        "validation-source",
+        `${actor.id} acts with source ${actor.source ?? "none"}; only a user-sourced actor may present a replay validation record`,
+        PROMOTE_VALIDATION_SOURCE_ID,
+      );
     if (v && validationMeets(policy, v)) met = "validated";
     const { replay_k, replay_n } = policy.promotion.procedural;
     missing = v
-      ? `the validation record ${v.k} of ${v.n} does not meet ${replay_k} of ${replay_n}`
+      ? `the validation record ${recordText(v)} does not meet ${replay_k} of ${replay_n}`
       : `a procedural candidate needs a validation record of ${replay_k} of ${replay_n} replay passes, and has none`;
   } else {
     reviewable = true;
@@ -508,7 +536,7 @@ export function evaluatePromotion(
     met === "confirmed"
       ? `${counted.count} confirmations by distinct actors with a user, document or tool source (${counted.actors.join(", ")}) reach the ${k} required`
       : met === "validated"
-        ? `the validation record ${evidence.validation?.k} of ${evidence.validation?.n} meets ${policy.promotion.procedural.replay_k} of ${policy.promotion.procedural.replay_n}`
+        ? `the validation record ${recordText(evidence.validation as ValidationRecord)} meets ${policy.promotion.procedural.replay_k} of ${policy.promotion.procedural.replay_n}`
         : `reviewed with ${counted.count} confirmation${counted.count === 1 ? "" : "s"}`;
   const rule =
     met === "confirmed" ? "episodic-to-semantic" : met === "validated" ? "procedural" : "review";

@@ -165,6 +165,7 @@ export const ENGRAM_RULES: readonly string[] = [
   "engram/promote/no-evidence",
   "engram/promote/not-candidate",
   "engram/promote/reviewer",
+  "engram/promote/validation-source",
   "engram/promote/widening-source",
   "engram/read/default-deny",
   "engram/read/status",

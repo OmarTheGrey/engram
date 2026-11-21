@@ -14,6 +14,7 @@
 import type { Actor } from "./actor.ts";
 import type { Adapter } from "./adapter.ts";
 import type { Db } from "./db/db.ts";
+import type { ReplayEvidence } from "./distill/validate.ts";
 import type { DistillMethod, Session } from "./distill.ts";
 import { allEvents } from "./events.ts";
 import type { ModelLintSetup } from "./lint/model.ts";
@@ -229,6 +230,15 @@ export interface PromoteOptions {
    * the target scope and not the item's owner, else `engram/promote/reviewer`.
    */
   review?: boolean;
+  /**
+   * A procedural candidate's replay on held-out tasks (card D3, ADR 0042
+   * proposed): the outcomes the plane derives the validation record from
+   * (distill/validate.ts), never a record the caller states. Only a
+   * user-sourced actor may present one (`engram/promote/validation-source`);
+   * one naming a task the candidate was induced from, or otherwise unusable,
+   * is refused with InvalidCallError before the log is touched.
+   */
+  replay?: ReplayEvidence;
 }
 
 export interface Plane {
@@ -249,8 +259,8 @@ export interface Plane {
    * change is in place; a class or scope change is a new version whose source
    * is retired. Decision `ask`, with a null item and one `gate` event, when
    * the target requires review and the actor is not reviewing. Runs in the
-   * write queue. An invalid actor, time, item id or scope is refused with
-   * InvalidCallError before the log is touched.
+   * write queue. An invalid actor, time, item id, scope or replay is refused
+   * with InvalidCallError before the log is touched.
    */
   promote(
     actor: Actor,
