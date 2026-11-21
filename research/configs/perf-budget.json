@@ -1,0 +1,98 @@
+{
+  "name": "perf-budget",
+  "kind": "measurement",
+  "card": "X15",
+  "hypothesis": "none",
+  "filed_under": "research/results/h2-* only because research/tests/test_prereg.py maps every MANIFEST file to one hypothesis's results glob; the result is descriptive and decides no hypothesis, as card R4 filed its crosswalk under h1-* with hypothesis none (docs/tasks/backlog.md, row \"A results glob outside the hypotheses\")",
+  "samples": "research/results/h2-perf-budget-samples.jsonl",
+  "suite": {
+    "stores": ["fake", "files"],
+    "sizes": [100, 1000, 10000],
+    "presets": ["strict", "medium", "permissive"],
+    "hits": 10,
+    "at": "2026-11-21T12:00:00Z",
+    "iterations": {
+      "100": 200,
+      "1000": 50,
+      "10000": 30
+    },
+    "warmup": 10,
+    "skip": {
+      "files": [10000]
+    }
+  },
+  "percentiles": [50, 99, 99.9],
+  "baseline_of": {
+    "write": {
+      "op": "sqlite-write",
+      "why": "an allowed write lands one item; the bare equivalent is one row inserted and committed on the same disk"
+    },
+    "write-deny": {
+      "op": "sqlite-write",
+      "why": "a denied write records exactly one row, its deny event, appended and committed in one transaction; the bare equivalent of recording one row durably is the same single-row insert, so the ratio is what the gate adds to the event's own write"
+    },
+    "read": {
+      "op": "sqlite-read",
+      "why": "a read returns the ten items holding the word in the reader's scopes; the bare equivalent is one SELECT of those rows"
+    }
+  },
+  "tolerance": {
+    "median_band": 3.0,
+    "baseline_band": 4.0,
+    "aggregate_band": 1.5,
+    "machine_keys": ["cpu", "cores", "memory_bytes", "os", "arch"],
+    "why": "Set from real rerun noise (review finding X15-3): a second full run of the suite on the same machine, after the committed one and with nothing changed, moved plane cells' medians by at most a factor of 2.18 either way (the files adapter's allowed write at 100 items under strict), the bare node:sqlite cells' by at most 3.12 (the select at 100 items, a median of 0.018 ms), and each op's geometric mean of median ratios over its 15 plane cells by at most 1.13 (allowed writes). The per-cell bands, 3 for plane cells and 4 for bare cells, cover that noise with about a third more; they catch a cell that triples. The aggregate band is one-sided (decided under the lead's delegation after the final rerun of the review fix pass ran faster than the committed run): per op the geometric mean of new to committed median ratios must be at most 1.5, which catches an op whose every cell slows by half or more, such as every read twice as slow, which no per-cell band this wide could; a faster run passes, since the check exists to catch regressions. The per-cell bands stay two-sided, since a cell that moves that far in either direction makes the measurement itself suspect. The check also refuses samples from another machine, Node version or tinybench version."
+  },
+  "budget": [
+    {
+      "name": "read-1000",
+      "store": "fake",
+      "size": 1000,
+      "preset": "medium",
+      "op": "read",
+      "stat": "p99",
+      "limit_ms": 50.0,
+      "why": "a governed read of ten items from a store of 1,000 within 50 ms at p99, on the fake, so the plane's own cost stays a small share of a model turn"
+    },
+    {
+      "name": "write-1000",
+      "store": "fake",
+      "size": 1000,
+      "preset": "medium",
+      "op": "write",
+      "stat": "p99",
+      "limit_ms": 50.0,
+      "why": "an allowed write into a store of 1,000 within 50 ms at p99, on the fake"
+    },
+    {
+      "name": "read-10000",
+      "store": "fake",
+      "size": 10000,
+      "preset": "medium",
+      "op": "read",
+      "stat": "p99",
+      "limit_ms": 100.0,
+      "why": "a governed read from a store of 10,000 within 100 ms at p99, on the fake: the target for a team-sized store, and within 100 times the bare node:sqlite baseline's p99 at the same size",
+      "max_ratio": 100.0
+    },
+    {
+      "name": "write-10000",
+      "store": "fake",
+      "size": 10000,
+      "preset": "medium",
+      "op": "write",
+      "stat": "p99",
+      "limit_ms": 100.0,
+      "why": "an allowed write into a store of 10,000 within 100 ms at p99, on the fake, and within 100 times the bare node:sqlite baseline's p99 at the same size",
+      "max_ratio": 100.0
+    }
+  ],
+  "notes": [
+    "Measured once, on the machine named in `machine`, while other coding agents ran builds and tests on it: CPU load sampled every 30 seconds during the run averaged 51 percent (from 0 to 100), with 30 to 75 node processes running. The figures are this machine's under that load; they are never compared across machines.",
+    "Each cell, one (preset, op), runs on its own copy of a store populated once per store and size (`start` gives the log's items and events when the cell began), so no cell inherits what an earlier one wrote or read (review finding X15-1). Each cell's timed calls follow `suite.warmup` untimed ones; `samples_ms` is in call order; `n` is the number of timed calls. Where n is below 1,000 the p99.9 is interpolated between the two largest samples and is not a resolved tail; where n is below 100 the same holds for the p99.",
+    "The store of each size is written through the Plane under preset medium, as user-sourced semantic items in team scopes of at most 1,000 items, so no scope passes any preset's team budget. The log is a SQLite file in WAL mode in the temporary folder; the baseline is a bare node:sqlite file with the same pragmas, a fresh table per op, so the fsync of each commit is in both. `baseline_of` says which baseline each op is compared with, and why.",
+    "`queries` counts what one steady call asks of the log: statements, the rows they return, and transactions. Statements stay fixed as the store grows; rows grow with it (an allowed write reads the projection three times, a denied write once, a read twice), and an allowed write also reads every read event in the log (docs/log/2026-11-21-x15-finding-whole-table-scans.md).",
+    "100,000 items is not measured: every Plane call here costs time linear in the store, so writing the store one item at a time through the Plane is quadratic: 10,000 items took 578 seconds on the fake (`population`), and 100,000 would take on the order of 16 hours by the same growth.",
+    "The files adapter is not measured at 10,000 items: its search reads every file in the folder on each read (docs/log/2026-11-21-x15-finding-files-search-revised.md), a median of 0.85 to 1.06 seconds per read at 1,000 items here, so a read at 10,000 items would take roughly ten seconds and the three read cells alone some twenty minutes."
+  ]
+}
