@@ -8,6 +8,7 @@
 // stopped, with Serve's three answers to "Who may call it?".
 import { isAbsolute, resolve } from "node:path";
 import type { CommandSpec, Values } from "../../registry.ts";
+import { redactSecrets } from "../../setup.ts";
 import { clean, para, wrap } from "../layout.ts";
 import type { Ctx } from "../screen.ts";
 import {
@@ -33,9 +34,18 @@ import { type Button, type Row, SurfaceScreen, sharedOf } from "./surface.ts";
 /** The project a harness runs in: CLAUDE_PROJECT_DIR, as the hook resolves it, else the working folder. */
 const projectOf = (ctx: Ctx) => resolve(ctx.io.cwd, ctx.io.env.CLAUDE_PROJECT_DIR || ".");
 
+/** A snippet's text as drawn: a URL's credentials redacted, as the command row draws them; the copy keeps them. */
+function drawn(text: string, args: readonly string[]): string {
+  let out = text;
+  for (const a of args) if (a.includes("://")) out = redactSecrets(out, a);
+  return out;
+}
+
 /** Wrapped JSON of a snippet, compact, for the screen; the copy is the pretty one. */
-const snippetLines = (value: unknown, width: number) =>
-  wrap(JSON.stringify(value, null, 1).replace(/\n\s*/g, " "), width - 4).map((l) => `   ${l}`);
+const snippetLines = (value: unknown, width: number, args: readonly string[]) =>
+  wrap(drawn(JSON.stringify(value, null, 1).replace(/\n\s*/g, " "), args), width - 4).map(
+    (l) => `   ${l}`,
+  );
 
 const pretty = (value: unknown) => `${JSON.stringify(value, null, 2)}\n`;
 
@@ -145,11 +155,13 @@ export class HookScreen extends SurfaceScreen {
     const args = this.snippetArgs(ctx);
     const scratch = scratchLaunch(this.launchOf(ctx), args, ctx.io.env, project);
     this.tried = { scratch, results: undefined };
+    this.toEnd = true;
     ctx.redraw();
     const roots = (this.form.get("root") as readonly string[]).map((r) =>
       isAbsolute(r) ? r : resolve(project, r),
     );
     this.tried = { scratch, results: await tryHook(scratch, hookSamples(project, roots)) };
+    this.toEnd = true;
   }
 
   protected override ownActions(): readonly string[] {
@@ -167,7 +179,7 @@ export class HookScreen extends SurfaceScreen {
     if (this.filled !== undefined) lines.push(...para(this.filled, width), "");
     if (launch.note !== undefined) lines.push(...para(launch.note, width));
     lines.push(" .claude/settings.json, hooks.PreToolUse:");
-    lines.push(...snippetLines(this.entry(ctx), width));
+    lines.push(...snippetLines(this.entry(ctx), width, this.snippetArgs(ctx)));
     if (this.tried !== undefined) {
       lines.push("");
       if (this.tried.results === undefined)
@@ -335,8 +347,10 @@ export class McpScreen extends ProcessScreen {
       projectOf(ctx),
     );
     this.tried = { scratch, result: undefined };
+    this.toEnd = true;
     ctx.redraw();
     this.tried = { scratch, result: await tryMcp(scratch) };
+    this.toEnd = true;
   }
 
   protected override ownActions(): readonly string[] {
@@ -367,11 +381,14 @@ export class McpScreen extends ProcessScreen {
     const launch = this.launchOf(ctx);
     lines.push("");
     if (launch.note !== undefined) lines.push(...para(launch.note, width));
-    lines.push(" For Claude Code, .mcp.json:", ...snippetLines(this.mcp(ctx), width));
+    lines.push(
+      " For Claude Code, .mcp.json:",
+      ...snippetLines(this.mcp(ctx), width, this.snippetArgs(ctx)),
+    );
     if (width >= 118)
       lines.push(
         " For Codex, config.toml:",
-        ...codexToml(launch, this.snippetArgs(ctx))
+        ...drawn(codexToml(launch, this.snippetArgs(ctx)), this.snippetArgs(ctx))
           .trimEnd()
           .split("\n")
           .flatMap((l) => para(l, width, "   ")),

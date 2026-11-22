@@ -49,7 +49,9 @@ export interface Launch {
   note: string | undefined;
 }
 
-const pathOf = (env: Env) => env.PATH ?? env.Path ?? env.path ?? "";
+/** PATH, found whatever its case, as Windows names it Path and looks it up in any case. */
+const pathOf = (env: Env) =>
+  env.PATH ?? Object.entries(env).find(([k]) => k.toUpperCase() === "PATH")?.[1] ?? "";
 
 /**
  * The first `name` on the PATH, as a shell finds it: each folder in order,

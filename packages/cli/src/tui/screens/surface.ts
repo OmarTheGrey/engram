@@ -191,6 +191,8 @@ export abstract class SurfaceScreen implements Screen {
   }
   /** Scroll to the result's first line on the next draw. */
   private atResult = false;
+  /** Scroll to the last line on the next draw: what Try it or a start just printed (card E8.15d). */
+  protected toEnd = false;
 
   // Focus.
 
@@ -671,7 +673,11 @@ export abstract class SurfaceScreen implements Screen {
       }
       lines.push(...d.lines);
     });
-    if (this.atResult && resultLine >= 0) {
+    if (this.toEnd) {
+      this.scroll = Math.max(0, lines.length - height);
+      this.toEnd = false;
+      this.follow = false;
+    } else if (this.atResult && resultLine >= 0) {
       // A new result scrolls into view, the form above it kept where it fits.
       this.scroll = lines.length <= height ? 0 : Math.min(resultLine, lines.length - height);
       this.atResult = false;

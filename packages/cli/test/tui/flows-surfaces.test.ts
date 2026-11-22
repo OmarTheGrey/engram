@@ -382,6 +382,42 @@ describe("Log verify (8.24)", () => {
   });
 });
 
+describe("text fields and the server's log (9.1, 8.15)", () => {
+  it("a text field types every printable key, the screen's own keys and : included", async () => {
+    const h = await usable();
+    await h.press("t"); // Retention sweep: its scope field has the focus
+    await h.type("team:a;?vJrstknaoRq");
+    expect(await h.text()).toContain("[ team:a;?vJrstknaoRq");
+    expect(h.ran()).toEqual([]);
+    expect(h.overlay()).toBeUndefined();
+    await h.quit();
+  });
+
+  it("with a server, the hook protects the log the Serve screen's --db named, and says why", async () => {
+    const cwd = await tempDir();
+    const h = await usable({ cwd });
+    await h.press("h", SPACE, SPACE);
+    await h.focusField("port");
+    await h.type("0");
+    await h.press(SAVE);
+    await waitFor(h, "insecure loopback");
+    await h.press(SAVE);
+    await waitFor(h, "stopped");
+    await h.press(ESC);
+    h.app.ws.set("server", "http://127.0.0.1:7313");
+    await h.press("b");
+    const screen = h.app.top() as unknown as { snippetArgs(): string[] };
+    const args = screen.snippetArgs();
+    expect(args[args.indexOf("--protect") + 1]).toBe(join(cwd, "engram.db"));
+    expect(args).toContain("--server");
+    // Wrapped at 80 columns: read as one line.
+    expect((await h.text()).replace(/\s+/g, " ")).toContain(
+      "the log engram serve --db names, which the hook cannot see through --server",
+    );
+    await h.quit();
+  }, 30_000);
+});
+
 describe("Procedures (8.25)", () => {
   it("has no screen: the palette names it with no action", async () => {
     const h = await usable();

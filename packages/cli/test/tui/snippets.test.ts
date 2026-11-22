@@ -198,6 +198,32 @@ describe("the hook setup screen", () => {
   });
 });
 
+describe("secrets in a snippet (10.3)", () => {
+  it("draws a log URL's password redacted, and copies it whole", async () => {
+    const cwd = await tempDir();
+    const secret = "pw-0000-SECRET";
+    const db = `postgres://dana:${secret}@127.0.0.1:1/engram`;
+    const h = await startHarness({
+      cwd,
+      home: cwd,
+      given: { owner: "dana", db },
+      logCheck: async () => ["ok", "a fake Postgres check"],
+    });
+    for (const letter of ["b", "m"]) {
+      await h.press(letter);
+      const text = await h.text();
+      expect(text).toContain("postgres://");
+      expect(text).not.toContain(secret);
+      await h.press("\x1b");
+    }
+    await h.press("b");
+    await h.focusField("button:copy");
+    await h.press("\r");
+    const s = await h.quit();
+    expect(s.deferred.join("\n")).toContain(secret);
+  });
+});
+
 describe("Try it (8.15)", () => {
   const launch = { command: process.execPath, prefix: [MAIN], note: undefined };
 

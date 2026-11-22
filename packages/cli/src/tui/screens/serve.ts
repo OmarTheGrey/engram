@@ -176,7 +176,10 @@ export abstract class ProcessScreen extends SurfaceScreen {
     }
     const argv = this.argv(ctx);
     this.remember(ctx, argv);
-    const r = new Running(argv, ctx.io, () => ctx.redraw());
+    const r = new Running(argv, ctx.io, () => {
+      this.toEnd = true;
+      ctx.redraw();
+    });
     this.running = r;
     this.ended = undefined;
     this.unregister = ctx.onQuit(async () => {

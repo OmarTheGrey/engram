@@ -1677,6 +1677,9 @@ export const REGISTRY: readonly CommandSpec[] = [
       "LC_CTYPE",
       "PSModulePath",
       "SHELL",
+      // Card E8.15d: the hook and MCP snippets look engram up on the PATH, by PATHEXT on Windows.
+      "PATH",
+      "PATHEXT",
     ],
     handler: H.tui,
   },
