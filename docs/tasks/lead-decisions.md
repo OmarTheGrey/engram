@@ -292,6 +292,15 @@ Prices come from `research/results/h2-cost-table.json` (card RV8, OpenRouter's l
 
 The answers card that carries these into the pre-registration, the ADRs and the roadmap follows as its own PR, as on 2026-11-19.
 
+## F. Proposed by the absorb cards, 2026-11-21
+
+Open, for the lead. Each was drafted by a card's agent while implementing it; the card ships the recommendation behind it, and accepting or changing it is a `decision` log entry plus a status change in the ADR.
+
+65. **ADR 0047, the by-id read and the scope list (card E8.14).** What a read of one id and a list of visible scopes may reveal, and how a framework adapter writes.
+    - (a) Accept ADR 0047: a by-id read drops a candidate reached only through a grant that does not admit it, so such an id, one out of reach and one never held answer alike; a scope list holds the readable member scopes and the scopes of items a live grant admits; both are read events, a by-id read marked by a reason clause; `POST /read/{itemId}` and `POST /scopes` join the route table; the kit forces source `model`.
+    - (b) Accept it, but answer a by-id read as a text read does (`filtered: 1` for a grant that does not admit), keeping one rule for every read at the cost of confirming the id exists.
+    - (c) Drop the scope list and keep only the by-id read, so no listing reveals a grant-reached scope.
+
 ## Decided on 2026-11-21, under the lead's delegation
 
 On 2026-11-21 the lead delegated items 49 to 56 as well: close them with the best answer the project's record supports. Every item takes option (a). These answers are binding until the lead overturns one. ADRs [0038](../decisions/0038-tamper-evident-log-that-keeps-erasure.md), [0039](../decisions/0039-content-guards-at-the-write-gate.md), [0040](../decisions/0040-trust-floors.md) and [0041](../decisions/0041-cedar-export-for-analysis.md) are accepted with them.

@@ -47,6 +47,7 @@ Every ADR, 0001 to 0033, is accepted by the lead, and the lead is its decider. A
 | 0039 | Content guards at the write gate: deterministic detectors for secrets, personal data and injected instructions, off by default | accepted under the lead's delegation, 2026-11-21 |
 | 0040 | Trust floors: an unattested write lands at the least trusted kind, and a less trusted source never changes or removes a more trusted item; both opt-in | accepted under the lead's delegation, 2026-11-21 |
 | 0041 | Policy is exported to Cedar for analysis and checked against it; the typed evaluator stays the authority | accepted under the lead's delegation, 2026-11-21 |
+| 0047 | A by-id read and a scope list reveal no more than a read: an id out of reach or reached only through a grant that does not admit it answers as an unknown id; framework writes carry source model | proposed, 2026-11-22 (card E8.14), for the lead's acceptance |
 
 ---
 
