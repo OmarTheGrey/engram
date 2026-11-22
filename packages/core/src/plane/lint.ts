@@ -15,10 +15,12 @@
 // findings and append no event.
 //
 // The NLI tier of the contradiction lint (card L7, lint/nli.ts) runs before
-// the model-based lints when the policy lists `contradiction-nli` and the
-// plane was built with an NLI scorer (PlaneDeps.lintNli): it flags the pairs
+// the model-based lints when the policy lists both `contradiction-nli` and
+// `contradiction` and the plane was built with an NLI scorer
+// (PlaneDeps.lintNli): it flags the pairs
 // scored at or above the policy's upper threshold, drops those below the
-// lower, and only the pairs between them reach the model contradiction lint.
+// lower, and only the pairs between them reach the model contradiction lint;
+// without a lint model those pairs are not judged at all.
 // Its findings are tier `model` (a local model scored them) with lint id
 // `contradiction-nli`, and its judgments are returned in the report's `nli`.
 // Without the id or the scorer nothing changes. The calls are made inside the lint's queue
@@ -214,7 +216,13 @@ async function run(deps: PlaneDeps, actor: Actor, at: string, scope: string): Pr
   let nli: NliJudgment[] | undefined;
   // Units of the contradiction lint the NLI tier kept for the model; null: no tier ran.
   let band: Set<string> | null = null;
-  if (deps.lintNli !== undefined && policy.lints.enabled.includes(NLI_LINT_ID)) {
+  // The tier is a part of the contradiction lint (ADR 0048): without that lint
+  // enabled it does not run (review L7-6).
+  if (
+    deps.lintNli !== undefined &&
+    policy.lints.enabled.includes(NLI_LINT_ID) &&
+    policy.lints.enabled.includes("contradiction")
+  ) {
     const tier = await runNliTier(ctx, scope, deps.lintNli, nliThresholds(policy));
     nli = tier.judgments;
     band = tier.band;

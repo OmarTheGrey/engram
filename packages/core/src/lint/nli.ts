@@ -17,8 +17,9 @@
 // scorer's shape and never runs one (AGENTS.md rule 4): the scorer is an
 // injected function with the shape of ModelCall, built outside core
 // (packages/model/src/nli.ts) on a pinned model behind a cache. The tier runs
-// only when the policy lists `contradiction-nli` and the plane was built with
-// a scorer (PlaneDeps.lintNli); no registered preset or profile lists it.
+// only when the policy lists both `contradiction-nli` and `contradiction` and
+// the plane was built with a scorer (PlaneDeps.lintNli); no registered preset
+// or profile lists the first. Without a lint model the band is not judged.
 import { canonicalJson } from "../model.ts";
 import type { MemoryItem, Policy } from "../schema.ts";
 import type { DetFinding, LintContext } from "./det.ts";

@@ -268,11 +268,20 @@ describe("Plane.lint with the tier", () => {
   });
 
   test("without a lint model the tier flags and drops, and the band is not judged", async () => {
-    const { plane } = load(tiered([NLI_LINT_ID]), true, false);
+    const { plane } = load(tiered(["contradiction", NLI_LINT_ID]), true, false);
     const report = await plane.lint(actor, AT, "team:platform");
     expect(report.findings.map((f) => f.lint_id)).toEqual([NLI_LINT_ID]);
     expect(report.judgments).toBeUndefined();
-    expect(report.nli).toHaveLength(3);
+    expect(report.nli?.map((j) => j.band)).toEqual(["flag", "drop", "model"]);
+  });
+
+  test("the id without contradiction enabled runs no tier (review L7-6)", async () => {
+    const { plane, nli } = load(tiered([NLI_LINT_ID]), true, true);
+    const report = await plane.lint(actor, AT, "team:platform");
+    expect(nli.requests).toEqual([]);
+    expect(report.nli).toBeUndefined();
+    expect(report.findings).toEqual([]);
+    expect(report.judgments).toEqual([]);
   });
 });
 
@@ -297,7 +306,7 @@ describe("the model fault catalogue's contradiction fixtures", () => {
       const base = fresh({
         ...f.policy,
         lints: {
-          enabled: [NLI_LINT_ID],
+          enabled: ["contradiction", NLI_LINT_ID],
           thresholds: { [NLI_UPPER_KEY]: 0.9, [NLI_LOWER_KEY]: 0.1 },
         },
       });
