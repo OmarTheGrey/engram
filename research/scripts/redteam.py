@@ -123,14 +123,18 @@ def scorecard(runs: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     }
 
 
-def bootstrap(differences: Sequence[float], seed: int, resamples: int, confidence: float):
+def bootstrap(
+    differences: Sequence[float], seed: int, resamples: int, confidence: float
+) -> dict[str, Any]:
     out = dataclasses.asdict(
         paired_bootstrap(differences, seed=seed, resamples=resamples, confidence=confidence)
     )
     return {k: out[k] for k in sorted(out)}
 
 
-def run_rows(config: Mapping[str, Any], config_path: Path) -> tuple[list[dict], dict[str, Any]]:
+def run_rows(
+    config: Mapping[str, Any], config_path: Path
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     with tempfile.TemporaryDirectory(prefix="engram-x14-") as tmp:
         args = ["node", ENTRY, "--config", str(config_path), "--out", tmp]
         if config.get("fetch"):

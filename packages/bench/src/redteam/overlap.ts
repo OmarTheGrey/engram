@@ -11,7 +11,14 @@
 // and its metric is a consequential action, not canary survival.
 import { entryKind, OPERATIONS, OPERATOR } from "../mem-inv-bench/plane.ts";
 import type { Case } from "../mem-inv-bench/schema.ts";
-import { PLANT_KINDS, type PlantKind, ROUTES, type Route, SOURCE_KINDS, writerOf } from "./routes.ts";
+import {
+  PLANT_KINDS,
+  type PlantKind,
+  ROUTES,
+  type Route,
+  SOURCE_KINDS,
+  writerOf,
+} from "./routes.ts";
 
 const UNTRUSTED = new Set(["web", "inbox"]);
 const levelOf = (scope: string) =>

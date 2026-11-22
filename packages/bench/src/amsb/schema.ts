@@ -70,7 +70,7 @@ export const AmsbFile = z.strictObject({
 export type AmsbFile = z.infer<typeof AmsbFile>;
 
 /** One benign control of card X14's own set (fixtures/bench/amsb/controls.json): AMSB's benign shape, one write by a key. */
-export const Control = z.strictObject({
+export const ControlRow = z.strictObject({
   id: z.string().min(1),
   group: z.string().min(1),
   description: z.string().min(1),
@@ -79,6 +79,6 @@ export const Control = z.strictObject({
 });
 export const ControlsFile = z.strictObject({
   description: z.string(),
-  scenarios: z.array(Control).min(1),
+  scenarios: z.array(ControlRow).min(1),
 });
 export type ControlsFile = z.infer<typeof ControlsFile>;

@@ -100,7 +100,7 @@ CONFIG: dict[str, Any] = {
 }
 
 
-def rows(setting: str, survived: set[str], held_by: str = "engram/write/x") -> list[dict]:
+def rows(setting: str, survived: set[str], held_by: str = "engram/write/x") -> list[dict[str, Any]]:
     return [
         {
             "setting": setting,
@@ -118,7 +118,7 @@ def rows(setting: str, survived: set[str], held_by: str = "engram/write/x") -> l
     ]
 
 
-ALL = {e["id"] for e in ENTRIES}
+ALL: set[str] = {str(e["id"]) for e in ENTRIES}
 
 
 def test_rates_contrasts_and_the_side_by_side_table() -> None:

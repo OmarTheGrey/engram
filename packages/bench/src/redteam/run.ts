@@ -17,6 +17,7 @@ import {
   adoptStoreItems,
   createPlane,
   type MemoryEvent,
+  type MemoryItem,
   migrate,
   openSqlite,
   type PlaneDeps,
@@ -40,6 +41,10 @@ export const READ_AT = "2026-11-21T12:01:00.000Z";
 const uuid = (n: number) => `01950000-0000-7000-8000-${String(n).padStart(12, "0")}`;
 const EVENT_IDS = 500_000_000_000;
 const sha256 = (s: string) => `sha256:${createHash("sha256").update(s).digest("hex")}`;
+
+/** A read item's content as text, as AMSB's harness reads a recalled value (`str(value)`); planted content is always a string. */
+const textOf = (content: MemoryItem["content"]) =>
+  typeof content === "string" ? content : JSON.stringify(content);
 
 export interface CellRow {
   setting: string;
@@ -142,11 +147,11 @@ export async function runCell(
             ...(await adapter.list(scopes.person)),
             ...(await adapter.list(scopes.team)),
           ];
-          recalled.push(listed.map((i) => i.content));
+          recalled.push(listed.map((i) => textOf(i.content)));
         } else {
           if (route === "read") await adoptStoreItems(deps, reader, scopes.person, READ_AT);
           const read = await plane.read(reader, { text: "", at: READ_AT });
-          recalled.push(read.items.map((i) => i.content));
+          recalled.push(read.items.map((i) => textOf(i.content)));
         }
       }
       const decided = new Map<string, MemoryEvent>();
