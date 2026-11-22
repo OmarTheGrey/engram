@@ -26,6 +26,7 @@ import {
   type ImportedFields,
   importActor,
   importedItem,
+  lineageOrder,
   mapLineage,
   parseBundle,
   rowFields,
@@ -805,8 +806,9 @@ async function bundleRowsOf(
  * E9.8, decision item 55) by the dedicated import actor `import:<importer>`,
  * source import, owned by the importer, status candidate (a retired row
  * retired), no grants, a new id; the gate decides each. Rows are written in
- * the bundle's order (by id, so creation order), and a lineage pointer is
- * mapped to the new id of a row already allowed, else dropped and counted.
+ * the bundle's order, each after the rows its lineage names (lineageOrder),
+ * and a lineage pointer is mapped to the new id of a row already allowed,
+ * else dropped and counted.
  * Prints the id map and each decision. Exit 0 when every row was allowed, 1
  * when any was denied.
  */
@@ -849,7 +851,7 @@ export async function importCommand(args: string[], io: Io): Promise<number> {
     const ids = new Map<string, string>();
     const rows: ImportedRow[] = [];
     let dropped = 0;
-    for (const p of planned) {
+    for (const p of lineageOrder(planned)) {
       const lineage = mapLineage(p.fields.lineage, ids);
       dropped += lineage.dropped;
       const to = io.newId();

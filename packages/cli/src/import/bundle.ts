@@ -209,3 +209,32 @@ export function mapLineage(
   });
   return { lineage: kept, dropped: lineage.length - kept.length };
 }
+
+/**
+ * The rows in the order an import writes them: by bundle order (item id),
+ * except that a row comes after every row its lineage names, so a lineage
+ * pointer to a row in the bundle always finds that row's new id. An id is
+ * not always creation order (a caller may choose one), and a lineage cycle,
+ * which no plane writes, is broken at the row met first.
+ */
+export function lineageOrder<T extends { from: string; fields: { lineage: readonly string[] } }>(
+  rows: readonly T[],
+): T[] {
+  const byId = new Map(rows.map((r) => [r.from, r]));
+  const placed = new Set<string>();
+  const visiting = new Set<string>();
+  const out: T[] = [];
+  const place = (row: T) => {
+    if (placed.has(row.from) || visiting.has(row.from)) return;
+    visiting.add(row.from);
+    for (const id of row.fields.lineage) {
+      const ancestor = byId.get(id);
+      if (ancestor !== undefined) place(ancestor);
+    }
+    visiting.delete(row.from);
+    placed.add(row.from);
+    out.push(row);
+  };
+  for (const row of rows) place(row);
+  return out;
+}

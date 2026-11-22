@@ -5,7 +5,7 @@
 // returns. Then the import actor: every row a write by `import:<importer>`
 // with source import, never the user source `engram write` sets, a
 // candidate, no grants, the gate deciding. Synthetic content only (rule 12).
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { MemoryItem } from "@engram/core";
 import { generateIdentity, identityToRecipient } from "age-encryption";
@@ -275,7 +275,7 @@ describe("engram import: the import actor", () => {
     const b = await workspace();
     const r = JSON.parse((await cli(["import", file, ...b.store, ...DANA, "--json"])).out);
     const id = Object.values(r.id_map)[0] as string;
-    const read = await cli(["read", "changelog", "--root", b.root, "--db", b.db, ...DANA]);
+    const read = await cli(["read", "changelog", ...b.store, ...DANA]);
     expect(read.out).toContain("0 items returned");
     const own = await cli(["promote", id, "--to", "person:dana", "--review", ...b.store, ...DANA]);
     expect(own.code).toBe(1);
@@ -343,7 +343,8 @@ describe("engram import: the import actor", () => {
       expect(r.code).toBe(2);
       expect(r.err).toContain(message);
     }
-    expect(logEvents(b.db)).toEqual([]);
+    // Refused before the log was opened: nothing was written.
+    expect(existsSync(b.db)).toBe(false);
   });
 });
 
