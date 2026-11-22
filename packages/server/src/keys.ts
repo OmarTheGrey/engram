@@ -290,8 +290,9 @@ const digest = (text: string) => createHash("sha256").update(text).digest("hex")
  * is refused at start) and again whenever its size or modification time
  * changes, so a revocation takes effect at the next request. A key that
  * matched its hash is remembered for the process by a SHA-256 digest of the
- * whole key and the stored hash it matched, so scrypt runs once per key, not
- * once per request; the record is still read, revoked and expiry checked,
+ * whole key and the stored hash it matched, so a valid key pays scrypt once
+ * per process, not once per request (a wrong or unknown key pays it every
+ * time, on the thread pool); the record is still read, revoked and expiry checked,
  * every time. A key whose id is unknown is still run through scrypt once, so
  * the time of a refusal does not tell a known id from an unknown one.
  */

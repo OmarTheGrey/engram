@@ -225,7 +225,7 @@ describe("a source sent on an authenticated call is ignored (closes ADR 0040's l
     expect(item?.provenance.kind).toBe("user");
   });
 
-  it("bindActor drops a sent source for the held one, and keeps no source the held actor lacks", () => {
+  it("bindActor replaces a sent source with the held one, and keeps the narrowed memberships", () => {
     const bound = bindActor(DANA, { ...asDana, level: "person", source: "external" });
     expect(bound).toEqual({
       ok: true,
