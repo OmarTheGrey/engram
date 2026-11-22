@@ -1652,6 +1652,32 @@ export const REGISTRY: readonly CommandSpec[] = [
     ],
     // The TUI runs until quit; each action it runs asks by its own entry's writes.
     writes: () => "process",
+    // What packages/cli/src/tui reads itself (the commands it runs read their own
+    // entries' variables): the workspace's, its own options, the refusals of 5.2,
+    // and the terminal and shell it draws and quotes for.
+    env: [
+      ...PLANE_ENV,
+      "ENGRAM_TUI_LINE",
+      "ENGRAM_TUI_ASCII",
+      "ENGRAM_TUI_CONTRAST",
+      "ENGRAM_TUI_MOTION",
+      "ENGRAM_TUI_MOUSE",
+      "NO_COLOR",
+      "CI",
+      "TERM",
+      "TERM_PROGRAM",
+      "WT_SESSION",
+      "KITTY_WINDOW_ID",
+      "TMUX",
+      "MSYSTEM",
+      "COLORFGBG",
+      "COLORTERM",
+      "LANG",
+      "LC_ALL",
+      "LC_CTYPE",
+      "PSModulePath",
+      "SHELL",
+    ],
     handler: H.tui,
   },
 ];

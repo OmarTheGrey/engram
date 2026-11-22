@@ -218,6 +218,9 @@ describe("the registry's entries", () => {
       ["doctor", ROOT, {}, "none"],
       ["log verify", {}, {}, "none"],
       ["log checkpoint", {}, {}, "state"],
+      // The TUI runs until quit; what each action changes is its own entry's answer.
+      ["tui", {}, {}, "process"],
+      ["tui", ROOT, SERVER, "process"],
     ];
     for (const [name, v, ws, answer] of table)
       expect(
@@ -241,11 +244,14 @@ describe("the registry's entries", () => {
   it("names the environment each command reads, and every variable the CLI reads is named", () => {
     const named = new Set(REGISTRY.flatMap((s) => s.env));
     const read = new Set<string>();
+    // Subfolders too, so the TUI's own reads (src/tui) are named on its entry (card E8.15b).
     for (const dir of [join(HERE, "../src"), join(HERE, "../../server/src")])
-      for (const file of readdirSync(dir).filter((f) => f.endsWith(".ts"))) {
+      for (const file of readdirSync(dir, { recursive: true })
+        .map(String)
+        .filter((f) => f.endsWith(".ts"))) {
         const text = readFileSync(join(dir, file), "utf8");
         for (const m of text.matchAll(/"(ENGRAM_[A-Z_]+)"/g)) read.add(m[1] as string);
-        for (const m of text.matchAll(/\benv\.([A-Z][A-Z0-9_]+)/g)) read.add(m[1] as string);
+        for (const m of text.matchAll(/\benv\.([A-Z][A-Za-z0-9_]+)/g)) read.add(m[1] as string);
       }
     expect(read.size).toBeGreaterThan(5);
     for (const v of read) expect(named, v).toContain(v);
