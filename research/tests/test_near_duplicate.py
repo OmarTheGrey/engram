@@ -77,7 +77,7 @@ def test_main_refuses_a_datasketch_other_than_the_pinned_one(tmp_path: Path) -> 
 
 def test_summarise_reports_the_items_the_candidate_cap_cut() -> None:
     config = json.loads((REPO / "research/configs/near-duplicate.json").read_text(encoding="utf-8"))
-    rows = [
+    rows: list[dict[str, Any]] = [
         {
             "fixture": "a",
             "labelled_flags": None,
