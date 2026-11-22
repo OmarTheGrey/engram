@@ -13,8 +13,11 @@ import {
   memoryNliCache,
   NLI_MODEL,
   NLI_RUNTIME,
+  NLI_SCORER_VERSION,
   NliMissError,
   nliCacheKey,
+  nliCacheKeyOf,
+  nliKeyParts,
   nliFileCache,
   nliPairHash,
   scriptedNliScore,
@@ -41,13 +44,15 @@ afterEach(() => {
 });
 
 describe("nliCacheKey", () => {
-  test("is the hash of the model's sha256, the runtime's version and the pair's hash", () => {
+  test("is the hash of the model's and tokenizer's sha256, the runtime, the scorer and the pair", () => {
     const r = ask("the freeze starts friday", "the freeze starts monday");
     expect(nliCacheKey(r)).toBe(
       sha256(
         canonicalJson({
           model: NLI_MODEL.files["onnx/model.onnx"],
+          tokenizer: NLI_MODEL.files["tokenizer.json"],
           runtime: NLI_RUNTIME,
+          scorer: NLI_SCORER_VERSION,
           pair: sha256(canonicalJson({ premise: r.premise, hypothesis: r.hypothesis })),
         }),
       ),
@@ -55,6 +60,18 @@ describe("nliCacheKey", () => {
     expect(nliPairHash(r)).toBe(
       sha256(canonicalJson({ hypothesis: r.hypothesis, premise: r.premise })),
     );
+  });
+
+  test("changes when the tokenizer's hash or the scorer's version changes (review L7-5)", () => {
+    const r = ask("a", "b");
+    const parts = nliKeyParts(r);
+    expect(nliCacheKeyOf(parts)).toBe(nliCacheKey(r));
+    expect(nliCacheKeyOf({ ...parts, tokenizer: "0".repeat(64) })).not.toBe(nliCacheKey(r));
+    expect(nliCacheKeyOf({ ...parts, scorer: `${NLI_SCORER_VERSION}-next` })).not.toBe(
+      nliCacheKey(r),
+    );
+    expect(nliCacheKeyOf({ ...parts, runtime: "other" })).not.toBe(nliCacheKey(r));
+    expect(nliCacheKeyOf({ ...parts, model: "0".repeat(64) })).not.toBe(nliCacheKey(r));
   });
 
   test("differs by direction, and refuses a model with no pinned hash", () => {
