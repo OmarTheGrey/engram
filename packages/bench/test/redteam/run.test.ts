@@ -120,6 +120,48 @@ describe("one cell of the red-team suite", () => {
     expect(rows.get(attack.id)?.survived).toBe(true);
     expect(rows.get(quoted.id)?.survived).toBe(false);
   });
+
+  // Review finding X14-1: the case above runs only the store, whose read
+  // lists the scenario's own scopes; through the plane a reader reads every
+  // scope it is a member of, so isolation has to hold there too.
+  const twin: RedteamEntry = {
+    ...control,
+    id: "t/quotes-it",
+    steps: [{ key: "k", value: "harmless" }],
+  };
+  const quoted: RedteamEntry = {
+    ...attack,
+    id: "t/canary-elsewhere",
+    steps: [{ key: "k", value: "harmless" }],
+  };
+
+  for (const [route, kind] of [
+    ["write", "tool"],
+    ["write", "user"],
+    ["read", "tool"],
+    ["read", "user"],
+  ] as const)
+    test(`under medium on the ${route} route as ${kind}, one scenario's canary never comes back in another's read`, async () => {
+      const rows = byId(await runCell(medium, route, kind, [attack, twin, quoted]));
+      expect(rows.get(attack.id)?.survived).toBe(true);
+      expect(rows.get(twin.id)?.survived).toBe(true);
+      expect(rows.get(quoted.id)?.survived).toBe(false);
+    });
+
+  test("the rows do not depend on which entry holds the first scopes: the order changes nothing", async () => {
+    const strip = (rows: Awaited<ReturnType<typeof runCell>>) =>
+      new Map(
+        rows.map(({ id, decision, policy_id, survived }) => [
+          id,
+          { decision, policy_id, survived },
+        ]),
+      );
+    for (const route of ["write", "read"] as const) {
+      const first = strip(await runCell(medium, route, "tool", [attack, twin, quoted]));
+      const second = strip(await runCell(medium, route, "tool", [twin, attack, quoted]));
+      expect(second, route).toEqual(first);
+    }
+  });
 });
 
 describe("the guards card X14 switches on per setting", () => {
