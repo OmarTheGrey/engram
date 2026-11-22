@@ -6,7 +6,7 @@
 import { appendEvent, itemById, type MemoryItem } from "@engram/core";
 import { describe, expect, it } from "vitest";
 import * as C from "../src/contract.ts";
-import { itemFor, testWorkspace } from "./helpers.ts";
+import { dana, itemFor, testWorkspace } from "./helpers.ts";
 
 const id = (n: number) => `01960000-0000-7000-8000-${String(n).padStart(12, "0")}`;
 const mate = {
@@ -70,6 +70,7 @@ const unknownAnswer = (itemId: string) => ({
   proposals: [],
   submitted: [],
   applied: [],
+  stopped: null,
 });
 
 describe("the supersede route and the read filter (L6-1)", () => {
@@ -113,5 +114,17 @@ describe("the supersede route and the read filter (L6-1)", () => {
       expect(itemById(db, hidden)).toMatchObject({ version: 1, valid_to: null });
     }
     expect(workspace.plane.events()).toHaveLength(before);
+  });
+});
+
+describe("the supersede route and the store (L6-7)", () => {
+  it("adopts the store's own memories before planning, as a read does", async () => {
+    const { adapter, client } = testWorkspace({ store: true });
+    // Placed in the store outside the plane: only adoption brings it into the log.
+    await adapter.write(itemFor(1) as unknown as MemoryItem);
+    const { data } = await client.POST("/api/v1/supersede", {
+      body: { actor: { ...dana, source: "user" }, item_id: itemFor(1).id as string },
+    });
+    expect(C.SupersedeResponse.parse(data).head).toMatchObject({ ok: true });
   });
 });

@@ -295,6 +295,7 @@ describe("the routes, through the generated client, on the fake store", () => {
       proposals: [],
       submitted: [],
       applied: [],
+      stopped: null,
     });
   });
 

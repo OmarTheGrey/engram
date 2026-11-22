@@ -264,11 +264,17 @@ export function createMcpServer(options: McpOptions): Server {
           head: { ok: boolean };
           submitted: Extract<WorkloadStep, { op: "write" }>["item"][];
           applied: { event: MemoryEvent }[];
+          stopped: { event: MemoryEvent } | null;
         };
-        // Each accepted close was one write: memory_simulate replays it as one.
-        for (const [i, { event }] of plan.applied.entries())
+        // Each accepted close sent was one write, the one the store refused
+        // included (L6-3): memory_simulate replays each as one.
+        const sent = [...plan.applied, ...(plan.stopped ? [plan.stopped] : [])];
+        for (const [i, { event }] of sent.entries())
           record({ op: "write", as: "agent", at: event.ts, item: plan.submitted[i] ?? {} });
-        const done = plan.head.ok && plan.applied.every((a) => a.event.decision === "allow");
+        const done =
+          plan.head.ok &&
+          plan.stopped === null &&
+          plan.applied.every((a) => a.event.decision === "allow");
         return text(JSON.stringify(answer.data, null, 2), !done);
       }
     }

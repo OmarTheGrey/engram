@@ -15,6 +15,7 @@ import {
   accessTime,
   currentItems,
   eventById,
+  type MemoryEvent,
   type MemoryItem,
   planSupersession,
   readCounts,
@@ -264,6 +265,8 @@ export const ROUTES: readonly Route[] = [
     handler: async ({ workspace, body, now }) => {
       const at = now();
       const { db } = workspace.deps;
+      // The store's sweep and adoption run first, as before a read (L6-7).
+      await syncStore(workspace, body.actor, at);
       // Core plans and refuses an id with no proposed close; the gate decides each write.
       const plan = planSupersession(
         db,
@@ -272,10 +275,27 @@ export const ROUTES: readonly Route[] = [
         body.item_id,
         accessTime(db, at),
       );
-      const submitted = acceptedClosures(db, plan, body.accept ?? []);
+      const submitted: MemoryItem[] = [];
       const applied = [];
-      for (const item of submitted) applied.push(await workspace.plane.write(body.actor, item, at));
-      return { ...plan, submitted, applied };
+      let stopped: { item_id: string; event: MemoryEvent } | null = null;
+      for (const item of acceptedClosures(db, plan, body.accept ?? [])) {
+        const mark = workspace.plane.events().length;
+        submitted.push(item);
+        try {
+          applied.push(await workspace.plane.write(body.actor, item, at));
+        } catch (e) {
+          // A store that refuses after the gate allowed: Plane.write logged the
+          // deny and threw (decision D6). Report it and what landed before it (L6-3).
+          const event = workspace.plane
+            .events()
+            .slice(mark)
+            .findLast((x) => x.item_id === item.id);
+          if (event === undefined) throw e;
+          stopped = { item_id: item.id, event };
+          break;
+        }
+      }
+      return { ...plan, submitted, applied, stopped };
     },
   }),
   route<z.infer<typeof C.BypassRequest>>({

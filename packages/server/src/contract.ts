@@ -218,9 +218,20 @@ export const SupersedeResponse = z.strictObject({
   item_id: z.string(),
   head: SupersessionChain,
   proposals: z.array(SupersessionProposal),
-  /** The new version each accepted close sent to the write gate, in the order of `applied`. */
+  /**
+   * The new version each accepted close sent to the write gate, in order:
+   * those of `applied`, then the one `stopped` names. Each is a version of
+   * an item the read filter admitted for the actor (L6-1).
+   */
   submitted: z.array(MemoryItem),
   applied: z.array(WriteResponse),
+  /**
+   * The close whose write the store refused after the gate allowed it
+   * (review fix L6-3): its deny event (engram/write/store-failure), with the
+   * writes before it in `applied` and none after it sent. Null when every
+   * accepted close was written or decided.
+   */
+  stopped: z.strictObject({ item_id: z.string(), event: MemoryEvent }).nullable(),
 });
 
 export const ViewerResponse = z.strictObject({ viewer: Actor.nullable() });

@@ -894,6 +894,10 @@ export interface components {
             proposals: components["schemas"]["SupersessionProposal"][];
             submitted: components["schemas"]["MemoryItem"][];
             applied: components["schemas"]["WriteResponse"][];
+            stopped: {
+                item_id: string;
+                event: components["schemas"]["MemoryEvent"];
+            } | null;
         };
         ViewerResponse: {
             viewer: components["schemas"]["Actor"] | null;

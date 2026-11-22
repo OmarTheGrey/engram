@@ -4586,6 +4586,29 @@
             "items": {
               "$ref": "#/components/schemas/WriteResponse"
             }
+          },
+          "stopped": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "item_id": {
+                    "type": "string"
+                  },
+                  "event": {
+                    "$ref": "#/components/schemas/MemoryEvent"
+                  }
+                },
+                "required": [
+                  "item_id",
+                  "event"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -4593,7 +4616,8 @@
           "head",
           "proposals",
           "submitted",
-          "applied"
+          "applied",
+          "stopped"
         ],
         "additionalProperties": false
       },
