@@ -1,6 +1,6 @@
 # The engram terminal interface: design
 
-Status: design for card E8.15, 2026-11-21. Proposed with [ADR 0044](../decisions/0044-cli-tui.md), for the lead's acceptance. The implementation card is [`docs/tasks/E8.15.md`](../tasks/E8.15.md), split into E8.15a to E8.15e.
+Status: design for card E8.15, 2026-11-21; review fix pass 2026-11-22. Card E8.15 is the lead's own request of 2026-11-21, not one of the absorb plan's thirty pull requests. [ADR 0044](../decisions/0044-cli-tui.md) is proposed, for the lead's acceptance; the six smaller calls of section 14 were decided on 2026-11-22 under the lead's delegation (`docs/tasks/lead-decisions.md`, item 62), and the design proceeds on them. The implementation card is [`docs/tasks/E8.15.md`](../tasks/E8.15.md), split into E8.15a to E8.15e.
 
 The lead asked for a terminal interface to the `engram` CLI that is as friendly and appealing as possible, loses no function or feature, and makes everything easy to reach and use without a hitch. This document is the specification a later card builds from. Where it says "must", the implementation card's tests check it.
 
@@ -8,14 +8,16 @@ The lead asked for a terminal interface to the `engram` CLI that is as friendly 
 
 | question | answer | section |
 |---|---|---|
-| library | `@earendil-works/pi-tui` 1.3.0, the pi family's own terminal library, pinned with pi; ADR 0033's import list amended for `packages/cli` | ADR 0044 |
-| entry | `engram tui`; bare `engram` keeps its pinned help on stderr and exit 2 | 5 |
+| library | `@earendil-works/pi-tui` 1.3.0, the pi family's own terminal library, at the pi pin, imported only under `packages/cli/src/tui/`; AGENTS.md's "What not to do" line amended for it (ADR 0044, proposed; the design proceeds on it under delegation) | ADR 0044 |
+| entry | `engram tui`; bare `engram` keeps printing the help on stderr with exit 2, and the help's first line now names `engram tui` | 5 |
 | where the TUI refuses | stdout or stdin not a TTY, `CI` set, `TERM=dumb`, `--json` anywhere on the line; it then prints one line and exits 2 | 5.2 |
+| what it remembers | the workspace flags only, in `~/.engram/tui.json`; never content, ids, tokens or keys; "Forget saved workspace" deletes it | 8.3 |
 | what it calls | exactly the generated client call the plain command makes, through the same `connect`; in process or `--server` | 6 |
-| how it teaches | every action shows its exact command line before it runs, `c` copies it, and quitting prints the session's commands | 4 |
+| how it teaches | every action shows its exact command line before it runs, `c` copies it, and quitting prints the session's commands as a short list (`--quiet` turns it off) | 4 |
 | one registry | `packages/cli/src/registry.ts` holds every command, flag, default, help line and exit code; `run.ts`, `HELP`, the palette and every form come from it | 6.1 |
-| plain CLI | every existing output and exit code byte for byte; only additions: new commands, a second "did you mean" line on unknown commands and flags | 12 |
-| accessibility | full keyboard, mouse optional, `NO_COLOR` and `--no-color`, a high-contrast palette, Okabe-Ito status colours always paired with a symbol and a word, `--reduced-motion`, `--ascii`, a line mode for screen readers, 80x24 minimum | 11 |
+| plain CLI | every existing output and exit code byte for byte, except HELP's first line, which names `engram tui`; additions: new commands and their help lines, a second "did you mean" line on unknown commands and flags | 12 |
+| accessibility | full keyboard; mouse on by default with `--no-mouse` (Shift+drag selects text); `NO_COLOR` and `--no-color`; a high-contrast palette; status colours at 4.5:1 or better on dark and light themes, on the symbol only, always with a word; ASCII symbols by default in conhost; `--reduced-motion`; `--ascii`; line mode for screen readers (`--line`, `ENGRAM_TUI_LINE=1`); 80x24 minimum | 11 |
+| confirmation | anything that changes state asks first, including a read with a store folder (it adopts the folder, and as the owner sweeps the owner's retention) the first time in a session | 9.5 |
 | undo | only for a grant change, whose inverse is itself a governed grant change; nothing else the plane does can be undone | 9.6 |
 
 ## 2. Sources this design is built from
@@ -24,7 +26,7 @@ The lead asked for a terminal interface to the `engram` CLI that is as friendly 
 - `packages/server/src/routes.ts`, the route table every surface calls (ADR 0027).
 - The inspector, `packages/ui/src/`: the viewer picker, scope lanes in person, role, shared and granted groups, the grants editor, the timeline, the explain view (`view.ts`), and since card E8.11 the item page with its provenance graph, versions diff and "Events naming this item" table (`provenance.ts`, `ItemPage.tsx`, `EventTable.tsx`). The TUI uses the inspector's words for the same things.
 - ADRs 0001 (pi as base), 0014 (no bypass), 0027 (one HTTP contract), 0033 (where pi packages may be imported), 0037 (absorbing open source).
-- The branches of the cards in flight on 2026-11-21, read without changing them (section 3.7).
+- The branches of the cards in flight on 2026-11-21 and 2026-11-22, read without changing them, and for card E1.6, whose branch had no commits, its card (section 3.7).
 - Every sample output below was produced by running the CLI of this commit on the fixtures (`fixtures/stores/claude-code-memory`, `fixtures/workloads/e8-9-two-presets.json`, `fixtures/faults/duplicate.flag.json`) on this machine. Long temporary paths are shortened to `~/demo` in the mockups; ids, reasons, policy ids and numbers are as printed.
 
 ## 3. Inventory
@@ -41,13 +43,14 @@ The lead asked for a terminal interface to the `engram` CLI that is as friendly 
 | `explain <readId>` | the explanations a read recorded, for its reader only | `POST /explain/{readId}` | 0; 1 another reader's read or unknown read; 2 usage | text, `--json` | Explain (8.6) |
 | `retain` | sweep one scope's retention | `POST /retain` | 0 allow; 1 refused; 2 usage | text, `--json` | Retention (8.9) |
 | `lint` | the policy's deterministic lints over one scope | `POST /lint` | 0 clean; 1 a finding or refused; 2 usage | text, `--json` | Lint (8.10) |
-| `simulate` | replay a workload under the policy and a candidate on scratch logs | `POST /simulate` | 0; 1 bad workload; 2 usage | text, `--json` | Simulate (8.11) |
-| `serve` | the HTTP API and the inspector on loopback until stopped | none (it is the server) | 0 when stopped; 1 error; 2 usage | one line on start, one on stop | Serve (8.13) |
-| `mcp` | the MCP server, stdio or `--http <port>` | one client call per tool call | 0 when stopped; 2 usage | MCP protocol on stdout (stdio); one stderr line (HTTP) | MCP (8.14) |
+| `simulate` | replay a workload under the policy and a candidate on scratch logs | `POST /simulate` | 0; 1 a workload the plane rejects (400, a shape error); 2 usage, including a workload file that is not JSON | text, `--json` | Simulate (8.11) |
+| `serve` | the HTTP API and the inspector on loopback until stopped | none (it is the server) | 0 when stopped; 1 error; 2 usage | one line on start, one on stop; accepts and ignores `--json` | Serve (8.13) |
+| `mcp` | the MCP server, stdio or `--http <port>` | one client call per tool call | 0 when stopped; 1 an error (a log it cannot use, a port in use); 2 usage | MCP protocol on stdout (stdio); one stderr line (HTTP); accepts and ignores `--json` | MCP (8.14) |
 | `hook claude-code` | the Claude Code PreToolUse hook | `POST /bypass` on a block | always 0 (the decision is in the JSON); 2 usage | deny JSON on stdout, or nothing | Hook setup (8.15) |
 | `doctor` | check the log, policy, store, adapters, provider keys by name, pins, Node | none (local checks) | 0 all pass; 1 a check failed; 2 usage | text, `--json` | Doctor (8.12) |
 | `--help`, `-h`, `help` | the help text on stdout | none | 0 | text | Help overlay (9.2) |
-| no command | the help text on stderr | none | 2 | text | unchanged; `engram tui` is the entry (5.1) |
+| no command | the help text on stderr | none | 2 | text | unchanged but for the help's first line (12.2); `engram tui` is the entry (5.1) |
+| `tui` (new, E8.15b) | the terminal interface | the commands' own calls | 0 quit; 2 refused or usage | the screen; the session's commands on quit | itself |
 | unknown command | `engram: unknown command "<x>"; engram --help lists them` on stderr | none | 2 | text | palette search (9.3) |
 
 ### 3.2 Flags
@@ -66,8 +69,8 @@ Each flag, the commands that take it (today), and the TUI control that sets it. 
 | `--as <principal>` | read, write, promote, explain, retain, lint, serve, mcp, hook | who acts; default `person:<owner>` (hook: `agent:claude-code`) | workspace bar, "Acting as" (the inspector's viewer picker) |
 | `--level <level>` | read, write, promote, explain, retain, lint, serve, mcp | person, role, team or org; default the actor's own | workspace bar, "Level" |
 | `--member <scope>` | read, write, promote, explain, retain, lint, serve, mcp | a member scope, repeatable; default the actor's own scope | workspace bar, "Member of" (a list, add and remove) |
-| `--at <iso>` | read (any command with `--test-clock`) | read: the time validity windows are judged at | Read form, "Validity at"; elsewhere hidden unless test clock is on |
-| `--test-clock` | write, promote, retain, lint, in process | tests and fixtures only: `--at` sets the call's clock | workspace bar, advanced, "Test clock" (off; turning it on shows a warning and needs confirmation) |
+| `--at <iso>` | read; write, promote, retain and lint refuse it unless `--test-clock` is given in process; explain and simulate do not take it | read: the time validity windows are judged at; elsewhere the call's clock, for tests and fixtures | Read form, "Judge validity windows at"; elsewhere shown only while Test clock is on |
+| `--test-clock` | write, promote, retain, lint, in process (read accepts it and ignores it) | tests and fixtures only: `--at` sets the call's clock | workspace bar, advanced, "Test clock" (off; turning it on shows a warning and needs confirmation) |
 | `--content <text>` | write | the item's content | Write form, "Content" (multi-line editor) |
 | `--file <item.json>` | write | a JSON item the flags complete | Write form, "From file" |
 | `--id <uuidv7>` | write | the item id; default a fresh UUIDv7 | Write form, advanced, "Id" |
@@ -83,7 +86,7 @@ Each flag, the commands that take it (today), and the TUI control that sets it. 
 | `--port <n>` | serve | default 7313 | Serve form, "Port" |
 | `--http <port>` | mcp | streamable HTTP instead of stdio | MCP form, "Transport" |
 | `--protect <file>` | hook | a file no tool may touch, repeatable | Hook setup, "Protected files" |
-| `--json` | read, write, promote, explain, retain, lint, simulate, doctor | the machine-readable output | `J` on any result shows the exact `--json` body; the TUI itself refuses `--json` (5.2) |
+| `--json` | read, write, promote, explain, retain, lint, simulate, doctor (serve and mcp accept it and ignore it) | the machine-readable output | `J` on any result shows the exact `--json` body; the TUI itself refuses `--json` (5.2) |
 | `-h`, `--help` | all | the full help | `?` |
 
 ### 3.3 Positionals
@@ -109,6 +112,8 @@ Each flag, the commands that take it (today), and the TUI control that sets it. 
 | `ENGRAM_TUI_MOTION` | new, the TUI | `reduce` is `--reduced-motion` |
 | `ENGRAM_TUI_CONTRAST` | new, the TUI | `high` is `--high-contrast` |
 | `ENGRAM_TUI_MOUSE` | new, the TUI | `0` is `--no-mouse` |
+| `ENGRAM_TUI_LINE` | new, the TUI | `1` starts in line mode, as `--line` does |
+| `WT_SESSION`, `TERM_PROGRAM`, `TMUX`, `MSYSTEM`, `COLORFGBG` | new, read by the TUI only | the terminal: which clipboard path to use (4.1), ASCII symbols in conhost (11.7), the winpty hint (5.2), the light or dark palette (11.3) |
 | `CI`, `TERM` | new, the TUI's refusal | `CI` set, or `TERM=dumb`: the TUI does not start |
 | `ENGRAM_OTLP_URL`, `ENGRAM_EXPORT_JSONL` | in flight, card E8.13 | workspace bar, "Decision export" |
 | `ENGRAM_TOKEN` | in flight, card E8.12 | workspace bar, "Token: set" or "not set", never the value |
@@ -133,28 +138,28 @@ The route table has routes the inspector uses that have no plain command. Leavin
 | `GET /policy` | the inspector | `engram policy [--json]`: the policy the workspace decides with and its label | Policy (8.18) |
 | `POST /grants` | the inspector's grants editor | `engram grants <itemId> [--add <to>[,class=..][,mode=..][,expires=..]]... [--remove ...]...`: one grant change as the owner | Grants (8.19) |
 | `POST /bypass` | the hook | none: only a surface that blocked a bypass records one | not offered |
-| `POST /distill` | answers 501 until card D2 | none until D2 adds one | Procedures (8.25), shows the 501 line |
+| `POST /distill` | answers 501 naming the backlog: no card implements it and no card plans an `engram distill` command | none | none: no Home entry; the palette lists "Procedures: not yet available (backlog)" with no action |
 | `GET /viewer`, `GET /health` | the inspector, layer 6 | none | the connection indicator in the status bar (server mode) |
 
-Whether to add these four commands is the lead's call (section 14, item 2). Card E8.14 adds two more routes of the same kind (`/read/{itemId}`, `/scopes`; section 3.7), which the same item would cover with `engram read --item <id>` and `engram scopes`. Without them, the TUI ships without the four screens, and section 3.8 lists them as lost.
+Decided on 2026-11-22 under the lead's delegation (section 14, item 3): the four commands are added by E8.15a. Card E8.14 adds two more routes of the same kind (`/read/{itemId}`, `/scopes`; section 3.7); E8.15a also adds `engram read --item <id>` and `engram scopes` once E8.14 has merged. Both of those routes append a read event, and `/read/{itemId}` runs the same sweep and adoption as `/read`, so the TUI treats them as reads (9.5): `engram scopes` is called once per actor per session and its answer cached for every scope picker, refreshed only when the person asks (`ctrl+r` in a picker), never once per picker opened.
 
 ### 3.7 In flight on 2026-11-21
 
-Read from the branches, read-only. The registry (6.1) takes each as one entry; none needs a redesign. Each screen is drawn in section 8 and marked there too.
+Read from the branches, read-only, on 2026-11-21 and 2026-11-22; card E1.6's row comes from its card, since its branch had no commits. The registry (6.1) takes each as one entry; none needs a redesign. Each screen is drawn in section 8 and marked there too.
 
 | card, branch | adds | TUI |
 |---|---|---|
 | E9.8, `e9-8-import-export` | `engram export [--out <file>] [--recipient <age1...>]... [--passphrase-file <file>]` with the actor and log flags; route `POST /export`; always exit 0. `engram import <bundle> \| --claude <file> [--scope] [--confidence] [--identity <file>]... [--passphrase-file]` with the store and actor flags; one `POST /items` per row as `import:<importer>`; exit 0 all allowed, 1 any denied; `--json` `{importer, actor, source, rows, allowed, denied, lineage_dropped, id_map, decisions}` | Export and Import (8.20, 8.21); in flight, card E9.8 |
 | E2.13, `e2-13-who-can-read` | `engram who-can-read <itemId> \| --scope <scope>` with store, actor and client flags and `--json`; routes `POST /who-can-read/item` and `/who-can-read/scope`; exit 0 answered, 1 refused, 2 bad id | Who can read (8.22), and `w` on any item; in flight, card E2.13 |
-| E8.12, `e8-12-verified-actors` | ADR 0042 (proposed): `serve` and `mcp --http` take `--issuer`, `--jwks`, `--audience`, `--keys`, `--subjects`, `--resource`, `--insecure-loopback` and refuse to start without a credential flag or the waiver; `engram key create \| list \| revoke`; `ENGRAM_TOKEN`; a doctor check on serve flags; 401 and 403 `forbidden_actor` | Keys (8.23), the Serve and MCP forms' "Authentication" section, the status bar's token indicator; in flight, card E8.12 |
-| E8.13, `e8-13-otel-export` | `--otlp <url>` and `--export-jsonl <file>` on read, write, promote, retain, lint, serve, mcp and hook; `ENGRAM_OTLP_URL`, `ENGRAM_EXPORT_JSONL`; refused with `--server`; a failed export is one stderr line that does not change the exit code | workspace bar, "Decision export"; in flight, card E8.13 |
-| E1.6, `e1-6-tamper-evident-log` | `engram log verify` (first broken link, an UNSIGNED verdict for an unsigned checkpoint, Ed25519 checkpoint signing); flags not yet fixed | Log verify (8.24); in flight, card E1.6. The form is built from the registry entry when it lands |
+| E8.12, `e8-12-verified-actors` | ADR 0042 (proposed). `serve` and `mcp --http` refuse to start without a credential: `--keys <file>`, or `--issuer` with `--jwks` and `--subjects` (and `--audience`, `--resource`), or the waiver `--insecure-loopback` ("the server needs authentication: give --keys <file> or --issuer with --jwks and --subjects, or --insecure-loopback to serve loopback with self-asserted actors (ADR 0042)"); a host beyond loopback only with credentials and an https `--resource`. `engram key create --keys <file> --as <principal> --source <kind> --expires <iso> [--level] [--member]...` prints the key once; `engram key list --keys <file>` prints `<masked>  <status>  <actor> (<level>, source <kind>)  expires <iso>`; `engram key revoke <id> --keys <file>`. `ENGRAM_TOKEN` is the bearer token sent over `--server`. `doctor` takes `--host` and serve's credential flags and fails a bind without authentication. 401 with `WWW-Authenticate`, 403 `forbidden_actor` | Keys (8.23); Serve and MCP built around a credential (8.13, 8.14); Doctor's form gains the bind flags; the status bar's token indicator; in flight, card E8.12 |
+| E8.13, `e8-13-otel-export` | `--otlp <url>` and `--export-jsonl <file>` on read, write, promote, retain, lint, serve, mcp and hook; `ENGRAM_OTLP_URL`, `ENGRAM_EXPORT_JSONL`; refused with `--server`; a failed export is one stderr line that does not change the exit code; `run` waits for pending exports (`drainExports`) in its `finally`, which the prepare, call and print split of 6.2 must keep; with `--otlp` the decisions leave the machine for the named collector | workspace bar, "Decision export", which shows the collector's URL whenever it is on; in flight, card E8.13 |
+| E1.6, card only (its branch had no commits) | `engram log verify` (first broken link, an UNSIGNED verdict for an unsigned checkpoint, Ed25519 checkpoint signing); flags not yet fixed | Log verify (8.24); in flight, card E1.6. The form is built from the registry entry when it lands |
 | E2.12, `e2-12-cedar-export` | core only (`exportCedar`); no command | none until a command exists; the Policy screen reserves an action slot for it; in flight, card E2.12 |
 | L5, `l5-near-duplicate-lint` | lint id `near-duplicate-tier`, threshold `lints.thresholds.near-duplicate`; a new finding reason and a policy load error | Lint shows it like any finding; in flight, card L5 |
 | L6, `l6-supersession-helper` | `engram supersede <itemId> [--accept <id>]...` with the store, actor and client flags and `--json`: the plan (the chain's head, a close or review flag per readable ancestor), and each accepted close written as a new version through the write gate; exit 1 on an unresolved chain or a write not allowed; `engram mcp --supersede` also lists `memory_supersede`; route `POST /supersede` | Supersede (8.26) and `u` on an item; the MCP form's "Offer memory_supersede" toggle; in flight, card L6 |
-| E8.14, `e8-14-framework-kit` | the packages `@engram/kit`, `@engram/ai-sdk` and `@engram/tag` (libraries, no command); `Plane.readById` and `listScopes` with routes `POST /read/{itemId}` (one item through the read filter, with its explanation and one read event) and `POST /scopes` (the scopes the actor can see) | no command calls them; if the lead extends item 2 of section 14, `engram scopes` fills every scope picker and `engram read --item <id>` opens an item page by id; otherwise pickers use the actor's memberships and the last read; in flight, card E8.14 |
+| E8.14, `e8-14-framework-kit` | the packages `@engram/kit` and `@engram/ai-sdk` on the branch, `@engram/tag` planned (untracked in that worktree on 2026-11-22), all libraries with no command; `Plane.readById` and `listScopes` with routes `POST /read/{itemId}` (one item through the read filter with its explanation; one read event; with a store, the same sweep and adoption as `/read` first) and `POST /scopes` (the scopes the actor can see; one read event) | E8.15a adds `engram read --item <id>` and `engram scopes` after E8.14 merges (3.6): the item page opens by id, and scope pickers use the session's cached scopes; in flight, card E8.14 |
 | L7, `l7-nli-tier` | lint id `contradiction-nli` with `upper` and `lower` thresholds; `LintReport.nli`; runs only with a scorer, which the CLI does not pass | Lint shows its findings with tier `model` and the load errors; in flight, card L7 |
-| D2, `d2-awm-induction` | runner only; the `/distill` route stays 501 | Procedures (8.25) shows the 501 line until a command exists; in flight, card D2 |
+| D2, `d2-awm-induction` (merged into `d3-replay-gate`) | runner only; the `/distill` route still answers 501 naming the backlog, and no card plans an `engram distill` command | none (3.6); in flight, card D2 |
 | D3, `d3-replay-gate` | promote rule `engram/promote/validation-source` and replay reasons; no new flag | Promote shows the reason as printed; in flight, card D3 |
 
 ### 3.8 Nothing is lost
@@ -175,18 +180,20 @@ Every row of 3.1 to 3.7 maps to a control. The check the implementation must pas
 | `--json` | yes | `J` shows it; `c` copies the command with `--json` when that view is open |
 | in process and `--server` | yes | yes, the workspace bar switches; workspace flags are refused with a server, as the CLI refuses them |
 | piping and scripting | yes | no, by design: the TUI is for people; it prints the commands to script with |
-| check, events, policy, grants | no command today | yes, through the four commands of 3.6 if the lead accepts them |
-| distill | 501 | shows the 501 line naming card D2 |
+| check, events, policy, grants | no command today | yes, through the four commands of 3.6, decided on 2026-11-22 |
+| read by id, scopes (E8.14) | no command today | yes, through `engram read --item` and `engram scopes` once E8.14 merges |
+| distill | 501, backlog | not reachable in either: no command exists or is planned; the palette says so |
 
 ## 4. Principles
 
-1. **The TUI teaches the CLI.** Every action is labelled in plain language with its exact command line beside it, kept up to date as the form changes (`engram write --content "..." --scope person:dana`). Before an action runs, the confirmation shows the command; after it runs, the result shows it again with its exit code. `c` copies it (OSC 52, which Windows Terminal, iTerm2, kitty, WezTerm and tmux with `set-clipboard on` accept; where the copy cannot be confirmed the status bar says "printed on exit" instead). Quitting prints the session's commands to stdout, one a line, under `# engram tui: the commands this session ran`, so a person can paste them into a script.
+1. **The TUI teaches the CLI.** Every action is labelled in plain language with its exact command line beside it, kept up to date as the form changes (`engram write --content "..." --scope person:dana`). Before an action runs, the confirmation shows the command; after it runs, the result shows it again with its exit code. `c` copies it. OSC 52 is never acknowledged by a terminal, so the path is chosen by terminal, not by a reply: OSC 52 in Windows Terminal (`WT_SESSION`), iTerm2, WezTerm and kitty (`TERM_PROGRAM`, `KITTY_WINDOW_ID`) and tmux (`TMUX`, which forwards it when `set-clipboard` is on); pi-tui's native clipboard (`getNativeClipboard`, exported in 1.3.0) on Windows and macOS elsewhere, conhost and VS Code's terminal included; and when neither applies, the status bar says "not copied: it will be printed when you quit". Quitting prints the session's commands to stdout as a short list under `# engram tui: the commands this session ran`, one a line with its exit code, so a person learns the CLI and can paste them into a script; `--quiet` turns this off.
 2. **Nothing new is decided here.** The TUI shows what the plane decided, in the inspector's words: the decision, the reason, the policy id, the explanation. It holds no policy `if` (AGENTS.md rule 1). A form validates only what the CLI's own usage checks validate, with the same messages (9.4).
 3. **One call per action, the same call.** An action is the plain command's client call, through the same `connect`, so it behaves the same in process and against `--server`, and prints the same text when shown in plain view (6.2).
 4. **Calm by default.** Nothing moves unless work is under way; nothing beeps; no colour carries meaning alone; the screen never scrolls under the reader's cursor.
 5. **Every state is a screen.** Empty, loading, error, offline, refused and denied each have a designed state with a next step (section 10). A blank pane is a bug.
 6. **No dead ends.** Every screen has `esc` back, `?` help and the palette. Every error names the field or flag at fault and puts the cursor there.
-7. **Safe by construction.** Anything that writes an item, retires, promotes, changes a grant, imports or erases asks first and names what it will do and whether it can be undone (9.5). Reads and lints, which only append audit events, do not ask; the first read of a store folder in a session says once that reading adopts its memories into the log (8.5).
+7. **Safe by construction.** Anything that writes an item, retires, promotes, changes a grant, imports or erases asks first and names what it will do and whether it can be undone (9.5). A read is not always harmless: with a store folder, `/read` adopts the folder's memories into the log, and when the actor is the store's owner it first sweeps the owner's retention, which can retire expired items for good. So the first read with a store folder in a session asks, naming both (8.5), and every later read shows the same line in its command row. Lints, which only append lint events, do not ask.
+8. **The screen never decides.** A denial shows the server's reason and policy id verbatim. The TUI derives no remedy from a reason or a rule id: its shortcuts only move to a form field and run the preview again, so the plane answers.
 
 ## 5. Entry and compatibility
 
@@ -194,20 +201,21 @@ Every row of 3.1 to 3.7 maps to a control. The check the implementation must pas
 
 `engram tui [options]`. One entry, chosen over the alternatives for these reasons:
 
-- **Bare `engram` stays as it is.** It prints the help to stderr and exits 2, and `packages/cli/test/commands.test.ts` pins that byte for byte. Making the same word do two things depending on TTY detection surprises people in tmux, over SSH and in Git Bash's mintty, where Node may see pipes. Bare `engram` on a TTY opening the TUI is offered to the lead as an option (section 14, item 1); if accepted it is one branch in `run`, after the TTY checks of 5.2, and the non-TTY behaviour stays pinned.
+- **Bare `engram` stays as it is** (decided on 2026-11-22, section 14 item 2). It prints the help to stderr and exits 2, as `packages/cli/test/commands.test.ts` pins. Making the same word do two things depending on TTY detection surprises people in tmux, over SSH and in Git Bash's mintty, where Node may see pipes. So people find the TUI, the help's first line names it: `engram: the Engram control plane from the command line; engram tui opens the terminal interface`. That one line is the only change to an existing output (12.2).
 - **Not `engram ui`.** "ui" already names the web inspector (`packages/ui`, `make ui`, served by `engram serve`). Two things called ui would confuse the help, the docs and the thesis.
 - **`tui` is a new command name**, so no existing script or test can call it by accident.
 
-`engram tui` takes the workspace flags (`--server`, `--store`, `--root`, `--owner`, `--import-valid-from`, `--policy`, `--db`, `--as`, `--level`, `--member`, and in flight `--otlp`, `--export-jsonl`), which prefill the workspace bar, plus its own:
+On start the TUI loads the saved workspace (8.3), then applies the flags given, which win. `engram tui` takes the workspace flags (`--server`, `--store`, `--root`, `--owner`, `--import-valid-from`, `--policy`, `--db`, `--as`, `--level`, `--member`, and in flight `--otlp`, `--export-jsonl`), which prefill the workspace bar, plus its own:
 
 | flag | meaning |
 |---|---|
-| `--line` | line mode: the plain CLI with prompts (11.6) |
+| `--line` | line mode: the plain CLI with prompts (11.6); also `ENGRAM_TUI_LINE=1` |
 | `--no-color` | no colour; also `NO_COLOR` set to anything non-empty |
 | `--high-contrast` | the high-contrast palette (11.3) |
 | `--ascii` | ASCII box drawing and symbols (11.7) |
 | `--reduced-motion` | no animation: the busy indicator is a static word (11.5) |
-| `--no-mouse` | do not capture the mouse; the terminal's own selection works |
+| `--no-mouse` | do not capture the mouse; the terminal's own selection works (with the mouse captured, Shift+drag selects text in most terminals) |
+| `--quiet` | do not print the session's commands on quit |
 | `--screen <name>` | open on a screen (`read`, `write`, `doctor` and every registry name), for docs and demos |
 
 ### 5.2 When the TUI refuses to start
@@ -229,7 +237,7 @@ The TUI is a human surface. Inside a pi session, ADR 0014 already blocks `engram
 
 ### 5.3 What stays byte for byte
 
-Every existing invocation of every existing command keeps its exact stdout, stderr and exit code. In particular: `HELP` for the existing commands, every text and `--json` output, every usage error message, the hook's JSON and `mcp`'s stdout. The help snapshot changes only by the lines each new command adds (`tui`, `check`, `events`, `policy`, `grants`), exactly as cards E9.8 and E2.13 add theirs; section 12 lists every change.
+Every existing invocation of every existing command keeps its exact stdout, stderr and exit code, with one decided exception: `HELP`'s first line names `engram tui` (section 14, item 2), which also changes what bare `engram` prints to stderr; its exit code stays 2. Otherwise, in particular: the rest of `HELP` for the existing commands, every text and `--json` output, every usage error message, the hook's JSON and `mcp`'s stdout. The help snapshot changes by that first line and by the lines each new command adds (`tui`, `check`, `events`, `policy`, `grants`, then `scopes` and `read --item`), exactly as cards E9.8 and E2.13 add theirs; section 12 lists every change.
 
 ## 6. Architecture
 
@@ -241,7 +249,7 @@ Every existing invocation of every existing command keeps its exact stdout, stde
 interface CommandSpec {
   name: string;                    // "read", "hook claude-code", "key create"
   summary: string;                 // the HELP line, verbatim
-  group: "memory" | "policy" | "surfaces" | "machine" | "data";
+  group: "memory" | "policy" | "audit" | "data" | "surfaces" | "machine";  // Home's six groups, keys 1 to 6
   positionals: PositionalSpec[];   // name, label, required, picker ("item" | "read" | "scope" | "file")
   options: Record<string, OptionSpec>;  // the parseArgs config the handler already uses, plus label,
                                    // help line, default text, control ("text" | "scope" | "time" | "number" |
@@ -249,7 +257,9 @@ interface CommandSpec {
                                    // that added it
   helpSection: string[];           // the "<name> options:" block of HELP, verbatim
   exitCodes: { code: number; when: string }[];
-  writes: "none" | "audit" | "state" | "erase";  // drives confirmation (9.5); "audit" appends events only
+  writes: (values: Values, ws: Workspace) => "none" | "audit" | "state" | "erase" | "file" | "process";
+                                   // drives confirmation (9.5); a function, because a read with a store
+                                   // folder adopts (and as the owner sweeps) while one without does not
   handler: (args: string[], io: Io) => Promise<number>;
   card?: string;                   // set while the command is in flight
 }
@@ -262,16 +272,17 @@ interface CommandSpec {
 ### 6.2 One call, the same call
 
 - A TUI action builds the argument vector the plain command would get (`["write", "--content", "...", "--scope", "person:dana", ...]`) from the form and the workspace bar. That vector is the command line shown and copied, quoted for the shell detected (POSIX quoting under bash and zsh, PowerShell quoting when `PSModulePath` is set and `SHELL` is not).
-- To run it, the TUI calls the command's client call through `connect(io, flags, ...)` with the same flags, so in process and `--server` behave as the CLI does. The command modules expose each command as two parts: `prepare(values, io)` (the flag checks, the actor, the request body; throws the same `UsageError`) and `call(conn, request)` (the one client call), with `readCommand` and the rest kept as `prepare`, `call`, `print`. The TUI renders the typed response; its plain view renders it with the same `format.ts` functions, so the text is the CLI's.
-- Commands that are not plane calls: `doctor` runs its checks through the same `doctorCommand` with an `Io` whose `out` the TUI captures (`--json`, parsed), so the checks are not duplicated. `serve` and `mcp` run their own handlers with an `Io.stop` the TUI aborts. The hook is never run by the TUI; its screen writes the Claude Code settings snippet (8.15).
+- To run it, the TUI calls the command's client call through `connect(io, flags, ...)` with the same flags, so in process and `--server` behave as the CLI does. The command modules expose each command as two parts: `prepare(values, io)` (the flag checks, the actor, the request body; throws the same `UsageError`) and `call(conn, request)` (the one client call), with `readCommand` and the rest kept as `prepare`, `call`, `print`. The split keeps what `run` does around a handler, such as card E8.13's `drainExports` in its `finally`: the TUI's runner awaits the same drain after each call. The TUI renders the typed response; its plain view renders it with the same `format.ts` functions, so the text is the CLI's.
+- Commands that are not plane calls: `doctor` runs its checks through the same `doctorCommand` with an `Io` whose `out` the TUI captures (`--json`, parsed), so the checks are not duplicated. `serve` and `mcp` run their own handlers with an `Io.stop` the TUI aborts. The hook and `mcp` over stdio are never run on the TUI's own terminal; their screens build the configuration to paste, and "Try it" spawns the exact copied command as a child process with piped stdio against a scratch log (8.14, 8.15).
 
 ### 6.3 Rules it keeps
 
-- **No policy logic** (rule 1). Everything a screen shows about a decision is a field the response carries. Grouping and labels reuse the inspector's pure functions where they exist (`buildLanes`, `laneGroups`, `filterEvents`, `eventDetail`, `explainView`, `provenanceGraph`, `itemVersions`, `itemEvents`, `grantFrom`, `grantLabel`), imported from `@engram/ui` through a subpath export of its pure modules only (`@engram/ui/view`), never React; card E8.15c adds that export, which changes no inspector behaviour.
+- **No policy logic** (rule 1). Everything a screen shows about a decision is a field the response carries. Grouping and labels reuse the inspector's pure functions (`buildLanes`, `laneGroups`, `filterEvents`, `eventDetail`, `explainView`, `provenanceGraph`, `itemVersions`, `itemEvents`, `grantFrom`, `grantLabel`). Decided on 2026-11-22 (section 14, item 4): card E8.15c moves `packages/ui/src/view.ts` and `provenance.ts` into a new React-free workspace package, `@engram/view` (`packages/view/`, depending only on the generated client's types), which the inspector and the TUI both import. The CLI never depends on `@engram/ui`, so React, xyflow, dagre and tanstack stay out of its dependency graph.
 - **Stores through the plane** (rule 2). The TUI opens no store and no log itself; the workspace does, inside `connect`.
 - **The clock.** The TUI reads time only through `Io.now`, where and when the plain command does: never for a decision, only for what the CLI prints. `--at` is offered on Read only; on other screens it appears only when "Test clock" is on, as the CLI requires `--test-clock`.
 - **Ids** come from `Io.newId`, as in the CLI.
-- **pi packages.** Only `@earendil-works/pi-tui`, and only under `packages/cli/src/tui/`; ADR 0044 amends ADR 0033's list and adds a biome restriction keeping pi-tui out of every other CLI file and out of core and the adapters.
+- **pi packages.** Only `@earendil-works/pi-tui`, and only under `packages/cli/src/tui/`. ADR 0044 records the exception and amends AGENTS.md's "What not to do" line (which names the packages that may reach pi); ADR 0033's accepted text is not edited. A biome rule keeps pi-tui out of every other CLI file and out of core and the adapters, naming `@earendil-works/pi-tui` as an exact path, since the existing `@earendil-works/pi-*/**` pattern may not match a bare package import.
+- **Pickers read once.** A scope picker offers the actor's member scopes and, once E8.14 merges, the session's cached `engram scopes` answer (3.6); an item picker offers the items of the session's last read. Opening a picker never makes a call, so it never appends a read event.
 
 ### 6.4 Modules
 
@@ -282,6 +293,9 @@ packages/cli/src/tui/term.ts          the TuiTerminal seam: ProcessTerminal in m
 packages/cli/src/tui/theme.ts         palettes (default, high contrast, no colour), glyph sets (unicode, ascii)
 packages/cli/src/tui/app.ts           the router, the status bar, the key map, overlays (help, palette, confirm)
 packages/cli/src/tui/workspace.ts     the workspace bar state, flags in and argument vectors out
+packages/cli/src/tui/saved.ts         ~/.engram/tui.json: load, save, forget (8.3)
+packages/cli/src/tui/clipboard.ts     the copy path by terminal (4.1)
+packages/cli/src/tui/snippets.ts      the Claude Code, Codex and MCP configuration and the Try it spawn (8.14, 8.15)
 packages/cli/src/tui/argv.ts          argument vector to a shell-quoted command line
 packages/cli/src/tui/forms.ts         a form generated from a CommandSpec; field validation by the CLI's checks
 packages/cli/src/tui/screens/*.ts     one file per screen of section 8
@@ -306,22 +320,22 @@ Home ─┬─ Memory ── Read and explain ── Explain ── Item page (p
       │            Log verify                                    in flight, card E1.6
       ├─ Data ──── Export                                        in flight, card E9.8
       │            Import ── Per-row decisions                   in flight, card E9.8
-      │            Procedures                                    501 until card D2
       ├─ Surfaces  Serve (HTTP API and inspector)
       │            MCP server
       │            Claude Code hook setup
-      │            Keys                                          in flight, card E8.12
+      │            Keys (before Serve and MCP)                   in flight, card E8.12
       └─ Machine ─ Doctor
-Overlays everywhere: Workspace (ctrl+o), Help (?), Palette (ctrl+p or :), Confirm, Plain view (v), JSON view (J)
+Overlays everywhere: Workspace (ctrl+o), Help (? or ctrl+g), Palette (ctrl+p or ;), Confirm, Plain view (v), JSON view (J)
+First run ends with a guided first loop: write a memory, read it back, open its explanation (8.2)
 ```
 
-The home screen groups the registry by `group`. First run (8.2) replaces Home until a log, a policy and an actor are named. Every screen has the same frame:
+The home screen groups the registry by `group`. First run (8.2) replaces Home until a log, a policy and an actor are named, or a saved workspace still works (8.3). Every screen has the same frame:
 
 ```
 row 1        title bar: "engram", the screen, the connection (in process or server), the actor
 rows 2..n-2  the screen
 row n-1      command line: the exact command this screen would run now, or the last one run, with its exit code
-row n        key hints for this screen, then "? help  ctrl+p commands  esc back"
+row n        key hints for this screen, then "? help  ; commands  esc back"
 ```
 
 The command line row is what makes the TUI teach: it is always on screen and always exact.
