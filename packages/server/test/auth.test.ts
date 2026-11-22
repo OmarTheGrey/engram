@@ -28,13 +28,17 @@ async function server() {
   const { db, workspace } = attestedWorkspace();
   const auth: AppAuth = { mode: "credentials", credentials: creds, resource: BASE };
   const app = createApp(workspace, { port: PORT, now: () => NOW, auth });
-  const call = (path: string, init: { token?: string; body?: unknown; method?: string } = {}) =>
+  const call = (
+    path: string,
+    init: { token?: string; authorization?: string; body?: unknown; method?: string } = {},
+  ) =>
     app.fetch(
       new Request(`${BASE}${path}`, {
         method: init.method ?? (init.body === undefined ? "GET" : "POST"),
         headers: {
           ...(init.body === undefined ? {} : { "content-type": "application/json" }),
           ...(init.token === undefined ? {} : { authorization: `Bearer ${init.token}` }),
+          ...(init.authorization === undefined ? {} : { authorization: init.authorization }),
         },
         ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
       }),
@@ -86,15 +90,31 @@ describe("a request without a valid credential is refused, and the refusal says 
     );
   });
 
-  it("an unknown key, a garbled header, a key on a path outside the API", async () => {
+  it("refuses an unknown key and a header that is not Bearer", async () => {
     const s = await server();
     const forged = `${s.keys.dana.slice(0, -1)}${s.keys.dana.endsWith("A") ? "B" : "A"}`;
     expect((await s.write(forged, asDana)).status).toBe(401);
-    const garbled = await s.call("/api/v1/policy", { token: "" });
-    expect(garbled.status).toBe(401);
-    // The upper-case spelling of the API's space is the API's too (isApiPath).
-    const upper = await s.call("/API/v1/policy");
-    expect([401, 404]).toContain(upper.status);
+    expect((await s.call("/api/v1/policy", { token: "" })).status).toBe(401);
+    const basic = await s.call("/api/v1/policy", { authorization: "Basic ZGFuYTpwdw==" });
+    expect(basic.status).toBe(401);
+    expect(allEvents(s.db)).toHaveLength(0);
+  });
+
+  it("no spelling of an API path reaches a route without a credential (E8.12-1, -3)", async () => {
+    const s = await server();
+    const body = { actor: asDana, item: itemFor(9) };
+    for (const path of [
+      "/api/v1/%69tems",
+      "/%61pi/v1/items",
+      "/API/v1/items",
+      "/api/v1/items/",
+      "/api//v1/items",
+      "/api/v1/%2Fitems",
+      "/api/v1/./items",
+    ]) {
+      const r = await s.call(path, { body });
+      expect([401, 404], `${path}: ${r.status}`).toContain(r.status);
+    }
     expect(allEvents(s.db)).toHaveLength(0);
   });
 });

@@ -293,6 +293,10 @@ function register(
     // level or membership is refused before the Plane is called, and the
     // source it sent is replaced by the credential's.
     const principal = principals.get(c.req.raw);
+    // Fail closed (review finding E8.12-3): on a server with credentials a
+    // route the guard did not authenticate never runs, however it was reached.
+    if (options.auth?.mode === "credentials" && principal === undefined && r.id !== "health")
+      return failure(401, "unauthorized", "this server needs a bearer credential (ADR 0042)");
     const claimed = bodyActor(body);
     if (principal !== undefined && claimed !== undefined) {
       const bound = bindActor(principal.actor, claimed);
