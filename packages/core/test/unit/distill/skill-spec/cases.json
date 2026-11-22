@@ -9,7 +9,7 @@
     {
       "id": "optional-fields",
       "dir": "pdf-processing",
-      "text": "---\nname: pdf-processing\ndescription: Extract PDF text, fill forms, merge files. Use when handling PDFs.\nlicense: Apache-2.0\ncompatibility: Requires git, docker, jq, and access to the internet\nallowed-tools: Bash(git:*) Bash(jq:*) Read\nmetadata:\n  author: example-org\n  version: \"1.0\"\n---\n\n# PDF processing\n\nBody.\n"
+      "text": "---\nname: pdf-processing\ndescription: Extract PDF text, fill forms, merge files. Use when handling PDFs.\nlicense: Apache-2.0\ncompatibility: Requires git, jq, make, and access to the internet\nallowed-tools: Bash(git:*) Bash(jq:*) Read\nmetadata:\n  author: example-org\n  version: \"1.0\"\n---\n\n# PDF processing\n\nBody.\n"
     },
     {
       "id": "quoted-values",
