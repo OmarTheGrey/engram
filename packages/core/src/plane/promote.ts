@@ -16,8 +16,10 @@
 //
 // A procedural candidate's validation record is derived from the replay the
 // caller presents (card D3, distill/validate.ts): the held-out outcomes, from
-// which the plane counts k of n itself; a replay it cannot judge (a task the
-// candidate was induced from among them) is refused before the queue.
+// which the plane counts k of n itself. A malformed replay is refused before
+// the queue; one that is not the item's (another id or content, induction
+// tasks other than its distill ref's, or a replayed induction task) is a deny
+// event under engram/promote/replay-item or replay-split (D3-3).
 //
 // On allow, a status-only change rewrites the item in place (same id,
 // version plus one); a class or scope change writes a new version under a
@@ -40,7 +42,14 @@
 import { type Actor, checkCall, InvalidCallError } from "../actor.ts";
 import type { StoreRef } from "../adapter.ts";
 import { strictContentHash } from "../content-hash.ts";
-import { replayProblem, scoreReplay } from "../distill/validate.ts";
+import {
+  bindingProblem,
+  type ReplayEvidence,
+  replayDigest,
+  replayProblem,
+  scoreReplay,
+  splitProblem,
+} from "../distill/validate.ts";
 import { allEvents, appendEvent, currentItems } from "../events.ts";
 import { itemById, lineage } from "../items.ts";
 import type { GateResult, PlaneDeps, PromoteOptions } from "../plane.ts";
@@ -124,6 +133,20 @@ function duplicateOf(
 }
 
 /**
+ * What a presented replay gives the evaluator: the record the plane counts
+ * from it (a leaked one counts nothing, and is refused for its split), and
+ * why it is not the item's replay, if it is not.
+ */
+function replayEvidence(deps: PlaneDeps, item: MemoryItem, replay: ReplayEvidence) {
+  const problem = bindingProblem(item, replay, deps.distillTasks);
+  const validation =
+    splitProblem(replay) === null
+      ? scoreReplay(replay).record
+      : { k: 0, n: 0, replay_sha256: replayDigest(replay) };
+  return { validation, ...(problem === null ? {} : { replayProblem: problem }) };
+}
+
+/**
  * Plane.promote. The call is checked (actor, time, item id and target
  * scope) before the log is touched; then the whole decide-and-commit runs in
  * one slot of the write queue.
@@ -201,8 +224,9 @@ async function decideAndCommit(
       ),
       review: options.review === true,
       // The record is derived here from the replay's outcomes, never taken
-      // from the caller (card D3, ADR 0045 proposed).
-      ...(options.replay === undefined ? {} : { validation: scoreReplay(options.replay).record }),
+      // from the caller (card D3, ADR 0045 proposed), and the replay is
+      // checked against the item: its id, content and distill ref (D3-3).
+      ...(options.replay === undefined ? {} : replayEvidence(deps, item, options.replay)),
     },
     retiredContent(db, toScope),
   );

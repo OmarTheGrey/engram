@@ -22,6 +22,9 @@
 //   engram/promote/reviewer                      the actor asked to approve but is not a reviewer
 //   engram/promote/validation-source             a replay validation record presented by an actor that
 //                                                is not user-sourced (card D3)
+//   engram/promote/replay-item                   a replay run for another item, or other content (D3-3)
+//   engram/promote/replay-split                  a replay whose induction tasks are not those of the
+//                                                item's own distill ref, or that replays one (D3-3)
 // A promotion the target's write rule refuses is denied under that rule's own
 // id (`<policy id>/write/<level>`, `engram/write/membership`, ...), since a
 // promotion is evaluated as a write into the target scope (ADR 0026, item 5).
@@ -71,6 +74,8 @@ export const PROMOTE_NOT_CANDIDATE_ID = "engram/promote/not-candidate";
 export const PROMOTE_NO_EVIDENCE_ID = "engram/promote/no-evidence";
 export const PROMOTE_REVIEWER_ID = "engram/promote/reviewer";
 export const PROMOTE_VALIDATION_SOURCE_ID = "engram/promote/validation-source";
+export const PROMOTE_REPLAY_ITEM_ID = "engram/promote/replay-item";
+export const PROMOTE_REPLAY_SPLIT_ID = "engram/promote/replay-split";
 
 type Kind = MemoryItem["provenance"]["kind"];
 
@@ -142,7 +147,13 @@ export interface ValidationRecord {
   threshold?: number;
   /** How many of the `n` tasks passed without the procedure, when the record came from a replay. */
   baseline?: number;
+  /** The sha256 of the canonical replay the record came from (distill/validate.ts, replayDigest). */
+  replay_sha256?: string;
 }
+
+/** `; replay sha256:<hex>`, the suffix naming the replay a decision judged, or nothing. */
+const replayNamed = (v: ValidationRecord | undefined) =>
+  v?.replay_sha256 === undefined ? "" : `; replay ${v.replay_sha256}`;
 
 /** `4 of 5`, or for a replay's record `4 of 5 held-out tasks at or above 1 with the procedure (2 of 5 without it)`. */
 export function recordText(v: ValidationRecord): string {
@@ -175,6 +186,11 @@ export interface PromotionEvidence {
   review: boolean;
   /** For a procedural candidate: its replay validation record, when one exists. */
   validation?: ValidationRecord;
+  /**
+   * Why the replay the record came from is not the item's (card D3 review,
+   * D3-3; distill/validate.ts, bindingProblem), with the rule that refuses it.
+   */
+  replayProblem?: { policy_id: string; reason: string };
 }
 
 export type PromotionCheck =
@@ -187,6 +203,7 @@ export type PromotionCheck =
   | "write"
   | "reviewer"
   | "validation-source"
+  | "replay"
   | "no-evidence"
   | "review-needed"
   | "confirmed"
@@ -506,10 +523,16 @@ export function evaluatePromotion(
         `${actor.id} acts with source ${actor.source ?? "none"}; only a user-sourced actor may present a replay validation record`,
         PROMOTE_VALIDATION_SOURCE_ID,
       );
+    if (v && evidence.replayProblem)
+      return deny(
+        "replay",
+        `not promoted: ${evidence.replayProblem.reason}${replayNamed(v)}`,
+        evidence.replayProblem.policy_id,
+      );
     if (v && validationMeets(policy, v)) met = "validated";
     const { replay_k, replay_n } = policy.promotion.procedural;
     missing = v
-      ? `the validation record ${recordText(v)} does not meet ${replay_k} of ${replay_n}`
+      ? `the validation record ${recordText(v)} does not meet ${replay_k} of ${replay_n}${replayNamed(v)}`
       : `a procedural candidate needs a validation record of ${replay_k} of ${replay_n} replay passes, and has none`;
   } else {
     reviewable = true;
@@ -539,7 +562,7 @@ export function evaluatePromotion(
     met === "confirmed"
       ? `${counted.count} confirmations by distinct actors with a user, document or tool source (${counted.actors.join(", ")}) reach the ${k} required`
       : met === "validated"
-        ? `the validation record ${recordText(evidence.validation as ValidationRecord)} meets ${policy.promotion.procedural.replay_k} of ${policy.promotion.procedural.replay_n}`
+        ? `the validation record ${recordText(evidence.validation as ValidationRecord)} meets ${policy.promotion.procedural.replay_k} of ${policy.promotion.procedural.replay_n}${replayNamed(evidence.validation)}`
         : `reviewed with ${counted.count} confirmation${counted.count === 1 ? "" : "s"}`;
   const rule =
     met === "confirmed" ? "episodic-to-semantic" : met === "validated" ? "procedural" : "review";

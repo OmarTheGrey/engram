@@ -1,18 +1,23 @@
 // Card D3's admission decision (ADR 0011, ADR 0026, ADR 0045 proposed): the
 // held-out split is made by construction, a replay that names a task the
-// candidate was induced from is refused, a held-out task passes when its mean
+// candidate was induced from is refused, a replay is bound to its item and to
+// the tasks of the item's own distill ref, a held-out task passes when its mean
 // reward with the candidate is at or above the threshold, and the candidate
 // is admitted when the passes meet the policy's replay_k of replay_n.
 import { describe, expect, test } from "vitest";
+import { strictContentHash } from "../../../src/content-hash.ts";
 import {
   admission,
+  bindingProblem,
   heldOutTasks,
   type ReplayEvidence,
   type ReplayOutcome,
+  replayDigest,
   replayProblem,
   scoreReplay,
+  splitProblem,
 } from "../../../src/distill/validate.ts";
-import type { Policy } from "../../../src/schema.ts";
+import type { MemoryItem, Policy } from "../../../src/schema.ts";
 
 const POLICY = {
   promotion: {
@@ -28,10 +33,15 @@ const run = (task: string, without: number, withIt: number, seed = 1): ReplayOut
   with: withIt,
 });
 
+const ITEM_ID = "01920000-0000-7000-8000-000000000001";
+const CONTENT = { body: "# Look first", tools: ["read"] };
+
 /** Five held-out tasks, `passes` of them passing with the candidate, `base` without it. */
 function evidence(passes: number, base = 0, over: Partial<ReplayEvidence> = {}): ReplayEvidence {
   const tasks = ["t3", "t4", "t5", "t6", "t7"];
   return {
+    item_id: ITEM_ID,
+    content_hash: strictContentHash(CONTENT),
     induced_from: ["t1", "t2"],
     threshold: 1,
     outcomes: tasks.map((t, i) => run(t, i < base ? 1 : 0, i < passes ? 1 : 0)),
@@ -64,9 +74,16 @@ describe("replayProblem: what makes a replay unusable", () => {
     expect(replayProblem(evidence(4))).toBeNull();
   });
 
-  test("a replayed task the candidate was induced from is refused (leakage)", () => {
+  test("a replayed task the candidate was induced from is a split problem, not a shape one", () => {
     const leaked = evidence(4, 0, { induced_from: ["t1", "t5"] });
-    expect(replayProblem(leaked)).toContain("t5 is a task the candidate was induced from");
+    expect(replayProblem(leaked)).toBeNull();
+    expect(splitProblem(leaked)).toContain("t5 is a task the candidate was induced from");
+    expect(splitProblem(evidence(4))).toBeNull();
+  });
+
+  test("a replay that names no item or no content hash is refused", () => {
+    expect(replayProblem(evidence(4, 0, { item_id: "" }))).toContain("item");
+    expect(replayProblem(evidence(4, 0, { content_hash: "x" }))).toContain("content hash");
   });
 
   test.each([
@@ -101,19 +118,25 @@ describe("replayProblem: what makes a replay unusable", () => {
 describe("scoreReplay: k of n held-out tasks at or above the threshold", () => {
   test("counts the tasks whose reward with the candidate reaches the threshold", () => {
     const { record, tasks } = scoreReplay(evidence(4, 2));
-    expect(record).toEqual({ k: 4, n: 5, threshold: 1, baseline: 2 });
+    expect(record).toEqual({
+      k: 4,
+      n: 5,
+      threshold: 1,
+      baseline: 2,
+      replay_sha256: replayDigest(evidence(4, 2)),
+    });
     expect(tasks.map((t) => t.passed)).toEqual([true, true, true, true, false]);
     expect(tasks.map((t) => t.baseline_passed)).toEqual([true, true, false, false, false]);
   });
 
   test("a task's reward is its mean over the seeds", () => {
     const outcomes = ["a", "b"].flatMap((t) => [run(t, 0, 1, 1), run(t, 0, t === "a" ? 1 : 0, 2)]);
-    const scored = scoreReplay({ induced_from: [], threshold: 0.5, outcomes });
+    const scored = scoreReplay({ ...evidence(0), induced_from: [], threshold: 0.5, outcomes });
     expect(scored.tasks).toEqual([
       { task: "a", runs: 2, without: 0, with: 1, passed: true, baseline_passed: false },
       { task: "b", runs: 2, without: 0, with: 0.5, passed: true, baseline_passed: false },
     ]);
-    const strict = scoreReplay({ induced_from: [], threshold: 1, outcomes });
+    const strict = scoreReplay({ ...evidence(0), induced_from: [], threshold: 1, outcomes });
     expect(strict.record.k).toBe(1);
   });
 
@@ -151,5 +174,89 @@ describe("admission: the policy's replay_k of replay_n decides", () => {
     } as Policy;
     expect(admission(strict, evidence(4)).decision).toBe("refuse");
     expect(admission(strict, evidence(5)).decision).toBe("admit");
+  });
+});
+
+describe("replayDigest: the replay's sha256 the event's reason carries", () => {
+  test("is the sha256 of the canonical replay: key order does not move it, a reward does", () => {
+    const e = evidence(4, 2);
+    expect(replayDigest(e)).toMatch(/^sha256:[0-9a-f]{64}$/);
+    const reordered = Object.fromEntries(Object.entries(e).reverse()) as unknown as ReplayEvidence;
+    expect(replayDigest(reordered)).toBe(replayDigest(e));
+    expect(replayDigest(evidence(5, 2))).not.toBe(replayDigest(e));
+  });
+});
+
+describe("bindingProblem: the replay is the item's, and its split is the item's ref", () => {
+  const SESSIONS = new Map([
+    ["s1", "t1"],
+    ["s2", "t2"],
+  ]);
+  const candidate = (ref: string): MemoryItem =>
+    ({
+      id: ITEM_ID,
+      class: "procedural",
+      content: CONTENT,
+      provenance: { kind: "model", ref, hash: `sha256:${"0".repeat(64)}`, actor: "person:a" },
+    }) as MemoryItem;
+  const REF = "distill:awm:s1,s2";
+
+  test("a replay of the item, induced from its ref's tasks, has none", () => {
+    expect(bindingProblem(candidate(REF), evidence(4), SESSIONS)).toBeNull();
+  });
+
+  test("a replay presented for another item is refused", () => {
+    const other = evidence(4, 0, { item_id: "01920000-0000-7000-8000-000000000002" });
+    expect(bindingProblem(candidate(REF), other, SESSIONS)?.policy_id).toBe(
+      "engram/promote/replay-item",
+    );
+  });
+
+  test("a replay of other content under the item's id is refused", () => {
+    const stale = evidence(4, 0, { content_hash: strictContentHash({ body: "x", tools: [] }) });
+    expect(bindingProblem(candidate(REF), stale, SESSIONS)?.policy_id).toBe(
+      "engram/promote/replay-item",
+    );
+  });
+
+  test("an empty induced_from against a ref naming t1, with t1 replayed, is refused", () => {
+    const hidden = evidence(4, 0, {
+      induced_from: [],
+      outcomes: ["t1", "t3", "t4", "t5", "t6"].map((t) => run(t, 0, 1)),
+    });
+    const problem = bindingProblem(candidate("distill:rule:s1"), hidden, SESSIONS);
+    expect(problem?.policy_id).toBe("engram/promote/replay-split");
+    expect(problem?.reason).toContain("t1");
+  });
+
+  test("induction tasks other than the ref's are refused, even with no overlap", () => {
+    const wrong = evidence(4, 0, { induced_from: ["t1"] });
+    expect(bindingProblem(candidate(REF), wrong, SESSIONS)?.policy_id).toBe(
+      "engram/promote/replay-split",
+    );
+  });
+
+  test("a leaked split is a split problem", () => {
+    const leaked = evidence(4, 0, { induced_from: ["t1", "t2", "t5"] });
+    expect(bindingProblem(candidate(REF), leaked, SESSIONS)?.policy_id).toBe(
+      "engram/promote/replay-split",
+    );
+  });
+
+  test("a distill ref the plane cannot map to tasks is refused", () => {
+    expect(bindingProblem(candidate(REF), evidence(4), undefined)?.reason).toContain(
+      "no session index",
+    );
+    expect(bindingProblem(candidate("distill:awm:s1,s9"), evidence(4), SESSIONS)?.reason).toContain(
+      "s9",
+    );
+  });
+
+  test("an item with no distill ref was induced from nothing", () => {
+    const byHand = candidate("doc/1");
+    expect(bindingProblem(byHand, evidence(4, 0, { induced_from: [] }), SESSIONS)).toBeNull();
+    expect(bindingProblem(byHand, evidence(4), SESSIONS)?.policy_id).toBe(
+      "engram/promote/replay-split",
+    );
   });
 });

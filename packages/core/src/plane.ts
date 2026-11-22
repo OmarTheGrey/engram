@@ -235,8 +235,11 @@ export interface PromoteOptions {
    * proposed): the outcomes the plane derives the validation record from
    * (distill/validate.ts), never a record the caller states. Only a
    * user-sourced actor may present one (`engram/promote/validation-source`);
-   * one naming a task the candidate was induced from, or otherwise unusable,
-   * is refused with InvalidCallError before the log is touched.
+   * it names the item's id and content hash, and its induction tasks are
+   * checked against the item's distill ref through `distillTasks`; one not
+   * the item's is a deny event (`engram/promote/replay-item`,
+   * `engram/promote/replay-split`), and a malformed one is refused with
+   * InvalidCallError before the log is touched.
    */
   replay?: ReplayEvidence;
 }
@@ -366,6 +369,14 @@ export interface PlaneDeps {
    * Plane.lint runs the deterministic lints only, whatever the policy enables.
    */
   lintModel?: ModelLintSetup;
+  /**
+   * Session id to task id (card D1's session index), so Plane.promote can
+   * name the tasks a candidate's distill ref (`distill:<method>:<sessions>`,
+   * card D2) was induced from and check a replay's split against them (card
+   * D3 review, D3-3). Unset, a replay of a candidate with a distill ref is
+   * refused (`engram/promote/replay-split`).
+   */
+  distillTasks?: ReadonlyMap<string, string>;
 }
 
 export function createPlane(deps: PlaneDeps): Plane {

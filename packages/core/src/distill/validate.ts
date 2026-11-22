@@ -18,11 +18,29 @@
 //   (policy/promotion.ts) decides it against the policy's replay_k of
 //   replay_n, as Plane.promote does.
 //
+// - The replay is bound to its item (card D3 review, D3-3): it names the
+//   item's id and the strict content hash of its content, and its induction
+//   tasks are the tasks of the item's own distill ref (`distill:<method>:
+//   <sessions>`, card D2), mapped by the session index the plane is given.
+//   `bindingProblem` says why a replay is not the item's, under its own rule
+//   id; the plane records that as a deny event. Its sha256 (`replayDigest`)
+//   goes into the record, so the event's reason names the exact replay.
+//
 // The threshold is not in the policy: the schema's promotion rule holds
 // replay_k and replay_n only, and only card E2.8 changes schema.ts (AGENTS.md
 // rule 5). The replay's caller states it (docs/log/2026-11-21-d3-decision-threshold.md).
-import { recordText, type ValidationRecord, validationMeets } from "../policy/promotion.ts";
-import type { Policy } from "../schema.ts";
+import { createHash } from "node:crypto";
+import { strictContentHash } from "../content-hash.ts";
+import { canonicalJson } from "../model.ts";
+import {
+  PROMOTE_REPLAY_ITEM_ID,
+  PROMOTE_REPLAY_SPLIT_ID,
+  recordText,
+  type ValidationRecord,
+  validationMeets,
+} from "../policy/promotion.ts";
+import type { MemoryItem, Policy } from "../schema.ts";
+import { parseDistillRef } from "./induce.ts";
 
 /** One held-out task run under one seed, without and with the candidate installed. */
 export interface ReplayOutcome {
@@ -37,6 +55,10 @@ export interface ReplayOutcome {
 
 /** What a replay of one candidate returned: the input of the admission decision. */
 export interface ReplayEvidence {
+  /** The candidate the replay ran: its id. */
+  item_id: string;
+  /** The strict content hash (content-hash.ts) of the content the replay installed. */
+  content_hash: string;
   /** The tasks the candidate was induced from; none of them may be replayed. */
   induced_from: readonly string[];
   /** A held-out task passes when its mean reward with the candidate is at or above this, in (0, 1]. */
@@ -76,17 +98,19 @@ export function heldOutTasks(pool: readonly string[], inducedFrom: readonly stri
 const isReward = (x: unknown): x is number =>
   typeof x === "number" && Number.isFinite(x) && x >= 0 && x <= 1;
 
-/** Why a replay cannot be judged, or null: its split, threshold, rewards or seeds. */
+/** Why a replay is malformed, or null: its item, content hash, threshold, rewards or seeds. */
 export function replayProblem(e: ReplayEvidence): string | null {
+  if (typeof e.item_id !== "string" || e.item_id === "") return "the replay names no item";
+  if (typeof e.content_hash !== "string" || !/^sha256:[0-9a-f]{64}$/.test(e.content_hash))
+    return "the replay names no content hash (sha256:<64 hex>)";
+  if (!Array.isArray(e.induced_from) || e.induced_from.some((t) => typeof t !== "string"))
+    return "the replay's induced_from is not a list of task ids";
   if (!(typeof e.threshold === "number" && e.threshold > 0 && e.threshold <= 1))
     return `the replay's threshold ${String(e.threshold)} is not in (0, 1]`;
   if (e.outcomes.length === 0) return "the replay ran no held-out task";
-  const induced = new Set(e.induced_from);
   const seeds = new Map<string, number[]>();
   for (const o of e.outcomes) {
     if (typeof o.task !== "string" || o.task === "") return "a replayed task has no id";
-    if (induced.has(o.task))
-      return `task ${o.task} is a task the candidate was induced from; a replay runs only on held-out tasks`;
     if (!Number.isInteger(o.seed))
       return `task ${o.task} ran on seed ${String(o.seed)}, not an integer`;
     if (!isReward(o.without) || !isReward(o.with))
@@ -103,9 +127,86 @@ export function replayProblem(e: ReplayEvidence): string | null {
   return null;
 }
 
-/** The record and each held-out task's score; throws on a replay with a problem. */
+/** Why the replay's own split leaks, or null: a replayed task among its induction tasks. */
+export function splitProblem(e: Pick<ReplayEvidence, "induced_from" | "outcomes">): string | null {
+  const induced = new Set(e.induced_from);
+  const leaked = e.outcomes.find((o) => induced.has(o.task));
+  return leaked
+    ? `task ${leaked.task} is a task the candidate was induced from; a replay runs only on held-out tasks`
+    : null;
+}
+
+/** The replay's sha256, `sha256:<hex>` of its canonical JSON: key order never moves it. */
+export function replayDigest(e: ReplayEvidence): string {
+  return `sha256:${createHash("sha256").update(canonicalJson(e)).digest("hex")}`;
+}
+
+/** A replay the plane refuses for an item, with the rule that refuses it. */
+export interface BindingProblem {
+  policy_id: string;
+  reason: string;
+}
+
+const sameSet = (a: readonly string[], b: readonly string[]) => {
+  const x = new Set(a);
+  const y = new Set(b);
+  return x.size === y.size && [...x].every((t) => y.has(t));
+};
+
+/**
+ * Why `e` is not a replay of `item`, or null (card D3 review, D3-3). It must
+ * name the item's id and the strict hash of its content
+ * (`engram/promote/replay-item`). Its induction tasks must be exactly the
+ * tasks of the item's own distill ref, mapped by `tasksOf` (session id to
+ * task id, card D1's index), none of them replayed
+ * (`engram/promote/replay-split`). An item with no distill ref was induced
+ * from no recorded session, so its replay names none. A distill ref the plane
+ * holds no index for, or that names a session the index lacks, cannot be
+ * checked, and is refused.
+ */
+export function bindingProblem(
+  item: MemoryItem,
+  e: ReplayEvidence,
+  tasksOf: ReadonlyMap<string, string> | undefined,
+): BindingProblem | null {
+  const notItem = (why: string) => ({ policy_id: PROMOTE_REPLAY_ITEM_ID, reason: why });
+  const split = (why: string) => ({ policy_id: PROMOTE_REPLAY_SPLIT_ID, reason: why });
+  if (e.item_id !== item.id)
+    return notItem(`the replay was run for item ${e.item_id}, not item ${item.id}`);
+  if (e.content_hash !== strictContentHash(item.content))
+    return notItem(
+      `the replay installed content ${e.content_hash}, and item ${item.id} holds ${strictContentHash(item.content)}`,
+    );
+  const ref = parseDistillRef(item.provenance.ref);
+  let own: string[] = [];
+  if (ref !== null) {
+    if (tasksOf === undefined)
+      return split(
+        `item ${item.id} was induced from sessions ${ref.sessions.join(", ")}, and the plane holds no session index to name their tasks`,
+      );
+    const unknown = ref.sessions.filter((s) => !tasksOf.has(s));
+    if (unknown.length > 0)
+      return split(
+        `item ${item.id} was induced from sessions the plane's session index does not hold: ${unknown.join(", ")}`,
+      );
+    own = [...new Set(ref.sessions.map((s) => tasksOf.get(s) as string))];
+  }
+  const leaked = e.outcomes.find((o) => own.includes(o.task));
+  if (leaked)
+    return split(
+      `task ${leaked.task} is one item ${item.id} was induced from (its distill ref); a replay runs only on held-out tasks`,
+    );
+  if (!sameSet(e.induced_from, own))
+    return split(
+      `the replay names induction tasks [${[...new Set(e.induced_from)].sort().join(", ")}], and item ${item.id}'s distill ref names [${[...own].sort().join(", ")}]`,
+    );
+  const own_leak = splitProblem(e);
+  return own_leak ? split(own_leak) : null;
+}
+
+/** The record and each held-out task's score; throws on a malformed or leaked replay. */
 export function scoreReplay(e: ReplayEvidence): { record: ReplayRecord; tasks: TaskScore[] } {
-  const problem = replayProblem(e);
+  const problem = replayProblem(e) ?? splitProblem(e);
   if (problem) throw new Error(`replay validation: ${problem}`);
   const byTask = new Map<string, ReplayOutcome[]>();
   for (const o of e.outcomes) byTask.set(o.task, [...(byTask.get(o.task) ?? []), o]);
@@ -129,6 +230,7 @@ export function scoreReplay(e: ReplayEvidence): { record: ReplayRecord; tasks: T
       n: tasks.length,
       threshold: e.threshold,
       baseline: tasks.filter((t) => t.baseline_passed).length,
+      replay_sha256: replayDigest(e),
     },
     tasks,
   };
