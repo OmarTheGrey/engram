@@ -337,6 +337,11 @@ Open, for the lead. Each was drafted by a card's agent while implementing it; th
     - (b) Accept it, but answer a by-id read as a text read does (`filtered: 1` for a grant that does not admit), keeping one rule for every read at the cost of confirming the id exists.
     - (c) Drop the scope list and keep only the by-id read, so no listing reveals a grant-reached scope.
 
+66. **ADR 0048, the contradiction lint's local NLI tier (card L7, arm P3).** The tier scores each contradiction pair locally, flags at or above an upper threshold, drops below a lower one and sends the band to the model. On card L4's fixture (`research/results/h3-lint-nli.json`) the scores do not separate contradictions from unrelated pairs: 87 of 113 pairs score 0.9 or more by the larger of both directions, 81 forward only. With the frozen thresholds (upper 1, lower 0.1) the tier flags nothing, drops 18 pairs and sends 95, and no contradiction fault is dropped.
+    - (a) Accept ADR 0048 as written: both directions, the threshold rule on card L3's fixtures, so on this fixture the flag band is empty and the tier only drops.
+    - (b) Accept it with forward-only scoring. Its cost on the fixture: an upper of 0.9 flags 81 pairs on 28 items with no model call, of which 4 items are contradiction faults, 4 are contradiction near-misses, 14 carry other labels and 6 carry none (`forward_only_flags`), so most findings would be false and the model would never see them.
+    - (c) Drop the flag band, so the tier only drops pairs below its lower threshold and every other pair goes to the model; the upper threshold and the `contradiction-nli` finding go.
+
 ## Decided on 2026-11-21, under the lead's delegation
 
 On 2026-11-21 the lead delegated items 49 to 56 as well: close them with the best answer the project's record supports. Every item takes option (a). These answers are binding until the lead overturns one. ADRs [0038](../decisions/0038-tamper-evident-log-that-keeps-erasure.md), [0039](../decisions/0039-content-guards-at-the-write-gate.md), [0040](../decisions/0040-trust-floors.md) and [0041](../decisions/0041-cedar-export-for-analysis.md) are accepted with them.
