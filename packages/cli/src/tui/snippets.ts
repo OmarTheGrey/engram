@@ -355,6 +355,8 @@ export interface SampleResult {
   expected: boolean;
   /** In words, for the screen. */
   detail: string;
+  /** What the hook printed on stdout, verbatim (the parity test compares it with the plain run's). */
+  stdout: string;
 }
 
 const DID_NOT_RUN = (code: string) =>
@@ -362,7 +364,7 @@ const DID_NOT_RUN = (code: string) =>
 
 /** What a hook's run means to Claude Code, from its exit code and its stdout only. */
 function judgeHook(sample: Sample, r: Spawned): SampleResult {
-  const base = { label: sample.label, code: r.code };
+  const base = { label: sample.label, code: r.code, stdout: r.stdout };
   if (!r.started || r.error !== undefined)
     return {
       ...base,

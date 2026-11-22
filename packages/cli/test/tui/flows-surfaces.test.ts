@@ -376,7 +376,7 @@ describe("Log verify (8.24)", () => {
     const text = await h.text();
     expect(text).toContain("unsigned");
     expect(text).toContain("exit 3");
-    await h.press("[6~"); // pgdn
+    await h.press("\x1b[6~"); // pgdn
     expect(await h.text()).toContain("The chain proves no event was changed");
     await h.quit();
   });

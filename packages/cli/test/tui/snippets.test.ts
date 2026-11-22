@@ -316,7 +316,7 @@ describe("Try it (8.15)", () => {
     };
     screen.setLaunch({ command: join(cwd, "missing-engram.exe"), prefix: [], note: undefined });
     // In the roots field t types; ctrl+s is Try it from any field.
-    await h.press("");
+    await h.press("\x13");
     const text = await h.text();
     expect(text).toContain("✗");
     expect(text).toContain("the hook did not run");
