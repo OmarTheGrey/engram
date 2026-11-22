@@ -412,7 +412,7 @@ export class ResultScreen implements Screen {
   }
 
   hints(): string {
-    return this.json ? "J the text output  up down scroll" : "r run again  J json  up down scroll";
+    return this.json ? "J the text output  up down scroll" : "r run again  up down scroll";
   }
 
   spec(): CommandSpec {
