@@ -116,7 +116,7 @@ Each flag, the commands that take it (today), and the TUI control that sets it. 
 | `WT_SESSION`, `TERM_PROGRAM`, `TMUX`, `MSYSTEM`, `COLORFGBG` | new, read by the TUI only | the terminal: which clipboard path to use (4.1), ASCII symbols in conhost (11.7), the winpty hint (5.2), the light or dark palette (11.3) |
 | `CI`, `TERM` | new, the TUI's refusal | `CI` set, or `TERM=dumb`: the TUI does not start |
 | `ENGRAM_OTLP_URL`, `ENGRAM_EXPORT_JSONL` | in flight, card E8.13 | workspace bar, "Decision export" |
-| `ENGRAM_TOKEN` | in flight, card E8.12 | workspace bar, "Token: set" or "not set", never the value |
+| `ENGRAM_TOKEN` | card E8.12, merged | workspace bar, "Token: set" or "not set", never the value |
 
 ### 3.5 Exit codes and output streams
 
@@ -324,7 +324,7 @@ Home ─┬─ Memory ── Read and explain ── Explain ── Item page (p
       ├─ Surfaces  Serve (HTTP API and inspector)
       │            MCP server
       │            Claude Code hook setup
-      │            Keys (before Serve and MCP)                   in flight, card E8.12
+      │            Keys (before Serve and MCP)                   card E8.12, merged
       └─ Machine ─ Doctor
 Overlays everywhere: Workspace (ctrl+o), Help (? or ctrl+g), Palette (ctrl+p or ;), Confirm, Plain view (v), JSON view (J)
 First run ends with a guided first loop: write a memory, read it back, open its explanation (8.2)
