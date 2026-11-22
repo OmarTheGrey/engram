@@ -35,10 +35,15 @@
 // parseSkillMd(toSkillMd(item)) gives back the item's body and tools
 // exactly.
 //
-// parseSkillMd reads a subset of YAML: `key: value` lines, a value plain,
-// single-quoted or double-quoted (JSON's escapes), and one level of
-// `key: value` lines under `metadata:`; comments and blank lines are
-// skipped. Anything else is refused as invalid YAML.
+// parseSkillMd and validateSkillMd read a stricter subset of YAML than
+// skills-ref's strictyaml: `key: value` lines with one space after the
+// colon, a value plain on one line, single-quoted or double-quoted (JSON's
+// escapes only), and one level of `key: value` lines under `metadata:`;
+// comments and blank lines are skipped. Anything else is refused as invalid
+// YAML, though skills-ref accepts some of it: a plain value over several
+// lines, `>` and `|` block scalars, YAML's own escapes (`\x41`), a closing
+// `--- ` with a trailing space, `name : x`, and `allowed-tools` as a list.
+// The cases marked `subset` in skill-spec/cases.json pin each of these.
 import type { z } from "zod";
 import type { MemoryItem, ProceduralContent as ProceduralContentSchema } from "../schema.ts";
 
@@ -234,7 +239,8 @@ function frontmatter(yaml: string): { fm: Frontmatter } | { error: string } {
   for (const line of lines) {
     if (line.trim() === "" || /^\s*#/.test(line)) continue;
     const indented = /^\s/.test(line);
-    const m = /^\s*([A-Za-z0-9_-]+):(?:\s(.*))?$/.exec(line);
+    // One space after the colon, as YAML needs; a tab there is refused, as strictyaml refuses it.
+    const m = /^\s*([A-Za-z0-9_-]+):(?: (.*))?$/.exec(line);
     if (!m) {
       if (!indented && Object.keys(fm).length === 0 && !line.includes(":"))
         return { error: "SKILL.md frontmatter must be a YAML mapping" };
@@ -332,7 +338,9 @@ function checkFields(fm: Frontmatter, dir?: string): string[] {
 /**
  * The specification's validation of a SKILL.md text, with the validator's
  * messages; `dir`, the name of the directory holding it, when known. Empty
- * means valid.
+ * means valid. It reads a stricter subset of YAML than skills-ref (see the
+ * header): a text outside it is refused as invalid YAML, though skills-ref
+ * may accept it; every text toSkillMd writes is inside it.
  */
 export function validateSkillMd(text: string, dir?: string): string[] {
   const parts = split(text);

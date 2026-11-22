@@ -5,7 +5,7 @@ Apache-2.0, commit 83021e2be457a9b6679148719c1f6074f0ad975e) on every case of
 cases.json (hand-written) and emitted.json (what toSkillMd writes for the
 sample items of packages/core/test/unit/distill/skill.test.ts), each written
 as SKILL.md in a fresh directory named by the case's `dir`, and records the
-errors it returns. Nothing from skills-ref is copied into this repository;
+errors it returns, with each text's sha256. Nothing from skills-ref is copied into this repository;
 it is run, offline, at development time only:
 
     git clone https://github.com/agentskills/agentskills .engram/upstream/agentskills
@@ -25,6 +25,7 @@ SKILL.md with the platform's encoding, which is not UTF-8 on Windows, and
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import tempfile
 from pathlib import Path
@@ -62,7 +63,9 @@ def main() -> None:
     cases: list[dict[str, str]] = []
     for name in ("cases.json", "emitted.json"):
         cases.extend(json.loads((folder / name).read_text(encoding="utf-8"))["cases"])
-    result = {"upstream": UPSTREAM, "errors": run(cases)}
+    # Each text's sha256, so a case or an emitted text changed after this run is caught.
+    digests = {c["id"]: hashlib.sha256(c["text"].encode("utf-8")).hexdigest() for c in cases}
+    result = {"upstream": UPSTREAM, "errors": run(cases), "sha256": digests}
     Path(args.out).write_bytes(
         (json.dumps(result, indent=2, ensure_ascii=False, sort_keys=True) + "\n").encode("utf-8")
     )

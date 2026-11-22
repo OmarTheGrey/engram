@@ -196,7 +196,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Candidate procedures from sessions; 501 until card D2. */
+        /** Candidate procedures from sessions; 501 until a card implements Plane.distill (docs/tasks/backlog.md). */
         post: operations["distill"];
         delete?: never;
         options?: never;

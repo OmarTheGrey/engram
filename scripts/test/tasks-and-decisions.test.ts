@@ -7,11 +7,13 @@
 // D3 (docs/log/2026-11-21-d3-decision-validation-source-adr-0045.md). ADRs 0038 to 0041, proposed by
 // the absorb plan on 2026-11-21, were accepted that day under the lead's
 // delegation (docs/log/2026-11-21-orch-decision-adrs-0038-0041-accepted.md).
+// ADR 0046, proposed by card D2 on 2026-11-22 (the AWM prompt adapted to tool
+// use), awaits the owner too (docs/tasks/lead-decisions.md, item 64).
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { describe, expect, test } from "vitest";
 import { parseFrontmatter } from "../lib/frontmatter.ts";
 
-const OWNER_DECIDES = new Set<string>(["0034", "0045"]);
+const OWNER_DECIDES = new Set<string>(["0034", "0045", "0046"]);
 const ADDED_BY_ADR_0001 = ["PX1", "PX2", "PX3", "RN1", "RN2"];
 
 const roadmap = readFileSync("docs/roadmap.md", "utf8");

@@ -3,6 +3,7 @@
 // cassettes, twice, the second run with zero new calls; every candidate is a
 // procedural item with status candidate, written through the plane, with
 // lineage to its sessions and a SKILL.md the specification accepts.
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { parseDistillRef, parseSkillMd, validateSkillMd } from "@engram/core";
 import { memoryCache } from "@engram/model";
@@ -21,6 +22,17 @@ const CONFIG = fileURLToPath(
   new URL("../../../research/configs/d2-induce-fixture.json", import.meta.url),
 );
 const REPO = fileURLToPath(new URL("../../../", import.meta.url));
+/** The fixture sessions that hold a model-written summary (index.json: a branch summary, a compaction or a recovery). */
+const INDEX = JSON.parse(
+  readFileSync(new URL("../../../fixtures/sessions/d1/index.json", import.meta.url), "utf8"),
+) as {
+  sessions: { session_id: string; branch: string | null; compacted: boolean; recovered: boolean }[];
+};
+const SUMMARISED = new Set(
+  INDEX.sessions
+    .filter((s) => s.branch === "summary" || s.compacted || s.recovered)
+    .map((s) => s.session_id),
+);
 
 describe("acceptance (card D2): candidates from the fixture sessions, from cassettes", () => {
   test("two replays make zero new calls and write the same candidates", async () => {
@@ -32,7 +44,7 @@ describe("acceptance (card D2): candidates from the fixture sessions, from casse
     expect(second.items).toEqual(first.items);
     expect(first.summary).toEqual({
       "awm@1": { candidates: 3, rejected: 2, written: 3, denied: 0 },
-      "rule@1": { candidates: 1, rejected: 0, written: 1, denied: 0 },
+      "rule@1": { candidates: 10, rejected: 0, written: 10, denied: 0 },
     });
   });
 
@@ -54,7 +66,11 @@ describe("acceptance (card D2): candidates from the fixture sessions, from casse
         lineage: [],
       });
       expect(item.store_ref).not.toBeNull();
-      expect(parseDistillRef(item.provenance.ref)?.sessions).toEqual(examples);
+      const ref = parseDistillRef(item.provenance.ref);
+      // AWM's candidates come from every example; each rule candidate is one session.
+      if (ref?.method === "awm") expect(ref.sessions).toEqual(examples);
+      else expect(ref?.sessions).toHaveLength(1);
+      expect(examples).toEqual(expect.arrayContaining(ref?.sessions ?? ["none"]));
       expect(validateSkillMd(skill_md, parseSkillMd(skill_md).name)).toEqual([]);
     }
     // Every write is one allowed event naming the person rule.
@@ -62,6 +78,17 @@ describe("acceptance (card D2): candidates from the fixture sessions, from casse
     expect(writes.map((e) => [e.decision, e.policy_id])).toEqual(
       result.items.map(() => ["allow", "preset.medium/write/person"]),
     );
+    // The plane recorded the source the runner set, each candidate's own (D2-4).
+    for (const [i, e] of writes.entries())
+      expect(e.reason).toContain(`from source ${result.items[i]?.item.provenance.kind}`);
+    expect(writes.some((e) => e.reason.includes("from source compaction"))).toBe(true);
+    // Each candidate's kind is that of its own sessions: AWM's take compaction
+    // from the examples' summaries; a rule candidate is its one session's.
+    for (const { item } of result.items) {
+      const ids = parseDistillRef(item.provenance.ref)?.sessions ?? [];
+      const summarised = ids.some((id) => SUMMARISED.has(id));
+      expect(item.provenance.kind).toBe(summarised ? "compaction" : "model");
+    }
   });
 
   test("a miss is an error offline, and the script answers no request but the induction's", async () => {
