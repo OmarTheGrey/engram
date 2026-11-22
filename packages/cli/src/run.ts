@@ -177,17 +177,25 @@ hook claude-code options:
 log verify options (on this machine only; never --server):
   --db <path|url>             the event log (default as above); read only, nothing is migrated
   --key <public.pem>          the operator's Ed25519 public key, pinned: a checkpoint signed
-                              under any other key fails
+                              under any other key fails; without it the verdict is at best UNSIGNED
   --checkpoint <file>         a checkpoint kept outside the log (log checkpoint --out);
                               repeatable; the log must extend it
-  exit 0 OK, 1 FAILED (the first broken link is named), 3 UNSIGNED (every check holds, but
-  the latest checkpoint carries no signature)
+  exit 0 OK: every check holds and a signed checkpoint, verified under the pinned key,
+    covers the whole chain
+  exit 1 FAILED: a check failed; the first broken link is named
+  exit 3 UNSIGNED: every check holds, but part of the chain is vouched for by no signature:
+    no checkpoint, no --key, no signed checkpoint, or entries after the latest signed one
+  limit: without a checkpoint held outside the database, anyone with database access can
+  cut the tail or rewrite the whole chain undetected; the verdict is then UNSIGNED, never OK
 
 log checkpoint options:
   --db <path|url>             the event log (default as above); it must exist
   --key <private.pem>         the operator's Ed25519 private key; without it the checkpoint is unsigned
+  --checkpoint <file>         a checkpoint kept outside the log; repeatable; the log must extend it
   --out <file>                also write the checkpoint there, to keep outside the log
-  the key is the operator's to hold: a signature proves its holder saw that head
+  nothing is signed unless the whole log verifies first, every earlier signature under
+  this --key and every --checkpoint given; the key is the operator's to hold, and a
+  signature proves only that its holder saw that head
 
 key options:
   create --keys <file> --as <principal> --source <kind> --expires <iso>  [--level] [--member]...

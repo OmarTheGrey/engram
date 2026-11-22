@@ -61,6 +61,28 @@ describe("engram log verify", () => {
     const wrong = await cli(["log", "verify", "--db", db, "--key", other.pub]);
     expect(wrong.code).toBe(1);
     expect(wrong.out).toMatch(/other than the pinned one/);
+    // No key pinned: UNSIGNED, exit 3, whatever is signed (review fix pass, E1.6-4).
+    const unpinned = await cli(["log", "verify", "--db", db]);
+    expect(unpinned.code).toBe(3);
+    expect(unpinned.out).toMatch(/no public key is pinned/);
+  });
+
+  it("refuses to sign a checkpoint over a history the held checkpoint contradicts (E1.6-2)", async () => {
+    const { dir, db } = await fixtureLog();
+    const { priv } = keys(dir, "operator");
+    const out = join(dir, "checkpoint.json");
+    expect((await cli(["log", "checkpoint", "--db", db, "--key", priv, "--out", out])).code).toBe(
+      0,
+    );
+    // Another log in its place, its checkpoints gone: only the held one knows.
+    const other = join(dir, "other.db");
+    expect((await cli([...readArgs(other, await fixtureCopy()), "query that differs"])).code).toBe(
+      0,
+    );
+    copyFileSync(other, db);
+    const r = await cli(["log", "checkpoint", "--db", db, "--key", priv, "--checkpoint", out]);
+    expect(r.code).toBe(1);
+    expect(r.err).toMatch(/does not verify .*held/);
   });
 
   it("names the first broken link of an edited event, exit 1", async () => {

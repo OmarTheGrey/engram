@@ -8,9 +8,14 @@
 // Key custody is the operator's: --key names a PEM file they hold. A
 // checkpoint signed with it proves the holder of the key saw that head, not
 // that the log is true; a checkpoint kept outside the log (--out, then
-// verify --checkpoint) is what detects a rewrite by someone with database
-// access, and pinning the public key (verify --key) is what stops a rewriter
-// signing a new history with a key of their own.
+// --checkpoint) is what detects a rewrite by someone with database access,
+// and pinning the public key (verify --key) is what stops a rewriter signing
+// a new history with a key of their own. OK needs both a pinned key and a
+// signed checkpoint covering the whole chain (review fix pass, E1.6-4);
+// without a checkpoint held outside the database, anyone with database
+// access can cut the tail or rewrite the whole chain, and the verdict is then
+// UNSIGNED, never OK (E1.6-7). `log checkpoint` signs only after everything
+// verifies under the signer's own key and the held checkpoints given (E1.6-2).
 import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
@@ -36,6 +41,7 @@ const VERIFY_OPTIONS = {
 const CHECKPOINT_OPTIONS = {
   db: { type: "string" },
   key: { type: "string" },
+  checkpoint: { type: "string", multiple: true },
   out: { type: "string" },
   json: { type: "boolean" },
 } as const;
@@ -126,13 +132,21 @@ async function checkpointCommand(args: string[], io: Io): Promise<number> {
       );
     }
   }
+  const held = (values.checkpoint ?? []).map((p) => heldCheckpoint(io, p));
   const log = openLog(target, true);
   try {
     keepLogChain(log.db);
-    const cp = writeCheckpoint(log.db, io.now(), signer);
-    const held = { note: cp.note, key: cp.key, signature: cp.signature };
+    // Nothing is signed unless the whole log verifies first: the chain, every
+    // stored checkpoint, every held one, and, when signing, every signature
+    // under the signer's own key, pinned (review fix pass, E1.6-2).
+    const cp = writeCheckpoint(log.db, io.now(), signer, {
+      verify: signatureCheck,
+      held,
+      ...(signer === undefined ? {} : { pin: signer.key }),
+    });
+    const kept = { note: cp.note, key: cp.key, signature: cp.signature };
     if (values.out !== undefined)
-      writeFileSync(resolve(io.cwd, values.out), `${JSON.stringify(held, null, 2)}\n`);
+      writeFileSync(resolve(io.cwd, values.out), `${JSON.stringify(kept, null, 2)}\n`);
     if (values.json) io.out(`${JSON.stringify(cp, null, 2)}\n`);
     else
       io.out(
