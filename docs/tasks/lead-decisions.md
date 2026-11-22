@@ -292,6 +292,15 @@ Prices come from `research/results/h2-cost-table.json` (card RV8, OpenRouter's l
 
 The answers card that carries these into the pre-registration, the ADRs and the roadmap follows as its own PR, as on 2026-11-19.
 
+## F. Proposed by the absorb cards, 2026-11-21
+
+Open, for the lead. Each was drafted by a card's agent while implementing it; the card ships the recommendation behind it, and accepting or changing it is a `decision` log entry plus a status change in the ADR.
+
+64. **ADR 0046, the AWM induction prompt adapted to tool use (card D2).** ADR 0012 says the prompt is vendored verbatim; card D2 asks for it adapted from web tasks to tool-use sessions (review finding D2-1). The lead answered on 2026-11-22: adapt, and record it in a new ADR ("Adapt, new ADR"). What is left is accepting the ADR's text, which lists every change.
+    - (a) Accept ADR 0046: the adapted prompt pinned in `packages/core/src/distill/induce.ts`, the fourteen changes it lists, and ADR 0012's verbatim clause superseded.
+    - (b) Accept it with changes to the list.
+    - (c) Reject it and vendor the WebArena prompt verbatim, as ADR 0012 says.
+
 ## Decided on 2026-11-21, under the lead's delegation
 
 On 2026-11-21 the lead delegated items 49 to 56 as well: close them with the best answer the project's record supports. Every item takes option (a). These answers are binding until the lead overturns one. ADRs [0038](../decisions/0038-tamper-evident-log-that-keeps-erasure.md), [0039](../decisions/0039-content-guards-at-the-write-gate.md), [0040](../decisions/0040-trust-floors.md) and [0041](../decisions/0041-cedar-export-for-analysis.md) are accepted with them.

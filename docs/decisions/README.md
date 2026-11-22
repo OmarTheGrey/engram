@@ -17,7 +17,7 @@ Every ADR, 0001 to 0033, is accepted by the lead, and the lead is its decider. A
 | 0009 | Retrieval explanations carry score components, rank and policy decision | accepted with amendments |
 | 0010 | Retention never deletes; eviction retires; long-horizon arm is mandatory | accepted |
 | 0011 | One lifecycle for every class: candidate, active, retired; replay admission for procedures | accepted with amendments |
-| 0012 | Induction method: Agent Workflow Memory over pi session trees, reimplemented in TypeScript | accepted |
+| 0012 | Induction method: Agent Workflow Memory over pi session trees, reimplemented in TypeScript | accepted; its clause "the induction prompt vendored verbatim" is superseded by ADR 0046 once accepted |
 | 0013 | Adapter contract with capability flags; conformance suite on a fake first | accepted with amendments |
 | 0014 | No-bypass: store commands blocked in bash; MCP store tools wrapped | accepted with amendments |
 | 0015 | Evaluation protocol: six benchmarks, seven conditions, vendored judges, label audit | accepted with amendments |
@@ -47,6 +47,7 @@ Every ADR, 0001 to 0033, is accepted by the lead, and the lead is its decider. A
 | 0039 | Content guards at the write gate: deterministic detectors for secrets, personal data and injected instructions, off by default | accepted under the lead's delegation, 2026-11-21 |
 | 0040 | Trust floors: an unattested write lands at the least trusted kind, and a less trusted source never changes or removes a more trusted item; both opt-in | accepted under the lead's delegation, 2026-11-21 |
 | 0041 | Policy is exported to Cedar for analysis and checked against it; the typed evaluator stays the authority | accepted under the lead's delegation, 2026-11-21 |
+| 0046 | Agent Workflow Memory's induction prompt is adapted to tool-use sessions, not vendored verbatim | proposed |
 
 ---
 
