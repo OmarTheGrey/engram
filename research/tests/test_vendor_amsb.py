@@ -44,13 +44,21 @@ def test_the_vendored_file_names_the_hashes_a_fetch_must_match(tmp_path: Path) -
     assert V.expected_hashes(tmp_path / "none") is None
 
 
-def test_a_download_matching_the_vendored_hashes_is_written(tmp_path: Path) -> None:
+def test_a_download_matching_the_vendored_hashes_is_written(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The download is faked, so no network is used; CI sets ENGRAM_OFFLINE=1.
+    monkeypatch.delenv("ENGRAM_OFFLINE", raising=False)
     V.fetch(tmp_path, expected(), download=serve(BODIES))
     assert (tmp_path / "scenarios.py").read_bytes() == BODIES[V.SCENARIOS]
     assert (tmp_path / "LICENSE.md").read_bytes() == BODIES[V.LICENSE]
 
 
-def test_a_download_that_differs_is_refused_and_not_written(tmp_path: Path) -> None:
+def test_a_download_that_differs_is_refused_and_not_written(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The download is faked, so no network is used; CI sets ENGRAM_OFFLINE=1.
+    monkeypatch.delenv("ENGRAM_OFFLINE", raising=False)
     changed = {**BODIES, V.SCENARIOS: b"scenarios moved upstream"}
     with pytest.raises(ValueError, match="differs from the vendored hash"):
         V.fetch(tmp_path, expected(), download=serve(changed))
@@ -61,3 +69,12 @@ def test_a_file_already_fetched_that_differs_is_refused(tmp_path: Path) -> None:
     (tmp_path / "scenarios.py").write_bytes(b"edited by hand")
     with pytest.raises(ValueError, match="differs from the vendored hash"):
         V.fetch(tmp_path, expected(), download=serve(BODIES))
+
+
+def test_the_real_downloader_is_refused_offline(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("ENGRAM_OFFLINE", "1")
+    with pytest.raises(RuntimeError, match="ENGRAM_OFFLINE=1 forbids the fetch"):
+        V.fetch(tmp_path, expected())
+    assert not (tmp_path / "scenarios.py").exists()
