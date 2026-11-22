@@ -9,7 +9,9 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { join } from "node:path";
+import type { MemoryEvent, MemoryItem } from "@engram/core";
 import { describe, expect, it } from "vitest";
+import { type SupersedeAnswer, supersedeLines } from "../src/format.ts";
 import { cli, fixtureCopy, logEvents, tempDir, VALID_FROM } from "./helpers.ts";
 
 const OLD = "01950000-0000-7000-8000-000000000001";
@@ -328,5 +330,50 @@ describe("engram mcp --http with credentials and --supersede (L6-8)", () => {
       stop.abort();
       await running;
     }
+  });
+});
+
+describe("engram supersede's lines when the store refuses a close (L6-9)", () => {
+  it("lists the close that landed before the refused one, and the one not sent", () => {
+    // A plan proposes at most one close (core test/property/supersede-one-close.test.ts),
+    // so the answer of the route's write loop with three closes is given here as data.
+    const A = "01990000-0000-7000-8000-000000000001";
+    const B = "01990000-0000-7000-8000-000000000002";
+    const C = "01990000-0000-7000-8000-000000000003";
+    const event = (n: number, item_id: string, decision: "allow" | "deny", policy_id: string) =>
+      ({
+        id: `01990000-0000-7000-8000-00000000010${n}`,
+        ts: "2026-10-25T12:00:00.000Z",
+        op: "write",
+        item_id,
+        actor: "person:dana",
+        decision,
+        reason: decision === "allow" ? "allowed" : "the store failed: read-only",
+        policy_id,
+      }) as unknown as MemoryEvent;
+    const landed = {
+      id: A,
+      class: "semantic",
+      scope: "person:dana",
+      status: "active",
+      store_ref: null,
+    };
+    const answer: SupersedeAnswer = {
+      item_id: NEW,
+      head: { ok: true, head_id: NEW, chain: [NEW] },
+      proposals: [],
+      applied: [
+        {
+          item: landed as unknown as MemoryItem,
+          event: event(1, A, "allow", "preset.medium/write/person"),
+        },
+      ],
+      stopped: { item_id: B, event: event(2, B, "deny", "engram/write/store-failure") },
+    };
+    const text = supersedeLines(answer, [A, B, C]).join("\n");
+    expect(text).toContain(`item ${A} semantic in person:dana, status active`);
+    expect(text).toContain(`not applied: ${B}, the store refused it`);
+    expect(text).toContain("policy engram/write/store-failure");
+    expect(text).toContain(`landed before it: ${A}; not sent: ${C}`);
   });
 });

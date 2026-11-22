@@ -24,7 +24,9 @@ import {
   explanationLines,
   plural,
   preview,
+  type SupersedeAnswer,
   simulationLines,
+  supersedeLines,
   whoCanReadLines,
 } from "./format.ts";
 import type { Io } from "./run.ts";
@@ -487,63 +489,17 @@ export async function supersedeCommand(args: string[], io: Io): Promise<number> 
     const answer = result(
       await conn.client.POST("/api/v1/supersede", { body: { actor, item_id: itemId, accept } }),
     );
-    const plan = answer as unknown as {
-      item_id: string;
-      head:
-        | { ok: true; head_id: string; chain: string[] }
-        | { ok: false; error: string; chain: string[] };
-      proposals: {
-        item_id: string;
-        action: "close" | "review";
-        relation: string | null;
-        valid_to: string | null;
-        reason: string;
-      }[];
-      applied: { item: MemoryItem | null; event: MemoryEvent }[];
-      stopped: { item_id: string; event: MemoryEvent } | null;
-    };
+    const plan = answer as unknown as SupersedeAnswer;
     const allowed =
       plan.head.ok &&
       plan.stopped === null &&
       plan.applied.every((a) => a.event.decision === "allow");
     if (values.json) {
-      io.out(`${JSON.stringify(plan, null, 2)}\n`);
+      io.out(`${JSON.stringify(plan, null, 2)}
+`);
       return allowed ? 0 : 1;
     }
-    const lines = [
-      plan.head.ok
-        ? `head ${plan.head.head_id}, chain ${plan.head.chain.join(" -> ")}`
-        : `${plan.head.error}: the chain from ${plan.item_id} does not resolve (${plan.head.chain.join(" -> ") || "nothing readable"}); nothing proposed`,
-    ];
-    if (plan.head.ok && plan.proposals.length === 0) lines.push("nothing to propose");
-    for (const p of plan.proposals)
-      lines.push(
-        p.action === "close"
-          ? `close ${p.item_id}: valid_to ${p.valid_to} (${p.relation}); ${p.reason}`
-          : `review ${p.item_id} (${p.relation ?? "no relation"}): ${p.reason}`,
-      );
-    for (const { event, item } of plan.applied) lines.push("", ...decisionLines(event, item));
-    // The store refused a close the gate allowed (L6-3): it and every later one did not land.
-    if (plan.stopped !== null) {
-      const landed = plan.applied
-        .filter((a) => a.event.decision === "allow")
-        .map((a) => a.item?.id);
-      const unsent = accept.filter(
-        (id) => id !== plan.stopped?.item_id && !plan.applied.some((a) => a.event.item_id === id),
-      );
-      lines.push(
-        "",
-        `not applied: ${plan.stopped.item_id}, the store refused it`,
-        ...decisionLines(plan.stopped.event, null),
-        `landed before it: ${landed.join(", ") || "none"}; not sent: ${unsent.join(", ") || "none"}`,
-      );
-    }
-    const open = plan.proposals.filter((p) => p.action === "close" && !accept.includes(p.item_id));
-    if (open.length > 0)
-      lines.push(
-        "",
-        `to apply: engram supersede ${plan.item_id} ${open.map((p) => `--accept ${p.item_id}`).join(" ")}`,
-      );
+    const lines = supersedeLines(plan, accept);
     io.out(`${[...lines, logHint(conn)].join("\n")}\n`);
     return allowed ? 0 : 1;
   } finally {
