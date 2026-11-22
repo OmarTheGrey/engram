@@ -144,6 +144,72 @@ forEachBackend((backend) => {
   const signer = fixedSigner();
   const pinned = { verify: ed25519Check, pin: signer.publicKey };
 
+  describe("manifests reusing a real erasure (E1.6-12)", () => {
+    /** A real offboarding of Dana, and a lint event about a surviving team item. */
+    async function offboarded() {
+      const db = open();
+      let n = 0;
+      const deps = {
+        db,
+        adapter: createFakeAdapter(),
+        policy: testPolicy({}),
+        newId: () => id(994_000 + ++n),
+      };
+      await createPlane(deps).write(
+        DANA,
+        item(1, { scope: "person:dana", owner: "person:dana", content: "x" }),
+        AT,
+      );
+      const lint = appendEvent(
+        db,
+        event({
+          op: "lint",
+          item_id: id(2),
+          item: undefined,
+          scope_to: "team:core",
+          reason: "duplicate (info): two team notes hold one content; evidence: sha256:ab",
+        }),
+      );
+      expect(
+        (await offboard(deps, DANA, { person: "person:dana", roles: [] }, "2026-10-26T00:00:00Z"))
+          .decision,
+      ).toBe("allow");
+      expect(verifyChain(db).first_break).toBeNull();
+      const erase = allEvents(db).find((x) => x.policy_id === ERASURE_ID) as MemoryEvent;
+      const real = String(db.prepare("SELECT data FROM chain WHERE kind = 'manifest'").get()?.data);
+      return { db, lint, erase, real };
+    }
+
+    test("a surviving lint event's evidence blanked, its salt deleted, a manifest reusing the real erase event", async () => {
+      const { db, lint, erase } = await offboarded();
+      setBody(db, lint.seq, { ...lint, reason: redactedLintReason(lint.reason) });
+      db.prepare("DELETE FROM chain_salts WHERE seq = ?").run(lint.seq);
+      const m = manifest([lint.seq], [erase.seq]);
+      forgeAppend(db, "manifest", null, m, m);
+      const r = verifyChain(db, pinned);
+      expect(r.verdict).toBe("FAILED");
+      expect(r.first_break?.check).toBe("links");
+      expect(r.first_break?.detail).toMatch(/not the entries chained just before it/);
+      expect(() => writeCheckpoint(db, AT, signer, pinned)).toThrow(/does not verify/);
+    });
+
+    test("a duplicate of a real manifest", async () => {
+      const { db, real } = await offboarded();
+      forgeAppend(db, "manifest", null, real, real);
+      const r = verifyChain(db);
+      expect(r.verdict).toBe("FAILED");
+      expect(r.first_break?.check).toBe("links");
+    });
+
+    test("an erase event named by a second manifest", async () => {
+      const { db, erase } = await offboarded();
+      const m = manifest([], [erase.seq]);
+      forgeAppend(db, "manifest", null, m, m);
+      const r = verifyChain(db);
+      expect(r.first_break?.check).toBe("links");
+    });
+  });
+
   describe("forged redactions (E1.6-3)", () => {
     test("A1: a blanked event, its salt deleted and a manifest with no erase event appended", () => {
       const db = open();

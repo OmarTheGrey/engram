@@ -605,7 +605,7 @@ function tamperings(db: Db, c: Case, held: { size: number }): Tamper[] {
       () =>
         db
           .prepare("UPDATE chain SET data = ? WHERE pos = 0")
-          .run(` $String(db.prepare("SELECT data FROM chain WHERE pos = 0").get()?.data)`),
+          .run(` ${String(db.prepare("SELECT data FROM chain WHERE pos = 0").get()?.data)}`),
     ],
     [
       "a checkpoint's columns edited away from its note",
@@ -696,7 +696,7 @@ forEachBackend((backend) => {
           db.close();
         }
       }),
-      { numRuns: backend.runs(40), seed: seedFor(`$backend.name$name`) },
+      { numRuns: backend.runs(40), seed: seedFor(`${backend.name} ${name}`) },
     );
     // Not vacuous: erasures redacted item events and lint events about
     // items they did not erase, and every tamper was met and caught.
