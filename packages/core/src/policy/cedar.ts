@@ -170,7 +170,15 @@ namespace ${CEDAR_NAMESPACE} {
 }
 `;
 
-/** A string as a Cedar string literal. */
+/**
+ * A string as a Cedar string literal, which is also how a policy id reaches a
+ * `//` comment (review finding E2.12-4). Quotes and backslashes are escaped,
+ * and so is every control character, since a raw line break would end the
+ * comment and let the id write a policy. U+2028 and U+2029 are escaped too:
+ * Cedar's parser does not end a comment at them, but editors, diffs and
+ * JavaScript tools treat them as line breaks, so the escape protects readers
+ * and tools, not the parser (review finding E2.12-7).
+ */
 function cedarString(s: string): string {
   let out = '"';
   for (const ch of s) {

@@ -80,6 +80,9 @@ import {
   READ_TTL_ID,
   READ_VALIDITY_ID,
   WRITE_GRANT_ID,
+  WRITE_MEMBERSHIP_ID,
+  WRITE_MOVE_ID,
+  WRITE_VERSION_ID,
 } from "../../src/policy/evaluate.ts";
 import { loadPreset, PRESETS } from "../../src/policy/load.ts";
 import type { Grant, MemoryItem, Policy } from "../../src/schema.ts";
@@ -492,6 +495,14 @@ function checkRead(policy: Policy, decide: (r: CedarRequest) => CedarDecision, c
  */
 const PER_GRANT_IDS = new Set([WRITE_GRANT_ID, GRANT_UNCHANGED_ID, GRANT_EXPIRED_ID]);
 const UNTRUSTED_KINDS = new Set(["model", "compaction", "external"]);
+/** The rules evaluateWrite checks before its grant loop. */
+const BEFORE_GRANT_LOOP_IDS = [
+  WRITE_MEMBERSHIP_ID,
+  WRITE_VERSION_ID,
+  WRITE_MOVE_ID,
+  GRANT_SOURCE_ID,
+  GRANT_OWNER_ID,
+];
 
 /** The evaluator decided `c` by a per-grant rule the export does not translate. */
 function perGrant(policyId: string, c: WriteCase): boolean {
@@ -502,10 +513,17 @@ function perGrant(policyId: string, c: WriteCase): boolean {
 function checkWrite(policy: Policy, decide: (r: CedarRequest) => CedarDecision, c: WriteCase) {
   const options = { promotion: c.promotion ?? false };
   const engram = evaluateWrite(policy, c.actor, c.item, c.existing, c.retired, c.at, options);
-  if (perGrant(engram.policy_id, c)) return `excluded ${engram.policy_id}`;
   const request = (action: "write" | "write_without_review") =>
     cedarWriteRequest(c.actor, c.item, c.existing, c.retired, action, options);
   const written = decide(request("write"));
+  if (perGrant(engram.policy_id, c)) {
+    // Excluded from agreement, but not from order (review finding E2.12-6):
+    // the evaluator reached the grant loop, so every rule it checks first
+    // passed, and Cedar must name none of them among its reasons.
+    const where = `excluded write: evaluator ${engram.policy_id}; Cedar [${written.reasons.join(", ")}]`;
+    for (const id of BEFORE_GRANT_LOOP_IDS) expect(written.reasons, where).not.toContain(id);
+    return `excluded ${engram.policy_id}`;
+  }
   const unreviewed = decide(request("write_without_review"));
   const where = `write: evaluator ${engram.decision} (${engram.check}, ${engram.policy_id}); Cedar write ${written.allow ? "allows" : "denies"} [${written.reasons.join(", ")}], without review ${unreviewed.allow ? "allows" : "denies"}`;
   expect(written.allow, where).toBe(engram.decision === "allow");
@@ -836,9 +854,19 @@ describe("the export as text", () => {
       "x\npermit (principal, action, resource);\n//",
       "y\r\nforbid (principal, action, resource);",
       "z\u2028permit (principal, action, resource);",
+      "w\u2029forbid (principal, action, resource);",
     ];
     for (const id of ids) {
       const exported = exportCedar({ ...loadPreset("strict"), id });
+      // Cedar does not end a comment at U+2028 or U+2029, but an editor, a
+      // diff or a JavaScript tool does: the text carries neither raw (review
+      // finding E2.12-7). Nor any other control character.
+      expect(exported.policies, id).not.toMatch(/[\u2028\u2029]/);
+      const control = [...exported.policies].filter((ch) => {
+        const code = ch.codePointAt(0) as number;
+        return code !== 0x0a && (code < 0x20 || (code >= 0x7f && code <= 0x9f));
+      });
+      expect(control, id).toEqual([]);
       const parts = cedar.policySetTextToParts(exported.policies);
       expect(parts.type, id).toBe("success");
       if (parts.type !== "success") continue;
