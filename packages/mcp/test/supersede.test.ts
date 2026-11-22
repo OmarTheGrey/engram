@@ -9,7 +9,17 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { Actor, MemoryItem } from "@engram/core";
+import { createFakeAdapter } from "@engram/adapters";
+import {
+  type Actor,
+  itemById,
+  loadPreset,
+  type MemoryItem,
+  migrate,
+  openSqlite,
+} from "@engram/core";
+import { createEngramClient } from "@engram/sdk";
+import { createApp, workspaceOf } from "@engram/server";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
@@ -190,5 +200,105 @@ describe("engram mcp --supersede", () => {
   it("lists memory_supersede only when launched with the flag", async () => {
     expect(await listed()).not.toContain("memory_supersede");
     expect((await listed("--supersede")).at(-1)).toBe("memory_supersede");
+  });
+});
+
+describe("memory_supersede under the trust floors (L6-4)", () => {
+  /** A workspace on `preset`: dana's user-written fact and her replacement naming it. */
+  async function on(preset: "medium" | "medium-trust") {
+    const db = openSqlite(":memory:");
+    migrate(db);
+    let n = 0;
+    const newId = () => id(700 + ++n);
+    const workspace = workspaceOf({
+      db,
+      adapter: createFakeAdapter(),
+      policy: loadPreset(preset),
+      newId,
+    });
+    const app = createApp(workspace, { port: 7313, now: () => NOW });
+    const client = createEngramClient({
+      baseUrl: "http://127.0.0.1:7313",
+      fetch: async (request) => app.fetch(request),
+    });
+    const user = { ...DANA, source: "user" as const };
+    const fact = (k: number, from: string, lineage: string[]) =>
+      ({
+        id: id(k),
+        class: "semantic",
+        scope: "person:dana",
+        owner: "person:dana",
+        content: `fact ${k}`,
+        provenance: {
+          kind: "user",
+          ref: "r",
+          hash: `sha256:${"0".repeat(64)}`,
+          actor: "person:dana",
+        },
+        confidence: 0.9,
+        valid_from: from,
+        valid_to: null,
+        ttl: null,
+        grants: [],
+        version: 1,
+        lineage,
+        status: "active",
+        store_ref: null,
+        schema_version: 1,
+      }) as MemoryItem;
+    for (const item of [fact(1, "2026-10-01T00:00:00.000Z", []), fact(2, LATER, [id(1)])])
+      expect((await workspace.plane.write(user, item, NOW)).event.decision).toBe("allow");
+    return { workspace, client, user };
+  }
+
+  async function agentClose(preset: "medium" | "medium-trust") {
+    const env = await on(preset);
+    const [serverSide, clientSide] = InMemoryTransport.createLinkedPair();
+    await createMcpServer({
+      client: env.client,
+      actor: DANA,
+      now: () => NOW,
+      newId: () => id(800),
+      supersede: true,
+    }).connect(serverSide);
+    const client = new Client({ name: "test", version: "0" });
+    await client.connect(clientSide);
+    const result = await client.callTool({
+      name: "memory_supersede",
+      arguments: { item_id: id(2), accept: [id(1)] },
+    });
+    return { ...env, result, event: env.workspace.plane.events().at(-1) };
+  }
+
+  it("on medium-trust, the agent's close of a user-written fact is denied as a downgrade", async () => {
+    const { result, event, workspace } = await agentClose("medium-trust");
+    expect(result.isError).toBe(true);
+    expect(event).toMatchObject({ op: "write", item_id: id(1), decision: "deny" });
+    expect(event?.policy_id).toBe("engram/write/downgrade");
+    expect(itemById(workspace.deps.db, id(1))).toMatchObject({ version: 1, valid_to: null });
+  });
+
+  it("on medium-trust, the owner's own close as a user is allowed", async () => {
+    const { client, user, workspace } = await on("medium-trust");
+    const { data } = await client.POST("/api/v1/supersede", {
+      body: { actor: user, item_id: id(2), accept: [id(1)] },
+    });
+    const [applied] = (data as { applied: { event: { decision: string } }[] }).applied;
+    expect(applied?.event.decision).toBe("allow");
+    expect(itemById(workspace.deps.db, id(1))).toMatchObject({
+      version: 2,
+      valid_to: LATER,
+      provenance: { kind: "user" },
+    });
+  });
+
+  it("on medium, the agent's close is allowed and the fact becomes model-written", async () => {
+    const { result, event, workspace } = await agentClose("medium");
+    expect(result.isError).toBeFalsy();
+    expect(event).toMatchObject({ op: "write", item_id: id(1), decision: "allow" });
+    expect(itemById(workspace.deps.db, id(1))?.provenance).toMatchObject({
+      kind: "model",
+      actor: "person:dana",
+    });
   });
 });
