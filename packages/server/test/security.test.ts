@@ -153,9 +153,9 @@ describe("the loopback listener", () => {
   it("refuses to listen on any other host", () => {
     const { workspace } = testWorkspace();
     for (const host of ["0.0.0.0", "::", "192.168.1.10"])
-      expect(() => listen(workspace, { host, port: 0, now: () => NOW })).toThrow(
-        /not a loopback address/,
-      );
+      expect(() =>
+        listen(workspace, { host, port: 0, now: () => NOW, auth: { insecureLoopback: true } }),
+      ).toThrow(/not a loopback address/);
   });
 
   describe("over a real socket", () => {
@@ -175,7 +175,12 @@ describe("the loopback listener", () => {
 
     it("serves its loopback origin and refuses a rebound Host", async () => {
       const { workspace } = testWorkspace();
-      server = await listen(workspace, { host: "127.0.0.1", port: 0, now: () => NOW });
+      server = await listen(workspace, {
+        host: "127.0.0.1",
+        port: 0,
+        now: () => NOW,
+        auth: { insecureLoopback: true },
+      });
       expect(server.url).toBe(`http://127.0.0.1:${server.port}`);
       const health = await fetch(`${server.url}/api/v1/health`);
       expect(health.status).toBe(200);

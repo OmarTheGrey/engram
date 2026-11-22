@@ -224,7 +224,13 @@ async function planeBackend(
       read: (actor: Actor, query: Parameters<typeof core.read>[1]) => core.read(actor, query),
     },
   };
-  const server = await listen(workspace, { port: 0, now: () => MERIT_READ_AT, ui: null });
+  // Loopback with self-asserted actors, as before card E8.12 (ADR 0042 decision 5).
+  const server = await listen(workspace, {
+    port: 0,
+    now: () => MERIT_READ_AT,
+    ui: null,
+    auth: { insecureLoopback: true },
+  });
   const scopes = () => [...new Set(currentScopes(db))].sort();
   return {
     kind: "plane",
