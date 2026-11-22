@@ -12,13 +12,16 @@
 // with 501 naming the card, `backlog` while none does.
 import {
   type Actor,
+  acceptedClosures,
   accessTime,
   BUNDLE_FORMAT,
   BUNDLE_VERSION,
   currentItems,
   eventById,
   itemById,
+  type MemoryEvent,
   type MemoryItem,
+  planSupersession,
   readCounts,
   servedImport,
   syncBeforeRead,
@@ -88,6 +91,41 @@ async function syncStore(workspace: Workspace, reader: Actor, now: string) {
   };
 }
 
+/**
+ * Write accepted closes in order, each one Plane.write (card L6). A store
+ * that refuses a close after the gate allowed it (Plane.write logs the deny
+ * and throws, decision D6) stops the loop: that close and its deny event
+ * are `stopped`, the writes before it are in `applied`, and none after it
+ * is sent (review fix L6-3). A plan proposes at most one close, so the
+ * route gives one at most; this takes any number.
+ */
+export async function writeClosures(
+  workspace: Workspace,
+  actor: Actor,
+  closes: readonly MemoryItem[],
+  at: string,
+) {
+  const submitted: MemoryItem[] = [];
+  const applied = [];
+  let stopped: { item_id: string; event: MemoryEvent } | null = null;
+  for (const item of closes) {
+    const mark = workspace.plane.events().length;
+    submitted.push(item);
+    try {
+      applied.push(await workspace.plane.write(actor, item, at));
+    } catch (e) {
+      const event = workspace.plane
+        .events()
+        .slice(mark)
+        .findLast((x) => x.item_id === item.id);
+      if (event === undefined) throw e;
+      stopped = { item_id: item.id, event };
+      break;
+    }
+  }
+  return { submitted, applied, stopped };
+}
+
 export const ROUTES: readonly Route[] = [
   route<z.infer<typeof C.WriteRequest>>({
     id: "write",
@@ -137,6 +175,46 @@ export const ROUTES: readonly Route[] = [
         ...(body.at === undefined ? {} : { valid_at: body.at }),
       });
       return { ...result, sync, policy: policyLabel(workspace) };
+    },
+  }),
+  route<z.infer<typeof C.ReadByIdRequest>>({
+    id: "readById",
+    method: "post",
+    path: "/read/{itemId}",
+    summary:
+      "Read one item by its id through the plane's read filter as the actor at the server's clock (card E8.14): the item and its explanation when the actor may read it, nothing otherwise, and one read event; with a store, the same sweep and adoption as /read run first.",
+    request: C.ReadByIdRequest,
+    response: C.ReadResponse,
+    errors: [400],
+    handler: async ({ workspace, body, params, now }) => {
+      const at = now();
+      const sync = await syncStore(workspace, body.actor, at);
+      const result = await workspace.plane.readById(body.actor, params.itemId ?? "", {
+        at,
+        ...(body.at === undefined ? {} : { valid_at: body.at }),
+      });
+      return { ...result, sync, policy: policyLabel(workspace) };
+    },
+  }),
+  route<z.infer<typeof C.ScopesRequest>>({
+    id: "listScopes",
+    method: "post",
+    path: "/scopes",
+    summary:
+      "The scopes the actor can see at the server's clock (card E8.14): its member scopes the read matrix lets its level read, and the scope of every item a read would admit through a live grant; one read event records the decision; with a store, the same sweep and adoption as /read run first.",
+    request: C.ScopesRequest,
+    response: C.ScopesResponse,
+    errors: [400],
+    handler: async ({ workspace, body, now }) => {
+      const at = now();
+      // As for a read (review finding E8.14-11): a grant the store's own
+      // memories carry is adopted before the scopes are listed.
+      const sync = await syncStore(workspace, body.actor, at);
+      return {
+        ...(await workspace.plane.listScopes(body.actor, at)),
+        sync,
+        policy: policyLabel(workspace),
+      };
     },
   }),
   route<z.infer<typeof C.ExplainRequest>>({
@@ -311,6 +389,32 @@ export const ROUTES: readonly Route[] = [
         body.sessions as unknown as Parameters<typeof workspace.plane.distill>[0],
         body.method,
       ),
+  }),
+  route<z.infer<typeof C.SupersedeRequest>>({
+    id: "supersede",
+    method: "post",
+    path: "/supersede",
+    summary:
+      "The supersession plan for a new version (card L6): the head of its chain and, for each ancestor the actor may read, a proposed close or a review flag; each accepted close is then one ordinary write through the gate.",
+    request: C.SupersedeRequest,
+    response: C.SupersedeResponse,
+    errors: [400, 503],
+    handler: async ({ workspace, body, now }) => {
+      const at = now();
+      const { db } = workspace.deps;
+      // The store's sweep and adoption run first, as before a read (L6-7).
+      await syncStore(workspace, body.actor, at);
+      // Core plans and refuses an id with no proposed close; the gate decides each write.
+      const plan = planSupersession(
+        db,
+        workspace.policy,
+        body.actor,
+        body.item_id,
+        accessTime(db, at),
+      );
+      const closes = acceptedClosures(db, plan, body.accept ?? []);
+      return { ...plan, ...(await writeClosures(workspace, body.actor, closes, at)) };
+    },
   }),
   route<z.infer<typeof C.BypassRequest>>({
     id: "bypass",

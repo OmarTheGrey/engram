@@ -30,7 +30,9 @@ import {
   explanationLines,
   plural,
   preview,
+  type SupersedeAnswer,
   simulationLines,
+  supersedeLines,
   whoCanReadLines,
 } from "./format.ts";
 import { type BundleHeader, bundleText, MAX_INPUT_BYTES, parseBundle } from "./import/bundle.ts";
@@ -465,6 +467,56 @@ export async function promoteCommand(args: string[], io: Io): Promise<number> {
       io.out(`${[...lines, logHint(conn)].join("\n")}\n`);
     }
     return decision === "allow" ? 0 : 1;
+  } finally {
+    conn.close();
+  }
+}
+
+/**
+ * `engram supersede <item-id> [--accept <id>]...` (card L6): one call to the
+ * supersede route as a user-sourced actor. Core plans (the head of the
+ * item's chain, a proposed close or a review flag for each ancestor the
+ * actor may read); each --accept is one ordinary write of a new version
+ * through the write gate, which decides it. Exit 0 when the chain resolves
+ * and every accepted close was allowed, 1 otherwise.
+ */
+export async function supersedeCommand(args: string[], io: Io): Promise<number> {
+  const { values, positionals } = parse(
+    args,
+    {
+      ...STORE_OPTIONS,
+      ...ACTOR_OPTIONS,
+      ...CLIENT_OPTIONS,
+      accept: { type: "string", multiple: true },
+    },
+    true,
+  );
+  const [itemId, ...rest] = positionals;
+  if (itemId === undefined || rest.length > 0)
+    throw new UsageError("give exactly one item id: engram supersede <item-id> [--accept <id>]...");
+  const accept = values.accept ?? [];
+  for (const id of [itemId, ...accept])
+    if (!Id.safeParse(id).success) throw new UsageError(`${id} is not an item id (a UUIDv7)`);
+  const clock = callClock(values, io);
+  const actor = buildActor(values, values.owner, "user");
+  const { conn } = session(clock.io, values, { requireStore: true }, () => actor);
+  try {
+    const answer = result(
+      await conn.client.POST("/api/v1/supersede", { body: { actor, item_id: itemId, accept } }),
+    );
+    const plan = answer as unknown as SupersedeAnswer;
+    const allowed =
+      plan.head.ok &&
+      plan.stopped === null &&
+      plan.applied.every((a) => a.event.decision === "allow");
+    if (values.json) {
+      io.out(`${JSON.stringify(plan, null, 2)}
+`);
+      return allowed ? 0 : 1;
+    }
+    const lines = supersedeLines(plan, accept);
+    io.out(`${[...lines, logHint(conn)].join("\n")}\n`);
+    return allowed ? 0 : 1;
   } finally {
     conn.close();
   }

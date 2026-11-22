@@ -9,7 +9,9 @@
 // plane/promote.ts) through policy/promotion.ts, the deterministic lints
 // (card L1, plane/lint.ts) through lint/det.ts, and the simulator (card
 // E8.9, plane/simulate.ts) over all of them, and grant changes (card E9.4,
-// plane/grants.ts) through policy/grants.ts. Methods whose cards have
+// plane/grants.ts) through policy/grants.ts, and the by-id read and the
+// scope list (card E8.14, plane/read.ts and plane/scopes.ts) through the read
+// filter. Methods whose cards have
 // not landed reject with NotImplementedYet, naming the card that implements them.
 import type { Actor } from "./actor.ts";
 import type { Adapter } from "./adapter.ts";
@@ -32,11 +34,12 @@ import { type ExportResult, exportBundle } from "./plane/export.ts";
 import { changeGrants } from "./plane/grants.ts";
 import { type LintReport, lint } from "./plane/lint.ts";
 import { promote } from "./plane/promote.ts";
-import { filteredRead, storedExplanations } from "./plane/read.ts";
+import { filteredRead, readOne, storedExplanations } from "./plane/read.ts";
 
 export { accessTime } from "./plane/read.ts";
 
 import { retain } from "./plane/retention.ts";
+import { listScopes, type ScopeList } from "./plane/scopes.ts";
 import { simulate } from "./plane/simulate.ts";
 import type { WhoCanReadAnswer } from "./plane/who-can-read.ts";
 import { whoCanRead, whoCanReadItem } from "./plane/who-can-read.ts";
@@ -98,10 +101,18 @@ export {
   formatReadReason,
   parseReadReason,
   ReadCounts,
+  readByIdTarget,
   readCounts,
   readValidAt,
 } from "./plane/read-reason.ts";
 export { enforceBudget, retentionUsage } from "./plane/retention.ts";
+export {
+  formatScopeListReason,
+  SCOPE_LIST_PREFIX,
+  type ScopeAccess,
+  type ScopeList,
+  type VisibleScope,
+} from "./plane/scopes.ts";
 export { checkWorkload, replayWorkload, runWorkload, SIMULATION_STORE } from "./plane/simulate.ts";
 export {
   itemReaders,
@@ -267,6 +278,25 @@ export interface Plane {
   checkWrite(actor: Actor, item: MemoryItem, at: string): Promise<WriteCheckResult>;
   read(actor: Actor, query: ReadQuery): Promise<ReadResult>;
   /**
+   * Reads one item by its id (card E8.14): Plane.read with no query text and
+   * at most one candidate, the projected item under `itemId` when the actor
+   * can reach it; the same filter (status, ttl, the read matrix or a live
+   * grant, the validity window at `valid_at` or `at`), the same explanation
+   * and one read event, whose reason names the id asked for. The store is
+   * not searched. An item out of the actor's reach answers as an id the log
+   * never held (decision D5). An invalid actor, time or id is refused with
+   * InvalidCallError before the log is touched.
+   */
+  readById(actor: Actor, itemId: string, query: Omit<ReadQuery, "text">): Promise<ReadResult>;
+  /**
+   * The scopes the actor can see at `at` (card E8.14): its member scopes the
+   * read matrix lets its level read, and the scope of every item a read now
+   * would admit through a live grant, each once, in code-point order. One
+   * read event records the decision. An invalid actor or time is refused
+   * with InvalidCallError before the log is touched.
+   */
+  listScopes(actor: Actor, at: string): Promise<ScopeList>;
+  /**
    * Promotes an item (ADR 0026): episodic to semantic after k confirmations
    * counted from the log or a review, a procedural candidate to active with a
    * validation record, a candidate to active or an item to a wider scope
@@ -430,6 +460,8 @@ export function createPlane(deps: PlaneDeps): Plane {
     write: (actor, item, at) => gatedWrite(deps, actor, item, at),
     checkWrite: async (actor, item, at) => checkWrite(deps, actor, item, at),
     read: (actor, query) => filteredRead(deps, actor, query),
+    readById: (actor, itemId, query) => readOne(deps, actor, itemId, query),
+    listScopes: (actor, at) => listScopes(deps, actor, at),
     explain: async (actor, readId) => storedExplanations(deps, actor, readId),
     recordBypass: async (actor, bypass, at) => recordBypass(deps, actor, bypass, at),
     retain: async (actor, scope, at) => retain(deps, actor, scope, at),

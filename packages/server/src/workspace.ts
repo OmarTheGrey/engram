@@ -11,6 +11,15 @@
 // request when it wants the log's errors printed as they are (the CLI). A
 // route whose Plane method has not landed (distill) never opens it, nor
 // does simulate, which replays on scratch logs of its own (card E8.9).
+//
+// Every log `open()` opens keeps the hash chain (card E1.6, ADR 0038; the
+// lead widened the card to this package in its review fix pass, E1.6-1):
+// the CLI, serve, mcp, the hook and the pi package all open the log here, so
+// every surface's events chain and a log they share verifies. Salts come from
+// node:crypto, since core draws no randomness. `workspaceOf`, the bench
+// seams' way in over a log they opened themselves, keeps no chain, so the
+// registered runs and X15's query counts do not change.
+import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -20,6 +29,7 @@ import {
   type Adapter,
   createPlane,
   type Db,
+  keepChain,
   loadPreset,
   MIGRATIONS,
   migrate,
@@ -288,6 +298,16 @@ export function openDb(target: DbTarget): Db {
   } catch (e) {
     throw new Error(`${target.label}: ${redactSecrets((e as Error).message, target.url)}`);
   }
+}
+
+/**
+ * Makes `db` a handle that keeps the event log's hash chain (card E1.6, ADR
+ * 0038), with salts from node:crypto, beginning the chain on a log that has
+ * none. `openWorkspace().open()` does it for every surface; a caller that
+ * opens a log by `openLog` and writes to it does it too (`engram log checkpoint`).
+ */
+export function keepLogChain(db: Db): void {
+  keepChain(db, { salt: () => randomBytes(32) });
 }
 
 /** Whether an open database holds an event log: the migrations table exists. */
@@ -658,6 +678,8 @@ export function openWorkspace(options: WorkspaceOptions): LocalWorkspace {
     if (log === undefined) {
       const opened = openLog(target, mustExist);
       log = { ...opened, db: attestingDb(opened.db) };
+      // The handle the plane uses keeps the chain (E1.6-1).
+      keepLogChain(log.db);
     }
     return log;
   };

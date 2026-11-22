@@ -2301,6 +2301,9 @@ async function promotionsLandOnlyWherePermitted(name: string) {
  * unknown item, naming no scope, and returns no item (card E9.4, ADR 0034);
  * `export` returns only the exporter's own person scope and its own items in
  * scopes it may read (card E9.8);
+ * `readById` answers for the hidden item's id exactly as for an id the log
+ * never held, and `listScopes` lists no scope the outsider cannot read
+ * (card E8.14);
  * `whoCanReadItem` and `whoCanRead` refuse an outsider as for an unknown id
  * and append no event (card E2.13, decision item 53).
  */
@@ -2322,8 +2325,10 @@ async function planeSurfaceLeaksNothing() {
     "explain",
     "export",
     "lint",
+    "listScopes",
     "promote",
     "read",
+    "readById",
     "recordBypass",
     "retain",
     "simulate",
@@ -2382,6 +2387,31 @@ async function planeSurfaceLeaksNothing() {
   leaks("checkWrite", await plane.checkWrite(outsider, claim, at));
   const read = await plane.read(outsider, { text: "vault", at });
   leaks("read", read);
+  // A read of the hidden item by its id (card E8.14): nothing returned, and
+  // the same answer as for an id that names nothing.
+  // A second hidden item carries a grant to the outsider for another class,
+  // which admits nothing (review findings E8.14-1 and E8.14-5): both answer,
+  // reason and all, as an unknown id once the ids and the event's id are neutral.
+  const wrongClass = {
+    ...secret,
+    id: "01960000-0000-7000-8000-000000000003",
+    grants: [{ to: outsider.id, mode: "read", class: "semantic", expires: "2027-01-01T00:00:00Z" }],
+  } as MemoryItem;
+  expect((await plane.write(owner, wrongClass, at)).item).not.toBeNull();
+  const neutral = (r: Awaited<ReturnType<typeof plane.readById>>, asked: string) => {
+    const { id: _id, seq: _seq, ...event } = r.event;
+    return JSON.parse(JSON.stringify({ ...r, event }).replaceAll(asked, "<id>"));
+  };
+  const unknownId = "01960000-0000-7000-8000-00000000000a";
+  const noId = await plane.readById(outsider, unknownId, { at });
+  for (const hidden of [secret, wrongClass]) {
+    const byId = await plane.readById(outsider, hidden.id, { at });
+    leaks("readById", byId);
+    expect(neutral(byId, hidden.id), `readById of ${hidden.id}`).toEqual(neutral(noId, unknownId));
+  }
+  const listed = await plane.listScopes(outsider, at);
+  leaks("listScopes", listed);
+  expect(listed.scopes.map((s) => s.scope)).not.toContain("person:s");
   const promoted = await plane.promote(outsider, secret.id, "team:b", at, { review: true });
   leaks("promote", promoted);
   expect(promoted.item).toBeNull();

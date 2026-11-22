@@ -116,6 +116,67 @@ describe("the routes, through the generated client, on the fake store", () => {
     expect(C.ExplainResponse.parse(data).counts?.filtered).toBe(read.filtered);
   });
 
+  it("readById: the item the actor may read, with its explanation and one read event (card E8.14)", async () => {
+    const { client } = testWorkspace();
+    await client.POST("/api/v1/items", {
+      body: { actor: { ...dana, source: "user" }, item: itemFor(1) },
+    });
+    const { data, response } = await client.POST("/api/v1/read/{itemId}", {
+      params: { path: { itemId: id(501) } },
+      body: { actor: dana },
+    });
+    hit.add("readById");
+    expect(response.status).toBe(200);
+    const body = C.ReadResponse.parse(data);
+    expect(body.items.map((i) => i.id)).toEqual([id(501)]);
+    expect(body.explanations[0]?.item_id).toBe(id(501));
+    expect(body.event).toMatchObject({ op: "read", ts: NOW, item_ids: [id(501)] });
+    expect(body.event.reason).toContain(`read by id ${id(501)}`);
+    expect(body.policy).toBe("preset.medium v1");
+  });
+
+  it("readById: another person's item answers as an id the log never held, and a bad id is 400", async () => {
+    const { client } = testWorkspace();
+    await client.POST("/api/v1/items", {
+      body: { actor: { ...dana, source: "user" }, item: itemFor(1) },
+    });
+    const ask = (itemId: string) =>
+      client.POST("/api/v1/read/{itemId}", { params: { path: { itemId } }, body: { actor: eve } });
+    const hidden = C.ReadResponse.parse((await ask(id(501))).data);
+    const unknown = C.ReadResponse.parse((await ask(id(599))).data);
+    expect([hidden.items, hidden.explanations, hidden.filtered]).toEqual([[], [], 0]);
+    expect([unknown.items, unknown.explanations, unknown.filtered]).toEqual([[], [], 0]);
+    // The whole response, the reason included, once ids are neutral (E8.14-5).
+    const neutral = (r: typeof hidden, asked: string) => {
+      const { id: _id, seq: _seq, ...event } = r.event;
+      return JSON.parse(JSON.stringify({ ...r, event }).replaceAll(asked, "<id>"));
+    };
+    expect(neutral(hidden, id(501))).toEqual(neutral(unknown, id(599)));
+    const bad = await ask("not-an-id");
+    expect(bad.response.status).toBe(400);
+  });
+
+  it("listScopes: the member scopes the actor may read, and one read event (card E8.14)", async () => {
+    const { client, workspace } = testWorkspace();
+    const { data, response } = await client.POST("/api/v1/scopes", { body: { actor: dana } });
+    hit.add("listScopes");
+    expect(response.status).toBe(200);
+    const body = C.ScopesResponse.parse(data);
+    expect(body.scopes).toEqual([{ scope: "person:dana", via: "membership" }]);
+    expect(body.event).toMatchObject({ op: "read", actor: dana.id, ts: NOW, item_ids: [] });
+    expect(workspace.plane.events()).toEqual([body.event]);
+  });
+
+  it("listScopes: with a store, the owner's sweep and adoption run first, as for a read (E8.14-11)", async () => {
+    const { client } = testWorkspace({ store: true });
+    const { data } = await client.POST("/api/v1/scopes", { body: { actor: dana } });
+    const body = C.ScopesResponse.parse(data);
+    expect(body.sync?.store.scope).toBe("person:dana");
+    expect(body.sync?.retention.decision).toBe("allow");
+    const other = await client.POST("/api/v1/scopes", { body: { actor: eve } });
+    expect(C.ScopesResponse.parse(other.data).sync).toBeNull();
+  });
+
   it("explain: a read event whose reason predates the ttl category has null counts", async () => {
     const { client, db } = testWorkspace();
     // The reason the read path wrote before card E2.4 added "past their ttl".
@@ -207,6 +268,96 @@ describe("the routes, through the generated client, on the fake store", () => {
     expect(response.status).toBe(400);
     expect(error).toMatchObject({ error: { code: "invalid_call" } });
     expect(workspace.plane.events()).toEqual([]);
+  });
+
+  /** Card L6: fact 1 and its replacement 2 from a later date, naming 1 in its lineage. */
+  async function replaced() {
+    const env = testWorkspace();
+    const owner = { ...dana, source: "user" as const };
+    await env.client.POST("/api/v1/items", { body: { actor: owner, item: itemFor(1) } });
+    await env.client.POST("/api/v1/items", {
+      body: {
+        actor: owner,
+        item: itemFor(2, { valid_from: "2026-10-15T00:00:00.000Z", lineage: [id(501)] }),
+      },
+    });
+    return { ...env, owner };
+  }
+
+  it("supersede: without accept, the plan only: the head and a proposed close, no event", async () => {
+    const { client, owner, workspace } = await replaced();
+    const before = workspace.plane.events().length;
+    const { data, response } = await client.POST("/api/v1/supersede", {
+      body: { actor: owner, item_id: id(502) },
+    });
+    hit.add("supersede");
+    expect(response.status).toBe(200);
+    const body = C.SupersedeResponse.parse(data);
+    expect(body.head).toEqual({ ok: true, head_id: id(502), chain: [id(502)] });
+    expect(body.proposals).toEqual([
+      expect.objectContaining({
+        item_id: id(501),
+        action: "close",
+        valid_to: "2026-10-15T00:00:00.000Z",
+      }),
+    ]);
+    expect(body.submitted).toEqual([]);
+    expect(body.applied).toEqual([]);
+    expect(workspace.plane.events()).toHaveLength(before);
+  });
+
+  it("supersede: an accepted close is one governed write of a new version, logged", async () => {
+    const { client, owner } = await replaced();
+    const { data } = await client.POST("/api/v1/supersede", {
+      body: { actor: owner, item_id: id(502), accept: [id(501)] },
+    });
+    const body = C.SupersedeResponse.parse(data);
+    expect(body.submitted).toEqual([
+      expect.objectContaining({ id: id(501), version: 2, valid_to: "2026-10-15T00:00:00.000Z" }),
+    ]);
+    const [applied] = body.applied;
+    expect(applied?.event).toMatchObject({
+      op: "write",
+      decision: "allow",
+      item_id: id(501),
+      ts: NOW,
+    });
+    expect(applied?.item).toMatchObject({
+      id: id(501),
+      version: 2,
+      status: "active",
+      valid_to: "2026-10-15T00:00:00.000Z",
+    });
+    const again = await client.POST("/api/v1/supersede", {
+      body: { actor: owner, item_id: id(502) },
+    });
+    expect(C.SupersedeResponse.parse(again.data).proposals).toEqual([]);
+  });
+
+  it("supersede: an id with no proposed close is 400 and nothing is written", async () => {
+    const { client, owner, workspace } = await replaced();
+    const before = workspace.plane.events().length;
+    const { response, error } = await client.POST("/api/v1/supersede", {
+      body: { actor: owner, item_id: id(502), accept: [id(501), id(502)] },
+    });
+    expect(response.status).toBe(400);
+    expect(error).toMatchObject({ error: { code: "invalid_call" } });
+    expect(workspace.plane.events()).toHaveLength(before);
+  });
+
+  it("supersede: an item the actor cannot read is unknown_id, with nothing proposed", async () => {
+    const { client } = await replaced();
+    const { data } = await client.POST("/api/v1/supersede", {
+      body: { actor: { ...eve, source: "user" }, item_id: id(502) },
+    });
+    expect(C.SupersedeResponse.parse(data)).toEqual({
+      item_id: id(502),
+      head: { ok: false, error: "unknown_id", chain: [] },
+      proposals: [],
+      submitted: [],
+      applied: [],
+      stopped: null,
+    });
   });
 
   it("whoCanReadItem: the owner is answered with every reader; an outsider gets the unknown id's refusal; no event", async () => {

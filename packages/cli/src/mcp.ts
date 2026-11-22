@@ -30,6 +30,7 @@ export async function mcpCommand(args: string[], io: Io): Promise<number> {
       ...CLIENT_OPTIONS,
       ...AUTH_OPTIONS,
       http: { type: "string" },
+      supersede: { type: "boolean" },
     },
     false,
   );
@@ -76,7 +77,14 @@ export async function mcpCommand(args: string[], io: Io): Promise<number> {
     const makeServer = (held?: Actor) => {
       const who = held ?? actor;
       if (who === undefined) throw new Error("an authenticated MCP session has no credential");
-      return createMcpServer({ client: conn.client, actor: who, now: io.now, newId: io.newId });
+      return createMcpServer({
+        client: conn.client,
+        actor: who,
+        now: io.now,
+        newId: io.newId,
+        // Card L6's tool, off unless asked for: the four tools are condition C7's.
+        supersede: values.supersede === true,
+      });
     };
     if (port === undefined || auth === undefined) {
       if (io.stdin === undefined || io.stdout === undefined)

@@ -61,6 +61,7 @@ import {
 } from "./oracle.ts";
 import { isExportEvent } from "./plane/export.ts";
 import { readValidAt } from "./plane/read-reason.ts";
+import { SCOPE_LIST_PREFIX } from "./plane/scopes.ts";
 import {
   type MemoryEvent,
   MemoryEvent as MemoryEventSchema,
@@ -70,7 +71,7 @@ import {
   ScopeLevel,
 } from "./schema.ts";
 
-export const REPORT_FORMAT = "engram-dogfood-report/2";
+export const REPORT_FORMAT = "engram-dogfood-report/3";
 
 export interface DogfoodReport {
   report: typeof REPORT_FORMAT;
@@ -99,6 +100,8 @@ export interface DogfoodReport {
     items_via_grant: number;
     as_declared: number;
     as_others: number;
+    /** Scope listings (Plane.listScopes, card E8.14): read events that return no item, counted apart. */
+    scope_lists: number;
   };
   writes: { allowed: number; denied: number };
   /** Allowed events that changed what an item's grants admit, and the grants they added and removed. */
@@ -304,7 +307,14 @@ export function dogfoodReport(
     days_with_events: 0,
     span_days: 0,
     by_op: {},
-    reads: { events: 0, items_returned: 0, items_via_grant: 0, as_declared: 0, as_others: 0 },
+    reads: {
+      events: 0,
+      items_returned: 0,
+      items_via_grant: 0,
+      as_declared: 0,
+      as_others: 0,
+      scope_lists: 0,
+    },
     writes: { allowed: 0, denied: 0 },
     grants: { changes: 0, added: 0, removed: 0 },
     denials: {},
@@ -329,9 +339,18 @@ export function dogfoodReport(
     if (e.op === "write" && e.decision !== "ask")
       r.writes[e.decision === "allow" ? "allowed" : "denied"]++;
 
+    // A scope listing is a read event that names no item (card E8.14, review
+    // finding E8.14-8): counted apart, so `reads` counts reads only. One that
+    // names an item is judged as a read, whatever its reason says.
+    if (
+      e.op === "read" &&
+      e.reason.startsWith(SCOPE_LIST_PREFIX) &&
+      (e.item_ids ?? []).length === 0
+    )
+      r.reads.scope_lists++;
     // An export (card E9.8) is recorded as a read event but returns no read:
     // it is counted in events and by_op only (finding E9.8-9).
-    if (e.op === "read" && e.decision === "allow" && !isExportEvent(e)) {
+    else if (e.op === "read" && e.decision === "allow" && !isExportEvent(e)) {
       r.reads.events++;
       r.reads[actors.has(e.actor) ? "as_declared" : "as_others"]++;
       const actor = actorFor(e.actor);

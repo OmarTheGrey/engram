@@ -2,11 +2,12 @@
 // directory, clock) and resolves to the exit code: 0 done, 1 a denied write,
 // a denied or asked promotion, a refused sweep, a failed check or an error,
 // 2 bad usage or a command whose card has not landed (the card named). Every
-// command but doctor, serve, mcp, hook, key and import is one call of the generated
-// client (card E8.2, ADR 0027): in process over the workspace its flags open,
-// or to the server --server or ENGRAM_SERVER_URL names. Import makes one write
-// call per row (card E9.8), so each row is one Plane.write the gate decides and
-// no request carries more than one row under the server's body limit.
+// command but doctor, serve, mcp, hook, key, log and import is one call of the
+// generated client (card E8.2, ADR 0027): in process over the workspace its
+// flags open, or to the server --server or ENGRAM_SERVER_URL names. Import
+// makes one write call per row (card E9.8), so each row is one Plane.write the
+// gate decides and no request carries more than one row under the server's
+// body limit.
 import {
   explainCommand,
   exportCommand,
@@ -16,6 +17,7 @@ import {
   readCommand,
   retainCommand,
   simulateCommand,
+  supersedeCommand,
   whoCanReadCommand,
   writeCommand,
 } from "./commands.ts";
@@ -23,6 +25,7 @@ import { drainExports, type Fetch } from "./connect.ts";
 import { doctorCommand } from "./doctor.ts";
 import { hookCommand } from "./hook.ts";
 import { keyCommand } from "./key.ts";
+import { logCommand } from "./log.ts";
 import { mcpCommand } from "./mcp.ts";
 import { serveCommand } from "./serve.ts";
 import { UsageError } from "./setup.ts";
@@ -77,6 +80,7 @@ commands:
   read [query]      read through the plane and explain every returned item
   write             write one item through the plane's write gate
   promote <itemId>  promote an item through the plane's promotion gate
+  supersede <itemId>  propose end dates for the versions an item supersedes; apply accepted ones
   explain <readId>  the explanations a read recorded
   retain            sweep one scope's retention: expired items retired, budgets enforced
   lint              run the policy's deterministic lints over a scope, each finding with its reason
@@ -89,15 +93,17 @@ commands:
   hook claude-code  a Claude Code PreToolUse hook that blocks store bypasses
   key               create, list or revoke the local API keys a server accepts
   doctor            check the log, policy, store, adapters, provider keys, pins and Node
+  log verify        verify the event log's hash chain: the first broken link, or OK or UNSIGNED
+  log checkpoint    record a checkpoint of the chain's head, signed with --key when given
 
-every command but doctor, serve, mcp, hook, key and import is one call to the HTTP API
-(import makes one write call per row): in process
+every command but doctor, serve, mcp, hook, key, log and import is one call to the
+HTTP API (import makes one write call per row): in process
 over the workspace its flags name, or to a running server:
   --server <url>              call engram serve at <url> (default $ENGRAM_SERVER_URL);
                               the server's own flags then name the log, policy and store;
                               $ENGRAM_TOKEN, when set, is sent as the bearer credential
 
-store options (read, write, promote, retain, lint, import, who-can-read, serve, mcp):
+store options (read, write, promote, supersede, retain, lint, import, who-can-read, serve, mcp):
   --store <name>              the store adapter: files or letta (default files)
   --root <folder>             the store folder: a Claude Code memory folder (files),
                               or a MemFS repository or an empty folder (letta)
@@ -107,7 +113,7 @@ store options (read, write, promote, retain, lint, import, who-can-read, serve, 
   --db <path|url>             the event log: a SQLite file, :memory: for none, or postgres://...
                               (default $ENGRAM_DB_URL, else <home>/.engram/engram.db)
 
-actor options (read, write, promote, explain, retain, lint, export, import, who-can-read):
+actor options (read, write, promote, supersede, explain, retain, lint, export, import, who-can-read):
   --as <principal>            who acts (default person:<owner>)
   --level <level>             person, role, team or org (default the actor's own level)
   --member <scope>            a scope the actor belongs to; repeatable (default the actor's scope)
@@ -131,6 +137,14 @@ promote options:
   limit: the CLI does not authenticate. --as and --member are taken as given, so the
   distinct-actor and reviewer rules hold only as far as this single-user machine does;
   a promotion with --review is only as trustworthy as the machine it ran on
+
+supersede options:
+  --accept <id>               apply the proposed close of this ancestor: one write of a new
+                              version through the write gate; repeatable. Without it, the plan only
+  the plan names the head of the item's chain and, for each ancestor the actor may read, a
+  close (valid_to set to the item's valid_from) or a review flag; nothing is retired, and an
+  id with no proposed close refuses the call before anything is written; exit 1 on an
+  unresolved chain or a write the gate did not allow
 
 explain options:
   --db <path|url>  --policy <preset|path>  and --as or --owner: only the reader may explain a read
@@ -200,6 +214,8 @@ mcp options:
   --http <port>               serve streamable HTTP on 127.0.0.1:<port> instead of stdio;
                               it takes serve's credential flags, and then each session is
                               the actor its credential names (no --as), or --insecure-loopback
+  --supersede                 also list memory_supersede: the supersession plan, and each close
+                              the agent accepts written through the gate as source model (off by default)
   --server <url> or the workspace flags above, as for the other commands
 
 hook claude-code options:
@@ -209,6 +225,29 @@ hook claude-code options:
                               repeatable; with --server, name the log engram serve writes
   --server <url> or --db and --policy, as for the other commands
   reads the hook's JSON on stdin; a block answers permissionDecision deny with the reason
+
+log verify options (on this machine only; never --server):
+  --db <path|url>             the event log (default as above); read only, nothing is migrated
+  --key <public.pem>          the operator's Ed25519 public key, pinned: a checkpoint signed
+                              under any other key fails; without it the verdict is at best UNSIGNED
+  --checkpoint <file>         a checkpoint kept outside the log (log checkpoint --out);
+                              repeatable; the log must extend it
+  exit 0 OK: every check holds and a signed checkpoint, verified under the pinned key,
+    covers the whole chain
+  exit 1 FAILED: a check failed; the first broken link is named
+  exit 3 UNSIGNED: every check holds, but part of the chain is vouched for by no signature:
+    no checkpoint, no --key, no signed checkpoint, or entries after the latest signed one
+  limit: without a checkpoint held outside the database, anyone with database access can
+  cut the tail or rewrite the whole chain undetected; the verdict is then UNSIGNED, never OK
+
+log checkpoint options:
+  --db <path|url>             the event log (default as above); it must exist
+  --key <private.pem>         the operator's Ed25519 private key; without it the checkpoint is unsigned
+  --checkpoint <file>         a checkpoint kept outside the log; repeatable; the log must extend it
+  --out <file>                also write the checkpoint there, to keep outside the log
+  nothing is signed unless the whole log verifies first, every earlier signature under
+  this --key and every --checkpoint given; the key is the operator's to hold, and a
+  signature proves only that its holder saw that head
 
 key options:
   create --keys <file> --as <principal> --source <kind> --expires <iso>  [--level] [--member]...
@@ -244,6 +283,7 @@ const COMMANDS: Record<string, (args: string[], io: Io) => Promise<number>> = {
   explain: explainCommand,
   doctor: doctorCommand,
   promote: promoteCommand,
+  supersede: supersedeCommand,
   retain: retainCommand,
   lint: lintCommand,
   simulate: simulateCommand,
@@ -253,6 +293,7 @@ const COMMANDS: Record<string, (args: string[], io: Io) => Promise<number>> = {
   serve: serveCommand,
   mcp: mcpCommand,
   hook: hookCommand,
+  log: logCommand,
   key: keyCommand,
 };
 
