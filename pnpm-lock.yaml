@@ -93,6 +93,9 @@ importers:
         specifier: 4.6.7
         version: 4.6.7
     devDependencies:
+      '@cedar-policy/cedar-wasm':
+        specifier: 4.14.0
+        version: 4.14.0
       '@engram/adapters':
         specifier: workspace:*
         version: link:../adapters
@@ -473,6 +476,9 @@ packages:
     engines: {node: '>=14.21.3'}
     cpu: [x64]
     os: [win32]
+
+  '@cedar-policy/cedar-wasm@4.14.0':
+    resolution: {integrity: sha512-TPyz3zMl5r7W5iSHq51IgG+NTILGoXB0VPrEcXnzCEpPUqL/7b+AtMPVVHB/UoJWuXA8YORjLuWxKHUW33ePAA==}
 
   '@cloudflare/workers-types@4.20260702.1':
     resolution: {integrity: sha512-mOhf5TUEB1m2vPrxtqoIGfz0fUC9xyxRDx5gWHy5s+OCo6dcV+g7wI1R7gYCMFohhqF/2y2xeKVwMwCJjfn/WA==}
@@ -2750,6 +2756,8 @@ snapshots:
 
   '@biomejs/cli-win32-x64@2.5.15':
     optional: true
+
+  '@cedar-policy/cedar-wasm@4.14.0': {}
 
   '@cloudflare/workers-types@4.20260702.1': {}
 
