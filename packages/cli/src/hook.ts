@@ -31,7 +31,7 @@ import {
   isHookInput,
   type PreToolUseInput,
 } from "@engram/mcp";
-import { CLIENT_OPTIONS, parse, STORE_OPTIONS } from "./commands.ts";
+import { CLIENT_OPTIONS, EXPORT_OPTIONS, parse, STORE_OPTIONS } from "./commands.ts";
 import { connect } from "./connect.ts";
 import type { Io } from "./run.ts";
 import { buildActor, dbTarget, MEMORY_DB, UsageError } from "./setup.ts";
@@ -56,6 +56,7 @@ export async function hookCommand(args: string[], io: Io): Promise<number> {
       root: { type: "string", multiple: true },
       protect: { type: "string", multiple: true },
       as: { type: "string" },
+      ...EXPORT_OPTIONS,
       ...CLIENT_OPTIONS,
     },
     true,
@@ -110,7 +111,13 @@ export async function hookCommand(args: string[], io: Io): Promise<number> {
     try {
       conn = connect(
         { ...io, cwd: project },
-        { db: values.db, policy: values.policy, server: values.server },
+        {
+          db: values.db,
+          policy: values.policy,
+          server: values.server,
+          otlp: values.otlp,
+          "export-jsonl": values["export-jsonl"],
+        },
         () => ({ db: values.db, policy: values.policy, requireStore: false }),
         (ws) => ws.open(),
       );

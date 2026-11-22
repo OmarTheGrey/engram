@@ -12,9 +12,10 @@ import {
   readCommand,
   retainCommand,
   simulateCommand,
+  whoCanReadCommand,
   writeCommand,
 } from "./commands.ts";
-import type { Fetch } from "./connect.ts";
+import { drainExports, type Fetch } from "./connect.ts";
 import { doctorCommand } from "./doctor.ts";
 import { hookCommand } from "./hook.ts";
 import { keyCommand } from "./key.ts";
@@ -77,6 +78,7 @@ commands:
   retain            sweep one scope's retention: expired items retired, budgets enforced
   lint              run the policy's deterministic lints over a scope, each finding with its reason
   simulate          replay a recorded workload under the policy and a candidate; compare them
+  who-can-read      who can read an item or a scope, each reader with the rule or grant admitting it
   serve             serve the HTTP API to authenticated callers, or on loopback with --insecure-loopback
   mcp               the MCP server for Claude Code and Codex, as one fixed actor
   hook claude-code  a Claude Code PreToolUse hook that blocks store bypasses
@@ -91,7 +93,7 @@ over the workspace its flags name, or to a running server:
                               the server's own flags then name the log, policy and store;
                               $ENGRAM_TOKEN, when set, is sent as the bearer credential
 
-store options (read, write, promote, retain, lint, serve, mcp):
+store options (read, write, promote, retain, lint, who-can-read, serve, mcp):
   --store <name>              the store adapter: files or letta (default files)
   --root <folder>             the store folder: a Claude Code memory folder (files),
                               or a MemFS repository or an empty folder (letta)
@@ -101,7 +103,7 @@ store options (read, write, promote, retain, lint, serve, mcp):
   --db <path|url>             the event log: a SQLite file, :memory: for none, or postgres://...
                               (default $ENGRAM_DB_URL, else <home>/.engram/engram.db)
 
-actor options (read, write, promote, explain, retain, lint):
+actor options (read, write, promote, explain, retain, lint, who-can-read):
   --as <principal>            who acts (default person:<owner>)
   --level <level>             person, role, team or org (default the actor's own level)
   --member <scope>            a scope the actor belongs to; repeatable (default the actor's scope)
@@ -134,6 +136,12 @@ retain options:
 
 lint options:
   --scope <scope>             the scope to lint, as a member of it; exit 1 on a finding or if refused
+
+who-can-read options:
+  <itemId>                    the item asked about, or
+  --scope <scope>             a scope, by the read matrix; answered only for one who may read
+                              the item or the scope, grant holders named to the owner only;
+                              exit 1 if refused
 
 simulate options:
   --workload <workload.json>  a recorded workload: {id, actors, steps} (default empty)
@@ -211,6 +219,15 @@ doctor options:
   --host and serve's credential flags: the bind engram serve would make; fails without
                               authentication, and beyond loopback without credentials
 
+export options (read, write, promote, retain, lint, serve, mcp, hook claude-code):
+  --otlp <url>                send each decision as an OpenTelemetry span to this OTLP/HTTP
+                              traces endpoint (default $ENGRAM_OTLP_URL; none if unset)
+  --export-jsonl <file>       append each decision as one JSON span a line to <file>
+                              (default $ENGRAM_EXPORT_JSONL; none if unset)
+  off unless named; OTEL_* variables never turn it on. A span carries the decision, its
+  rule, the actor, scopes and ids, never the memory's content (ADR 0043). In process
+  only: with --server, give them to engram serve
+
 output:
   --json                      machine-readable output
   -h, --help                  this text
@@ -225,6 +242,7 @@ const COMMANDS: Record<string, (args: string[], io: Io) => Promise<number>> = {
   retain: retainCommand,
   lint: lintCommand,
   simulate: simulateCommand,
+  "who-can-read": whoCanReadCommand,
   serve: serveCommand,
   mcp: mcpCommand,
   hook: hookCommand,
@@ -256,5 +274,8 @@ export async function run(argv: string[], io: Io): Promise<number> {
   } catch (e) {
     io.err(`engram ${command}: ${(e as Error).message}\n`);
     return e instanceof UsageError ? 2 : 1;
+  } finally {
+    // A decision export still sending (card E8.13) finishes before the command does.
+    await drainExports();
   }
 }
