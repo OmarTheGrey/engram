@@ -78,11 +78,9 @@ describe("acceptance (card D2): candidates from the fixture sessions, from casse
     expect(writes.map((e) => [e.decision, e.policy_id])).toEqual(
       result.items.map(() => ["allow", "preset.medium/write/person"]),
     );
-    // The fixture's examples hold branch summaries, so each candidate is
-    // compaction, and the plane recorded the source the runner set (D2-4).
-    writes.forEach((e, i) =>
-      expect(e.reason).toContain(`from source ${result.items[i]?.item.provenance.kind}`),
-    );
+    // The plane recorded the source the runner set, each candidate's own (D2-4).
+    for (const [i, e] of writes.entries())
+      expect(e.reason).toContain(`from source ${result.items[i]?.item.provenance.kind}`);
     expect(writes.some((e) => e.reason.includes("from source compaction"))).toBe(true);
     // Each candidate's kind is that of its own sessions: AWM's take compaction
     // from the examples' summaries; a rule candidate is its one session's.
