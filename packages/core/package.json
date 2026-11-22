@@ -15,6 +15,7 @@
     "zod": "4.6.7"
   },
   "devDependencies": {
+    "@cedar-policy/cedar-wasm": "4.14.0",
     "@engram/adapters": "workspace:*",
     "ajv": "8.20.0",
     "ajv-formats": "3.0.1",

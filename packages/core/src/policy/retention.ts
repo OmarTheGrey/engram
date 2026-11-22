@@ -9,12 +9,19 @@
 //   <policy id>/retention/<level>/<class>   the policy's retention rule for that level and class
 //   engram/retention/item-ttl               the item's own ttl, when tighter than the rule's
 //   engram/retention/membership             the sweep's actor is not a member of the scope
+//   engram/retention/protected              trust.protect_trusted keeps part of an overage (card E2.11)
 import type { Actor } from "../actor.ts";
 import type { MemoryItem, Policy, ScopeLevel } from "../schema.ts";
 import { addSeconds, compareTimestamps } from "../time.ts";
 
 export const ITEM_TTL_ID = "engram/retention/item-ttl";
 export const RETENTION_MEMBERSHIP_ID = "engram/retention/membership";
+/**
+ * The rule of a sweep's record that trust.protect_trusted kept part of a
+ * budget overage: the items left over are more trusted than the eviction's
+ * source (card E2.11, review E2.11-5; ADR 0040).
+ */
+export const PROTECTED_ID = "engram/retention/protected";
 
 type MemoryClass = MemoryItem["class"];
 type RetentionRule = Policy["retention"][number];
@@ -36,9 +43,13 @@ export interface RetentionUsage {
 export interface Retirement {
   /** `retire` on expiry, `evict` on budget overage. */
   op: "retire" | "evict";
-  /** `ask` only for a manual rule's overage, which retires nothing. */
-  decision: "allow" | "ask";
-  /** The item retired; null for a manual rule's ask. */
+  /**
+   * `ask` only for a manual rule's overage, which retires nothing; `deny`
+   * only for the part of an overage trust.protect_trusted keeps
+   * (PROTECTED_ID), which retires nothing either.
+   */
+  decision: "allow" | "ask" | "deny";
+  /** The item retired; null for a manual rule's ask and a protected shortfall. */
   item_id: string | null;
   class: MemoryClass;
   reason: string;
@@ -127,6 +138,13 @@ export interface RetentionOptions {
    */
   protect?: string;
   /**
+   * The items a budget eviction may choose (trust.protect_trusted, card
+   * E2.11, ADR 0040: never one more trusted than the write or sweep that
+   * triggered it, policy/trust.ts `evictable`). The others still count
+   * toward the budget. Absent, any active item may be chosen.
+   */
+  mayEvict?: (victim: MemoryItem) => boolean;
+  /**
    * Reasons name no item id, seq, read count or item count: the actor cannot
    * read the scope (review finding P4-4, as finding N3 for write denials).
    */
@@ -202,8 +220,10 @@ export function evaluateRetention(
       rule.eviction === "recency"
         ? byRecency
         : (a: MemoryItem, b: MemoryItem) => reads(a) - reads(b) || byRecency(a, b);
-    const candidates = active.filter((i) => i.id !== options.protect);
-    for (const victim of candidates.sort(order).slice(0, over)) {
+    const mayEvict = options.mayEvict ?? (() => true);
+    const candidates = active.filter((i) => i.id !== options.protect && mayEvict(i));
+    const chosen = candidates.sort(order).slice(0, over);
+    for (const victim of chosen) {
       const why =
         rule.eviction === "recency"
           ? `evicted the oldest by last change (seq ${changed(victim)})`
@@ -219,6 +239,47 @@ export function evaluateRetention(
         policy_id,
       });
     }
+    // The part of the overage protect_trusted keeps is recorded, so a budget
+    // left exceeded is never silent (AGENTS.md rule 3; review E2.11-5).
+    if (options.mayEvict && chosen.length < over)
+      out.push({
+        op: "evict",
+        decision: "deny",
+        item_id: null,
+        class: cls,
+        reason: `${held}${redact ? "" : `: ${over} over, ${over - chosen.length} left over after this sweep`}; the items left over its ${cls} budget are more trusted than the eviction's source, and trust.protect_trusted keeps them: a person, or a source as trusted, decides`,
+        policy_id: PROTECTED_ID,
+      });
   }
   return out;
+}
+
+/**
+ * How far `protect_trusted` would leave `scope`'s `cls` budget unmet (card
+ * E2.11, ADR 0040, decision 3): with `items` as they stand once a write
+ * lands, the overage of a recency or utility budget counted as the budget
+ * check counts it (active items not past their ttl), and how many of them the
+ * check may evict (`mayEvict`, never `protect`, the item the write lands).
+ * Null when nothing is over, the rule is manual (it evicts nothing), or there
+ * are enough eligible victims: then the write may land.
+ */
+export function evictionShortfall(
+  policy: Policy,
+  scope: string,
+  cls: MemoryClass,
+  items: readonly MemoryItem[],
+  at: string,
+  protect: string,
+  mayEvict: (victim: MemoryItem) => boolean,
+): { over: number; eligible: number; budget: number } | null {
+  const rule = retentionRule(policy, scope, cls);
+  if (!rule || rule.budget === null || rule.eviction === "manual") return null;
+  const active = items.filter(
+    (i) =>
+      i.scope === scope && i.class === cls && i.status === "active" && !isExpired(policy, i, at),
+  );
+  const over = active.length - rule.budget;
+  if (over <= 0) return null;
+  const eligible = active.filter((i) => i.id !== protect && mayEvict(i)).length;
+  return eligible >= over ? null : { over, eligible, budget: rule.budget };
 }
