@@ -1754,3 +1754,214 @@ command: >
 ```
 
 The output after "write it?" is `engram write`'s own text, unchanged, because line mode runs the command through `run(argv, io)` with the same `Io`. A screen reader therefore reads exactly what the CLI prints.
+
+## 9. Interaction
+
+### 9.1 Keys
+
+Keys are defined once in `app.ts` as a table (action, keys, description, screens) that the help overlay, the footer hints and the key-flow tests all read; pi-tui's `KeybindingsManager` holds them, so a person can rebind them in `~/.engram/tui-keys.json` (an object of action to key list, validated at start; a conflict is reported and the default kept). No key needs a function key, Alt, or a chord that Windows Terminal, conhost, tmux or macOS Terminal takes for itself.
+
+| keys | action | where |
+|---|---|---|
+| `?` | help overlay | everywhere (in a text field: `F1`) |
+| `ctrl+p`, `:` | command palette | everywhere (`:` not in a text field) |
+| `ctrl+o` | workspace panel | everywhere |
+| `esc` | back, close an overlay, cancel a form (asks if the form has input) | everywhere |
+| `q` | quit | Home; on other screens `q` is `esc` unless typed in a field |
+| `ctrl+c` | quit now; stops a running serve first; never asks | everywhere |
+| `up`, `down`, `k`, `j` | move | lists |
+| `pgup`, `pgdn`, `home`, `end` | page, first, last | lists, plain view |
+| `tab`, `shift+tab` | next and previous field or pane | forms, split screens |
+| `enter` | open, choose, or the default button | everywhere |
+| `space` | toggle a checkbox or radio | forms |
+| `ctrl+s` | submit the form (opens the confirmation where 9.5 asks for one) | forms |
+| `ctrl+e` | open the content in `$EDITOR`, read it back on save | Write |
+| `/` | find in the current list or text | lists, plain view |
+| `c` | copy the command line | everywhere a command is shown |
+| `v` | plain view: the command's exact text output | results |
+| `J` | JSON view: the exact `--json` output | results |
+| `r` | run again with the same flags | results, Doctor |
+| `e`, `o`, `p`, `g`, `w`, `u` | explain, item page, promote, grants, who can read, supersede | on a selected item or read |
+| `1` to `5`, letters | jump to a group or an action | Home |
+| `ctrl+l` | redraw the screen | everywhere |
+
+In a text field every printable key types; only `esc`, `tab`, `enter`, `ctrl+s`, `ctrl+c`, `F1` and the pi-tui editing keys (`ctrl+a`, `ctrl+e` outside Write, `ctrl+w`, `ctrl+u`, `ctrl+k`, arrows) act.
+
+### 9.2 Help overlay
+
+As drawn in 8.28. It is generated from the key table and the registry entry of the screen's command, so it cannot drift from either.
+
+### 9.3 Command palette
+
+As drawn in 8.27. Ranking is pi-tui's `fuzzyFilter` (all query tokens in order; lower score first), with ties broken by the registry's order. An unknown query shows "No command matches. Did you mean read?" using the same suggestion function as the plain CLI (12.2). The palette also lists recent commands of the session, so `ctrl+p enter` reruns the last one.
+
+### 9.4 Forms and validation
+
+- A form is generated from the command's registry entry: one control per option, in the order of its HELP section, advanced options folded. A hand-made screen can lay the same controls out differently but may not add a control without a flag.
+- Validation runs on leaving a field and on submit, and uses the CLI's own checks, imported from `setup.ts` and `commands.ts` (`checkTime`, `checkNumber`, `buildActor`, the `Id` and `Scope` parsers, the port check). The message under the field is the `UsageError` message the CLI prints, minus the `engram <command>: ` prefix, for example "--confidence \"high\" is not a number" or "--to org is not a scope (person:<id>, role:<id>, team:<id> or org)". The flag name stays in the message on purpose: it teaches which flag the field is.
+- Cross-field rules are the CLI's too: "give the item with --content or --file", "give the target scope with --to <scope>", the `--at` refusals, the workspace flags refused with a server. They show at the top of the form with the cursor on the first field involved.
+- A submit with errors runs nothing. The command line row shows the command as far as it can be built, with the faulty flag marked `<here>`.
+- What the CLI does not check, the form does not check: a scope the actor is not a member of is a valid form, and the plane's denial is the answer, shown as a decision.
+
+### 9.5 Confirmation
+
+From the registry's `writes` field:
+
+| writes | commands | confirmation |
+|---|---|---|
+| `none` | doctor, simulate, explain, policy, check, who-can-read, events | none |
+| `audit` | read, lint, hook setup's "Try it" | none; the first read of a store folder in a session shows the adoption notice of 8.5 once |
+| `state` | write, promote, grants, retain, import, supersede accept, key create | the dialog of 8.29 |
+| `erase` | key revoke, log checkpoint signing (E1.6), any erasure command a card adds | the dialog, with the action button not focused and a typed confirmation: the item id, key id or the word `erase` |
+
+The hook's "Try it" records a block event in the workspace's log, as the real hook does, so it is `audit` and says so in its button's help line. Serve and MCP are not writes of their own; the calls made through them are decided and recorded by the plane as always.
+
+### 9.6 Undo
+
+Undo exists only where the plane has a governed inverse, and that is one place today: a grant change. After an allowed `grants` call, `u` builds the inverse call (remove what was added; add back what was removed, if it has not expired) and shows it in the confirmation dialog as a new command. It is a new governed change with its own event, not an erasure, and it may be denied. Nowhere else is undo offered: a write cannot be unwritten (a later update is a new version), a promotion cannot be reversed from the CLI, a sweep's retirements are final, an import's rows are candidates the person reviews, a revoked key stays revoked. Form editing has its own local undo (`ctrl+z` in text fields, pi-tui's editor undo), which changes nothing outside the form.
+
+## 10. States
+
+### 10.1 Decisions
+
+Every decision is shown the same way on every screen, in the inspector's terms:
+
+```
+✓ allow   ✗ deny   ◆ ask            (ASCII: + allow   x deny   ? ask)
+reason     the event's reason, whole, wrapped, never cut
+policy id  the event's policy_id, as the inspector shows it in code style
+event      seq and id, with o to open the item and enter to open the event
+exit       the exit code the plain command returns for it
+```
+
+A deny or an ask is not an error state: the screen is the result screen with the decision first. `ask` names who can answer it when the reason does (a reviewer for `engram/promote/no-evidence`), by quoting the reason, never by deciding. A read shows its counts line and filtered categories with the explain view's labels ("outside the validity window", "not active", "past their ttl", "by a grant's class or expiry") and the out-of-reach line.
+
+### 10.2 Loading
+
+A call shows "working" in the command line row at once, with the command. After 300 ms the pane shows a busy line naming what is happening ("reading through the plane", "adopting ~/demo/mem", "running doctor: adapter letta"); under `--reduced-motion` it is a static `…` (ASCII `...`), otherwise a pi-tui `Loader` with a four-frame indicator at 120 ms. Doctor and import fill row by row. `esc` during a call cancels the wait but not the call (a plane call is not abortable halfway); the screen says "the call is still finishing; its result will be in the log".
+
+### 10.3 Errors
+
+The error state shows the CLI's stderr line verbatim, the exit code the plain command would return, and one next step:
+
+| error | shown as | next step offered |
+|---|---|---|
+| `UsageError` (exit 2) | the message under the field it names, or at the top of the form | the field focused |
+| 501, a card not landed | "· not yet: <message>", naming the card | back |
+| a log that cannot be used (`logRefusal`, a bad `ENGRAM_DB_URL`) | the message, with the log's label redacted as the CLI redacts it | open the workspace, run doctor |
+| a policy that does not load (including lints in flight with bad thresholds) | the loader's message | open the workspace |
+| a 500 in process | "internal error" and the error as `onError` printed it to stderr, kept in the session log | rerun, run doctor |
+| `CallError` from a server | the server's message and status | open the workspace |
+
+Secrets never appear: every message the TUI shows has passed the same `redactSecrets` the CLI applies, and a test holds the TUI to `packages/cli/test/redaction.property.test.ts`'s property.
+
+### 10.4 Empty
+
+- A read that returns nothing: "No items returned" with the counts line, which says why (filtered or out of reach), and "Write one" and "Change who you act as" buttons.
+- Lanes the viewer is a member of but that hold nothing: "nothing to read", as the inspector says.
+- No events visible: "No events you may see. Events show to their maker and to readers of their scopes."
+- No store folder: Read works on the log alone and says "no store: reading the log only"; Write says the CLI's 503 message.
+
+### 10.5 Offline and server states
+
+- Server mode checks `GET /health` on entering the workspace and before each call only after a failure; the title bar shows "server 127.0.0.1:7313" or "server unreachable". A refused connection shows "The server at http://127.0.0.1:7313 did not answer. Start it with engram serve, or switch to in process." with both actions. The TUI never falls back to in process by itself, since that would change which log the next call writes.
+- `ENGRAM_OFFLINE=1` changes nothing in the TUI: no TUI path reaches the network except a named server and a Postgres log.
+- A 401 or 403 `forbidden_actor` (in flight, card E8.12) shows the reason and "set ENGRAM_TOKEN or pass a token", never the token.
+
+## 11. Accessibility
+
+### 11.1 Keyboard first, mouse optional
+
+Everything is reachable from the keyboard alone, with a visible focus marker (reverse video plus `>`), and focus order follows reading order. The mouse is captured by default for clicks, the wheel and pi-tui's own text selection with copy on select; `--no-mouse` or `ENGRAM_TUI_MOUSE=0` leaves the mouse to the terminal, so its own selection, screen magnifiers and accessibility tools work unchanged.
+
+### 11.2 No colour
+
+`NO_COLOR` (any non-empty value, per no-color.org) or `--no-color` removes every colour escape. Attributes that are not colour (bold, reverse video for focus and the title bar, underline for the access letter) stay, since they carry no hue. With no colour the screens look exactly as the mockups are drawn. The plain CLI prints no colour today and stays that way (12.4).
+
+### 11.3 Palettes
+
+Status colours are the Okabe-Ito set, distinguishable with the common colour-vision deficiencies, and every status also has a symbol and a word, so colour is never the only carrier:
+
+| status | symbol and word | default (truecolor, 256 fallback) | high contrast |
+|---|---|---|---|
+| allow, ok | `✓ allow`, `✓ ok` | bluish green `#009E73` | bold, default foreground on default background |
+| deny, fail | `✗ deny`, `✗ fail` | vermillion `#D55E00` | bold reverse |
+| ask, warn | `◆ ask`, `▲ warn` | orange `#E69F00` | bold underline |
+| info, link | `ℹ` | blue `#0072B2` | underline |
+| skip, not yet | `· skip`, `· not yet` | grey (the terminal's bright black) | dim off; plain |
+| running | `● running` | sky blue `#56B4E9` | bold |
+
+The default palette uses truecolor when `COLORTERM` says so and the 256-colour nearest otherwise (pi-tui's `styleText` with `getTerminalColorMode()`); body text is always the terminal's default foreground, so a light or dark theme the person chose is kept. `--high-contrast` (or `ENGRAM_TUI_CONTRAST=high`) uses only bold, reverse and underline on the terminal's own colours, which is also what Windows high-contrast themes render best.
+
+### 11.4 Sizes
+
+The minimum is 80x24, the classic terminal and the conhost default. At 120 columns the wide layouts of section 8 apply; between, panes grow. Below the minimum the screen of 8.4 is shown and the state kept. Long ids are cut in the middle with `...` only in list columns; the detail pane and every copied command carry them whole.
+
+### 11.5 Reduced motion
+
+`--reduced-motion` or `ENGRAM_TUI_MOTION=reduce`: no spinner frames (the `Loader` gets `frames: []` and the static marker), no follow mode unless asked, no smooth scrolling. Without the flag the only motion is the busy indicator during a call; nothing blinks.
+
+### 11.6 Screen readers: line mode
+
+A full-screen TUI redraws regions, which screen readers read poorly. `engram tui --line` (8.31) is the accessible mode: sequential prompts, each a full sentence ending in a colon, defaults stated in words, no redraw, no colour, no box drawing, and the command's own output printed as the CLI prints it. It runs on `node:readline` only, with no pi-tui import, so it works wherever the CLI works with a TTY. Every screen of section 8 has a line-mode equivalent generated from the same registry entry; the rich views (lanes, item page) become their plain-view text. The TUI's first screen says "Using a screen reader? Press L for line mode." until dismissed for the session.
+
+### 11.7 Terminals and glyphs
+
+| terminal | expectation | how checked |
+|---|---|---|
+| Windows Terminal (PowerShell, cmd, Git Bash) | full: truecolor, Unicode, mouse, OSC 52 | spike under ConPTY; manual check in E8.15e |
+| conhost (legacy console) | full layout; 256 colours; Unicode box drawing with the default fonts; OSC 52 not supported, so copy says "printed on exit" | spike under ConPTY (which conhost hosts); manual check |
+| Git Bash in mintty | with ConPTY: full; without: Node sees pipes and the refusal of 5.2 suggests `winpty engram tui` | spike under bash in ConPTY; manual check of mintty |
+| macOS Terminal | full layout; 256 colours (no truecolor), so the 256 palette; Option is not Meta by default, so no key uses Alt | manual check in E8.15e |
+| tmux (and screen) | full; OSC 52 only with `set-clipboard on`; pi-tui's synchronized output is skipped where unsupported | headless tests with `TERM=tmux-256color`; manual check |
+
+Glyphs: the Unicode set is `┌ ┐ └ ┘ ─ │ ▸ ▾ ✓ ✗ ◆ ▲ · ● ℹ █`. The ASCII set is `+ + + + - | > v + x ? ! - * i #`. ASCII is used when `--ascii` or `ENGRAM_TUI_ASCII=1` is given, when `TERM` is `linux` or `vt100`, or when the locale is not UTF-8 on a POSIX system (`LC_ALL`, `LC_CTYPE`, `LANG` without `UTF-8`). On Windows Node writes UTF-16 to the console, so Unicode is the default there. Widths are measured with pi-tui's `visibleWidth` (east Asian widths included), so content in any script lays out correctly.
+
+## 12. The plain CLI
+
+### 12.1 What is pinned
+
+Byte for byte, with the existing tests as the proof: every existing command's stdout, stderr and exit code for every input, `HELP`'s existing lines, bare `engram` (help on stderr, exit 2), `-h`, `--help` and `help` (help on stdout, exit 0), `<command> --help` (the full help), the first line of an unknown command's error, the hook's JSON, `mcp`'s stdout.
+
+### 12.2 What changes
+
+1. **New commands**: `tui`, and if the lead accepts them, `check`, `events`, `policy`, `grants` (3.6). Each adds its HELP lines in the commands list and its own options block, exactly as cards E9.8 and E2.13 do; the help snapshot test is updated by those lines only.
+2. **"Did you mean"**: an unknown command whose name is within edit distance 2 of a registry name gets a second stderr line, `engram: did you mean "read"?`. An unknown flag gets `engram read: did you mean --root?` after the parseArgs message. The first line, the exit code (2) and stdout do not change; with no close match nothing is added.
+3. **The registry**: `HELP` is generated from it. The existing snapshot test proves the generation is byte-identical before anything is added.
+
+### 12.3 What does not change, on purpose
+
+- `<command> --help` keeps printing the whole help. A per-command help is the TUI's `?` and the palette; changing `--help` output would break the pin.
+- `engram help <command>` keeps printing the whole help, for the same reason.
+- Error shape stays `engram <command>: <message>` on stderr, which is already consistent across commands; the TUI shows the same message.
+
+### 12.4 Colour
+
+The plain CLI adds no colour, on a TTY or not. Colour lives in the TUI. This keeps every pinned output and every screen reader transcript of the plain CLI unchanged.
+
+## 13. Tests the implementation must have
+
+Following `docs/conventions/testing.md`: fakes, no mocks; an injected clock and ids; every test headless.
+
+| layer | file | what it checks |
+|---|---|---|
+| registry | `packages/cli/test/registry.test.ts` | `HELP` from the registry equals the pinned snapshot byte for byte; every handler's option object is the registry's; every command has exit codes and a `writes` class |
+| snapshot frames | `packages/cli/test/tui/frames.test.ts` | each screen of section 8 rendered through a `FakeTerminal` into `@xterm/headless` at 80x24 and 120x40, in the default, `--no-color`, `--high-contrast` and `--ascii` modes, against committed text snapshots under `packages/cli/test/tui/__frames__/`; no snapshot line exceeds its width; the 79x24 and 80x23 frames are the too-small screen |
+| key flows | `packages/cli/test/tui/flows.test.ts` | scripted key sequences: first run to a first read; write with a denied preview, confirm, result; promote ask; grant add then undo; palette search and paste of a command line; resize during a form keeps its input; `ctrl+c` stops a running serve |
+| parity | `packages/cli/test/tui/parity.test.ts` | for every registry command and every flag: the TUI action issues the same request (method, path, body) through `Io.transport` as `run(argv, io)` with the argument vector it shows, in process and against a server (`createApp` behind a fetch); the argument vector shown equals the one run; `v` shows `run`'s stdout byte for byte, `J` the `--json` stdout |
+| refusals | `packages/cli/test/tui/entry.test.ts` | each row of 5.2 prints its line, exits 2 and writes no escape sequence; bare `engram` unchanged |
+| line mode | `packages/cli/test/tui/line.test.ts` | a scripted stdin produces the transcript of 8.31 with the command's exact output |
+| no policy | `biome.json` override | `packages/cli/src/tui/**` may import pi-tui; nothing else in `packages/cli` may; core and adapters still may not import any pi package |
+| redaction | `packages/cli/test/tui/redaction.property.test.ts` | the redaction property over every TUI frame that shows a log label or an error |
+| manual | `docs/design/tui-manual-check.md` (E8.15e) | Windows Terminal, conhost, Git Bash in mintty, macOS Terminal and tmux, each screen once; the result logged as a `finding` |
+
+The `FakeTerminal` of the spike (ADR 0044) is the seam: it implements pi-tui's `Terminal` interface, feeds its writes into `@xterm/headless`, and takes keys and resizes from the test.
+
+## 14. For the lead
+
+1. **Bare `engram` on a TTY.** Recommended: keep it as the pinned help with exit 2, and enter with `engram tui`. Alternative: open the TUI when both stdin and stdout are TTYs and `CI` is unset, keeping the pinned behaviour everywhere else.
+2. **Four new plain commands** (`check`, `events`, `policy`, `grants`; 3.6) so the TUI can reach the routes the inspector uses with a command to teach. Recommended: accept. Without them the TUI loses four screens and the write preview.
+3. **ADR 0044**: pi-tui 1.3.0 in `packages/cli/src/tui/` only, amending ADR 0033's list (item 62 of `docs/tasks/lead-decisions.md`).
+4. **`@engram/ui/view`**: a subpath export of the inspector's pure view modules so the TUI reuses its grouping, filters and leak rule instead of copying them (6.3). Recommended: accept; the alternative is moving them to a new shared package.
+5. **Mouse on by default** (11.1). Recommended: on, with `--no-mouse`; the alternative is off by default, which keeps the terminal's own selection.
+6. **The session transcript on quit** (4.1). Recommended: printed to stdout on every quit; the alternative is printing it only with `--transcript`.
