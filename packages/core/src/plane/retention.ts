@@ -27,13 +27,16 @@ import type { PlaneDeps, RetentionReport } from "../plane.ts";
 import { readableScope } from "../policy/evaluate.ts";
 import {
   evaluateRetention,
+  evictionShortfall,
   mayRetireByTtl,
+  PROTECTED_ID,
   RETENTION_MEMBERSHIP_ID,
   type RetentionOptions,
   type RetentionUsage,
   type Retirement,
   retentionRule,
 } from "../policy/retention.ts";
+import { DOWNGRADE_ID, evictable, evictionKind } from "../policy/trust.ts";
 import { type MemoryEvent, type MemoryItem, Scope } from "../schema.ts";
 import { inWriteQueue } from "./queue.ts";
 
@@ -91,7 +94,9 @@ function commit(
  * The retirements to append: the evaluator's, less a manual rule's ask when
  * one was already recorded for that scope and rule since the last change to
  * any item of that class in the scope, so an unchanged overage is asked
- * about once, not on every sweep (review finding P4-12).
+ * about once, not on every sweep (review finding P4-12). A protected
+ * shortfall (PROTECTED_ID, card E2.11) is recorded once per state the same
+ * way, for its scope and class.
  */
 function decide(
   deps: PlaneDeps,
@@ -104,16 +109,25 @@ function decide(
   const usage = retentionUsage(deps.db);
   const redact = !readableScope(deps.policy, actor, scope);
   const out = evaluateRetention(deps.policy, scope, items, at, usage, { ...options, redact });
-  if (!out.some((r) => r.decision === "ask")) return out;
+  const once = (r: Retirement) => r.item_id === null && r.decision !== "allow";
+  if (!out.some(once)) return out;
   const asks = deps.db
     .prepare(
-      "SELECT seq, body FROM events WHERE op = 'evict' AND decision = 'ask' AND scope_to = ? ORDER BY seq DESC",
+      "SELECT seq, decision, body FROM events WHERE op = 'evict' AND decision IN ('ask', 'deny') AND item_id IS NULL AND scope_to = ? ORDER BY seq DESC",
     )
     .all(scope)
-    .map((row) => ({ seq: Number(row.seq), policy_id: JSON.parse(String(row.body)).policy_id }));
+    .map((row) => {
+      const body = JSON.parse(String(row.body)) as { policy_id: string; reason: string };
+      return { seq: Number(row.seq), decision: String(row.decision), ...body };
+    });
+  /** The same record: a manual rule's ask by its rule, a protected shortfall by its class. */
+  const same = (r: Retirement, a: (typeof asks)[number]) =>
+    a.decision === r.decision &&
+    a.policy_id === r.policy_id &&
+    (r.policy_id !== PROTECTED_ID || a.reason.includes(`its ${r.class} budget`));
   return out.filter((r) => {
-    if (r.decision !== "ask") return true;
-    const asked = asks.find((a) => a.policy_id === r.policy_id)?.seq;
+    if (!once(r)) return true;
+    const asked = asks.find((a) => same(r, a))?.seq;
     if (asked === undefined) return true;
     const latest = Math.max(
       -1,
@@ -129,8 +143,10 @@ function decide(
  * called only from inside the write queue (plane/queue.ts), never wrapped in
  * it. `protect` is the item the write just landed, never its own victim
  * (P4-1). Expiry is left to Plane.retain: an expired item is already
- * excluded at read, and holds no slot here (P4-2). Returns the events it
- * appended.
+ * excluded at read, and holds no slot here (P4-2). With trust.protect_trusted
+ * on, no victim is more trusted than `protect`'s kind, the write that
+ * triggered the check (card E2.11; `budgetRefusal` denied a write that would
+ * need one). Returns the events it appended.
  */
 export function enforceBudget(
   deps: PlaneDeps,
@@ -144,9 +160,12 @@ export function enforceBudget(
   if ((retentionRule(deps.policy, scope, cls)?.budget ?? null) === null) return [];
   return deps.db.transaction(() => {
     const items = currentItems(deps.db).filter((i) => i.scope === scope && i.class === cls);
+    const written = items.find((i) => i.id === protect);
+    const mayEvict = evictable(deps.policy, actor, evictionKind(actor, written));
     const retirements = decide(deps, actor, scope, at, items, {
       expiry: false,
       ...(protect === undefined ? {} : { protect }),
+      ...(mayEvict ? { mayEvict } : {}),
     });
     return retirements.length === 0 ? [] : commit(deps, actor, scope, at, retirements);
   });
@@ -192,8 +211,11 @@ function sweep(deps: PlaneDeps, actor: Actor, scope: string, at: string): Retent
     return { decision: "deny", events: denied ? [denied] : [], expired: [], evicted: [] };
   }
   const items = currentItems(deps.db).filter((i) => i.scope === scope);
+  // A sweep evicts at its sweeper's trust (card E2.11): its attested source.
+  const mayEvict = evictable(deps.policy, actor, evictionKind(actor));
   const retirements = decide(deps, actor, scope, at, items, {
     expiry: mayRetireByTtl(actor, scope),
+    ...(mayEvict ? { mayEvict } : {}),
   });
   const events = retirements.length === 0 ? [] : commit(deps, actor, scope, at, retirements);
   const ids = (op: Retirement["op"]) =>
@@ -201,4 +223,43 @@ function sweep(deps: PlaneDeps, actor: Actor, scope: string, at: string): Retent
       r.op === op && r.decision === "allow" && r.item_id !== null ? [r.item_id] : [],
     );
   return { decision: "allow", events, expired: ids("retire"), evicted: ids("evict") };
+}
+
+/**
+ * Why trust.protect_trusted refuses to land `item` with `status`, or null
+ * (card E2.11, ADR 0040, decision 3): the budget check its landing runs
+ * would have to evict an item more trusted than it, so the write is denied
+ * instead, with the reason. Judged on the projection as it would stand once
+ * the item lands, so it is asked at the decision and again in the
+ * transaction that commits it. A reason names no count to an actor who
+ * cannot read the scope (P4-4).
+ */
+export function budgetRefusal(
+  deps: PlaneDeps,
+  actor: Actor,
+  item: MemoryItem,
+  status: MemoryItem["status"],
+  at: string,
+): { reason: string; policy_id: string } | null {
+  const mayEvict = evictable(deps.policy, actor, evictionKind(actor, item));
+  if (!mayEvict) return null;
+  const others = currentItems(deps.db).filter((i) => i.id !== item.id);
+  const landed = [...others, { ...item, status } as MemoryItem];
+  const short = evictionShortfall(
+    deps.policy,
+    item.scope,
+    item.class,
+    landed,
+    at,
+    item.id,
+    mayEvict,
+  );
+  if (!short) return null;
+  const counts = readableScope(deps.policy, actor, item.scope)
+    ? `: it would take ${item.scope} ${short.over} over its ${item.class} budget of ${short.budget}, and ${short.eligible === 0 ? "no item" : `only ${short.eligible}`} there is as little trusted as the write`
+    : "";
+  return {
+    reason: `a ${item.provenance.kind} write would have to evict an item more trusted than it from ${item.scope}${counts}; a budget eviction never removes a more trusted item (trust.protect_trusted), so the write is denied`,
+    policy_id: DOWNGRADE_ID,
+  };
 }

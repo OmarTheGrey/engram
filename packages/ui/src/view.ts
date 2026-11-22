@@ -16,6 +16,7 @@ import type {
   MemoryItem,
   ReadCounts,
   ReadResponse,
+  WhoCanReadAnswer,
 } from "./api/index.ts";
 
 export const LEVELS = ["person", "role", "team", "org"] as const;
@@ -265,11 +266,14 @@ export const grantOutcome = (itemId: string, r: GrantResponse): GrantOutcome => 
 
 export interface TimelineFilter {
   scope: string | null;
+  /** The event's type. */
   op: string | null;
   decision: string | null;
+  /** Who made the event (card E8.11). */
+  actor: string | null;
 }
 
-export const NO_FILTER: TimelineFilter = { scope: null, op: null, decision: null };
+export const NO_FILTER: TimelineFilter = { scope: null, op: null, decision: null, actor: null };
 
 const scopesOf = (e: MemoryEvent) =>
   [e.scope_from, e.scope_to].filter((s): s is string => s !== null);
@@ -281,6 +285,7 @@ export function filterOptions(events: readonly MemoryEvent[]) {
     scopes: sorted(events.flatMap(scopesOf)),
     ops: sorted(events.map((e) => e.op)),
     decisions: sorted(events.map((e) => e.decision)),
+    actors: sorted(events.map((e) => e.actor)),
   };
 }
 
@@ -293,7 +298,8 @@ export function filterEvents(
     (e) =>
       (filter.scope === null || scopesOf(e).includes(filter.scope)) &&
       (filter.op === null || e.op === filter.op) &&
-      (filter.decision === null || e.decision === filter.decision),
+      (filter.decision === null || e.decision === filter.decision) &&
+      (filter.actor === null || e.actor === filter.actor),
   );
 }
 
@@ -433,3 +439,78 @@ export function explainView(
 
 /** Score numbers as the views print them. */
 export const score = (n: number) => n.toFixed(3);
+
+// The inspector's pages (card E8.11): the workspace, and an item's page at
+// `#/item/<id>`, so the browser's back button and a pasted link work.
+
+export type Route = { page: "workspace" } | { page: "item"; itemId: string };
+
+/** The location hash of an item's page. */
+export const itemHref = (itemId: string) => `#/item/${encodeURIComponent(itemId)}`;
+
+/** The page a location hash names: an item's page, else the workspace. */
+export function parseRoute(hash: string): Route {
+  const match = /^#\/item\/([^/]+)$/.exec(hash);
+  if (match === null) return { page: "workspace" };
+  try {
+    return { page: "item", itemId: decodeURIComponent(match[1] as string) };
+  } catch {
+    return { page: "workspace" };
+  }
+}
+
+// Who can read this memory (card E2.13).
+
+export interface ReaderRow {
+  key: string;
+  kind: "members" | "grant";
+  /** The scope of a members entry, or the `to` of a grant entry. */
+  who: string;
+  text: string;
+  policyId: string;
+}
+
+export interface ReaderView {
+  answered: boolean;
+  reason: string;
+  /** Why nobody may read the item now, with its rule; null when it is open. */
+  closed: string | null;
+  rows: ReaderRow[];
+  /** The owner's grants that admit nobody now, each with why. */
+  dormant: string[];
+  /** Whether grants naming others are withheld from this viewer. */
+  withheld: boolean;
+}
+
+/**
+ * The who-can-read panel's rows from the plane's answer
+ * (Plane.whoCanReadItem through POST /who-can-read/item). Which readers and
+ * grants the viewer may see is the plane's decision; this only labels them.
+ */
+export function readerView(a: WhoCanReadAnswer): ReaderView {
+  return {
+    answered: a.answered,
+    reason: a.reason,
+    closed: a.closed === null ? null : `${a.closed.reason} (${a.closed.policy_id})`,
+    rows: a.readers.map((r, i) =>
+      r.kind === "members"
+        ? {
+            key: `members:${r.scope}:${r.level}`,
+            kind: "members",
+            who: r.scope,
+            text: `every member of ${r.scope} reading as ${r.level}`,
+            policyId: r.policy_id,
+          }
+        : {
+            // A non-owner's grant labels carry no position, so two may be alike.
+            key: `${i}:${r.grant}`,
+            kind: "grant",
+            who: r.to,
+            text: `${r.to} by ${r.grant}, until ${r.grant_detail.expires ?? "no expiry"}`,
+            policyId: r.policy_id,
+          },
+    ),
+    dormant: a.dormant.map((d) => `${d.grant}: ${d.reason}`),
+    withheld: a.grants_shown === "yours",
+  };
+}

@@ -26,6 +26,19 @@
 // (`sameStrictContent`); the landed item is judged by `writeForbidden` like
 // any write.
 //
+// Replay admission (card D3 review, D3-5) gives `promotionPermitted` an
+// optional replay: a procedural candidate lands only with one, judged by the
+// oracle's own reading. The replay names the source and the strict hash of
+// its content (the plane's hash, content-hash.ts: a hash is a contract to
+// match, not a reading to re-derive); its induction tasks are exactly the
+// tasks of the source's distill ref, by the session index the plane was
+// given, and none is replayed; it is presented by a user-sourced actor; it
+// names the registered threshold 2/3, the registered seeds 1, 2 and 3, and
+// exactly replay_n held-out tasks; and
+// its own count (a task passes when its rewards with the candidate sum to at
+// least two thirds of its runs and to no less than its rewards without it,
+// the lead's answers of 2026-11-22) meets replay_k.
+//
 // Where it lives (card E9.5): moved from packages/core/test/property/ into
 // core's source, unchanged, so the twin dogfood's violation report
 // (src/dogfood.ts) can judge a member's log with the same oracle; the old
@@ -35,7 +48,18 @@
 // and its reading of who may change what an item's grants admit
 // (`grantsChanged`, `priorVersion`, `grantChangeProblem`; ADR 0034,
 // decision 6) and `withinValidity`, at the end of the file.
+//
+// Trust floors (card E2.11, ADR 0040; a `decision` log entry records the
+// change) add invariant 8's readings, at the end of the file: under
+// trust.unattested_floor no allowed write records a kind more trusted than
+// its actor attests (`floorProblem`), and under trust.protect_trusted no
+// allowed write or budget eviction by a less trusted source changes or
+// removes a more trusted active item unless its owner acted as user
+// (`protectionProblem`). `writeForbidden` judges a sourceless writer at the
+// least trusted kind when the floor is on, and `budgetVictims` takes the
+// items an eviction may choose. Trust is ranked by the oracle's own `TRUST`.
 import type { Actor } from "./actor.ts";
+import { strictContentHash } from "./content-hash.ts";
 import type { Grant, MemoryEvent, MemoryItem, Policy } from "./schema.ts";
 import { compareTimestamps } from "./time.ts";
 
@@ -116,9 +140,14 @@ export function grantsAlike(a: Grant, b: Grant): boolean {
   return compareTimestamps(a.expires, b.expires) === 0;
 }
 
-/** The provenance kind the plane evaluates: the harness's source when it sets one. */
-export const effectiveKind = (actor: Actor, item: MemoryItem) =>
-  actor.source ?? item.provenance.kind;
+/**
+ * The provenance kind the plane evaluates: the harness's source when it sets
+ * one; otherwise, when the policy's trust.unattested_floor is on (card
+ * E2.11), the least trusted kind, else what the item claims.
+ */
+export const effectiveKind = (actor: Actor, item: MemoryItem, policy?: Policy) =>
+  actor.source ??
+  (policy?.trust?.unattested_floor === "on" ? leastTrustedKind() : item.provenance.kind);
 
 /**
  * Invariant 2: does the policy forbid `item`'s class or source in its scope,
@@ -141,7 +170,7 @@ export function writeForbidden(
   retiredByEvent: readonly MemoryItem[] = [],
 ): boolean {
   if (!actor.memberships.some((m) => m === item.scope)) return true;
-  const kind = effectiveKind(actor, item);
+  const kind = effectiveKind(actor, item, policy);
   const untrusted = kind === "model" || kind === "compaction" || kind === "external";
   const relearns = untrusted || kind === "tool";
   if (
@@ -214,7 +243,9 @@ export function sameContent(a: unknown, b: unknown): boolean {
  * reads returned (`reads`), then the least recently changed; the lower id
  * breaks what is left. `protect`, the item a write just landed, counts but
  * is never chosen (review finding P4-1). The caller leaves items past their
- * ttl out of `active` (P4-2).
+ * ttl out of `active` (P4-2). `eligible`, when given, is what an eviction may
+ * choose (trust.protect_trusted, card E2.11): the others count but are never
+ * chosen, so fewer victims than the overage are named when too few qualify.
  */
 export function budgetVictims(
   eviction: Policy["retention"][number]["eviction"],
@@ -223,6 +254,7 @@ export function budgetVictims(
   lastChanged: ReadonlyMap<string, number>,
   reads: ReadonlyMap<string, number>,
   protect?: string,
+  eligible: (item: MemoryItem) => boolean = () => true,
 ): string[] | "ask" {
   if (active.length <= budget) return [];
   if (eviction === "manual") return "ask";
@@ -237,10 +269,10 @@ export function budgetVictims(
     return a.id < b.id;
   };
   // The item a write just landed is never its own check's victim (P4-1).
-  const left = active.filter((i) => i.id !== protect);
+  const left = active.filter((i) => i.id !== protect && eligible(i));
   let over = active.length - budget;
   const victims: string[] = [];
-  while (over-- > 0) {
+  while (over-- > 0 && left.length > 0) {
     let pick = 0;
     for (let j = 1; j < left.length; j++)
       if (worse(left[j] as MemoryItem, left[pick] as MemoryItem)) pick = j;
@@ -260,6 +292,9 @@ export const TRUST = [
   "external",
 ] as const;
 const SCOPE_RANK = ["person", "role", "team", "org"];
+/** The least trusted kind, `TRUST`'s last. */
+const leastTrustedKind = (): MemoryItem["provenance"]["kind"] =>
+  TRUST[TRUST.length - 1] ?? "external";
 
 /**
  * The strict reading of "the same content" for promotions (review findings
@@ -355,8 +390,8 @@ function replayed(events: readonly MemoryEvent[]): Map<string, MemoryItem> {
  *   writes, in its scope, of its content (strict reading), with a user,
  *   document or tool source, of items still active now (the item's own
  *   write aside), or a reviewer where the policy allows review; a
- *   procedural candidate never lands (no validation record reaches the
- *   plane before card D3); anything else needs a reviewer.
+ *   procedural candidate lands only with a replay `replayAdmits` admits
+ *   (card D3 review, D3-5); anything else needs a reviewer.
  *
  * Whether the landed item may be written into the target is `writeForbidden`'s.
  */
@@ -368,6 +403,7 @@ export function promotionPermitted(
   events: readonly MemoryEvent[],
   review: boolean,
   at: string,
+  presented?: OracleReplay,
 ): boolean {
   const items = replayed(events);
   const source = items.get(sourceId);
@@ -441,8 +477,76 @@ export function promotionPermitted(
     const { confirmations, or_review } = policy.promotion.episodic_to_semantic;
     return actors.size >= confirmations || (or_review && reviewed);
   }
-  if (source.class === "procedural" && source.status === "candidate") return false;
+  if (source.class === "procedural" && source.status === "candidate")
+    return presented !== undefined && replayAdmits(policy, actor, source, presented);
   return reviewed;
+}
+
+/** A replay presented with a promotion (card D3), and the session index the plane was given. */
+export interface OracleReplay {
+  replay: {
+    item_id: string;
+    content_hash: string;
+    induced_from: readonly string[];
+    threshold: number;
+    outcomes: readonly { task: string; seed: number; without: number; with: number }[];
+  };
+  /** Session id to task id; absent when the plane was given none. */
+  sessions?: ReadonlyMap<string, string>;
+}
+
+/**
+ * Does `presented` admit the procedural candidate `source` (card D3 review,
+ * D3-5)? Its own reading of ADR 0046 (proposed): the presenter is
+ * user-sourced; the replay is the source's (its id and content hash); its
+ * induction tasks are exactly those of the source's distill ref, and none is
+ * replayed; its shape is sound; and its count meets replay_k of replay_n.
+ */
+export function replayAdmits(
+  policy: Policy,
+  actor: Actor,
+  source: MemoryItem,
+  { replay, sessions }: OracleReplay,
+): boolean {
+  if (actor.source !== "user") return false;
+  if (replay.item_id !== source.id) return false;
+  if (replay.content_hash !== strictContentHash(source.content)) return false;
+  // The tasks the source's ref names, read with the oracle's own pattern.
+  const ref = /^distill:(?:awm|rule):(.+)$/.exec(source.provenance.ref);
+  const own = new Set<string>();
+  if (ref) {
+    if (!sessions) return false;
+    for (const session of (ref[1] as string).split(",")) {
+      const task = sessions.get(session);
+      if (task === undefined) return false;
+      own.add(task);
+    }
+  }
+  const claimed = new Set(replay.induced_from);
+  if (claimed.size !== own.size || [...own].some((t) => !claimed.has(t))) return false;
+  if (replay.threshold !== 2 / 3) return false;
+  const runs = new Map<string, number[]>();
+  const sums = new Map<string, number>();
+  const baseSums = new Map<string, number>();
+  for (const o of replay.outcomes) {
+    if (own.has(o.task) || claimed.has(o.task)) return false;
+    for (const r of [o.with, o.without]) if (!(r >= 0 && r <= 1)) return false;
+    const seeds = runs.get(o.task) ?? [];
+    if (seeds.includes(o.seed)) return false;
+    runs.set(o.task, [...seeds, o.seed]);
+    sums.set(o.task, (sums.get(o.task) ?? 0) + o.with);
+    baseSums.set(o.task, (baseSums.get(o.task) ?? 0) + o.without);
+  }
+  const seedSets = [...runs.values()].map((x) => [...x].sort((a, b) => a - b).join(","));
+  // Every task on exactly the registered seeds 1, 2 and 3 (D3-13).
+  if (seedSets.length === 0 || seedSets.some((x) => x !== "1,2,3")) return false;
+  let k = 0;
+  for (const [task, seeds] of runs) {
+    const sum = sums.get(task) as number;
+    if (3 * sum >= 2 * seeds.length && sum >= (baseSums.get(task) as number)) k++;
+  }
+  const { replay_k, replay_n } = policy.promotion.procedural;
+  return runs.size === replay_n && k >= replay_k;
 }
 
 // Card E9.5: the oracle's own replay of a log, and its reading of who may
@@ -707,6 +811,90 @@ export function grantChangeProblem(
     if (before === undefined) return "a grant change on an item no allowed event left";
     if (before.status !== "active") return `a grant change on a ${before.status} item`;
     if (!sameApartFromGrants(before, item)) return "a grant change that changes more than grants";
+  }
+  return undefined;
+}
+
+// Card E2.11 (ADR 0040): invariant 8, the trust floors. Judged from the log,
+// with the actor of each event as the caller knows it (the log records only
+// its id), and trust ranked by `TRUST`, written apart from core's order.
+
+type TrustKind = MemoryItem["provenance"]["kind"];
+/** The rule of adoption retiring a projected item (plane/adopt.ts), named by its string. */
+const ADOPT_RETRACT_RULE = "engram/adopt/retract";
+const trustRank = (k: TrustKind) => TRUST.indexOf(k);
+
+/** The kind `actor` attests: its source, or the least trusted when it sets none. */
+export const attestedKind = (actor: Pick<Actor, "source">): TrustKind =>
+  actor.source ?? leastTrustedKind();
+
+/**
+ * Invariant 8, the floor: why the allowed write `e` records its item at a
+ * kind more trusted than its actor attests, or undefined. Judged only under
+ * trust.unattested_floor, and only for writes: a promotion's kind is the
+ * least trusted of its inputs (ADR 0026), and a grant change keeps the kind.
+ * A withdrawal or a narrowing puts back or narrows a version judged when it
+ * was made (card E2.6).
+ */
+export function floorProblem(policy: Policy, actor: Actor, e: MemoryEvent): string | undefined {
+  if (policy.trust?.unattested_floor !== "on") return undefined;
+  if (e.decision !== "allow" || e.op !== "write" || !e.item) return undefined;
+  if (e.policy_id === WITHDRAWN_RULE || e.policy_id === NARROWED_RULE) return undefined;
+  const ceiling = attestedKind(actor);
+  const kind = e.item.provenance.kind;
+  return trustRank(kind) < trustRank(ceiling)
+    ? `${e.actor} attests ${actor.source ?? "no source"}, but the write recorded item ${e.item.id} at ${kind}, more trusted than ${ceiling}`
+    : undefined;
+}
+
+/**
+ * Invariant 8, protection: why the allowed event `e` let a less trusted
+ * source change or remove `before`, the item of its id just before it, or
+ * undefined. Judged only under trust.protect_trusted, when `before` is
+ * active, for a write (a rewrite, or a retire by a status rewrite) at the
+ * kind it records, and for a budget eviction at `trigger`: the kind of the
+ * item whose landing triggered it, or, for a sweep, the sweeper's attested
+ * kind, and for adoption's retraction of an item whose edited store record
+ * the gate denied, at the adopter's kind. The item's owner acting with
+ * source user is exempt. Not judged: any other retire event (a ttl the item
+ * or its rule set, a promotion's supersession, an offboarding, or adoption
+ * retracting what the store no longer holds), a
+ * grant change, which changes no content or kind (ADR 0034), and a
+ * withdrawal or a narrowing (card E2.6).
+ */
+export function protectionProblem(
+  policy: Policy,
+  actor: Actor,
+  before: MemoryItem | undefined,
+  e: MemoryEvent,
+  trigger?: TrustKind,
+): string | undefined {
+  if (policy.trust?.protect_trusted !== "on") return undefined;
+  if (e.decision !== "allow" || !before || before.status !== "active") return undefined;
+  if (e.actor === before.owner && actor.source === "user") return undefined;
+  const held = before.provenance.kind;
+  if (e.op === "write" && e.item) {
+    if (e.policy_id === WITHDRAWN_RULE || e.policy_id === NARROWED_RULE) return undefined;
+    const kind = e.item.provenance.kind;
+    if (trustRank(kind) <= trustRank(held)) return undefined;
+    return `a ${kind} write by ${e.actor} ${e.item.status === "retired" ? "retired" : "rewrote"} active ${held} item ${before.id}`;
+  }
+  // Adoption retracting the plane's item because the store's edit of it was
+  // denied removes it at the adopter's kind; retracting what the store no
+  // longer holds at all is not judged.
+  if (
+    e.op === "retire" &&
+    e.policy_id === ADOPT_RETRACT_RULE &&
+    e.reason.includes(" was denied (")
+  ) {
+    const by = attestedKind(actor);
+    if (trustRank(by) <= trustRank(held)) return undefined;
+    return `adoption at ${by} by ${e.actor} retracted active ${held} item ${before.id} after the store's edit was denied`;
+  }
+  if (e.op === "evict") {
+    const by = trigger ?? attestedKind(actor);
+    if (trustRank(by) <= trustRank(held)) return undefined;
+    return `an eviction at ${by} by ${e.actor} removed active ${held} item ${before.id}`;
   }
   return undefined;
 }

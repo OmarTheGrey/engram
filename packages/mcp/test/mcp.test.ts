@@ -167,7 +167,7 @@ describe("over streamable HTTP", () => {
 
   it("explains a fixture read", async () => {
     const ws = await testWorkspace();
-    server = await serveHttp(() => ws.makeServer(), { port: 0 });
+    server = await serveHttp(() => ws.makeServer(), { port: 0, auth: { insecureLoopback: true } });
     expect(server.url).toBe(`http://127.0.0.1:${server.port}${MCP_PATH}`);
     const client = new Client({ name: "test", version: "0" });
     await client.connect(new StreamableHTTPClientTransport(new URL(server.url)));
@@ -223,9 +223,13 @@ describe("over streamable HTTP", () => {
 
   it("refuses to listen on a host that is not loopback", async () => {
     const ws = await testWorkspace();
-    expect(() => serveHttp(() => ws.makeServer(), { host: "0.0.0.0", port: 0 })).toThrow(
-      /not a loopback address/,
-    );
+    expect(() =>
+      serveHttp(() => ws.makeServer(), {
+        host: "0.0.0.0",
+        port: 0,
+        auth: { insecureLoopback: true },
+      }),
+    ).toThrow(/not a loopback address/);
   });
 });
 

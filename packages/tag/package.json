@@ -1,0 +1,17 @@
+{
+  "name": "@engram/tag",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The memory tag and the memory_write and memory_read definitions every surface shows a model; no pi import.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@engram/core": "workspace:*",
+    "typebox": "1.3.27"
+  }
+}

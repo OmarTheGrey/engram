@@ -14,6 +14,13 @@
 // A promoter who cannot read the target scope gets the decision's event and
 // a null item (P5-7).
 //
+// A procedural candidate's validation record is derived from the replay the
+// caller presents (card D3, distill/validate.ts): the held-out outcomes, from
+// which the plane counts k of n itself. A malformed replay is refused before
+// the queue; one that is not the item's (another id or content, induction
+// tasks other than its distill ref's, or a replayed induction task) is a deny
+// event under engram/promote/replay-item or replay-split (D3-3).
+//
 // On allow, a status-only change rewrites the item in place (same id,
 // version plus one); a class or scope change writes a new version under a
 // fresh id to the store through the adapter, appends its `promote` event and
@@ -35,6 +42,15 @@
 import { type Actor, checkCall, InvalidCallError } from "../actor.ts";
 import type { StoreRef } from "../adapter.ts";
 import { strictContentHash } from "../content-hash.ts";
+import {
+  bindingProblem,
+  type ReplayEvidence,
+  replayDigest,
+  replayProblem,
+  scoreReplay,
+  sizeProblem,
+  splitProblem,
+} from "../distill/validate.ts";
 import { allEvents, appendEvent, currentItems } from "../events.ts";
 import { itemById, lineage } from "../items.ts";
 import type { GateResult, PlaneDeps, PromoteOptions } from "../plane.ts";
@@ -43,6 +59,7 @@ import {
   type Confirmation,
   evaluatePromotion,
   PROMOTE_MEMBERSHIP_ID,
+  PROMOTE_REPLAY_SPLIT_ID,
   promotionRuleId,
 } from "../policy/promotion.ts";
 import { Id, type MemoryEvent, type MemoryItem, Scope } from "../schema.ts";
@@ -58,7 +75,7 @@ import {
   staleness,
 } from "./commit.ts";
 import { inWriteQueue } from "./queue.ts";
-import { enforceBudget } from "./retention.ts";
+import { budgetRefusal, enforceBudget } from "./retention.ts";
 import { refProblem, retiredContent } from "./write.ts";
 
 export { PROMOTE_CONFLICT_ID };
@@ -118,6 +135,23 @@ function duplicateOf(
 }
 
 /**
+ * What a presented replay gives the evaluator: the record the plane counts
+ * from it (a leaked one counts nothing, and is refused for its split), and
+ * why it is not the item's replay, if it is not.
+ */
+function replayEvidence(deps: PlaneDeps, item: MemoryItem, replay: ReplayEvidence) {
+  const size = sizeProblem(deps.policy, replay);
+  const problem =
+    bindingProblem(item, replay, deps.distillTasks) ??
+    (size === null ? null : { policy_id: PROMOTE_REPLAY_SPLIT_ID, reason: size });
+  const validation =
+    splitProblem(replay) === null
+      ? scoreReplay(replay).record
+      : { k: 0, n: 0, replay_sha256: replayDigest(replay) };
+  return { validation, ...(problem === null ? {} : { replayProblem: problem }) };
+}
+
+/**
  * Plane.promote. The call is checked (actor, time, item id and target
  * scope) before the log is touched; then the whole decide-and-commit runs in
  * one slot of the write queue.
@@ -139,6 +173,12 @@ export function promote(
     throw new InvalidCallError(
       `Plane.promote: invalid scope ${JSON.stringify(toScope)}; expected person:<id>, role:<id>, team:<id> or org`,
     );
+  // A replay the plane cannot judge is a malformed call, like an invalid
+  // scope (card D3): a leaked split, a reward outside 0 to 1, uneven seeds.
+  if (options.replay !== undefined) {
+    const problem = replayProblem(options.replay);
+    if (problem) throw new InvalidCallError(`Plane.promote: ${problem}`);
+  }
   return inWriteQueue(deps.db, () => decideAndCommit(deps, actor, itemId, toScope, at, options));
 }
 
@@ -188,6 +228,10 @@ async function decideAndCommit(
         item.class === "episodic" ? "semantic" : item.class,
       ),
       review: options.review === true,
+      // The record is derived here from the replay's outcomes, never taken
+      // from the caller (card D3, ADR 0046 proposed), and the replay is
+      // checked against the item: its id, content and distill ref (D3-3).
+      ...(options.replay === undefined ? {} : replayEvidence(deps, item, options.replay)),
     },
     retiredContent(db, toScope),
   );
@@ -226,6 +270,20 @@ async function decideAndCommit(
     });
     return { decision: "deny", item: null, event, events: [event] };
   }
+  // A promotion whose landing would have to evict an item more trusted than
+  // it is refused under trust.protect_trusted, as a write is (card E2.11).
+  const roomless = budgetRefusal(deps, actor, d.promoted, "active", at);
+  if (roomless) {
+    const event = appendEvent(db, {
+      ...common,
+      id: newId(),
+      op: "promote",
+      decision: "deny",
+      reason: roomless.reason,
+      policy_id: roomless.policy_id,
+    });
+    return { decision: "deny", item: null, event, events: [event] };
+  }
   const decided = { ...basis, scopes: [...new Set([item.scope, toScope])] };
 
   const fresh = d.transition === "new-version";
@@ -245,7 +303,9 @@ async function decideAndCommit(
     });
   let stored: MemoryItem;
   let ref: StoreRef;
-  let outcome: { stale: string } | { committed: MemoryEvent[]; retention: MemoryEvent[] };
+  let outcome:
+    | { stale: string; policy_id?: string }
+    | { committed: MemoryEvent[]; retention: MemoryEvent[] };
   try {
     ref = await adapter.write(toStore);
     stored = { ...toStore, store_ref: ref };
@@ -261,6 +321,10 @@ async function decideAndCommit(
         return {
           stale: `its lineage names item ${ancestor}, which an offboarding took out after the decision`,
         };
+      // Another handle may have filled the target since the decision (card
+      // E2.11, review E2.11-1): the budget refusal is asked again here.
+      const roomless = budgetRefusal(deps, actor, written, "active", at);
+      if (roomless) return { stale: roomless.reason, policy_id: roomless.policy_id };
       // Only the source and its own lineage may share the new version's ref:
       // the confirming items its lineage also names are not versions (P5-10).
       const problem = refProblem(
@@ -304,6 +368,7 @@ async function decideAndCommit(
   }
   if ("stale" in outcome) {
     const why = outcome.stale;
+    const refusedUnder = outcome.policy_id ?? PROMOTE_CONFLICT_ID;
     try {
       const stale = { wrote: stored, head: basis.head, actor: actor.id, at };
       const event = await settle(deps, stored.id, ref, stale, (note) =>
@@ -312,14 +377,14 @@ async function decideAndCommit(
           id: newId(),
           op: "promote",
           decision: "deny",
-          policy_id: PROMOTE_CONFLICT_ID,
+          policy_id: refusedUnder,
           reason: `the gate allowed the promotion (${d.policy_id}) but ${why}, before it was committed; the decision no longer stands, so the promotion is refused and the store is put back as the log has it${note}`,
         }),
       );
       return { decision: "deny", item: null, event, events: [event] };
     } catch (e) {
       failed(
-        `the promotion was refused (${PROMOTE_CONFLICT_ID}: ${why}) and the store could not be put back: ${e instanceof Error ? e.message : String(e)}`,
+        `the promotion was refused (${refusedUnder}: ${why}) and the store could not be put back: ${e instanceof Error ? e.message : String(e)}`,
       );
       throw e;
     }
