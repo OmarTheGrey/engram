@@ -15,9 +15,11 @@ import {
   MemoryItem,
   Policy,
   ReadCounts,
+  ReaderEntry,
   SCHEMA_VERSION,
   SimReport,
   Timestamp,
+  WhoCanReadAnswer,
   Workload,
 } from "@engram/core";
 import { z } from "zod";
@@ -174,6 +176,11 @@ export const GrantResponse = z.strictObject({
 
 export const RetainRequest = z.strictObject({ actor: Actor, scope: z.string() });
 
+// Who can read this memory (card E2.13): core's answer, under its own name.
+export { ReaderEntry, WhoCanReadAnswer };
+export const WhoCanReadItemRequest = z.strictObject({ actor: Actor, item_id: z.string() });
+export const WhoCanReadScopeRequest = z.strictObject({ actor: Actor, scope: z.string() });
+
 export const EventsRequest = z.strictObject({
   actor: Actor,
   after: z.int().nonnegative().optional().meta({
@@ -206,7 +213,7 @@ export const DistillRequest = z.strictObject({
   sessions: z.array(z.record(z.string(), JsonValue)),
   method: z.strictObject({ id: z.literal("awm"), model: z.string(), seed: z.int() }),
 });
-/** The distiller's report is typed by its card (D2). */
+/** The distiller's report is typed by the card that implements Plane.distill (docs/tasks/backlog.md). */
 export const OpenReport = z.record(z.string(), JsonValue);
 
 export const BypassRequest = z.strictObject({
@@ -273,6 +280,10 @@ export const COMPONENTS = {
   GrantRequest,
   GrantResponse,
   RetainRequest,
+  ReaderEntry,
+  WhoCanReadAnswer,
+  WhoCanReadItemRequest,
+  WhoCanReadScopeRequest,
   EventsRequest,
   EventsResponse,
   PolicyResponse,

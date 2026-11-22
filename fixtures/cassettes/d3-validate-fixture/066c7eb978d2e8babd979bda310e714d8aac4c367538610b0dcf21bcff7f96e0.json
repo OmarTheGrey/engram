@@ -1,0 +1,31 @@
+{
+  "key": "066c7eb978d2e8babd979bda310e714d8aac4c367538610b0dcf21bcff7f96e0",
+  "context": {
+    "item": "synthetic/bump-timeout-16",
+    "condition": "replay/with/edit-a-file-and-check-the-edit",
+    "preset": "none",
+    "store": "none"
+  },
+  "request": {
+    "model": "scripted/d3-agent",
+    "messages": [
+      {
+        "role": "user",
+        "content": "{\"content\":\"\",\"role\":\"system\",\"sections\":{\"addendum\":\"<addendum>\\n<procedure tools=\\\"edit read\\\">\\nFollow this procedure when it applies to the task.\\n---\\nname: edit-a-file-and-check-the-edit\\ndescription: \\\"Edit a file and check the edit. Use when a task changes one file and the change must be seen to have applied.\\\"\\nallowed-tools: \\\"edit read\\\"\\nmetadata:\\n  engram-item: \\\"01920000-0000-7000-8000-000000000002\\\"\\n---\\n\\n# Edit a file and check the edit\\n\\nEdit a file and check the edit. Use when a task changes one file and the change must be seen to have applied.\\n\\n## Steps\\n\\n1. I make the change in {{source-file}}.\\n\\n   ```\\n   edit({{\\\"path\\\":\\\"{{source-file}}\\\"}})\\n   ```\\n\\n2. I read {{source-file}} again to check that the edit applied, rather than retrying a shell edit.\\n\\n   ```\\n   read({{\\\"path\\\":\\\"{{source-file}}\\\"}})\\n   ```\\n</procedure>\\n</addendum>\",\"cwd\":\"<cwd>\\n{cwd}\\n</cwd>\",\"preamble\":\"You are a coding agent in a small TypeScript repository. Change it only through the tools you are given, then reply in one short message.\"},\"toolsAdded\":[{\"description\":\"Read a file of the repository.\",\"name\":\"read\",\"parameters\":{\"properties\":{\"path\":{\"type\":\"string\"}},\"required\":[\"path\"],\"type\":\"object\"}},{\"description\":\"Replace the first occurrence of `old` with `new` in a file.\",\"name\":\"edit\",\"parameters\":{\"properties\":{\"new\":{\"type\":\"string\"},\"old\":{\"type\":\"string\"},\"path\":{\"type\":\"string\"}},\"required\":[\"path\",\"old\",\"new\"],\"type\":\"object\"}},{\"description\":\"Run a shell command in the repository.\",\"name\":\"bash\",\"parameters\":{\"properties\":{\"command\":{\"type\":\"string\"}},\"required\":[\"command\"],\"type\":\"object\"}}]}"
+      },
+      {
+        "role": "user",
+        "content": "{\"content\":[{\"text\":\"Raise the fetch timeout from 5 to 10 seconds.\",\"type\":\"text\"}],\"role\":\"user\"}"
+      }
+    ],
+    "seed": 3
+  },
+  "response": {
+    "text": "{\"content\":[{\"arguments\":{\"new\":\"timeoutSeconds: 10\",\"old\":\"timeoutSeconds: 5\",\"path\":\"src/config.ts\"},\"id\":\"call_53\",\"name\":\"edit\",\"type\":\"toolCall\"}],\"stopReason\":\"toolUse\"}",
+    "usage": {
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "cost_usd": 0
+    }
+  }
+}
