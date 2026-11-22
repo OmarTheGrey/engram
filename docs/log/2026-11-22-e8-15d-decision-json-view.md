@@ -8,7 +8,7 @@ pillar: plane
 hypothesis: none
 evidence:
   - packages/cli/src/tui/screens/surface.ts
-  - packages/cli/test/tui/parity.test.ts
+  - packages/cli/test/tui/parity-surfaces.test.ts
 supersedes: none
 ---
 

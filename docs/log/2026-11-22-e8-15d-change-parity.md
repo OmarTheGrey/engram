@@ -7,8 +7,8 @@ chapter: implementation
 pillar: plane
 hypothesis: none
 evidence:
-  - packages/cli/test/tui/parity.test.ts
-  - "make test-one T=packages/cli/test/tui/parity.test.ts"
+  - packages/cli/test/tui/parity-surfaces.test.ts
+  - "make test-one T=packages/cli/test/tui/parity-surfaces.test.ts"
 supersedes: none
 ---
 

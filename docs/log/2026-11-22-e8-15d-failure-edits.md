@@ -7,7 +7,7 @@ chapter: implementation
 pillar: plane
 hypothesis: none
 evidence:
-  - packages/cli/test/tui/parity.test.ts
+  - packages/cli/test/tui/parity-surfaces.test.ts
   - fixtures/stores/claude-code-memory
 supersedes: none
 ---

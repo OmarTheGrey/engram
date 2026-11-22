@@ -11,7 +11,7 @@ evidence:
   - packages/cli/test/tui/frames-surfaces.test.ts
   - packages/cli/test/tui/__frames__/surface-serve-80x24-default.txt
   - packages/cli/test/tui/snippets.test.ts
-  - packages/cli/test/tui/parity.test.ts
+  - packages/cli/test/tui/parity-surfaces.test.ts
 supersedes: none
 ---
 
