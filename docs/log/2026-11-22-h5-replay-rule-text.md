@@ -9,7 +9,7 @@ hypothesis: H5
 evidence:
   - docs/research/preregistration.md
   - docs/tasks/lead-decisions.md
-  - docs/decisions/0045-replay-validation-source.md
+  - docs/decisions/0046-replay-validation-source.md
 supersedes: none
 ---
 
@@ -19,4 +19,4 @@ supersedes: none
 
 **Result.** One sentence of H5's stopping rule changes, and the version table gains a row. No other registered value moves.
 
-**Consequence.** The pre-registration alone now gives the rule the plane enforces. This must merge after card D3, which adds item 63 and ADR 0045.
+**Consequence.** The pre-registration alone now gives the rule the plane enforces. This must merge after card D3, which adds item 63 and ADR 0046.
