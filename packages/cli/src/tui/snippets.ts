@@ -306,8 +306,16 @@ interface Spawned {
   error: string | undefined;
 }
 
+/** Told of each child Try it starts, with the function that stops it; returns what forgets it. */
+export type Children = (kill: () => void) => () => void;
+
 /** Runs the scratch child once with `input` on stdin, killed after `timeoutMs`. */
-function spawnOnce(s: Scratch, input: string, timeoutMs: number): Promise<Spawned> {
+function spawnOnce(
+  s: Scratch,
+  input: string,
+  timeoutMs: number,
+  children?: Children,
+): Promise<Spawned> {
   return new Promise((done) => {
     let stdout = "";
     let stderr = "";
@@ -320,6 +328,7 @@ function spawnOnce(s: Scratch, input: string, timeoutMs: number): Promise<Spawne
       windowsHide: true,
     });
     const timer = setTimeout(() => child.kill(), timeoutMs);
+    const forget = children?.(() => child.kill());
     child.on("spawn", () => {
       started = true;
     });
@@ -328,6 +337,7 @@ function spawnOnce(s: Scratch, input: string, timeoutMs: number): Promise<Spawne
       if (finished) return;
       finished = true;
       clearTimeout(timer);
+      forget?.();
       done({ started, code, stdout, stderr, error });
     };
     child.on("error", (e) => {
@@ -378,7 +388,11 @@ function judgeHook(sample: Sample, r: Spawned): SampleResult {
     const detail =
       r.code === 2
         ? `exit 2: Claude Code would block every tool call and show this hook's stderr: ${r.stderr.trim().split("\n")[0] ?? ""}`
-        : DID_NOT_RUN(r.code === null ? "it was stopped" : `exit ${r.code}`);
+        : r.code === null
+          ? DID_NOT_RUN("it was stopped")
+          : r.code === 127
+            ? DID_NOT_RUN("exit 127")
+            : `the hook failed (exit ${r.code}). Claude Code would let every tool call through. Fix the command before pasting it.`;
     return { ...base, outcome: "failed", expected: false, detail };
   }
   const out = r.stdout.trim();
@@ -407,11 +421,20 @@ function judgeHook(sample: Sample, r: Spawned): SampleResult {
       expected: false,
       detail: "exit 0, but its output is not the JSON Claude Code reads",
     };
+  // Only a deny blocks: allow skips Claude Code's own prompt, ask and defer let the person or
+  // the next hook decide (review E8.15d-1).
+  if (decision !== "deny")
+    return {
+      ...base,
+      outcome: "failed",
+      expected: false,
+      detail: `exit 0, but permissionDecision ${decision}: Claude Code would not block this call`,
+    };
   return {
     ...base,
     outcome: "blocked",
     expected: sample.expect === "deny",
-    detail: `exit 0, blocked: permissionDecision ${decision}${reason === "" ? "" : `: ${reason}`}`,
+    detail: `exit 0, blocked: permissionDecision deny${reason === "" ? "" : `: ${reason}`}`,
   };
 }
 
@@ -420,10 +443,13 @@ export async function tryHook(
   s: Scratch,
   samples: readonly Sample[],
   timeoutMs = 45_000,
+  children?: Children,
 ): Promise<SampleResult[]> {
   const out: SampleResult[] = [];
   for (const sample of samples)
-    out.push(judgeHook(sample, await spawnOnce(s, JSON.stringify(sample.input), timeoutMs)));
+    out.push(
+      judgeHook(sample, await spawnOnce(s, JSON.stringify(sample.input), timeoutMs, children)),
+    );
   return out;
 }
 
@@ -457,7 +483,7 @@ const HANDSHAKE = [
  * tools and stops it (8.14). A child that does not start, or ends before
  * the handshake, is a failure in words.
  */
-export function tryMcp(s: Scratch, timeoutMs = 45_000): Promise<McpResult> {
+export function tryMcp(s: Scratch, timeoutMs = 45_000, children?: Children): Promise<McpResult> {
   return new Promise((done) => {
     let buffer = "";
     let stderr = "";
@@ -472,6 +498,7 @@ export function tryMcp(s: Scratch, timeoutMs = 45_000): Promise<McpResult> {
       windowsHide: true,
     });
     const timer = setTimeout(() => child.kill(), timeoutMs);
+    const forget = children?.(() => child.kill());
     const send = (m: object) => child.stdin?.write(`${JSON.stringify(m)}\n`);
     child.on("spawn", () => {
       started = true;
@@ -516,6 +543,7 @@ export function tryMcp(s: Scratch, timeoutMs = 45_000): Promise<McpResult> {
       if (finished) return;
       finished = true;
       clearTimeout(timer);
+      forget?.();
       if (tools !== undefined)
         return done({
           outcome: "ok",

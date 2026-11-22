@@ -13,6 +13,7 @@ import { clean, para, wrap } from "../layout.ts";
 import type { Ctx } from "../screen.ts";
 import {
   absolutePaths,
+  type Children,
   codexToml,
   hookCommand,
   hookSamples,
@@ -48,6 +49,12 @@ const snippetLines = (value: unknown, width: number, args: readonly string[]) =>
   );
 
 const pretty = (value: unknown) => `${JSON.stringify(value, null, 2)}\n`;
+
+/** Try it's children, stopped first when the TUI quits (review E8.15d-11). */
+const children =
+  (ctx: Ctx): Children =>
+  (kill) =>
+    ctx.onQuit(async () => kill());
 
 /** The launch both screens use, resolved once per screen (8.14); tests and frames set their own. */
 const resolveFor = (ctx: Ctx): Launch => resolveLaunch(thisHost(ctx.io.env));
@@ -160,7 +167,10 @@ export class HookScreen extends SurfaceScreen {
     const roots = (this.form.get("root") as readonly string[]).map((r) =>
       isAbsolute(r) ? r : resolve(project, r),
     );
-    this.tried = { scratch, results: await tryHook(scratch, hookSamples(project, roots)) };
+    this.tried = {
+      scratch,
+      results: await tryHook(scratch, hookSamples(project, roots), undefined, children(ctx)),
+    };
     this.toEnd = true;
   }
 
@@ -329,6 +339,13 @@ export class McpScreen extends ProcessScreen {
     return mcpJson(this.launchOf(ctx), this.snippetArgs(ctx));
   }
 
+  /** The actor the MCP server acts as: its --as, else the workspace's, as mcp builds it. */
+  private actorOf(ctx: Ctx): string {
+    const args = this.snippetArgs(ctx);
+    const at = args.indexOf("--as");
+    return at >= 0 ? (args[at + 1] as string) : (ctx.ws.actorId() ?? "the workspace's actor");
+  }
+
   async tryIt(ctx: Ctx): Promise<void> {
     if (this.transport !== "stdio") {
       ctx.say("Try it speaks MCP over stdio; over HTTP, Start runs the server here");
@@ -349,7 +366,7 @@ export class McpScreen extends ProcessScreen {
     this.tried = { scratch, result: undefined };
     this.toEnd = true;
     ctx.redraw();
-    this.tried = { scratch, result: await tryMcp(scratch) };
+    this.tried = { scratch, result: await tryMcp(scratch, undefined, children(ctx)) };
     this.toEnd = true;
   }
 
@@ -404,7 +421,7 @@ export class McpScreen extends ProcessScreen {
         lines.push(
           ...para(
             r.outcome === "ok"
-              ? `${t.status("ok", "Try it on a scratch log")}: ${r.detail}`
+              ? `${t.status("ok", "Try it on a scratch log")}: handshake ok as ${this.actorOf(ctx)}; ${r.detail.replace(/^handshake ok; /, "")}`
               : `${t.status("fail", clean(r.detail))}`,
             width,
           ),

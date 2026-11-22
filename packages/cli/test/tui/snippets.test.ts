@@ -307,6 +307,85 @@ describe("Try it (8.15)", () => {
     expect(count()).toBe(before);
   }, 60_000);
 
+  /** A fake hook: node printing `out` and exiting `code`, whatever it is given. */
+  const fake = (out: string, code = 0) =>
+    scratchLaunch(
+      {
+        command: process.execPath,
+        prefix: ["-e", `process.stdout.write(${JSON.stringify(out)}); process.exitCode = ${code}`],
+        note: undefined,
+      },
+      ["hook", "claude-code"],
+      childEnv(),
+      process.cwd(),
+    );
+  const decision = (d: string) =>
+    JSON.stringify({ hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: d } });
+
+  it("counts only a deny as blocked: a hook printing allow, ask or defer fails the store sample (review E8.15d-1)", async () => {
+    const project = await tempDir();
+    for (const d of ["allow", "ask", "defer"]) {
+      const [store] = await tryHook(fake(decision(d)), hookSamples(project, []));
+      expect(store?.outcome, d).toBe("failed");
+      expect(store?.expected, d).toBe(false);
+      expect(store?.detail).toContain(
+        `permissionDecision ${d}: Claude Code would not block this call`,
+      );
+    }
+    const [deny] = await tryHook(fake(decision("deny")), hookSamples(project, []));
+    expect(deny?.outcome).toBe("blocked");
+  }, 60_000);
+
+  it("shows a hook that exits 1 as one that failed, not one that did not run", async () => {
+    const [first] = await tryHook(fake("{}", 1), hookSamples(await tempDir(), []));
+    expect(first?.outcome).toBe("failed");
+    expect(first?.expected).toBe(false);
+    expect(first?.detail).toContain("the hook failed (exit 1)");
+    expect(first?.detail).toContain("Claude Code would let every tool call through");
+  });
+
+  it("removes and lists the decision export: --otlp, --export-jsonl, ENGRAM_OTLP_URL, ENGRAM_EXPORT_JSONL (review E8.15d-5)", () => {
+    const scratch = scratchLaunch(
+      { command: "node", prefix: [], note: undefined },
+      ["hook", "claude-code", "--otlp", "http://127.0.0.1:4318", "--export-jsonl=d.jsonl"],
+      { ENGRAM_OTLP_URL: "http://127.0.0.1:4318", ENGRAM_EXPORT_JSONL: "e.jsonl", PATH: "x" },
+      "/p",
+    );
+    expect(scratch.args).toEqual(["hook", "claude-code"]);
+    expect(scratch.env.ENGRAM_OTLP_URL).toBeUndefined();
+    expect(scratch.env.ENGRAM_EXPORT_JSONL).toBeUndefined();
+    expect(scratch.env.PATH).toBe("x");
+    expect(scratch.replaced).toEqual([
+      "Try it ran without --otlp http://127.0.0.1:4318",
+      "Try it ran without --export-jsonl d.jsonl",
+      "Try it ran without ENGRAM_OTLP_URL, so no decision leaves the machine",
+      "Try it ran without ENGRAM_EXPORT_JSONL",
+    ]);
+  });
+
+  it("stops a child it started when told to: quitting the TUI stops Try it (review E8.15d-11)", async () => {
+    const project = await tempDir();
+    const slow = scratchLaunch(
+      { command: process.execPath, prefix: ["-e", "setTimeout(() => {}, 60000)"], note: undefined },
+      ["hook", "claude-code"],
+      childEnv(),
+      project,
+    );
+    const kills: (() => void)[] = [];
+    const forgotten: number[] = [];
+    const started = Date.now();
+    const running = tryHook(slow, hookSamples(project, []).slice(0, 1), 50_000, (kill) => {
+      kills.push(kill);
+      return () => forgotten.push(1);
+    });
+    while (kills.length === 0) await new Promise((r) => setTimeout(r, 20));
+    for (const k of kills) k();
+    const [r] = await running;
+    expect(Date.now() - started).toBeLessThan(20_000);
+    expect(r?.outcome).toBe("failed");
+    expect(forgotten).toEqual([1]);
+  }, 30_000);
+
   it("shows a command that cannot start as a failure: the hook did not run", async () => {
     const project = await tempDir();
     const missing = { command: join(project, "no-such-engram.exe"), prefix: [], note: undefined };
