@@ -18,9 +18,9 @@
    args = ["/src/engram/packages/cli/src/main.ts", "mcp", "--db", ":memory:", "--owner", "dana", "--as",
    "agent:claude-code", "--member", "person:dana"]
 
- ✓ Try it on a scratch log: handshake ok; tools memory_write, memory_read, memory_explain, memory_simulate; stopped
+ ✓ Try it on a scratch log: handshake ok as agent:claude-code; tools memory_write, memory_read, memory_explain,
+ memory_simulate; stopped
  Try it ran with --db :memory: in place of --db engram.db
-
 
 
 

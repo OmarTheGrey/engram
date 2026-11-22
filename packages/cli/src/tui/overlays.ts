@@ -433,19 +433,23 @@ export class ConfirmOverlay implements Overlay {
     for (const p of this.request.lines) body.push(...para(`${p}`, inner - 1), "");
     if (this.request.argv !== undefined)
       body.push(...para(`$ ${ctx.shown(this.request.argv)}`, inner - 1), "");
-    if (this.typed !== undefined)
-      body.push(
-        ` Type ${this.request.typed} to go on: [ ${this.typed.render(Math.min(40, inner - 22), true)} ]`,
-        "",
-      );
+    if (this.typed !== undefined) {
+      // The box fits the dialog whatever the word's length (review E8.15d-10).
+      const label = ` Type ${this.request.typed} to go on: [ `;
+      const room = Math.max(8, Math.min(40, inner - 2 - visibleWidth(label) - 2));
+      body.push(`${label}${this.typed.render(room, true)} ]`, "");
+    }
     const button = (label: string, on: boolean) =>
       on ? ctx.theme.reverse(`[ ${label} ]`) : `[ ${label} ]`;
     body.push(
       `       ${button("Cancel", this.focus === "cancel")}      ${button(this.request.action, this.focus === "action")}`,
     );
+    // While the word is typed, y and n type; enter acts once the word is right.
     body.push(
       "",
-      ` y ${this.request.action.toLowerCase()}   n or esc cancel   tab the other button`,
+      this.typed === undefined
+        ? ` y ${this.request.action.toLowerCase()}   n or esc cancel   tab the other button`
+        : ` enter ${this.request.action.toLowerCase()}s once the id is typed   esc cancel`,
     );
     return box(ctx.theme, this.request.title, body, width, Math.min(height, body.length + 2));
   }
@@ -462,9 +466,14 @@ export class ConfirmOverlay implements Overlay {
       else ctx.say(`type ${this.request.typed} first`);
     } else if (name === "switch") this.focus = this.focus === "cancel" ? "action" : "cancel";
     else if (name === "choose") {
-      if (this.focus === "cancel") this.finish(ctx, false);
-      else if (this.ready()) this.finish(ctx, true);
-      else ctx.say(`type ${this.request.typed} first`);
+      // With the word typed, enter is the action wherever the focus is (review E8.15d-10);
+      // without it, enter on the action asks for the word and changes nothing.
+      if (this.typed !== undefined) {
+        if (this.ready()) this.finish(ctx, true);
+        else if (this.focus === "cancel" && this.typed.value === "") this.finish(ctx, false);
+        else ctx.say(`type ${this.request.typed} first`);
+      } else if (this.focus === "cancel") this.finish(ctx, false);
+      else this.finish(ctx, true);
     } else return false;
     return true;
   }

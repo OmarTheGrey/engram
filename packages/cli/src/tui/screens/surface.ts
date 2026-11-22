@@ -191,6 +191,8 @@ export abstract class SurfaceScreen implements Screen {
   }
   /** Scroll to the result's first line on the next draw. */
   private atResult = false;
+  /** Set when the form's command was used without a run here: a Try it, a copy. */
+  protected used = false;
   /** Scroll to the last line on the next draw: what Try it or a start just printed (card E8.15d). */
   protected toEnd = false;
 
@@ -426,7 +428,8 @@ export abstract class SurfaceScreen implements Screen {
 
   /** Back: asks first when the form has input and nothing has run. */
   protected async leave(ctx: Ctx): Promise<boolean> {
-    if (!this.form.dirty() || this.result !== undefined) {
+    // After a run, a Try it or a copy, what was typed has been used: leaving does not ask.
+    if (!this.form.dirty() || this.result !== undefined || this.used) {
       ctx.pop();
       return true;
     }

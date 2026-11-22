@@ -120,8 +120,9 @@ const REPORT: SimReport = {
 };
 
 const DOCTOR = [
-  "fail policy          --policy nosuch.yaml is neither a preset nor a readable file",
+  // The failing check in doctor's own order second: the screen draws it first (review E8.15d-7).
   "ok   log             sqlite engram.db: no log yet; the first read or write creates it",
+  "fail policy          --policy nosuch.yaml is neither a preset nor a readable file",
   "skip store           no --root given",
   "skip adapter files   no --root given",
   "ok   adapter mem0    a fixture probe",

@@ -120,6 +120,8 @@ export class DoctorScreen extends SurfaceScreen {
     );
     super(spec, ctx, { ...bind, ...values }, positionals);
     this.fromServe = Object.keys(bind).length > 0;
+    // Run first: the checks are the screen (review E8.15d-9).
+    this.focusId = "button:run";
   }
 
   override title(): string {

@@ -9,7 +9,8 @@
 // TUI stops it first and says so. The helpers here serve MCP's HTTP
 // transport too.
 import { isAbsolute, resolve } from "node:path";
-import type { CommandSpec, Values } from "../../registry.ts";
+import { parse } from "../../commands.ts";
+import { type CommandSpec, parseOptions, type Values } from "../../registry.ts";
 import { type Io, run } from "../../run.ts";
 import { clean, para } from "../layout.ts";
 import type { Ctx } from "../screen.ts";
@@ -103,13 +104,54 @@ export class Running {
   }
 }
 
-/** A screen with the three answers and a command it runs until stopped: Serve, and MCP over HTTP. */
-export abstract class ProcessScreen extends SurfaceScreen {
-  auth: Auth;
+/**
+ * A server the session runs, by command name: it outlives the screen that
+ * started it, so a screen opened again attaches to it and offers Stop
+ * (review E8.15d-3), and quitting stops it once, recorded once.
+ */
+interface Process {
   running: Running | undefined;
   /** The last run that ended, with what it printed. */
   ended: Running | undefined;
-  private unregister: (() => void) | undefined;
+  /** Set while the TUI quits: the run's record says it was stopped by the quit. */
+  quitting: boolean;
+  unregister: (() => void) | undefined;
+}
+const processes = new WeakMap<object, Map<string, Process>>();
+function processOf(ctx: Ctx, name: string): Process {
+  let byName = processes.get(ctx);
+  if (byName === undefined) {
+    byName = new Map();
+    processes.set(ctx, byName);
+  }
+  let p = byName.get(name);
+  if (p === undefined) {
+    p = { running: undefined, ended: undefined, quitting: false, unregister: undefined };
+    byName.set(name, p);
+  }
+  return p;
+}
+
+/** A run ended: recorded once, with the note when quitting stopped it. */
+function finish(ctx: Ctx, proc: Process, r: Running, code: number): void {
+  proc.unregister?.();
+  proc.unregister = undefined;
+  proc.running = undefined;
+  proc.ended = r;
+  ctx.record({
+    argv: r.argv,
+    code,
+    ...(proc.quitting ? { note: "stopped when the TUI quit" } : {}),
+  });
+}
+
+/** Whether the session runs the command's server now (a screen opened again attaches to it). */
+export const runsNow = (ctx: Ctx, name: string) => processOf(ctx, name).running !== undefined;
+
+/** A screen with the three answers and a command it runs until stopped: Serve, and MCP over HTTP. */
+export abstract class ProcessScreen extends SurfaceScreen {
+  auth: Auth;
+  private readonly proc: Process;
 
   constructor(
     spec: CommandSpec,
@@ -117,8 +159,30 @@ export abstract class ProcessScreen extends SurfaceScreen {
     values: Values = {},
     positionals: readonly string[] = [],
   ) {
-    super(spec, ctx, values, positionals);
+    const proc = processOf(ctx, spec.name);
+    // Opened again while it runs: the form shows the command that is running.
+    const given =
+      proc.running !== undefined && Object.keys(values).length === 0
+        ? (parse(proc.running.argv.slice(1), parseOptions(spec), spec.allowPositionals)
+            .values as Values)
+        : values;
+    super(spec, ctx, given, positionals);
+    this.proc = proc;
     this.auth = authOf(this.form.flagValues());
+  }
+
+  /** The server this session runs for the command, whichever screen started it. */
+  get running(): Running | undefined {
+    return this.proc.running;
+  }
+  set running(r: Running | undefined) {
+    this.proc.running = r;
+  }
+  get ended(): Running | undefined {
+    return this.proc.ended;
+  }
+  set ended(r: Running | undefined) {
+    this.proc.ended = r;
   }
 
   protected authRows(): Row[] {
@@ -180,19 +244,25 @@ export abstract class ProcessScreen extends SurfaceScreen {
       this.toEnd = true;
       ctx.redraw();
     });
-    this.running = r;
-    this.ended = undefined;
-    this.unregister = ctx.onQuit(async () => {
+    const proc = this.proc;
+    proc.running = r;
+    proc.ended = undefined;
+    proc.quitting = false;
+    proc.unregister = ctx.onQuit(async () => {
       // Its own ending records it, saying why it stopped.
-      this.quitting = true;
+      proc.quitting = true;
       await r.halt();
     });
     // It returns by itself only when it could not start (or stops by s).
     void r.done.then((code) => {
-      if (this.running !== r) return;
-      this.finish(ctx, r, code);
+      if (proc.running !== r) return;
+      finish(ctx, proc, r, code);
       const said = clean(r.err);
-      if (/authentication|credential|--keys|--issuer|--insecure-loopback|--resource/.test(said))
+      // The answer the refusal names: the host first, then the credentials (review E8.15d-12).
+      if (/--host\b/.test(said)) this.focusId = this.hostFocus();
+      else if (
+        /authentication|credential|--keys|--issuer|--insecure-loopback|--resource/.test(said)
+      )
         this.focusId = "choice:auth";
     });
     // Wait for the start line or the refusal, so the next key sees which.
@@ -210,19 +280,10 @@ export abstract class ProcessScreen extends SurfaceScreen {
     ]);
   }
 
-  private finish(ctx: Ctx, r: Running, code: number): void {
-    this.unregister?.();
-    this.unregister = undefined;
-    this.running = undefined;
-    this.ended = r;
-    ctx.record({
-      argv: r.argv,
-      code,
-      ...(this.quitting ? { note: "stopped when the TUI quit" } : {}),
-    });
+  /** The unit a refusal naming --host focuses: Serve's Host choice, else the field. */
+  protected hostFocus(): string {
+    return "host";
   }
-  /** Set while the TUI quits: the run's record says it was stopped by the quit. */
-  private quitting = false;
 
   /** s: stops it, and shows its stop line. */
   async halt(ctx: Ctx): Promise<void> {
@@ -232,7 +293,7 @@ export abstract class ProcessScreen extends SurfaceScreen {
       return;
     }
     const code = await r.halt();
-    if (this.running === r) this.finish(ctx, r, code);
+    if (this.proc.running === r) finish(ctx, this.proc, r, code);
   }
 
   /** What Doctor and the hook take from this screen's answers. */
@@ -275,14 +336,41 @@ export abstract class ProcessScreen extends SurfaceScreen {
   }
 }
 
+/** The loopback hosts Host offers; any other is typed under More flags, with credentials. */
+const HOSTS = ["127.0.0.1", "::1", "localhost"] as const;
+
 export class ServeScreen extends ProcessScreen {
+  constructor(
+    spec: CommandSpec,
+    ctx: Ctx,
+    values: Values = {},
+    positionals: readonly string[] = [],
+  ) {
+    // The Viewer is the actor the workspace names, as the inspector would show it (8.13).
+    const viewer =
+      ctx.ws.get("as") === undefined && !runsNow(ctx, spec.name) ? ctx.ws.actorId() : undefined;
+    const given =
+      values.as === undefined && viewer !== undefined ? { ...values, as: viewer } : values;
+    super(spec, ctx, given, positionals);
+  }
   override title(): string {
     return "Serve the API and inspector";
+  }
+  protected override hostFocus(): string {
+    return "choice:host";
   }
   protected override top(): Row[] {
     return [
       ...this.authRows(),
-      { kind: "field", id: "host", hint: "127.0.0.1, ::1 or localhost" },
+      {
+        kind: "choice",
+        id: "host",
+        label: "Host",
+        options: HOSTS.map((h) => ({ value: h, label: h })),
+        // No --host is 127.0.0.1, as the CLI applies it; another host is under More flags.
+        value: () => String(this.form.get("host")) || "127.0.0.1",
+        set: (v) => this.form.setValue("host", v === "127.0.0.1" ? "" : v),
+      },
       { kind: "field", id: "port", hint: "default 7313" },
       { kind: "field", id: "as", label: "Viewer", hint: "shown by the inspector" },
     ];

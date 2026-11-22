@@ -1,8 +1,8 @@
  engram  Export a bundle                       in process  person:dana (person)
+ The bundle holds the items person:dana owns, with their events.
+
    Out          [ dana.jsonl                   ]  the bundle file; the TUI ne...
    Encryption   (o) none   ( ) age recipients   ( ) passphrase file
-
- The bundle holds the items person:dana owns, with their events.
    ▸ More flags: 7, set: --db --owner
 
  [ Export ]

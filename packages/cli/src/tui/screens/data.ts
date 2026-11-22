@@ -35,7 +35,13 @@ export class ExportScreen extends SurfaceScreen {
     return "Export a bundle";
   }
   protected override top(): Row[] {
+    // What the bundle holds first, then where it goes (review UX item).
     const rows: Row[] = [
+      {
+        kind: "para",
+        text: `The bundle holds the items ${this.ctx.ws.actorLabel().replace(/ \(.*\)$/, "")} owns, with their events.`,
+      },
+      { kind: "text", lines: [""] },
       { kind: "field", id: "out", hint: "the bundle file; the TUI never writes it to the screen" },
       {
         kind: "choice",
@@ -55,13 +61,6 @@ export class ExportScreen extends SurfaceScreen {
     if (this.encryption === "recipients")
       rows.push({ kind: "field", id: "recipient", label: "Recipients" });
     if (this.encryption === "passphrase") rows.push({ kind: "field", id: "passphrase-file" });
-    rows.push({
-      kind: "text",
-      lines: [
-        "",
-        ` The bundle holds the items ${this.ctx.ws.actorLabel().replace(/ \(.*\)$/, "")} owns, with their events.`,
-      ],
-    });
     return rows;
   }
   protected override hidden(): ReadonlySet<string> {

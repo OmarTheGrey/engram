@@ -1,5 +1,5 @@
  engram  Doctor                                                         in process  log engram.db  person:dana (person)
- > ▸ More flags: 11, set: --db --root
+   ▸ More flags: 11, set: --db --root
 
  [ Run doctor again ]
 
@@ -40,4 +40,4 @@ $ engram doctor --db engram.db --root mem   exit 1
  ? help  r rerun  enter details  v plain  J json  ; commands  esc back
 --- styles
 r0 c0-119 inverse
-r1 c0-119 inverse
+r3 c1-20 inverse

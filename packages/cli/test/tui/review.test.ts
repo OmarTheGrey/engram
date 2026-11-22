@@ -378,8 +378,9 @@ describe("the minor findings", () => {
     const h = await usable();
     writeFileSync(join(h.io.cwd, "old.bundle"), "x");
     for (const [file, says] of [
-      ["old.bundle", "it exists and will be overwritten"],
-      ["new.bundle", "it does not exist yet"],
+      // Card E8.15d words it with the file's name.
+      ["old.bundle", "old.bundle exists: it will be overwritten"],
+      ["new.bundle", "new.bundle does not exist yet: it will be created"],
     ] as const) {
       await h.press(";");
       await h.type(`export --out ${file}`);

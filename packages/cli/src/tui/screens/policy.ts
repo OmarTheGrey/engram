@@ -8,6 +8,7 @@
 // own text; nothing is derived from a reason or a rule id.
 import type { LintFinding, SimReport, StepChange } from "@engram/core";
 import { outcomeText, plural, policyName } from "../../format.ts";
+import type { CommandSpec, Values } from "../../registry.ts";
 import { middleCut } from "../argv.ts";
 import { clean, fit, para } from "../layout.ts";
 import type { RunResult } from "../runner.ts";
@@ -19,6 +20,22 @@ import { bodyJson, type Row, SurfaceScreen } from "./surface.ts";
 const firstLine = (r: RunResult) => clean(r.out).split("\n")[0] ?? "";
 
 export class RetainScreen extends SurfaceScreen {
+  constructor(
+    spec: CommandSpec,
+    ctx: Ctx,
+    values: Values = {},
+    positionals: readonly string[] = [],
+  ) {
+    // The actor's own person scope first, as the mockup shows it (8.9); any scope may be typed.
+    const own = ctx.ws.actorId();
+    const scope = own?.startsWith("person:") === true ? own : undefined;
+    super(
+      spec,
+      ctx,
+      values.scope === undefined && scope !== undefined ? { ...values, scope } : values,
+      positionals,
+    );
+  }
   override title(): string {
     return "Retention sweep";
   }

@@ -29,7 +29,7 @@ import {
   tryMcp,
 } from "../snippets.ts";
 import { KeyCreateScreen } from "./data.ts";
-import { ProcessScreen } from "./serve.ts";
+import { ProcessScreen, runsNow } from "./serve.ts";
 import { type Button, type Row, SurfaceScreen, sharedOf } from "./surface.ts";
 
 /** The project a harness runs in: CLAUDE_PROJECT_DIR, as the hook resolves it, else the working folder. */
@@ -49,6 +49,23 @@ const snippetLines = (value: unknown, width: number, args: readonly string[]) =>
   );
 
 const pretty = (value: unknown) => `${JSON.stringify(value, null, 2)}\n`;
+
+/**
+ * The command line with the workspace's server written out: the CLI finds a
+ * server named by ENGRAM_SERVER_URL itself, but the harness runs the snippet
+ * in its own environment, so the snippet names it (review E8.15d-4).
+ */
+function withServer(argv: readonly string[], ctx: Ctx): string[] {
+  const server = ctx.ws.server();
+  if (server === undefined || argv.includes("--server")) return [...argv];
+  return [...argv, "--server", server];
+}
+
+/** What the snippet says about a server: the token is never written into it. */
+const serverNote = (ctx: Ctx): string | undefined =>
+  ctx.ws.server() === undefined
+    ? undefined
+    : `The snippet names the server ${ctx.ws.server()}${ctx.ws.source("server") === "env" ? " (from ENGRAM_SERVER_URL)" : ""}. If the server asks for a credential, set ENGRAM_TOKEN in the harness's own environment: the snippet never holds it.`;
 
 /** Try it's children, stopped first when the TUI quits (review E8.15d-11). */
 const children =
@@ -104,7 +121,7 @@ export class HookScreen extends SurfaceScreen {
 
   /** The engram arguments of the snippet: the form's, every path absolute against the project. */
   snippetArgs(ctx: Ctx = this.ctx): string[] {
-    let argv = this.form.argv(ctx.ws);
+    let argv = withServer(this.form.argv(ctx.ws), ctx);
     // The hook's --root is its own, not the workspace's store folder: a server does not drop it.
     const roots = this.form.get("root") as readonly string[];
     if (!argv.includes("--root") && roots.length > 0)
@@ -148,6 +165,7 @@ export class HookScreen extends SurfaceScreen {
   }
 
   copyEntry(ctx: Ctx): void {
+    this.used = true;
     ctx.copy(pretty(this.entry(ctx)));
   }
 
@@ -161,6 +179,7 @@ export class HookScreen extends SurfaceScreen {
     const project = projectOf(ctx);
     const args = this.snippetArgs(ctx);
     const scratch = scratchLaunch(this.launchOf(ctx), args, ctx.io.env, project);
+    this.used = true;
     this.tried = { scratch, results: undefined };
     this.toEnd = true;
     ctx.redraw();
@@ -187,6 +206,16 @@ export class HookScreen extends SurfaceScreen {
     const launch = this.launchOf(ctx);
     const lines: string[] = [""];
     if (this.filled !== undefined) lines.push(...para(this.filled, width), "");
+    if ((this.form.get("root") as readonly string[]).length === 0)
+      lines.push(
+        ...para(
+          "No store roots: the hook guards the stores' own commands only (mem0, letta and the rest), not reads or edits of a store's files. Add the store folder above.",
+          width,
+        ),
+        "",
+      );
+    const note = serverNote(ctx);
+    if (note !== undefined) lines.push(...para(note, width), "");
     if (launch.note !== undefined) lines.push(...para(launch.note, width));
     lines.push(" .claude/settings.json, hooks.PreToolUse:");
     lines.push(...snippetLines(this.entry(ctx), width, this.snippetArgs(ctx)));
@@ -224,8 +253,13 @@ export class McpScreen extends ProcessScreen {
     values: Values = {},
     positionals: readonly string[] = [],
   ) {
-    super(spec, ctx, values, positionals);
-    this.transport = values.http === undefined ? "stdio" : "http";
+    // An MCP server acts as an agent: Acting as starts as Claude Code's (review UX item).
+    const given =
+      values.as === undefined && !runsNow(ctx, spec.name)
+        ? { ...values, as: "agent:claude-code" }
+        : values;
+    super(spec, ctx, given, positionals);
+    this.transport = String(this.form.get("http")) === "" ? "stdio" : "http";
   }
 
   override title(): string {
@@ -258,7 +292,7 @@ export class McpScreen extends ProcessScreen {
   }
 
   snippetArgs(ctx: Ctx = this.ctx): string[] {
-    return absolutePaths(super.argv(ctx), projectOf(ctx));
+    return absolutePaths(withServer(super.argv(ctx), ctx), projectOf(ctx));
   }
   override argv(ctx: Ctx): string[] {
     return this.snippetArgs(ctx);
@@ -287,7 +321,10 @@ export class McpScreen extends ProcessScreen {
       },
     });
     if (this.transport === "http") {
-      rows.push({ kind: "field", id: "http", label: "HTTP port" }, ...this.authRows());
+      rows.push(
+        { kind: "field", id: "http", label: "HTTP port", hint: "served on 127.0.0.1 at this port" },
+        ...this.authRows(),
+      );
       if (!asserted)
         rows.push({
           kind: "text",
@@ -309,11 +346,21 @@ export class McpScreen extends ProcessScreen {
           : []),
       ];
     return [
-      { id: "button:copy-mcp", label: "Copy .mcp.json", press: (c) => c.copy(pretty(this.mcp(c))) },
+      {
+        id: "button:copy-mcp",
+        label: "Copy .mcp.json",
+        press: (c) => {
+          this.used = true;
+          c.copy(pretty(this.mcp(c)));
+        },
+      },
       {
         id: "button:copy-codex",
         label: "Copy Codex config.toml",
-        press: (c) => c.copy(codexToml(this.launchOf(c), this.snippetArgs(c))),
+        press: (c) => {
+          this.used = true;
+          c.copy(codexToml(this.launchOf(c), this.snippetArgs(c)));
+        },
       },
       { id: "button:try", label: "Try it", press: (c) => this.tryIt(c) },
     ];
@@ -363,6 +410,7 @@ export class McpScreen extends ProcessScreen {
       ctx.io.env,
       projectOf(ctx),
     );
+    this.used = true;
     this.tried = { scratch, result: undefined };
     this.toEnd = true;
     ctx.redraw();
@@ -397,6 +445,8 @@ export class McpScreen extends ProcessScreen {
     }
     const launch = this.launchOf(ctx);
     lines.push("");
+    const note = serverNote(ctx);
+    if (note !== undefined) lines.push(...para(note, width), "");
     if (launch.note !== undefined) lines.push(...para(launch.note, width));
     lines.push(
       " For Claude Code, .mcp.json:",

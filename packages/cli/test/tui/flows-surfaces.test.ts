@@ -9,6 +9,8 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { appendEvent, migrate, openSqlite } from "@engram/core";
 import { describe, expect, it } from "vitest";
+import { command } from "../../src/registry.ts";
+import { surfaceScreen } from "../../src/tui/screens/surfaces.ts";
 import { cli, fixtureCopy, REPO, tempDir } from "../helpers.ts";
 import { type Harness, startHarness } from "./harness.ts";
 
@@ -66,7 +68,8 @@ describe("Retention sweep (8.9)", () => {
     const h = await usable({ given: { owner: "dana", db: "engram.db", root } });
     await h.press("t");
     expect(h.screen()).toBe("surface");
-    await h.type("person:dana");
+    // The scope starts as the actor's own (review E8.15d-12).
+    expect(await h.text()).toContain("[ person:dana");
     await h.press(SAVE);
     expect(h.overlay()).toBe("confirm");
     const text = await h.text();
@@ -199,24 +202,45 @@ describe("Keys (8.23)", () => {
     await h.press("A");
     await h.type("k/keys.json");
     await h.press(TAB); // List the keys
-    await h.press("n");
-    await fillKey(h);
-    await h.press(SAVE, "y");
-    await h.press(ESC);
+    for (let i = 0; i < 2; i++) {
+      await h.press("n");
+      await fillKey(h);
+      await h.press(SAVE, "y");
+      await h.press(ESC);
+    }
     const listed = await h.text();
     expect(listed).toMatch(
       /egk_[0-9a-f]{12}_\*\*\*\*\S{4} {2}active {3}person:dana \(person, source user\)/,
     );
-    const id = (await focusStarting(h, "key:")).slice(4);
+    // The second key listed is the one revoked, not the first (review E8.15d-7).
+    const first = (await focusStarting(h, "key:")).slice(4);
+    await h.press(TAB);
+    const second = (h.focused() ?? "").slice(4);
+    expect(second).toMatch(/^[0-9a-f]{12}$/);
+    expect(second).not.toBe(first);
     await h.press("R");
     expect(h.overlay()).toBe("confirm");
-    expect(await h.text()).toContain(`Type ${id} to go on`);
-    await h.press(TAB, ENTER);
+    expect(await h.text()).toContain(`Type ${second} to go on`);
+    // While the id is typed the hint says what enter does; enter with a wrong id does nothing.
+    expect((await h.frame()).join("\n")).toContain("enter revokes once the id is typed");
+    await h.type("nope");
+    await h.press(ENTER);
+    expect(h.overlay()).toBe("confirm");
     expect(h.ran().filter((a) => a[1] === "revoke")).toEqual([]);
-    await h.type(id);
-    await h.press(ENTER); // the action button keeps its focus
-    expect(await h.text()).toContain("revoked");
+    for (let i = 0; i < 4; i++) await h.press("\x7f");
+    // Enter with the right id typed presses Revoke, though Cancel has the focus (review E8.15d-10).
+    await h.type(second);
+    await h.press(ENTER);
+    expect(h.overlay()).toBeUndefined();
+    expect(h.ran().filter((a) => a[1] === "revoke")).toEqual([
+      ["key", "revoke", second, "--keys", "k/keys.json"],
+    ]);
+    const after = await h.text();
+    expect(after).toMatch(new RegExp(`egk_${first}_\\S+ {2}active`));
+    expect(after).toMatch(new RegExp(`egk_${second}_\\S+ {2}revoked`));
     expect(h.ran().map((a) => a.slice(0, 2).join(" "))).toEqual([
+      "key create",
+      "key list",
       "key create",
       "key list",
       "key revoke",
@@ -250,11 +274,11 @@ describe("Export and Import (8.20, 8.21)", () => {
     await h.type("dana.jsonl");
     await h.press(SAVE);
     expect(h.overlay()).toBe("confirm");
-    expect(await h.text()).toContain("The file: it does not exist yet.");
+    expect(await h.text()).toContain("dana.jsonl does not exist yet: it will be created.");
     await h.press("n");
     writeFileSync(join(cwd, "dana.jsonl"), "old\n");
     await h.press(SAVE);
-    expect(await h.text()).toContain("The file: it exists and will be overwritten.");
+    expect(await h.text()).toContain("dana.jsonl exists: it will be overwritten.");
     await h.press("y");
     expect(await h.text()).toContain("exported 1 item");
     expect(readFileSync(join(cwd, "dana.jsonl"), "utf8").startsWith("{")).toBe(true);
@@ -386,6 +410,7 @@ describe("text fields and the server's log (9.1, 8.15)", () => {
   it("a text field types every printable key, the screen's own keys and : included", async () => {
     const h = await usable();
     await h.press("t"); // Retention sweep: its scope field has the focus
+    await h.press("\x15"); // ctrl+u clears the actor's scope it starts with
     await h.type("team:a;?vJrstknaoRq");
     expect(await h.text()).toContain("[ team:a;?vJrstknaoRq");
     expect(h.ran()).toEqual([]);
@@ -416,6 +441,213 @@ describe("text fields and the server's log (9.1, 8.15)", () => {
     );
     await h.quit();
   }, 30_000);
+});
+
+describe("the review's fix pass (E8.15d)", () => {
+  it("a server keeps running after esc; Serve opened again attaches to it and s stops it (review 3)", async () => {
+    const h = await usable();
+    await h.press("h", SPACE, SPACE);
+    await h.focusField("port");
+    await h.type("0");
+    await h.press(SAVE);
+    await waitFor(h, "insecure loopback");
+    await h.press(ESC);
+    expect(h.screen()).toBe("home");
+    await h.press("h");
+    const text = await waitFor(h, "running");
+    expect(text).toContain("[ Stop ]");
+    expect(text).toContain("(o) No authentication");
+    // The form shows the command that runs.
+    expect(h.app.top().command(h.app).argv?.slice(0, 4)).toEqual([
+      "serve",
+      "--insecure-loopback",
+      "--port",
+      "0",
+    ]);
+    expect(h.focused()).toBe("choice:auth");
+    await h.press("s");
+    await waitFor(h, "engram serve: stopped");
+    expect(h.ran()).toHaveLength(1);
+    expect(h.ran()[0]?.[0]).toBe("serve");
+    const s = await h.quit();
+    expect(s.ran[0]?.note).toBeUndefined();
+  }, 30_000);
+
+  it("q on Home stops a running server, and the summary says so (review 2)", async () => {
+    const h = await usable();
+    await h.press("h", SPACE, SPACE);
+    await h.focusField("port");
+    await h.type("0");
+    await h.press(SAVE);
+    await waitFor(h, "insecure loopback");
+    await h.press(ESC, "q");
+    const s = await h.app.done;
+    expect(s.ran).toHaveLength(1);
+    expect(s.ran[0]?.note).toBe("stopped when the TUI quit");
+  }, 30_000);
+
+  it("a refusal naming --host focuses Host (review 12)", async () => {
+    const h = await usable();
+    await h.press("h", SPACE, SPACE);
+    await h.focusField("fold:more");
+    await h.press(ENTER);
+    await h.focusField("host");
+    await h.type("0.0.0.0");
+    await h.focusField("port");
+    await h.type("0");
+    await h.press(SAVE);
+    await waitFor(h, "exit 2");
+    expect(h.focused()).toBe("choice:host");
+    await h.quit();
+  }, 30_000);
+
+  it("Serve offers Host as the three loopback names and starts the Viewer as the actor; Retain starts on the actor's scope", async () => {
+    const h = await usable();
+    await h.press("h");
+    let text = await h.text();
+    expect(text).toContain("(o) 127.0.0.1");
+    expect(text).toContain("( ) ::1");
+    expect(text).toContain("( ) localhost");
+    expect(text).toContain("[ person:dana");
+    await h.focusField("choice:host");
+    await h.press(SPACE);
+    expect((await h.frame()).at(-2)).toContain("--host ::1");
+    await h.press(ESC);
+    if (h.overlay() === "confirm") await h.press("y");
+    await h.press("t");
+    text = await h.text();
+    expect(text).toContain("[ person:dana");
+    await h.quit();
+  });
+
+  it("Doctor's first focus is Run (review 9)", async () => {
+    const h = await usable();
+    await h.press("d");
+    expect(h.focused()).toBe("button:run");
+    await h.quit();
+  });
+
+  it("the hook says what an empty Store roots guards, and leaving after Try it or a copy does not ask", async () => {
+    const cwd = await tempDir();
+    const h = await usable({ cwd });
+    await h.press("b");
+    expect((await h.text()).replace(/\s+/g, " ")).toContain(
+      "No store roots: the hook guards the stores' own commands only",
+    );
+    await h.focusField("protect");
+    await h.type("x.txt");
+    await h.press(ENTER);
+    await h.focusField("button:copy");
+    await h.press(ENTER);
+    await h.press(ESC);
+    expect(h.overlay()).toBeUndefined();
+    expect(h.screen()).toBe("home");
+    await h.quit();
+  });
+
+  it("MCP starts Acting as agent:claude-code, and its stdio snippet never holds --http (review 7)", async () => {
+    const h = await usable();
+    await h.press("m");
+    const screen = h.app.top() as unknown as {
+      snippetArgs(): string[];
+      form: { setValue(id: string, v: string): void };
+    };
+    expect(screen.snippetArgs()).toContain("agent:claude-code");
+    screen.form.setValue("http", "7399");
+    (h.app.top() as unknown as { transport: string }).transport = "stdio";
+    expect(screen.snippetArgs()).not.toContain("--http");
+    expect(screen.snippetArgs()).not.toContain("7399");
+    await h.quit();
+  });
+
+  it("with the server from ENGRAM_SERVER_URL, the hook and MCP snippets name it and say the token is set apart (review 4)", async () => {
+    const cwd = await tempDir();
+    const h = await startHarness({
+      cwd,
+      home: cwd,
+      given: { owner: "dana", root: "mem" },
+      env: { ENGRAM_SERVER_URL: "http://127.0.0.1:7313", ENGRAM_TOKEN: "egk_secret" },
+    });
+    for (const letter of ["b", "m"]) {
+      await h.press(letter);
+      const screen = h.app.top() as unknown as { snippetArgs(): string[] };
+      const args = screen.snippetArgs();
+      expect(args.slice(args.indexOf("--server"), args.indexOf("--server") + 2)).toEqual([
+        "--server",
+        "http://127.0.0.1:7313",
+      ]);
+      expect(args).not.toContain("--db");
+      const text = (await h.text()).replace(/\s+/g, " ");
+      expect(text).toContain("ENGRAM_TOKEN");
+      expect(text).not.toContain("egk_secret");
+      await h.press(ESC);
+    }
+    await h.quit();
+  });
+
+  it("with --server, the hook's snippet still holds its --root (review 5)", async () => {
+    const cwd = await tempDir();
+    const h = await usable({
+      cwd,
+      given: { owner: "dana", server: "http://127.0.0.1:7313", root: "mem" },
+    });
+    await h.press("b");
+    const args = (h.app.top() as unknown as { snippetArgs(): string[] }).snippetArgs();
+    expect(args).toContain("--server");
+    expect(args[args.indexOf("--root") + 1]).toBe(join(cwd, "mem"));
+    await h.quit();
+  });
+
+  it("lint shows each finding's own rule: two findings, two rules (review 7)", async () => {
+    const h = await usable();
+    const f = (id: string, lint: string) => ({
+      id,
+      lint_id: lint,
+      item_id: id,
+      tier: "deterministic",
+      severity: "warn",
+      message: `${lint} finding`,
+      evidence: [],
+      schema_version: 1,
+    });
+    const screen = surfaceScreen(
+      command("lint") as never,
+      h.app,
+      { scope: "team:core" } as never,
+      [],
+    ) as unknown as {
+      show(r: unknown): void;
+    };
+    screen.show({
+      argv: ["lint", "--scope", "team:core"],
+      code: 1,
+      out: "lint team:core: allow, 2 findings\n",
+      err: "",
+      calls: [
+        {
+          method: "POST",
+          path: "/api/v1/lint",
+          status: 200,
+          body: {
+            decision: "allow",
+            findings: [
+              f("01950000-0000-7000-8000-0000000000a1", "duplicate"),
+              f("01950000-0000-7000-8000-0000000000a2", "orphan"),
+            ],
+            events: [{ policy_id: "fixture/lint/duplicate" }, { policy_id: "fixture/lint/orphan" }],
+          },
+        },
+      ],
+    });
+    h.app.push(screen as never);
+    await h.frame();
+    await focusStarting(h, "finding:01950000-0000-7000-8000-0000000000a2");
+    await h.press(ENTER);
+    const text = await h.text();
+    expect(text).toContain("rule fixture/lint/orphan");
+    expect(text).not.toContain("rule fixture/lint/duplicate");
+    await h.quit();
+  });
 });
 
 describe("Procedures (8.25)", () => {

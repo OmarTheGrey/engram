@@ -437,6 +437,9 @@ export class App implements Component, Ctx {
     ]).then(done);
   }
   redraw(): void {
+    // Never after the terminal is given back: a render then writes to a console being closed
+    // (review E8.15d-2: a server's stop line arrived after q and broke the quit summary).
+    if (this.stopped) return;
     this.tui?.requestRender();
   }
 
@@ -507,8 +510,8 @@ export class App implements Component, Ctx {
           lines: [
             `Writes the bundle to ${out}.`,
             existsSync(resolve(this.io.cwd, out))
-              ? "The file: it exists and will be overwritten."
-              : "The file: it does not exist yet.",
+              ? `${out} exists: it will be overwritten.`
+              : `${out} does not exist yet: it will be created.`,
           ],
         };
       }
@@ -651,7 +654,10 @@ export class App implements Component, Ctx {
     switch (a) {
       case "quit-now":
       case "quit":
-        return this.quit();
+        // As ctrl+c does, after pi-tui has finished with this input: quitting inside it while a
+        // server stops left the console closed under the quit summary (review E8.15d-2, EPIPE).
+        setImmediate(() => this.quit());
+        return;
       case "help":
         return this.showOverlay(new HelpOverlay(screen));
       case "palette":

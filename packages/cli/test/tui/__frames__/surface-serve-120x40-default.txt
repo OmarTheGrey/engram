@@ -3,10 +3,10 @@
                     ( ) a token issuer: --issuer, --jwks, --subjects
                     ( ) No authentication: this machine only, anyone on it can act as anyone (--insecure-loopback)
    Key file         [ keys.json                                ]  no such file yet: k creates a key in it
-   Host             [                                          ]  127.0.0.1, ::1 or localhost
+   Host             (o) 127.0.0.1   ( ) ::1   ( ) localhost
    Port             [                                          ]  default 7313
-   Viewer           [                                          ]  shown by the inspector
-   ▸ More flags: 10, set: --root --owner --db
+   Viewer           [ person:dana                              ]  shown by the inspector
+   ▸ More flags: 11, set: --root --owner --db
 
  [ Stop ]  [ Create a key ]
 
@@ -36,7 +36,7 @@
 
 
 
-$ engram serve --db engram.db --owner dana --root mem --keys keys.json
+$ engram serve --db engram.db --owner dana --as person:dana --root mem --keys keys.json
  ? help  s stop  o copy the inspector's address  k keys  ; commands  esc back
 --- styles
 r0 c0-119 inverse
