@@ -1,0 +1,24 @@
+{
+  "key": "4700a406d43da9cfbe7ad2fca99b0991e5a4675040e78d582b6b41b747499d60",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "tokenizer_sha256": "5124ef2ead1a10a717703bc436de7f353da76d6340e4587719b42b1693707964",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "scorer": "engram-nli-scorer/1",
+  "pair": "d0c86a83b8e30d7b8b5729f2ed36c949cb7c5d44ba8a55b217ee862c0d9a81c6",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "My chess club night is Wednesday.",
+    "hypothesis": "Just so you know, my go-to pizza place is Forno Rosso."
+  },
+  "response": {
+    "contradiction": 0.9997053815429732,
+    "entailment": 0.000029664627782671604,
+    "neutral": 0.0002649538292440401,
+    "logits": [
+      6.179255485534668,
+      -4.246005058288574,
+      -2.0564048290252686
+    ]
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "key": "8062128be8d034cae8c6e8d8d41d6bfe25522bcc0b9fc198345b4da61f26b970",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "tokenizer_sha256": "5124ef2ead1a10a717703bc436de7f353da76d6340e4587719b42b1693707964",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "scorer": "engram-nli-scorer/1",
+  "pair": "8fe0009488a96caf5c84457a584f0e0abbcdb870bd50ba162a3658834ff87291",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "The user's favourite sushi place is Umi Bar, most of the time.",
+    "hypothesis": "For the record, my favourite wine is a Chenin Blanc."
+  },
+  "response": {
+    "contradiction": 0.9667922108235935,
+    "entailment": 0.00009173616817072616,
+    "neutral": 0.0331160530082357,
+    "logits": [
+      4.280503273010254,
+      -4.982318878173828,
+      0.9065378308296204
+    ]
+  }
+}

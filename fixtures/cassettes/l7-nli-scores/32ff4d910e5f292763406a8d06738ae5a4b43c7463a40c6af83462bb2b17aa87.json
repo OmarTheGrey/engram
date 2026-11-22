@@ -1,0 +1,24 @@
+{
+  "key": "32ff4d910e5f292763406a8d06738ae5a4b43c7463a40c6af83462bb2b17aa87",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "tokenizer_sha256": "5124ef2ead1a10a717703bc436de7f353da76d6340e4587719b42b1693707964",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "scorer": "engram-nli-scorer/1",
+  "pair": "47e3b7ef9925f883fc0e662b80c83a8865058d0f7fd1b0fb3efc3d0379ba7a0c",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "Just so you know, my favourite podcast is The Long Table.",
+    "hypothesis": "Just so you know, my dentist is Dr. Alvarez."
+  },
+  "response": {
+    "contradiction": 0.9997581987177772,
+    "entailment": 0.00002166206746859521,
+    "neutral": 0.00022013921475423135,
+    "logits": [
+      6.381242752075195,
+      -4.358463287353516,
+      -2.0397658348083496
+    ]
+  }
+}

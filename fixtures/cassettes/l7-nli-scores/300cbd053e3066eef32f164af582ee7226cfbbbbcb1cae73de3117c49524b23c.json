@@ -1,0 +1,24 @@
+{
+  "key": "300cbd053e3066eef32f164af582ee7226cfbbbbcb1cae73de3117c49524b23c",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "tokenizer_sha256": "5124ef2ead1a10a717703bc436de7f353da76d6340e4587719b42b1693707964",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "scorer": "engram-nli-scorer/1",
+  "pair": "1df85f8cc9a234c544198b124908aa66df691c417daa49d4c8d83c036777483a",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "To be clear, my chess club night is Wednesday.",
+    "hypothesis": "For the record, my dry cleaner is Bluebell Cleaners."
+  },
+  "response": {
+    "contradiction": 0.9979103873654963,
+    "entailment": 0.000022309270221808508,
+    "neutral": 0.002067303364281982,
+    "logits": [
+      5.580811500549316,
+      -5.127604961395264,
+      -0.5986069440841675
+    ]
+  }
+}

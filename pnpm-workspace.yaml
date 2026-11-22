@@ -17,3 +17,6 @@ allowBuilds:
   "@embedded-postgres/darwin-arm64": true
   "@embedded-postgres/darwin-x64": true
   "@embedded-postgres/linux-arm64": true
+  # The local NLI scorer's runtime (card L7, packages/model). Its CPU binaries ship in the
+  # tarball; the install script only fetches the CUDA provider on Linux, which Engram does not use.
+  onnxruntime-node: false

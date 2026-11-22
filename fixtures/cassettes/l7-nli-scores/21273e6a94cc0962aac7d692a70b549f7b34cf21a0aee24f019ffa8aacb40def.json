@@ -1,0 +1,24 @@
+{
+  "key": "21273e6a94cc0962aac7d692a70b549f7b34cf21a0aee24f019ffa8aacb40def",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "tokenizer_sha256": "5124ef2ead1a10a717703bc436de7f353da76d6340e4587719b42b1693707964",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "scorer": "engram-nli-scorer/1",
+  "pair": "f2ba2a5a3f4de1382343bd051a0481b58e3274f9d3770509aae6d81efb089516",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "At work, our team chat channel is #team-orion.",
+    "hypothesis": "At work, our deploy window is 09:00 to 11:00."
+  },
+  "response": {
+    "contradiction": 0.002435385670081984,
+    "entailment": 0.0001207866977479163,
+    "neutral": 0.9974438276321702,
+    "logits": [
+      -0.7499816417694092,
+      -3.7538158893585205,
+      5.265109062194824
+    ]
+  }
+}

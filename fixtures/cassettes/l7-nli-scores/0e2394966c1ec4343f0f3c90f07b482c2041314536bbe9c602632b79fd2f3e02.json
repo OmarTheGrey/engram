@@ -1,0 +1,24 @@
+{
+  "key": "0e2394966c1ec4343f0f3c90f07b482c2041314536bbe9c602632b79fd2f3e02",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "tokenizer_sha256": "5124ef2ead1a10a717703bc436de7f353da76d6340e4587719b42b1693707964",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "scorer": "engram-nli-scorer/1",
+  "pair": "0cd63fc8701ee1faa2245d76eac054e541d06785cf7c146578f91fe1db563d7b",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "The user said: \"I'll start filling out the template.\"",
+    "hypothesis": "The user said: \"Alex and I talked about our jobs and commutes, and he recommended some podcasts to listen to.\""
+  },
+  "response": {
+    "contradiction": 0.3900371841043824,
+    "entailment": 0.00008243102968377532,
+    "neutral": 0.6098803848659338,
+    "logits": [
+      2.780845880508423,
+      -5.68118953704834,
+      3.2278666496276855
+    ]
+  }
+}

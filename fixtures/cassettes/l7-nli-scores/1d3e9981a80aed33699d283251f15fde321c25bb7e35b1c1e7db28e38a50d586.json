@@ -1,0 +1,24 @@
+{
+  "key": "1d3e9981a80aed33699d283251f15fde321c25bb7e35b1c1e7db28e38a50d586",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "tokenizer_sha256": "5124ef2ead1a10a717703bc436de7f353da76d6340e4587719b42b1693707964",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "scorer": "engram-nli-scorer/1",
+  "pair": "62845f9065e9615b323635a7a94a08c8dfc0ec4236eed6a6a0041bfeb11e2f12",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "The user said: \"I'll start filling out the template.\"",
+    "hypothesis": "According to the user, their internet provider is NetWave."
+  },
+  "response": {
+    "contradiction": 0.002502404063890052,
+    "entailment": 0.00007991833660561333,
+    "neutral": 0.9974176775995044,
+    "logits": [
+      -0.5595338940620422,
+      -4.003535747528076,
+      5.428383827209473
+    ]
+  }
+}

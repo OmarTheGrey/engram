@@ -1,0 +1,24 @@
+{
+  "key": "0bac6b6cbf46039b19f07486c27d149bb2eb947809e718e4e24e34d9e6010db7",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "tokenizer_sha256": "5124ef2ead1a10a717703bc436de7f353da76d6340e4587719b42b1693707964",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "scorer": "engram-nli-scorer/1",
+  "pair": "a555e27794404887d1628b325d52b5b063dd4b9ea673ee87c146bc6a449fb066",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "The user says their vet is Dr. Kowalski.",
+    "hypothesis": "The user said: \"I got her some groceries and flowers when she was recovering from surgery.\""
+  },
+  "response": {
+    "contradiction": 0.9997593438932793,
+    "entailment": 0.000012782859420056522,
+    "neutral": 0.00022787324730059511,
+    "logits": [
+      6.537874221801758,
+      -4.72929048538208,
+      -1.8486061096191406
+    ]
+  }
+}

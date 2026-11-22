@@ -1,0 +1,24 @@
+{
+  "key": "c01546ad704dd821d588685c07522b696c8106ba5b0d873ab0bc9ec143d6a685",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "tokenizer_sha256": "5124ef2ead1a10a717703bc436de7f353da76d6340e4587719b42b1693707964",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "scorer": "engram-nli-scorer/1",
+  "pair": "2b45f4b46290f34948bb738e2352d776312cefe2e3bfa8fe5df43a5c463141c7",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "At work, our team chat channel is #team-orion.",
+    "hypothesis": "My favourite wine is a Malbec."
+  },
+  "response": {
+    "contradiction": 0.0005827730185308427,
+    "entailment": 0.00012210333200071894,
+    "neutral": 0.9992951236494684,
+    "logits": [
+      -1.710385799407959,
+      -3.273315906524658,
+      5.736621856689453
+    ]
+  }
+}

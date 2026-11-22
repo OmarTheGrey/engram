@@ -1,0 +1,24 @@
+{
+  "key": "7236a5ef7fc469452c4e46bf4ca4d75ab65c545531a32dd51397497107574b0b",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "tokenizer_sha256": "5124ef2ead1a10a717703bc436de7f353da76d6340e4587719b42b1693707964",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "scorer": "engram-nli-scorer/1",
+  "pair": "84728bfed779ecb5cd86164a95ad6c364e11a1790d51b18793395ea2430f80f7",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "The user said: \"I need help organizing my contacts.\"",
+    "hypothesis": "My dentist is Dr. Okafor at the moment."
+  },
+  "response": {
+    "contradiction": 0.01088401623080571,
+    "entailment": 0.00022507049846619582,
+    "neutral": 0.9888909132707282,
+    "logits": [
+      0.04086597263813019,
+      -3.837770938873291,
+      4.550154685974121
+    ]
+  }
+}

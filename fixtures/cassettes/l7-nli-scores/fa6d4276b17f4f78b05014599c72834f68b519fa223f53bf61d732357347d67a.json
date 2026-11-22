@@ -1,0 +1,24 @@
+{
+  "key": "fa6d4276b17f4f78b05014599c72834f68b519fa223f53bf61d732357347d67a",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "tokenizer_sha256": "5124ef2ead1a10a717703bc436de7f353da76d6340e4587719b42b1693707964",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "scorer": "engram-nli-scorer/1",
+  "pair": "be7ea1675a834512246ae8c263f092e8108e3cc62069eaaedce780a0568263f4",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "Just so you know, my Spanish tutor is Mateo.",
+    "hypothesis": "Just so you know, my go-to pizza place is Forno Rosso."
+  },
+  "response": {
+    "contradiction": 0.9990483403235663,
+    "entailment": 0.00001697637737134687,
+    "neutral": 0.0009346832990623895,
+    "logits": [
+      5.93603515625,
+      -5.046700477600098,
+      -1.0383155345916748
+    ]
+  }
+}

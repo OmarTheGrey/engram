@@ -16,6 +16,15 @@
 // (judge.ts liveJudgeCall, which sends the response schema), or is counted.
 // Until card L2's seeded-fault set lands, the fault set is L3's own model
 // fault catalogue.
+//
+// A config with an `nli` block (card L7, arm P3, not registered) runs the
+// contradiction lint's local NLI tier first: the fixture's policy with
+// `contradiction-nli` enabled and the block's two thresholds, its id kept, so
+// the pairs the tier leaves to the model send exactly the requests the model
+// tier sent and replay from the same cassettes. Every score goes through
+// @engram/model's NLI cache in the block's `scores` folder; a miss is an
+// error unless a real scorer is passed (run.ts --record-nli, `make
+// nli-scores`), so a replay computes no score.
 import { createHash } from "node:crypto";
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
@@ -29,6 +38,11 @@ import {
   MemoryEvent,
   type ModelCall,
   migrate,
+  NLI_LINT_ID,
+  NLI_LOWER_KEY,
+  NLI_UPPER_KEY,
+  type NliJudgment,
+  type NliLintSetup,
   openSqlite,
   Policy,
   planModelLints,
@@ -37,7 +51,11 @@ import {
   type CacheStore,
   type CallContext,
   cached,
+  cachedNli,
   fileCache,
+  type NliCacheStore,
+  type NliRawScore,
+  nliFileCache,
   type UsageRecord,
 } from "@engram/model";
 import { z } from "zod";
@@ -49,6 +67,97 @@ import { failedAttempt, liveJudgeCall, paidFailures } from "./judge.ts";
 export const LINT_BENCHMARK = "lint-faults";
 
 const unique = <T>(values: readonly T[]) => new Set(values).size === values.length;
+
+/**
+ * The NLI tier of a lint config (card L7): the pinned model a request names,
+ * the policy's two thresholds, and the folder of its score cassettes.
+ */
+export const NliRunnerConfig = z
+  .strictObject({
+    model: z.string().min(1),
+    thresholds: z.strictObject({
+      upper: z.number().min(0).max(1),
+      lower: z.number().min(0).max(1),
+    }),
+    scores: z.string(),
+  })
+  .refine(
+    (n) => n.thresholds.lower <= n.thresholds.upper,
+    "the lower threshold is above the upper",
+  );
+export type NliRunnerConfig = z.infer<typeof NliRunnerConfig>;
+
+/**
+ * `policy` with the NLI tier on: `contradiction-nli` enabled and its two
+ * thresholds set. The id and everything else are kept, so the model calls of
+ * the band are the model tier's own requests under the same cache context.
+ */
+export function withNliTier(policy: Policy, nli: Pick<NliRunnerConfig, "thresholds">): Policy {
+  return {
+    ...policy,
+    lints: {
+      enabled: policy.lints.enabled.includes(NLI_LINT_ID)
+        ? [...policy.lints.enabled]
+        : [...policy.lints.enabled, NLI_LINT_ID],
+      thresholds: {
+        ...policy.lints.thresholds,
+        [NLI_UPPER_KEY]: nli.thresholds.upper,
+        [NLI_LOWER_KEY]: nli.thresholds.lower,
+      },
+    },
+  };
+}
+
+/** What a run's NLI scores did: computed and recorded, or answered by the cassettes. */
+export interface NliTally {
+  new: number;
+  cached: number;
+}
+
+/**
+ * The tier's scorer for a run: the block's cassettes in front of `score`.
+ * Without `score` every miss is an error (a replay computes nothing); with
+ * one, a miss is computed and recorded, unless ENGRAM_OFFLINE=1.
+ */
+export function nliLintSetup(
+  nli: NliRunnerConfig,
+  tally: NliTally,
+  options: { score?: NliRawScore; cache?: NliCacheStore } = {},
+): NliLintSetup {
+  const inner: NliRawScore =
+    options.score ??
+    (async (request) => {
+      throw new Error(`no NLI scorer to answer a miss for ${request.model}`);
+    });
+  return {
+    model: nli.model,
+    score: cachedNli(inner, {
+      cache: options.cache ?? nliFileCache(nli.scores),
+      ...(options.score === undefined ? { offline: true } : {}),
+      onScore: ({ hit }) => {
+        if (hit) tally.cached++;
+        else tally.new++;
+      },
+    }),
+  };
+}
+
+/** A judgment of the NLI tier as a row carries it. */
+export type NliRowJudgment = Pick<
+  NliJudgment,
+  "unit" | "item_id" | "other_id" | "forward" | "backward" | "contradiction" | "band"
+>;
+
+export const nliRowJudgments = (js: readonly NliJudgment[] | undefined): NliRowJudgment[] =>
+  (js ?? []).map((j) => ({
+    unit: j.unit,
+    item_id: j.item_id,
+    other_id: j.other_id,
+    forward: j.forward,
+    backward: j.backward,
+    contradiction: j.contradiction,
+    band: j.band,
+  }));
 
 export const LintRunnerConfig = z.strictObject({
   name: z.string().regex(/^[a-z0-9][a-z0-9-]*$/),
@@ -67,6 +176,8 @@ export const LintRunnerConfig = z.strictObject({
   seeds: z.array(z.number().int()).min(1).refine(unique, "seeds must be unique"),
   script: z.string().optional(),
   cassettes: z.string(),
+  /** Card L7: the contradiction lint's NLI tier, run before the model. */
+  nli: NliRunnerConfig.optional(),
 });
 export type LintRunnerConfig = z.infer<typeof LintRunnerConfig>;
 
@@ -107,6 +218,9 @@ export function parseLintConfig(value: unknown, base = process.cwd()): LintRunne
     data: resolve(base, config.data),
     cassettes: resolve(base, config.cassettes),
     ...(config.script === undefined ? {} : { script: resolve(base, config.script) }),
+    ...(config.nli === undefined
+      ? {}
+      : { nli: { ...config.nli, scores: resolve(base, config.nli.scores) } }),
   };
 }
 
@@ -205,6 +319,10 @@ export interface LintRunnerOptions {
   /** Refuse misses; unset means ENGRAM_OFFLINE=1 decides (see `cached`). */
   offline?: boolean;
   live?: LiveModels;
+  /** Card L7: the real NLI scorer, to compute and record a missing score; unset, a miss is an error. */
+  nliScore?: NliRawScore;
+  /** Card L7: the NLI cassettes; the config's `nli.scores` folder when unset. */
+  nliCache?: NliCacheStore;
 }
 
 /** The uncached lint call: the script for a scripted model, a live model when given, else none. */
@@ -242,6 +360,8 @@ export interface LintRow {
     outcome: string;
     reason: string | null;
   }[];
+  /** Card L7: every pair the NLI tier scored and its band; only for a config with `nli`. */
+  nli?: NliRowJudgment[];
 }
 
 export interface LintRunnerResult {
@@ -250,6 +370,8 @@ export interface LintRunnerResult {
   /** Per fixture and seed: units by outcome. */
   summary: Record<string, Record<string, number>>;
   calls: { new: number; cached: number };
+  /** Card L7: the NLI scores computed and answered by cassettes; only for a config with `nli`. */
+  scores?: NliTally;
   usage: UsageRecord[];
 }
 
@@ -262,6 +384,14 @@ export async function runLintConfig(
   const usage: UsageRecord[] = [];
   const onUsage = (u: UsageRecord) => usage.push(u);
   const rows: LintRow[] = [];
+  const tally: NliTally = { new: 0, cached: 0 };
+  const nli =
+    config.nli === undefined
+      ? undefined
+      : nliLintSetup(config.nli, tally, {
+          ...(options.nliScore === undefined ? {} : { score: options.nliScore }),
+          ...(options.nliCache === undefined ? {} : { cache: options.nliCache }),
+        });
   for (const loaded of fixtures) {
     const f = loaded.fixture;
     for (const seed of config.seeds) {
@@ -271,8 +401,9 @@ export async function runLintConfig(
         const plane = createPlane({
           db,
           adapter: createFakeAdapter(),
-          policy: f.policy,
+          policy: config.nli === undefined ? f.policy : withNliTier(f.policy, config.nli),
           newId: sequentialIds(),
+          ...(nli === undefined ? {} : { lintNli: nli }),
           lintModel: {
             // A lint call that failed is never recorded (review RV1-1); its usage is.
             call: cached(
@@ -316,6 +447,7 @@ export async function runLintConfig(
             outcome: j.outcome,
             reason: j.reason,
           })),
+          ...(config.nli === undefined ? {} : { nli: nliRowJudgments(report.nli) }),
         });
       } finally {
         db.close();
@@ -333,6 +465,7 @@ export async function runLintConfig(
     rows,
     summary,
     calls: { new: usage.filter((u) => !u.hit).length, cached: usage.filter((u) => u.hit).length },
+    ...(config.nli === undefined ? {} : { scores: tally }),
     usage,
   };
 }
@@ -344,9 +477,12 @@ export function writeLintResult(result: LintRunnerResult, out: string): void {
     join(out, "results.jsonl"),
     result.rows.map((r) => `${JSON.stringify(r)}\n`).join(""),
   );
-  const { config, summary, calls, usage } = result;
+  const { config, summary, calls, scores, usage } = result;
   writeFileSync(join(out, "summary.json"), `${JSON.stringify({ config, summary }, null, 2)}\n`);
-  writeFileSync(join(out, "usage.json"), `${JSON.stringify({ config, calls, usage }, null, 2)}\n`);
+  writeFileSync(
+    join(out, "usage.json"),
+    `${JSON.stringify({ config, calls, ...(scores === undefined ? {} : { scores }), usage }, null, 2)}\n`,
+  );
 }
 
 export interface LintCount {

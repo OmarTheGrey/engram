@@ -12,7 +12,18 @@
 // findings are recorded exactly as the deterministic ones, with the call's
 // usage on the event (ADR 0017), and every unit they sent is returned in the
 // report's `judgments`, refusals and malformed replies included, which are not
-// findings and append no event. The calls are made inside the lint's queue
+// findings and append no event.
+//
+// The NLI tier of the contradiction lint (card L7, lint/nli.ts) runs before
+// the model-based lints when the policy lists both `contradiction-nli` and
+// `contradiction` and the plane was built with an NLI scorer
+// (PlaneDeps.lintNli): it flags the pairs
+// scored at or above the policy's upper threshold, drops those below the
+// lower, and only the pairs between them reach the model contradiction lint;
+// without a lint model those pairs are not judged at all.
+// Its findings are tier `model` (a local model scored them) with lint id
+// `contradiction-nli`, and its judgments are returned in the report's `nli`.
+// Without the id or the scorer nothing changes. The calls are made inside the lint's queue
 // slot, one at a time, and nothing is appended until every call has returned,
 // so a failed call leaves the log as it was.
 //
@@ -31,6 +42,7 @@ import {
   modelLintUnits,
   runModelLints,
 } from "../lint/model.ts";
+import { NLI_LINT_ID, type NliJudgment, nliThresholds, runNliTier } from "../lint/nli.ts";
 import type { ModelUsage } from "../model.ts";
 import type { PlaneDeps } from "../plane.ts";
 import { readableAt, readableScope } from "../policy/evaluate.ts";
@@ -59,6 +71,12 @@ export interface LintReport {
    * may read the scope.
    */
   judgments?: ModelJudgment[];
+  /**
+   * Every pair the NLI tier scored and its band (card L7), in pair order;
+   * present only when the policy enables `contradiction-nli`, the plane has an
+   * NLI scorer and the actor may read the scope.
+   */
+  nli?: NliJudgment[];
 }
 
 /**
@@ -195,9 +213,27 @@ async function run(deps: PlaneDeps, actor: Actor, at: string, scope: string): Pr
     policy.lints.enabled,
   ).map((f) => ({ ...f, tier: "deterministic" }));
   let judgments: ModelJudgment[] | undefined;
+  let nli: NliJudgment[] | undefined;
+  // Units of the contradiction lint the NLI tier kept for the model; null: no tier ran.
+  let band: Set<string> | null = null;
+  // The tier is a part of the contradiction lint (ADR 0048): without that lint
+  // enabled it does not run (review L7-6).
+  if (
+    deps.lintNli !== undefined &&
+    policy.lints.enabled.includes(NLI_LINT_ID) &&
+    policy.lints.enabled.includes("contradiction")
+  ) {
+    const tier = await runNliTier(ctx, scope, deps.lintNli, nliThresholds(policy));
+    nli = tier.judgments;
+    band = tier.band;
+    found.push(...tier.findings.map((f) => ({ ...f, tier: "model" as const })));
+  }
   if (deps.lintModel !== undefined) {
     const { call, model, seed } = deps.lintModel;
-    const units = modelLintUnits(ctx, scope, policy.lints.enabled, { model, seed });
+    const kept = band;
+    const units = modelLintUnits(ctx, scope, policy.lints.enabled, { model, seed }).filter(
+      (u) => kept === null || u.lint_id !== "contradiction" || kept.has(u.unit),
+    );
     const ran = await runModelLints(units, call);
     judgments = ran.judgments;
     found.push(...ran.findings.map((f) => ({ ...f, tier: "model" as const })));
@@ -223,5 +259,6 @@ async function run(deps: PlaneDeps, actor: Actor, at: string, scope: string): Pr
     findings: committed.map((c) => c.finding),
     events: committed.map((c) => c.event),
     ...(judgments === undefined ? {} : { judgments }),
+    ...(nli === undefined ? {} : { nli }),
   };
 }

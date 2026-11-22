@@ -1,0 +1,24 @@
+{
+  "key": "a9f46a18cf721ee02ed1dd25f5c1b59eaa5efb04920c5f1820e71966fa9223ae",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "tokenizer_sha256": "5124ef2ead1a10a717703bc436de7f353da76d6340e4587719b42b1693707964",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "scorer": "engram-nli-scorer/1",
+  "pair": "54a7fe16798a4b55790b84e695977b2f5c803490aca01b47e14b561eab76701c",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "As it stands, my cat's name is Juniper.",
+    "hypothesis": "For the record, my cat's name is Biscuit."
+  },
+  "response": {
+    "contradiction": 0.9988069795863972,
+    "entailment": 0.00010711607695114155,
+    "neutral": 0.0010859043366516056,
+    "logits": [
+      5.310091972351074,
+      -3.8303117752075195,
+      -1.5140564441680908
+    ]
+  }
+}

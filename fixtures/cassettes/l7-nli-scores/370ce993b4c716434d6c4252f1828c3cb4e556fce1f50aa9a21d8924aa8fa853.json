@@ -1,0 +1,24 @@
+{
+  "key": "370ce993b4c716434d6c4252f1828c3cb4e556fce1f50aa9a21d8924aa8fa853",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "tokenizer_sha256": "5124ef2ead1a10a717703bc436de7f353da76d6340e4587719b42b1693707964",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "scorer": "engram-nli-scorer/1",
+  "pair": "e8616f4cf4d0d4d3718353ef66875d50fc92711e073eedd95084e44a83b12433",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "The user said: \"Alex and I talked about our jobs and commutes, and he recommended some podcasts to listen to.\"",
+    "hypothesis": "The user said: \"She's into indie music, and we talked about some new bands to check out.\""
+  },
+  "response": {
+    "contradiction": 0.9330268279297628,
+    "entailment": 0.0001036515423961826,
+    "neutral": 0.06686952052784088,
+    "logits": [
+      3.871943473815918,
+      -5.233211040496826,
+      1.236252784729004
+    ]
+  }
+}

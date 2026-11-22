@@ -1,0 +1,24 @@
+{
+  "key": "2fc65d496e0aec642882980dea7221622ec0a6317ebbd8cb780ad25e9fb673d1",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "tokenizer_sha256": "5124ef2ead1a10a717703bc436de7f353da76d6340e4587719b42b1693707964",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "scorer": "engram-nli-scorer/1",
+  "pair": "ef1c3bb836b49176d715aa435f4c6516936862903a671bf25ffc3aaded8df80a",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "According to the user, their florist is Petal and Stem.",
+    "hypothesis": "The user said: \"Alex and I talked about our jobs and commutes, and he recommended some podcasts to listen to.\""
+  },
+  "response": {
+    "contradiction": 0.9808577711327173,
+    "entailment": 0.000032168981820160865,
+    "neutral": 0.01911005988546269,
+    "logits": [
+      4.802947998046875,
+      -5.5222320556640625,
+      0.8647354245185852
+    ]
+  }
+}

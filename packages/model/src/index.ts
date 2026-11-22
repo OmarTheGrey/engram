@@ -4,6 +4,7 @@
 // both can import it without forming a cycle. The cassette proxy (card B10, ADR 0036)
 // serves an outside harness's OpenAI calls through the same cache.
 export * from "./cached.ts";
+export * from "./nli.ts";
 export * from "./proxy.ts";
 export { type RecordingPlace, recordingRefusal } from "./recording.ts";
 export {

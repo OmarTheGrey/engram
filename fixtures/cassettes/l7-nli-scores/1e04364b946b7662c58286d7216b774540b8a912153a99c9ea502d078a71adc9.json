@@ -1,0 +1,24 @@
+{
+  "key": "1e04364b946b7662c58286d7216b774540b8a912153a99c9ea502d078a71adc9",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "tokenizer_sha256": "5124ef2ead1a10a717703bc436de7f353da76d6340e4587719b42b1693707964",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "scorer": "engram-nli-scorer/1",
+  "pair": "1f3157ac02a90396f99bfd300a0c8c587acf5faa30339b0fa86ab787c009dc7a",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "According to the user, their internet provider is NetWave.",
+    "hypothesis": "My dentist is Dr. Okafor at the moment."
+  },
+  "response": {
+    "contradiction": 0.9966160489948136,
+    "entailment": 0.000025296393167907654,
+    "neutral": 0.0033586546120184533,
+    "logits": [
+      5.380843162536621,
+      -5.200615882873535,
+      -0.3119819462299347
+    ]
+  }
+}

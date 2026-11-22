@@ -1,0 +1,24 @@
+{
+  "key": "1d5832e593cc3e7712a2ee767d6343dd7a2025467e95ef16d4446456d490c77e",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "tokenizer_sha256": "5124ef2ead1a10a717703bc436de7f353da76d6340e4587719b42b1693707964",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "scorer": "engram-nli-scorer/1",
+  "pair": "6b71110e891cbaf028e7eb6deb5fff358caa559c569b920b6bf629bef2e628d8",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "To be clear, my dry cleaner is Pressed Perfect.",
+    "hypothesis": "My dentist is Dr. Okafor at the moment."
+  },
+  "response": {
+    "contradiction": 0.9849019420305021,
+    "entailment": 0.0004194644087928965,
+    "neutral": 0.014678593560705158,
+    "logits": [
+      3.974663734436035,
+      -3.7866549491882324,
+      -0.23148813843727112
+    ]
+  }
+}

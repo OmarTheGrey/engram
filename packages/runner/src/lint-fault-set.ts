@@ -13,6 +13,12 @@
 //   question, `lint`, the set's policy, `none`, model, seed, prompt hash)
 //   (ADR 0017, AGENTS.md rule 7). A replay makes zero new calls.
 //
+// A config with an `nli` block (card L7, arm P3, not registered) runs the
+// contradiction lint's NLI tier before the model, as lint-faults.ts does: the
+// set's policy with `contradiction-nli` enabled and the block's thresholds,
+// its id kept, so the band's model calls replay from the model tier's own
+// cassettes, and every score from the block's NLI cassettes.
+//
 // Nothing here reads labels.jsonl: the rows carry what the plane found and
 // what every unit's reply said, and the scorers (research/scripts/
 // h3_lint_floor.py and h3_lint_delta.py) join the labels by question and
@@ -30,6 +36,7 @@ import {
   type MemoryItem,
   type ModelCall,
   migrate,
+  type NliLintSetup,
   openSqlite,
   Policy,
   planModelLints,
@@ -39,6 +46,8 @@ import {
   type CallContext,
   cached,
   fileCache,
+  type NliCacheStore,
+  type NliRawScore,
   type UsageRecord,
 } from "@engram/model";
 import { z } from "zod";
@@ -46,7 +55,16 @@ import type { LiveModels } from "./answers.ts";
 import { NO_STORE } from "./config.ts";
 import { sequentialIds } from "./gatemem-probe.ts";
 import { failedAttempt, liveJudgeCall, paidFailures } from "./judge.ts";
-import { LintScript, scriptedLintCall } from "./lint-faults.ts";
+import {
+  LintScript,
+  type NliRowJudgment,
+  NliRunnerConfig,
+  type NliTally,
+  nliLintSetup,
+  nliRowJudgments,
+  scriptedLintCall,
+  withNliTier,
+} from "./lint-faults.ts";
 
 export const FAULT_SET_BENCHMARK = "fault-set";
 
@@ -77,6 +95,8 @@ export const FaultSetLintConfig = z.strictObject({
    * name policy.json's and states.jsonl's, and runs or counts only on them.
    */
   sha256: z.record(z.string(), z.string().regex(/^[0-9a-f]{64}$/)).optional(),
+  /** Card L7: the contradiction lint's NLI tier, run before the model. */
+  nli: NliRunnerConfig.optional(),
 });
 export type FaultSetLintConfig = z.infer<typeof FaultSetLintConfig>;
 
@@ -104,6 +124,9 @@ export function parseFaultSetConfig(value: unknown, base = process.cwd()): Fault
     data: resolve(base, config.data),
     cassettes: resolve(base, config.cassettes),
     ...(config.script === undefined ? {} : { script: resolve(base, config.script) }),
+    ...(config.nli === undefined
+      ? {}
+      : { nli: { ...config.nli, scores: resolve(base, config.nli.scores) } }),
   };
 }
 
@@ -227,12 +250,19 @@ export interface ModelRow {
   model: string;
   findings: SetFinding[];
   judgments: SetJudgment[];
+  /** Card L7: every pair the NLI tier scored and its band, over the state's scopes; only with `nli`. */
+  nli?: NliRowJudgment[];
 }
 
 /** The planning model and seed of a count: the request text does not depend on them. */
 const PLAN_SETUP = { model: "none/none", seed: 0 };
 
-function openState(state: FaultState, policy: Policy, lintModel?: ModelLintDep) {
+function openState(
+  state: FaultState,
+  policy: Policy,
+  lintModel?: ModelLintDep,
+  lintNli?: NliLintSetup,
+) {
   const db = openSqlite(":memory:");
   migrate(db);
   for (const { seq: _seq, ...e } of state.events) appendEvent(db, e);
@@ -242,6 +272,7 @@ function openState(state: FaultState, policy: Policy, lintModel?: ModelLintDep) 
     policy,
     newId: sequentialIds(),
     ...(lintModel === undefined ? {} : { lintModel }),
+    ...(lintNli === undefined ? {} : { lintNli }),
   });
   return { db, plane };
 }
@@ -277,6 +308,7 @@ async function lintAll(
 ) {
   const findings: Omit<SetFinding, "base">[] = [];
   const judgments: SetJudgment[] = [];
+  const nli: NliRowJudgment[] = [];
   for (const scope of state.scopes) {
     const report = await plane.lint(state.actor, state.at, scope);
     if (report.decision !== "allow")
@@ -291,6 +323,7 @@ async function lintAll(
         other_id: j.other_id,
         outcome: j.outcome,
       });
+    nli.push(...nliRowJudgments(report.nli));
   }
   const items = new Map(currentItems(db).map((i) => [i.id, i]));
   return {
@@ -304,6 +337,7 @@ async function lintAll(
       };
     }),
     judgments,
+    nli,
   };
 }
 
@@ -327,16 +361,18 @@ export async function lintFaultStateWithModel(
   state: FaultState,
   policy: Policy,
   lintModel: ModelLintDep,
+  lintNli?: NliLintSetup,
 ): Promise<ModelRow> {
-  const { db, plane } = openState(state, policy, lintModel);
+  const { db, plane } = openState(state, policy, lintModel, lintNli);
   try {
-    const { findings, judgments } = await lintAll(plane, db, state);
+    const { findings, judgments, nli } = await lintAll(plane, db, state);
     return {
       question_id: state.question_id,
       seed: lintModel.seed,
       model: lintModel.model,
       findings,
       judgments,
+      ...(lintNli === undefined ? {} : { nli }),
     };
   } finally {
     db.close();
@@ -356,6 +392,10 @@ export interface FaultSetRunOptions {
   /** Refuse misses; unset means ENGRAM_OFFLINE=1 decides (see `cached`). */
   offline?: boolean;
   live?: LiveModels;
+  /** Card L7: the real NLI scorer, to compute and record a missing score; unset, a miss is an error. */
+  nliScore?: NliRawScore;
+  /** Card L7: the NLI cassettes; the config's `nli.scores` folder when unset. */
+  nliCache?: NliCacheStore;
 }
 
 /** The uncached lint call: the script for a scripted model, a live model when given, else none. */
@@ -380,6 +420,8 @@ export interface FaultSetRunResult {
   /** Per seed: units by outcome. */
   summary: Record<string, Record<string, number>>;
   calls: { new: number; cached: number };
+  /** Card L7: the NLI scores computed and answered by cassettes; only for a config with `nli`. */
+  scores?: NliTally;
   usage: UsageRecord[];
 }
 
@@ -389,10 +431,19 @@ export async function runFaultSetConfig(
   options: FaultSetRunOptions = {},
 ): Promise<FaultSetRunResult> {
   await checkSetHashes(config);
-  const policy = readSetPolicy(config.data);
+  const setPolicy = readSetPolicy(config.data);
+  const policy = config.nli === undefined ? setPolicy : withNliTier(setPolicy, config.nli);
   const cache = options.cache ?? fileCache(config.cassettes);
   const usage: UsageRecord[] = [];
   const rows: ModelRow[] = [];
+  const tally: NliTally = { new: 0, cached: 0 };
+  const nli =
+    config.nli === undefined
+      ? undefined
+      : nliLintSetup(config.nli, tally, {
+          ...(options.nliScore === undefined ? {} : { score: options.nliScore }),
+          ...(options.nliCache === undefined ? {} : { cache: options.nliCache }),
+        });
   const seen = new Set<string>();
   for await (const state of readSetStates(config.data, { questions: config.questions })) {
     seen.add(state.question_id);
@@ -412,7 +463,9 @@ export async function runFaultSetConfig(
           onUsage,
         },
       );
-      rows.push(await lintFaultStateWithModel(state, policy, { call, model: config.model, seed }));
+      rows.push(
+        await lintFaultStateWithModel(state, policy, { call, model: config.model, seed }, nli),
+      );
     }
   }
   if (config.questions !== "all") {
@@ -431,6 +484,7 @@ export async function runFaultSetConfig(
     rows,
     summary,
     calls: { new: usage.filter((u) => !u.hit).length, cached: usage.filter((u) => u.hit).length },
+    ...(config.nli === undefined ? {} : { scores: tally }),
     usage,
   };
 }
@@ -442,9 +496,12 @@ export function writeFaultSetResult(result: FaultSetRunResult, out: string): voi
     join(out, "results.jsonl"),
     result.rows.map((r) => `${JSON.stringify(r)}\n`).join(""),
   );
-  const { config, summary, calls, usage } = result;
+  const { config, summary, calls, scores, usage } = result;
   writeFileSync(join(out, "summary.json"), `${JSON.stringify({ config, summary }, null, 2)}\n`);
-  writeFileSync(join(out, "usage.json"), `${JSON.stringify({ config, calls, usage }, null, 2)}\n`);
+  writeFileSync(
+    join(out, "usage.json"),
+    `${JSON.stringify({ config, calls, ...(scores === undefined ? {} : { scores }), usage }, null, 2)}\n`,
+  );
 }
 
 export interface FaultSetCount {

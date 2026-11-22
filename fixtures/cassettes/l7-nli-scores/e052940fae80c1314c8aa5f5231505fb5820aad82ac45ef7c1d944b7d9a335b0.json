@@ -1,0 +1,24 @@
+{
+  "key": "e052940fae80c1314c8aa5f5231505fb5820aad82ac45ef7c1d944b7d9a335b0",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "tokenizer_sha256": "5124ef2ead1a10a717703bc436de7f353da76d6340e4587719b42b1693707964",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "scorer": "engram-nli-scorer/1",
+  "pair": "381bd9d87128f2a610f3e42755634883fca30ba15633a9651c030494f9a25095",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "To be clear, my dry cleaner is Pressed Perfect.",
+    "hypothesis": "My dry cleaner is Crisp Cleaners."
+  },
+  "response": {
+    "contradiction": 0.9991280261331721,
+    "entailment": 0.0003091428099138587,
+    "neutral": 0.0005628310569142153,
+    "logits": [
+      5.185900688171387,
+      -2.8949341773986816,
+      -2.295758008956909
+    ]
+  }
+}

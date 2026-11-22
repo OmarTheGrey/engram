@@ -1,0 +1,24 @@
+{
+  "key": "2836d44c0b0efe6f656a1819e07fbded9d527cdf7f79df79dc99f359c2bfd33f",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "tokenizer_sha256": "5124ef2ead1a10a717703bc436de7f353da76d6340e4587719b42b1693707964",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "scorer": "engram-nli-scorer/1",
+  "pair": "0b3b25b8fe37343307c5ebce53ce22a27b0ec461fd8f3275c9b8add561318db1",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "Just so you know, my dentist is Dr. Alvarez.",
+    "hypothesis": "Just so you know, my favourite coffee shop is Morning Ritual."
+  },
+  "response": {
+    "contradiction": 0.9993813861355954,
+    "entailment": 0.000015219696082958226,
+    "neutral": 0.0006033941683217493,
+    "logits": [
+      6.153989791870117,
+      -4.938311576843262,
+      -1.258331298828125
+    ]
+  }
+}

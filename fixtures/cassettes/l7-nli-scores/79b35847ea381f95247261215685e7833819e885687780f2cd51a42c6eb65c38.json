@@ -1,0 +1,24 @@
+{
+  "key": "79b35847ea381f95247261215685e7833819e885687780f2cd51a42c6eb65c38",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "tokenizer_sha256": "5124ef2ead1a10a717703bc436de7f353da76d6340e4587719b42b1693707964",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "scorer": "engram-nli-scorer/1",
+  "pair": "c8dbc7d159a434199d5a0dc64479e6f1a75ec22b6798acfce2f32c42272258a8",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "My dry cleaner is Crisp Cleaners.",
+    "hypothesis": "Just so you know, my dentist is Dr. Alvarez."
+  },
+  "response": {
+    "contradiction": 0.999893326165469,
+    "entailment": 0.000020255871987674892,
+    "neutral": 0.00008641796254319276,
+    "logits": [
+      6.694911956787109,
+      -4.11204719543457,
+      -2.6612963676452637
+    ]
+  }
+}

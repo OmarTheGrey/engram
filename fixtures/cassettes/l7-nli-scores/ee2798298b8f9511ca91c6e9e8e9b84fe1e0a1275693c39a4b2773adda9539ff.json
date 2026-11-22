@@ -1,0 +1,24 @@
+{
+  "key": "ee2798298b8f9511ca91c6e9e8e9b84fe1e0a1275693c39a4b2773adda9539ff",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "tokenizer_sha256": "5124ef2ead1a10a717703bc436de7f353da76d6340e4587719b42b1693707964",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "scorer": "engram-nli-scorer/1",
+  "pair": "f6729872c1584c3df5f3d8056e643b1e79c4ea039f0640e247f8f74e91ec3e4c",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "For the record, my dry cleaner is Bluebell Cleaners.",
+    "hypothesis": "Just so you know, my Spanish tutor is Mateo."
+  },
+  "response": {
+    "contradiction": 0.9891247037543621,
+    "entailment": 0.000020264138186433312,
+    "neutral": 0.010855032107451479,
+    "logits": [
+      5.102845191955566,
+      -5.692877769470215,
+      0.5906535387039185
+    ]
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "key": "f513b51e0d69def24792fc18d817993417b4c00982c8273cd7f2649ccf3b5fc1",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "tokenizer_sha256": "5124ef2ead1a10a717703bc436de7f353da76d6340e4587719b42b1693707964",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "scorer": "engram-nli-scorer/1",
+  "pair": "6f80dd9a57e4abe7573fb63949c37368173b32da323d963601a391875b57052c",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "According to the user, their streaming service is ViewPort.",
+    "hypothesis": "For the record, my dry cleaner is Bluebell Cleaners."
+  },
+  "response": {
+    "contradiction": 0.9946700326233415,
+    "entailment": 0.000027575347429389267,
+    "neutral": 0.005302392029228987,
+    "logits": [
+      5.172386646270752,
+      -5.320857524871826,
+      -0.06186636537313461
+    ]
+  }
+}

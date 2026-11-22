@@ -34,7 +34,15 @@ export const DETERMINISTIC_LINT_IDS = [
 export type DeterministicLintId = (typeof DETERMINISTIC_LINT_IDS)[number];
 export const MODEL_LINT_IDS = ["contradiction", "unsupported-claim"] as const;
 export type ModelLintId = (typeof MODEL_LINT_IDS)[number];
-export const LINT_IDS = [...DETERMINISTIC_LINT_IDS, ...MODEL_LINT_IDS] as const;
+/**
+ * Card L7: the local natural-language-inference tier of the contradiction
+ * lint (lint/nli.ts). A policy turns it on by listing its id; no registered
+ * preset or profile lists it, so no registered lint run changes. It runs only
+ * on a plane built with an NLI scorer (PlaneDeps.lintNli).
+ */
+export const NLI_LINT_IDS = ["contradiction-nli"] as const;
+export type NliLintId = (typeof NLI_LINT_IDS)[number];
+export const LINT_IDS = [...DETERMINISTIC_LINT_IDS, ...MODEL_LINT_IDS, ...NLI_LINT_IDS] as const;
 export type LintId = (typeof LINT_IDS)[number];
 
 /**
@@ -47,12 +55,16 @@ export type LifecycleTrigger = (typeof LIFECYCLE_TRIGGERS)[number];
 /**
  * The keys `lints.thresholds` may set: the similarity at which the
  * `near-duplicate-tier` lint flags a near-duplicate (card L5; it is read only
- * when a policy lists that lint), and the replay-drift trigger's success floor
- * and minimum trial count (ADR 0011 amendment).
+ * when a policy lists that lint), the replay-drift trigger's success floor
+ * and minimum trial count (ADR 0011 amendment), and the NLI tier's two bands
+ * (card L7): a pair scored at or above the upper is flagged, below the lower
+ * dropped, and between them sent to the model contradiction lint.
  */
 export const LINT_THRESHOLD_KEYS = [
   "near-duplicate",
   "replay-drift.success-floor",
   "replay-drift.min-trials",
+  "contradiction-nli.upper",
+  "contradiction-nli.lower",
 ] as const;
 export type LintThresholdKey = (typeof LINT_THRESHOLD_KEYS)[number];
