@@ -46,8 +46,9 @@ export const KEYS: readonly KeyAction[] = [
   },
   {
     action: "palette",
-    keys: [";", "ctrl+p"],
-    label: "; or ctrl+p",
+    // alt+p is the binding that works in a text field and that VS Code's terminal passes (review I9).
+    keys: [";", "ctrl+p", "alt+p"],
+    label: "; or alt+p (alt+p in a field)",
     description: "commands",
     where: EVERYWHERE,
   },
@@ -61,8 +62,8 @@ export const KEYS: readonly KeyAction[] = [
   { action: "back", keys: ["escape"], label: "esc", description: "back", where: EVERYWHERE },
   {
     action: "copy",
-    keys: ["c"],
-    label: "c",
+    keys: ["c", "alt+c"],
+    label: "c (alt+c in a field)",
     description: "copy the command line",
     where: EVERYWHERE,
   },

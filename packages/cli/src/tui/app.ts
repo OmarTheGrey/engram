@@ -605,12 +605,11 @@ export class App implements Component, Ctx {
     if (this.message !== undefined) return cut(` ${this.message}`, width);
     const screen = this.top();
     const own = screen.hints(this);
-    const end =
-      screen.kind === "home" || screen.kind === "first-run"
-        ? "q quit"
-        : screen.kind === "loop"
-          ? "esc Home"
-          : "esc back";
+    const back = screen.kind === "loop" ? "esc Home" : "esc back";
+    // In a text field only keys that type nothing act: name those (review I7, I9).
+    if (screen.inField())
+      return cut(` ${own}  alt+c copy  alt+p commands  ctrl+g help  ${back}`, width);
+    const end = screen.kind === "home" || screen.kind === "first-run" ? "q quit" : back;
     return cut(` ${own}  ? help  ; commands  ${end}`, width);
   }
 

@@ -223,7 +223,10 @@ export class FirstRunScreen implements Screen {
   }
 
   hints(): string {
-    return "tab next  shift+tab back  enter accept  d doctor";
+    // d types in a field, so it is named only outside one (review M14).
+    return this.inField()
+      ? "tab next  shift+tab back  enter accept"
+      : "tab next  shift+tab back  enter accept  d doctor";
   }
 
   private checkLines(ctx: Ctx, name: string, c: CheapCheck | undefined, width: number): string[] {

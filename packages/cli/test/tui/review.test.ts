@@ -4,6 +4,8 @@
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { summaryText } from "../../src/tui/app.ts";
+import { actionFor, KEYS, printable } from "../../src/tui/keys.ts";
+import { LoopScreen } from "../../src/tui/screens/loop.ts";
 import { cli, fixtureCopy, tempDir } from "../helpers.ts";
 import { startHarness } from "./harness.ts";
 
@@ -137,6 +139,48 @@ describe("I4: secrets are not shown, while c copies the whole command", () => {
     const summary = summaryText(s, "posix", false);
     expect(summary).toContain("explain");
     expect(summary).not.toContain("hunter2secret");
+  });
+});
+
+describe("I7 and I9: copy and the palette work inside a text field, by keys VS Code passes", () => {
+  it("binds each to a key that acts in a field and is not ctrl+p", () => {
+    for (const action of ["copy", "palette", "help"]) {
+      const inField = KEYS.filter((k) => k.action === action)
+        .flatMap((k) => k.keys)
+        .filter((k) => !printable(k) && k !== "ctrl+p" && !/^f\d+$/.test(k));
+      expect(inField.length, action).toBeGreaterThan(0);
+    }
+    expect(actionFor("\x1bc", "form", true)).toBe("copy");
+    expect(actionFor("\x1bp", "form", true)).toBe("palette");
+  });
+
+  it("alt+c copies and alt+p opens the palette from inside a field, and the hints name only keys that work there", async () => {
+    const cwd = await tempDir();
+    const h = await startHarness({ cwd, home: cwd, given: { owner: "dana", db: "engram.db" } });
+    await h.press("w");
+    expect(h.app.top().inField()).toBe(true);
+    const hints = (await h.frame()).at(-1) ?? "";
+    expect(hints).toContain("alt+c copy");
+    expect(hints).toContain("alt+p commands");
+    expect(hints).toContain("ctrl+g help");
+    expect(hints).not.toMatch(/(^|\s)\? help/);
+    expect(hints).not.toMatch(/(^|\s); commands/);
+    await h.press("\x1bc");
+    expect(await h.text()).toContain("not copied: it will be printed when you quit");
+    await h.press("\x1bp");
+    expect(h.overlay()).toBe("palette");
+    await h.quit();
+  });
+
+  it("the first loop says how to copy from a field", async () => {
+    const cwd = await tempDir();
+    const root = await fixtureCopy();
+    const h = await startHarness({ cwd, home: cwd, given: { db: "engram.db", root, owner: "dana" } });
+    h.app.replace(new LoopScreen());
+    const text = await h.text();
+    expect(text).not.toMatch(/(^|[^+])c copies it/);
+    expect(text).toContain("alt+c copies it");
+    await h.quit();
   });
 });
 

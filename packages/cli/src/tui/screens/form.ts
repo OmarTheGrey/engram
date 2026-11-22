@@ -216,7 +216,7 @@ export class FormScreen implements Screen {
   }
 
   hints(): string {
-    return "tab next  space toggle  ctrl+s run";
+    return this.inField() ? "tab next  ctrl+s run" : "tab next  space toggle  ctrl+s run";
   }
 
   spec(): CommandSpec {
@@ -394,7 +394,7 @@ export class ResultScreen implements Screen {
   }
 
   hints(): string {
-    return "r run again  up down scroll  q back";
+    return "r run again  up down scroll";
   }
 
   spec(): CommandSpec {

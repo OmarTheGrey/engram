@@ -183,7 +183,7 @@ export class LoopScreen implements Screen {
     lines.push(
       this.current() === undefined
         ? " Done. Press enter for Home; every action there shows its command the same way."
-        : " Each step is the plain command; c copies it. Next time, type it yourself.",
+        : " Each step is the plain command; alt+c copies it. Next time, type it yourself.",
     );
     // Scroll so the current step, and the lines after it, show.
     const end = Math.min(lines.length, focus + Math.max(8, height - 4));
