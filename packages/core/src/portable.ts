@@ -32,7 +32,13 @@ import type { Actor } from "./actor.ts";
 import { contentHash } from "./content-hash.ts";
 import { readableScope } from "./policy/evaluate.ts";
 import { leastTrusted } from "./policy/promotion.ts";
-import type { MemoryEvent, MemoryItem, Policy, Provenance } from "./schema.ts";
+import {
+  type MemoryEvent,
+  type MemoryItem,
+  type Policy,
+  type Provenance,
+  ProvenanceKind,
+} from "./schema.ts";
 import { eventVisibleTo } from "./visible.ts";
 
 /** The bundle format's name and version (docs/bundle.md); an importer refuses any other. */
@@ -127,6 +133,36 @@ export function bundleSource(row: BundleRow): ImportSource {
 
 const RECORDS_MODEL: ReadonlySet<Kind> = new Set(["model", "compaction"]);
 
+/** The kind an import records for a row that claims `claimed`: never more trusted than `import`. */
+export function importKind(claimed: Kind): Kind {
+  return leastTrusted([claimed, "import"]);
+}
+
+/**
+ * An `import`-sourced actor as a served write records it (the lead's
+ * decision of 2026-11-22 on card E9.8): its source lowered to importKind of
+ * the kind the item claims, so a client can only lower trust, never raise
+ * it. A credential's source replaces the one a client sends (ADR 0042), so
+ * an import key held at `import` would otherwise record a model row as
+ * `import`. Any other actor, and an item whose claimed kind is not a kind
+ * (the plane's schema rule denies it), are returned unchanged. Plane.write
+ * and adoption are untouched.
+ */
+export function capImportSource(actor: Actor, item: unknown): Actor {
+  if (actor.source !== "import") return actor;
+  const provenance =
+    typeof item === "object" && item !== null
+      ? (item as { provenance?: unknown }).provenance
+      : undefined;
+  const claimed = ProvenanceKind.safeParse(
+    typeof provenance === "object" && provenance !== null
+      ? (provenance as { kind?: unknown }).kind
+      : undefined,
+  );
+  if (!claimed.success) return actor;
+  return { ...actor, source: importKind(claimed.data) };
+}
+
 /**
  * The write an import makes of one row, and the actor that makes it (see
  * the module comment): kind the least trusted of the row's claim and
@@ -139,7 +175,7 @@ export function importedWrite(
   at: { id: string; scope: string; lineage: string[] },
 ): { actor: Actor; item: MemoryItem } {
   const source = "item" in row ? bundleSource(row) : row;
-  const kind = leastTrusted([source.provenance.kind, "import"]);
+  const kind = importKind(source.provenance.kind);
   const actor = importActor(importer, kind);
   const model = RECORDS_MODEL.has(kind) ? source.provenance.model : undefined;
   const item = {

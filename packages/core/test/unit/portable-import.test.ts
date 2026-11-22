@@ -9,6 +9,7 @@ import type { Actor } from "../../src/actor.ts";
 import { loadPreset } from "../../src/policy/load.ts";
 import {
   type BundleRow,
+  capImportSource,
   importActor,
   importedWrite,
   importOrder,
@@ -160,6 +161,31 @@ describe("importedWrite: a row never raises trust", () => {
       memberships: ["person:dana", "team:platform"],
       source: "import",
     });
+  });
+});
+
+describe("capImportSource: a served import write only lowers trust", () => {
+  const importer = { ...dana, id: "import:person:dana", source: "import" as const };
+  const claiming = (kind: string) => ({ provenance: { kind } });
+
+  it.each([
+    ["user", "import"],
+    ["document", "import"],
+    ["import", "import"],
+    ["tool", "tool"],
+    ["model", "model"],
+    ["compaction", "compaction"],
+    ["external", "external"],
+  ] as const)("an import actor writing a %s claim writes as %s", (claimed, source) => {
+    expect(capImportSource(importer, claiming(claimed)).source).toBe(source);
+  });
+
+  it("leaves any other actor, and an item that claims no kind, unchanged", () => {
+    const user = { ...dana, source: "user" as const };
+    expect(capImportSource(user, claiming("model"))).toBe(user);
+    expect(capImportSource(dana, claiming("model"))).toBe(dana);
+    expect(capImportSource(importer, { provenance: { kind: "rumour" } })).toBe(importer);
+    expect(capImportSource(importer, null)).toBe(importer);
   });
 });
 

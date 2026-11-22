@@ -14,6 +14,7 @@ import {
   accessTime,
   BUNDLE_FORMAT,
   BUNDLE_VERSION,
+  capImportSource,
   currentItems,
   eventById,
   type MemoryItem,
@@ -91,8 +92,14 @@ export const ROUTES: readonly Route[] = [
     request: C.WriteRequest,
     response: C.WriteResponse,
     errors: [400, 503],
+    // An import-sourced actor writes at no more than import (core's
+    // capImportSource, card E9.8): a client can only lower trust.
     handler: ({ workspace, body, now }) =>
-      workspace.plane.write(body.actor, body.item as unknown as MemoryItem, now()),
+      workspace.plane.write(
+        capImportSource(body.actor, body.item),
+        body.item as unknown as MemoryItem,
+        now(),
+      ),
   }),
   route<z.infer<typeof C.WriteRequest>>({
     id: "checkWrite",
@@ -103,7 +110,11 @@ export const ROUTES: readonly Route[] = [
     response: C.CheckResponse,
     errors: [400],
     handler: ({ workspace, body, now }) =>
-      workspace.plane.checkWrite(body.actor, body.item as unknown as MemoryItem, now()),
+      workspace.plane.checkWrite(
+        capImportSource(body.actor, body.item),
+        body.item as unknown as MemoryItem,
+        now(),
+      ),
   }),
   route<z.infer<typeof C.ReadRequest>>({
     id: "read",
