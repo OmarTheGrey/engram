@@ -41,7 +41,9 @@ so in its body. No model is called.
 # src/agent_memory_guard/bench/scoring.py, Apache License 2.0, Copyright 2026
 # OWASP Foundation: the severity-weighted defence rate, the false-positive
 # penalty of at most 40 points, the grade bands and the critical-breach
-# ceilings. Its median latency is left out (nothing here is timed).
+# ceilings. Left out: its median latency (nothing here is timed), its
+# identity fields, and its per-category breakdown `categories` (the per-family
+# rates below replace it).
 
 from __future__ import annotations
 

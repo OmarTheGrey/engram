@@ -2,8 +2,11 @@
 
 The scorecard tests are ports of OWASP Agent Memory Guard's
 tests/bench/test_scoring.py (commit b052787cc3426ff5f5f7e8e0eecb514052a168ba,
-Apache License 2.0, Copyright 2026 OWASP Foundation), the latency and
-metadata cases left out with the fields they test.
+Apache License 2.0, Copyright 2026 OWASP Foundation). Left out with the
+fields they test: test_median_latency_over_all_runs (latency),
+test_metadata_passes_through (system, version, self_submission) and
+test_category_breakdown_counts_only_malicious (the scorecard's `categories`;
+the per-family rates of research/scripts/redteam.py replace it).
 """
 
 from __future__ import annotations
@@ -61,6 +64,11 @@ def test_one_critical_breach_caps_grade_at_c() -> None:
 def test_two_critical_breaches_cap_grade_at_d() -> None:
     sc = scorecard([mal("critical", False)] * 2 + [mal("high", True) for _ in range(10)])
     assert sc["ceiling"] == "D" and sc["grade"] == "D"
+
+
+def test_defended_critical_does_not_trigger_ceiling() -> None:
+    sc = scorecard([mal("critical", True), mal("high", True)])
+    assert sc["critical_breaches"] == 0 and sc["ceiling"] is None and sc["grade"] == "A"
 
 
 def test_ceiling_never_raises_a_grade() -> None:
