@@ -1,30 +1,30 @@
-// Parity (card E8.15, docs/design/tui.md 3.8, 6.2 and 13): nothing the CLI
-// can do is lost in the TUI, and nothing the TUI does differs from the plain
-// command. Card E8.15d's cases are in the "E8.15d" blocks below; card
-// E8.15c adds its screens' cases in blocks of its own.
+// Parity of card E8.15d's commands (card E8.15, docs/design/tui.md 3.8, 6.2
+// and 13): retain, lint, simulate, export, import, doctor, serve, mcp, the
+// hook, the key commands and log. Card E8.15c's parity.test.ts holds its own
+// commands'. Every screen here is the one the router opens for the command.
 //
-// For every registry command: the TUI opens a screen (only `tui` itself has
-// none); every flag of the command has a control whose value becomes exactly
-// that flag; the command line the screen shows means what the plain command
-// means; and running it from the screen issues the same client requests
-// (method, path, body) through Io.transport and prints the same bytes as
-// `run` given that command line, on a twin of the same workspace, with ids
-// and the workspace's folder normalised. The JSON view (J) of a hand-made
-// screen is the plain command's --json output. The commands that are not one
-// client call give the same command line and the same output: doctor, serve,
-// mcp (its handshake), the hook (its JSON on a sample), key and log.
+// For each: every flag of the command has a control whose value becomes
+// exactly that flag; the command line the screen shows means what the plain
+// command means; and running it from the screen issues the same client
+// requests (method, path, body) through Io.transport and prints the same
+// bytes as `run` given that command line, on a twin of the same workspace,
+// with ids and the workspace's folder normalised; in process, and for the
+// five client commands also against a server (`listen` over the twin). The
+// JSON view (J) is the plain command's --json output. The commands that are
+// not one client call give the same command line and the same output:
+// doctor, serve, mcp (its handshake), the hook (its JSON on a sample), key
+// and log.
 import { cpSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { PassThrough, Readable } from "node:stream";
+import { listen, openWorkspace } from "@engram/server";
 import { beforeAll, describe, expect, it } from "vitest";
 import { parse } from "../../src/commands.ts";
-import { type CommandSpec, command, parseOptions, REGISTRY } from "../../src/registry.ts";
+import { type CommandSpec, command, parseOptions } from "../../src/registry.ts";
 import { type Io, run } from "../../src/run.ts";
-import { offered } from "../../src/tui/overlays.ts";
 import type { RunResult } from "../../src/tui/runner.ts";
-import { FormScreen, type ResultScreen } from "../../src/tui/screens/form.ts";
+import type { FormScreen, ResultScreen } from "../../src/tui/screens/form.ts";
 import type { SurfaceScreen } from "../../src/tui/screens/surface.ts";
-import { surfaceScreen } from "../../src/tui/screens/surfaces.ts";
 import {
   hookSamples,
   type Launch,
@@ -32,7 +32,7 @@ import {
   tryHook,
   tryMcp,
 } from "../../src/tui/snippets.ts";
-import { cli, FIXTURE, REPO, tempDir } from "../helpers.ts";
+import { cli, FIXTURE, NOW, REPO, tempDir, testId } from "../helpers.ts";
 import { type Harness, startHarness } from "./harness.ts";
 
 const SAVE = "\x13";
@@ -40,7 +40,6 @@ const TAB = "\t";
 const ENTER = "\r";
 const MAIN = join(REPO, "packages/cli/src/main.ts");
 const ITEM = "01930000-0000-7000-8000-00000000a001";
-const UNKNOWN_READ = "01930000-0000-7000-8000-00000000b001";
 const WORKLOAD = join(REPO, "fixtures/workloads/e8-9-two-presets.json");
 
 /** A seeded workspace: the fixture store in mem/, one item with a fixed id, a bundle, a key file. */
@@ -196,72 +195,51 @@ async function runOnScreen(h: Harness): Promise<RunResult> {
   return result;
 }
 
-/** A sample command line for every client command of the registry, in a seeded workspace. */
+/** A sample command line for each of this part's client commands, in a seeded workspace. */
 const SAMPLES: Readonly<Record<string, readonly string[]>> = {
-  read: ["read", "deploy", "--owner", "dana", "--root", "mem", "--db", "engram.db"],
-  "read --item": ["read", "--item", ITEM, "--owner", "dana", "--root", "mem", "--db", "engram.db"],
-  write: [
-    "write",
-    "--content",
-    "Release freeze is Thursday.",
-    "--owner",
-    "dana",
-    "--root",
-    "mem",
-    "--db",
-    "engram.db",
-  ],
-  check: [
-    "check",
-    "--content",
-    "Release freeze is Thursday.",
-    "--scope",
-    "team:core",
-    "--owner",
-    "dana",
-    "--root",
-    "mem",
-    "--db",
-    "engram.db",
-  ],
-  promote: [
-    "promote",
-    ITEM,
-    "--to",
-    "team:core",
-    "--owner",
-    "dana",
-    "--member",
-    "team:core",
-    "--root",
-    "mem",
-    "--db",
-    "engram.db",
-  ],
-  supersede: ["supersede", ITEM, "--owner", "dana", "--root", "mem", "--db", "engram.db"],
-  grants: [
-    "grants",
-    ITEM,
-    "--add",
-    "person:sam",
-    "--owner",
-    "dana",
-    "--root",
-    "mem",
-    "--db",
-    "engram.db",
-  ],
-  explain: ["explain", UNKNOWN_READ, "--owner", "dana", "--db", "engram.db"],
-  events: ["events", "--owner", "dana", "--db", "engram.db"],
   retain: ["retain", "--scope", "person:dana", "--owner", "dana", "--db", "engram.db"],
   lint: ["lint", "--scope", "person:dana", "--owner", "dana", "--db", "engram.db"],
   simulate: ["simulate", "--workload", WORKLOAD, "--candidate", "strict", "--db", "engram.db"],
-  policy: ["policy", "--policy", "strict"],
   export: ["export", "--owner", "dana", "--db", "engram.db", "--out", "out.jsonl"],
   import: ["import", "bundle.jsonl", "--owner", "dana", "--root", "mem", "--db", "engram.db"],
-  "who-can-read": ["who-can-read", ITEM, "--owner", "dana", "--db", "engram.db"],
-  scopes: ["scopes", "--owner", "dana", "--db", "engram.db"],
 };
+
+/** The same, against a server: the workspace is the server's, so no log or store flag. */
+const SERVER_SAMPLES: Readonly<Record<string, readonly string[]>> = {
+  retain: ["retain", "--scope", "person:dana", "--owner", "dana"],
+  lint: ["lint", "--scope", "person:dana", "--owner", "dana"],
+  simulate: ["simulate", "--workload", WORKLOAD, "--candidate", "strict"],
+  export: ["export", "--owner", "dana", "--out", "out.jsonl"],
+  import: ["import", "bundle.jsonl", "--owner", "dana"],
+};
+
+/** A server over the twin at `dir` (its log and store), on `port`, 0 for any, as engram serve opens one. */
+async function serveAt(dir: string, port: number) {
+  let n = 9000;
+  const workspace = openWorkspace({
+    root: join(dir, "mem"),
+    owner: "dana",
+    db: join(dir, "engram.db"),
+    cwd: dir,
+    home: dir,
+    env: {},
+    newId: () => testId(++n),
+  });
+  workspace.open();
+  const server = await listen(workspace, {
+    port,
+    now: () => NOW,
+    auth: { insecureLoopback: true },
+  });
+  return {
+    url: server.url,
+    port: server.port,
+    close: async () => {
+      await server.close();
+      workspace.close();
+    },
+  };
+}
 
 /** The commands that are not one client call, each with its own case below. */
 const NOT_CLIENT = [
@@ -279,19 +257,29 @@ const NOT_CLIENT = [
 /** The hand-made screens' JSON view, by command: every one but those with none (export) or a second effect. */
 const JSON_VIEW = ["retain", "lint", "simulate", "doctor", "key list", "log verify"];
 
-describe("E8.15d parity: every registry command", () => {
-  it("has a screen in the TUI, but tui itself, and help is the overlay", () => {
-    const names = offered().map((s) => s.name);
-    expect(REGISTRY.map((s) => s.name).filter((n) => !names.includes(n))).toEqual(["tui"]);
-    // Each is a client sample here or one of the cases that are not a client call.
-    for (const n of names) expect(n in SAMPLES || NOT_CLIENT.includes(n), n).toBe(true);
+/** This part's commands. */
+const MINE = [...Object.keys(SAMPLES), ...NOT_CLIENT];
+
+describe("E8.15d parity: this part's commands", () => {
+  it("each opens its hand-made screen through the router, but log checkpoint, its generated form", async () => {
+    const cwd = await tempDir();
+    const h = await startHarness({ cwd, home: cwd, given: {} });
+    for (const name of MINE) {
+      h.app.openCommand(command(name) as CommandSpec);
+      expect(h.screen(), name).toBe(name === "log checkpoint" ? "form" : "surface");
+      h.app.pop();
+    }
+    await h.quit();
   });
 
   it("gives every flag a control whose value becomes exactly that flag", async () => {
     const cwd = await tempDir();
     const h = await startHarness({ cwd, home: cwd, given: {} });
-    for (const spec of offered()) {
-      const screen = surfaceScreen(spec, h.app, {}, []) ?? new FormScreen(spec, h.app);
+    for (const spec of MINE.map((n) => command(n) as CommandSpec)) {
+      // The screen the router opens for the command.
+      h.app.openCommand(spec);
+      const screen = h.app.top();
+      h.app.pop();
       const form = (screen as unknown as { form: FormScreen["form"] }).form;
       // Every flag a control, but --json, which J shows (docs/design/tui.md 3.2).
       const flags = Object.keys(spec.options).filter((f) => f !== "json");
@@ -361,6 +349,50 @@ describe("E8.15d parity: each client command's TUI action is its plain command",
         expect(normal(shown ?? "", dirs)).toBe(normal(j.out, dirs));
       }
       await h.quit();
+    });
+});
+
+describe("E8.15d parity: against a server", () => {
+  for (const [name, sample] of Object.entries(SERVER_SAMPLES))
+    it(`${name}: the same requests, the same bytes, the same exit code`, async () => {
+      const spec = command(name) as CommandSpec;
+      const [a, b] = [await twin(), await twin()];
+      const tuiSent: Sent[] = [];
+      const srv = await serveAt(a, 0);
+      const h = await startHarness({
+        cwd: a,
+        home: a,
+        given: { server: srv.url },
+        transport: recorder(tuiSent),
+      });
+      await open(h, spec, [...sample, "--server", srv.url]);
+      const argv = shownArgv(h);
+      expect(argv.slice(argv.indexOf("--server"), argv.indexOf("--server") + 2)).toEqual([
+        "--server",
+        srv.url,
+      ]);
+      expect(argv).not.toContain("--db");
+      const result = await runOnScreen(h);
+      await h.quit();
+      await srv.close();
+      // The plain command against the twin's own server: a port of its own, since a client's
+      // pooled connection to the first one would not survive it (normal() folds the ports).
+      const twinSrv = await serveAt(b, 0);
+      const plainSent: Sent[] = [];
+      const p = await plain(
+        h,
+        argv.map((w) => (w === srv.url ? twinSrv.url : w)),
+        b,
+        plainSent,
+      );
+      await twinSrv.close();
+      const dirs = [a, b];
+      expect(result.code).toBe(p.code);
+      expect(normal(`${result.out}${result.err}`, dirs)).toBe(normal(`${p.out}${p.err}`, dirs));
+      expect(tuiSent.length).toBeGreaterThan(0);
+      expect(tuiSent.map((s) => ({ ...s, body: normal(s.body, dirs) }))).toEqual(
+        plainSent.map((s) => ({ ...s, body: normal(s.body, dirs) })),
+      );
     });
 });
 

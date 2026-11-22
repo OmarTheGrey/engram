@@ -95,7 +95,14 @@ export async function tuiCommand(args: string[], io: Io, deps: TuiDeps = {}): Pr
   const summary = await app.done;
   if (deps.terminal === undefined) (io.stdin as { pause?: () => void } | undefined)?.pause?.();
   const text = summaryText(summary, detectShell(env), options.quiet);
-  if (text !== "") io.out(text);
+  // A console closed under the quit must not turn it into a crash (review E8.15d-2): the
+  // summary is written when the console takes it, and a write error is not uncaught.
+  (io.stdout as { on?: (e: string, f: () => void) => void } | undefined)?.on?.("error", () => {});
+  try {
+    if (text !== "") io.out(text);
+  } catch {
+    // The console is gone; the session's commands are in the log.
+  }
   return 0;
 }
 
