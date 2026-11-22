@@ -1,16 +1,21 @@
 // The E8.15b review fix pass (card E8.15b; the reviewer's findings C1, I1 to
 // I10 and M1 to M16, scratchpad/review-e8-15b.md): one test per finding the
 // fix closes, each written before its fix and seen failing first.
-import { join } from "node:path";
+import { readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { summaryText } from "../../src/tui/app.ts";
 import { actionFor, KEYS, printable } from "../../src/tui/keys.ts";
+import { savedPath } from "../../src/tui/saved.ts";
 import { LoopScreen } from "../../src/tui/screens/loop.ts";
+import { makeTheme, paletteFor } from "../../src/tui/theme.ts";
 import { cli, fixtureCopy, tempDir } from "../helpers.ts";
 import { startHarness } from "./harness.ts";
 
 const ESC = "\x1b";
 const CTRL_S = "\x13";
+const HERE = dirname(fileURLToPath(import.meta.url));
 
 describe("I1: a Postgres log is checked off the input path", () => {
   const PG = "postgres://dana:pw@127.0.0.1:1/engram";
@@ -247,6 +252,149 @@ describe("I10: the first loop shows each step's whole output", () => {
     await h.press("\x1bv");
     expect(h.screen()).toBe("result");
     expect(await h.text()).toContain("explain");
+    await h.quit();
+  });
+});
+
+describe("the minor findings", () => {
+  const usable = async (extra: Parameters<typeof startHarness>[0] = {}) => {
+    const cwd = await tempDir();
+    return startHarness({ cwd, home: cwd, given: { owner: "dana", db: "engram.db" }, ...extra });
+  };
+
+  it("M1: names no preset in the TUI's source; the choices are the registry's", () => {
+    const src = join(HERE, "../../src/tui");
+    const files = readdirSync(src, { recursive: true }).filter((f) => String(f).endsWith(".ts"));
+    for (const f of files) {
+      const text = readFileSync(join(src, String(f)), "utf8");
+      for (const preset of ["strict", "medium", "permissive"]) expect(text, String(f)).not.toContain(`"${preset}"`);
+    }
+  });
+
+  it("M2: high contrast greys nothing out with faint text", () => {
+    expect(makeTheme("high-contrast", "unicode").dim("the server's own")).toBe("the server's own");
+  });
+
+  it("M3: with no known background, status symbols are bold and uncoloured, not the terminal's indexed colours", async () => {
+    expect(paletteFor({ noColor: false, highContrast: false, ascii: false }, {}, undefined)).toBe("unknown");
+    const h = await usable({ env: {}, given: {} });
+    const tick = (await h.cells()).find((c) => c.char === "✓");
+    expect(tick?.fg).toBe("default");
+    expect(tick?.bold).toBe(true);
+    await h.quit();
+  });
+
+  it("M9: keeps <here> in sight when the command row is cut in the middle", async () => {
+    const h = await usable();
+    await h.press("w");
+    await h.type("a".repeat(70));
+    await h.focusField("confidence");
+    await h.type("high");
+    await h.press(CTRL_S);
+    const row = (await h.frame()).at(-2) ?? "";
+    expect(row).toContain("<here>");
+    await h.quit();
+  });
+
+  it("M10: in the workspace panel enter moves to the next field, ctrl+s applies, and a missing folder is warned of", async () => {
+    const h = await usable();
+    await h.press("\x0f");
+    await h.focusField("root");
+    await h.type("no-such-folder");
+    await h.press("\r");
+    expect(h.screen()).toBe("workspace");
+    expect(h.focused()).toBe("owner");
+    await h.press(CTRL_S);
+    expect(h.screen()).toBe("home");
+    expect(await h.text()).toContain("no-such-folder does not exist");
+    await h.quit();
+  });
+
+  it("M11: flags such as --high-contrast hold for the session only; the panel's own toggle saves", async () => {
+    const h = await usable({ options: { highContrast: true, ascii: true } });
+    h.app.save();
+    const home = h.io.home;
+    expect(JSON.parse(readFileSync(savedPath(home), "utf8")).options).toEqual({});
+    await h.press("\x0f");
+    await h.focusField("contrast");
+    await h.press(" ");
+    await h.press(CTRL_S);
+    expect(JSON.parse(readFileSync(savedPath(home), "utf8")).options).toEqual({ contrast: "high" });
+    await h.quit();
+  });
+
+  it("M12: the export confirmation says whether the file exists", async () => {
+    const h = await usable();
+    writeFileSync(join(h.io.cwd, "old.bundle"), "x");
+    for (const [file, says] of [
+      ["old.bundle", "it exists and will be overwritten"],
+      ["new.bundle", "it does not exist yet"],
+    ] as const) {
+      await h.press(";");
+      await h.type(`export --out ${file}`);
+      await h.press("\r", CTRL_S);
+      expect(h.overlay()).toBe("confirm");
+      expect(await h.text()).toContain(says);
+      await h.press("n", ESC);
+    }
+    await h.quit();
+  });
+
+  it("M13: a write with no store folder is refused at the form, before any confirmation", async () => {
+    const h = await usable();
+    await h.press("w");
+    await h.type("a memory");
+    await h.press(CTRL_S);
+    expect(h.overlay()).toBeUndefined();
+    expect(await h.text()).toContain("the files store needs --root <folder>");
+    expect(h.ran()).toEqual([]);
+    await h.quit();
+  });
+
+  it("M15: in server mode the title bar says whether the server answers GET /health, and applying checks again", async () => {
+    const asked: string[] = [];
+    const up = async (r: Request) => {
+      asked.push(new URL(r.url).pathname);
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    };
+    const h = await usable({ given: { owner: "dana", server: "http://127.0.0.1:7313" }, fetch: up });
+    await h.frame();
+    expect(asked).toContain("/api/v1/health");
+    expect((await h.frame())[0]).toContain("server 127.0.0.1:7313");
+    await h.quit();
+    const down = async () => {
+      throw new Error("connect ECONNREFUSED");
+    };
+    const d = await usable({ given: { owner: "dana", server: "http://127.0.0.1:7313" }, fetch: down });
+    await new Promise((r) => setTimeout(r, 50));
+    expect((await d.frame())[0]).toContain("server unreachable");
+    await d.press("\x0f", CTRL_S);
+    expect(await d.text()).toContain("did not answer");
+    await d.quit();
+  });
+
+  it("M5: the palette has switch actor, rerun and copy, ranks word starts first, and cuts no label at 32", async () => {
+    const h = await usable();
+    await h.press(";");
+    for (const label of ["Switch actor", "Run the last command again", "Copy the command line"]) {
+      await h.press("\x15");
+      await h.type(label.toLowerCase());
+      expect(await h.text(), label).toContain(label);
+    }
+    await h.press("\x15");
+    await h.type("read");
+    const first = (await h.frame()).find((l) => l.includes(" > ") && !l.includes("> read"));
+    expect(first).toContain("Read and explain");
+    await h.press("\x15");
+    await h.type("procedures");
+    expect(await h.text()).toContain("Procedures: not yet available (backlog)");
+    await h.quit();
+  });
+
+  it("shows a choice's default by its value", async () => {
+    const h = await usable();
+    await h.press("w");
+    expect(await h.text()).toContain("default (semantic)");
     await h.quit();
   });
 });
