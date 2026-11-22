@@ -157,7 +157,13 @@ export const KEYS: readonly KeyAction[] = [
   { action: "doctor", keys: ["d"], label: "d", description: "run doctor", where: ["first-run"] },
   // The first loop.
   { action: "run-step", keys: ["enter"], label: "enter", description: "run this step", where: ["loop"] },
-  { action: "skip", keys: ["s"], label: "s", description: "skip this step", where: ["loop"] },
+  {
+    action: "skip",
+    keys: ["s", "ctrl+n"],
+    label: "s or ctrl+n",
+    description: "skip this step (ctrl+n in a field)",
+    where: ["loop"],
+  },
   // Results.
   { action: "rerun", keys: ["r"], label: "r", description: "run again with the same flags", where: ["result"] },
   // Overlays.
