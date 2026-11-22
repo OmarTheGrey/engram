@@ -173,6 +173,23 @@ h4 {
   overflow-wrap: anywhere;
 }
 
+.who-can-read {
+  margin-top: 8px;
+  border-top: 1px solid var(--line);
+  padding-top: 6px;
+  font-size: 12px;
+}
+
+.who-can-read p {
+  margin: 4px 0;
+}
+
+.who-can-read ul {
+  margin: 0 0 6px;
+  padding-left: 16px;
+  overflow-wrap: anywhere;
+}
+
 .grant-form {
   display: flex;
   flex-wrap: wrap;

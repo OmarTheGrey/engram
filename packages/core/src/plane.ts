@@ -37,6 +37,8 @@ export { accessTime } from "./plane/read.ts";
 
 import { retain } from "./plane/retention.ts";
 import { simulate } from "./plane/simulate.ts";
+import type { WhoCanReadAnswer } from "./plane/who-can-read.ts";
+import { whoCanRead, whoCanReadItem } from "./plane/who-can-read.ts";
 import { checkWrite, gatedWrite } from "./plane/write.ts";
 import type { GrantChange } from "./policy/grants.ts";
 import type { Explanation, MemoryEvent, MemoryItem, Policy } from "./schema.ts";
@@ -100,6 +102,15 @@ export {
 } from "./plane/read-reason.ts";
 export { enforceBudget, retentionUsage } from "./plane/retention.ts";
 export { checkWorkload, replayWorkload, runWorkload, SIMULATION_STORE } from "./plane/simulate.ts";
+export {
+  itemReaders,
+  itemRefusal,
+  ReaderEntry,
+  scopeReaders,
+  WhoCanReadAnswer,
+  whoCanReadAs,
+  whoCanReadItemAs,
+} from "./plane/who-can-read.ts";
 export { retiredContent, WRITE_CONFLICT_ID, WRITE_ERASED_ID } from "./plane/write.ts";
 
 export interface ReadQuery {
@@ -329,6 +340,26 @@ export interface Plane {
    * another actor is refused with ExplainDeniedError (decision D5).
    */
   explain(actor: Actor, readId: ReadId): Promise<Explanation[]>;
+  /**
+   * Who can read one item at `at` (card E2.13): a symbolic set of readers,
+   * each entry with the read matrix row or the grant that admits it,
+   * computed from the read filter's own rules, and why nobody may read it
+   * when its status, ttl or validity window closes it. Answered only for an
+   * actor the read filter admits the item to, or who may read its scope as
+   * a member; anyone else gets the refusal an unknown id gets (decision item
+   * 53). Grant holders are named to the item's owner only; any other reader
+   * sees only the grants naming it. Decides nothing and appends no event.
+   * An invalid actor, time or item id is refused with InvalidCallError.
+   */
+  whoCanReadItem(actor: Actor, itemId: string, at: string): Promise<WhoCanReadAnswer>;
+  /**
+   * Who can read a scope's items by the read matrix (card E2.13): every
+   * member of the scope reading as a level the matrix lets read it, each
+   * entry with its rule. Answered only for an actor who may read the scope
+   * as a member. Appends no event. An invalid actor, time or scope is
+   * refused with InvalidCallError.
+   */
+  whoCanRead(actor: Actor, scope: string, at: string): Promise<WhoCanReadAnswer>;
   /** The event log, in sequence order. */
   events(): MemoryEvent[];
 }
@@ -406,6 +437,8 @@ export function createPlane(deps: PlaneDeps): Plane {
       // backlog work ("Plane.distill and the /distill route").
       throw new NotImplementedYet("distill", "backlog");
     },
+    whoCanReadItem: (actor, itemId, at) => whoCanReadItem(deps, actor, itemId, at),
+    whoCanRead: (actor, scope, at) => whoCanRead(deps, actor, scope, at),
     events: () => allEvents(deps.db),
   };
 }
