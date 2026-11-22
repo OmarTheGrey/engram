@@ -171,7 +171,7 @@ Surfaces
                  /.well-known/oauth-protected-resource; each served event attested (event_attestations);
                  loopback Host and Origin only, JSON bodies only, no CORS, 1 MiB bodies; OpenAPI generated
                  into sdk/openapi.json, the client into sdk/ts and packages/ui/src/api
-  Frameworks     packages/kit (a fixed actor, a namespace mapper, a typed rejection, every call one client request)
+  Frameworks     packages/tag (the memory tag, pure, no pi); packages/kit (a fixed actor, a namespace mapper, a typed rejection, every call one client request)
                  and the adapters on it: @engram/ai-sdk, a Vercel AI SDK middleware and remember and recall tools (card E8.14)
   CLI            engram write | read | promote | explain | retain | lint | simulate (--candidate), each one client call, in
                  process over app.fetch or to --server; engram serve | mcp | hook claude-code | doctor
