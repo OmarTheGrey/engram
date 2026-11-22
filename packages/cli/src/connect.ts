@@ -17,6 +17,22 @@ import { UsageError } from "./setup.ts";
 
 /** The variable that names a server when --server is not given. */
 export const SERVER_URL_ENV = "ENGRAM_SERVER_URL";
+/**
+ * The variable holding the bearer credential (an API key or a token) a call
+ * to a named server sends (card E8.12, ADR 0042 decision 9). An environment
+ * variable, not a flag, so the credential is not in the process list.
+ */
+export const TOKEN_ENV = "ENGRAM_TOKEN";
+
+/** `fetch` with the bearer credential set on every request, when one is given. */
+export function withToken(fetch: Fetch, token: string | undefined): Fetch {
+  if (token === undefined || token === "") return fetch;
+  return (request) => {
+    const headers = new Headers(request.headers);
+    headers.set("authorization", `Bearer ${token}`);
+    return fetch(new Request(request, { headers }));
+  };
+}
 /** The base URL of the in-process app: a label, never a socket. */
 export const IN_PROCESS_URL = `http://127.0.0.1:${DEFAULT_PORT}`;
 
@@ -70,7 +86,10 @@ export function connect(
     const base = url.href.replace(/\/$/, "");
     const fetch = io.fetch ?? ((request: Request) => globalThis.fetch(request));
     return {
-      client: createEngramClient({ baseUrl: base, fetch: wrap(fetch) }),
+      client: createEngramClient({
+        baseUrl: base,
+        fetch: wrap(withToken(fetch, io.env[TOKEN_ENV])),
+      }),
       workspace: null,
       server: base,
       close: () => undefined,

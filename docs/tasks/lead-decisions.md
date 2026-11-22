@@ -296,6 +296,11 @@ The answers card that carries these into the pre-registration, the ADRs and the 
 
 Open, for the lead. Each was drafted by a card's agent while implementing it; the card ships the recommendation behind it, and accepting or changing it is a `decision` log entry plus a status change in the ADR.
 
+60. **ADR 0042, verified actors (card E8.12).** Item 54 chose tokens from an external issuer and hashed local API keys; the ADR fixes how a credential becomes an actor.
+    - (a) Accept ADR 0042: the operator's subjects file maps a token's exact issuer and subject (and the key file maps a key) to one actor with its level, memberships and source; no claim sets any of them, a request may only narrow its memberships, and a source sent on an authenticated call is ignored; a served surface needs a credential flag or `--insecure-loopback`; each event a served surface appends gets a row in a side table naming the authenticated requester or the waiver.
+    - (b) Accept it, but derive an actor from a subject the subjects file does not name (`person:<sub>`, a member of its own scope only), so a new person needs no file edit.
+    - (c) Keep self-asserted actors on loopback, with the ADR as the design for after the thesis.
+
 62. **ADR 0044, the CLI's terminal interface (card E8.15).** Card E8.15 is the lead's own request of 2026-11-21 for a TUI, not one of the absorb plan's thirty pull requests; it is listed here with the absorb cards' proposals because it was drafted with them. The design is `docs/design/tui.md`.
     - Open for the lead: accept ADR 0044 (pi-tui at the pi pin, only under `packages/cli/src/tui/`), or (b) Ink 8.0.0 with React 19.3.1, or (c) no TUI until after the thesis. Until then the design proceeds on (a), as decided below.
     - Decided on 2026-11-22 under the lead's delegation, six calls the design raised; binding until the lead overturns one:
