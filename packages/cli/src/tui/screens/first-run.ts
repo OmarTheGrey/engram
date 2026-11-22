@@ -9,7 +9,7 @@
 // starts.
 import { existsSync, statSync } from "node:fs";
 import { resolve } from "node:path";
-import { command } from "../../registry.ts";
+import { command, OPTIONS } from "../../registry.ts";
 import { TextField } from "../fields.ts";
 import { cut, para, rows } from "../layout.ts";
 import type { CommandRow, Ctx, Screen } from "../screen.ts";
@@ -33,7 +33,14 @@ const LOG_CHOICES = [
   { id: "postgres", label: "a Postgres server", db: "postgres" },
 ] as const;
 
-const POLICY_CHOICES = ["medium", "strict", "permissive", "file"] as const;
+/** The registry's presets for --policy, its default first, then a file (review M1: no preset named here). */
+const POLICY_OPTION = OPTIONS.read.policy;
+const DEFAULT_PRESET = POLICY_OPTION.defaultText ?? "";
+const PRESETS: readonly string[] = [
+  DEFAULT_PRESET,
+  ...(POLICY_OPTION.choices ?? []).filter((c) => c !== DEFAULT_PRESET),
+];
+const POLICY_CHOICES: readonly string[] = [...PRESETS, "file"];
 
 type Question = "log" | "who" | "folder" | "policy";
 
@@ -65,8 +72,8 @@ export class FirstRunScreen implements Screen {
     this.needsPolicy = ctx.checks.policy.status === "fail";
     const policy = ctx.ws.get("policy");
     if (policy !== undefined) {
-      const i = POLICY_CHOICES.indexOf(policy as never);
-      if (i >= 0 && i < 3) this.policyChoice = i;
+      const i = PRESETS.indexOf(policy);
+      if (i >= 0) this.policyChoice = i;
       else {
         this.policyChoice = 3;
         this.policyFile.set(policy);
@@ -127,7 +134,7 @@ export class FirstRunScreen implements Screen {
       const p = POLICY_CHOICES[this.policyChoice];
       ctx.ws.set(
         "policy",
-        p === "file" ? this.policyFile.value.trim() : p === "medium" ? undefined : p,
+        p === "file" ? this.policyFile.value.trim() : p === DEFAULT_PRESET ? undefined : p,
         "set",
       );
     }
@@ -265,8 +272,8 @@ export class FirstRunScreen implements Screen {
         const extra =
           p === "file"
             ? `a file  [ ${this.policyFile.render(30, focused)} ]`
-            : p === "medium"
-              ? "medium   the default preset"
+            : p === DEFAULT_PRESET
+              ? `${p}   the default preset`
               : `${p}   a bundled preset`;
         lines.push(`     ${radio} ${extra}`);
       }

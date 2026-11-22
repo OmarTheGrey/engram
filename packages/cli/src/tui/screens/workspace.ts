@@ -8,6 +8,7 @@
 // workspace" deletes tui.json after a confirmation.
 
 import { ScopeLevel } from "@engram/core";
+import { OPTIONS } from "../../registry.ts";
 import { buildActor, dbTarget } from "../../setup.ts";
 import { TextField } from "../fields.ts";
 import { cut, fit, para, rows, wrap } from "../layout.ts";
@@ -70,7 +71,7 @@ const ROWS: readonly Row[] = [
 
 const HINT: Partial<Record<string, string>> = {
   db: "a SQLite file, :memory: or postgres://...",
-  policy: "strict, medium, permissive or a YAML file",
+  policy: `${(OPTIONS.read.policy.choices ?? []).join(", ")} or a YAML file`,
   owner: "the person whose folder it is",
   as: "a principal such as person:dana",
   member: "enter adds; backspace in the empty entry removes",

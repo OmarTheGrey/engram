@@ -9,7 +9,12 @@
 // status kind of a word the plane returned.
 import { indexedColor, rgbColor, styleText, type TerminalColorMode } from "@earendil-works/pi-tui";
 
-export type PaletteName = "dark" | "light" | "indexed" | "high-contrast" | "none";
+/**
+ * "unknown": the terminal named no background, so no hue is safe at 4.5:1 on
+ * both a dark and a light one; symbols are bold, with no colour (review M3).
+ * "indexed" stays for a person who asks for the terminal's own colours.
+ */
+export type PaletteName = "dark" | "light" | "indexed" | "unknown" | "high-contrast" | "none";
 
 /** The status kinds of 11.3, each with a symbol and a colour. */
 export type StatusKind =
@@ -171,7 +176,7 @@ export function makeTheme(
     const s = glyphs[SYMBOL_OF[kind]];
     const hue = HUE_OF[kind];
     if (hue === undefined || palette === "none") return s;
-    if (palette === "high-contrast") {
+    if (palette === "high-contrast" || palette === "unknown") {
       if (hue === "deny") return bold(underline(s));
       return hue === "info" ? s : bold(s);
     }
@@ -188,7 +193,8 @@ export function makeTheme(
     reverse,
     bold,
     underline,
-    dim,
+    // Faint text is hard to read in high contrast; the words say it is the server's (review M2).
+    dim: palette === "high-contrast" ? (text) => text : dim,
   };
 }
 
@@ -242,7 +248,7 @@ export function paletteFor(
 ): PaletteName {
   if (choice.noColor) return "none";
   if (choice.highContrast) return "high-contrast";
-  return scheme ?? schemeFromColorFgBg(env.COLORFGBG) ?? "indexed";
+  return scheme ?? schemeFromColorFgBg(env.COLORFGBG) ?? "unknown";
 }
 
 /** Truecolor when COLORTERM says so, else the 256-colour nearest (11.3). */

@@ -241,11 +241,11 @@ describe("palettes (11.3)", () => {
     expect(contrastRatio("#005A8C", "#ffffff")).toBeCloseTo(7.39, 1);
   });
 
-  it("uses the light hues on a light terminal, the indexed colours when the background is unknown", async () => {
+  it("uses the light hues on a light terminal, bold and no colour when the background is unknown (review M3)", async () => {
     const { cwd, home } = await workspace();
     for (const [env, expected] of [
       [{ COLORFGBG: "0;15", COLORTERM: "truecolor" }, HUES.light.allow.toUpperCase()],
-      [{}, "p2"],
+      [{}, "default"],
     ] as const) {
       const h = await startHarness({ cwd, home, env, given: {} });
       const tick = (await h.cells()).find((c) => c.char === "✓");
