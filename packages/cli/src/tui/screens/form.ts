@@ -307,6 +307,19 @@ export class FormScreen implements Screen {
   }
 }
 
+/**
+ * The decision the call's answer carries (its event's, or a check's own),
+ * read as a field, never derived: undefined when the answer has none.
+ */
+export function decisionOf(result: RunResult): "allow" | "deny" | "ask" | undefined {
+  for (const call of [...result.calls].reverse()) {
+    const body = call.body as { decision?: unknown; event?: { decision?: unknown } } | undefined;
+    const d = body?.event?.decision ?? body?.decision;
+    if (d === "allow" || d === "deny" || d === "ask") return d;
+  }
+  return undefined;
+}
+
 /** What the exit code means, in the registry entry's words. */
 export const exitMeaning = (spec: CommandSpec, code: number) =>
   spec.exitCodes.find((e) => e.code === code)?.when ?? "";
@@ -392,7 +405,14 @@ export class ResultScreen implements Screen {
     const t = ctx.theme;
     const code = this.result.code;
     const kind = code === 0 ? "ok" : code === 2 ? "warn" : "fail";
-    const head = [` ${t.status(kind, `exit ${code}`)}  ${exitMeaning(this.spec_, code)}`, ""];
+    // The plane's decision first, as the answer carries it; then the exit code the plain command returns.
+    const decision = decisionOf(this.result);
+    const head = [
+      decision === undefined
+        ? ` ${t.status(kind, `exit ${code}`)}  ${exitMeaning(this.spec_, code)}`
+        : ` ${t.status(decision, decision)}   exit ${code}  ${exitMeaning(this.spec_, code)}`,
+      "",
+    ];
     const body = this.lines(width - 1);
     const room = height - head.length;
     this.offset = Math.max(0, Math.min(this.offset, Math.max(0, body.length - room)));

@@ -10,7 +10,10 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { command } from "../../src/registry.ts";
 import { visibleWidth } from "../../src/tui/layout.ts";
+import type { RunResult } from "../../src/tui/runner.ts";
+import { ResultScreen } from "../../src/tui/screens/form.ts";
 import { BACKGROUNDS, contrastRatio, HUES } from "../../src/tui/theme.ts";
 import { tempDir } from "../helpers.ts";
 import { type Cell, type Harness, type HarnessOptions, startHarness } from "./harness.ts";
@@ -74,8 +77,44 @@ const SCREENS: Record<
       await h.press("\x13");
     },
   },
-  result: { given: USABLE, keys: (h) => h.press("y", "\x13") },
+  // Results from fixed fixture content, so a preset or HELP change elsewhere does not move them (review M16).
+  result: { given: USABLE, keys: async (h) => show(h, ALLOWED) },
+  denied: { given: USABLE, keys: async (h) => show(h, DENIED) },
 };
+
+/** A write's answer as the CLI prints it, fixed here: the frames pin the TUI's drawing, not a preset's words. */
+const writeResult = (decision: "allow" | "deny", code: number, reason: string): RunResult => ({
+  argv: [
+    "write",
+    "--content",
+    "The deploy key rotates every 90 days.",
+    "--scope",
+    "team:lantern",
+    "--owner",
+    "dana",
+  ],
+  code,
+  out: [
+    "write 01930000-0000-7000-8000-000000000001 at 2026-10-25T12:00:00.000Z by person:dana",
+    `${decision}: ${reason}`,
+    "policy fixture/write/team",
+    "log engram.db",
+    "",
+  ].join("\n"),
+  err: "",
+  calls: [{ method: "POST", path: "/api/v1/items", status: 200, body: { event: { decision } } }],
+});
+const ALLOWED = writeResult("allow", 0, "a fixture rule admits it");
+const DENIED = writeResult(
+  "deny",
+  1,
+  "a fixture rule refuses it: the writer is not a member of team:lantern",
+);
+
+async function show(h: Harness, r: RunResult) {
+  h.app.push(new ResultScreen(command("write") as never, r, {}));
+  await h.frame();
+}
 
 /** The styled runs of a frame: consecutive cells of a row with the same style. */
 function styleRuns(cells: Cell[]): string[] {
@@ -146,6 +185,22 @@ describe("snapshot frames", () => {
             `__frames__/${name}-${columns}x${rows}-${mode}.txt`,
           );
         });
+});
+
+describe("high contrast (11.3)", () => {
+  it("styles a denial bold and underlined, unlike focus, which is reverse video", async () => {
+    const { cells } = await shoot("denied", "high-contrast", 80, 24);
+    const row = cells.filter((c) => c.row === 1);
+    const word = row.filter((c) => "deny".includes(c.char) && c.char !== " ");
+    expect(word.length).toBeGreaterThanOrEqual(4);
+    for (const c of word) {
+      expect(c.bold && c.underline, `r1 c${c.col}`).toBe(true);
+      expect(c.inverse, `r1 c${c.col}`).toBe(false);
+    }
+    const title = cells.filter((c) => c.row === 0);
+    expect(title.length).toBeGreaterThan(0);
+    for (const c of title) expect(c.inverse && !c.underline).toBe(true);
+  });
 });
 
 describe("too small", () => {
