@@ -1373,7 +1373,7 @@ describe("invariants", () => {
     );
     expect(
       Object.values(seen).every((n) => n > 0),
-      `invariant 8 needs floored writes, rewrites and retires denied for trust, writes and promotions denied rather than evict a more trusted item, refusals at the commit, races on two handles, promotions, evictions that passed over a more trusted item, sweeps held back, adoptions denied for trust, and allowed rewrites; it saw ${JSON.stringify(seen)}`,
+      `invariant 8 needs floored writes, rewrites and retires denied for trust, writes and promotions denied rather than evict a more trusted item, refusals at the commit, races on two handles, promotions, evictions that passed over a more trusted item, sweeps held back, a repeated sweep that records its shortfall once, adoptions denied for trust, and allowed rewrites; it saw ${JSON.stringify(seen)}`,
     ).toBe(true);
   }, 240_000);
 });
@@ -3210,7 +3210,15 @@ interface TrustPromote {
 type TrustStep =
   | TrustWrite
   | TrustPromote
-  | { op: "sweep"; who: number; source: Kind | null; scope: number; tight: boolean }
+  | {
+      op: "sweep";
+      who: number;
+      source: Kind | null;
+      scope: number;
+      tight: boolean;
+      /** Sweep again at once: a recorded shortfall is not recorded again (review E2.11-10). */
+      repeat: boolean;
+    }
   /** Edit the store's record of a pool id by hand, then adopt its scope. */
   | { op: "adopt"; n: number }
   /**
@@ -3260,6 +3268,7 @@ const arbTrustStep: fc.Arbitrary<TrustStep> = fc.oneof(
       source: arbTrustSource,
       scope: fc.integer({ min: 0, max: T_SCOPES.length - 1 }),
       tight: fc.boolean(),
+      repeat: fc.boolean(),
     }),
   },
   {
@@ -3300,6 +3309,7 @@ const trustCounters = () => ({
   raced: 0,
   refusedAtCommit: 0,
   promotionRefusedAtCommit: 0,
+  shortfallNotRepeated: 0,
 });
 
 const SUPERSEDED = /\/promotion\/superseded$/;
@@ -3556,59 +3566,70 @@ async function trustWalk(
       }
       if (step.lead.op === "write") countFloor(step.lead, allEvents(db).slice(start));
     } else if (step.op === "sweep") {
-      const actor = actorOf(step.who, step.source);
-      const sweepPolicy = step.tight ? tight : policy;
-      const scope = T_SCOPES[step.scope] as string;
-      await (step.tight ? tightPlane : plane).retain(actor, scope, at);
-      const events = allEvents(db).slice(start);
-      judge(actor, events, true, label);
-      // The sweep's evictions, class by class, at the sweeper's attested kind;
-      // a part of an overage it may not evict is recorded once per state
-      // (engram/retention/protected, review E2.11-5).
-      const expected: (string | null)[][] = [];
-      let unrestricted = 0;
-      const log = allEvents(db).filter((e) => e.seq <= lastSeq);
-      for (const cls of ["episodic", "semantic", "procedural"] as const) {
-        const rule = ruleFor(sweepPolicy, scope, cls);
-        if (!rule || rule.budget === null) continue;
-        const active = activeAt(lastSeq, scope, cls);
-        const changed = lastChanged(log, lastSeq);
-        const eligible = eligibleFor(sweepPolicy, actor, attestedKind(actor));
-        const victims = budgetVictims(
-          rule.eviction,
-          rule.budget,
-          active,
-          changed,
-          new Map(),
-          undefined,
-          eligible,
-        ) as string[];
-        const over = Math.max(0, active.length - rule.budget);
-        unrestricted += over;
-        for (const v of victims) expected.push(["evict", "allow", v]);
-        if (victims.length < over) {
-          const recorded = log
-            .filter(
-              (e) =>
-                e.op === "evict" &&
-                e.decision === "deny" &&
-                e.scope_to === scope &&
-                e.policy_id === "engram/retention/protected" &&
-                e.reason.includes(`its ${cls} budget`),
-            )
-            .at(-1)?.seq;
-          const own = (lastSeq < 0 ? [] : itemsAt(db, lastSeq)).filter(
-            (x) => x.scope === scope && x.class === cls,
-          );
-          const latest = Math.max(-1, ...own.map((x) => changed.get(x.id) ?? -1));
-          if (recorded === undefined || latest > recorded) expected.push(["evict", "deny", null]);
+      /** One sweep from log position `from` (the seq before it `before`); true when it recorded a shortfall. */
+      const sweepOnce = async (from: number, before: number, tag: string) => {
+        const actor = actorOf(step.who, step.source);
+        const sweepPolicy = step.tight ? tight : policy;
+        const scope = T_SCOPES[step.scope] as string;
+        await (step.tight ? tightPlane : plane).retain(actor, scope, at);
+        const events = allEvents(db).slice(from);
+        judge(actor, events, true, tag);
+        // The sweep's evictions, class by class, at the sweeper's attested kind;
+        // a part of an overage it may not evict is recorded once per state
+        // (engram/retention/protected, review E2.11-5).
+        const expected: (string | null)[][] = [];
+        let unrestricted = 0;
+        const log = allEvents(db).filter((e) => e.seq <= before);
+        for (const cls of ["episodic", "semantic", "procedural"] as const) {
+          const rule = ruleFor(sweepPolicy, scope, cls);
+          if (!rule || rule.budget === null) continue;
+          const active = activeAt(before, scope, cls);
+          const changed = lastChanged(log, before);
+          const eligible = eligibleFor(sweepPolicy, actor, attestedKind(actor));
+          const victims = budgetVictims(
+            rule.eviction,
+            rule.budget,
+            active,
+            changed,
+            new Map(),
+            undefined,
+            eligible,
+          ) as string[];
+          const over = Math.max(0, active.length - rule.budget);
+          unrestricted += over;
+          for (const v of victims) expected.push(["evict", "allow", v]);
+          if (victims.length < over) {
+            const recorded = log
+              .filter(
+                (e) =>
+                  e.op === "evict" &&
+                  e.decision === "deny" &&
+                  e.scope_to === scope &&
+                  e.policy_id === "engram/retention/protected" &&
+                  e.reason.includes(`its ${cls} budget`),
+              )
+              .at(-1)?.seq;
+            const own = (before < 0 ? [] : itemsAt(db, before)).filter(
+              (x) => x.scope === scope && x.class === cls,
+            );
+            const latest = Math.max(-1, ...own.map((x) => changed.get(x.id) ?? -1));
+            if (recorded === undefined || latest > recorded) expected.push(["evict", "deny", null]);
+          }
         }
+        expect(
+          events.map((e) => [e.op, e.decision, e.item_id]),
+          `the sweep of ${scope} by ${actor.id} (${actor.source ?? "no source"}) at ${tag}`,
+        ).toEqual(expected);
+        if (expected.filter((e) => e[1] === "allow").length < unrestricted) seen.sweepHeldBack++;
+        return expected.some((e) => e[1] === "deny");
+      };
+      const recorded = await sweepOnce(start, lastSeq, label);
+      if (step.repeat && recorded) {
+        const again = allEvents(db).length;
+        const seq = allEvents(db).at(-1)?.seq ?? -1;
+        await sweepOnce(again, seq, `${label}, repeated`);
+        if (allEvents(db).length === again) seen.shortfallNotRepeated++;
       }
-      expect(
-        events.map((e) => [e.op, e.decision, e.item_id]),
-        `the sweep of ${scope} by ${actor.id} (${actor.source ?? "no source"}) at step ${k}`,
-      ).toEqual(expected);
-      if (expected.filter((e) => e[1] === "allow").length < unrestricted) seen.sweepHeldBack++;
     } else {
       const actor: Actor = { ...T_ADOPTER, source: "import" };
       const held = itemById(db, T_POOL[step.n] as string);
