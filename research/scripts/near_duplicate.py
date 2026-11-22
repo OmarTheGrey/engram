@@ -42,8 +42,6 @@ from analysis.wilson import wilson
 from scripts.results_io import REPO, load_config, run_node, write_result
 
 ENTRY = "packages/core/scripts/near-duplicate-pairs.ts"
-# The agreement is also reported on the pairs whose estimate or exact similarity is at least this.
-NEAR = 0.7
 
 
 def rate(hits: int, n: int, confidence: float) -> dict[str, Any]:
@@ -66,7 +64,10 @@ def oracle_estimate(a: Sequence[str], b: Sequence[str], num_perm: int, seed: int
 
 
 def agreement(
-    pairs: Sequence[Mapping[str, Any]], thresholds: Sequence[float], confidence: float
+    pairs: Sequence[Mapping[str, Any]],
+    thresholds: Sequence[float],
+    confidence: float,
+    near_at: float,
 ) -> dict[str, Any]:
     """Same-side agreement at each threshold, and the mean absolute differences."""
     n = len(pairs)
@@ -93,9 +94,9 @@ def agreement(
     }
     # Review finding L5-8: most catalogue pairs are far from every threshold,
     # where any two estimators agree; the pairs near it are the test.
-    near = [p for p in pairs if p["estimate"] >= NEAR or p["jaccard"] >= NEAR]
+    near = [p for p in pairs if p["estimate"] >= near_at or p["jaccard"] >= near_at]
     out["near_pairs"] = {
-        "at_or_above": NEAR,
+        "at_or_above": near_at,
         "pairs": len(near),
         "by_threshold": {
             f"{t:.2f}": rate(
@@ -163,8 +164,19 @@ def summarise(rows: Sequence[Mapping[str, Any]], config: Mapping[str, Any]) -> d
         "oracle": dict(oracle),
         "fixtures": len(rows),
         "agreement": agreement(
-            pairs, [float(t) for t in config["agreement_thresholds"]], confidence
+            pairs,
+            [float(t) for t in config["agreement_thresholds"]],
+            confidence,
+            float(config["near_pairs_at_or_above"]),
         ),
+        # Items whose earlier candidates CANDIDATE_CAP cut, per fixture and in
+        # all (review finding L5-R3); P4 reports it on LongMemEval.
+        "capped": {
+            "items": sum(int(r["stats"]["capped"]) for r in rows),
+            "by_fixture": {
+                r["fixture"]: int(r["stats"]["capped"]) for r in rows if r["stats"]["capped"]
+            },
+        },
         "labelled": labelled(rows, confidence),
         "unlabelled_findings": {
             "fixtures": len(unlabelled),

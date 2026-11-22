@@ -6,6 +6,7 @@
   "faults": "fixtures/faults",
   "threshold": 0.85,
   "agreement_thresholds": [0.8, 0.85, 0.9],
+  "near_pairs_at_or_above": 0.7,
   "oracle": {
     "package": "datasketch",
     "version": "2.0.0",

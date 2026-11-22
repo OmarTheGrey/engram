@@ -8,7 +8,7 @@ from typing import Any
 
 import pytest
 
-from scripts.near_duplicate import agreement, labelled, main, oracle_estimate
+from scripts.near_duplicate import agreement, labelled, main, oracle_estimate, summarise
 from scripts.results_io import REPO
 
 
@@ -30,7 +30,7 @@ def test_agreement_counts_pairs_on_the_same_side_of_each_threshold() -> None:
         {"estimate": 0.84, "oracle": 0.86, "jaccard": 0.85},
         {"estimate": 0.2, "oracle": 0.25, "jaccard": 0.22},
     ]
-    out = agreement(pairs, [0.85], 0.95)
+    out = agreement(pairs, [0.85], 0.95, 0.7)
     at = out["by_threshold"]["0.85"]
     assert at["tier_vs_oracle"]["count"] == 2
     assert at["oracle_vs_exact"]["count"] == 3
@@ -61,7 +61,7 @@ def test_agreement_reports_the_pairs_near_a_threshold_apart() -> None:
         {"estimate": 0.2, "oracle": 0.25, "jaccard": 0.72},
         {"estimate": 0.1, "oracle": 0.1, "jaccard": 0.1},
     ]
-    near = agreement(pairs, [0.85], 0.95)["near_pairs"]
+    near = agreement(pairs, [0.85], 0.95, 0.7)["near_pairs"]
     assert near["pairs"] == 2
     assert near["by_threshold"]["0.85"]["count"] == 1
 
@@ -73,3 +73,26 @@ def test_main_refuses_a_datasketch_other_than_the_pinned_one(tmp_path: Path) -> 
     path.write_text(json.dumps(config), encoding="utf-8")
     with pytest.raises(SystemExit, match=r"the config pins 0.0.1"):
         main(["--config", str(path), "--out", str(tmp_path / "out.json")])
+
+
+def test_summarise_reports_the_items_the_candidate_cap_cut() -> None:
+    config = json.loads((REPO / "research/configs/near-duplicate.json").read_text(encoding="utf-8"))
+    rows = [
+        {
+            "fixture": "a",
+            "labelled_flags": None,
+            "flagged": [],
+            "pairs": [],
+            "stats": {"capped": 3},
+        },
+        {
+            "fixture": "b",
+            "labelled_flags": None,
+            "flagged": [],
+            "pairs": [],
+            "stats": {"capped": 0},
+        },
+    ]
+    out = summarise(rows, config)
+    assert out["capped"] == {"items": 3, "by_fixture": {"a": 3}}
+    assert out["agreement"]["near_pairs"]["at_or_above"] == config["near_pairs_at_or_above"]

@@ -18,6 +18,7 @@ import { appendEvent, currentItems } from "../src/events.ts";
 import {
   comparableText,
   estimate,
+  findNearDuplicates,
   jaccard,
   shingleKind,
   shingles,
@@ -80,6 +81,9 @@ async function fixtureRows(name: string, f: FaultFixture, threshold: number) {
     labelled_flags: f.lint_id === "near-duplicate-tier" ? f.flags : null,
     active: active.length,
     flagged,
+    // What the pass did over the same items the lint read: candidates, vetoes,
+    // and the items the candidate cap cut (review finding L5-R3).
+    stats: findNearDuplicates(active, threshold, (i) => strictContentHash(i.content)).stats,
     pairs,
   };
 }

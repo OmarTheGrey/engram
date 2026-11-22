@@ -133,6 +133,10 @@
     },
     "pairs": 66
   },
+  "capped": {
+    "by_fixture": {},
+    "items": 0
+  },
   "fixtures": 16,
   "hypothesis": "H3",
   "labelled": {
