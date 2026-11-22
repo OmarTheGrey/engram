@@ -533,7 +533,7 @@ export function verifyChain(db: Db, options: VerifyOptions = {}): ChainReport {
       `${w.counts.unchained} events before seq ${w.genesis.start} were appended before the chain began; nothing vouches for them`,
     );
   notes.push(
-    "the chain vouches for the log only: an erasure verified here may still have left content in a store (card E1.5, finding E1.5-1), which the deletion report and the dogfood report are where to look",
+    "the chain vouches for the log only: an erasure verified here may still have left content in a store (card E1.5, finding E1.5-1); the deletion report and the dogfood report are where that shows",
   );
   return report;
 }
