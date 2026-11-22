@@ -1309,6 +1309,110 @@
         }
       }
     },
+    "/api/v1/export": {
+      "post": {
+        "operationId": "export",
+        "summary": "The actor's memory bundle (card E9.8, docs/bundle.md): the items core's bundleRows picks, each with its visible events; one read event by the actor records the export (Plane.export).",
+        "security": [
+          {},
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExportRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "the result; a policy decision of any kind is 200 with its event",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExportResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "the request fails its schema, or the plane refused the call (InvalidCallError)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "on a server with credentials (ADR 0042): no bearer credential, or one it does not accept; WWW-Authenticate names the protected-resource metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "the Host or Origin is not this server's, the credential's actor is not the request's (forbidden_actor), or the actor may not explain this read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "no such route, or the read id names no read event",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "the body is over the size limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "the body is not application/json",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "an unexpected error; the body carries no internals",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/policy": {
       "get": {
         "operationId": "policy",
@@ -4073,6 +4177,214 @@
           "label"
         ],
         "additionalProperties": false
+      },
+      "BundleRow": {
+        "type": "object",
+        "properties": {
+          "item": {
+            "$ref": "#/components/schemas/MemoryItem"
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+                },
+                "seq": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "ts": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                },
+                "op": {
+                  "type": "string",
+                  "enum": [
+                    "write",
+                    "read",
+                    "update",
+                    "evict",
+                    "promote",
+                    "retire",
+                    "lint",
+                    "gate",
+                    "bypass_blocked"
+                  ]
+                },
+                "item_id": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "actor": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "scope_from": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^(?:(?:person|role|team):[A-Za-z0-9._\\-/]+|org)$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "scope_to": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^(?:(?:person|role|team):[A-Za-z0-9._\\-/]+|org)$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "decision": {
+                  "type": "string",
+                  "enum": [
+                    "allow",
+                    "deny",
+                    "ask"
+                  ]
+                },
+                "reason": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "policy_id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "usage": {
+                  "type": "object",
+                  "properties": {
+                    "input_tokens": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "output_tokens": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "cost_usd": {
+                      "type": "number",
+                      "minimum": 0
+                    }
+                  },
+                  "required": [
+                    "input_tokens",
+                    "output_tokens",
+                    "cost_usd"
+                  ],
+                  "additionalProperties": false
+                },
+                "item_ids": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+                  }
+                },
+                "schema_version": {
+                  "type": "number",
+                  "const": 1
+                }
+              },
+              "required": [
+                "id",
+                "seq",
+                "ts",
+                "op",
+                "item_id",
+                "actor",
+                "scope_from",
+                "scope_to",
+                "decision",
+                "reason",
+                "policy_id",
+                "schema_version"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "item",
+          "events"
+        ],
+        "additionalProperties": false
+      },
+      "ExportRequest": {
+        "type": "object",
+        "properties": {
+          "actor": {
+            "$ref": "#/components/schemas/Actor"
+          }
+        },
+        "required": [
+          "actor"
+        ],
+        "additionalProperties": false
+      },
+      "ExportResponse": {
+        "type": "object",
+        "properties": {
+          "format": {
+            "type": "string",
+            "const": "engram-bundle"
+          },
+          "version": {
+            "type": "number",
+            "const": 1
+          },
+          "exported_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "exported_by": {
+            "type": "string"
+          },
+          "policy": {
+            "type": "string"
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BundleRow"
+            }
+          }
+        },
+        "required": [
+          "format",
+          "version",
+          "exported_at",
+          "exported_by",
+          "policy",
+          "rows"
+        ],
+        "additionalProperties": false,
+        "description": "The actor's memory bundle (docs/bundle.md): every item in its own person scope and its own items in the other scopes the read matrix lets it read, of every status, ordered by id, each with the events naming it that the actor may see. `engram export` writes it as JSONL, a header line then one row per line."
       },
       "LintRequest": {
         "type": "object",

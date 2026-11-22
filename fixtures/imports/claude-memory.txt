@@ -1,0 +1,20 @@
+Here are your memories, verbatim:
+
+```
+**Work context**
+Dana Example is a synthetic test persona who works on a demo platform team.
+She reviews pull requests in the morning.
+
+**Preferences**
+- Prefers short code reviews
+- Writes commit messages in the imperative
+  and keeps them under seventy characters
+* Uses pnpm for every workspace
+
+## Dated entries
+[2026-03-04] - Asked for answers without emoji
+[unknown] - Mentioned a demo deadline in spring
+2. Likes tables over long lists
+```
+
+That is the complete set.

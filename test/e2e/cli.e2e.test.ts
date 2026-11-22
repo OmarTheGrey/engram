@@ -156,5 +156,53 @@ describe.each(BACKENDS)("engram end to end on $name", (backend) => {
       expect(x.out).toMatch(new RegExp(`^read ${id}: 1 explanation`, "m"));
       expect(x.code).toBe(0);
     });
+
+    it("export then import: the bundle lands in a fresh log and folder as candidates (card E9.8)", () => {
+      const bundle = join(temp("bundle"), "dana.jsonl");
+      const e = engram("export", "--owner", "dana", "--db", db, "--out", bundle);
+      expect(e.err).toBe("");
+      expect(e.out).toMatch(
+        /^exported 1 item with 1 event as person:dana under preset\.medium v1 to /,
+      );
+      expect(e.code).toBe(0);
+
+      const fresh = backend.fresh();
+      const folder = temp("imported");
+      const i = engram(
+        "import",
+        bundle,
+        "--root",
+        folder,
+        "--owner",
+        "dana",
+        "--db",
+        fresh,
+        "--json",
+      );
+      expect(i.err).toBe("");
+      expect(i.code).toBe(0);
+      const report = JSON.parse(i.out);
+      expect(report).toMatchObject({ actor: "import:person:dana", rows: 1, allowed: 1, denied: 0 });
+      expect(report.decisions[0]).toMatchObject({ decision: "allow", status: "candidate" });
+      expect(readdirSync(folder).length).toBeGreaterThan(0);
+
+      // The candidate is not read until a reviewer promotes it.
+      const r = engram(
+        "read",
+        "release freeze",
+        "--root",
+        folder,
+        "--owner",
+        "dana",
+        "--db",
+        fresh,
+      );
+      expect(r.code).toBe(0);
+      expect(r.out).toContain("0 items returned");
+      const again = engram("export", "--owner", "dana", "--db", fresh);
+      expect(again.code).toBe(0);
+      expect(again.out).toContain("The release freeze starts on Friday.");
+      expect(again.out).toContain('"status":"candidate"');
+    });
   });
 });
