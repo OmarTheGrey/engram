@@ -12,6 +12,7 @@ import { buildActor, dbTarget } from "../../setup.ts";
 import { TextField } from "../fields.ts";
 import { cut, fit, para, rows, wrap } from "../layout.ts";
 import { forgetFlow } from "../overlays.ts";
+import { isPostgres, POSTGRES_NOT_SAVED } from "../saved.ts";
 import type { CommandRow, Ctx, Screen } from "../screen.ts";
 import { SERVER_REFUSES, serverRefusal, type Workspace, type WsFlag } from "../workspace.ts";
 
@@ -187,8 +188,11 @@ export class WorkspaceScreen implements Screen {
     ctx.recheck();
     ctx.save();
     ctx.pop();
+    const db = ctx.ws.get("db");
     ctx.say(
-      `applied${ctx.noSaved ? " (not saved: --no-saved)" : " and saved"}: ${flags || "no flags"} on every command`,
+      db !== undefined && isPostgres(db) && !ctx.noSaved
+        ? `applied; the Postgres log ${POSTGRES_NOT_SAVED}`
+        : `applied${ctx.noSaved ? " (not saved: --no-saved)" : " and saved"}: ${flags || "no flags"} on every command`,
     );
   }
 
