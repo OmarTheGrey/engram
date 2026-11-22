@@ -157,10 +157,10 @@ const replayNamed = (v: ValidationRecord | undefined) =>
 
 /** `4 of 5`, or for a replay's record `4 of 5 held-out tasks at or above 1 with the procedure (2 of 5 without it)`. */
 export function recordText(v: ValidationRecord): string {
-  const at = v.threshold === undefined ? "" : ` held-out tasks at or above ${v.threshold}`;
-  const base =
-    v.baseline === undefined ? "" : ` with the procedure (${v.baseline} of ${v.n} without it)`;
-  return `${v.k} of ${v.n}${at}${base}`;
+  if (v.threshold === undefined) return `${v.k} of ${v.n}`;
+  const t = v.threshold === 2 / 3 ? "2/3" : String(v.threshold);
+  const base = v.baseline === undefined ? "" : `; ${v.baseline} of ${v.n} reach ${t} without it`;
+  return `${v.k} of ${v.n} held-out tasks pass with the procedure (a mean reward of at least ${t} over the seeds, and no lower than without it${base})`;
 }
 
 export interface PromotionEvidence {

@@ -13,7 +13,11 @@ import { describe, expect, test } from "vitest";
 import { strictContentHash } from "../../../src/content-hash.ts";
 import { migrate } from "../../../src/db/migrate.ts";
 import { openSqlite } from "../../../src/db/sqlite.ts";
-import { type ReplayEvidence, replayDigest } from "../../../src/distill/validate.ts";
+import {
+  REPLAY_THRESHOLD,
+  type ReplayEvidence,
+  replayDigest,
+} from "../../../src/distill/validate.ts";
 import { itemById } from "../../../src/items.ts";
 import { type Actor, createPlane, InvalidCallError } from "../../../src/plane.ts";
 import {
@@ -64,7 +68,7 @@ const replay = (
   item_id: id(1),
   content_hash: strictContentHash(CONTENT),
   induced_from: ["t1", "t2"],
-  threshold: 1,
+  threshold: REPLAY_THRESHOLD,
   outcomes: ["t3", "t4", "t5", "t6", "t7"].map((task, i) => ({
     task,
     seed: 1,
@@ -102,7 +106,7 @@ describe("acceptance (card D3): replay admission through Plane.promote", () => {
     expect(result.decision).toBe("allow");
     expect(result.event).toMatchObject({ op: "promote", policy_id: "test/promotion/procedural" });
     expect(result.event.reason).toContain(
-      "the validation record 4 of 5 held-out tasks at or above 1 with the procedure (2 of 5 without it) meets 4 of 5",
+      "the validation record 4 of 5 held-out tasks pass with the procedure (a mean reward of at least 2/3 over the seeds, and no lower than without it; 2 of 5 reach 2/3 without it) meets 4 of 5",
     );
     expect(result.event.reason).toContain(`replay ${replayDigest(presented)}`);
     expect(itemById(db, id(1))).toMatchObject({ status: "active", version: 2 });
@@ -116,7 +120,7 @@ describe("acceptance (card D3): replay admission through Plane.promote", () => {
     expect(result).toMatchObject({ decision: "deny", item: null });
     expect(result.event.policy_id).toBe(PROMOTE_NO_EVIDENCE_ID);
     expect(result.event.reason).toBe(
-      `not promoted: the validation record 3 of 5 held-out tasks at or above 1 with the procedure (4 of 5 without it) does not meet 4 of 5; replay ${replayDigest(presented)}`,
+      `not promoted: the validation record 3 of 5 held-out tasks pass with the procedure (a mean reward of at least 2/3 over the seeds, and no lower than without it; 4 of 5 reach 2/3 without it) does not meet 4 of 5; replay ${replayDigest(presented)}`,
     );
     expect(plane.events().length).toBe(before + 1);
     expect(itemById(db, id(1))?.status).toBe("candidate");
@@ -148,6 +152,26 @@ describe("acceptance (card D3): replay admission through Plane.promote", () => {
     const result = await plane.promote(omar, id(1), "person:omar", AT, { replay: hidden });
     expect(result.event.policy_id).toBe(PROMOTE_REPLAY_SPLIT_ID);
     expect(itemById(db, id(1))?.status).toBe("candidate");
+  });
+
+  test("a replay of other than replay_n held-out tasks is one deny event (D3-1)", async () => {
+    const { plane, db } = await withCandidate();
+    const five = replay(5, 0);
+    const result = await plane.promote(omar, id(1), "person:omar", AT, {
+      replay: { ...five, outcomes: five.outcomes.slice(0, 4) },
+    });
+    expect(result.event.policy_id).toBe(PROMOTE_REPLAY_SPLIT_ID);
+    expect(result.event.reason).toContain("replay_n is 5");
+    expect(itemById(db, id(1))?.status).toBe("candidate");
+  });
+
+  test("a replay naming a threshold other than the registered 2/3 is refused before the log (D3-2)", async () => {
+    const { plane } = await withCandidate();
+    const before = plane.events().length;
+    await expect(
+      plane.promote(omar, id(1), "person:omar", AT, { replay: { ...replay(5, 0), threshold: 1 } }),
+    ).rejects.toThrow("registered 2/3");
+    expect(plane.events().length).toBe(before);
   });
 
   test("a replay presented for another item is refused", async () => {

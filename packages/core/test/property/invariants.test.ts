@@ -1688,7 +1688,7 @@ const arbRestatement: fc.Arbitrary<Restatement> = fc.record({
 
 /**
  * Card D3 review, D3-5: the session index invariant 2's plane is given (s9
- * is a session it does not hold), and a replay case. One case in six the
+ * is a session it does not hold), and a replay case. One case in five the
  * source is a procedural candidate whose provenance ref is a distill ref (or
  * none), and the promoter presents a replay: for the source or another item,
  * of its content or other content, naming the ref's induction tasks or none
@@ -1699,16 +1699,19 @@ const P_SESSIONS: ReadonlyMap<string, string> = new Map([
   ["s2", "t2"],
 ]);
 const arbReplayCase = fc.record({
-  use: fc.constantFrom(false, false, false, false, false, true),
+  use: fc.constantFrom(false, false, false, false, true),
   ref: fc.constantFrom("r", "distill:awm:s1", "distill:awm:s1,s2", "distill:rule:s1,s9"),
   ownItem: fc.constantFrom(true, true, true, true, true, false),
   ownContent: fc.constantFrom(true, true, true, true, true, false),
   induced: fc.constantFrom("ref", "ref", "ref", "none", "t1"),
   leak: fc.constantFrom(false, false, false, false, true),
-  n: fc.integer({ min: 4, max: 6 }),
-  passes: fc.integer({ min: 2, max: 6 }),
-  seeds: fc.constantFrom([1], [1], [1, 2]),
-  threshold: fc.constantFrom(1, 1, 0.5),
+  n: fc.constantFrom(5, 5, 5, 5, 4, 6),
+  passes: fc.constantFrom(2, 3, 3, 4, 5, 5),
+  // Tasks passing without the candidate, and whether the candidate's tasks
+  // miss their third seed (2/3: at the threshold, below a baseline of 1).
+  baseWins: fc.constantFrom(0, 0, 0, 1, 2, 5),
+  dip: fc.constantFrom(false, false, false, true),
+  seeds: fc.constantFrom([1], [1, 2, 3], [1, 2, 3]),
   sameScope: fc.constantFrom(true, true, false),
 });
 
@@ -2052,13 +2055,13 @@ async function promotionsLandOnlyWherePermitted(name: string) {
                 rc.ownContent ? { body: word, tools: [] } : { body: "other", tools: [] },
               ),
               induced_from: rc.induced === "ref" ? refTasks : rc.induced === "t1" ? ["t1"] : [],
-              threshold: rc.threshold,
+              threshold: 2 / 3,
               outcomes: (rc.leak ? ["t1", ...heldOut.slice(1)] : heldOut).flatMap((task, i) =>
                 rc.seeds.map((seed) => ({
                   task,
                   seed,
-                  without: 0,
-                  with: i < rc.passes ? 1 : 0,
+                  without: i < rc.baseWins ? 1 : 0,
+                  with: i < rc.passes && !(rc.dip && seed === 3) ? 1 : 0,
                 })),
               ),
             }

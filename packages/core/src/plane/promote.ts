@@ -48,6 +48,7 @@ import {
   replayDigest,
   replayProblem,
   scoreReplay,
+  sizeProblem,
   splitProblem,
 } from "../distill/validate.ts";
 import { allEvents, appendEvent, currentItems } from "../events.ts";
@@ -58,6 +59,7 @@ import {
   type Confirmation,
   evaluatePromotion,
   PROMOTE_MEMBERSHIP_ID,
+  PROMOTE_REPLAY_SPLIT_ID,
   promotionRuleId,
 } from "../policy/promotion.ts";
 import { Id, type MemoryEvent, type MemoryItem, Scope } from "../schema.ts";
@@ -138,7 +140,10 @@ function duplicateOf(
  * why it is not the item's replay, if it is not.
  */
 function replayEvidence(deps: PlaneDeps, item: MemoryItem, replay: ReplayEvidence) {
-  const problem = bindingProblem(item, replay, deps.distillTasks);
+  const size = sizeProblem(deps.policy, replay);
+  const problem =
+    bindingProblem(item, replay, deps.distillTasks) ??
+    (size === null ? null : { policy_id: PROMOTE_REPLAY_SPLIT_ID, reason: size });
   const validation =
     splitProblem(replay) === null
       ? scoreReplay(replay).record

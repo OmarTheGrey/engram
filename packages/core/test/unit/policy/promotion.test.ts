@@ -618,13 +618,13 @@ describe("review fix pass (P5)", () => {
 });
 
 describe("card D3: a replay's validation record", () => {
-  const REPLAY = { k: 4, n: 5, threshold: 1, baseline: 2 };
+  const REPLAY = { k: 4, n: 5, threshold: 2 / 3, baseline: 2 };
 
   test("the reason carries the replay's counts, its threshold and its baseline", () => {
     const d = judge(POLICY, omar, procedural(1), "person:omar", ev({ validation: REPLAY }));
     expect(d.decision).toBe("allow");
     expect(d.reason).toContain(
-      "the validation record 4 of 5 held-out tasks at or above 1 with the procedure (2 of 5 without it) meets 4 of 5",
+      "the validation record 4 of 5 held-out tasks pass with the procedure (a mean reward of at least 2/3 over the seeds, and no lower than without it; 2 of 5 reach 2/3 without it) meets 4 of 5",
     );
   });
 
@@ -633,7 +633,7 @@ describe("card D3: a replay's validation record", () => {
     const d = judge(POLICY, omar, procedural(1), "person:omar", ev({ validation: below }));
     expect(d).toMatchObject({ decision: "deny", check: "no-evidence" });
     expect(d.reason).toBe(
-      "not promoted: the validation record 3 of 5 held-out tasks at or above 1 with the procedure (4 of 5 without it) does not meet 4 of 5",
+      "not promoted: the validation record 3 of 5 held-out tasks pass with the procedure (a mean reward of at least 2/3 over the seeds, and no lower than without it; 4 of 5 reach 2/3 without it) does not meet 4 of 5",
     );
   });
 

@@ -26,9 +26,14 @@
 //   id; the plane records that as a deny event. Its sha256 (`replayDigest`)
 //   goes into the record, so the event's reason names the exact replay.
 //
-// The threshold is not in the policy: the schema's promotion rule holds
-// replay_k and replay_n only, and only card E2.8 changes schema.ts (AGENTS.md
-// rule 5). The replay's caller states it (docs/log/2026-11-21-d3-decision-threshold.md).
+// The lead's answers of 2026-11-22 (review findings D3-1 and D3-2,
+// docs/tasks/lead-decisions.md item 63): a held-out task passes when the
+// candidate's mean reward over the seeds is at least 2/3 (2 of 3 seeds for
+// 0 or 1 rewards) and no lower than the mean without it on that task; a
+// replay has exactly the policy's replay_n held-out tasks. The threshold is
+// fixed here as the registered value, not in the policy (the schema's
+// promotion rule holds replay_k and replay_n only, and only card E2.8 changes
+// schema.ts); a replay naming another is malformed.
 import { createHash } from "node:crypto";
 import { strictContentHash } from "../content-hash.ts";
 import { canonicalJson } from "../model.ts";
@@ -41,6 +46,9 @@ import {
 } from "../policy/promotion.ts";
 import type { MemoryItem, Policy } from "../schema.ts";
 import { parseDistillRef } from "./induce.ts";
+
+/** The registered threshold (lead's answer to D3-2, 2026-11-22): a mean reward of at least 2/3. */
+export const REPLAY_THRESHOLD = 2 / 3;
 
 /** One held-out task run under one seed, without and with the candidate installed. */
 export interface ReplayOutcome {
@@ -61,7 +69,7 @@ export interface ReplayEvidence {
   content_hash: string;
   /** The tasks the candidate was induced from; none of them may be replayed. */
   induced_from: readonly string[];
-  /** A held-out task passes when its mean reward with the candidate is at or above this, in (0, 1]. */
+  /** The pass threshold the replay was judged at: the registered REPLAY_THRESHOLD, 2/3. */
   threshold: number;
   outcomes: readonly ReplayOutcome[];
 }
@@ -105,8 +113,8 @@ export function replayProblem(e: ReplayEvidence): string | null {
     return "the replay names no content hash (sha256:<64 hex>)";
   if (!Array.isArray(e.induced_from) || e.induced_from.some((t) => typeof t !== "string"))
     return "the replay's induced_from is not a list of task ids";
-  if (!(typeof e.threshold === "number" && e.threshold > 0 && e.threshold <= 1))
-    return `the replay's threshold ${String(e.threshold)} is not in (0, 1]`;
+  if (e.threshold !== REPLAY_THRESHOLD)
+    return `the replay's threshold ${String(e.threshold)} is not the registered 2/3`;
   if (e.outcomes.length === 0) return "the replay ran no held-out task";
   const seeds = new Map<string, number[]>();
   for (const o of e.outcomes) {
@@ -125,6 +133,19 @@ export function replayProblem(e: ReplayEvidence): string | null {
   if (first && other)
     return `task ${first[0]} ran on seeds ${first[1]} and task ${other[0]} on seeds ${other[1]}; every held-out task runs on the same seeds`;
   return null;
+}
+
+/**
+ * Why the replay's held-out set is not the policy's size, or null (the
+ * lead's answer to D3-1): exactly replay_n tasks, so a caller cannot report
+ * a subset it chose.
+ */
+export function sizeProblem(policy: Policy, e: Pick<ReplayEvidence, "outcomes">): string | null {
+  const n = new Set(e.outcomes.map((o) => o.task)).size;
+  const { replay_n } = policy.promotion.procedural;
+  return n === replay_n
+    ? null
+    : `the replay ran ${n} held-out tasks, and the policy's replay_n is ${replay_n}; a replay runs exactly replay_n`;
 }
 
 /** Why the replay's own split leaks, or null: a replayed task among its induction tasks. */
@@ -215,13 +236,16 @@ export function scoreReplay(e: ReplayEvidence): { record: ReplayRecord; tasks: T
       runs.reduce((s, o) => s + f(o), 0) / runs.length;
     const without = mean((o) => o.without);
     const withIt = mean((o) => o.with);
+    // Compared as sums over the same runs, so 2 of 3 is exactly 2/3.
+    const sum = (f: (o: ReplayOutcome) => number) => runs.reduce((s, o) => s + f(o), 0);
+    const reaches = (x: number) => 3 * x >= 2 * runs.length;
     return {
       task,
       runs: runs.length,
       without,
       with: withIt,
-      passed: withIt >= e.threshold,
-      baseline_passed: without >= e.threshold,
+      passed: reaches(sum((o) => o.with)) && sum((o) => o.with) >= sum((o) => o.without),
+      baseline_passed: reaches(sum((o) => o.without)),
     };
   });
   return {
@@ -243,12 +267,15 @@ export function scoreReplay(e: ReplayEvidence): { record: ReplayRecord; tasks: T
  */
 export function admission(policy: Policy, e: ReplayEvidence): Admission {
   const { record, tasks } = scoreReplay(e);
-  const meets = validationMeets(policy, record);
+  const size = sizeProblem(policy, e);
+  const meets = size === null && validationMeets(policy, record);
   const { replay_k, replay_n } = policy.promotion.procedural;
   return {
     decision: meets ? "admit" : "refuse",
     record,
     tasks,
-    reason: `${recordText(record)} ${meets ? "meets" : "does not meet"} ${replay_k} of ${replay_n}`,
+    reason:
+      size ??
+      `${recordText(record)} ${meets ? "meets" : "does not meet"} ${replay_k} of ${replay_n}`,
   };
 }

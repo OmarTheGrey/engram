@@ -32,9 +32,11 @@
 // its content (the plane's hash, content-hash.ts: a hash is a contract to
 // match, not a reading to re-derive); its induction tasks are exactly the
 // tasks of the source's distill ref, by the session index the plane was
-// given, and none is replayed; it is presented by a user-sourced actor; and
+// given, and none is replayed; it is presented by a user-sourced actor; it
+// names the registered threshold 2/3 and exactly replay_n held-out tasks; and
 // its own count (a task passes when its rewards with the candidate sum to at
-// least the threshold times its runs) meets replay_k of replay_n.
+// least two thirds of its runs and to no less than its rewards without it,
+// the lead's answers of 2026-11-22) meets replay_k.
 //
 // Where it lives (card E9.5): moved from packages/core/test/property/ into
 // core's source, unchanged, so the twin dogfood's violation report
@@ -500,9 +502,10 @@ export function replayAdmits(
   }
   const claimed = new Set(replay.induced_from);
   if (claimed.size !== own.size || [...own].some((t) => !claimed.has(t))) return false;
-  if (!(replay.threshold > 0 && replay.threshold <= 1)) return false;
+  if (replay.threshold !== 2 / 3) return false;
   const runs = new Map<string, number[]>();
   const sums = new Map<string, number>();
+  const baseSums = new Map<string, number>();
   for (const o of replay.outcomes) {
     if (own.has(o.task) || claimed.has(o.task)) return false;
     for (const r of [o.with, o.without]) if (!(r >= 0 && r <= 1)) return false;
@@ -510,15 +513,17 @@ export function replayAdmits(
     if (seeds.includes(o.seed)) return false;
     runs.set(o.task, [...seeds, o.seed]);
     sums.set(o.task, (sums.get(o.task) ?? 0) + o.with);
+    baseSums.set(o.task, (baseSums.get(o.task) ?? 0) + o.without);
   }
   const seedSets = [...runs.values()].map((x) => [...x].sort((a, b) => a - b).join(","));
   if (seedSets.length === 0 || seedSets.some((x) => x !== seedSets[0])) return false;
   let k = 0;
-  for (const [task, seeds] of runs)
-    if ((sums.get(task) as number) >= replay.threshold * seeds.length) k++;
-  const n = runs.size;
+  for (const [task, seeds] of runs) {
+    const sum = sums.get(task) as number;
+    if (3 * sum >= 2 * seeds.length && sum >= (baseSums.get(task) as number)) k++;
+  }
   const { replay_k, replay_n } = policy.promotion.procedural;
-  return k >= replay_k && n >= replay_n && k * replay_n >= replay_k * n;
+  return runs.size === replay_n && k >= replay_k;
 }
 
 // Card E9.5: the oracle's own replay of a log, and its reading of who may

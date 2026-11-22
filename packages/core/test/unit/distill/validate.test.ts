@@ -2,19 +2,23 @@
 // held-out split is made by construction, a replay that names a task the
 // candidate was induced from is refused, a replay is bound to its item and to
 // the tasks of the item's own distill ref, a held-out task passes when its mean
-// reward with the candidate is at or above the threshold, and the candidate
-// is admitted when the passes meet the policy's replay_k of replay_n.
+// reward with the candidate is at least the registered 2/3 and no lower than
+// its mean without it (the lead's answers of 2026-11-22 to review findings
+// D3-1 and D3-2), a replay has exactly replay_n held-out tasks, and the
+// candidate is admitted when the passes meet the policy's replay_k of replay_n.
 import { describe, expect, test } from "vitest";
 import { strictContentHash } from "../../../src/content-hash.ts";
 import {
   admission,
   bindingProblem,
   heldOutTasks,
+  REPLAY_THRESHOLD,
   type ReplayEvidence,
   type ReplayOutcome,
   replayDigest,
   replayProblem,
   scoreReplay,
+  sizeProblem,
   splitProblem,
 } from "../../../src/distill/validate.ts";
 import type { MemoryItem, Policy } from "../../../src/schema.ts";
@@ -33,6 +37,13 @@ const run = (task: string, without: number, withIt: number, seed = 1): ReplayOut
   with: withIt,
 });
 
+/** Outcomes over seeds 1 to 3 per task: its rewards without and with the candidate, seed by seed. */
+function seeded(byTask: Record<string, { without: number[]; with: number[] }>): ReplayOutcome[] {
+  return Object.entries(byTask).flatMap(([task, r]) =>
+    r.with.map((w, i) => run(task, r.without[i] as number, w, i + 1)),
+  );
+}
+
 const ITEM_ID = "01920000-0000-7000-8000-000000000001";
 const CONTENT = { body: "# Look first", tools: ["read"] };
 
@@ -43,7 +54,7 @@ function evidence(passes: number, base = 0, over: Partial<ReplayEvidence> = {}):
     item_id: ITEM_ID,
     content_hash: strictContentHash(CONTENT),
     induced_from: ["t1", "t2"],
-    threshold: 1,
+    threshold: REPLAY_THRESHOLD,
     outcomes: tasks.map((t, i) => run(t, i < base ? 1 : 0, i < passes ? 1 : 0)),
     ...over,
   };
@@ -87,8 +98,10 @@ describe("replayProblem: what makes a replay unusable", () => {
   });
 
   test.each([
+    [{ threshold: 1 }, "registered 2/3"],
+    [{ threshold: 0.5 }, "registered 2/3"],
+    [{ threshold: 0.67 }, "registered 2/3"],
     [{ threshold: 0 }, "threshold"],
-    [{ threshold: 1.5 }, "threshold"],
     [{ threshold: Number.NaN }, "threshold"],
     [{ outcomes: [] }, "no held-out"],
   ])("%j is refused", (over, says) => {
@@ -115,13 +128,13 @@ describe("replayProblem: what makes a replay unusable", () => {
   });
 });
 
-describe("scoreReplay: k of n held-out tasks at or above the threshold", () => {
-  test("counts the tasks whose reward with the candidate reaches the threshold", () => {
+describe("scoreReplay: k of n held-out tasks pass", () => {
+  test("counts the tasks whose reward with the candidate reaches 2/3 and the baseline", () => {
     const { record, tasks } = scoreReplay(evidence(4, 2));
     expect(record).toEqual({
       k: 4,
       n: 5,
-      threshold: 1,
+      threshold: REPLAY_THRESHOLD,
       baseline: 2,
       replay_sha256: replayDigest(evidence(4, 2)),
     });
@@ -129,15 +142,28 @@ describe("scoreReplay: k of n held-out tasks at or above the threshold", () => {
     expect(tasks.map((t) => t.baseline_passed)).toEqual([true, true, false, false, false]);
   });
 
-  test("a task's reward is its mean over the seeds", () => {
-    const outcomes = ["a", "b"].flatMap((t) => [run(t, 0, 1, 1), run(t, 0, t === "a" ? 1 : 0, 2)]);
-    const scored = scoreReplay({ ...evidence(0), induced_from: [], threshold: 0.5, outcomes });
+  test("a task's reward is its mean over the seeds: 2 of 3 seeds reach 2/3, 1 of 3 does not", () => {
+    const outcomes = seeded({
+      a: { without: [0, 0, 0], with: [1, 1, 0] },
+      b: { without: [0, 0, 0], with: [1, 0, 0] },
+    });
+    const scored = scoreReplay({ ...evidence(0), induced_from: [], outcomes });
     expect(scored.tasks).toEqual([
-      { task: "a", runs: 2, without: 0, with: 1, passed: true, baseline_passed: false },
-      { task: "b", runs: 2, without: 0, with: 0.5, passed: true, baseline_passed: false },
+      { task: "a", runs: 3, without: 0, with: 2 / 3, passed: true, baseline_passed: false },
+      { task: "b", runs: 3, without: 0, with: 1 / 3, passed: false, baseline_passed: false },
     ]);
-    const strict = scoreReplay({ ...evidence(0), induced_from: [], threshold: 1, outcomes });
-    expect(strict.record.k).toBe(1);
+  });
+
+  test("a task that reaches 2/3 but falls below its baseline fails (D3-1, no worse)", () => {
+    const outcomes = seeded({
+      even: { without: [1, 1, 0], with: [0, 1, 1] },
+      below: { without: [1, 1, 1], with: [1, 1, 0] },
+    });
+    const scored = scoreReplay({ ...evidence(0), induced_from: [], outcomes });
+    expect(scored.tasks.map((t) => [t.task, t.passed])).toEqual([
+      ["even", true],
+      ["below", false],
+    ]);
   });
 
   test("throws on a replay with a problem", () => {
@@ -150,7 +176,7 @@ describe("admission: the policy's replay_k of replay_n decides", () => {
     const a = admission(POLICY, evidence(4, 2));
     expect(a.decision).toBe("admit");
     expect(a.reason).toBe(
-      "4 of 5 held-out tasks at or above 1 with the procedure (2 of 5 without it) meets 4 of 5",
+      "4 of 5 held-out tasks pass with the procedure (a mean reward of at least 2/3 over the seeds, and no lower than without it; 2 of 5 reach 2/3 without it) meets 4 of 5",
     );
   });
 
@@ -158,14 +184,21 @@ describe("admission: the policy's replay_k of replay_n decides", () => {
     const a = admission(POLICY, evidence(3, 4));
     expect(a.decision).toBe("refuse");
     expect(a.reason).toBe(
-      "3 of 5 held-out tasks at or above 1 with the procedure (4 of 5 without it) does not meet 4 of 5",
+      "3 of 5 held-out tasks pass with the procedure (a mean reward of at least 2/3 over the seeds, and no lower than without it; 4 of 5 reach 2/3 without it) does not meet 4 of 5",
     );
   });
 
-  test("fewer held-out tasks than replay_n never admits, even all passing", () => {
-    const four = evidence(4);
-    const a = admission(POLICY, { ...four, outcomes: four.outcomes.slice(0, 4) });
-    expect(a).toMatchObject({ decision: "refuse", record: { k: 4, n: 4 } });
+  test("a replay of other than replay_n held-out tasks is refused, all passing or not (D3-1)", () => {
+    const four = evidence(5);
+    const short = { ...four, outcomes: four.outcomes.slice(0, 4) };
+    expect(sizeProblem(POLICY, short)).toContain(
+      "4 held-out tasks, and the policy's replay_n is 5",
+    );
+    expect(admission(POLICY, short)).toMatchObject({ decision: "refuse", record: { k: 4, n: 4 } });
+    const six = { ...four, outcomes: [...four.outcomes, run("t8", 0, 1)] };
+    expect(sizeProblem(POLICY, six)).toContain("6 held-out tasks");
+    expect(admission(POLICY, six).decision).toBe("refuse");
+    expect(sizeProblem(POLICY, evidence(5))).toBeNull();
   });
 
   test("the strict preset's 5 of 5 refuses what medium's 4 of 5 admits", () => {
@@ -258,5 +291,57 @@ describe("bindingProblem: the replay is the item's, and its split is the item's 
     expect(bindingProblem(byHand, evidence(4), SESSIONS)?.policy_id).toBe(
       "engram/promote/replay-split",
     );
+  });
+});
+
+describe("the lead's rule of 2026-11-22 (D3-1, D3-2, D3-7)", () => {
+  test("4 of 5 with the candidate against 5 of 5 without it is refused: the four fall below baseline", () => {
+    const outcomes = seeded({
+      t3: { without: [1, 1, 1], with: [1, 1, 0] },
+      t4: { without: [1, 1, 1], with: [1, 0, 1] },
+      t5: { without: [1, 1, 1], with: [0, 1, 1] },
+      t6: { without: [1, 1, 1], with: [1, 1, 0] },
+      t7: { without: [1, 1, 1], with: [0, 0, 0] },
+    });
+    const a = admission(POLICY, { ...evidence(0), outcomes });
+    // Four tasks reach 2/3 with it, but each is below its baseline of 1.
+    expect(a.tasks.filter((t) => t.with >= REPLAY_THRESHOLD).length).toBe(4);
+    expect(a).toMatchObject({ decision: "refuse", record: { k: 0, n: 5, baseline: 5 } });
+  });
+
+  test("pooled success does not decide: 11 of 15 against 8 of 15 is refused when only 3 tasks pass", () => {
+    const outcomes = seeded({
+      t3: { without: [1, 0, 0], with: [1, 1, 1] },
+      t4: { without: [1, 0, 0], with: [1, 1, 1] },
+      t5: { without: [1, 0, 0], with: [1, 1, 1] },
+      t6: { without: [1, 1, 1], with: [1, 0, 0] },
+      t7: { without: [1, 1, 0], with: [1, 0, 0] },
+    });
+    const pooled = (arm: "with" | "without") => outcomes.reduce((n, o) => n + o[arm], 0);
+    expect([pooled("with"), pooled("without")]).toEqual([11, 8]);
+    expect(admission(POLICY, { ...evidence(0), outcomes })).toMatchObject({
+      decision: "refuse",
+      record: { k: 3, n: 5 },
+    });
+  });
+
+  test("the same pooled rates are admitted when 4 tasks each pass", () => {
+    const outcomes = seeded({
+      t3: { without: [1, 1, 0], with: [1, 1, 1] },
+      t4: { without: [1, 1, 0], with: [1, 1, 1] },
+      t5: { without: [1, 1, 0], with: [1, 1, 1] },
+      t6: { without: [1, 1, 0], with: [1, 1, 0] },
+      t7: { without: [0, 0, 0], with: [0, 0, 0] },
+    });
+    const pooled = (arm: "with" | "without") => outcomes.reduce((n, o) => n + o[arm], 0);
+    expect([pooled("with"), pooled("without")]).toEqual([11, 8]);
+    expect(admission(POLICY, { ...evidence(0), outcomes })).toMatchObject({
+      decision: "admit",
+      record: { k: 4, n: 5 },
+    });
+  });
+
+  test("the threshold is fixed at 2/3 in core", () => {
+    expect(REPLAY_THRESHOLD).toBe(2 / 3);
   });
 });
