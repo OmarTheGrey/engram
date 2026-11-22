@@ -22,7 +22,16 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { describe, expect, test } from "vitest";
 import { parseFrontmatter } from "../lib/frontmatter.ts";
 
-const OWNER_DECIDES = new Set<string>(["0034", "0042", "0043", "0044", "0045", "0046", "0047", "0048"]);
+const OWNER_DECIDES = new Set<string>([
+  "0034",
+  "0042",
+  "0043",
+  "0044",
+  "0045",
+  "0046",
+  "0047",
+  "0048",
+]);
 const ADDED_BY_ADR_0001 = ["PX1", "PX2", "PX3", "RN1", "RN2"];
 
 const roadmap = readFileSync("docs/roadmap.md", "utf8");
