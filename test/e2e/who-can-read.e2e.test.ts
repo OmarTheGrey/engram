@@ -83,7 +83,11 @@ describe.skipIf(skip !== undefined)("the who-can-read panel on the item page", (
     if (builtUi() === null)
       throw new Error(`the inspector is not built in ${UI_DIST}; run make ui (make test-e2e does)`);
     fixture = await twinWorkspace();
-    server = await listen(fixture.workspace, { port: 0, now: () => fixture.workload.now });
+    server = await listen(fixture.workspace, {
+      port: 0,
+      now: () => fixture.workload.now,
+      auth: { insecureLoopback: true },
+    });
     page = await browser.newPage();
     page.on("pageerror", (e) => failures.push(String(e)));
     page.on("console", (m) => m.type() === "error" && failures.push(m.text()));
