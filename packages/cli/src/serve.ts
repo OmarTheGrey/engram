@@ -15,7 +15,6 @@ import {
   openWorkspace,
   type ServeAuth,
 } from "@engram/server";
-import { keepLogChain } from "./chain.ts";
 import { parse, STORE_OPTIONS } from "./commands.ts";
 import type { Io } from "./run.ts";
 import { buildActor, checkTime, UsageError } from "./setup.ts";
@@ -114,8 +113,7 @@ export async function serveCommand(args: string[], io: Io): Promise<number> {
     newId: io.newId,
   });
   try {
-    // The log opened, and its handle keeps the hash chain (card E1.6).
-    keepLogChain(workspace.open().db);
+    workspace.open();
     const server = await listen(workspace, {
       host: values.host,
       port,

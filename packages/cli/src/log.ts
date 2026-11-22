@@ -20,7 +20,7 @@ import {
   verifyChain,
   writeCheckpoint,
 } from "@engram/core";
-import { keepLogChain } from "./chain.ts";
+import { keepLogChain } from "@engram/server";
 import { parse } from "./commands.ts";
 import type { Io } from "./run.ts";
 import { dbTarget, inspectLog, logRefusal, openDb, openLog, UsageError } from "./setup.ts";
