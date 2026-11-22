@@ -118,7 +118,8 @@ export interface Ctx {
   openCommand(spec: CommandSpec, values?: Values, positionals?: readonly string[]): void;
   /** Opens an overlay. */
   showOverlay(overlay: Overlay): void;
-  closeOverlay(): void;
+  /** Closes the overlay given, or the top one. */
+  closeOverlay(overlay?: Overlay): void;
   /** Asks first; resolves to whether the person chose the action. */
   confirm(request: ConfirmRequest): Promise<boolean>;
   /**
