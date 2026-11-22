@@ -60,7 +60,7 @@ import {
   readIdentities,
   readPassphrase,
 } from "./import/crypt.ts";
-import { closest, OPTIONS, type OptionSpec } from "./registry.ts";
+import { OPTIONS, type OptionSpec } from "./registry.ts";
 import type { Io } from "./run.ts";
 import { buildActor, checkNumber, checkTime, loadPolicy, MEMORY_DB, UsageError } from "./setup.ts";
 
@@ -68,14 +68,15 @@ type Options = Readonly<Record<string, OptionSpec>>;
 
 /**
  * A flag parseArgs does not know (card E8.15a, docs/design/tui.md 12.2):
- * still a usage error with parseArgs' message, carrying the flag typed and
- * the one it was probably meant to be, which `run` prints as a second line.
+ * still a usage error with parseArgs' message, carrying the flag typed
+ * (without its dashes); `run` prints the flag it was probably meant to be as
+ * a second line.
  */
 export class UnknownOptionError extends UsageError {
-  readonly suggestion: string | undefined;
-  constructor(message: string, suggestion: string | undefined) {
+  readonly option: string;
+  constructor(message: string, option: string) {
     super(message);
-    this.suggestion = suggestion;
+    this.option = option;
   }
 }
 
@@ -86,7 +87,7 @@ export function parse<O extends Options>(args: string[], options: O, positionals
     const message = (e as Error).message;
     const flag = /^Unknown option '--([^'=]+)'/.exec(message)?.[1];
     if ((e as { code?: string }).code === "ERR_PARSE_ARGS_UNKNOWN_OPTION" && flag !== undefined)
-      throw new UnknownOptionError(message, closest(flag, Object.keys(options)));
+      throw new UnknownOptionError(message, flag);
     throw new UsageError(message);
   }
 }

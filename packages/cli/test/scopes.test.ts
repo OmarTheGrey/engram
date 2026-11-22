@@ -6,7 +6,7 @@ import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { Fetch } from "../src/connect.ts";
-import { cli, FIXTURE, logEvents, readArgs, tempDir, VALID_FROM } from "./helpers.ts";
+import { blind, cli, FIXTURE, logEvents, readArgs, tempDir, VALID_FROM } from "./helpers.ts";
 
 const ITEM = "01920000-0000-7000-8000-00000000e816";
 const UNKNOWN = "01920000-0000-7000-8000-00000000e899";
@@ -108,15 +108,20 @@ describe("engram read --item", () => {
     expect(j.items.map((i: { item: { id: string } }) => i.item.id)).toEqual([ITEM]);
   });
 
-  it("returns nothing for an item the actor may not read, as for an id the log never held", async () => {
+  it("answers an item the actor may not read exactly as an id the log never held, text and --json", async () => {
     const { db } = await granted();
-    const eveRoot = await tempDir();
-    const eve = ["--root", eveRoot, "--owner", "eve", "--db", db, "--json"];
-    const hidden = JSON.parse((await cli(["read", "--item", ITEM, ...eve])).out);
-    const unknown = JSON.parse((await cli(["read", "--item", UNKNOWN, ...eve])).out);
-    expect(hidden.returned).toBe(0);
-    expect(unknown.returned).toBe(0);
-    expect(hidden.items).toEqual([]);
+    const eve = ["--root", await tempDir(), "--owner", "eve", "--db", db];
+    for (const json of [[], ["--json"]]) {
+      const hidden = await cli(["read", "--item", ITEM, ...eve, ...json]);
+      const unknown = await cli(["read", "--item", UNKNOWN, ...eve, ...json]);
+      expect(hidden.code).toBe(0);
+      expect(hidden.err).toBe("");
+      expect(unknown.err).toBe("");
+      expect(blind(hidden.out, ITEM), json.join("")).toBe(blind(unknown.out, UNKNOWN));
+    }
+    const answer = JSON.parse((await cli(["read", "--item", ITEM, ...eve, "--json"])).out);
+    expect(answer.returned).toBe(0);
+    expect(answer.items).toEqual([]);
   });
 
   it("takes an item id or a query, not both", async () => {

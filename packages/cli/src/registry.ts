@@ -15,6 +15,7 @@
 // no command module and the command modules may import their option objects
 // from here without an import cycle.
 import { ProvenanceKind, ScopeLevel } from "@engram/core";
+import { SERVER_URL_ENV } from "./connect.ts";
 import type { Io } from "./run.ts";
 
 /** A flag's control in a generated form (docs/design/tui.md 3.2). */
@@ -111,6 +112,13 @@ export interface CommandSpec {
   writes: (values: Values, ws: Values) => Writes;
   /** Runs the command on its arguments after the name's first word, as `run` does. */
   handler: (args: string[], io: Io) => Promise<number>;
+  /**
+   * The environment variables the command reads, by name (the TUI's
+   * workspace screen shows each with its source, never a secret's value).
+   */
+  env: readonly string[];
+  /** A file naming more variables it reads by name only: doctor's provider keys. */
+  envFrom?: string;
   /** The card a command belongs to while that card is in flight. */
   card?: string;
 }
@@ -780,6 +788,17 @@ const H = {
   log: handler(async () => (await import("./log.ts")).logCommand),
 };
 
+/**
+ * The workspace's flags as `writes` takes them: the server is the effective
+ * one, --server else ENGRAM_SERVER_URL, as connect picks it (the lead's
+ * decision in the E8.15a review); the TUI's workspace passes its flags
+ * through this.
+ */
+export const workspaceFlags = (
+  ws: Values,
+  env: Readonly<Record<string, string | undefined>>,
+): Values => ({ ...ws, server: ws.server ?? (env[SERVER_URL_ENV] || undefined) });
+
 /** Whether a store folder or a server is named, by the form or the workspace. */
 const touchesStore = (v: Values, ws: Values) =>
   [v.root, v.store, v.server, ws.root, ws.store, ws.server].some((x) => x !== undefined);
@@ -788,6 +807,24 @@ const PLANE_EXITS = {
   usage: { code: 2, when: "usage: a bad flag or argument, or a 501 naming a card" },
   error: { code: 1, when: "an error: a log it cannot use, a server that does not answer" },
 };
+
+// The variables each kind of command reads. A command that calls the plane
+// goes through connect: --server or ENGRAM_SERVER_URL, ENGRAM_TOKEN to a
+// server, and in process the workspace's log (ENGRAM_DB_URL) and the
+// decision export (ENGRAM_OTLP_URL, ENGRAM_EXPORT_JSONL, card E8.13).
+const PLANE_ENV = [
+  "ENGRAM_DB_URL",
+  "ENGRAM_SERVER_URL",
+  "ENGRAM_TOKEN",
+  "ENGRAM_OTLP_URL",
+  "ENGRAM_EXPORT_JSONL",
+] as const;
+/** engram serve opens its own workspace and calls no server. */
+const SERVE_ENV = ["ENGRAM_DB_URL", "ENGRAM_OTLP_URL", "ENGRAM_EXPORT_JSONL"] as const;
+
+// engram key reads and writes its key file only: a bad file or flag is usage.
+const KEY_ERROR = { code: 1, when: "an error writing the key file" };
+const KEY_USAGE = { code: 2, when: "usage, including a key file it cannot read or parse" };
 
 const ITEM: PositionalSpec = { name: "itemId", label: "Item", required: true, picker: "item" };
 
@@ -813,6 +850,7 @@ export const REGISTRY: readonly CommandSpec[] = [
     // With a store folder the read adopts it, and as its owner first sweeps
     // the owner's retention (docs/design/tui.md 8.5); a server may have one.
     writes: (v, ws) => (touchesStore(v, ws) ? "state" : "audit"),
+    env: PLANE_ENV,
     handler: H.read,
   },
   {
@@ -837,6 +875,7 @@ export const REGISTRY: readonly CommandSpec[] = [
     listedIn: [],
     exitCodes: [{ code: 0, when: "done" }, PLANE_EXITS.error, PLANE_EXITS.usage],
     writes: (v, ws) => (touchesStore(v, ws) ? "state" : "audit"),
+    env: PLANE_ENV,
     handler: H.read,
   },
   {
@@ -864,6 +903,7 @@ export const REGISTRY: readonly CommandSpec[] = [
       PLANE_EXITS.usage,
     ],
     writes: () => "state",
+    env: PLANE_ENV,
     handler: H.write,
   },
   {
@@ -889,6 +929,7 @@ export const REGISTRY: readonly CommandSpec[] = [
       PLANE_EXITS.usage,
     ],
     writes: () => "none",
+    env: PLANE_ENV,
     handler: H.check,
   },
   {
@@ -917,6 +958,7 @@ export const REGISTRY: readonly CommandSpec[] = [
       PLANE_EXITS.usage,
     ],
     writes: () => "state",
+    env: PLANE_ENV,
     handler: H.promote,
   },
   {
@@ -946,6 +988,7 @@ export const REGISTRY: readonly CommandSpec[] = [
     ],
     // The plan alone writes nothing; each --accept is a write through the gate.
     writes: (v) => (Array.isArray(v.accept) && v.accept.length > 0 ? "state" : "none"),
+    env: PLANE_ENV,
     handler: H.supersede,
   },
   {
@@ -977,6 +1020,7 @@ export const REGISTRY: readonly CommandSpec[] = [
       PLANE_EXITS.usage,
     ],
     writes: () => "state",
+    env: PLANE_ENV,
     handler: H.grants,
   },
   {
@@ -1000,6 +1044,7 @@ export const REGISTRY: readonly CommandSpec[] = [
       PLANE_EXITS.usage,
     ],
     writes: () => "none",
+    env: PLANE_ENV,
     handler: H.explain,
   },
   {
@@ -1022,6 +1067,7 @@ export const REGISTRY: readonly CommandSpec[] = [
     listedIn: [],
     exitCodes: [{ code: 0, when: "listed" }, PLANE_EXITS.error, PLANE_EXITS.usage],
     writes: () => "none",
+    env: PLANE_ENV,
     handler: H.events,
   },
   {
@@ -1045,6 +1091,7 @@ export const REGISTRY: readonly CommandSpec[] = [
       PLANE_EXITS.usage,
     ],
     writes: () => "retire",
+    env: PLANE_ENV,
     handler: H.retain,
   },
   {
@@ -1068,6 +1115,7 @@ export const REGISTRY: readonly CommandSpec[] = [
       PLANE_EXITS.usage,
     ],
     writes: () => "audit",
+    env: PLANE_ENV,
     handler: H.lint,
   },
   {
@@ -1095,6 +1143,7 @@ export const REGISTRY: readonly CommandSpec[] = [
       { code: 2, when: "usage, including a workload file that is not JSON" },
     ],
     writes: () => "none",
+    env: PLANE_ENV,
     handler: H.simulate,
   },
   {
@@ -1109,13 +1158,19 @@ export const REGISTRY: readonly CommandSpec[] = [
     allowPositionals: false,
     helpSection: [
       "policy options:",
-      "  --policy <preset|path>      the policy to show (default medium), or --server <url>: its own",
+      "  --policy <preset|path>      the policy to show (default medium)",
+      "  --server <url>              instead, the policy that server decides with",
       "  printed as YAML a policy file may hold, under a comment naming it; --json for JSON.",
       "  No actor is needed and the log is not opened",
     ],
     listedIn: [],
-    exitCodes: [{ code: 0, when: "shown" }, PLANE_EXITS.error, PLANE_EXITS.usage],
+    exitCodes: [
+      { code: 0, when: "shown" },
+      { code: 1, when: "a server that does not answer, or refuses the call (no credential)" },
+      { code: 2, when: "usage, including a policy file that does not load" },
+    ],
     writes: () => "none",
+    env: PLANE_ENV,
     handler: H.policy,
   },
   {
@@ -1141,6 +1196,7 @@ export const REGISTRY: readonly CommandSpec[] = [
     exitCodes: [{ code: 0, when: "exported" }, PLANE_EXITS.error, PLANE_EXITS.usage],
     // The bundle goes to stdout unless --out names a file.
     writes: (v) => (v.out !== undefined ? "file" : "none"),
+    env: PLANE_ENV,
     handler: H.export,
   },
   {
@@ -1177,6 +1233,7 @@ export const REGISTRY: readonly CommandSpec[] = [
       PLANE_EXITS.usage,
     ],
     writes: () => "state",
+    env: PLANE_ENV,
     handler: H.import,
   },
   {
@@ -1204,6 +1261,7 @@ export const REGISTRY: readonly CommandSpec[] = [
       { code: 2, when: "usage, including an id that is not a UUIDv7" },
     ],
     writes: () => "none",
+    env: PLANE_ENV,
     handler: H.whoCanRead,
   },
   {
@@ -1227,6 +1285,7 @@ export const REGISTRY: readonly CommandSpec[] = [
     listedIn: [],
     exitCodes: [{ code: 0, when: "listed" }, PLANE_EXITS.error, PLANE_EXITS.usage],
     writes: (v, ws) => (touchesStore(v, ws) ? "state" : "audit"),
+    env: PLANE_ENV,
     handler: H.scopes,
   },
   {
@@ -1262,6 +1321,7 @@ export const REGISTRY: readonly CommandSpec[] = [
       { code: 2, when: "usage, including a bind without authentication" },
     ],
     writes: () => "process",
+    env: SERVE_ENV,
     handler: H.serve,
   },
   {
@@ -1293,6 +1353,7 @@ export const REGISTRY: readonly CommandSpec[] = [
       PLANE_EXITS.usage,
     ],
     writes: () => "process",
+    env: PLANE_ENV,
     handler: H.mcp,
   },
   {
@@ -1320,6 +1381,7 @@ export const REGISTRY: readonly CommandSpec[] = [
       PLANE_EXITS.usage,
     ],
     writes: () => "audit",
+    env: [...PLANE_ENV, "CLAUDE_PROJECT_DIR"],
     handler: H.hook,
   },
   {
@@ -1341,8 +1403,9 @@ export const REGISTRY: readonly CommandSpec[] = [
       "  revoke <id> --keys <file>   a key never accepted again",
     ],
     listedIn: [],
-    exitCodes: [{ code: 0, when: "created" }, PLANE_EXITS.error, PLANE_EXITS.usage],
+    exitCodes: [{ code: 0, when: "created" }, KEY_ERROR, KEY_USAGE],
     writes: () => "state",
+    env: [],
     handler: H.key,
   },
   {
@@ -1358,8 +1421,9 @@ export const REGISTRY: readonly CommandSpec[] = [
     allowPositionals: true,
     helpSection: [],
     listedIn: [],
-    exitCodes: [{ code: 0, when: "listed" }, PLANE_EXITS.error, PLANE_EXITS.usage],
+    exitCodes: [{ code: 0, when: "listed" }, KEY_ERROR, KEY_USAGE],
     writes: () => "none",
+    env: [],
     handler: H.key,
   },
   {
@@ -1375,8 +1439,9 @@ export const REGISTRY: readonly CommandSpec[] = [
     allowPositionals: true,
     helpSection: [],
     listedIn: [],
-    exitCodes: [{ code: 0, when: "revoked" }, PLANE_EXITS.error, PLANE_EXITS.usage],
+    exitCodes: [{ code: 0, when: "revoked" }, KEY_ERROR, KEY_USAGE],
     writes: () => "erase",
+    env: [],
     handler: H.key,
   },
   {
@@ -1405,6 +1470,8 @@ export const REGISTRY: readonly CommandSpec[] = [
       PLANE_EXITS.usage,
     ],
     writes: () => "none",
+    env: ["ENGRAM_DB_URL"],
+    envFrom: "packages/runner/src/model/provider-keys.json",
     handler: H.doctor,
   },
   {
@@ -1441,6 +1508,7 @@ export const REGISTRY: readonly CommandSpec[] = [
       { code: 3, when: "UNSIGNED: every check holds, but part of the chain has no signature" },
     ],
     writes: () => "none",
+    env: ["ENGRAM_DB_URL"],
     handler: H.log,
   },
   {
@@ -1471,6 +1539,7 @@ export const REGISTRY: readonly CommandSpec[] = [
       PLANE_EXITS.usage,
     ],
     writes: () => "state",
+    env: ["ENGRAM_DB_URL"],
     handler: H.log,
   },
 ];
@@ -1629,19 +1698,32 @@ export function editDistance(a: string, b: string): number {
 /**
  * The closest of `known` to `typed`, if within 2 edits and closer than the
  * length of what was typed (so `--id` suggests nothing for read rather than
- * any two-letter flag); the first such in `known`'s order on a tie.
+ * any two-letter flag). On a tie, one that begins with what was typed
+ * (`--ad` is `--add`, not `--as`), else the first in `known`'s order.
  */
 export function closest(typed: string, known: readonly string[]): string | undefined {
   let best: string | undefined;
   let bestDistance = 3;
   for (const k of known) {
     const n = editDistance(typed, k);
-    if (n < bestDistance && n < typed.length) {
+    const prefix = k.startsWith(typed) && !(best ?? "").startsWith(typed);
+    if ((n < bestDistance || (n === bestDistance && prefix)) && n < typed.length) {
       best = k;
       bestDistance = n;
     }
   }
   return best;
+}
+
+/**
+ * The flags a suggestion for `engram <w> <args>` is drawn from: a
+ * subcommand's own (key list's, not key create's), else the handler's.
+ */
+export function suggestionFlags(w: string, args: readonly string[]): string[] {
+  const sub = REGISTRY.find((s) => s.name === `${w} ${args[0] ?? ""}`);
+  if (sub !== undefined) return Object.keys(sub.options);
+  const first = REGISTRY.find((s) => word(s) === w);
+  return first === undefined ? [] : Object.keys(parseOptions(first));
 }
 
 /** The words `engram <word>` accepts: every command's first word, and help. */

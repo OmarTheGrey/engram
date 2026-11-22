@@ -41,6 +41,18 @@ describe("engram policy", () => {
     }
   });
 
+  it("quotes every string, so one that reads as a boolean, a number, a comment or a map loads back as itself", async () => {
+    const dir = await tempDir();
+    for (const id of ["true", "1.0", "#x", "a: b", "null", "- x"]) {
+      const policy = { ...loadPreset("medium"), id };
+      await writeFile(join(dir, "p.yaml"), JSON.stringify(policy));
+      const r = await cli(["policy", "--policy", "p.yaml"], { cwd: dir });
+      expect(r.code, id).toBe(0);
+      const body = r.out.slice(r.out.indexOf("\n") + 1);
+      expect(parsePolicy(body, id), id).toEqual(policy);
+    }
+  });
+
   it("is exactly one request, opens no log, and takes no actor", async () => {
     const home = await tempDir();
     const paths: string[] = [];

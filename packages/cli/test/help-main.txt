@@ -1,3 +1,6 @@
+# HELP as packages/cli/src/run.ts held it at 8046a6c2, before the registry (card E8.15a).
+# Written by packages/cli/scripts/refresh-help-main.ts; rerun it when main's HELP changes.
+# The registry test drops these comment lines and compares the rest byte for byte.
 engram: the Engram control plane from the command line
 
 usage: engram <command> [options]

@@ -8,6 +8,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { PROVIDER_KEYS } from "../src/doctor.ts";
 import {
   type CommandSpec,
   closest,
@@ -23,8 +24,10 @@ import {
   parseOptions,
   REGISTRY,
   sectionOrder,
+  type Values,
   WRITES,
   word,
+  workspaceFlags,
 } from "../src/registry.ts";
 import { HELP } from "../src/run.ts";
 import { cli } from "./helpers.ts";
@@ -33,9 +36,9 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 /**
  * HELP as main printed it before the registry: packages/cli/src/run.ts at
  * 8046a6c2, the last main merged into this branch whose HELP was a literal.
- * A card that adds a command on main refreshes it from its own run.ts.
+ * packages/cli/scripts/refresh-help-main.ts rewrites it when main's HELP changes.
  */
-const MAIN_HELP = readFileSync(join(HERE, "help-main.txt"), "utf8");
+const MAIN_HELP = readFileSync(join(HERE, "help-main.txt"), "utf8").replace(/^(# .*\n)+/, "");
 const MAIN_FIRST_LINE = "engram: the Engram control plane from the command line";
 /** The commands main had at 8046a6c2: E8.12's key, E8.13's export flags, E2.13's who-can-read, E1.6's log, L6's supersede and E9.8's export and import among them. */
 const ON_MAIN = [
@@ -169,23 +172,101 @@ describe("the registry's entries", () => {
     }
   });
 
-  it("says what each command writes, so the TUI knows when to ask (docs/design/tui.md 9.5)", () => {
-    const writes = (name: string, v = {}, ws = {}) => command(name)?.writes(v, ws);
-    expect(writes("read")).toBe("audit");
-    expect(writes("read", { root: "/tmp/m" })).toBe("state");
-    expect(writes("read", {}, { root: "/tmp/m" })).toBe("state");
-    expect(writes("read", { server: "http://127.0.0.1:7313" })).toBe("state");
-    expect(writes("write")).toBe("state");
-    expect(writes("check")).toBe("none");
-    expect(writes("grants")).toBe("state");
-    expect(writes("events")).toBe("none");
-    expect(writes("policy")).toBe("none");
-    expect(writes("read --item")).toBe("audit");
-    expect(writes("scopes", { root: "/tmp/m" })).toBe("state");
-    expect(writes("retain")).toBe("retire");
-    expect(writes("lint")).toBe("audit");
-    expect(writes("key revoke")).toBe("erase");
-    expect(writes("serve")).toBe("process");
+  it("says what each command writes, for every entry and each condition flipped (docs/design/tui.md 9.5)", () => {
+    const ROOT = { root: "/tmp/m" };
+    const STORE = { store: "files" };
+    const SERVER = { server: "http://127.0.0.1:7313" };
+    // [entry, the form's values, the workspace's flags, the answer]
+    const table: [string, Values, Values, string][] = [
+      ["read", {}, {}, "audit"],
+      ["read", ROOT, {}, "state"],
+      ["read", STORE, {}, "state"],
+      ["read", SERVER, {}, "state"],
+      ["read", {}, ROOT, "state"],
+      ["read", {}, STORE, "state"],
+      ["read", {}, SERVER, "state"],
+      ["read --item", {}, {}, "audit"],
+      ["read --item", ROOT, {}, "state"],
+      ["read --item", {}, SERVER, "state"],
+      ["scopes", {}, {}, "audit"],
+      ["scopes", ROOT, {}, "state"],
+      ["scopes", {}, SERVER, "state"],
+      ["write", {}, {}, "state"],
+      ["check", ROOT, ROOT, "none"],
+      ["promote", {}, {}, "state"],
+      ["supersede", {}, {}, "none"],
+      ["supersede", { accept: [] }, {}, "none"],
+      ["supersede", { accept: ["x"] }, {}, "state"],
+      ["grants", {}, {}, "state"],
+      ["explain", ROOT, SERVER, "none"],
+      ["events", ROOT, SERVER, "none"],
+      ["retain", {}, {}, "retire"],
+      ["lint", {}, {}, "audit"],
+      ["simulate", {}, {}, "none"],
+      ["policy", {}, SERVER, "none"],
+      ["export", {}, {}, "none"],
+      ["export", { out: "bundle.jsonl" }, {}, "file"],
+      ["import", {}, {}, "state"],
+      ["who-can-read", ROOT, SERVER, "none"],
+      ["serve", {}, {}, "process"],
+      ["mcp", {}, {}, "process"],
+      ["mcp", { http: "7314" }, {}, "process"],
+      ["hook claude-code", {}, {}, "audit"],
+      ["key create", {}, {}, "state"],
+      ["key list", {}, {}, "none"],
+      ["key revoke", {}, {}, "erase"],
+      ["doctor", ROOT, {}, "none"],
+      ["log verify", {}, {}, "none"],
+      ["log checkpoint", {}, {}, "state"],
+    ];
+    for (const [name, v, ws, answer] of table)
+      expect(
+        command(name)?.writes(v, ws),
+        `${name} ${JSON.stringify(v)} ${JSON.stringify(ws)}`,
+      ).toBe(answer);
+    // Every entry is in the table.
+    expect(new Set(table.map(([n]) => n))).toEqual(new Set(REGISTRY.map((s) => s.name)));
+  });
+
+  it("counts ENGRAM_SERVER_URL as the workspace's server, as connect does", () => {
+    const env = { ENGRAM_SERVER_URL: "http://127.0.0.1:7313" };
+    const read = command("read") as CommandSpec;
+    expect(read.writes({}, workspaceFlags({}, {}))).toBe("audit");
+    expect(read.writes({}, workspaceFlags({}, env))).toBe("state");
+    // An empty variable names no server, as for connect.
+    expect(read.writes({}, workspaceFlags({}, { ENGRAM_SERVER_URL: "" }))).toBe("audit");
+    expect(workspaceFlags({ server: "http://a" }, env).server).toBe("http://a");
+  });
+
+  it("names the environment each command reads, and every variable the CLI reads is named", () => {
+    const named = new Set(REGISTRY.flatMap((s) => s.env));
+    const read = new Set<string>();
+    for (const dir of [join(HERE, "../src"), join(HERE, "../../server/src")])
+      for (const file of readdirSync(dir).filter((f) => f.endsWith(".ts"))) {
+        const text = readFileSync(join(dir, file), "utf8");
+        for (const m of text.matchAll(/"(ENGRAM_[A-Z_]+)"/g)) read.add(m[1] as string);
+        for (const m of text.matchAll(/\benv\.([A-Z][A-Z0-9_]+)/g)) read.add(m[1] as string);
+      }
+    expect(read.size).toBeGreaterThan(5);
+    for (const v of read) expect(named, v).toContain(v);
+    expect(command("read")?.env).toEqual([
+      "ENGRAM_DB_URL",
+      "ENGRAM_SERVER_URL",
+      "ENGRAM_TOKEN",
+      "ENGRAM_OTLP_URL",
+      "ENGRAM_EXPORT_JSONL",
+    ]);
+    expect(command("hook claude-code")?.env).toContain("CLAUDE_PROJECT_DIR");
+    expect(command("key create")?.env).toEqual([]);
+    // Doctor checks the provider keys by name, from the file it reads them from.
+    expect(command("doctor")?.envFrom).toBe(PROVIDER_KEYS);
+    for (const s of REGISTRY) if (s.name !== "doctor") expect(s.envFrom, s.name).toBeUndefined();
+  });
+
+  it("says what an error means for the commands that open no log", () => {
+    for (const name of ["key create", "key list", "key revoke", "policy"])
+      for (const e of command(name)?.exitCodes ?? [])
+        expect(e.when, name).not.toContain("a log it cannot use");
   });
 
   it("dispatches each first word to one handler, shared by the entries of that word", () => {
@@ -282,6 +363,37 @@ describe("did you mean", () => {
     expect(far.code).toBe(2);
     expect(far.err.split("\n")).toHaveLength(2);
     expect(far.err).not.toContain("did you mean");
+  });
+
+  it("suggests from the subcommand's own flags, and on a tie the flag the typed word begins", async () => {
+    const add = await cli(["grants", "01920000-0000-7000-8000-00000000e815", "--ad", "x"]);
+    expect(add.err.split("\n")[1]).toBe("engram grants: did you mean --add?");
+    // --expires is key create's; key list has no flag near --expire.
+    const list = await cli(["key", "list", "--expire", "x"]);
+    expect(list.code).toBe(2);
+    expect(list.err).not.toContain("did you mean");
+    const create = await cli(["key", "create", "--expire", "x"]);
+    expect(create.err.split("\n")[1]).toBe("engram key: did you mean --expires?");
+    expect(closest("ad", ["as", "add"])).toBe("add");
+  });
+
+  it("answers Object's own property names as unknown commands, with or without --help", async () => {
+    for (const name of [
+      "toString",
+      "constructor",
+      "__proto__",
+      "hasOwnProperty",
+      "valueOf",
+      "isPrototypeOf",
+    ])
+      for (const args of [[name], [name, "--help"]]) {
+        const r = await cli(args);
+        expect(r.code, args.join(" ")).toBe(2);
+        expect(r.out, args.join(" ")).toBe("");
+        expect(r.err.split("\n")[0], args.join(" ")).toBe(
+          `engram: unknown command "${name}"; engram --help lists them`,
+        );
+      }
   });
 
   it("measures optimal string alignment distance and suggests within two edits only", () => {

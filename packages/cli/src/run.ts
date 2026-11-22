@@ -8,7 +8,7 @@
 // flags and HELP are the registry's (card E8.15a, ./registry.ts).
 import { UnknownOptionError } from "./commands.ts";
 import { drainExports, type Fetch } from "./connect.ts";
-import { closest, commandWords, handlers, helpText } from "./registry.ts";
+import { closest, commandWords, handlers, helpText, suggestionFlags } from "./registry.ts";
 import { UsageError } from "./setup.ts";
 
 export interface Io {
@@ -85,8 +85,10 @@ export async function run(argv: string[], io: Io): Promise<number> {
     return await handler(args, io);
   } catch (e) {
     io.err(`engram ${command}: ${(e as Error).message}\n`);
-    if (e instanceof UnknownOptionError && e.suggestion !== undefined)
-      io.err(`engram ${command}: did you mean --${e.suggestion}?\n`);
+    if (e instanceof UnknownOptionError) {
+      const near = closest(e.option, suggestionFlags(command, args));
+      if (near !== undefined) io.err(`engram ${command}: did you mean --${near}?\n`);
+    }
     return e instanceof UsageError ? 2 : 1;
   } finally {
     // A decision export still sending (card E8.13) finishes before the command does.

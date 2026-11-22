@@ -140,7 +140,8 @@ simulate options:
   never read or written, and no model is called
 
 policy options:
-  --policy <preset|path>      the policy to show (default medium), or --server <url>: its own
+  --policy <preset|path>      the policy to show (default medium)
+  --server <url>              instead, the policy that server decides with
   printed as YAML a policy file may hold, under a comment naming it; --json for JSON.
   No actor is needed and the log is not opened
 
