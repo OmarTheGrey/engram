@@ -12,6 +12,7 @@ import type { Actor, MemoryItem, ReadResponse } from "@engram/sdk";
 import { contentText } from "@engram/view";
 import type { CommandSpec, Values } from "../../registry.ts";
 import { buildActor, redactSecrets } from "../../setup.ts";
+import { actorNow, madeAsLines, madeAsOther } from "../actor.ts";
 import type { TextField } from "../fields.ts";
 import { type Field, type FieldValue, Form, type FormError } from "../forms.ts";
 import { box, clean, cut, fit, para, rows, visibleWidth, wrap } from "../layout.ts";
@@ -234,6 +235,20 @@ export abstract class RichScreen implements Screen {
   abstract stops(): Stop[];
   /** The body in the rich view. */
   protected abstract body(ctx: Ctx, width: number, height: number): string[];
+  /**
+   * The actor this screen's answer was made as, when it is not the actor now
+   * (card E8.15c review, findings 1 and 2): the screen then draws no part of
+   * it. A screen with more than one answer names each.
+   */
+  protected staleAs(ctx: Ctx): string | undefined {
+    return madeAsOther(ctx.ws, this.result);
+  }
+
+  /** The answer to draw: the last run's, unless it was made as another actor. */
+  protected answerNow(ctx: Ctx): RunResult | undefined {
+    return this.staleAs(ctx) === undefined ? this.result : undefined;
+  }
+
   /** A key the base did not take. */
   protected abstract onKey(
     name: string,
@@ -312,7 +327,13 @@ export abstract class RichScreen implements Screen {
   }
 
   async action(name: string, ctx: Ctx): Promise<boolean> {
-    if (this.views.action(name, this.result, ctx)) return true;
+    const stale = this.staleAs(ctx);
+    if (stale !== undefined && STALE_KEYS.has(name)) {
+      ctx.say(`that answer was made as ${stale}; r runs it again as you`);
+      return true;
+    }
+    if (stale !== undefined) this.views.mode = "rich";
+    if (this.views.action(name, stale === undefined ? this.result : undefined, ctx)) return true;
     const stop = this.current();
     const n = this.stops().length;
     switch (name) {
@@ -382,6 +403,7 @@ export abstract class RichScreen implements Screen {
   }
 
   command(ctx: Ctx): CommandRow {
+    if (this.staleAs(ctx) !== undefined) return { argv: this.argvNow(ctx) };
     if (this.result !== undefined && !this.edited)
       return { argv: this.result.argv, exit: this.result.code };
     const argv = this.argvNow(ctx);
@@ -490,12 +512,42 @@ export abstract class RichScreen implements Screen {
   /** The screen's own key hints in the rich view. */
   protected abstract ownHints(): string;
 
+  /** Whether the screen keeps its form on screen when its answer is another actor's (Write, Promote, Grants). */
+  protected readonly keepsForm: boolean = false;
+
+  /** What a form-keeping screen forgets with an answer made as another actor (Grants: its undo). */
+  protected forgetAnswer(): void {
+    this.result = undefined;
+    this.edited = false;
+  }
+
   render(ctx: Ctx, width: number, height: number): string[] {
+    const stale = this.staleAs(ctx);
+    // A form stays: the answer made as another actor goes, and ctrl+s runs the form as the actor now.
+    if (stale !== undefined && this.keepsForm) this.forgetAnswer();
+    else if (stale !== undefined) {
+      const now = actorNow(ctx.ws)?.id;
+      return rows(["", ...madeAsLines(stale, now).flatMap((l) => para(l, width))], height, width);
+    }
     if (this.views.mode !== "rich" && this.result !== undefined)
       return this.views.render(ctx, this.result, width, height);
     return rows(this.body(ctx, width, height), height, width);
   }
 }
+
+/** The keys that would act on an answer made as another actor: refused, with why (card E8.15c review). */
+const STALE_KEYS = new Set([
+  "plain",
+  "json",
+  "explain",
+  "item",
+  "promote",
+  "grants",
+  "who",
+  "supersede",
+  "undo",
+  "follow",
+]);
 
 /** A list's visible window: `selected` kept in view among `count` rows of `room`. */
 export function windowOf(selected: number, count: number, room: number, start: number): number {
@@ -534,14 +586,7 @@ export const labelWidth = (labels: readonly string[]) =>
 
 /** The actor the workspace names now, built as every command builds it; undefined when none. */
 export function viewerOf(ctx: Ctx): Actor | undefined {
-  try {
-    return buildActor(
-      { as: ctx.ws.get("as"), level: ctx.ws.get("level"), member: [...ctx.ws.list("member")] },
-      ctx.ws.get("owner"),
-    );
-  } catch {
-    return undefined;
-  }
+  return actorNow(ctx.ws);
 }
 
 /** The session's results whose call was made as `actorId`, newest first. */

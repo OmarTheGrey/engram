@@ -228,10 +228,20 @@ async function withItem(extra: Record<string, string | string[]> = {}) {
 }
 
 describe("Promote and the reviewer handoff (8.8)", () => {
-  it("shows a denied promotion, hands off to a reviewer for this session only, and Switch back undoes it", async () => {
-    const w = await withItem({ member: ["person:dana"] });
+  it("shows a denied promotion, hands off to a reviewer who may approve it, for this session only, and Switch back undoes it", async () => {
+    // The design's case: a team item of dana's, widened to org, which needs a reviewer (review finding 3).
+    const w = await workspace({ member: ["person:dana", "team:core"] });
+    const wrote = await cli(
+      [
+        ...["write", ...w.flags, "--id", ITEM, "--content", "The team ships on Thursdays."],
+        ...["--scope", "team:core", "--member", "team:core"],
+      ],
+      { cwd: w.cwd },
+    );
+    expect(wrote.code, wrote.err).toBe(0);
     const { h } = await start(w);
-    h.app.openCommand(command("promote") as never, { to: "team:platform" }, [ITEM]);
+    await h.press("r", CTRL_S, "y", ESC);
+    h.app.openCommand(command("promote") as never, { to: "org" }, [ITEM]);
     await h.press(CTRL_S);
     expect(h.overlay()).toBe("confirm");
     await h.press("y");
@@ -244,10 +254,14 @@ describe("Promote and the reviewer handoff (8.8)", () => {
     await h.press(ENTER);
     expect(h.focused()).toBe("reviewer");
     await h.type("person:sam");
+    await h.press(TAB);
+    // Member of, prefilled from the item: the target and the item's own scope, and editable.
+    expect(h.focused()).toBe("members");
+    expect(await h.text()).toContain("[ org, team:core");
     await h.press(TAB, ENTER);
     expect(h.overlay()).toBe("confirm");
     text = await dialog(h);
-    expect(text).toContain("Acting as becomes person:sam and Member of becomes team:platform");
+    expect(text).toContain("Acting as becomes person:sam and Member of becomes org, team:core");
     expect(text).toContain("for this session only");
     await h.press("y");
     expect(h.screen()).toBe("promote");
@@ -255,17 +269,19 @@ describe("Promote and the reviewer handoff (8.8)", () => {
     expect(again.form.get("review")).toBe(true);
     expect(again.form.get("pos:itemId")).toBe(ITEM);
     expect(h.app.ws.get("as")).toBe("person:sam");
-    expect(h.app.ws.list("member")).toEqual(["team:platform"]);
+    expect(h.app.ws.list("member")).toEqual(["org", "team:core"]);
     expect((await h.frame())[0]).toContain("person:sam (person) reviewer");
     // Never saved: tui.json keeps the actor and memberships from before.
     h.app.save();
     const saved = readFileSync(join(w.cwd, ".engram", "tui.json"), "utf8");
     expect(saved).not.toContain("person:sam");
-    expect(JSON.parse(saved).flags.member).toEqual(["person:dana"]);
-    // The reviewer's promotion is the plane's answer, as any.
+    expect(JSON.parse(saved).flags.member).toEqual(["person:dana", "team:core"]);
+    // The reviewer's promotion is the plane's answer: here it lands.
     await h.press(CTRL_S, "y");
     expect(h.ran().at(-1)).toContain("--review");
     expect(h.ran().at(-1)).toContain("person:sam");
+    expect(h.app.results.at(-1)?.code).toBe(0);
+    expect(await h.text()).toMatch(/✓ allow {3}exit 0/);
     // Switch back in the workspace panel.
     await h.press(ESC, CTRL_O);
     expect(h.screen()).toBe("workspace");
@@ -274,7 +290,7 @@ describe("Promote and the reviewer handoff (8.8)", () => {
     await h.press(ENTER);
     expect(h.app.handoff).toBeUndefined();
     expect(h.app.ws.get("as")).toBeUndefined();
-    expect(h.app.ws.list("member")).toEqual(["person:dana"]);
+    expect(h.app.ws.list("member")).toEqual(["person:dana", "team:core"]);
     expect((await h.frame())[0]).not.toContain("reviewer");
     await h.quit();
   });

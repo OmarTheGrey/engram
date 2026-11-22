@@ -19,6 +19,7 @@
 // Against a server with credentials the handoff is not offered: the identity
 // comes from the key or token, not from Acting as.
 import type { MemoryEvent } from "@engram/sdk";
+import { parseMemberships } from "@engram/view";
 import { type CommandSpec, command, type Values } from "../../registry.ts";
 import { buildActor } from "../../setup.ts";
 import { TextField } from "../fields.ts";
@@ -75,6 +76,7 @@ const eventOf = (r: RunResult | undefined) =>
 
 export class WriteScreen extends RichScreen {
   readonly kind = "write" as const;
+  protected override readonly keepsForm = true;
   /** The last preview's run of `engram check`, and the command it ran. */
   private preview: RunResult | undefined;
   private previewProblem: string | undefined;
@@ -332,6 +334,7 @@ const safeErr = (r: RunResult) => oneLine(r.err.replace(/^engram [a-z-]+: /, "")
 
 export class PromoteScreen extends RichScreen {
   readonly kind = "promote" as const;
+  protected override readonly keepsForm = true;
   /** Asking for the reviewer's principal, after a promotion that did not land. */
   private asking = false;
   /** Whether the handoff is offered here: not against a server with credentials. */
@@ -345,6 +348,7 @@ export class PromoteScreen extends RichScreen {
   ) {
     super(spec, ctx, values, positionals);
     this.extras.set("reviewer", new TextField(""));
+    this.extras.set("members", new TextField(""));
     this.offered = this.handoffOffered(ctx);
   }
 
@@ -368,6 +372,7 @@ export class PromoteScreen extends RichScreen {
       if (this.asking)
         out.push(
           { kind: "field", id: "reviewer" },
+          { kind: "field", id: "members" },
           { kind: "button", id: "switch", label: "Switch" },
         );
       else if (this.offered)
@@ -421,6 +426,8 @@ export class PromoteScreen extends RichScreen {
           return true;
         }
         this.asking = true;
+        // Member of, prefilled with the target scope and the item's own: data from the item, not a rule (review 3).
+        this.extras.get("members")?.set(this.memberDefault(ctx).join(", "));
         this.focusOn("reviewer");
         return true;
       case "switch":
@@ -438,13 +445,21 @@ export class PromoteScreen extends RichScreen {
     if (!this.focusOn("handoff") && !this.focusOn("retry")) this.focusOn("submit");
   }
 
+  /** The reviewer's memberships offered: the target scope and the item's own scope, when known. */
+  private memberDefault(ctx: Ctx): string[] {
+    const to = String(this.form.get("to")).trim();
+    const own = knownState(ctx, String(this.form.get("pos:itemId")).trim())?.scope;
+    return [...new Set([to, ...(own === undefined ? [] : [own])].filter((s) => s !== ""))];
+  }
+
   /** The handoff: both changes shown before they apply, for this session only (8.8). */
   private async switchToReviewer(ctx: Ctx): Promise<void> {
     const reviewer = (this.extras.get("reviewer")?.value ?? "").trim();
     const to = String(this.form.get("to")).trim();
+    const members = parseMemberships(this.extras.get("members")?.value ?? "");
     try {
-      // The CLI's own check of an actor (buildActor), with the reviewer as --as.
-      buildActor({ as: reviewer || undefined, member: [to] }, undefined);
+      // The CLI's own check of an actor (buildActor), with the reviewer as --as and each --member.
+      buildActor({ as: reviewer || undefined, member: members }, undefined);
     } catch (e) {
       this.error = { message: (e as Error).message };
       return;
@@ -453,13 +468,13 @@ export class PromoteScreen extends RichScreen {
     const yes = await ctx.confirm({
       title: "Switch to a reviewer?",
       lines: [
-        `Acting as becomes ${reviewer} and Member of becomes ${to}, for this session only: neither is saved to tui.json.`,
+        `Acting as becomes ${reviewer} and Member of becomes ${members.join(", ") || "the actor's own scope"}, for this session only: neither is saved to tui.json.`,
         `Promote opens again with As reviewer on. Whether ${reviewer} may approve is the plane's answer. Switch back in the workspace panel (ctrl+o) restores ${before}.`,
       ],
       action: "Switch",
     });
     if (!yes) return;
-    ctx.startHandoff(reviewer, to);
+    ctx.startHandoff(reviewer, members, to);
     ctx.replace(
       new PromoteScreen(this.command_, ctx, { to, review: true }, [
         String(this.form.get("pos:itemId")),
@@ -518,10 +533,17 @@ export class PromoteScreen extends RichScreen {
         else if (this.asking) {
           out.push(
             this.extraRow(ctx, "reviewer", "Reviewer", width, "a principal, such as person:sam"),
+            this.extraRow(
+              ctx,
+              "members",
+              "Member of",
+              width,
+              "the reviewer's scopes, comma separated",
+            ),
           );
           out.push(
             ...para(
-              `Acting as becomes the reviewer and Member of becomes ${String(this.form.get("to"))}, for this session only.`,
+              "Acting as becomes the reviewer and Member of these scopes, for this session only.",
               width,
             ),
             `   ${this.button(ctx, "switch", "Switch")}`,

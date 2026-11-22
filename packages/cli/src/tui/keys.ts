@@ -246,7 +246,7 @@ export const KEYS: readonly KeyAction[] = [
     keys: ["r"],
     label: "r",
     description: "run again with the same flags",
-    where: ["result", "read", "explain", "events", "policy", "who"],
+    where: ["result", "read", "explain", "events", "policy", "who", "item", "supersede"],
   },
   // The memory and audit screens (card E8.15c).
   { action: "next", keys: ["tab"], label: "tab", description: "next field or pane", where: RICH },

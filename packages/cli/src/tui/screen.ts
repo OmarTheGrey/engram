@@ -120,8 +120,10 @@ export interface ConfirmRequest {
 export interface Handoff {
   /** The reviewer's principal, now Acting as. */
   reviewer: string;
-  /** The promotion's target scope, now Member of. */
+  /** The promotion's target scope. */
   target: string;
+  /** The reviewer's memberships for this session, now Member of. */
+  members: readonly string[];
   /** The actor before the switch, as the title bar wrote it. */
   before: string;
 }
@@ -143,7 +145,7 @@ export interface Ctx {
   /** The reviewer handoff, while one is on. */
   readonly handoff: Handoff | undefined;
   /** Switches to a reviewer for this session: Acting as and Member of (8.8). */
-  startHandoff(reviewer: string, target: string): void;
+  startHandoff(reviewer: string, members: readonly string[], target?: string): void;
   /** Switch back: the actor and memberships before the handoff; false when none was on. */
   endHandoff(): boolean;
   /** The last doctor run of this session. */
@@ -163,6 +165,8 @@ export interface Ctx {
   readonly rows: number;
 
   push(screen: Screen): void;
+  /** The screen on top, the one drawn (a covered screen does not poll, card E8.15c review). */
+  top(): Screen;
   /** Back one screen; false at the bottom of the stack. */
   pop(): boolean;
   /** Replaces the whole stack with Home. */

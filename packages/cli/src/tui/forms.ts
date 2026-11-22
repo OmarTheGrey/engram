@@ -157,6 +157,8 @@ export class Form {
   readonly editors = new Map<string, TextField>();
   /** The field ids the person changed, so leaving asks first. */
   readonly touched = new Set<string>();
+  /** The workspace fields a command line gave the form: with the touched ones, they win over the workspace. */
+  private readonly given = new Set<string>();
 
   constructor(
     spec: CommandSpec,
@@ -191,7 +193,9 @@ export class Form {
     for (const [k, v] of Object.entries(values)) {
       if (k === flagWord || v === undefined) continue;
       const f = this.fields.find((x) => !x.positional && x.name === k);
-      if (f !== undefined) this.setValue(f.id, v as FieldValue);
+      if (f === undefined) continue;
+      this.setValue(f.id, v as FieldValue);
+      if (f.workspace) this.given.add(f.id);
     }
   }
 
@@ -246,6 +250,7 @@ export class Form {
    * workspace's when it calls a server, as connect refuses them).
    */
   argv(ws: Workspace): string[] {
+    this.syncWorkspace(ws);
     const words = this.spec.name.split(" ");
     const out = words.filter((w) => !w.startsWith("--"));
     const nameFlag = this.nameFlag();
@@ -269,6 +274,21 @@ export class Form {
     }
     out.push(...local.argsFor(this.spec));
     return out;
+  }
+
+  /**
+   * The workspace's flags as the workspace has them now, in every workspace
+   * field the person did not change and no command line gave (card E8.15c
+   * review, finding 2): after a change of actor the form runs as the actor
+   * now, not as the one it was opened under.
+   */
+  syncWorkspace(ws: Workspace): void {
+    for (const f of this.fields) {
+      if (!f.workspace || this.touched.has(f.id) || this.given.has(f.id)) continue;
+      const now = f.multiple ? [...ws.list(f.name as never)] : (ws.get(f.name as never) ?? "");
+      const was = this.get(f.id);
+      if (JSON.stringify(was) !== JSON.stringify(now)) this.setValue(f.id, now as FieldValue);
+    }
   }
 
   /**
@@ -343,5 +363,22 @@ export class Form {
   /** Whether the person changed anything. */
   dirty(): boolean {
     return this.touched.size > 0;
+  }
+}
+
+/**
+ * A command line run again from the workspace as it is now (card E8.15c
+ * review, finding 2): its own flags and positionals kept, the workspace's
+ * flags taken from the workspace, so r after a change of actor runs as the
+ * actor now. A line that does not parse is returned as it was.
+ */
+export function rebuildArgv(spec: CommandSpec, argv: readonly string[], ws: Workspace): string[] {
+  const words = spec.name.split(" ").filter((w) => !w.startsWith("--"));
+  try {
+    const { values, positionals } = parse(argv.slice(1), parseOptions(spec), spec.allowPositionals);
+    const own = Object.fromEntries(Object.entries(values).filter(([k]) => !isWsFlag(k)));
+    return new Form(spec, ws, own as Values, positionals.slice(words.length - 1)).argv(ws);
+  } catch {
+    return [...argv];
   }
 }

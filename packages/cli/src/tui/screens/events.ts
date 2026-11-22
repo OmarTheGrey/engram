@@ -22,6 +22,7 @@ import {
 } from "@engram/view";
 import { plural } from "../../format.ts";
 import { type CommandSpec, command, type Values } from "../../registry.ts";
+import { madeAsOther } from "../actor.ts";
 import { TextField } from "../fields.ts";
 import { Form } from "../forms.ts";
 import { cut, fit, para } from "../layout.ts";
@@ -141,9 +142,21 @@ export class EventsScreen extends RichScreen {
 
   /** One poll: the events after the last seq seen, asked quietly (not a command of the session). */
   private async poll(ctx: Ctx): Promise<void> {
-    if (this.polling || this.closed) return;
+    // Only while this screen is the one drawn (review finding 10).
+    if (this.polling || this.closed || ctx.top() !== this) return;
     this.polling = true;
     try {
+      // After a change of actor, follow starts again as the actor now: all its events, then after them.
+      if (madeAsOther(ctx.ws, this.result) !== undefined) {
+        const r = await ctx.peek(new Form(this.command_, ctx.ws).argv(ctx.ws));
+        if (!this.closed && answerOf(r, EVENTS_ROUTE) !== undefined) {
+          this.result = r;
+          this.more = [];
+          this.selected = Math.max(0, this.shown().length - 1);
+          ctx.redraw();
+        }
+        return;
+      }
       const last = this.events().at(-1)?.seq;
       const form = new Form(
         this.command_,
@@ -184,7 +197,7 @@ export class EventsScreen extends RichScreen {
         ctx.say("r runs it again");
         return true;
       case "rerun":
-        await this.load(ctx, this.result?.argv);
+        await this.load(ctx);
         return true;
       case "up":
       case "down":
@@ -450,7 +463,7 @@ export class PolicyScreen extends RichScreen {
         ctx.say("r runs it again");
         return true;
       case "rerun":
-        await this.load(ctx, this.result?.argv);
+        await this.load(ctx);
         return true;
       case "find":
         this.focusOn("find");

@@ -45,6 +45,7 @@ interface Change {
 
 export class GrantsScreen extends RichScreen {
   readonly kind = "grants" as const;
+  protected override readonly keepsForm = true;
   private klass = "semantic";
   private mode = "read";
   private selected = 0;
@@ -108,6 +109,11 @@ export class GrantsScreen extends RichScreen {
     // Off the fields, so u, c, v and J act on the answer; the list as the answer now has it.
     this.shownList = this.grants(ctx)?.grants ?? [];
     if (!this.focusOn("grants")) this.focusOn("apply");
+  }
+
+  protected override forgetAnswer(): void {
+    super.forgetAnswer();
+    this.last = undefined;
   }
 
   private draftGrant(): Grant | string {

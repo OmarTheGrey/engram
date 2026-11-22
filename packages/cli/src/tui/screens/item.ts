@@ -20,6 +20,7 @@ import {
   type Version,
 } from "@engram/view";
 import { type CommandSpec, command } from "../../registry.ts";
+import { actorOfResult, madeAsOther } from "../actor.ts";
 import { Form } from "../forms.ts";
 import { box, cut, fit, para } from "../layout.ts";
 import type { RunResult } from "../runner.ts";
@@ -35,6 +36,7 @@ import {
   readItems,
   type Stop,
   safe,
+  viewerOf,
   windowOf,
 } from "./rich.ts";
 
@@ -130,8 +132,14 @@ export class ItemScreen extends RichScreen {
     this.focusOn("provenance");
   }
 
-  private visibleEvents(): MemoryEvent[] {
+  /** The events the page was built from, only when they were made as the actor now (review finding 1). */
+  private visibleEvents(ctx: Ctx): MemoryEvent[] {
+    if (actorOfResult(this.events) !== viewerOf(ctx)?.id) return [];
     return answerOf<{ events: MemoryEvent[] }>(this.events, /\/api\/v1\/events$/)?.events ?? [];
+  }
+
+  protected override staleAs(ctx: Ctx): string | undefined {
+    return madeAsOther(ctx.ws, this.events) ?? madeAsOther(ctx.ws, this.readById);
   }
 
   /** The page's three parts, from @engram/view over the session's answers as this actor. */
@@ -142,7 +150,7 @@ export class ItemScreen extends RichScreen {
     items: MemoryItem[];
   } {
     const items = readItems(ctx);
-    const events = this.visibleEvents();
+    const events = this.visibleEvents(ctx);
     const id = this.itemId();
     return {
       graph: provenanceGraph(id, items, events),
@@ -155,6 +163,11 @@ export class ItemScreen extends RichScreen {
   protected async onKey(name: string, ctx: Ctx, stop: Stop | undefined): Promise<boolean> {
     const pane = stop?.kind === "list" ? (stop.id as Pane) : undefined;
     switch (name) {
+      case "rerun":
+        this.events = undefined;
+        this.readById = undefined;
+        await this.load(ctx);
+        return true;
       case "accept":
       case "submit":
         if (pane === undefined) {

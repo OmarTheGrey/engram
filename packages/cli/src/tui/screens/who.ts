@@ -15,6 +15,7 @@ import type { WhoCanReadAnswer } from "@engram/sdk";
 import { readerView } from "@engram/view";
 import type { SupersedeAnswer } from "../../format.ts";
 import type { CommandSpec, Values } from "../../registry.ts";
+import { madeAsOther } from "../actor.ts";
 import { cut, para } from "../layout.ts";
 import type { RunResult } from "../runner.ts";
 import type { Ctx } from "../screen.ts";
@@ -69,7 +70,7 @@ export class WhoScreen extends RichScreen {
         if (stop?.id === "advanced") this.advancedOpen = !this.advancedOpen;
         return stop?.id === "advanced";
       case "rerun":
-        if (this.result !== undefined) await this.ask(ctx, this.result.argv);
+        if (this.result !== undefined) await this.ask(ctx);
         return true;
       case "up":
       case "down":
@@ -190,6 +191,9 @@ export class SupersedeScreen extends RichScreen {
   protected async onKey(name: string, ctx: Ctx, stop: Stop | undefined): Promise<boolean> {
     const proposals = this.planAnswer()?.proposals ?? [];
     switch (name) {
+      case "rerun":
+        await this.propose(ctx);
+        return true;
       case "submit":
         if (this.plan === undefined || this.edited) await this.propose(ctx);
         else await this.apply(ctx);
@@ -226,6 +230,10 @@ export class SupersedeScreen extends RichScreen {
   }
 
   /** The command as the chosen closes stand: what ctrl+s would accept. */
+  protected override staleAs(ctx: Ctx): string | undefined {
+    return madeAsOther(ctx.ws, this.plan) ?? madeAsOther(ctx.ws, this.result);
+  }
+
   protected override argvNow(ctx: Ctx): string[] {
     return this.form.argv(ctx.ws);
   }

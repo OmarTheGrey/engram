@@ -140,7 +140,7 @@ export class ReadScreen extends RichScreen {
         await this.read(ctx);
         return true;
       case "rerun":
-        if (this.result !== undefined) await this.read(ctx, this.result.argv);
+        if (this.result !== undefined) await this.read(ctx);
         return true;
       case "up":
       case "down":
@@ -417,7 +417,7 @@ export class ExplainScreen extends RichScreen {
         await this.explain(ctx);
         return true;
       case "rerun":
-        if (this.result !== undefined) await this.explain(ctx, this.result.argv);
+        if (this.result !== undefined) await this.explain(ctx);
         return true;
       case "accept": {
         if (stop?.kind === "list") {

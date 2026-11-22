@@ -276,11 +276,11 @@ export class App implements Component, Ctx {
         new FormScreen(spec, this, values, positionals),
     );
   }
-  startHandoff(reviewer: string, target: string): void {
+  startHandoff(reviewer: string, members: readonly string[], target = members[0] ?? ""): void {
     const before = this.handoff?.before ?? this.ws.actorLabel();
     this.ws.setForSession("as", reviewer);
-    this.ws.setForSession("member", [target]);
-    this.handoff = { reviewer, target, before };
+    this.ws.setForSession("member", [...members]);
+    this.handoff = { reviewer, target, members: [...members], before };
     this.recheck(false);
   }
   endHandoff(): boolean {
