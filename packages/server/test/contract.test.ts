@@ -146,6 +146,12 @@ describe("the routes, through the generated client, on the fake store", () => {
     const unknown = C.ReadResponse.parse((await ask(id(599))).data);
     expect([hidden.items, hidden.explanations, hidden.filtered]).toEqual([[], [], 0]);
     expect([unknown.items, unknown.explanations, unknown.filtered]).toEqual([[], [], 0]);
+    // The whole response, the reason included, once ids are neutral (E8.14-5).
+    const neutral = (r: typeof hidden, asked: string) => {
+      const { id: _id, seq: _seq, ...event } = r.event;
+      return JSON.parse(JSON.stringify({ ...r, event }).replaceAll(asked, "<id>"));
+    };
+    expect(neutral(hidden, id(501))).toEqual(neutral(unknown, id(599)));
     const bad = await ask("not-an-id");
     expect(bad.response.status).toBe(400);
   });

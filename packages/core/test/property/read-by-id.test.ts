@@ -9,7 +9,7 @@ import fc from "fast-check";
 import { describe, expect, test } from "vitest";
 import { migrate } from "../../src/db/migrate.ts";
 import { openSqlite } from "../../src/db/sqlite.ts";
-import { type Actor, createPlane } from "../../src/plane.ts";
+import { type Actor, createPlane, type ReadResult } from "../../src/plane.ts";
 import { readableScope } from "../../src/policy/evaluate.ts";
 import type { MemoryItem, Policy } from "../../src/schema.ts";
 import {
@@ -21,6 +21,13 @@ import {
 } from "../generators.ts";
 
 const RUNS = 300;
+const UNKNOWN = "01920000-0000-7000-8000-0000000fffff";
+
+/** A read's whole answer with the id asked, its event's id and seq made neutral. */
+function normalised(r: ReadResult, asked: string) {
+  const { id: _id, seq: _seq, ...event } = r.event;
+  return JSON.parse(JSON.stringify({ ...r, event }).replaceAll(asked, "<id>"));
+}
 
 const ADMIT_ALL = (policy: Policy): Policy => ({
   ...policy,
@@ -79,6 +86,7 @@ describe("the by-id read and the scope list decide as Plane.read does", () => {
   const BY_ID = "a by-id read returns exactly what a read with no text returns under that id";
   test(BY_ID, async () => {
     let returned = 0;
+    let hiddenCompared = 0;
     await fc.assert(
       fc.asyncProperty(
         arbHonouring,
@@ -89,7 +97,7 @@ describe("the by-id read and the scope list decide as Plane.read does", () => {
           const items = shaped(pool, bridge, reader);
           const plane = await planeWith(policy, items, "2026-10-01T00:00:00Z");
           const all = await plane.read(reader, { at });
-          for (const item of [...items, { id: "01920000-0000-7000-8000-0000000fffff" }]) {
+          for (const item of [...items, { id: UNKNOWN }]) {
             const one = await plane.readById(reader, item.id, { at });
             const expected = all.items.filter((i) => i.id === item.id);
             expect(one.items, `${reader.id} reading ${item.id} at ${at}`).toEqual(expected);
@@ -104,12 +112,26 @@ describe("the by-id read and the scope list decide as Plane.read does", () => {
               all.explanations.filter((e) => e.item_id === item.id).map(strip),
             );
             expect(one.event.item_ids).toEqual(expected.map((i) => i.id));
+            // Not returned and not in a scope the reader may read: the answer,
+            // reason included, is an unknown id's (E8.14-1, E8.14-5).
+            const inScope =
+              "scope" in item && readableScope(policy, reader, (item as MemoryItem).scope);
+            if (one.items.length === 0 && !inScope) {
+              const unknown = await plane.readById(reader, UNKNOWN, { at });
+              expect(normalised(one, item.id), `${item.id} reveals itself`).toEqual(
+                normalised(unknown, UNKNOWN),
+              );
+              hiddenCompared++;
+            }
           }
         },
       ),
       { numRuns: RUNS, seed: seedFor(BY_ID) },
     );
     expect(returned, "by-id reads that returned an item").toBeGreaterThan(RUNS / 10);
+    expect(hiddenCompared, "unreturned items compared with an unknown id").toBeGreaterThan(
+      RUNS / 4,
+    );
   }, 120_000);
 
   const SCOPES = "a listed scope is a readable member scope or the scope of an item a grant admits";

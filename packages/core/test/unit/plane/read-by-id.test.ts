@@ -12,7 +12,7 @@ import {
   readCounts,
 } from "../../../src/plane/read-reason.ts";
 import { SCOPE_LIST_PREFIX } from "../../../src/plane/scopes.ts";
-import { type Actor, InvalidCallError } from "../../../src/plane.ts";
+import { type Actor, InvalidCallError, type ReadResult } from "../../../src/plane.ts";
 import { READ_DEFAULT_DENY_ID } from "../../../src/policy/evaluate.ts";
 import type { MemoryItem } from "../../../src/schema.ts";
 import { AT, fresh, id, item, testPolicy } from "./helpers.ts";
@@ -25,6 +25,16 @@ const writer: Actor = {
   memberships: ["team:platform", "team:payments", "person:omar", "org"],
 };
 const sara: Actor = { id: "person:sara", level: "team", memberships: ["team:platform"] };
+
+/**
+ * A by-id read's whole answer with the id it asked for, its event's id and
+ * seq made neutral, so two reads compare equal exactly when they reveal the
+ * same thing (review finding E8.14-5).
+ */
+function normalised(r: ReadResult, asked: string) {
+  const { id: _id, seq: _seq, ...event } = r.event;
+  return JSON.parse(JSON.stringify({ ...r, event }).replaceAll(asked, "<id>"));
+}
 
 async function seeded(items: MemoryItem[], policy = testPolicy()) {
   const env = fresh(policy);
@@ -85,6 +95,8 @@ describe("Plane.readById", () => {
       item_ids: [],
     });
     expect(view(unknown)).toEqual(view(hidden));
+    // The whole answer, the event's reason included, but for the id asked (E8.14-5).
+    expect(normalised(hidden, id(1))).toEqual(normalised(unknown, id(77)));
     // The audit record counts it as out of reach; the reader is not told.
     expect(readCounts(hidden.event)).toMatchObject({ candidates: 0, out_of_reach: 1 });
   });
@@ -113,10 +125,52 @@ describe("Plane.readById", () => {
     const result = await plane.readById(sara, id(1), { at: AT });
     expect(result.items.map((i) => i.id)).toEqual([id(1)]);
     expect(result.explanations[0]?.grants_used).toEqual([`grants[0]:${sara.id}`]);
-    // Once the grant has expired, the item is a reachable candidate the filter removes.
-    const after = await plane.readById(sara, id(1), { at: "2027-06-01T00:00:00Z" });
+    // Once the grant has expired, the item answers as an id the log never
+    // held (review finding E8.14-1, the lead's decision): a by-id read drops a
+    // candidate reached only through a grant that does not admit it.
+    const later = "2027-06-01T00:00:00Z";
+    const after = await plane.readById(sara, id(1), { at: later });
     expect(after.items).toEqual([]);
-    expect(after.filtered).toBe(1);
+    expect(after.filtered).toBe(0);
+    const unknown = await plane.readById(sara, id(77), { at: later });
+    expect(normalised(after, id(1))).toEqual(normalised(unknown, id(77)));
+  });
+
+  test("an item reached only through a grant that does not admit it answers as an unknown id (E8.14-1)", async () => {
+    const grant = { to: sara.id, mode: "read" as const, expires: LATER };
+    const { plane } = await seeded([
+      // A grant for another class.
+      item(1, { scope: "team:payments", grants: [{ ...grant, class: "episodic" }] }),
+      // A grant that has expired.
+      item(2, {
+        scope: "team:payments",
+        grants: [{ ...grant, class: "semantic", expires: "2026-10-20T00:00:00Z" }],
+      }),
+      // A live grant on an item that is not active.
+      item(3, {
+        scope: "team:payments",
+        status: "candidate",
+        grants: [{ ...grant, class: "semantic" }],
+      }),
+      // A live grant on an item outside its validity window.
+      item(4, {
+        scope: "team:payments",
+        valid_to: "2026-10-20T00:00:00Z",
+        grants: [{ ...grant, class: "semantic" }],
+      }),
+    ]);
+    const unknown = normalised(await plane.readById(sara, id(77), { at: AT }), id(77));
+    for (const n of [1, 2, 3, 4]) {
+      const answer = await plane.readById(sara, id(n), { at: AT });
+      expect(normalised(answer, id(n)), `item ${n}`).toEqual(unknown);
+      expect(answer.event.reason.replaceAll(id(n), "<id>")).toBe(unknown.event.reason);
+    }
+  });
+
+  test("a readable scope's filtered item is still counted, as Plane.read counts it", async () => {
+    // The reader may read the scope, so its filtered count reveals nothing new.
+    const { plane } = await seeded([item(1, { status: "candidate" })]);
+    expect((await plane.readById(sara, id(1), { at: AT })).filtered).toBe(1);
   });
 
   test("an item outside its validity window is filtered, and valid_at reads what was true then", async () => {

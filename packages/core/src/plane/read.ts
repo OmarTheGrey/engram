@@ -32,7 +32,13 @@
 // never runs; the read filter, the explanation, the read event and its
 // explanation rows are the ones above, and the event's reason names the id
 // asked for (`; read by id <id>`). An id out of the reader's reach answers
-// exactly as an id the log never held (decision D5).
+// exactly as an id the log never held (decision D5). So does an item reached
+// only through a grant the read filter does not admit (a grant for another
+// class, an expired grant, or an item not active, past its ttl or outside its
+// validity window): a by-id read drops it before counting, where a read with
+// text would count it as filtered (review finding E8.14-1, the lead's
+// decision; ADR 0047, proposed). An item in a scope the reader may read is
+// counted as any read counts it, since the reader may read that scope.
 import { type Actor, ExplainDeniedError, InvalidCallError, UnknownReadError } from "../actor.ts";
 import { strictContentHash } from "../content-hash.ts";
 import { appendEvent, currentItems } from "../events.ts";
@@ -152,6 +158,23 @@ export async function readOne(
   return filteredRead(deps, actor, { at: query.at, valid_at: query.valid_at }, itemId);
 }
 
+/**
+ * Whether the item under a by-id read's id is a candidate (E8.14-1): it is in
+ * a scope the reader may read, or the read filter admits it through a grant.
+ */
+function byIdCandidate(
+  policy: PlaneDeps["policy"],
+  actor: Actor,
+  item: MemoryItem,
+  at: string,
+  validAt: string,
+): boolean {
+  return (
+    readableScope(policy, actor, item.scope) ||
+    evaluateRead(policy, actor, item, at, validAt).admitted
+  );
+}
+
 export async function filteredRead(
   deps: PlaneDeps,
   actor: Actor,
@@ -211,7 +234,7 @@ export async function filteredRead(
     const hitRank = new Map(match?.order.map((id, r) => [id, r]));
     const candidates =
       only !== undefined
-        ? live.filter((i) => i.id === only)
+        ? live.filter((i) => i.id === only && byIdCandidate(policy, actor, i, at, validAt))
         : core
           ? live.filter((i) => matchesQuery(i, terms))
           : match

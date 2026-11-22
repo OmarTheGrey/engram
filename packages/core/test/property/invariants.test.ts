@@ -2153,14 +2153,26 @@ async function planeSurfaceLeaksNothing() {
   leaks("read", read);
   // A read of the hidden item by its id (card E8.14): nothing returned, and
   // the same answer as for an id that names nothing.
-  const byId = await plane.readById(outsider, secret.id, { at });
-  leaks("readById", byId);
-  const noId = await plane.readById(outsider, "01960000-0000-7000-8000-00000000000a", { at });
-  expect([byId.items, byId.explanations, byId.filtered]).toEqual([
-    noId.items,
-    noId.explanations,
-    noId.filtered,
-  ]);
+  // A second hidden item carries a grant to the outsider for another class,
+  // which admits nothing (review findings E8.14-1 and E8.14-5): both answer,
+  // reason and all, as an unknown id once the ids and the event's id are neutral.
+  const wrongClass = {
+    ...secret,
+    id: "01960000-0000-7000-8000-000000000003",
+    grants: [{ to: outsider.id, mode: "read", class: "semantic", expires: "2027-01-01T00:00:00Z" }],
+  } as MemoryItem;
+  expect((await plane.write(owner, wrongClass, at)).item).not.toBeNull();
+  const neutral = (r: Awaited<ReturnType<typeof plane.readById>>, asked: string) => {
+    const { id: _id, seq: _seq, ...event } = r.event;
+    return JSON.parse(JSON.stringify({ ...r, event }).replaceAll(asked, "<id>"));
+  };
+  const unknownId = "01960000-0000-7000-8000-00000000000a";
+  const noId = await plane.readById(outsider, unknownId, { at });
+  for (const hidden of [secret, wrongClass]) {
+    const byId = await plane.readById(outsider, hidden.id, { at });
+    leaks("readById", byId);
+    expect(neutral(byId, hidden.id), `readById of ${hidden.id}`).toEqual(neutral(noId, unknownId));
+  }
   const listed = await plane.listScopes(outsider, at);
   leaks("listScopes", listed);
   expect(listed.scopes.map((s) => s.scope)).not.toContain("person:s");
