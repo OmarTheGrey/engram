@@ -1,0 +1,44 @@
+ engram  Export a bundle                                                in process  log engram.db  person:dana (person)
+   Out          [ dana.jsonl                               ]  the bundle file; the TUI never writes it to the screen
+   Encryption   (o) none   ( ) age recipients   ( ) passphrase file
+
+ The bundle holds the items person:dana owns, with their events.
+   ▸ More flags: 7, set: --db --owner
+
+ [ Export ]
+
+ ✓ exit 0  exported
+
+ exported 1 item with 2 events as person:dana under fixture.policy v1 to dana.jsonl
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+$ engram export --out dana.jsonl --db engram.db --owner dana   exit 0
+ ? help  ctrl+s export  tab next  ; commands  esc back
+--- styles
+r0 c0-119 inverse
+r7 c1-10 inverse
+r9 c1-1 fg #00A67A

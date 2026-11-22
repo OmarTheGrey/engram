@@ -1,0 +1,54 @@
+ engram  Doctor                                                         in process  log engram.db  person:dana (person)
+ > ▸ More flags: 11, set: --db --root
+
+ [ Run doctor again ]
+
+ ✗ 1 failed   exit 1
+
+ What to do: Choose a preset or a readable policy file in the workspace (ctrl+o, Policy).
+
+  ✗ fail  policy          --policy nosuch.yaml is neither a preset nor a readable file
+  ✓ ok    log             sqlite engram.db: no log yet; the first read or write creates it
+  · skip  store           no --root given
+  · skip  adapter files   no --root given
+  ✓ ok    adapter mem0    a fixture probe
+  ✓ ok    adapter letta   a fixture probe
+  ✓ ok    provider keys   none of the key variables is set
+  ✓ ok    benchmark pins  fixture pins
+  ✓ ok    pi pin          fixture pins
+  ✓ ok    node            Node 24.0.0
+  · skip  serve           no serve flags given (--host, --keys, --issuer, --insecure-loopback)
+
+ doctor: 1 check failed      exit 1
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+$ engram doctor --db engram.db --root mem   exit 1
+ ? help  r rerun  enter details  v plain  J json  ; commands  esc back
+--- styles
+r0 c0-119 inverse
+r1 c0-119 inverse
+r5 c1-1 bold underline
+r5 c3-10 bold underline
+r9 c2-2 bold underline
+r9 c4-7 bold underline
+r10 c2-2 bold
+r13 c2-2 bold
+r14 c2-2 bold
+r15 c2-2 bold
+r16 c2-2 bold
+r17 c2-2 bold
+r18 c2-2 bold

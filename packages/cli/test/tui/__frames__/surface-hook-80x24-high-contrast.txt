@@ -1,0 +1,29 @@
+ engram  Claude Code hook setup                in process  person:dana (person)
+ > Store roots     /src/lantern/memory  [                           ]  writte...
+   Protected files [                           ]  the log is protected already
+   Block events as [ person:dana               ]  default agent:claude-code
+   ▸ More flags: 5, set: --db
+
+ [ Copy the entry ]  [ Try it on a scratch log ]
+
+ engram is not on your PATH; the snippet uses the full path of this CLI.
+ .claude/settings.json, hooks.PreToolUse:
+   { "matcher": "*", "hooks": [ { "type": "command", "command":
+   "/usr/bin/node", "args": [ "/src/engram/packages/cli/src/main.ts", "hook",
+   "claude-code", "--db", ":memory:", "--as", "person:dana", "--root",
+   "/src/lantern/memory" ] } ] }
+
+ ✓ Read /src/lantern/memory/user_role.md   exit 0, blocked: permissionDecision
+ deny
+ ✓ Read /src/lantern/README.md   exit 0, allowed: the hook printed nothing
+
+
+
+
+$ engram hook claude-code --db :memory: ...erson:dana --root /src/lantern/memory
+ ctrl+g help  tab next  ctrl+s try it  alt+c copy  alt+p commands  esc back
+--- styles
+r0 c0-79 inverse
+r1 c42-42 inverse
+r15 c1-1 bold
+r17 c1-1 bold

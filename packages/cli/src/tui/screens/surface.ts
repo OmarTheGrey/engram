@@ -475,8 +475,12 @@ export abstract class SurfaceScreen implements Screen {
   hints(ctx: Ctx): string {
     // In a text field only keys that type nothing act: tab, and ctrl+s for the first button.
     if (!this.inField()) return this.keyHints(ctx);
+    return `tab next  ctrl+s ${this.submitLabel(ctx)}`;
+  }
+  /** What ctrl+s does, in the hints: the first button's word by default. */
+  protected submitLabel(ctx: Ctx): string {
     const first = this.buttons(ctx)[0];
-    return `tab next  ctrl+s ${first === undefined ? "run" : first.label.split(":")[0]?.toLowerCase()}`;
+    return first === undefined ? "run" : (first.label.split(":")[0] ?? "run").toLowerCase();
   }
 
   spec(): CommandSpec {

@@ -1,0 +1,44 @@
+ engram  Retention sweep                                                in process  log engram.db  person:dana (person)
+   Scope        [ person:dana                              ]  swept as a user-sourced member of it
+   > More flags: 13, set: --root --owner --db
+
+ [ Sweep ]
+
+ + allow   exit 0  the sweep ran
+
+ retain person:dana at 2026-10-25T12:00:00.000Z as person:dana: allow, 0 expired, 0 evicted
+ log engram.db
+
+ Nothing was due. Expired items are retired and items over the scope's budget are evicted, in the order the policy's
+ retention rule names.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+$ engram retain --scope person:dana --db engram.db --owner dana --root mem   exit 0
+ ? help  r sweep again  v plain  J json  ; commands  esc back
+--- styles
+r0 c0-119 inverse
+r4 c1-9 inverse
+r6 c1-1 fg #00A67A

@@ -1,0 +1,32 @@
+ engram  Serve the API and inspector           in process  person:dana (person)
+ > Who may call it? (o) API keys from a key file
+                    ( ) a token issuer: --issuer, --jwks, --subjects
+                    ( ) No authentication: this machine only, anyone on it can
+                        act as anyone (--insecure-loopback)
+   Key file         [ keys.json                ]  no such file yet: k creates...
+   Host             [                          ]  127.0.0.1, ::1 or localhost
+   Port             [                          ]  default 7313
+   Viewer           [                          ]  shown by the inspector
+   ▸ More flags: 10, set: --root --owner --db
+
+ [ Stop ]  [ Create a key ]
+
+ ● running
+ engram serve: listening on http://127.0.0.1:7313 (log sqlite engram.db,
+ fixture.policy v1, store files at mem, viewer none, authenticated, resource
+ http://127.0.0.1:7313)
+
+ Inspector  http://127.0.0.1:7313/   o copies it
+ It stops when you press s or quit the TUI.
+
+
+$ engram serve --db engram.db --owner dana --root mem --keys keys.json
+ ? help  s stop  o copy the inspector's address  k keys  ; commands  esc back
+--- styles
+r0 c0-79 inverse
+r1 c0-79 inverse
+r2 c0-79 inverse
+r3 c0-79 inverse
+r4 c0-79 inverse
+r13 c1-1 fg #56B4E9
+r18 c12-33 underline

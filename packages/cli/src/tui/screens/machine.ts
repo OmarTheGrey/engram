@@ -126,6 +126,8 @@ export class DoctorScreen extends SurfaceScreen {
     return "Doctor";
   }
   protected override top(_ctx: Ctx): Row[] {
+    // Once it has run, the checks take the room.
+    if (this.result !== undefined) return [];
     const said = this.fromServe
       ? "The bind flags are the Serve screen's answers: doctor checks what Serve would start."
       : "Checks the workspace's log, policy and store, the adapters, and the bind Serve would make. It changes nothing.";
@@ -176,16 +178,12 @@ export class DoctorScreen extends SurfaceScreen {
       });
     }
     const summary = clean(result.out).trimEnd().split("\n").at(-1) ?? "";
+    rows.push({ kind: "text", lines: ["", ` ${summary}      exit ${result.code}`] });
+    // What to do about the first failing check, above the list, so it shows at 80x24.
     const failed = sorted.find((c) => c.status === "fail");
     const todo = failed === undefined ? undefined : DOCTOR_HELP[failed.name]?.todo;
-    rows.push({
-      kind: "text",
-      lines: [
-        "",
-        ` ${summary}      exit ${result.code}`,
-        ...(todo === undefined ? [] : ["", ...para(`What to do: ${todo}`, width)]),
-      ],
-    });
+    if (todo !== undefined)
+      rows.unshift({ kind: "text", lines: [...para(`What to do: ${todo}`, width), ""] });
     return rows;
   }
   protected override async jsonOf(ctx: Ctx, result: RunResult) {

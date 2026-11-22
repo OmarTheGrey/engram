@@ -81,15 +81,8 @@ export class ExportScreen extends SurfaceScreen {
   protected override buttons(): Button[] {
     return [{ id: "button:run", label: "Export", press: (c) => this.run(c) }];
   }
-  protected override rich(ctx: Ctx, width: number, result: RunResult): Row[] {
-    const kind: StatusKind = result.code === 0 ? "ok" : "fail";
-    const [first, ...rest] = this.plainLines(result, width - 2);
-    return [
-      {
-        kind: "text",
-        lines: [` ${ctx.theme.symbol(kind)}${first ?? ""}`, ...rest.map((l) => ` ${l}`)],
-      },
-    ];
+  protected override rich(_ctx: Ctx, width: number, result: RunResult): Row[] {
+    return [{ kind: "text", lines: this.plainLines(result, width) }];
   }
   protected override async jsonOf(ctx: Ctx) {
     ctx.say("engram export has no --json: its output is the bundle file");
@@ -197,6 +190,16 @@ export class ImportScreen extends SurfaceScreen {
       return undefined;
     }
     return ctx.runNow(argv);
+  }
+  /** Each row's decision, counted from the calls' answers: an import is many decisions. */
+  protected override status(ctx: Ctx, result: RunResult): string {
+    const t = ctx.theme;
+    const decisions = result.calls
+      .filter((c) => c.path === "/api/v1/items")
+      .map((c) => (c.body as { event?: { decision?: string } } | undefined)?.event?.decision);
+    if (decisions.length === 0) return super.status(ctx, result);
+    const allowed = decisions.filter((d) => d === "allow").length;
+    return ` ${t.status("allow", `${allowed} allowed`)}   ${t.status("deny", `${decisions.length - allowed} denied`)}   exit ${result.code}`;
   }
   protected override rich(ctx: Ctx, width: number, result: RunResult): Row[] {
     const t = ctx.theme;

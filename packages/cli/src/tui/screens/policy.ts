@@ -83,6 +83,17 @@ export class LintScreen extends SurfaceScreen {
   protected override buttons() {
     return [{ id: "button:run", label: "Lint", press: (c: Ctx) => this.run(c) }];
   }
+  /** The findings first: the lint ran (allow) or was refused (deny); a finding is exit 1. */
+  protected override status(ctx: Ctx, result: RunResult): string {
+    const body = result.calls.at(-1)?.body as
+      | { decision?: string; findings?: unknown[] }
+      | undefined;
+    const n = body?.findings?.length;
+    if (body?.decision !== "allow" || n === undefined) return super.status(ctx, result);
+    return n === 0
+      ? ` ${ctx.theme.status("ok", "clean")}   exit ${result.code}  no finding`
+      : ` ${ctx.theme.status("warn", plural(n, "finding"))}   exit ${result.code}  each one a lint event in the log`;
+  }
   protected override rich(ctx: Ctx, width: number, result: RunResult): Row[] {
     const t = ctx.theme;
     const body = result.calls.at(-1)?.body as

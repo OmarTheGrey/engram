@@ -118,6 +118,9 @@ export class HookScreen extends SurfaceScreen {
       { id: "button:try", label: "Try it on a scratch log", press: (c) => this.tryIt(c) },
     ];
   }
+  protected override submitLabel(): string {
+    return "try it";
+  }
   /** ctrl+s: Try it. */
   protected override async submit(ctx: Ctx): Promise<void> {
     await this.tryIt(ctx);
@@ -292,6 +295,9 @@ export class McpScreen extends ProcessScreen {
       },
       { id: "button:try", label: "Try it", press: (c) => this.tryIt(c) },
     ];
+  }
+  protected override submitLabel(): string {
+    return this.transport === "http" ? (this.running === undefined ? "start" : "stop") : "try it";
   }
   protected override async submit(ctx: Ctx): Promise<void> {
     if (this.transport === "http")
