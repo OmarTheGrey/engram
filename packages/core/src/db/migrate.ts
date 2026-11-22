@@ -216,6 +216,45 @@ export const MIGRATIONS: readonly Migration[] = [
     `,
     },
   },
+  {
+    // Card E8.12, ADR 0042 decision 8. Id 5 is card E1.6's (the hash chain),
+    // landing in parallel; the runner applies ids in order and skips any
+    // already applied, so the gap is harmless.
+    id: 6,
+    name: "event attestations: who a served HTTP surface authenticated",
+    // One row per event appended while `engram serve` or `engram mcp --http`
+    // handled a request, written in the transaction that appends the event
+    // (packages/server/src/attest.ts): the surface, how the requester was
+    // authenticated (`jwt`, `api_key`, or `insecure_loopback` for the
+    // waiver), the requester's actor id, and the issuer and subject (an API
+    // key's id). Beside the event, so the event schema does not change
+    // (AGENTS.md rule 5). Not a projection: rebuild() leaves it alone. It
+    // holds identifiers only, never content.
+    up: {
+      sqlite: `
+      CREATE TABLE event_attestations (
+        seq INTEGER PRIMARY KEY REFERENCES events (seq),
+        event_id TEXT NOT NULL UNIQUE,
+        surface TEXT NOT NULL,
+        method TEXT NOT NULL,
+        actor TEXT NOT NULL,
+        issuer TEXT,
+        subject TEXT
+      );
+    `,
+      postgres: `
+      CREATE TABLE event_attestations (
+        seq BIGINT PRIMARY KEY REFERENCES events (seq),
+        event_id TEXT COLLATE "C" NOT NULL UNIQUE,
+        surface TEXT NOT NULL,
+        method TEXT NOT NULL,
+        actor TEXT NOT NULL,
+        issuer TEXT,
+        subject TEXT
+      );
+    `,
+    },
+  },
 ];
 
 /** Applies pending migrations in id order; returns the ids it applied. */

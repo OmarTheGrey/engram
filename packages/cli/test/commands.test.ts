@@ -15,17 +15,19 @@ commands:
   retain            sweep one scope's retention: expired items retired, budgets enforced
   lint              run the policy's deterministic lints over a scope, each finding with its reason
   simulate          replay a recorded workload under the policy and a candidate; compare them
-  serve             serve the HTTP API on a loopback port
+  serve             serve the HTTP API to authenticated callers, or on loopback with --insecure-loopback
   mcp               the MCP server for Claude Code and Codex, as one fixed actor
   hook claude-code  a Claude Code PreToolUse hook that blocks store bypasses
+  key               create, list or revoke the local API keys a server accepts
   doctor            check the log, policy, store, adapters, provider keys, pins and Node
   log verify        verify the event log's hash chain: the first broken link, or OK or UNSIGNED
   log checkpoint    record a checkpoint of the chain's head, signed with --key when given
 
-every command but doctor, serve, mcp, hook and log is one call to the HTTP API: in process
+every command but doctor, serve, mcp, hook, key and log is one call to the HTTP API: in process
 over the workspace its flags name, or to a running server:
   --server <url>              call engram serve at <url> (default $ENGRAM_SERVER_URL);
-                              the server's own flags then name the log, policy and store
+                              the server's own flags then name the log, policy and store;
+                              $ENGRAM_TOKEN, when set, is sent as the bearer credential
 
 store options (read, write, promote, retain, lint, serve, mcp):
   --store <name>              the store adapter: files or letta (default files)
@@ -79,8 +81,16 @@ simulate options:
   never read or written, and no model is called
 
 serve options:
-  --host <address>            127.0.0.1 (default), ::1 or localhost; any other host is refused,
-                              since the server has no authentication yet
+  --keys <file>               accept the API keys in this key file (engram key)
+  --issuer <url>              accept JWT access tokens of this issuer, with:
+  --jwks <url|file>             the issuer's keys
+  --subjects <file>             the actor each subject of the issuer acts as
+  --audience <aud>              the audience a token must carry (default the resource URL)
+  --resource <url>            the server's public URL (default http://<host>:<port>)
+  --insecure-loopback         no authentication: loopback only, actors self-asserted;
+                              without it or a credential flag the server refuses to start
+  --host <address>            127.0.0.1 (default), ::1 or localhost; another host only with
+                              credentials and an https --resource (a TLS proxy in front)
   --port <n>                  the port (default 7313)
   --as <principal>  --member <scope>  the viewer the inspector shows (default none)
   the workspace flags above; runs until stopped
@@ -89,7 +99,9 @@ mcp options:
   --as <principal>            the one actor every tool call is made as, with source model
   --member <scope>            a scope that actor belongs to; repeatable
   --level <level>             the level it reads as (default its own)
-  --http <port>               serve streamable HTTP on 127.0.0.1:<port> instead of stdio
+  --http <port>               serve streamable HTTP on 127.0.0.1:<port> instead of stdio;
+                              it takes serve's credential flags, and then each session is
+                              the actor its credential names (no --as), or --insecure-loopback
   --server <url> or the workspace flags above, as for the other commands
 
 hook claude-code options:
@@ -115,11 +127,19 @@ log checkpoint options:
   --out <file>                also write the checkpoint there, to keep outside the log
   the key is the operator's to hold: a signature proves its holder saw that head
 
+key options:
+  create --keys <file> --as <principal> --source <kind> --expires <iso>  [--level] [--member]...
+                              a key for that actor, printed once; the file holds its hash
+  list --keys <file>          every key, masked, with its actor, expiry and status
+  revoke <id> --keys <file>   a key never accepted again
+
 doctor options:
   --db <path|url>             the event log to check (default as above); doctor never creates one
   --policy <preset|path>      the policy to load and validate
   --root <folder>             a store folder: readable, and its memories adopted through the plane
                               on an in-memory log (counts only)
+  --host and serve's credential flags: the bind engram serve would make; fails without
+                              authentication, and beyond loopback without credentials
 
 output:
   --json                      machine-readable output

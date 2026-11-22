@@ -52,7 +52,11 @@ describe.skipIf(skip !== undefined)("the inspector on the fixture workspace", ()
       throw new Error(`the inspector is not built in ${UI_DIST}; run make ui (make test-e2e does)`);
     expect(existsSync(join(UI_DIST, "index.html"))).toBe(true);
     fixture = await inspectorWorkspace();
-    server = await listen(fixture.workspace, { port: 0, now: () => fixture.workload.now });
+    server = await listen(fixture.workspace, {
+      port: 0,
+      now: () => fixture.workload.now,
+      auth: { insecureLoopback: true },
+    });
     page = await browser.newPage();
     page.on("request", (r) => {
       if (!r.url().startsWith(`${server.url}/`)) outside.push(r.url());
