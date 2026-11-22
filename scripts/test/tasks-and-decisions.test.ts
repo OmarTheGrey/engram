@@ -12,11 +12,13 @@
 // egress), awaits the owner too (docs/tasks/lead-decisions.md, item 61).
 // ADR 0044, proposed by card E8.15 on 2026-11-21 (the CLI's terminal
 // interface), awaits the owner too (docs/tasks/lead-decisions.md, item 62).
+// ADR 0045, proposed by card D2 on 2026-11-22 (the AWM prompt adapted to tool
+// use), awaits the owner too (docs/tasks/lead-decisions.md, item 64).
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { describe, expect, test } from "vitest";
 import { parseFrontmatter } from "../lib/frontmatter.ts";
 
-const OWNER_DECIDES = new Set<string>(["0034", "0042", "0043", "0044"]);
+const OWNER_DECIDES = new Set<string>(["0034", "0042", "0043", "0044", "0045"]);
 const ADDED_BY_ADR_0001 = ["PX1", "PX2", "PX3", "RN1", "RN2"];
 
 const roadmap = readFileSync("docs/roadmap.md", "utf8");

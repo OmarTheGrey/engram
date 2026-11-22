@@ -1,0 +1,25 @@
+{
+  "_comment": "Written by skill.test.ts under ENGRAM_UPDATE_FIXTURES=1: toSkillMd of its sample items. Validated by skill-spec-golden.py.",
+  "cases": [
+    {
+      "id": "emitted-awm",
+      "dir": "inspect-a-source-file-before-changing-it",
+      "text": "---\nname: inspect-a-source-file-before-changing-it\ndescription: \"Inspect a source file before changing it. Use when a task names a source file whose contents decide the change.\"\nallowed-tools: \"read edit\"\nmetadata:\n  engram-item: \"01960000-0000-7000-8000-0000000000a1\"\n---\n\n# Inspect a source file before changing it\n\nInspect a source file before changing it. Use when a task names a source file whose contents decide the change.\n\n## Steps\n\n1. Read the file the task names.\n\n   ```\n   read({\"path\":\"{source-file}\"})\n   ```\n"
+    },
+    {
+      "id": "emitted-no-tools",
+      "dir": "ask-before-deleting",
+      "text": "---\nname: ask-before-deleting\ndescription: \"Ask the user before deleting anything.\"\nmetadata:\n  engram-item: \"01960000-0000-7000-8000-0000000000a2\"\n---\n\n# Ask before deleting\n\nAsk the user before deleting anything.\n"
+    },
+    {
+      "id": "emitted-unicode-quotes",
+      "dir": "creer-un-fichier-propre",
+      "text": "---\nname: creer-un-fichier-propre\ndescription: \"Write \\\"clean\\\" files -- no tabs, no separators, one\\u007fDEL. Use when asked.\"\nallowed-tools: \"Bash(git:*) Read\"\nmetadata:\n  engram-item: \"01960000-0000-7000-8000-0000000000a3\"\n---\n\n# Créer un fichier « propre »\n\nWrite \"clean\" files --- no tabs,\n\tno separators, oneDEL. Use when\nasked.\n\n## Steps\n"
+    },
+    {
+      "id": "emitted-long",
+      "dir": "very-long-workflow-title-very-long-workflow-title-very-long-work",
+      "text": "---\nname: very-long-workflow-title-very-long-workflow-title-very-long-work\ndescription: \"word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word\"\nallowed-tools: \"bash\"\nmetadata:\n  engram-item: \"01960000-0000-7000-8000-0000000000a4\"\n---\n\n# Very long workflow title Very long workflow title Very long workflow title Very long workflow title \n\nword word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word \n"
+    }
+  ]
+}

@@ -318,6 +318,11 @@ Open, for the lead. Each was drafted by a card's agent while implementing it; th
 | 5. mouse | on by default, `--no-mouse` to turn it off; the help overlay says Shift+drag selects text | clicks and the wheel help most people; the waiver keeps terminal selection and accessibility tools for those who need them |
 | 6. commands on quit | a short list of the session's commands on every quit; `--quiet` turns it off | it teaches the CLI, which is the point of the TUI |
 
+64. **ADR 0045, the AWM induction prompt adapted to tool use (card D2).** ADR 0012 says the prompt is vendored verbatim; card D2 asks for it adapted from web tasks to tool-use sessions (review finding D2-1). The lead answered on 2026-11-22: adapt, and record it in a new ADR ("Adapt, new ADR"). What is left is accepting the ADR's text, which lists every change.
+    - (a) Accept ADR 0045: the adapted prompt pinned in `packages/core/src/distill/induce.ts`, the eighteen changes it lists, and ADR 0012's verbatim clause superseded.
+    - (b) Accept it with changes to the list.
+    - (c) Reject it and vendor the WebArena prompt verbatim, as ADR 0012 says.
+
 ## Decided on 2026-11-21, under the lead's delegation
 
 On 2026-11-21 the lead delegated items 49 to 56 as well: close them with the best answer the project's record supports. Every item takes option (a). These answers are binding until the lead overturns one. ADRs [0038](../decisions/0038-tamper-evident-log-that-keeps-erasure.md), [0039](../decisions/0039-content-guards-at-the-write-gate.md), [0040](../decisions/0040-trust-floors.md) and [0041](../decisions/0041-cedar-export-for-analysis.md) are accepted with them.

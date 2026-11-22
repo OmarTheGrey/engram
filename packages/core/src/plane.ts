@@ -351,12 +351,19 @@ export interface Plane {
   events(): MemoryEvent[];
 }
 
-/** A Plane method not implemented yet; `card` is the card that implements it. */
+/**
+ * A Plane method not implemented yet; `card` is the card that implements it,
+ * or `backlog` when no card does yet and docs/tasks/backlog.md holds the work.
+ */
 export class NotImplementedYet extends Error {
   readonly method: string;
   readonly card: string;
   constructor(method: string, card: string) {
-    super(`Plane.${method} is not implemented yet; card ${card} implements it`);
+    super(
+      card === "backlog"
+        ? `Plane.${method} is not implemented yet; no card implements it yet (docs/tasks/backlog.md)`
+        : `Plane.${method} is not implemented yet; card ${card} implements it`,
+    );
     this.name = "NotImplementedYet";
     this.method = method;
     this.card = card;
@@ -404,7 +411,10 @@ export function createPlane(deps: PlaneDeps): Plane {
       changeGrants(deps, actor, itemId, change, at),
     simulate: (workload, policy) => simulate(deps, workload, policy),
     distill: async () => {
-      throw new NotImplementedYet("distill", "D2");
+      // Card D2 built the induction as a Distiller (distill/induce.ts); this
+      // method has no actor, time or model to run it with, so wiring it is
+      // backlog work ("Plane.distill and the /distill route").
+      throw new NotImplementedYet("distill", "backlog");
     },
     whoCanReadItem: (actor, itemId, at) => whoCanReadItem(deps, actor, itemId, at),
     whoCanRead: (actor, scope, at) => whoCanRead(deps, actor, scope, at),
