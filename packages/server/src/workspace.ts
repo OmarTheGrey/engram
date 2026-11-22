@@ -11,6 +11,15 @@
 // request when it wants the log's errors printed as they are (the CLI). A
 // route whose Plane method has not landed (distill) never opens it, nor
 // does simulate, which replays on scratch logs of its own (card E8.9).
+//
+// Every log `open()` opens keeps the hash chain (card E1.6, ADR 0038; the
+// lead widened the card to this package in its review fix pass, E1.6-1):
+// the CLI, serve, mcp, the hook and the pi package all open the log here, so
+// every surface's events chain and a log they share verifies. Salts come from
+// node:crypto, since core draws no randomness. `workspaceOf`, the bench
+// seams' way in over a log they opened themselves, keeps no chain, so the
+// registered runs and X15's query counts do not change.
+import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -20,6 +29,7 @@ import {
   type Adapter,
   createPlane,
   type Db,
+  keepChain,
   loadPreset,
   MIGRATIONS,
   migrate,
@@ -32,6 +42,7 @@ import {
   type PresetName,
   parsePolicy,
 } from "@engram/core";
+import { attestingDb } from "./attest.ts";
 
 /** Bad input: printed with the command name, exit code 2. */
 export class UsageError extends Error {}
@@ -287,6 +298,16 @@ export function openDb(target: DbTarget): Db {
   } catch (e) {
     throw new Error(`${target.label}: ${redactSecrets((e as Error).message, target.url)}`);
   }
+}
+
+/**
+ * Makes `db` a handle that keeps the event log's hash chain (card E1.6, ADR
+ * 0038), with salts from node:crypto, beginning the chain on a log that has
+ * none. `openWorkspace().open()` does it for every surface; a caller that
+ * opens a log by `openLog` and writes to it does it too (`engram log checkpoint`).
+ */
+export function keepLogChain(db: Db): void {
+  keepChain(db, { salt: () => randomBytes(32) });
 }
 
 /** Whether an open database holds an event log: the migrations table exists. */
@@ -597,6 +618,11 @@ export function workspaceOf(
   deps: PlaneDeps,
   extra: { store?: Store | null; viewer?: Actor | null } = {},
 ): Workspace {
+  // The log handle is used as given: a caller that serves this workspace and
+  // wants its events attested passes `attestingDb(db)` (attest.ts, card
+  // E8.12), as openWorkspace does. A library caller's handle is never
+  // replaced, so its write queue (keyed by handle) is the one it shares with
+  // its own Planes over the same log.
   return {
     deps,
     plane: createPlane(deps),
@@ -646,8 +672,15 @@ export function openWorkspace(options: WorkspaceOptions): LocalWorkspace {
     options.requireStore === true || options.store !== undefined || options.root !== undefined;
   const store = wantsStore ? openStore(options, (p) => resolve(options.cwd, p)) : null;
   let log: Log | undefined;
+  // Every user of the workspace gets the one attesting handle (attest.ts,
+  // card E8.12), so the write queue, keyed by handle, stays one queue.
   const open = (mustExist = false) => {
-    log ??= openLog(target, mustExist);
+    if (log === undefined) {
+      const opened = openLog(target, mustExist);
+      log = { ...opened, db: attestingDb(opened.db) };
+      // The handle the plane uses keeps the chain (E1.6-1).
+      keepLogChain(log.db);
+    }
     return log;
   };
   const deps: PlaneDeps = {

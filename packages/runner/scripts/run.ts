@@ -70,6 +70,13 @@ import {
   UnpinnedData,
 } from "../src/count.ts";
 import type { ProbeResult } from "../src/gatemem-probe.ts";
+import {
+  countInduceConfig,
+  isInduceConfig,
+  readInduceConfig,
+  runInduceConfig,
+  writeInduceResult,
+} from "../src/induce.ts";
 import { JournalMismatch, type Stopped } from "../src/journal.ts";
 import {
   countFaultSetConfig,
@@ -112,6 +119,13 @@ import {
   runMemInvConfig,
 } from "../src/mem-inv-probe.ts";
 import { SESSION_RETRY } from "../src/model/retry.ts";
+import {
+  countReplayConfig,
+  isReplayConfig,
+  readReplayConfig,
+  runReplayConfig,
+  writeReplayResult,
+} from "../src/replay-validate.ts";
 import { EVENTS_FILE, type RunnerOptions, runConfig } from "../src/run.ts";
 import {
   openRunJournal,
@@ -489,6 +503,56 @@ async function runFaultSet(path: string, out: string, flags: Flags): Promise<Out
   return { code: 0, sessions: result.rows.length, calls: result.calls };
 }
 
+/**
+ * An induction config (card D2): candidate procedures induced from recorded
+ * pi sessions, by Agent Workflow Memory's induction through the config's
+ * cassettes and by its rule-based control, each written through the plane.
+ * It replays its committed cassettes (or records them from its script with
+ * --record), or is counted; it has no live run until card X11.
+ */
+async function runInduce(path: string, out: string, flags: Flags): Promise<Outcome> {
+  if (flags.live || flags.replay || flags.shard || flags.merge !== undefined || flags.resume) {
+    console.error(
+      "run.ts: an induction config replays its cassettes, records them (make fixtures) or is counted; a live induction is card X11, and it is not sharded or resumed",
+    );
+    return FAILED;
+  }
+  const config = readInduceConfig(path);
+  if (flags.count) {
+    const count = countInduceConfig(config, REPO);
+    mkdirSync(out, { recursive: true });
+    writeFileSync(join(out, "count.json"), `${JSON.stringify(count, null, 2)}\n`);
+    console.log(
+      [
+        `${count.config}: benchmark ${count.benchmark}, model ${count.model}, methods ${count.methods.join(", ")}`,
+        `data ${count.data}: ${count.sessions} sessions, ${count.examples} examples`,
+        `calls: ${count.calls} (one AWM induction per seed: ${count.seeds.join(", ")}), ${count.prompt_chars} prompt characters each`,
+        "no model was called; no cassette was read or written",
+        `written to ${join(out, "count.json")}`,
+      ].join("\n"),
+    );
+    return { code: 0, sessions: count.sessions, calls: { new: 0, cached: 0 } };
+  }
+  const result = await runInduceConfig(config, { offline: !flags.record });
+  writeInduceResult(result, out);
+  const lines = [
+    `${config.name}: ${config.items === "all" ? "all" : config.items.length} sessions x methods ${config.methods.join(", ")} x seeds ${config.seeds.join(", ")}, model ${config.model}, preset ${config.preset}`,
+    `model calls: ${result.calls.new} new, ${result.calls.cached} from cassettes`,
+    ...result.rows.flatMap((r) => [
+      `  ${r.method} seed ${r.seed}: ${r.examples.length} examples, ${r.skipped.length} skipped${r.dedup === undefined ? "" : `, ${r.dedup.templates} after the template deduplication, ${r.dedup.trajectories} after the trajectory deduplication`}`,
+      ...r.candidates.map((c) =>
+        c.status === "candidate"
+          ? `    candidate ${c.skill_name} (tools ${(c.tools ?? []).join(" ")}): write ${c.write?.decision} ${c.write?.policy_id}`
+          : `    rejected ${JSON.stringify(c.title)}: ${c.reason}`,
+      ),
+    ]),
+    runFooter("pipeline", false, "no scorer; the candidates are card D3's input"),
+    `written to ${out}`,
+  ];
+  console.log(lines.join("\n"));
+  return { code: 0, sessions: result.rows.length, calls: result.calls };
+}
+
 /** COUNT=1: the config's sessions (a shard's, with SHARD=) into count.json in `out`; no model, no cassette. */
 async function countOne(config: AnyRunnerConfig, out: string, shard?: Shard): Promise<Outcome> {
   const counted = await countConfig(config, {
@@ -505,8 +569,63 @@ async function countOne(config: AnyRunnerConfig, out: string, shard?: Shard): Pr
   return { code: 0, sessions: count.sessions, calls: { new: 0, cached: 0 } };
 }
 
+/**
+ * A replay validation config (card D3): each candidate replayed on its
+ * held-out tasks without and with it installed, then promoted through the
+ * plane. Pipeline only (a scripted model, its committed cassettes); a live
+ * replay is H5's (card X11). Exits 1 when a candidate's status is not the
+ * fixture's label.
+ */
+async function runReplay(path: string, out: string, flags: Flags): Promise<Outcome> {
+  const config = readReplayConfig(path);
+  if (flags.live || flags.replay || flags.resume || flags.shard || flags.merge !== undefined) {
+    console.error(
+      `run.ts: ${config.name} is a replay validation pipeline config: it replays its cassettes, records them (make fixtures) or is counted (COUNT=1); LIVE=, REPLAY=, RESUME=, SHARD= and MERGE= do not apply`,
+    );
+    return FAILED;
+  }
+  if (flags.count) {
+    const count = await countReplayConfig(config, REPO);
+    mkdirSync(out, { recursive: true });
+    writeFileSync(join(out, "count.json"), `${JSON.stringify(count, null, 2)}\n`);
+    console.log(
+      [
+        `${count.config}: model ${count.model}, data ${count.data}, seeds ${count.seeds.join(", ")}`,
+        `sessions: ${count.sessions} = ${count.baseline_sessions} without a candidate + ${count.candidate_sessions} with one`,
+        ...count.candidates.map(
+          (c) =>
+            `  ${c.name}: induced from ${c.induced_from.length} tasks, replayed on ${c.held_out.length} held-out tasks, ${c.sessions} sessions`,
+        ),
+        "no replay model was called and no replay cassette read; the candidates are D2's, its induction replayed from its committed cassette",
+        `written to ${join(out, "count.json")}`,
+      ].join("\n"),
+    );
+    return { code: 0, sessions: count.sessions, calls: { new: 0, cached: 0 } };
+  }
+  const result = await runReplayConfig(config, { offline: !flags.record });
+  writeReplayResult(result, out);
+  const lines = [
+    `${config.name}: ${result.rows.length} sessions, model ${config.model}, preset ${config.preset}, threshold 2/3 (registered), draw seed ${config.draw_seed}`,
+    `model calls: ${result.calls.new} new, ${result.calls.cached} from cassettes (D2's induction: ${result.induce_calls.new} new, ${result.induce_calls.cached} from its cassette)`,
+    ...result.candidates.map(
+      (c) =>
+        `  ${c.name}: ${c.record.k} of ${c.record.n} held-out tasks pass with it (${c.record.baseline} of ${c.record.n} without it); promote ${c.event.decision} (${c.event.policy_id}): ${c.status}`,
+    ),
+    ...result.mismatches.map((m) => `MISMATCH: ${m}`),
+    `written to ${out}`,
+  ];
+  console.log(lines.join("\n"));
+  return {
+    code: result.mismatches.length > 0 ? 1 : 0,
+    sessions: result.rows.length,
+    calls: result.calls,
+  };
+}
+
 /** Run, replay, record or count one config into `out`. */
 async function runOne(path: string, out: string, flags: Flags): Promise<Outcome> {
+  if (isInduceConfig(path)) return runInduce(path, out, flags);
+  if (isReplayConfig(path)) return runReplay(path, out, flags);
   if (isLongMemEvalConfig(path)) return runLongMemEval(path, out, flags);
   if (
     (flags.shard || flags.merge !== undefined) &&

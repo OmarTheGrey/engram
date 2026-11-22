@@ -159,7 +159,11 @@ describe.skipIf(skip !== undefined)("an item's page on the provenance fixture", 
     if (builtUi() === null)
       throw new Error(`the inspector is not built in ${UI_DIST}; run make ui (make test-e2e does)`);
     fixture = await provenanceWorkspace();
-    server = await listen(fixture.workspace, { port: 0, now: () => fixture.workload.now });
+    server = await listen(fixture.workspace, {
+      port: 0,
+      now: () => fixture.workload.now,
+      auth: { insecureLoopback: true },
+    });
     page = await browser.newPage();
     seen = watch(page, server);
     await page.goto(`${server.url}/`);
@@ -431,7 +435,11 @@ describe.skipIf(skip !== undefined)("the event table on a long log", () => {
     if (builtUi() === null)
       throw new Error(`the inspector is not built in ${UI_DIST}; run make ui (make test-e2e does)`);
     fixture = await longLogWorkspace(LONG_LOG);
-    server = await listen(fixture.workspace, { port: 0, now: () => fixture.now });
+    server = await listen(fixture.workspace, {
+      port: 0,
+      now: () => fixture.now,
+      auth: { insecureLoopback: true },
+    });
     page = await browser.newPage();
     seen = watch(page, server);
     await page.goto(`${server.url}/`);

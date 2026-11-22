@@ -292,6 +292,51 @@ Prices come from `research/results/h2-cost-table.json` (card RV8, OpenRouter's l
 
 The answers card that carries these into the pre-registration, the ADRs and the roadmap follows as its own PR, as on 2026-11-19.
 
+## F. Proposed by the absorb cards, 2026-11-21
+
+Open, for the lead. Each was drafted by a card's agent while implementing it; the card ships the recommendation behind it, and accepting or changing it is a `decision` log entry plus a status change in the ADR.
+
+60. **ADR 0042, verified actors (card E8.12).** Item 54 chose tokens from an external issuer and hashed local API keys; the ADR fixes how a credential becomes an actor.
+    - (a) Accept ADR 0042: the operator's subjects file maps a token's exact issuer and subject (and the key file maps a key) to one actor with its level, memberships and source; no claim sets any of them, a request may only narrow its memberships, and a source sent on an authenticated call is ignored; a served surface needs a credential flag or `--insecure-loopback`; each event a served surface appends gets a row in a side table naming the authenticated requester or the waiver.
+    - (b) Accept it, but derive an actor from a subject the subjects file does not name (`person:<sub>`, a member of its own scope only), so a new person needs no file edit.
+    - (c) Keep self-asserted actors on loopback, with the ADR as the design for after the thesis.
+61. **ADR 0043, decision export and egress (card E8.13).** Decisions can be sent as OpenTelemetry spans to a collector, which takes them off the machine (rule 12).
+    - (a) Accept ADR 0043: off unless the operator names a sink (`--otlp` or `--export-jsonl`, or their `ENGRAM_` variables; `OTEL_*` never turns it on); a span carries the decision, its rule, the actor, the scopes and ids, never content, a content hash, a store path or a reason clause outside the content-free templates; no content mode exists.
+    - (b) Accept it, and add an opt-in content mode as the GenAI conventions allow, off by default.
+    - (c) Keep the JSONL sink only, so nothing leaves the machine, and drop OTLP until after the thesis.
+
+62. **ADR 0044, the CLI's terminal interface (card E8.15).** Card E8.15 is the lead's own request of 2026-11-21 for a TUI, not one of the absorb plan's thirty pull requests; it is listed here with the absorb cards' proposals because it was drafted with them. The design is `docs/design/tui.md`.
+    - Open for the lead: accept ADR 0044 (pi-tui at the pi pin, only under `packages/cli/src/tui/`), or (b) Ink 8.0.0 with React 19.3.1, or (c) no TUI until after the thesis. Until then the design proceeds on (a), as decided below.
+    - Decided on 2026-11-22 under the lead's delegation, six calls the design raised; binding until the lead overturns one:
+
+| call | answer | reason |
+|---|---|---|
+| 1. library | pi-tui 1.3.0 at the pi pin, imported only under `packages/cli/src/tui/`, AGENTS.md's "What not to do" line amended; ADR 0044 stays proposed | no new package in the lockfile, the pi family's own library, an injectable terminal for headless tests, Windows input handled; the spike passed under ConPTY and Git Bash |
+| 2. entry | bare `engram` keeps its help on stderr and exit 2; the TUI opens only with `engram tui`; HELP's first line names `engram tui` | one word doing two things by TTY detection misleads in tmux, SSH and mintty; the first line makes the TUI findable |
+| 3. new commands | `check`, `events`, `policy`, `grants` in E8.15a; `scopes` and `read --item <id>` in E8.15a once E8.14 merges | every TUI screen needs a plain command to teach; without them the timeline, grants, policy view and write preview are lost |
+| 4. shared view logic | not an `@engram/ui/view` export: `view.ts` and `provenance.ts` move into a new React-free package, `@engram/view`, which the inspector and the TUI import | the CLI never depends on React, xyflow, dagre or tanstack, and the leak rule exists once |
+| 5. mouse | on by default, `--no-mouse` to turn it off; the help overlay says Shift+drag selects text | clicks and the wheel help most people; the waiver keeps terminal selection and accessibility tools for those who need them |
+| 6. commands on quit | a short list of the session's commands on every quit; `--quiet` turns it off | it teaches the CLI, which is the point of the TUI |
+
+63. **ADR 0046, the replay validation record's source (card D3).** ADR 0026 left open where a procedural candidate's validation record comes from; ADR 0046 fills it. The lead answered two of its questions on 2026-11-22 (review findings D3-1 and D3-2), and ADR 0046 now carries both:
+    - D3-1, the pass rule: "5 tasks, no worse". "4 of 5 runs" means n = 5 held-out tasks, drawn by the config's seed from the split. A task passes when the candidate's mean reward over the 3 seeds reaches the threshold and is not below the mean reward without it on that task. Admit at 4 of 5. The plane computes all of it from the outcomes, and refuses a replay of any other number of held-out tasks.
+    - D3-2, the threshold: "Fixed at 2/3". A task's mean reward must be at least 2/3, which for 0 or 1 rewards is success on at least 2 of 3 seeds. The value is fixed in core as the registered one, and the plane refuses a replay naming any other.
+    - D3-13, the seeds (the lead's reading of "3 seeds", 2026-11-22): the seed set is exactly 1, 2 and 3, fixed in core (`REPLAY_SEEDS`). A replay on any other set (one seed, or seeds the caller picked) is refused as an invalid call before the log is touched, like the threshold.
+
+    What is left is accepting the ADR's text:
+    - (a) Accept ADR 0046 as written. A user-sourced actor presents the held-out outcomes, and the plane counts k of n itself. The replay is bound to the item's id, content hash and distill ref, through an injected session index. A mismatch is a deny event, the replay's sha256 is in every reason, and no surface exposes `replay` before verified actors (ADR 0042).
+    - (b) Accept it, and record each replay in the log in a schema card, so the oracle and the dogfood report can judge a replay admission from the log alone.
+    - (c) Keep procedural candidates unpromotable through the plane until a replay can be measured, not presented: admission waits for H5's runner (card X11) to call the plane itself.
+64. **ADR 0045, the AWM induction prompt adapted to tool use (card D2).** ADR 0012 says the prompt is vendored verbatim; card D2 asks for it adapted from web tasks to tool-use sessions (review finding D2-1). The lead answered on 2026-11-22: adapt, and record it in a new ADR ("Adapt, new ADR"). What is left is accepting the ADR's text, which lists every change.
+    - (a) Accept ADR 0045: the adapted prompt pinned in `packages/core/src/distill/induce.ts`, the eighteen changes it lists, and ADR 0012's verbatim clause superseded.
+    - (b) Accept it with changes to the list.
+    - (c) Reject it and vendor the WebArena prompt verbatim, as ADR 0012 says.
+
+65. **ADR 0047, the by-id read and the scope list (card E8.14).** What a read of one id and a list of visible scopes may reveal, and how a framework adapter writes.
+    - (a) Accept ADR 0047: a by-id read drops a candidate reached only through a grant that does not admit it, so such an id, one out of reach and one never held answer alike; a scope list holds the readable member scopes and the scopes of items a live grant admits; both are read events, a by-id read marked by a reason clause; `POST /read/{itemId}` and `POST /scopes` join the route table; the kit forces source `model`.
+    - (b) Accept it, but answer a by-id read as a text read does (`filtered: 1` for a grant that does not admit), keeping one rule for every read at the cost of confirming the id exists.
+    - (c) Drop the scope list and keep only the by-id read, so no listing reveals a grant-reached scope.
+
 ## Decided on 2026-11-21, under the lead's delegation
 
 On 2026-11-21 the lead delegated items 49 to 56 as well: close them with the best answer the project's record supports. Every item takes option (a). These answers are binding until the lead overturns one. ADRs [0038](../decisions/0038-tamper-evident-log-that-keeps-erasure.md), [0039](../decisions/0039-content-guards-at-the-write-gate.md), [0040](../decisions/0040-trust-floors.md) and [0041](../decisions/0041-cedar-export-for-analysis.md) are accepted with them.

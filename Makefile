@@ -17,8 +17,8 @@ test: ## layers 1 to 5 and 7 (vitest) and research tests (pytest)
 	$(PNPM) exec vitest run
 	$(UV) run pytest research || [ $$? -eq 5 ]
 
-test-invariants: ## the seven invariants against the real Plane, with counterexample and seed (issue #1), and card E1.4's stateful model of the Plane
-	ENGRAM_INVARIANTS=1 $(PNPM) --filter core exec vitest run test/property/invariants.test.ts test/property/stateful.test.ts
+test-invariants: ## the nine invariants against the real Plane, with counterexample and seed (issue #1), card E1.4's stateful model of the Plane, and the ninth, card E1.6's chain invariant, on SQLite and embedded Postgres
+	ENGRAM_INVARIANTS=1 $(PNPM) --filter core exec vitest run test/property/invariants.test.ts test/property/stateful.test.ts test/property/chain.test.ts
 
 test-scale: ## card RV1: H1's GateMem results at full size (26,616 rows, about 540 million characters) written and read back a line at a time; slow, writes about half a gigabyte to the temp folder
 	ENGRAM_SCALE=1 $(PNPM) --filter runner exec vitest run test/scale.test.ts
@@ -139,6 +139,9 @@ RUNNER_FIXTURES += x1-h1-mem-inv
 RUNNER_FIXTURES += b5-longmemeval-plane
 RUNNER_FIXTURES += l3-lint-fixture
 RUNNER_FIXTURES += h3-lint-model-fixture
+RUNNER_FIXTURES += d2-induce-fixture
+# After D2: card D3 replays the candidates D2's cassette induces.
+RUNNER_FIXTURES += d3-validate-fixture
 
 # MEM-INV-Bench at its pinned commit (card B4); the vendoring clones it here when missing.
 MEM_INV_UPSTREAM ?= .engram/upstream/mem-inv-bench

@@ -13,13 +13,21 @@ export {
 } from "./db/postgres.ts";
 export { openSqlite } from "./db/sqlite.ts";
 export * from "./distill/episode.ts";
+export * from "./distill/induce.ts";
 export * from "./distill/scrub.ts";
+export * from "./distill/skill.ts";
+export * from "./distill/validate.ts";
 export * from "./distill.ts";
 export * from "./events.ts";
+export * from "./export/otel.ts";
 export * from "./items.ts";
 export * from "./lint/det.ts";
 export * from "./lint/model.ts";
 export * from "./lint.ts";
+export * from "./log/chain.ts";
+export * from "./log/merkle.ts";
+export * from "./log/redact.ts";
+export * from "./log/verify.ts";
 export * from "./model.ts";
 export * from "./no-bypass.ts";
 export {

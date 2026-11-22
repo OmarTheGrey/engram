@@ -1,0 +1,39 @@
+{
+  "key": "6a838df329db1cebeb8f9b8ff7c42e1789d988937ab67fcca6eccafc2aa1fef6",
+  "context": {
+    "item": "synthetic/remove-dead-code-15",
+    "condition": "replay/with/edit-a-file-and-check-the-edit",
+    "preset": "none",
+    "store": "none"
+  },
+  "request": {
+    "model": "scripted/d3-agent",
+    "messages": [
+      {
+        "role": "user",
+        "content": "{\"content\":\"\",\"role\":\"system\",\"sections\":{\"addendum\":\"<addendum>\\n<procedure tools=\\\"edit read\\\">\\nFollow this procedure when it applies to the task.\\n---\\nname: edit-a-file-and-check-the-edit\\ndescription: \\\"Edit a file and check the edit. Use when a task changes one file and the change must be seen to have applied.\\\"\\nallowed-tools: \\\"edit read\\\"\\nmetadata:\\n  engram-item: \\\"01920000-0000-7000-8000-000000000002\\\"\\n---\\n\\n# Edit a file and check the edit\\n\\nEdit a file and check the edit. Use when a task changes one file and the change must be seen to have applied.\\n\\n## Steps\\n\\n1. I make the change in {{source-file}}.\\n\\n   ```\\n   edit({{\\\"path\\\":\\\"{{source-file}}\\\"}})\\n   ```\\n\\n2. I read {{source-file}} again to check that the edit applied, rather than retrying a shell edit.\\n\\n   ```\\n   read({{\\\"path\\\":\\\"{{source-file}}\\\"}})\\n   ```\\n</procedure>\\n</addendum>\",\"cwd\":\"<cwd>\\n{cwd}\\n</cwd>\",\"preamble\":\"You are a coding agent in a small TypeScript repository. Change it only through the tools you are given, then reply in one short message.\"},\"toolsAdded\":[{\"description\":\"Read a file of the repository.\",\"name\":\"read\",\"parameters\":{\"properties\":{\"path\":{\"type\":\"string\"}},\"required\":[\"path\"],\"type\":\"object\"}},{\"description\":\"Replace the first occurrence of `old` with `new` in a file.\",\"name\":\"edit\",\"parameters\":{\"properties\":{\"new\":{\"type\":\"string\"},\"old\":{\"type\":\"string\"},\"path\":{\"type\":\"string\"}},\"required\":[\"path\",\"old\",\"new\"],\"type\":\"object\"}},{\"description\":\"Run a shell command in the repository.\",\"name\":\"bash\",\"parameters\":{\"properties\":{\"command\":{\"type\":\"string\"}},\"required\":[\"command\"],\"type\":\"object\"}}]}"
+      },
+      {
+        "role": "user",
+        "content": "{\"content\":[{\"text\":\"Remove the unused legacyFormat helper.\",\"type\":\"text\"}],\"role\":\"user\"}"
+      },
+      {
+        "role": "assistant",
+        "content": "{\"content\":[{\"arguments\":{\"new\":\"\",\"old\":\"\\nexport function legacyFormat(x: number) {{\\n  return String(x);\\n}}\\n\",\"path\":\"src/format.ts\"},\"id\":\"call_47\",\"name\":\"edit\",\"type\":\"toolCall\"}],\"role\":\"assistant\"}"
+      },
+      {
+        "role": "user",
+        "content": "{\"content\":[{\"text\":\"edited src/format.ts\",\"type\":\"text\"}],\"isError\":false,\"role\":\"toolResult\",\"toolCallId\":\"call_47\",\"toolName\":\"edit\"}"
+      }
+    ],
+    "seed": 3
+  },
+  "response": {
+    "text": "{\"content\":[{\"arguments\":{\"path\":\"src/format.ts\"},\"id\":\"call_48\",\"name\":\"read\",\"type\":\"toolCall\"}],\"stopReason\":\"toolUse\"}",
+    "usage": {
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "cost_usd": 0
+    }
+  }
+}

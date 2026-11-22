@@ -1,0 +1,31 @@
+{
+  "key": "6140ec5a38350f8e6f747282eec61aed52f189320c978f7defcbddb5c1e1e113",
+  "context": {
+    "item": "synthetic/log-level-29",
+    "condition": "replay/with/rename-parserow-to-parserecord-everywhere",
+    "preset": "none",
+    "store": "none"
+  },
+  "request": {
+    "model": "scripted/d3-agent",
+    "messages": [
+      {
+        "role": "user",
+        "content": "{\"content\":\"\",\"role\":\"system\",\"sections\":{\"addendum\":\"<addendum>\\n<procedure tools=\\\"read edit\\\">\\nFollow this procedure when it applies to the task.\\n---\\nname: rename-parserow-to-parserecord-everywhere\\ndescription: \\\"Rename parseRow to parseRecord everywhere. Use when a task asks for the same.\\\"\\nallowed-tools: \\\"read edit\\\"\\nmetadata:\\n  engram-item: \\\"01920000-0000-7000-8000-000000000007\\\"\\n---\\n\\n# Rename parseRow to parseRecord everywhere\\n\\nRename parseRow to parseRecord everywhere. Use when a task asks for the same.\\n\\n## Steps\\n\\n1. Looking at src/load.ts.\\n\\n   ```\\n   read({{\\\"path\\\":\\\"src/load.ts\\\"}})\\n   read({{\\\"path\\\":\\\"src/load.ts\\\"}})\\n   ```\\n\\n2. Looking at src/load.ts.\\n\\n   ```\\n   read({{\\\"path\\\":\\\"src/load.ts\\\"}})\\n   ```\\n\\n3. Looking at src/load.ts.\\n\\n   ```\\n   edit({{\\\"path\\\":\\\"src/load.ts\\\"}})\\n   read({{\\\"path\\\":\\\"src/load.ts\\\"}})\\n   ```\\n</procedure>\\n</addendum>\",\"cwd\":\"<cwd>\\n{cwd}\\n</cwd>\",\"preamble\":\"You are a coding agent in a small TypeScript repository. Change it only through the tools you are given, then reply in one short message.\"},\"toolsAdded\":[{\"description\":\"Read a file of the repository.\",\"name\":\"read\",\"parameters\":{\"properties\":{\"path\":{\"type\":\"string\"}},\"required\":[\"path\"],\"type\":\"object\"}},{\"description\":\"Replace the first occurrence of `old` with `new` in a file.\",\"name\":\"edit\",\"parameters\":{\"properties\":{\"new\":{\"type\":\"string\"},\"old\":{\"type\":\"string\"},\"path\":{\"type\":\"string\"}},\"required\":[\"path\",\"old\",\"new\"],\"type\":\"object\"}},{\"description\":\"Run a shell command in the repository.\",\"name\":\"bash\",\"parameters\":{\"properties\":{\"command\":{\"type\":\"string\"}},\"required\":[\"command\"],\"type\":\"object\"}}]}"
+      },
+      {
+        "role": "user",
+        "content": "{\"content\":[{\"text\":\"Log retries at debug level, not info.\",\"type\":\"text\"}],\"role\":\"user\"}"
+      }
+    ],
+    "seed": 2
+  },
+  "response": {
+    "text": "{\"content\":[{\"arguments\":{\"path\":\"src/load.ts\"},\"id\":\"call_236\",\"name\":\"read\",\"type\":\"toolCall\"}],\"stopReason\":\"toolUse\"}",
+    "usage": {
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "cost_usd": 0
+    }
+  }
+}

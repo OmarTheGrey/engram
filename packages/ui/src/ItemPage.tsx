@@ -6,6 +6,10 @@
 // of the server here. The leak rule is provenance.ts's: an ancestor the
 // viewer may not see leaves no node, no edge and no count. App.tsx loads
 // this module lazily, so xyflow and dagre are fetched only on this page.
+//
+// Who can read this memory (card E2.13) is the one panel that asks the
+// server: the plane's answer for the viewer (WhoCanRead.tsx), shown for any
+// id, so an item the viewer may not see gets the refusal an unknown id gets.
 import { useMemo, useState } from "react";
 import type { MemoryEvent } from "./api/index.ts";
 import type { Inspection } from "./data.ts";
@@ -23,15 +27,19 @@ import {
 } from "./provenance.ts";
 import { TextDiff } from "./TextDiff.tsx";
 import { itemHref, NO_FILTER, type TimelineFilter } from "./view.ts";
+import { type Ask, WhoCanRead } from "./WhoCanRead.tsx";
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
 export default function ItemPage({
   itemId,
   inspection,
+  onAsk,
 }: {
   itemId: string;
   inspection: Inspection;
+  /** Asks the plane who can read an item, as the viewer (card E2.13). */
+  onAsk: Ask;
 }) {
   const { items } = inspection.read;
   const { events } = inspection;
@@ -63,6 +71,7 @@ export default function ItemPage({
       <h2>
         Item <code>{itemId}</code>
       </h2>
+      <WhoCanRead itemId={itemId} onAsk={onAsk} />
       {graph === null || focus === null ? (
         <p className="empty" data-testid="item-unknown">
           Nothing this viewer may see shows this item.

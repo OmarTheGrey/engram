@@ -106,6 +106,79 @@ gitleaks (https://github.com/gitleaks/gitleaks), config/gitleaks.toml
   Licensed under the MIT License.
 
 ------------------------------------------------------------------------
+octopus-blackboard
+
+packages/cli/src/signing.ts (card E1.6) copies parts of octopus-blackboard
+(https://github.com/octoryn/octopus-blackboard, commit
+6ddc0fee0cfa161786e8903372cd5ba05ff1f0bc, src/signing.ts): the Ed25519 key
+pair generator and the signing and verifying helpers over node:crypto.
+octopus-blackboard has no NOTICE file at that commit.
+
+  Copyright 2026 Octoryn
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+
+------------------------------------------------------------------------
+TencentDB Agent Memory
+
+packages/server/src/keys.ts copies parts of TencentDB Agent Memory
+(https://github.com/TencentCloud/TencentDB-Agent-Memory, commit
+083c64b11a6748b49278c15f3f0dc77dfd5a99fa, MemoryCore/src/metadata/utils/user-key.ts
+and MemoryCore/src/metadata/utils/crypto.ts), under the MIT License:
+
+  Copyright (C) 2026 Tencent.  All rights reserved.
+
+  TencentDB Agent Memory is licensed under the MIT.
+
+  Permission is hereby granted, free of charge, to any person obtaining
+  a copy of this software and associated documentation files (the
+  "Software"), to deal in the Software without restriction, including
+  without limitation the rights to use, copy, modify, merge, publish,
+  distribute, sublicense, and/or sell copies of the Software, and to
+  permit persons to whom the Software is furnished to do so, subject to
+  the following conditions:
+
+  The above copyright notice and this permission notice shall be
+  included in all copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+  EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+  MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+  IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+  CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+  TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+Modified here: see the header of keys.ts.
+
+------------------------------------------------------------------------
+Agent Workflow Memory
+
+packages/core/src/distill/induce.ts copies, with adaptations, the induction
+instruction of webarena/prompt/instruction.txt and follows the prompt assembly
+of webarena/induce_prompt.py from Agent Workflow Memory
+(https://github.com/zorazrw/agent-workflow-memory, commit
+8c0ff8cd11d648c8fceb99e4e42f37e3b75381b1), by Zora Zhiruo Wang, Jiayuan Mao,
+Daniel Fried and Graham Neubig:
+
+  Licensed under the Apache License, Version 2.0 (see LICENSE). The project
+  ships no NOTICE file and no copyright line at that commit. Modified here:
+  rewritten from web navigation to tool-use sessions, with sentences added on
+  negative evidence and the output format; see the header of induce.ts and
+  ADR 0045 (docs/decisions/0045-awm-prompt-adapted-to-tool-use.md), which
+  lists every change.
+
+------------------------------------------------------------------------
 Claude-Mem
 
 packages/core/test/unit/lint/near-duplicate.test.ts copies the golden vectors

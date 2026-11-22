@@ -148,6 +148,113 @@ export const MIGRATIONS: readonly Migration[] = [
     `,
     },
   },
+  {
+    id: 5,
+    name: "the event log's hash chain",
+    // Card E1.6, ADR 0038 (log/chain.ts). Side tables only: no event body,
+    // item or explanation changes, and the chain begins later, when a handle
+    // first keeps it (keepChain), at the next seq. `chain`: one entry per
+    // position, the genesis at 0, then events (seq set, data their
+    // commitments) and offboarding manifests (data the record), each with
+    // its chain hash. `chain_salts`: one salt per event with committed parts,
+    // deleted by an erasure. `chain_head`: the one anchor row (head hash,
+    // entry count, last chained seq). `chain_checkpoints`: checkpoints of the
+    // head, signed or not. Independent of every other migration's tables, so
+    // it applies before or after a later one (card E8.12's 6).
+    up: {
+      sqlite: `
+      CREATE TABLE chain (
+        pos INTEGER PRIMARY KEY,
+        kind TEXT NOT NULL,
+        seq INTEGER UNIQUE,
+        data TEXT NOT NULL,
+        hash TEXT NOT NULL
+      );
+      CREATE TABLE chain_salts (seq INTEGER PRIMARY KEY, salt TEXT NOT NULL);
+      CREATE TABLE chain_head (
+        id INTEGER PRIMARY KEY CHECK (id = 0),
+        size INTEGER NOT NULL,
+        hash TEXT NOT NULL,
+        seq INTEGER NOT NULL
+      );
+      CREATE TABLE chain_checkpoints (
+        n INTEGER PRIMARY KEY,
+        size INTEGER NOT NULL,
+        root TEXT NOT NULL,
+        head TEXT NOT NULL,
+        at TEXT NOT NULL,
+        note TEXT NOT NULL,
+        key TEXT,
+        signature TEXT
+      );
+    `,
+      postgres: `
+      CREATE TABLE chain (
+        pos BIGINT PRIMARY KEY,
+        kind TEXT NOT NULL,
+        seq BIGINT UNIQUE,
+        data TEXT NOT NULL,
+        hash TEXT NOT NULL
+      );
+      CREATE TABLE chain_salts (seq BIGINT PRIMARY KEY, salt TEXT NOT NULL);
+      CREATE TABLE chain_head (
+        id INTEGER PRIMARY KEY CHECK (id = 0),
+        size BIGINT NOT NULL,
+        hash TEXT NOT NULL,
+        seq BIGINT NOT NULL
+      );
+      CREATE TABLE chain_checkpoints (
+        n BIGINT PRIMARY KEY,
+        size BIGINT NOT NULL,
+        root TEXT NOT NULL,
+        head TEXT NOT NULL,
+        at TEXT NOT NULL,
+        note TEXT NOT NULL,
+        key TEXT,
+        signature TEXT
+      );
+    `,
+    },
+  },
+  {
+    // Card E8.12, ADR 0042 decision 8. Id 5 is card E1.6's (the hash chain),
+    // landing in parallel; the runner applies ids in order and skips any
+    // already applied, so the gap is harmless.
+    id: 6,
+    name: "event attestations: who a served HTTP surface authenticated",
+    // One row per event appended while `engram serve` or `engram mcp --http`
+    // handled a request, written in the transaction that appends the event
+    // (packages/server/src/attest.ts): the surface, how the requester was
+    // authenticated (`jwt`, `api_key`, or `insecure_loopback` for the
+    // waiver), the requester's actor id, and the issuer and subject (an API
+    // key's id). Beside the event, so the event schema does not change
+    // (AGENTS.md rule 5). Not a projection: rebuild() leaves it alone. It
+    // holds identifiers only, never content.
+    up: {
+      sqlite: `
+      CREATE TABLE event_attestations (
+        seq INTEGER PRIMARY KEY REFERENCES events (seq),
+        event_id TEXT NOT NULL UNIQUE,
+        surface TEXT NOT NULL,
+        method TEXT NOT NULL,
+        actor TEXT NOT NULL,
+        issuer TEXT,
+        subject TEXT
+      );
+    `,
+      postgres: `
+      CREATE TABLE event_attestations (
+        seq BIGINT PRIMARY KEY REFERENCES events (seq),
+        event_id TEXT COLLATE "C" NOT NULL UNIQUE,
+        surface TEXT NOT NULL,
+        method TEXT NOT NULL,
+        actor TEXT NOT NULL,
+        issuer TEXT,
+        subject TEXT
+      );
+    `,
+    },
+  },
 ];
 
 /** Applies pending migrations in id order; returns the ids it applied. */
