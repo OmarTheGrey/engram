@@ -1,0 +1,785 @@
+{
+  "agreement": {
+    "by_threshold": {
+      "0.80": {
+        "exact_at_or_above": 19,
+        "oracle_vs_exact": {
+          "count": 66,
+          "n": 66,
+          "rate": 1.0,
+          "wilson": [
+            0.944997,
+            1.0
+          ]
+        },
+        "tier_vs_exact": {
+          "count": 64,
+          "n": 66,
+          "rate": 0.969697,
+          "wilson": [
+            0.896075,
+            0.99165
+          ]
+        },
+        "tier_vs_oracle": {
+          "count": 64,
+          "n": 66,
+          "rate": 0.969697,
+          "wilson": [
+            0.896075,
+            0.99165
+          ]
+        }
+      },
+      "0.85": {
+        "exact_at_or_above": 19,
+        "oracle_vs_exact": {
+          "count": 63,
+          "n": 66,
+          "rate": 0.954545,
+          "wilson": [
+            0.874667,
+            0.984422
+          ]
+        },
+        "tier_vs_exact": {
+          "count": 66,
+          "n": 66,
+          "rate": 1.0,
+          "wilson": [
+            0.944997,
+            1.0
+          ]
+        },
+        "tier_vs_oracle": {
+          "count": 63,
+          "n": 66,
+          "rate": 0.954545,
+          "wilson": [
+            0.874667,
+            0.984422
+          ]
+        }
+      },
+      "0.90": {
+        "exact_at_or_above": 6,
+        "oracle_vs_exact": {
+          "count": 61,
+          "n": 66,
+          "rate": 0.924242,
+          "wilson": [
+            0.834608,
+            0.967208
+          ]
+        },
+        "tier_vs_exact": {
+          "count": 59,
+          "n": 66,
+          "rate": 0.893939,
+          "wilson": [
+            0.796877,
+            0.947667
+          ]
+        },
+        "tier_vs_oracle": {
+          "count": 58,
+          "n": 66,
+          "rate": 0.878788,
+          "wilson": [
+            0.778626,
+            0.937282
+          ]
+        }
+      }
+    },
+    "max_absolute_difference_tier_vs_oracle": 0.109375,
+    "mean_absolute_difference": {
+      "oracle_vs_exact": 0.024148,
+      "tier_vs_exact": 0.01623,
+      "tier_vs_oracle": 0.023674
+    },
+    "near_pairs": {
+      "at_or_above": 0.7,
+      "by_threshold": {
+        "0.80": {
+          "count": 19,
+          "n": 21,
+          "rate": 0.904762,
+          "wilson": [
+            0.710859,
+            0.973481
+          ]
+        },
+        "0.85": {
+          "count": 18,
+          "n": 21,
+          "rate": 0.857143,
+          "wilson": [
+            0.653639,
+            0.95019
+          ]
+        },
+        "0.90": {
+          "count": 13,
+          "n": 21,
+          "rate": 0.619048,
+          "wilson": [
+            0.408787,
+            0.79249
+          ]
+        }
+      },
+      "pairs": 21
+    },
+    "pairs": 66
+  },
+  "capped": {
+    "by_fixture": {},
+    "items": 0
+  },
+  "fixtures": 16,
+  "hypothesis": "H3",
+  "labelled": {
+    "false_negatives": 0,
+    "false_positives": 0,
+    "precision": {
+      "count": 3,
+      "n": 3,
+      "rate": 1.0,
+      "wilson": [
+        0.438503,
+        1.0
+      ]
+    },
+    "recall": {
+      "count": 3,
+      "n": 3,
+      "rate": 1.0,
+      "wilson": [
+        0.438503,
+        1.0
+      ]
+    },
+    "true_positives": 3
+  },
+  "limits": [
+    "The oracle estimates the same Jaccard similarity the lint estimates, with other hash functions: agreement checks the implementation, not whether the lint finds what a person would call a duplicate (card R2's decision, docs/log/2026-11-21-r2-decision-l5-oracle-is-agreement.md).",
+    "Precision and recall are on the tier's own two fixtures, written by the card's author with the vetoes in mind: they say the fixtures pass, nothing about natural memory.",
+    "Small: the fault catalogue holds 66 compared pairs, so the Wilson intervals are wide.",
+    "Easy pairs: most compared pairs sit far below every threshold, where any two estimators agree; the agreement over all pairs flatters the implementation, and `near_pairs` (estimate or exact similarity at least 0.7) is the figure to read.",
+    "English only: the number and polarity vetoes read English weekday and month names and English negations.",
+    "Off in every registered preset and condition: no registered arm runs near-duplicate-tier."
+  ],
+  "name": "near-duplicate",
+  "oracle": {
+    "num_perm": 128,
+    "package": "datasketch",
+    "seed": 1,
+    "version": "2.0.0"
+  },
+  "pairs": [
+    {
+      "earlier": "01950000-0000-7000-8000-000000000001",
+      "estimate": 1,
+      "fixture": "duplicate.near-miss",
+      "jaccard": 1,
+      "kind": "char",
+      "later": "01950000-0000-7000-8000-000000000004",
+      "oracle": 1.0
+    },
+    {
+      "earlier": "01950000-0000-7000-8000-000000000001",
+      "estimate": 0.867188,
+      "fixture": "expired-validity.flag",
+      "jaccard": 0.894737,
+      "kind": "char",
+      "later": "01950000-0000-7000-8000-000000000002",
+      "oracle": 0.867188
+    },
+    {
+      "earlier": "01950000-0000-7000-8000-000000000001",
+      "estimate": 0.867188,
+      "fixture": "expired-validity.near-miss",
+      "jaccard": 0.894737,
+      "kind": "char",
+      "later": "01950000-0000-7000-8000-000000000002",
+      "oracle": 0.867188
+    },
+    {
+      "earlier": "01950000-0000-7000-8000-000000000001",
+      "estimate": 0.015625,
+      "fixture": "injection-signature.flag",
+      "jaccard": 0.048,
+      "kind": "char",
+      "later": "01950000-0000-7000-8000-000000000002",
+      "oracle": 0.03125
+    },
+    {
+      "earlier": "01950000-0000-7000-8000-000000000001",
+      "estimate": 0.015625,
+      "fixture": "injection-signature.flag",
+      "jaccard": 0.039216,
+      "kind": "char",
+      "later": "01950000-0000-7000-8000-000000000003",
+      "oracle": 0.015625
+    },
+    {
+      "earlier": "01950000-0000-7000-8000-000000000002",
+      "estimate": 0.023438,
+      "fixture": "injection-signature.flag",
+      "jaccard": 0.047059,
+      "kind": "char",
+      "later": "01950000-0000-7000-8000-000000000003",
+      "oracle": 0.007812
+    },
+    {
+      "earlier": "01950000-0000-7000-8000-000000000001",
+      "estimate": 0.09375,
+      "fixture": "injection-signature.near-miss",
+      "jaccard": 0.081967,
+      "kind": "char",
+      "later": "01950000-0000-7000-8000-000000000002",
+      "oracle": 0.109375
+    },
+    {
+      "earlier": "01950000-0000-7000-8000-000000000001",
+      "estimate": 0,
+      "fixture": "injection-signature.near-miss",
+      "jaccard": 0,
+      "kind": "char",
+      "later": "01950000-0000-7000-8000-000000000003",
+      "oracle": 0.0
+    },
+    {
+      "earlier": "01950000-0000-7000-8000-000000000002",
+      "estimate": 0.179688,
+      "fixture": "injection-signature.near-miss",
+      "jaccard": 0.197368,
+      "kind": "char",
+      "later": "01950000-0000-7000-8000-000000000003",
+      "oracle": 0.1875
+    },
+    {
+      "earlier": "01950000-0000-7000-8000-000000000001",
+      "estimate": 0.023438,
+      "fixture": "injection-signature.near-miss",
+      "jaccard": 0.014925,
+      "kind": "char",
+      "later": "01950000-0000-7000-8000-000000000004",
+      "oracle": 0.007812
+    },
+    {
+      "earlier": "01950000-0000-7000-8000-000000000002",
+      "estimate": 0.039062,
+      "fixture": "injection-signature.near-miss",
+      "jaccard": 0.046154,
+      "kind": "char",
+      "later": "01950000-0000-7000-8000-000000000004",
+      "oracle": 0.03125
+    },
+    {
+      "earlier": "01950000-0000-7000-8000-000000000003",
+      "estimate": 0,
+      "fixture": "injection-signature.near-miss",
+      "jaccard": 0.044944,
+      "kind": "char",
+      "later": "01950000-0000-7000-8000-000000000004",
+      "oracle": 0.015625
+    },
+    {
+      "earlier": "01950000-0000-7000-8000-000000000001",
+      "estimate": 0.867188,
+      "fixture": "missing-provenance.flag",
+      "jaccard": 0.894737,
+      "kind": "char",
+      "later": "01950000-0000-7000-8000-000000000002",
+      "oracle": 0.867188
+    },
+    {
+      "earlier": "01950000-0000-7000-8000-000000000001",
+      "estimate": 0.867188,
+      "fixture": "missing-provenance.near-miss",
+      "jaccard": 0.894737,
+      "kind": "char",
+      "later": "01950000-0000-7000-8000-000000000002",
+      "oracle": 0.867188
+    },
+    {
+      "earlier": "01950000-0000-7000-8000-000000000001",
+      "estimate": 0.875,
+      "fixture": "missing-provenance.near-miss",
+      "jaccard": 0.894737,
+      "kind": "char",
+      "later": "01950000-0000-7000-8000-000000000003",
+      "oracle": 0.914062
+    },
+    {
+      "earlier": "01950000-0000-7000-8000-000000000002",
+      "estimate": 0.921875,
+      "fixture": "missing-provenance.near-miss",
+      "jaccard": 0.894737,
+      "kind": "char",
+      "later": "01950000-0000-7000-8000-000000000003",
+      "oracle": 0.84375
+    },
+    {
+      "earlier": "01950000-0000-7000-8000-000000000001",
+      "estimate": 1,
+      "fixture": "near-duplicate-tier.flag",
+      "jaccard": 1,
+      "kind": "char",
+      "later": "01950000-0000-7000-8000-000000000002",
+      "oracle": 1.0
+    },
+    {
+      "earlier": "01950000-0000-7000-8000-000000000001",
+      "estimate": 0.007812,
+      "fixture": "near-duplicate-tier.flag",
+      "jaccard": 0.011364,
+      "kind": "char",
+      "later": "01950000-0000-7000-8000-000000000003",
+      "oracle": 0.0
+    },
+    {
+      "earlier": "01950000-0000-7000-8000-000000000002",
+      "estimate": 0.007812,
+      "fixture": "near-duplicate-tier.flag",
+      "jaccard": 0.011364,
+      "kind": "char",
+      "later": "01950000-0000-7000-8000-000000000003",
+      "oracle": 0.0
+    },
+    {
+      "earlier": "01950000-0000-7000-8000-000000000001",
+      "estimate": 0.007812,
+      "fixture": "near-duplicate-tier.flag",
+      "jaccard": 0.01087,
+      "kind": "char",
+      "later": "01950000-0000-7000-8000-000000000004",
+      "oracle": 0.0
+    },
+    {
+      "earlier": "01950000-0000-7000-8000-000000000002",
+      "estimate": 0.007812,
+      "fixture": "near-duplicate-tier.flag",
+      "jaccard": 0.01087,
+      "kind": "char",
+      "later": "01950000-0000-7000-8000-000000000004",
+      "oracle": 0.0
+    },
+    {
+      "earlier": "01950000-0000-7000-8000-000000000003",
+      "estimate": 0.875,
+      "fixture": "near-duplicate-tier.flag",
+      "jaccard": 0.903226,
+      "kind": "char",
+      "later": "01950000-0000-7000-8000-000000000004",
+      "oracle": 0.898438
+    },
+    {
+      "earlier": "01950000-0000-7000-8000-000000000001",
+      "estimate": 0.03125,
+      "fixture": "near-duplicate-tier.flag",
+      "jaccard": 0.05641,
+      "kind": "char",
+      "later": "01950000-0000-7000-8000-000000000005",
+      "oracle": 0.03125
+    },
+    {
+      "earlier": "01950000-0000-7000-8000-000000000002",
+      "estimate": 0.03125,
+      "fixture": "near-duplicate-tier.flag",
+      "jaccard": 0.05641,
+      "kind": "char",
+      "later": "01950000-0000-7000-8000-000000000005",
+      "oracle": 0.03125
+    },
+    {
+      "earlier": "01950000-0000-7000-8000-000000000003",
+      "estimate": 0.0625,
+      "fixture": "near-duplicate-tier.flag",
+      "jaccard": 0.064516,
+      "kind": "char",
+      "later": "01950000-0000-7000-8000-000000000005",
+      "oracle": 0.03125
+    },
+    {
+      "earlier": "01950000-0000-7000-8000-000000000004",
+      "estimate": 0.078125,
+      "fixture": "near-duplicate-tier.flag",
+      "jaccard": 0.068182,
+      "kind": "char",
+      "later": "01950000-0000-7000-8000-000000000005",
+      "oracle": 0.03125
+    },
+    {
+      "earlier": "01950000-0000-7000-8000-000000000001",
+      "estimate": 0.03125,
+      "fixture": "near-duplicate-tier.flag",
+      "jaccard": 0.054726,
+      "kind": "char",
+      "later": "01950000-0000-7000-8000-000000000006",
+      "oracle": 0.03125
+    },
+    {
+      "earlier": "01950000-0000-7000-8000-000000000002",
+      "estimate": 0.03125,
+      "fixture": "near-duplicate-tier.flag",
+      "jaccard": 0.054726,
+      "kind": "char",
+      "later": "01950000-0000-7000-8000-000000000006",
+      "oracle": 0.03125
+    },
+    {
+      "earlier": "01950000-0000-7000-8000-000000000003",
+      "estimate": 0.070312,
+      "fixture": "near-duplicate-tier.flag",
+      "jaccard": 0.082192,
+      "kind": "char",
+      "later": "01950000-0000-7000-8000-000000000006",
+      "oracle": 0.054688
+    },
+    {
+      "earlier": "01950000-0000-7000-8000-000000000004",
+      "estimate": 0.085938,
+      "fixture": "near-duplicate-tier.flag",
+      "jaccard": 0.085586,
+      "kind": "char",
+      "later": "01950000-0000-7000-8000-000000000006",
+      "oracle": 0.054688
+    },
+    {
+      "earlier": "01950000-0000-7000-8000-000000000005",
+      "estimate": 0.90625,
+      "fixture": "near-duplicate-tier.flag",
+      "jaccard": 0.934783,
+      "kind": "word",
+      "later": "01950000-0000-7000-8000-000000000006",
+      "oracle": 0.953125
+    },
+    {
+      "earlier": "01950000-0000-7000-8000-000000000001",
+      "estimate": 0.039062,
+      "fixture": "near-duplicate-tier.flag",
+      "jaccard": 0.055556,
+      "kind": "char",
+      "later": "01950000-0000-7000-8000-000000000007",
+      "oracle": 0.015625
+    },
+    {
+      "earlier": "01950000-0000-7000-8000-000000000002",
+      "estimate": 0.039062,
+      "fixture": "near-duplicate-tier.flag",
+      "jaccard": 0.055556,
+      "kind": "char",
+      "later": "01950000-0000-7000-8000-000000000007",
+      "oracle": 0.015625
+    },
+    {
+      "earlier": "01950000-0000-7000-8000-000000000003",
+      "estimate": 0.007812,
+      "fixture": "near-duplicate-tier.flag",
+      "jaccard": 0.01,
+      "kind": "char",
+      "later": "01950000-0000-7000-8000-000000000007",
+      "oracle": 0.0
+    },
+    {
+      "earlier": "01950000-0000-7000-8000-000000000004",
+      "estimate": 0.007812,
+      "fixture": "near-duplicate-tier.flag",
+      "jaccard": 0.009615,
+      "kind": "char",
+      "later": "01950000-0000-7000-8000-000000000007",
+      "oracle": 0.0
+    },
+    {
+      "earlier": "01950000-0000-7000-8000-000000000005",
+      "estimate": 0.0625,
+      "fixture": "near-duplicate-tier.flag",
+      "jaccard": 0.084577,
+      "kind": "char",
+      "later": "01950000-0000-7000-8000-000000000007",
+      "oracle": 0.109375
+    },
+    {
+      "earlier": "01950000-0000-7000-8000-000000000006",
+      "estimate": 0.0625,
+      "fixture": "near-duplicate-tier.flag",
+      "jaccard": 0.082126,
+      "kind": "char",
+      "later": "01950000-0000-7000-8000-000000000007",
+      "oracle": 0.109375
+    },
+    {
+      "earlier": "01950000-0000-7000-8000-000000000001",
+      "estimate": 0.890625,
+      "fixture": "near-duplicate-tier.near-miss",
+      "jaccard": 0.914894,
+      "kind": "char",
+      "later": "01950000-0000-7000-8000-000000000002",
+      "oracle": 0.898438
+    },
+    {
+      "earlier": "01950000-0000-7000-8000-000000000001",
+      "estimate": 0.015625,
+      "fixture": "near-duplicate-tier.near-miss",
+      "jaccard": 0.021739,
+      "kind": "char",
+      "later": "01950000-0000-7000-8000-000000000003",
+      "oracle": 0.046875
+    },
+    {
+      "earlier": "01950000-0000-7000-8000-000000000002",
+      "estimate": 0.015625,
+      "fixture": "near-duplicate-tier.near-miss",
+      "jaccard": 0.021739,
+      "kind": "char",
+      "later": "01950000-0000-7000-8000-000000000003",
+      "oracle": 0.046875
+    },
+    {
+      "earlier": "01950000-0000-7000-8000-000000000001",
+      "estimate": 0.015625,
+      "fixture": "near-duplicate-tier.near-miss",
+      "jaccard": 0.020979,
+      "kind": "char",
+      "later": "01950000-0000-7000-8000-000000000004",
+      "oracle": 0.046875
+    },
+    {
+      "earlier": "01950000-0000-7000-8000-000000000002",
+      "estimate": 0.015625,
+      "fixture": "near-duplicate-tier.near-miss",
+      "jaccard": 0.020979,
+      "kind": "char",
+      "later": "01950000-0000-7000-8000-000000000004",
+      "oracle": 0.046875
+    },
+    {
+      "earlier": "01950000-0000-7000-8000-000000000003",
+      "estimate": 0.921875,
+      "fixture": "near-duplicate-tier.near-miss",
+      "jaccard": 0.910714,
+      "kind": "char",
+      "later": "01950000-0000-7000-8000-000000000004",
+      "oracle": 0.976562
+    },
+    {
+      "earlier": "01950000-0000-7000-8000-000000000001",
+      "estimate": 0.054688,
+      "fixture": "near-duplicate-tier.near-miss",
+      "jaccard": 0.070175,
+      "kind": "char",
+      "later": "01950000-0000-7000-8000-000000000005",
+      "oracle": 0.03125
+    },
+    {
+      "earlier": "01950000-0000-7000-8000-000000000002",
+      "estimate": 0.054688,
+      "fixture": "near-duplicate-tier.near-miss",
+      "jaccard": 0.070175,
+      "kind": "char",
+      "later": "01950000-0000-7000-8000-000000000005",
+      "oracle": 0.039062
+    },
+    {
+      "earlier": "01950000-0000-7000-8000-000000000003",
+      "estimate": 0.007812,
+      "fixture": "near-duplicate-tier.near-miss",
+      "jaccard": 0.012195,
+      "kind": "char",
+      "later": "01950000-0000-7000-8000-000000000005",
+      "oracle": 0.0
+    },
+    {
+      "earlier": "01950000-0000-7000-8000-000000000004",
+      "estimate": 0.007812,
+      "fixture": "near-duplicate-tier.near-miss",
+      "jaccard": 0.011494,
+      "kind": "char",
+      "later": "01950000-0000-7000-8000-000000000005",
+      "oracle": 0.0
+    },
+    {
+      "earlier": "01950000-0000-7000-8000-000000000001",
+      "estimate": 0.0625,
+      "fixture": "near-duplicate-tier.near-miss",
+      "jaccard": 0.069565,
+      "kind": "char",
+      "later": "01950000-0000-7000-8000-000000000006",
+      "oracle": 0.03125
+    },
+    {
+      "earlier": "01950000-0000-7000-8000-000000000002",
+      "estimate": 0.0625,
+      "fixture": "near-duplicate-tier.near-miss",
+      "jaccard": 0.069565,
+      "kind": "char",
+      "later": "01950000-0000-7000-8000-000000000006",
+      "oracle": 0.03125
+    },
+    {
+      "earlier": "01950000-0000-7000-8000-000000000003",
+      "estimate": 0.015625,
+      "fixture": "near-duplicate-tier.near-miss",
+      "jaccard": 0.012048,
+      "kind": "char",
+      "later": "01950000-0000-7000-8000-000000000006",
+      "oracle": 0.0
+    },
+    {
+      "earlier": "01950000-0000-7000-8000-000000000004",
+      "estimate": 0.015625,
+      "fixture": "near-duplicate-tier.near-miss",
+      "jaccard": 0.011364,
+      "kind": "char",
+      "later": "01950000-0000-7000-8000-000000000006",
+      "oracle": 0.0
+    },
+    {
+      "earlier": "01950000-0000-7000-8000-000000000005",
+      "estimate": 0.820312,
+      "fixture": "near-duplicate-tier.near-miss",
+      "jaccard": 0.756757,
+      "kind": "char",
+      "later": "01950000-0000-7000-8000-000000000006",
+      "oracle": 0.710938
+    },
+    {
+      "earlier": "01950000-0000-7000-8000-000000000001",
+      "estimate": 0.054688,
+      "fixture": "near-duplicate-tier.near-miss",
+      "jaccard": 0.070175,
+      "kind": "char",
+      "later": "01950000-0000-7000-8000-000000000007",
+      "oracle": 0.03125
+    },
+    {
+      "earlier": "01950000-0000-7000-8000-000000000002",
+      "estimate": 0.054688,
+      "fixture": "near-duplicate-tier.near-miss",
+      "jaccard": 0.070175,
+      "kind": "char",
+      "later": "01950000-0000-7000-8000-000000000007",
+      "oracle": 0.039062
+    },
+    {
+      "earlier": "01950000-0000-7000-8000-000000000003",
+      "estimate": 0.007812,
+      "fixture": "near-duplicate-tier.near-miss",
+      "jaccard": 0.012195,
+      "kind": "char",
+      "later": "01950000-0000-7000-8000-000000000007",
+      "oracle": 0.0
+    },
+    {
+      "earlier": "01950000-0000-7000-8000-000000000004",
+      "estimate": 0.007812,
+      "fixture": "near-duplicate-tier.near-miss",
+      "jaccard": 0.011494,
+      "kind": "char",
+      "later": "01950000-0000-7000-8000-000000000007",
+      "oracle": 0.0
+    },
+    {
+      "earlier": "01950000-0000-7000-8000-000000000006",
+      "estimate": 0.820312,
+      "fixture": "near-duplicate-tier.near-miss",
+      "jaccard": 0.756757,
+      "kind": "char",
+      "later": "01950000-0000-7000-8000-000000000007",
+      "oracle": 0.710938
+    },
+    {
+      "earlier": "01950000-0000-7000-8000-000000000002",
+      "estimate": 0.921875,
+      "fixture": "orphan.flag",
+      "jaccard": 0.894737,
+      "kind": "char",
+      "later": "01950000-0000-7000-8000-000000000003",
+      "oracle": 0.84375
+    },
+    {
+      "earlier": "01950000-0000-7000-8000-000000000001",
+      "estimate": 0.867188,
+      "fixture": "orphan.near-miss",
+      "jaccard": 0.894737,
+      "kind": "char",
+      "later": "01950000-0000-7000-8000-000000000002",
+      "oracle": 0.867188
+    },
+    {
+      "earlier": "01950000-0000-7000-8000-000000000001",
+      "estimate": 0.875,
+      "fixture": "orphan.near-miss",
+      "jaccard": 0.894737,
+      "kind": "char",
+      "later": "01950000-0000-7000-8000-000000000003",
+      "oracle": 0.914062
+    },
+    {
+      "earlier": "01950000-0000-7000-8000-000000000002",
+      "estimate": 0.921875,
+      "fixture": "orphan.near-miss",
+      "jaccard": 0.894737,
+      "kind": "char",
+      "later": "01950000-0000-7000-8000-000000000003",
+      "oracle": 0.84375
+    },
+    {
+      "earlier": "01950000-0000-7000-8000-000000000001",
+      "estimate": 0.882812,
+      "fixture": "orphan.near-miss",
+      "jaccard": 0.894737,
+      "kind": "char",
+      "later": "01950000-0000-7000-8000-000000000004",
+      "oracle": 0.921875
+    },
+    {
+      "earlier": "01950000-0000-7000-8000-000000000002",
+      "estimate": 0.929688,
+      "fixture": "orphan.near-miss",
+      "jaccard": 0.894737,
+      "kind": "char",
+      "later": "01950000-0000-7000-8000-000000000004",
+      "oracle": 0.875
+    },
+    {
+      "earlier": "01950000-0000-7000-8000-000000000003",
+      "estimate": 0.929688,
+      "fixture": "orphan.near-miss",
+      "jaccard": 0.894737,
+      "kind": "char",
+      "later": "01950000-0000-7000-8000-000000000004",
+      "oracle": 0.890625
+    },
+    {
+      "earlier": "01950000-0000-7000-8000-000000000001",
+      "estimate": 0.015625,
+      "fixture": "source-changed.flag",
+      "jaccard": 0.018182,
+      "kind": "char",
+      "later": "01950000-0000-7000-8000-000000000002",
+      "oracle": 0.0
+    },
+    {
+      "earlier": "01950000-0000-7000-8000-000000000001",
+      "estimate": 0.015625,
+      "fixture": "source-changed.near-miss",
+      "jaccard": 0.018519,
+      "kind": "char",
+      "later": "01950000-0000-7000-8000-000000000002",
+      "oracle": 0.0
+    }
+  ],
+  "status": "exploratory: not part of H3's registered analysis until the near-duplicate arm (P4 in docs/research/preregistration.md, section 'Proposed amendments, not yet registered') is registered by amendment",
+  "threshold": 0.85,
+  "unlabelled_findings": {
+    "by_fixture": {
+      "duplicate.near-miss": 1
+    },
+    "findings": 1,
+    "fixtures": 1
+  }
+}

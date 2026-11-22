@@ -22,11 +22,18 @@ export * from "./events.ts";
 export * from "./export/otel.ts";
 export * from "./items.ts";
 export * from "./lint/det.ts";
+export * from "./lint/intervals.ts";
 export * from "./lint/model.ts";
 export * from "./lint/nli.ts";
+export * from "./lint/supersession.ts";
 export * from "./lint.ts";
+export * from "./log/chain.ts";
+export * from "./log/merkle.ts";
+export * from "./log/redact.ts";
+export * from "./log/verify.ts";
 export * from "./model.ts";
 export * from "./no-bypass.ts";
+export { type ExportResult, exportReason, isExportEvent } from "./plane/export.ts";
 export {
   matchesQuery,
   queryTerms,
@@ -44,8 +51,10 @@ export * from "./policy/grants.ts";
 export * from "./policy/load.ts";
 export * from "./policy/promotion.ts";
 export * from "./policy/retention.ts";
+export * from "./portable.ts";
 export * from "./replay.ts";
 export * from "./schema.ts";
 export * from "./simulate.ts";
+export * from "./supersede.ts";
 export * from "./time.ts";
 export * from "./visible.ts";

@@ -6,6 +6,8 @@
 // core contracts keep the names of sdk/schema/*.json.
 import {
   ActorShape,
+  BUNDLE_FORMAT,
+  BUNDLE_VERSION,
   CONTRACTS,
   Explanation,
   Grant,
@@ -18,6 +20,8 @@ import {
   ReaderEntry,
   SCHEMA_VERSION,
   SimReport,
+  SupersessionChain,
+  SupersessionProposal,
   Timestamp,
   WhoCanReadAnswer,
   Workload,
@@ -191,6 +195,27 @@ export const EventsResponse = z.strictObject({ events: z.array(MemoryEvent) });
 
 export const PolicyResponse = z.strictObject({ policy: Policy, label: z.string() });
 
+/** One row of a memory bundle (card E9.8, docs/bundle.md): an item and its events, each without its item state. */
+export const BundleRow = z.strictObject({
+  item: MemoryItem,
+  events: z.array(MemoryEvent.omit({ item: true })),
+});
+
+export const ExportRequest = z.strictObject({ actor: Actor });
+export const ExportResponse = z
+  .strictObject({
+    format: z.literal(BUNDLE_FORMAT),
+    version: z.literal(BUNDLE_VERSION),
+    exported_at: Timestamp,
+    exported_by: z.string(),
+    policy: z.string(),
+    rows: z.array(BundleRow),
+  })
+  .meta({
+    description:
+      "The actor's memory bundle (docs/bundle.md): every item in its own person scope and its own items in the other scopes the read matrix lets it read, of every status, ordered by id, each with the events naming it that the actor may see. `engram export` writes it as JSONL, a header line then one row per line.",
+  });
+
 export const LintRequest = z.strictObject({ actor: Actor, scope: z.string() });
 /** Plane.lint's LintReport (card L1): deny when the actor is not a member of the scope. */
 export const LintResponse = z.strictObject({
@@ -225,6 +250,39 @@ export const BypassRequest = z.strictObject({
   }),
 });
 export const EventResponse = z.strictObject({ event: MemoryEvent });
+
+export const SupersedeRequest = z.strictObject({
+  actor: Actor,
+  item_id: z.string().meta({
+    description:
+      "The new version, whose lineage names the items it supersedes; only items the actor may read take part.",
+  }),
+  accept: z.array(z.string()).optional().meta({
+    description:
+      "Ids of candidates whose proposed close the caller accepts. Each is written as a new version in place through the write gate, which decides it; an id with no proposed close refuses the whole call (400) before anything is written. Absent or empty: the plan only.",
+  }),
+});
+
+/** Card L6: the supersession plan, and the governed write of each accepted close. */
+export const SupersedeResponse = z.strictObject({
+  item_id: z.string(),
+  head: SupersessionChain,
+  proposals: z.array(SupersessionProposal),
+  /**
+   * The new version each accepted close sent to the write gate, in order:
+   * those of `applied`, then the one `stopped` names. Each is a version of
+   * an item the read filter admitted for the actor (L6-1).
+   */
+  submitted: z.array(MemoryItem),
+  applied: z.array(WriteResponse),
+  /**
+   * The close whose write the store refused after the gate allowed it
+   * (review fix L6-3): its deny event (engram/write/store-failure), with the
+   * writes before it in `applied` and none after it sent. Null when every
+   * accepted close was written or decided.
+   */
+  stopped: z.strictObject({ item_id: z.string(), event: MemoryEvent }).nullable(),
+});
 
 export const ViewerResponse = z.strictObject({ viewer: Actor.nullable() });
 
@@ -287,6 +345,9 @@ export const COMPONENTS = {
   EventsRequest,
   EventsResponse,
   PolicyResponse,
+  BundleRow,
+  ExportRequest,
+  ExportResponse,
   LintRequest,
   LintResponse,
   Workload,
@@ -296,6 +357,10 @@ export const COMPONENTS = {
   OpenReport,
   BypassRequest,
   EventResponse,
+  SupersessionChain,
+  SupersessionProposal,
+  SupersedeRequest,
+  SupersedeResponse,
   ViewerResponse,
   HealthResponse,
   ErrorResponse,

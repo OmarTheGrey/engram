@@ -279,6 +279,27 @@ describe("rejects lint ids and threshold keys outside the registry (D2, ADR 0008
     expect(p?.message).toMatch(/unknown threshold key "replay-drift.succes-floor"/);
   });
 
+  // Card L5: the near-duplicate tier reads its similarity from the key.
+  test("a policy listing near-duplicate-tier needs a near-duplicate similarity in (0, 1], at its key", () => {
+    const tier = (value: string) =>
+      withLine(34, "  enabled: [near-duplicate-tier]").replace(
+        "  thresholds: {}",
+        `  thresholds:\n    near-duplicate: ${value}`,
+      );
+    for (const bad of ["0", "1.5", "-0.2"]) {
+      const [p, ...rest] = problemsOf(tier(bad));
+      expect(rest).toEqual([]);
+      expect(p).toMatchObject({ path: ["lints", "thresholds"], line: 36, col: 5 });
+      expect(p?.message).toMatch(/needs a similarity in \(0, 1\]/);
+    }
+    expect(parsePolicy(tier("0.85"), "test.yaml").lints.thresholds).toEqual({
+      "near-duplicate": 0.85,
+    });
+    // Without the tier the key is not judged: no registered preset is.
+    const unlisted = withLine(35, "  thresholds:\n    near-duplicate: 1.5");
+    expect(parsePolicy(unlisted, "test.yaml").lints.thresholds).toEqual({ "near-duplicate": 1.5 });
+  });
+
   test("every registered lint id and threshold key is accepted", () => {
     const text = withLine(34, `  enabled: [${LINT_IDS.join(", ")}]`).replace(
       "  thresholds: {}",

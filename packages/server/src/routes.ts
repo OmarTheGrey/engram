@@ -12,11 +12,18 @@
 // with 501 naming the card, `backlog` while none does.
 import {
   type Actor,
+  acceptedClosures,
   accessTime,
+  BUNDLE_FORMAT,
+  BUNDLE_VERSION,
   currentItems,
   eventById,
+  itemById,
+  type MemoryEvent,
   type MemoryItem,
+  planSupersession,
   readCounts,
+  servedImport,
   syncBeforeRead,
   visibleEvents,
 } from "@engram/core";
@@ -58,6 +65,9 @@ const route = <Req>(r: Route<Req>): Route => r as unknown as Route;
 
 const policyLabel = (w: Workspace) => `${w.policy.id} v${w.policy.version}`;
 
+/** The projected item of an id, through core, for servedImport's held kind. */
+const heldItem = (w: Workspace) => (id: string) => itemById(w.deps.db, id);
+
 /**
  * What runs before a read (core's syncBeforeRead, card RV5, finding
  * RV-SRF-1): the store owner's sweep when the owner reads, at the server's
@@ -81,6 +91,41 @@ async function syncStore(workspace: Workspace, reader: Actor, now: string) {
   };
 }
 
+/**
+ * Write accepted closes in order, each one Plane.write (card L6). A store
+ * that refuses a close after the gate allowed it (Plane.write logs the deny
+ * and throws, decision D6) stops the loop: that close and its deny event
+ * are `stopped`, the writes before it are in `applied`, and none after it
+ * is sent (review fix L6-3). A plan proposes at most one close, so the
+ * route gives one at most; this takes any number.
+ */
+export async function writeClosures(
+  workspace: Workspace,
+  actor: Actor,
+  closes: readonly MemoryItem[],
+  at: string,
+) {
+  const submitted: MemoryItem[] = [];
+  const applied = [];
+  let stopped: { item_id: string; event: MemoryEvent } | null = null;
+  for (const item of closes) {
+    const mark = workspace.plane.events().length;
+    submitted.push(item);
+    try {
+      applied.push(await workspace.plane.write(actor, item, at));
+    } catch (e) {
+      const event = workspace.plane
+        .events()
+        .slice(mark)
+        .findLast((x) => x.item_id === item.id);
+      if (event === undefined) throw e;
+      stopped = { item_id: item.id, event };
+      break;
+    }
+  }
+  return { submitted, applied, stopped };
+}
+
 export const ROUTES: readonly Route[] = [
   route<z.infer<typeof C.WriteRequest>>({
     id: "write",
@@ -90,8 +135,12 @@ export const ROUTES: readonly Route[] = [
     request: C.WriteRequest,
     response: C.WriteResponse,
     errors: [400, 503],
-    handler: ({ workspace, body, now }) =>
-      workspace.plane.write(body.actor, body.item as unknown as MemoryItem, now()),
+    // An import-sourced actor's write is mapped as an imported row (core's
+    // servedImport, card E9.8): a client can only lower trust.
+    handler: ({ workspace, body, now }) => {
+      const { actor, item } = servedImport(body.actor, body.item, heldItem(workspace));
+      return workspace.plane.write(actor, item as MemoryItem, now());
+    },
   }),
   route<z.infer<typeof C.WriteRequest>>({
     id: "checkWrite",
@@ -101,8 +150,10 @@ export const ROUTES: readonly Route[] = [
     request: C.WriteRequest,
     response: C.CheckResponse,
     errors: [400],
-    handler: ({ workspace, body, now }) =>
-      workspace.plane.checkWrite(body.actor, body.item as unknown as MemoryItem, now()),
+    handler: ({ workspace, body, now }) => {
+      const { actor, item } = servedImport(body.actor, body.item, heldItem(workspace));
+      return workspace.plane.checkWrite(actor, item as MemoryItem, now());
+    },
   }),
   route<z.infer<typeof C.ReadRequest>>({
     id: "read",
@@ -269,6 +320,29 @@ export const ROUTES: readonly Route[] = [
       return { events: visibleEvents(body.actor, events, view) };
     },
   }),
+  route<z.infer<typeof C.ExportRequest>>({
+    id: "export",
+    method: "post",
+    path: "/export",
+    summary:
+      "The actor's memory bundle (card E9.8, docs/bundle.md): the items core's bundleRows picks, each with its visible events; one read event by the actor records the export (Plane.export).",
+    request: C.ExportRequest,
+    response: C.ExportResponse,
+    errors: [400],
+    handler: async ({ workspace, body, now }) => {
+      const at = now();
+      // Plane.export picks the rows (core's bundleRows) and records the export.
+      const { rows } = await workspace.plane.export(body.actor, at);
+      return {
+        format: BUNDLE_FORMAT,
+        version: BUNDLE_VERSION,
+        exported_at: at,
+        exported_by: body.actor.id,
+        policy: policyLabel(workspace),
+        rows,
+      };
+    },
+  }),
   route({
     id: "policy",
     method: "get",
@@ -315,6 +389,32 @@ export const ROUTES: readonly Route[] = [
         body.sessions as unknown as Parameters<typeof workspace.plane.distill>[0],
         body.method,
       ),
+  }),
+  route<z.infer<typeof C.SupersedeRequest>>({
+    id: "supersede",
+    method: "post",
+    path: "/supersede",
+    summary:
+      "The supersession plan for a new version (card L6): the head of its chain and, for each ancestor the actor may read, a proposed close or a review flag; each accepted close is then one ordinary write through the gate.",
+    request: C.SupersedeRequest,
+    response: C.SupersedeResponse,
+    errors: [400, 503],
+    handler: async ({ workspace, body, now }) => {
+      const at = now();
+      const { db } = workspace.deps;
+      // The store's sweep and adoption run first, as before a read (L6-7).
+      await syncStore(workspace, body.actor, at);
+      // Core plans and refuses an id with no proposed close; the gate decides each write.
+      const plan = planSupersession(
+        db,
+        workspace.policy,
+        body.actor,
+        body.item_id,
+        accessTime(db, at),
+      );
+      const closes = acceptedClosures(db, plan, body.accept ?? []);
+      return { ...plan, ...(await writeClosures(workspace, body.actor, closes, at)) };
+    },
   }),
   route<z.infer<typeof C.BypassRequest>>({
     id: "bypass",

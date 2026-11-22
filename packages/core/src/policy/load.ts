@@ -245,6 +245,20 @@ function semanticProblems(policy: Policy): Located[] {
         key,
         message: `unknown threshold key "${key}"; expected one of ${LINT_THRESHOLD_KEYS.join(", ")}`,
       });
+  // Card L5: the tier reads its similarity from this key, so a policy that
+  // lists it must give a similarity. A policy that does not list it is not
+  // checked, so no registered preset is judged by this rule.
+  const similarity = policy.lints.thresholds["near-duplicate"];
+  if (
+    policy.lints.enabled.includes("near-duplicate-tier") &&
+    similarity !== undefined &&
+    !(similarity > 0 && similarity <= 1)
+  )
+    out.push({
+      path: ["lints", "thresholds"],
+      key: "near-duplicate",
+      message: `near-duplicate is ${similarity}; the near-duplicate-tier lint needs a similarity in (0, 1]`,
+    });
   // Card L7: the NLI tier needs both its thresholds, in order.
   if (policy.lints.enabled.includes(NLI_LINT_ID))
     for (const message of nliThresholdProblems(policy.lints.thresholds))
