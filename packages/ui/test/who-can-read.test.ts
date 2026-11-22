@@ -52,7 +52,7 @@ describe("readerView", () => {
         policyId: "profile.twin/read/person",
       },
       {
-        key: "grants[0]:person:sam",
+        key: "1:grants[0]:person:sam",
         kind: "grant",
         who: "person:sam",
         text: "person:sam by grants[0]:person:sam, until 2026-12-31T00:00:00.000Z",

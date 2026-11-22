@@ -33,7 +33,9 @@ import {
 } from "../../src/plane/who-can-read.ts";
 import { type Actor, createPlane } from "../../src/plane.ts";
 import { evaluateRead } from "../../src/policy/evaluate.ts";
+import { itemExpiry } from "../../src/policy/retention.ts";
 import type { MemoryItem, Policy } from "../../src/schema.ts";
+import { compareTimestamps } from "../../src/time.ts";
 import {
   arbGatedItemWithTtl,
   arbGatedItemWithValidTo,
@@ -99,7 +101,15 @@ const arbItemCase = fc
 describe("who can read this memory", () => {
   const AGREE = "the owner's answer expands to exactly the actors evaluateRead admits";
   test(AGREE, () => {
-    const seen = { byScope: 0, byGrant: 0, closed: 0, dormant: 0, nobody: 0, someone: 0 };
+    const seen = {
+      byScope: 0,
+      byGrant: 0,
+      closed: 0,
+      invalid: 0,
+      dormant: 0,
+      nobody: 0,
+      someone: 0,
+    };
     fc.assert(
       fc.property(
         arbPolicyWithTtls,
@@ -109,6 +119,20 @@ describe("who can read this memory", () => {
         (policy, item, at, other) => {
           const { readers, closed, dormant } = itemReaders(policy, item, at);
           if (closed) seen.closed++;
+          // Status, then ttl, then the validity window close an item to everyone, in
+          // the read filter's order (review finding E2.13-3).
+          const expiry = itemExpiry(policy, item);
+          const shut =
+            item.status !== "active"
+              ? "engram/read/status"
+              : expiry !== null && compareTimestamps(expiry.at, at) <= 0
+                ? "engram/read/ttl"
+                : compareTimestamps(item.valid_from, at) > 0 ||
+                    (item.valid_to !== null && compareTimestamps(item.valid_to, at) <= 0)
+                  ? "engram/read/validity"
+                  : null;
+          expect(closed?.policy_id ?? null).toBe(shut);
+          if (shut === "engram/read/validity") seen.invalid++;
           if (dormant.length > 0) seen.dormant++;
           let admitted = 0;
           for (const actor of universe(item.scope, other)) {
@@ -152,7 +176,7 @@ describe("who can read this memory", () => {
     );
     expect(
       Object.values(seen).every((n) => n > 0),
-      `agreement needs actors admitted by scope and by grant, closed items, dormant grants, and items nobody and someone reads; it saw ${JSON.stringify(seen)}`,
+      `agreement needs actors admitted by scope and by grant, closed items, items outside their validity window, dormant grants, and items nobody and someone reads; it saw ${JSON.stringify(seen)}`,
     ).toBe(true);
   });
 
@@ -186,7 +210,15 @@ describe("who can read this memory", () => {
   const LEAK =
     "no answer reveals a grant holder to a non-owner, nor tells an item from an unknown id to an actor who may not read it";
   test(LEAK, async () => {
-    const seen = { refused: 0, owner: 0, reader: 0, grantee: 0, scopeRefused: 0, withheld: 0 };
+    const seen = {
+      refused: 0,
+      owner: 0,
+      reader: 0,
+      grantee: 0,
+      scopeRefused: 0,
+      withheld: 0,
+      closedToMember: 0,
+    };
     const HIDDEN = "person:zed-hidden";
     await fc.assert(
       fc.asyncProperty(
@@ -288,6 +320,19 @@ describe("who can read this memory", () => {
                 expect(answer.dormant).toEqual([]);
                 for (const r of answer.readers)
                   if (r.kind === "grant") expect(names(r.to, actor.id)).toBe(true);
+                // A grant shown to a non-owner carries no position on the item (E2.13-4).
+                expect(JSON.stringify(answer)).not.toContain("grants[");
+                if (answer.closed !== null) {
+                  // A member asking about an item closed to every reader learns that it
+                  // is closed, by which rule, and no more: not its owner, not one of its
+                  // instants (review finding E2.13-1, the lead's decision to withhold).
+                  seen.closedToMember++;
+                  const shown = JSON.stringify(answer);
+                  if (!actor.id.includes(item.owner)) expect(shown).not.toContain(item.owner);
+                  const expiry = itemExpiry(policy, item)?.at;
+                  for (const instant of [item.valid_from, item.valid_to, expiry])
+                    if (instant && instant !== answer.at) expect(shown).not.toContain(instant);
+                }
                 if (item.grants.length > 0) {
                   seen.withheld++;
                   expect(JSON.stringify(answer)).not.toContain(HIDDEN);
@@ -312,7 +357,7 @@ describe("who can read this memory", () => {
     );
     expect(
       Object.values(seen).every((n) => n > 0),
-      `the leak property needs refusals, owners, member readers, grantees, refused scopes and withheld grants; it saw ${JSON.stringify(seen)}`,
+      `the leak property needs refusals, owners, member readers, grantees, refused scopes, withheld grants and closed items asked about by members; it saw ${JSON.stringify(seen)}`,
     ).toBe(true);
   });
 
@@ -376,6 +421,81 @@ describe("who can read this memory", () => {
       "person:t",
     ]);
     expect(seen.grants_shown).toBe("yours");
+  });
+
+  test("an answer is judged at the read's access time: never before the log's head (E2.13-2)", async () => {
+    const policy = {
+      id: "p",
+      version: 1,
+      write: [],
+      read: { matrix: [{ reader: "person", may_read: ["person"] }], honour_grants: true },
+      retention: [],
+      promotion: {
+        episodic_to_semantic: { confirmations: 3, or_review: true },
+        procedural: { replay_k: 4, replay_n: 5 },
+      },
+      lints: { enabled: [], thresholds: {} },
+      schema_version: 1,
+    } as Policy;
+    const id = "01960000-0000-7000-8000-000000000001";
+    const head = "2026-09-01T00:00:00Z";
+    const asked = "2026-03-01T00:00:00Z";
+    const item = {
+      id,
+      class: "semantic",
+      scope: "person:s",
+      owner: "person:s",
+      content: "x",
+      provenance: { kind: "user", ref: "r", hash: `sha256:${"0".repeat(64)}`, actor: "person:s" },
+      confidence: 1,
+      valid_from: "2026-01-01T00:00:00Z",
+      valid_to: null,
+      ttl: null,
+      // Live at the time asked, expired by the log's head.
+      grants: [
+        { to: "person:t", class: "semantic", mode: "read", expires: "2026-06-01T00:00:00Z" },
+      ],
+      version: 1,
+      lineage: [],
+      status: "active",
+      store_ref: null,
+      schema_version: 1,
+    } as MemoryItem;
+    const db = openSqlite(":memory:");
+    migrate(db);
+    try {
+      const plane = createPlane({
+        db,
+        adapter: createFakeAdapter(),
+        policy,
+        newId: () => "01960000-0000-7000-8000-000000000002",
+      });
+      appendEvent(db, {
+        id: "01960000-0000-7000-8000-000000000003",
+        ts: head,
+        op: "write",
+        item_id: id,
+        actor: "person:s",
+        scope_from: null,
+        scope_to: "person:s",
+        decision: "allow",
+        reason: "seeded",
+        policy_id: "seed",
+        item,
+        schema_version: 1,
+      });
+      const owner: Actor = { id: "person:s", level: "person", memberships: ["person:s"] };
+      const answer = await plane.whoCanReadItem(owner, id, asked);
+      expect(answer.at).toBe(head);
+      expect(answer.readers.some((r) => r.kind === "grant")).toBe(false);
+      expect(answer.dormant.map((d) => d.grant)).toEqual(["grants[0]:person:t"]);
+      // The grantee, whose grant has lapsed by the head, is refused.
+      const grantee: Actor = { id: "person:t", level: "person", memberships: [] };
+      expect((await plane.whoCanReadItem(grantee, id, asked)).answered).toBe(false);
+      expect((await plane.whoCanRead(owner, "person:s", asked)).at).toBe(head);
+    } finally {
+      db.close();
+    }
   });
 
   test("an invalid item id or scope is refused before the log is read", async () => {

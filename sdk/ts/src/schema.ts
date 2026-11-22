@@ -652,7 +652,7 @@ export interface components {
             kind: "grant";
             /** @description Every actor whose id the grant's `to` matches (exactly, or by prefix before a final `*`). */
             to: string;
-            /** @description The grant's place on the item, as a read's grants_used names it: `grants[<i>]:<to>`. */
+            /** @description The grant: to the item's owner by its place on the item, as a read's grants_used names it (`grants[<i>]:<to>`); to anyone else without its place (`grant:<to>`). */
             grant: string;
             grant_detail: components["schemas"]["Grant"];
             policy_id: string;

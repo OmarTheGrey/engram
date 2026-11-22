@@ -22,8 +22,12 @@
 // exists. Grant holders are named to the item's owner only (the owner as
 // Plane.changeGrants knows it: its id is the item's owner and it may read the
 // item's scope as a member); any other reader is shown only the grants that
-// name it, as the inspector's shownGrants does (ADR 0034, decision 9), and is
-// told that grants are withheld whether or not there are any. A scope's
+// name it, as the inspector's shownGrants does (ADR 0034, decision 9), each
+// without its place on the item, and is told that grants are withheld whether
+// or not there are any. A member asking about an item closed to every reader
+// (retired, a candidate, past its ttl, outside its validity window) learns
+// only that it is closed and by which rule: not its owner, not its validity
+// window or ttl expiry (the review's E2.13-1, the lead's decision). A scope's
 // answer names only the read matrix's rules: grants are on items, so it says
 // nothing of them. Item 36's rule (a non-owner sees only the grants naming
 // them on a read) is not built in core on main; this card does not build it.
@@ -75,7 +79,7 @@ export const ReaderEntry = z
       }),
       grant: z.string().meta({
         description:
-          "The grant's place on the item, as a read's grants_used names it: `grants[<i>]:<to>`.",
+          "The grant: to the item's owner by its place on the item, as a read's grants_used names it (`grants[<i>]:<to>`); to anyone else without its place (`grant:<to>`).",
       }),
       grant_detail: Grant,
       policy_id: z.string(),
@@ -256,21 +260,44 @@ export function whoCanReadItemAs(
     return refusal(itemId, at, itemRefusal(actor, itemId));
   const full = itemReaders(policy, item, at);
   const owner = member && actor.id === item.owner;
+  if (owner)
+    return {
+      answered: true,
+      target: itemId,
+      at,
+      reason: `answered for ${actor.id}, the item's owner: every reader and every grant`,
+      readers: full.readers,
+      grants_shown: "all",
+      closed: full.closed,
+      dormant: full.dormant,
+    };
   // A reader who is not the owner is shown the read matrix's entries and the
-  // live grants that name it, never a grant naming anyone else.
+  // live grants that name it, never a grant naming anyone else, and a grant
+  // without its position on the item (review finding E2.13-4).
   const own = new Set(liveGrants(policy, actor, item, at));
-  const names = (r: ReaderEntry) => r.kind === "members" || own.has(r.grant);
+  const shown = full.readers.flatMap((r): ReaderEntry[] => {
+    if (r.kind === "members") return [r];
+    if (!own.has(r.grant)) return [];
+    const label = `grant:${r.to}`;
+    return [{ ...r, grant: label, reason: `every actor the ${grantText(r.grant_detail)} names` }];
+  });
+  // An item closed to every reader (retired, a candidate, past its ttl or
+  // outside its validity window) is one a member may ask about but not read:
+  // it learns that it is closed and by which rule, never its owner or an
+  // instant of it (review finding E2.13-1, the lead's decision to withhold).
+  // An admitted reader keeps the owner's id, which Plane.read gives it.
   return {
     answered: true,
     target: itemId,
     at,
-    reason: owner
-      ? `answered for ${actor.id}, the item's owner: every reader and every grant`
-      : `answered for ${actor.id}, who may read the item${member ? "'s scope" : ""}: only the grants naming ${actor.id} are shown; its owner ${item.owner} sees all of them`,
-    readers: owner ? full.readers : full.readers.filter(names),
-    grants_shown: owner ? "all" : "yours",
-    closed: full.closed,
-    dormant: owner ? full.dormant : [],
+    reason: `answered for ${actor.id}, who may read the item${member ? "'s scope" : ""}: only the grants naming ${actor.id} are shown; ${full.closed ? "its owner" : `its owner ${item.owner}`} sees all of them`,
+    readers: shown,
+    grants_shown: "yours",
+    closed:
+      full.closed === null
+        ? null
+        : { policy_id: full.closed.policy_id, reason: "closed to every reader now" },
+    dormant: [],
   };
 }
 

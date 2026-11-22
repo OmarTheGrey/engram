@@ -492,7 +492,7 @@ export function readerView(a: WhoCanReadAnswer): ReaderView {
     answered: a.answered,
     reason: a.reason,
     closed: a.closed === null ? null : `${a.closed.reason} (${a.closed.policy_id})`,
-    rows: a.readers.map((r) =>
+    rows: a.readers.map((r, i) =>
       r.kind === "members"
         ? {
             key: `members:${r.scope}:${r.level}`,
@@ -502,7 +502,8 @@ export function readerView(a: WhoCanReadAnswer): ReaderView {
             policyId: r.policy_id,
           }
         : {
-            key: r.grant,
+            // A non-owner's grant labels carry no position, so two may be alike.
+            key: `${i}:${r.grant}`,
             kind: "grant",
             who: r.to,
             text: `${r.to} by ${r.grant}, until ${r.grant_detail.expires ?? "no expiry"}`,
