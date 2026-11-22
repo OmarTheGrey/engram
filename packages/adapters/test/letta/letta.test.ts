@@ -502,6 +502,9 @@ describe("two adapter instances on one repository (the lock)", () => {
       await hold(root, "holder-b", c.t);
       await polled(c);
       c.t = 1_900;
+      await polled(c);
+      await polled(c);
+      expect(c.settled, "not refused within two polls past the wait").toBe(true);
       const error = await write;
       expect(error).toBeInstanceOf(Error);
       expect((error as Error).message).toContain(`since ${new Date(800).toISOString()}`);
