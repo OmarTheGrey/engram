@@ -167,6 +167,16 @@ describe("the routes, through the generated client, on the fake store", () => {
     expect(workspace.plane.events()).toEqual([body.event]);
   });
 
+  it("listScopes: with a store, the owner's sweep and adoption run first, as for a read (E8.14-11)", async () => {
+    const { client } = testWorkspace({ store: true });
+    const { data } = await client.POST("/api/v1/scopes", { body: { actor: dana } });
+    const body = C.ScopesResponse.parse(data);
+    expect(body.sync?.store.scope).toBe("person:dana");
+    expect(body.sync?.retention.decision).toBe("allow");
+    const other = await client.POST("/api/v1/scopes", { body: { actor: eve } });
+    expect(C.ScopesResponse.parse(other.data).sync).toBeNull();
+  });
+
   it("explain: a read event whose reason predates the ttl category has null counts", async () => {
     const { client, db } = testWorkspace();
     // The reason the read path wrote before card E2.4 added "past their ttl".

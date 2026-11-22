@@ -149,14 +149,21 @@ export const ROUTES: readonly Route[] = [
     method: "post",
     path: "/scopes",
     summary:
-      "The scopes the actor can see at the server's clock (card E8.14): its member scopes the read matrix lets its level read, and the scope of every item a read would admit through a live grant; one read event records the decision.",
+      "The scopes the actor can see at the server's clock (card E8.14): its member scopes the read matrix lets its level read, and the scope of every item a read would admit through a live grant; one read event records the decision; with a store, the same sweep and adoption as /read run first.",
     request: C.ScopesRequest,
     response: C.ScopesResponse,
     errors: [400],
-    handler: async ({ workspace, body, now }) => ({
-      ...(await workspace.plane.listScopes(body.actor, now())),
-      policy: policyLabel(workspace),
-    }),
+    handler: async ({ workspace, body, now }) => {
+      const at = now();
+      // As for a read (review finding E8.14-11): a grant the store's own
+      // memories carry is adopted before the scopes are listed.
+      const sync = await syncStore(workspace, body.actor, at);
+      return {
+        ...(await workspace.plane.listScopes(body.actor, at)),
+        sync,
+        policy: policyLabel(workspace),
+      };
+    },
   }),
   route<z.infer<typeof C.ExplainRequest>>({
     id: "explain",

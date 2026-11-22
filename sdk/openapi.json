@@ -386,7 +386,7 @@
     "/api/v1/scopes": {
       "post": {
         "operationId": "listScopes",
-        "summary": "The scopes the actor can see at the server's clock (card E8.14): its member scopes the read matrix lets its level read, and the scope of every item a read would admit through a live grant; one read event records the decision.",
+        "summary": "The scopes the actor can see at the server's clock (card E8.14): its member scopes the read matrix lets its level read, and the scope of every item a read would admit through a live grant; one read event records the decision; with a store, the same sweep and adoption as /read run first.",
         "requestBody": {
           "required": true,
           "content": {
@@ -2798,6 +2798,16 @@
           "event": {
             "$ref": "#/components/schemas/MemoryEvent"
           },
+          "sync": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StoreSync"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "policy": {
             "type": "string",
             "description": "The policy the listing was decided under: <id> v<version>."
@@ -2806,6 +2816,7 @@
         "required": [
           "scopes",
           "event",
+          "sync",
           "policy"
         ],
         "additionalProperties": false

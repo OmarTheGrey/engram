@@ -77,7 +77,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** The scopes the actor can see at the server's clock (card E8.14): its member scopes the read matrix lets its level read, and the scope of every item a read would admit through a live grant; one read event records the decision. */
+        /** The scopes the actor can see at the server's clock (card E8.14): its member scopes the read matrix lets its level read, and the scope of every item a read would admit through a live grant; one read event records the decision; with a store, the same sweep and adoption as /read run first. */
         post: operations["listScopes"];
         delete?: never;
         options?: never;
@@ -566,6 +566,7 @@ export interface components {
         ScopesResponse: {
             scopes: components["schemas"]["VisibleScope"][];
             event: components["schemas"]["MemoryEvent"];
+            sync: components["schemas"]["StoreSync"] | null;
             /** @description The policy the listing was decided under: <id> v<version>. */
             policy: string;
         };

@@ -73,13 +73,6 @@ export const VisibleScope = z
     description:
       "A scope the actor can see: `membership`, a member scope the read matrix lets its level read; `grant`, otherwise, the scope of an item a read now admits through a live grant (card E8.14).",
   });
-export const ScopesResponse = z.strictObject({
-  scopes: z.array(VisibleScope),
-  event: MemoryEvent,
-  policy: z
-    .string()
-    .meta({ description: "The policy the listing was decided under: <id> v<version>." }),
-});
 
 export const RetentionReport = z.strictObject({
   decision: z.enum(["allow", "deny"]),
@@ -112,6 +105,15 @@ export const StoreSync = z
     description:
       "What the workspace did before the read, as the store's owner: its retention sweep, then the adoption of the store's own memories (ADR 0025, decision D8).",
   });
+
+export const ScopesResponse = z.strictObject({
+  scopes: z.array(VisibleScope),
+  event: MemoryEvent,
+  sync: StoreSync.nullable(),
+  policy: z
+    .string()
+    .meta({ description: "The policy the listing was decided under: <id> v<version>." }),
+});
 
 export const ReadResponse = z.strictObject({
   items: z.array(MemoryItem),
