@@ -7,6 +7,7 @@
 // records. The plan names nothing the actor cannot read.
 import { describe, expect, test } from "vitest";
 import { InvalidCallError } from "../../../src/actor.ts";
+import { appendEvent } from "../../../src/events.ts";
 import { itemById } from "../../../src/items.ts";
 import type { Actor } from "../../../src/plane.ts";
 import { WRITE_MEMBERSHIP_ID } from "../../../src/policy/evaluate.ts";
@@ -82,6 +83,36 @@ describe("planSupersession", () => {
     const plan = planSupersession(env.db, env.policy, sam, id(3), NOW);
     expect(plan.head).toMatchObject({ ok: true, head_id: id(3) });
     expect(plan.proposals).toEqual([]);
+  });
+
+  test("a retired successor is no link: the head of a version it names is that version (L6-2)", async () => {
+    const env = fresh();
+    expect((await env.plane.write(omar, item(1), AT)).event.decision).toBe("allow");
+    // Version 2 names version 1 and was retired: it supersedes nothing.
+    const retired = item(2, { valid_from: LATER, lineage: [id(1)], status: "retired" });
+    appendEvent(env.db, {
+      id: id(9000),
+      ts: AT,
+      op: "write",
+      item_id: retired.id,
+      actor: omar.id,
+      scope_from: null,
+      scope_to: retired.scope,
+      decision: "allow",
+      reason: "seeded",
+      policy_id: "seed",
+      item: retired,
+      schema_version: 1,
+    });
+    const plan = planSupersession(env.db, env.policy, omar, id(1), NOW);
+    expect(plan.head).toEqual({ ok: true, head_id: id(1), chain: [id(1)] });
+    expect(plan.proposals).toEqual([]);
+    // Asked about itself, the retired version is an unknown id (L6-1).
+    expect(planSupersession(env.db, env.policy, omar, id(2), NOW).head).toEqual({
+      ok: false,
+      error: "unknown_id",
+      chain: [],
+    });
   });
 
   test("a lineage cycle is reported and proposes nothing", async () => {
