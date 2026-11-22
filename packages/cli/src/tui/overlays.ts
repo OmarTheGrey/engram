@@ -6,12 +6,19 @@
 // pasted command line as its form; and the confirmation, one shape for
 // every action that changes state, the safe button focused.
 import { fuzzyFilter } from "@earendil-works/pi-tui";
-import { closest, type CommandSpec, commandWords, parseOptions, REGISTRY } from "../registry.ts";
+import {
+  closest,
+  type CommandSpec,
+  commandWords,
+  parseOptions,
+  REGISTRY,
+  type Values,
+} from "../registry.ts";
 import { parse } from "../commands.ts";
 import { splitWords } from "./argv.ts";
 import { TextField } from "./fields.ts";
 import { actionsOn, EVERYWHERE, type KeyAction } from "./keys.ts";
-import { box, cut, fit, wrap } from "./layout.ts";
+import { box, cut, fit, para, wrap } from "./layout.ts";
 import type { ConfirmRequest, Ctx, Overlay, Screen } from "./screen.ts";
 
 /** The key lines of the help overlay: each label once, with its description. */
@@ -261,7 +268,7 @@ export function openLine(ctx: Ctx, words: readonly string[]): void {
   if (spec === undefined) throw new Error(`no command starts ${words.slice(0, 2).join(" ")}`);
   const nameWords = spec.name.split(" ").filter((w) => !w.startsWith("--"));
   const { values, positionals } = parse([...words.slice(1)], parseOptions(spec), spec.allowPositionals);
-  ctx.openCommand(spec, values, positionals.slice(nameWords.length - 1));
+  ctx.openCommand(spec, values as Values, positionals.slice(nameWords.length - 1));
 }
 
 /** Set by the router: the workspace screen's constructor (no import cycle). */
@@ -310,8 +317,8 @@ export class ConfirmOverlay implements Overlay {
   render(ctx: Ctx, width: number, height: number): string[] {
     const inner = width - 2;
     const body: string[] = [];
-    for (const p of this.request.lines) body.push(...wrap(` ${p}`, inner - 1), "");
-    if (this.request.argv !== undefined) body.push(...wrap(` $ ${ctx.line(this.request.argv)}`, inner - 1), "");
+    for (const p of this.request.lines) body.push(...para(`${p}`, inner), "");
+    if (this.request.argv !== undefined) body.push(...para(`$ ${ctx.line(this.request.argv)}`, inner), "");
     if (this.typed !== undefined)
       body.push(` Type ${this.request.typed} to go on: [ ${this.typed.render(Math.min(40, inner - 22), true)} ]`, "");
     const button = (label: string, on: boolean) => (on ? ctx.theme.reverse(`[ ${label} ]`) : `[ ${label} ]`);

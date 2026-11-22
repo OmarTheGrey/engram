@@ -10,7 +10,7 @@
 import { existsSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 import { TextField } from "../fields.ts";
-import { cut, rows, wrap } from "../layout.ts";
+import { cut, para, rows, wrap } from "../layout.ts";
 import type { CommandRow, Ctx, Screen } from "../screen.ts";
 import type { CheapCheck } from "../workspace.ts";
 import { command } from "../../registry.ts";
@@ -262,7 +262,7 @@ export class FirstRunScreen implements Screen {
       ` ${mark(q === "folder")} ${n}  Which memory folder?  [ ${this.folder.render(16, q === "folder")} ]  ${folder === undefined ? "optional; enter with it empty skips" : `${t.symbol(folder.status)} ${folder.detail}`}`,
     );
     lines.push("");
-    if (this.problem !== undefined) lines.push(...wrap(` ${t.status("fail", this.problem)}`, width - 1), "");
+    if (this.problem !== undefined) lines.push(...para(`${t.status("fail", this.problem)}`, width), "");
     lines.push(...wrap(" Nothing is written until your first read or write. Every answer is a flag: you can type the same thing at the shell next time.", width - 1));
     lines.push("", " Using a screen reader? Line mode (L, or ENGRAM_TUI_LINE=1) comes with card E8.15e.");
     return rows(lines, height, width);

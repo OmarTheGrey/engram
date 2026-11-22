@@ -140,6 +140,7 @@ export class App implements Component, Ctx {
     });
     this.stack = this.initialStack(o.options.screen);
     if (this.savedProblem !== undefined) this.message = this.savedProblem;
+    else if (this.savedInUse) this.message = "workspace saved: tui.json applied; ctrl+o changes it";
   }
 
   private initialStack(screen: string | undefined): Screen[] {
@@ -196,8 +197,14 @@ export class App implements Component, Ctx {
     else this.overlays = this.overlays.filter((x) => x !== o);
   }
   confirm(request: ConfirmRequest): Promise<boolean> {
+    this.parked++;
     return new Promise((resolve) => {
-      this.showOverlay(new ConfirmOverlay(request, resolve));
+      this.showOverlay(
+        new ConfirmOverlay(request, (yes) => {
+          this.parked--;
+          resolve(yes);
+        }),
+      );
       this.redraw();
     });
   }
@@ -334,22 +341,48 @@ export class App implements Component, Ctx {
 
   // Input.
 
+  /** Keys in flight on the main chain, and on the side chain that runs while a confirmation waits. */
+  private mainActive = 0;
+  private sideActive = 0;
+  private side: Promise<void> = Promise.resolve();
+  /** Confirmations waiting for a key: the main chain is parked on them. */
+  private parked = 0;
+
   handleInput(data: string): void {
-    this.pending = this.pending
-      .then(() => this.dispatch(data))
-      .catch((e: unknown) => {
-        this.message = `internal error: ${e instanceof Error ? e.message : String(e)}`;
-      })
-      .then(() => this.redraw());
+    // While a confirmation waits, the action that asked is parked on the main
+    // chain; the keys that answer it go on a side chain, or nothing could answer.
+    const onSide = this.parked > 0;
+    const run = () =>
+      this.dispatch(data)
+        .catch((e: unknown) => {
+          this.message = `internal error: ${e instanceof Error ? e.message : String(e)}`;
+        })
+        .then(() => this.redraw());
+    if (onSide) {
+      this.sideActive++;
+      this.side = this.side.then(run).finally(() => {
+        this.sideActive--;
+      });
+    } else {
+      this.mainActive++;
+      this.pending = this.pending.then(run).finally(() => {
+        this.mainActive--;
+      });
+    }
   }
 
-  /** Resolves once every key sent so far has been handled. */
+  /**
+   * Resolves once every key sent so far has been handled, or is parked on a
+   * confirmation that waits for the next key.
+   */
   async settled(): Promise<void> {
-    let seen: Promise<void> | undefined;
-    while (seen !== this.pending) {
-      seen = this.pending;
-      await seen;
+    const deadline = Date.now() + 25_000;
+    while (Date.now() < deadline) {
+      await new Promise((r) => setImmediate(r));
+      if (this.sideActive > 0) continue;
+      if (this.mainActive === 0 || this.parked > 0) return;
     }
+    throw new Error("the TUI did not settle");
   }
 
   private async dispatch(data: string): Promise<void> {

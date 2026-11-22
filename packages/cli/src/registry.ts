@@ -734,6 +734,77 @@ export const OPTIONS = {
     host: { ...HOST, help: "the host engram serve would bind", card: "E8.12" },
     ...AUTH_OPTIONS,
   },
+  tui: {
+    line: flag({
+      type: "boolean",
+      label: "Line mode",
+      help: "the plain CLI with prompts, for screen readers (card E8.15e); also ENGRAM_TUI_LINE=1",
+      control: "toggle",
+      card: "E8.15e",
+    }),
+    "no-color": flag({
+      type: "boolean",
+      label: "No colour",
+      help: "no colour escape at all; also NO_COLOR",
+      control: "toggle",
+      card: "E8.15b",
+    }),
+    "high-contrast": flag({
+      type: "boolean",
+      label: "High contrast",
+      help: "no hue, only bold and underline; also ENGRAM_TUI_CONTRAST=high",
+      control: "toggle",
+      card: "E8.15b",
+    }),
+    ascii: flag({
+      type: "boolean",
+      label: "ASCII",
+      help: "ASCII box drawing and symbols; also ENGRAM_TUI_ASCII=1",
+      control: "toggle",
+      card: "E8.15b",
+    }),
+    "reduced-motion": flag({
+      type: "boolean",
+      label: "Reduced motion",
+      help: "no animation; also ENGRAM_TUI_MOTION=reduce",
+      control: "toggle",
+      card: "E8.15b",
+    }),
+    "no-mouse": flag({
+      type: "boolean",
+      label: "No mouse",
+      help: "leave the mouse to the terminal; also ENGRAM_TUI_MOUSE=0",
+      control: "toggle",
+      card: "E8.15b",
+    }),
+    quiet: flag({
+      type: "boolean",
+      label: "Quiet",
+      help: "do not print the session's commands on quit",
+      control: "toggle",
+      card: "E8.15b",
+    }),
+    "no-saved": flag({
+      type: "boolean",
+      label: "Ignore the saved workspace",
+      help: "neither read nor write <home>/.engram/tui.json this session",
+      control: "toggle",
+      card: "E8.15b",
+    }),
+    screen: flag({
+      type: "string",
+      label: "Open on",
+      help: "home, workspace, first-run or a command's name",
+      control: "text",
+      defaultText: "Home, or first run when the workspace is not usable yet",
+      card: "E8.15b",
+    }),
+    ...CLIENT_OPTIONS,
+    ...STORE_OPTIONS,
+    as: AS,
+    level: LEVEL,
+    member: MEMBER,
+  },
 } satisfies Record<string, Record<string, OptionSpec>>;
 
 /** The subset of `options` named, in that order. */
@@ -778,6 +849,7 @@ const H = {
   key: handler(async () => (await import("./key.ts")).keyCommand),
   doctor: handler(async () => (await import("./doctor.ts")).doctorCommand),
   log: handler(async () => (await import("./log.ts")).logCommand),
+  tui: handler(async () => (await import("./tui/main.ts")).tuiCommand),
 };
 
 /** Whether a store folder or a server is named, by the form or the workspace. */
@@ -1472,6 +1544,40 @@ export const REGISTRY: readonly CommandSpec[] = [
     ],
     writes: () => "state",
     handler: H.log,
+  },
+  {
+    name: "tui",
+    title: "The terminal interface",
+    usage: "tui",
+    summary: "the terminal interface; --line or ENGRAM_TUI_LINE=1 for one prompt a line",
+    listed: true,
+    group: "machine",
+    positionals: [],
+    options: omit(OPTIONS.tui, ["json"]),
+    parse: OPTIONS.tui,
+    allowPositionals: false,
+    helpSection: [
+      "tui options (card E8.15b; docs/design/tui.md):",
+      "  --no-color  --high-contrast  --ascii  --reduced-motion  --no-mouse",
+      "                              no colour (also NO_COLOR), no hue, ASCII only, no motion, the",
+      "                              mouse left to the terminal (also ENGRAM_TUI_CONTRAST=high,",
+      "                              ENGRAM_TUI_ASCII=1, ENGRAM_TUI_MOTION=reduce, ENGRAM_TUI_MOUSE=0)",
+      "  --quiet                     do not print the session's commands on quit",
+      "  --no-saved                  neither read nor write <home>/.engram/tui.json (workspace flags only)",
+      "  --screen <name>             open on home, workspace, first-run or a command's screen",
+      "  --line                      line mode, for screen readers (card E8.15e; also ENGRAM_TUI_LINE=1)",
+      "  the store, actor and export flags and --server fill its workspace; every action runs the",
+      "  plain command it shows. Refused, exit 2, when stdout or stdin is not a terminal, CI is",
+      "  set, TERM is dumb, or with --json",
+    ],
+    listedIn: [],
+    exitCodes: [
+      { code: 0, when: "quit" },
+      { code: 2, when: "refused, or usage" },
+    ],
+    // The TUI runs until quit; each action it runs asks by its own entry's writes.
+    writes: () => "process",
+    handler: H.tui,
   },
 ];
 

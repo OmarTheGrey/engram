@@ -24,6 +24,10 @@ export const cut = (text: string, width: number) =>
 export const wrap = (text: string, width: number): string[] =>
   width <= 0 ? [] : wrapTextWithAnsi(text, width).map((l) => truncateToWidth(l, width, ""));
 
+/** `text` wrapped at `width`, every line after an `indent` (one space by default). */
+export const para = (text: string, width: number, indent = " "): string[] =>
+  wrap(text, width - visibleWidth(indent)).map((l) => indent + l);
+
 /** Exactly `height` lines: cut, or padded with blank ones. */
 export function rows(lines: readonly string[], height: number, width: number): string[] {
   const out = lines.slice(0, Math.max(0, height)).map((l) => fit(l, width));

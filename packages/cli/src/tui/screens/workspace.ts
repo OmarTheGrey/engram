@@ -9,7 +9,7 @@
 import { buildActor, dbTarget } from "../../setup.ts";
 import { ScopeLevel } from "@engram/core";
 import { TextField } from "../fields.ts";
-import { cut, fit, rows, wrap } from "../layout.ts";
+import { cut, fit, para, rows, wrap } from "../layout.ts";
 import { forgetFlow } from "../overlays.ts";
 import type { CommandRow, Ctx, Screen } from "../screen.ts";
 import { SERVER_REFUSES, serverRefusal, type Workspace, type WsFlag } from "../workspace.ts";
@@ -262,7 +262,7 @@ export class WorkspaceScreen implements Screen {
       if (r.id === "forget") {
         lines.push(
           "",
-          ...wrap(` Saved in ~/.engram/tui.json: flags only.${ctx.noSaved ? " Not read or written this session (--no-saved)." : ""}`, width - 1),
+          ...para(`Saved in ~/.engram/tui.json: flags only.${ctx.noSaved ? " Not read or written this session (--no-saved)." : ""}`, width),
         );
       }
       if (r.id === "import-valid-from") lines.push("", " Advanced");
@@ -283,7 +283,7 @@ export class WorkspaceScreen implements Screen {
     }
     if (this.serverMode)
       lines.push("", ` Token        ${ctx.ws.tokenSet() ? "set" : "not set"} (ENGRAM_TOKEN; its value is never shown)`);
-    if (this.problem !== undefined) lines.push("", ...wrap(` ${t.status("fail", this.problem)}`, width - 1));
+    if (this.problem !== undefined) lines.push("", ...para(`${t.status("fail", this.problem)}`, width));
     const focusAt = lines.findIndex((l) => l.includes(`> `));
     const start = focusAt >= height ? focusAt - height + 2 : 0;
     return rows(lines.slice(start), height, width);

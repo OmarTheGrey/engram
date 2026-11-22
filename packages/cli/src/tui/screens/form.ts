@@ -7,7 +7,7 @@
 // command's own output, byte for byte, with its exit code.
 import type { CommandSpec, Values } from "../../registry.ts";
 import { Form, type FormError, type Field } from "../forms.ts";
-import { cut, fit, rows, wrap } from "../layout.ts";
+import { cut, fit, para, rows, wrap } from "../layout.ts";
 import type { RunResult } from "../runner.ts";
 import type { CommandRow, Ctx, Screen } from "../screen.ts";
 
@@ -242,7 +242,7 @@ export class FormScreen implements Screen {
     const spec = this.form.spec;
     const head = [` engram ${spec.usage}: ${spec.summary}`, ""];
     if (this.error !== undefined && this.error.field === undefined)
-      head.push(...wrap(` ${t.status("fail", this.error.message)}`, width - 1), "");
+      head.push(...para(`${t.status("fail", this.error.message)}`, width), "");
     const lines: string[] = [];
     let focusLine = 0;
     const inputWidth = Math.max(12, Math.min(44, width - LABEL - 24));

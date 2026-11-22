@@ -6,7 +6,7 @@
 // opens its command. No letter is one of the keys that act everywhere or in
 // lists. At 80x24 the list scrolls and says how much is below.
 import { type CommandSpec, GROUPS, type Group, type Values, type Writes } from "../../registry.ts";
-import { box, cut, fit, sideBySide, wrap } from "../layout.ts";
+import { box, cut, fit, para, sideBySide, wrap } from "../layout.ts";
 import { offered } from "../overlays.ts";
 import type { CommandRow, Ctx, Screen } from "../screen.ts";
 import { shortPath } from "../workspace.ts";
@@ -230,12 +230,12 @@ export class HomeScreen implements Screen {
     const spec = this.selectedSpec();
     const root = ctx.ws.get("root");
     const shownRoot = root === undefined ? undefined : shortPath(root, ctx.io);
-    const lines = [` ${spec.title}`, "", ...wrap(` ${capital(spec.summary)}.`, width - 1), ""];
-    lines.push(...wrap(` ${changesText(spec, ctx.ws.flagValues(), shownRoot)}`, width - 1), "");
+    const lines = [` ${spec.title}`, "", ...para(`${capital(spec.summary)}.`, width), ""];
+    lines.push(...para(`${changesText(spec, ctx.ws.flagValues(), shownRoot)}`, width), "");
     const exits = spec.exitCodes.map((e) => `${e.code} ${e.when}`).join("; ");
-    lines.push(...wrap(` Exit     ${exits}`, width - 1), "");
+    lines.push(...para(`Exit     ${exits}`, width), "");
     if (spec.card !== undefined) lines.push(` Card     ${spec.card}, in flight`, "");
-    lines.push(...wrap(` engram ${spec.usage}`, width - 1), "", " enter open   c copy command");
+    lines.push(...para(`engram ${spec.usage}`, width), "", " enter open   c copy command");
     return lines;
   }
 
