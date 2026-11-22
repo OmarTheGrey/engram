@@ -1,0 +1,43 @@
+ engram  Home                                                           in process  log engram.db  person:dana (person)
++- Actions ------------------------------------------------------------++- Selected -----------------------------------+
+| 1 Memory                                                             || Read and explain                             |
+| > [r] Read and explain                engram read [query]            ||                                              |
+|   [o] Read one item                   engram read --item <id>        || Read through the plane and explain every     |
+|   [w] Write a memory                  engram write                   || returned item.                               |
+|   [C] Check a write                   engram check                   ||                                              |
+|   [p] Promote an item                 engram promote <itemId>        || Changes: adopts mem into the log; as its     |
+|   [S] Supersede                       engram supersede <itemId>      || owner, first sweeps your expired items. Asks |
+|   [g] Grants on an item               engram grants <itemId>         || the first time a session.                    |
+|   [E] Explain a read                  engram explain <readId>        ||                                              |
+|   [n] Who +- Help: Home ---------------------------------------------------------------------------------+ it cannot |
+|   [u] Scop| This screen                                                                                  |; 2 usage: |
+| 2 Policy  |   q  quit                                      L  line mode (card E8.15e)                    |aming a    |
+|   [t] Rete|   up k  move up                                down j  move down                             |           |
+|   [l] Lint|   pgup  page up                                pgdn  page down                               |           |
+|   [s] Simu|   home  first                                  end  last                                     |           |
+|   [y] Poli|   enter  open                                  1-6  jump to a group                          |           |
+| 3 Audit   | Everywhere                                                                                   |           |
+|   [e] Even|   ? (ctrl+g in a field)  this help             ; or alt+p (alt+p in a field)  commands       |           |
+|   [f] Veri|   ctrl+o  workspace                            esc  back                                     |           |
+|   [F] Chec|   c (alt+c in a field)  copy the command line  ctrl+l  redraw the screen                     |           |
+| 4 Data    |   ctrl+c  quit now                                                                           |           |
+|   [x] Expo|   The mouse is off (--no-mouse): the terminal's own selection works.                         |           |
+|   [i] Impo|   In a text field every printable key types; ctrl+g opens this help.                         |           |
+| 5 Surfaces| engram read [query]                                                                          |           |
+|   [h] Serv|   read through the plane and explain every returned item                                     |           |
+|   [m] MCP +----------------------------------------------------------------------------------------------+           |
+|   [b] Claude Code hook setup          engram hook claude-code        ||                                              |
+|   [a] Create a key                    engram key                     ||                                              |
+|   [A] List keys                       engram key list                ||                                              |
+|   [R] Revoke a key                    engram key revoke <id>         ||                                              |
+| 6 Machine                                                            ||                                              |
+|   [d] Doctor                          engram doctor                  ||                                              |
+|                                                                      ||                                              |
++----------------------------------------------------------------------++----------------------------------------------+
+ - doctor not run this session: d   log engram.db   policy preset.medium v1
+ store files mem    owner dana    member of the actor's own scope    workspace not saved    decision export off
+$ engram read --db engram.db --owner dana --root mem
+ ? help  enter open  1-6 group  letter action  ; commands  q quit
+--- styles
+r0 c0-119 inverse
+r3 c1-70 inverse

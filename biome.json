@@ -53,12 +53,68 @@
                 "paths": {
                   "@earendil-works/pi-ai": "AGENTS.md rule 4 and What not to do: packages/core, packages/adapters, packages/tag, packages/kit and packages/ai-sdk never import pi; inject a ModelCall instead.",
                   "@earendil-works/pi-coding-agent": "AGENTS.md rule 4 and What not to do: packages/core, packages/adapters, packages/tag, packages/kit and packages/ai-sdk never import pi; inject a ModelCall instead.",
-                  "@earendil-works/pi-durable": "AGENTS.md rule 4 and What not to do: packages/core, packages/adapters, packages/tag, packages/kit and packages/ai-sdk never import pi; inject a ModelCall instead."
+                  "@earendil-works/pi-durable": "AGENTS.md rule 4 and What not to do: packages/core, packages/adapters, packages/tag, packages/kit and packages/ai-sdk never import pi; inject a ModelCall instead.",
+                  "@earendil-works/pi-tui": "AGENTS.md What not to do and ADR 0044: pi-tui is the CLI's terminal library, reached only from packages/cli/src/tui; packages/core, packages/adapters, packages/tag, packages/kit and packages/ai-sdk draw no terminal."
                 },
                 "patterns": [
                   {
                     "group": ["@earendil-works/pi-*/**"],
                     "message": "AGENTS.md rule 4 and What not to do: packages/core, packages/adapters, packages/tag, packages/kit and packages/ai-sdk never import pi; inject a ModelCall instead."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["packages/cli/**", "!packages/cli/src/tui/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "@earendil-works/pi-ai": "AGENTS.md What not to do and ADR 0044: packages/cli imports no pi package but pi-tui, and pi-tui only under packages/cli/src/tui.",
+                  "@earendil-works/pi-coding-agent": "AGENTS.md What not to do and ADR 0044: packages/cli imports no pi package but pi-tui, and pi-tui only under packages/cli/src/tui.",
+                  "@earendil-works/pi-durable": "AGENTS.md What not to do and ADR 0044: packages/cli imports no pi package but pi-tui, and pi-tui only under packages/cli/src/tui.",
+                  "@earendil-works/pi-tui": "AGENTS.md What not to do and ADR 0044: packages/cli imports no pi package but pi-tui, and pi-tui only under packages/cli/src/tui."
+                },
+                "patterns": [
+                  {
+                    "group": ["@earendil-works/pi-*/**"],
+                    "message": "AGENTS.md What not to do and ADR 0044: packages/cli imports no pi package but pi-tui, and pi-tui only under packages/cli/src/tui."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["packages/cli/src/tui/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "@earendil-works/pi-ai": "AGENTS.md What not to do and ADR 0044: packages/cli/src/tui may import pi-tui and no other pi package.",
+                  "@earendil-works/pi-coding-agent": "AGENTS.md What not to do and ADR 0044: packages/cli/src/tui may import pi-tui and no other pi package.",
+                  "@earendil-works/pi-durable": "AGENTS.md What not to do and ADR 0044: packages/cli/src/tui may import pi-tui and no other pi package."
+                },
+                "patterns": [
+                  {
+                    "group": [
+                      "@earendil-works/pi-ai/**",
+                      "@earendil-works/pi-coding-agent/**",
+                      "@earendil-works/pi-durable/**"
+                    ],
+                    "message": "AGENTS.md What not to do and ADR 0044: packages/cli/src/tui may import pi-tui and no other pi package."
                   }
                 ]
               }

@@ -1,0 +1,44 @@
+ engram  Getting started  1 of 3                                   in process  log home/.engram/engram.db  no actor yet
+ Welcome. A few answers and you are ready.
+
+ > 1  Where should the event log live?
+
+     (o) the default for this user   ~/.engram/engram.db
+     ( ) a file I name   [                                      ]
+     ( ) in memory only, nothing kept   :memory:
+     ( ) a Postgres server   [                                      ]
+
+    + ok  log: sqlite home/.engram/engram.db: no log yet; the first read or write creates it
+
+   2  Who are you?          [                  ]  your id, such as dana
+   3  Which memory folder?  [                  ]  optional; enter with it empty skips
+
+ Nothing is written until your first read or write. Every answer is a flag: you can type the same thing at the shell
+ next time.
+
+ Using a screen reader? Line mode (L, or ENGRAM_TUI_LINE=1) comes with card E8.15e.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+$ (no flags yet: every command takes the CLI's defaults)
+ ? help  tab next  shift+tab back  enter accept  d doctor  ; commands  q quit
+--- styles
+r0 c0-119 inverse
+r5 c0-119 inverse
+r10 c4-4 fg #00A67A
