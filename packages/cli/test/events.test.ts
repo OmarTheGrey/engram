@@ -39,9 +39,12 @@ describe("engram events", () => {
     expect(r.err).toBe("");
     expect(r.code).toBe(0);
     const all = logEvents(db);
-    const dana = all.filter((e) => e.actor === "person:dana");
+    // As a member of person:dana only, dana sees that scope's events, not her denied team write.
+    const dana = all.filter((e) => e.scope_to === "person:dana");
+    expect(dana).toHaveLength(1);
     const lines = r.out.split("\n");
-    expect(lines[0]).toBe(`events person:dana may see: ${dana.length} events`);
+    expect(lines[0]).toBe("events person:dana may see: 1 event");
+    expect(r.out).not.toContain("team:platform");
     for (const e of dana) {
       expect(r.out).toContain(
         `  ${e.seq} ${e.ts} ${e.op} ${e.decision} by ${e.actor} in ${e.scope_to ?? e.scope_from ?? "-"}, item ${e.item_id ?? "none"}`,
@@ -51,6 +54,13 @@ describe("engram events", () => {
     expect(r.out).not.toContain("Sam");
     expect(r.out).not.toContain("person:sam");
     expect(lines.at(-2)).toBe(`log ${db}`);
+    // As a member of team:platform too, the denied write is hers to see.
+    const member = await cli([
+      "events",
+      ...["--as", "person:dana", "--member", "person:dana", "--member", "team:platform"],
+      ...["--db", db, "--json"],
+    ]);
+    expect(events(member.out).map((e) => e.decision)).toEqual(["allow", "deny"]);
   });
 
   it("gives the route's answer with --json, and only the events after --after", async () => {

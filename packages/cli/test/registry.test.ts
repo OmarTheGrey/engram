@@ -102,7 +102,8 @@ describe("HELP from the registry", () => {
     const order = sectionOrder(REGISTRY);
     expect(order.indexOf("who-can-read")).toBe(order.indexOf("lint") + 1);
     expect(order.indexOf("check")).toBe(order.indexOf("write") + 1);
-    expect(order.indexOf("grants")).toBe(order.indexOf("promote") + 1);
+    expect(order.indexOf("supersede")).toBe(order.indexOf("promote") + 1);
+    expect(order.indexOf("grants")).toBe(order.indexOf("supersede") + 1);
     expect(order.indexOf("events")).toBe(order.indexOf("explain") + 1);
     expect(order.indexOf("policy")).toBe(order.indexOf("simulate") + 1);
     expect(order.indexOf("scopes")).toBe(order.indexOf("who-can-read") + 1);
@@ -118,10 +119,10 @@ describe("HELP from the registry", () => {
 
   it("lists in each shared heading the commands whose entries name it, as main's headings did", () => {
     expect(HELP).toContain(
-      "store options (read, write, promote, retain, lint, who-can-read, serve, mcp):",
+      "store options (read, write, promote, supersede, retain, lint, who-can-read, serve, mcp):",
     );
     expect(HELP).toContain(
-      "actor options (read, write, promote, explain, retain, lint, who-can-read):",
+      "actor options (read, write, promote, supersede, explain, retain, lint, who-can-read):",
     );
     expect(HELP).toContain(
       "export options (read, write, promote, retain, lint, serve, mcp, hook claude-code):",
@@ -199,10 +200,10 @@ describe("the registry's entries", () => {
       const text = readFileSync(join(src, file), "utf8");
       expect(text, file).not.toMatch(/type:\s*"(string|boolean)"/);
       for (const m of text.matchAll(/\bparse\(\s*args,\s*([^,]+),/g))
-        expect(m[1]?.trim(), file).toMatch(/^(OPTIONS(\.\w+|\["[\w-]+"\])|c\.options)$/);
+        expect(m[1]?.trim(), file).toMatch(/^(OPTIONS(\.\w+|\["[\w -]+"\])|c\.options)$/);
       // A plane command's parse config (commands.ts, read by runPlane as c.options) is the registry's too.
       for (const m of text.matchAll(/plane\(\{\s*options: ([^,]+),/g))
-        expect(m[1], file).toMatch(/^OPTIONS(\.\w+|\["[\w-]+"\])$/);
+        expect(m[1], file).toMatch(/^OPTIONS(\.\w+|\["[\w -]+"\])$/);
     }
   });
 
