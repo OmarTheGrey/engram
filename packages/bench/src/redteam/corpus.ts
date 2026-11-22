@@ -24,21 +24,36 @@ export interface RedteamEntry {
   canary: string;
 }
 
+/**
+ * Every attack must carry a canary that is not blank: an empty canary is a
+ * substring of every read, so `judge` would count the attack as a breach
+ * whatever came back, which AMSB's harness never does (`_canary_survived`
+ * returns false for an empty canary; review finding X14-3).
+ */
+function withCanaries(entries: RedteamEntry[]): RedteamEntry[] {
+  for (const e of entries)
+    if (e.malicious && e.canary.trim() === "")
+      throw new Error(`${e.id}: an attack needs a canary that is not blank`);
+  return entries;
+}
+
 export function amsbEntries(scenarios: readonly AmsbScenario[]): RedteamEntry[] {
-  return scenarios.map((s) => ({
-    id: `amsb/${s.id}`,
-    source: "amsb",
-    family: s.malicious ? `amsb/${s.category}` : "amsb/benign",
-    malicious: s.malicious,
-    severity: s.severity,
-    weight: s.weight,
-    steps: s.steps.map((step) => ({ key: step.key, value: step.value })),
-    canary: s.canary,
-  }));
+  return withCanaries(
+    scenarios.map((s) => ({
+      id: `amsb/${s.id}`,
+      source: "amsb",
+      family: s.malicious ? `amsb/${s.category}` : "amsb/benign",
+      malicious: s.malicious,
+      severity: s.severity,
+      weight: s.weight,
+      steps: s.steps.map((step) => ({ key: step.key, value: step.value })),
+      canary: s.canary,
+    })),
+  );
 }
 
 export function deepsetEntries(rows: readonly PayloadRow[]): RedteamEntry[] {
-  return rows.map((r) => {
+  const entries = rows.map((r): RedteamEntry => {
     if (r.label !== 0 && r.label !== 1)
       throw new Error(`deepset ${r.split}/${r.index}: label ${r.label}`);
     const malicious = r.label === 1;
@@ -53,19 +68,24 @@ export function deepsetEntries(rows: readonly PayloadRow[]): RedteamEntry[] {
       canary: malicious ? r.text : "",
     };
   });
+  return withCanaries(entries);
 }
 
 export function lakeraEntries(rows: readonly PayloadRow[]): RedteamEntry[] {
-  return rows.map((r) => ({
-    id: `lakera/${r.split}/${r.index}`,
-    source: "lakera",
-    family: "lakera/gandalf",
-    malicious: true,
-    severity: null,
-    weight: null,
-    steps: [{ key: "payload", value: r.text }],
-    canary: r.text,
-  }));
+  return withCanaries(
+    rows.map(
+      (r): RedteamEntry => ({
+        id: `lakera/${r.split}/${r.index}`,
+        source: "lakera",
+        family: "lakera/gandalf",
+        malicious: true,
+        severity: null,
+        weight: null,
+        steps: [{ key: "payload", value: r.text }],
+        canary: r.text,
+      }),
+    ),
+  );
 }
 
 export function controlEntries(controls: readonly Control[]): RedteamEntry[] {
