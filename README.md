@@ -281,6 +281,7 @@ The question: what does enforcing memory governance at the boundary cost, compar
 | [`packages/cli`](packages/cli/README.md) | the `engram` command |
 | [`packages/server`](packages/server/README.md) | the HTTP API (loopback only), its route table, the workspace opener |
 | [`packages/ui`](packages/ui/README.md) | the inspector, on the generated client |
+| [`packages/view`](packages/view/README.md) | the pure view logic the inspector and the TUI share, with no React |
 | [`packages/bench`](packages/bench/README.md) | benchmark harnesses through the plane, pinned in `PINS.md` |
 | [`packages/runner`](packages/runner/README.md) | the experiment runner: conditions as seeded, cached pi SDK sessions |
 | [`packages/model`](packages/model/README.md) | the cached, seeded model call, the scripted models and the cassette proxy |

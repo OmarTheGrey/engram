@@ -6,6 +6,15 @@
 // is Plane.explain as the viewer (POST /explain/{readId}); a grant change is
 // Plane.changeGrants as the viewer (POST /grants); who can read an item is
 // Plane.whoCanReadItem as the viewer (POST /who-can-read/item, card E2.13).
+
+import {
+  buildLanes,
+  contentText,
+  type ExplainView,
+  explainTarget,
+  explainView,
+  type Lane,
+} from "@engram/view";
 import type {
   Actor,
   EngramClient,
@@ -16,14 +25,6 @@ import type {
   ReadResponse,
   WhoCanReadAnswer,
 } from "./api/index.ts";
-import {
-  buildLanes,
-  contentText,
-  type ExplainView,
-  explainTarget,
-  explainView,
-  type Lane,
-} from "./view.ts";
 
 /** A call the server answered with an error, carrying its status and message. */
 export class ApiError extends Error {

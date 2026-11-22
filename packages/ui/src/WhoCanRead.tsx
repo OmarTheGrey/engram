@@ -5,9 +5,10 @@
 // neither read the item nor read its scope gets the refusal an unknown id
 // gets, and grant holders are named to the owner only. view.ts's readerView
 // only labels the answer.
+
+import { type ReaderView, readerView } from "@engram/view";
 import { useState } from "react";
 import type { WhoCanReadAnswer } from "./api/index.ts";
-import { type ReaderView, readerView } from "./view.ts";
 
 export type Ask = (itemId: string) => Promise<WhoCanReadAnswer>;
 

@@ -1,0 +1,16 @@
+{
+  "name": "@engram/view",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The inspector's and the TUI's pure view logic (card E8.15c): no React, no layout library.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@engram/sdk": "workspace:*"
+  }
+}

@@ -6,7 +6,7 @@
 // read the viewer made is explained (Plane.explain) with the filtered counts
 // its event records. Another actor's read shows its event and the line that
 // only its reader may explain it. Every call goes through the generated
-// client (data.ts); the logic of each view is in view.ts.
+// client (data.ts); the logic of each view is in @engram/view.
 //
 // The twin screens (card E9.4): the lanes are grouped into the viewer's
 // person scope, its role scopes, the team and org scopes it is a member of,
@@ -25,18 +25,7 @@
 //
 // Who can read this memory (card E2.13): the item page asks the plane who
 // can read the item as the viewer (Plane.whoCanReadItem through data.ts).
-import { lazy, Suspense, useEffect, useMemo, useState } from "react";
-import type { Actor, EngramClient, Grant, MemoryEvent } from "./api/index.ts";
-import {
-  changeGrants,
-  fetchExplain,
-  fetchViewer,
-  fetchWhoCanRead,
-  type Inspection,
-  inspect,
-} from "./data.ts";
-import { EventTable } from "./EventTable.tsx";
-import { EventDetail, Pair } from "./parts.tsx";
+
 import {
   EMPTY_DRAFT,
   type ExplainView,
@@ -60,7 +49,19 @@ import {
   score,
   type TimelineFilter,
   viewerFrom,
-} from "./view.ts";
+} from "@engram/view";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import type { Actor, EngramClient, Grant, MemoryEvent } from "./api/index.ts";
+import {
+  changeGrants,
+  fetchExplain,
+  fetchViewer,
+  fetchWhoCanRead,
+  type Inspection,
+  inspect,
+} from "./data.ts";
+import { EventTable } from "./EventTable.tsx";
+import { EventDetail, Pair } from "./parts.tsx";
 
 const ItemPage = lazy(() => import("./ItemPage.tsx"));
 

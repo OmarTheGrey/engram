@@ -22,7 +22,7 @@ The inspector: a browser view of one workspace as one viewer, served by `engram 
 |---|---|
 | `src/App.tsx`, `src/main.tsx`, `src/style.css` | the screens |
 | `src/data.ts` | what the inspector asks the server: `inspect`, `fetchExplain`, `fetchViewer`, `changeGrants` |
-| `src/view.ts` | pure functions from what the API returned to what each view shows |
+| `src/view.ts`, `src/provenance.ts` | one-line re-exports of [`@engram/view`](../view/README.md), which holds the pure functions from what the API returned to what each view shows (card E8.15c); the paths stay because log entries cite them |
 | `src/api/` | the generated client and types (do not edit) |
 
 ## Use
