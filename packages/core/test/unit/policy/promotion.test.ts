@@ -20,6 +20,7 @@ import {
   PROMOTE_NO_EVIDENCE_ID,
   PROMOTE_NOT_CANDIDATE_ID,
   PROMOTE_REVIEWER_ID,
+  PROMOTE_VALIDATION_SOURCE_ID,
   PROMOTE_WIDENING_SOURCE_ID,
   type PromotionEvidence,
 } from "../../../src/policy/promotion.ts";
@@ -613,5 +614,47 @@ describe("review fix pass (P5)", () => {
       judge(POLICY, sara, item(1), "team:platform", ev({ review: true, confirmations: old }))
         .decision,
     ).toBe("allow");
+  });
+});
+
+describe("card D3: a replay's validation record", () => {
+  const REPLAY = { k: 4, n: 5, threshold: 2 / 3, baseline: 2 };
+
+  test("the reason carries the replay's counts, its threshold and its baseline", () => {
+    const d = judge(POLICY, omar, procedural(1), "person:omar", ev({ validation: REPLAY }));
+    expect(d.decision).toBe("allow");
+    expect(d.reason).toContain(
+      "the validation record 4 of 5 held-out tasks pass with the procedure (a mean reward of at least 2/3 over the seeds, and no lower than without it; 2 of 5 reach 2/3 without it) meets 4 of 5",
+    );
+  });
+
+  test("a refused replay's reason carries the counts too", () => {
+    const below = { ...REPLAY, k: 3, baseline: 4 };
+    const d = judge(POLICY, omar, procedural(1), "person:omar", ev({ validation: below }));
+    expect(d).toMatchObject({ decision: "deny", check: "no-evidence" });
+    expect(d.reason).toBe(
+      "not promoted: the validation record 3 of 5 held-out tasks pass with the procedure (a mean reward of at least 2/3 over the seeds, and no lower than without it; 4 of 5 reach 2/3 without it) does not meet 4 of 5",
+    );
+  });
+
+  test.each([
+    ["model", "an agent's"],
+    ["tool", "a tool's"],
+    [undefined, "an unattested"],
+  ] as const)("a record presented with source %s is refused (%s)", (source, _who) => {
+    const agent: Actor = {
+      id: "agent:distiller",
+      level: "person",
+      memberships: SCOPES,
+      ...(source ? { source } : {}),
+    };
+    const d = judge(POLICY, agent, procedural(1), "person:omar", ev({ validation: REPLAY }));
+    expect(d).toMatchObject({
+      decision: "deny",
+      check: "validation-source",
+      policy_id: PROMOTE_VALIDATION_SOURCE_ID,
+      promoted: null,
+    });
+    expect(d.reason).toContain("only a user-sourced actor may present");
   });
 });

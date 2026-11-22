@@ -1,0 +1,31 @@
+{
+  "key": "8b974678abce5a42dd4eeea54aa7561704748a22a86c2816ca649a3ddc00d345",
+  "context": {
+    "item": "synthetic/log-level-29",
+    "condition": "replay/with/raise-the-fetch-timeout-from-5-to-10-seconds",
+    "preset": "none",
+    "store": "none"
+  },
+  "request": {
+    "model": "scripted/d3-agent",
+    "messages": [
+      {
+        "role": "user",
+        "content": "{\"content\":\"\",\"role\":\"system\",\"sections\":{\"addendum\":\"<addendum>\\n<procedure tools=\\\"bash read edit\\\">\\nFollow this procedure when it applies to the task.\\n---\\nname: raise-the-fetch-timeout-from-5-to-10-seconds\\ndescription: \\\"Raise the fetch timeout from 5 to 10 seconds. Use when a task asks for the same.\\\"\\nallowed-tools: \\\"bash read edit\\\"\\nmetadata:\\n  engram-item: \\\"01920000-0000-7000-8000-000000000010\\\"\\n---\\n\\n# Raise the fetch timeout from 5 to 10 seconds\\n\\nRaise the fetch timeout from 5 to 10 seconds. Use when a task asks for the same.\\n\\n## Steps\\n\\n1. Looking at src/config.ts.\\n\\n   ```\\n   bash({{\\\"path\\\":\\\"src/config.ts\\\"}})\\n   read({{\\\"path\\\":\\\"src/fetch.ts\\\"}})\\n   ```\\n\\n2. Looking at src/config.ts.\\n\\n   ```\\n   edit({{\\\"path\\\":\\\"src/config.ts\\\"}})\\n   ```\\n\\n3. Looking at src/fetch.ts.\\n\\n   ```\\n   read({{\\\"path\\\":\\\"src/fetch.ts\\\"}})\\n   ```\\n</procedure>\\n</addendum>\",\"cwd\":\"<cwd>\\n{cwd}\\n</cwd>\",\"preamble\":\"You are a coding agent in a small TypeScript repository. Change it only through the tools you are given, then reply in one short message.\"},\"toolsAdded\":[{\"description\":\"Read a file of the repository.\",\"name\":\"read\",\"parameters\":{\"properties\":{\"path\":{\"type\":\"string\"}},\"required\":[\"path\"],\"type\":\"object\"}},{\"description\":\"Replace the first occurrence of `old` with `new` in a file.\",\"name\":\"edit\",\"parameters\":{\"properties\":{\"new\":{\"type\":\"string\"},\"old\":{\"type\":\"string\"},\"path\":{\"type\":\"string\"}},\"required\":[\"path\",\"old\",\"new\"],\"type\":\"object\"}},{\"description\":\"Run a shell command in the repository.\",\"name\":\"bash\",\"parameters\":{\"properties\":{\"command\":{\"type\":\"string\"}},\"required\":[\"command\"],\"type\":\"object\"}}]}"
+      },
+      {
+        "role": "user",
+        "content": "{\"content\":[{\"text\":\"Log retries at debug level, not info.\",\"type\":\"text\"}],\"role\":\"user\"}"
+      }
+    ],
+    "seed": 1
+  },
+  "response": {
+    "text": "{\"content\":[{\"arguments\":{\"path\":\"src/config.ts\"},\"id\":\"call_188\",\"name\":\"read\",\"type\":\"toolCall\"}],\"stopReason\":\"toolUse\"}",
+    "usage": {
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "cost_usd": 0
+    }
+  }
+}

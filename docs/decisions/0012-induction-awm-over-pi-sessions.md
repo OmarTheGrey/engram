@@ -1,6 +1,6 @@
 # ADR 0012: Induction method: Agent Workflow Memory over pi session trees, reimplemented in TypeScript
 
-Status: accepted, 2026-11-02
+Status: accepted, 2026-11-02. Its clause "with the induction prompt vendored verbatim and cited" is superseded by ADR 0045 (proposed 2026-11-22, card D2), which adapts the prompt to tool-use sessions, once the lead accepts it; the rest stands.
 Deciders: Omar (lead)
 Supersedes: the proposal of the same number in `docs/decisions/README.md`
 

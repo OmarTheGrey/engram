@@ -103,7 +103,7 @@ Store commands are blocked in pi's `user_bash` and `tool_call` handlers wherever
 
 ## Lifecycle
 
-`candidate` to `active` to `retired` for every class. Procedural items are admitted only after replay validation passes k of n runs on held-out tasks (outcome checked, not completion); active skills carry a smoothed success rate; a drop below threshold, a changed environment hash, or a human rejection (which narrows the trigger) retires them. Retention budgets trigger `retire` events; hard deletion exists only for person-scope erasure and emits a deletion report (card E9.7: `offboard` hands the leaver's role scopes to successors, deletes the person scope's items from the store and the projection, redacts their content in the log, and appends an erasure event that replay honours; since card E2.6 it first marks the erasure with an `engram/offboard/begin` event, before any store record is deleted, and until its report event closes it nothing in the person scope may change). Retired items stay replayable and can be reinstated by event (ADR 0010, 0011).
+`candidate` to `active` to `retired` for every class. Procedural items are admitted only after replay validation passes k of n runs on held-out tasks (outcome checked, not completion; card D3: the runner's replayer, `packages/runner/src/replay-validate.ts`, runs each held-out task without and with the candidate and scores it by the task's own check, and `Plane.promote` derives the record from those outcomes, presented by a user-sourced actor, with core's `distill/validate.ts`, ADR 0046 proposed); active skills carry a smoothed success rate; a drop below threshold, a changed environment hash, or a human rejection (which narrows the trigger) retires them. Retention budgets trigger `retire` events; hard deletion exists only for person-scope erasure and emits a deletion report (card E9.7: `offboard` hands the leaver's role scopes to successors, deletes the person scope's items from the store and the projection, redacts their content in the log, and appends an erasure event that replay honours; since card E2.6 it first marks the erasure with an `engram/offboard/begin` event, before any store record is deleted, and until its report event closes it nothing in the person scope may change). Retired items stay replayable and can be reinstated by event (ADR 0010, 0011).
 
 Retention (card E2.4, ADR 0025): the pure `evaluateRetention` decides; an item past its ttl (the tighter of its own and its rule's) is excluded at read at once (`engram/read/ttl`, counted in `filtered`) and retired by the next sweep with op `retire`; a budget overage is evicted with op `evict` in the rule's order (recency by last change, utility by how often reads returned the item, manual asks with one `evict` event of decision `ask`). `Plane.retain(actor, scope, at)` sweeps one scope as a member of it, in the write queue; it retires by ttl only in the actor's own person scope or for a user-sourced actor, so one skewed clock cannot retire shared memory. The write path runs the budget check of the written scope and class in the landing write's own queue slot, never evicting the item just written and counting no item past its ttl, and returns its events in `WriteResult.retention`. Reasons name no item to an actor who cannot read the scope. Utility counts the read events that returned an item, by their `item_ids` (schema version 1), so a utility eviction is decided again from the log alone. The pi extension sweeps after an allowed write and at `before_agent_start` for the session's scopes, and `engram read` before adoption; nothing runs on a timer. A `model`, `compaction` or `tool` write restating content an allowed retire or evict event retired in its scope is denied (`engram/write/retired-content`, by the normalised content hash of packages/core/src/content-hash.ts); a user, document or import write may re-admit it. The store is never written or deleted by retention.
 
@@ -155,6 +155,9 @@ Plane
                                              calls, the plane's own log and store untouched (card E8.9, ADR 0032)
   distill(sessions, method) -> MemoryItem[]  candidate procedural items
   explain(actor, readId) -> Explanation[]    to the actor who made the read only
+  readById(actor, itemId, {at, valid_at?}) -> ReadResult   read with one candidate at most, the item under the id; same
+                                             filter, explanation and read event, its reason ending "; read by id <id>" (card E8.14)
+  listScopes(actor, at) -> ScopeList         readable member scopes and the scopes of items a live grant admits; one read event (card E8.14)
 
 visibleEvents(actor, events, view) -> MemoryEvent[]   pure, in core: events in the actor's member scopes and events it
                                                 made; an event naming no scope (a read, a bypass) only its maker sees;
@@ -166,12 +169,15 @@ Surfaces
                  or streamable HTTP on loopback, every call as that actor with source model; the pi extension's
                  tool definitions and memory tag; engram hook claude-code, a PreToolUse hook that blocks bypasses
   HTTP           packages/server, a Hono app over one route table (ADR 0027): /api/v1/items, /items/check, /read,
-                 /explain/{readId}, /promote, /grants, /retain, /events (visibleEvents), /policy, /lint, /simulate,
-                 /distill (501 naming D2), /bypass, /viewer, /health; a decision is 200 with its event;
+                 /read/{itemId}, /scopes, /explain/{readId}, /promote, /grants, /retain, /events (visibleEvents), /policy,
+                 /lint, /simulate, /distill (501 naming `backlog`: no card implements it yet), /bypass, /viewer, /health;
+                 a decision is 200 with its event;
                  a bearer API key or token, or --insecure-loopback (ADR 0042); RFC 9728 metadata at
                  /.well-known/oauth-protected-resource; each served event attested (event_attestations);
                  loopback Host and Origin only, JSON bodies only, no CORS, 1 MiB bodies; OpenAPI generated
                  into sdk/openapi.json, the client into sdk/ts and packages/ui/src/api
+  Frameworks     packages/tag (the memory tag, pure, no pi); packages/kit (a fixed actor, a namespace mapper, a typed rejection, every call one client request)
+                 and the adapters on it: @engram/ai-sdk, a Vercel AI SDK middleware and remember and recall tools (card E8.14)
   CLI            engram write | read | promote | explain | retain | lint | simulate (--candidate), each one client call, in
                  process over app.fetch or to --server; engram serve | mcp | hook claude-code | doctor
   UI             inspector at / of engram serve, as one viewer: lanes by scope (a Plane.read), timeline (visibleEvents), explain with the read's counts (v0, E8.5 and E8.6);

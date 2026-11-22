@@ -69,6 +69,17 @@ export const ReadRequest = z.strictObject({
   at: validAt,
 });
 
+/** A read of one item by its id (card E8.14); the id is the path's `itemId`. */
+export const ReadByIdRequest = z.strictObject({ actor: Actor, at: validAt });
+
+export const ScopesRequest = z.strictObject({ actor: Actor });
+export const VisibleScope = z
+  .strictObject({ scope: z.string(), via: z.enum(["membership", "grant"]) })
+  .meta({
+    description:
+      "A scope the actor can see: `membership`, a member scope the read matrix lets its level read; `grant`, otherwise, the scope of an item a read now admits through a live grant (card E8.14).",
+  });
+
 export const RetentionReport = z.strictObject({
   decision: z.enum(["allow", "deny"]),
   events: z.array(MemoryEvent),
@@ -100,6 +111,15 @@ export const StoreSync = z
     description:
       "What the workspace did before the read, as the store's owner: its retention sweep, then the adoption of the store's own memories (ADR 0025, decision D8).",
   });
+
+export const ScopesResponse = z.strictObject({
+  scopes: z.array(VisibleScope),
+  event: MemoryEvent,
+  sync: StoreSync.nullable(),
+  policy: z
+    .string()
+    .meta({ description: "The policy the listing was decided under: <id> v<version>." }),
+});
 
 export const ReadResponse = z.strictObject({
   items: z.array(MemoryItem),
@@ -193,7 +213,7 @@ export const DistillRequest = z.strictObject({
   sessions: z.array(z.record(z.string(), JsonValue)),
   method: z.strictObject({ id: z.literal("awm"), model: z.string(), seed: z.int() }),
 });
-/** The distiller's report is typed by its card (D2). */
+/** The distiller's report is typed by the card that implements Plane.distill (docs/tasks/backlog.md). */
 export const OpenReport = z.record(z.string(), JsonValue);
 
 export const BypassRequest = z.strictObject({
@@ -245,6 +265,10 @@ export const COMPONENTS = {
   CheckResponse,
   ReadRequest,
   ReadResponse,
+  ReadByIdRequest,
+  ScopesRequest,
+  VisibleScope,
+  ScopesResponse,
   StoreSync,
   RetentionReport,
   AdoptReport,

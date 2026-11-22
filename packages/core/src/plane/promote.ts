@@ -14,6 +14,13 @@
 // A promoter who cannot read the target scope gets the decision's event and
 // a null item (P5-7).
 //
+// A procedural candidate's validation record is derived from the replay the
+// caller presents (card D3, distill/validate.ts): the held-out outcomes, from
+// which the plane counts k of n itself. A malformed replay is refused before
+// the queue; one that is not the item's (another id or content, induction
+// tasks other than its distill ref's, or a replayed induction task) is a deny
+// event under engram/promote/replay-item or replay-split (D3-3).
+//
 // On allow, a status-only change rewrites the item in place (same id,
 // version plus one); a class or scope change writes a new version under a
 // fresh id to the store through the adapter, appends its `promote` event and
@@ -35,6 +42,15 @@
 import { type Actor, checkCall, InvalidCallError } from "../actor.ts";
 import type { StoreRef } from "../adapter.ts";
 import { strictContentHash } from "../content-hash.ts";
+import {
+  bindingProblem,
+  type ReplayEvidence,
+  replayDigest,
+  replayProblem,
+  scoreReplay,
+  sizeProblem,
+  splitProblem,
+} from "../distill/validate.ts";
 import { allEvents, appendEvent, currentItems } from "../events.ts";
 import { itemById, lineage } from "../items.ts";
 import type { GateResult, PlaneDeps, PromoteOptions } from "../plane.ts";
@@ -43,6 +59,7 @@ import {
   type Confirmation,
   evaluatePromotion,
   PROMOTE_MEMBERSHIP_ID,
+  PROMOTE_REPLAY_SPLIT_ID,
   promotionRuleId,
 } from "../policy/promotion.ts";
 import { Id, type MemoryEvent, type MemoryItem, Scope } from "../schema.ts";
@@ -118,6 +135,23 @@ function duplicateOf(
 }
 
 /**
+ * What a presented replay gives the evaluator: the record the plane counts
+ * from it (a leaked one counts nothing, and is refused for its split), and
+ * why it is not the item's replay, if it is not.
+ */
+function replayEvidence(deps: PlaneDeps, item: MemoryItem, replay: ReplayEvidence) {
+  const size = sizeProblem(deps.policy, replay);
+  const problem =
+    bindingProblem(item, replay, deps.distillTasks) ??
+    (size === null ? null : { policy_id: PROMOTE_REPLAY_SPLIT_ID, reason: size });
+  const validation =
+    splitProblem(replay) === null
+      ? scoreReplay(replay).record
+      : { k: 0, n: 0, replay_sha256: replayDigest(replay) };
+  return { validation, ...(problem === null ? {} : { replayProblem: problem }) };
+}
+
+/**
  * Plane.promote. The call is checked (actor, time, item id and target
  * scope) before the log is touched; then the whole decide-and-commit runs in
  * one slot of the write queue.
@@ -139,6 +173,12 @@ export function promote(
     throw new InvalidCallError(
       `Plane.promote: invalid scope ${JSON.stringify(toScope)}; expected person:<id>, role:<id>, team:<id> or org`,
     );
+  // A replay the plane cannot judge is a malformed call, like an invalid
+  // scope (card D3): a leaked split, a reward outside 0 to 1, uneven seeds.
+  if (options.replay !== undefined) {
+    const problem = replayProblem(options.replay);
+    if (problem) throw new InvalidCallError(`Plane.promote: ${problem}`);
+  }
   return inWriteQueue(deps.db, () => decideAndCommit(deps, actor, itemId, toScope, at, options));
 }
 
@@ -188,6 +228,10 @@ async function decideAndCommit(
         item.class === "episodic" ? "semantic" : item.class,
       ),
       review: options.review === true,
+      // The record is derived here from the replay's outcomes, never taken
+      // from the caller (card D3, ADR 0046 proposed), and the replay is
+      // checked against the item: its id, content and distill ref (D3-3).
+      ...(options.replay === undefined ? {} : replayEvidence(deps, item, options.replay)),
     },
     retiredContent(db, toScope),
   );
