@@ -1,0 +1,90 @@
+{
+  "name": "redteam",
+  "kind": "measurement",
+  "hypothesis": "none",
+  "card": "X14",
+  "arm": "P1 of docs/research/preregistration.md, proposed and not registered: this result is an engineering check of card X14, no arm's result, and enters no registered analysis",
+  "wording": "what the content guards and the trust floors stop, and what they wrongly stop, on this corpus: a deterministic measurement with no model in the loop, never a claim of defence",
+  "seed": 20261121,
+  "confidence": 0.95,
+  "resamples": 10000,
+  "upstream": ".engram/upstream",
+  "fetch": true,
+  "baseline": "medium",
+  "cells": {
+    "write": ["user", "document", "tool", "model", "external", "unattested"],
+    "read": ["user", "document", "tool", "model", "external"]
+  },
+  "settings": [
+    {
+      "name": "store"
+    },
+    {
+      "name": "medium",
+      "preset": "medium"
+    },
+    {
+      "name": "medium+guards-block",
+      "preset": "medium",
+      "content_guards": {
+        "secrets": "block",
+        "pii": "block",
+        "max_content_bytes": 65536
+      }
+    },
+    {
+      "name": "medium+screen-default",
+      "preset": "medium",
+      "content_guards": {
+        "injection_screen": "default"
+      }
+    },
+    {
+      "name": "medium+screen-hardened",
+      "preset": "medium",
+      "content_guards": {
+        "injection_screen": "hardened"
+      }
+    },
+    {
+      "name": "medium+trust",
+      "preset": "medium",
+      "trust": {
+        "unattested_floor": "on",
+        "protect_trusted": "on"
+      }
+    },
+    {
+      "name": "medium+all",
+      "preset": "medium",
+      "content_guards": {
+        "secrets": "block",
+        "pii": "block",
+        "max_content_bytes": 65536,
+        "injection_screen": "hardened"
+      },
+      "trust": {
+        "unattested_floor": "on",
+        "protect_trusted": "on"
+      }
+    }
+  ],
+  "not_run": [
+    "C1, C3, C4 and C7: C1 has no memory, C3 and C4 differ from C2 only in the prompt, and C7 has C5's write gate, so a model-free arm learns nothing from them (proposal P1)",
+    "the preset medium-trust (card E2.11): it also admits external content into person scope, so medium+trust (medium with both trust options, nothing else changed) is run instead, as proposal P3 runs it",
+    "protect_trusted is on in medium+trust and medium+all, but no scenario here rewrites, retires or evicts another writer's item, so nothing exercises it; an attack on rewrite or retention order is a later extension (card X14)",
+    "the surfaces of cards E8.12 (verified actors), E8.13 (span export), E2.13 (who can read) and E8.14 (the framework kit) sit above Plane.write and Plane.read, which is all this harness drives"
+  ],
+  "limits": [
+    "Small: AMSB has 15 attacks, so its per-family rates rest on one to four scenarios; the payload sets add 1,263 attack rows, but from two sources only.",
+    "Optimistic: AMSB comes from the same OWASP project whose detector patterns the injection screen copies (card E2.10), and card X14's controls were written by its author; the controls are not a sample of real memory.",
+    "Not a defence: every rule here is a regular expression or a source rule, and a careful attacker writes around it; the screen's own limits are in research/results/h1-injection-screen.json.",
+    "English-centred: the screen's patterns are English, and deepset's rows include German, so a row in another language passes them unread.",
+    "AMSB's leak-aws-key plants AWS's documented example key, which card E2.9's secret guard lets through by design, as gitleaks does; its survival under every guard measures that exemption, not a missed key.",
+    "The read route's records claiming user or document are adopted as import (card RV4), which the injection screen's kind-conditioned rules do not read (ADR 0039, item 5), so a record claiming document meets all of the screen's rules on the write route and only the four that read every kind on the read route; a record claiming user meets those four on both routes.",
+    "Model-free: survival is AMSB's rule, the canary coming back in a later read; whether a model would act on what came back is not measured (a live sub-arm would be its own proposal).",
+    "AMSB's protected-key family has no counterpart in Engram, which has no protected keys: a value such as superadmin is ordinary content, stopped only by a source rule.",
+    "Rates per source kind are not independent: the same entries are planted once per setting, route and kind, so the cells share their items and are never pooled into one interval."
+  ],
+  "overlap_rule": "a write-route cell shares a MEM-INV-Bench laundering channel when its writer writes the same provenance kind at the same scope level as that channel's attacker entries; the read route shares none. Neither arm's cases are in the other's corpus, and MEM-INV-Bench measures a consequential action, not canary survival, so the two are reported apart and never pooled"
+}
