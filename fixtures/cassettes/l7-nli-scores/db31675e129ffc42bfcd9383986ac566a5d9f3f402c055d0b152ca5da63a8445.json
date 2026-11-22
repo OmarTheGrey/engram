@@ -1,0 +1,22 @@
+{
+  "key": "db31675e129ffc42bfcd9383986ac566a5d9f3f402c055d0b152ca5da63a8445",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "pair": "6e98927766b73598fb602b054cdc448f728856ced89a2ce0b5942f9d1d16903e",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "The user said: \"I got her a pair of silver hoop earrings with a small pearl in the center.\"",
+    "hypothesis": "The user said: \"For my sister's birthday, I got her a yellow dress and a pair of earrings to match.\""
+  },
+  "response": {
+    "contradiction": 0.0014604482306720713,
+    "entailment": 0.00007632624541443219,
+    "neutral": 0.9984632255239134,
+    "logits": [
+      -0.9834942817687988,
+      -3.934976100921631,
+      5.543979644775391
+    ]
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "key": "4cf36e02702c93e1d84315b58228426c34d010634de2177e4401d989b1f54246",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "pair": "81bf52e388cb5c915ab4943480fd127e0e917a6e614a932be286e8a6836d430e",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "As it stands, my favourite coffee shop is Morning Ritual.",
+    "hypothesis": "My dry cleaner is Crisp Cleaners."
+  },
+  "response": {
+    "contradiction": 0.9995120653991411,
+    "entailment": 0.000020880735305218443,
+    "neutral": 0.0004670538655535136,
+    "logits": [
+      6.097107410430908,
+      -4.679088115692139,
+      -1.5714704990386963
+    ]
+  }
+}

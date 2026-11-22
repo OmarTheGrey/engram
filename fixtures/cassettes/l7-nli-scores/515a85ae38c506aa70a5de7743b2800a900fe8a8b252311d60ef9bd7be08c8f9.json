@@ -1,0 +1,22 @@
+{
+  "key": "515a85ae38c506aa70a5de7743b2800a900fe8a8b252311d60ef9bd7be08c8f9",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "pair": "9a6c978fdd47d0a61346b5a6386dcaa614aa7e9042129d55f39d6f773ed94311",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "My favourite wine is a Malbec.",
+    "hypothesis": "At work, our deploy window is 09:00 to 11:00."
+  },
+  "response": {
+    "contradiction": 0.003586230144065226,
+    "entailment": 0.0002354987682849294,
+    "neutral": 0.9961782710876499,
+    "logits": [
+      -0.7046130299568176,
+      -3.4277641773223877,
+      4.922211647033691
+    ]
+  }
+}

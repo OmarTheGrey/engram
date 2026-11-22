@@ -1,0 +1,22 @@
+{
+  "key": "804a93b9ee07e8c1a50952d640f235afa555df9cb69bdc63632b51563443a621",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "pair": "21866d4858cf9687498e4196cff62ec336739228ba4904947d1c2e6fbb89ad5a",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "The user said: \"Here's a start - I've bought gifts for my sister's birthday, my mom, my neighbor Mrs.\"",
+    "hypothesis": "For the record, my dry cleaner is Bluebell Cleaners."
+  },
+  "response": {
+    "contradiction": 0.030592053911330627,
+    "entailment": 0.0001248259400075697,
+    "neutral": 0.9692831201486618,
+    "logits": [
+      0.9160855412483215,
+      -4.585489749908447,
+      4.371901988983154
+    ]
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "key": "f7162a237df96481895616bacb52f620048752bc47094f96e58a1fdea8779d8b",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "pair": "7bb696ada22b024728a726386563a516103ba9a254cdf6f081e65c4eb3281bf9",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "According to the user, their streaming service is ViewPort.",
+    "hypothesis": "The user said: \"I got her some groceries and flowers when she was recovering from surgery.\""
+  },
+  "response": {
+    "contradiction": 0.9977390157974502,
+    "entailment": 0.000014655625819865388,
+    "neutral": 0.0022463285767298723,
+    "logits": [
+      5.73858642578125,
+      -5.389836311340332,
+      -0.3576081693172455
+    ]
+  }
+}

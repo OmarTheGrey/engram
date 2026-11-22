@@ -1,0 +1,22 @@
+{
+  "key": "016ffdf4e7e2865a7f520c4f3375d2945e717377f3d7b948f4b231a5a29931cc",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "pair": "f23f23f83fec6214549501ee7aeab0914d1d7af1ac5420b1a59dc0795c6dcb84",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "According to the user, their yoga studio is Sun Salute Collective.",
+    "hypothesis": "To be clear, my chess club night is Wednesday."
+  },
+  "response": {
+    "contradiction": 0.9997770752810207,
+    "entailment": 0.000014147778408804404,
+    "neutral": 0.00020877694057039667,
+    "logits": [
+      6.534534931182861,
+      -4.631195068359375,
+      -1.9394862651824951
+    ]
+  }
+}

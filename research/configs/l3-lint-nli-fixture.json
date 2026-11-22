@@ -1,0 +1,19 @@
+{
+  "name": "l3-lint-nli-fixture",
+  "kind": "pipeline",
+  "benchmark": "lint-faults",
+  "data": "../../fixtures/faults/model",
+  "items": ["contradiction.flag", "contradiction.near-miss"],
+  "model": "scripted/lint-1",
+  "seeds": [1, 2, 3],
+  "script": "../../fixtures/lint/l3-script.json",
+  "cassettes": "../../fixtures/cassettes/l3-lint-fixture",
+  "nli": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "thresholds": {
+      "upper": 1,
+      "lower": 0.1
+    },
+    "scores": "../../fixtures/cassettes/l7-nli-scores"
+  }
+}

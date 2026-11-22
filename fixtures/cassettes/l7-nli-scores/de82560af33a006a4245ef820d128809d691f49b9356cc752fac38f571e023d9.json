@@ -1,0 +1,22 @@
+{
+  "key": "de82560af33a006a4245ef820d128809d691f49b9356cc752fac38f571e023d9",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "pair": "1f50386b10f42833f6bfe69ba428896ef5cb87412f39aacdfb71cd976a0c4080",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "My dentist is Dr. Okafor at the moment.",
+    "hypothesis": "Just so you know, my dentist is Dr. Alvarez."
+  },
+  "response": {
+    "contradiction": 0.9993084721295075,
+    "entailment": 0.00012258842142941234,
+    "neutral": 0.0005689394490630167,
+    "logits": [
+      5.5047760009765625,
+      -3.5012102127075195,
+      -1.96626877784729
+    ]
+  }
+}

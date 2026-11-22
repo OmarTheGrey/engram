@@ -1,0 +1,22 @@
+{
+  "key": "ac4f99a505fb15954eee66bef406a3a49da3190fc4dcace7607ebfd0b5d3c506",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "pair": "1d7bfc992d0033602273674e7e9976f67921c991bf5b9e8311f42c277ba914b9",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "The user's climbing partner is Tomas.",
+    "hypothesis": "The user said: \"She's into indie music, and we talked about some new bands to check out.\""
+  },
+  "response": {
+    "contradiction": 0.0063792408345357855,
+    "entailment": 0.00009882101842243801,
+    "neutral": 0.9935219381470417,
+    "logits": [
+      -0.047456979751586914,
+      -4.214951038360596,
+      5.0007500648498535
+    ]
+  }
+}

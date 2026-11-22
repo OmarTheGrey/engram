@@ -1,0 +1,22 @@
+{
+  "key": "1f74a58197b20dcc010cc4d7b9677eb7dc36f93cc07fe71f92662df75753455a",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "pair": "80f87f6dfd68c3d20f7b6a1d2bf6d1aff3c84eebfa3c043bb4d2cc5830b8578a",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "Just so you know, my favourite coffee shop is Morning Ritual.",
+    "hypothesis": "Just so you know, my favourite podcast is The Long Table."
+  },
+  "response": {
+    "contradiction": 0.9992663541670225,
+    "entailment": 0.000025660109901812648,
+    "neutral": 0.0007079857230755844,
+    "logits": [
+      5.918909072875977,
+      -4.650929927825928,
+      -1.3334436416625977
+    ]
+  }
+}

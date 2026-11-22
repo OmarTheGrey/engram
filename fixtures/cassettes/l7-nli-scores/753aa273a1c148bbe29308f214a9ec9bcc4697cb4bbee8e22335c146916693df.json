@@ -1,0 +1,22 @@
+{
+  "key": "753aa273a1c148bbe29308f214a9ec9bcc4697cb4bbee8e22335c146916693df",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "pair": "d4b9494d67d7020d21dd72a27ecdaf980a255df362028426432080cf2567532a",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "At work, our deploy window is 16:00 to 18:00.",
+    "hypothesis": "At work, our project code name is Kestrel."
+  },
+  "response": {
+    "contradiction": 0.0007758824269165587,
+    "entailment": 0.00010044559916056111,
+    "neutral": 0.9991236719739229,
+    "logits": [
+      -1.463813066482544,
+      -3.508197784423828,
+      5.69681978225708
+    ]
+  }
+}

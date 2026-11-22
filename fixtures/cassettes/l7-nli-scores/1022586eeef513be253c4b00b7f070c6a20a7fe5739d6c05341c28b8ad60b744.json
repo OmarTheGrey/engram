@@ -1,0 +1,22 @@
+{
+  "key": "1022586eeef513be253c4b00b7f070c6a20a7fe5739d6c05341c28b8ad60b744",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "pair": "7c7e7202de552f2cc9e8907bfccd2543adba5de4dd12b641c5e3fe38fd0304d9",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "The user says their vet is Dr. Kowalski.",
+    "hypothesis": "The user said: \"I got her a pair of silver hoop earrings with a small pearl in the center.\""
+  },
+  "response": {
+    "contradiction": 0.24123625127672213,
+    "entailment": 0.00014226203570388363,
+    "neutral": 0.758621486687574,
+    "logits": [
+      2.2050187587738037,
+      -5.230842590332031,
+      3.3507449626922607
+    ]
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "key": "897b6d939aeae6663dfe5c653de2f606e7f8e1a0c10c725ca38b6788506aaf5e",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "pair": "0d48a1e621303d2163783f95355389de45ce2eb3578d253bf12b26cb522a9aeb",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "The user's favourite sushi place is Umi Bar, most of the time.",
+    "hypothesis": "According to the user, their internet provider is NetWave."
+  },
+  "response": {
+    "contradiction": 0.9989198134950985,
+    "entailment": 0.0000062895206411431735,
+    "neutral": 0.001073896984260393,
+    "logits": [
+      6.219083786010742,
+      -5.756461143493652,
+      -0.616296648979187
+    ]
+  }
+}

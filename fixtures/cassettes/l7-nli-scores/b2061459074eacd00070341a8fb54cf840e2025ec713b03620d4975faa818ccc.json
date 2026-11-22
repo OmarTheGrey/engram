@@ -1,0 +1,22 @@
+{
+  "key": "b2061459074eacd00070341a8fb54cf840e2025ec713b03620d4975faa818ccc",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "pair": "da1ad38e62034e66b3c19faea89024e7d370c6eefd1243dfc2d1ebc6b67b0fc6",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "For the record, my dry cleaner is Bluebell Cleaners.",
+    "hypothesis": "The user says their vet is Dr. Kowalski."
+  },
+  "response": {
+    "contradiction": 0.999820759717008,
+    "entailment": 0.000010443009457010214,
+    "neutral": 0.0001687972735350748,
+    "logits": [
+      6.660542011260986,
+      -4.80885648727417,
+      -2.0260908603668213
+    ]
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "key": "229075e03b66f56df06e3e1fb332f19b6af7312b5c97cc984a4dcb3c844368c5",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "pair": "688bcb67d40c22a98251d0ab2d32f7d4f9200629da550cf7c827290b00a41e2b",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "The user's climbing partner is Tomas.",
+    "hypothesis": "According to the user, their florist is Petal and Stem."
+  },
+  "response": {
+    "contradiction": 0.9998711394832631,
+    "entailment": 0.000007764060021038746,
+    "neutral": 0.00012109645671588402,
+    "logits": [
+      6.866127014160156,
+      -4.899749279022217,
+      -2.152667284011841
+    ]
+  }
+}

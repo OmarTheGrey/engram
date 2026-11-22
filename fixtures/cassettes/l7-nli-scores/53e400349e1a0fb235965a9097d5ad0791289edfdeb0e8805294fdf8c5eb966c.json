@@ -1,0 +1,22 @@
+{
+  "key": "53e400349e1a0fb235965a9097d5ad0791289edfdeb0e8805294fdf8c5eb966c",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "pair": "ab52d948c7fd3b12ca99201c16fbd2534d0d0498950ea1c450d18d6e1ebb0d56",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "For the record, my cat's name is Biscuit.",
+    "hypothesis": "The user said: \"For my sister's birthday, I got her a yellow dress and a pair of earrings to match.\""
+  },
+  "response": {
+    "contradiction": 0.9970185729772582,
+    "entailment": 0.000026250757144084687,
+    "neutral": 0.0029551762655977143,
+    "logits": [
+      5.460904121398926,
+      -5.083925724029541,
+      -0.360306978225708
+    ]
+  }
+}

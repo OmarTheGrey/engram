@@ -1,0 +1,22 @@
+{
+  "key": "21ea17834d0aba24aea7819b6dfe303e299f9e3e7d9f2180a3a7652eb2b2e444",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "pair": "611c9d61e75e75fff561beec24fa88de934fc450ead4255f45aa572e0010997e",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "My dry cleaner is Pressed Perfect at the moment.",
+    "hypothesis": "The user says their vet is Dr. Kowalski."
+  },
+  "response": {
+    "contradiction": 0.9996138368882883,
+    "entailment": 0.00001274747476091821,
+    "neutral": 0.0003734156369509612,
+    "logits": [
+      6.323878288269043,
+      -4.945912837982178,
+      -1.5685539245605469
+    ]
+  }
+}

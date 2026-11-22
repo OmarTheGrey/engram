@@ -1,0 +1,22 @@
+{
+  "key": "85cf0bbb9d2291d28079ca69a6032ec855f7e8d420ea2012dcf3d094540a5341",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "pair": "db176b13353364e91d8b766109d699c53ce16854e8fc4ecb42c8b59abc389f6b",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "According to the user, their yoga studio is Sun Salute Collective.",
+    "hypothesis": "According to the user, their streaming service is ViewPort."
+  },
+  "response": {
+    "contradiction": 0.9998488314839221,
+    "entailment": 0.000006486481516996164,
+    "neutral": 0.00014468203456099757,
+    "logits": [
+      6.881920337677002,
+      -5.063718795776367,
+      -1.9589005708694458
+    ]
+  }
+}

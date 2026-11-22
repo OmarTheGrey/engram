@@ -1,0 +1,22 @@
+{
+  "key": "bf873dd88cc5fb6c7cc015bc8c478fad6eee94d6a880e96dcdc7a9f4dc2aa403",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "pair": "b97a88a54a19f5a0ca580e177363185b1eb18c8ebf484bfb279795c3e7a84c57",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "The user said: \"Here's a start - I've bought gifts for my sister's birthday, my mom, my neighbor Mrs.\"",
+    "hypothesis": "The user said: \"I got her a pair of silver hoop earrings with a small pearl in the center.\""
+  },
+  "response": {
+    "contradiction": 0.0007389124818819477,
+    "entailment": 0.00007029966432669148,
+    "neutral": 0.9991907878537912,
+    "logits": [
+      -1.3858835697174072,
+      -3.7382960319519043,
+      5.823637962341309
+    ]
+  }
+}

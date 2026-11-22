@@ -1,0 +1,22 @@
+{
+  "key": "8b7803d2e6780307cc7f345b25040b522a8a77d9c5802fa6fb4e2240580bae14",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "pair": "60d3a08cf52819b69214e6b423b9ccb72835b0fcf0fb2fbacf0ced2799eb27fb",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "According to the user, their yoga studio is Sun Salute Collective.",
+    "hypothesis": "According to the user, their barber is Marco at The Chair."
+  },
+  "response": {
+    "contradiction": 0.9999366325066846,
+    "entailment": 0.000009618789864268194,
+    "neutral": 0.00005374870345115984,
+    "logits": [
+      7.107512950897217,
+      -4.444215774536133,
+      -2.7236146926879883
+    ]
+  }
+}

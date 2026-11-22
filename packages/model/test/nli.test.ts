@@ -24,7 +24,7 @@ import {
 } from "../src/nli.ts";
 
 const SCRIPTED = "scripted/nli-1";
-const ask = (premise: string, hypothesis: string, model = NLI_MODEL.id): NliRequest => ({
+const ask = (premise: string, hypothesis: string, model: string = NLI_MODEL.id): NliRequest => ({
   model,
   premise,
   hypothesis,

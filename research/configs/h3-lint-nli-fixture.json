@@ -1,0 +1,19 @@
+{
+  "name": "h3-lint-nli-fixture",
+  "kind": "pipeline",
+  "benchmark": "fault-set",
+  "data": "../../fixtures/fault-sets/longmemeval",
+  "questions": ["66f24dbb", "3d86fd0a"],
+  "model": "scripted/lint-l4",
+  "seeds": [1, 2],
+  "script": "../../fixtures/lint/h3-lint-model-script.json",
+  "cassettes": "../../fixtures/cassettes/h3-lint-model-fixture",
+  "nli": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "thresholds": {
+      "upper": 1,
+      "lower": 0.1
+    },
+    "scores": "../../fixtures/cassettes/l7-nli-scores"
+  }
+}

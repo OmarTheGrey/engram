@@ -1,0 +1,22 @@
+{
+  "key": "9dc36aa1e3921bc1837d2630d5aba578ffcac0636d79fbbf0c588a191447ed7b",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "pair": "0742a1c364bd3a79dbfc9b09a462a91cf7a068c5cd456331c4c3409967380857",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "The user said: \"I need help organizing my contacts.\"",
+    "hypothesis": "The user's climbing partner is Tomas."
+  },
+  "response": {
+    "contradiction": 0.11105682196688116,
+    "entailment": 0.00039284757872964276,
+    "neutral": 0.8885503304543891,
+    "logits": [
+      1.339690923690796,
+      -4.304684638977051,
+      3.4192402362823486
+    ]
+  }
+}

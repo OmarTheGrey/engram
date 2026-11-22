@@ -1,0 +1,22 @@
+{
+  "key": "fd09c1ffb88cbc865306cdef01f88abf8212fc7319884b8e9fe1e16394b22059",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "pair": "6dd04d7a907619125598ecc1ee73f5696eca6de0aad0db07a1512875348de70c",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "The release freeze starts on Monday.",
+    "hypothesis": "The staging database runs Postgres 16."
+  },
+  "response": {
+    "contradiction": 0.0006738794534522276,
+    "entailment": 0.00012636609151076909,
+    "neutral": 0.999199754455037,
+    "logits": [
+      -1.6361457109451294,
+      -3.310013771057129,
+      5.665513038635254
+    ]
+  }
+}

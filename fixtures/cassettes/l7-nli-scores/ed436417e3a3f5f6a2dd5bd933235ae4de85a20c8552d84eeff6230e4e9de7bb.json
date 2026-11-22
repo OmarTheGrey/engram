@@ -1,0 +1,22 @@
+{
+  "key": "ed436417e3a3f5f6a2dd5bd933235ae4de85a20c8552d84eeff6230e4e9de7bb",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "pair": "74e821f78c4bde58d14794253bcf863e34d76ea0ade888054aa4f6cdde2680ce",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "My dry cleaner is Crisp Cleaners.",
+    "hypothesis": "My favourite podcast is The Long Table at the moment."
+  },
+  "response": {
+    "contradiction": 0.9964798274974481,
+    "entailment": 0.000019018020926665565,
+    "neutral": 0.0035011544816252816,
+    "logits": [
+      5.493577003479004,
+      -5.373020172119141,
+      -0.1575591266155243
+    ]
+  }
+}

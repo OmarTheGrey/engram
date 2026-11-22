@@ -1,0 +1,22 @@
+{
+  "key": "5709b2e3300328946db5d4812d227154482cbb6fe24282a00987ddf255f7adac",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "pair": "87dafd077b6d534e97f13074c76b8f3461626ad4ed6095b75005315f01f27869",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "The user said: \"For my sister's birthday, I got her a yellow dress and a pair of earrings to match.\"",
+    "hypothesis": "According to the user, their streaming service is ViewPort."
+  },
+  "response": {
+    "contradiction": 0.43098830362543417,
+    "entailment": 0.00019812790768609256,
+    "neutral": 0.5688135684668797,
+    "logits": [
+      2.5680878162384033,
+      -5.116835594177246,
+      2.845559597015381
+    ]
+  }
+}

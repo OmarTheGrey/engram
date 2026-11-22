@@ -1,0 +1,22 @@
+{
+  "key": "91be9f04b09da54e7bc6708fe67b4c46e53505d7920d20ba41227f08680079e7",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "pair": "da1174cd7e791804156b0404bea1822eb495d3ebd33dd640f3455b8c6dde29be",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "The user said: \"I need help organizing my contacts.\"",
+    "hypothesis": "According to the user, their internet provider is NetWave."
+  },
+  "response": {
+    "contradiction": 0.0022560495728712643,
+    "entailment": 0.00014442176992123388,
+    "neutral": 0.9975995286572074,
+    "logits": [
+      -0.844006359577179,
+      -3.5926389694213867,
+      5.247730255126953
+    ]
+  }
+}

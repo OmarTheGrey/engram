@@ -1,0 +1,22 @@
+{
+  "key": "07dce270f7eb8c6d334f579552b8b17e26eedece7d9b099d3e0c2151c5ca9ab0",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "pair": "86584054067d80bc6f5962e334c81404da18ab6608525fbdf9e5e070da42a8e7",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "According to the user, their barber is Marco at The Chair.",
+    "hypothesis": "My dry cleaner is Pressed Perfect at the moment."
+  },
+  "response": {
+    "contradiction": 0.9994393997580546,
+    "entailment": 0.000023779934263125092,
+    "neutral": 0.0005368203076823268,
+    "logits": [
+      6.013592720031738,
+      -4.632514953613281,
+      -1.5156936645507812
+    ]
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "key": "01646fba1de6ecea7b812fee6e38e6bb957a250ea1cb19f0eb05183c516c3f59",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "pair": "1df85f8cc9a234c544198b124908aa66df691c417daa49d4c8d83c036777483a",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "To be clear, my chess club night is Wednesday.",
+    "hypothesis": "For the record, my dry cleaner is Bluebell Cleaners."
+  },
+  "response": {
+    "contradiction": 0.9979103873654963,
+    "entailment": 0.000022309270221808508,
+    "neutral": 0.002067303364281982,
+    "logits": [
+      5.580811500549316,
+      -5.127604961395264,
+      -0.5986069440841675
+    ]
+  }
+}

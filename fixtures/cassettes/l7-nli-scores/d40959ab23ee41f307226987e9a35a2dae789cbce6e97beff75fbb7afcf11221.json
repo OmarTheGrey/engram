@@ -1,0 +1,22 @@
+{
+  "key": "d40959ab23ee41f307226987e9a35a2dae789cbce6e97beff75fbb7afcf11221",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "pair": "4adb4e899d7fe30bc9d4475b8ca3923f0bcd7f736ae26e1f37f9915661c2f283",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "Just so you know, my favourite podcast is The Long Table.",
+    "hypothesis": "My favourite podcast is The Long Table at the moment."
+  },
+  "response": {
+    "contradiction": 0.00003606751304383271,
+    "entailment": 0.9675143680147525,
+    "neutral": 0.03244956447220362,
+    "logits": [
+      -5.710197925567627,
+      4.4868950843811035,
+      1.091851830482483
+    ]
+  }
+}

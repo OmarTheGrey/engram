@@ -1,0 +1,22 @@
+{
+  "key": "cbffeda83c08073c7b64ae6f63a63e24a7b62ac0086640b0ba8ac571fd4e6e37",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "pair": "2c6cbed975cde50f079c273e758ee802dd084f9927474540d33af3fc725d208a",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "The release freeze starts on Monday.",
+    "hypothesis": "The release freeze starts on Friday."
+  },
+  "response": {
+    "contradiction": 0.9996819315569931,
+    "entailment": 0.00008515555832274877,
+    "neutral": 0.00023291288468398722,
+    "logits": [
+      5.9080305099487305,
+      -3.4626822471618652,
+      -2.4564974308013916
+    ]
+  }
+}

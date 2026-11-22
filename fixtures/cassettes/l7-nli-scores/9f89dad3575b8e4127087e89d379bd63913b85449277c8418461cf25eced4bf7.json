@@ -1,0 +1,22 @@
+{
+  "key": "9f89dad3575b8e4127087e89d379bd63913b85449277c8418461cf25eced4bf7",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "pair": "36edafa509c837dc774b84c63d80ce7aea4f8f1fef98d0a168a0d7f61b478d4e",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "Just so you know, my favourite coffee shop is Morning Ritual.",
+    "hypothesis": "As it stands, my favourite coffee shop is Morning Ritual."
+  },
+  "response": {
+    "contradiction": 0.014771935326417412,
+    "entailment": 0.05352352081507746,
+    "neutral": 0.9317045438585051,
+    "logits": [
+      -1.75852632522583,
+      -0.4711342453956604,
+      2.3857603073120117
+    ]
+  }
+}

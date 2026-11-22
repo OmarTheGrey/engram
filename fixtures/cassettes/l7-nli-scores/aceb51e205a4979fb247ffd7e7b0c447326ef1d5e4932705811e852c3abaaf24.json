@@ -1,0 +1,22 @@
+{
+  "key": "aceb51e205a4979fb247ffd7e7b0c447326ef1d5e4932705811e852c3abaaf24",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "pair": "43f7a9bac45744688ceb3fe1f3028eb973c3d91022ef24d92fc4310d8fd9c267",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "The user said: \"I got her some groceries and flowers when she was recovering from surgery.\"",
+    "hypothesis": "The user said: \"Here's a start - I've bought gifts for my sister's birthday, my mom, my neighbor Mrs.\""
+  },
+  "response": {
+    "contradiction": 0.0067617051577562245,
+    "entailment": 0.00017519678832729097,
+    "neutral": 0.9930630980539165,
+    "logits": [
+      -0.16754530370235443,
+      -3.8206658363342285,
+      4.82197380065918
+    ]
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "key": "dce81ebd46eb004650ff768f8d25cd3c0d30752a6436f54e591b2d285926446a",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "pair": "bfc052cc7c387c5f94db465ae7d872befc23bd1ce5e40373116a6c3c3113f6f4",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "According to the user, their florist is Petal and Stem.",
+    "hypothesis": "The user's climbing partner is Tomas."
+  },
+  "response": {
+    "contradiction": 0.9979142736534959,
+    "entailment": 0.00003337922131926514,
+    "neutral": 0.0020523471251847982,
+    "logits": [
+      5.461610794067383,
+      -4.843878269195557,
+      -0.7250725030899048
+    ]
+  }
+}

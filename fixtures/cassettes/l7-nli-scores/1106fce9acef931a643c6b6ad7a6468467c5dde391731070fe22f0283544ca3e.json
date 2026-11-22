@@ -1,0 +1,22 @@
+{
+  "key": "1106fce9acef931a643c6b6ad7a6468467c5dde391731070fe22f0283544ca3e",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "pair": "20a24a23332b474226e4d9919a30cb037d7eeb7f9742b0d21f94a3818df8a66c",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "The release freeze ends on the following Wednesday.",
+    "hypothesis": "The release freeze starts on Friday."
+  },
+  "response": {
+    "contradiction": 0.9960654153098258,
+    "entailment": 0.00007370208855448516,
+    "neutral": 0.0038608826016197245,
+    "logits": [
+      4.9688520431518555,
+      -4.542685031890869,
+      -0.5840650796890259
+    ]
+  }
+}

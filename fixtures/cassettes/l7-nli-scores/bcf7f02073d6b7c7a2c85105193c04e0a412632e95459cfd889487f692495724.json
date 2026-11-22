@@ -1,0 +1,22 @@
+{
+  "key": "bcf7f02073d6b7c7a2c85105193c04e0a412632e95459cfd889487f692495724",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "pair": "d72ad3821cc24e303b6373ce7513689c2e98e861512e68b4ae2e5826d2e6ec43",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "To be clear, my chess club night is Wednesday.",
+    "hypothesis": "Just so you know, my Spanish tutor is Mateo."
+  },
+  "response": {
+    "contradiction": 0.997332780444919,
+    "entailment": 0.00004370999146094004,
+    "neutral": 0.0026235095636198743,
+    "logits": [
+      5.3288164138793945,
+      -4.706446647644043,
+      -0.6117551326751709
+    ]
+  }
+}

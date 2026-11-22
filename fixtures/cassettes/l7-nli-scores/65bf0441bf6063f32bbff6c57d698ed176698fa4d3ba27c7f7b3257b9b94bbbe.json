@@ -1,0 +1,22 @@
+{
+  "key": "65bf0441bf6063f32bbff6c57d698ed176698fa4d3ba27c7f7b3257b9b94bbbe",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "pair": "0b370dfb308b37840aeddc000c45f8c2fab72938917979bf6cbed09fa4ca30a7",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "For the record, my cat's name is Biscuit.",
+    "hypothesis": "My chess club night is Wednesday."
+  },
+  "response": {
+    "contradiction": 0.9998431643076147,
+    "entailment": 0.000012260044846835192,
+    "neutral": 0.00014457564753859637,
+    "logits": [
+      6.699504852294922,
+      -4.609503269195557,
+      -2.1420459747314453
+    ]
+  }
+}

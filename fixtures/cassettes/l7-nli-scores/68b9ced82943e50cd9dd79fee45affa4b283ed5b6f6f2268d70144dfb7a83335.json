@@ -1,0 +1,22 @@
+{
+  "key": "68b9ced82943e50cd9dd79fee45affa4b283ed5b6f6f2268d70144dfb7a83335",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "pair": "c991375c2d21bd3276a2059b205c6c2c8a986d1eb72ee05c8353aea4e459d08c",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "For the record, my dry cleaner is Bluebell Cleaners.",
+    "hypothesis": "For the record, my cat's name is Biscuit."
+  },
+  "response": {
+    "contradiction": 0.9996340386219118,
+    "entailment": 0.000011295642248536454,
+    "neutral": 0.0003546657358396586,
+    "logits": [
+      6.382019519805908,
+      -5.0087080001831055,
+      -1.5619492530822754
+    ]
+  }
+}

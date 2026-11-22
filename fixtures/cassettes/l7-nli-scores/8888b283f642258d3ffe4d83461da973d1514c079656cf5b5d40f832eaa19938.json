@@ -1,0 +1,22 @@
+{
+  "key": "8888b283f642258d3ffe4d83461da973d1514c079656cf5b5d40f832eaa19938",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "pair": "ced098247b4d4c31bac01f21bc3150f766662ae0f0404b4dbec64f8acaab8d7a",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "The user said: \"I need help organizing my contacts.\"",
+    "hypothesis": "The user said: \"She's into indie music, and we talked about some new bands to check out.\""
+  },
+  "response": {
+    "contradiction": 0.09378239981798084,
+    "entailment": 0.00017687114325518324,
+    "neutral": 0.9060407290387641,
+    "logits": [
+      1.4610766172409058,
+      -4.812234401702881,
+      3.7291836738586426
+    ]
+  }
+}

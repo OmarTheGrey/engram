@@ -1,0 +1,22 @@
+{
+  "key": "7d8752005566c77a47b767a0169c2f1874f4d5b84803ba1b52826b4ff60b8806",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "pair": "ac2e1e041bcf82b1df381d814ddcd96b5847794d79430b156b8557183f67eb10",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "According to the user, their internet provider is NetWave.",
+    "hypothesis": "To be clear, my dry cleaner is Pressed Perfect."
+  },
+  "response": {
+    "contradiction": 0.9997564190512832,
+    "entailment": 0.000022909913565685405,
+    "neutral": 0.00022067103515116608,
+    "logits": [
+      6.326927185058594,
+      -4.356770038604736,
+      -2.0916666984558105
+    ]
+  }
+}

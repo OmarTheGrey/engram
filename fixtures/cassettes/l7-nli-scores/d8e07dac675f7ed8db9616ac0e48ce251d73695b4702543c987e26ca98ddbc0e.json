@@ -1,0 +1,22 @@
+{
+  "key": "d8e07dac675f7ed8db9616ac0e48ce251d73695b4702543c987e26ca98ddbc0e",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "pair": "06c8ef886af0263b66b22caa2991085bc243cf584d199748b7fdd3fff9a16464",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "To be clear, my chess club night is Wednesday.",
+    "hypothesis": "According to the user, their barber is Marco at The Chair."
+  },
+  "response": {
+    "contradiction": 0.9996007554437129,
+    "entailment": 0.000033980325823422906,
+    "neutral": 0.00036526423046357446,
+    "logits": [
+      6.043408393859863,
+      -4.2459211349487305,
+      -1.871081829071045
+    ]
+  }
+}

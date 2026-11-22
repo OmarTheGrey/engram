@@ -48,11 +48,23 @@
 // or overlapping shard and shards of another config, and rewrites the
 // summary from the merged rows; no model is called and no session runs.
 // One process at a time writes an output folder (run.lock).
+//
+// With --record-nli (`make nli-scores CONFIG=`, card L7) a lint config with
+// an `nli` block scores each pair its NLI cassettes miss with the pinned
+// local model (fetched by sha256 into .engram/upstream when missing) and
+// records the score; its model calls still replay, every miss an error.
+// Without it every NLI miss is an error, so a replay computes no score.
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
-import type { UsageRecord } from "@engram/model";
+import {
+  fetchNliModel,
+  type NliRawScore,
+  nliModelDir,
+  onnxNliScore,
+  type UsageRecord,
+} from "@engram/model";
 import {
   type AnyRunnerConfig,
   configStores,
@@ -154,7 +166,35 @@ interface Flags {
   shard?: Shard | undefined;
   /** Merge this many shard folders into --out (card RV6). */
   merge?: number | undefined;
+  /** Score and record the NLI cassettes' misses with the pinned model (card L7). */
+  recordNli?: boolean;
 }
+
+/** The real NLI scorer for --record-nli, the pinned model fetched first when missing (card L7). */
+async function recordingNliScore(): Promise<NliRawScore> {
+  const dir = nliModelDir(REPO);
+  await fetchNliModel(dir, { log: (l) => console.log(l) });
+  return onnxNliScore(dir);
+}
+
+/** The NLI options of a lint run: the real scorer with --record-nli, else none (every miss an error). */
+async function nliOptions(
+  config: { name: string; nli?: unknown },
+  flags: Flags,
+): Promise<{ nliScore?: NliRawScore }> {
+  if (!flags.recordNli) return {};
+  if (config.nli === undefined)
+    throw new Error(`run.ts: --record-nli: ${config.name} has no nli block to record`);
+  return { nliScore: await recordingNliScore() };
+}
+
+/** The line a lint run prints about its NLI scores, when its config has an `nli` block. */
+const scoreLine = (scores: { new: number; cached: number } | undefined, flags: Flags) =>
+  scores === undefined
+    ? []
+    : [
+        `NLI scores: ${scores.new} new, ${scores.cached} from cassettes${flags.recordNli ? " (recorded)" : ""}`,
+      ];
 
 interface Outcome {
   code: number;
@@ -405,7 +445,7 @@ async function runLint(path: string, out: string, flags: Flags): Promise<Outcome
       throw e;
     }
   }
-  const result = await runLintConfig(config, options);
+  const result = await runLintConfig(config, { ...options, ...(await nliOptions(config, flags)) });
   writeLintResult(result, out);
   const how = flags.live
     ? ` (recorded into ${config.cassettes})`
@@ -415,6 +455,7 @@ async function runLint(path: string, out: string, flags: Flags): Promise<Outcome
   const lines = [
     `${config.name}: ${result.rows.length} lint runs (${new Set(result.rows.map((r) => r.fixture)).size} fault fixtures x seeds ${config.seeds.join(", ")}), model ${config.model}`,
     `model calls: ${result.calls.new} new, ${result.calls.cached} from cassettes${how}`,
+    ...scoreLine(result.scores, flags),
     ...result.rows.map((r) => {
       const counts = result.summary[`${r.fixture}@${r.seed}`] ?? {};
       const outcomes = Object.entries(counts)
@@ -476,7 +517,10 @@ async function runFaultSet(path: string, out: string, flags: Flags): Promise<Out
       throw e;
     }
   }
-  const result = await runFaultSetConfig(config, options);
+  const result = await runFaultSetConfig(config, {
+    ...options,
+    ...(await nliOptions(config, flags)),
+  });
   writeFaultSetResult(result, out);
   const how = flags.live
     ? ` (recorded into ${config.cassettes})`
@@ -486,6 +530,7 @@ async function runFaultSet(path: string, out: string, flags: Flags): Promise<Out
   const lines = [
     `${config.name}: ${result.rows.length} lint runs (${new Set(result.rows.map((r) => r.question_id)).size} states x seeds ${config.seeds.join(", ")}), model ${config.model}`,
     `model calls: ${result.calls.new} new, ${result.calls.cached} from cassettes${how}`,
+    ...scoreLine(result.scores, flags),
     ...Object.entries(result.summary).map(
       ([seed, counts]) =>
         `  seed ${seed}: ${Object.entries(counts)
@@ -756,11 +801,12 @@ async function main(): Promise<number> {
       cassettes: { type: "string" },
       shard: { type: "string" },
       merge: { type: "string" },
+      "record-nli": { type: "boolean", default: false },
     },
   });
   if (!values.config || !values.out) {
     console.error(
-      "usage: run.ts --config <runner-config.json> --out <dir> [--record | --count | (--live | --replay) --model <provider/model-id> [--cassettes <dir>]] [--resume] [--shard i/n | --merge n]",
+      "usage: run.ts --config <runner-config.json> --out <dir> [--record | --count | (--live | --replay) --model <provider/model-id> [--cassettes <dir>]] [--resume] [--shard i/n | --merge n] [--record-nli]",
     );
     return 2;
   }
@@ -789,7 +835,17 @@ async function main(): Promise<number> {
     cassettes: values.cassettes,
     shard,
     merge,
+    recordNli: values["record-nli"] === true,
   };
+  if (
+    flags.recordNli &&
+    (flags.live || flags.count || flags.record || flags.shard || flags.merge !== undefined)
+  ) {
+    console.error(
+      "run.ts: --record-nli records NLI scores while the model calls replay; it goes alone, or with --replay --model",
+    );
+    return 2;
+  }
   if ([flags.record, flags.live, flags.replay, flags.count].filter(Boolean).length > 1) {
     console.error("run.ts: --record, --live, --replay and --count are exclusive");
     return 2;
