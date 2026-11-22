@@ -319,7 +319,7 @@ describe("bindingProblem: the replay is the item's, and its split is the item's 
 });
 
 describe("the lead's rule of 2026-11-22 (D3-1, D3-2, D3-7)", () => {
-  test("4 of 5 with the candidate against 5 of 5 without it is refused: the four fall below baseline", () => {
+  test("per seed, 2 of 3 with the candidate on four tasks against 3 of 3 without it is refused: each falls below its baseline", () => {
     const outcomes = seeded({
       t3: { without: [1, 1, 1], with: [1, 1, 0] },
       t4: { without: [1, 1, 1], with: [1, 0, 1] },
@@ -362,6 +362,29 @@ describe("the lead's rule of 2026-11-22 (D3-1, D3-2, D3-7)", () => {
     expect(admission(POLICY, { ...evidence(0), outcomes })).toMatchObject({
       decision: "admit",
       record: { k: 4, n: 5 },
+    });
+  });
+
+  test("ties pass: 4 tasks at 3/3 against 3/3 and 1 at 0/3 against 3/3 is admitted at 4 of 5 (D3-14)", () => {
+    const outcomes = seeded({
+      t3: { without: [1, 1, 1], with: [1, 1, 1] },
+      t4: { without: [1, 1, 1], with: [1, 1, 1] },
+      t5: { without: [1, 1, 1], with: [1, 1, 1] },
+      t6: { without: [1, 1, 1], with: [1, 1, 1] },
+      t7: { without: [1, 1, 1], with: [0, 0, 0] },
+    });
+    expect(admission(POLICY, { ...evidence(0), outcomes })).toMatchObject({
+      decision: "admit",
+      record: { k: 4, n: 5, baseline: 5 },
+    });
+  });
+
+  test("five ties at 3/3 are admitted: a skill matching a strong baseline is not refused (D3-14)", () => {
+    const tie = { without: [1, 1, 1], with: [1, 1, 1] };
+    const outcomes = seeded({ t3: tie, t4: tie, t5: tie, t6: tie, t7: tie });
+    expect(admission(POLICY, { ...evidence(0), outcomes })).toMatchObject({
+      decision: "admit",
+      record: { k: 5, n: 5, baseline: 5 },
     });
   });
 
