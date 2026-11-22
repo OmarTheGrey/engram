@@ -1,0 +1,24 @@
+{
+  "key": "86dd04b3ed30ce5b1f42fa41a2dc0083c5985b7cf09fe1e70e6ffbd7b7d1e974",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "tokenizer_sha256": "5124ef2ead1a10a717703bc436de7f353da76d6340e4587719b42b1693707964",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "scorer": "engram-nli-scorer/1",
+  "pair": "790e36a8df723ab6012ca0b528af0f8f30a6f47ca3e362b757e82dd276ea7ce2",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "My favourite podcast is The Long Table at the moment.",
+    "hypothesis": "To be clear, my dry cleaner is Pressed Perfect."
+  },
+  "response": {
+    "contradiction": 0.9997897936952932,
+    "entailment": 0.0000428000269766639,
+    "neutral": 0.0001674062777299251,
+    "logits": [
+      6.205792427062988,
+      -3.852969169616699,
+      -2.489084243774414
+    ]
+  }
+}

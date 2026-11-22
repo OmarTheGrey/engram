@@ -1,0 +1,24 @@
+{
+  "key": "0d01c37e48bd8506f995f7aed7125b1230b3e69244d93a2dcc9fdc48724368ed",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "tokenizer_sha256": "5124ef2ead1a10a717703bc436de7f353da76d6340e4587719b42b1693707964",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "scorer": "engram-nli-scorer/1",
+  "pair": "1c8d0807896ee071305eef194e318cc62b958df162f927141db7276142a607e3",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "The user's climbing partner is Tomas.",
+    "hypothesis": "My dentist is Dr. Okafor at the moment."
+  },
+  "response": {
+    "contradiction": 0.9992721770477626,
+    "entailment": 0.000022837055106740407,
+    "neutral": 0.0007049858971305583,
+    "logits": [
+      5.897393703460693,
+      -4.789004325866699,
+      -1.3592109680175781
+    ]
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "key": "6cd6434522ae0272c56a353d7d81ba93856f3120ed4215fbf8a7d37b8240b39d",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "tokenizer_sha256": "5124ef2ead1a10a717703bc436de7f353da76d6340e4587719b42b1693707964",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "scorer": "engram-nli-scorer/1",
+  "pair": "81b806597e146d3f928100bdf34badf41999735954940e6bd5ff9e3cb4237104",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "As it stands, my favourite coffee shop is Morning Ritual.",
+    "hypothesis": "For the record, my favourite wine is a Chenin Blanc."
+  },
+  "response": {
+    "contradiction": 0.9993646640308304,
+    "entailment": 0.00002549316474631196,
+    "neutral": 0.0006098428044233432,
+    "logits": [
+      5.998248100280762,
+      -4.578216552734375,
+      -1.403425693511963
+    ]
+  }
+}

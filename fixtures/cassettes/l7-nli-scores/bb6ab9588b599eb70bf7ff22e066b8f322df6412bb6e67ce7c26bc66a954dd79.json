@@ -1,0 +1,24 @@
+{
+  "key": "bb6ab9588b599eb70bf7ff22e066b8f322df6412bb6e67ce7c26bc66a954dd79",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "tokenizer_sha256": "5124ef2ead1a10a717703bc436de7f353da76d6340e4587719b42b1693707964",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "scorer": "engram-nli-scorer/1",
+  "pair": "233750cedd17661605f6a6c6446eb96483aa0ddfde767b273047148fe8f93c6f",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "According to the user, their florist is Petal and Stem.",
+    "hypothesis": "The user said: \"She's into indie music, and we talked about some new bands to check out.\""
+  },
+  "response": {
+    "contradiction": 0.5096386694254409,
+    "entailment": 0.00014482291675932545,
+    "neutral": 0.49021650765779984,
+    "logits": [
+      2.822861671447754,
+      -5.34308385848999,
+      2.7840068340301514
+    ]
+  }
+}

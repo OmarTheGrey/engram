@@ -1,0 +1,24 @@
+{
+  "key": "bf1a49d2caa1d8bbb57caa4ac7432f91aeda4aaa70551ae53ba0b49dfc062f25",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "tokenizer_sha256": "5124ef2ead1a10a717703bc436de7f353da76d6340e4587719b42b1693707964",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "scorer": "engram-nli-scorer/1",
+  "pair": "45599e381496148b66d4771c4244ce3d5e66b8e3fc7a05d30e18d2e1f08c3396",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "My dry cleaner is Pressed Perfect at the moment.",
+    "hypothesis": "Right now my go-to pizza place is Forno Rosso."
+  },
+  "response": {
+    "contradiction": 0.9988405916360845,
+    "entailment": 0.00007496216891082113,
+    "neutral": 0.00108444619500485,
+    "logits": [
+      5.453804016113281,
+      -4.043562889099121,
+      -1.3717217445373535
+    ]
+  }
+}

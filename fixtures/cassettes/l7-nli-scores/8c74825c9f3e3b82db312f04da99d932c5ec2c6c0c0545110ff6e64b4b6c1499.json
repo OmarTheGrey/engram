@@ -1,0 +1,24 @@
+{
+  "key": "8c74825c9f3e3b82db312f04da99d932c5ec2c6c0c0545110ff6e64b4b6c1499",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "tokenizer_sha256": "5124ef2ead1a10a717703bc436de7f353da76d6340e4587719b42b1693707964",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "scorer": "engram-nli-scorer/1",
+  "pair": "870dfe885ef27acb20bda9fbf7d8bdb1d4688084641565774ca27232318d9178",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "The user says their vet is Dr. Kowalski.",
+    "hypothesis": "According to the user, their yoga studio is Sun Salute Collective."
+  },
+  "response": {
+    "contradiction": 0.9998789861531773,
+    "entailment": 0.000008699463152872173,
+    "neutral": 0.00011231438366970787,
+    "logits": [
+      6.878299713134766,
+      -4.773828506469727,
+      -2.215787887573242
+    ]
+  }
+}

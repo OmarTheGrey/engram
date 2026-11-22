@@ -13,7 +13,8 @@
 //   @huggingface/tokenizers (Apache-2.0, pure JavaScript). One pair per run,
 //   no padding, one thread, so a score depends on its pair alone.
 // - The cache (AGENTS.md rules 6 and 7): every score is keyed on the model's
-//   hash, the runtime's version and the pair's hash. The scorer draws
+//   and the tokenizer's hashes, the runtime's version, the scorer's version
+//   (NLI_SCORER_VERSION) and the pair's hash. The scorer draws
 //   nothing, so there is no seed. With ENGRAM_OFFLINE=1, or offline set, a
 //   miss is an error, so a replay computes no score. Scores are committed as
 //   cassettes, one JSON file per key, like the model cassettes.
@@ -234,22 +235,57 @@ export async function onnxNliScore(dir: string): Promise<NliRawScore> {
 export const nliPairHash = (request: Pick<NliRequest, "premise" | "hypothesis">) =>
   sha256(canonicalJson({ premise: request.premise, hypothesis: request.hypothesis }));
 
-/** A score's cache key: the model's hash, the runtime's version and the pair's hash. */
-export function nliCacheKey(request: NliRequest): string {
+/**
+ * The version of this file's scoring: the pair encoding (`[CLS] A [SEP] B
+ * [SEP]`, longest-first truncation to the model's 512 tokens), one pair per
+ * run on one thread, and the double-precision softmax. Raise it whenever any
+ * of them changes, so a recorded score never answers a request it was not
+ * computed for (review L7-5).
+ */
+export const NLI_SCORER_VERSION = "engram-nli-scorer/1";
+
+/** What a score's cache key is made of. */
+export interface NliKeyParts {
+  /** The ONNX file's sha256, or a scripted scorer's name. */
+  model: string;
+  /** tokenizer.json's sha256, or a scripted scorer's name. */
+  tokenizer: string;
+  runtime: string;
+  scorer: string;
+  pair: string;
+}
+
+/** A request's key parts: the pinned hashes, the runtime, the scorer's version and the pair's hash. */
+export function nliKeyParts(request: NliRequest): NliKeyParts {
   if (request.model !== NLI_MODEL.id && !request.model.startsWith("scripted/"))
     throw new Error(`no pinned hash for the NLI model ${request.model}`);
-  const model = request.model.startsWith("scripted/")
-    ? request.model
-    : NLI_MODEL.files["onnx/model.onnx"];
-  return sha256(canonicalJson({ model, runtime: NLI_RUNTIME, pair: nliPairHash(request) }));
+  const scripted = request.model.startsWith("scripted/");
+  return {
+    model: scripted ? request.model : NLI_MODEL.files["onnx/model.onnx"],
+    tokenizer: scripted ? request.model : NLI_MODEL.files["tokenizer.json"],
+    runtime: NLI_RUNTIME,
+    scorer: NLI_SCORER_VERSION,
+    pair: nliPairHash(request),
+  };
 }
+
+/** The key of a set of key parts. */
+export const nliCacheKeyOf = (parts: NliKeyParts): string => sha256(canonicalJson(parts));
+
+/**
+ * A score's cache key: the model's and the tokenizer's sha256, the runtime's
+ * version, the scorer's version and the pair's hash.
+ */
+export const nliCacheKey = (request: NliRequest): string => nliCacheKeyOf(nliKeyParts(request));
 
 /** One cassette: a score and what it was keyed on. */
 export interface NliCacheEntry {
   key: string;
   model: string;
   model_sha256: string;
+  tokenizer_sha256: string;
   runtime: string;
+  scorer: string;
   pair: string;
   request: NliRequest;
   response: NliScored;
@@ -320,7 +356,8 @@ export interface CachedNliOptions {
 export function cachedNli(inner: NliRawScore, options: CachedNliOptions): NliScore {
   const offline = () => options.offline ?? process.env.ENGRAM_OFFLINE === "1";
   return async (request) => {
-    const key = nliCacheKey(request);
+    const parts = nliKeyParts(request);
+    const key = nliCacheKeyOf(parts);
     let scored = options.cache.get(key)?.response;
     const hit = scored !== undefined;
     if (scored === undefined) {
@@ -329,10 +366,11 @@ export function cachedNli(inner: NliRawScore, options: CachedNliOptions): NliSco
       options.cache.set({
         key,
         model: request.model,
-        model_sha256:
-          request.model === NLI_MODEL.id ? NLI_MODEL.files["onnx/model.onnx"] : request.model,
-        runtime: NLI_RUNTIME,
-        pair: nliPairHash(request),
+        model_sha256: parts.model,
+        tokenizer_sha256: parts.tokenizer,
+        runtime: parts.runtime,
+        scorer: parts.scorer,
+        pair: parts.pair,
         request,
         response: scored,
       });

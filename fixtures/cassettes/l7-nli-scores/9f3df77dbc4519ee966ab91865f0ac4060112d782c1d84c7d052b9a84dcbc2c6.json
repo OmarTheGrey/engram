@@ -1,0 +1,24 @@
+{
+  "key": "9f3df77dbc4519ee966ab91865f0ac4060112d782c1d84c7d052b9a84dcbc2c6",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "tokenizer_sha256": "5124ef2ead1a10a717703bc436de7f353da76d6340e4587719b42b1693707964",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "scorer": "engram-nli-scorer/1",
+  "pair": "ebcff02ec7664e8c8f718cbc17c8d2bc582f3c0fbde88c1341e683613f73b1d1",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "The release freeze starts on Monday.",
+    "hypothesis": "The staging database runs MySQL 8 and has never run Postgres."
+  },
+  "response": {
+    "contradiction": 0.009260981292888692,
+    "entailment": 0.00018188585762703667,
+    "neutral": 0.9905571328494843,
+    "logits": [
+      0.018318817019462585,
+      -3.911867141723633,
+      4.690776348114014
+    ]
+  }
+}

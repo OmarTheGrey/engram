@@ -1,0 +1,24 @@
+{
+  "key": "dc738c175b9c7191d2997fe8920477838f631c4de4775f5ed88c66e2335804c7",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "tokenizer_sha256": "5124ef2ead1a10a717703bc436de7f353da76d6340e4587719b42b1693707964",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "scorer": "engram-nli-scorer/1",
+  "pair": "9764fa3386ed486758e6c9c4f906223ff6d926d82f8fd53239f82f3a7f41b88b",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "My dry cleaner is Pressed Perfect at the moment.",
+    "hypothesis": "As it stands, my cat's name is Juniper."
+  },
+  "response": {
+    "contradiction": 0.9954667806258788,
+    "entailment": 0.0000327686561418714,
+    "neutral": 0.0045004507179792754,
+    "logits": [
+      5.183917999267578,
+      -5.137576580047607,
+      -0.2151162028312683
+    ]
+  }
+}

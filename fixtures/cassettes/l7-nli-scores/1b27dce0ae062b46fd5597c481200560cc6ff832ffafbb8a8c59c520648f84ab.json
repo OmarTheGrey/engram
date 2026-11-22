@@ -1,0 +1,24 @@
+{
+  "key": "1b27dce0ae062b46fd5597c481200560cc6ff832ffafbb8a8c59c520648f84ab",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "tokenizer_sha256": "5124ef2ead1a10a717703bc436de7f353da76d6340e4587719b42b1693707964",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "scorer": "engram-nli-scorer/1",
+  "pair": "a9c28db94ccb769e598982e1646622d8ea3e62ee2f6912f2c053761752cd33ff",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "For the record, my cat's name is Biscuit.",
+    "hypothesis": "According to the user, their streaming service is ViewPort."
+  },
+  "response": {
+    "contradiction": 0.7598776360947636,
+    "entailment": 0.00009965086384091882,
+    "neutral": 0.24002271304139558,
+    "logits": [
+      3.383599281311035,
+      -5.555640697479248,
+      2.231175422668457
+    ]
+  }
+}

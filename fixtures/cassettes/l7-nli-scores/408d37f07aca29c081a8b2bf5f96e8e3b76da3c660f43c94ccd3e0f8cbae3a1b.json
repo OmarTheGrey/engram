@@ -1,0 +1,24 @@
+{
+  "key": "408d37f07aca29c081a8b2bf5f96e8e3b76da3c660f43c94ccd3e0f8cbae3a1b",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "tokenizer_sha256": "5124ef2ead1a10a717703bc436de7f353da76d6340e4587719b42b1693707964",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "scorer": "engram-nli-scorer/1",
+  "pair": "5a6946c810169d94b0f73c78185b3756c5766b3f61c292ca9960d4762f41c230",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "The user said: \"Alex and I talked about our jobs and commutes, and he recommended some podcasts to listen to.\"",
+    "hypothesis": "The user said: \"I need help organizing my contacts.\""
+  },
+  "response": {
+    "contradiction": 0.13370387165596972,
+    "entailment": 0.00019758825591667477,
+    "neutral": 0.8660985400881136,
+    "logits": [
+      1.6782276630401611,
+      -4.838969707489014,
+      3.5465989112854004
+    ]
+  }
+}

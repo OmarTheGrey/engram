@@ -1,0 +1,24 @@
+{
+  "key": "2a199d6388cbaf0ce78914bd8ce5975d23da9f3ad4071a2b980f8b9e7f18b661",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "tokenizer_sha256": "5124ef2ead1a10a717703bc436de7f353da76d6340e4587719b42b1693707964",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "scorer": "engram-nli-scorer/1",
+  "pair": "f89efb1d8814c35bd5ef9a72bf196ed84447c3c9f7d7d163bbe1665618326d5f",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "According to the user, their internet provider is NetWave.",
+    "hypothesis": "The user's climbing partner is Tomas."
+  },
+  "response": {
+    "contradiction": 0.9868353402457583,
+    "entailment": 0.00004092140259583166,
+    "neutral": 0.013123738351646036,
+    "logits": [
+      4.773505210876465,
+      -5.3171000480651855,
+      0.45342469215393066
+    ]
+  }
+}

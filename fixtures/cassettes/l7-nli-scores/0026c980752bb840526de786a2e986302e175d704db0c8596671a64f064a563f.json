@@ -1,0 +1,24 @@
+{
+  "key": "0026c980752bb840526de786a2e986302e175d704db0c8596671a64f064a563f",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "tokenizer_sha256": "5124ef2ead1a10a717703bc436de7f353da76d6340e4587719b42b1693707964",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "scorer": "engram-nli-scorer/1",
+  "pair": "78ac3e45a615914e56883dc5e659f6847dc57b93f5729a8d1f60ed7fc69b90ee",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "The user's favourite sushi place is Umi Bar, most of the time.",
+    "hypothesis": "The user's climbing partner is Tomas."
+  },
+  "response": {
+    "contradiction": 0.965841930298874,
+    "entailment": 0.00007752719666827851,
+    "neutral": 0.034080542504457925,
+    "logits": [
+      4.279176712036133,
+      -5.150949954986572,
+      0.9349031448364258
+    ]
+  }
+}
