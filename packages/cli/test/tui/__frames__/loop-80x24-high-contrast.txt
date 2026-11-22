@@ -21,7 +21,7 @@
 
 
 $ engram write --content "The deploy key...-db engram.db --owner dana --root mem
- enter run this step  ctrl+n skip  alt+c copy  alt+p commands  ctrl+g help  e...
+ enter run this step  ctrl+n skip  alt+v full result  alt+c copy  alt+p comma...
 --- styles
 r0 c0-79 inverse
 r5 c63-63 inverse

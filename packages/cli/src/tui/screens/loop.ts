@@ -10,6 +10,7 @@ import { clean, rows, wrap } from "../layout.ts";
 import type { RunResult } from "../runner.ts";
 import type { CommandRow, Ctx, Screen } from "../screen.ts";
 import { shortPath } from "../workspace.ts";
+import { ResultScreen } from "./form.ts";
 
 /** The sample memory the first step offers; the person may change it. */
 export const SAMPLE = "The deploy key rotates every 90 days.";
@@ -34,6 +35,9 @@ export class LoopScreen implements Screen {
   private readonly content = new TextField(SAMPLE);
   private readonly query = new TextField(queryOf(SAMPLE));
   private readonly results = new Map<Step, RunResult | "skipped">();
+  /** Where the person scrolled to; undefined follows the current step. */
+  private offset: number | undefined;
+  private autoStart = 0;
 
   title(): string {
     return "Getting started  first loop";
@@ -76,7 +80,30 @@ export class LoopScreen implements Screen {
       // The step's text is its confirmation (8.2): one press of enter runs it.
       this.results.set(s, await ctx.runNow(this.argv(ctx, s)));
       this.step++;
+      this.offset = undefined;
       if (s === "write") this.query.set(queryOf(this.content.value));
+      return true;
+    }
+    const page = Math.max(1, ctx.rows - 6);
+    const move = { up: -1, down: 1, "page-up": -page, "page-down": page }[name];
+    if (move !== undefined) {
+      this.offset = Math.max(0, (this.offset ?? this.autoStart) + move);
+      return true;
+    }
+    if (name === "first" || name === "last") {
+      this.offset = name === "first" ? 0 : Number.MAX_SAFE_INTEGER;
+      return true;
+    }
+    if (name === "view") {
+      // The last step that ran, as its own result screen: scrollable, the decision first.
+      const ran = [...STEPS].reverse().flatMap((x) => {
+        const r = this.results.get(x);
+        return r === undefined || r === "skipped" ? [] : [r];
+      });
+      const last = ran[0];
+      const spec = last === undefined ? undefined : command(last.argv[0] as string);
+      if (last === undefined || spec === undefined) ctx.say("no step has run yet");
+      else ctx.push(new ResultScreen(spec, last, {}));
       return true;
     }
     if (name === "skip") {
@@ -113,7 +140,9 @@ export class LoopScreen implements Screen {
   }
 
   hints(): string {
-    return this.current() === undefined ? "enter Home" : "enter run this step  ctrl+n skip";
+    return this.current() === undefined
+      ? "enter Home  alt+v full result  up down scroll"
+      : "enter run this step  ctrl+n skip  alt+v full result";
   }
 
   private stepLines(ctx: Ctx, step: Step, i: number, width: number): string[] {
@@ -141,8 +170,7 @@ export class LoopScreen implements Screen {
       const out = clean(`${r.out}${r.err}`)
         .split("\n")
         .filter((l) => l !== "");
-      for (const l of out.slice(0, 3))
-        lines.push(...wrap(l, width - 16).map((w) => `${indent} ${w}`));
+      for (const l of out) lines.push(...wrap(l, width - 16).map((w) => `${indent} ${w}`));
       lines.push(`${indent} exit ${r.code}`);
     } else if (on) {
       const root = ctx.ws.get("root");
@@ -185,9 +213,13 @@ export class LoopScreen implements Screen {
         ? " Done. Press enter for Home; every action there shows its command the same way."
         : " Each step is the plain command; alt+c copies it. Next time, type it yourself.",
     );
-    // Scroll so the current step, and the lines after it, show.
+    // Scroll so the current step, and the lines after it, show, unless the
+    // person scrolls: then every line of every step's output is reachable (review I10).
     const end = Math.min(lines.length, focus + Math.max(8, height - 4));
-    const start = Math.max(0, end - height);
-    return rows(lines.slice(start), height, width);
+    this.autoStart = Math.max(0, end - height);
+    const max = Math.max(0, lines.length - height);
+    if (this.offset !== undefined) this.offset = Math.min(this.offset, max);
+    const start = this.offset ?? this.autoStart;
+    return rows(lines.slice(start, start + height), height, width);
   }
 }

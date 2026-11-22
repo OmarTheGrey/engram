@@ -189,6 +189,26 @@ export const KEYS: readonly KeyAction[] = [
     description: "skip this step (ctrl+n in a field)",
     where: ["loop"],
   },
+  // The first loop: scrolling its steps' output, and a step's full result (review I10).
+  { action: "up", keys: ["up"], label: "up", description: "scroll up", where: ["loop"] },
+  { action: "down", keys: ["down"], label: "down", description: "scroll down", where: ["loop"] },
+  { action: "page-up", keys: ["pageUp"], label: "pgup", description: "page up", where: ["loop"] },
+  {
+    action: "page-down",
+    keys: ["pageDown"],
+    label: "pgdn",
+    description: "page down",
+    where: ["loop"],
+  },
+  { action: "first", keys: ["home"], label: "home", description: "the top", where: ["loop"] },
+  { action: "last", keys: ["end"], label: "end", description: "the end", where: ["loop"] },
+  {
+    action: "view",
+    keys: ["v", "alt+v"],
+    label: "v (alt+v in a field)",
+    description: "the last step's full result",
+    where: ["loop"],
+  },
   // Results.
   {
     action: "rerun",

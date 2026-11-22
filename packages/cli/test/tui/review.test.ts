@@ -223,6 +223,34 @@ describe("I8: the mouse, on by default, does what it captures", () => {
   });
 });
 
+describe("I10: the first loop shows each step's whole output", () => {
+  it("scrolls to every line of the read and the explain, and alt+v opens a step's full result", async () => {
+    const cwd = await tempDir();
+    const root = await fixtureCopy();
+    const h = await startHarness({ cwd, home: cwd, given: { db: "engram.db", root, owner: "dana" } });
+    h.app.replace(new LoopScreen());
+    await h.press("\r", "\r", "\r"); // write, read, explain
+    expect(h.ran().map((a) => a[0])).toEqual(["write", "read", "explain"]);
+    const read = h.app.ran[1];
+    expect(read).toBeDefined();
+    // Every line of every step's output is on the loop screen, by scrolling.
+    const seen = new Set<string>();
+    await h.press("\x1b[H"); // home: to the top
+    for (let i = 0; i < 40; i++) {
+      for (const l of await h.frame()) seen.add(l.trim());
+      await h.press("\x1b[B");
+    }
+    const all = [...seen].join("\n");
+    expect(all).toContain("admitted by");
+    expect(all).toContain("The deploy key rotates every 90 days.");
+    // alt+v: the last step's whole result, as a result screen.
+    await h.press("\x1bv");
+    expect(h.screen()).toBe("result");
+    expect(await h.text()).toContain("explain");
+    await h.quit();
+  });
+});
+
 describe("C1: a read with a store folder asks for the folder its own command line names", () => {
   it("asks for folder A, then again for folder B, each dialog naming its folder", async () => {
     const cwd = await tempDir();
