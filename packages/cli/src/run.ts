@@ -15,9 +15,10 @@ import {
   whoCanReadCommand,
   writeCommand,
 } from "./commands.ts";
-import type { Fetch } from "./connect.ts";
+import { drainExports, type Fetch } from "./connect.ts";
 import { doctorCommand } from "./doctor.ts";
 import { hookCommand } from "./hook.ts";
+import { keyCommand } from "./key.ts";
 import { mcpCommand } from "./mcp.ts";
 import { serveCommand } from "./serve.ts";
 import { UsageError } from "./setup.ts";
@@ -77,15 +78,17 @@ commands:
   lint              run the policy's deterministic lints over a scope, each finding with its reason
   simulate          replay a recorded workload under the policy and a candidate; compare them
   who-can-read      who can read an item or a scope, each reader with the rule or grant admitting it
-  serve             serve the HTTP API on a loopback port
+  serve             serve the HTTP API to authenticated callers, or on loopback with --insecure-loopback
   mcp               the MCP server for Claude Code and Codex, as one fixed actor
   hook claude-code  a Claude Code PreToolUse hook that blocks store bypasses
+  key               create, list or revoke the local API keys a server accepts
   doctor            check the log, policy, store, adapters, provider keys, pins and Node
 
-every command but doctor, serve, mcp and hook is one call to the HTTP API: in process
+every command but doctor, serve, mcp, hook and key is one call to the HTTP API: in process
 over the workspace its flags name, or to a running server:
   --server <url>              call engram serve at <url> (default $ENGRAM_SERVER_URL);
-                              the server's own flags then name the log, policy and store
+                              the server's own flags then name the log, policy and store;
+                              $ENGRAM_TOKEN, when set, is sent as the bearer credential
 
 store options (read, write, promote, retain, lint, who-can-read, serve, mcp):
   --store <name>              the store adapter: files or letta (default files)
@@ -145,8 +148,16 @@ simulate options:
   never read or written, and no model is called
 
 serve options:
-  --host <address>            127.0.0.1 (default), ::1 or localhost; any other host is refused,
-                              since the server has no authentication yet
+  --keys <file>               accept the API keys in this key file (engram key)
+  --issuer <url>              accept JWT access tokens of this issuer, with:
+  --jwks <url|file>             the issuer's keys
+  --subjects <file>             the actor each subject of the issuer acts as
+  --audience <aud>              the audience a token must carry (default the resource URL)
+  --resource <url>            the server's public URL (default http://<host>:<port>)
+  --insecure-loopback         no authentication: loopback only, actors self-asserted;
+                              without it or a credential flag the server refuses to start
+  --host <address>            127.0.0.1 (default), ::1 or localhost; another host only with
+                              credentials and an https --resource (a TLS proxy in front)
   --port <n>                  the port (default 7313)
   --as <principal>  --member <scope>  the viewer the inspector shows (default none)
   the workspace flags above; runs until stopped
@@ -155,7 +166,9 @@ mcp options:
   --as <principal>            the one actor every tool call is made as, with source model
   --member <scope>            a scope that actor belongs to; repeatable
   --level <level>             the level it reads as (default its own)
-  --http <port>               serve streamable HTTP on 127.0.0.1:<port> instead of stdio
+  --http <port>               serve streamable HTTP on 127.0.0.1:<port> instead of stdio;
+                              it takes serve's credential flags, and then each session is
+                              the actor its credential names (no --as), or --insecure-loopback
   --server <url> or the workspace flags above, as for the other commands
 
 hook claude-code options:
@@ -166,11 +179,28 @@ hook claude-code options:
   --server <url> or --db and --policy, as for the other commands
   reads the hook's JSON on stdin; a block answers permissionDecision deny with the reason
 
+key options:
+  create --keys <file> --as <principal> --source <kind> --expires <iso>  [--level] [--member]...
+                              a key for that actor, printed once; the file holds its hash
+  list --keys <file>          every key, masked, with its actor, expiry and status
+  revoke <id> --keys <file>   a key never accepted again
+
 doctor options:
   --db <path|url>             the event log to check (default as above); doctor never creates one
   --policy <preset|path>      the policy to load and validate
   --root <folder>             a store folder: readable, and its memories adopted through the plane
                               on an in-memory log (counts only)
+  --host and serve's credential flags: the bind engram serve would make; fails without
+                              authentication, and beyond loopback without credentials
+
+export options (read, write, promote, retain, lint, serve, mcp, hook claude-code):
+  --otlp <url>                send each decision as an OpenTelemetry span to this OTLP/HTTP
+                              traces endpoint (default $ENGRAM_OTLP_URL; none if unset)
+  --export-jsonl <file>       append each decision as one JSON span a line to <file>
+                              (default $ENGRAM_EXPORT_JSONL; none if unset)
+  off unless named; OTEL_* variables never turn it on. A span carries the decision, its
+  rule, the actor, scopes and ids, never the memory's content (ADR 0043). In process
+  only: with --server, give them to engram serve
 
 output:
   --json                      machine-readable output
@@ -190,6 +220,7 @@ const COMMANDS: Record<string, (args: string[], io: Io) => Promise<number>> = {
   serve: serveCommand,
   mcp: mcpCommand,
   hook: hookCommand,
+  key: keyCommand,
 };
 
 export async function run(argv: string[], io: Io): Promise<number> {
@@ -216,5 +247,8 @@ export async function run(argv: string[], io: Io): Promise<number> {
   } catch (e) {
     io.err(`engram ${command}: ${(e as Error).message}\n`);
     return e instanceof UsageError ? 2 : 1;
+  } finally {
+    // A decision export still sending (card E8.13) finishes before the command does.
+    await drainExports();
   }
 }
