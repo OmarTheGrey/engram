@@ -173,7 +173,8 @@ describe("fakes", () => {
       newId: () => id(++n),
     });
     const pending: [string, string, () => Promise<unknown>][] = [
-      ["distill", "D2", () => plane.distill([SESSION], AWM)],
+      // No card implements it yet (card D2, finding D2-10; docs/tasks/backlog.md).
+      ["distill", "backlog", () => plane.distill([SESSION], AWM)],
     ];
     for (const [method, card, call] of pending) {
       const error = await call().then(

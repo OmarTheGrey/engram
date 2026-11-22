@@ -216,7 +216,7 @@ export const DistillRequest = z.strictObject({
   sessions: z.array(z.record(z.string(), JsonValue)),
   method: z.strictObject({ id: z.literal("awm"), model: z.string(), seed: z.int() }),
 });
-/** The distiller's report is typed by its card (D2). */
+/** The distiller's report is typed by the card that implements Plane.distill (docs/tasks/backlog.md). */
 export const OpenReport = z.record(z.string(), JsonValue);
 
 export const BypassRequest = z.strictObject({

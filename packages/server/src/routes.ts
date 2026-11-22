@@ -7,8 +7,9 @@
 //
 // A decision is a response, not an error (ADR 0027 decision 6): allow, deny
 // and ask are 200 with their event. Errors are thrown and mapped in app.ts;
-// distill throws core's NotImplementedYet until its card lands, which
-// app.ts answers with 501 naming the card.
+// distill throws core's NotImplementedYet until a card implements it (the
+// backlog row "Plane.distill and the /distill route"), which app.ts answers
+// with 501 naming the card, `backlog` while none does.
 import {
   type Actor,
   accessTime,
@@ -300,7 +301,8 @@ export const ROUTES: readonly Route[] = [
     id: "distill",
     method: "post",
     path: "/distill",
-    summary: "Candidate procedures from sessions; 501 until card D2.",
+    summary:
+      "Candidate procedures from sessions; 501 until a card implements Plane.distill (docs/tasks/backlog.md).",
     request: C.DistillRequest,
     response: C.OpenReport,
     errors: [400, 501],
