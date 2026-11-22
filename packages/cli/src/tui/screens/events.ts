@@ -205,7 +205,7 @@ export class EventsScreen extends RichScreen {
         ctx.say("r runs it again");
         return true;
       case "rerun":
-        await this.load(ctx);
+        await this.load(ctx, this.result === undefined ? undefined : this.rerunLine(ctx));
         return true;
       case "up":
       case "down":
@@ -479,7 +479,7 @@ export class PolicyScreen extends RichScreen {
         ctx.say("r runs it again");
         return true;
       case "rerun":
-        await this.load(ctx);
+        await this.load(ctx, this.result === undefined ? undefined : this.rerunLine(ctx));
         return true;
       case "find":
         this.focusOn("find");

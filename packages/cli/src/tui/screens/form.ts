@@ -7,7 +7,7 @@
 // command's own output, byte for byte, with its exit code.
 import type { CommandSpec, Values } from "../../registry.ts";
 import { madeAsLines, madeAsOther } from "../actor.ts";
-import { type Field, Form, type FormError, rebuildArgv } from "../forms.ts";
+import { type Field, Form, type FormError, rerunArgv } from "../forms.ts";
 import { clean, cut, fit, para, rows, wrap } from "../layout.ts";
 import type { RunResult } from "../runner.ts";
 import type { CommandRow, Ctx, Screen } from "../screen.ts";
@@ -338,7 +338,7 @@ export class ResultScreen implements Screen {
   /** J: the command's --json output for the same answer, from the same call (card E8.15c). */
   private json = false;
 
-  /** `_values` is kept for callers: r runs from the workspace now (rebuildArgv), not from them. */
+  /** `_values` is kept for callers: r runs the command line that ran (rerunArgv), not them. */
   constructor(spec: CommandSpec, result: RunResult, _values: Values = {}) {
     this.spec_ = spec;
     this.result = result;
@@ -378,8 +378,8 @@ export class ResultScreen implements Screen {
         this.offset = Number.MAX_SAFE_INTEGER;
         return true;
       case "rerun": {
-        // From the workspace as it is now: after a change of actor, as the actor now (review finding 2).
-        const argv = rebuildArgv(this.spec_, this.result.argv, ctx.ws);
+        // The same flags; after a change of actor, the actor's flags only are the workspace's (N1).
+        const argv = this.rerun(ctx);
         const again = await ctx.act(this.spec_, argv, {});
         if (again !== undefined) {
           this.result = again;
@@ -406,6 +406,12 @@ export class ResultScreen implements Screen {
     return false;
   }
 
+  /** What r runs: the command line that ran, the actor's flags replaced when another actor made it. */
+  private rerun(ctx: Ctx): string[] {
+    const other = madeAsOther(ctx.ws, this.result) !== undefined;
+    return rerunArgv(this.spec_, this.result.argv, ctx.ws, other);
+  }
+
   inField(): boolean {
     return false;
   }
@@ -414,8 +420,7 @@ export class ResultScreen implements Screen {
   }
 
   command(ctx: Ctx): CommandRow {
-    if (madeAsOther(ctx.ws, this.result) !== undefined)
-      return { argv: rebuildArgv(this.spec_, this.result.argv, ctx.ws) };
+    if (madeAsOther(ctx.ws, this.result) !== undefined) return { argv: this.rerun(ctx) };
     return { argv: this.result.argv, exit: this.result.code };
   }
 

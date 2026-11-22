@@ -75,7 +75,7 @@ export class WhoScreen extends RichScreen {
         if (stop?.id === "advanced") this.advancedOpen = !this.advancedOpen;
         return stop?.id === "advanced";
       case "rerun":
-        if (this.result !== undefined) await this.ask(ctx);
+        if (this.result !== undefined) await this.ask(ctx, this.rerunLine(ctx));
         return true;
       case "up":
       case "down":
@@ -174,9 +174,9 @@ export class SupersedeScreen extends RichScreen {
   }
 
   /** The plan: engram supersede <itemId> with no --accept, which writes nothing. */
-  private async propose(ctx: Ctx): Promise<void> {
+  private async propose(ctx: Ctx, argv?: readonly string[]): Promise<void> {
     this.form.setValue("accept", []);
-    const r = await this.run(ctx);
+    const r = await this.run(ctx, argv);
     if (r === undefined) return;
     this.plan = r;
     this.chosen.clear();
@@ -213,7 +213,10 @@ export class SupersedeScreen extends RichScreen {
     const proposals = this.planAnswer()?.proposals ?? [];
     switch (name) {
       case "rerun":
-        await this.propose(ctx);
+        await this.propose(
+          ctx,
+          this.plan === undefined ? undefined : this.rerunLine(ctx, this.plan),
+        );
         return true;
       case "submit":
         if (this.plan === undefined || this.edited) await this.propose(ctx);

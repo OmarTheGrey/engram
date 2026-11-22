@@ -14,7 +14,7 @@ import type { CommandSpec, Values } from "../../registry.ts";
 import { redactSecrets } from "../../setup.ts";
 import { actorNow, madeAsLines, madeAsOther } from "../actor.ts";
 import type { TextField } from "../fields.ts";
-import { type Field, type FieldValue, Form, type FormError } from "../forms.ts";
+import { type Field, type FieldValue, Form, type FormError, rerunArgv } from "../forms.ts";
 import { box, clean, cut, fit, para, rows, visibleWidth, wrap } from "../layout.ts";
 import type { RunResult } from "../runner.ts";
 import type { CommandRow, Ctx, Screen, ScreenKind } from "../screen.ts";
@@ -247,6 +247,15 @@ export abstract class RichScreen implements Screen {
     return madeAsOther(ctx.ws, this.result);
   }
 
+  /**
+   * The command line r runs (finding N1): the one `r` ran, exactly, the
+   * actor's flags replaced by the workspace's only when another actor made it.
+   */
+  protected rerunLine(ctx: Ctx, r: RunResult | undefined = this.result): string[] {
+    if (r === undefined) return this.argvNow(ctx);
+    return rerunArgv(this.command_, r.argv, ctx.ws, madeAsOther(ctx.ws, r) !== undefined);
+  }
+
   /** The answer to draw: the last run's, unless it was made as another actor. */
   protected answerNow(ctx: Ctx): RunResult | undefined {
     return this.staleAs(ctx) === undefined ? this.result : undefined;
@@ -406,7 +415,7 @@ export abstract class RichScreen implements Screen {
   }
 
   command(ctx: Ctx): CommandRow {
-    if (this.staleAs(ctx) !== undefined) return { argv: this.argvNow(ctx) };
+    if (this.staleAs(ctx) !== undefined) return { argv: this.rerunLine(ctx) };
     if (this.result !== undefined && !this.edited)
       return { argv: this.result.argv, exit: this.result.code };
     const argv = this.argvNow(ctx);
