@@ -300,6 +300,10 @@ Open, for the lead. Each was drafted by a card's agent while implementing it; th
     - (a) Accept ADR 0042: the operator's subjects file maps a token's exact issuer and subject (and the key file maps a key) to one actor with its level, memberships and source; no claim sets any of them, a request may only narrow its memberships, and a source sent on an authenticated call is ignored; a served surface needs a credential flag or `--insecure-loopback`; each event a served surface appends gets a row in a side table naming the authenticated requester or the waiver.
     - (b) Accept it, but derive an actor from a subject the subjects file does not name (`person:<sub>`, a member of its own scope only), so a new person needs no file edit.
     - (c) Keep self-asserted actors on loopback, with the ADR as the design for after the thesis.
+61. **ADR 0043, decision export and egress (card E8.13).** Decisions can be sent as OpenTelemetry spans to a collector, which takes them off the machine (rule 12).
+    - (a) Accept ADR 0043: off unless the operator names a sink (`--otlp` or `--export-jsonl`, or their `ENGRAM_` variables; `OTEL_*` never turns it on); a span carries the decision, its rule, the actor, the scopes and ids, never content, a content hash, a store path or a reason clause outside the content-free templates; no content mode exists.
+    - (b) Accept it, and add an opt-in content mode as the GenAI conventions allow, off by default.
+    - (c) Keep the JSONL sink only, so nothing leaves the machine, and drop OTLP until after the thesis.
 
 ## Decided on 2026-11-21, under the lead's delegation
 
