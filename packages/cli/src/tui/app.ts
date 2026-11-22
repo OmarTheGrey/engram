@@ -12,7 +12,9 @@ import {
   type Terminal,
   TuiAltScreen,
 } from "@earendil-works/pi-tui";
-import type { CommandSpec, Values, Writes } from "../registry.ts";
+import { parse } from "../commands.ts";
+import { SERVER_URL_ENV } from "../connect.ts";
+import { type CommandSpec, parseOptions, type Values, type Writes } from "../registry.ts";
 import type { Io } from "../run.ts";
 import { commandLine, detectShell, middleCut, type Shell } from "./argv.ts";
 import { type Clipboard, createClipboard } from "./clipboard.ts";
@@ -69,6 +71,23 @@ export interface Summary {
   /** Commands `c` could not copy, printed instead. */
   deferred: readonly string[];
 }
+
+/** A read, by its route: read, read --item and scopes run the store's sweep and adoption first. */
+const isRead = (spec: CommandSpec) => spec.name.startsWith("read") || spec.name === "scopes";
+
+/** What makes two reads the same workspace for "asked once a session" (9.5). */
+const readKey = (f: Values) =>
+  JSON.stringify(
+    ["server", "db", "store", "root", "owner", "as", "level", "member"].map((k) => f[k] ?? null),
+  );
+
+const hostOf = (url: string) => {
+  try {
+    return new URL(url).host;
+  } catch {
+    return url;
+  }
+};
 
 /** Commands whose screens come with card E8.15d: they run until stopped, or read the terminal. */
 const NOT_RUN_HERE: Readonly<Record<string, string>> = {
@@ -268,19 +287,24 @@ export class App implements Component, Ctx {
     writes: Writes,
   ): ConfirmRequest | undefined {
     const actor = this.ws.actorLabel();
-    const isRead = spec.name.startsWith("read") || spec.name === "scopes";
-    if (isRead) {
+    if (isRead(spec)) {
       if (writes !== "state") return undefined;
-      const key = this.ws.argsFor(spec).join("\u0000");
-      if (this.readonce.has(key)) return undefined;
-      const root = this.ws.get("root");
-      const where = root === undefined ? "the server's store" : shortPath(root, this.io);
+      // The folder and the workspace are the ones the command line being run names (finding C1).
+      const flags = this.flagsOf(spec, argv);
+      if (this.readonce.has(readKey(flags))) return undefined;
+      const where =
+        flags.root !== undefined
+          ? shortPath(String(flags.root), this.io)
+          : flags.server !== undefined
+            ? `the store of the server at ${hostOf(String(flags.server))}`
+            : "the store";
       return {
-        title: `Read with ${where}?`,
+        // A long path keeps its last part in the title, the whole of it in the text.
+        title: `Read with ${where.length > 40 ? `.../${where.split("/").at(-1)}` : where}?`,
         lines: [
           `This read also changes the log, as engram ${spec.name.split(" ")[0]} always does:`,
           `1. as the store's owner, sweeps the owner's retention: any item past its ttl is retired for good, items over budget evicted.`,
-          `2. adopts the memories in ${where} into the log as ${this.ws.actorId() ?? "the actor"}; the files are not changed.`,
+          `2. adopts the memories in ${where} into the log as ${flags.as ?? (flags.owner === undefined ? "the actor" : `person:${flags.owner}`)}; the files are not changed.`,
           "3. reads through the plane and explains every item returned. Asked once a session.",
         ],
         argv,
@@ -339,17 +363,34 @@ export class App implements Component, Ctx {
       this.say(`${why}: its screen comes with card E8.15d; c copies the command to run in a shell`);
       return undefined;
     }
-    const writes = spec.writes(values, this.ws.flagValues());
+    // What the command changes, judged from the command line being run, as run will parse it.
+    const flags = this.flagsOf(spec, argv, values);
+    const writes = spec.writes(flags, {});
     const ask = this.confirmation(spec, argv, writes);
     if (ask !== undefined) {
       if (!(await this.confirm(ask))) {
         this.say("cancelled: nothing ran");
         return undefined;
       }
-      if (spec.name.startsWith("read") || spec.name === "scopes")
-        this.readonce.add(this.ws.argsFor(spec).join("\u0000"));
+      if (isRead(spec)) this.readonce.add(readKey(flags));
     }
     return this.runNow(argv);
+  }
+
+  /**
+   * The flags of the command line being run, parsed by the CLI's own parse,
+   * with the server ENGRAM_SERVER_URL names when no --server is given;
+   * `fallback` when the line does not parse (run then reports why).
+   */
+  flagsOf(spec: CommandSpec, argv: readonly string[], fallback: Values = {}): Values {
+    let values: Values;
+    try {
+      values = parse(argv.slice(1), parseOptions(spec), spec.allowPositionals).values as Values;
+    } catch {
+      values = fallback;
+    }
+    const server = values.server ?? (this.io.env[SERVER_URL_ENV] || undefined);
+    return server === undefined ? values : { ...values, server };
   }
 
   async runNow(argv: readonly string[]): Promise<RunResult> {
