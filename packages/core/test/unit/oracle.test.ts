@@ -1,16 +1,19 @@
 // The oracles pinned on fixed cases, so a mistake shared with the evaluator
 // shows up here rather than agreeing with itself in the property tests.
 import { describe, expect, test } from "vitest";
+import { strictContentHash } from "../../src/content-hash.ts";
 import type { Actor } from "../../src/plane.ts";
 import type { Grant, MemoryEvent, MemoryItem, Policy } from "../../src/schema.ts";
 import {
   budgetVictims,
   grantAllowed,
   holdsHiddenText,
+  type OracleReplay,
   pastTtl,
   patternCovers,
   promotionPermitted,
   readable,
+  replayAdmits,
   sameContent,
   sameStrictContent,
   writeForbidden,
@@ -355,5 +358,150 @@ describe("promotionPermitted", () => {
       status: "candidate",
     } as MemoryItem);
     expect(promotionPermitted(p, sara, "e", "person:a", [skill], true, AT)).toBe(false);
+  });
+});
+
+// Card D3 review, D3-17: the oracle's replay reading, one case per refusal,
+// so a replayAdmits that admitted every replay fails here.
+describe("replayAdmits", () => {
+  const P = {
+    promotion: {
+      episodic_to_semantic: { confirmations: 3, or_review: true },
+      procedural: { replay_k: 4, replay_n: 5 },
+    },
+  } as unknown as Policy;
+  const CONTENT = { body: "# Look first", tools: ["read"] };
+  const source = {
+    id: "01950000-0000-7000-8000-000000000000",
+    class: "procedural",
+    status: "candidate",
+    content: CONTENT,
+    provenance: { kind: "model", ref: "distill:awm:s1,s2" },
+  } as unknown as MemoryItem;
+  const owner: Actor = {
+    id: "person:a",
+    level: "person",
+    memberships: ["person:a"],
+    source: "user",
+  };
+  const SESSIONS = new Map([
+    ["s1", "t1"],
+    ["s2", "t2"],
+  ]);
+  type Outcome = OracleReplay["replay"]["outcomes"][number];
+  type Reward = (task: string, seed: number) => { without: number; with: number };
+  /** Five held-out tasks on seeds 1 to 3; by default each passes with the candidate and fails without it. */
+  const outcomes = (
+    tasks = ["h1", "h2", "h3", "h4", "h5"],
+    seeds = [1, 2, 3],
+    reward: Reward = () => ({ without: 0, with: 1 }),
+  ): Outcome[] =>
+    tasks.flatMap((task) => seeds.map((seed) => ({ task, seed, ...reward(task, seed) })));
+  const replay = (over: Partial<OracleReplay["replay"]> = {}): OracleReplay => ({
+    replay: {
+      item_id: source.id,
+      content_hash: strictContentHash(CONTENT),
+      induced_from: ["t1", "t2"],
+      threshold: 2 / 3,
+      outcomes: outcomes(),
+      ...over,
+    },
+    sessions: SESSIONS,
+  });
+  const admits = (r: OracleReplay, actor: Actor = owner, it: MemoryItem = source) =>
+    replayAdmits(P, actor, it, r);
+
+  test("admits a replay of the item, by its owner, meeting 4 of 5", () => {
+    expect(admits(replay())).toBe(true);
+  });
+
+  test.each([
+    ["model", { ...owner, source: "model" as const }],
+    ["tool", { ...owner, source: "tool" as const }],
+    ["none", { id: "person:a", level: "person" as const, memberships: ["person:a"] }],
+  ])("refuses a presenter with source %s", (_, actor) => {
+    expect(admits(replay(), actor as Actor)).toBe(false);
+  });
+
+  test("refuses another item's id", () => {
+    expect(admits(replay({ item_id: "01950000-0000-7000-8000-000000000001" }))).toBe(false);
+  });
+
+  test("refuses other content", () => {
+    const other = strictContentHash({ body: "x", tools: [] });
+    expect(admits(replay({ content_hash: other }))).toBe(false);
+  });
+
+  test("refuses a distill ref with no index, or one the index cannot map", () => {
+    const { sessions: _none, ...noIndex } = replay();
+    expect(admits(noIndex)).toBe(false);
+    const unmapped = { ...source, provenance: { ...source.provenance, ref: "distill:awm:s1,s9" } };
+    expect(admits(replay(), owner, unmapped as MemoryItem)).toBe(false);
+  });
+
+  test.each([[[]], [["t1"]], [["t1", "t2", "t3"]]])(
+    "refuses induced_from %j, not the ref's tasks",
+    (induced_from) => {
+      expect(admits(replay({ induced_from }))).toBe(false);
+    },
+  );
+
+  test("refuses a replayed induction task", () => {
+    expect(admits(replay({ outcomes: outcomes(["t1", "h2", "h3", "h4", "h5"]) }))).toBe(false);
+  });
+
+  test.each([[1], [0.5], [0.67]])("refuses threshold %s, not the registered 2/3", (threshold) => {
+    expect(admits(replay({ threshold }))).toBe(false);
+  });
+
+  test.each([[[1]], [[4, 7, 9]], [[1, 2]], [[1, 2, 3, 4]]])(
+    "refuses seeds %j, not the registered 1, 2, 3",
+    (seeds) => {
+      expect(admits(replay({ outcomes: outcomes(undefined, seeds) }))).toBe(false);
+    },
+  );
+
+  test.each([[2], [-1], [Number.NaN]])("refuses a reward of %s", (bad) => {
+    const r = outcomes(undefined, undefined, (t, s) => ({
+      without: 0,
+      with: t === "h1" && s === 2 ? bad : 1,
+    }));
+    expect(admits(replay({ outcomes: r }))).toBe(false);
+  });
+
+  test("refuses a repeated seed, and uneven seeds", () => {
+    const base = outcomes();
+    const repeated = [...base, { task: "h1", seed: 1, without: 0, with: 1 }];
+    expect(admits(replay({ outcomes: repeated }))).toBe(false);
+    const uneven = base.filter((o) => !(o.task === "h1" && o.seed === 3));
+    expect(admits(replay({ outcomes: uneven }))).toBe(false);
+  });
+
+  test.each([[["h1", "h2", "h3", "h4"]], [["h1", "h2", "h3", "h4", "h5", "h6"]]])(
+    "refuses n other than replay_n: %j",
+    (tasks) => {
+      expect(admits(replay({ outcomes: outcomes(tasks) }))).toBe(false);
+    },
+  );
+
+  test("refuses k below replay_k", () => {
+    const r = outcomes(undefined, undefined, (t) => ({
+      without: 0,
+      with: t === "h4" || t === "h5" ? 0 : 1,
+    }));
+    expect(admits(replay({ outcomes: r }))).toBe(false);
+  });
+
+  test("refuses when tasks fall below their baseline, though they reach 2/3", () => {
+    // h4 and h5 reach 2 of 3 with the candidate and 3 of 3 without it.
+    const r = outcomes(undefined, undefined, (t, s) =>
+      t === "h4" || t === "h5" ? { without: 1, with: s === 3 ? 0 : 1 } : { without: 0, with: 1 },
+    );
+    expect(admits(replay({ outcomes: r }))).toBe(false);
+  });
+
+  test("admits ties: tasks at 3 of 3 against 3 of 3 pass (D3-14)", () => {
+    const r = outcomes(undefined, undefined, () => ({ without: 1, with: 1 }));
+    expect(admits(replay({ outcomes: r }))).toBe(true);
   });
 });
