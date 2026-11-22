@@ -13,8 +13,17 @@
 // shape: concrete examples, then summary workflows; the example itself is
 // rewritten for tool use), and webarena/induce_rule.py (the rule-based
 // variant, the paper's Appendix B, as the control). The adaptation from web
-// tasks to tool-use sessions, prompt by prompt, is the decision entry
-// docs/log/2026-11-21-d2-decision-prompt-adaptation.md.
+// tasks to tool-use sessions is ADR 0046 (proposed), which lists every
+// change and supersedes ADR 0012's "vendored verbatim" clause:
+// - the instruction's web terms become tool-use terms, and two sentences
+//   are added (the abandoned attempts; the `Workflow`/`Use when:` format);
+// - the one-shot keeps its shape with a new tool-use example;
+// - an example's actions are tool calls, `tool(arguments as JSON)`;
+// - a step with actions and no reasoning text gets no `<think>` block
+//   (AWM always writes one);
+// - negative evidence follows the actions under "Abandoned attempts";
+// - the reply, which AWM writes to a file whole, is split into workflows
+//   on its `Workflow <n>:` lines, each checked as below.
 //
 // What each part does:
 // - prepareSessions parses each session (episode.ts) and scrubs it
@@ -24,18 +33,21 @@
 //   no tool call are not examples, and the report says why.
 // - An example's trajectory is its final branch: each model turn's text as
 //   the reasoning (`<think>`) and its tool calls as the actions
-//   (`<action>`, one `tool(arguments as JSON)` a line). A call a context
-//   edit withdrew and a call whose result is an error are left out, as
-//   AWM's `remove_invalid_steps` leaves out actions that did not run; a
-//   turn with no action left is dropped, as AWM drops it.
+//   (`<action>`, one `tool(arguments as JSON)` a line). AWM's
+//   `remove_invalid_steps` drops malformed browser actions, a `click` whose
+//   element id is not a quoted integer and a `fill` whose target is not a
+//   string, and the prompt induction also drops `scroll` and `noop`; a tool
+//   call has no such syntax, so the analogue here keeps a call only when its
+//   result says it succeeded (`is_error` false) and no context edit withdrew
+//   it. A turn with no action left is dropped, as AWM drops it.
 // - Negative evidence (card D2 step 3, ADR 0012): the example's abandoned
 //   branches, with the summary pi wrote when one was left, and its
 //   withdrawn attempts (a run a context edit omitted, pi's retry after a
 //   length cut or an error), listed under "Abandoned attempts" with every
 //   call they made, so the model is told what did not lead to the solution.
 // - The reply is split into workflows on `Workflow <n>: <title>` lines.
-//   A workflow becomes a candidate only when it has at least two actions
-//   (AWM's own rule), every action is a tool call, every tool it names was
+//   A workflow becomes a candidate only when it makes at least two calls
+//   (AWM's "at least two steps", counted as calls), every action is a tool call, every tool it names was
 //   called on an example's final branch (the allowlist never exceeds what
 //   succeeded), and its title gives a SKILL.md the specification accepts
 //   with a name no earlier workflow of the reply took. Every other workflow
@@ -81,7 +93,7 @@ export type InductionMethod = (typeof INDUCTION_METHODS)[number];
 
 /** A candidate's confidence: not validated, so neither held nor refuted. */
 export const CANDIDATE_CONFIDENCE = 0.5;
-/** AWM's rule: each workflow has at least two steps (counted as actions). */
+/** AWM's rule, "each workflow should have at least two steps", counted here as tool calls (action lines), not as think and action pairs. */
 export const MIN_WORKFLOW_STEPS = 2;
 /** The request settings of AWM's webarena/induce_prompt.py. */
 export const AWM_SETTINGS = { temperature: 1, maxTokens: 2048 } as const;
@@ -110,10 +122,10 @@ export function parseDistillRef(
 /**
  * AWM's instruction (webarena/prompt/instruction.txt), adapted to tool-use
  * sessions: web navigation becomes tool use, actions become tool calls, the
- * web's non-fixed elements and invariants become a tool session's, and three
- * sentences are added: one on the abandoned attempts (negative evidence), one
- * on the `Use when:` line a SKILL.md description needs, and the output format
- * the one-shot shows.
+ * web's non-fixed elements and invariants become a tool session's, and two
+ * sentences are added: one on the abandoned attempts (negative evidence), and
+ * one on the output format the one-shot shows, `Workflow <n>:` and the
+ * `Use when:` line a SKILL.md description needs (ADR 0046).
  */
 export const AWM_INSTRUCTION = [
   "Given a list of tool-use tasks, your task is to extract the common workflows to solve these tasks.",
