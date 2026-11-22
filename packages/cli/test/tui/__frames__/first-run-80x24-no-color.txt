@@ -21,7 +21,7 @@
  E8.15e.
 
 $ (no flags yet: every command takes the CLI's defaults)
- tab next  shift+tab back  enter accept  d doctor  ? help  ; commands  q quit
+ ? help  tab next  shift+tab back  enter accept  d doctor  ; commands  q quit
 --- styles
 r0 c0-79 inverse
 r5 c0-79 inverse

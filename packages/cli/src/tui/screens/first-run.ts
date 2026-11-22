@@ -117,10 +117,13 @@ export class FirstRunScreen implements Screen {
     return this.field() !== undefined;
   }
 
-  /** The workspace flags the answers amount to. */
+  /** The log's answer changed since it was last checked (verification finding E8.15b-28). */
+  private logUnchecked = false;
+
   /** The answers into the workspace; the log is checked only when `log`, on leaving a question, never per key (review I1). */
   private apply(ctx: Ctx, log = true): void {
     const choice = LOG_CHOICES[this.logChoice];
+    const before = ctx.ws.get("db");
     const db =
       choice?.id === "file"
         ? this.dbFile.value.trim()
@@ -138,6 +141,8 @@ export class FirstRunScreen implements Screen {
         "set",
       );
     }
+    if (ctx.ws.get("db") !== before) this.logUnchecked = true;
+    if (log) this.logUnchecked = false;
     ctx.recheck(log);
   }
 
@@ -266,7 +271,10 @@ export class FirstRunScreen implements Screen {
       const row = `     ${radio} ${c.label}   ${extra}`;
       lines.push(focused && !this.inField() ? t.reverse(cut(row, width)) : row);
     }
-    lines.push("", ...this.checkLines(ctx, "log", ctx.checks.log, width), "");
+    const logCheck = this.logUnchecked
+      ? { status: "skip" as const, detail: "will be checked when you leave this question" }
+      : ctx.checks.log;
+    lines.push("", ...this.checkLines(ctx, "log", logCheck, width), "");
     let n = 2;
     if (this.needsPolicy) {
       lines.push(` ${mark(q === "policy")} ${n}  Which policy?`);

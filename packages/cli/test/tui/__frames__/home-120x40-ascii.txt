@@ -37,7 +37,7 @@
  - doctor not run this session: d   log engram.db   policy preset.medium v1
  store files mem    owner dana    member of the actor's own scope    workspace not saved    decision export off
 $ engram read --db engram.db --owner dana --root mem
- enter open  1-6 group  letter action  ? help  ; commands  q quit
+ ? help  enter open  1-6 group  letter action  ; commands  q quit
 --- styles
 r0 c0-119 inverse
 r3 c1-70 inverse

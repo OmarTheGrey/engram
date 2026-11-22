@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 import { summaryText } from "../../src/tui/app.ts";
 import { actionFor, KEYS, printable } from "../../src/tui/keys.ts";
 import { savedPath } from "../../src/tui/saved.ts";
+import { FirstRunScreen } from "../../src/tui/screens/first-run.ts";
 import { LoopScreen } from "../../src/tui/screens/loop.ts";
 import { makeTheme, paletteFor } from "../../src/tui/theme.ts";
 import { cli, fixtureCopy, tempDir } from "../helpers.ts";
@@ -452,6 +453,74 @@ describe("the minor findings", () => {
     await h.press("w");
     expect(await h.text()).toContain("default (semantic)");
     await h.quit();
+  });
+});
+
+describe("the verification's findings", () => {
+  it("28: while a log answer is typed, first run says it will be checked on leaving the question", async () => {
+    const cwd = await tempDir();
+    const h = await startHarness({
+      cwd,
+      home: cwd,
+      given: {},
+      logCheck: async () => ["ok", "postgres: opens"],
+    });
+    expect(h.focused()).toBe("log");
+    await h.press("\x1b[B", "\x1b[B", "\x1b[B");
+    await h.type("postgres://u@db.example/engram");
+    const typing = await h.text();
+    expect(typing).toContain("will be checked when you leave this question");
+    expect(typing).not.toContain("no log yet");
+    await h.press("\t");
+    await new Promise((r) => setTimeout(r, 30));
+    expect(await h.text()).not.toContain("will be checked when you leave this question");
+    await h.quit();
+  });
+
+  it("29: at 80 columns the hints row names the help key, in a field and out of one", async () => {
+    const cwd = await tempDir();
+    const root = await fixtureCopy();
+    const h = await startHarness({
+      cwd,
+      home: cwd,
+      given: { owner: "dana", db: "engram.db", root },
+    });
+    const hints = async () => (await h.frame()).at(-1) ?? "";
+    expect(await hints()).toContain("? help");
+    await h.press("w"); // a form, its content field focused
+    expect(await hints()).toContain("ctrl+g help");
+    await h.press(ESC, "\x0f"); // the workspace panel
+    await h.focusField("root");
+    expect(await hints()).toContain("ctrl+g help");
+    await h.press(ESC);
+    h.app.replace(new LoopScreen());
+    expect(await hints()).toContain("ctrl+g help");
+    h.app.home();
+    h.app.replace(new FirstRunScreen(h.app));
+    await h.focusField("who");
+    expect(await hints()).toContain("ctrl+g help");
+    await h.quit();
+  });
+
+  it("30: ctrl+c quits while a call is still running, without waiting for it", async () => {
+    const cwd = await tempDir();
+    const slow = (fetch: (r: Request) => Promise<Response>) => async (r: Request) => {
+      await new Promise((ok) => setTimeout(ok, 3000));
+      return fetch(r);
+    };
+    const h = await startHarness({
+      cwd,
+      home: cwd,
+      given: { owner: "dana", db: "engram.db" },
+      transport: slow,
+    });
+    await h.press("y");
+    h.term.send(CTRL_S); // the policy in force: its one call waits 3 s
+    await new Promise((r) => setTimeout(r, 100));
+    const t = Date.now();
+    h.term.send("\x03");
+    await h.app.done;
+    expect(Date.now() - t).toBeLessThan(1000);
   });
 });
 

@@ -37,7 +37,7 @@
 
 
 $ --db engram.db --owner dana --root mem  (every command)
- enter next  space choose  ctrl+s apply  ? help  ; commands  esc back
+ ? help  enter next  space choose  ctrl+s apply  ; commands  esc back
 --- styles
 r0 c0-119 inverse
 r1 c0-119 inverse

@@ -731,11 +731,12 @@ export class App implements Component, Ctx {
     const screen = this.top();
     const own = screen.hints(this);
     const back = screen.kind === "loop" ? "esc Home" : "esc back";
-    // In a text field only keys that type nothing act: name those (review I7, I9).
+    // The help key first, so a narrow row never cuts it off (verification E8.15b-29);
+    // in a text field only keys that type nothing act, so those are named (review I7, I9).
     if (screen.inField())
-      return cut(` ${own}  alt+c copy  alt+p commands  ctrl+g help  ${back}`, width);
+      return cut(` ctrl+g help  ${own}  alt+c copy  alt+p commands  ${back}`, width);
     const end = screen.kind === "home" || screen.kind === "first-run" ? "q quit" : back;
-    return cut(` ${own}  ? help  ; commands  ${end}`, width);
+    return cut(` ? help  ${own}  ; commands  ${end}`, width);
   }
 
   render(width: number): string[] {

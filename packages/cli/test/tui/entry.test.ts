@@ -238,11 +238,14 @@ describe("engram tui on a terminal", () => {
   it("quits at once while a Postgres log check runs, leaving no child process", async () => {
     // 10.255.255.1 is not routed: a connection to it hangs until the check's timeout.
     const t = Date.now();
-    const r = await session(["--owner", "dana", "--db", "postgres://u:p@10.255.255.1:5432/engram"], async (term) => {
-      for (let i = 0; i < 100 && liveLogChecks() === 0; i++) await tick();
-      expect(liveLogChecks()).toBe(1);
-      term.send("q");
-    });
+    const r = await session(
+      ["--owner", "dana", "--db", "postgres://u:p@10.255.255.1:5432/engram"],
+      async (term) => {
+        for (let i = 0; i < 100 && liveLogChecks() === 0; i++) await tick();
+        expect(liveLogChecks()).toBe(1);
+        term.send("q");
+      },
+    );
     expect(r.code).toBe(0);
     expect(Date.now() - t).toBeLessThan(LOG_CHECK_TIMEOUT_MS / 2);
     expect(liveLogChecks()).toBe(0);

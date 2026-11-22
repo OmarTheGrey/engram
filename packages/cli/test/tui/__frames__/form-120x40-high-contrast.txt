@@ -37,7 +37,7 @@
 
 
 $ engram write --db engram.db --owner dana --root mem
- tab next  ctrl+s run  alt+c copy  alt+p commands  ctrl+g help  esc back
+ ctrl+g help  tab next  ctrl+s run  alt+c copy  alt+p commands  esc back
 --- styles
 r0 c0-119 inverse
 r3 c28-28 inverse
