@@ -146,7 +146,7 @@ simulate options:
   each policy replays the workload on a scratch log and store; the real log and store are
   never read or written, and no model is called
 
-export options (the bundle format: docs/bundle.md in the repository):
+engram export options (the bundle format: docs/bundle.md in the repository):
   --db <path|url>  --policy <preset|path>  and --as or --owner: who exports
   --out <file>                write the bundle there (default stdout)
   --recipient <age1...>       encrypt with age to this public key; repeatable
@@ -154,7 +154,7 @@ export options (the bundle format: docs/bundle.md in the repository):
   the bundle holds every item of the actor's own person scope and the actor's own items
   in the other scopes the read matrix lets it read, of every status, each with its events
 
-import options:
+engram import options:
   <bundle>                    a bundle engram export wrote, plain or age encrypted
   --claude <file>             instead, a memory list Claude showed you, pasted as text;
                               each bullet, dated line or paragraph is one memory

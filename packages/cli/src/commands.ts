@@ -655,7 +655,7 @@ export async function simulateCommand(args: string[], io: Io): Promise<number> {
   }
 }
 
-const EXPORT_OPTIONS = {
+const BUNDLE_OPTIONS = {
   out: { type: "string" },
   recipient: { type: "string", multiple: true },
   "passphrase-file": { type: "string" },
@@ -679,7 +679,7 @@ export async function exportCommand(args: string[], io: Io): Promise<number> {
       level: ACTOR_OPTIONS.level,
       member: ACTOR_OPTIONS.member,
       ...CLIENT_OPTIONS,
-      ...EXPORT_OPTIONS,
+      ...BUNDLE_OPTIONS,
     },
     false,
   );
