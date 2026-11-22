@@ -10,7 +10,7 @@ The rows are chosen by core (`bundleRows`, `packages/core/src/portable.ts`), nev
 - the actor's own items (`owner` is the actor) in every other scope the read matrix lets the actor read: a member of the scope, at a level its own level may read;
 - of every status: active, candidate and retired. A retired version is the history a later version's lineage names.
 
-Another member's item in a shared scope is never in it, and neither is anything in a scope the actor does not belong to or may not read at its level. Export appends no event to the log, as the events route does not; it writes nothing.
+Another member's item in a shared scope is never in it, and neither is anything in a scope the actor does not belong to or may not read at its level. Export writes no item, and records itself (`Plane.export`, review finding E9.8-3): one `read` event by the exporter, of decision allow under its read matrix rule, naming no item and no scope, so only its maker sees it, with a reason that counts the rows and events and names the policy (`exported <n> items with <m> events as a bundle under <policy> v<version>: ...`). It carries no `item_ids`, so an export never counts toward an item's utility (ADR 0025).
 
 ## The file
 
@@ -29,7 +29,7 @@ JSONL in UTF-8: one JSON object per line, a final newline. The first line is the
 | `policy` | the policy the rows were chosen under, `<id> v<version>` |
 | `rows` | how many rows follow; an importer refuses a bundle that holds another number |
 
-Every other line is one row, ordered by item id:
+Every other line is one row, ordered by item id (a UUIDv7: the order the plane minted them in, unless a caller chose an id). An importer refuses a bundle that holds one item id twice, naming both lines, and a file over 64 MiB, before reading it.
 
 ```json
 {"item":{...a MemoryItem...},"events":[{...a MemoryEvent without "item"...}]}
@@ -48,7 +48,7 @@ The HTTP route `POST /api/v1/export` answers with the same header fields and a `
 
 A bundle never states its own trust, as adoption never raises trust (ADR 0004, its amendments of card RV4 and of 2026-11-21). Each row is one `Plane.write` through the write route, and the gate decides it:
 
-- **The actor** is the dedicated import actor `import:<importer>` (for `--owner dana`, `import:person:dana`): at the importer's level, a member of exactly the importer's scopes, with source `import`. The CLI sets that source, as it sets `user` for `engram write`; nothing in the bundle sets it, and the plane then records provenance kind `import` with the import actor as its actor (ADR 0004, decision D4). Over `--server` the source is self-asserted, as for every HTTP client until verified actors (ADR 0040, decision 2; card E8.12).
+- **The actor** is the dedicated import actor `import:<importer>` (for `--owner dana`, `import:person:dana`): at the importer's level, a member of exactly the importer's scopes. Its source is the least trusted of the kind the row claims and `import` (core's `importedWrite`, `packages/core/src/portable.ts`; review finding E9.8-1), as adoption records a record it did not write (ADR 0004, amendment of card RV4). So a row may claim `user`, `document` or `import` and is recorded `import`; a `tool`, `model`, `compaction` or `external` row keeps its kind, and the gate's rules for that kind hold for it as for a direct write: a model or external row aimed at a team scope is refused there, model content never leaves person scope, and none of it may restate retired content. The plane records that kind with the import actor as provenance actor (ADR 0004, decision D4); a model or compaction row keeps the `model` it names. Over `--server` the source is self-asserted, as for every HTTP client until verified actors (ADR 0040, decision 2; card E8.12).
 - **The owner** is the importer. The import actor is the author, so the importer, who owns the row, cannot approve its promotion (ADR 0026: neither owner nor author approves).
 - **Status** `candidate`, whatever the row says; a retired row stays `retired`, never more. No read returns a candidate until a reviewer promotes it (`engram promote <id> --to <scope> --review`, by a user-sourced member of the scope who is not its owner).
 - **Grants** are dropped. The owner adds them again after review.
@@ -56,6 +56,7 @@ A bundle never states its own trust, as adoption never raises trust (ADR 0004, i
 - **Content, class, confidence and validity** are the row's.
 - **Lineage** is mapped onto the new ids: rows are written so that each comes after the rows its lineage names, and a pointer to a row imported earlier takes that row's new id. A pointer to a version the bundle does not hold, or to a row the gate denied, is dropped and counted (`lineage_dropped`).
 - **Scope** is the row's own, or `--scope <scope>` for every row.
+- **What decides** is core: the CLI parses the file and makes one write call per row with the actor and item `importedWrite` returns (AGENTS.md rule 1).
 
 The events in a row are carried for the record and are not replayed: the new workspace's log records the import's own decisions. `engram import --json` prints the id map from each old id to its new one.
 
@@ -63,7 +64,7 @@ The round trip holds (`packages/cli/test/import-export.test.ts`): export, import
 
 ## A pasted Claude memory list
 
-`engram import --claude <file>` reads the text Claude shows a person as their memory, pasted into a file. Claude fixes no format (its help centre, support.claude.com article 12123587): a person views their memory in Settings or asks Claude to write it out, and copies the text. The parser (`packages/cli/src/import/claude.ts`) drops code fences and what follows the closing one; a heading names a section; each bullet, each `[date] - content` line and each paragraph is one memory; an ISO date becomes its `valid_from`. Every memory is a `semantic` candidate in the importer's person scope (or `--scope`) at confidence 0.7 (or `--confidence`), written by the import actor as above, with `ref` `claude-memory:<section>:line-<n>`.
+`engram import --claude <file>` reads the text Claude shows a person as their memory, pasted into a file. Claude fixes no format (its help centre, support.claude.com article 12123587): a person views their memory in Settings or asks Claude to write it out, and copies the text. The parser (`packages/cli/src/import/claude.ts`) reads only the lines inside code fences when the text holds one (Claude's remarks around the block are not memories); a heading names a section; each bullet, each `[date] - content` line and each paragraph is one memory; an ISO date becomes its `valid_from`, unless it is after the import time, when the import time is and the report says so. A pasted memory is recorded as kind `import`. Every memory is a `semantic` candidate in the importer's person scope (or `--scope`) at confidence 0.7 (or `--confidence`), written by the import actor as above, with `ref` `claude-memory:<section>:line-<n>`.
 
 There is no ChatGPT parser: no ChatGPT export has been seen to contain saved memories (`docs/log/2026-11-21-e9-8-decision-no-chatgpt-parser.md`).
 

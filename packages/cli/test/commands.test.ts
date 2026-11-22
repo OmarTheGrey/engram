@@ -96,9 +96,10 @@ import options:
   --confidence <0..1>         --claude only: each memory's confidence (default 0.7)
   --identity <file>           an age identity file to decrypt with; repeatable
   --passphrase-file <file>    the passphrase to decrypt with, on the file's first line
-  every row is a write by the import actor import:<importer> with source import, owned by
-  the importer, a candidate (a retired row stays retired), with no grants and a new id;
-  the gate decides each row. A candidate becomes active only through engram promote by a
+  every row is a write by the import actor import:<importer>, its kind the least trusted
+  of the row's claim and import (a row never raises trust), owned by the importer, a
+  candidate (a retired row stays retired), with no grants and a new id; the gate decides
+  each row. Files over 64 MiB are refused. A candidate becomes active only through engram promote by a
   reviewer, a user-sourced member of its scope other than its owner (ADR 0026). Prints
   the id map; exit 1 if any row was denied
 
