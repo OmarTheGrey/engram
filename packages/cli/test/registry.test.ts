@@ -255,9 +255,17 @@ describe("the registry's entries", () => {
       "ENGRAM_TOKEN",
       "ENGRAM_OTLP_URL",
       "ENGRAM_EXPORT_JSONL",
+      "HOME",
+      "USERPROFILE",
     ]);
     expect(command("hook claude-code")?.env).toContain("CLAUDE_PROJECT_DIR");
     expect(command("key create")?.env).toEqual([]);
+    // The default log is <home>/.engram/engram.db, and main.ts finds the home
+    // through os.homedir(), which reads HOME, else USERPROFILE on Windows.
+    for (const s of REGISTRY)
+      if (parseOptions(s).db?.defaultText?.includes("<home>"))
+        expect(s.env, s.name).toEqual(expect.arrayContaining(["HOME", "USERPROFILE"]));
+    expect(REGISTRY.filter((s) => s.env.includes("HOME")).length).toBeGreaterThan(20);
     // Doctor checks the provider keys by name, from the file it reads them from.
     expect(command("doctor")?.envFrom).toBe(PROVIDER_KEYS);
     for (const s of REGISTRY) if (s.name !== "doctor") expect(s.envFrom, s.name).toBeUndefined();

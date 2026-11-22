@@ -812,15 +812,21 @@ const PLANE_EXITS = {
 // goes through connect: --server or ENGRAM_SERVER_URL, ENGRAM_TOKEN to a
 // server, and in process the workspace's log (ENGRAM_DB_URL) and the
 // decision export (ENGRAM_OTLP_URL, ENGRAM_EXPORT_JSONL, card E8.13).
+/**
+ * The default log is <home>/.engram/engram.db; main.ts finds the home with
+ * os.homedir(), which reads HOME, else USERPROFILE on Windows (finding E8.15a-13).
+ */
+const HOME_ENV = ["HOME", "USERPROFILE"] as const;
 const PLANE_ENV = [
   "ENGRAM_DB_URL",
   "ENGRAM_SERVER_URL",
   "ENGRAM_TOKEN",
   "ENGRAM_OTLP_URL",
   "ENGRAM_EXPORT_JSONL",
+  ...HOME_ENV,
 ] as const;
 /** engram serve opens its own workspace and calls no server. */
-const SERVE_ENV = ["ENGRAM_DB_URL", "ENGRAM_OTLP_URL", "ENGRAM_EXPORT_JSONL"] as const;
+const SERVE_ENV = ["ENGRAM_DB_URL", "ENGRAM_OTLP_URL", "ENGRAM_EXPORT_JSONL", ...HOME_ENV] as const;
 
 // engram key reads and writes its key file only: a bad file or flag is usage.
 const KEY_ERROR = { code: 1, when: "an error writing the key file" };
@@ -1470,7 +1476,7 @@ export const REGISTRY: readonly CommandSpec[] = [
       PLANE_EXITS.usage,
     ],
     writes: () => "none",
-    env: ["ENGRAM_DB_URL"],
+    env: ["ENGRAM_DB_URL", ...HOME_ENV],
     envFrom: "packages/runner/src/model/provider-keys.json",
     handler: H.doctor,
   },
@@ -1508,7 +1514,7 @@ export const REGISTRY: readonly CommandSpec[] = [
       { code: 3, when: "UNSIGNED: every check holds, but part of the chain has no signature" },
     ],
     writes: () => "none",
-    env: ["ENGRAM_DB_URL"],
+    env: ["ENGRAM_DB_URL", ...HOME_ENV],
     handler: H.log,
   },
   {
@@ -1539,7 +1545,7 @@ export const REGISTRY: readonly CommandSpec[] = [
       PLANE_EXITS.usage,
     ],
     writes: () => "state",
-    env: ["ENGRAM_DB_URL"],
+    env: ["ENGRAM_DB_URL", ...HOME_ENV],
     handler: H.log,
   },
 ];
