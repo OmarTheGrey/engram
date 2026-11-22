@@ -9,10 +9,11 @@
 //                the seqs from the genesis's start without a gap, each event
 //                row matches its own body, its record recomputes from the
 //                body and its stored commitments, and its hash links to the
-//                one before; a manifest recomputes, names only erase events
-//                chained before it, names an erase event whenever it names a
-//                redacted event, and names only item events whose item one of
-//                its erase events erased (review fix pass, E1.6-3)
+//                one before; a manifest recomputes, its erase events are
+//                exactly the entries chained just before it and named by no
+//                other manifest (E1.6-12), it names an erase event whenever it
+//                names a redacted event, and names only item events whose item
+//                one of its erase events erased (review fix pass, E1.6-3)
 //   anchor       the head row holds the entry count, the last hash and the
 //                last chained seq, and no event lies beyond it (a truncated
 //                tail, or an event a writer appended outside the chain)
@@ -275,6 +276,10 @@ function walk(db: Db): Walk {
   const entryPos = new Map<number, number>();
   /** seq to the position of the first manifest that names it. */
   const named = new Map<number, number>();
+  /** By position, the seq of an event entry, null for any other entry. */
+  const entrySeq: (number | null)[] = [null];
+  /** Erase events a manifest already named: each belongs to one manifest only. */
+  const usedErase = new Set<number>();
   let next = genesis.start;
   let prev = genesisHash;
 
@@ -344,6 +349,28 @@ function walk(db: Db): Walk {
           `the manifest names ${manifest.redacted.length} redacted events but no erase event: a redaction no offboarding made`,
           pos,
         );
+      // An offboarding appends its erase events and then its manifest in one
+      // transaction, so its erase events are exactly the entries just before
+      // it, and no other manifest names them (review E1.6-12, the lead's
+      // rule): a forger must append a fresh, visible erase event.
+      const k = manifest.erase.length;
+      for (let t = 0; t < k; t++)
+        if (entrySeq[pos - k + t] !== manifest.erase[t])
+          return fail(
+            "links",
+            `the manifest's erase events [${manifest.erase.join(", ")}] are not the entries chained just before it, as an offboarding appends them`,
+            pos,
+          );
+      for (const seq of manifest.erase) {
+        if (usedErase.has(seq))
+          return fail(
+            "links",
+            `erase event ${seq} is named by an earlier manifest; each belongs to one`,
+            pos,
+            seq,
+          );
+        usedErase.add(seq);
+      }
       const erasedItems = new Set<string>();
       for (const seq of manifest.erase) {
         const erase = bodies.get(seq);
@@ -391,6 +418,7 @@ function walk(db: Db): Walk {
         pos,
         row.seq === null ? null : Number(row.seq),
       );
+    entrySeq.push(row.kind === "event" ? Number(row.seq) : null);
     out.leaves.push(leaf);
     out.hashes.push(hash);
     prev = hash;

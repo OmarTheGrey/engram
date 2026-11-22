@@ -552,10 +552,24 @@ function tamperings(db: Db, c: Case, held: { size: number }): Tamper[] {
       "a manifest placed before the event it names",
       ["commitments"],
       () => {
-        const erase = pick(erases, 7);
+        // A fresh, visible erase event just before it, as the manifest rules
+        // require (E1.6-12), so only the position rule is left to catch it.
+        const erase = appendEvent(db, {
+          id: id(990_002),
+          ts: LATER,
+          op: "retire",
+          item_id: pick(erases, 7).item_id,
+          actor: "person:dana",
+          scope_from: "person:dana",
+          scope_to: null,
+          decision: "allow",
+          reason: "a forged erasure",
+          policy_id: ERASURE_ID,
+          schema_version: 1,
+        });
         const m = chainCanonical({
           kind: "manifest",
-          redacted: [head.seq + 1],
+          redacted: [erase.seq + 1],
           erase: [erase.seq],
         });
         forgeAppend(db, "manifest", null, m, m);
