@@ -687,7 +687,7 @@ export class App implements Component, Ctx {
   /** What `c` copies: the whole command, secrets included, as the person would type it. */
   private copyText(row: CommandRow): string {
     if (row.argv !== undefined) return this.line(row.argv);
-    return row.text ?? "";
+    return row.copy ?? row.text ?? "";
   }
 
   private titleBar(width: number): string {

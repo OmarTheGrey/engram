@@ -49,7 +49,7 @@ export class FirstRunScreen implements Screen {
   private question: Question;
   private logChoice = 0;
   private readonly dbFile = new TextField("");
-  private readonly dbUrl = new TextField("");
+  private readonly dbUrl = new TextField("", { secret: true });
   private readonly owner = new TextField("");
   private readonly folder = new TextField("");
   private policyChoice = 0;
@@ -226,7 +226,11 @@ export class FirstRunScreen implements Screen {
     });
     if (flags.length === 0)
       return { text: "", note: "(no flags yet: every command takes the CLI's defaults)" };
-    return { text: ctx.line(flags).replace(/^engram /, ""), note: "(every command)" };
+    return {
+      text: ctx.shown(flags).replace(/^engram /, ""),
+      copy: ctx.line(flags).replace(/^engram /, ""),
+      note: "(every command)",
+    };
   }
 
   hints(): string {

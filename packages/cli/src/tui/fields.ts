@@ -3,6 +3,7 @@
 // its cursor only while focused; unfocused it is the plain value, so no
 // stray reverse-video cell marks a field the person is not in.
 import { Input } from "@earendil-works/pi-tui";
+import { redactSecrets } from "../setup.ts";
 import { fit } from "./layout.ts";
 
 /** The end key, which moves the cursor after the last character. */
@@ -10,9 +11,20 @@ const END = "\x1b[F";
 
 export class TextField {
   private readonly input = new Input({ prompt: "" });
+  /** A URL field that may hold credentials: a value it was given is shown redacted (review I4). */
+  private readonly secret: boolean;
+  /** Whether the person typed in it since its value was set: then it shows what they type. */
+  private edited = false;
 
-  constructor(value = "") {
+  constructor(value = "", options: { secret?: boolean } = {}) {
+    this.secret = options.secret === true;
     this.set(value);
+  }
+
+  /** What is drawn: the value, or for a secret field not yet retyped, the value redacted. */
+  private shown(): string {
+    const v = this.value;
+    return this.secret && !this.edited && v.includes("://") ? redactSecrets(v, v) : v;
   }
 
   get value(): string {
@@ -23,12 +35,15 @@ export class TextField {
   set(value: string): void {
     this.input.setValue(value);
     this.input.handleInput(END);
+    this.edited = false;
   }
 
   /** One line of `width`: the editor with its cursor when focused, else the value. */
   render(width: number, focused: boolean): string {
     if (width <= 0) return "";
-    if (!focused) return fit(this.value, width);
+    if (!focused) return fit(this.shown(), width);
+    // A given secret is not drawn until retyped (ctrl+u clears it).
+    if (this.secret && !this.edited && this.shown() !== this.value) return fit(this.shown(), width);
     this.input.focused = true;
     const line = this.input.render(width)[0] ?? "";
     this.input.focused = false;
@@ -37,6 +52,7 @@ export class TextField {
 
   /** A key typed into the field: pi-tui's editing keys and printable text. */
   type(data: string): void {
+    this.edited = true;
     this.input.handleInput(data);
   }
 }

@@ -30,6 +30,8 @@ export interface CommandRow {
   argv?: readonly string[];
   /** Text shown instead, for a screen whose flags apply to every command. */
   text?: string;
+  /** What `c` copies when `text` is drawn redacted: the whole of it. */
+  copy?: string;
   /** The exit code of the run it shows. */
   exit?: number;
   /** A note after the command: "(every command)", "(refused: choose another)". */

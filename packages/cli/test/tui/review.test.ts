@@ -139,6 +139,24 @@ describe("I2: control characters in a command's output never reach the terminal"
 
 describe("I4: secrets are not shown, while c copies the whole command", () => {
   const PG = "postgres://dana:hunter2secret@127.0.0.1:1/engram";
+  it("redacts it in first run's field and command row, and in the workspace panel, until the person retypes it", async () => {
+    const cwd = await tempDir();
+    const h = await startHarness({
+      cwd,
+      home: cwd,
+      given: { db: PG },
+      logCheck: async () => ["fail", "postgres 127.0.0.1:1: connect ECONNREFUSED"],
+    });
+    expect(h.screen()).toBe("first-run");
+    expect(await h.text()).not.toContain("hunter2secret");
+    expect(await h.text()).toContain("postgres://***@127.0.0.1:1/engram");
+    h.app.home();
+    await h.press("\x0f");
+    expect(h.screen()).toBe("workspace");
+    expect(await h.text()).not.toContain("hunter2secret");
+    await h.quit();
+  });
+
   it("redacts a Postgres password in the command row and the quit summary", async () => {
     const cwd = await tempDir();
     const h = await startHarness({

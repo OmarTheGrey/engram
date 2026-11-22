@@ -11,7 +11,7 @@ import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { ScopeLevel } from "@engram/core";
 import { OPTIONS } from "../../registry.ts";
-import { buildActor, dbTarget } from "../../setup.ts";
+import { buildActor, dbTarget, redactSecrets } from "../../setup.ts";
 import { TextField } from "../fields.ts";
 import { cut, fit, para, rows, wrap } from "../layout.ts";
 import { forgetFlow } from "../overlays.ts";
@@ -111,7 +111,9 @@ export class WorkspaceScreen implements Screen {
       if (r.kind === "text" || r.kind === "list")
         this.editors.set(
           r.id,
-          new TextField(r.kind === "list" ? "" : (this.draft.get(r.flag as WsFlag) ?? "")),
+          new TextField(r.kind === "list" ? "" : (this.draft.get(r.flag as WsFlag) ?? ""), {
+            secret: r.id === "db" || r.id === "server" || r.id === "otlp",
+          }),
         );
     if (ctx.ws.get("server") === undefined && this.serverMode)
       this.editors.get("server")?.set(ctx.ws.server() ?? "");
@@ -325,7 +327,11 @@ export class WorkspaceScreen implements Screen {
       const v = f === "member" ? ws.list(f) : ws.get(f);
       for (const one of typeof v === "string" ? [v] : (v ?? [])) flags.push(`--${f}`, one);
     }
-    return { text: ctx.line(flags).replace(/^engram ?/, ""), note: "(every command)" };
+    return {
+      text: ctx.shown(flags).replace(/^engram ?/, ""),
+      copy: ctx.line(flags).replace(/^engram ?/, ""),
+      note: "(every command)",
+    };
   }
 
   hints(): string {
@@ -361,10 +367,9 @@ export class WorkspaceScreen implements Screen {
       if (greyed) {
         if (!refusalShown) {
           refusalShown = true;
-          const msg = serverRefusal(
-            ctx.io,
-            ctx.ws.server() ?? this.editors.get("server")?.value ?? "the server",
-          );
+          const named = ctx.ws.server() ?? this.editors.get("server")?.value ?? "the server";
+          // connect's words, with the URL redacted as every drawn URL is (review I4).
+          const msg = redactSecrets(serverRefusal(ctx.io, named), named);
           lines.push(
             ...wrap(t.dim(` Event log, policy, store: the server's own. ${msg}`), width - 1),
           );
