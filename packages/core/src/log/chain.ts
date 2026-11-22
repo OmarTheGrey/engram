@@ -117,6 +117,11 @@ export function nodeHash(left: string, right: string): string {
   );
 }
 
+/** The chain hash after an entry: of the hash before it and the entry's leaf, both hex, in hex. */
+export function chainLink(prev: string, leaf: string): string {
+  return nodeHash(prev, leaf);
+}
+
 /** A part of an event that an erasure may rewrite, and so is committed rather than hashed. */
 export type Part =
   | "content"
