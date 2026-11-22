@@ -49,7 +49,16 @@ export interface EngramMemoryOptions extends KitOptions {
    * kit's scopeOf. The plane decides whether the actor may write there.
    */
   namespace: string | readonly string[];
+  /**
+   * The name the recall tool is given to the model, `recall` when absent
+   * (review finding E8.14-9). Only a result under this name is checked
+   * against what this instance produced; another tool's result is defused.
+   */
+  recallToolName?: string;
 }
+
+type RememberTool = EngramTool<z.infer<typeof RememberInput>>;
+type RecallTool = EngramTool<z.infer<typeof RecallInput>>;
 
 /** The input the remember tool takes from the model; any other field is ignored. */
 export const RememberInput = z.object({
@@ -70,11 +79,15 @@ export interface EngramTool<Input> {
 export interface EngramMemory {
   /** Pass to the AI SDK's wrapLanguageModel({ model, middleware }). */
   middleware: LanguageModelV4Middleware;
-  /** Pass as `tools` to generateText or streamText. */
-  tools: {
-    remember: EngramTool<z.infer<typeof RememberInput>>;
-    recall: EngramTool<z.infer<typeof RecallInput>>;
-  };
+  /**
+   * Pass as `tools` to generateText or streamText: `remember`, and the recall
+   * tool under its name (`recall` unless `recallToolName` names another).
+   */
+  tools: Record<string, RememberTool | RecallTool>;
+  /** The remember tool, as `tools.remember`. */
+  remember: RememberTool;
+  /** The recall tool, as it is under its name in `tools`. */
+  recall: RecallTool;
   /** The kit every call goes through. */
   kit: EngramKit;
 }
@@ -134,6 +147,7 @@ function acrossTextRuns<P extends { type: string }>(parts: P[]): P[] {
 export function engramMemory(options: EngramMemoryOptions): EngramMemory {
   const kit = createKit(options);
   const defaultScope = scopeOf(options.namespace);
+  const recallName = options.recallToolName ?? "recall";
   /** The recall results this instance produced, by tool call id. */
   const produced = new Map<string, string>();
 
@@ -171,7 +185,7 @@ export function engramMemory(options: EngramMemoryOptions): EngramMemory {
       toolName: string;
       output: { type: string; value?: unknown };
     };
-    if (r.toolName === "recall") {
+    if (r.toolName === recallName) {
       const mine = produced.get(r.toolCallId);
       const value = r.output.value;
       if (
@@ -218,7 +232,9 @@ export function engramMemory(options: EngramMemoryOptions): EngramMemory {
 
   return {
     middleware: { specificationVersion: "v4", transformParams },
-    tools: { remember, recall },
+    tools: { remember, [recallName]: recall },
+    remember,
+    recall,
     kit,
   };
 }

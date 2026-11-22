@@ -18,8 +18,7 @@ const aiSdk: KitAdapterSubject = {
     const memory = engramMemory({ ...options, namespace: ["person", "dana"] });
     let calls = 0;
     return {
-      write: (input) =>
-        memory.tools.remember.execute(input as never, { toolCallId: `call-${++calls}` }),
+      write: (input) => memory.remember.execute(input as never, { toolCallId: `call-${++calls}` }),
       async read(input) {
         const params = await memory.middleware.transformParams?.({
           type: "generate",
