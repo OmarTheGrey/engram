@@ -1,0 +1,101 @@
+{
+  "errors": {
+    "blank-description": ["Field 'description' must be a non-empty string"],
+    "compatibility-501": ["Compatibility exceeds 500 character limit (501 chars)"],
+    "consecutive-hyphens": ["Skill name cannot contain consecutive hyphens"],
+    "description-1024": [],
+    "description-1025": ["Description exceeds 1024 character limit (1025 chars)"],
+    "directory-mismatch": ["Directory name 'other-name' must match skill name 'skill-name'"],
+    "emitted-awm": [],
+    "emitted-long": [],
+    "emitted-no-tools": [],
+    "emitted-unicode-quotes": [],
+    "empty-name": ["Field 'name' must be a non-empty string"],
+    "invalid-characters": [
+      "Skill name 'pdf_processing' contains invalid characters. Only letters, digits, and hyphens are allowed."
+    ],
+    "leading-hyphen": ["Skill name cannot start or end with a hyphen"],
+    "minimal": [],
+    "missing-description": ["Missing required field in frontmatter: description"],
+    "missing-name": ["Missing required field in frontmatter: name"],
+    "name-64": [],
+    "name-65": [
+      "Skill name 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' exceeds 64 character limit (65 chars)"
+    ],
+    "name-with-space": [
+      "Skill name 'pdf processing' contains invalid characters. Only letters, digits, and hyphens are allowed."
+    ],
+    "no-frontmatter": ["SKILL.md must start with YAML frontmatter (---)"],
+    "not-a-mapping": ["SKILL.md frontmatter must be a YAML mapping"],
+    "optional-fields": [],
+    "quoted-values": [],
+    "subset-allowed-tools-list": [],
+    "subset-closing-trailing-space": [],
+    "subset-folded-block": [],
+    "subset-literal-block": [],
+    "subset-multiline-plain": [],
+    "subset-space-before-colon": [],
+    "subset-yaml-escape": [],
+    "tab-after-colon": [
+      "Invalid YAML in frontmatter: while scanning for the next token\nfound character '\\t' that cannot start any token\n  in \"<unicode string>\", line 2, column 6:\n    name:\tskill-name\n         ^ (line: 2)"
+    ],
+    "trailing-hyphen": ["Skill name cannot start or end with a hyphen"],
+    "two-errors": [
+      "Skill name 'Bad--Name' must be lowercase",
+      "Skill name cannot contain consecutive hyphens",
+      "Directory name 'x' must match skill name 'Bad--Name'",
+      "Missing required field in frontmatter: description"
+    ],
+    "unclosed-frontmatter": ["SKILL.md frontmatter not properly closed with ---"],
+    "unicode-lowercase-name": [],
+    "unknown-fields": [
+      "Unexpected fields in frontmatter: author, version. Only ['allowed-tools', 'compatibility', 'description', 'license', 'metadata', 'name'] are allowed."
+    ],
+    "uppercase-name": ["Skill name 'PDF-Processing' must be lowercase"]
+  },
+  "sha256": {
+    "blank-description": "e62c4c11ad1b5c3f8384d6a2b33014a249cef7264ae5acf51c70e541383cfc07",
+    "compatibility-501": "006c4e41b2cebfdd460cb6cd995371d282acb7ab8f33b82b40419c3288722792",
+    "consecutive-hyphens": "72eb8b7638a55c99d9504672fa461b717df42d3176a1835f22dd4f8bab3753ad",
+    "description-1024": "e8b51772258c57d25c11e7750e46905fa93d22181a08bad417a7bcd84955e5b0",
+    "description-1025": "ef28b08cb8232082f7cf700e79e7c32238e5e290514d0d4c61fad9aa3430fb0b",
+    "directory-mismatch": "a2fef19b42e7a6a2d4b144c70d8acfb6552e59aabf0a488192204e88283c3584",
+    "emitted-awm": "8cfcd190fe010286459603b9502b4bdaf09c544004d221ea60868f27c82f8aed",
+    "emitted-long": "806e80960e7b0b773a39dd254a7f57b7629d938f208fb8d2f1ac3c4e1dc0e653",
+    "emitted-no-tools": "3989d8cc5ed9de94564951e662cfdd9451613d70e71ef35b6a62245de993efe8",
+    "emitted-unicode-quotes": "8289b41b1547c681ca64e88fac3675e7cd47e86074c489af30950dd6fc8f2c7c",
+    "empty-name": "6adaeeddad5c285a0026806538f29870cf57db55947c61241a124a4e7fba900f",
+    "invalid-characters": "0613b31076d8e25e10669602ac9f5c17667d4c781cd5fa26121e4ee52efa4dc3",
+    "leading-hyphen": "64b08276aa90345f488b065922a5c3e4acc8d761ab1938145cb8ad407cbe7d15",
+    "minimal": "fc5b7fb1740122ecc98728c63a7de4db7af7bb39499361a9917ce3f7ab89c4e6",
+    "missing-description": "42fdb1496b2514765cb4a3721cf9262e1a0e155dff88c1d1fe60724d81638281",
+    "missing-name": "9fc261476b5440c210d1ac769bb9d45efd454185835422beb0a9b4f85fbdb9bb",
+    "name-64": "f3bba44e43c7127ebb6a1fd0e272a5f78bba2232ade6b7d4fb0d1d411cbd7410",
+    "name-65": "15bb2f25fd8065f653e3dd79d9d3315a6211f4d01c9a929d73147a3076d60388",
+    "name-with-space": "313a6673a88875b1172eb4f8e495439682abc0e2a29e7b1663a0cb17593af8f7",
+    "no-frontmatter": "3c2a6dd21f79d09aff40c11c01a57a1c9031ed179f8be540fde452173563e629",
+    "not-a-mapping": "80189da69ae702363b1845126380b8fb3507b874b086f61bf729dc9e74dd6940",
+    "optional-fields": "4730f6a7d515fe634f7aeee941d4c08d53b0e50a530a58046a9d6bc42d0dc6c1",
+    "quoted-values": "abbe4f5e8c2e4d99c78648df085c3809f7cd64d67c8d9fc8e5661571730e0259",
+    "subset-allowed-tools-list": "ed28fbc059f54161ff4934cb6f961448c51aec831bcb87735e84d84eeb7fe8ed",
+    "subset-closing-trailing-space": "ee55f65206780637e9c961c49a4849037d099dc0e44c3a60615263acfa7fa3f7",
+    "subset-folded-block": "169572b643159826e71bbd96152cee57b01c657f2a61024597f2a5cc804ff231",
+    "subset-literal-block": "553a1cfe99adae16aeaa5fa8dcb9f6db445360327835bfd39d32600061fe82f5",
+    "subset-multiline-plain": "da76256ca5d54e3acf89f48b4257aa77c02643a2ed4d3d9697f00fa9527f02a9",
+    "subset-space-before-colon": "1ddf61075481eea26e13b65ba9b50cf36fc317a4bc1b7ec6f28bf909f574dca6",
+    "subset-yaml-escape": "df526bfb5cdfe17b42abaa2cec660ec490e5d2a33c93f794922b803578caa952",
+    "tab-after-colon": "950a8de00c6f28912662a196f83d039836ddb3d6049045a93fe770aadccdc948",
+    "trailing-hyphen": "e53666439c75799fafa74f79523e9a3416b9d367a7801f146e4a5a913f869a44",
+    "two-errors": "61f6b117f1f3c0b0acd4bc8efc7d0870681ce47fc49aa95c8da1ca567ce22cfc",
+    "unclosed-frontmatter": "e0e1ad11885fbac1186170a03116b5d83a62369285d91e8a26f88080db0e93b2",
+    "unicode-lowercase-name": "7cee8153705b84ee8e2ebbab0a3a357bf3e25495af51c5673776f87cba53d650",
+    "unknown-fields": "e375544b74c6100148ebd7b9ff22404895aaf400e79f7276cb157f26b48facc7",
+    "uppercase-name": "685672a5a5035122efdf6426594a79c3b1a976a9b913ab4e4791b8dfe78a1082"
+  },
+  "upstream": {
+    "commit": "83021e2be457a9b6679148719c1f6074f0ad975e",
+    "function": "skills_ref.validator.validate",
+    "package": "skills-ref 0.1.0",
+    "repository": "https://github.com/agentskills/agentskills"
+  }
+}

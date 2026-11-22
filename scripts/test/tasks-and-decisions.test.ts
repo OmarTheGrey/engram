@@ -3,14 +3,23 @@
 // with a `decision` log entry that cites it. OWNER_DECIDES lists any ADR left
 // for the owner to decide. The lead accepted ADRs 0031 to 0033 on 2026-11-19
 // (docs/log/2026-11-19-lead-decision-adrs-accepted.md); ADR 0034, proposed
-// by card E9.4, is the one left for the owner. ADRs 0038 to 0041, proposed by
+// by card E9.4, is left for the owner, and so is ADR 0046, proposed by card
+// D3 (docs/log/2026-11-22-d3-decision-adr-renumbered-0046.md). ADRs 0038 to 0041, proposed by
 // the absorb plan on 2026-11-21, were accepted that day under the lead's
 // delegation (docs/log/2026-11-21-orch-decision-adrs-0038-0041-accepted.md).
+// ADR 0042, proposed by card E8.12 on 2026-11-21 (verified actors), awaits
+// the owner too (docs/tasks/lead-decisions.md, item 60).
+// ADR 0043, proposed by card E8.13 on 2026-11-21 (decision export and
+// egress), awaits the owner too (docs/tasks/lead-decisions.md, item 61).
+// ADR 0044, proposed by card E8.15 on 2026-11-21 (the CLI's terminal
+// interface), awaits the owner too (docs/tasks/lead-decisions.md, item 62).
+// ADR 0045, proposed by card D2 on 2026-11-22 (the AWM prompt adapted to tool
+// use), awaits the owner too (docs/tasks/lead-decisions.md, item 64).
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { describe, expect, test } from "vitest";
 import { parseFrontmatter } from "../lib/frontmatter.ts";
 
-const OWNER_DECIDES = new Set<string>(["0034"]);
+const OWNER_DECIDES = new Set<string>(["0034", "0042", "0043", "0044", "0045", "0046"]);
 const ADDED_BY_ADR_0001 = ["PX1", "PX2", "PX3", "RN1", "RN2"];
 
 const roadmap = readFileSync("docs/roadmap.md", "utf8");

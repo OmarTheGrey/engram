@@ -213,6 +213,20 @@ export function allEvents(db: Db): MemoryEvent[] {
   return parse(db.prepare("SELECT body FROM events ORDER BY seq").all());
 }
 
+/**
+ * The events after `seq`, in order: what a decision export (card E8.13)
+ * has not sent yet. `lastSeq` is where it starts: the log's head, or -1.
+ */
+export function eventsAfter(db: Db, seq: number): MemoryEvent[] {
+  return parse(db.prepare("SELECT body FROM events WHERE seq > ? ORDER BY seq").all(seq));
+}
+
+/** The seq of the log's last event, or -1 for an empty log. */
+export function lastSeq(db: Db): number {
+  const row = db.prepare("SELECT coalesce(max(seq), -1) AS seq FROM events").get();
+  return Number(row?.seq ?? -1);
+}
+
 /** The event with id `id`, or null; one indexed lookup, not a scan of the log. */
 export function eventById(db: Db, id: string): MemoryEvent | null {
   return parse(db.prepare("SELECT body FROM events WHERE id = ?").all(id))[0] ?? null;

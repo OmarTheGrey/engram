@@ -103,6 +103,7 @@ import { createFakeAdapter } from "@engram/adapters";
 import fc from "fast-check";
 import { describe, expect, test } from "vitest";
 import type { Adapter } from "../../src/adapter.ts";
+import { strictContentHash } from "../../src/content-hash.ts";
 import type { Db } from "../../src/db/db.ts";
 import { migrate } from "../../src/db/migrate.ts";
 import { openSqlite } from "../../src/db/sqlite.ts";
@@ -114,6 +115,7 @@ import {
   adoptStoreItems,
   createPlane,
   ExplainDeniedError,
+  InvalidCallError,
   NotImplementedYet,
   offboard,
   type Plane,
@@ -158,13 +160,19 @@ const RUNS = 1000;
 /** The two-handle walk opens a log per run and interleaves two operation lists: fewer runs. */
 const RUNS_TWO_HANDLES = 300;
 
-function freshPlane(policy: Policy, search = true) {
+function freshPlane(policy: Policy, search = true, distillTasks?: ReadonlyMap<string, string>) {
   const db = openSqlite(":memory:");
   migrate(db);
   const adapter = createFakeAdapter({ search });
   let n = 0;
   const newId = () => `01920000-0000-7000-8000-${String(++n).padStart(12, "0")}`;
-  const plane: Plane = createPlane({ db, adapter, policy, newId });
+  const plane: Plane = createPlane({
+    db,
+    adapter,
+    policy,
+    newId,
+    ...(distillTasks === undefined ? {} : { distillTasks }),
+  });
   /** A plane over the same log and store that writes under `other`. */
   const under = (other: Policy): Plane => createPlane({ db, adapter, policy: other, newId });
   return { db, adapter, plane, under, newId };
@@ -1701,6 +1709,37 @@ const arbRestatement: fc.Arbitrary<Restatement> = fc.record({
   inTarget: fc.constantFrom(false, false, false, false, false, true),
 });
 
+/**
+ * Card D3 review, D3-5: the session index invariant 2's plane is given (s9
+ * is a session it does not hold), and a replay case. One case in five the
+ * source is a procedural candidate whose provenance ref is a distill ref (or
+ * none), and the promoter presents a replay: for the source or another item,
+ * of its content or other content, naming the ref's induction tasks or none
+ * or only t1, sometimes replaying t1, with a pass count around replay_k.
+ */
+const P_SESSIONS: ReadonlyMap<string, string> = new Map([
+  ["s1", "t1"],
+  ["s2", "t2"],
+]);
+const arbReplayCase = fc.record({
+  use: fc.constantFrom(false, false, false, false, true),
+  ref: fc.constantFrom("r", "distill:awm:s1", "distill:awm:s1,s2", "distill:rule:s1,s9"),
+  ownItem: fc.constantFrom(true, true, true, true, true, false),
+  ownContent: fc.constantFrom(true, true, true, true, true, false),
+  induced: fc.constantFrom("ref", "ref", "ref", "none", "t1"),
+  leak: fc.constantFrom(false, false, false, false, true),
+  n: fc.constantFrom(5, 5, 5, 5, 4, 6),
+  passes: fc.constantFrom(2, 3, 3, 4, 5, 5),
+  // Tasks passing without the candidate, and whether the candidate's tasks
+  // miss their third seed (2/3: at the threshold, below a baseline of 1).
+  baseWins: fc.constantFrom(0, 0, 0, 2, 5, 5),
+  dip: fc.constantFrom(false, true),
+  agent: fc.constantFrom(false, false, false, true),
+  // Not the registered seeds 1, 2, 3 one time in four: refused before the log (D3-13).
+  seeds: fc.constantFrom([1], [1, 2, 3], [1, 2, 3], [1, 2, 3]),
+  sameScope: fc.constantFrom(true, true, false),
+});
+
 /** True three times in four: most cases reach the evidence rules rather than stopping earlier. */
 const oftenTrue = fc.constantFrom(true, true, true, false);
 
@@ -1821,6 +1860,7 @@ const arbPromotionCase = fc.record({
   }),
   at: arbTimestamp,
   after: fc.constantFrom(0, 0, 0, 5),
+  replay: arbReplayCase,
 });
 
 /** Invariant 2 over promotions (ADR 0026); runs inside invariant 2's test. */
@@ -1843,11 +1883,73 @@ async function promotionsLandOnlyWherePermitted(name: string) {
     duplicate: 0,
     unreachable: 0,
   };
+  // Card D3 review, D3-5: replay admissions and each replay refusal.
+  const replaySeen = {
+    landed: 0,
+    source: 0,
+    item: 0,
+    split: 0,
+    refOnly: 0,
+    short: 0,
+    noWorseOnly: 0,
+    seeds: 0,
+  };
   await fc.assert(
     fc.asyncProperty(
       arbPromotionCase,
-      async ({ policy: { policy, target }, source, restatements, promoter, at, after }) => {
-        const { db, adapter, plane, under } = freshPlane(policy);
+      async ({
+        policy: { policy: drawnPolicy, target: drawn },
+        source: drawnSource,
+        restatements: drawnRestatements,
+        promoter: drawnPromoter,
+        at,
+        after,
+        replay: rc,
+      }) => {
+        // A replay case's source is a procedural candidate, under its ref,
+        // with no hidden text and no ttl, so the replay decides most of them.
+        const source = rc.use
+          ? {
+              ...drawnSource,
+              class: "procedural" as const,
+              status: "candidate" as const,
+              hidden: false,
+              ttl: null,
+            }
+          : drawnSource;
+        const target = rc.use && rc.sameScope ? source.scope : drawn;
+        // Nor restatements (a restatement in the target is a duplicate) or a
+        // review (the owner never reviews its own item).
+        const restatements = rc.use ? [] : drawnRestatements;
+        const promoter = rc.use ? { ...drawnPromoter, review: false } : drawnPromoter;
+        // A replay case opens the rules of the source's and the target's
+        // levels to every source and class, and reads as an opened case
+        // does, so the replay rather than the rule decides most of them.
+        const opened = (level: string) => ({
+          scope: level as Policy["write"][number]["scope"],
+          allowed_sources: [...KINDS] as Kind[],
+          confidence_floor: 0,
+          forbidden_classes: [],
+          requires_review: false,
+        });
+        const levels = new Set([levelOf(source.scope), levelOf(target)]);
+        const policy: Policy = rc.use
+          ? {
+              ...drawnPolicy,
+              write: [
+                ...drawnPolicy.write.filter((r) => !levels.has(r.scope)),
+                ...[...levels].map(opened),
+              ],
+              read: {
+                matrix: [
+                  { reader: "person", may_read: ["person", "role", "team", "org"] },
+                  { reader: "team", may_read: ["role", "team", "org"] },
+                ],
+                honour_grants: true,
+              },
+            }
+          : drawnPolicy;
+        const { db, adapter, plane, under } = freshPlane(policy, true, P_SESSIONS);
         const store = under(ADMIT_ALL);
         // The source's text, with a tag-character payload when it is hidden.
         const word = source.hidden ? `alpha${String.fromCodePoint(0xe0041)}` : "alpha";
@@ -1887,6 +1989,14 @@ async function promotionsLandOnlyWherePermitted(name: string) {
           class: source.class,
           status: source.status === "retired" ? "active" : source.status,
           content: source.class === "procedural" ? { body: word, tools: [] } : word,
+          ...(rc.use
+            ? {
+                provenance: {
+                  ...make(-1, source.scope, source.owner, word).provenance,
+                  ref: rc.ref,
+                },
+              }
+            : {}),
           ttl: source.ttl,
           // Model, compaction and external content carries no grants (decision D4).
           grants:
@@ -1946,14 +2056,23 @@ async function promotionsLandOnlyWherePermitted(name: string) {
             });
         }
         const when = addSeconds(at, after) as string;
-        const actor: Actor = {
-          id: promoter.id,
-          level: promoter.level,
-          memberships: [
-            ...new Set([...promoter.extra, ...(promoter.joins ? [source.scope, target] : [])]),
-          ],
-          ...(promoter.source ? { source: promoter.source } : {}),
-        };
+        // A replay case's promoter is the owner, a member of both scopes,
+        // user-sourced or, one time in four, model-sourced.
+        const actor: Actor = rc.use
+          ? {
+              id: source.owner,
+              level: "person",
+              memberships: [...new Set([source.scope, target])],
+              source: rc.agent ? "model" : "user",
+            }
+          : {
+              id: promoter.id,
+              level: promoter.level,
+              memberships: [
+                ...new Set([...promoter.extra, ...(promoter.joins ? [source.scope, target] : [])]),
+              ],
+              ...(promoter.source ? { source: promoter.source } : {}),
+            };
         const before = currentItems(db);
         const retired = retiredByEvent(db);
         const projected = before.find((i) => i.id === P_SOURCE_ID) as MemoryItem;
@@ -1971,10 +2090,85 @@ async function promotionsLandOnlyWherePermitted(name: string) {
               ]
             : [],
         );
+        // The replay the promoter presents in a replay case.
+        const refTasks = rc.ref.startsWith("distill:")
+          ? [
+              ...new Set(
+                rc.ref
+                  .split(":")[2]
+                  ?.split(",")
+                  .map((x) => P_SESSIONS.get(x) ?? x),
+              ),
+            ]
+          : [];
+        const heldOut = Array.from({ length: rc.n }, (_, i) => `h${i}`);
+        const presented = rc.use
+          ? {
+              item_id: rc.ownItem ? P_SOURCE_ID : pId(99),
+              content_hash: strictContentHash(
+                rc.ownContent ? { body: word, tools: [] } : { body: "other", tools: [] },
+              ),
+              induced_from: rc.induced === "ref" ? refTasks : rc.induced === "t1" ? ["t1"] : [],
+              threshold: 2 / 3,
+              outcomes: (rc.leak ? ["t1", ...heldOut.slice(1)] : heldOut).flatMap((task, i) =>
+                rc.seeds.map((seed) => ({
+                  task,
+                  seed,
+                  without: i < rc.baseWins ? 1 : 0,
+                  with: i < rc.passes && !(rc.dip && seed === 3) ? 1 : 0,
+                })),
+              ),
+            }
+          : undefined;
         const logLength = plane.events().length;
+        // A replay not on the registered seeds 1, 2, 3 is an invalid call:
+        // refused before the log is touched, and nothing changes (D3-13).
+        if (presented && rc.seeds.join() !== "1,2,3") {
+          await expect(
+            plane.promote(actor, P_SOURCE_ID, target, when, { replay: presented }),
+          ).rejects.toThrow(InvalidCallError);
+          expect(plane.events().length).toBe(logLength);
+          expect(currentItems(db)).toEqual(before);
+          replaySeen.seeds++;
+          return;
+        }
         const result = await plane.promote(actor, P_SOURCE_ID, target, when, {
           review: promoter.review,
+          ...(presented ? { replay: presented } : {}),
         });
+        if (presented) {
+          const id = result.event.policy_id;
+          if (id === "engram/promote/validation-source") replaySeen.source++;
+          if (id === "engram/promote/replay-item") replaySeen.item++;
+          if (id === "engram/promote/replay-split") replaySeen.split++;
+          // Only the source's own distill ref stood in the way: the replay's
+          // own list does not leak, the ref is mappable, and its tasks are
+          // not the ones the replay names (the ref check alone refuses it).
+          const ownList = new Set(presented.induced_from);
+          if (
+            id === "engram/promote/replay-split" &&
+            !presented.outcomes.some((o) => ownList.has(o.task)) &&
+            !rc.ref.includes("s9") &&
+            rc.induced !== "ref"
+          )
+            replaySeen.refOnly++;
+          if (id === "engram/promote/no-evidence") replaySeen.short++;
+          // Only the no-worse rule stood in the way: by the threshold alone,
+          // replay_k tasks of replay_n would pass (the lead's D3-1 answer).
+          const byTask = new Map<string, { w: number; runs: number }>();
+          for (const o of presented.outcomes) {
+            const t = byTask.get(o.task) ?? { w: 0, runs: 0 };
+            byTask.set(o.task, { w: t.w + o.with, runs: t.runs + 1 });
+          }
+          const thresholdOnly = [...byTask.values()].filter((t) => 3 * t.w >= 2 * t.runs).length;
+          if (
+            id === "engram/promote/no-evidence" &&
+            byTask.size === policy.promotion.procedural.replay_n &&
+            thresholdOnly >= policy.promotion.procedural.replay_k
+          )
+            replaySeen.noWorseOnly++;
+          if (result.decision === "allow") replaySeen.landed++;
+        }
         const added = plane.events().slice(logLength);
         expect(added[0], "the decision is the first event the promotion appends").toEqual(
           result.event,
@@ -2057,8 +2251,17 @@ async function promotionsLandOnlyWherePermitted(name: string) {
         const landed = result.event.item as MemoryItem;
         expect(result.item === null || result.item.id === landed.id).toBe(true);
         expect(
-          promotionPermitted(policy, actor, P_SOURCE_ID, target, log, promoter.review, when),
-          `a promotion landed without the evidence ADR 0026 asks for: ${shown}`,
+          promotionPermitted(
+            policy,
+            actor,
+            P_SOURCE_ID,
+            target,
+            log,
+            promoter.review,
+            when,
+            presented ? { replay: presented, sessions: P_SESSIONS } : undefined,
+          ),
+          `a promotion landed without the evidence ADR 0026 asks for: ${shown}${presented ? `; replay ${JSON.stringify(presented)} under ref ${rc.ref}` : ""}`,
         ).toBe(true);
         const { source: _source, ...judged } = actor;
         expect(
@@ -2070,11 +2273,15 @@ async function promotionsLandOnlyWherePermitted(name: string) {
           `the promoted item is more trusted than its source: ${shown}`,
         ).toBeGreaterThanOrEqual(TRUST.indexOf(projected.provenance.kind));
         expect((await adapter.list(landed.scope)).map((i) => i.id)).toContain(landed.id);
-        seen[promoter.review ? "byReview" : "byConfirmation"]++;
+        if (!presented) seen[promoter.review ? "byReview" : "byConfirmation"]++;
       },
     ),
     { numRuns: RUNS, seed: seedFor(name) },
   );
+  expect(
+    Object.values(replaySeen).every((n) => n > 0),
+    `invariant 2 over promotions needs replay admissions and refusals by the presenter's source, another item's replay, a split that is not the ref's, one only the ref's tasks refuse, too few passes, one only the no-worse rule refuses, and a replay off the registered seeds; it saw ${JSON.stringify(replaySeen)}`,
+  ).toBe(true);
   expect(
     Object.values(seen).every((n) => n > 0),
     `invariant 2 over promotions needs landings by confirmation and by review, an ask, refusals where only the distinct-actor rule, only the trusted-kind rule, only retired confirmers, only the owner-as-reviewer rule or only the target's write rule stood in the way, and refusals by authorship, confirmation, expiry, hidden text, a widening's source, a duplicate, reach and a read grant; it saw ${JSON.stringify(seen)}`,
@@ -2091,7 +2298,9 @@ async function promotionsLandOnlyWherePermitted(name: string) {
  * session record and never pass to a model; `simulate` replays only the
  * workload it is given, on scratch logs and stores (card E8.9);
  * `changeGrants` refuses an outsider in the same words for a hidden and an
- * unknown item, naming no scope, and returns no item (card E9.4, ADR 0034).
+ * unknown item, naming no scope, and returns no item (card E9.4, ADR 0034);
+ * `whoCanReadItem` and `whoCanRead` refuse an outsider as for an unknown id
+ * and append no event (card E2.13, decision item 53).
  */
 async function planeSurfaceLeaksNothing() {
   const SECRET = "the vault code is 4711";
@@ -2115,6 +2324,8 @@ async function planeSurfaceLeaksNothing() {
     "recordBypass",
     "retain",
     "simulate",
+    "whoCanRead",
+    "whoCanReadItem",
     "write",
   ]);
   const at = "2026-10-25T12:00:00Z";
@@ -2205,6 +2416,31 @@ async function planeSurfaceLeaksNothing() {
   const unknown = "01960000-0000-7000-8000-000000000009";
   const nothing = await plane.changeGrants(outsider, unknown, { add: [grant] }, at);
   expect(granted.event.reason).toBe(nothing.event.reason.replace(unknown, secret.id));
+  // Who can read the secret, asked by the outsider (card E2.13): the answer
+  // an unknown id gets, word for word but the id, naming no scope, owner or
+  // reader; a query appends no event.
+  const asked = plane.events().length;
+  const readers = await plane.whoCanReadItem(outsider, secret.id, at);
+  leaks("whoCanReadItem", readers);
+  const noReaders = await plane.whoCanReadItem(outsider, unknown, at);
+  expect(readers).toEqual({
+    ...noReaders,
+    target: secret.id,
+    reason: noReaders.reason.replace(unknown, secret.id),
+  });
+  // No trace of the secret's scope or owner at all (review finding E2.13-5).
+  expect(JSON.stringify(readers)).not.toContain("person:s");
+  const scoped = await plane.whoCanRead(outsider, "person:s", at);
+  leaks("whoCanRead", scoped);
+  expect(scoped.answered).toBe(false);
+  // The scope refusal is the one a scope holding nothing gets, but its name (E2.13-5).
+  const empty = await plane.whoCanRead(outsider, "person:z", at);
+  expect(scoped).toEqual({
+    ...empty,
+    target: "person:s",
+    reason: empty.reason.replace("person:z", "person:s"),
+  });
+  expect(plane.events().length, "a who-can-read query appends no event").toBe(asked);
   // simulate replays only the workload it is given, on scratch logs and
   // stores (card E8.9): the outsider's own read of the secret's words finds
   // nothing, and the real log gains no event.

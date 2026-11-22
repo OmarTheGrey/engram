@@ -1,11 +1,13 @@
 // Human-readable output. Everything printed comes from what the Plane returned.
 import type {
+  Actor,
   Explanation,
   MemoryEvent,
   MemoryItem,
   PolicyRun,
   SimReport,
   StepOutcome,
+  WhoCanReadAnswer,
 } from "@engram/core";
 
 const n4 = (x: number) => x.toFixed(4);
@@ -113,5 +115,30 @@ export function simulationLines(report: SimReport): string[] {
       `    ${d.candidate.reason} (${d.candidate.policy_id})`,
     );
   }
+  return lines;
+}
+
+/**
+ * A who-can-read answer (card E2.13): one line per reader entry with the rule
+ * or grant that admits it, then why the item is closed and, for its owner,
+ * the grants that admit nobody now.
+ */
+export function whoCanReadLines(a: WhoCanReadAnswer, actor: Actor): string[] {
+  const lines = [
+    `who can read ${a.target} at ${a.at} as ${actor.id}: ${a.answered ? "answered" : "refused"}`,
+    `  ${a.reason}`,
+  ];
+  if (!a.answered) return lines;
+  if (a.closed) lines.push(`nobody now: ${a.closed.reason} (${a.closed.policy_id})`);
+  else if (a.readers.length === 0)
+    lines.push("nobody: no read matrix row or live grant admits a reader");
+  for (const r of a.readers)
+    lines.push(
+      r.kind === "members"
+        ? `  every member of ${r.scope} reading as ${r.level} (${r.policy_id})`
+        : `  ${r.to} by ${r.grant}, until ${r.grant_detail.expires ?? "no expiry"} (${r.policy_id})`,
+    );
+  for (const d of a.dormant) lines.push(`  dormant ${d.grant}: ${d.reason}`);
+  if (a.grants_shown === "yours") lines.push("grants shown: only those naming you");
   return lines;
 }

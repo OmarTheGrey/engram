@@ -241,6 +241,16 @@ Rules every proposal below keeps, unless its entry says otherwise:
 - **Cost:** zero model calls.
 - **Holm:** adds nothing.
 
+#### P6. Agent Workflow Memory's rule-based induction beside H5 (card D2)
+
+- **Serves:** descriptive, outside Holm, a secondary result of H5. AWM's own paper finds its rule-based induction (Appendix B) as good as its model-based one on WebArena (35.6 against 35.5, Table 5; `docs/readings/litreview/2409.07429-awm.md`). If the same holds here, H5's gain belongs to having procedures at all, not to the model's induction, and the reader should see it.
+- **Design:** H5's design with the induction method varied: procedures induced by the rule-based port (`induceByRule`, `packages/core/src/distill/induce.ts`, a port of `webarena/induce_rule.py` at `8c0ff8cd` of `zorazrw/agent-workflow-memory`: one successful trajectory per instruction, then one per abstract trajectory, each kept whole as one candidate) in place of the model's, admitted by the same replay validation as H5's C5 (card D3) and also admitted unchecked as H5's C2, on H5's tasks, model and seeds. It runs under a preset name of its own in its config, so its cache keys never collide with H5's cells. Card D2 built the method and runs it only on its fixture (`research/configs/d2-induce-fixture.json`); no registered config runs it.
+- **Metric and statistic:** H5's success rate per arm, with H5's paired BCa bootstrap of C5 minus C2 for the rule-based procedures reported as an interval beside H5's, and the difference between the two methods' C5 rates reported with the same interval; no p-value enters Holm.
+- **Seeds:** the induction calls no model, and its deduplication keeps the first trajectory in the config's order, so it runs once per task set; the sessions that replay and use its procedures take H5's seeds 1, 2 and 3, cached on ADR 0017's key.
+- **Stopping rule:** H5's: the airline and retail test splits, three seeds.
+- **Cost:** no induction call. The replay and the task sessions are H5's count again for this arm, counted with `COUNT=1` on its config before any spend.
+- **Holm:** adds nothing.
+
 ### Not scheduled
 
 Candidates no card of the absorb plan's thirty runs, written down so that a later registration has a text to start from. Each would need a card. U6 and U7 are written in full: the plan's entry for card R2 names them among the numbers a reader will want, but neither research plan (R-052 and R-041 of the long list) became a card.
