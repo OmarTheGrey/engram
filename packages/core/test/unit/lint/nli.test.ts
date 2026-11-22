@@ -159,6 +159,23 @@ describe("runNliTier", () => {
     ]);
   });
 
+  test("a backward score above the forward one decides the band (review L7-4)", async () => {
+    // Forward 0.5 is in the band; backward 0.95 crosses the upper, so the pair is flagged.
+    const s = scriptedNliScorer((premise) => probs(premise === a.content ? 0.5 : 0.95));
+    const out = await runNliTier(
+      ctx([a, b]),
+      "team:platform",
+      { score: s.score, model: NLI_MODEL },
+      T,
+    );
+    expect(out.judgments.map((j) => [j.forward.contradiction, j.backward.contradiction])).toEqual([
+      [0.5, 0.95],
+    ]);
+    expect(out.judgments[0]?.band).toBe("flag");
+    expect(out.findings.map((f) => f.item_id)).toEqual([id(2)]);
+    expect(out.band.size).toBe(0);
+  });
+
   test("structured content is sent as canonical JSON", async () => {
     const x = item(4, { content: { b: 1, a: "freeze friday" } as unknown as string });
     const y = item(5, { content: "freeze monday" });
