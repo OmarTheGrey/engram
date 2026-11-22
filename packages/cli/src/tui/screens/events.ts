@@ -325,8 +325,8 @@ export class EventsScreen extends RichScreen {
     const detail = this.detail ? 13 : 4;
     const room = Math.max(1, height - out.length - detail);
     const chosen = this.selectedEvent();
-    const at = chosen === undefined ? 0 : shown.indexOf(chosen);
-    this.start = windowOf(at, shown.length, room, this.start);
+    const at = chosen === undefined ? -1 : shown.indexOf(chosen);
+    this.start = windowOf(Math.max(0, at), shown.length, room, this.start);
     shown.slice(this.start, this.start + room).forEach((e, i) => {
       const mark = this.start + i === at ? ">" : " ";
       const decision = `${t.symbol(statusOf(e.decision))} ${fit(e.decision, 7)}`;
