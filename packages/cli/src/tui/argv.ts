@@ -55,6 +55,23 @@ export function middleCut(text: string, width: number): string {
 }
 
 /**
+ * `text` cut to `width` around `marker`, so the marker stays in sight (the
+ * faulty flag's `<here>`, review M9); a middle cut when it holds no marker.
+ */
+export function cutAround(text: string, width: number, marker: string): string {
+  const at = text.indexOf(marker);
+  if (at < 0 || visibleWidth(text) <= width) return middleCut(text, width);
+  const keep = Math.max(marker.length, width - 6);
+  const start = Math.max(
+    0,
+    Math.min(at - Math.floor((keep - marker.length) / 2), text.length - keep),
+  );
+  const head = start > 0 ? "..." : "";
+  const tail = start + keep < text.length ? "..." : "";
+  return truncateToWidth(`${head}${text.slice(start, start + keep)}${tail}`, width, "");
+}
+
+/**
  * The words of a pasted command line, as a POSIX shell or PowerShell splits
  * simple ones: spaces separate words, single and double quotes group them, a
  * backslash escapes the next character outside single quotes (POSIX only).

@@ -7,6 +7,8 @@
 // command's parse and its `prepare` (./commands.ts), and for a command that
 // is not a plane call, the CLI's checkTime and checkNumber. What the CLI
 // does not check, the form does not check; the plane's answer is the answer.
+
+import { openWorkspace } from "@engram/server";
 import {
   CHECK,
   EVENTS,
@@ -26,6 +28,7 @@ import {
   WHO_CAN_READ,
   WRITE,
 } from "../commands.ts";
+import { serverOf } from "../connect.ts";
 import {
   type CommandSpec,
   type Control,
@@ -280,7 +283,28 @@ export class Form {
       if (plane !== undefined) {
         const { values, positionals } = parse(args, plane.options, plane.allowPositionals);
         const p = plane.prepare(values as never, positionals, io);
-        if (p.session !== null) p.actor();
+        if (p.session !== null) {
+          p.actor();
+          // The workspace's own checks too (a store a write needs, review M13), as
+          // connect would open it, with no log opened and the store read only.
+          if (serverOf(io, p.flags) === undefined) {
+            const opened = openWorkspace({
+              store: p.flags.store,
+              root: p.flags.root,
+              owner: p.flags.owner,
+              importValidFrom: checkTime("--import-valid-from", p.flags["import-valid-from"]),
+              policy: p.flags.policy,
+              db: p.flags.db,
+              requireStore: p.session.requireStore,
+              readOnlyStore: true,
+              cwd: io.cwd,
+              home: io.home,
+              env: io.env,
+              newId: io.newId,
+            });
+            opened.close();
+          }
+        }
       } else {
         const { values } = parse(args, parseOptions(this.spec), this.spec.allowPositionals);
         for (const f of this.fields) {

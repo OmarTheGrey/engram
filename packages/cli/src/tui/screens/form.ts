@@ -229,10 +229,7 @@ export class FormScreen implements Screen {
     if (f.choices !== undefined) {
       const choices = ["", ...f.choices];
       return choices
-        .map(
-          (c) =>
-            `${c === v ? "(o)" : "( )"} ${c === "" ? (f.defaultText === undefined ? "unset" : "default") : c}`,
-        )
+        .map((c) => `${c === v ? "(o)" : "( )"} ${c === "" ? defaultChoice(f) : c}`)
         .join("  ");
     }
     const editor = this.form.editors.get(f.id);
@@ -319,6 +316,14 @@ export function decisionOf(result: RunResult): "allow" | "deny" | "ask" | undefi
   }
   return undefined;
 }
+
+/** A choice's "no flag" entry: its default by its value when that is short. */
+const defaultChoice = (f: Field) =>
+  f.defaultText === undefined
+    ? "unset"
+    : f.defaultText.length <= 16
+      ? `default (${f.defaultText})`
+      : "default";
 
 /** What the exit code means, in the registry entry's words. */
 export const exitMeaning = (spec: CommandSpec, code: number) =>

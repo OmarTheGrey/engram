@@ -6,6 +6,9 @@
 // run through `run` (./runner.ts), asking first where the registry entry's
 // `writes` says the command changes state (9.5); what the plane decided is
 // shown as the command printed it.
+
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
 import {
   type Component,
   KeybindingsManager,
@@ -22,7 +25,7 @@ import type { CheckResult } from "../doctor.ts";
 import { type CommandSpec, parseOptions, type Values, type Writes } from "../registry.ts";
 import type { Io } from "../run.ts";
 import { redactSecrets } from "../setup.ts";
-import { commandLine, detectShell, middleCut, type Shell } from "./argv.ts";
+import { commandLine, cutAround, detectShell, middleCut, type Shell } from "./argv.ts";
 import { type Clipboard, createClipboard } from "./clipboard.ts";
 import { actionFor } from "./keys.ts";
 import { clean, cut, fit, overlay, rows, visibleWidth } from "./layout.ts";
@@ -408,7 +411,12 @@ export class App implements Component, Ctx {
         const out = argv[argv.indexOf("--out") + 1] ?? "";
         return {
           ...base,
-          lines: [`Writes the bundle to ${out}.`, "If the file exists it is overwritten."],
+          lines: [
+            `Writes the bundle to ${out}.`,
+            existsSync(resolve(this.io.cwd, out))
+              ? "The file: it exists and will be overwritten."
+              : "The file: it does not exist yet.",
+          ],
         };
       }
       default:
@@ -653,7 +661,7 @@ export class App implements Component, Ctx {
       row.note === undefined ? "" : `  ${row.note}`,
     ].join("");
     const room = Math.max(10, width - 2 - visibleWidth(tail));
-    return fit(`$ ${middleCut(text, room)}${tail}`, width);
+    return fit(`$ ${cutAround(text, room, "<here>")}${tail}`, width);
   }
 
   private hintsRow(width: number): string {

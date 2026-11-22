@@ -54,7 +54,7 @@
                   "@earendil-works/pi-ai": "AGENTS.md rule 4 and What not to do: packages/core, packages/adapters, packages/tag, packages/kit and packages/ai-sdk never import pi; inject a ModelCall instead.",
                   "@earendil-works/pi-coding-agent": "AGENTS.md rule 4 and What not to do: packages/core, packages/adapters, packages/tag, packages/kit and packages/ai-sdk never import pi; inject a ModelCall instead.",
                   "@earendil-works/pi-durable": "AGENTS.md rule 4 and What not to do: packages/core, packages/adapters, packages/tag, packages/kit and packages/ai-sdk never import pi; inject a ModelCall instead.",
-                  "@earendil-works/pi-tui": "AGENTS.md rule 4 and What not to do: packages/core, packages/adapters, packages/tag, packages/kit and packages/ai-sdk never import pi; inject a ModelCall instead."
+                  "@earendil-works/pi-tui": "AGENTS.md What not to do and ADR 0044: pi-tui is the CLI's terminal library, reached only from packages/cli/src/tui; packages/core, packages/adapters, packages/tag, packages/kit and packages/ai-sdk draw no terminal."
                 },
                 "patterns": [
                   {

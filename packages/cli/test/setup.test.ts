@@ -4,7 +4,7 @@
 // reaches the output, whatever goes wrong.
 import { spawnSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
@@ -348,7 +348,8 @@ describe("packages/cli never imports pi (P3-15)", () => {
     const tui = join(REPO, "packages/cli/src/tui");
     for (const file of files) {
       const text = readFileSync(file, "utf8");
-      if (!file.startsWith(tui)) expect(text, file).not.toMatch(PI_IMPORT);
+      // With the separator, so src/tuizz.ts is not inside src/tui (review M6).
+      if (!file.startsWith(tui + sep)) expect(text, file).not.toMatch(PI_IMPORT);
       else
         for (const m of text.matchAll(new RegExp(`${PI_IMPORT.source}([^"'\`]+)`, "g")))
           expect(`@earendil-works/${m[1]}`, file).toBe("@earendil-works/pi-tui");

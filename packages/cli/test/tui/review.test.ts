@@ -232,7 +232,11 @@ describe("I10: the first loop shows each step's whole output", () => {
   it("scrolls to every line of the read and the explain, and alt+v opens a step's full result", async () => {
     const cwd = await tempDir();
     const root = await fixtureCopy();
-    const h = await startHarness({ cwd, home: cwd, given: { db: "engram.db", root, owner: "dana" } });
+    const h = await startHarness({
+      cwd,
+      home: cwd,
+      given: { db: "engram.db", root, owner: "dana" },
+    });
     h.app.replace(new LoopScreen());
     await h.press("\r", "\r", "\r"); // write, read, explain
     expect(h.ran().map((a) => a[0])).toEqual(["write", "read", "explain"]);
@@ -267,7 +271,8 @@ describe("the minor findings", () => {
     const files = readdirSync(src, { recursive: true }).filter((f) => String(f).endsWith(".ts"));
     for (const f of files) {
       const text = readFileSync(join(src, String(f)), "utf8");
-      for (const preset of ["strict", "medium", "permissive"]) expect(text, String(f)).not.toContain(`"${preset}"`);
+      for (const preset of ["strict", "medium", "permissive"])
+        expect(text, String(f)).not.toContain(`"${preset}"`);
     }
   });
 
@@ -276,7 +281,9 @@ describe("the minor findings", () => {
   });
 
   it("M3: with no known background, status symbols are bold and uncoloured, not the terminal's indexed colours", async () => {
-    expect(paletteFor({ noColor: false, highContrast: false, ascii: false }, {}, undefined)).toBe("unknown");
+    expect(paletteFor({ noColor: false, highContrast: false, ascii: false }, {}, undefined)).toBe(
+      "unknown",
+    );
     const h = await usable({ env: {}, given: {} });
     const tick = (await h.cells()).find((c) => c.char === "✓");
     expect(tick?.fg).toBe("default");
@@ -357,7 +364,10 @@ describe("the minor findings", () => {
       asked.push(new URL(r.url).pathname);
       return new Response(JSON.stringify({ ok: true }), { status: 200 });
     };
-    const h = await usable({ given: { owner: "dana", server: "http://127.0.0.1:7313" }, fetch: up });
+    const h = await usable({
+      given: { owner: "dana", server: "http://127.0.0.1:7313" },
+      fetch: up,
+    });
     await h.frame();
     expect(asked).toContain("/api/v1/health");
     expect((await h.frame())[0]).toContain("server 127.0.0.1:7313");
@@ -365,7 +375,10 @@ describe("the minor findings", () => {
     const down = async () => {
       throw new Error("connect ECONNREFUSED");
     };
-    const d = await usable({ given: { owner: "dana", server: "http://127.0.0.1:7313" }, fetch: down });
+    const d = await usable({
+      given: { owner: "dana", server: "http://127.0.0.1:7313" },
+      fetch: down,
+    });
     await new Promise((r) => setTimeout(r, 50));
     expect((await d.frame())[0]).toContain("server unreachable");
     await d.press("\x0f", CTRL_S);
