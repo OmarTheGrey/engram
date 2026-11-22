@@ -16,6 +16,7 @@ import {
   explainTarget,
   filterEvents,
   filterOptions,
+  findInReasons,
   NO_FILTER,
   scopeText,
   type TimelineFilter,
@@ -121,9 +122,9 @@ export class EventsScreen extends RichScreen {
 
   /** The events the filters keep, then those whose reason holds the text found. */
   shown(): MemoryEvent[] {
-    const find = (this.extras.get("find")?.value ?? "").trim().toLowerCase();
-    return filterEvents(this.events(), this.filter).filter(
-      (e) => find === "" || e.reason.toLowerCase().includes(find),
+    return findInReasons(
+      filterEvents(this.events(), this.filter),
+      this.extras.get("find")?.value ?? "",
     );
   }
 

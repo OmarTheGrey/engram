@@ -227,7 +227,9 @@ export class WriteScreen extends RichScreen {
         return true;
       case "open-policy": {
         const p = this.previewAnswer();
-        ctx.push(new PolicyScreen(command("policy") as CommandSpec, ctx, {}, [], p?.policy_id));
+        // The id as the check returned it, shown verbatim: nothing is read into it (8.7).
+        const shown = p === undefined ? undefined : oneLine(p.policy_id);
+        ctx.push(new PolicyScreen(command("policy") as CommandSpec, ctx, {}, [], shown));
         return true;
       }
       case "submit":

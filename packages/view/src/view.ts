@@ -304,6 +304,18 @@ export function filterEvents(
 }
 
 /**
+ * The visible events whose reason holds `text`, ignoring case, in log order:
+ * the timeline's find, a person's search over what the events say (card
+ * E8.15c), never a decision drawn from a reason.
+ */
+export function findInReasons(events: readonly MemoryEvent[], text: string): MemoryEvent[] {
+  const wanted = text.trim().toLowerCase();
+  return wanted === ""
+    ? [...events]
+    : events.filter((e) => e.reason.toLowerCase().includes(wanted));
+}
+
+/**
  * The selection after a change of viewer: the new viewer's copy of the event
  * when its timeline holds it (that copy may withhold the item the previous
  * viewer's copy carried), else the selected read itself (another actor's read
