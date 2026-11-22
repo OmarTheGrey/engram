@@ -44,6 +44,23 @@ describe("I1: a Postgres log is checked off the input path", () => {
     expect(Date.now() - quit).toBeLessThan(500);
   });
 
+  it("opens first run on the log's question when the start's Postgres check comes back refused", async () => {
+    const cwd = await tempDir();
+    const h = await startHarness({
+      cwd,
+      home: cwd,
+      given: { db: PG, owner: "dana" },
+      logCheck: () =>
+        new Promise((r) => setTimeout(() => r(["fail", "postgres 127.0.0.1:1: connect ECONNREFUSED"]), 100)),
+    });
+    expect(h.screen()).toBe("home");
+    await new Promise((r) => setTimeout(r, 250));
+    expect(h.screen()).toBe("first-run");
+    expect(h.focused()).toBe("log");
+    expect(await h.text()).toContain("ECONNREFUSED");
+    await h.quit();
+  });
+
   it("checks a Postgres URL typed in first run once, when its question is left, not per key", async () => {
     let calls = 0;
     const check = async () => {
@@ -128,7 +145,8 @@ describe("I4: secrets are not shown, while c copies the whole command", () => {
       cwd,
       home: cwd,
       given: { owner: "dana", db: PG },
-      logCheck: async () => ["fail", "postgres: connection refused"],
+      // The log answers, so the TUI stays on Home: the subject here is redaction.
+      logCheck: async () => ["ok", "postgres: opens; up to date"],
     });
     expect(h.screen()).toBe("home");
     expect(await h.text()).not.toContain("hunter2secret");

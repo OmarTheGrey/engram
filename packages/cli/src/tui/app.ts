@@ -210,6 +210,8 @@ export class App implements Component, Ctx {
       this.finish = resolve;
     });
     this.stack = this.initialStack(o.options.screen);
+    if (this.checks.pendingLog && o.options.screen === undefined && this.stack[0]?.kind === "home")
+      this.startedOnHome = this.stack[0];
     if (this.savedProblem !== undefined) this.message = this.savedProblem;
     else if (this.savedInUse) this.message = "workspace saved: tui.json applied; ctrl+o changes it";
   }
@@ -332,9 +334,22 @@ export class App implements Component, Ctx {
       if (generation !== this.logGeneration || this.stopped) return;
       this.checks.log = { status, detail };
       delete this.checks.pendingLog;
+      // The start chose Home before the log answered; a refused log means first
+      // run after all, at the log's question (8.2), while the person is still there.
+      const home = this.startedOnHome;
+      this.startedOnHome = undefined;
+      if (
+        status === "fail" &&
+        home !== undefined &&
+        this.stack.length === 1 &&
+        this.stack[0] === home
+      )
+        this.stack = [new FirstRunScreen(this)];
       this.redraw();
     });
   }
+  /** Home, when the start chose it while a Postgres log was still being checked. */
+  private startedOnHome: Screen | undefined;
   /** tui.json's options: the panel's toggles change them, a session's flags never do (review M11). */
   savedOptions: SavedOptions;
 
