@@ -14,6 +14,7 @@ import { strictContentHash } from "../../../src/content-hash.ts";
 import { migrate } from "../../../src/db/migrate.ts";
 import { openSqlite } from "../../../src/db/sqlite.ts";
 import {
+  REPLAY_SEEDS,
   REPLAY_THRESHOLD,
   type ReplayEvidence,
   replayDigest,
@@ -69,12 +70,14 @@ const replay = (
   content_hash: strictContentHash(CONTENT),
   induced_from: ["t1", "t2"],
   threshold: REPLAY_THRESHOLD,
-  outcomes: ["t3", "t4", "t5", "t6", "t7"].map((task, i) => ({
-    task,
-    seed: 1,
-    without: i < base ? 1 : 0,
-    with: i < passes ? 1 : 0,
-  })),
+  outcomes: ["t3", "t4", "t5", "t6", "t7"].flatMap((task, i) =>
+    REPLAY_SEEDS.map((seed) => ({
+      task,
+      seed,
+      without: i < base ? 1 : 0,
+      with: i < passes ? 1 : 0,
+    })),
+  ),
   ...over,
 });
 
@@ -142,12 +145,9 @@ describe("acceptance (card D3): replay admission through Plane.promote", () => {
     const { plane, db } = await withCandidate("distill:rule:s1");
     const hidden = replay(5, 0, {
       induced_from: [],
-      outcomes: ["t1", "t3", "t4", "t5", "t6"].map((task) => ({
-        task,
-        seed: 1,
-        without: 0,
-        with: 1,
-      })),
+      outcomes: ["t1", "t3", "t4", "t5", "t6"].flatMap((task) =>
+        REPLAY_SEEDS.map((seed) => ({ task, seed, without: 0, with: 1 })),
+      ),
     });
     const result = await plane.promote(omar, id(1), "person:omar", AT, { replay: hidden });
     expect(result.event.policy_id).toBe(PROMOTE_REPLAY_SPLIT_ID);
@@ -158,7 +158,7 @@ describe("acceptance (card D3): replay admission through Plane.promote", () => {
     const { plane, db } = await withCandidate();
     const five = replay(5, 0);
     const result = await plane.promote(omar, id(1), "person:omar", AT, {
-      replay: { ...five, outcomes: five.outcomes.slice(0, 4) },
+      replay: { ...five, outcomes: five.outcomes.filter((o) => o.task !== "t7") },
     });
     expect(result.event.policy_id).toBe(PROMOTE_REPLAY_SPLIT_ID);
     expect(result.event.reason).toContain("replay_n is 5");
@@ -173,6 +173,24 @@ describe("acceptance (card D3): replay admission through Plane.promote", () => {
     ).rejects.toThrow("registered 2/3");
     expect(plane.events().length).toBe(before);
   });
+
+  test.each([
+    ["one seed", (seed: number) => (seed === 1 ? [1] : [])],
+    ["seeds 4, 7 and 9", (seed: number) => [seed === 1 ? 4 : seed === 2 ? 7 : 9]],
+  ])(
+    "a replay on %s is refused before the log: the registered seeds are 1, 2, 3 (D3-13)",
+    async (_, to) => {
+      const { plane, db } = await withCandidate();
+      const before = plane.events().length;
+      const five = replay(5, 0);
+      const outcomes = five.outcomes.flatMap((o) => to(o.seed).map((seed) => ({ ...o, seed })));
+      await expect(
+        plane.promote(omar, id(1), "person:omar", AT, { replay: { ...five, outcomes } }),
+      ).rejects.toThrow("not the registered seeds 1, 2, 3");
+      expect(plane.events().length).toBe(before);
+      expect(itemById(db, id(1))?.status).toBe("candidate");
+    },
+  );
 
   test("a replay presented for another item is refused", async () => {
     const { plane, db } = await withCandidate();

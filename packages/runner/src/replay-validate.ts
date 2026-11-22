@@ -104,7 +104,10 @@ export const ReplayConfig = z.strictObject({
   data: z.string(),
   /** `scripted/<id>`; its misses are answered from `script` only while recording. */
   model: z.string().regex(/^scripted\/\S+$/, "a pipeline config runs a scripted model"),
-  seeds: z.array(z.number().int()).min(1).refine(unique, "seeds must be unique"),
+  /** Exactly the registered seeds, core's REPLAY_SEEDS (the lead's reading of "3 seeds", D3-13). */
+  seeds: z
+    .array(z.number().int())
+    .refine((s) => s.join() === "1,2,3", "seeds must be exactly the registered [1, 2, 3]"),
   /** The policy the admission is judged under: its replay_k of replay_n. */
   preset: z.enum(["strict", "medium", "permissive"]),
   /**

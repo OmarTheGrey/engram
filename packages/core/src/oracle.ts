@@ -33,7 +33,8 @@
 // match, not a reading to re-derive); its induction tasks are exactly the
 // tasks of the source's distill ref, by the session index the plane was
 // given, and none is replayed; it is presented by a user-sourced actor; it
-// names the registered threshold 2/3 and exactly replay_n held-out tasks; and
+// names the registered threshold 2/3, the registered seeds 1, 2 and 3, and
+// exactly replay_n held-out tasks; and
 // its own count (a task passes when its rewards with the candidate sum to at
 // least two thirds of its runs and to no less than its rewards without it,
 // the lead's answers of 2026-11-22) meets replay_k.
@@ -516,7 +517,8 @@ export function replayAdmits(
     baseSums.set(o.task, (baseSums.get(o.task) ?? 0) + o.without);
   }
   const seedSets = [...runs.values()].map((x) => [...x].sort((a, b) => a - b).join(","));
-  if (seedSets.length === 0 || seedSets.some((x) => x !== seedSets[0])) return false;
+  // Every task on exactly the registered seeds 1, 2 and 3 (D3-13).
+  if (seedSets.length === 0 || seedSets.some((x) => x !== "1,2,3")) return false;
   let k = 0;
   for (const [task, seeds] of runs) {
     const sum = sums.get(task) as number;

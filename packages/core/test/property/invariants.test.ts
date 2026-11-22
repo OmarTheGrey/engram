@@ -111,6 +111,7 @@ import {
   adoptStoreItems,
   createPlane,
   ExplainDeniedError,
+  InvalidCallError,
   NotImplementedYet,
   offboard,
   type Plane,
@@ -1710,9 +1711,10 @@ const arbReplayCase = fc.record({
   // Tasks passing without the candidate, and whether the candidate's tasks
   // miss their third seed (2/3: at the threshold, below a baseline of 1).
   baseWins: fc.constantFrom(0, 0, 0, 2, 5, 5),
-  dip: fc.constantFrom(false, false, true),
+  dip: fc.constantFrom(false, true),
   agent: fc.constantFrom(false, false, false, true),
-  seeds: fc.constantFrom([1], [1, 2, 3], [1, 2, 3]),
+  // Not the registered seeds 1, 2, 3 one time in four: refused before the log (D3-13).
+  seeds: fc.constantFrom([1], [1, 2, 3], [1, 2, 3], [1, 2, 3]),
   sameScope: fc.constantFrom(true, true, false),
 });
 
@@ -1868,6 +1870,7 @@ async function promotionsLandOnlyWherePermitted(name: string) {
     refOnly: 0,
     short: 0,
     noWorseOnly: 0,
+    seeds: 0,
   };
   await fc.assert(
     fc.asyncProperty(
@@ -2096,6 +2099,17 @@ async function promotionsLandOnlyWherePermitted(name: string) {
             }
           : undefined;
         const logLength = plane.events().length;
+        // A replay not on the registered seeds 1, 2, 3 is an invalid call:
+        // refused before the log is touched, and nothing changes (D3-13).
+        if (presented && rc.seeds.join() !== "1,2,3") {
+          await expect(
+            plane.promote(actor, P_SOURCE_ID, target, when, { replay: presented }),
+          ).rejects.toThrow(InvalidCallError);
+          expect(plane.events().length).toBe(logLength);
+          expect(currentItems(db)).toEqual(before);
+          replaySeen.seeds++;
+          return;
+        }
         const result = await plane.promote(actor, P_SOURCE_ID, target, when, {
           review: promoter.review,
           ...(presented ? { replay: presented } : {}),
@@ -2244,7 +2258,7 @@ async function promotionsLandOnlyWherePermitted(name: string) {
   );
   expect(
     Object.values(replaySeen).every((n) => n > 0),
-    `invariant 2 over promotions needs replay admissions and refusals by the presenter's source, another item's replay, a split that is not the ref's, one only the ref's tasks refuse, too few passes, and one only the no-worse rule refuses; it saw ${JSON.stringify(replaySeen)}`,
+    `invariant 2 over promotions needs replay admissions and refusals by the presenter's source, another item's replay, a split that is not the ref's, one only the ref's tasks refuse, too few passes, one only the no-worse rule refuses, and a replay off the registered seeds; it saw ${JSON.stringify(replaySeen)}`,
   ).toBe(true);
   expect(
     Object.values(seen).every((n) => n > 0),

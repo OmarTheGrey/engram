@@ -50,6 +50,13 @@ import { parseDistillRef } from "./induce.ts";
 /** The registered threshold (lead's answer to D3-2, 2026-11-22): a mean reward of at least 2/3. */
 export const REPLAY_THRESHOLD = 2 / 3;
 
+/**
+ * The registered seeds (the lead's reading of "3 seeds", 2026-11-22, review
+ * finding D3-13): every held-out task runs on exactly seeds 1, 2 and 3, so a
+ * caller can neither replay on one seed nor pick its seeds.
+ */
+export const REPLAY_SEEDS: readonly number[] = [1, 2, 3];
+
 /** One held-out task run under one seed, without and with the candidate installed. */
 export interface ReplayOutcome {
   /** The held-out task's id. */
@@ -132,6 +139,8 @@ export function replayProblem(e: ReplayEvidence): string | null {
   const other = rest.find(([, s]) => s !== first?.[1]);
   if (first && other)
     return `task ${first[0]} ran on seeds ${first[1]} and task ${other[0]} on seeds ${other[1]}; every held-out task runs on the same seeds`;
+  if (first && first[1] !== REPLAY_SEEDS.join(", "))
+    return `the replay ran seeds ${first[1]}, not the registered seeds ${REPLAY_SEEDS.join(", ")}`;
   return null;
 }
 

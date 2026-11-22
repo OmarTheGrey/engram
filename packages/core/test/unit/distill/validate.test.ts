@@ -12,6 +12,7 @@ import {
   admission,
   bindingProblem,
   heldOutTasks,
+  REPLAY_SEEDS,
   REPLAY_THRESHOLD,
   type ReplayEvidence,
   type ReplayOutcome,
@@ -55,7 +56,9 @@ function evidence(passes: number, base = 0, over: Partial<ReplayEvidence> = {}):
     content_hash: strictContentHash(CONTENT),
     induced_from: ["t1", "t2"],
     threshold: REPLAY_THRESHOLD,
-    outcomes: tasks.map((t, i) => run(t, i < base ? 1 : 0, i < passes ? 1 : 0)),
+    outcomes: tasks.flatMap((t, i) =>
+      REPLAY_SEEDS.map((seed) => run(t, i < base ? 1 : 0, i < passes ? 1 : 0, seed)),
+    ),
     ...over,
   };
 }
@@ -123,8 +126,26 @@ describe("replayProblem: what makes a replay unusable", () => {
 
   test("tasks run on different seeds are refused", () => {
     const uneven = evidence(4);
-    const outcomes = [...uneven.outcomes, run("t3", 0, 1, 2)];
+    const outcomes = [...uneven.outcomes, run("t3", 0, 1, 4)];
     expect(replayProblem({ ...uneven, outcomes })).toContain("seeds");
+  });
+
+  test("a replay on one seed is refused: the registered seeds are 1, 2 and 3 (D3-13)", () => {
+    const one = evidence(5);
+    const outcomes = one.outcomes.filter((o) => o.seed === 1);
+    expect(replayProblem({ ...one, outcomes })).toContain(
+      "seeds 1, not the registered seeds 1, 2, 3",
+    );
+  });
+
+  test("a replay on seeds the caller picked is refused, three of them or not (D3-13)", () => {
+    const picked = evidence(5);
+    const remap: Record<number, number> = { 1: 4, 2: 7, 3: 9 };
+    const outcomes = picked.outcomes.map((o) => ({ ...o, seed: remap[o.seed] as number }));
+    expect(replayProblem({ ...picked, outcomes })).toContain(
+      "seeds 4, 7, 9, not the registered seeds 1, 2, 3",
+    );
+    expect(REPLAY_SEEDS).toEqual([1, 2, 3]);
   });
 });
 
@@ -190,12 +211,15 @@ describe("admission: the policy's replay_k of replay_n decides", () => {
 
   test("a replay of other than replay_n held-out tasks is refused, all passing or not (D3-1)", () => {
     const four = evidence(5);
-    const short = { ...four, outcomes: four.outcomes.slice(0, 4) };
+    const short = { ...four, outcomes: four.outcomes.filter((o) => o.task !== "t7") };
     expect(sizeProblem(POLICY, short)).toContain(
       "4 held-out tasks, and the policy's replay_n is 5",
     );
     expect(admission(POLICY, short)).toMatchObject({ decision: "refuse", record: { k: 4, n: 4 } });
-    const six = { ...four, outcomes: [...four.outcomes, run("t8", 0, 1)] };
+    const six = {
+      ...four,
+      outcomes: [...four.outcomes, ...REPLAY_SEEDS.map((seed) => run("t8", 0, 1, seed))],
+    };
     expect(sizeProblem(POLICY, six)).toContain("6 held-out tasks");
     expect(admission(POLICY, six).decision).toBe("refuse");
     expect(sizeProblem(POLICY, evidence(5))).toBeNull();
