@@ -38,7 +38,8 @@ import type { PlaneDeps, WriteCheckResult, WriteResult } from "../plane.ts";
 import { evaluateWrite, SCHEMA_ID, STORE_FAILURE_ID, sameGrant } from "../policy/evaluate.ts";
 import { leastTrusted } from "../policy/promotion.ts";
 import { ITEM_TTL_ID } from "../policy/retention.ts";
-import { Id, MemoryItem, Scope } from "../schema.ts";
+import { unattestedFloor } from "../policy/trust.ts";
+import { Id, MemoryItem, type Policy, Scope } from "../schema.ts";
 import {
   type Basis,
   canonical,
@@ -57,7 +58,7 @@ import {
   WRITE_CONFLICT_ID,
 } from "./commit.ts";
 import { inWriteQueue } from "./queue.ts";
-import { enforceBudget } from "./retention.ts";
+import { budgetRefusal, enforceBudget } from "./retention.ts";
 
 export { checkCall, WRITE_CONFLICT_ID };
 /** The rule of a write refused because its id belongs to an item an offboarding erased (card E2.6). */
@@ -124,10 +125,23 @@ export function retiredContent(db: Db, scope: string): Map<string, string> {
 /**
  * The item with the provenance the plane sets (decision D4, ADR 0004): with
  * a harness-set source, its kind and the writing actor replace what the
- * caller claimed; without one, the caller's provenance stands.
+ * caller claimed; without one, the caller's provenance stands, unless the
+ * policy's trust.unattested_floor is on (card E2.11, ADR 0040): then the
+ * item is recorded at the least trusted kind, as the actor's, before the
+ * gate, a promotion's confirmations or the retired-content rule read it.
  */
-export function withPlaneProvenance(actor: Actor, item: MemoryItem): [MemoryItem, string] {
-  if (!actor.source) return [item, "provenance as claimed by the caller"];
+export function withPlaneProvenance(
+  actor: Actor,
+  item: MemoryItem,
+  policy?: Policy,
+): [MemoryItem, string] {
+  if (!actor.source)
+    return (
+      (policy && unattestedFloor(policy, actor, item)) ?? [
+        item,
+        "provenance as claimed by the caller",
+      ]
+    );
   const provenance = { ...item.provenance, kind: actor.source, actor: actor.id };
   return [
     { ...item, provenance } as MemoryItem,
@@ -377,7 +391,7 @@ function decideWrite(
   // provenance from its harness-set source.
   const [item, provenanceNote] = adopting
     ? adoptedItem(actor, parsed.data, existing, sameContent(parsed.data))
-    : withPlaneProvenance(actor, parsed.data);
+    : withPlaneProvenance(actor, parsed.data, deps.policy);
   const decision = evaluateWrite(
     deps.policy,
     actor,
@@ -387,7 +401,11 @@ function decideWrite(
     at,
   );
   if (decision.decision === "allow") {
-    const refused = planeRefusal(deps.db, actor, item, existing, adopting);
+    // A landing that trust.protect_trusted keeps from evicting a more trusted
+    // item is refused too (card E2.11; plane/retention.ts budgetRefusal).
+    const refused =
+      planeRefusal(deps.db, actor, item, existing, adopting) ??
+      budgetRefusal(deps, actor, item, decision.status ?? item.status, at);
     if (refused) return { kind: "refused", item, ...refused, provenanceNote };
   }
   const scopes = [...new Set([item.scope, ...(existing ? [existing.scope] : [])])];
@@ -539,6 +557,9 @@ async function decideAndWrite(
           stale: `its lineage names item ${ancestor}, which an offboarding took out after the decision`,
           policy_id: WRITE_ERASED_ID,
         };
+      // Another handle may have filled the scope since the decision.
+      const roomless = budgetRefusal(deps, actor, toStore, toStore.status, at);
+      if (roomless) return { stale: roomless.reason, policy_id: roomless.policy_id };
       const problem = refProblem(deps, item, ref, false);
       if (problem) throw new Error(problem);
       const stored = { ...toStore, store_ref: ref };
