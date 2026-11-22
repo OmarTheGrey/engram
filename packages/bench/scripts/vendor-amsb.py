@@ -19,7 +19,9 @@ assembles both.
         --upstream .engram/upstream/amsb --fetch --out fixtures/bench/amsb
 
 --fetch downloads scenarios.py and LICENSE.md at the pinned commit into
---upstream when missing (HTTPS, data only; never a model). The output records
+--upstream when missing (HTTPS, data only; never a model), and refuses a
+download, or a file fetched before, whose sha256 differs from the hash the
+vendored scenarios.json in --out records. The output records
 the sha256 of both, and the script fails unless the corpus holds 21 scenarios,
 15 attacks and 6 benign controls, the counts card R2 read at the commit.
 """
@@ -32,6 +34,7 @@ import hashlib
 import json
 import os
 import urllib.request
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
 
@@ -43,15 +46,48 @@ RAW = f"https://raw.githubusercontent.com/OWASP/www-project-agent-memory-guard/{
 EXPECTED = {"total": 21, "malicious": 15, "benign": 6}
 
 
-def fetch(upstream: Path) -> None:
+def download_raw(path: str) -> bytes:
+    """One upstream file at the pinned commit, over HTTPS."""
+    with urllib.request.urlopen(f"{RAW}/{path}") as response:
+        return bytes(response.read())
+
+
+def expected_hashes(out: Path) -> dict[str, str] | None:
+    """The upstream hashes the corpus vendored in `out` records; None before one exists."""
+    vendored = out / "scenarios.json"
+    if not vendored.exists():
+        return None
+    hashes = json.loads(vendored.read_text(encoding="utf-8"))["source"]["upstream_sha256"]
+    return {str(k): str(v) for k, v in hashes.items()}
+
+
+def fetch(
+    upstream: Path,
+    expected: Mapping[str, str] | None,
+    download: Callable[[str], bytes] = download_raw,
+) -> None:
+    """Fetches each missing file; once vendored, every file must match its recorded hash.
+
+    A download, or a file fetched earlier, whose sha256 differs from the hash
+    the vendored scenarios.json records is refused, and a refused download is
+    never written (review finding X14-4): the commit is pinned, so a
+    difference is a changed file, not a new version to take.
+    """
+
+    def check(path: str, body: bytes) -> None:
+        want = None if expected is None else expected.get(path)
+        if want is not None and hashlib.sha256(body).hexdigest() != want:
+            raise ValueError(f"{path}: sha256 differs from the vendored hash {want}")
+
     for path in (SCENARIOS, LICENSE):
         target = upstream / Path(path).name
         if target.exists():
+            check(path, target.read_bytes())
             continue
         if os.environ.get("ENGRAM_OFFLINE") == "1":
             raise RuntimeError(f"{target} is missing and ENGRAM_OFFLINE=1 forbids the fetch")
-        with urllib.request.urlopen(f"{RAW}/{path}") as response:
-            body = response.read()
+        body = download(path)
+        check(path, body)
         upstream.mkdir(parents=True, exist_ok=True)
         target.write_bytes(body)
 
@@ -237,7 +273,7 @@ def main() -> int:
     parser.add_argument("--fetch", action="store_true")
     args = parser.parse_args()
     if args.fetch:
-        fetch(args.upstream)
+        fetch(args.upstream, expected_hashes(args.out))
     data = vendor(args.upstream)
     args.out.mkdir(parents=True, exist_ok=True)
     with (args.out / "scenarios.json").open("w", encoding="utf-8", newline="\n") as f:
