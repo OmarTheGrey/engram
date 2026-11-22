@@ -3,8 +3,16 @@
 // constant seed with node:crypto, so checkpoints are signed without drawing
 // randomness. Test-only: core takes the keeper and the signer injected.
 import { createHash, createPrivateKey, createPublicKey, sign, verify } from "node:crypto";
-import type { ChainKeeper } from "../../src/log/chain.ts";
+import type { Db } from "../../src/db/db.ts";
+import {
+  type ChainKeeper,
+  chainLink,
+  eventRecord,
+  leafHash,
+  readHead,
+} from "../../src/log/chain.ts";
 import type { CheckpointSigner, SignatureCheck } from "../../src/log/verify.ts";
+import type { MemoryEvent } from "../../src/schema.ts";
 
 /** Salts from a counter under `seed`: deterministic, distinct, 32 bytes each. */
 export function seededKeeper(seed: number): ChainKeeper {
@@ -47,3 +55,57 @@ export const ed25519Check: SignatureCheck = (message, signature, key) => {
     return false;
   }
 };
+
+// What a tamperer with database access and the code, but no key, can do
+// (the review fix pass's attacks, E1.6-2 to E1.6-5).
+
+/** An event's body as stored. */
+export const bodyAt = (db: Db, seq: number) =>
+  JSON.parse(
+    String(db.prepare("SELECT body FROM events WHERE seq = ?").get(seq)?.body),
+  ) as MemoryEvent;
+
+/** Replaces an event's body in place. */
+export const setBodyAt = (db: Db, seq: number, event: MemoryEvent) =>
+  db.prepare("UPDATE events SET body = ? WHERE seq = ?").run(JSON.stringify(event), seq);
+
+/** Appends a chain entry as the writer does, head row and all. */
+export function forgeAppend(
+  db: Db,
+  kind: string,
+  seq: number | null,
+  data: string,
+  record: string,
+) {
+  const head = readHead(db) as { size: number; hash: string; seq: number };
+  const hash = chainLink(head.hash, leafHash(record));
+  db.prepare("INSERT INTO chain (pos, kind, seq, data, hash) VALUES (?, ?, ?, ?, ?)").run(
+    head.size,
+    kind,
+    seq,
+    data,
+    hash,
+  );
+  db.prepare("UPDATE chain_head SET size = ?, hash = ?, seq = ? WHERE id = 0").run(
+    head.size + 1,
+    hash,
+    seq ?? head.seq,
+  );
+}
+
+/** Recomputes every chain hash from position `from` on, and the head's hash. */
+export function rehash(db: Db, from: number) {
+  const rows = db.prepare("SELECT pos, kind, seq, data FROM chain ORDER BY pos").all();
+  let prev = String(db.prepare("SELECT hash FROM chain WHERE pos = ?").get(from - 1)?.hash);
+  for (const r of rows) {
+    const pos = Number(r.pos);
+    if (pos < from) continue;
+    const record =
+      r.kind === "event"
+        ? eventRecord(bodyAt(db, Number(r.seq)), JSON.parse(String(r.data)))
+        : String(r.data);
+    prev = chainLink(prev, leafHash(record));
+    db.prepare("UPDATE chain SET hash = ? WHERE pos = ?").run(prev, pos);
+  }
+  db.prepare("UPDATE chain_head SET hash = ? WHERE id = 0").run(prev);
+}

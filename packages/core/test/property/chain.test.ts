@@ -4,35 +4,56 @@
 // among them (writes by Dana and Lee in Dana's person scope, their shared
 // role and a team, items citing each other by provenance ref, rewrites,
 // reads, lints, an offboarding of Dana handing the role to Lee, and writes
-// after it), the log verifies, an erasure included, and then each of these,
-// injected one at a time and rolled back, is detected:
-//
-//   an edit of an event's body, a deleted event, two events reordered (their
-//   bodies swapped, each rewritten to its new seq and columns), a truncated
-//   tail (events, links and salts gone, the head left), the same with the
-//   head rewritten to match, against a signed checkpoint the operator holds,
-//   a rewritten reason, an edited lint evidence, an edited item field (the
-//   owner), edited content, and a forged redaction (a part blanked and its
-//   salt deleted, with no manifest naming it).
+// after it), the log verifies, an erasure included (UNSIGNED, then OK under
+// a signed checkpoint and the pinned key), and then each tamper in TAMPERS,
+// injected one at a time and rolled back, is caught by the check it names
+// (review fix pass, E1.6-5): edits, deletions, reorders and truncations of
+// the log; rewritten reasons, owners, content and lint evidence; forged
+// redactions, manifests, salts, commitments recomputed from the stored salt,
+// columns edited alone; and forged genesis, head and checkpoint rows. Each
+// tamper works with database access and the code but not the operator's key.
 //
 // Guards require the runs to reach an erasure that redacted an item event
-// and a lint event about an item the offboarding did not erase, so the
-// property cannot pass vacuously. A failure prints the seed and the case.
+// and a lint event about an item the offboarding did not erase, and every
+// tamper, so the property cannot pass vacuously. A failure prints the seed
+// and the case.
 import { createFakeAdapter } from "@engram/adapters";
 import fc from "fast-check";
 import { describe, expect, test } from "vitest";
 import type { Actor } from "../../src/actor.ts";
 import type { Db } from "../../src/db/db.ts";
 import { migrate } from "../../src/db/migrate.ts";
-import { allEvents } from "../../src/events.ts";
-import { keepChain } from "../../src/log/chain.ts";
+import { allEvents, appendEvent, ERASURE_ID } from "../../src/events.ts";
+import {
+  CHAIN_SEED,
+  chainCanonical,
+  chainLink,
+  commitments,
+  type Genesis,
+  keepChain,
+  leafHash,
+  readHead,
+} from "../../src/log/chain.ts";
 import { REDACTED, redacted, redactedLintReason } from "../../src/log/redact.ts";
-import { type ChainReport, parseNote, verifyChain, writeCheckpoint } from "../../src/log/verify.ts";
+import {
+  type ChainReport,
+  checkpointNote,
+  parseNote,
+  verifyChain,
+  writeCheckpoint,
+} from "../../src/log/verify.ts";
 import { createPlane, offboard } from "../../src/plane.ts";
 import type { MemoryEvent, MemoryItem } from "../../src/schema.ts";
 import { forEachBackend } from "../db/backends.ts";
 import { seedFor } from "../generators.ts";
-import { ed25519Check, fixedSigner, seededKeeper } from "../helpers/chain.ts";
+import {
+  ed25519Check,
+  fixedSigner,
+  forgeAppend,
+  rehash,
+  seededKeeper,
+  setBodyAt,
+} from "../helpers/chain.ts";
 import { AT, id, item, testPolicy } from "../unit/plane/helpers.ts";
 
 const LATER = "2026-10-26T12:00:00Z";
@@ -150,6 +171,33 @@ async function run(db: Db, c: Case, seen: Seen) {
       await plane.lint(op.scope === "person:lee" ? LEE : DANA, at, op.scope);
     }
   };
+  // Every run holds the case the card names: a lint event about an item the
+  // offboarding does not erase, whose evidence names one it does. Lee's team
+  // note cites Dana's person note, which she then changes, so the
+  // source-changed lint flags Lee's note naming hers.
+  const source = item(900, { scope: "person:dana", owner: DANA.id, content: "a source" });
+  await plane.write(DANA, source, AT);
+  await plane.write(
+    LEE,
+    item(901, {
+      scope: "team:core",
+      owner: LEE.id,
+      content: "cites the source",
+      provenance: {
+        kind: "user",
+        ref: source.id,
+        hash: `sha256:${"cd".repeat(32)}`,
+        actor: LEE.id,
+      },
+    }),
+    AT,
+  );
+  await plane.write(
+    DANA,
+    { ...source, content: "the source, changed", version: 2 } as MemoryItem,
+    AT,
+  );
+  await plane.lint(DANA, AT, "team:core");
   for (const op of c.before) await apply(op, AT, new Set());
   const before = allEvents(db);
   const report = await offboard(deps, DANA, LEAVE, LATER);
@@ -180,7 +228,7 @@ async function run(db: Db, c: Case, seen: Seen) {
   seen.runs++;
 
   const tampers = tamperings(db, c, held);
-  for (const [name, tamper] of tampers) {
+  for (const [name, expected, tamper] of tampers) {
     const outcome = attempt(db, () => {
       tamper();
       return verifyChain(db, {
@@ -191,7 +239,10 @@ async function run(db: Db, c: Case, seen: Seen) {
     });
     if (outcome === null) continue; // no candidate in this log
     expect(outcome.verdict, `${name}: ${JSON.stringify(outcome.checks)}`).toBe("FAILED");
-    expect(outcome.first_break, name).not.toBeNull();
+    // The check that catches it, not only that something did (review fix pass, E1.6-5).
+    expect(expected, `${name}: ${JSON.stringify(outcome.first_break)}`).toContain(
+      outcome.first_break?.check,
+    );
     seen.detected[name] = (seen.detected[name] ?? 0) + 1;
     // Rolled back: the log verifies again.
     expect(
@@ -217,17 +268,19 @@ function attempt(db: Db, fn: () => ChainReport | null): ChainReport | null {
   return out;
 }
 
-const setBody = (db: Db, seq: number, event: MemoryEvent) =>
-  db.prepare("UPDATE events SET body = ? WHERE seq = ?").run(JSON.stringify(event), seq);
-
 /** Removes the explanation rows of the events `where` selects, as a tamperer must before deleting or renaming a read event. */
 const unexplain = (db: Db, where: string, ...params: number[]) =>
   db
     .prepare(`DELETE FROM explanations WHERE read_id IN (SELECT id FROM events WHERE ${where})`)
     .run(...params);
 
-/** Each tamper, as a function that changes the log in place; a missing candidate throws Skip. */
-function tamperings(db: Db, c: Case, held: { size: number }): [string, () => void][] {
+type Tamper = [name: string, caughtBy: string[], fn: () => void];
+
+/**
+ * Each tamper, with the checks that may catch it first, as a function that
+ * changes the log in place; a missing candidate throws Skip.
+ */
+function tamperings(db: Db, c: Case, held: { size: number }): Tamper[] {
   const events = allEvents(db);
   const salted = new Set(
     db
@@ -237,21 +290,34 @@ function tamperings(db: Db, c: Case, held: { size: number }): [string, () => voi
   );
   const pick = <T>(xs: T[], k: number): T => {
     if (xs.length === 0) throw new Skip();
-    return xs[Math.floor((c.pick[k] ?? 0) * xs.length)] as T;
+    return xs[Math.floor((c.pick[k % c.pick.length] ?? 0) * xs.length)] as T;
   };
   const withItem = events.filter((e) => e.item && salted.has(e.seq));
   const lints = events.filter((e) => e.op === "lint" && salted.has(e.seq));
   const plain = events.filter((e) => e.op !== "lint");
-  const out: [string, () => void][] = [
+  const erases = events.filter(
+    (e) => e.op === "retire" && e.decision === "allow" && e.policy_id === ERASURE_ID,
+  );
+  const erasedItemEvents = events.filter(
+    (e) => e.item && !salted.has(e.seq) && e.item.content === REDACTED,
+  );
+  const notErase = events.filter((e) => !erases.includes(e));
+  const genesis = JSON.parse(
+    String(db.prepare("SELECT data FROM chain WHERE pos = 0").get()?.data),
+  ) as Genesis;
+  const head = readHead(db) as { size: number; hash: string; seq: number };
+  const out: Tamper[] = [
     [
       "an edited body",
+      ["links"],
       () => {
         const e = pick(events, 0);
-        setBody(db, e.seq, { ...e, policy_id: `${e.policy_id}/edited` });
+        setBodyAt(db, e.seq, { ...e, policy_id: `${e.policy_id}/edited` });
       },
     ],
     [
       "a deleted event",
+      ["links"],
       () => {
         const seq = pick(events, 1).seq;
         unexplain(db, "seq = ?", seq);
@@ -260,6 +326,7 @@ function tamperings(db: Db, c: Case, held: { size: number }): [string, () => voi
     ],
     [
       "two events reordered",
+      ["links"],
       () => {
         const a = pick(events.slice(0, -1), 2);
         const b = events[a.seq + 1] as MemoryEvent;
@@ -288,7 +355,10 @@ function tamperings(db: Db, c: Case, held: { size: number }): [string, () => voi
       },
     ],
     [
+      // Events, their links and salts gone, the head left: the anchor, or a
+      // position gap when a manifest followed them.
       "a truncated tail",
+      ["anchor", "links"],
       () => {
         const last = (events.at(-1) as MemoryEvent).seq;
         const from = last - c.tail + 1;
@@ -299,9 +369,12 @@ function tamperings(db: Db, c: Case, held: { size: number }): [string, () => voi
       },
     ],
     [
+      // Cut back before the checkpoint the operator holds, head and stored
+      // checkpoints rewritten: the held checkpoint, or the commitments when
+      // the cut took the manifest of an erasure it kept.
       "tail truncated, head rewritten",
+      ["held", "commitments"],
       () => {
-        // Back to an entry before the checkpoint the operator holds, head and all.
         const keep = Math.max(1, held.size - c.tail);
         const row = db.prepare("SELECT hash, seq FROM chain WHERE pos = ?").get(keep - 1);
         const lastSeq = db.prepare("SELECT max(seq) AS s FROM chain WHERE pos < ?").get(keep)?.s;
@@ -320,33 +393,40 @@ function tamperings(db: Db, c: Case, held: { size: number }): [string, () => voi
     ],
     [
       "a rewritten reason",
+      ["links"],
       () => {
         const e = pick(plain, 3);
-        setBody(db, e.seq, { ...e, reason: `${e.reason} (rewritten)` });
+        setBodyAt(db, e.seq, { ...e, reason: `${e.reason} (rewritten)` });
       },
     ],
     [
       "an edited lint evidence",
+      ["commitments"],
       () => {
         const e = pick(lints, 4);
-        setBody(db, e.seq, { ...e, reason: `${e.reason} and more` });
+        setBodyAt(db, e.seq, { ...e, reason: `${e.reason} and more` });
       },
     ],
     [
       "an edited owner",
+      ["links"],
       () => {
         const e = pick(
           events.filter((x) => x.item),
           5,
         );
-        setBody(db, e.seq, { ...e, item: { ...(e.item as MemoryItem), owner: "person:mallory" } });
+        setBodyAt(db, e.seq, {
+          ...e,
+          item: { ...(e.item as MemoryItem), owner: "person:mallory" },
+        });
       },
     ],
     [
       "edited content",
+      ["commitments"],
       () => {
         const e = pick(withItem, 6);
-        setBody(db, e.seq, {
+        setBodyAt(db, e.seq, {
           ...e,
           item: { ...(e.item as MemoryItem), content: "forged" } as MemoryItem,
         });
@@ -354,9 +434,10 @@ function tamperings(db: Db, c: Case, held: { size: number }): [string, () => voi
     ],
     [
       "a forged redaction",
+      ["commitments"],
       () => {
         const e = pick([...withItem, ...lints], 7);
-        setBody(
+        setBodyAt(
           db,
           e.seq,
           e.op === "lint"
@@ -366,9 +447,176 @@ function tamperings(db: Db, c: Case, held: { size: number }): [string, () => voi
         db.prepare("DELETE FROM chain_salts WHERE seq = ?").run(e.seq);
       },
     ],
+    [
+      "a commitment recomputed from the stored salt",
+      ["links"],
+      () => {
+        const e = pick(withItem, 0);
+        const forged = {
+          ...e,
+          item: { ...(e.item as MemoryItem), content: "forged" },
+        } as MemoryEvent;
+        setBodyAt(db, e.seq, forged);
+        const salt = String(
+          db.prepare("SELECT salt FROM chain_salts WHERE seq = ?").get(e.seq)?.salt,
+        );
+        db.prepare("UPDATE chain SET data = ? WHERE seq = ?").run(
+          chainCanonical(commitments(forged, Buffer.from(salt, "hex"))),
+          e.seq,
+        );
+      },
+    ],
+    [
+      "every salt deleted",
+      ["commitments"],
+      () => {
+        if (salted.size === 0) throw new Skip();
+        db.prepare("DELETE FROM chain_salts").run();
+      },
+    ],
+    [
+      "a column-only edit",
+      ["links"],
+      () => {
+        const e = pick(events, 1);
+        db.prepare("UPDATE events SET actor = 'person:mallory' WHERE seq = ?").run(e.seq);
+      },
+    ],
+    [
+      "an erased event rewritten after its erasure",
+      ["commitments"],
+      () => {
+        const e = pick(erasedItemEvents, 2);
+        setBodyAt(db, e.seq, {
+          ...e,
+          item: { ...(e.item as MemoryItem), content: "planted" } as MemoryItem,
+        });
+      },
+    ],
+    [
+      "a salt kept for an erased event",
+      ["commitments"],
+      () => {
+        const e = pick(erasedItemEvents, 3);
+        db.prepare("INSERT INTO chain_salts (seq, salt) VALUES (?, ?)").run(e.seq, "00".repeat(32));
+      },
+    ],
+    [
+      "a stray salt",
+      ["commitments"],
+      () =>
+        db
+          .prepare("INSERT INTO chain_salts (seq, salt) VALUES (?, ?)")
+          .run(head.seq + 1000, "00".repeat(32)),
+    ],
+    [
+      "a forged manifest",
+      ["links"],
+      () => {
+        const e = pick(withItem, 4);
+        setBodyAt(db, e.seq, { ...e, item: redacted(e.item as MemoryItem) });
+        db.prepare("DELETE FROM chain_salts WHERE seq = ?").run(e.seq);
+        // With an erase event of another item when there is one, else none.
+        const erase = erases.length > 0 ? [pick(erases, 5).seq] : [];
+        const m = chainCanonical({ kind: "manifest", redacted: [e.seq], erase });
+        forgeAppend(db, "manifest", null, m, m);
+      },
+    ],
+    [
+      "a manifest naming as an erase event what is not one",
+      ["links"],
+      () => {
+        const m = chainCanonical({
+          kind: "manifest",
+          redacted: [],
+          erase: [pick(notErase, 6).seq],
+        });
+        forgeAppend(db, "manifest", null, m, m);
+      },
+    ],
+    [
+      "a manifest placed before the event it names",
+      ["commitments"],
+      () => {
+        const erase = pick(erases, 7);
+        const m = chainCanonical({
+          kind: "manifest",
+          redacted: [head.seq + 1],
+          erase: [erase.seq],
+        });
+        forgeAppend(db, "manifest", null, m, m);
+        const it = item(9, {
+          id: erase.item_id as string,
+          scope: "person:dana",
+          owner: "person:dana",
+        });
+        const later = appendEvent(db, {
+          id: id(990_001),
+          ts: LATER,
+          op: "write",
+          item_id: it.id,
+          actor: "person:dana",
+          scope_from: null,
+          scope_to: "person:dana",
+          decision: "allow",
+          reason: "after the manifest",
+          policy_id: "p/write",
+          item: it,
+          schema_version: 1,
+        });
+        setBodyAt(db, later.seq, { ...later, item: redacted(it) });
+        db.prepare("DELETE FROM chain_salts WHERE seq = ?").run(later.seq);
+      },
+    ],
+    [
+      "head and genesis rewritten together",
+      ["checkpoints"],
+      () => {
+        const g = chainCanonical({ ...genesis, log: "cd".repeat(32) });
+        db.prepare("UPDATE chain SET data = ?, hash = ? WHERE pos = 0").run(
+          g,
+          chainLink(CHAIN_SEED, leafHash(g)),
+        );
+        rehash(db, 1);
+      },
+    ],
+    [
+      "a head whose last seq moved",
+      ["anchor"],
+      () => db.prepare("UPDATE chain_head SET seq = seq + 1 WHERE id = 0").run(),
+    ],
+    [
+      "a genesis respelled",
+      ["genesis"],
+      () =>
+        db
+          .prepare("UPDATE chain SET data = ? WHERE pos = 0")
+          .run(` $String(db.prepare("SELECT data FROM chain WHERE pos = 0").get()?.data)`),
+    ],
+    [
+      "a checkpoint's columns edited away from its note",
+      ["checkpoints"],
+      () => db.prepare("UPDATE chain_checkpoints SET at = ?").run("2026-10-27T00:00:00Z"),
+    ],
+    [
+      "a stored checkpoint with a forged root",
+      ["checkpoints"],
+      () => insertCheckpoint(db, genesis.log, head.size, "ee".repeat(32), head.hash),
+    ],
+    [
+      "a stored checkpoint with a forged head",
+      ["checkpoints"],
+      () => {
+        const real = String(
+          db.prepare("SELECT root FROM chain_checkpoints ORDER BY n DESC LIMIT 1").get()?.root,
+        );
+        insertCheckpoint(db, genesis.log, head.size, real, "ee".repeat(32));
+      },
+    ],
   ];
-  return out.map(([name, fn]) => [
+  return out.map(([name, caught, fn]) => [
     name,
+    caught,
     () => {
       try {
         fn();
@@ -380,8 +628,45 @@ function tamperings(db: Db, c: Case, held: { size: number }): [string, () => voi
   ]);
 }
 
+/** An unsigned checkpoint row whose columns agree with its note, as a forger writes it. */
+function insertCheckpoint(db: Db, log: string, size: number, root: string, headHash: string) {
+  const at = "2026-10-27T00:00:00Z";
+  db.prepare(
+    "INSERT INTO chain_checkpoints (n, size, root, head, at, note, key, signature) VALUES (?, ?, ?, ?, ?, ?, NULL, NULL)",
+  ).run(99, size, root, headHash, at, checkpointNote(log, size, root, headHash, at));
+}
+
 class Skip extends Error {}
 class SkipTamper extends Rollback {}
+
+/** Every tamper the property must meet and catch. */
+const TAMPERS = [
+  "an edited body",
+  "a deleted event",
+  "two events reordered",
+  "a truncated tail",
+  "tail truncated, head rewritten",
+  "a rewritten reason",
+  "an edited lint evidence",
+  "an edited owner",
+  "edited content",
+  "a forged redaction",
+  "a commitment recomputed from the stored salt",
+  "every salt deleted",
+  "a column-only edit",
+  "an erased event rewritten after its erasure",
+  "a salt kept for an erased event",
+  "a stray salt",
+  "a forged manifest",
+  "a manifest naming as an erase event what is not one",
+  "a manifest placed before the event it names",
+  "head and genesis rewritten together",
+  "a head whose last seq moved",
+  "a genesis respelled",
+  "a checkpoint's columns edited away from its note",
+  "a stored checkpoint with a forged root",
+  "a stored checkpoint with a forged head",
+];
 
 forEachBackend((backend) => {
   const name = "every injected tamper is detected, and an offboarding's erasure still verifies";
@@ -396,25 +681,13 @@ forEachBackend((backend) => {
           db.close();
         }
       }),
-      { numRuns: backend.runs(40), seed: seedFor(`${backend.name} ${name}`) },
+      { numRuns: backend.runs(40), seed: seedFor(`$backend.name$name`) },
     );
     // Not vacuous: erasures redacted item events and lint events about
-    // items they did not erase, and every tamper was met and detected.
+    // items they did not erase, and every tamper was met and caught.
     expect(seen.erasedItemEvents).toBeGreaterThan(0);
     expect(seen.otherLintRedactions).toBeGreaterThan(0);
-    for (const t of [
-      "an edited body",
-      "a deleted event",
-      "two events reordered",
-      "a truncated tail",
-      "tail truncated, head rewritten",
-      "a rewritten reason",
-      "an edited lint evidence",
-      "an edited owner",
-      "edited content",
-      "a forged redaction",
-    ])
-      expect(seen.detected[t] ?? 0, t).toBeGreaterThan(0);
+    for (const t of TAMPERS) expect(seen.detected[t] ?? 0, t).toBeGreaterThan(0);
   }, 240_000);
 });
 
