@@ -17,9 +17,9 @@
 |   [s] Simu|   home  first                                  end  last                                     |           |
 |   [y] Poli|   enter  open                                  1-6  jump to a group                          |           |
 | 3 Audit   | Everywhere                                                                                   |           |
-|   [e] Even|   ? (ctrl+g in a field)  this help             ; or ctrl+p  commands                         |           |
+|   [e] Even|   ? (ctrl+g in a field)  this help             ; or alt+p (alt+p in a field)  commands       |           |
 |   [f] Veri|   ctrl+o  workspace                            esc  back                                     |           |
-|   [F] Chec|   c  copy the command line                     ctrl+l  redraw the screen                     |           |
+|   [F] Chec|   c (alt+c in a field)  copy the command line  ctrl+l  redraw the screen                     |           |
 | 4 Data    |   ctrl+c  quit now                                                                           |           |
 |   [x] Expo|   The mouse is off (--no-mouse): the terminal's own selection works.                         |           |
 |   [i] Impo|   In a text field every printable key types; ctrl+g opens this help.                         |           |

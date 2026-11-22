@@ -53,6 +53,10 @@ export interface Screen {
   hints(ctx: Ctx): string;
   /** The registry entry whose help the overlay shows, if any. */
   spec?(ctx: Ctx): CommandSpec | undefined;
+  /** Whether a press at a terminal row (0-based) is a click this screen takes. */
+  clickable?(row: number): boolean;
+  /** A click at a terminal row, `count` 2 for a double click. */
+  clickAt?(row: number, count: number, ctx: Ctx): boolean | Promise<boolean>;
   /** The id of the focused field or row, for tests and the help overlay. */
   focused?(): string | undefined;
 }

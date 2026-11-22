@@ -175,11 +175,50 @@ describe("I7 and I9: copy and the palette work inside a text field, by keys VS C
   it("the first loop says how to copy from a field", async () => {
     const cwd = await tempDir();
     const root = await fixtureCopy();
-    const h = await startHarness({ cwd, home: cwd, given: { db: "engram.db", root, owner: "dana" } });
+    const h = await startHarness({
+      cwd,
+      home: cwd,
+      given: { db: "engram.db", root, owner: "dana" },
+    });
     h.app.replace(new LoopScreen());
     const text = await h.text();
     expect(text).not.toMatch(/(^|[^+])c copies it/);
     expect(text).toContain("alt+c copies it");
+    await h.quit();
+  });
+});
+
+describe("I8: the mouse, on by default, does what it captures", () => {
+  const wheelDown = (x: number, y: number) => `\x1b[<65;${x};${y}M`;
+  const wheelUp = (x: number, y: number) => `\x1b[<64;${x};${y}M`;
+  const click = (x: number, y: number) => [`\x1b[<0;${x};${y}M`, `\x1b[<0;${x};${y}m`];
+
+  it("the wheel moves Home's selection and scrolls a result; a click selects a Home row, a double click opens it", async () => {
+    const cwd = await tempDir();
+    const h = await startHarness({
+      cwd,
+      home: cwd,
+      given: { owner: "dana", db: "engram.db" },
+      options: { mouse: true },
+    });
+    expect(h.focused()).toBe("read");
+    await h.press(wheelDown(10, 10));
+    expect(h.focused()).not.toBe("read");
+    await h.press(wheelUp(10, 10));
+    expect(h.focused()).toBe("read");
+    // Row 6 of the terminal (1-based) is Home's fifth list line: Check a write.
+    const frame = await h.frame();
+    const row = frame.findIndex((l) => l.includes("[C] Check a write")) + 1;
+    await h.press(...click(8, row));
+    expect(h.focused()).toBe("check");
+    expect(h.screen()).toBe("home");
+    await h.press(...click(8, row), ...click(8, row));
+    expect(h.screen()).toBe("form");
+    await h.press(ESC);
+    await h.press("y", CTRL_S);
+    const before = await h.text();
+    await h.press(wheelDown(10, 10));
+    expect(await h.text()).not.toBe(before);
     await h.quit();
   });
 });

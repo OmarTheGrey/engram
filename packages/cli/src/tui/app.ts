@@ -81,6 +81,21 @@ export interface Summary {
   deferred: readonly string[];
 }
 
+/** An SGR mouse report (ESC [ < button ; column ; row M, or m on release), its row 0-based. */
+function parseSgrMouse(
+  data: string,
+): { button: number; row: number; release: boolean } | undefined {
+  if (!data.startsWith(`${String.fromCharCode(27)}[<`)) return undefined;
+  const end = data.at(-1);
+  if (end !== "M" && end !== "m") return undefined;
+  const parts = data.slice(3, -1).split(";").map(Number);
+  if (parts.length !== 3 || parts.some((n) => !Number.isInteger(n))) return undefined;
+  return { button: parts[0] as number, row: (parts[2] as number) - 1, release: end === "m" };
+}
+
+/** The screens the wheel moves, by their up and down actions. */
+const WHEELED = new Set(["home", "result", "loop"]);
+
 /** A read, by its route: read, read --item and scopes run the store's sweep and adoption first. */
 const isRead = (spec: CommandSpec) => spec.name.startsWith("read") || spec.name === "scopes";
 
@@ -474,9 +489,14 @@ export class App implements Component, Ctx {
     }
     // While a confirmation waits, the action that asked is parked on the main
     // chain; the keys that answer it go on a side chain, or nothing could answer.
+    this.enqueue(() => this.dispatch(data));
+  }
+
+  /** Runs `work` after every key and click before it, or beside a confirmation that waits. */
+  private enqueue(work: () => Promise<void>): void {
     const onSide = this.parked > 0;
     const run = () =>
-      this.dispatch(data)
+      work()
         .catch((e: unknown) => {
           this.message = `internal error: ${e instanceof Error ? e.message : String(e)}`;
         })
@@ -557,6 +577,41 @@ export class App implements Component, Ctx {
     }
     if (a !== undefined && (await screen.action(a, this))) return;
     screen.raw(data, this);
+  }
+
+  /**
+   * The mouse (docs/design/tui.md 11.1, review finding I8): the wheel moves
+   * a list, a result or an overlay a line at a time; a click selects a row
+   * on Home and a double click opens it. A press anywhere else is left to
+   * pi-tui, whose text selection copies by the TUI's clipboard path.
+   */
+  private lastClick: { row: number; at: number } | undefined;
+
+  /** Whether a mouse sequence is the TUI's own (consumed), else pi-tui's (text selection). */
+  mouseInput(data: string): boolean {
+    const sgr = parseSgrMouse(data);
+    if (sgr === undefined || this.stopped || tooSmall(this.columns, this.rows)) return false;
+    const { button, row, release } = sgr;
+    if ((button & 64) !== 0) {
+      const name = (button & 1) === 1 ? "down" : "up";
+      this.enqueue(async () => {
+        const top = this.overlays.at(-1);
+        if (top !== undefined) await top.action(name, this);
+        else if (WHEELED.has(this.top().kind)) await this.top().action(name, this);
+      });
+      return true;
+    }
+    const screen = this.top();
+    if ((button & 3) !== 0 || (button & 32) !== 0 || this.overlays.length > 0) return false;
+    if (screen.clickable?.(row) !== true) return false;
+    if (!release) return true;
+    const now = Date.now();
+    const count = this.lastClick?.row === row && now - this.lastClick.at < 500 ? 2 : 1;
+    this.lastClick = count === 2 ? undefined : { row, at: now };
+    this.enqueue(async () => {
+      await screen.clickAt?.(row, count, this);
+    });
+    return true;
   }
 
   // Drawing.
@@ -657,6 +712,14 @@ function keepScrollKeys(): void {
 export function startTui(o: StartOptions): Session {
   keepScrollKeys();
   const app = new App(o);
+  // pi-tui hands mouse events to layout nodes only, and its alternate screen
+  // reads them before any input listener; so the App reads the ones it takes
+  // from the terminal first, and every other byte goes on to pi-tui (review I8).
+  const start = o.terminal.start.bind(o.terminal);
+  o.terminal.start = (onInput, onResize) =>
+    start((data) => {
+      if (!app.mouseInput(data)) onInput(data);
+    }, onResize);
   const tui = new TuiAltScreen(o.terminal, false, undefined, {
     mouse: o.options.mouse,
     copySelection: async (text) => {

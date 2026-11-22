@@ -194,6 +194,21 @@ export class HomeScreen implements Screen {
     return this.selectedSpec().name;
   }
 
+  /** The entry each terminal row of the last frame shows, for clicks. */
+  private rowEntry = new Map<number, number>();
+
+  clickable(row: number): boolean {
+    return this.rowEntry.has(row);
+  }
+
+  clickAt(row: number, count: number, ctx: Ctx): boolean {
+    const at = this.rowEntry.get(row);
+    if (at === undefined) return false;
+    this.selected = at;
+    if (count >= 2) ctx.openCommand(this.selectedSpec());
+    return true;
+  }
+
   private listLines(ctx: Ctx, width: number, room: number, wide: boolean): string[] {
     const lines: string[] = [];
     const index: number[] = [];
@@ -213,14 +228,29 @@ export class HomeScreen implements Screen {
       index.push(i);
     }
     // Scroll so the selection shows, with a line saying what is above or below.
-    if (lines.length <= room) return lines;
+    // The list's first line is terminal row 2: the title bar, then the box's top border.
+    const mark = (shown: number[]) => {
+      this.rowEntry.clear();
+      shown.forEach((entry, i) => {
+        if (this.entries[entry]?.kind === "command") this.rowEntry.set(2 + i, entry);
+      });
+    };
+    if (lines.length <= room) {
+      mark(index);
+      return lines;
+    }
     const at = index.indexOf(this.selected);
     const body = room - 1;
     if (at < this.offset + 1) this.offset = Math.max(0, at - 1);
     if (at >= this.offset + body - 1) this.offset = at - body + 2;
     this.offset = Math.max(0, Math.min(this.offset, lines.length - body));
     const shown = lines.slice(this.offset, this.offset + body);
-    if (this.offset > 0) shown[0] = `   ${this.offset} more above: pgup`;
+    const entries = index.slice(this.offset, this.offset + body);
+    if (this.offset > 0) {
+      shown[0] = `   ${this.offset} more above: pgup`;
+      entries[0] = -1;
+    }
+    mark(entries);
     const below = lines.length - this.offset - body;
     shown.push(below > 0 ? `   ${ctx.theme.glyphs.open} ${below} more below: pgdn` : "");
     return shown;

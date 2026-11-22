@@ -21,7 +21,7 @@
 
 
 $ engram write --content "The deplo...--scope team:lantern --owner dana   exit 0
- r run again  up down scroll  q back  ? help  ; commands  esc back
+ r run again  up down scroll  ? help  ; commands  esc back
 --- styles
 r0 c0-79 inverse
 r1 c1-1 bold

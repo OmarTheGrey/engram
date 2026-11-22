@@ -233,6 +233,19 @@ describe("engram tui on a terminal", () => {
     expect(quiet.out).toBe("");
   });
 
+  it("captures the mouse by default (11.1) and leaves it to the terminal with --no-mouse", async () => {
+    const quit = async (t: FakeTerminal) => {
+      await tick();
+      t.send("q");
+    };
+    const tracking = (out: string) =>
+      ["\x1b[?1000h", "\x1b[?1002h", "\x1b[?1003h"].some((s) => out.includes(s));
+    const on = await session(["--owner", "dana", "--db", ":memory:"], quit);
+    expect(tracking(on.term.output)).toBe(true);
+    const off = await session(["--owner", "dana", "--db", ":memory:", "--no-mouse"], quit);
+    expect(tracking(off.term.output)).toBe(false);
+  });
+
   it("reads tui.json's options: a saved --ascii draws no box-drawing character", async () => {
     const home = await tempDir();
     writeSaved(home, { owner: "dana", db: ":memory:" }, { ascii: true });
