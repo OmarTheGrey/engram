@@ -675,6 +675,214 @@
         }
       }
     },
+    "/api/v1/who-can-read/item": {
+      "post": {
+        "operationId": "whoCanReadItem",
+        "summary": "Who can read one item now (card E2.13): a symbolic set of readers, each with the rule or grant that admits it. Answered only for an actor who may read the item or its scope; grant holders named to its owner only; anyone else gets the refusal an unknown id gets. Appends no event.",
+        "security": [
+          {},
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WhoCanReadItemRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "the result; a policy decision of any kind is 200 with its event",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WhoCanReadAnswer"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "the request fails its schema, or the plane refused the call (InvalidCallError)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "on a server with credentials (ADR 0042): no bearer credential, or one it does not accept; WWW-Authenticate names the protected-resource metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "the Host or Origin is not this server's, the credential's actor is not the request's (forbidden_actor), or the actor may not explain this read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "no such route, or the read id names no read event",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "the body is over the size limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "the body is not application/json",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "an unexpected error; the body carries no internals",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/who-can-read/scope": {
+      "post": {
+        "operationId": "whoCanRead",
+        "summary": "Who can read a scope's items by the read matrix (card E2.13), each entry with its rule. Answered only for an actor who may read the scope as a member. Appends no event.",
+        "security": [
+          {},
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WhoCanReadScopeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "the result; a policy decision of any kind is 200 with its event",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WhoCanReadAnswer"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "the request fails its schema, or the plane refused the call (InvalidCallError)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "on a server with credentials (ADR 0042): no bearer credential, or one it does not accept; WWW-Authenticate names the protected-resource metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "the Host or Origin is not this server's, the credential's actor is not the request's (forbidden_actor), or the actor may not explain this read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "no such route, or the read id names no read event",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "the body is over the size limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "the body is not application/json",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "an unexpected error; the body carries no internals",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/retain": {
       "post": {
         "operationId": "retain",
@@ -3277,6 +3485,217 @@
         "additionalProperties": false
       },
       "RetainRequest": {
+        "type": "object",
+        "properties": {
+          "actor": {
+            "$ref": "#/components/schemas/Actor"
+          },
+          "scope": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "actor",
+          "scope"
+        ],
+        "additionalProperties": false
+      },
+      "ReaderEntry": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "members"
+              },
+              "scope": {
+                "type": "string",
+                "pattern": "^(?:(?:person|role|team):[A-Za-z0-9._\\-/]+|org)$",
+                "description": "Every actor that is a member of this scope..."
+              },
+              "level": {
+                "type": "string",
+                "enum": [
+                  "person",
+                  "role",
+                  "team",
+                  "org"
+                ],
+                "description": "...and reads as this level."
+              },
+              "policy_id": {
+                "type": "string"
+              },
+              "reason": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "scope",
+              "level",
+              "policy_id",
+              "reason"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "grant"
+              },
+              "to": {
+                "type": "string",
+                "description": "Every actor whose id the grant's `to` matches (exactly, or by prefix before a final `*`)."
+              },
+              "grant": {
+                "type": "string",
+                "description": "The grant: to the item's owner by its place on the item, as a read's grants_used names it (`grants[<i>]:<to>`); to anyone else without its place (`grant:<to>`)."
+              },
+              "grant_detail": {
+                "$ref": "#/components/schemas/Grant"
+              },
+              "policy_id": {
+                "type": "string"
+              },
+              "reason": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "to",
+              "grant",
+              "grant_detail",
+              "policy_id",
+              "reason"
+            ],
+            "additionalProperties": false
+          }
+        ],
+        "description": "One entry of a who-can-read answer: every member of a scope reading as a level (the read matrix row that admits them), or every actor a live grant on the item names (the grant that admits them)."
+      },
+      "WhoCanReadAnswer": {
+        "type": "object",
+        "properties": {
+          "answered": {
+            "type": "boolean",
+            "description": "False when the plane refuses to answer; every other field is then empty."
+          },
+          "target": {
+            "type": "string",
+            "description": "The item id or scope asked about, as given."
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+            "description": "The time the answer is judged at: the read's access time, never before the log's head."
+          },
+          "reason": {
+            "type": "string",
+            "description": "Why the plane answered as it did, or why it refused."
+          },
+          "readers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReaderEntry"
+            },
+            "description": "The symbolic reader set: an actor may read the target exactly when an entry admits it."
+          },
+          "grants_shown": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "all",
+                  "yours"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Which grants an item's answer shows: all to its owner, yours (only those naming the asker) to anyone else; null for a scope (grants are on items) and for a refusal."
+          },
+          "closed": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "policy_id": {
+                    "type": "string"
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "policy_id",
+                  "reason"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why nobody may read the item now (its status, ttl or validity window), or null."
+          },
+          "dormant": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "grant": {
+                  "type": "string"
+                },
+                "reason": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "grant",
+                "reason"
+              ],
+              "additionalProperties": false
+            },
+            "description": "To the owner only: the item's grants that admit nobody now, each with why."
+          }
+        },
+        "required": [
+          "answered",
+          "target",
+          "at",
+          "reason",
+          "readers",
+          "grants_shown",
+          "closed",
+          "dormant"
+        ],
+        "additionalProperties": false,
+        "description": "Who can read an item or a scope (card E2.13): a symbolic set of readers, each entry with the rule or grant that admits it, from the rules that decide a read. Answered only for an actor who may read the item or its scope; grant holders named to the item's owner only (decision item 53)."
+      },
+      "WhoCanReadItemRequest": {
+        "type": "object",
+        "properties": {
+          "actor": {
+            "$ref": "#/components/schemas/Actor"
+          },
+          "item_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "actor",
+          "item_id"
+        ],
+        "additionalProperties": false
+      },
+      "WhoCanReadScopeRequest": {
         "type": "object",
         "properties": {
           "actor": {

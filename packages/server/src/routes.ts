@@ -185,6 +185,30 @@ export const ROUTES: readonly Route[] = [
         now(),
       ),
   }),
+  route<z.infer<typeof C.WhoCanReadItemRequest>>({
+    id: "whoCanReadItem",
+    method: "post",
+    path: "/who-can-read/item",
+    summary:
+      "Who can read one item now (card E2.13): a symbolic set of readers, each with the rule or grant that admits it. Answered only for an actor who may read the item or its scope; grant holders named to its owner only; anyone else gets the refusal an unknown id gets. Appends no event.",
+    request: C.WhoCanReadItemRequest,
+    response: C.WhoCanReadAnswer,
+    errors: [400],
+    handler: ({ workspace, body, now }) =>
+      workspace.plane.whoCanReadItem(body.actor, body.item_id, now()),
+  }),
+  route<z.infer<typeof C.WhoCanReadScopeRequest>>({
+    id: "whoCanRead",
+    method: "post",
+    path: "/who-can-read/scope",
+    summary:
+      "Who can read a scope's items by the read matrix (card E2.13), each entry with its rule. Answered only for an actor who may read the scope as a member. Appends no event.",
+    request: C.WhoCanReadScopeRequest,
+    response: C.WhoCanReadAnswer,
+    errors: [400],
+    handler: ({ workspace, body, now }) =>
+      workspace.plane.whoCanRead(body.actor, body.scope, now()),
+  }),
   route<z.infer<typeof C.RetainRequest>>({
     id: "retain",
     method: "post",

@@ -22,9 +22,19 @@
 // the graph library is fetched only there. The timeline is the event table
 // (EventTable.tsx): virtualised, sortable, filtered by type, decision, actor
 // and scope.
+//
+// Who can read this memory (card E2.13): the item page asks the plane who
+// can read the item as the viewer (Plane.whoCanReadItem through data.ts).
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import type { Actor, EngramClient, Grant, MemoryEvent } from "./api/index.ts";
-import { changeGrants, fetchExplain, fetchViewer, type Inspection, inspect } from "./data.ts";
+import {
+  changeGrants,
+  fetchExplain,
+  fetchViewer,
+  fetchWhoCanRead,
+  type Inspection,
+  inspect,
+} from "./data.ts";
 import { EventTable } from "./EventTable.tsx";
 import { EventDetail, Pair } from "./parts.tsx";
 import {
@@ -156,6 +166,7 @@ export function App({ client }: { client: EngramClient }) {
             key={`${inspection.viewer.id} ${route.itemId}`}
             itemId={route.itemId}
             inspection={inspection}
+            onAsk={(itemId) => fetchWhoCanRead(client, inspection.viewer, itemId)}
           />
         </Suspense>
       )}
