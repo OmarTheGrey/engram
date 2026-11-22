@@ -266,11 +266,14 @@ export const grantOutcome = (itemId: string, r: GrantResponse): GrantOutcome => 
 
 export interface TimelineFilter {
   scope: string | null;
+  /** The event's type. */
   op: string | null;
   decision: string | null;
+  /** Who made the event (card E8.11). */
+  actor: string | null;
 }
 
-export const NO_FILTER: TimelineFilter = { scope: null, op: null, decision: null };
+export const NO_FILTER: TimelineFilter = { scope: null, op: null, decision: null, actor: null };
 
 const scopesOf = (e: MemoryEvent) =>
   [e.scope_from, e.scope_to].filter((s): s is string => s !== null);
@@ -282,6 +285,7 @@ export function filterOptions(events: readonly MemoryEvent[]) {
     scopes: sorted(events.flatMap(scopesOf)),
     ops: sorted(events.map((e) => e.op)),
     decisions: sorted(events.map((e) => e.decision)),
+    actors: sorted(events.map((e) => e.actor)),
   };
 }
 
@@ -294,7 +298,8 @@ export function filterEvents(
     (e) =>
       (filter.scope === null || scopesOf(e).includes(filter.scope)) &&
       (filter.op === null || e.op === filter.op) &&
-      (filter.decision === null || e.decision === filter.decision),
+      (filter.decision === null || e.decision === filter.decision) &&
+      (filter.actor === null || e.actor === filter.actor),
   );
 }
 
@@ -434,6 +439,25 @@ export function explainView(
 
 /** Score numbers as the views print them. */
 export const score = (n: number) => n.toFixed(3);
+
+// The inspector's pages (card E8.11): the workspace, and an item's page at
+// `#/item/<id>`, so the browser's back button and a pasted link work.
+
+export type Route = { page: "workspace" } | { page: "item"; itemId: string };
+
+/** The location hash of an item's page. */
+export const itemHref = (itemId: string) => `#/item/${encodeURIComponent(itemId)}`;
+
+/** The page a location hash names: an item's page, else the workspace. */
+export function parseRoute(hash: string): Route {
+  const match = /^#\/item\/([^/]+)$/.exec(hash);
+  if (match === null) return { page: "workspace" };
+  try {
+    return { page: "item", itemId: decodeURIComponent(match[1] as string) };
+  } catch {
+    return { page: "workspace" };
+  }
+}
 
 // Who can read this memory (card E2.13).
 

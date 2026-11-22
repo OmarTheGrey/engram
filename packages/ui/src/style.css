@@ -9,6 +9,8 @@
   --allow: #1f7a3d;
   --deny: #b42318;
   --ask: #9a6700;
+  --added-bg: #dcf5e3;
+  --removed-bg: #fbe0dd;
   color-scheme: light dark;
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   font-size: 14px;
@@ -25,6 +27,8 @@
     --allow: #5cc285;
     --deny: #f0776c;
     --ask: #e0b252;
+    --added-bg: #1d3b28;
+    --removed-bg: #4a221f;
   }
 }
 
@@ -247,8 +251,223 @@ td {
   padding: 4px 6px;
 }
 
-tbody tr[data-testid="timeline-row"] {
+tbody tr[data-testid$="timeline-row"] {
   cursor: pointer;
+}
+
+/* The event table (card E8.11): one line per row, fixed columns, virtualised. */
+.table-scroll {
+  max-height: 60vh;
+  overflow: auto;
+  margin-top: 8px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+
+.event-table {
+  table-layout: fixed;
+  margin-top: 0;
+  min-width: 900px;
+}
+
+.event-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--bg);
+  z-index: 1;
+}
+
+.event-table tbody tr[data-testid$="timeline-row"] {
+  height: 29px;
+}
+
+.event-table tbody td {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+  height: 20px;
+}
+
+.event-table tr.spacer td {
+  border: none;
+  padding: 0;
+}
+
+.event-table .col-seq {
+  width: 48px;
+}
+
+.event-table .col-time {
+  width: 170px;
+}
+
+.event-table .col-op,
+.event-table .col-decision {
+  width: 70px;
+}
+
+.event-table .col-actor,
+.event-table .col-scope {
+  width: 120px;
+}
+
+.event-table .col-policy {
+  width: 180px;
+}
+
+button.sort {
+  border: none;
+  padding: 0;
+  font-weight: 600;
+  color: var(--fg);
+  background: none;
+}
+
+tr:focus-visible,
+a:focus-visible,
+button:focus-visible,
+.react-flow__node:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+a {
+  color: var(--accent);
+}
+
+/* The item page (card E8.11). */
+.item-page {
+  margin-top: 16px;
+}
+
+.item-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
+  grid-template-areas: "summary aside" "graph aside" "versions versions" "events events";
+  gap: 16px;
+}
+
+.item-summary {
+  grid-area: summary;
+}
+
+.provenance {
+  grid-area: graph;
+  min-width: 0;
+}
+
+.item-aside {
+  grid-area: aside;
+  min-width: 0;
+}
+
+.versions {
+  grid-area: versions;
+  overflow-x: auto;
+}
+
+.item-events {
+  grid-area: events;
+  overflow-x: auto;
+}
+
+.graph {
+  height: 480px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+}
+
+.graph-node {
+  box-sizing: border-box;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 6px 8px;
+  background: var(--bg);
+  color: var(--fg);
+  font-size: 11px;
+}
+
+.graph-node.item {
+  width: 260px;
+  height: 96px;
+}
+
+.graph-node.event {
+  width: 220px;
+  height: 76px;
+  background: var(--panel);
+}
+
+.graph-node.focus {
+  border: 2px solid var(--accent);
+}
+
+.graph-node-head {
+  font-weight: 600;
+  margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.graph-node-body {
+  overflow-wrap: anywhere;
+}
+
+.graph .react-flow__handle {
+  opacity: 0;
+}
+
+.graph .edge-lineage path {
+  stroke: var(--accent);
+}
+
+.graph-list ul {
+  margin: 4px 0 0;
+  padding-left: 16px;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.graph-list button {
+  border: none;
+  padding: 0;
+  text-align: left;
+}
+
+.text-diff table {
+  table-layout: fixed;
+}
+
+.text-diff .line-no {
+  width: 28px;
+  color: var(--muted);
+  text-align: right;
+}
+
+.diff-side {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+
+.diff-side.before.removed,
+.diff-side.after.added {
+  background: var(--panel);
+}
+
+del {
+  background: var(--removed-bg);
+  color: var(--fg);
+}
+
+ins {
+  background: var(--added-bg);
+  color: var(--fg);
+  text-decoration: underline;
 }
 
 tbody tr.selected {
@@ -294,5 +513,10 @@ code {
   main {
     grid-template-columns: 1fr;
     grid-template-areas: "lanes" "timeline" "aside";
+  }
+
+  .item-grid {
+    grid-template-columns: 1fr;
+    grid-template-areas: "summary" "graph" "aside" "versions" "events";
   }
 }
