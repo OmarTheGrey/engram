@@ -25,6 +25,7 @@
 //   engram/read/status              only active items are read
 //   engram/read/validity            the validity window at the read time (ADR 0005)
 //   engram/read/ttl                 past its ttl: a lifecycle exclusion before any sweep (ADR 0025)
+//   engram/write/secret, /pii, /content-size, /guard-failure   the content guards (ADR 0039, policy/secrets.ts)
 import type { Actor } from "../actor.ts";
 import { contentHash } from "../content-hash.ts";
 import { canonicalJson } from "../model.ts";
@@ -32,6 +33,7 @@ import type { Grant, MemoryItem, Policy, ScopeLevel } from "../schema.ts";
 import { compareTimestamps } from "../time.ts";
 import { INJECTION_SCREEN_ID, injectionHold } from "./injection-screen.ts";
 import { itemExpiry } from "./retention.ts";
+import { contentGuard } from "./secrets.ts";
 
 export const WRITE_MEMBERSHIP_ID = "engram/write/membership";
 export const WRITE_VERSION_ID = "engram/write/version";
@@ -182,6 +184,7 @@ export type WriteCheck =
   | "source-isolation"
   | "below-floor"
   | "retired-content"
+  | "content-guard"
   | "move";
 
 export interface WriteDecision {
@@ -418,6 +421,9 @@ export function evaluateWrite(
         RETIRED_CONTENT_ID,
       );
   }
+  // The content guards (card E2.9, ADR 0039): off unless the policy has the block.
+  const guarded = contentGuard(policy, item, existing);
+  if (guarded) return guarded;
   // The injection screen (card E2.10, ADR 0039): off unless the policy's
   // content_guards turn it on; a hold is a review, so a person promotes it.
   const screened = injectionHold(policy, item);

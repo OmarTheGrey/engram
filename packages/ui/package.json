@@ -11,6 +11,11 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@dagrejs/dagre": "3.1.3",
+    "@tanstack/react-table": "9.3.1",
+    "@tanstack/react-virtual": "3.14.26",
+    "@xyflow/react": "12.12.1",
+    "diff": "9.0.0",
     "openapi-fetch": "0.17.0",
     "react": "19.3.1",
     "react-dom": "19.3.1"
