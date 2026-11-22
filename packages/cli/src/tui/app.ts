@@ -468,7 +468,8 @@ export class App implements Component, Ctx {
   handleInput(data: string): void {
     // ctrl+c quits now, ahead of any key or call still being handled (9.1).
     if (matchesKey(data, "ctrl+c")) {
-      this.quit();
+      // After pi-tui has finished with this input, not inside its handler.
+      setImmediate(() => this.quit());
       return;
     }
     // While a confirmation waits, the action that asked is parked on the main
