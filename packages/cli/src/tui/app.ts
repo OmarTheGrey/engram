@@ -81,7 +81,7 @@ export interface StartOptions {
   /** The native clipboard, pi-tui's by default. */
   native?: () => NativeClipboard | undefined;
   /** A Postgres log's check, off the input path: a child process by default (./log-check.ts). */
-  logCheck?: (input: LogCheckInput) => Promise<CheckResult>;
+  logCheck?: (input: LogCheckInput, signal: AbortSignal) => Promise<CheckResult>;
 }
 
 /** What the session leaves for the shell on quit. */
@@ -195,7 +195,7 @@ export class App implements Component, Ctx {
     this.savedOptions = loaded.saved?.options ?? {};
     this.savedProblem = loaded.problem;
     this.ws = Workspace.from(o.io.env, o.given, loaded.saved?.flags);
-    this.logCheck = o.logCheck ?? ((input) => checkLogInChild(input));
+    this.logCheck = o.logCheck ?? ((input, signal) => checkLogInChild(input, undefined, signal));
     this.checks = cheapChecks(this.ws, o.io, "defer");
     this.startLogCheck();
     void this.checkServer();
@@ -318,19 +318,26 @@ export class App implements Component, Ctx {
     this.startLogCheck();
   }
 
-  private readonly logCheck: (input: LogCheckInput) => Promise<CheckResult>;
+  private readonly logCheck: (input: LogCheckInput, signal: AbortSignal) => Promise<CheckResult>;
+  /** Stops the running log check: a newer one replaces it, and quitting stops it. */
+  private logAbort: AbortController | undefined;
   /** The newest log check; an older one's answer is dropped. */
   private logGeneration = 0;
 
   private startLogCheck(): void {
     if (!this.checks.pendingLog) return;
     const generation = ++this.logGeneration;
-    void this.logCheck({
-      db: this.ws.get("db"),
-      cwd: this.io.cwd,
-      home: this.io.home,
-      env: this.io.env,
-    }).then(([status, detail]) => {
+    this.logAbort?.abort();
+    this.logAbort = new AbortController();
+    void this.logCheck(
+      {
+        db: this.ws.get("db"),
+        cwd: this.io.cwd,
+        home: this.io.home,
+        env: this.io.env,
+      },
+      this.logAbort.signal,
+    ).then(([status, detail]) => {
       if (generation !== this.logGeneration || this.stopped) return;
       this.checks.log = { status, detail };
       delete this.checks.pendingLog;
@@ -392,6 +399,8 @@ export class App implements Component, Ctx {
   quit(): void {
     if (this.stopped) return;
     this.stopped = true;
+    // A log check still running is stopped, or its child would keep the process alive.
+    this.logAbort?.abort();
     this.tui?.stop();
     this.finish({ ran: [...this.ran], deferred: [...this.clipboard.deferred] });
   }

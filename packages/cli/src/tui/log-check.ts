@@ -4,7 +4,7 @@
 // the check in a child process with a timeout and draws the answer when it
 // comes. The URL goes to the child on stdin, never in its arguments, so it
 // is not in the process list. Run as a script, this file is the child.
-import { spawn } from "node:child_process";
+import { type ChildProcess, spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import type { CheckResult } from "../doctor.ts";
 
@@ -18,16 +18,32 @@ export interface LogCheckInput {
   env: Readonly<Record<string, string | undefined>>;
 }
 
-/** The check in a child process: its CheckResult, or a fail naming the timeout. */
+/** The checks whose child process is still running (for quitting, and for tests). */
+const live = new Set<ChildProcess>();
+
+/** How many log checks are running now. */
+export const liveLogChecks = () => live.size;
+
+/**
+ * The check in a child process: its CheckResult, or a fail naming the
+ * timeout. `signal` stops it: the child is killed and its timer cleared, so
+ * quitting never waits on it (verification finding E8.15b-27).
+ */
 export function checkLogInChild(
   input: LogCheckInput,
   timeoutMs = LOG_CHECK_TIMEOUT_MS,
+  signal?: AbortSignal,
 ): Promise<CheckResult> {
   return new Promise((resolve) => {
+    if (signal?.aborted) {
+      resolve(["skip", "the log check was stopped"]);
+      return;
+    }
     const child = spawn(process.execPath, [fileURLToPath(import.meta.url)], {
       stdio: ["pipe", "pipe", "ignore"],
       windowsHide: true,
     });
+    live.add(child);
     let out = "";
     const timer = setTimeout(() => {
       child.kill();
@@ -37,6 +53,7 @@ export function checkLogInChild(
       out += d.toString("utf8");
     });
     child.on("close", () => {
+      live.delete(child);
       clearTimeout(timer);
       try {
         resolve(JSON.parse(out) as CheckResult);
@@ -45,9 +62,24 @@ export function checkLogInChild(
       }
     });
     child.on("error", (e) => {
+      live.delete(child);
       clearTimeout(timer);
       resolve(["fail", `the log check could not start: ${e.message}`]);
     });
+    signal?.addEventListener(
+      "abort",
+      () => {
+        clearTimeout(timer);
+        live.delete(child);
+        child.kill();
+        // The child's own stdio never holds the TUI's process open once it is stopped.
+        child.stdout.destroy();
+        child.stdin.destroy();
+        child.unref();
+        resolve(["skip", "the log check was stopped"]);
+      },
+      { once: true },
+    );
     child.stdin.end(JSON.stringify(input));
   });
 }

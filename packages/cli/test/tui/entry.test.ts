@@ -5,6 +5,7 @@
 // starts, and quitting prints the session's commands unless --quiet.
 import { describe, expect, it } from "vitest";
 import { HELP, type Io, run } from "../../src/run.ts";
+import { LOG_CHECK_TIMEOUT_MS, liveLogChecks } from "../../src/tui/log-check.ts";
 import { tuiCommand } from "../../src/tui/main.ts";
 import { writeSaved } from "../../src/tui/saved.ts";
 import { FakeTerminal } from "../../src/tui/term.ts";
@@ -231,6 +232,20 @@ describe("engram tui on a terminal", () => {
     const quiet = await session(["--owner", "dana", "--db", ":memory:", "--quiet"], keys);
     expect(quiet.code).toBe(0);
     expect(quiet.out).toBe("");
+  });
+
+  // Verification finding E8.15b-27: a Postgres log check still running at quit kept the process alive.
+  it("quits at once while a Postgres log check runs, leaving no child process", async () => {
+    // 10.255.255.1 is not routed: a connection to it hangs until the check's timeout.
+    const t = Date.now();
+    const r = await session(["--owner", "dana", "--db", "postgres://u:p@10.255.255.1:5432/engram"], async (term) => {
+      for (let i = 0; i < 100 && liveLogChecks() === 0; i++) await tick();
+      expect(liveLogChecks()).toBe(1);
+      term.send("q");
+    });
+    expect(r.code).toBe(0);
+    expect(Date.now() - t).toBeLessThan(LOG_CHECK_TIMEOUT_MS / 2);
+    expect(liveLogChecks()).toBe(0);
   });
 
   it("captures the mouse by default (11.1) and leaves it to the terminal with --no-mouse", async () => {
