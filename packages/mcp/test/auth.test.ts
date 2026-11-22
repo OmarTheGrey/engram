@@ -5,6 +5,7 @@
 // `mcp_http`. Keys only here: the token path is the HTTP API's own
 // (packages/server/test/auth.test.ts), behind the same credentialGuard.
 import { mkdtemp, rm } from "node:fs/promises";
+import { request as httpRequest } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createFakeAdapter } from "@engram/adapters";
@@ -16,6 +17,7 @@ import {
   createApp,
   createKey,
   openCredentials,
+  revokeKey,
   workspaceOf,
 } from "@engram/server";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -45,7 +47,8 @@ async function served() {
   dirs.push(dir);
   const keys = join(dir, "keys.json");
   const expires = "2026-12-29T12:00:00.000Z";
-  const dana = createKey(keys, { actor: DANA, expires, now: NOW }).key;
+  const danaKey = createKey(keys, { actor: DANA, expires, now: NOW });
+  const dana = danaKey.key;
   const eve = createKey(keys, { actor: EVE, expires, now: NOW }).key;
   const raw = openSqlite(":memory:");
   migrate(raw);
@@ -73,7 +76,7 @@ async function served() {
     { port: 0, auth: { credentials }, clock: () => NOW },
   );
   servers.push(server);
-  return { server, db, dana, eve };
+  return { server, db, dana, eve, keys, danaId: danaKey.record.id };
 }
 
 const connect = async (url: string, key: string) => {
@@ -164,5 +167,89 @@ describe("engram mcp --http with credentials", () => {
       },
     });
     expect(hijack.status).toBe(403);
+  });
+});
+
+/** A POST to `path` exactly as written, so no client normalises it first. */
+const rawPost = (port: number, path: string, body: string, extra: Record<string, string> = {}) =>
+  new Promise<{ status: number; text: string }>((done, fail) => {
+    const req = httpRequest(
+      {
+        host: "127.0.0.1",
+        port,
+        path,
+        method: "POST",
+        headers: { ...headers, host: `127.0.0.1:${port}`, ...extra },
+      },
+      (res) => {
+        let text = "";
+        res.on("data", (chunk: Buffer) => {
+          text += chunk.toString();
+        });
+        res.on("end", () => done({ status: res.statusCode ?? 0, text }));
+      },
+    );
+    req.on("error", fail);
+    req.end(body);
+  });
+
+const writeCall = JSON.stringify({
+  jsonrpc: "2.0",
+  id: 3,
+  method: "tools/call",
+  params: {
+    name: "memory_write",
+    arguments: { scope: "person:dana", content: "written with no credential" },
+  },
+});
+
+describe("review finding E8.12-1: no spelling of the MCP path skips the credential check", () => {
+  const SPELLINGS = ["/%6Dcp", "/%6dcp", "/m%63p", "/MCP", "/mcp/", "//mcp", "/%2Fmcp", "/./mcp"];
+
+  it("every spelling, with no credential and no session, starts nothing and appends nothing", async () => {
+    const { server, db } = await served();
+    for (const path of SPELLINGS) {
+      const r = await rawPost(server.port, path, initialize);
+      expect([401, 404], `${path}: ${r.status} ${r.text}`).toContain(r.status);
+      expect(r.text).not.toContain('"result"');
+    }
+    expect(allEvents(db)).toHaveLength(0);
+  });
+
+  it("after a revocation, the session's id on any spelling, with no credential, writes nothing", async () => {
+    const { server, db, dana, keys, danaId } = await served();
+    const started = await fetch(server.url, {
+      method: "POST",
+      body: initialize,
+      headers: { ...headers, authorization: `Bearer ${dana}` },
+    });
+    const sid = started.headers.get("mcp-session-id") ?? "";
+    expect(sid).not.toBe("");
+    const session = { "mcp-session-id": sid, "mcp-protocol-version": "2025-06-18" };
+    await rawPost(
+      server.port,
+      "/mcp",
+      JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" }),
+      { ...session, authorization: `Bearer ${dana}` },
+    );
+    revokeKey(keys, danaId, NOW);
+    const revoked = await rawPost(server.port, "/mcp", writeCall, {
+      ...session,
+      authorization: `Bearer ${dana}`,
+    });
+    expect(revoked.status).toBe(401);
+    for (const path of SPELLINGS) {
+      const r = await rawPost(server.port, path, writeCall, session);
+      expect([401, 404], `${path}: ${r.status} ${r.text}`).toContain(r.status);
+      const withKey = await rawPost(server.port, path, writeCall, {
+        ...session,
+        authorization: `Bearer ${dana}`,
+      });
+      expect([401, 404], `${path} with the revoked key: ${withKey.status}`).toContain(
+        withKey.status,
+      );
+    }
+    expect(allEvents(db)).toHaveLength(0);
+    expect(attestations(db)).toEqual([]);
   });
 });

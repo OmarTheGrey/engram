@@ -261,20 +261,31 @@ export function mcpHttpApp(
   );
   if (auth?.mode === "credentials") {
     serveMetadata(app, auth.credentials, auth.resource);
+    // Registered on MCP_PATH itself, so it runs for every request Hono routes
+    // to the handler below, whatever its spelling: Hono matches on the
+    // decoded path, and a check on the raw one let `/%6Dcp` through (review
+    // finding E8.12-1).
     app.use(
-      "*",
+      MCP_PATH,
       credentialGuard(
         auth.credentials,
         auth.resource,
         options.clock ?? (() => new Date().toISOString()),
         principals,
-        (pathname) => pathname === MCP_PATH,
+        () => true,
       ),
     );
   }
   app.all(MCP_PATH, async (c) => {
     expireIdle();
     const principal = principals.get(c.req.raw);
+    // Fail closed: on a server with credentials, a request the guard did not
+    // authenticate never reaches a session, whatever path brought it here.
+    if (auth?.mode === "credentials" && principal === undefined)
+      return Response.json(
+        { error: { code: "unauthorized", message: "this server needs a bearer credential" } },
+        { status: 401 },
+      );
     const handle = (transport: WebStandardStreamableHTTPServerTransport) =>
       auth === undefined
         ? transport.handleRequest(c.req.raw)
