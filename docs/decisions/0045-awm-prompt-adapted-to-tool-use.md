@@ -1,4 +1,4 @@
-# ADR 0046: Agent Workflow Memory's induction prompt is adapted to tool-use sessions, not vendored verbatim
+# ADR 0045: Agent Workflow Memory's induction prompt is adapted to tool-use sessions, not vendored verbatim
 
 Status: proposed, 2026-11-22
 Deciders: drafted by card D2 of the absorb plan; for the lead's acceptance
@@ -42,7 +42,7 @@ Kept as upstream has them: the assembly (instruction, one-shot, `## Concrete Exa
 
 ## Consequences
 
-H5's induction runs the adapted prompt in both C2 and C5 (the pre-registration's "same induction method" holds, since both arms share it). A reviewer comparing with the paper reads this list. Changing the prompt after the pre-registration's tag needs an amendment and a new ADR. ADR 0012 carries a note naming this ADR. Until the lead accepts this ADR, the prompt in the code is the card's and the review's, and `scripts/test/tasks-and-decisions.test.ts` lists 0046 among the ADRs left for the owner.
+H5's induction runs the adapted prompt in both C2 and C5 (the pre-registration's "same induction method" holds, since both arms share it). A reviewer comparing with the paper reads this list. Changing the prompt after the pre-registration's tag needs an amendment and a new ADR. ADR 0012 carries a note naming this ADR. Until the lead accepts this ADR, the prompt in the code is the card's and the review's, and `scripts/test/tasks-and-decisions.test.ts` lists 0045 among the ADRs left for the owner.
 
 ## Sources
 

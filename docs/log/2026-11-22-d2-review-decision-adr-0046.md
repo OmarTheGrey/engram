@@ -7,7 +7,7 @@ chapter: design
 pillar: distill
 hypothesis: H5
 evidence:
-  - docs/decisions/0046-awm-prompt-adapted-to-tool-use.md
+  - docs/decisions/0045-awm-prompt-adapted-to-tool-use.md
   - docs/tasks/lead-decisions.md
 supersedes: docs/log/2026-11-22-d2-decision-adr-0046.md
 ---

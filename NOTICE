@@ -119,5 +119,5 @@ Daniel Fried and Graham Neubig:
   ships no NOTICE file and no copyright line at that commit. Modified here:
   rewritten from web navigation to tool-use sessions, with sentences added on
   negative evidence and the output format; see the header of induce.ts and
-  ADR 0046 (docs/decisions/0046-awm-prompt-adapted-to-tool-use.md), which
+  ADR 0045 (docs/decisions/0045-awm-prompt-adapted-to-tool-use.md), which
   lists every change.

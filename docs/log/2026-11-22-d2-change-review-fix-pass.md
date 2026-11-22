@@ -9,7 +9,7 @@ hypothesis: H5
 evidence:
   - packages/core/src/distill/induce.ts
   - packages/core/test/unit/distill/induce.test.ts
-  - docs/decisions/0046-awm-prompt-adapted-to-tool-use.md
+  - docs/decisions/0045-awm-prompt-adapted-to-tool-use.md
   - docs/research/preregistration.md
 supersedes: none
 ---
