@@ -1059,6 +1059,36 @@ describe("E2.11 the owner's rules under the trust options", () => {
     expect(itemById(db, id(2))?.status).toBe("active");
   });
 
+  test("E2.11 a promotion is refused at the decision, never after the store is written (review E2.11-9)", async () => {
+    const policy: Policy = {
+      ...POLICY_ON,
+      retention: [
+        { scope: "person", class: "semantic", ttl: null, budget: 1, eviction: "recency" },
+      ],
+      promotion: {
+        ...POLICY.promotion,
+        episodic_to_semantic: { confirmations: 1, or_review: true },
+      },
+    };
+    const { plane, adapter } = fresh(policy);
+    await plane.write(owner("user"), item(1, { scope: SCOPE, owner: SCOPE, content: "kept" }), AT);
+    await plane.write(
+      owner("tool"),
+      item(2, { scope: SCOPE, owner: SCOPE, class: "episodic", content: "a tool note" }),
+      AT,
+    );
+    const writes = adapter.writes;
+    const promoted = await plane.promote(owner("tool"), id(2), SCOPE, LATER);
+    expect(promoted.event).toMatchObject({
+      op: "promote",
+      decision: "deny",
+      policy_id: DOWNGRADE_ID,
+    });
+    expect(promoted.event.reason).toContain("would have to evict an item more trusted than it");
+    expect(promoted.event.reason).not.toContain("before it was committed");
+    expect(adapter.writes).toBe(writes);
+  });
+
   test("E2.11 another handle fills the target between a promotion's decision and its commit: the promotion is refused there (review E2.11-1)", async () => {
     const budget = 1;
     const policy: Policy = {
