@@ -292,6 +292,15 @@ Prices come from `research/results/h2-cost-table.json` (card RV8, OpenRouter's l
 
 The answers card that carries these into the pre-registration, the ADRs and the roadmap follows as its own PR, as on 2026-11-19.
 
+## F. Proposed by the absorb cards, 2026-11-21
+
+Open, for the lead. Each was drafted by a card's agent while implementing it; the card ships the recommendation behind it, and accepting or changing it is a `decision` log entry plus a status change in the ADR.
+
+62. **ADR 0044, the CLI's terminal interface (card E8.15).** The lead asked for a TUI over the `engram` CLI that loses no feature; the design is `docs/design/tui.md`, and its section 14 lists five smaller calls that ride on this one.
+    - (a) Accept ADR 0044: `@earendil-works/pi-tui` at the pi pin, imported only under `packages/cli/src/tui/`, ADR 0033's list amended for it alone; entered with `engram tui`; bare `engram` keeps its pinned help; four new one-call commands (`check`, `events`, `policy`, `grants`) give the TUI's inspector screens a command to teach.
+    - (b) Accept it with Ink 8.0.0 and React 19.3.1 instead of pi-tui: no change to ADR 0033, about twenty new packages, and a screen-reader mode from the library.
+    - (c) Keep the plain CLI only until after the thesis; the design stays as the plan.
+
 ## Decided on 2026-11-21, under the lead's delegation
 
 On 2026-11-21 the lead delegated items 49 to 56 as well: close them with the best answer the project's record supports. Every item takes option (a). These answers are binding until the lead overturns one. ADRs [0038](../decisions/0038-tamper-evident-log-that-keeps-erasure.md), [0039](../decisions/0039-content-guards-at-the-write-gate.md), [0040](../decisions/0040-trust-floors.md) and [0041](../decisions/0041-cedar-export-for-analysis.md) are accepted with them.
