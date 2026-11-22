@@ -1,0 +1,55 @@
+{
+  "key": "6849ad1ac9990d78d7300cb16ff0ce7a7e29f101031154b6ae0acb77b60b0cfb",
+  "context": {
+    "item": "synthetic/rename-symbol-11",
+    "condition": "replay/without",
+    "preset": "none",
+    "store": "none"
+  },
+  "request": {
+    "model": "scripted/d3-agent",
+    "messages": [
+      {
+        "role": "user",
+        "content": "{\"content\":\"\",\"role\":\"system\",\"sections\":{\"cwd\":\"<cwd>\\n{cwd}\\n</cwd>\",\"preamble\":\"You are a coding agent in a small TypeScript repository. Change it only through the tools you are given, then reply in one short message.\"},\"toolsAdded\":[{\"description\":\"Read a file of the repository.\",\"name\":\"read\",\"parameters\":{\"properties\":{\"path\":{\"type\":\"string\"}},\"required\":[\"path\"],\"type\":\"object\"}},{\"description\":\"Replace the first occurrence of `old` with `new` in a file.\",\"name\":\"edit\",\"parameters\":{\"properties\":{\"new\":{\"type\":\"string\"},\"old\":{\"type\":\"string\"},\"path\":{\"type\":\"string\"}},\"required\":[\"path\",\"old\",\"new\"],\"type\":\"object\"}},{\"description\":\"Run a shell command in the repository.\",\"name\":\"bash\",\"parameters\":{\"properties\":{\"command\":{\"type\":\"string\"}},\"required\":[\"command\"],\"type\":\"object\"}}]}"
+      },
+      {
+        "role": "user",
+        "content": "{\"content\":[{\"text\":\"Rename parseRow to parseRecord everywhere.\",\"type\":\"text\"}],\"role\":\"user\"}"
+      },
+      {
+        "role": "assistant",
+        "content": "{\"content\":[{\"arguments\":{\"new\":\"function parseRecord(\",\"old\":\"function parseRow(\",\"path\":\"src/rows.ts\"},\"id\":\"call_1\",\"name\":\"edit\",\"type\":\"toolCall\"}],\"role\":\"assistant\"}"
+      },
+      {
+        "role": "user",
+        "content": "{\"content\":[{\"text\":\"edited src/rows.ts\",\"type\":\"text\"}],\"isError\":false,\"role\":\"toolResult\",\"toolCallId\":\"call_1\",\"toolName\":\"edit\"}"
+      },
+      {
+        "role": "assistant",
+        "content": "{\"content\":[{\"arguments\":{\"new\":\"import {{ parseRecord }}\",\"old\":\"import {{ parseRow }}\",\"path\":\"src/load.ts\"},\"id\":\"call_2\",\"name\":\"edit\",\"type\":\"toolCall\"}],\"role\":\"assistant\"}"
+      },
+      {
+        "role": "user",
+        "content": "{\"content\":[{\"text\":\"edited src/load.ts\",\"type\":\"text\"}],\"isError\":false,\"role\":\"toolResult\",\"toolCallId\":\"call_2\",\"toolName\":\"edit\"}"
+      },
+      {
+        "role": "assistant",
+        "content": "{\"content\":[{\"arguments\":{\"new\":\"map(parseRecord)\",\"old\":\"map(parseRow)\",\"path\":\"src/load.ts\"},\"id\":\"call_3\",\"name\":\"edit\",\"type\":\"toolCall\"}],\"role\":\"assistant\"}"
+      },
+      {
+        "role": "user",
+        "content": "{\"content\":[{\"text\":\"edited src/load.ts\",\"type\":\"text\"}],\"isError\":false,\"role\":\"toolResult\",\"toolCallId\":\"call_3\",\"toolName\":\"edit\"}"
+      }
+    ],
+    "seed": 1
+  },
+  "response": {
+    "text": "{\"content\":[{\"text\":\"The change is made.\",\"type\":\"text\"}],\"stopReason\":\"stop\"}",
+    "usage": {
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "cost_usd": 0
+    }
+  }
+}

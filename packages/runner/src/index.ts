@@ -7,6 +7,7 @@ export * from "./conditions.ts";
 export * from "./config.ts";
 export * from "./count.ts";
 export * from "./gatemem-probe.ts";
+export * from "./induce.ts";
 export * from "./lint-faults.ts";
 export * from "./live.ts";
 export * from "./longmemeval-probe.ts";

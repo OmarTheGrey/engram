@@ -444,7 +444,8 @@ describe("the routes, through the generated client, on the fake store", () => {
       "distill",
       "/api/v1/distill",
       { sessions: [], method: { id: "awm", model: "m", seed: 1 } },
-      "D2",
+      // No card implements Plane.distill yet (card D2's review, finding D2-10).
+      "backlog",
     ],
   ] as const)("%s: 501 naming card %s", async (route, path, body, card) => {
     const { client } = testWorkspace();

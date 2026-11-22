@@ -14,6 +14,7 @@
 import type { Actor } from "./actor.ts";
 import type { Adapter } from "./adapter.ts";
 import type { Db } from "./db/db.ts";
+import type { ReplayEvidence } from "./distill/validate.ts";
 import type { DistillMethod, Session } from "./distill.ts";
 import { allEvents } from "./events.ts";
 import type { ModelLintSetup } from "./lint/model.ts";
@@ -240,6 +241,18 @@ export interface PromoteOptions {
    * the target scope and not the item's owner, else `engram/promote/reviewer`.
    */
   review?: boolean;
+  /**
+   * A procedural candidate's replay on held-out tasks (card D3, ADR 0046
+   * proposed): the outcomes the plane derives the validation record from
+   * (distill/validate.ts), never a record the caller states. Only a
+   * user-sourced actor may present one (`engram/promote/validation-source`);
+   * it names the item's id and content hash, and its induction tasks are
+   * checked against the item's distill ref through `distillTasks`; one not
+   * the item's is a deny event (`engram/promote/replay-item`,
+   * `engram/promote/replay-split`), and a malformed one is refused with
+   * InvalidCallError before the log is touched.
+   */
+  replay?: ReplayEvidence;
 }
 
 export interface Plane {
@@ -260,8 +273,8 @@ export interface Plane {
    * change is in place; a class or scope change is a new version whose source
    * is retired. Decision `ask`, with a null item and one `gate` event, when
    * the target requires review and the actor is not reviewing. Runs in the
-   * write queue. An invalid actor, time, item id or scope is refused with
-   * InvalidCallError before the log is touched.
+   * write queue. An invalid actor, time, item id, scope or replay is refused
+   * with InvalidCallError before the log is touched.
    */
   promote(
     actor: Actor,
@@ -351,12 +364,19 @@ export interface Plane {
   events(): MemoryEvent[];
 }
 
-/** A Plane method not implemented yet; `card` is the card that implements it. */
+/**
+ * A Plane method not implemented yet; `card` is the card that implements it,
+ * or `backlog` when no card does yet and docs/tasks/backlog.md holds the work.
+ */
 export class NotImplementedYet extends Error {
   readonly method: string;
   readonly card: string;
   constructor(method: string, card: string) {
-    super(`Plane.${method} is not implemented yet; card ${card} implements it`);
+    super(
+      card === "backlog"
+        ? `Plane.${method} is not implemented yet; no card implements it yet (docs/tasks/backlog.md)`
+        : `Plane.${method} is not implemented yet; card ${card} implements it`,
+    );
     this.name = "NotImplementedYet";
     this.method = method;
     this.card = card;
@@ -387,6 +407,14 @@ export interface PlaneDeps {
    * Plane.lint runs the deterministic lints only, whatever the policy enables.
    */
   lintModel?: ModelLintSetup;
+  /**
+   * Session id to task id (card D1's session index), so Plane.promote can
+   * name the tasks a candidate's distill ref (`distill:<method>:<sessions>`,
+   * card D2) was induced from and check a replay's split against them (card
+   * D3 review, D3-3). Unset, a replay of a candidate with a distill ref is
+   * refused (`engram/promote/replay-split`).
+   */
+  distillTasks?: ReadonlyMap<string, string>;
 }
 
 export function createPlane(deps: PlaneDeps): Plane {
@@ -404,7 +432,10 @@ export function createPlane(deps: PlaneDeps): Plane {
       changeGrants(deps, actor, itemId, change, at),
     simulate: (workload, policy) => simulate(deps, workload, policy),
     distill: async () => {
-      throw new NotImplementedYet("distill", "D2");
+      // Card D2 built the induction as a Distiller (distill/induce.ts); this
+      // method has no actor, time or model to run it with, so wiring it is
+      // backlog work ("Plane.distill and the /distill route").
+      throw new NotImplementedYet("distill", "backlog");
     },
     whoCanReadItem: (actor, itemId, at) => whoCanReadItem(deps, actor, itemId, at),
     whoCanRead: (actor, scope, at) => whoCanRead(deps, actor, scope, at),
