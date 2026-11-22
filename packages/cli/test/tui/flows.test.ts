@@ -652,7 +652,8 @@ describe("found driving the real terminal (E8.15c's pseudoconsole pass)", () => 
 
 describe("the review fix pass (E8.15c)", () => {
   it("7: Open the event for an event the viewer may not see says so and selects nothing", async () => {
-    const w = await workspace();
+    // An allowed write first, so the timeline has an event that could be selected in its place.
+    const w = await withItem();
     const { h } = await start(w);
     await h.press("w");
     await h.type("x");
@@ -667,6 +668,7 @@ describe("the review fix pass (E8.15c)", () => {
     expect(text).toMatch(/event \d+ is not one you may see; nothing is selected/);
     expect(text.split("\n").filter((l) => /^ >\s+\d/.test(l))).toEqual([]);
     expect(text).not.toContain("Events show to their maker");
+    expect(text).toMatch(/1 of 1 event/);
     await h.quit();
   });
 
