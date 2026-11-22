@@ -4,7 +4,8 @@
 // filter and leave a read event (AGENTS.md rule 2); the timeline is the
 // events the server's visibleEvents gives the viewer (POST /events); explain
 // is Plane.explain as the viewer (POST /explain/{readId}); a grant change is
-// Plane.changeGrants as the viewer (POST /grants).
+// Plane.changeGrants as the viewer (POST /grants); who can read an item is
+// Plane.whoCanReadItem as the viewer (POST /who-can-read/item, card E2.13).
 import type {
   Actor,
   EngramClient,
@@ -13,6 +14,7 @@ import type {
   GrantResponse,
   MemoryEvent,
   ReadResponse,
+  WhoCanReadAnswer,
 } from "./api/index.ts";
 import {
   buildLanes,
@@ -103,6 +105,23 @@ export async function changeGrants(
 ): Promise<GrantResponse> {
   const { data, error, response } = await client.POST("/api/v1/grants", {
     body: { actor: { ...viewer, source: "user" }, item_id: itemId, ...change },
+  });
+  if (data === undefined) fail(response, error);
+  return data;
+}
+
+/**
+ * Who can read one item, as the viewer may be told (card E2.13): the plane
+ * answers only a viewer who may read the item or its scope, and names grant
+ * holders to the owner only. A refusal is a response, not an error.
+ */
+export async function fetchWhoCanRead(
+  client: EngramClient,
+  viewer: Actor,
+  itemId: string,
+): Promise<WhoCanReadAnswer> {
+  const { data, error, response } = await client.POST("/api/v1/who-can-read/item", {
+    body: { actor: viewer, item_id: itemId },
   });
   if (data === undefined) fail(response, error);
   return data;

@@ -2091,7 +2091,9 @@ async function promotionsLandOnlyWherePermitted(name: string) {
  * session record and never pass to a model; `simulate` replays only the
  * workload it is given, on scratch logs and stores (card E8.9);
  * `changeGrants` refuses an outsider in the same words for a hidden and an
- * unknown item, naming no scope, and returns no item (card E9.4, ADR 0034).
+ * unknown item, naming no scope, and returns no item (card E9.4, ADR 0034);
+ * `whoCanReadItem` and `whoCanRead` refuse an outsider as for an unknown id
+ * and append no event (card E2.13, decision item 53).
  */
 async function planeSurfaceLeaksNothing() {
   const SECRET = "the vault code is 4711";
@@ -2115,6 +2117,8 @@ async function planeSurfaceLeaksNothing() {
     "recordBypass",
     "retain",
     "simulate",
+    "whoCanRead",
+    "whoCanReadItem",
     "write",
   ]);
   const at = "2026-10-25T12:00:00Z";
@@ -2205,6 +2209,31 @@ async function planeSurfaceLeaksNothing() {
   const unknown = "01960000-0000-7000-8000-000000000009";
   const nothing = await plane.changeGrants(outsider, unknown, { add: [grant] }, at);
   expect(granted.event.reason).toBe(nothing.event.reason.replace(unknown, secret.id));
+  // Who can read the secret, asked by the outsider (card E2.13): the answer
+  // an unknown id gets, word for word but the id, naming no scope, owner or
+  // reader; a query appends no event.
+  const asked = plane.events().length;
+  const readers = await plane.whoCanReadItem(outsider, secret.id, at);
+  leaks("whoCanReadItem", readers);
+  const noReaders = await plane.whoCanReadItem(outsider, unknown, at);
+  expect(readers).toEqual({
+    ...noReaders,
+    target: secret.id,
+    reason: noReaders.reason.replace(unknown, secret.id),
+  });
+  // No trace of the secret's scope or owner at all (review finding E2.13-5).
+  expect(JSON.stringify(readers)).not.toContain("person:s");
+  const scoped = await plane.whoCanRead(outsider, "person:s", at);
+  leaks("whoCanRead", scoped);
+  expect(scoped.answered).toBe(false);
+  // The scope refusal is the one a scope holding nothing gets, but its name (E2.13-5).
+  const empty = await plane.whoCanRead(outsider, "person:z", at);
+  expect(scoped).toEqual({
+    ...empty,
+    target: "person:s",
+    reason: empty.reason.replace("person:z", "person:s"),
+  });
+  expect(plane.events().length, "a who-can-read query appends no event").toBe(asked);
   // simulate replays only the workload it is given, on scratch logs and
   // stores (card E8.9): the outsider's own read of the secret's words finds
   // nothing, and the real log gains no event.

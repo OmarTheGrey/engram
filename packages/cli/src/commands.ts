@@ -16,9 +16,17 @@ import {
   type MemoryItem,
   Scope,
   type SimReport,
+  type WhoCanReadAnswer,
 } from "@engram/core";
 import { type Connection, connect, result, serverOf } from "./connect.ts";
-import { decisionLines, explanationLines, plural, preview, simulationLines } from "./format.ts";
+import {
+  decisionLines,
+  explanationLines,
+  plural,
+  preview,
+  simulationLines,
+  whoCanReadLines,
+} from "./format.ts";
 import type { Io } from "./run.ts";
 import { buildActor, checkNumber, checkTime, loadPolicy, MEMORY_DB, UsageError } from "./setup.ts";
 
@@ -635,6 +643,61 @@ export async function simulateCommand(args: string[], io: Io): Promise<number> {
         : `${simulationLines(typed).join("\n")}\n`,
     );
     return 0;
+  } finally {
+    conn.close();
+  }
+}
+
+/**
+ * `engram who-can-read <item-id>` or `engram who-can-read --scope <scope>`
+ * (card E2.13): one call. The plane answers who can read the item or the
+ * scope's items, each reader entry with the rule or grant that admits it;
+ * it answers only an actor who may read the item or its scope, and names
+ * grant holders to the item's owner only (decision item 53). Exit 0 when
+ * answered, 1 when refused.
+ */
+export async function whoCanReadCommand(args: string[], io: Io): Promise<number> {
+  const { values, positionals } = parse(
+    args,
+    { ...STORE_OPTIONS, ...ACTOR_OPTIONS, ...CLIENT_OPTIONS, scope: { type: "string" } },
+    true,
+  );
+  const [itemId, ...rest] = positionals;
+  if (rest.length > 0 || (itemId === undefined) === (values.scope === undefined))
+    throw new UsageError(
+      "give exactly one item id or --scope <scope>: engram who-can-read <item-id> | --scope <scope>",
+    );
+  if (itemId !== undefined && !Id.safeParse(itemId).success)
+    throw new UsageError(`${itemId} is not an item id (a UUIDv7)`);
+  if (values.scope !== undefined && !Scope.safeParse(values.scope).success)
+    throw new UsageError(
+      `--scope ${values.scope} is not a scope (person:<id>, role:<id>, team:<id> or org)`,
+    );
+  const { io: callIo } = callClock(values, io);
+  const actor = buildActor(values, values.owner);
+  const { conn } = session(
+    callIo,
+    values,
+    { requireStore: false, readOnlyStore: true },
+    () => actor,
+  );
+  try {
+    const answer =
+      itemId !== undefined
+        ? result(
+            await conn.client.POST("/api/v1/who-can-read/item", {
+              body: { actor, item_id: itemId },
+            }),
+          )
+        : result(
+            await conn.client.POST("/api/v1/who-can-read/scope", {
+              body: { actor, scope: values.scope as string },
+            }),
+          );
+    const a = answer as unknown as WhoCanReadAnswer;
+    if (values.json) io.out(`${JSON.stringify(a, null, 2)}\n`);
+    else io.out(`${[...whoCanReadLines(a, actor), logHint(conn)].join("\n")}\n`);
+    return a.answered ? 0 : 1;
   } finally {
     conn.close();
   }
