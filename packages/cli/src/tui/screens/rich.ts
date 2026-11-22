@@ -74,8 +74,9 @@ export function outputLines(r: RunResult, width: number): string[] {
   const text = safe(r.out).replace(/\n$/, "");
   if (text === "") return [];
   return text.split("\n").flatMap((l) => {
-    const [first = "", ...rest] = wrap(l, width - 1);
-    const tail = rest.join(" ");
+    const first = wrap(l, width - 1)[0] ?? "";
+    // The rest of the line as it is, wrapped again: a word cut at the width is not split by a space.
+    const tail = l.slice(first.length).replace(/^ /, "");
     return [` ${first}`, ...(tail === "" ? [] : para(tail, width, "   "))];
   });
 }

@@ -14,6 +14,7 @@ import type { EventsScreen, PolicyScreen } from "../../src/tui/screens/events.ts
 import type { GrantsScreen } from "../../src/tui/screens/grants.ts";
 import type { ItemScreen } from "../../src/tui/screens/item.ts";
 import type { ReadScreen } from "../../src/tui/screens/read.ts";
+import { outputLines } from "../../src/tui/screens/rich.ts";
 import type { PromoteScreen, WriteScreen } from "../../src/tui/screens/write.ts";
 import { cli, fixtureCopy, NOW, tempDir, VALID_FROM } from "../helpers.ts";
 import { type HarnessOptions, startHarness } from "./harness.ts";
@@ -580,5 +581,44 @@ describe("text fields take every printable key", () => {
     expect(h.screen()).toBe("read");
     expect(existsSync(join(w.cwd, "engram.db"))).toBe(false);
     await h.quit();
+  });
+});
+
+describe("found driving the real terminal (E8.15c's pseudoconsole pass)", () => {
+  it("keeps a confirmation's buttons in sight when its command is long", async () => {
+    const w = await workspace();
+    const long = join(
+      w.cwd,
+      ...Array.from({ length: 16 }, (_, i) => `a-folder-with-a-long-name-${i}`),
+    );
+    const { h } = await start(w, { given: { ...w.given, db: join(long, "engram.db") } });
+    await h.press("w");
+    await h.type("x");
+    await h.press(CTRL_S);
+    expect(h.overlay()).toBe("confirm");
+    const asked = await dialog(h);
+    expect(asked).toContain("[ Cancel ]");
+    expect(asked).toContain("[ Write ]");
+    expect(asked).toContain("cut to fit the dialog; it runs whole");
+    await h.press("n");
+    await h.quit();
+  });
+
+  it("wraps an output line whose word is wider than the pane without splitting the word", () => {
+    const word = "C:/a/very/long/path/with/no/spaces/in/it/at/all/engram.db";
+    const r = { argv: [], code: 0, out: `log ${word}${word}\n`, err: "", calls: [] };
+    const lines = outputLines(r, 40);
+    // Every piece of the long word is the word's own text: no space was put inside it.
+    expect(lines.map((l) => l.trim()).join(" ")).toBe(
+      `log ${lines
+        .slice(1)
+        .map((l) => l.trim())
+        .join(" ")}`.trim(),
+    );
+    const rejoined = lines
+      .map((l) => l.trim())
+      .join("")
+      .replace(/^log/, "");
+    expect(rejoined).toBe(`${word}${word}`);
   });
 });

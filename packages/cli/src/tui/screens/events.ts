@@ -314,8 +314,11 @@ export class EventsScreen extends RichScreen {
     if (chosen !== undefined) {
       out.push("");
       if (this.detail)
-        for (const [k, v] of eventDetail(chosen))
-          out.push(cut(` ${fit(k, 11)}${oneLine(v)}`, width));
+        for (const [k, v] of eventDetail(chosen)) {
+          // The reason whole, wrapped, never cut (10.1).
+          const [first = "", ...rest] = para(oneLine(v), width - 12, "");
+          out.push(cut(` ${fit(k, 11)}${first}`, width), ...rest.map((l) => `            ${l}`));
+        }
       else {
         out.push(
           cut(
