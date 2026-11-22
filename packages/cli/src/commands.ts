@@ -5,11 +5,12 @@
 // Every id comes from the Io (`io.newId`), so a run with a fixed Io is
 // reproducible.
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { type ParseArgsConfig, parseArgs } from "node:util";
 import {
   type Actor,
+  type BundleRow,
   Id,
   type LintFinding,
   type MemoryEvent,
@@ -19,6 +20,24 @@ import {
 } from "@engram/core";
 import { type Connection, connect, result, serverOf } from "./connect.ts";
 import { decisionLines, explanationLines, plural, preview, simulationLines } from "./format.ts";
+import {
+  type BundleHeader,
+  bundleText,
+  type ImportedFields,
+  importActor,
+  importedItem,
+  mapLineage,
+  parseBundle,
+  rowFields,
+} from "./import/bundle.ts";
+import { parseClaudeMemory } from "./import/claude.ts";
+import {
+  decryptBundle,
+  encryptBundle,
+  isEncrypted,
+  readIdentities,
+  readPassphrase,
+} from "./import/crypt.ts";
 import type { Io } from "./run.ts";
 import { buildActor, checkNumber, checkTime, loadPolicy, MEMORY_DB, UsageError } from "./setup.ts";
 
@@ -622,6 +641,269 @@ export async function simulateCommand(args: string[], io: Io): Promise<number> {
         : `${simulationLines(typed).join("\n")}\n`,
     );
     return 0;
+  } finally {
+    conn.close();
+  }
+}
+
+const EXPORT_OPTIONS = {
+  out: { type: "string" },
+  recipient: { type: "string", multiple: true },
+  "passphrase-file": { type: "string" },
+} satisfies Options;
+
+/**
+ * `engram export [--out <file>] [--recipient <age1...>]... [--passphrase-file <file>]`:
+ * one export call (card E9.8). The bundle (docs/bundle.md) is JSONL: a header
+ * line, then one row per item core's bundleRows picks, each with its decision
+ * events. Optionally encrypted with age and armored. To stdout, or to --out
+ * with a one-line summary. Exit 0.
+ */
+export async function exportCommand(args: string[], io: Io): Promise<number> {
+  const { values } = parse(
+    args,
+    {
+      db: STORE_OPTIONS.db,
+      policy: STORE_OPTIONS.policy,
+      owner: STORE_OPTIONS.owner,
+      as: ACTOR_OPTIONS.as,
+      level: ACTOR_OPTIONS.level,
+      member: ACTOR_OPTIONS.member,
+      ...CLIENT_OPTIONS,
+      ...EXPORT_OPTIONS,
+    },
+    false,
+  );
+  const keys = {
+    recipients: values.recipient ?? [],
+    passphrase:
+      values["passphrase-file"] === undefined
+        ? undefined
+        : readPassphrase(io.cwd, values["passphrase-file"]),
+  };
+  // Export writes nothing: the actor names no source (decision D4).
+  const actor = buildActor(values, values.owner);
+  const flags = { db: values.db, policy: values.policy, server: values.server };
+  const { conn } = session(
+    io,
+    flags,
+    { requireStore: false, mustExist: true, readOnlyStore: true },
+    () => actor,
+  );
+  try {
+    const answer = result(await conn.client.POST("/api/v1/export", { body: { actor } }));
+    const { rows, ...header } = answer as unknown as { rows: BundleRow[] } & Omit<
+      BundleHeader,
+      "rows"
+    >;
+    const text = await encryptBundle(bundleText(header, rows), keys);
+    const events = rows.reduce((n, r) => n + r.events.length, 0);
+    if (values.out === undefined) {
+      io.out(text);
+      return 0;
+    }
+    writeFileSync(resolve(io.cwd, values.out), text, "utf8");
+    const sealed =
+      keys.passphrase !== undefined
+        ? ", encrypted with a passphrase"
+        : keys.recipients.length > 0
+          ? `, encrypted to ${plural(keys.recipients.length, "recipient")}`
+          : "";
+    io.out(
+      `exported ${plural(rows.length, "item")} with ${plural(events, "event")} as ${actor.id} under ${header.policy} to ${values.out}${sealed}\n`,
+    );
+    return 0;
+  } finally {
+    conn.close();
+  }
+}
+
+const IMPORT_OPTIONS = {
+  claude: { type: "string" },
+  scope: { type: "string" },
+  confidence: { type: "string" },
+  identity: { type: "string", multiple: true },
+  "passphrase-file": { type: "string" },
+} satisfies Options;
+
+/** One planned row of an import: where it came from, and its fields. */
+interface Planned {
+  from: string;
+  ref: string;
+  scope: string;
+  fields: ImportedFields;
+}
+
+/** What a row of the import did. */
+interface ImportedRow {
+  from: string;
+  to: string;
+  decision: MemoryEvent["decision"];
+  status: MemoryItem["status"] | null;
+  policy_id: string;
+  reason: string;
+}
+
+/** The rows of a pasted Claude memory list, each a semantic item in `scope`. */
+function claudeRows(file: string, scope: string, confidence: number, at: string, io: Io) {
+  let text: string;
+  try {
+    text = readFileSync(resolve(io.cwd, file), "utf8");
+  } catch (e) {
+    throw new UsageError(`--claude ${file}: ${(e as Error).message}`);
+  }
+  return parseClaudeMemory(text).map(
+    (e): Planned => ({
+      from: `line ${e.line}`,
+      ref: `claude-memory:${e.section === null ? "" : `${e.section}:`}line-${e.line}`,
+      scope,
+      fields: {
+        class: "semantic",
+        content: e.text,
+        confidence,
+        valid_from: e.valid_from ?? at,
+        valid_to: null,
+        ttl: null,
+        retired: false,
+        lineage: [],
+      },
+    }),
+  );
+}
+
+/** The rows of a bundle file, decrypted first when it is an age file. */
+async function bundleRowsOf(
+  file: string,
+  values: { identity?: string[]; "passphrase-file"?: string; scope?: string },
+  io: Io,
+): Promise<Planned[]> {
+  let bytes: Buffer;
+  try {
+    bytes = readFileSync(resolve(io.cwd, file));
+  } catch (e) {
+    throw new UsageError(`${file}: ${(e as Error).message}`);
+  }
+  const text = isEncrypted(bytes)
+    ? await decryptBundle(
+        bytes,
+        (values.identity ?? []).flatMap((f) => readIdentities(io.cwd, f)),
+        values["passphrase-file"] === undefined
+          ? undefined
+          : readPassphrase(io.cwd, values["passphrase-file"]),
+      )
+    : bytes.toString("utf8");
+  return parseBundle(text).rows.map((row) => ({
+    from: row.item.id,
+    ref: `engram-bundle:${row.item.id}`,
+    scope: values.scope ?? row.item.scope,
+    fields: rowFields(row),
+  }));
+}
+
+/**
+ * `engram import <bundle> | --claude <file>`: every row one Plane.write (card
+ * E9.8, decision item 55) by the dedicated import actor `import:<importer>`,
+ * source import, owned by the importer, status candidate (a retired row
+ * retired), no grants, a new id; the gate decides each. Rows are written in
+ * the bundle's order (by id, so creation order), and a lineage pointer is
+ * mapped to the new id of a row already allowed, else dropped and counted.
+ * Prints the id map and each decision. Exit 0 when every row was allowed, 1
+ * when any was denied.
+ */
+export async function importCommand(args: string[], io: Io): Promise<number> {
+  const { values, positionals } = parse(
+    args,
+    { ...STORE_OPTIONS, ...ACTOR_OPTIONS, ...CLIENT_OPTIONS, ...IMPORT_OPTIONS },
+    true,
+  );
+  const [file, ...rest] = positionals;
+  if (rest.length > 0 || (file === undefined) === (values.claude === undefined))
+    throw new UsageError(
+      "give exactly one source: engram import <bundle.jsonl> or engram import --claude <memory.txt>",
+    );
+  if (values.scope !== undefined && !Scope.safeParse(values.scope).success)
+    throw new UsageError(
+      `--scope ${values.scope} is not a scope (person:<id>, role:<id>, team:<id> or org)`,
+    );
+  const confidence = checkNumber("--confidence", values.confidence);
+  if (confidence !== undefined && values.claude === undefined)
+    throw new UsageError("--confidence applies to --claude only; a bundle row keeps its own");
+  const clock = callClock(values, io);
+  // The importer names no source: it writes nothing itself. Its import actor
+  // writes every row, with source import, never the user source engram write sets.
+  const importer = buildActor(values, values.owner);
+  const actor = importActor(importer);
+
+  let planned: Planned[];
+  if (values.claude !== undefined) {
+    const scope = values.scope ?? (Scope.safeParse(importer.id).success ? importer.id : undefined);
+    if (scope === undefined)
+      throw new UsageError(`${importer.id} is not a scope: give the target with --scope <scope>`);
+    planned = claudeRows(values.claude, scope, confidence ?? 0.7, clock.at, io);
+  } else {
+    planned = await bundleRowsOf(file as string, values, io);
+  }
+
+  const { conn } = session(clock.io, values, { requireStore: true }, () => importer);
+  try {
+    const ids = new Map<string, string>();
+    const rows: ImportedRow[] = [];
+    let dropped = 0;
+    for (const p of planned) {
+      const lineage = mapLineage(p.fields.lineage, ids);
+      dropped += lineage.dropped;
+      const to = io.newId();
+      const item = importedItem(
+        { ...p.fields, lineage: lineage.lineage },
+        { id: to, scope: p.scope, owner: importer.id, actor, ref: p.ref },
+      );
+      const answer = result(await conn.client.POST("/api/v1/items", { body: { actor, item } }));
+      const { item: stored, event } = answer as unknown as {
+        item: MemoryItem | null;
+        event: MemoryEvent;
+      };
+      if (event.decision === "allow") ids.set(p.from, to);
+      rows.push({
+        from: p.from,
+        to,
+        decision: event.decision,
+        status: stored?.status ?? null,
+        policy_id: event.policy_id,
+        reason: event.reason,
+      });
+    }
+    const allowed = rows.filter((r) => r.decision === "allow").length;
+    const denied = rows.length - allowed;
+    if (values.json)
+      io.out(
+        `${JSON.stringify(
+          {
+            importer: importer.id,
+            actor: actor.id,
+            source: values.claude === undefined ? "bundle" : "claude",
+            rows: rows.length,
+            allowed,
+            denied,
+            lineage_dropped: dropped,
+            id_map: Object.fromEntries(ids),
+            decisions: rows,
+          },
+          null,
+          2,
+        )}\n`,
+      );
+    else
+      io.out(
+        `${[
+          `import as ${actor.id} for ${importer.id}: ${plural(rows.length, "row")}, ${allowed} allowed, ${denied} denied${dropped > 0 ? `, ${plural(dropped, "lineage pointer")} dropped (to a version not imported)` : ""}`,
+          ...rows.map(
+            (r) =>
+              `  ${r.from} -> ${r.to}: ${r.decision}${r.status === null ? "" : ` as ${r.status}`}: ${r.reason} (${r.policy_id})`,
+          ),
+          logHint(conn),
+        ].join("\n")}\n`,
+      );
+    return denied === 0 ? 0 : 1;
   } finally {
     conn.close();
   }
