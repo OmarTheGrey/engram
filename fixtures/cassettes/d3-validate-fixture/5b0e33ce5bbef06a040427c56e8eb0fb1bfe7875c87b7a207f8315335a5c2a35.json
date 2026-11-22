@@ -21,7 +21,7 @@
     "seed": 1
   },
   "response": {
-    "text": "{\"content\":[{\"arguments\":{\"new\":\"reduce((a, b) => a + b, 0)\",\"old\":\"reduce((a, b) => a + b)\",\"path\":\"src/totals.ts\"},\"id\":\"call_16\",\"name\":\"edit\",\"type\":\"toolCall\"}],\"stopReason\":\"toolUse\"}",
+    "text": "{\"content\":[{\"arguments\":{\"new\":\"a + b, 0)\",\"old\":\"a + b, 1)\",\"path\":\"src/totals.ts\"},\"id\":\"call_37\",\"name\":\"edit\",\"type\":\"toolCall\"}],\"stopReason\":\"toolUse\"}",
     "usage": {
       "input_tokens": 0,
       "output_tokens": 0,

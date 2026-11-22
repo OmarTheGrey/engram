@@ -21,7 +21,7 @@
     "seed": 1
   },
   "response": {
-    "text": "{\"content\":[{\"arguments\":{\"new\":\"\",\"old\":\"export function legacyFormat() {}\\n\",\"path\":\"src/format.ts\"},\"id\":\"call_20\",\"name\":\"edit\",\"type\":\"toolCall\"}],\"stopReason\":\"toolUse\"}",
+    "text": "{\"content\":[{\"arguments\":{\"new\":\"\",\"old\":\"\\nexport function legacyFormat(x: number) {\\n  return String(x);\\n}\\n\",\"path\":\"src/format.ts\"},\"id\":\"call_43\",\"name\":\"edit\",\"type\":\"toolCall\"}],\"stopReason\":\"toolUse\"}",
     "usage": {
       "input_tokens": 0,
       "output_tokens": 0,

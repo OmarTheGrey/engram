@@ -21,7 +21,7 @@
     "seed": 1
   },
   "response": {
-    "text": "{\"content\":[{\"arguments\":{\"command\":\"grep -rn timeout src\"},\"id\":\"call_54\",\"name\":\"bash\",\"type\":\"toolCall\"}],\"stopReason\":\"toolUse\"}",
+    "text": "{\"content\":[{\"arguments\":{\"command\":\"grep -rn timeout src\"},\"id\":\"call_128\",\"name\":\"bash\",\"type\":\"toolCall\"}],\"stopReason\":\"toolUse\"}",
     "usage": {
       "input_tokens": 0,
       "output_tokens": 0,

@@ -21,7 +21,7 @@
     "seed": 1
   },
   "response": {
-    "text": "{\"content\":[{\"arguments\":{\"command\":\"npm test\"},\"id\":\"call_51\",\"name\":\"bash\",\"type\":\"toolCall\"}],\"stopReason\":\"toolUse\"}",
+    "text": "{\"content\":[{\"arguments\":{\"command\":\"grep -rn legacyFormat src\"},\"id\":\"call_119\",\"name\":\"bash\",\"type\":\"toolCall\"}],\"stopReason\":\"toolUse\"}",
     "usage": {
       "input_tokens": 0,
       "output_tokens": 0,

@@ -21,7 +21,7 @@
     "seed": 1
   },
   "response": {
-    "text": "{\"content\":[{\"arguments\":{\"new\":\"function parseRecord(\",\"old\":\"function parseRow(\",\"path\":\"src/rows.ts\"},\"id\":\"call_11\",\"name\":\"edit\",\"type\":\"toolCall\"}],\"stopReason\":\"toolUse\"}",
+    "text": "{\"content\":[{\"arguments\":{\"new\":\"function parseRecord(\",\"old\":\"function parseRow(\",\"path\":\"src/rows.ts\"},\"id\":\"call_25\",\"name\":\"edit\",\"type\":\"toolCall\"}],\"stopReason\":\"toolUse\"}",
     "usage": {
       "input_tokens": 0,
       "output_tokens": 0,

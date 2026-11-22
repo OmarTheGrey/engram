@@ -21,7 +21,7 @@
     "seed": 1
   },
   "response": {
-    "text": "{\"content\":[{\"arguments\":{\"new\":\"log.debug(\\\"retrying\\\"\",\"old\":\"log.info(\\\"retrying\\\"\",\"path\":\"src/retry.ts\"},\"id\":\"call_28\",\"name\":\"edit\",\"type\":\"toolCall\"}],\"stopReason\":\"toolUse\"}",
+    "text": "{\"content\":[{\"arguments\":{\"new\":\"log.debug(\\\"retrying\\\"\",\"old\":\"log.info(\\\"retrying\\\"\",\"path\":\"src/retry.ts\"},\"id\":\"call_55\",\"name\":\"edit\",\"type\":\"toolCall\"}],\"stopReason\":\"toolUse\"}",
     "usage": {
       "input_tokens": 0,
       "output_tokens": 0,
