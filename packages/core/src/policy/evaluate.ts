@@ -18,6 +18,7 @@
 //   engram/write/source-isolation   model and compaction content stays in person scope (ADR 0004, 0007)
 //   engram/write/retired-content    a model, compaction or tool write restates content retired in its scope (ADR 0025)
 //   engram/write/default-deny       no write rule for the item's scope level (D6)
+//   engram/write/downgrade          a less trusted source rewrites or retires a more trusted item (ADR 0040, policy/trust.ts)
 //   engram/write/injection-screen   held as a candidate by the injection screen (ADR 0039, policy/injection-screen.ts)
 //   engram/write/schema             the item failed the schema
 //   engram/write/store-failure      the store failed after the gate allowed the write (D6)
@@ -34,6 +35,7 @@ import { compareTimestamps } from "../time.ts";
 import { INJECTION_SCREEN_ID, injectionHold } from "./injection-screen.ts";
 import { itemExpiry } from "./retention.ts";
 import { contentGuard } from "./secrets.ts";
+import { DOWNGRADE_ID, downgradeProblem } from "./trust.ts";
 
 export const WRITE_MEMBERSHIP_ID = "engram/write/membership";
 export const WRITE_VERSION_ID = "engram/write/version";
@@ -174,6 +176,7 @@ export function grantDefect(
 
 export type WriteCheck =
   | "admit"
+  | "downgrade"
   | "review"
   | "not-member"
   | "version"
@@ -215,7 +218,10 @@ export interface WriteDecision {
  * `retired` maps the normalised content hash (content-hash.ts) of every
  * retired item in the item's scope to that item's id. The provenance judged
  * is the item's; the plane sets it from the actor's source first
- * (plane/write.ts).
+ * (plane/write.ts), or floors it (trust.unattested_floor). After the grant
+ * checks, with trust.protect_trusted on, a rewrite or retire of an active
+ * item at a less trusted kind than its own is denied (`engram/write/downgrade`,
+ * policy/trust.ts) unless its owner acts as user (ADR 0040).
  *
  * Grants (ADR 0034, review findings I1 and M1 of PR #44): a rewrite whose
  * grants differ from the projected item's, or that changes the class of an
@@ -387,6 +393,18 @@ export function evaluateWrite(
     const defect = grantDefect(grant, item, earlier, at);
     if (defect) return deny("grant", `grants[${i}]: ${defect.problem}`, defect.policy_id);
   }
+  // Trust floors (card E2.11, ADR 0040): off unless the policy's trust block
+  // turns protect_trusted on. A writer who may not read the item's scope
+  // learns only that its id is taken (finding N3).
+  const downgrade = downgradeProblem(policy, actor, item, existing);
+  if (downgrade !== null && existing)
+    return readableScope(policy, actor, existing.scope)
+      ? deny("downgrade", downgrade, DOWNGRADE_ID)
+      : deny(
+          "not-member",
+          `${actor.id} cannot write item ${item.id}: the item id is held by an item you cannot access`,
+          WRITE_MEMBERSHIP_ID,
+        );
 
   const rule = policy.write.find((r) => r.scope === level);
   if (!rule)
