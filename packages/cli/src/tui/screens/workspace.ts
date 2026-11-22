@@ -7,6 +7,8 @@
 // (unless --no-saved) and shows the flags it now adds. "Forget saved
 // workspace" deletes tui.json after a confirmation.
 
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
 import { ScopeLevel } from "@engram/core";
 import { OPTIONS } from "../../registry.ts";
 import { buildActor, dbTarget } from "../../setup.ts";
@@ -20,7 +22,7 @@ import { SERVER_REFUSES, serverRefusal, type Workspace, type WsFlag } from "../w
 interface Row {
   id: string;
   label: string;
-  kind: "text" | "radio" | "list" | "button";
+  kind: "text" | "radio" | "list" | "button" | "toggle";
   flag?: WsFlag;
   choices?: readonly string[];
   advanced?: true;
@@ -65,6 +67,12 @@ const ROWS: readonly Row[] = [
     flag: "export-jsonl",
     advanced: true,
   },
+  // The TUI's own options: saved for the next start. A flag such as
+  // --high-contrast holds for its session only (the lead's decision, review M11).
+  { id: "ascii", label: "ASCII only", kind: "toggle" },
+  { id: "contrast", label: "High contrast", kind: "toggle" },
+  { id: "motion", label: "Reduced motion", kind: "toggle" },
+  { id: "mouse", label: "Mouse", kind: "toggle" },
   { id: "forget", label: "Forget saved workspace", kind: "button" },
   { id: "apply", label: "Apply and save", kind: "button" },
 ];
@@ -86,9 +94,18 @@ export class WorkspaceScreen implements Screen {
   private serverMode: boolean;
   private focus = 0;
   private problem: string | undefined;
+  /** The options the panel saves: tui.json's, never the session's flags. */
+  private readonly options: { ascii: boolean; contrast: boolean; motion: boolean; mouse: boolean };
 
-  constructor(ctx: Ctx) {
+  constructor(ctx: Ctx, focus?: string) {
     this.draft = ctx.ws.clone();
+    const o = ctx.savedOptions;
+    this.options = {
+      ascii: o.ascii === true,
+      contrast: o.contrast === "high",
+      motion: o.motion === "reduce",
+      mouse: o.mouse !== false,
+    };
     this.serverMode = ctx.ws.server() !== undefined;
     for (const r of ROWS)
       if (r.kind === "text" || r.kind === "list")
@@ -98,6 +115,11 @@ export class WorkspaceScreen implements Screen {
         );
     if (ctx.ws.get("server") === undefined && this.serverMode)
       this.editors.get("server")?.set(ctx.ws.server() ?? "");
+    if (focus !== undefined)
+      this.focus = Math.max(
+        0,
+        this.live().findIndex((r) => r.id === focus),
+      );
   }
 
   title(): string {
@@ -175,12 +197,18 @@ export class WorkspaceScreen implements Screen {
     return ws;
   }
 
-  private apply(ctx: Ctx): void {
+  private async apply(ctx: Ctx): Promise<void> {
     const ws = this.collect(ctx);
     if (typeof ws === "string") {
       this.problem = ws;
       return;
     }
+    ctx.savedOptions = {
+      ...(this.options.ascii ? { ascii: true } : {}),
+      ...(this.options.contrast ? { contrast: "high" as const } : {}),
+      ...(this.options.motion ? { motion: "reduce" as const } : {}),
+      ...(this.options.mouse ? {} : { mouse: false }),
+    };
     for (const f of ["server", ...ROWS.flatMap((r) => (r.flag ? [r.flag] : []))] as WsFlag[]) {
       const v = f === "member" ? ws.list(f) : ws.get(f);
       ctx.ws.set(f, v, ws.source(f));
@@ -190,10 +218,22 @@ export class WorkspaceScreen implements Screen {
     ctx.save();
     ctx.pop();
     const db = ctx.ws.get("db");
+    const root = ctx.ws.get("root");
+    // A folder that is not there is applied, and warned of (review M10).
+    const missing =
+      root !== undefined && !this.serverMode && !existsSync(resolve(ctx.io.cwd, root))
+        ? `; warning: the store folder ${root} does not exist`
+        : "";
+    // In server mode, whether it answers GET /health (docs/design/tui.md 10.5, review M15).
+    const answers = this.serverMode ? await ctx.checkServer() : undefined;
+    const server =
+      answers === false
+        ? `; the server at ${ctx.ws.server()} did not answer GET /api/v1/health`
+        : "";
     ctx.say(
       db !== undefined && isPostgres(db) && !ctx.noSaved
-        ? `applied; the Postgres log ${POSTGRES_NOT_SAVED}`
-        : `applied${ctx.noSaved ? " (not saved: --no-saved)" : " and saved"}: ${flags || "no flags"} on every command`,
+        ? `applied; the Postgres log ${POSTGRES_NOT_SAVED}${missing}${server}`
+        : `applied${ctx.noSaved ? " (not saved: --no-saved)" : " and saved"}${missing}${server}: ${flags || "no flags"} on every command`,
     );
   }
 
@@ -211,7 +251,7 @@ export class WorkspaceScreen implements Screen {
         this.focus = (this.focus - 1 + n) % n;
         return true;
       case "submit":
-        this.apply(ctx);
+        await this.apply(ctx);
         return true;
       case "leave":
         ctx.pop();
@@ -220,6 +260,7 @@ export class WorkspaceScreen implements Screen {
       case "choose-next":
       case "choose-prev":
         if (r.kind === "radio") this.cycle(r, name === "choose-prev" ? -1 : 1);
+        else if (r.kind === "toggle") this.flip(r);
         else if (r.kind === "button" && name === "toggle") await this.press(r, ctx);
         return true;
       case "accept":
@@ -231,8 +272,9 @@ export class WorkspaceScreen implements Screen {
             return true;
           }
         }
+        // Enter moves on, as in a form; ctrl+s applies (review M10).
         if (r.kind === "button") await this.press(r, ctx);
-        else this.apply(ctx);
+        else this.focus = (this.focus + 1) % n;
         return true;
     }
     return false;
@@ -240,7 +282,12 @@ export class WorkspaceScreen implements Screen {
 
   private async press(r: Row, ctx: Ctx): Promise<void> {
     if (r.id === "forget") await forgetFlow(ctx);
-    else this.apply(ctx);
+    else await this.apply(ctx);
+  }
+
+  private flip(r: Row): void {
+    const k = r.id as keyof WorkspaceScreen["options"];
+    this.options[k] = !this.options[k];
   }
 
   raw(data: string): boolean {
@@ -282,7 +329,7 @@ export class WorkspaceScreen implements Screen {
   }
 
   hints(): string {
-    return "tab next  space choose  enter apply and save";
+    return this.inField() ? "enter next  ctrl+s apply" : "enter next  space choose  ctrl+s apply";
   }
 
   private source(ctx: Ctx, flag: WsFlag | undefined): string {
@@ -305,6 +352,7 @@ export class WorkspaceScreen implements Screen {
     const focused = this.row();
     const inputWidth = Math.max(12, Math.min(40, width - 50));
     let refusalShown = false;
+    let focusLine = 0;
     for (const r of ROWS) {
       if (r.id === "server" && !this.serverMode) continue;
       const on = r === focused;
@@ -323,6 +371,7 @@ export class WorkspaceScreen implements Screen {
         }
         continue;
       }
+      if (r.id === "ascii") lines.push("", " The TUI's own options, saved for the next start");
       if (r.id === "forget") {
         lines.push(
           "",
@@ -339,6 +388,8 @@ export class WorkspaceScreen implements Screen {
           .map((c) => `${c === this.value(r) ? "(o)" : "( )"} ${c === "" ? "default" : c}`)
           .join("  ");
       else if (r.kind === "button") control = on ? t.reverse(`[ ${r.label} ]`) : `[ ${r.label} ]`;
+      else if (r.kind === "toggle")
+        control = this.options[r.id as keyof WorkspaceScreen["options"]] ? "[x] on" : "[ ] off";
       else if (r.kind === "list") {
         const list = this.draft.list("member");
         control = `${list.length === 0 ? "the actor's own scope  " : `${list.join(", ")}  `}[ ${this.editors.get(r.id)?.render(20, on) ?? ""} ]`;
@@ -346,7 +397,12 @@ export class WorkspaceScreen implements Screen {
       const label = r.kind === "button" ? "" : fit(r.label, 22);
       const note = [this.source(ctx, r.flag), HINT[r.id] ?? ""].filter((x) => x !== "").join("; ");
       const text = ` ${mark} ${label}${r.kind === "button" ? "" : " "}${control}  ${note}`;
-      lines.push(on && r.kind === "radio" ? t.reverse(cut(text, width)) : cut(text, width));
+      if (on) focusLine = lines.length;
+      lines.push(
+        on && (r.kind === "radio" || r.kind === "toggle")
+          ? t.reverse(cut(text, width))
+          : cut(text, width),
+      );
     }
     if (this.serverMode)
       lines.push(
@@ -355,8 +411,8 @@ export class WorkspaceScreen implements Screen {
       );
     if (this.problem !== undefined)
       lines.push("", ...para(`${t.status("fail", this.problem)}`, width));
-    const focusAt = lines.findIndex((l) => l.includes(`> `));
-    const start = focusAt >= height ? focusAt - height + 2 : 0;
+    // Scrolled by the focused row's own line, not by searching the text (review M10).
+    const start = focusLine >= height - 1 ? focusLine - height + 2 : 0;
     return rows(lines.slice(start), height, width);
   }
 }

@@ -9,24 +9,24 @@
 |   [S] Supersede   +- Commands -------------------------------------------------------------------+xpired items. Asks |
 |   [g] Grants on an| > prom                                                                       |                   |
 |   [E] Explain a re|                                                                              |                   |
-|   [n] Who can read| > Promote an item                  engram promote <itemId>                   |r: a log it cannot |
-|   [u] Scopes you c|   Check a write                    engram check                              |t answer; 2 usage: |
-| 2 Policy          |   Write a memory                   engram write                              | a 501 naming a    |
-|   [t] Retention sw|   Grants on an item                engram grants <itemId>                    |                   |
-|   [l] Lint a scope|   Read one item                    engram read --item <id>                   |                   |
-|   [s] Simulate a p|   Who can read                     engram who-can-read                       |                   |
-|   [y] Policy in fo|   Retention sweep                  engram retain                             |                   |
-| 3 Audit           |   Read and explain                 engram read [query]                       |d                  |
-|   [e] Events      |   Export a bundle                  engram export                             |                   |
-|   [f] Verify the l|   MCP server                       engram mcp                                |                   |
-|   [F] Checkpoint t|   Explain a read                   engram explain <readId>                   |                   |
-| 4 Data            |   Lint a scope                     engram lint                               |                   |
-|   [x] Export a bun|   Supersede                        engram supersede <itemId>                 |                   |
-|   [i] Import a bun|   Serve the API and inspector      engram serve                              |                   |
-| 5 Surfaces        |   Import a bundle                  engram import <bundle>                    |                   |
-|   [h] Serve the AP|   Scopes you can see               engram scopes                             |                   |
-|   [m] MCP server  |   Events                           engram events                             |                   |
-|   [b] Claude Code |   Simulate a policy                engram simulate                           |                   |
+|   [n] Who can read| > Promote an item             engram promote <itemId>                        |r: a log it cannot |
+|   [u] Scopes you c|   Check a write               engram check                                   |t answer; 2 usage: |
+| 2 Policy          |   Write a memory              engram write                                   | a 501 naming a    |
+|   [t] Retention sw|   Grants on an item           engram grants <itemId>                         |                   |
+|   [l] Lint a scope|   Read one item               engram read --item <id>                        |                   |
+|   [s] Simulate a p|   Who can read                engram who-can-read                            |                   |
+|   [y] Policy in fo|   Retention sweep             engram retain                                  |                   |
+| 3 Audit           |   Read and explain            engram read [query]                            |d                  |
+|   [e] Events      |   Export a bundle             engram export                                  |                   |
+|   [f] Verify the l|   MCP server                  engram mcp                                     |                   |
+|   [F] Checkpoint t|   Explain a read              engram explain <readId>                        |                   |
+| 4 Data            |   Lint a scope                engram lint                                    |                   |
+|   [x] Export a bun|   Supersede                   engram supersede <itemId>                      |                   |
+|   [i] Import a bun|   Serve the API and inspector engram serve                                   |                   |
+| 5 Surfaces        |   Import a bundle             engram import <bundle>                         |                   |
+|   [h] Serve the AP|   Scopes you can see          engram scopes                                  |                   |
+|   [m] MCP server  |   Events                      engram events                                  |                   |
+|   [b] Claude Code |   Simulate a policy           engram simulate                                |                   |
 |   [a] Create a key|                                                                              |                   |
 |   [A] List keys   | enter open   tab fill   esc close                                            |                   |
 |   [R] Revoke a key+------------------------------------------------------------------------------+                   |

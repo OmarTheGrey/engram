@@ -18,8 +18,9 @@ import {
 import { splitWords } from "./argv.ts";
 import { TextField } from "./fields.ts";
 import { actionsOn, EVERYWHERE, type KeyAction } from "./keys.ts";
-import { box, cut, fit, para, wrap } from "./layout.ts";
+import { box, cut, fit, para, visibleWidth, wrap } from "./layout.ts";
 import type { ConfirmRequest, Ctx, Overlay, Screen } from "./screen.ts";
+import { ResultScreen } from "./screens/form.ts";
 
 /** The key lines of the help overlay: each label once, with its description. */
 function keyLines(actions: readonly KeyAction[], width: number): string[] {
@@ -95,7 +96,8 @@ export class HelpOverlay implements Overlay {
 
   render(ctx: Ctx, width: number, height: number): string[] {
     const inner = width - 2;
-    const body = this.body(ctx, inner - 1).map((l) => ` ${l}`);
+    // One column of padding inside the border on both sides (review UX item).
+    const body = this.body(ctx, inner - 2).map((l) => ` ${l}`);
     const room = height - 2;
     this.offset = Math.max(0, Math.min(this.offset, body.length - room));
     const shown = body.slice(this.offset, this.offset + room);
@@ -190,6 +192,25 @@ export class PaletteOverlay implements Overlay {
         search: "forget saved workspace delete",
         run: (c) => forgetFlow(c),
       },
+      {
+        label: "Switch actor",
+        command: "ctrl+o, Acting as",
+        search: "switch actor acting as viewer who",
+        run: (c) => c.push(workspaceScreen(c, "as")),
+      },
+      {
+        label: "Run the last command again",
+        command:
+          ctx.ran.length === 0 ? "nothing has run yet" : ctx.shown(ctx.ran.at(-1)?.argv ?? []),
+        search: "rerun run the last command again repeat",
+        run: (c) => void rerunLast(c),
+      },
+      {
+        label: "Copy the command line",
+        command: "c, alt+c",
+        search: "copy the command line clipboard",
+        run: (c) => c.copyCommand(),
+      },
       { label: "Home", command: "", search: "home menu", run: (c) => c.home() },
       {
         label: "Line mode",
@@ -223,7 +244,28 @@ export class PaletteOverlay implements Overlay {
     const items = this.items(ctx);
     if (q === "") return items;
     const typed = typedItem(q, ctx);
-    const found = fuzzyFilter(items, q, (i) => i.search);
+    // A label or command that starts with the query first, then one with a word that does,
+    // then the rest in fuzzy order (review M5); ties keep the registry's order.
+    const lower = q.toLowerCase();
+    const rank = (i: PaletteItem) => {
+      const label = i.label.toLowerCase();
+      const words = `${label} ${i.command.toLowerCase().replace(/^engram /, "")}`.split(
+        /[\s:,()]+/,
+      );
+      if (
+        label.startsWith(lower) ||
+        i.command
+          .toLowerCase()
+          .replace(/^engram /, "")
+          .startsWith(lower)
+      )
+        return 0;
+      return words.some((w) => w.startsWith(lower)) ? 1 : 2;
+    };
+    const found = fuzzyFilter(items, q, (i) => i.search)
+      .map((item, at) => ({ item, at, r: rank(item) }))
+      .sort((a, b) => a.r - b.r || a.at - b.at)
+      .map((x) => x.item);
     return typed === undefined ? found : [typed, ...found];
   }
 
@@ -239,10 +281,14 @@ export class PaletteOverlay implements Overlay {
       const near = closest(word, commandWords());
       body.push(` No command matches.${near === undefined ? "" : ` Did you mean ${near}?`}`);
     }
-    const labelWidth = Math.min(32, Math.floor(inner / 2));
+    // As wide as the longest label shown, so none is cut (review M5).
+    const labelWidth = Math.min(
+      Math.max(12, ...items.map((i) => visibleWidth(i.label))),
+      inner - 24,
+    );
     for (const [i, item] of items.slice(start, start + room).entries()) {
       const mark = start + i === this.selected ? ">" : " ";
-      const row = ` ${mark} ${fit(item.label, labelWidth)} ${cut(item.command, inner - labelWidth - 5)}`;
+      const row = ` ${mark} ${fit(item.label, labelWidth)} ${cut(item.command, inner - labelWidth - 6)}`;
       body.push(start + i === this.selected ? ctx.theme.reverse(fit(row, inner)) : row);
     }
     if (this.problem !== undefined) body.push("", ...wrap(` ${this.problem}`, inner));
@@ -319,12 +365,24 @@ export function openLine(ctx: Ctx, words: readonly string[]): void {
 }
 
 /** Set by the router: the workspace screen's constructor (no import cycle). */
-let workspaceScreen: (ctx: Ctx) => Screen = () => {
+let workspaceScreen: (ctx: Ctx, focus?: string) => Screen = () => {
   throw new Error("the workspace screen is not registered");
 };
-export const registerWorkspaceScreen = (make: (ctx: Ctx) => Screen) => {
+export const registerWorkspaceScreen = (make: (ctx: Ctx, focus?: string) => Screen) => {
   workspaceScreen = make;
 };
+
+/** The palette's rerun: the session's last command, run again through the same path, asking as before. */
+async function rerunLast(ctx: Ctx): Promise<void> {
+  const last = ctx.ran.at(-1);
+  const spec = last === undefined ? undefined : specOfWords(last.argv);
+  if (last === undefined || spec === undefined) {
+    ctx.say("nothing has run this session");
+    return;
+  }
+  const result = await ctx.act(spec, last.argv, {});
+  if (result !== undefined) ctx.push(new ResultScreen(spec, result, {}));
+}
 
 /** Forget saved workspace: asks, then deletes tui.json. */
 export async function forgetFlow(ctx: Ctx): Promise<void> {
@@ -368,9 +426,9 @@ export class ConfirmOverlay implements Overlay {
   render(ctx: Ctx, width: number, height: number): string[] {
     const inner = width - 2;
     const body: string[] = [];
-    for (const p of this.request.lines) body.push(...para(`${p}`, inner), "");
+    for (const p of this.request.lines) body.push(...para(`${p}`, inner - 1), "");
     if (this.request.argv !== undefined)
-      body.push(...para(`$ ${ctx.shown(this.request.argv)}`, inner), "");
+      body.push(...para(`$ ${ctx.shown(this.request.argv)}`, inner - 1), "");
     if (this.typed !== undefined)
       body.push(
         ` Type ${this.request.typed} to go on: [ ${this.typed.render(Math.min(40, inner - 22), true)} ]`,

@@ -15,13 +15,13 @@
    Decision export OTLP   [                                ]  off unless name...
    Decision export file   [                                ]
 
- Saved in ~/.engram/tui.json: flags only.
-   [ Forget saved workspace ]
-   [ Apply and save ]
-
-
+ The TUI's own options, saved for the next start
+   ASCII only             [ ] off
+   High contrast          [ ] off
+   Reduced motion         [ ] off
+   Mouse                  [x] on
 $ --db engram.db --owner dana --root mem  (every command)
- tab next  space choose  enter apply and save  ? help  ; commands  esc back
+ enter next  space choose  ctrl+s apply  ? help  ; commands  esc back
 --- styles
 r0 c0-79 inverse
 r1 c0-79 inverse

@@ -37,7 +37,14 @@ import {
   registerWorkspaceScreen,
 } from "./overlays.ts";
 import { type RunResult, runCommand } from "./runner.ts";
-import { forgetSaved, isPostgres, loadSaved, POSTGRES_NOT_SAVED, writeSaved } from "./saved.ts";
+import {
+  forgetSaved,
+  isPostgres,
+  loadSaved,
+  POSTGRES_NOT_SAVED,
+  type SavedOptions,
+  writeSaved,
+} from "./saved.ts";
 import type { CommandRow, ConfirmRequest, Ctx, Overlay, Ran, Screen } from "./screen.ts";
 import { FirstRunScreen } from "./screens/first-run.ts";
 import { FormScreen } from "./screens/form.ts";
@@ -47,7 +54,7 @@ import { WorkspaceScreen } from "./screens/workspace.ts";
 import { colorModeFor, glyphSetFor, makeTheme, paletteFor, type Theme } from "./theme.ts";
 import { type CheapChecks, cheapChecks, shortPath, usable, Workspace } from "./workspace.ts";
 
-registerWorkspaceScreen((ctx) => new WorkspaceScreen(ctx));
+registerWorkspaceScreen((ctx, focus) => new WorkspaceScreen(ctx, focus));
 
 /** The TUI's own options (docs/design/tui.md 5.1), from flags, the environment and tui.json. */
 export interface TuiOptions {
@@ -185,11 +192,13 @@ export class App implements Component, Ctx {
     );
     this.shell = detectShell(o.io.env);
     const loaded = this.noSaved ? {} : loadSaved(o.io.home);
+    this.savedOptions = loaded.saved?.options ?? {};
     this.savedProblem = loaded.problem;
     this.ws = Workspace.from(o.io.env, o.given, loaded.saved?.flags);
     this.logCheck = o.logCheck ?? ((input) => checkLogInChild(input));
     this.checks = cheapChecks(this.ws, o.io, "defer");
     this.startLogCheck();
+    void this.checkServer();
     this.savedInUse = loaded.saved !== undefined && usable(this.checks);
     this.clipboard = createClipboard({
       env: o.io.env,
@@ -279,6 +288,11 @@ export class App implements Component, Ctx {
       this.redraw();
     });
   }
+  copyCommand(): void {
+    const text = this.copyText(this.top().command(this));
+    if (text === "") this.say("no command to copy on this screen");
+    else this.copy(text);
+  }
   line(argv: readonly string[]): string {
     return commandLine(argv, this.shell);
   }
@@ -321,17 +335,40 @@ export class App implements Component, Ctx {
       this.redraw();
     });
   }
+  /** tui.json's options: the panel's toggles change them, a session's flags never do (review M11). */
+  savedOptions: SavedOptions;
+
   save(): void {
     if (this.noSaved) return;
     const db = this.ws.get("db");
     if (db !== undefined && isPostgres(db)) this.say(`Postgres log ${POSTGRES_NOT_SAVED}`);
-    writeSaved(this.io.home, this.ws.savable(), {
-      ...(this.options.ascii ? { ascii: true } : {}),
-      ...(this.options.highContrast ? { contrast: "high" } : {}),
-      ...(this.options.reducedMotion ? { motion: "reduce" } : {}),
-      ...(this.options.mouse ? {} : { mouse: false }),
-    });
+    writeSaved(this.io.home, this.ws.savable(), { ...this.savedOptions });
     this.savedInUse = true;
+  }
+
+  /** In server mode: whether it answered GET /health; "server unreachable" in the title bar if not. */
+  serverUp: boolean | undefined;
+
+  async checkServer(): Promise<boolean | undefined> {
+    const server = this.ws.server();
+    if (server === undefined) {
+      this.serverUp = undefined;
+      return undefined;
+    }
+    const fetch = this.io.fetch ?? ((r: Request) => globalThis.fetch(r));
+    let up = false;
+    try {
+      const base = new URL(server).href.replace(/\/$/, "");
+      const answer = await fetch(
+        new Request(`${base}/api/v1/health`, { signal: AbortSignal.timeout(3000) }),
+      );
+      up = answer.ok;
+    } catch {
+      up = false;
+    }
+    if (this.ws.server() === server) this.serverUp = up;
+    this.redraw();
+    return up;
   }
   forget(): boolean {
     this.savedInUse = false;
@@ -645,7 +682,8 @@ export class App implements Component, Ctx {
       wide && this.ws.server() === undefined && this.checks.logLabel
         ? `  log ${this.checks.logLabel}`
         : "";
-    const right = `${this.ws.connectionLabel()}${log}  ${this.ws.actorLabel()} `;
+    const connection = this.serverUp === false ? "server unreachable" : this.ws.connectionLabel();
+    const right = `${connection}${log}  ${this.ws.actorLabel()} `;
     const gap = width - visibleWidth(left) - visibleWidth(right);
     const text = gap >= 2 ? `${left}${" ".repeat(gap)}${right}` : left;
     return this.theme.reverse(fit(text, width));

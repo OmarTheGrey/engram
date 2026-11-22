@@ -4,8 +4,8 @@
  > Content                [ oy key rotates every 90 days.  ]
    From file              [                                ]
    Sc┌─ Write a memory? ──────────────────────────────────────────────────┐wn...
-   Cl│ Runs engram write as person:dana (person): the plane decides it and│se...
-   Co│ records the decision as an event.                                  │
+   Cl│ Runs engram write as person:dana (person): the plane decides it    │c ...
+   Co│ and records the decision as an event.                              │
    Va│                                                                    │
    Va│ It cannot be undone; a later change is a new version or a new      │
    ▸ │ event.                                                             │

@@ -7,6 +7,7 @@ import type { CommandSpec, Values } from "../registry.ts";
 import type { Io } from "../run.ts";
 import type { Shell } from "./argv.ts";
 import type { RunResult } from "./runner.ts";
+import type { SavedOptions } from "./saved.ts";
 import type { Theme } from "./theme.ts";
 import type { CheapChecks, Workspace } from "./workspace.ts";
 
@@ -103,6 +104,10 @@ export interface Ctx {
   lastDoctor: { code: number; at: string } | undefined;
   /** Whether tui.json was read or written this session (the status strip's "workspace saved"). */
   savedInUse: boolean;
+  /** The TUI's options tui.json holds: what the workspace panel's toggles save. */
+  savedOptions: SavedOptions;
+  /** In server mode, GET /health: whether the server answered; undefined in process. */
+  checkServer(): Promise<boolean | undefined>;
   /** --no-saved: tui.json is neither read nor written. */
   readonly noSaved: boolean;
   /** The mouse is captured (help overlay's line). */
@@ -135,6 +140,8 @@ export interface Ctx {
   runNow(argv: readonly string[]): Promise<RunResult>;
   /** Shows a line in the hints row until the next key. */
   say(message: string): void;
+  /** Copies the command row of the screen underneath, whole. */
+  copyCommand(): void;
   /** Copies text by the terminal's path (./clipboard.ts) and says how. */
   copy(text: string): void;
   /** The command line of an argument vector, quoted for the shell: what `c` copies. */
