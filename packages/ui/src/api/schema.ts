@@ -145,7 +145,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** The actor's memory bundle (card E9.8, docs/bundle.md): the items core's bundleRows picks, each with its visible events; nothing is written and no event appended. */
+        /** The actor's memory bundle (card E9.8, docs/bundle.md): the items core's bundleRows picks, each with its visible events; one read event by the actor records the export (Plane.export). */
         post: operations["export"];
         delete?: never;
         options?: never;
@@ -1686,7 +1686,16 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description the Host or Origin is not this loopback server's, or the actor may not explain this read */
+            /** @description on a server with credentials (ADR 0042): no bearer credential, or one it does not accept; WWW-Authenticate names the protected-resource metadata */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description the Host or Origin is not this server's, the credential's actor is not the request's (forbidden_actor), or the actor may not explain this read */
             403: {
                 headers: {
                     [name: string]: unknown;

@@ -886,7 +886,13 @@
     "/api/v1/export": {
       "post": {
         "operationId": "export",
-        "summary": "The actor's memory bundle (card E9.8, docs/bundle.md): the items core's bundleRows picks, each with its visible events; nothing is written and no event appended.",
+        "summary": "The actor's memory bundle (card E9.8, docs/bundle.md): the items core's bundleRows picks, each with its visible events; one read event by the actor records the export (Plane.export).",
+        "security": [
+          {},
+          {
+            "bearer": []
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -918,8 +924,18 @@
               }
             }
           },
+          "401": {
+            "description": "on a server with credentials (ADR 0042): no bearer credential, or one it does not accept; WWW-Authenticate names the protected-resource metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "403": {
-            "description": "the Host or Origin is not this loopback server's, or the actor may not explain this read",
+            "description": "the Host or Origin is not this server's, the credential's actor is not the request's (forbidden_actor), or the actor may not explain this read",
             "content": {
               "application/json": {
                 "schema": {
