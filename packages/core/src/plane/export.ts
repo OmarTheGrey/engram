@@ -21,11 +21,26 @@ export interface ExportResult {
   event: MemoryEvent;
 }
 
+/** The words an export event's reason starts with; no read path reason does. */
+const EXPORT_REASON_PREFIX = "exported ";
+
+/**
+ * Whether `event` records an export (Plane.export) rather than a read: a
+ * read event naming no item whose reason starts "exported " (a read's reason
+ * starts "returned "). The dogfood report counts reads without it (card
+ * E9.8, finding E9.8-9).
+ */
+export function isExportEvent(event: Pick<MemoryEvent, "op" | "item_id" | "reason">): boolean {
+  return (
+    event.op === "read" && event.item_id === null && event.reason.startsWith(EXPORT_REASON_PREFIX)
+  );
+}
+
 /** The reason an export's event carries. */
 export function exportReason(rows: readonly BundleRow[], policy: PlaneDeps["policy"]): string {
   const events = rows.reduce((n, r) => n + r.events.length, 0);
   return (
-    `exported ${rows.length} item${rows.length === 1 ? "" : "s"} with ${events} event${events === 1 ? "" : "s"} ` +
+    `${EXPORT_REASON_PREFIX}${rows.length} item${rows.length === 1 ? "" : "s"} with ${events} event${events === 1 ? "" : "s"} ` +
     `as a bundle under ${policy.id} v${policy.version}: the exporter's own person scope and its own ` +
     "items in the other scopes the read matrix lets it read, of every status"
   );

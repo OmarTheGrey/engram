@@ -23,7 +23,7 @@ export * from "./lint/model.ts";
 export * from "./lint.ts";
 export * from "./model.ts";
 export * from "./no-bypass.ts";
-export { type ExportResult, exportReason } from "./plane/export.ts";
+export { type ExportResult, exportReason, isExportEvent } from "./plane/export.ts";
 export {
   matchesQuery,
   queryTerms,
