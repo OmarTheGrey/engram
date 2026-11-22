@@ -17,6 +17,7 @@ import type { Db } from "./db/db.ts";
 import type { DistillMethod, Session } from "./distill.ts";
 import { allEvents } from "./events.ts";
 import type { ModelLintSetup } from "./lint/model.ts";
+import type { NliLintSetup } from "./lint/nli.ts";
 
 export {
   ADOPT_ERASED_ID,
@@ -285,7 +286,10 @@ export interface Plane {
    * model-based ones it enables (card L3); every finding is also one `lint`
    * event, which changes no item, and a model finding's event carries the
    * call's usage. The report's `judgments` list every unit the model lints
-   * sent, refusals and malformed replies included. The actor must be able to read the scope (a member
+   * sent, refusals and malformed replies included. When the policy enables
+   * `contradiction-nli` and the plane has an NLI scorer (card L7), that tier
+   * scores the contradiction pairs first and only its uncertain band reaches
+   * the model; the report's `nli` lists every pair it scored. The actor must be able to read the scope (a member
    * whose level the read matrix lets read it), else one deny event
    * (`engram/lint/membership`); an item outside the scope that a finding
    * would name counts as absent unless the actor could read it at `at`,
@@ -356,6 +360,11 @@ export interface PlaneDeps {
    * Plane.lint runs the deterministic lints only, whatever the policy enables.
    */
   lintModel?: ModelLintSetup;
+  /**
+   * The NLI tier's scorer (card L7): the injected NliScore and the pinned
+   * model it names. Unset, the tier does not run, whatever the policy enables.
+   */
+  lintNli?: NliLintSetup;
 }
 
 export function createPlane(deps: PlaneDeps): Plane {
