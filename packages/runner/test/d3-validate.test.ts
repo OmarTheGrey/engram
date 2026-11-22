@@ -70,6 +70,17 @@ describe("the split by construction (card D3, step 1)", () => {
     }
   });
 
+  test("a held-out task with an induction task's prompt and start state is refused (D3-8)", () => {
+    const induced = tasks.find((t) => t.id === "synthetic/bump-timeout-06") as Task;
+    const copy: Task = { ...induced, id: "synthetic/bump-timeout-99" };
+    expect(() => replayPlan([...tasks, copy], candidates)).toThrow(
+      "held-out task synthetic/bump-timeout-99 has the prompt and start state of synthetic/bump-timeout-06",
+    );
+    // The same prompt over another start state is another task.
+    const other: Task = { ...copy, files: { "src/fetch.ts": "export const t = 1;\n" } };
+    expect(() => replayPlan([...tasks, other], candidates)).not.toThrow();
+  });
+
   test("the pool holds an induction task, and the split drops it", () => {
     const induced = new Set(candidates.flatMap((c) => c.induced_from));
     const inPool = tasks.filter((t) => induced.has(t.id)).map((t) => t.id);
@@ -106,9 +117,12 @@ describe("the oracle: the task's own check (card D3, step 3)", () => {
     expect(taskReward(t, { repo: { files: { a: "1", b: "2" } }, text: "" })).toBe(1);
   });
 
-  test("a stated outcome: 1 when the final reply names it", () => {
+  test("a stated outcome: 1 when the final reply is exactly it (D3-10)", () => {
     const t = task({ kind: "stated", outcome: "delivered" });
-    expect(taskReward(t, { repo: { files: t.files }, text: "It was Delivered." })).toBe(1);
+    expect(taskReward(t, { repo: { files: t.files }, text: "delivered" })).toBe(1);
+    expect(taskReward(t, { repo: { files: t.files }, text: " delivered\n" })).toBe(1);
+    expect(taskReward(t, { repo: { files: t.files }, text: "not delivered" })).toBe(0);
+    expect(taskReward(t, { repo: { files: t.files }, text: "It was delivered." })).toBe(0);
     expect(taskReward(t, { repo: { files: t.files }, text: "It is pending." })).toBe(0);
   });
 
@@ -161,9 +175,9 @@ describe("acceptance (card D3): the replayed fixture admits one candidate and re
   }, 120_000);
 
   test("a replay against an empty cache is a miss, never a call", async () => {
-    await expect(
-      runReplayConfig(config, { offline: true, cache: memoryCache() }),
-    ).rejects.toThrow();
+    await expect(runReplayConfig(config, { offline: true, cache: memoryCache() })).rejects.toThrow(
+      /^offline \(ENGRAM_OFFLINE=1, or a replay\) and no cassette for key [0-9a-f]{64} \(item synthetic\//,
+    );
   }, 60_000);
 });
 

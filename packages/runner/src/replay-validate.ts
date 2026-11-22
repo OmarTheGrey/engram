@@ -25,7 +25,7 @@
 //    tau2-bench's database check (the session's final repository files
 //    against the files the task's gold edits produce from the same start,
 //    as a hash of the canonical encoding), or the fixture's stated outcome
-//    (the final reply names it). A tau2-bench task row is scored by its own
+//    (the final reply is exactly it). A tau2-bench task row is scored by its own
 //    database hash check (tau2Reward, card B11's TaskRow); running tau2 with
 //    a candidate installed is H5's run (card X11).
 // 4. Admission is core's: the replay goes to Plane.promote, which derives the
@@ -63,6 +63,7 @@ import {
   parseSkillMd,
   type ReplayOutcome,
   type ReplayRecord,
+  strictContentHash,
   type TaskScore,
   toSkillMd,
 } from "@engram/core";
@@ -158,7 +159,7 @@ const Task = z.strictObject({
   check: z.discriminatedUnion("kind", [
     /** tau2-bench's database check, on files: the final state's hash against the gold edits' state. */
     z.strictObject({ kind: z.literal("state-hash"), gold: z.array(Action) }),
-    /** The fixture's stated outcome: the final reply names it. */
+    /** The fixture's stated outcome: the final reply is exactly it, trimmed. */
     z.strictObject({ kind: z.literal("stated"), outcome: z.string().min(1) }),
   ]),
 });
@@ -232,14 +233,40 @@ export function candidatesOf(
   return out;
 }
 
-/** The held-out tasks per candidate (core's split), and every task a baseline runs on, in pool order. */
+/** A task's prompt and start state, as one key: two tasks with the same key are the same task. */
+const taskKey = (t: Pick<Task, "prompt" | "files">) =>
+  `${t.prompt}\u0000${stateHash({ files: t.files })}`;
+
+/**
+ * The held-out tasks per candidate (core's split), and every task a baseline
+ * runs on, in pool order. A held-out task whose prompt and start state equal
+ * those of one of the candidate's induction tasks in the pool is the same
+ * task under another id, and is refused (card D3 review, D3-8).
+ */
 export function replayPlan(
   tasks: readonly Task[],
   candidates: readonly Pick<Candidate, "name" | "induced_from">[],
 ): { held_out: Record<string, string[]>; baseline: string[] } {
   const pool = tasks.map((t) => t.id);
+  const byId = new Map(tasks.map((t) => [t.id, t]));
   const held_out = Object.fromEntries(
-    candidates.map((c) => [c.name, heldOutTasks(pool, c.induced_from)]),
+    candidates.map((c) => {
+      const held = heldOutTasks(pool, c.induced_from);
+      const induced = new Map(
+        c.induced_from.flatMap((id) => {
+          const t = byId.get(id);
+          return t === undefined ? [] : [[taskKey(t), id] as const];
+        }),
+      );
+      for (const id of held) {
+        const same = induced.get(taskKey(byId.get(id) as Task));
+        if (same !== undefined)
+          throw new Error(
+            `held-out task ${id} has the prompt and start state of ${same}, a task ${c.name} was induced from`,
+          );
+      }
+      return [c.name, held];
+    }),
   );
   const any = new Set(Object.values(held_out).flat());
   return { held_out, baseline: pool.filter((t) => any.has(t)) };
@@ -293,7 +320,9 @@ export const stateHash = (repo: Repo) => sha256(canonicalJson(repo));
 export function taskReward(task: Task, observed: { repo: Repo; text: string }): number {
   if (task.check.kind === "state-hash")
     return stateHash(observed.repo) === stateHash(applyActions(task, task.check.gold)) ? 1 : 0;
-  return observed.text.toLowerCase().includes(task.check.outcome.toLowerCase()) ? 1 : 0;
+  // The whole reply, exactly (card D3 review, D3-10): a substring would let
+  // "not delivered" pass "delivered".
+  return observed.text.trim() === task.check.outcome.trim() ? 1 : 0;
 }
 
 /**
@@ -579,6 +608,9 @@ export async function runReplayConfig(
       adapter: createFakeAdapter(),
       policy,
       newId: sequentialIds("9"),
+      // The plane checks each replay's split against the candidate's own
+      // distill ref through card D1's index (card D3 review, D3-3).
+      distillTasks: sessionTasks(config),
     });
     const results: ReplayCandidateResult[] = [];
     for (const c of candidates) {
@@ -603,7 +635,13 @@ export async function runReplayConfig(
             without: without.get(`${t}@${seed}`) as number,
             with: (await run(t, c, seed)).reward,
           });
-      const replay = { induced_from: c.induced_from, threshold: config.threshold, outcomes };
+      const replay = {
+        item_id: c.item.id,
+        content_hash: strictContentHash(c.item.content),
+        induced_from: c.induced_from,
+        threshold: config.threshold,
+        outcomes,
+      };
       const decided = admission(policy, replay);
       // The owner who ran the replay presents it, user-sourced (ADR 0045 proposed).
       const operator: Actor = { ...writer, source: "user" };
