@@ -1112,3 +1112,645 @@ $ engram doctor --db ~/demo/engram.db --root ~/demo/mem   exit 0
 ```
 
 While doctor runs, each check's row shows "running" with the static busy marker of 11.5 and fills in as it finishes, so a slow Letta check (git on Windows) never leaves the screen blank.
+
+### 8.13 Serve
+
+Host (a choice of the three loopback names the server accepts), Port (default 7313), the viewer the inspector shows (`--as`, `--member`, `--level`; "none" by default), and the workspace. Start runs `serveCommand` in the TUI's process with an `Io.stop` the screen controls; the screen shows the server's start line, the inspector's URL as an OSC 8 link, and a live request count from the client transport. `s` stops it and shows the stop line. Quitting the TUI stops a running server first and says so. In flight, card E8.12: an "Authentication" section with the credential flags and `--insecure-loopback`, and the refusal to start without one shown as the CLI prints it.
+
+Serve (80x24):
+
+```text
+ engram  Serve the API and inspector           in process  person:dana (person)
+ Host    (o) 127.0.0.1   ( ) ::1   ( ) localhost     loopback only
+ Port    [ 7313  ]
+ Viewer  [ person:dana    ]  member of person:dana     shown by the inspector
+ ▸ Authentication                                      in flight, card E8.12
+
+ ● running
+ engram serve: listening on http://127.0.0.1:7313 (log sqlite ~/demo/engram.db,
+   preset.medium v1, store files at ~/demo/mem, viewer person:dana)
+
+ Inspector  http://127.0.0.1:7313/        open: o
+ API        http://127.0.0.1:7313/api/v1
+
+ The server has no authentication yet, so it listens on this machine only.
+ It stops when you press s or quit the TUI.
+
+
+
+
+
+
+
+$ engram serve --as person:dana --member person:dana --root ~/demo/mem
+ s stop  o open inspector  c copy  ? help  esc back (keeps it running)
+```
+
+The start line shape is `serve.ts`'s; the label `sqlite ~/demo/engram.db` stands for whatever `workspace.target.label` prints.
+
+### 8.14 MCP server
+
+The MCP server is normally launched by the harness, not by a person, so this screen is mostly setup: it builds the `engram mcp` command for the actor and memberships chosen, and shows the snippet for Claude Code's `.mcp.json` and Codex's configuration, with `c` to copy each. "Test it" starts it over streamable HTTP on a free loopback port (`--http`), runs the MCP handshake against it as layer 6 does, shows the tool list, and stops it. Over stdio the TUI never starts it, because stdio would be the TUI's own terminal.
+
+MCP server (80x24):
+
+```text
+ engram  MCP server                               in process  agent:claude-code
+ Acting as   [ agent:claude-code ]  source model, fixed at launch
+ Member of   person:dana  [+ add]     Level [ own v]
+ Transport   (o) stdio, launched by the harness   ( ) HTTP port [ 7314 ]
+
+ For Claude Code, .mcp.json:
+   { "mcpServers": { "engram": { "command": "engram", "args": ["mcp",
+     "--as", "agent:claude-code", "--member", "person:dana"] } } }
+
+ [ Copy .mcp.json ]  [ Copy Codex config ]  [ Test it over HTTP ]
+
+ ✓ test: handshake ok as agent:claude-code; tools memory_read, memory_write,
+   memory_explain, memory_simulate; stopped
+
+
+
+
+
+
+
+
+
+$ engram mcp --as agent:claude-code --member person:dana
+ enter choose  c copy command  ? help  esc back
+```
+
+The tool names listed come from the handshake at run time; the four shown are the ones `packages/mcp` registers today.
+
+### 8.15 Claude Code hook setup
+
+The hook reads JSON on stdin from Claude Code, so a person never runs it by hand. The screen builds the `engram hook claude-code` command from Store roots (`--root`, repeatable), Protected files (`--protect`, repeatable; with a server, the TUI fills in the log `engram serve --db` names and says why, as `docs/dogfood.md` asks), the block actor (`--as`, default `agent:claude-code`) and the log or server. It shows the `.claude/settings.json` hook entry to copy, and "Try it" pipes two sample PreToolUse inputs through the same `hookCommand` with an in-memory stdin: one that touches a store root (expect a deny) and one that does not (expect nothing). The TUI writes no settings file itself.
+
+Claude Code hook setup (80x24):
+
+```text
+ engram  Claude Code hook setup                in process  person:dana (person)
+ Store roots     ~/demo/mem  [+ add]
+ Protected files [+ add]     the log is protected already
+ Block events as [ agent:claude-code ]
+
+ .claude/settings.json, hooks.PreToolUse:
+   { "matcher": "", "hooks": [ { "type": "command", "command":
+     "engram hook claude-code --root ~/demo/mem" } ] }
+
+ [ Copy the entry ]   [ Try it ]
+
+ ✓ Read ~/demo/mem/user_role.md      blocked: permissionDecision deny
+ ✓ Read ./README.md                  allowed: the hook printed nothing
+
+
+
+
+
+
+
+
+
+$ engram hook claude-code --root ~/demo/mem
+ enter choose  c copy command  ? help  esc back
+```
+
+### 8.16 Events
+
+The inspector's timeline in the terminal, through `engram events` (3.6): the events the actor may see, newest last, with the inspector's columns (seq, time, op, decision, actor, scope, policy id, reason) and its filters (scope, op, decision, actor; `filterEvents`). Columns that do not fit at 80 are dropped right to left and shown in the detail pane. `/` searches reasons. `f` follows new events (a poll every 2 s with `--after <seq>`, off by default and off under `--reduced-motion` until asked). `enter` opens the event detail (`eventDetail`'s labelled fields); on a read, `e` explains it; on an item, `o` opens the item page.
+
+Events (80x24):
+
+```text
+ engram  Events                                in process  person:dana (person)
+ Filters  scope [ any v]  op [ any v]  decision [ any v]  actor [ any v]
+ 11 of 11 events
+
+ seq  time      op       decision  scope           policy id
+   4  17:15:15  read     ✓ allow   -               preset.medium/read/person
+   5  17:15:16  write    ✓ allow   person:dana     preset.medium/write/person
+ > 6  17:15:17  write    ✗ deny    team:platform   preset.medium/write/team
+   7  17:15:29  promote  ✗ deny    person:dana to  engram/promote/no-evidence
+   8  17:15:30  promote  ✗ deny    person:dana to  engram/write/membership
+   9  18:17:08  read     ✓ allow   -               preset.medium/read/person
+
+ event 6  write  ✗ deny  by person:dana  item 01a1ff1a-ef40-749b-9f85-...
+ reason  episodic items are forbidden in team scope; provenance set by the
+         plane: source user, actor person:dana
+
+
+
+
+
+
+
+$ engram events --owner dana
+ enter detail  o item  e explain  / search  f follow  J json  c copy  ? help
+```
+
+The rows are the sample log of this design's runs (seq 0 to 3 are the four adopted memories); scope "person:dana to" is `scopeText` cut at the column, and the detail pane shows it whole.
+
+### 8.17 Item page
+
+The inspector's item page (card E8.11) as a screen: the item's current state, its provenance as an indented tree instead of a graph (the same `provenanceGraph` nodes and edges; an ancestor the viewer may not see leaves no node, no edge and no count, exactly the inspector's leak rule), the versions with a line diff between any two (`itemVersions`, `versionText`), and "Events naming this item" (`itemEvents`). Actions on the item: `p` promote, `g` grants, `w` who can read (card E2.13), `u` supersede (card L6).
+
+Item page (80x24):
+
+```text
+ engram  Item page                             in process  person:dana (person)
+ 01a1ff1a-eb0e-7b15-9e1e-af7066dfc62c   semantic   person:dana   active
+ The deploy key rotates every 90 days.
+ owner person:dana  source user engram-cli  confidence 0.9  valid from
+ 2026-11-21T17:15:16.620Z, open  grants none  stored files:01a1ff1a-...md
+┌─ Provenance ─────────────────────────────────────────────────────────────────┐
+│ This item  v1                                                                │
+│ └─ written by event 5, write ✓ allow, person:dana                            │
+│    no earlier version                                                        │
+└──────────────────────────────────────────────────────────────────────────────┘
+┌─ Versions  1 of 1 ───────────────────────────────────────────────────────────┐
+│ one version; nothing to compare                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
+┌─ Events naming this item ────────────────────────────────────────────────────┐
+│   5  write    ✓ allow  preset.medium/write/person                            │
+│   7  promote  ✗ deny   engram/promote/no-evidence                            │
+│   8  promote  ✗ deny   engram/write/membership                               │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+
+
+
+$ engram events --owner dana   (the page is built from the read and the events)
+ p promote  g grants  w who  u supersede  enter event  tab pane  ? help
+```
+
+### 8.18 Policy
+
+The policy in force (`engram policy`, 3.6): its label, then each block (write, read, retention, promotion, lints, and the optional content_guards and trust blocks, shown as "off" when absent) as a foldable tree of the YAML the loader parsed. It is read only; policies are edited in files and the screen's `o` opens the file in `$EDITOR` when the policy is a file. A rule id shown in a denial elsewhere jumps here with that rule unfolded. In flight, card E2.12: "Export to Cedar" appears here when a command exists for it.
+
+Policy (80x24):
+
+```text
+ engram  Policy in force                       in process  person:dana (person)
+ preset.medium v1                                 a bundled preset, read only
+
+ ▾ write
+   ▾ team    sources user, document, tool, import   confidence floor 0.7
+             forbidden classes episodic   requires review no
+   ▸ person  ▸ role  ▸ org
+ ▸ read      scope matrix, grants honoured
+ ▸ retention
+ ▸ promotion
+ ▸ lints     enabled duplicate, expired-validity, missing-provenance, ...
+   content_guards  off (absent)                        ADR 0039
+   trust           off (absent)                        ADR 0040
+
+
+
+
+
+
+
+
+
+$ engram policy --owner dana
+ enter fold  / find rule  J json  c copy  ? help  esc back
+```
+
+The field names follow `packages/core/src/schema.ts`'s policy contract; the values shown here are illustrative of the layout, and the implementation renders whatever `GET /policy` returns, never a hand-kept copy.
+
+### 8.19 Grants
+
+The inspector's grants editor (card E9.4) through `engram grants` (3.6). It lists the item's grants as the inspector shows them (all of them to the owner, only the viewer's own to anyone else, `shownGrants`) with `grantLabel`'s text, and adds a grant from a draft checked by `grantFrom` with its messages ("a grant names who it is for, such as person:sam"). Each change is one governed call whose decision is shown. After an allowed change, `u` offers the inverse change (9.6).
+
+Grants (80x24):
+
+```text
+ engram  Grants on an item                     in process  person:dana (person)
+ Item  01a1ff1a-eb0e-7b15-9e1e-af7066dfc62c  The deploy key rotates every 90...
+ You own this item: every grant is shown.
+
+ Grants
+   person:sam: semantic, read, until 2026-12-01T00:00:00Z     [ remove ]
+
+ Add a grant
+   To       [ person:sam      ]
+   Class    [ semantic v]   Mode [ read v]
+   Expires  [ 2026-12-01      ]  a UTC date or timestamp
+
+ ✓ allow  grant added; u undo (removes it again, a new governed change)
+
+
+
+
+
+
+
+
+
+$ engram grants 01a1ff1a-eb0e-... --add person:sam,class=semantic,mode=read,...
+ ctrl+s apply  u undo  tab next  c copy  ? help  esc back
+```
+
+### 8.20 Export (in flight, card E9.8)
+
+From the registry entry of `engram export`: Out (a file; default stdout, which the TUI never uses, so it asks for a file), encryption (none, recipients `--recipient` repeatable, or a passphrase file). The result is the CLI's line. Export writes a file, not the log, so its confirmation names the file and whether it will be overwritten.
+
+Export (80x24):
+
+```text
+ engram  Export a bundle                       in process  person:dana (person)
+ Out          [ ~/demo/dana-bundle.jsonl          ]   a new file
+ Encryption   ( ) none   (o) age recipients   ( ) passphrase file
+ Recipients   age1qyqszqgpqyqszqgpqyqszqgpqyqszqgp...  [+ add]
+
+ The bundle holds the items person:dana owns, with their events.
+
+ ✓ exported 5 items with 9 events as person:dana under preset.medium v1
+   to ~/demo/dana-bundle.jsonl, encrypted to 1 recipient
+
+
+
+
+
+
+
+
+
+
+
+
+
+$ engram export --owner dana --out ~/demo/dana-bundle.jsonl --recipient age1...
+ ctrl+s export  tab next  c copy  ? help  esc back
+```
+
+The result line follows the shape the E9.8 branch prints; its counts here are illustrative until that card merges.
+
+### 8.21 Import (in flight, card E9.8)
+
+Bundle file or a pasted Claude memory list (`--claude`), target scope, confidence (Claude lists only), decryption (`--identity`, repeatable, or `--passphrase-file`). Every row is a governed candidate write by the import actor, so the confirmation says how many rows will be offered and that each is decided by the write gate. The result is one row per item with its decision, and the id map, as the CLI prints them; exit 1 if any row was denied is shown, not exited on.
+
+Import (80x24):
+
+```text
+ engram  Import a bundle                       in process  person:dana (person)
+ Source       (o) bundle [ ~/demo/dana-bundle.jsonl ]   ( ) Claude list
+ Scope        [ default each row's own ]
+ Identity     ~/.config/age/key.txt  [+ add]
+
+ import as import:person:dana for person:dana: 5 rows, 4 allowed, 1 denied
+   01a1ff1a-eb0e-... -> 01a20000-1111-...: ✓ allow as candidate
+   00000000-0000-7fec-... -> 01a20000-2222-...: ✓ allow as candidate
+   00000000-0000-705b-... -> 01a20000-3333-...: ✗ deny: episodic items
+     are forbidden in team scope (preset.medium/write/team)
+
+ exit 1 as a plain command: a row was denied.
+
+
+
+
+
+
+
+
+
+
+$ engram import ~/demo/dana-bundle.jsonl --owner dana --identity ~/.config/...
+ enter row  ctrl+s import  J json  c copy  ? help  esc back
+```
+
+The rows are illustrative of the shape `import as <actor> for <importer>: N rows, A allowed, D denied` and `<from> -> <to>: <decision> as <status>: <reason> (<policy_id>)` that the E9.8 branch prints.
+
+### 8.22 Who can read (in flight, card E2.13)
+
+An item (from any item, `w`) or a scope. The answer is the reader set the plane computed, each reader with the rule or grant admitting it (`ReaderEntry`: members of a scope at a level by a policy id, or a grant holder), the closed reason when no one else can, and dormant grants with why they admit no one. Grant holders are named to the owner only, as the route answers. A refusal shows the route's reason; nothing is guessed.
+
+Who can read (80x24):
+
+```text
+ engram  Who can read                          in process  person:dana (person)
+ Item  01a1ff1a-eb0e-7b15-9e1e-af7066dfc62c   or scope [            ]
+
+ who can read item 01a1ff1a-eb0e-... at 2026-11-21T18:20:00Z as person:dana:
+ ✓ answered
+
+   members of person:dana (person)    preset.medium/read/person
+   grant to person:sam: semantic, read, until 2026-12-01T00:00:00Z
+
+ Dormant
+   none
+
+
+
+
+
+
+
+
+
+
+
+$ engram who-can-read 01a1ff1a-eb0e-7b15-9e1e-af7066dfc62c --owner dana
+ tab item or scope  J json  c copy  ? help  esc back
+```
+
+### 8.23 Keys (in flight, card E8.12)
+
+`engram key create | list | revoke` from the registry: list shows each key masked (`egk_<id>_****<last4>`, the ADR's form), create shows the new key once with "copy it now; it is not shown again", revoke asks for confirmation naming the key and that it cannot be undone.
+
+Keys (80x24):
+
+```text
+ engram  Keys                                  in process  person:dana (person)
+ Keys for the local server
+
+   egk_7f3a9c2e1b04_****9d1e   person:dana   created 2026-11-21
+ > egk_2b8e4f6a0c13_****04aa   agent:ci      created 2026-11-21   [ revoke ]
+
+ [ Create a key ]
+
+ A key is shown in full once, when it is created. Revoking cannot be undone.
+
+
+
+
+
+
+
+
+
+
+
+
+
+$ engram key list
+ n new  r revoke  c copy  ? help  esc back
+```
+
+### 8.24 Log verify (in flight, card E1.6)
+
+`engram log verify` checks the event log's tamper-evident chain and its checkpoints. The screen shows the verdict as status and word (verified, broken at seq n, unsigned checkpoint), the first broken link when there is one, and the CLI's lines. Its flags are not fixed yet; the form is generated from the registry entry when the card merges, and signing, which writes a checkpoint, asks first.
+
+Log verify (80x24):
+
+```text
+ engram  Verify the log                        in process  person:dana (person)
+ Log  ~/.engram/engram.db
+
+ ✓ verified   11 events, chain intact to seq 10
+ ! unsigned   the latest checkpoint carries no signature
+
+ The chain proves no event was changed or removed after it was written.
+ A signed checkpoint also proves who vouched for it.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+$ engram log verify
+ enter details  v plain  c copy  ? help  esc back
+```
+
+The verdict words are the card's (first broken link, UNSIGNED); the exact lines come from the command when it lands.
+
+### 8.25 Procedures (Distill)
+
+Until card D2 adds a command, the route answers 501 naming the card, and so does the screen, as the CLI's exit 2 would: "Candidate procedures from sessions are not available yet; card D2 builds them." When D2 and D3 add commands, the registry entries give this screen its forms; D3's promotion rule (`engram/promote/validation-source`) and its replay reasons already show on Promote as the CLI prints them.
+
+Procedures (80x24):
+
+```text
+ engram  Procedures                            in process  person:dana (person)
+ · not yet   Candidate procedures from sessions: 501 until card D2
+
+ Procedures are mined from agent sessions, admitted after replay validation
+ (card D3) and retired on drift. The plane's route exists; no command calls
+ it yet. This screen fills in from the command when it lands.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+$ (no command yet)
+ ? help  esc back
+```
+
+### 8.26 Supersede (in flight, card L6)
+
+On an item, `u` asks the plane for supersession proposals (an end date for a fact a newer one replaces, or a review flag), the head of the item's chain and any error (`unknown_id`, `cycle_detected`, `depth_exceeded`), and lets the person accept proposals one by one. Accepting is an ordinary governed update, so it asks first and shows each applied write's decision. The plane never retires anything by itself here.
+
+Supersede (80x24):
+
+```text
+ engram  Supersede                             in process  person:dana (person)
+ Item  00000000-0000-7fec-aeaa-eb2bfa22eb9b  The Lantern release freezes...
+ head  this item (chain of 1)
+
+ Proposals
+   [ ] close   valid_to 2026-11-21T00:00:00Z   a newer item restates it
+   [ ] review  confidence differs from the newer item
+
+ Accepting writes a new version with the end date; it is decided by the
+ write gate like any update.
+
+
+
+
+
+
+
+
+
+
+
+
+$ engram supersede 00000000-0000-7fec-aeaa-eb2bfa22eb9b --accept ...
+ space choose  ctrl+s accept chosen  c copy  ? help  esc back
+```
+
+The proposal rows show the response's `action`, `valid_to` and `reason` fields; their text here is illustrative until the card's command exists.
+
+### 8.27 Command palette
+
+`ctrl+p` or `:` opens the palette over any screen. It fuzzy-searches (pi-tui's `fuzzyFilter`) every registry command by its label, its command name, its flags and its help line, plus the TUI's own actions (switch actor, open workspace, toggle plain view, rerun, copy). Each row shows the label and the command. A query that names a flag (`--review`) finds the command that takes it. Typing a full command line (`read release --owner dana`) and pressing enter opens that screen with the form filled from the flags, so a person can paste a command they know.
+
+Command palette (80x24):
+
+```text
+ engram  Read and explain                      in process  person:dana (person)
+ Query [ release ]
+
+         ┌─ Commands ─────────────────────────────────────────────────┐
+         │ > prom                                                     │
+         │                                                            │
+         │ > Promote an item            engram promote <itemId> --to  │
+         │   Approve a promotion        engram promote --review       │
+         │   Promotion rules            engram policy                 │
+         │                                                            │
+         │ enter open   tab fill   esc close                          │
+         │                                                            │
+         └────────────────────────────────────────────────────────────┘
+
+
+
+
+
+
+
+
+
+$ engram read release --owner dana
+ ? help  esc back
+```
+
+### 8.28 Help overlay
+
+`?` shows the keys of the current screen first, then the global keys, then the screen's command and its help section from HELP verbatim, so the overlay and `engram --help` never disagree. `?` or `esc` closes it.
+
+Help overlay (80x24):
+
+```text
+ engram  Read and explain                      in process  person:dana (person)
+ Query [ release ]
+
+    ┌─ Help: Read and explain ─────────────────────────────────────────────┐
+    │ This screen                                                          │
+    │   enter  item page      e  explain        p  promote                 │
+    │   w      who can read   g  grants         v  plain view              │
+    │   J      JSON view      c  copy command   /  find in results         │
+    │ Everywhere                                                           │
+    │   ctrl+p or :  commands     ctrl+o  workspace    esc  back           │
+    │   ?            this help    q       quit (Home)  ctrl+c quit         │
+    │ engram read [query]                                                  │
+    │   read through the plane and explain every returned item             │
+    │   --at <iso time>  read: the time validity windows are judged at     │
+    │                                                                      │
+    │                                                                      │
+    └──────────────────────────────────────────────────────────────────────┘
+
+
+
+
+
+$ engram read release --owner dana
+ ? help  esc back
+```
+
+### 8.29 Confirmation
+
+One dialog shape for every action whose registry entry says it writes state or erases (9.5): what will happen in one sentence, the exact command, the preview when a check exists, whether it can be undone, and two buttons with the safe one focused. `y` or enter on the action button runs it; `n` or `esc` cancels.
+
+Confirmation (80x24):
+
+```text
+ engram  Write a memory                        in process  person:dana (person)
+ Content  The deploy key rotates every 90 days.
+
+
+
+       ┌─ Write this memory? ───────────────────────────────────────────┐
+       │ Writes one semantic item to person:dana as person:dana.        │
+       │                                                                │
+       │ $ engram write --content "The deploy key rotates every 90      │
+       │   days." --owner dana --root ~/demo/mem                        │
+       │                                                                │
+       │ The gate would  ✓ allow  (preset.medium/write/person)          │
+       │ A write cannot be undone; later changes are new versions.      │
+       │                                                                │
+       │              [ Cancel ]      [ Write ]                         │
+       └────────────────────────────────────────────────────────────────┘
+
+
+
+
+
+
+$ engram write --content ... --owner dana
+ ? help  esc back
+```
+
+### 8.30 ASCII fallback
+
+`--ascii`, `ENGRAM_TUI_ASCII=1`, or a terminal the TUI detects as unable to show box drawing (11.7) draws the same layout with ASCII only. The Home screen of 8.1, with no colour:
+
+ASCII fallback (80x24):
+
+```text
+ engram  Home                                  in process  person:dana (person)
++----------------------------------++------------------------------------------+
+| Memory                           || Read and explain                         |
+| > [r] Read and explain           ||                                          |
+|   [w] Write a memory             || engram read [query]                      |
+|   [p] Promote an item            ||                                          |
+| Policy                           || + allow   x deny   ? ask                 |
+|   [l] Lint a scope               || + ok   x fail   - skip   ! warn          |
+| Machine                          ||                                          |
+|   [d] Doctor                     ||                                          |
+|                                  ||                                          |
+|                                  ||                                          |
+|                                  ||                                          |
+|                                  ||                                          |
+|                                  ||                                          |
+|                                  ||                                          |
+|                                  ||                                          |
+|                                  ||                                          |
+|                                  ||                                          |
+|                                  ||                                          |
++----------------------------------++------------------------------------------+
+ + doctor: all checks passed 18:17   log ~/.engram/engram.db   preset.medium v1
+$ engram read --owner dana --root ~/demo/mem
+ enter open  1-5 group  letter action  ? help  ctrl+p commands  q quit
+```
+
+### 8.31 Line mode
+
+`engram tui --line` is the plain CLI with prompts, for screen readers and for terminals where a full-screen layout is a burden. It never redraws, never moves the cursor up, uses no colour and no box drawing, and writes each prompt as one line ending in a colon. A transcript (`>` marks what the person typed):
+
+Line mode transcript (not a fixed-size frame; lines wrap as the terminal wraps them):
+
+```text
+engram tui, line mode. Type a number, a command name, or help. Enter quits.
+1 read  2 write  3 promote  4 explain  5 retain  6 lint  7 simulate
+8 events  9 policy  10 grants  11 doctor  12 serve  13 mcp  14 hook
+command: > 2
+write one item through the plane's write gate
+content (required): > The deploy key rotates every 90 days.
+scope (default person:dana): >
+class, semantic or episodic (default semantic): >
+confidence, 0 to 1 (default 0.9): >
+valid from (default now): >
+valid to (default open): >
+the gate would: allow, preset.medium/write/person
+run: engram write --content "The deploy key rotates every 90 days." --owner dana
+write it? yes or no (default no): > yes
+write 01a1ff1a-eb2f-7796-86da-f7ba06d213c8 at 2026-11-21T17:15:16.645Z by person:dana
+allow: semantic item from source user passes the person write rule; provenance set by the plane: source user, actor person:dana
+policy preset.medium/write/person
+item 01a1ff1a-eb0e-7b15-9e1e-af7066dfc62c semantic in person:dana, status active, stored at files:01a1ff1a-eb0e-7b15-9e1e-af7066dfc62c.md
+log ~/demo/engram.db
+exit 1 would mean denied; this one exited 0.
+command: >
+```
+
+The output after "write it?" is `engram write`'s own text, unchanged, because line mode runs the command through `run(argv, io)` with the same `Io`. A screen reader therefore reads exactly what the CLI prints.
