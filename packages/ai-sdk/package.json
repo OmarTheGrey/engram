@@ -23,6 +23,7 @@
     "@ai-sdk/provider": "4.0.36",
     "@engram/adapters": "workspace:*",
     "@engram/core": "workspace:*",
-    "@engram/server": "workspace:*"
+    "@engram/server": "workspace:*",
+    "ai": "7.0.163"
   }
 }
