@@ -60,7 +60,7 @@ function canon(value: unknown, key: string | null): string {
     case "boolean":
       return value ? "true" : "false";
     case "number":
-      if (!Number.isFinite(value)) throw new TypeError(`canonicalJson: ${value} is not finite`);
+      if (!Number.isFinite(value)) throw new TypeError(`chainCanonical: ${value} is not finite`);
       // ECMAScript's shortest round-trip form, as RFC 8785 uses; -0 is 0.
       return Object.is(value, -0) ? "0" : JSON.stringify(value);
     case "string": {
@@ -82,7 +82,7 @@ function canon(value: unknown, key: string | null): string {
       return `{${keys.map((k) => `${JSON.stringify(k)}:${canon(record[k], k)}`).join(",")}}`;
     }
     default:
-      throw new TypeError(`canonicalJson: a ${typeof value} has no canonical form`);
+      throw new TypeError(`chainCanonical: a ${typeof value} has no canonical form`);
   }
 }
 
@@ -95,7 +95,7 @@ function canon(value: unknown, key: string | null): string {
  * normalTimestamp), so two writings of one instant hash alike. An undefined
  * object member is dropped, as JSON drops it; anything else not JSON throws.
  */
-export function canonicalJson(value: unknown): string {
+export function chainCanonical(value: unknown): string {
   return canon(value, null);
 }
 
@@ -158,7 +158,7 @@ export function commitment(salt: Uint8Array, part: Part, value: PartValue): stri
   const digest = sha256(
     "engram.commitment.v1\n",
     salt,
-    canonicalJson(
+    chainCanonical(
       value.present ? { part, present: true, value: value.value } : { part, present: false },
     ),
   );
@@ -201,7 +201,7 @@ export function skeleton(event: MemoryEvent, given: Readonly<Record<string, stri
 
 /** The chain record of an event entry, in canonical form: what its leaf hashes. */
 export function eventRecord(event: MemoryEvent, given: Readonly<Record<string, string>>): string {
-  return canonicalJson({ kind: "event", skeleton: skeleton(event, given) });
+  return chainCanonical({ kind: "event", skeleton: skeleton(event, given) });
 }
 
 /** The skeleton hash of `event` under `given` commitments: the leaf of its chain entry. */
@@ -324,7 +324,7 @@ export function keepChain(db: Db, keeper: ChainKeeper): Genesis {
       log: hex(freshSalt(keeper)),
       start,
     };
-    const text = canonicalJson(record);
+    const text = chainCanonical(record);
     const hash = nodeHash(CHAIN_SEED, leafHash(text));
     db.prepare(
       "INSERT INTO chain (pos, kind, seq, data, hash) VALUES (0, 'genesis', NULL, ?, ?)",
@@ -359,7 +359,7 @@ export function linkEvent(db: Db, event: MemoryEvent): void {
     given = commitments(event, salt);
     db.prepare("INSERT INTO chain_salts (seq, salt) VALUES (?, ?)").run(event.seq, hex(salt));
   }
-  append(db, "event", event.seq, canonicalJson(given), eventRecord(event, given));
+  append(db, "event", event.seq, chainCanonical(given), eventRecord(event, given));
 }
 
 /**
@@ -384,6 +384,6 @@ export function chainManifest(db: Db, redacted: readonly number[], erase: readon
     redacted: [...new Set(redacted)].sort((a, b) => a - b),
     erase: [...erase].sort((a, b) => a - b),
   };
-  const text = canonicalJson(record);
+  const text = chainCanonical(record);
   append(db, "manifest", null, text, text);
 }
