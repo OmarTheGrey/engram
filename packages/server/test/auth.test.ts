@@ -395,3 +395,55 @@ describe("review finding E8.12-9: algorithm confusion", () => {
     expect(allEvents(s.db)).toHaveLength(0);
   });
 });
+
+describe("the by-id read and the scope list on a server with credentials (card E8.14)", () => {
+  it("need a credential, and act as the credential's actor, attested", async () => {
+    const s = await server();
+    for (const path of [
+      `/api/v1/read/${"01930000-0000-7000-8000-000000000501"}`,
+      "/api/v1/scopes",
+    ]) {
+      const none = await s.call(path, { body: { actor: asDana } });
+      expect(none.status, path).toBe(401);
+      const r = await s.call(path, { token: s.keys.dana, body: { actor: asDana } });
+      expect(r.status, path).toBe(200);
+      const { event } = (await r.json()) as { event: MemoryEvent };
+      expect(event).toMatchObject({ op: "read", actor: "person:dana" });
+      expect(attestations(s.db).find((a) => a.seq === event.seq)).toMatchObject({
+        method: "api_key",
+        actor: "person:dana",
+      });
+    }
+  });
+
+  it("refuse a body naming another actor or a membership the key does not hold, appending nothing", async () => {
+    const s = await server();
+    const before = allEvents(s.db).length;
+    for (const path of [`/api/v1/read/${"01930000-0000-7000-8000-000000000501"}`, "/api/v1/scopes"])
+      for (const actor of [
+        { ...asDana, id: "person:eve", memberships: ["person:eve"] },
+        { ...asDana, memberships: ["person:dana", "team:secret"] },
+      ]) {
+        const r = await s.call(path, { token: s.keys.dana, body: { actor } });
+        expect(r.status, path).toBe(403);
+      }
+    expect(allEvents(s.db)).toHaveLength(before);
+  });
+
+  it("list only the scopes the credential's memberships allow, narrowed as the request names", async () => {
+    const s = await server();
+    const full = await s.call("/api/v1/scopes", {
+      token: s.keys.dana,
+      body: { actor: { ...asDana, memberships: ["person:dana", "team:platform"] } },
+    });
+    const listed = ((await full.json()) as { scopes: { scope: string }[] }).scopes.map(
+      (x) => x.scope,
+    );
+    expect(listed).toEqual(["person:dana", "team:platform"]);
+    const narrow = await s.call("/api/v1/scopes", { token: s.keys.dana, body: { actor: asDana } });
+    const narrowed = ((await narrow.json()) as { scopes: { scope: string }[] }).scopes.map(
+      (x) => x.scope,
+    );
+    expect(narrowed).toEqual(["person:dana"]);
+  });
+});

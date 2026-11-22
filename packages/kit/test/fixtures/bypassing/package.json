@@ -1,0 +1,11 @@
+{
+  "name": "bypassing-adapter-fixture",
+  "private": true,
+  "type": "module",
+  "description": "A fixture for the kit's conformance meta test: an adapter package that reaches a store itself. Never built or installed.",
+  "dependencies": {
+    "@engram/adapters": "workspace:*",
+    "@engram/pi-extension": "workspace:*",
+    "@engram/server": "workspace:*"
+  }
+}

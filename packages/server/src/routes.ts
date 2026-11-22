@@ -126,6 +126,46 @@ export const ROUTES: readonly Route[] = [
       return { ...result, sync, policy: policyLabel(workspace) };
     },
   }),
+  route<z.infer<typeof C.ReadByIdRequest>>({
+    id: "readById",
+    method: "post",
+    path: "/read/{itemId}",
+    summary:
+      "Read one item by its id through the plane's read filter as the actor at the server's clock (card E8.14): the item and its explanation when the actor may read it, nothing otherwise, and one read event; with a store, the same sweep and adoption as /read run first.",
+    request: C.ReadByIdRequest,
+    response: C.ReadResponse,
+    errors: [400],
+    handler: async ({ workspace, body, params, now }) => {
+      const at = now();
+      const sync = await syncStore(workspace, body.actor, at);
+      const result = await workspace.plane.readById(body.actor, params.itemId ?? "", {
+        at,
+        ...(body.at === undefined ? {} : { valid_at: body.at }),
+      });
+      return { ...result, sync, policy: policyLabel(workspace) };
+    },
+  }),
+  route<z.infer<typeof C.ScopesRequest>>({
+    id: "listScopes",
+    method: "post",
+    path: "/scopes",
+    summary:
+      "The scopes the actor can see at the server's clock (card E8.14): its member scopes the read matrix lets its level read, and the scope of every item a read would admit through a live grant; one read event records the decision; with a store, the same sweep and adoption as /read run first.",
+    request: C.ScopesRequest,
+    response: C.ScopesResponse,
+    errors: [400],
+    handler: async ({ workspace, body, now }) => {
+      const at = now();
+      // As for a read (review finding E8.14-11): a grant the store's own
+      // memories carry is adopted before the scopes are listed.
+      const sync = await syncStore(workspace, body.actor, at);
+      return {
+        ...(await workspace.plane.listScopes(body.actor, at)),
+        sync,
+        policy: policyLabel(workspace),
+      };
+    },
+  }),
   route<z.infer<typeof C.ExplainRequest>>({
     id: "explain",
     method: "post",

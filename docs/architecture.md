@@ -155,6 +155,9 @@ Plane
                                              calls, the plane's own log and store untouched (card E8.9, ADR 0032)
   distill(sessions, method) -> MemoryItem[]  candidate procedural items
   explain(actor, readId) -> Explanation[]    to the actor who made the read only
+  readById(actor, itemId, {at, valid_at?}) -> ReadResult   read with one candidate at most, the item under the id; same
+                                             filter, explanation and read event, its reason ending "; read by id <id>" (card E8.14)
+  listScopes(actor, at) -> ScopeList         readable member scopes and the scopes of items a live grant admits; one read event (card E8.14)
 
 visibleEvents(actor, events, view) -> MemoryEvent[]   pure, in core: events in the actor's member scopes and events it
                                                 made; an event naming no scope (a read, a bypass) only its maker sees;
@@ -166,12 +169,15 @@ Surfaces
                  or streamable HTTP on loopback, every call as that actor with source model; the pi extension's
                  tool definitions and memory tag; engram hook claude-code, a PreToolUse hook that blocks bypasses
   HTTP           packages/server, a Hono app over one route table (ADR 0027): /api/v1/items, /items/check, /read,
-                 /explain/{readId}, /promote, /grants, /retain, /events (visibleEvents), /policy, /lint, /simulate,
-                 /distill (501 naming `backlog`: no card implements it yet), /bypass, /viewer, /health; a decision is 200 with its event;
+                 /read/{itemId}, /scopes, /explain/{readId}, /promote, /grants, /retain, /events (visibleEvents), /policy,
+                 /lint, /simulate, /distill (501 naming `backlog`: no card implements it yet), /bypass, /viewer, /health;
+                 a decision is 200 with its event;
                  a bearer API key or token, or --insecure-loopback (ADR 0042); RFC 9728 metadata at
                  /.well-known/oauth-protected-resource; each served event attested (event_attestations);
                  loopback Host and Origin only, JSON bodies only, no CORS, 1 MiB bodies; OpenAPI generated
                  into sdk/openapi.json, the client into sdk/ts and packages/ui/src/api
+  Frameworks     packages/tag (the memory tag, pure, no pi); packages/kit (a fixed actor, a namespace mapper, a typed rejection, every call one client request)
+                 and the adapters on it: @engram/ai-sdk, a Vercel AI SDK middleware and remember and recall tools (card E8.14)
   CLI            engram write | read | promote | explain | retain | lint | simulate (--candidate), each one client call, in
                  process over app.fetch or to --server; engram serve | mcp | hook claude-code | doctor
   UI             inspector at / of engram serve, as one viewer: lanes by scope (a Plane.read), timeline (visibleEvents), explain with the read's counts (v0, E8.5 and E8.6);
