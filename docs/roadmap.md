@@ -360,6 +360,7 @@ Twenty-six cards added by `docs/tasks/absorb-plan.md`, which also rewrote cards 
 | E8.12 | Verified actors: bearer tokens and hashed API keys on the HTTP surfaces; ADR first                                                                     | none            | packages/server/src/, packages/mcp/src/            | every event's actor authenticated         |
 | E8.13 | Decisions exported as OpenTelemetry spans, off by default, never carrying content                                                                      | none            | packages/core/src/export/otel.ts                   | content-free mapping test                 |
 | E8.14 | Framework kit (by-id read, scope list) and a Vercel AI SDK middleware                                                                                  | none            | packages/kit/, packages/ai-sdk/                    | `make api-check`; adapter conformance     |
+| E8.15 | The engram terminal interface (`engram tui`): every command and flag reachable, each action its plain command's client call; design and ADR 0044 first | E9.8, E2.13, E8.12, E8.14 | packages/cli/src/tui/, packages/cli/src/registry.ts | `make test-one T=packages/cli/test/tui/parity.test.ts` |
 | E9.8  | Memory import and export: a portable bundle; imports are governed candidate writes                                                                     | none            | packages/cli/src/import/                           | round-trip test                           |
 
 ### Card prompt template

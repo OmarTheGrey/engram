@@ -299,6 +299,56 @@ describe("the routes, through the generated client, on the fake store", () => {
     });
   });
 
+  it("whoCanReadItem: the owner is answered with every reader; an outsider gets the unknown id's refusal; no event", async () => {
+    const { client, workspace } = testWorkspace();
+    const owner = { ...dana, source: "user" as const };
+    await client.POST("/api/v1/items", { body: { actor: owner, item: itemFor(1) } });
+    const logged = workspace.plane.events().length;
+    const { data, response } = await client.POST("/api/v1/who-can-read/item", {
+      body: { actor: dana, item_id: id(501) },
+    });
+    hit.add("whoCanReadItem");
+    expect(response.status).toBe(200);
+    const body = C.WhoCanReadAnswer.parse(data);
+    expect(body).toMatchObject({ answered: true, target: id(501), at: NOW, grants_shown: "all" });
+    expect(body.readers[0]).toMatchObject({ kind: "members", scope: "person:dana" });
+    const hidden = C.WhoCanReadAnswer.parse(
+      (await client.POST("/api/v1/who-can-read/item", { body: { actor: eve, item_id: id(501) } }))
+        .data,
+    );
+    const unknown = C.WhoCanReadAnswer.parse(
+      (await client.POST("/api/v1/who-can-read/item", { body: { actor: eve, item_id: id(999) } }))
+        .data,
+    );
+    expect(hidden.answered).toBe(false);
+    expect(hidden).toEqual({
+      ...unknown,
+      target: id(501),
+      reason: unknown.reason.replace(id(999), id(501)),
+    });
+    const bad = await client.POST("/api/v1/who-can-read/item", {
+      body: { actor: dana, item_id: "nope" },
+    });
+    expect(bad.response.status).toBe(400);
+    expect(workspace.plane.events().length).toBe(logged);
+  });
+
+  it("whoCanRead: a member of the scope is answered by the read matrix; a non-member is refused", async () => {
+    const { client } = testWorkspace();
+    const { data, response } = await client.POST("/api/v1/who-can-read/scope", {
+      body: { actor: dana, scope: "person:dana" },
+    });
+    hit.add("whoCanRead");
+    expect(response.status).toBe(200);
+    const body = C.WhoCanReadAnswer.parse(data);
+    expect(body.answered).toBe(true);
+    expect(body.readers.every((r) => r.kind === "members")).toBe(true);
+    const refused = await client.POST("/api/v1/who-can-read/scope", {
+      body: { actor: eve, scope: "person:dana" },
+    });
+    expect(C.WhoCanReadAnswer.parse(refused.data).answered).toBe(false);
+  });
+
   it("retain: a member sweeps its scope; a non-member gets a deny event", async () => {
     const { client } = testWorkspace();
     const own = await client.POST("/api/v1/retain", {
