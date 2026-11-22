@@ -69,18 +69,14 @@ export const ReaderEntry = z
     }),
     z.strictObject({
       kind: z.literal("grant"),
-      to: z
-        .string()
-        .meta({
-          description:
-            "Every actor whose id the grant's `to` matches (exactly, or by prefix before a final `*`).",
-        }),
-      grant: z
-        .string()
-        .meta({
-          description:
-            "The grant's place on the item, as a read's grants_used names it: `grants[<i>]:<to>`.",
-        }),
+      to: z.string().meta({
+        description:
+          "Every actor whose id the grant's `to` matches (exactly, or by prefix before a final `*`).",
+      }),
+      grant: z.string().meta({
+        description:
+          "The grant's place on the item, as a read's grants_used names it: `grants[<i>]:<to>`.",
+      }),
       grant_detail: Grant,
       policy_id: z.string(),
       reason: z.string(),
@@ -94,11 +90,9 @@ export type ReaderEntry = z.infer<typeof ReaderEntry>;
 
 export const WhoCanReadAnswer = z
   .strictObject({
-    answered: z
-      .boolean()
-      .meta({
-        description: "False when the plane refuses to answer; every other field is then empty.",
-      }),
+    answered: z.boolean().meta({
+      description: "False when the plane refuses to answer; every other field is then empty.",
+    }),
     target: z.string().meta({ description: "The item id or scope asked about, as given." }),
     at: Timestamp.meta({
       description:
@@ -107,28 +101,21 @@ export const WhoCanReadAnswer = z
     reason: z
       .string()
       .meta({ description: "Why the plane answered as it did, or why it refused." }),
-    readers: z
-      .array(ReaderEntry)
-      .meta({
-        description:
-          "The symbolic reader set: an actor may read the target exactly when an entry admits it.",
-      }),
+    readers: z.array(ReaderEntry).meta({
+      description:
+        "The symbolic reader set: an actor may read the target exactly when an entry admits it.",
+    }),
     grants_shown: z.enum(["all", "yours"]).nullable().meta({
       description:
         "Which grants an item's answer shows: all to its owner, yours (only those naming the asker) to anyone else; null for a scope (grants are on items) and for a refusal.",
     }),
-    closed: z
-      .strictObject({ policy_id: z.string(), reason: z.string() })
-      .nullable()
-      .meta({
-        description:
-          "Why nobody may read the item now (its status, ttl or validity window), or null.",
-      }),
-    dormant: z
-      .array(z.strictObject({ grant: z.string(), reason: z.string() }))
-      .meta({
-        description: "To the owner only: the item's grants that admit nobody now, each with why.",
-      }),
+    closed: z.strictObject({ policy_id: z.string(), reason: z.string() }).nullable().meta({
+      description:
+        "Why nobody may read the item now (its status, ttl or validity window), or null.",
+    }),
+    dormant: z.array(z.strictObject({ grant: z.string(), reason: z.string() })).meta({
+      description: "To the owner only: the item's grants that admit nobody now, each with why.",
+    }),
   })
   .meta({
     description:
