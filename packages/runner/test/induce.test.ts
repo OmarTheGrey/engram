@@ -62,6 +62,10 @@ describe("acceptance (card D2): candidates from the fixture sessions, from casse
     expect(writes.map((e) => [e.decision, e.policy_id])).toEqual(
       result.items.map(() => ["allow", "preset.medium/write/person"]),
     );
+    // The fixture's examples hold branch summaries, so each candidate is
+    // compaction, and the plane recorded the source the runner set (D2-4).
+    for (const e of writes) expect(e.reason).toContain("from source compaction");
+    for (const { item } of result.items) expect(item.provenance.kind).toBe("compaction");
   });
 
   test("a miss is an error offline, and the script answers no request but the induction's", async () => {
