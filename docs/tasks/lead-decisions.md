@@ -296,10 +296,18 @@ The answers card that carries these into the pre-registration, the ADRs and the 
 
 Open, for the lead. Each was drafted by a card's agent while implementing it; the card ships the recommendation behind it, and accepting or changing it is a `decision` log entry plus a status change in the ADR.
 
-62. **ADR 0044, the CLI's terminal interface (card E8.15).** The lead asked for a TUI over the `engram` CLI that loses no feature; the design is `docs/design/tui.md`, and its section 14 lists five smaller calls that ride on this one.
-    - (a) Accept ADR 0044: `@earendil-works/pi-tui` at the pi pin, imported only under `packages/cli/src/tui/`, ADR 0033's list amended for it alone; entered with `engram tui`; bare `engram` keeps its pinned help; four new one-call commands (`check`, `events`, `policy`, `grants`) give the TUI's inspector screens a command to teach.
-    - (b) Accept it with Ink 8.0.0 and React 19.3.1 instead of pi-tui: no change to ADR 0033, about twenty new packages, and a screen-reader mode from the library.
-    - (c) Keep the plain CLI only until after the thesis; the design stays as the plan.
+62. **ADR 0044, the CLI's terminal interface (card E8.15).** Card E8.15 is the lead's own request of 2026-11-21 for a TUI, not one of the absorb plan's thirty pull requests; it is listed here with the absorb cards' proposals because it was drafted with them. The design is `docs/design/tui.md`.
+    - Open for the lead: accept ADR 0044 (pi-tui at the pi pin, only under `packages/cli/src/tui/`), or (b) Ink 8.0.0 with React 19.3.1, or (c) no TUI until after the thesis. Until then the design proceeds on (a), as decided below.
+    - Decided on 2026-11-22 under the lead's delegation, six calls the design raised; binding until the lead overturns one:
+
+| call | answer | reason |
+|---|---|---|
+| 1. library | pi-tui 1.3.0 at the pi pin, imported only under `packages/cli/src/tui/`, AGENTS.md's "What not to do" line amended; ADR 0044 stays proposed | no new package in the lockfile, the pi family's own library, an injectable terminal for headless tests, Windows input handled; the spike passed under ConPTY and Git Bash |
+| 2. entry | bare `engram` keeps its help on stderr and exit 2; the TUI opens only with `engram tui`; HELP's first line names `engram tui` | one word doing two things by TTY detection misleads in tmux, SSH and mintty; the first line makes the TUI findable |
+| 3. new commands | `check`, `events`, `policy`, `grants` in E8.15a; `scopes` and `read --item <id>` in E8.15a once E8.14 merges | every TUI screen needs a plain command to teach; without them the timeline, grants, policy view and write preview are lost |
+| 4. shared view logic | not an `@engram/ui/view` export: `view.ts` and `provenance.ts` move into a new React-free package, `@engram/view`, which the inspector and the TUI import | the CLI never depends on React, xyflow, dagre or tanstack, and the leak rule exists once |
+| 5. mouse | on by default, `--no-mouse` to turn it off; the help overlay says Shift+drag selects text | clicks and the wheel help most people; the waiver keeps terminal selection and accessibility tools for those who need them |
+| 6. commands on quit | a short list of the session's commands on every quit; `--quiet` turns it off | it teaches the CLI, which is the point of the TUI |
 
 ## Decided on 2026-11-21, under the lead's delegation
 
