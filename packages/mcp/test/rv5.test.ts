@@ -19,7 +19,7 @@ describe("RV-SRF-6: memory_simulate over streamable HTTP replays its session's c
 
   it("keeps each session's steps, and only its own", async () => {
     const ws = await testWorkspace();
-    server = await serveHttp(() => ws.makeServer(), { port: 0 });
+    server = await serveHttp(() => ws.makeServer(), { port: 0, auth: { insecureLoopback: true } });
     const url = new URL(server.url);
     const first = new Client({ name: "first", version: "0" });
     await first.connect(new StreamableHTTPClientTransport(url));

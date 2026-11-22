@@ -32,6 +32,7 @@ import {
   type PresetName,
   parsePolicy,
 } from "@engram/core";
+import { attestingDb } from "./attest.ts";
 
 /** Bad input: printed with the command name, exit code 2. */
 export class UsageError extends Error {}
@@ -597,6 +598,11 @@ export function workspaceOf(
   deps: PlaneDeps,
   extra: { store?: Store | null; viewer?: Actor | null } = {},
 ): Workspace {
+  // The log handle is used as given: a caller that serves this workspace and
+  // wants its events attested passes `attestingDb(db)` (attest.ts, card
+  // E8.12), as openWorkspace does. A library caller's handle is never
+  // replaced, so its write queue (keyed by handle) is the one it shares with
+  // its own Planes over the same log.
   return {
     deps,
     plane: createPlane(deps),
@@ -646,8 +652,13 @@ export function openWorkspace(options: WorkspaceOptions): LocalWorkspace {
     options.requireStore === true || options.store !== undefined || options.root !== undefined;
   const store = wantsStore ? openStore(options, (p) => resolve(options.cwd, p)) : null;
   let log: Log | undefined;
+  // Every user of the workspace gets the one attesting handle (attest.ts,
+  // card E8.12), so the write queue, keyed by handle, stays one queue.
   const open = (mustExist = false) => {
-    log ??= openLog(target, mustExist);
+    if (log === undefined) {
+      const opened = openLog(target, mustExist);
+      log = { ...opened, db: attestingDb(opened.db) };
+    }
     return log;
   };
   const deps: PlaneDeps = {
