@@ -736,3 +736,379 @@ Explain, another reader's read (80x24):
 $ engram explain 01a1ff1a-e6e7-709b-96d7-4bb8217ccde4 --as person:sam   exit 1
  ctrl+o workspace  r my reads  ? help  esc back
 ```
+
+### 8.7 Write
+
+The form has every write flag. Content is a multi-line editor; Scope, Class, Confidence, Valid from and Valid to are fields with the CLI's defaults written in as placeholders ("default person:dana", "default 0.9", "default now", "default open"). "From file" loads an item JSON, and the fields it sets show "from file" until edited, as the CLI lets the flags fill what the file leaves out. Advanced holds Id.
+
+While the form is edited, the "The gate would" line is a live `engram check` (section 3.6): the decision, reason and policy id a write would get now, with nothing stored and no event. It runs after 400 ms without a keystroke, never on every key. It is labelled a preview, because the decision at write time is made again at the server's clock. If the lead does not accept `engram check`, the line is left out and nothing else changes.
+
+`ctrl+s` (or enter on Submit) opens the confirmation (9.5), which shows the command and the preview. The result is the CLI's three or four lines, with the decision as a status word.
+
+Write, the form (80x24):
+
+```text
+ engram  Write a memory                        in process  person:dana (person)
+ Content      ┌──────────────────────────────────────────────────────────┐
+              │ The deploy key rotates every 90 days.                    │
+              │                                                          │
+              └──────────────────────────────────────────────────────────┘
+ From file    [                               ]  browse: tab
+ Scope        [ default person:dana           ]  person:<id>, role:<id>...
+ Class        (o) semantic  ( ) episodic
+ Confidence   [ default 0.9  ]  0 to 1
+ Valid from   [ default now                   ]  ISO 8601 UTC
+ Valid to     [ default open                  ]
+ ▸ Advanced   id
+
+ The gate would  ✓ allow  semantic item from source user passes the
+                 person write rule  (preset.medium/write/person)  preview
+
+                                         [ Write ]   [ Check again ]
+
+
+
+
+
+$ engram write --content "The deploy key rotates every 90 days." --owner dana
+ ctrl+s write  tab next field  ctrl+e editor  c copy  ? help  esc back
+```
+
+Write, wide, the preview denies (120x40):
+
+```text
+ engram  Write a memory                                       in process  log ~/.engram/engram.db  person:dana (person)
+ Content      ┌──────────────────────────────────────────────────────────────┐   As person:dana (person), source user
+              │ x                                                            │   The plane records the write as source
+              │                                                              │   user by the actor, whatever it claims.
+              │                                                              │
+              └──────────────────────────────────────────────────────────────┘   Store files at ~/demo/mem
+ From file    [                                   ]  browse: tab                   Log ~/.engram/engram.db
+ Scope        [ team:platform                     ]  person:<id>, role:<id>, team:<id> or org
+ Class        ( ) semantic  (o) episodic
+ Confidence   [ default 0.9  ]  a number from 0 to 1
+ Valid from   [ default now                       ]  an ISO 8601 UTC time such as 2026-10-25T12:00:00Z
+ Valid to     [ default open                      ]
+ ▾ Advanced
+   Id         [ default a new UUIDv7              ]
+
+ Member of    person:dana, team:platform   (from the workspace)
+
+ The gate would  ✗ deny  episodic items are forbidden in team scope; provenance set by the plane: source user,
+                 actor person:dana  (preset.medium/write/team)  preview, nothing stored
+
+ Why: the policy forbids class episodic in team scopes. Choose semantic, or write it to person:dana.
+      [ Use semantic ]  [ Use person:dana ]  [ Show the rule in Policy ]
+
+                                                                          [ Write anyway ]   [ Check again ]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+$ engram write --content x --scope team:platform --class episodic --member team:platform --owner dana --root ~/demo/mem
+ ctrl+s write  tab next field  ctrl+e editor  c copy  J check json  ? help  esc back
+```
+
+The "Why" line and its buttons only rephrase fields the check returned (the reason and policy id) into shortcuts that set form fields; they never decide anything, and a policy file whose rule ids are not the presets' shows only "Show the rule in Policy". "Write anyway" is offered because a denied write is still a recorded decision the person may want in the log.
+
+Write, a denied write (80x24):
+
+```text
+ engram  Write a memory  result                in process  person:dana (person)
+ ✗ deny   exit 1
+
+ write 01a1ff1a-ef5a-7d7b-9339-29d483e91b1b at 2026-11-21T17:15:17.719Z by
+   person:dana
+ deny: episodic items are forbidden in team scope; provenance set by the
+   plane: source user, actor person:dana
+ policy preset.medium/write/team
+ log ~/demo/engram.db
+
+ Nothing was stored. The decision is event 6 in the log.
+
+ [ Edit and retry ]   [ Open the event ]   [ New write ]
+
+
+
+
+
+
+
+
+
+$ engram write --content x --scope team:platform --class episodic ...  exit 1
+ enter choose  v plain  J json  c copy  ? help  esc back
+```
+
+Lines the CLI prints wider than the pane wrap with a two-space hanging indent; plain view (`v`) shows them unwrapped and scrolls sideways.
+
+### 8.8 Promote
+
+Item comes from the selected item (`p` on Read, Events or the item page) or a picker of items the last read returned; it can be typed, and is checked as the CLI checks it ("nope is not an item id (a UUIDv7)"). To scope is a scope field with suggestions from the actor's memberships and `org`. "Approve as reviewer" is `--review`; turning it on shows the CLI's limit text verbatim. The result shows the decision and every further event the promotion recorded, as the CLI prints them.
+
+Promote (80x24):
+
+```text
+ engram  Promote an item                       in process  person:dana (person)
+ Item          [ 01a1ff1a-eb0e-7b15-9e1e-af7066dfc62c ]  semantic person:dana
+               The deploy key rotates every 90 days.
+ To scope      [ team:platform               ]  the item's own or wider
+ As reviewer   [ ] approve as a member of the target who does not own it
+
+┌─ Result ─────────────────────────────────────────────────────────────────────┐
+│ ✗ deny   exit 1                                                              │
+│ promote 01a1ff1b-1d02-78ca-8d42-9af2cfaea621 at 2026-11-21T17:15:29.408Z by  │
+│   person:dana                                                                │
+│ deny: not promoted: widening person:dana to team:platform needs a            │
+│   reviewer's approval                                                        │
+│ policy engram/promote/no-evidence                                            │
+│                                                                              │
+│ Next: a member of team:platform who does not own the item can approve it     │
+│ with As reviewer on. Promotions cannot be undone from here.                  │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+
+
+
+
+$ engram promote 01a1ff1a-eb0e-7b15-9e1e-af7066dfc62c --to team:platform ...
+ ctrl+s promote  tab next  v plain  J json  c copy  ? help  esc back
+```
+
+### 8.9 Retention sweep
+
+One field, Scope, with the actor's member scopes offered. The confirmation is the strongest in the TUI, because a sweep retires expired items for good and evicts over-budget ones: it says "Retiring cannot be undone. Retired items stay in the log; reads no longer return them." There is no preview route for a sweep, and the screen does not pretend there is.
+
+Retention sweep (80x24):
+
+```text
+ engram  Retention sweep                       in process  person:dana (person)
+ Scope   [ person:dana        ]   you are a member
+
+ ✓ allow   exit 0
+
+ retain person:dana at 2026-11-21T17:15:31.535Z as person:dana: allow,
+   0 expired, 0 evicted
+ log ~/demo/engram.db
+
+ Nothing was due. Expired items are retired and items over the scope's
+ budget are evicted, in the order the policy's retention rule names.
+
+
+
+
+
+
+
+
+
+
+
+$ engram retain --scope person:dana --owner dana   exit 0
+ ctrl+s sweep  v plain  J json  c copy  ? help  esc back
+```
+
+### 8.10 Lint
+
+Scope, then the findings as a list: severity as a symbol and word, the lint id, the item, and the reason, with the evidence lines folded under it. `enter` opens the item page of the finding's item. The header names the lints the policy enables (from `engram policy`), so an empty result says which lints ran. Lints in flight (`near-duplicate-tier`, card L5; `contradiction-nli`, card L7) appear like any other when the policy enables them; a policy load error from them shows in the error state (10.3) with the CLI's message.
+
+Lint, one finding (80x24):
+
+```text
+ engram  Lint a scope                          in process  person:dana (person)
+ Scope  [ team:core         ]   lints enabled by the policy: duplicate, ...
+
+ lint team:core at 2026-11-06T12:00:00Z as person:dana: allow, 1 finding
+
+ ▲ warn  duplicate   01950000-0000-7000-8000-000000000002
+   it restates 01950000-0000-7000-8000-000000000001, an earlier active
+   semantic item in team:core
+   ▸ evidence  duplicate of 01950000-0000-7000-8000-000000000001; strict
+     content hash sha256:210227b734cd7daccab35f377fb17325b8ce6c9facc98...
+   rule fixture.faults/lint/duplicate
+
+ exit 1: a finding. Each finding is a lint event in the log.
+
+
+
+
+
+
+
+
+
+$ engram lint --scope team:core --as person:dana --member team:core ...
+ enter item page  ctrl+s lint again  v plain  J json  c copy  ? help  esc back
+```
+
+This sample is the `duplicate.flag` fault fixture (`make fault-workspace FAULT=duplicate.flag`), linted with the fixture's own `--at` and `--test-clock`, so the screen shows Test clock on in its title bar in the real run.
+
+### 8.11 Simulate
+
+Workload (a file picker filtered to `.json`), Policy (the baseline, from the workspace) and Candidate (preset or file). The comparison is the CLI's table, with a bar beside each pair of numbers so a difference is seen at a glance; the bar is drawn in glyphs, never colour alone. Changed steps are a list; `enter` on one shows both outcomes and the candidate's rule and reason. Simulate never touches the real log or store, and the screen says so; it asks no confirmation.
+
+Simulate (80x24):
+
+```text
+ engram  Simulate a policy                     in process  person:dana (person)
+ workload e8-9-two-presets: 10 steps, 0 model calls
+ baseline preset.medium v1, candidate preset.strict v1
+
+                           baseline  candidate
+ allow                           10          7  ██████████ ███████
+ deny                             0          3             ███
+ items returned                   5          1  █████      █
+ mean returned per read        1.67       0.33
+ expired by ttl                   0          1             █
+ active items at the end          5          1  █████      █
+
+ 6 steps differ
+ > step 1 write person:dana 01950000-...0002: allow -> deny
+   step 2 write person:dana 01950000-...0003: allow -> deny
+   step 4 write person:dana 01950000-...0005: allow -> deny
+   step 6 read person:sam: returned 2 -> returned 0
+     confidence 0.75 is below the team floor 0.8 (preset.strict/write/team)
+
+ Replayed on scratch logs and stores: your log and store are not touched.
+
+
+$ engram simulate --workload e8-9-two-presets.json --candidate strict   exit 0
+ enter step  a all rows  v plain  J json  c copy  ? help  esc back
+```
+
+At 80 columns the table shows the rows that differ first and `a` shows all eleven; the wide layout shows them all.
+
+Simulate, wide (120x40):
+
+```text
+ engram  Simulate a policy                                                             in process  person:dana (person)
+ Workload [ fixtures/workloads/e8-9-two-presets.json ]  Policy [ medium v]  Candidate [ strict v]
+
+┌─ Comparison ───────────────────────────────────────────────────────┐┌─ Step ─────────────────────────────────────────┐
+│ workload e8-9-two-presets: 10 steps, 0 model calls                 ││ step 1  write  person:dana                     │
+│ baseline preset.medium v1, candidate preset.strict v1              ││ item 01950000-0000-7000-8000-000000000002      │
+│                                                                    ││                                                │
+│                           baseline  candidate                      ││ baseline   ✓ allow                             │
+│ allow                           10          7   differs            ││ candidate  ✗ deny                              │
+│ deny                             0          3   differs            ││                                                │
+│ ask                              0          0                      ││ confidence 0.75 is below the team floor        │
+│ reads                            3          3                      ││ 0.8; provenance set by the plane: source       │
+│ items returned                   5          1   differs            ││ user, actor person:dana                        │
+│ reads with recall                2          1   differs            ││ (preset.strict/write/team)                     │
+│ mean returned per read        1.67       0.33   differs            ││                                                │
+│ evicted over budget              0          0                      ││                                                │
+│ expired by ttl                   0          1   differs            ││                                                │
+│ manual eviction asks             0          0                      ││                                                │
+│ active items at the end          5          1   differs            ││                                                │
+│                                                                    ││                                                │
+└────────────────────────────────────────────────────────────────────┘└────────────────────────────────────────────────┘
+┌─ 6 steps differ ─────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ > step 1 write person:dana 01950000-0000-7000-8000-000000000002: allow -> deny                                       │
+│   step 2 write person:dana 01950000-0000-7000-8000-000000000003: allow -> deny                                       │
+│   step 4 write person:dana 01950000-0000-7000-8000-000000000005: allow -> deny                                       │
+│   step 6 read person:sam: returned 2 -> returned 0                                                                   │
+│   step 8 retain person:dana: allow -> allow, expired 01950000-0000-7000-8000-000000000004                            │
+│   step 9 read person:dana: returned 3 -> returned 1                                                                  │
+│                                                                                                                      │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+ Replayed on scratch logs and stores; your log and store are never read or written, and no model is called.
+
+
+
+
+
+
+
+$ engram simulate --workload fixtures/workloads/e8-9-two-presets.json --policy medium --candidate strict   exit 0
+ enter step  up/down steps  v plain  J json  c copy  ? help  esc back
+```
+
+### 8.12 Doctor
+
+Doctor's checks as a list, each with its status as symbol and word, its name and its detail, exactly the CLI's text. A failing check is sorted first in the TUI (the plain output keeps its order), with "What this means" and "What to do" text taken from a fixed table keyed by check name (log, policy, store, adapter files, adapter mem0, adapter letta, provider keys, benchmark pins, pi pin, node; in flight the serve-flags check of card E8.12), never from parsing the detail. `r` reruns it. Doctor's own flags (`--db`, `--policy`, `--root`) are the workspace's.
+
+Doctor (80x24):
+
+```text
+ engram  Doctor                                in process  person:dana (person)
+ ✗ fail  policy          --policy nosuch.yaml is neither a preset (strict,
+                         medium, permissive) nor a readable file
+ ✓ ok    log             sqlite ~/demo/nothere.db: no log yet; the first
+                         read or write creates it
+ · skip  store           no --root given
+ · skip  adapter files   no --root given
+ ✓ ok    adapter mem0    in-memory Mem0 with the hashing embedder: a write
+                         and a read round-trip through the plane, offline
+ ✓ ok    adapter letta   git version 2.53.0.windows.1; a MemFS repository...
+ ✓ ok    provider keys   none of 38 key variables for 40 providers is set...
+ ✓ ok    benchmark pins  packages/bench/PINS.md: 6 benchmarks, 6 pinned...
+ ✓ ok    pi pin          pi-ai 1.3.0, pi-coding-agent 1.3.0: package.json...
+ ✓ ok    node            Node 24.14.0
+
+ doctor: 1 check failed      exit 1
+
+ What to do: choose a preset or a readable policy file in the workspace.
+
+
+
+
+$ engram doctor --db ~/demo/nothere.db --policy nosuch.yaml   exit 1
+ r rerun  enter details  ctrl+o workspace  v plain  J json  c copy  ? help
+```
+
+Doctor, wide (120x40):
+
+```text
+ engram  Doctor                                                  in process  log ~/demo/engram.db  person:dana (person)
+
+┌─ Checks ─────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ status  check           detail                                                                                       │
+│ ✓ ok    log             sqlite ~/demo/engram.db: opens; up to date                                                   │
+│ ✓ ok    policy          preset.medium v1 loads and validates                                                         │
+│ ✓ ok    store           ~/demo/mem is a readable folder                                                              │
+│ ✓ ok    adapter files   ~/demo/mem: 4 memories listed through the plane, 4 admitted, 0 denied (medium preset, in-    │
+│                         memory log)                                                                                  │
+│ ✓ ok    adapter mem0    in-memory Mem0 with the hashing embedder: a write and a read round-trip through the plane,   │
+│                         offline                                                                                      │
+│ ✓ ok    adapter letta   git version 2.53.0.windows.1; a MemFS repository in a temporary folder: a write and a read   │
+│                         round-trip through the plane, one commit, and a delete, offline                              │
+│ ✓ ok    provider keys   none of 38 key variables for 40 providers is set; live model calls need one, scripted and    │
+│                         cassette runs do not; not checked: amazon-bedrock, google-vertex (ADC), openai-codex         │
+│                         (credentials that are not a key variable)                                                    │
+│ ✓ ok    benchmark pins  packages/bench/PINS.md: 6 benchmarks, 6 pinned; fixtures match their manifests: gatemem 24   │
+│                         lines at a983828, longmemeval 881 lines at 9e0b455, mem-inv-bench 1355 lines at cf3c9a4      │
+│ ✓ ok    pi pin          pi-ai 1.3.0, pi-coding-agent 1.3.0: package.json pins and installed copies match             │
+│                         docs/deps.md                                                                                 │
+│ ✓ ok    node            Node 24.14.0                                                                                 │
+│                                                                                                                      │
+│ doctor: all checks passed      exit 0      ran 18:17:02, 4.1 s                                                       │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ What doctor checks                                                                                                   │
+│                                                                                                                      │
+│ It never creates, migrates or changes a log, never prints a provider key's value (only whether it is set), and       │
+│ reaches no network beyond a Postgres server the log names. The adapter checks run through a plane on an              │
+│ in-memory log, so nothing is recorded.                                                                               │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+
+
+
+
+
+$ engram doctor --db ~/demo/engram.db --root ~/demo/mem   exit 0
+ r rerun  enter details  ctrl+o workspace  v plain  J json  c copy  ? help  esc back
+```
+
+While doctor runs, each check's row shows "running" with the static busy marker of 11.5 and fills in as it finishes, so a slow Letta check (git on Windows) never leaves the screen blank.
