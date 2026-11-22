@@ -204,7 +204,15 @@ export abstract class RichScreen implements Screen {
   /** The form changed since that run: the command row shows the command as it now stands. */
   protected edited = false;
   protected readonly views = new Views();
-  protected focus = 0;
+  private at = 0;
+  /** The focused stop's index; a move by the screen is taken as it is. */
+  protected get focus(): number {
+    return this.at;
+  }
+  protected set focus(i: number) {
+    this.at = i;
+    this.held = false;
+  }
   protected error: FormError | undefined;
   /** The screen has left the stack (./screen.ts close). */
   protected closed = false;
@@ -242,11 +250,23 @@ export abstract class RichScreen implements Screen {
     this.closed = true;
   }
 
+  /** The id of the stop focused last, so focus stays on it when the stops before it change. */
+  private focusId: string | undefined;
+
   protected current(): Stop | undefined {
     const all = this.stops();
-    this.focus = Math.max(0, Math.min(this.focus, all.length - 1));
-    return all[this.focus];
+    if (this.focusId !== undefined && all[this.at]?.id !== this.focusId && this.held) {
+      const at = all.findIndex((s) => s.id === this.focusId);
+      if (at >= 0) this.at = at;
+    }
+    this.at = Math.max(0, Math.min(this.at, all.length - 1));
+    this.focusId = all[this.at]?.id;
+    this.held = true;
+    return all[this.at];
   }
+
+  /** Whether `focus` was set through current() since the last move, so an id lookup is right. */
+  private held = false;
 
   /** Focuses a stop by id; false when the screen has none of that id now. */
   focusOn(id: string): boolean {

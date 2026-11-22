@@ -105,6 +105,8 @@ export class GrantsScreen extends RichScreen {
     const r = await this.run(ctx, this.argvNow(ctx), extra);
     if (r === undefined) return;
     this.last = decisionOf(r) === "allow" ? c : undefined;
+    // Off the fields, so u, c, v and J act on the answer.
+    if (!this.focusOn("grants")) this.focusOn("apply");
   }
 
   private draftGrant(): Grant | string {

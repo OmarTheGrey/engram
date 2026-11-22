@@ -748,7 +748,8 @@ export class App implements Component, Ctx {
         : "";
     const connection = this.serverUp === false ? "server unreachable" : this.ws.connectionLabel();
     // The reviewer handoff is marked while it is on (docs/design/tui.md 8.8).
-    const reviewer = this.handoff === undefined ? "" : " reviewer, this session";
+    const reviewer =
+      this.handoff === undefined ? "" : wide ? " reviewer, for this session" : " reviewer";
     const right = `${connection}${log}  ${this.ws.actorLabel()}${reviewer} `;
     const gap = width - visibleWidth(left) - visibleWidth(right);
     const text = gap >= 2 ? `${left}${" ".repeat(gap)}${right}` : left;

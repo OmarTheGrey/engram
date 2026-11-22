@@ -29,6 +29,8 @@ interface Row {
 }
 
 const ROWS: readonly Row[] = [
+  // The reviewer handoff's way back (docs/design/tui.md 8.8, card E8.15c): shown only while one is on.
+  { id: "switch-back", label: "Switch back", kind: "button" },
   { id: "connection", label: "Connection", kind: "radio", choices: ["in process", "server"] },
   { id: "server", label: "Server URL", kind: "text", flag: "server" },
   { id: "db", label: "Event log", kind: "text", flag: "db" },
@@ -97,7 +99,11 @@ export class WorkspaceScreen implements Screen {
   /** The options the panel saves: tui.json's, never the session's flags. */
   private readonly options: { ascii: boolean; contrast: boolean; motion: boolean; mouse: boolean };
 
+  /** The reviewer handoff on when the panel opened, which Switch back ends. */
+  private readonly handoff: Ctx["handoff"];
+
   constructor(ctx: Ctx, focus?: string) {
+    this.handoff = ctx.handoff;
     this.draft = ctx.ws.clone();
     const o = ctx.savedOptions;
     this.options = {
@@ -131,6 +137,7 @@ export class WorkspaceScreen implements Screen {
   /** The rows that take focus: none the server names. */
   private live(): Row[] {
     return ROWS.filter((r) => {
+      if (r.id === "switch-back") return this.handoff !== undefined;
       if (r.id === "server") return this.serverMode;
       if (this.serverMode && r.flag !== undefined && SERVER_REFUSES.includes(r.flag)) return false;
       return true;
@@ -283,7 +290,12 @@ export class WorkspaceScreen implements Screen {
   }
 
   private async press(r: Row, ctx: Ctx): Promise<void> {
-    if (r.id === "forget") await forgetFlow(ctx);
+    if (r.id === "switch-back") {
+      const before = this.handoff?.before ?? "the previous actor";
+      ctx.endHandoff();
+      ctx.pop();
+      ctx.say(`switched back: acting as ${before} again`);
+    } else if (r.id === "forget") await forgetFlow(ctx);
     else await this.apply(ctx);
   }
 
@@ -362,6 +374,7 @@ export class WorkspaceScreen implements Screen {
     let focusLine = 0;
     for (const r of ROWS) {
       if (r.id === "server" && !this.serverMode) continue;
+      if (r.id === "switch-back" && this.handoff === undefined) continue;
       const on = r === focused;
       const mark = on ? ">" : " ";
       const greyed = !live.includes(r);
@@ -376,6 +389,14 @@ export class WorkspaceScreen implements Screen {
           );
         }
         continue;
+      }
+      if (r.id === "switch-back" && this.handoff !== undefined) {
+        lines.push(
+          ...para(
+            `Acting as ${this.handoff.reviewer}, a reviewer for this session (never saved). Switch back restores ${this.handoff.before}.`,
+            width,
+          ),
+        );
       }
       if (r.id === "ascii") lines.push("", " The TUI's own options, saved for the next start");
       if (r.id === "forget") {

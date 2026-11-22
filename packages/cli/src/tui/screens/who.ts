@@ -207,7 +207,6 @@ export class SupersedeScreen extends RichScreen {
           if (p?.action === "close") {
             if (this.chosen.has(p.item_id)) this.chosen.delete(p.item_id);
             else this.chosen.add(p.item_id);
-            this.edited = true;
           } else if (p !== undefined)
             ctx.say("a review row is for you to act on elsewhere: only a close is accepted");
         }

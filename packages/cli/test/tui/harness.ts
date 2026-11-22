@@ -30,6 +30,8 @@ export interface HarnessOptions {
   logCheck?: StartOptions["logCheck"];
   /** The fetch a named server is called through. */
   fetch?: Io["fetch"];
+  /** The ids the TUI's commands draw; a shared counter by default (card E8.15c's parity test sets its own). */
+  newId?: Io["newId"];
 }
 
 export const DEFAULT_OPTIONS: TuiOptions = {
@@ -77,7 +79,7 @@ export async function startHarness(o: HarnessOptions = {}) {
     cwd: o.cwd ?? process.cwd(),
     home: o.home ?? HOME,
     now: () => NOW,
-    newId: () => testId(++ids),
+    newId: o.newId ?? (() => testId(++ids)),
     env: { LANG: "C.UTF-8", ...(o.env ?? {}) },
     nodeVersion: process.versions.node,
     repo: REPO,

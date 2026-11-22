@@ -301,7 +301,7 @@ export class ReadScreen extends RichScreen {
         lines.push(`   ${row.lane.scope}  ${row.lane.member ? "member" : "through a grant"}`);
       else if (row.kind === "empty") lines.push(`   ${row.text}`);
       else {
-        const on = row.item === chosen;
+        const on = row.item.id === chosen?.id;
         if (on) at = lines.length;
         const text = cut(
           ` ${on ? ">" : " "} ${String(row.item.rank ?? "-").padStart(2)}  ${fit(row.item.class, 10)}${fit(row.item.provenance, 8)}${oneLine(row.item.content)}`,
@@ -332,7 +332,7 @@ export class ReadScreen extends RichScreen {
         : [cut(` source ${item.provenance.kind} ${oneLine(item.provenance.ref)}`, width - 2)]),
       cut(` > ${firstLine({ content: chosen.content })}`, width - 2),
     ];
-    const n = items.indexOf(chosen) + 1;
+    const n = items.findIndex((i) => i.id === chosen.id) + 1;
     return box(ctx.theme, `Explain  item ${n} of ${items.length}`, lines, width, height);
   }
 }

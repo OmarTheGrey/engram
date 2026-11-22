@@ -489,7 +489,7 @@ export class PromoteScreen extends RichScreen {
     if (known !== undefined) out.push(cut(`                ${firstLine(known)}`, width));
     const scopes = [...new Set([...(viewerOf(ctx)?.memberships ?? []), "org"])].join(", ");
     out.push(this.fieldRow(ctx, "to", width, 12, `the item's own or wider; yours: ${scopes}`));
-    out.push(this.fieldRow(ctx, "review", width, 12, this.field("review")?.help ?? ""));
+    out.push(this.fieldRow(ctx, "review", width, 19, this.field("review")?.help ?? ""));
     out.push(...this.advancedLines(ctx, width));
     if (ctx.handoff !== undefined)
       out.push(
