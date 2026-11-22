@@ -33,6 +33,8 @@ await kit.remember({ scope: scopeOf(["person", "dana"]), content: "prefers short
 const { text } = await kit.recall("summaries"); // the memory tag a model may be shown
 ```
 
+On a server with credentials (ADR [0042](../../docs/decisions/0042-verified-actors.md)), give the client a `fetch` that adds `Authorization: Bearer <key or token>`: the server then binds the kit's actor to the credential's, refuses a different one (403), and attests each event. The kit forces source `model` either way.
+
 An adapter package runs the suite in its own tests:
 
 ```ts
