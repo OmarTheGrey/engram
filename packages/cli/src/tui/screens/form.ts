@@ -7,7 +7,7 @@
 // command's own output, byte for byte, with its exit code.
 import type { CommandSpec, Values } from "../../registry.ts";
 import { type Field, Form, type FormError } from "../forms.ts";
-import { cut, fit, para, rows, wrap } from "../layout.ts";
+import { clean, cut, fit, para, rows, wrap } from "../layout.ts";
 import type { RunResult } from "../runner.ts";
 import type { CommandRow, Ctx, Screen } from "../screen.ts";
 
@@ -329,7 +329,7 @@ export class ResultScreen implements Screen {
   }
 
   private lines(width: number): string[] {
-    const text = `${this.result.out}${this.result.err}`.replace(/\n$/, "");
+    const text = clean(`${this.result.out}${this.result.err}`).replace(/\n$/, "");
     return text === "" ? [" (no output)"] : text.split("\n").flatMap((l) => para(l, width));
   }
 

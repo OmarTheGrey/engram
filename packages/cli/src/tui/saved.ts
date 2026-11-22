@@ -2,13 +2,13 @@
 // tui.json, beside the default log and never in a project. It holds the
 // workspace flags and the TUI's own options, and nothing else: never memory
 // content, an item or read id, a token, a key, a password, or a URL's
-// credentials. A postgres:// log is saved redacted as doctor prints it (the
-// person enters the secret again, or uses ENGRAM_DB_URL); a server URL is
-// saved without its userinfo and query. Written with the user's permissions
-// only (0600 where the system has them).
+// credentials. A postgres:// log is never saved, not even redacted (the
+// lead's decision in the review fix pass, finding I5): the person sets
+// ENGRAM_DB_URL, which then wins, or enters it again; a server or OTLP URL
+// is saved without its userinfo and query. Written with the user's
+// permissions only (0600 where the system has them).
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { redactUrl } from "../setup.ts";
 
 /** The workspace flags tui.json may hold (8.3). */
 export const SAVED_FLAGS = [
@@ -47,6 +47,13 @@ export interface Saved {
 /** The format's version, the file's first key. */
 const VERSION = 1;
 
+/** A Postgres log's URL, which tui.json never holds. */
+export const isPostgres = (db: string) => /^postgres(ql)?:\/\//i.test(db);
+
+/** What the TUI says when it saves a workspace whose log is a Postgres URL. */
+export const POSTGRES_NOT_SAVED =
+  "not saved: contains credentials; set ENGRAM_DB_URL or re-enter it";
+
 export const savedPath = (home: string) => join(home, ".engram", "tui.json");
 
 const isFlag = (k: string): k is SavedFlag => (SAVED_FLAGS as readonly string[]).includes(k);
@@ -82,7 +89,7 @@ function keep(flag: SavedFlag, value: unknown): string | string[] | undefined {
     return list.length === value.length && list.length > 0 ? list : undefined;
   }
   if (typeof value !== "string" || !printable(value)) return undefined;
-  if (flag === "db" && /^postgres(ql)?:\/\//i.test(value)) return redactUrl(value);
+  if (flag === "db" && isPostgres(value)) return undefined;
   if (flag === "server" || flag === "otlp") return withoutCredentials(value);
   return value;
 }

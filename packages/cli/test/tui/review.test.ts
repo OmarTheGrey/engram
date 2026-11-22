@@ -1,8 +1,10 @@
 // The E8.15b review fix pass (card E8.15b; the reviewer's findings C1, I1 to
 // I10 and M1 to M16, scratchpad/review-e8-15b.md): one test per finding the
 // fix closes, each written before its fix and seen failing first.
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { fixtureCopy, tempDir } from "../helpers.ts";
+import { summaryText } from "../../src/tui/app.ts";
+import { cli, fixtureCopy, tempDir } from "../helpers.ts";
 import { startHarness } from "./harness.ts";
 
 const ESC = "\x1b";
@@ -14,7 +16,9 @@ describe("I1: a Postgres log is checked off the input path", () => {
     let calls = 0;
     const slow = () => {
       calls++;
-      return new Promise<["ok" | "fail", string]>((r) => setTimeout(() => r(["ok", "postgres: opens; up to date"]), 1500));
+      return new Promise<["ok" | "fail", string]>((r) =>
+        setTimeout(() => r(["ok", "postgres: opens; up to date"]), 1500),
+      );
     };
     const cwd = await tempDir();
     const h = await startHarness({ cwd, home: cwd, given: { db: PG }, logCheck: slow });
@@ -66,6 +70,73 @@ describe("I3: pgup and pgdn reach the screens", () => {
     await h.press("\x1b[6~");
     expect(await h.text()).not.toBe(before);
     await h.quit();
+  });
+});
+
+describe("I2: control characters in a command's output never reach the terminal", () => {
+  it("draws a memory holding escape sequences as text, in a result and in the first loop", async () => {
+    const cwd = await tempDir();
+    const root = await fixtureCopy();
+    const db = join(cwd, "engram.db");
+    const evil = "\x1b]0;PWNED\x07 hello \x1b[2J\x1b[31mred\x9b31m\x07bell\ttab";
+    const w = await cli([
+      "write",
+      "--content",
+      evil,
+      "--owner",
+      "dana",
+      "--db",
+      db,
+      "--root",
+      root,
+    ]);
+    expect(w.code).toBe(0);
+    const h = await startHarness({
+      cwd,
+      home: cwd,
+      given: { owner: "dana", db: "engram.db", root },
+    });
+    const start = h.term.output.length;
+    await h.press(";");
+    await h.type("read hello");
+    await h.press("\r", CTRL_S, "y");
+    expect(h.screen()).toBe("result");
+    for (let i = 0; i < 6; i++) await h.press("\x1b[6~");
+    const text = (await h.frame()).join("\n");
+    const written = h.term.output.slice(start);
+    expect(written).not.toContain("\x1b]0;PWNED");
+    expect(written).not.toContain("\x1b[31mred");
+    expect(written).not.toContain("\x9b");
+    expect(written).not.toContain("\x07bell");
+    expect(text).toContain("hello");
+    await h.quit();
+  });
+});
+
+describe("I4: secrets are not shown, while c copies the whole command", () => {
+  const PG = "postgres://dana:hunter2secret@127.0.0.1:1/engram";
+  it("redacts a Postgres password in the command row and the quit summary", async () => {
+    const cwd = await tempDir();
+    const h = await startHarness({
+      cwd,
+      home: cwd,
+      given: { owner: "dana", db: PG },
+      logCheck: async () => ["fail", "postgres: connection refused"],
+    });
+    expect(h.screen()).toBe("home");
+    expect(await h.text()).not.toContain("hunter2secret");
+    expect(await h.text()).toContain("postgres://***@127.0.0.1:1/engram");
+    await h.press("E"); // explain: a command that takes --db
+    await h.type("01930000-0000-7000-8000-000000000001");
+    await h.press(CTRL_S);
+    expect(h.ran()).toHaveLength(1);
+    expect(await h.text()).not.toContain("hunter2secret");
+    await h.press("c");
+    const s = await h.quit();
+    expect(s.deferred.join("\n")).toContain("hunter2secret");
+    const summary = summaryText(s, "posix", false);
+    expect(summary).toContain("explain");
+    expect(summary).not.toContain("hunter2secret");
   });
 });
 

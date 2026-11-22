@@ -4,6 +4,7 @@
 // content in any script lays out (docs/design/tui.md 11.7).
 import {
   compositeTuiLine,
+  stripTerminalSequences,
   truncateToWidth,
   visibleWidth,
   wrapTextWithAnsi,
@@ -11,6 +12,22 @@ import {
 import type { Theme } from "./theme.ts";
 
 export { visibleWidth };
+
+/**
+ * `text` with every escape sequence and every C0 and C1 control character
+ * removed but the newline, and tabs as spaces (review finding I2): a
+ * command's output, a memory's content, never reaches the terminal raw.
+ */
+export function clean(text: string): string {
+  let out = "";
+  for (const ch of stripTerminalSequences(text)) {
+    const c = ch.codePointAt(0) ?? 0;
+    if (ch === "\n") out += ch;
+    else if (ch === "\t") out += "    ";
+    else if (c >= 32 && (c < 127 || c > 159)) out += ch;
+  }
+  return out;
+}
 
 /** `text` cut to `width` with no ellipsis and padded to exactly `width`. */
 export const fit = (text: string, width: number) =>

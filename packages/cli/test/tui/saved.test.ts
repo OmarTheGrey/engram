@@ -64,21 +64,65 @@ describe("tui.json", () => {
     if (process.platform !== "win32") expect(statSync(savedPath(home)).mode & 0o077).toBe(0);
   });
 
-  it("saves a Postgres URL redacted, as doctor prints it, and a server URL without its credentials", async () => {
+  // The lead's decision in the review fix pass (finding I5): a Postgres log is never
+  // saved, not even redacted, so ENGRAM_DB_URL wins on the next start.
+  it("never saves a Postgres log, and saves a server or OTLP URL without its credentials", async () => {
     const home = await tempDir();
     writeSaved(
       home,
       {
         db: `postgres://dana:${SECRET}@db.example:5432/engram?sslmode=require&password=${SECRET}`,
         server: `http://dana:${SECRET}@127.0.0.1:7313/?token=${SECRET}`,
+        otlp: `https://dana:${SECRET}@collector.example:4318/v1/traces?api_key=${SECRET}`,
       },
       {},
     );
     const text = readFileSync(savedPath(home), "utf8");
     expect(text).not.toContain(SECRET);
     const { flags } = JSON.parse(text);
-    expect(flags.db).toMatch(/^postgres:\/\/\*\*\*@db\.example:5432\/engram/);
+    expect(flags.db).toBeUndefined();
     expect(flags.server).toBe("http://127.0.0.1:7313/");
+    expect(flags.otlp).toBe("https://collector.example:4318/v1/traces");
+  });
+
+  it("drops a Postgres log an older tui.json holds, so ENGRAM_DB_URL wins", async () => {
+    const home = await tempDir();
+    mkdirSync(join(home, ".engram"), { recursive: true });
+    writeFileSync(
+      savedPath(home),
+      JSON.stringify({
+        engram_tui: 1,
+        flags: { db: "postgres://***@127.0.0.1:1/engram", owner: "dana" },
+        options: {},
+      }),
+    );
+    expect(loadSaved(home).saved?.flags).toEqual({ owner: "dana" });
+    const env = { ENGRAM_DB_URL: `postgres://dana:${SECRET}@127.0.0.1:1/engram` };
+    const h = await startHarness({
+      home,
+      cwd: home,
+      env,
+      logCheck: async () => ["ok", "postgres: opens"],
+    });
+    expect(h.app.ws.source("db")).toBe("env");
+    expect(h.app.ws.argsFor({ options: { db: {} } } as never)).toEqual([]);
+    await h.quit();
+  });
+
+  it("says a Postgres log is not saved when the workspace is saved", async () => {
+    const home = await tempDir();
+    const h = await startHarness({
+      home,
+      cwd: home,
+      given: { owner: "dana", db: `postgres://dana:${SECRET}@127.0.0.1:1/engram` },
+      logCheck: async () => ["ok", "postgres: opens"],
+    });
+    h.app.save();
+    expect(await h.text()).toContain(
+      "not saved: contains credentials; set ENGRAM_DB_URL or re-enter it",
+    );
+    expect(readFileSync(savedPath(home), "utf8")).not.toContain("postgres");
+    await h.quit();
   });
 
   it("reads back nothing it does not know, and reports a file it cannot read", async () => {

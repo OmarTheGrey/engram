@@ -6,7 +6,7 @@
 // and esc leaves for Home.
 import { command } from "../../registry.ts";
 import { TextField } from "../fields.ts";
-import { rows, wrap } from "../layout.ts";
+import { clean, rows, wrap } from "../layout.ts";
 import type { RunResult } from "../runner.ts";
 import type { CommandRow, Ctx, Screen } from "../screen.ts";
 import { shortPath } from "../workspace.ts";
@@ -131,14 +131,16 @@ export class LoopScreen implements Screen {
           : t.symbol(r.code === 0 ? "ok" : "fail");
     const indent = " ".repeat(15);
     const lines: string[] = [];
-    const cmd = wrap(ctx.line(this.argv(ctx, step)), width - 16);
+    const cmd = wrap(ctx.shown(this.argv(ctx, step)), width - 16);
     lines.push(
       ` ${mark} ${i + 1}  ${label}  ${cmd[0] ?? ""}`,
       ...cmd.slice(1).map((l) => `${indent} ${l}`),
     );
     if (r === "skipped") lines.push(`${indent} skipped`);
     else if (r !== undefined) {
-      const out = `${r.out}${r.err}`.split("\n").filter((l) => l !== "");
+      const out = clean(`${r.out}${r.err}`)
+        .split("\n")
+        .filter((l) => l !== "");
       for (const l of out.slice(0, 3))
         lines.push(...wrap(l, width - 16).map((w) => `${indent} ${w}`));
       lines.push(`${indent} exit ${r.code}`);

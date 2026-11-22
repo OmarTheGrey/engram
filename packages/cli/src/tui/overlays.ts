@@ -207,8 +207,8 @@ export class PaletteOverlay implements Overlay {
     const recent = [...ctx.ran].reverse().map(
       (r): PaletteItem => ({
         label: `Run again (exit ${r.code})`,
-        command: ctx.line(r.argv),
-        search: ctx.line(r.argv),
+        command: ctx.shown(r.argv),
+        search: ctx.shown(r.argv),
         run: (c) => {
           const spec = specOfWords(r.argv);
           if (spec !== undefined) openLine(c, r.argv);
@@ -299,7 +299,7 @@ function typedItem(q: string, ctx: Ctx): PaletteItem | undefined {
   if (specOfWords(words) === undefined) return undefined;
   return {
     label: "Open as typed",
-    command: ctx.line(words),
+    command: ctx.shown(words),
     search: q,
     run: (c) => openLine(c, words),
   };
@@ -370,7 +370,7 @@ export class ConfirmOverlay implements Overlay {
     const body: string[] = [];
     for (const p of this.request.lines) body.push(...para(`${p}`, inner), "");
     if (this.request.argv !== undefined)
-      body.push(...para(`$ ${ctx.line(this.request.argv)}`, inner), "");
+      body.push(...para(`$ ${ctx.shown(this.request.argv)}`, inner), "");
     if (this.typed !== undefined)
       body.push(
         ` Type ${this.request.typed} to go on: [ ${this.typed.render(Math.min(40, inner - 22), true)} ]`,

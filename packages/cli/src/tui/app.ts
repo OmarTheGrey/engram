@@ -21,10 +21,11 @@ import { SERVER_URL_ENV } from "../connect.ts";
 import type { CheckResult } from "../doctor.ts";
 import { type CommandSpec, parseOptions, type Values, type Writes } from "../registry.ts";
 import type { Io } from "../run.ts";
+import { redactSecrets } from "../setup.ts";
 import { commandLine, detectShell, middleCut, type Shell } from "./argv.ts";
 import { type Clipboard, createClipboard } from "./clipboard.ts";
 import { actionFor } from "./keys.ts";
-import { cut, fit, overlay, rows, visibleWidth } from "./layout.ts";
+import { clean, cut, fit, overlay, rows, visibleWidth } from "./layout.ts";
 import { checkLogInChild, type LogCheckInput } from "./log-check.ts";
 import {
   ConfirmOverlay,
@@ -33,7 +34,7 @@ import {
   registerWorkspaceScreen,
 } from "./overlays.ts";
 import { type RunResult, runCommand } from "./runner.ts";
-import { forgetSaved, loadSaved, writeSaved } from "./saved.ts";
+import { forgetSaved, isPostgres, loadSaved, POSTGRES_NOT_SAVED, writeSaved } from "./saved.ts";
 import type { CommandRow, ConfirmRequest, Ctx, Overlay, Ran, Screen } from "./screen.ts";
 import { FirstRunScreen } from "./screens/first-run.ts";
 import { FormScreen } from "./screens/form.ts";
@@ -263,6 +264,9 @@ export class App implements Component, Ctx {
   line(argv: readonly string[]): string {
     return commandLine(argv, this.shell);
   }
+  shown(argv: readonly string[]): string {
+    return shownLine(argv, this.shell);
+  }
   /**
    * The cheap checks again. With `log` false the log's answer is kept (a
    * keystroke in a field); a Postgres log is checked off the input path.
@@ -301,6 +305,8 @@ export class App implements Component, Ctx {
   }
   save(): void {
     if (this.noSaved) return;
+    const db = this.ws.get("db");
+    if (db !== undefined && isPostgres(db)) this.say(`Postgres log ${POSTGRES_NOT_SAVED}`);
     writeSaved(this.io.home, this.ws.savable(), {
       ...(this.options.ascii ? { ascii: true } : {}),
       ...(this.options.highContrast ? { contrast: "high" } : {}),
@@ -535,7 +541,7 @@ export class App implements Component, Ctx {
         this.tui?.requestRender(true);
         return;
       case "copy": {
-        const text = this.commandText(this.top().command(this));
+        const text = this.copyText(this.top().command(this));
         if (text === "") this.say("no command to copy on this screen");
         else this.copy(text);
         return;
@@ -556,8 +562,14 @@ export class App implements Component, Ctx {
 
   invalidate(): void {}
 
-  /** The command row's text without its prefix: what `c` copies. */
+  /** The command row's text as drawn, secrets redacted. */
   private commandText(row: CommandRow): string {
+    if (row.argv !== undefined) return this.shown(row.argv);
+    return clean(row.text ?? "");
+  }
+
+  /** What `c` copies: the whole command, secrets included, as the person would type it. */
+  private copyText(row: CommandRow): string {
     if (row.argv !== undefined) return this.line(row.argv);
     return row.text ?? "";
   }
@@ -576,7 +588,7 @@ export class App implements Component, Ctx {
   }
 
   private commandRow(width: number): string {
-    if (this.busy !== undefined) return middleCut(`$ ${this.line(this.busy)}   working`, width);
+    if (this.busy !== undefined) return middleCut(`$ ${this.shown(this.busy)}   working`, width);
     const row = this.top().command(this);
     const text = this.commandText(row);
     if (text === "") return row.note === undefined ? "" : cut(`$ ${row.note}`, width);
@@ -661,16 +673,33 @@ export function startTui(o: StartOptions): Session {
   return { app, tui };
 }
 
+/**
+ * A command line as the TUI draws or prints it (review finding I4): every
+ * URL in it redacted as the CLI redacts a log's label (its userinfo and
+ * secret query values), and no control character. `c` copies it whole.
+ */
+export function shownLine(argv: readonly string[], shell: Shell): string {
+  let text = commandLine(argv, shell);
+  for (const word of argv) if (word.includes("://")) text = redactSecrets(text, word);
+  return clean(text);
+}
+
 /** What quitting prints (docs/design/tui.md 4.1): the session's commands, each with its exit code. */
 export function summaryText(summary: Summary, shell: Shell, quiet: boolean): string {
   const lines: string[] = [];
   if (!quiet && summary.ran.length > 0) {
     lines.push("# engram tui: the commands this session ran");
-    for (const r of summary.ran) lines.push(`${commandLine(r.argv, shell)}  # exit ${r.code}`);
+    for (const r of summary.ran) lines.push(`${shownLine(r.argv, shell)}  # exit ${r.code}`);
   }
   if (summary.deferred.length > 0) {
     lines.push("# engram tui: what c could not copy (this terminal has no clipboard path)");
-    lines.push(...summary.deferred);
+    // Printed, so redacted like every printed command; the secret stays the person's to type.
+    for (const d of summary.deferred) {
+      let text = d;
+      for (const url of d.match(/[a-z][a-z0-9+.-]*:\/\/[^\s'"]+/gi) ?? [])
+        text = redactSecrets(text, url);
+      lines.push(clean(text));
+    }
   }
   return lines.length === 0 ? "" : `${lines.join("\n")}\n`;
 }

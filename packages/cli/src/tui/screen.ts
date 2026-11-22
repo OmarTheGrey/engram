@@ -133,8 +133,10 @@ export interface Ctx {
   say(message: string): void;
   /** Copies text by the terminal's path (./clipboard.ts) and says how. */
   copy(text: string): void;
-  /** The command line of an argument vector, quoted for the shell. */
+  /** The command line of an argument vector, quoted for the shell: what `c` copies. */
   line(argv: readonly string[]): string;
+  /** The command line as it is drawn: secrets redacted, control characters removed. */
+  shown(argv: readonly string[]): string;
   /** Runs the cheap checks again. */
   recheck(log?: boolean): void;
   /** Writes tui.json from the workspace, unless --no-saved. */
