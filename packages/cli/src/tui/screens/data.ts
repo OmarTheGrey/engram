@@ -263,9 +263,9 @@ export class KeysScreen extends SurfaceScreen {
   }
   create(ctx: Ctx): void {
     ctx.push(
-      new KeyCreateScreen(ctx, { keys: this.file() || undefined }, (file) => {
+      new KeyCreateScreen(ctx, { keys: this.file() || undefined }, async (file) => {
         this.form.setValue("keys", file);
-        void this.run(ctx);
+        await this.run(ctx);
       }),
     );
   }
@@ -336,12 +336,12 @@ export class KeysScreen extends SurfaceScreen {
 }
 
 export class KeyCreateScreen extends SurfaceScreen {
-  private readonly created: ((file: string) => void) | undefined;
+  private readonly created: ((file: string) => unknown) | undefined;
 
   constructor(
     ctx: Ctx,
     values: Values = {},
-    created?: (file: string) => void,
+    created?: (file: string) => unknown,
     s = spec("key create"),
   ) {
     super(s, ctx, values);
@@ -365,7 +365,8 @@ export class KeyCreateScreen extends SurfaceScreen {
   }
   protected override async execute(ctx: Ctx, argv: readonly string[]) {
     const result = await super.execute(ctx, argv);
-    if (result?.code === 0) this.created?.(this.file());
+    // The screen that opened this one learns the key file, and Keys lists again, before the next key.
+    if (result?.code === 0) await this.created?.(this.file());
     return result;
   }
   private file(): string {
@@ -409,12 +410,10 @@ export class KeyRevokeScreen extends SurfaceScreen {
         hint: "the id or the masked key engram key list prints",
       },
       { kind: "field", id: "keys", label: "Key file" },
+      { kind: "text", lines: [""] },
       {
-        kind: "text",
-        lines: [
-          "",
-          " Revoking cannot be undone: the key is never accepted again. It asks for the id typed.",
-        ],
+        kind: "para",
+        text: "Revoking cannot be undone: the key is never accepted again. It asks for the id typed.",
       },
     ];
   }

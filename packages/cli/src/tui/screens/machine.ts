@@ -6,7 +6,7 @@
 // and serve's credential flags, card E8.12) are the Serve screen's last
 // answers, so doctor checks the bind Serve would make.
 import type { CommandSpec, Values } from "../../registry.ts";
-import { clean, para } from "../layout.ts";
+import { clean, para, visibleWidth } from "../layout.ts";
 import type { RunResult } from "../runner.ts";
 import type { Ctx } from "../screen.ts";
 import type { StatusKind } from "../theme.ts";
@@ -127,9 +127,9 @@ export class DoctorScreen extends SurfaceScreen {
   }
   protected override top(_ctx: Ctx): Row[] {
     const said = this.fromServe
-      ? " The bind flags are the Serve screen's answers: doctor checks what Serve would start."
-      : " Checks the workspace's log, policy and store, the adapters, and the bind Serve would make.";
-    return [{ kind: "text", lines: [said] }];
+      ? "The bind flags are the Serve screen's answers: doctor checks what Serve would start."
+      : "Checks the workspace's log, policy and store, the adapters, and the bind Serve would make. It changes nothing.";
+    return [{ kind: "para", text: said }];
   }
   protected override buttons() {
     return [
@@ -153,10 +153,12 @@ export class DoctorScreen extends SurfaceScreen {
     for (const c of sorted) {
       const id = `check:${c.name}`;
       const head = ` ${t.status(KIND[c.status], c.status.padEnd(4))}  ${c.name.padEnd(15)} `;
-      const detail = para(clean(c.detail), Math.max(20, width - 24), "");
+      // The item's marker column comes first: the detail starts one column after the head.
+      const indent = visibleWidth(head);
+      const detail = para(clean(c.detail), Math.max(20, width - indent - 1), "");
       const lines = [
         `${head}${detail[0] ?? ""}`,
-        ...detail.slice(1).map((l) => `${" ".repeat(24)}${l}`),
+        ...detail.slice(1).map((l) => `${" ".repeat(indent)}${l}`),
       ];
       const help = DOCTOR_HELP[c.name];
       if (this.open.has(id) && help !== undefined) {

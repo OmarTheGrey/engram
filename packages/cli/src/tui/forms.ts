@@ -277,7 +277,9 @@ export class Form {
     const argv = this.argv(ws);
     const words = this.spec.name.split(" ").filter((w) => !w.startsWith("--"));
     // The handler gets the words after the first, as run hands them on.
-    const args = argv.slice(1);
+    // A command whose handler takes no positionals (log verify) is handed the words after its
+    // name; the others the words after the first, the subcommand among them (card E8.15d).
+    const args = this.spec.allowPositionals ? argv.slice(1) : argv.slice(words.length);
     try {
       const plane = PLANE[words[0] as string];
       if (plane !== undefined) {

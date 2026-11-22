@@ -30,7 +30,9 @@ export type Row =
   | { kind: "buttons"; buttons: readonly Button[] }
   | { kind: "fold"; id: string }
   | { kind: "item"; id: string; lines: readonly string[]; press?: (ctx: Ctx) => unknown }
-  | { kind: "text"; lines: readonly string[] };
+  | { kind: "text"; lines: readonly string[] }
+  /** A paragraph wrapped at the screen's width when drawn. */
+  | { kind: "para"; text: string };
 
 export interface Button {
   id: string;
@@ -54,7 +56,6 @@ const BASE_ACTIONS = [
   "page-down",
 ] as const;
 
-const LABEL = 18;
 const MORE = "fold:more";
 
 /** A line drawn from a focusable unit, so the screen can scroll to it. */
@@ -184,6 +185,9 @@ export abstract class SurfaceScreen implements Screen {
     this.follow = false;
     this.scroll = Number.MAX_SAFE_INTEGER;
     this.atResult = true;
+    // Off the text field the run started from, so the result's keys (v, J, r) act at once.
+    const first = this.buttons(this.ctx)[0];
+    if (this.inField() && first !== undefined) this.focusId = first.id;
   }
   /** Scroll to the result's first line on the next draw. */
   private atResult = false;
@@ -241,10 +245,14 @@ export abstract class SurfaceScreen implements Screen {
     this.follow = true;
   }
 
-  private move(ctx: Ctx, step: 1 | -1): void {
+  /** Moves the focus a unit; tab and shift+tab wrap around, the arrows stop at the ends. */
+  private move(ctx: Ctx, step: 1 | -1, wrap = false): void {
     const units = this.units(ctx);
     const at = Math.max(0, units.indexOf(this.current(ctx) ?? ""));
-    this.focusId = units[Math.max(0, Math.min(units.length - 1, at + step))];
+    const to = wrap
+      ? (at + step + units.length) % units.length
+      : Math.max(0, Math.min(units.length - 1, at + step));
+    this.focusId = units[to];
     this.follow = true;
   }
 
@@ -275,11 +283,15 @@ export abstract class SurfaceScreen implements Screen {
     const r = this.focusedRow(ctx);
     switch (name) {
       case "next":
+        this.move(ctx, 1, true);
+        return true;
+      case "prev":
+        this.move(ctx, -1, true);
+        return true;
       case "field-down":
       case "down":
         this.move(ctx, 1);
         return true;
-      case "prev":
       case "field-up":
       case "up":
         this.move(ctx, -1);
@@ -461,7 +473,10 @@ export abstract class SurfaceScreen implements Screen {
   }
 
   hints(ctx: Ctx): string {
-    return this.keyHints(ctx);
+    // In a text field only keys that type nothing act: tab, and ctrl+s for the first button.
+    if (!this.inField()) return this.keyHints(ctx);
+    const first = this.buttons(ctx)[0];
+    return `tab next  ctrl+s ${first === undefined ? "run" : first.label.split(":")[0]?.toLowerCase()}`;
   }
 
   spec(): CommandSpec {
@@ -536,9 +551,12 @@ export abstract class SurfaceScreen implements Screen {
   private draw(ctx: Ctx, r: Row, width: number): Drawn {
     const t = ctx.theme;
     const focus = this.focusId;
+    const LABEL = this.labelWidth;
     switch (r.kind) {
       case "text":
         return { lines: r.lines.map((l) => cut(l, width)) };
+      case "para":
+        return { lines: para(r.text, width) };
       case "fold": {
         const more = this.moreFields(
           new Set(this.top(ctx).flatMap((x) => (x.kind === "field" ? [x.id] : []))),
@@ -607,8 +625,10 @@ export abstract class SurfaceScreen implements Screen {
         const on = focus === r.id;
         const inText = on && !f.boolean && f.choices === undefined;
         const label = fit(`${r.label ?? f.label}${f.required ? " *" : ""}`, LABEL);
-        const inputWidth = Math.max(12, Math.min(40, width - LABEL - 26));
-        const text = ` ${on ? ">" : " "} ${label} ${this.control(f, on, inputWidth)}  ${this.hintOf(f, r.hint)}`;
+        const hint = this.hintOf(f, r.hint);
+        // One input width a screen, so the boxes line up; a hint that does not fit is cut.
+        const inputWidth = Math.max(16, Math.min(40, width - LABEL - 40));
+        const text = ` ${on ? ">" : " "} ${label} ${this.control(f, on, inputWidth)}  ${hint}`;
         const lines = [on && !inText ? t.reverse(cut(text, width)) : cut(text, width)];
         if (this.error?.field === f.id)
           for (const l of wrap(t.status("fail", this.error.message), width - LABEL - 5))
@@ -618,18 +638,33 @@ export abstract class SurfaceScreen implements Screen {
     }
   }
 
+  /** The label column: as wide as the longest label laid out, from 12 to 24 columns. */
+  private labelWidth = 18;
+
   render(ctx: Ctx, width: number, height: number): string[] {
     this.current(ctx);
     const { rows: all, resultAt } = this.allRows(ctx, width - 1);
+    const labels = all.flatMap((r) => {
+      if (r.kind === "choice") return [r.label.length];
+      if (r.kind !== "field") return [];
+      const f = this.form.field(r.id);
+      return f === undefined ? [] : [(r.label ?? f.label).length + (f.required ? 2 : 0)];
+    });
+    this.labelWidth = Math.min(24, Math.max(12, ...labels));
     const lines: string[] = [];
     if (this.error !== undefined && this.error.field === undefined)
       lines.push(...para(ctx.theme.status("fail", this.error.message), width), "");
     let focusLine = -1;
+    let focusEnd = -1;
     let resultLine = -1;
     all.forEach((r, i) => {
       if (i === resultAt) resultLine = lines.length;
       const d = this.draw(ctx, r, width);
-      if (d.focusLine !== undefined) focusLine = lines.length + d.focusLine;
+      if (d.focusLine !== undefined) {
+        focusLine = lines.length + d.focusLine;
+        // An item's lines are all its own; other rows' focus is one line.
+        focusEnd = r.kind === "item" ? lines.length + d.lines.length - 1 : focusLine;
+      }
       lines.push(...d.lines);
     });
     if (this.atResult && resultLine >= 0) {
@@ -637,8 +672,10 @@ export abstract class SurfaceScreen implements Screen {
       this.scroll = lines.length <= height ? 0 : Math.min(resultLine, lines.length - height);
       this.atResult = false;
     } else if (this.follow && focusLine >= 0) {
-      if (focusLine < this.scroll) this.scroll = focusLine;
-      if (focusLine >= this.scroll + height) this.scroll = focusLine - height + 1;
+      // The whole focused unit in view, clear of the lines that say more is above or below.
+      const end = Math.min(focusEnd, focusLine + height - 3);
+      if (end > this.scroll + height - 2) this.scroll = end - height + 2;
+      if (focusLine < this.scroll + 1) this.scroll = Math.max(0, focusLine - 1);
     }
     this.scroll = Math.max(0, Math.min(this.scroll, Math.max(0, lines.length - height)));
     const shown = lines.slice(this.scroll, this.scroll + height);

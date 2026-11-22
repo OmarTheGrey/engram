@@ -180,8 +180,9 @@ export abstract class ProcessScreen extends SurfaceScreen {
     this.running = r;
     this.ended = undefined;
     this.unregister = ctx.onQuit(async () => {
-      const code = await r.halt();
-      ctx.record({ argv: r.argv, code, note: "stopped when the TUI quit" });
+      // Its own ending records it, saying why it stopped.
+      this.quitting = true;
+      await r.halt();
     });
     // It returns by itself only when it could not start (or stops by s).
     void r.done.then((code) => {
@@ -211,8 +212,14 @@ export abstract class ProcessScreen extends SurfaceScreen {
     this.unregister = undefined;
     this.running = undefined;
     this.ended = r;
-    ctx.record({ argv: r.argv, code });
+    ctx.record({
+      argv: r.argv,
+      code,
+      ...(this.quitting ? { note: "stopped when the TUI quit" } : {}),
+    });
   }
+  /** Set while the TUI quits: the run's record says it was stopped by the quit. */
+  private quitting = false;
 
   /** s: stops it, and shows its stop line. */
   async halt(ctx: Ctx): Promise<void> {
