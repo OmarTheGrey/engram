@@ -1,0 +1,43 @@
+{
+  "name": "redteam",
+  "kind": "measurement",
+  "hypothesis": "none",
+  "card": "X14",
+  "arm": "P1 of docs/research/preregistration.md, proposed and not registered: this result is an engineering check of card X14, no arm's result, and enters no registered analysis",
+  "wording": "what the content guards and the trust floors stop, and what they wrongly stop, on this corpus: a deterministic measurement with no model in the loop, never a claim of defence",
+  "seed": 20261121,
+  "confidence": 0.95,
+  "resamples": 10000,
+  "upstream": ".engram/upstream",
+  "fetch": true,
+  "baseline": "medium",
+  "routes": ["write", "read"],
+  "kinds": ["user", "document", "tool", "model", "external"],
+  "settings": [
+    { "name": "store" },
+    { "name": "medium", "preset": "medium" },
+    {
+      "name": "medium+screen-default",
+      "preset": "medium",
+      "content_guards": { "injection_screen": "default" }
+    },
+    {
+      "name": "medium+screen-hardened",
+      "preset": "medium",
+      "content_guards": { "injection_screen": "hardened" }
+    }
+  ],
+  "not_run": [
+    "medium+secrets-block and medium+all (card E2.9's guards): not enforced on this commit, which core's loader refuses; they join when E2.9 merges",
+    "medium+trust (card E2.11's unattested_floor and protect_trusted): not enforced on this commit, which core's loader refuses"
+  ],
+  "limits": [
+    "Small: AMSB has 15 attacks, so its per-family rates rest on one to four scenarios; the payload sets add 1,263 attack rows, but from two sources only.",
+    "Optimistic: AMSB comes from the same OWASP project whose detector patterns the injection screen copies (card E2.10), and card X14's controls were written by its author; the controls are not a sample of real memory.",
+    "Not a defence: every rule here is a regular expression or a source rule, and a careful attacker writes around it; the screen's own limits are in research/results/h1-injection-screen.json.",
+    "English-centred: the screen's patterns are English, and deepset's rows include German, so a row in another language passes them unread.",
+    "Model-free: survival is AMSB's rule, the canary coming back in a later read; whether a model would act on what came back is not measured (a live sub-arm would be its own proposal).",
+    "AMSB's protected-key family has no counterpart in Engram, which has no protected keys: a value such as superadmin is ordinary content, stopped only by a source rule.",
+    "Rates per source kind are not independent: the same entries are planted once per setting, route and kind, so the cells share their items and are never pooled into one interval."
+  ]
+}
