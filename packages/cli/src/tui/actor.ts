@@ -31,11 +31,43 @@ export function actorOfResult(r: RunResult | undefined): string | undefined {
   return undefined;
 }
 
-/** The actor a run was made as, when it is not the actor now; undefined when the answer is this actor's (or no one's). */
+/** An actor as a comparable key: its id, its level and its memberships, sorted (verification N3). */
+export function actorKey(a: { id?: unknown; level?: unknown; memberships?: unknown } | undefined) {
+  if (a === undefined || typeof a.id !== "string") return undefined;
+  const members = Array.isArray(a.memberships) ? [...(a.memberships as string[])].sort() : [];
+  return JSON.stringify([a.id, a.level ?? null, members]);
+}
+
+/** The actor a run's calls were made as, whole: the first request that names one. */
+function requestActor(r: RunResult | undefined) {
+  for (const c of r?.calls ?? []) {
+    const a = (
+      c.request as { actor?: { id?: unknown; level?: unknown; memberships?: unknown } } | undefined
+    )?.actor;
+    if (typeof a?.id === "string")
+      return a as { id: string; level?: unknown; memberships?: unknown };
+  }
+  return undefined;
+}
+
+/** The key of the actor a run was made as; undefined for none (policy). */
+export const actorKeyOfResult = (r: RunResult | undefined) => actorKey(requestActor(r));
+
+/** The key of the actor the workspace names now. */
+export const actorKeyNow = (ws: Workspace) => actorKey(actorNow(ws));
+
+/**
+ * The actor a run was made as, when it is not the actor now: another id, or
+ * the same id at another level or with other memberships (verification N3),
+ * which could read other scopes. Undefined when the answer is this actor's
+ * (or no one's). Named with its memberships when only they differ.
+ */
 export function madeAsOther(ws: Workspace, r: RunResult | undefined): string | undefined {
-  const made = actorOfResult(r);
-  if (made === undefined) return undefined;
-  return made === actorNow(ws)?.id ? undefined : made;
+  const made = requestActor(r);
+  if (made === undefined || actorKey(made) === actorKeyNow(ws)) return undefined;
+  if (made.id !== actorNow(ws)?.id) return made.id;
+  const members = Array.isArray(made.memberships) ? (made.memberships as string[]).join(", ") : "";
+  return `${made.id} as a member of ${members || "its own scope"}`;
 }
 
 /** What a screen says in place of an answer made as another actor. */

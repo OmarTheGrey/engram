@@ -12,7 +12,7 @@ import type { Actor, MemoryItem, ReadResponse } from "@engram/sdk";
 import { contentText } from "@engram/view";
 import type { CommandSpec, Values } from "../../registry.ts";
 import { redactSecrets } from "../../setup.ts";
-import { actorNow, madeAsLines, madeAsOther } from "../actor.ts";
+import { actorKeyNow, actorKeyOfResult, actorNow, madeAsLines, madeAsOther } from "../actor.ts";
 import type { TextField } from "../fields.ts";
 import { type Field, type FieldValue, Form, type FormError, rerunArgv } from "../forms.ts";
 import { box, clean, cut, fit, para, rows, visibleWidth, wrap } from "../layout.ts";
@@ -601,23 +601,17 @@ export function viewerOf(ctx: Ctx): Actor | undefined {
   return actorNow(ctx.ws);
 }
 
-/** The session's results whose call was made as `actorId`, newest first. */
-export function resultsAs(ctx: Ctx, actorId: string | undefined): RunResult[] {
-  if (actorId === undefined) return [];
-  return [...ctx.results]
-    .reverse()
-    .filter((r) =>
-      r.calls.some(
-        (c) => (c.request as { actor?: { id?: unknown } } | undefined)?.actor?.id === actorId,
-      ),
-    );
+/** The session's results made as the actor `key` names (its id, level and memberships), newest first. */
+export function resultsAs(ctx: Ctx, key: string | undefined): RunResult[] {
+  if (key === undefined) return [];
+  return [...ctx.results].reverse().filter((r) => actorKeyOfResult(r) === key);
 }
 
 const READ_ROUTE = /\/api\/v1\/read(\/[^/]+)?$/;
 
 /** The answer of the session's last read as the actor now acting (a read or a read --item). */
 export function lastRead(ctx: Ctx): { result: RunResult; answer: ReadResponse } | undefined {
-  for (const r of resultsAs(ctx, viewerOf(ctx)?.id)) {
+  for (const r of resultsAs(ctx, actorKeyNow(ctx.ws))) {
     const answer = answerOf<ReadResponse>(r, READ_ROUTE);
     if (answer !== undefined) return { result: r, answer };
   }
@@ -627,7 +621,7 @@ export function lastRead(ctx: Ctx): { result: RunResult; answer: ReadResponse } 
 /** Every item the session's reads as the actor now acting returned, the newest state of each. */
 export function readItems(ctx: Ctx): MemoryItem[] {
   const out = new Map<string, MemoryItem>();
-  for (const r of resultsAs(ctx, viewerOf(ctx)?.id).reverse()) {
+  for (const r of resultsAs(ctx, actorKeyNow(ctx.ws)).reverse()) {
     const answer = answerOf<ReadResponse>(r, READ_ROUTE);
     for (const item of answer?.items ?? []) out.set(item.id, item);
   }
@@ -636,7 +630,7 @@ export function readItems(ctx: Ctx): MemoryItem[] {
 
 /** The newest state of an item any of the session's answers as this actor carries. */
 export function knownState(ctx: Ctx, id: string): MemoryItem | undefined {
-  for (const r of resultsAs(ctx, viewerOf(ctx)?.id))
+  for (const r of resultsAs(ctx, actorKeyNow(ctx.ws)))
     for (const c of [...r.calls].reverse()) {
       const b = c.body as { items?: MemoryItem[]; item?: MemoryItem | null } | undefined;
       const found = b?.item?.id === id ? b.item : b?.items?.find((i) => i.id === id);

@@ -20,7 +20,7 @@ import {
   type Version,
 } from "@engram/view";
 import { type CommandSpec, command } from "../../registry.ts";
-import { actorOfResult, madeAsOther } from "../actor.ts";
+import { actorKeyNow, actorKeyOfResult, madeAsOther } from "../actor.ts";
 import { Form } from "../forms.ts";
 import { box, cut, fit, para } from "../layout.ts";
 import type { RunResult } from "../runner.ts";
@@ -139,7 +139,7 @@ export class ItemScreen extends RichScreen {
 
   /** The events the page was built from, only when they were made as the actor now (review finding 1). */
   private visibleEvents(ctx: Ctx): MemoryEvent[] {
-    if (actorOfResult(this.events) !== viewerOf(ctx)?.id) return [];
+    if (actorKeyOfResult(this.events) !== actorKeyNow(ctx.ws)) return [];
     return answerOf<{ events: MemoryEvent[] }>(this.events, /\/api\/v1\/events$/)?.events ?? [];
   }
 
