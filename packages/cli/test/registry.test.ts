@@ -60,8 +60,8 @@ const ON_MAIN = [
   "log verify",
   "log checkpoint",
 ];
-/** The commands card E8.15a adds (docs/design/tui.md 3.6), read --item and scopes over card E8.14's routes. */
-const ADDED = ["read --item", "check", "grants", "events", "policy", "scopes"];
+/** The commands card E8.15a adds (docs/design/tui.md 3.6), read --item and scopes over card E8.14's routes, and E8.15b's tui. */
+const ADDED = ["read --item", "check", "grants", "events", "policy", "scopes", "tui"];
 
 describe("HELP from the registry", () => {
   it("is run.ts's HELP, and its first line names engram tui", () => {
@@ -133,7 +133,7 @@ describe("HELP from the registry", () => {
 });
 
 describe("the registry's entries", () => {
-  it("covers every command main has and the six E8.15a adds, each name once", () => {
+  it("covers every command main has, the six E8.15a adds and E8.15b's tui, each name once", () => {
     const names = REGISTRY.map((s) => s.name);
     expect(new Set(names).size).toBe(names.length);
     expect([...names].sort()).toEqual([...ON_MAIN, ...ADDED].sort());

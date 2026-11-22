@@ -32,6 +32,7 @@ commands:
   doctor            check the log, policy, store, adapters, provider keys, pins and Node
   log verify        verify the event log's hash chain: the first broken link, or OK or UNSIGNED
   log checkpoint    record a checkpoint of the chain's head, signed with --key when given
+  tui               the terminal interface; --line or ENGRAM_TUI_LINE=1 for one prompt a line
 
 every command but doctor, serve, mcp, hook, key, log and import is one call to the
 HTTP API (import makes one write call per row): in process
@@ -238,6 +239,19 @@ doctor options:
                               on an in-memory log (counts only)
   --host and serve's credential flags: the bind engram serve would make; fails without
                               authentication, and beyond loopback without credentials
+
+tui options (card E8.15b; docs/design/tui.md):
+  --no-color  --high-contrast  --ascii  --reduced-motion  --no-mouse
+                              no colour (also NO_COLOR), no hue, ASCII only, no motion, the
+                              mouse left to the terminal (also ENGRAM_TUI_CONTRAST=high,
+                              ENGRAM_TUI_ASCII=1, ENGRAM_TUI_MOTION=reduce, ENGRAM_TUI_MOUSE=0)
+  --quiet                     do not print the session's commands on quit
+  --no-saved                  neither read nor write <home>/.engram/tui.json (workspace flags only)
+  --screen <name>             open on home, workspace, first-run or a command's screen
+  --line                      line mode, for screen readers (card E8.15e; also ENGRAM_TUI_LINE=1)
+  the store, actor and export flags and --server fill its workspace; every action runs the
+  plain command it shows. Refused, exit 2, when stdout or stdin is not a terminal, CI is
+  set, TERM is dumb, or with --json
 
 export options (read, write, promote, retain, lint, serve, mcp, hook claude-code):
   --otlp <url>                send each decision as an OpenTelemetry span to this OTLP/HTTP
