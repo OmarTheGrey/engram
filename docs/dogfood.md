@@ -171,14 +171,14 @@ It replays your log through the invariants' oracle (`packages/core/src/oracle.ts
 | key | what it counts |
 |---|---|
 | `events`, `days_with_events`, `span_days`, `by_op` | the events, the days with one, the days from the first to the last, and events by operation and decision |
-| `reads` | read events (`as_declared`: by your actor; `as_others`: by any other principal), items returned, and items returned only through a grant |
+| `reads` | read events (`as_declared`: by your actor; `as_others`: by any other principal), items returned, and items returned only through a grant; `scope_lists` counts scope listings (`POST /scopes`, card E8.14) apart |
 | `writes` | write events allowed and denied (adoptions included) |
 | `grants` | allowed events that changed what an item's grants admit, and the grants they added and removed |
 | `denials` | denied events by rule id (a rule id of another shape counts as `other`); `asks`; `bypass_blocked` |
 | `violations` | `read`: a read that returned an item you (or the principal who read) could not read at that time under the twin profile: missing, not active, past its ttl, outside its validity window, or outside the reader's scope and live grants. `grant_change`: an allowed event that changed what an item's grants admit in a way the twin profile refuses: a widening (a new grant, a longer expiry, a class change switching a grant on) by anyone but the owner's grant change or the owner's own user- or import-sourced write; a grant the gate refuses (a wildcard, no class, no expiry), of another class, expired, or carried twice; a grant on model content or on an item whose provenance an event raised; a write the policy forbids; a grant change on a retired item or one that changes more than the grants. `total` |
 | `watch` | not violations, counted for the lead: `provenance_raised` (an item's provenance raised from model, compaction or external to a trusted kind; adoption no longer does this since card RV4, so it should be 0) and `narrowed` (a change that only narrowed what grants admit, made by someone other than the owner, such as a promotion whose new class switches a grant off) |
 | `declared` | the shape of the actor you declared, without names: its level, its memberships counted by level, and `own_scope_only`, true when it is exactly `--member person:<id>` |
-| `policy_sha256`, `report` | the hash of the policy the log was judged under, and the report's format (`engram-dogfood-report/2`) |
+| `policy_sha256`, `report` | the hash of the policy the log was judged under, and the report's format (`engram-dogfood-report/3`, which added `reads.scope_lists` in card E8.14) |
 
 If `violations.total` is not zero, run the command again with `--detail`: it names each violation's event and item on standard error, for you alone. Tell the team the counts and the rule ids involved, never the ids or content; the team logs each violation as a `failure` entry.
 
