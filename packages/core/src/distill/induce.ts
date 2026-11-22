@@ -295,7 +295,8 @@ function pairs(steps: readonly Step[], keepFailed: boolean, keepEmpty: boolean):
       flush();
       current = { think: s.text.trim(), actions: [], tools: [], entry: s.entry_id };
     } else if (isFunction(s) && s.caller === "model") {
-      if (s.is_error === true && !keepFailed) continue;
+      // Only a call whose result says it succeeded is kept: none on the branch (null) is not.
+      if (s.is_error !== false && !keepFailed) continue;
       if (current === null || current.entry !== s.entry_id) {
         flush();
         current = { think: "", actions: [], tools: [], entry: s.entry_id };
@@ -316,6 +317,16 @@ export function prepareSessions(sessions: readonly Session[]): {
   const examples: InductionExample[] = [];
   const skipped: SkippedSession[] = [];
   for (const session of sessions) {
+    // A candidate's ref lists its sessions by id, comma-separated (distillRef),
+    // so an id it cannot list is skipped here, before any request is built.
+    if (session.id === "" || /[,\s]/.test(session.id)) {
+      skipped.push({
+        session_id: session.id,
+        reason:
+          "its id is empty or holds a comma or whitespace, which a candidate's ref cannot list",
+      });
+      continue;
+    }
     let episode: Episode;
     try {
       episode = episodeOf({

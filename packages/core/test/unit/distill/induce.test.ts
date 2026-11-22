@@ -25,7 +25,7 @@ import { type ModelCall, type ModelRequest, requestHash } from "../../../src/mod
 
 const T = "2026-11-01T09:00:00.000Z";
 const AT = "2026-11-21T12:00:00.000Z";
-type Call = { name: string; args: Record<string, unknown>; error?: boolean };
+type Call = { name: string; args: Record<string, unknown>; error?: boolean; noResult?: boolean };
 type Round = { text: string; calls: Call[]; stop?: string };
 
 /** Builds one session's entries, each a child of the one before unless told otherwise. */
@@ -68,7 +68,7 @@ class Builder {
       },
       parentId,
     );
-    for (const c of calls)
+    for (const c of calls.filter((x) => !x.noResult))
       this.message({
         role: "toolResult",
         toolCallId: c.id,
@@ -176,6 +176,45 @@ const HELD = session({
   task: "synthetic/held-1",
   query: "Run it.",
   rounds: [{ text: "Running.", calls: [{ name: "sk-synthetic0planted0for0d2test", args: {} }] }],
+});
+
+/** A planted key, the shape of one and nobody's, in the user text, a secret-named argument and a branch summary. */
+const PLANTED = "sk-synthetic0planted0for0d2scrub";
+const SECRETS = session({
+  id: "s7abcdef",
+  task: "synthetic/secret-1",
+  query: `Deploy with ${PLANTED} as the key.`,
+  rounds: [
+    { text: "Reading the config.", calls: [read("deploy.yaml")] },
+    {
+      text: "Setting the key.",
+      calls: [{ name: "edit", args: { path: "deploy.yaml", api_key: PLANTED } }],
+    },
+  ],
+  abandoned: {
+    rounds: [{ text: "Trying the CLI.", calls: [bash("deploy --now", true)] }],
+    summary: `The CLI refused the key ${PLANTED}.`,
+  },
+});
+/** Session ids a provenance ref cannot list. */
+const BAD_IDS = ["a,b", "run 1"].map((id, i) =>
+  session({
+    id,
+    task: `synthetic/bad-id-${i}`,
+    query: "Read it.",
+    rounds: [{ text: "Reading.", calls: [read("a.ts"), edit("a.ts")] }],
+  }),
+);
+/** A call whose result is not on the branch: its outcome is unknown (is_error null). */
+const NO_RESULT = session({
+  id: "s8abcdef",
+  task: "synthetic/no-result-1",
+  query: "Check it.",
+  rounds: [
+    { text: "Reading.", calls: [read("b.ts")] },
+    { text: "Running.", calls: [{ name: "bash", args: { command: "make" }, noResult: true }] },
+    { text: "Rereading.", calls: [read("b.ts")] },
+  ],
 });
 
 const frame = (): CandidateFrame => {
@@ -287,6 +326,35 @@ describe("prepareSessions", () => {
   });
 });
 
+describe("prepareSessions, the review fixes", () => {
+  test("scrubs a session before its text reaches the prompt (D2-3)", () => {
+    const { examples } = prepareSessions([SECRETS]);
+    const prompt = awmRequest(examples, METHOD).messages[0]?.content as string;
+    expect(prompt).not.toContain(PLANTED);
+    const own = prompt.slice(prompt.lastIndexOf("## Concrete Examples"));
+    expect(own).toContain("Query: Deploy with <redacted> as the key.");
+    expect(own).toMatch(/edit\(\{"path":"deploy\.yaml","api_key":"<redacted>"\}\)/);
+    expect(own).toContain("its summary: The CLI refused the key <redacted>.");
+  });
+
+  test("skips a session whose id a provenance ref cannot list, before any call (D2-5)", async () => {
+    const { examples, skipped } = prepareSessions([...BAD_IDS, S3]);
+    expect(examples.map((e) => e.session_id)).toEqual(["s3cccccc"]);
+    expect(skipped.map((s) => s.session_id)).toEqual(["a,b", "run 1"]);
+    for (const s of skipped) expect(s.reason).toMatch(/comma or whitespace/);
+    const call = scripted([[awmRequest(examples, METHOD), REPLY]]);
+    const report = await induceAwm([...BAD_IDS, S3], METHOD, call, frame());
+    expect(call.calls).toBe(1);
+    expect(report.skipped).toHaveLength(2);
+    for (const item of report.items) expect(item.provenance.ref).toBe("distill:awm:s3cccccc");
+  });
+
+  test("keeps a call only when its result says it succeeded (D2-8)", () => {
+    const [e] = prepareSessions([NO_RESULT]).examples;
+    expect(e?.trajectory.map((s) => s.tools)).toEqual([["read"], ["read"]]);
+  });
+});
+
 describe("the AWM prompt", () => {
   test("is AWM's assembly: instruction, one-shot, the examples between its two headers", () => {
     const { examples } = prepareSessions([S1, S2]);
@@ -379,6 +447,21 @@ describe("induceAwm", () => {
       "s1aaaaaa",
       "s2bbbbbb",
     ]);
+  });
+
+  test("a candidate from summary-free examples is of kind model (D2-4)", async () => {
+    const { examples } = prepareSessions([S2, S3]);
+    expect(examples.map((e) => e.summarised)).toEqual([false, false]);
+    const report = await induceAwm(
+      [S2, S3],
+      METHOD,
+      scripted([[awmRequest(examples, METHOD), REPLY]]),
+      frame(),
+    );
+    expect(report.items.length).toBeGreaterThan(0);
+    for (const item of report.items) expect(item.provenance.kind).toBe("model");
+    const rule = induceByRule([S2, S3], frame());
+    for (const item of rule.items) expect(item.provenance.kind).toBe("model");
   });
 
   test("writes each candidate as a SKILL.md the specification accepts", async () => {
