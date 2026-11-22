@@ -58,7 +58,7 @@ import {
   staleness,
 } from "./commit.ts";
 import { inWriteQueue } from "./queue.ts";
-import { enforceBudget } from "./retention.ts";
+import { budgetRefusal, enforceBudget } from "./retention.ts";
 import { refProblem, retiredContent } from "./write.ts";
 
 export { PROMOTE_CONFLICT_ID };
@@ -226,6 +226,20 @@ async function decideAndCommit(
     });
     return { decision: "deny", item: null, event, events: [event] };
   }
+  // A promotion whose landing would have to evict an item more trusted than
+  // it is refused under trust.protect_trusted, as a write is (card E2.11).
+  const roomless = budgetRefusal(deps, actor, d.promoted, "active", at);
+  if (roomless) {
+    const event = appendEvent(db, {
+      ...common,
+      id: newId(),
+      op: "promote",
+      decision: "deny",
+      reason: roomless.reason,
+      policy_id: roomless.policy_id,
+    });
+    return { decision: "deny", item: null, event, events: [event] };
+  }
   const decided = { ...basis, scopes: [...new Set([item.scope, toScope])] };
 
   const fresh = d.transition === "new-version";
@@ -245,7 +259,9 @@ async function decideAndCommit(
     });
   let stored: MemoryItem;
   let ref: StoreRef;
-  let outcome: { stale: string } | { committed: MemoryEvent[]; retention: MemoryEvent[] };
+  let outcome:
+    | { stale: string; policy_id?: string }
+    | { committed: MemoryEvent[]; retention: MemoryEvent[] };
   try {
     ref = await adapter.write(toStore);
     stored = { ...toStore, store_ref: ref };
@@ -261,6 +277,10 @@ async function decideAndCommit(
         return {
           stale: `its lineage names item ${ancestor}, which an offboarding took out after the decision`,
         };
+      // Another handle may have filled the target since the decision (card
+      // E2.11, review E2.11-1): the budget refusal is asked again here.
+      const roomless = budgetRefusal(deps, actor, written, "active", at);
+      if (roomless) return { stale: roomless.reason, policy_id: roomless.policy_id };
       // Only the source and its own lineage may share the new version's ref:
       // the confirming items its lineage also names are not versions (P5-10).
       const problem = refProblem(
@@ -304,6 +324,7 @@ async function decideAndCommit(
   }
   if ("stale" in outcome) {
     const why = outcome.stale;
+    const refusedUnder = outcome.policy_id ?? PROMOTE_CONFLICT_ID;
     try {
       const stale = { wrote: stored, head: basis.head, actor: actor.id, at };
       const event = await settle(deps, stored.id, ref, stale, (note) =>
@@ -312,14 +333,14 @@ async function decideAndCommit(
           id: newId(),
           op: "promote",
           decision: "deny",
-          policy_id: PROMOTE_CONFLICT_ID,
+          policy_id: refusedUnder,
           reason: `the gate allowed the promotion (${d.policy_id}) but ${why}, before it was committed; the decision no longer stands, so the promotion is refused and the store is put back as the log has it${note}`,
         }),
       );
       return { decision: "deny", item: null, event, events: [event] };
     } catch (e) {
       failed(
-        `the promotion was refused (${PROMOTE_CONFLICT_ID}: ${why}) and the store could not be put back: ${e instanceof Error ? e.message : String(e)}`,
+        `the promotion was refused (${refusedUnder}: ${why}) and the store could not be put back: ${e instanceof Error ? e.message : String(e)}`,
       );
       throw e;
     }
