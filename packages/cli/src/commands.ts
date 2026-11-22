@@ -39,8 +39,10 @@ import {
   plural,
   policyLines,
   preview,
+  type SupersedeAnswer,
   scopesLines,
   simulationLines,
+  supersedeLines,
   whoCanReadLines,
 } from "./format.ts";
 import { closest, OPTIONS, type OptionSpec } from "./registry.ts";
@@ -547,6 +549,52 @@ export const CHECK = plane({
   }),
 });
 
+/**
+ * `engram supersede <item-id> [--accept <id>]...` (card L6): one call to the
+ * supersede route as a user-sourced actor. Core plans (the head of the
+ * item's chain, a proposed close or a review flag for each ancestor the
+ * actor may read); each --accept is one ordinary write of a new version
+ * through the write gate, which decides it. Exit 0 when the chain resolves
+ * and every accepted close was allowed, 1 otherwise.
+ */
+export const SUPERSEDE = plane({
+  options: OPTIONS.supersede,
+  allowPositionals: true,
+  prepare(values, positionals, io) {
+    const [itemId, ...rest] = positionals;
+    if (itemId === undefined || rest.length > 0)
+      throw new UsageError(
+        "give exactly one item id: engram supersede <item-id> [--accept <id>]...",
+      );
+    const accept = values.accept ?? [];
+    for (const id of [itemId, ...accept])
+      if (!Id.safeParse(id).success) throw new UsageError(`${id} is not an item id (a UUIDv7)`);
+    const clock = callClock(values, io);
+    const actor = buildActor(values, values.owner, "user");
+    return {
+      io: clock.io,
+      flags: values,
+      session: { requireStore: true },
+      actor: () => actor,
+      json: values.json === true,
+      itemId,
+      accept,
+    };
+  },
+  request: (p, actor) => ({ actor: must(actor), item_id: p.itemId, accept: p.accept }),
+  call: async (conn, body) =>
+    result(await conn.client.POST("/api/v1/supersede", { body })) as unknown as SupersedeAnswer,
+  print(p, _actor, plan, conn) {
+    const allowed =
+      plan.head.ok &&
+      plan.stopped === null &&
+      plan.applied.every((a) => a.event.decision === "allow");
+    const code = allowed ? 0 : 1;
+    if (p.json) return { code, out: json(plan) };
+    return { code, out: text([...supersedeLines(plan, p.accept), logHint(conn)]) };
+  },
+});
+
 /** Exactly one item id among the positionals, else the usage message given. */
 function oneItemId(positionals: string[], usage: string): string {
   const [itemId, ...rest] = positionals;
@@ -1036,6 +1084,9 @@ export function checkCommand(args: string[], io: Io): Promise<number> {
 }
 export function promoteCommand(args: string[], io: Io): Promise<number> {
   return runPlane(PROMOTE, args, io);
+}
+export function supersedeCommand(args: string[], io: Io): Promise<number> {
+  return runPlane(SUPERSEDE, args, io);
 }
 export function grantsCommand(args: string[], io: Io): Promise<number> {
   return runPlane(GRANTS, args, io);

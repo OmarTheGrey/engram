@@ -32,16 +32,17 @@ import { cli } from "./helpers.ts";
 const HERE = dirname(fileURLToPath(import.meta.url));
 /**
  * HELP as main printed it before the registry: packages/cli/src/run.ts at
- * 65ce8b66, the last main merged into this branch whose HELP was a literal.
+ * 62a4c6e5, the last main merged into this branch whose HELP was a literal.
  * A card that adds a command on main refreshes it from its own run.ts.
  */
 const MAIN_HELP = readFileSync(join(HERE, "help-main.txt"), "utf8");
 const MAIN_FIRST_LINE = "engram: the Engram control plane from the command line";
-/** The commands main had at 65ce8b66: E8.12's key, E8.13's export flags, E2.13's who-can-read and E1.6's log among them. */
+/** The commands main had at 62a4c6e5: E8.12's key, E8.13's export flags, E2.13's who-can-read, E1.6's log and L6's supersede among them. */
 const ON_MAIN = [
   "read",
   "write",
   "promote",
+  "supersede",
   "explain",
   "retain",
   "lint",
