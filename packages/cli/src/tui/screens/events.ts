@@ -305,8 +305,8 @@ export class EventsScreen extends RichScreen {
       const decision = `${t.symbol(statusOf(e.decision))} ${fit(e.decision, 7)}`;
       const time = e.ts.slice(11, 19);
       const text = wide
-        ? ` ${mark}${String(e.seq).padStart(4)} ${fit(time, 10)}${fit(e.op, 9)}${decision} ${fit(e.actor, 16)}${fit(scopeText(e), 24)}${fit(safe(e.policy_id), 34)}${oneLine(e.reason)}`
-        : ` ${mark}${String(e.seq).padStart(4)} ${fit(time, 10)}${fit(e.op, 9)}${decision} ${fit(scopeText(e), 16)}${safe(e.policy_id)}`;
+        ? ` ${mark}${String(e.seq).padStart(4)} ${fit(time, 10)}${fit(e.op, 9)}${decision} ${fit(e.actor, 16)}${fit(scopeText(e), 23)} ${fit(safe(e.policy_id), 33)} ${oneLine(e.reason)}`
+        : ` ${mark}${String(e.seq).padStart(4)} ${fit(time, 10)}${fit(e.op, 9)}${decision} ${fit(scopeText(e), 15)} ${safe(e.policy_id)}`;
       out.push(
         this.start + i === at && on === "events" ? t.reverse(cut(text, width)) : cut(text, width),
       );

@@ -1,0 +1,43 @@
+ engram  Who can read                                                 in process  log ~/engram.db  person:dana (person)
+   Item     [ 01940000-0000-7000-8000-000000000001     ]  an item id, or leave it empty and give a scope
+   Scope    [                                          ]  or a scope: every item in it
+   > Advanced: id, the test clock and this command's workspace flags
+
+ who can read item 01940000-0000-7000-8000-000000000001 at 2026-10-25T12:00:00.000Z
+ + answered   exit 0
+   the fixture answers the item's owner
+
+   every member of person:dana reading as person    fixture/read/person
+   person:sam by person:sam: semantic, read, until 2026-12-01T00:00:00Z    fixture/read/grant
+
+ Dormant
+   none
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+$ engram who-can-read 01940000-0000-7000-8000-000000000001 --owner dana --db engram.db --root mem   exit 0
+ ? help  enter ask  tab item or scope  J json  ; commands  esc back
+--- styles
+r0 c0-119 inverse
+r6 c1-1 fg #00A67A

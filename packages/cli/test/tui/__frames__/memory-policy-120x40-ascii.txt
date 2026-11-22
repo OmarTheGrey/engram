@@ -1,0 +1,43 @@
+ engram  Policy in force                                              in process  log ~/engram.db  person:dana (person)
+ fixture.policy v1   read only: a policy is edited in its file, then named with --policy
+ opened from a decision: policy id fixture/write/team
+  Find [                          ]
+
+ >   id  fixture.policy
+     version  1
+   v write
+     > person  sources, confidence_floor
+     > team  sources, forbidden_classes, confidence_floor
+   > read  honour_grants
+   > lints  enabled
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+$ engram policy   exit 0
+ ? help  enter fold  / find  J json  ; commands  esc back
+--- styles
+r0 c0-119 inverse
+r5 c0-119 inverse

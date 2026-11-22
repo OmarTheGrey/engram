@@ -204,6 +204,10 @@ export class ItemScreen extends RichScreen {
       n.state === null
         ? `${n.focus ? "This item" : n.id}  (its content is not yours to see)`
         : `${n.focus ? "This item" : n.id}  v${n.state.version}  ${n.state.scope}`;
+    // The tree's branches in the theme's glyphs: ASCII under --ascii (11.7).
+    const ascii = t.glyphSet === "ascii";
+    const tee = ascii ? "|- " : "├─ ";
+    const elbow = ascii ? "`- " : "└─ ";
     const out: string[] = [];
     const seen = new Set<string>();
     const walk = (id: string, indent: string, head: string) => {
@@ -219,14 +223,13 @@ export class ItemScreen extends RichScreen {
       const from = lineage.filter((e) => e.target === id && !seen.has(e.source));
       const later = n.focus ? lineage.filter((e) => e.source === id && !seen.has(e.target)) : [];
       const deeper = indent + (head === "" ? "" : "   ");
+      if (from.length === 0 && later.length === 0 && n.focus) kids.push("no earlier version");
       kids.forEach((k, i) => {
         const last = i === kids.length - 1 && from.length === 0 && later.length === 0;
-        out.push(`${deeper}${last ? "└─ " : "├─ "}${k}`);
+        out.push(`${deeper}${last ? elbow : tee}${k}`);
       });
-      if (from.length === 0 && later.length === 0 && n.focus)
-        out.push(`${deeper}   no earlier version`);
-      for (const e of from) walk(e.source, deeper, "└─ from ");
-      for (const e of later) walk(e.target, deeper, "└─ superseded by ");
+      for (const e of from) walk(e.source, deeper, `${elbow}from `);
+      for (const e of later) walk(e.target, deeper, `${elbow}superseded by `);
     };
     const focus = [...nodes.values()].find((n) => n.focus);
     if (focus !== undefined) walk(focus.id, " ", "");

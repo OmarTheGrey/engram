@@ -1,0 +1,34 @@
+ engram  Events                                in process  person:dana (person)
+ Filters  scope [ any    ]  op [ any    ]  decision [ any    ]  actor [ any    ]
+  Find in reasons [                      ]
+ 5 of 5 events
+
+ seq   time      op       decision  scope           policy id
+     1 12:00:00  write    ✓ allow   person:dana     fixture/write/person
+     2 12:00:00  write    ✓ allow   person:dana     fixture/write/person
+ >  10 12:00:00  write    ✗ deny    team:lantern    fixture/write/team
+    11 12:00:00  promote  ✗ deny    person:dana to  fixture/promote/review
+    13 12:00:00  read     ✓ allow   -               fixture/read/person
+
+ event 10  write  ✗ deny  by person:dana  item 01940000-0000-7000-8000-000000...
+ reason  a fixture rule refuses it: the writer is not a member of team:lantern
+
+
+
+
+
+
+
+
+$ engram events --owner dana --db engram.db   exit 0
+ ? help  enter detail  o item  e explain  / search  f follow  J json  ; comma...
+--- styles
+r0 c0-79 inverse
+r6 c26-26 fg #00A67A
+r7 c26-26 fg #00A67A
+r8 c0-25 inverse
+r8 c26-26 fg #E86A1A inverse
+r8 c27-79 inverse
+r9 c26-26 fg #E86A1A
+r10 c26-26 fg #00A67A
+r12 c18-18 fg #E86A1A

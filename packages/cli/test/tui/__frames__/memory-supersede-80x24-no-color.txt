@@ -1,0 +1,27 @@
+ engram  Supersede                             in process  person:dana (person)
+   Item   [ 01940000-0000-7000-8000-000000000002     ]  the newest item of a ...
+   ▸ Advanced: id, the test clock and this command's workspace flags
+ head 01940000-0000-7000-8000-000000000002, a chain of 2
+
+ Proposals, one per ancestor you may read
+ > [x] close  01940000-0000-7000-8000-000000000001  valid_to 2026-10-15T00:00...
+              the fixture's newer version starts then
+       review 01940000-0000-7000-8000-000000000004  flagged for review
+              the fixture flags this one for review
+
+   [ Accept chosen ]   ctrl+s
+
+
+
+
+
+
+
+
+
+
+$ engram supersede 01940000-0000-7000-80...-db engram.db --owner dana --root mem
+ ? help  space choose  ctrl+s accept chosen  J json  ; commands  esc back
+--- styles
+r0 c0-79 inverse
+r6 c0-76 inverse

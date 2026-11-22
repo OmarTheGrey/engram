@@ -1,0 +1,43 @@
+ engram  Events                                                       in process  log ~/engram.db  person:dana (person)
+ Filters  scope [ any                ]  op [ any                ]  decision [ any                ]  actor [ any      ...
+  Find in reasons [                                ]
+ 5 of 5 events
+
+ seq   time      op       decision  actor           scope                   policy id                         reason
+     1 12:00:00  write    ✓ allow   person:dana     person:dana             fixture/write/person              a fixtu...
+     2 12:00:00  write    ✓ allow   person:dana     person:dana             fixture/write/person              a fixtu...
+ >  10 12:00:00  write    ✗ deny    person:dana     team:lantern            fixture/write/team                a fixtu...
+    11 12:00:00  promote  ✗ deny    person:dana     person:dana to team:lan fixture/promote/review            a fixtu...
+    13 12:00:00  read     ✓ allow   person:dana     -                       fixture/read/person               returne...
+
+ event 10  write  ✗ deny  by person:dana  item 01940000-0000-7000-8000-000000000003
+ reason  a fixture rule refuses it: the writer is not a member of team:lantern
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+$ engram events --owner dana --db engram.db   exit 0
+ ? help  enter detail  o item  e explain  / search  f follow  J json  ; commands  esc back
+--- styles
+r0 c0-119 inverse
+r8 c0-116 inverse
