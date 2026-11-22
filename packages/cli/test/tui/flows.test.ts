@@ -364,7 +364,7 @@ describe("Grants with undo (8.19, 9.6)", () => {
     let text = await h.text();
     expect(text).toContain("✓ allow");
     expect(text).toContain("person:sam: semantic, read, until 2026-12-01T00:00:00Z");
-    expect(text).toContain("u undo (removes it again, a new governed change)");
+    expect(text).toContain(`u undo on ${ITEM} (removes it again`);
     expect(top<GrantsScreen>(h).inField()).toBe(false);
     await h.press("u");
     expect(h.overlay()).toBe("confirm");
@@ -380,7 +380,13 @@ describe("Grants with undo (8.19, 9.6)", () => {
     const ran = h.ran().slice(-2);
     expect(ran[0]).toEqual(expect.arrayContaining(["grants", ITEM, "--add"]));
     expect(ran[1]).toEqual(expect.arrayContaining(["grants", ITEM, "--remove"]));
-    // Undo is offered once: the undo itself is a change, and u now undoes that.
+    // Undo belongs to the item it changed: editing the item's field clears it (review finding 12).
+    await h.focusField("pos:itemId");
+    await h.press("");
+    await h.focusField("send"); // off the fields, so u is a key, not a letter
+    await h.press("u");
+    expect(h.overlay()).toBeUndefined();
+    expect(await h.text()).toContain("nothing to undo");
     await h.quit();
   });
 });

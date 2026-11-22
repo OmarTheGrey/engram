@@ -3,17 +3,17 @@
  You own this item: every grant is shown.
 
  Grants
-     person:sam: semantic, read, until 2026-12-01T00:00:00Z     [ remove: enter ]
+     [ ] person:sam: semantic, read, until 2026-12-01T00:00:00Z
 
  Add a grant
  > To             [                                          ]  who it is for, such as person:sam
      Class [ semantic ]   Mode [ read ]   space or left and right choose
    Expires        [                                          ]  a UTC date or timestamp; empty for none
-   [ Add the grant ]
+   [ Add to the change ]   [ Apply the change ]   ctrl+s
    > Advanced: id, the test clock and this command's workspace flags
 
  + allow   exit 0  allow
- u undo (removes it again, a new governed change)
+ u undo on 01940000-0000-7000-8000-000000000001 (removes it again, a new governed change)
  update 01940000-0000-7000-8000-000000000512 at 2026-10-25T12:00:00.000Z by person:dana
  allow: a fixture rule lets the owner change grants
  policy fixture/grant/change
@@ -37,7 +37,7 @@
 
 
 $ engram grants 01940000-0000-7000-8000-000000000001 --...2-01T00:00:00Z --owner dana --db engram.db --root mem   exit 0
- ctrl+g help  ctrl+s add  enter on a grant removes it  u undo  tab next  alt+c copy  alt+p commands  esc back
+ ctrl+g help  ctrl+s apply  enter on a grant chooses it  u undo  tab next  alt+c copy  alt+p commands  esc back
 --- styles
 r0 c0-119 inverse
 r8 c20-20 inverse

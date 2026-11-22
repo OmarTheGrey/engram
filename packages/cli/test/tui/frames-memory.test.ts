@@ -416,7 +416,12 @@ const SCREENS: Record<string, Build> = {
     h.app.results.push(READ);
     return set(new GrantsScreen(spec("grants"), h.app, {}, [id(1)]), {
       result: GRANTED,
-      last: { op: "add", grant: GRANT },
+      last: {
+        item: id(1),
+        changes: [
+          { op: "add", spec: "person:sam,class=semantic,mode=read,expires=2026-12-01T00:00:00Z" },
+        ],
+      },
       focus: 1,
     });
   },

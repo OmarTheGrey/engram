@@ -12,9 +12,11 @@ import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { type Listening, listen, openWorkspace } from "@engram/server";
 import { describe, expect, it } from "vitest";
+import { parse } from "../../src/commands.ts";
 import type { Fetch } from "../../src/connect.ts";
-import { command } from "../../src/registry.ts";
+import { type CommandSpec, command, parseOptions } from "../../src/registry.ts";
 import { type Io, run } from "../../src/run.ts";
+import { specOfWords } from "../../src/tui/overlays.ts";
 import type { RunResult } from "../../src/tui/runner.ts";
 import { FIXTURE, HOME, NOW, REPO, tempDir, testId, VALID_FROM } from "../helpers.ts";
 import { type Harness, startHarness } from "./harness.ts";
@@ -207,6 +209,15 @@ const CASES: Case[] = [
     runs: ["grants", "grants"],
     server: true,
   },
+  {
+    name: "grants opened with two --add, in one call",
+    keys: async (h) => {
+      await open("grants", { add: [GRANT_A, GRANT_B] }, [ITEM])(h);
+      await h.press(CTRL_S, "y");
+    },
+    runs: ["grants"],
+    server: true,
+  },
   { name: "events", keys: (h) => h.press("e"), runs: ["events"], server: true },
   { name: "policy", keys: (h) => h.press("y"), runs: ["policy"], server: true },
   { name: "who-can-read", keys: open("who-can-read", {}, [ITEM]), runs: ["who-can-read"] },
@@ -219,6 +230,59 @@ const CASES: Case[] = [
     runs: ["supersede", "supersede"],
   },
 ];
+
+const GRANT_A = "person:sam,class=semantic,mode=read,expires=2026-12-01T00:00:00Z";
+const GRANT_B = "person:eve,class=semantic,mode=read,expires=2026-12-02T00:00:00Z";
+
+/**
+ * What each case means, as the plain command lines a person would type
+ * without the workspace's flags (review finding 6): the TUI's command lines,
+ * parsed, must equal these with the workspace's flags added, so a flag the
+ * TUI adds or drops is caught, not only replayed.
+ */
+const MEANS: Record<string, (ran: readonly RunResult[]) => string[][]> = {
+  read: () => [["read"]],
+  "read --item and the item page": () => [["read", "--item", ITEM], ["events"]],
+  explain: (ran) => [["read"], ["explain", ran[1]?.argv[1] as string]],
+  write: () => [["write", "--content", "Parity holds."]],
+  check: () => [["check", "--content", "Parity holds."]],
+  promote: () => [["promote", ITEM, "--to", "team:platform"]],
+  "grants, then undo": () => [
+    ["grants", ITEM, "--add", GRANT_A],
+    ["grants", ITEM, "--remove", GRANT_A],
+  ],
+  "grants opened with two --add, in one call": () => [
+    ["grants", ITEM, "--add", GRANT_A, "--add", GRANT_B],
+  ],
+  events: () => [["events"]],
+  policy: () => [["policy"]],
+  "who-can-read": () => [["who-can-read", ITEM]],
+  "supersede, plan then accept": () => [
+    ["supersede", NEW],
+    ["supersede", NEW, "--accept", OLD],
+  ],
+};
+
+/** A command line's meaning: its parsed flags and positionals, as its handler parses them. */
+function meaning(argv: readonly string[]) {
+  const spec = specOfWords(argv) as CommandSpec;
+  const { values, positionals } = parse(
+    [...argv.slice(1)],
+    parseOptions(spec),
+    spec.allowPositionals,
+  );
+  return { command: spec.name, values: { ...values }, positionals };
+}
+
+/** The workspace's flags the command takes, as the TUI's workspace writes them. */
+function workspaceFlags(argv: readonly string[], flags: readonly string[]): string[] {
+  const spec = specOfWords(argv) as CommandSpec;
+  const out: string[] = [];
+  for (let i = 0; i < flags.length; i += 2)
+    if (Object.hasOwn(spec.options, (flags[i] as string).slice(2)))
+      out.push(flags[i] as string, flags[i + 1] as string);
+  return out;
+}
 
 /** The command name a result ran: its words, and --item for a read by id. */
 const nameOf = (argv: readonly string[]) =>
@@ -256,6 +320,14 @@ async function check(c: Case, server: boolean) {
   await h.quit();
   await tui.srv?.close();
   expect(results.map((r) => nameOf(r.argv))).toEqual(c.runs);
+  // What the TUI ran means what the action means: no flag added, none dropped (review finding 6).
+  const ws = tui.srv
+    ? ["--server", tui.srv.url, "--owner", "dana"]
+    : ["--db", "engram.db", "--owner", "dana", "--root", "mem", "--import-valid-from", VALID_FROM];
+  const means = (MEANS[c.name] as (ran: readonly RunResult[]) => string[][])(results);
+  expect(results.map((r) => meaning(r.argv))).toEqual(
+    means.map((m) => meaning([...m, ...workspaceFlags(m, ws)])),
+  );
   // The plain side, from the same state, the same command lines in order; then again with --json.
   for (const json of [false, true]) {
     const plain = await side(dir, server, tui.srv?.port);

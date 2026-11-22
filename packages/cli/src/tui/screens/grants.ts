@@ -3,11 +3,15 @@
 // The item's grants are listed as the inspector shows them (all of them to
 // the owner, only the viewer's own to anyone else: shownGrants), with
 // grantLabel's text; a grant is added from a draft read by grantFrom, with
-// its messages. Each change is one governed call whose decision is shown.
-// After an allowed change, `u` offers its inverse (remove what was added, add
-// back what was removed if it has not expired): a new governed change with
-// its own event, shown in the confirmation as its own command. It may be
-// denied; nothing else on these screens can be undone.
+// its messages. A change is one governed call, as `engram grants` makes it,
+// and may hold several grants added and removed (review fix pass): the
+// pending change lists them, from the command line the screen was opened
+// with, the drafts added to it and the grants chosen for removal, and ctrl+s
+// sends them all. After an allowed change, `u` offers its inverse on the same
+// item (remove what was added, add back what was removed if it has not
+// expired): a new governed change with its own event, shown in the
+// confirmation as its own command. It may be denied; nothing else on these
+// screens can be undone.
 import type { Grant, MemoryItem } from "@engram/sdk";
 import { GRANT_CLASSES, GRANT_MODES, grantFrom, grantLabel, shownGrants } from "@engram/view";
 import type { CommandSpec, Values } from "../../registry.ts";
@@ -38,10 +42,17 @@ export function grantSpec(g: Grant): string {
   ].join(",");
 }
 
+/** One grant added or removed, as its flag's value writes it. */
 interface Change {
   op: "add" | "remove";
-  grant: Grant;
+  spec: string;
 }
+
+/** A spec's expiry, as it writes it; undefined for none. */
+const expiryOf = (spec: string) => /(?:^|,)expires=([^,]+)/.exec(spec)?.[1];
+
+/** A date alone is midnight UTC, as the CLI reads it. */
+const instant = (t: string) => (/^\d{4}-\d{2}-\d{2}$/.test(t) ? `${t}T00:00:00Z` : t);
 
 export class GrantsScreen extends RichScreen {
   readonly kind = "grants" as const;
@@ -49,8 +60,10 @@ export class GrantsScreen extends RichScreen {
   private klass = "semantic";
   private mode = "read";
   private selected = 0;
-  /** The last change the plane allowed, which `u` can undo. */
-  private last: Change | undefined;
+  /** The last change the plane allowed, which `u` can undo, and the item it changed. */
+  private last: { item: string; changes: Change[] } | undefined;
+  /** The change ctrl+s sends: from the command line, the drafts added, the grants chosen. */
+  private pending: Change[] = [];
   private problem: string | undefined;
 
   constructor(
@@ -62,6 +75,11 @@ export class GrantsScreen extends RichScreen {
     super(spec, ctx, values, positionals);
     this.extras.set("to", new TextField(""));
     this.extras.set("expires", new TextField(""));
+    // A command line's --add and --remove are the pending change (review finding 4).
+    for (const op of ["add", "remove"] as const) {
+      for (const spec of this.form.get(op) as readonly string[]) this.pending.push({ op, spec });
+      this.form.setValue(op, []);
+    }
   }
 
   itemId(): string {
@@ -93,19 +111,29 @@ export class GrantsScreen extends RichScreen {
       { kind: "button", id: "class", label: "Class" },
       { kind: "button", id: "mode", label: "Mode" },
       { kind: "field", id: "expires" },
-      { kind: "button", id: "apply", label: "Add the grant" },
+      { kind: "button", id: "apply", label: "Add to the change" },
+      { kind: "button", id: "send", label: "Apply the change" },
       ...this.advancedStops(),
     );
     return out;
   }
 
-  /** Runs one change: the form's --add or --remove, through the router's confirmation. */
-  private async change(ctx: Ctx, c: Change, extra: readonly string[] = []): Promise<void> {
-    this.form.setValue("add", c.op === "add" ? [grantSpec(c.grant)] : []);
-    this.form.setValue("remove", c.op === "remove" ? [grantSpec(c.grant)] : []);
+  /** Runs one change, every --add and --remove of it in one call, through the router's confirmation. */
+  private async change(ctx: Ctx, changes: Change[], extra: readonly string[] = []): Promise<void> {
+    this.form.setValue(
+      "add",
+      changes.filter((c) => c.op === "add").map((c) => c.spec),
+    );
+    this.form.setValue(
+      "remove",
+      changes.filter((c) => c.op === "remove").map((c) => c.spec),
+    );
     const r = await this.run(ctx, this.argvNow(ctx), extra);
+    this.form.setValue("add", []);
+    this.form.setValue("remove", []);
     if (r === undefined) return;
-    this.last = decisionOf(r) === "allow" ? c : undefined;
+    this.pending = [];
+    this.last = decisionOf(r) === "allow" ? { item: this.itemId(), changes } : undefined;
     // Off the fields, so u, c, v and J act on the answer; the list as the answer now has it.
     this.shownList = this.grants(ctx)?.grants ?? [];
     if (!this.focusOn("grants")) this.focusOn("apply");
@@ -125,37 +153,92 @@ export class GrantsScreen extends RichScreen {
     });
   }
 
-  private async add(ctx: Ctx): Promise<void> {
+  /** The draft as a change, or undefined when it is empty; a problem is set when it does not read. */
+  private draftChange(): Change | undefined | "bad" {
+    const to = (this.extras.get("to")?.value ?? "").trim();
+    const expires = (this.extras.get("expires")?.value ?? "").trim();
+    if (to === "" && expires === "") return undefined;
     const g = this.draftGrant();
     if (typeof g === "string") {
       this.problem = g;
       this.focusOn(g.includes("expiry") ? "expires" : "to");
+      return "bad";
+    }
+    return { op: "add", spec: grantSpec(g) };
+  }
+
+  /** "Add to the change": the draft joins the pending change, and the draft is cleared. */
+  private addDraft(): void {
+    const c = this.draftChange();
+    if (c === "bad") return;
+    if (c === undefined) {
+      this.problem = "a grant names who it is for, such as person:sam";
+      this.focusOn("to");
       return;
     }
-    await this.change(ctx, { op: "add", grant: g });
+    this.pending.push(c);
+    this.extras.get("to")?.set("");
+    this.extras.get("expires")?.set("");
+  }
+
+  /** ctrl+s: the pending change and the draft, if one is typed, in one call. */
+  private async send(ctx: Ctx): Promise<void> {
+    const draft = this.draftChange();
+    if (draft === "bad") return;
+    const changes = [...this.pending, ...(draft === undefined ? [] : [draft])];
+    if (changes.length === 0) {
+      this.problem = "no change yet: type a grant, or choose one of the item's grants to remove";
+      return;
+    }
+    if (draft !== undefined) {
+      this.extras.get("to")?.set("");
+      this.extras.get("expires")?.set("");
+    }
+    await this.change(ctx, changes);
   }
 
   private async undo(ctx: Ctx): Promise<void> {
-    const c = this.last;
-    if (c === undefined) {
-      ctx.say("nothing to undo: only a change the plane allowed on this screen can be");
+    const last = this.last;
+    if (last === undefined || last.item !== this.itemId()) {
+      ctx.say(
+        "nothing to undo: only a change the plane allowed on this item, on this screen, can be",
+      );
       return;
     }
-    if (c.op === "remove" && c.grant.expires !== undefined && c.grant.expires <= ctx.io.now()) {
-      ctx.say("the removed grant has expired since: adding it back is not offered");
+    const now = ctx.io.now();
+    // A removed grant that has expired since is not added back (9.6).
+    const back = last.changes.filter(
+      (c) =>
+        c.op === "add" ||
+        expiryOf(c.spec) === undefined ||
+        instant(expiryOf(c.spec) as string) > now,
+    );
+    if (back.length === 0) {
+      ctx.say("the removed grants have expired since: adding them back is not offered");
       return;
     }
-    const inverse: Change = { op: c.op === "add" ? "remove" : "add", grant: c.grant };
+    const inverse = back.map(
+      (c): Change => ({ op: c.op === "add" ? "remove" : "add", spec: c.spec }),
+    );
     await this.change(ctx, inverse, [
-      `This undoes the last change: it ${inverse.op === "remove" ? "removes the grant it added" : "adds back the grant it removed"}, as a new governed change with its own event. The plane may deny it.`,
+      `This undoes the last change on ${last.item}: it removes what it added and adds back what it removed, as a new governed change with its own event. The plane may deny it.`,
     ]);
+  }
+
+  /** Editing the item clears the undo and the pending change: both belong to the item they were made on. */
+  protected override changed(ctx: Ctx): void {
+    super.changed(ctx);
+    if (this.current()?.id === "pos:itemId") {
+      this.last = undefined;
+      this.pending = [];
+    }
   }
 
   protected async onKey(name: string, ctx: Ctx, stop: Stop | undefined): Promise<boolean> {
     this.problem = undefined;
     switch (name) {
       case "submit":
-        await this.add(ctx);
+        await this.send(ctx);
         return true;
       case "undo":
         await this.undo(ctx);
@@ -189,12 +272,21 @@ export class GrantsScreen extends RichScreen {
           return true;
         }
         if (stop?.id === "apply" && (name === "accept" || name === "toggle")) {
-          await this.add(ctx);
+          this.addDraft();
           return true;
         }
-        if (stop?.kind === "list" && name === "accept") {
+        if (stop?.id === "send" && (name === "accept" || name === "toggle")) {
+          await this.send(ctx);
+          return true;
+        }
+        if (stop?.kind === "list" && (name === "accept" || name === "toggle")) {
+          // A grant chosen for removal joins the pending change; chosen again, it leaves it.
           const g = this.shownList[this.selected];
-          if (g !== undefined) await this.change(ctx, { op: "remove", grant: g });
+          if (g === undefined) return true;
+          const spec = grantSpec(g);
+          const at = this.pending.findIndex((c) => c.op === "remove" && c.spec === spec);
+          if (at >= 0) this.pending.splice(at, 1);
+          else this.pending.push({ op: "remove", spec });
           return true;
         }
         if (name === "accept") this.focus += 1;
@@ -205,7 +297,7 @@ export class GrantsScreen extends RichScreen {
   }
 
   protected ownHints(): string {
-    return "ctrl+s add  enter on a grant removes it  u undo  tab next";
+    return "ctrl+s apply  enter on a grant chooses it  u undo  tab next";
   }
 
   protected body(ctx: Ctx, width: number): string[] {
@@ -239,8 +331,9 @@ export class GrantsScreen extends RichScreen {
     if (this.shownList.length === 0) out.push("   none");
     const onList = this.current()?.id === "grants";
     this.shownList.forEach((g, i) => {
+      const chosen = this.pending.some((c) => c.op === "remove" && c.spec === grantSpec(g));
       const text = cut(
-        `   ${onList && i === this.selected ? ">" : " "} ${oneLine(grantLabel(g))}     [ remove: enter ]`,
+        `   ${onList && i === this.selected ? ">" : " "} ${chosen ? "[x] remove" : "[ ]"} ${oneLine(grantLabel(g))}`,
         width,
       );
       out.push(onList && i === this.selected ? t.reverse(text) : text);
@@ -259,9 +352,17 @@ export class GrantsScreen extends RichScreen {
         width,
       ),
       this.extraRow(ctx, "expires", "Expires", width, "a UTC date or timestamp; empty for none"),
-      `   ${this.button(ctx, "apply", "Add the grant")}`,
+      `   ${this.button(ctx, "apply", "Add to the change")}   ${this.button(ctx, "send", "Apply the change")}   ctrl+s`,
       ...this.advancedLines(ctx, width),
     );
+    if (this.pending.length > 0)
+      out.push(
+        "",
+        " The change, one call",
+        ...this.pending.map((c) =>
+          cut(`   ${c.op === "add" ? "+ --add" : "- --remove"} ${oneLine(c.spec)}`, width),
+        ),
+      );
     if (this.problem !== undefined) out.push("", ...para(t.status("fail", this.problem), width));
     const r = this.result;
     if (r !== undefined && !this.edited) {
@@ -270,7 +371,10 @@ export class GrantsScreen extends RichScreen {
       out.push("", decisionHead(t, this.command_, r));
       if (allowed && this.last !== undefined)
         out.push(
-          ` u undo (${this.last.op === "add" ? "removes it again" : "adds it back"}, a new governed change)`,
+          cut(
+            ` u undo on ${this.last.item} (${this.last.changes.every((c) => c.op === "add") ? "removes it again" : "the inverse change"}, a new governed change)`,
+            width,
+          ),
         );
       out.push(...outputLines(r, width), ...errorLines(r, width));
     }
