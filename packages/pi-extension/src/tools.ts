@@ -8,28 +8,10 @@
 // pi package at run time (only typebox), which packages/mcp's tests check.
 import { Type } from "typebox";
 
-export const MEMORY_WRITE = {
-  name: "memory_write",
-  label: "Memory write",
-  description: "Write one item to memory in a scope such as person:<id>, team:<id> or org.",
-  parameters: Type.Object({
-    scope: Type.String(),
-    content: Type.String(),
-    class: Type.Optional(Type.Union([Type.Literal("semantic"), Type.Literal("episodic")])),
-    confidence: Type.Optional(Type.Number({ minimum: 0, maximum: 1 })),
-  }),
-} as const;
-
-export const MEMORY_READ = {
-  name: "memory_read",
-  label: "Memory read",
-  description: "Read the memory items that match a query.",
-  parameters: Type.Object({ query: Type.String() }),
-} as const;
-
-/** What a memory_write result says, in every condition. */
-export const writeResultText = (item: { id: string; scope: string; status: string }) =>
-  `stored ${item.id} in ${item.scope} as ${item.status}`;
+// memory_write and memory_read, and the write result's wording, live in
+// @engram/tag (card E8.14 review fix pass, finding E8.14-4), so a framework
+// adapter shows the same tools without installing pi; re-exported here.
+export { MEMORY_READ, MEMORY_WRITE, writeResultText } from "@engram/tag";
 
 export const MEMORY_EXPLAIN = {
   name: "memory_explain",

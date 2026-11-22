@@ -41,9 +41,11 @@ import {
   openSqlite,
   type PlaneDeps,
 } from "@engram/core";
+import { bindRefusal, hasCredentialFlags, openCredentials } from "@engram/server";
 import { parse, STORE_OPTIONS } from "./commands.ts";
 import { plural } from "./format.ts";
 import type { Io } from "./run.ts";
+import { AUTH_OPTIONS, type AuthFlags, credentialFlags } from "./serve.ts";
 import {
   type DbTarget,
   dbTarget,
@@ -570,6 +572,50 @@ export function checkPiPin(repo: string | undefined): CheckResult {
   return ["ok", `${list.join(", ")}: package.json pins and installed copies match ${DEPS}`];
 }
 
+/**
+ * The bind `engram serve` would make with these flags (card E8.12, ADR 0042
+ * decisions 5 and 7): refused without authentication, beyond loopback
+ * without credentials and an https --resource, and with the waiver beyond
+ * loopback; with credentials, the key file and subjects file must load. A
+ * --jwks URL is not fetched (doctor reaches no network); a file is read.
+ */
+export function checkServe(
+  values: AuthFlags & { host?: string | undefined },
+  cwd: string,
+  now: string,
+): CheckResult {
+  const given =
+    values.host !== undefined ||
+    (Object.keys(AUTH_OPTIONS) as (keyof AuthFlags)[]).some((f) => values[f] !== undefined);
+  if (!given)
+    return ["skip", "no serve flags given (--host, --keys, --issuer, --insecure-loopback)"];
+  const host = values.host ?? "127.0.0.1";
+  const flags = credentialFlags(values);
+  const refusal = bindRefusal({
+    host,
+    insecureLoopback: values["insecure-loopback"] === true,
+    credentials: hasCredentialFlags(flags),
+    resource: values.resource,
+  });
+  if (refusal !== undefined)
+    return ["fail", `engram serve --host ${host} would refuse: ${refusal}`];
+  if (values["insecure-loopback"] === true)
+    return [
+      "ok",
+      `${host}: insecure loopback; actors are self-asserted and their events attested as waived`,
+    ];
+  // createRemoteJWKSet fetches only when a token needs a key, so a URL is not fetched here.
+  const credentials = openCredentials(flags, (p) => resolve(cwd, p));
+  const parts: string[] = [];
+  if (credentials?.keys)
+    parts.push(`${plural(credentials.keys.active(now), "active key")} in ${credentials.keys.path}`);
+  if (credentials?.jwt)
+    parts.push(
+      `issuer ${credentials.jwt.issuer} with ${plural(credentials.jwt.subjects.size, "mapped subject")}`,
+    );
+  return ["ok", `${host}: authenticated, ${parts.join("; ")}`];
+}
+
 /** Node 24 or later. */
 export function checkNode(version: string): CheckResult {
   const major = Number(version.split(".")[0]);
@@ -589,6 +635,8 @@ export async function doctorCommand(args: string[], io: Io): Promise<number> {
       policy: STORE_OPTIONS.policy,
       root: STORE_OPTIONS.root,
       json: STORE_OPTIONS.json,
+      host: { type: "string" },
+      ...AUTH_OPTIONS,
     },
     false,
   );
@@ -631,6 +679,7 @@ export async function doctorCommand(args: string[], io: Io): Promise<number> {
   await check("benchmark pins", () => checkBenchmarkPins(io.repo));
   await check("pi pin", () => checkPiPin(io.repo));
   await check("node", () => checkNode(io.nodeVersion));
+  await check("serve", () => checkServe(values, io.cwd, at));
 
   const failed = checks.filter((c) => c.status === "fail").length;
   if (values.json) io.out(`${JSON.stringify({ checks, failed }, null, 2)}\n`);

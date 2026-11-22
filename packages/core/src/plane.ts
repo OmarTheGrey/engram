@@ -9,11 +9,14 @@
 // plane/promote.ts) through policy/promotion.ts, the deterministic lints
 // (card L1, plane/lint.ts) through lint/det.ts, and the simulator (card
 // E8.9, plane/simulate.ts) over all of them, and grant changes (card E9.4,
-// plane/grants.ts) through policy/grants.ts. Methods whose cards have
+// plane/grants.ts) through policy/grants.ts, and the by-id read and the
+// scope list (card E8.14, plane/read.ts and plane/scopes.ts) through the read
+// filter. Methods whose cards have
 // not landed reject with NotImplementedYet, naming the card that implements them.
 import type { Actor } from "./actor.ts";
 import type { Adapter } from "./adapter.ts";
 import type { Db } from "./db/db.ts";
+import type { ReplayEvidence } from "./distill/validate.ts";
 import type { DistillMethod, Session } from "./distill.ts";
 import { allEvents } from "./events.ts";
 import type { ModelLintSetup } from "./lint/model.ts";
@@ -31,12 +34,15 @@ import { recordBypass } from "./plane/bypass.ts";
 import { changeGrants } from "./plane/grants.ts";
 import { type LintReport, lint } from "./plane/lint.ts";
 import { promote } from "./plane/promote.ts";
-import { filteredRead, storedExplanations } from "./plane/read.ts";
+import { filteredRead, readOne, storedExplanations } from "./plane/read.ts";
 
 export { accessTime } from "./plane/read.ts";
 
 import { retain } from "./plane/retention.ts";
+import { listScopes, type ScopeList } from "./plane/scopes.ts";
 import { simulate } from "./plane/simulate.ts";
+import type { WhoCanReadAnswer } from "./plane/who-can-read.ts";
+import { whoCanRead, whoCanReadItem } from "./plane/who-can-read.ts";
 import { checkWrite, gatedWrite } from "./plane/write.ts";
 import type { GrantChange } from "./policy/grants.ts";
 import type { Explanation, MemoryEvent, MemoryItem, Policy } from "./schema.ts";
@@ -95,11 +101,28 @@ export {
   formatReadReason,
   parseReadReason,
   ReadCounts,
+  readByIdTarget,
   readCounts,
   readValidAt,
 } from "./plane/read-reason.ts";
 export { enforceBudget, retentionUsage } from "./plane/retention.ts";
+export {
+  formatScopeListReason,
+  SCOPE_LIST_PREFIX,
+  type ScopeAccess,
+  type ScopeList,
+  type VisibleScope,
+} from "./plane/scopes.ts";
 export { checkWorkload, replayWorkload, runWorkload, SIMULATION_STORE } from "./plane/simulate.ts";
+export {
+  itemReaders,
+  itemRefusal,
+  ReaderEntry,
+  scopeReaders,
+  WhoCanReadAnswer,
+  whoCanReadAs,
+  whoCanReadItemAs,
+} from "./plane/who-can-read.ts";
 export { retiredContent, WRITE_CONFLICT_ID, WRITE_ERASED_ID } from "./plane/write.ts";
 
 export interface ReadQuery {
@@ -230,6 +253,18 @@ export interface PromoteOptions {
    * the target scope and not the item's owner, else `engram/promote/reviewer`.
    */
   review?: boolean;
+  /**
+   * A procedural candidate's replay on held-out tasks (card D3, ADR 0046
+   * proposed): the outcomes the plane derives the validation record from
+   * (distill/validate.ts), never a record the caller states. Only a
+   * user-sourced actor may present one (`engram/promote/validation-source`);
+   * it names the item's id and content hash, and its induction tasks are
+   * checked against the item's distill ref through `distillTasks`; one not
+   * the item's is a deny event (`engram/promote/replay-item`,
+   * `engram/promote/replay-split`), and a malformed one is refused with
+   * InvalidCallError before the log is touched.
+   */
+  replay?: ReplayEvidence;
 }
 
 export interface Plane {
@@ -243,6 +278,25 @@ export interface Plane {
   checkWrite(actor: Actor, item: MemoryItem, at: string): Promise<WriteCheckResult>;
   read(actor: Actor, query: ReadQuery): Promise<ReadResult>;
   /**
+   * Reads one item by its id (card E8.14): Plane.read with no query text and
+   * at most one candidate, the projected item under `itemId` when the actor
+   * can reach it; the same filter (status, ttl, the read matrix or a live
+   * grant, the validity window at `valid_at` or `at`), the same explanation
+   * and one read event, whose reason names the id asked for. The store is
+   * not searched. An item out of the actor's reach answers as an id the log
+   * never held (decision D5). An invalid actor, time or id is refused with
+   * InvalidCallError before the log is touched.
+   */
+  readById(actor: Actor, itemId: string, query: Omit<ReadQuery, "text">): Promise<ReadResult>;
+  /**
+   * The scopes the actor can see at `at` (card E8.14): its member scopes the
+   * read matrix lets its level read, and the scope of every item a read now
+   * would admit through a live grant, each once, in code-point order. One
+   * read event records the decision. An invalid actor or time is refused
+   * with InvalidCallError before the log is touched.
+   */
+  listScopes(actor: Actor, at: string): Promise<ScopeList>;
+  /**
    * Promotes an item (ADR 0026): episodic to semantic after k confirmations
    * counted from the log or a review, a procedural candidate to active with a
    * validation record, a candidate to active or an item to a wider scope
@@ -250,8 +304,8 @@ export interface Plane {
    * change is in place; a class or scope change is a new version whose source
    * is retired. Decision `ask`, with a null item and one `gate` event, when
    * the target requires review and the actor is not reviewing. Runs in the
-   * write queue. An invalid actor, time, item id or scope is refused with
-   * InvalidCallError before the log is touched.
+   * write queue. An invalid actor, time, item id, scope or replay is refused
+   * with InvalidCallError before the log is touched.
    */
   promote(
     actor: Actor,
@@ -320,16 +374,43 @@ export interface Plane {
    * another actor is refused with ExplainDeniedError (decision D5).
    */
   explain(actor: Actor, readId: ReadId): Promise<Explanation[]>;
+  /**
+   * Who can read one item at `at` (card E2.13): a symbolic set of readers,
+   * each entry with the read matrix row or the grant that admits it,
+   * computed from the read filter's own rules, and why nobody may read it
+   * when its status, ttl or validity window closes it. Answered only for an
+   * actor the read filter admits the item to, or who may read its scope as
+   * a member; anyone else gets the refusal an unknown id gets (decision item
+   * 53). Grant holders are named to the item's owner only; any other reader
+   * sees only the grants naming it. Decides nothing and appends no event.
+   * An invalid actor, time or item id is refused with InvalidCallError.
+   */
+  whoCanReadItem(actor: Actor, itemId: string, at: string): Promise<WhoCanReadAnswer>;
+  /**
+   * Who can read a scope's items by the read matrix (card E2.13): every
+   * member of the scope reading as a level the matrix lets read it, each
+   * entry with its rule. Answered only for an actor who may read the scope
+   * as a member. Appends no event. An invalid actor, time or scope is
+   * refused with InvalidCallError.
+   */
+  whoCanRead(actor: Actor, scope: string, at: string): Promise<WhoCanReadAnswer>;
   /** The event log, in sequence order. */
   events(): MemoryEvent[];
 }
 
-/** A Plane method not implemented yet; `card` is the card that implements it. */
+/**
+ * A Plane method not implemented yet; `card` is the card that implements it,
+ * or `backlog` when no card does yet and docs/tasks/backlog.md holds the work.
+ */
 export class NotImplementedYet extends Error {
   readonly method: string;
   readonly card: string;
   constructor(method: string, card: string) {
-    super(`Plane.${method} is not implemented yet; card ${card} implements it`);
+    super(
+      card === "backlog"
+        ? `Plane.${method} is not implemented yet; no card implements it yet (docs/tasks/backlog.md)`
+        : `Plane.${method} is not implemented yet; card ${card} implements it`,
+    );
     this.name = "NotImplementedYet";
     this.method = method;
     this.card = card;
@@ -365,6 +446,14 @@ export interface PlaneDeps {
    * model it names. Unset, the tier does not run, whatever the policy enables.
    */
   lintNli?: NliLintSetup;
+  /**
+   * Session id to task id (card D1's session index), so Plane.promote can
+   * name the tasks a candidate's distill ref (`distill:<method>:<sessions>`,
+   * card D2) was induced from and check a replay's split against them (card
+   * D3 review, D3-3). Unset, a replay of a candidate with a distill ref is
+   * refused (`engram/promote/replay-split`).
+   */
+  distillTasks?: ReadonlyMap<string, string>;
 }
 
 export function createPlane(deps: PlaneDeps): Plane {
@@ -372,6 +461,8 @@ export function createPlane(deps: PlaneDeps): Plane {
     write: (actor, item, at) => gatedWrite(deps, actor, item, at),
     checkWrite: async (actor, item, at) => checkWrite(deps, actor, item, at),
     read: (actor, query) => filteredRead(deps, actor, query),
+    readById: (actor, itemId, query) => readOne(deps, actor, itemId, query),
+    listScopes: (actor, at) => listScopes(deps, actor, at),
     explain: async (actor, readId) => storedExplanations(deps, actor, readId),
     recordBypass: async (actor, bypass, at) => recordBypass(deps, actor, bypass, at),
     retain: async (actor, scope, at) => retain(deps, actor, scope, at),
@@ -382,8 +473,13 @@ export function createPlane(deps: PlaneDeps): Plane {
       changeGrants(deps, actor, itemId, change, at),
     simulate: (workload, policy) => simulate(deps, workload, policy),
     distill: async () => {
-      throw new NotImplementedYet("distill", "D2");
+      // Card D2 built the induction as a Distiller (distill/induce.ts); this
+      // method has no actor, time or model to run it with, so wiring it is
+      // backlog work ("Plane.distill and the /distill route").
+      throw new NotImplementedYet("distill", "backlog");
     },
+    whoCanReadItem: (actor, itemId, at) => whoCanReadItem(deps, actor, itemId, at),
+    whoCanRead: (actor, scope, at) => whoCanRead(deps, actor, scope, at),
     events: () => allEvents(deps.db),
   };
 }

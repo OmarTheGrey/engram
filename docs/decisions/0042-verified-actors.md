@@ -1,0 +1,52 @@
+# ADR 0042: Verified actors on the HTTP surfaces: a token's issuer and subject, or a local API key, name the actor the operator configured; claims never widen it, and a sent source is ignored
+
+Status: proposed, 2026-11-21
+Deciders: drafted by card E8.12 of the absorb plan; for the lead's acceptance
+Supersedes: nothing. It amends ADR 0027 (decision 4, loopback only until authentication; decision 5, the actor is in the request and self-asserted) and completes ADR 0040's floor on the HTTP API (its decision 2, "its limit").
+
+## Context
+
+- **Every surface takes the actor on trust.** The HTTP API reads the actor from the request body, source included (`packages/server/src/routes.ts`); the MCP server fixes it at launch from `--as` and `--member`; the CLI builds it from the same flags (`docs/log/2026-11-21-e2-7-finding-gh-39-surfaces.md`). ADR 0027 kept the server on loopback for that reason, and ADR 0040 states that on the HTTP API a client that sends `source: user` is believed.
+- **Item 54 of `docs/tasks/lead-decisions.md`, answered (a):** tokens from an external issuer verified with jose, hashed API keys for the local server, this ADR before any code, no bundled identity provider.
+- **What the MCP specification asks** (authorization, 2025-06-18): an MCP server over HTTP is an OAuth 2.1 resource server; it validates that a token was issued for it (the audience, RFC 8707), and publishes protected-resource metadata (RFC 9728) naming its authorization servers, pointed to by `WWW-Authenticate` on a 401.
+- **What must not move.** H4 measures today's MCP surface over stdio, with the registered harness fixtures in `fixtures/harness/`. The in-process client (ADR 0027 decision 3) has no socket and no second party.
+- **The event schema stays** (AGENTS.md rule 5): whatever is recorded about authentication goes beside the event, not in it.
+
+## Decision
+
+1. **Two credentials, one external.** A served HTTP surface (`engram serve`, `engram mcp --http`) accepts `Authorization: Bearer <credential>`, where the credential is either:
+   - **a JWT access token from one configured issuer** (`--issuer`), verified with jose against the issuer's keys (`--jwks`, a URL or a local file): signature with an asymmetric algorithm only (RS, PS, ES or EdDSA; never `none` or a shared secret), `iss` equal to the issuer, `aud` containing the server's audience (`--audience`, default its resource URL), `exp` present and in the future and `nbf` past, both judged at the server's own clock with 30 seconds of tolerance, and `sub` present; or
+   - **a local API key** from the key file `--keys` names: a prefixed key (`egk_`, a 12-character key id, `_`, 32 characters of secret), stored only as a scrypt hash with its own salt, shown masked (`egk_<id>_****<last 4>`), with an expiry, verified in constant time on the thread pool, accepting only the scrypt parameters Engram writes (r = 8, p = 1, a power-of-two N up to 2^16) (card E8.12 copies TencentDB-Agent-Memory's `user-key.ts` and `crypto.ts`). `engram key create | list | revoke` manage the file.
+   No identity provider, sign-up, session or refresh is bundled. Each served surface is a resource server only.
+2. **The mapping is the operator's, exact, and explicit.** A token's issuer and subject map to an actor through the subjects file (`--subjects`): each entry names one `issuer`, one `subject`, and the actor `{ id, level, memberships, source }` the pair acts as. An API key carries the same actor in its key-file entry, set when it was created. A token whose `(iss, sub)` has no entry is refused (403), however valid. No actor is derived from a subject (`person:<sub>` is never guessed), since the issuer would then name Engram's principals. Two entries for one `(iss, sub)`, or two subjects mapped to one actor id, are refused when the file is loaded.
+3. **Claims never widen a grant or a membership.** The only claims read are `iss`, `sub`, `aud`, `exp`, `nbf` and `iat`. No `scope`, `groups`, `roles`, `email` or other claim sets a level, a membership, a grant or a source. The actor's level and memberships are the mapping's. A request may narrow its memberships to a subset of them; a request that names another id, another level, or a membership the mapping does not hold is refused (403, `forbidden_actor`) and appends nothing. Grants stay where they are: on items, judged by the plane.
+4. **On an authenticated call a source sent in the request is ignored.** The actor the plane sees carries the mapping's `source`, whatever the body says. This closes ADR 0040's stated limit: a client cannot raise its own provenance. The MCP surface keeps ADR 0027 decision 5: every tool call is the agent's, with source `model`; the credential decides which actor the session is, never its source.
+5. **No credential, no call, unless waived by name.** A served surface with neither `--keys` nor `--issuer` refuses to start unless `--insecure-loopback` is given. Under that flag it behaves as ADR 0027 decided: loopback only, the body's actor self-asserted. The flag excludes credentials (one server is one or the other) and any host that is not loopback. With credentials, a request without a valid one is 401 with `WWW-Authenticate: Bearer resource_metadata="<url>"` (and `error="invalid_token"` when one was sent); only `GET /api/v1/health`, the protected-resource metadata and the inspector's static files answer without one.
+6. **Protected-resource metadata (RFC 9728).** A served surface with credentials answers `GET /.well-known/oauth-protected-resource` (and, for the MCP endpoint, the path-suffixed `/.well-known/oauth-protected-resource/mcp`) with `resource`, `authorization_servers` (the issuer, when one is configured), `bearer_methods_supported: ["header"]` and `resource_name`.
+7. **Beyond loopback only with credentials and TLS in front.** A host that is not loopback is accepted only with credentials and a `--resource` URL that is https: Engram serves plain HTTP and expects a TLS-terminating proxy in front, whose public name the Host and Origin guards then also accept. `engram doctor`, given the serve flags, fails a non-loopback bind without credentials, and any bind with neither credentials nor the waiver. ADR 0027 decision 4's other guards (Origin, JSON bodies, the body cap, no CORS) stay.
+8. **The attestation side table.** Every event appended while a served surface handles a request gets one row in `event_attestations` (migration 6 in `packages/core/src/db/migrate.ts`), keyed by the event's `seq` and written in the transaction that appends the event: the surface (`http` or `mcp_http`), the method (`jwt`, `api_key`, or `insecure_loopback` for the waiver), the requester's actor id, and the issuer and subject (the key id for an API key). The event body does not change. **The invariant:** every event written through a served HTTP surface has a row naming an authenticated requester or the waiver, and the event's actor is that requester, or the store's owner for the adoption a read runs first (ADR 0025, decision D8). The subject is an identifier, as the actor id is, so offboarding treats it as it treats actor ids. On a server with credentials, both surfaces fail closed: a request the credential check did not authenticate never reaches a route or an MCP session, however its path is spelled, so `insecure_loopback` never appears there (review findings E8.12-1 and -3). Rows are written through the log handle `openWorkspace` opens, or any handle passed through `attestingDb`.
+9. **What does not change.** stdio keeps `--as`; the in-process client (ADR 0027 decision 3) is the machine's own user and records no attestation; the registered harness fixtures, the route table's request shapes and the presets do not change. The CLI over `--server` sends `ENGRAM_TOKEN` as its bearer credential.
+
+## Alternatives considered
+
+- **Bundle an identity provider (better-auth)**: sign-up and sessions out of the box, and a product of its own to secure. Rejected by item 54.
+- **Derive the actor from the subject**: no subjects file, and the issuer would name every principal; a renamed or recycled subject would inherit another person's memory.
+- **Read memberships from a `groups` or `scope` claim**: the issuer's administrators would decide who reads a person scope. Card E8.12 puts role mapping from claims out of scope, and decision 3 forbids it.
+- **Record the method in the event**: one more field in every event, a schema change (rule 5), and a moved byte in every committed fixture that serialises events. The side table holds the same fact.
+- **Signed requests (walrus-memory) or mutual TLS**: stronger binding of a request to its sender; more machinery for clients. A later card can add either as a third credential behind the same mapping.
+- **Plain SHA-256 for API keys**: enough for a 192-bit random secret and cheaper than scrypt; the card copies TencentDB-Agent-Memory's scrypt format, and a verified key is cached for the process by a digest of the whole key, so a valid key pays scrypt once per process. A wrong or unknown key pays it on every request; verification runs on the thread pool (`crypto.scrypt`), so it does not block the event loop.
+
+## Consequences
+
+- Card E8.12 implements decisions 1 to 9: `packages/server/src/auth.ts`, `keys.ts` and `attest.ts`, the guards in `app.ts` and `listen.ts`, the MCP transport, the CLI's serve, mcp, key and doctor commands, and migration 6.
+- `engram serve` and `engram mcp --http` without a credential flag now refuse to start; scripts and tests that relied on tokenless loopback pass `--insecure-loopback`.
+- The inspector sends no credential, so it works under the waiver only until a card gives it one.
+- ADR 0040's floor holds on the HTTP API for every authenticated call. Under the waiver the limit it states remains, and the side table says which events were waived.
+- jose is pinned at 6.2.15, the newest release at least two weeks old on 2026-11-21 (6.2.17, which the card names, was published on 2026-11-09).
+
+## Sources
+
+- ADR 0004 (decision D4), ADR 0022, ADR 0025 (decision D8), ADR 0027, ADR 0040.
+- `docs/tasks/lead-decisions.md`, item 54; `docs/tasks/absorb-plan.md`, pull request 28; `docs/tasks/E8.12.md`.
+- RFC 6750 (bearer tokens), RFC 7519 (JWT), RFC 8707 (resource indicators), RFC 9068 (JWT access tokens), RFC 9728 (OAuth 2.0 protected resource metadata); the MCP specification, authorization, 2025-06-18.
+- TencentDB-Agent-Memory at `083c64b11a6748b49278c15f3f0dc77dfd5a99fa`, `MemoryCore/src/metadata/utils/user-key.ts` and `crypto.ts` (MIT).

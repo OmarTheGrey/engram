@@ -1,0 +1,47 @@
+{
+  "key": "8adf7d5bf0a3c2ed2271d20016694901271d27b783f22fd78f4689c0bd9dcaed",
+  "context": {
+    "item": "synthetic/bump-timeout-16",
+    "condition": "replay/with/run-a-command-then-read-what-it-points-at",
+    "preset": "none",
+    "store": "none"
+  },
+  "request": {
+    "model": "scripted/d3-agent",
+    "messages": [
+      {
+        "role": "user",
+        "content": "{\"content\":\"\",\"role\":\"system\",\"sections\":{\"addendum\":\"<addendum>\\n<procedure tools=\\\"bash read\\\">\\nFollow this procedure when it applies to the task.\\n---\\nname: run-a-command-then-read-what-it-points-at\\ndescription: \\\"Run a command, then read what it points at. Use when a task starts from a command's output, such as a failing test or a search.\\\"\\nallowed-tools: \\\"bash read\\\"\\nmetadata:\\n  engram-item: \\\"01920000-0000-7000-8000-000000000003\\\"\\n---\\n\\n# Run a command, then read what it points at\\n\\nRun a command, then read what it points at. Use when a task starts from a command's output, such as a failing test or a search.\\n\\n## Steps\\n\\n1. I run {{command}} to see where to look.\\n\\n   ```\\n   bash({{\\\"command\\\":\\\"{{command}}\\\"}})\\n   ```\\n\\n2. The output points at {{source-file}}; I read it.\\n\\n   ```\\n   read({{\\\"path\\\":\\\"{{source-file}}\\\"}})\\n   ```\\n</procedure>\\n</addendum>\",\"cwd\":\"<cwd>\\n{cwd}\\n</cwd>\",\"preamble\":\"You are a coding agent in a small TypeScript repository. Change it only through the tools you are given, then reply in one short message.\"},\"toolsAdded\":[{\"description\":\"Read a file of the repository.\",\"name\":\"read\",\"parameters\":{\"properties\":{\"path\":{\"type\":\"string\"}},\"required\":[\"path\"],\"type\":\"object\"}},{\"description\":\"Replace the first occurrence of `old` with `new` in a file.\",\"name\":\"edit\",\"parameters\":{\"properties\":{\"new\":{\"type\":\"string\"},\"old\":{\"type\":\"string\"},\"path\":{\"type\":\"string\"}},\"required\":[\"path\",\"old\",\"new\"],\"type\":\"object\"}},{\"description\":\"Run a shell command in the repository.\",\"name\":\"bash\",\"parameters\":{\"properties\":{\"command\":{\"type\":\"string\"}},\"required\":[\"command\"],\"type\":\"object\"}}]}"
+      },
+      {
+        "role": "user",
+        "content": "{\"content\":[{\"text\":\"Raise the fetch timeout from 5 to 10 seconds.\",\"type\":\"text\"}],\"role\":\"user\"}"
+      },
+      {
+        "role": "assistant",
+        "content": "{\"content\":[{\"arguments\":{\"command\":\"grep -rn timeout src\"},\"id\":\"call_131\",\"name\":\"bash\",\"type\":\"toolCall\"}],\"role\":\"assistant\"}"
+      },
+      {
+        "role": "user",
+        "content": "{\"content\":[{\"text\":\"src/fetch.ts:1: export const FETCH_TIMEOUT_SECONDS = 5;\\nsrc/fetch.ts:2: export const fetchTimeoutMs = FETCH_TIMEOUT_SECONDS * 1000;\",\"type\":\"text\"}],\"isError\":false,\"role\":\"toolResult\",\"toolCallId\":\"call_131\",\"toolName\":\"bash\"}"
+      },
+      {
+        "role": "assistant",
+        "content": "{\"content\":[{\"arguments\":{\"path\":\"src/fetch.ts\"},\"id\":\"call_132\",\"name\":\"read\",\"type\":\"toolCall\"}],\"role\":\"assistant\"}"
+      },
+      {
+        "role": "user",
+        "content": "{\"content\":[{\"text\":\"export const FETCH_TIMEOUT_SECONDS = 5;\\nexport const fetchTimeoutMs = FETCH_TIMEOUT_SECONDS * 1000;\\n\",\"type\":\"text\"}],\"isError\":false,\"role\":\"toolResult\",\"toolCallId\":\"call_132\",\"toolName\":\"read\"}"
+      }
+    ],
+    "seed": 2
+  },
+  "response": {
+    "text": "{\"content\":[{\"arguments\":{\"new\":\"FETCH_TIMEOUT_SECONDS = 10\",\"old\":\"FETCH_TIMEOUT_SECONDS = 5\",\"path\":\"src/fetch.ts\"},\"id\":\"call_133\",\"name\":\"edit\",\"type\":\"toolCall\"}],\"stopReason\":\"toolUse\"}",
+    "usage": {
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "cost_usd": 0
+    }
+  }
+}

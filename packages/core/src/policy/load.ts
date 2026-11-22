@@ -93,15 +93,25 @@ export function parsePolicy(text: string, source: string): Policy {
 export const PRESETS = ["strict", "medium", "permissive"] as const;
 export type PresetName = (typeof PRESETS)[number];
 
+/**
+ * Bundled presets that are no registered condition of H1 to H4, so never in
+ * PRESETS, which the runner's configs and the registered scripts take:
+ * `medium-trust`, the medium preset with both trust floors on (card E2.11,
+ * ADR 0040, decision 6).
+ */
+export const EXTRA_PRESETS = ["medium-trust"] as const;
+export type ExtraPresetName = (typeof EXTRA_PRESETS)[number];
+
 /** Where a bundled preset's YAML lives. */
-export function presetUrl(name: PresetName): URL {
-  if (!PRESETS.includes(name))
-    throw new Error(`unknown preset "${name}"; expected one of ${PRESETS.join(", ")}`);
+export function presetUrl(name: PresetName | ExtraPresetName): URL {
+  const known: readonly string[] = [...PRESETS, ...EXTRA_PRESETS];
+  if (!known.includes(name))
+    throw new Error(`unknown preset "${name}"; expected one of ${known.join(", ")}`);
   return new URL(`../../policies/${name}.yaml`, import.meta.url);
 }
 
 /** Load and validate a bundled preset by name. */
-export function loadPreset(name: PresetName): Policy {
+export function loadPreset(name: PresetName | ExtraPresetName): Policy {
   return parsePolicy(readFileSync(presetUrl(name), "utf8"), `policies/${name}.yaml`);
 }
 
@@ -141,13 +151,13 @@ function schemaProblems(issue: z.core.$ZodIssue, js: unknown): Located[] {
  * entries when it lands.
  */
 const NOT_ENFORCED_YET = {
-  content_guards: {
-    secrets: "E2.9",
-    pii: "E2.9",
-    // injection_screen is enforced by card E2.10 (policy/injection-screen.ts).
-    max_content_bytes: "E2.9",
-  },
-  trust: { unattested_floor: "E2.11", protect_trusted: "E2.11" },
+  // Every content_guards option is enforced: injection_screen by card E2.10
+  // (policy/injection-screen.ts), secrets, pii and max_content_bytes by card
+  // E2.9 (policy/secrets.ts). Both trust options are enforced by card E2.11
+  // (policy/trust.ts). The keys stay, so their options keep the YAML 1.1
+  // quoting hint (OPTION_BLOCKS).
+  content_guards: {},
+  trust: {},
 } as const;
 const OPTION_BLOCKS: readonly string[] = Object.keys(NOT_ENFORCED_YET);
 
@@ -244,11 +254,9 @@ function semanticProblems(policy: Policy): Located[] {
     for (const [option, card] of Object.entries(options)) {
       const value = set?.[option];
       if (value === undefined || value === "off") continue;
-      const until =
-        option === "max_content_bytes" ? "leave it out" : 'set it to "off" or leave it out';
       out.push({
         path: [block, option],
-        message: `${block}.${option} is not enforced yet: card ${card} enforces it; until then ${until}`,
+        message: `${block}.${option} is not enforced yet: card ${card} enforces it; until then set it to "off" or leave it out`,
       });
     }
   }

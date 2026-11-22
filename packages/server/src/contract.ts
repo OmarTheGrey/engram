@@ -15,17 +15,23 @@ import {
   MemoryItem,
   Policy,
   ReadCounts,
+  ReaderEntry,
   SCHEMA_VERSION,
   SimReport,
   Timestamp,
+  WhoCanReadAnswer,
   Workload,
 } from "@engram/core";
 import { z } from "zod";
 
-/** Who calls: self-asserted in v0 (ADR 0027 decision 5); the plane refuses a malformed one. */
+/**
+ * Who calls (ADR 0027 decision 5, ADR 0042): bound to the credential on a
+ * server with credentials, as asserted in process and under the waiver; the
+ * plane refuses a malformed one.
+ */
 export const Actor = ActorShape.meta({
   description:
-    "Who acts, as the caller asserts it (no authentication in v0, ADR 0027): id, the level it reads as, its member scopes, and the provenance kind of what it writes.",
+    "Who acts: id, the level it reads as, its member scopes, and the provenance kind of what it writes. On a server with credentials (ADR 0042) the id and level must be the credential's and the memberships a subset of its own, and the source sent is ignored for the credential's; in process and under --insecure-loopback it is taken as the caller asserts it.",
 });
 
 // Every event's ts is the server's own clock (card RV5, finding RV-SRF-2;
@@ -63,6 +69,17 @@ export const ReadRequest = z.strictObject({
   at: validAt,
 });
 
+/** A read of one item by its id (card E8.14); the id is the path's `itemId`. */
+export const ReadByIdRequest = z.strictObject({ actor: Actor, at: validAt });
+
+export const ScopesRequest = z.strictObject({ actor: Actor });
+export const VisibleScope = z
+  .strictObject({ scope: z.string(), via: z.enum(["membership", "grant"]) })
+  .meta({
+    description:
+      "A scope the actor can see: `membership`, a member scope the read matrix lets its level read; `grant`, otherwise, the scope of an item a read now admits through a live grant (card E8.14).",
+  });
+
 export const RetentionReport = z.strictObject({
   decision: z.enum(["allow", "deny"]),
   events: z.array(MemoryEvent),
@@ -94,6 +111,15 @@ export const StoreSync = z
     description:
       "What the workspace did before the read, as the store's owner: its retention sweep, then the adoption of the store's own memories (ADR 0025, decision D8).",
   });
+
+export const ScopesResponse = z.strictObject({
+  scopes: z.array(VisibleScope),
+  event: MemoryEvent,
+  sync: StoreSync.nullable(),
+  policy: z
+    .string()
+    .meta({ description: "The policy the listing was decided under: <id> v<version>." }),
+});
 
 export const ReadResponse = z.strictObject({
   items: z.array(MemoryItem),
@@ -150,6 +176,11 @@ export const GrantResponse = z.strictObject({
 
 export const RetainRequest = z.strictObject({ actor: Actor, scope: z.string() });
 
+// Who can read this memory (card E2.13): core's answer, under its own name.
+export { ReaderEntry, WhoCanReadAnswer };
+export const WhoCanReadItemRequest = z.strictObject({ actor: Actor, item_id: z.string() });
+export const WhoCanReadScopeRequest = z.strictObject({ actor: Actor, scope: z.string() });
+
 export const EventsRequest = z.strictObject({
   actor: Actor,
   after: z.int().nonnegative().optional().meta({
@@ -182,7 +213,7 @@ export const DistillRequest = z.strictObject({
   sessions: z.array(z.record(z.string(), JsonValue)),
   method: z.strictObject({ id: z.literal("awm"), model: z.string(), seed: z.int() }),
 });
-/** The distiller's report is typed by its card (D2). */
+/** The distiller's report is typed by the card that implements Plane.distill (docs/tasks/backlog.md). */
 export const OpenReport = z.record(z.string(), JsonValue);
 
 export const BypassRequest = z.strictObject({
@@ -213,6 +244,8 @@ export const ErrorResponse = z.strictObject({
       "payload_too_large",
       "forbidden_host",
       "forbidden_origin",
+      "unauthorized",
+      "forbidden_actor",
       "not_implemented",
       "no_store",
       "internal",
@@ -232,6 +265,10 @@ export const COMPONENTS = {
   CheckResponse,
   ReadRequest,
   ReadResponse,
+  ReadByIdRequest,
+  ScopesRequest,
+  VisibleScope,
+  ScopesResponse,
   StoreSync,
   RetentionReport,
   AdoptReport,
@@ -243,6 +280,10 @@ export const COMPONENTS = {
   GrantRequest,
   GrantResponse,
   RetainRequest,
+  ReaderEntry,
+  WhoCanReadAnswer,
+  WhoCanReadItemRequest,
+  WhoCanReadScopeRequest,
   EventsRequest,
   EventsResponse,
   PolicyResponse,

@@ -36,7 +36,8 @@ const errorResponse = (description: string) => ({
 /** What each error status means, for the document. */
 const ERRORS: Record<number, string> = {
   400: "the request fails its schema, or the plane refused the call (InvalidCallError)",
-  403: "the Host or Origin is not this loopback server's, or the actor may not explain this read",
+  401: "on a server with credentials (ADR 0042): no bearer credential, or one it does not accept; WWW-Authenticate names the protected-resource metadata",
+  403: "the Host or Origin is not this server's, the credential's actor is not the request's (forbidden_actor), or the actor may not explain this read",
   404: "no such route, or the read id names no read event",
   413: "the body is over the size limit",
   415: "the body is not application/json",
@@ -59,10 +60,22 @@ export function openApiDocument(): Record<string, unknown> {
       required: true,
       schema: { type: "string" },
     }));
-    const statuses = [...new Set([...r.errors, 403, 404, 500, ...(r.request ? [413, 415] : [])])];
+    const open = r.id === "health";
+    const statuses = [
+      ...new Set([
+        ...r.errors,
+        ...(open ? [] : [401]),
+        403,
+        404,
+        500,
+        ...(r.request ? [413, 415] : []),
+      ]),
+    ];
     const operation: Record<string, unknown> = {
       operationId: r.id,
       summary: r.summary,
+      // A server with credentials needs a bearer one; in process and under the waiver, none.
+      ...(open ? {} : { security: [{}, { bearer: [] }] }),
       ...(params.length > 0 ? { parameters: params } : {}),
       ...(r.request
         ? {
@@ -91,10 +104,20 @@ export function openApiDocument(): Record<string, unknown> {
       title: "Engram",
       version: `0.0.0+schema.${SCHEMA_VERSION}`,
       description:
-        "The Engram control plane over HTTP (ADR 0027): every route calls the Plane; no authentication in v0, so the server answers on loopback only.",
+        "The Engram control plane over HTTP (ADR 0027): every route calls the Plane. A server started with credentials (ADR 0042) takes a bearer API key or a JWT of its issuer and binds the request's actor to it; one started with --insecure-loopback answers on loopback with self-asserted actors.",
     },
     servers: [{ url: "http://127.0.0.1:7313" }],
     paths,
-    components: { schemas: clean(schemas) },
+    components: {
+      schemas: clean(schemas),
+      securitySchemes: {
+        bearer: {
+          type: "http",
+          scheme: "bearer",
+          description:
+            "An Engram API key (egk_...) or a JWT access token of the server's issuer (ADR 0042)",
+        },
+      },
+    },
   };
 }

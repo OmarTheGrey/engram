@@ -97,7 +97,11 @@ describe.skipIf(skip !== undefined)("the twin screens on the twin fixture worksp
     if (builtUi() === null)
       throw new Error(`the inspector is not built in ${UI_DIST}; run make ui (make test-e2e does)`);
     fixture = await twinWorkspace();
-    server = await listen(fixture.workspace, { port: 0, now: () => fixture.workload.now });
+    server = await listen(fixture.workspace, {
+      port: 0,
+      now: () => fixture.workload.now,
+      auth: { insecureLoopback: true },
+    });
     page = await browser.newPage();
     page.on("request", (r) => {
       if (!r.url().startsWith(`${server.url}/`)) outside.push(r.url());

@@ -1,16 +1,23 @@
 // The oracles pinned on fixed cases, so a mistake shared with the evaluator
 // shows up here rather than agreeing with itself in the property tests.
 import { describe, expect, test } from "vitest";
+import { strictContentHash } from "../../src/content-hash.ts";
 import type { Actor } from "../../src/plane.ts";
 import type { Grant, MemoryEvent, MemoryItem, Policy } from "../../src/schema.ts";
 import {
+  attestedKind,
   budgetVictims,
+  effectiveKind,
+  floorProblem,
   grantAllowed,
   holdsHiddenText,
+  type OracleReplay,
   pastTtl,
   patternCovers,
   promotionPermitted,
+  protectionProblem,
   readable,
+  replayAdmits,
   sameContent,
   sameStrictContent,
   writeForbidden,
@@ -355,5 +362,298 @@ describe("promotionPermitted", () => {
       status: "candidate",
     } as MemoryItem);
     expect(promotionPermitted(p, sara, "e", "person:a", [skill], true, AT)).toBe(false);
+  });
+});
+
+// Card D3 review, D3-17: the oracle's replay reading, one case per refusal,
+// so a replayAdmits that admitted every replay fails here.
+describe("replayAdmits", () => {
+  const P = {
+    promotion: {
+      episodic_to_semantic: { confirmations: 3, or_review: true },
+      procedural: { replay_k: 4, replay_n: 5 },
+    },
+  } as unknown as Policy;
+  const CONTENT = { body: "# Look first", tools: ["read"] };
+  const source = {
+    id: "01950000-0000-7000-8000-000000000000",
+    class: "procedural",
+    status: "candidate",
+    content: CONTENT,
+    provenance: { kind: "model", ref: "distill:awm:s1,s2" },
+  } as unknown as MemoryItem;
+  const owner: Actor = {
+    id: "person:a",
+    level: "person",
+    memberships: ["person:a"],
+    source: "user",
+  };
+  const SESSIONS = new Map([
+    ["s1", "t1"],
+    ["s2", "t2"],
+  ]);
+  type Outcome = OracleReplay["replay"]["outcomes"][number];
+  type Reward = (task: string, seed: number) => { without: number; with: number };
+  /** Five held-out tasks on seeds 1 to 3; by default each passes with the candidate and fails without it. */
+  const outcomes = (
+    tasks = ["h1", "h2", "h3", "h4", "h5"],
+    seeds = [1, 2, 3],
+    reward: Reward = () => ({ without: 0, with: 1 }),
+  ): Outcome[] =>
+    tasks.flatMap((task) => seeds.map((seed) => ({ task, seed, ...reward(task, seed) })));
+  const replay = (over: Partial<OracleReplay["replay"]> = {}): OracleReplay => ({
+    replay: {
+      item_id: source.id,
+      content_hash: strictContentHash(CONTENT),
+      induced_from: ["t1", "t2"],
+      threshold: 2 / 3,
+      outcomes: outcomes(),
+      ...over,
+    },
+    sessions: SESSIONS,
+  });
+  const admits = (r: OracleReplay, actor: Actor = owner, it: MemoryItem = source) =>
+    replayAdmits(P, actor, it, r);
+
+  test("admits a replay of the item, by its owner, meeting 4 of 5", () => {
+    expect(admits(replay())).toBe(true);
+  });
+
+  test.each([
+    ["model", { ...owner, source: "model" as const }],
+    ["tool", { ...owner, source: "tool" as const }],
+    ["none", { id: "person:a", level: "person" as const, memberships: ["person:a"] }],
+  ])("refuses a presenter with source %s", (_, actor) => {
+    expect(admits(replay(), actor as Actor)).toBe(false);
+  });
+
+  test("refuses another item's id", () => {
+    expect(admits(replay({ item_id: "01950000-0000-7000-8000-000000000001" }))).toBe(false);
+  });
+
+  test("refuses other content", () => {
+    const other = strictContentHash({ body: "x", tools: [] });
+    expect(admits(replay({ content_hash: other }))).toBe(false);
+  });
+
+  test("refuses a distill ref with no index, or one the index cannot map", () => {
+    const { sessions: _none, ...noIndex } = replay();
+    expect(admits(noIndex)).toBe(false);
+    const unmapped = { ...source, provenance: { ...source.provenance, ref: "distill:awm:s1,s9" } };
+    expect(admits(replay(), owner, unmapped as MemoryItem)).toBe(false);
+  });
+
+  test.each([[[]], [["t1"]], [["t1", "t2", "t3"]]])(
+    "refuses induced_from %j, not the ref's tasks",
+    (induced_from) => {
+      expect(admits(replay({ induced_from }))).toBe(false);
+    },
+  );
+
+  test("refuses a replayed induction task", () => {
+    expect(admits(replay({ outcomes: outcomes(["t1", "h2", "h3", "h4", "h5"]) }))).toBe(false);
+  });
+
+  test.each([[1], [0.5], [0.67]])("refuses threshold %s, not the registered 2/3", (threshold) => {
+    expect(admits(replay({ threshold }))).toBe(false);
+  });
+
+  test.each([[[1]], [[4, 7, 9]], [[1, 2]], [[1, 2, 3, 4]]])(
+    "refuses seeds %j, not the registered 1, 2, 3",
+    (seeds) => {
+      expect(admits(replay({ outcomes: outcomes(undefined, seeds) }))).toBe(false);
+    },
+  );
+
+  test.each([[2], [-1], [Number.NaN]])("refuses a reward of %s", (bad) => {
+    const r = outcomes(undefined, undefined, (t, s) => ({
+      without: 0,
+      with: t === "h1" && s === 2 ? bad : 1,
+    }));
+    expect(admits(replay({ outcomes: r }))).toBe(false);
+  });
+
+  test("refuses a repeated seed, and uneven seeds", () => {
+    const base = outcomes();
+    const repeated = [...base, { task: "h1", seed: 1, without: 0, with: 1 }];
+    expect(admits(replay({ outcomes: repeated }))).toBe(false);
+    const uneven = base.filter((o) => !(o.task === "h1" && o.seed === 3));
+    expect(admits(replay({ outcomes: uneven }))).toBe(false);
+  });
+
+  test.each([[["h1", "h2", "h3", "h4"]], [["h1", "h2", "h3", "h4", "h5", "h6"]]])(
+    "refuses n other than replay_n: %j",
+    (tasks) => {
+      expect(admits(replay({ outcomes: outcomes(tasks) }))).toBe(false);
+    },
+  );
+
+  test("refuses k below replay_k", () => {
+    const r = outcomes(undefined, undefined, (t) => ({
+      without: 0,
+      with: t === "h4" || t === "h5" ? 0 : 1,
+    }));
+    expect(admits(replay({ outcomes: r }))).toBe(false);
+  });
+
+  test("refuses when tasks fall below their baseline, though they reach 2/3", () => {
+    // h4 and h5 reach 2 of 3 with the candidate and 3 of 3 without it.
+    const r = outcomes(undefined, undefined, (t, s) =>
+      t === "h4" || t === "h5" ? { without: 1, with: s === 3 ? 0 : 1 } : { without: 0, with: 1 },
+    );
+    expect(admits(replay({ outcomes: r }))).toBe(false);
+  });
+
+  test("admits ties: tasks at 3 of 3 against 3 of 3 pass (D3-14)", () => {
+    const r = outcomes(undefined, undefined, () => ({ without: 1, with: 1 }));
+    expect(admits(replay({ outcomes: r }))).toBe(true);
+  });
+});
+
+// Card E2.11, review E2.11-3: invariant 8's readings of the trust floors.
+describe("the trust floors (invariant 8)", () => {
+  const ON = { unattested_floor: "on", protect_trusted: "on" } as const;
+  const trusting = { ...policy, trust: ON } as unknown as Policy;
+  const kindOf = (kind: MemoryItem["provenance"]["kind"], over: Partial<MemoryItem> = {}) =>
+    ({
+      id: "i",
+      scope: "person:a",
+      owner: "person:a",
+      class: "semantic",
+      status: "active",
+      grants: [],
+      provenance: { kind },
+      ...over,
+    }) as unknown as MemoryItem;
+  const someone = (source?: MemoryItem["provenance"]["kind"], who = "agent:x"): Actor => ({
+    id: who,
+    level: "person",
+    memberships: ["person:a"],
+    ...(source ? { source } : {}),
+  });
+  const event = (over: Partial<MemoryEvent>) =>
+    ({
+      op: "write",
+      decision: "allow",
+      actor: "agent:x",
+      policy_id: "p",
+      reason: "",
+      ...over,
+    }) as MemoryEvent;
+
+  test("attestedKind: the source, or external when none", () => {
+    expect(attestedKind({ source: "tool" })).toBe("tool");
+    expect(attestedKind({})).toBe("external");
+  });
+
+  test("effectiveKind and writeForbidden judge a sourceless writer at external under the floor", () => {
+    expect(effectiveKind(someone(), kindOf("user"))).toBe("user");
+    expect(effectiveKind(someone(), kindOf("user"), trusting)).toBe("external");
+    expect(effectiveKind(someone("tool"), kindOf("user"), trusting)).toBe("tool");
+    const admitsUser = {
+      ...trusting,
+      write: [
+        {
+          scope: "team",
+          allowed_sources: ["user"],
+          forbidden_classes: [],
+          confidence_floor: 0,
+          requires_review: false,
+        },
+      ],
+    } as unknown as Policy;
+    const teamItem = kindOf("user", { scope: "team:t" });
+    const member = { ...someone(), memberships: ["team:t"] };
+    expect(writeForbidden({ ...admitsUser, trust: undefined } as Policy, member, teamItem)).toBe(
+      false,
+    );
+    expect(writeForbidden(admitsUser, member, teamItem)).toBe(true);
+  });
+
+  test("floorProblem: a write recorded more trusted than its actor attests, only under the floor", () => {
+    const raised = event({ item: kindOf("user") });
+    expect(floorProblem(trusting, someone(), raised)).toContain("more trusted than external");
+    expect(floorProblem(trusting, someone("tool"), raised)).toContain("more trusted than tool");
+    expect(floorProblem(trusting, someone("user"), raised)).toBeUndefined();
+    expect(floorProblem(trusting, someone(), event({ item: kindOf("external") }))).toBeUndefined();
+    expect(floorProblem(policy, someone(), raised)).toBeUndefined();
+    expect(floorProblem(trusting, someone(), { ...raised, op: "promote" })).toBeUndefined();
+    expect(floorProblem(trusting, someone(), { ...raised, decision: "deny" })).toBeUndefined();
+  });
+
+  test("protectionProblem: a less trusted write or eviction of an active more trusted item, unless its owner acts as user", () => {
+    const held = kindOf("user");
+    const rewrite = event({ item: kindOf("tool") });
+    expect(protectionProblem(trusting, someone("tool"), held, rewrite)).toContain(
+      "rewrote active user item",
+    );
+    expect(
+      protectionProblem(
+        trusting,
+        someone("tool"),
+        held,
+        event({ item: kindOf("tool", { status: "retired" }) }),
+      ),
+    ).toContain("retired active user item");
+    expect(
+      protectionProblem(trusting, someone("user"), held, event({ item: kindOf("user") })),
+    ).toBeUndefined();
+    expect(
+      protectionProblem(trusting, someone("tool"), { ...held, status: "candidate" }, rewrite),
+    ).toBeUndefined();
+    expect(protectionProblem(policy, someone("tool"), held, rewrite)).toBeUndefined();
+    const evict = event({ op: "evict", item: undefined });
+    expect(protectionProblem(trusting, someone("user"), held, evict, "model")).toContain(
+      "eviction at model",
+    );
+    expect(protectionProblem(trusting, someone(), held, evict)).toContain("eviction at external");
+    expect(protectionProblem(trusting, someone("user"), held, evict, "user")).toBeUndefined();
+    // The owner acting as user is exempt.
+    const owner = someone("user", "person:a");
+    expect(
+      protectionProblem(trusting, owner, held, { ...evict, actor: "person:a" }, "model"),
+    ).toBeUndefined();
+  });
+
+  test("protectionProblem: adoption's retraction after a denied edit is judged, other retires are not", () => {
+    const held = kindOf("user");
+    const retract = event({ op: "retire", policy_id: "engram/adopt/retract", item: undefined });
+    const adopter = someone("import");
+    expect(
+      protectionProblem(trusting, adopter, held, {
+        ...retract,
+        reason: "the store's version of item i was denied (engram/write/downgrade)",
+      }),
+    ).toContain("retracted active user item");
+    expect(
+      protectionProblem(trusting, adopter, held, {
+        ...retract,
+        reason: "item i is no longer in store",
+      }),
+    ).toBeUndefined();
+    expect(
+      protectionProblem(
+        trusting,
+        adopter,
+        held,
+        event({ op: "retire", policy_id: "x/retention/person/semantic" }),
+      ),
+    ).toBeUndefined();
+  });
+});
+
+describe("budgetVictims with eligible (card E2.11)", () => {
+  test("passes over an ineligible item, and names fewer victims when too few are eligible", () => {
+    const its = ["id-1", "id-2", "id-3"].map((id) => ({ id }) as MemoryItem);
+    const changed = new Map([
+      ["id-1", 1],
+      ["id-2", 2],
+      ["id-3", 3],
+    ]);
+    const notOne = (i: MemoryItem) => i.id !== "id-1";
+    expect(budgetVictims("recency", 2, its, changed, new Map(), undefined, notOne)).toEqual([
+      "id-2",
+    ]);
+    expect(budgetVictims("recency", 1, its, changed, new Map(), "id-3", notOne)).toEqual(["id-2"]);
   });
 });
