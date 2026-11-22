@@ -1,0 +1,418 @@
+{
+  "description": "Three restatements in team:core under the default threshold (0.85), none an exact copy: a sentence with its final full stop turned into an exclamation mark, a preference with one word added, and a 46-word procedure with one word added (compared by word 2-grams); the later of each pair is flagged, naming the earlier, and an unrelated rota item is not.",
+  "lint_id": "near-duplicate-tier",
+  "kind": "flag",
+  "policy": {
+    "id": "fixture.faults",
+    "version": 1,
+    "write": [
+      {
+        "scope": "person",
+        "allowed_sources": [
+          "user",
+          "document",
+          "tool",
+          "model",
+          "import",
+          "compaction"
+        ],
+        "confidence_floor": 0.3,
+        "forbidden_classes": [],
+        "requires_review": false
+      },
+      {
+        "scope": "role",
+        "allowed_sources": [
+          "user",
+          "document",
+          "tool",
+          "model",
+          "import",
+          "compaction"
+        ],
+        "confidence_floor": 0.3,
+        "forbidden_classes": [],
+        "requires_review": false
+      },
+      {
+        "scope": "team",
+        "allowed_sources": [
+          "user",
+          "document",
+          "tool",
+          "model",
+          "import",
+          "compaction"
+        ],
+        "confidence_floor": 0.3,
+        "forbidden_classes": [],
+        "requires_review": false
+      },
+      {
+        "scope": "org",
+        "allowed_sources": [
+          "user",
+          "document",
+          "tool",
+          "model",
+          "import",
+          "compaction"
+        ],
+        "confidence_floor": 0.3,
+        "forbidden_classes": [],
+        "requires_review": false
+      }
+    ],
+    "read": {
+      "matrix": [
+        {
+          "reader": "person",
+          "may_read": [
+            "person",
+            "role",
+            "team",
+            "org"
+          ]
+        },
+        {
+          "reader": "role",
+          "may_read": [
+            "role",
+            "team",
+            "org"
+          ]
+        },
+        {
+          "reader": "team",
+          "may_read": [
+            "team",
+            "org"
+          ]
+        },
+        {
+          "reader": "org",
+          "may_read": [
+            "org"
+          ]
+        }
+      ],
+      "honour_grants": true
+    },
+    "retention": [],
+    "promotion": {
+      "episodic_to_semantic": {
+        "confirmations": 3,
+        "or_review": true
+      },
+      "procedural": {
+        "replay_k": 4,
+        "replay_n": 5
+      }
+    },
+    "lints": {
+      "enabled": [
+        "near-duplicate-tier"
+      ],
+      "thresholds": {}
+    },
+    "schema_version": 1
+  },
+  "actor": {
+    "id": "person:dana",
+    "level": "person",
+    "memberships": [
+      "person:dana",
+      "team:core"
+    ],
+    "source": "user"
+  },
+  "scope": "team:core",
+  "at": "2026-11-06T12:00:00Z",
+  "events": [
+    {
+      "id": "01950000-0000-7000-8000-000000900001",
+      "seq": 0,
+      "ts": "2026-11-01T09:00:00Z",
+      "op": "write",
+      "item_id": "01950000-0000-7000-8000-000000000001",
+      "actor": "person:dana",
+      "scope_from": null,
+      "scope_to": "team:core",
+      "decision": "allow",
+      "reason": "semantic item from source user passes the team write rule; provenance set by the plane: source user, actor person:dana",
+      "policy_id": "fixture.faults/write/team",
+      "item": {
+        "id": "01950000-0000-7000-8000-000000000001",
+        "scope": "team:core",
+        "owner": "person:dana",
+        "provenance": {
+          "kind": "user",
+          "ref": "engram-cli",
+          "hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "actor": "person:dana"
+        },
+        "confidence": 0.9,
+        "valid_from": "2026-10-01T00:00:00Z",
+        "valid_to": null,
+        "ttl": null,
+        "grants": [],
+        "version": 1,
+        "lineage": [],
+        "status": "active",
+        "store_ref": {
+          "adapter": "fake",
+          "key": "01950000-0000-7000-8000-000000000001"
+        },
+        "schema_version": 1,
+        "class": "semantic",
+        "content": "The release freeze starts on Friday."
+      },
+      "schema_version": 1
+    },
+    {
+      "id": "01950000-0000-7000-8000-000000900002",
+      "seq": 1,
+      "ts": "2026-11-01T09:01:00Z",
+      "op": "write",
+      "item_id": "01950000-0000-7000-8000-000000000002",
+      "actor": "person:dana",
+      "scope_from": null,
+      "scope_to": "team:core",
+      "decision": "allow",
+      "reason": "semantic item from source user passes the team write rule; provenance set by the plane: source user, actor person:dana",
+      "policy_id": "fixture.faults/write/team",
+      "item": {
+        "id": "01950000-0000-7000-8000-000000000002",
+        "scope": "team:core",
+        "owner": "person:dana",
+        "provenance": {
+          "kind": "user",
+          "ref": "engram-cli",
+          "hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "actor": "person:dana"
+        },
+        "confidence": 0.9,
+        "valid_from": "2026-10-01T00:00:00Z",
+        "valid_to": null,
+        "ttl": null,
+        "grants": [],
+        "version": 1,
+        "lineage": [],
+        "status": "active",
+        "store_ref": {
+          "adapter": "fake",
+          "key": "01950000-0000-7000-8000-000000000002"
+        },
+        "schema_version": 1,
+        "class": "semantic",
+        "content": "The release freeze starts on Friday!"
+      },
+      "schema_version": 1
+    },
+    {
+      "id": "01950000-0000-7000-8000-000000900003",
+      "seq": 2,
+      "ts": "2026-11-01T09:02:00Z",
+      "op": "write",
+      "item_id": "01950000-0000-7000-8000-000000000003",
+      "actor": "person:dana",
+      "scope_from": null,
+      "scope_to": "team:core",
+      "decision": "allow",
+      "reason": "semantic item from source user passes the team write rule; provenance set by the plane: source user, actor person:dana",
+      "policy_id": "fixture.faults/write/team",
+      "item": {
+        "id": "01950000-0000-7000-8000-000000000003",
+        "scope": "team:core",
+        "owner": "person:dana",
+        "provenance": {
+          "kind": "user",
+          "ref": "engram-cli",
+          "hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "actor": "person:dana"
+        },
+        "confidence": 0.9,
+        "valid_from": "2026-10-01T00:00:00Z",
+        "valid_to": null,
+        "ttl": null,
+        "grants": [],
+        "version": 1,
+        "lineage": [],
+        "status": "active",
+        "store_ref": {
+          "adapter": "fake",
+          "key": "01950000-0000-7000-8000-000000000003"
+        },
+        "schema_version": 1,
+        "class": "semantic",
+        "content": "Dana prefers short answers and dislikes long preambles in replies."
+      },
+      "schema_version": 1
+    },
+    {
+      "id": "01950000-0000-7000-8000-000000900004",
+      "seq": 3,
+      "ts": "2026-11-01T09:03:00Z",
+      "op": "write",
+      "item_id": "01950000-0000-7000-8000-000000000004",
+      "actor": "person:dana",
+      "scope_from": null,
+      "scope_to": "team:core",
+      "decision": "allow",
+      "reason": "semantic item from source user passes the team write rule; provenance set by the plane: source user, actor person:dana",
+      "policy_id": "fixture.faults/write/team",
+      "item": {
+        "id": "01950000-0000-7000-8000-000000000004",
+        "scope": "team:core",
+        "owner": "person:dana",
+        "provenance": {
+          "kind": "user",
+          "ref": "engram-cli",
+          "hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "actor": "person:dana"
+        },
+        "confidence": 0.9,
+        "valid_from": "2026-10-01T00:00:00Z",
+        "valid_to": null,
+        "ttl": null,
+        "grants": [],
+        "version": 1,
+        "lineage": [],
+        "status": "active",
+        "store_ref": {
+          "adapter": "fake",
+          "key": "01950000-0000-7000-8000-000000000004"
+        },
+        "schema_version": 1,
+        "class": "semantic",
+        "content": "Dana prefers short answers and dislikes long preambles in her replies."
+      },
+      "schema_version": 1
+    },
+    {
+      "id": "01950000-0000-7000-8000-000000900005",
+      "seq": 4,
+      "ts": "2026-11-01T09:04:00Z",
+      "op": "write",
+      "item_id": "01950000-0000-7000-8000-000000000005",
+      "actor": "person:dana",
+      "scope_from": null,
+      "scope_to": "team:core",
+      "decision": "allow",
+      "reason": "semantic item from source user passes the team write rule; provenance set by the plane: source user, actor person:dana",
+      "policy_id": "fixture.faults/write/team",
+      "item": {
+        "id": "01950000-0000-7000-8000-000000000005",
+        "scope": "team:core",
+        "owner": "person:dana",
+        "provenance": {
+          "kind": "user",
+          "ref": "engram-cli",
+          "hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "actor": "person:dana"
+        },
+        "confidence": 0.9,
+        "valid_from": "2026-10-01T00:00:00Z",
+        "valid_to": null,
+        "ttl": null,
+        "grants": [],
+        "version": 1,
+        "lineage": [],
+        "status": "active",
+        "store_ref": {
+          "adapter": "fake",
+          "key": "01950000-0000-7000-8000-000000000005"
+        },
+        "schema_version": 1,
+        "class": "semantic",
+        "content": "The deploy pipeline runs the unit tests, then the integration tests, then a canary in one region for thirty minutes, and only after the canary stays healthy does it roll out to every region, one at a time, with a pause of ten minutes between regions."
+      },
+      "schema_version": 1
+    },
+    {
+      "id": "01950000-0000-7000-8000-000000900006",
+      "seq": 5,
+      "ts": "2026-11-01T09:05:00Z",
+      "op": "write",
+      "item_id": "01950000-0000-7000-8000-000000000006",
+      "actor": "person:dana",
+      "scope_from": null,
+      "scope_to": "team:core",
+      "decision": "allow",
+      "reason": "semantic item from source user passes the team write rule; provenance set by the plane: source user, actor person:dana",
+      "policy_id": "fixture.faults/write/team",
+      "item": {
+        "id": "01950000-0000-7000-8000-000000000006",
+        "scope": "team:core",
+        "owner": "person:dana",
+        "provenance": {
+          "kind": "user",
+          "ref": "engram-cli",
+          "hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "actor": "person:dana"
+        },
+        "confidence": 0.9,
+        "valid_from": "2026-10-01T00:00:00Z",
+        "valid_to": null,
+        "ttl": null,
+        "grants": [],
+        "version": 1,
+        "lineage": [],
+        "status": "active",
+        "store_ref": {
+          "adapter": "fake",
+          "key": "01950000-0000-7000-8000-000000000006"
+        },
+        "schema_version": 1,
+        "class": "semantic",
+        "content": "The deploy pipeline runs the unit tests, then the integration tests, then a canary in one region for thirty minutes, and only after the canary stays healthy does it roll out to every region, one at a time, with a short pause of ten minutes between regions."
+      },
+      "schema_version": 1
+    },
+    {
+      "id": "01950000-0000-7000-8000-000000900007",
+      "seq": 6,
+      "ts": "2026-11-01T09:06:00Z",
+      "op": "write",
+      "item_id": "01950000-0000-7000-8000-000000000007",
+      "actor": "person:dana",
+      "scope_from": null,
+      "scope_to": "team:core",
+      "decision": "allow",
+      "reason": "semantic item from source user passes the team write rule; provenance set by the plane: source user, actor person:dana",
+      "policy_id": "fixture.faults/write/team",
+      "item": {
+        "id": "01950000-0000-7000-8000-000000000007",
+        "scope": "team:core",
+        "owner": "person:dana",
+        "provenance": {
+          "kind": "user",
+          "ref": "engram-cli",
+          "hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "actor": "person:dana"
+        },
+        "confidence": 0.9,
+        "valid_from": "2026-10-01T00:00:00Z",
+        "valid_to": null,
+        "ttl": null,
+        "grants": [],
+        "version": 1,
+        "lineage": [],
+        "status": "active",
+        "store_ref": {
+          "adapter": "fake",
+          "key": "01950000-0000-7000-8000-000000000007"
+        },
+        "schema_version": 1,
+        "class": "semantic",
+        "content": "The on-call rota changes every Monday at 09:00."
+      },
+      "schema_version": 1
+    }
+  ],
+  "flags": [
+    "01950000-0000-7000-8000-000000000002",
+    "01950000-0000-7000-8000-000000000004",
+    "01950000-0000-7000-8000-000000000006"
+  ]
+}
