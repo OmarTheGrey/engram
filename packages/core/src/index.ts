@@ -18,6 +18,7 @@ export * from "./distill/scrub.ts";
 export * from "./distill/skill.ts";
 export * from "./distill.ts";
 export * from "./events.ts";
+export * from "./export/otel.ts";
 export * from "./items.ts";
 export * from "./lint/det.ts";
 export * from "./lint/model.ts";

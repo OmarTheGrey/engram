@@ -5,9 +5,11 @@ import {
   appendEvent,
   currentItems,
   eventById,
+  eventsAfter,
   eventsByActor,
   eventsByItem,
   eventsByScope,
+  lastSeq,
 } from "../../src/events.ts";
 import type { MemoryItem } from "../../src/schema.ts";
 import { forEachBackend } from "../db/backends.ts";
@@ -110,6 +112,16 @@ forEachBackend((backend) => {
       const second = eventsByActor(db, "person:sara")[0];
       expect(second && eventById(db, second.id)).toEqual(second);
       expect(eventById(db, "01920000-0000-7000-8000-999999999999")).toBeNull();
+    });
+
+    test("after a seq, in order, from the log's head (card E8.13)", () => {
+      expect(lastSeq(db)).toBe(-1);
+      expect(eventsAfter(db, -1)).toEqual([]);
+      for (const n of [1, 2, 3]) appendEvent(db, write(n));
+      expect(lastSeq(db)).toBe(2);
+      expect(eventsAfter(db, -1).map((e) => e.seq)).toEqual([0, 1, 2]);
+      expect(eventsAfter(db, 0).map((e) => e.seq)).toEqual([1, 2]);
+      expect(eventsAfter(db, 2)).toEqual([]);
     });
   });
 });
