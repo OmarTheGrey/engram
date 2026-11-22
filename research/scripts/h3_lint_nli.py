@@ -17,8 +17,10 @@ new model call or any new NLI score:
   The thresholds are derived again from its labelled units by the config's
   `threshold_rule` and must equal the ones both tier configs froze: the upper
   is the first grid step strictly above every pass-labelled pair's score, at
-  least `upper_at_least` and at most 1; the lower is the last grid step at or
-  below every flag-labelled pair's score, at most `lower_at_most`.
+  least `upper_at_least`; a pass scored 1 leaves no upper of at most 1
+  strictly above it, and the rule then refuses (review L7-8). The lower is
+  the last grid step at or below every flag-labelled pair's score, at most
+  `lower_at_most`. Both bounds are hand choices.
 - `model_tier_config`: card L4's fixture run, the model tier alone.
 - `runner_config`: the same states, seeds, scripted model and cassettes with
   the tier on, so the band's model calls are the model tier's own requests.
@@ -27,7 +29,10 @@ It reports the model calls the tier saves per seed (the contradiction lint's
 units the model tier sent, less the band's), every contradiction label's band
 and score, and recall and labelled precision per class and subtype, keyed and
 unkeyed apart, for the model tier, the tiered lint (the tier's flags and the
-band's model findings), and the tier alone (its flags only). The model of the
+band's model findings), and the tier alone (its flags only). It also counts
+the pairs at or above 0.5, 0.9, 0.99 and 0.999, by the larger of both
+directions and forward only, and what a forward-only upper of 0.9 would flag,
+with every flagged item no label names (review L7-2). The model of the
 fixture runs is scripted (card L4's planted answers), so the model tier's and
 the tiered lint's figures check the pipeline; the band counts, the scores and
 the tier alone's figures come from the pinned NLI model's real scores.
@@ -59,6 +64,8 @@ from scripts.results_io import REPO, load_config, write_result
 CONTRADICTION = "contradiction"
 NLI = "contradiction-nli"
 BANDS = ("flag", "model", "drop")
+CUTS = (0.5, 0.9, 0.99, 0.999)
+FORWARD_CUT = 0.9
 
 Row = Mapping[str, Any]
 
@@ -103,7 +110,14 @@ def derive_thresholds(rows: Sequence[Row], rule: Mapping[str, Any]) -> dict[str,
     passes = [u["contradiction"] for u in units if u["verdict"] == "pass"]
     flags = [u["contradiction"] for u in units if u["verdict"] == "flag"]
     above = (math.floor(max(passes) * steps) + 1) / steps
-    upper = min(1.0, max(float(rule["upper_at_least"]), above))
+    if above > 1:
+        # Review L7-8: no upper of at most 1 lies strictly above a pass scored 1;
+        # the rule refuses rather than flag that pass.
+        raise ValueError(
+            f"a pass-labelled pair scored {max(passes)}: no upper of at most 1 lies strictly"
+            " above it, so the rule gives no flag band; choose the thresholds by hand"
+        )
+    upper = max(float(rule["upper_at_least"]), above)
     lower = min(float(rule["lower_at_most"]), math.floor(min(flags) * steps) / steps)
     return {"upper": upper, "lower": lower, "units": units}
 
@@ -199,6 +213,69 @@ def label_bands(
     return {"by_subtype": counts, "labels": units}
 
 
+def unique_pairs(rows: Sequence[Row]) -> list[tuple[str, Mapping[str, Any]]]:
+    """Each question's scored pairs once, whatever the seeds: the scorer draws nothing."""
+    seen: dict[tuple[str, str], Mapping[str, Any]] = {}
+    for r in rows:
+        for j in r["nli"]:
+            seen.setdefault((str(r["question_id"]), str(j["unit"])), j)
+    return [(q, j) for (q, _), j in sorted(seen.items())]
+
+
+def score_counts(rows: Sequence[Row]) -> dict[str, Any]:
+    """Pairs at or above each cut: the larger of both directions, and forward only (review L7-2)."""
+    pairs = unique_pairs(rows)
+
+    def at(cut: float, value: str) -> int:
+        return sum(
+            1
+            for _, j in pairs
+            if (j["contradiction"] if value == "both" else j["forward"]["contradiction"]) >= cut
+        )
+
+    return {
+        "pairs": len(pairs),
+        "both_directions": {str(c): at(c, "both") for c in CUTS},
+        "forward_only": {str(c): at(c, "forward") for c in CUTS},
+    }
+
+
+def forward_flags(
+    rows: Sequence[Row], labels: Mapping[str, Sequence[Row]], cut: float
+) -> dict[str, Any]:
+    """What a forward-only upper at `cut` would flag: pairs, items, and the items no label names."""
+    flagged: dict[tuple[str, str], int] = {}
+    for q, j in unique_pairs(rows):
+        if j["forward"]["contradiction"] >= cut:
+            key = (q, str(j["item_id"]))
+            flagged[key] = flagged.get(key, 0) + 1
+    kinds: dict[tuple[str, str], str] = {}
+    rank = {"contradiction_fault": 0, "contradiction_near_miss": 1, "other_label": 2}
+    for q, ls in labels.items():
+        for la in ls:
+            about = CONTRADICTION in [*la["expected"]["model"], *la["near_miss_of"]["model"]]
+            if not about:
+                kind = "other_label"
+            elif la["kind"] == "fault":
+                kind = "contradiction_fault"
+            else:
+                kind = "contradiction_near_miss"
+            key = (q, str(la["finding_on"]))
+            if key not in kinds or rank[kind] < rank[kinds[key]]:
+                kinds[key] = kind
+    return {
+        "cut": cut,
+        "pairs": sum(flagged.values()),
+        "items": len(flagged),
+        **{f"{k}_items": sum(1 for x in flagged if kinds.get(x) == k) for k in rank},
+        "unlabelled": [
+            {"question_id": q, "item_id": i, "pairs": n}
+            for (q, i), n in sorted(flagged.items())
+            if (q, i) not in kinds
+        ],
+    }
+
+
 def build(config: Mapping[str, Any]) -> dict[str, Any]:
     rule = config["threshold_rule"]
     threshold_path = str(config["threshold_config"])
@@ -257,6 +334,7 @@ def build(config: Mapping[str, Any]) -> dict[str, Any]:
         "hypothesis": config["hypothesis"],
         "arm": config["arm"],
         "registered": False,
+        "decides": False,
         "status": "engineering check: arm P3 is proposed in docs/research/preregistration.md, not"
         " registered; no number here is a thesis result",
         "nli_model": tier_cfg["nli"]["model"],
@@ -279,6 +357,8 @@ def build(config: Mapping[str, Any]) -> dict[str, Any]:
             "tiered": {"calls": tier_usage["calls"], "scores": tier_usage["scores"]},
         },
         "label_bands": label_bands(labels, bands_of(tier_rows)),
+        "score_counts": score_counts(tier_rows),
+        "forward_only_flags": forward_flags(tier_rows, labels, FORWARD_CUT),
         "per_seed": per_seed,
         "matching": "as card L4's scorer: a label is flagged when the contradiction lint lands on"
         " its finding_on; the tier's own flags (lint contradiction-nli) are scored as the"

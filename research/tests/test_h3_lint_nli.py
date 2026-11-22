@@ -79,26 +79,40 @@ def test_score_counts_at_each_cut_both_directions_and_forward_only() -> None:
     assert got["forward_only"] == {"0.5": 3, "0.9": 2, "0.99": 1, "0.999": 1}
 
 
-def test_forward_only_flags_split_into_faults_other_labels_and_unlabelled_items() -> None:
+def test_forward_only_flags_split_into_contradiction_labels_other_labels_and_none() -> None:
     pairs = [
         scored("u1", "fault", 0.95, 0.2),
         scored("u2", "near", 0.91, 0.1),
         scored("u3", "plain", 0.99, 0.1),
         scored("u4", "plain", 0.92, 0.1),
-        scored("u5", "low", 0.2, 0.99),
+        scored("u5", "stale", 0.93, 0.1),
+        scored("u6", "low", 0.2, 0.99),
     ]
     rows = [{"question_id": "q", "seed": 1, "nli": pairs}]
+
+    def label(item: str, kind: str, lints: list[str]) -> dict[str, Any]:
+        own = {"model": lints, "deterministic": []}
+        none: dict[str, list[str]] = {"model": [], "deterministic": []}
+        return {
+            "finding_on": item,
+            "kind": kind,
+            "expected": own if kind == "fault" else none,
+            "near_miss_of": own if kind == "near-miss" else none,
+        }
+
     labels = {
         "q": [
-            {"finding_on": "fault", "kind": "fault"},
-            {"finding_on": "near", "kind": "near-miss"},
+            label("fault", "fault", ["contradiction"]),
+            label("near", "near-miss", ["contradiction"]),
+            label("stale", "fault", []),
         ]
     }
     got = h3_lint_nli.forward_flags(rows, labels, 0.9)
-    assert got["pairs"] == 4
-    assert got["items"] == 3
-    assert got["fault_items"] == 1
-    assert got["near_miss_items"] == 1
+    assert got["pairs"] == 5
+    assert got["items"] == 4
+    assert got["contradiction_fault_items"] == 1
+    assert got["contradiction_near_miss_items"] == 1
+    assert got["other_label_items"] == 1
     assert got["unlabelled"] == [{"question_id": "q", "item_id": "plain", "pairs": 2}]
 
 

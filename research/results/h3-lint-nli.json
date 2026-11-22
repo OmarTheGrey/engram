@@ -1,5 +1,46 @@
 {
   "arm": "P3",
+  "decides": false,
+  "forward_only_flags": {
+    "contradiction_fault_items": 4,
+    "contradiction_near_miss_items": 4,
+    "cut": 0.9,
+    "items": 28,
+    "other_label_items": 14,
+    "pairs": 81,
+    "unlabelled": [
+      {
+        "item_id": "01960000-0000-7000-8000-000000000035",
+        "pairs": 3,
+        "question_id": "3d86fd0a"
+      },
+      {
+        "item_id": "01960000-0000-7000-8000-000000000055",
+        "pairs": 2,
+        "question_id": "3d86fd0a"
+      },
+      {
+        "item_id": "01960000-0000-7000-8000-000000000070",
+        "pairs": 5,
+        "question_id": "3d86fd0a"
+      },
+      {
+        "item_id": "01960000-0000-7000-8000-000000000013",
+        "pairs": 1,
+        "question_id": "66f24dbb"
+      },
+      {
+        "item_id": "01960000-0000-7000-8000-000000000036",
+        "pairs": 3,
+        "question_id": "66f24dbb"
+      },
+      {
+        "item_id": "01960000-0000-7000-8000-000000000038",
+        "pairs": 1,
+        "question_id": "66f24dbb"
+      }
+    ]
+  },
   "hypothesis": "H3",
   "label_bands": {
     "by_subtype": {
@@ -3292,6 +3333,21 @@
     }
   },
   "runner_config": "research/configs/h3-lint-nli-fixture.json",
+  "score_counts": {
+    "both_directions": {
+      "0.5": 92,
+      "0.9": 87,
+      "0.99": 79,
+      "0.999": 61
+    },
+    "forward_only": {
+      "0.5": 85,
+      "0.9": 81,
+      "0.99": 70,
+      "0.999": 56
+    },
+    "pairs": 113
+  },
   "scripted_model": true,
   "seeds": [
     1,
