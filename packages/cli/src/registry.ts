@@ -14,19 +14,11 @@
 // The handlers are reached through a dynamic import, so this module imports
 // no command module and the command modules may import their option objects
 // from here without an import cycle.
-import { MemoryClass, ProvenanceKind, ScopeLevel } from "@engram/core";
+import { ProvenanceKind, ScopeLevel } from "@engram/core";
 import type { Io } from "./run.ts";
 
 /** A flag's control in a generated form (docs/design/tui.md 3.2). */
-export type Control =
-  | "text"
-  | "scope"
-  | "time"
-  | "number"
-  | "choice"
-  | "file"
-  | "list"
-  | "toggle";
+export type Control = "text" | "scope" | "time" | "number" | "choice" | "file" | "list" | "toggle";
 
 /**
  * One flag: the parseArgs option (`type`, `multiple`) the handler parses
@@ -92,8 +84,13 @@ export interface CommandSpec {
   listed: boolean;
   group: Group;
   positionals: PositionalSpec[];
-  /** The flags, exactly the parseArgs config the handler parses with (see OptionSpec). */
+  /** The flags a form for this command offers, each as the handler parses it (see OptionSpec). */
   options: Readonly<Record<string, OptionSpec>>;
+  /**
+   * The parseArgs config the handler parses with, when it is more than
+   * `options`: the key subcommands parse as one, and read with --item.
+   */
+  parse?: Readonly<Record<string, OptionSpec>>;
   /** Whether the handler's parse allows positionals (the subcommand word counts as one). */
   allowPositionals: boolean;
   /** The "<name> options:" block of HELP, verbatim, without its trailing blank line; empty for none. */
@@ -393,6 +390,13 @@ const READ_OPTIONS = {
   ...ACTOR_OPTIONS,
   at: { ...AT, label: "Judge validity windows at" },
   ...CLIENT_OPTIONS,
+  item: flag({
+    type: "string",
+    label: "Item",
+    help: "read one item by its id instead of a query",
+    control: "text",
+    card: "E8.15a",
+  }),
 };
 
 const ITEM_ACTOR_OPTIONS = { ...STORE_OPTIONS, ...ACTOR_OPTIONS, ...CLIENT_OPTIONS };
@@ -469,7 +473,11 @@ export const OPTIONS = {
   },
   simulate: {
     db: DB,
-    policy: { ...POLICY, label: "Baseline policy", help: "the baseline: a preset or a policy file" },
+    policy: {
+      ...POLICY,
+      label: "Baseline policy",
+      help: "the baseline: a preset or a policy file",
+    },
     json: JSON_OUT,
     workload: flag({
       type: "string",
@@ -491,6 +499,13 @@ export const OPTIONS = {
   policy: {
     policy: POLICY,
     json: JSON_OUT,
+    ...CLIENT_OPTIONS,
+  },
+  scopes: {
+    ...STORE_OPTIONS,
+    as: AS,
+    level: LEVEL,
+    member: MEMBER,
     ...CLIENT_OPTIONS,
   },
   "who-can-read": {
@@ -577,7 +592,10 @@ export const OPTIONS = {
   doctor: {
     db: { ...DB, help: "the event log to check; doctor never creates one" },
     policy: { ...POLICY, help: "the policy to load and validate" },
-    root: { ...ROOT, help: "a store folder: readable, and its memories adopted on an in-memory log" },
+    root: {
+      ...ROOT,
+      help: "a store folder: readable, and its memories adopted on an in-memory log",
+    },
     json: JSON_OUT,
     host: { ...HOST, help: "the host engram serve would bind", card: "E8.12" },
     ...AUTH_OPTIONS,
@@ -589,6 +607,13 @@ const pick = <O extends Record<string, OptionSpec>, K extends keyof O & string>(
   o: O,
   keys: readonly K[],
 ): Pick<O, K> => Object.fromEntries(keys.map((k) => [k, o[k]])) as Pick<O, K>;
+
+/** The options without the keys named. */
+const omit = <O extends Record<string, OptionSpec>, K extends keyof O & string>(
+  o: O,
+  keys: readonly K[],
+): Omit<O, K> =>
+  Object.fromEntries(Object.entries(o).filter(([k]) => !keys.includes(k as K))) as Omit<O, K>;
 
 const handler =
   (load: () => Promise<(args: string[], io: Io) => Promise<number>>) =>
@@ -608,6 +633,7 @@ const H = {
   lint: handler(async () => (await import("./commands.ts")).lintCommand),
   simulate: handler(async () => (await import("./commands.ts")).simulateCommand),
   policy: handler(async () => (await import("./commands.ts")).policyCommand),
+  scopes: handler(async () => (await import("./commands.ts")).scopesCommand),
   whoCanRead: handler(async () => (await import("./commands.ts")).whoCanReadCommand),
   serve: handler(async () => (await import("./serve.ts")).serveCommand),
   mcp: handler(async () => (await import("./mcp.ts")).mcpCommand),
@@ -640,13 +666,38 @@ export const REGISTRY: readonly CommandSpec[] = [
     listed: true,
     group: "memory",
     positionals: [{ name: "query", label: "Query", required: false, variadic: true }],
-    options: OPTIONS.read,
+    options: omit(OPTIONS.read, ["item"]),
+    parse: OPTIONS.read,
     allowPositionals: true,
     helpSection: [],
     listedIn: ["store", "actor", "export"],
     exitCodes: [{ code: 0, when: "done" }, PLANE_EXITS.error, PLANE_EXITS.usage],
     // With a store folder the read adopts it, and as its owner first sweeps
     // the owner's retention (docs/design/tui.md 8.5); a server may have one.
+    writes: (v, ws) => (touchesStore(v, ws) ? "state" : "audit"),
+    handler: H.read,
+  },
+  {
+    // The name's words and the positional make the command line: read --item <id>.
+    name: "read --item",
+    title: "Read one item",
+    usage: "read --item <id>",
+    summary: "read one item by its id and explain it, if the actor may read it",
+    listed: true,
+    group: "memory",
+    positionals: [ITEM],
+    options: omit(OPTIONS.read, ["item"]),
+    parse: OPTIONS.read,
+    allowPositionals: true,
+    helpSection: [
+      "read --item options:",
+      "  --item <id>                 one item by its id instead of a query (card E8.14's route):",
+      "                              the item and its explanation if the actor may read it,",
+      "                              nothing otherwise; one read event, after the same sweep and",
+      "                              adoption as a read, with read's options and output",
+    ],
+    listedIn: [],
+    exitCodes: [{ code: 0, when: "done" }, PLANE_EXITS.error, PLANE_EXITS.usage],
     writes: (v, ws) => (touchesStore(v, ws) ? "state" : "audit"),
     handler: H.read,
   },
@@ -928,6 +979,29 @@ export const REGISTRY: readonly CommandSpec[] = [
     handler: H.whoCanRead,
   },
   {
+    name: "scopes",
+    title: "Scopes you can see",
+    usage: "scopes",
+    summary: "the scopes the actor can see, by membership or through a grant",
+    listed: true,
+    group: "memory",
+    positionals: [],
+    options: OPTIONS.scopes,
+    allowPositionals: false,
+    helpSection: [
+      "scopes options:",
+      "  with the store options above and --as, --level and --member: the member scopes the",
+      "  read matrix lets the actor's level read, and the scope of each item a read would admit",
+      "  through a live grant (card E8.14's route). It is a read: one read event, and with a",
+      "  store folder the same sweep and adoption as engram read first",
+    ],
+    helpAfter: "who-can-read",
+    listedIn: [],
+    exitCodes: [{ code: 0, when: "listed" }, PLANE_EXITS.error, PLANE_EXITS.usage],
+    writes: (v, ws) => (touchesStore(v, ws) ? "state" : "audit"),
+    handler: H.scopes,
+  },
+  {
     name: "serve",
     title: "Serve the API and inspector",
     usage: "serve",
@@ -1027,6 +1101,7 @@ export const REGISTRY: readonly CommandSpec[] = [
     group: "surfaces",
     positionals: [],
     options: pick(OPTIONS.key, ["keys", "as", "level", "member", "source", "expires", "json"]),
+    parse: OPTIONS.key,
     allowPositionals: true,
     helpSection: [
       "key options:",
@@ -1049,6 +1124,7 @@ export const REGISTRY: readonly CommandSpec[] = [
     group: "surfaces",
     positionals: [],
     options: pick(OPTIONS.key, ["keys", "json"]),
+    parse: OPTIONS.key,
     allowPositionals: true,
     helpSection: [],
     listedIn: [],
@@ -1065,6 +1141,7 @@ export const REGISTRY: readonly CommandSpec[] = [
     group: "surfaces",
     positionals: [{ name: "id", label: "Key id", required: true }],
     options: pick(OPTIONS.key, ["keys"]),
+    parse: OPTIONS.key,
     allowPositionals: true,
     helpSection: [],
     listedIn: [],
@@ -1188,7 +1265,10 @@ export function sectionOrder(specs: readonly CommandSpec[]): string[] {
 export const helpLine = (s: CommandSpec) => `  ${s.usage.padEnd(16)}  ${s.summary}`;
 
 /** The help text, from the registry (or from the specs given, for the registry's tests). */
-export function helpText(specs: readonly CommandSpec[] = REGISTRY, first = HELP_FIRST_LINE): string {
+export function helpText(
+  specs: readonly CommandSpec[] = REGISTRY,
+  first = HELP_FIRST_LINE,
+): string {
   const byName = new Map(specs.map((s) => [s.name, s]));
   const blocks: (readonly string[])[] = [
     ...SHARED_BEFORE.map((k) => (SHARED[k] as (s: readonly CommandSpec[]) => string[])(specs)),
@@ -1214,7 +1294,8 @@ export const word = (s: Pick<CommandSpec, "name">) => s.name.split(" ")[0] as st
 export function handlers(
   specs: readonly CommandSpec[] = REGISTRY,
 ): Record<string, CommandSpec["handler"]> {
-  const table: Record<string, CommandSpec["handler"]> = {};
+  // No prototype, so `engram toString` is an unknown command, not Object's method.
+  const table: Record<string, CommandSpec["handler"]> = Object.create(null);
   for (const s of specs) table[word(s)] ??= s.handler;
   return table;
 }
@@ -1225,11 +1306,13 @@ export function command(name: string): CommandSpec | undefined {
 }
 
 /**
- * The parse config of a first word: its specs' options together (the key
- * subcommands parse as one).
+ * The parse config of a first word: the one its handler parses with, which
+ * every entry of that word shares.
  */
-export function wordOptions(w: string): Record<string, OptionSpec> {
-  return Object.assign({}, ...REGISTRY.filter((s) => word(s) === w).map((s) => s.options));
+export function wordOptions(w: string): Readonly<Record<string, OptionSpec>> {
+  const s = REGISTRY.find((s) => word(s) === w);
+  if (s === undefined) throw new Error(`no command ${w}`);
+  return s.parse ?? s.options;
 }
 
 // "Did you mean" (docs/design/tui.md 12.2): a second stderr line for an

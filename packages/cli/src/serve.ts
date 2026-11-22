@@ -20,20 +20,10 @@ import {
   type ServeAuth,
   startExport,
 } from "@engram/server";
-import { parse, STORE_OPTIONS } from "./commands.ts";
+import { parse } from "./commands.ts";
+import { OPTIONS } from "./registry.ts";
 import type { Io } from "./run.ts";
 import { buildActor, checkTime, UsageError } from "./setup.ts";
-
-/** The credential flags of a served surface (ADR 0042), shared by serve, mcp and doctor. */
-export const AUTH_OPTIONS = {
-  "insecure-loopback": { type: "boolean" },
-  keys: { type: "string" },
-  issuer: { type: "string" },
-  jwks: { type: "string" },
-  subjects: { type: "string" },
-  audience: { type: "string" },
-  resource: { type: "string" },
-} as const;
 
 export interface AuthFlags {
   "insecure-loopback"?: boolean | undefined;
@@ -81,18 +71,8 @@ export function serveAuth(values: AuthFlags, host: string, io: Pick<Io, "cwd">):
     : { credentials, resource: values.resource };
 }
 
-const SERVE_OPTIONS = {
-  ...STORE_OPTIONS,
-  ...AUTH_OPTIONS,
-  host: { type: "string" },
-  port: { type: "string" },
-  as: { type: "string" },
-  level: { type: "string" },
-  member: { type: "string", multiple: true },
-} as const;
-
 export async function serveCommand(args: string[], io: Io): Promise<number> {
-  const { values } = parse(args, SERVE_OPTIONS, false);
+  const { values } = parse(args, OPTIONS.serve, false);
   let port = DEFAULT_PORT;
   if (values.port !== undefined) {
     port = Number(values.port);

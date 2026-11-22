@@ -31,8 +31,9 @@ import {
   isHookInput,
   type PreToolUseInput,
 } from "@engram/mcp";
-import { CLIENT_OPTIONS, EXPORT_OPTIONS, parse, STORE_OPTIONS } from "./commands.ts";
+import { parse } from "./commands.ts";
 import { connect } from "./connect.ts";
+import { OPTIONS } from "./registry.ts";
 import type { Io } from "./run.ts";
 import { buildActor, dbTarget, MEMORY_DB, UsageError } from "./setup.ts";
 
@@ -48,19 +49,7 @@ async function readAll(stream: NodeJS.ReadableStream): Promise<string> {
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 export async function hookCommand(args: string[], io: Io): Promise<number> {
-  const { values, positionals } = parse(
-    args,
-    {
-      db: STORE_OPTIONS.db,
-      policy: STORE_OPTIONS.policy,
-      root: { type: "string", multiple: true },
-      protect: { type: "string", multiple: true },
-      as: { type: "string" },
-      ...EXPORT_OPTIONS,
-      ...CLIENT_OPTIONS,
-    },
-    true,
-  );
+  const { values, positionals } = parse(args, OPTIONS.hook, true);
   const [harness, ...rest] = positionals;
   if (
     harness === undefined ||

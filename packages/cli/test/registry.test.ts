@@ -51,8 +51,8 @@ const ON_MAIN = [
   "key revoke",
   "doctor",
 ];
-/** The commands card E8.15a adds (docs/design/tui.md 3.6). */
-const ADDED = ["check", "grants", "events", "policy"];
+/** The commands card E8.15a adds (docs/design/tui.md 3.6), read --item and scopes over card E8.14's routes. */
+const ADDED = ["read --item", "check", "grants", "events", "policy", "scopes"];
 
 describe("HELP from the registry", () => {
   it("is run.ts's HELP, and its first line names engram tui", () => {
@@ -98,9 +98,13 @@ describe("HELP from the registry", () => {
     expect(order.indexOf("grants")).toBe(order.indexOf("promote") + 1);
     expect(order.indexOf("events")).toBe(order.indexOf("explain") + 1);
     expect(order.indexOf("policy")).toBe(order.indexOf("simulate") + 1);
+    expect(order.indexOf("scopes")).toBe(order.indexOf("who-can-read") + 1);
     for (const s of REGISTRY)
       if (s.helpAfter !== undefined)
-        expect(REGISTRY.map((r) => r.name), s.name).toContain(s.helpAfter);
+        expect(
+          REGISTRY.map((r) => r.name),
+          s.name,
+        ).toContain(s.helpAfter);
     // Every command with a section appears exactly once.
     expect(new Set(order).size).toBe(order.length);
   });
@@ -119,7 +123,7 @@ describe("HELP from the registry", () => {
 });
 
 describe("the registry's entries", () => {
-  it("covers every command main has and the four E8.15a adds, each name once", () => {
+  it("covers every command main has and the six E8.15a adds, each name once", () => {
     const names = REGISTRY.map((s) => s.name);
     expect(new Set(names).size).toBe(names.length);
     expect([...names].sort()).toEqual([...ON_MAIN, ...ADDED].sort());
@@ -133,7 +137,10 @@ describe("the registry's entries", () => {
       expect(titles.has(s.title), s.title).toBe(false);
       titles.add(s.title);
       expect(s.exitCodes.length, s.name).toBeGreaterThan(0);
-      expect(s.exitCodes.map((e) => e.code), s.name).toContain(2);
+      expect(
+        s.exitCodes.map((e) => e.code),
+        s.name,
+      ).toContain(2);
       for (const e of s.exitCodes) expect([0, 1, 2]).toContain(e.code);
       for (const values of [{}, { root: "/tmp/m" }, { server: "http://127.0.0.1:7313" }])
         expect(WRITES, s.name).toContain(s.writes(values, {}));
@@ -162,6 +169,8 @@ describe("the registry's entries", () => {
     expect(writes("grants")).toBe("state");
     expect(writes("events")).toBe("none");
     expect(writes("policy")).toBe("none");
+    expect(writes("read --item")).toBe("audit");
+    expect(writes("scopes", { root: "/tmp/m" })).toBe("state");
     expect(writes("retain")).toBe("retire");
     expect(writes("lint")).toBe("audit");
     expect(writes("key revoke")).toBe("erase");
@@ -182,18 +191,31 @@ describe("the registry's entries", () => {
       const text = readFileSync(join(src, file), "utf8");
       expect(text, file).not.toMatch(/type:\s*"(string|boolean)"/);
       for (const m of text.matchAll(/\bparse\(\s*args,\s*([^,]+),/g))
-        expect(m[1]?.trim(), file).toMatch(/^OPTIONS(\.\w+|\["[\w-]+"\])$/);
+        expect(m[1]?.trim(), file).toMatch(/^(OPTIONS(\.\w+|\["[\w-]+"\])|c\.options)$/);
+      // A plane command's parse config (commands.ts, read by runPlane as c.options) is the registry's too.
+      for (const m of text.matchAll(/plane\(\{\s*options: ([^,]+),/g))
+        expect(m[1], file).toMatch(/^OPTIONS(\.\w+|\["[\w-]+"\])$/);
     }
   });
 
-  it("parses key's subcommands with the flags of all three together", () => {
-    expect(Object.keys(wordOptions("key")).sort()).toEqual(Object.keys(OPTIONS.key).sort());
-    expect(wordOptions("read")).toEqual(OPTIONS.read);
+  it("parses the entries of one first word with one config, the handler's, holding each entry's flags", () => {
+    expect(wordOptions("key")).toBe(OPTIONS.key);
+    expect(wordOptions("read")).toBe(OPTIONS.read);
+    for (const s of REGISTRY) {
+      expect(s.parse ?? s.options, s.name).toBe(wordOptions(word(s)));
+      for (const [name, o] of Object.entries(s.options))
+        expect(wordOptions(word(s))[name], `${s.name} --${name}`).toBe(o);
+    }
   });
 });
 
 describe("every handler parses exactly its entry's flags, with their types", () => {
-  const all = [...new Set(REGISTRY.flatMap((s) => Object.keys(s.options)))];
+  const all = [
+    ...new Set([
+      ...REGISTRY.flatMap((s) => Object.keys(s.parse ?? s.options)),
+      ...Object.values(OPTIONS).flatMap((o) => Object.keys(o)),
+    ]),
+  ];
   const words = [...new Set(REGISTRY.map(word))];
   for (const w of words) {
     it(`engram ${w}`, async () => {

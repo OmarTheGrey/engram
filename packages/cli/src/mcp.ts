@@ -13,26 +13,15 @@
 // before. stdio keeps --as and takes no credential flag.
 import type { Actor } from "@engram/core";
 import { createMcpServer, serveHttp, serveStdio } from "@engram/mcp";
-import { ACTOR_OPTIONS, CLIENT_OPTIONS, parse, STORE_OPTIONS } from "./commands.ts";
+import { parse } from "./commands.ts";
 import { connect } from "./connect.ts";
+import { AUTH_OPTIONS, OPTIONS } from "./registry.ts";
 import type { Io } from "./run.ts";
-import { AUTH_OPTIONS, serveAuth } from "./serve.ts";
+import { serveAuth } from "./serve.ts";
 import { buildActor, checkTime, UsageError } from "./setup.ts";
 
 export async function mcpCommand(args: string[], io: Io): Promise<number> {
-  const { values } = parse(
-    args,
-    {
-      ...STORE_OPTIONS,
-      as: ACTOR_OPTIONS.as,
-      level: ACTOR_OPTIONS.level,
-      member: ACTOR_OPTIONS.member,
-      ...CLIENT_OPTIONS,
-      ...AUTH_OPTIONS,
-      http: { type: "string" },
-    },
-    false,
-  );
+  const { values } = parse(args, OPTIONS.mcp, false);
   let port: number | undefined;
   if (values.http !== undefined) {
     port = Number(values.http);

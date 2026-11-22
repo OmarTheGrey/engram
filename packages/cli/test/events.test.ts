@@ -21,7 +21,11 @@ async function history() {
     ...["--member", "team:platform"],
   ]);
   expect(denied.code).toBe(1);
-  const sam = await cli(["write", ...store, "--as", "person:sam", "--content", "Sam's note."]);
+  const samRoot = await tempDir();
+  const sam = await cli([
+    "write",
+    ...["--root", samRoot, "--owner", "sam", "--db", db, "--content", "Sam's note."],
+  ]);
   expect(sam.code).toBe(0);
   return db;
 }
