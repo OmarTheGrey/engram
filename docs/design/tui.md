@@ -136,7 +136,7 @@ The route table has routes the inspector uses that have no plain command. Leavin
 | `POST /distill` | answers 501 until card D2 | none until D2 adds one | Procedures (8.25), shows the 501 line |
 | `GET /viewer`, `GET /health` | the inspector, layer 6 | none | the connection indicator in the status bar (server mode) |
 
-Whether to add these four commands is the lead's call (section 14, item 2). Without them, the TUI ships without the four screens, and section 3.8 lists them as lost.
+Whether to add these four commands is the lead's call (section 14, item 2). Card E8.14 adds two more routes of the same kind (`/read/{itemId}`, `/scopes`; section 3.7), which the same item would cover with `engram read --item <id>` and `engram scopes`. Without them, the TUI ships without the four screens, and section 3.8 lists them as lost.
 
 ### 3.7 In flight on 2026-11-21
 
@@ -151,7 +151,8 @@ Read from the branches, read-only. The registry (6.1) takes each as one entry; n
 | E1.6, `e1-6-tamper-evident-log` | `engram log verify` (first broken link, an UNSIGNED verdict for an unsigned checkpoint, Ed25519 checkpoint signing); flags not yet fixed | Log verify (8.24); in flight, card E1.6. The form is built from the registry entry when it lands |
 | E2.12, `e2-12-cedar-export` | core only (`exportCedar`); no command | none until a command exists; the Policy screen reserves an action slot for it; in flight, card E2.12 |
 | L5, `l5-near-duplicate-lint` | lint id `near-duplicate-tier`, threshold `lints.thresholds.near-duplicate`; a new finding reason and a policy load error | Lint shows it like any finding; in flight, card L5 |
-| L6, `l6-supersession-helper` | route `POST /supersede` `{actor, item_id, accept?}` returning proposals and applied writes; the card promises a CLI | Supersede (8.26) and `s` on an item; in flight, card L6 |
+| L6, `l6-supersession-helper` | `engram supersede <itemId> [--accept <id>]...` with the store, actor and client flags and `--json`: the plan (the chain's head, a close or review flag per readable ancestor), and each accepted close written as a new version through the write gate; exit 1 on an unresolved chain or a write not allowed; `engram mcp --supersede` also lists `memory_supersede`; route `POST /supersede` | Supersede (8.26) and `u` on an item; the MCP form's "Offer memory_supersede" toggle; in flight, card L6 |
+| E8.14, `e8-14-framework-kit` | the packages `@engram/kit`, `@engram/ai-sdk` and `@engram/tag` (libraries, no command); `Plane.readById` and `listScopes` with routes `POST /read/{itemId}` (one item through the read filter, with its explanation and one read event) and `POST /scopes` (the scopes the actor can see) | no command calls them; if the lead extends item 2 of section 14, `engram scopes` fills every scope picker and `engram read --item <id>` opens an item page by id; otherwise pickers use the actor's memberships and the last read; in flight, card E8.14 |
 | L7, `l7-nli-tier` | lint id `contradiction-nli` with `upper` and `lower` thresholds; `LintReport.nli`; runs only with a scorer, which the CLI does not pass | Lint shows its findings with tier `model` and the load errors; in flight, card L7 |
 | D2, `d2-awm-induction` | runner only; the `/distill` route stays 501 | Procedures (8.25) shows the 501 line until a command exists; in flight, card D2 |
 | D3, `d3-replay-gate` | promote rule `engram/promote/validation-source` and replay reasons; no new flag | Promote shows the reason as printed; in flight, card D3 |
@@ -1960,7 +1961,7 @@ The `FakeTerminal` of the spike (ADR 0044) is the seam: it implements pi-tui's `
 ## 14. For the lead
 
 1. **Bare `engram` on a TTY.** Recommended: keep it as the pinned help with exit 2, and enter with `engram tui`. Alternative: open the TUI when both stdin and stdout are TTYs and `CI` is unset, keeping the pinned behaviour everywhere else.
-2. **Four new plain commands** (`check`, `events`, `policy`, `grants`; 3.6) so the TUI can reach the routes the inspector uses with a command to teach. Recommended: accept. Without them the TUI loses four screens and the write preview.
+2. **Four new plain commands** (`check`, `events`, `policy`, `grants`; 3.6) so the TUI can reach the routes the inspector uses with a command to teach. Recommended: accept. Without them the TUI loses four screens and the write preview. Optionally, for card E8.14's routes once it merges, `engram scopes` and `engram read --item <id>` (3.7): recommended too, as they make every scope picker exact and let an item page open by id.
 3. **ADR 0044**: pi-tui 1.3.0 in `packages/cli/src/tui/` only, amending ADR 0033's list (item 62 of `docs/tasks/lead-decisions.md`).
 4. **`@engram/ui/view`**: a subpath export of the inspector's pure view modules so the TUI reuses its grouping, filters and leak rule instead of copying them (6.3). Recommended: accept; the alternative is moving them to a new shared package.
 5. **Mouse on by default** (11.1). Recommended: on, with `--no-mouse`; the alternative is off by default, which keeps the terminal's own selection.
