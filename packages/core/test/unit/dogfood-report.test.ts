@@ -308,7 +308,7 @@ describe("the violation report on a realistic two weeks", () => {
       "person",
       true,
       expect.stringMatching(/^[0-9a-f]{64}$/),
-      "engram-dogfood-report/2",
+      "engram-dogfood-report/3",
     ]);
     // Byte-stable: the same log prints the same bytes.
     expect(formatReport(report(t).report)).toBe(text);
@@ -937,5 +937,29 @@ describe("review fix pass: the script (E95-8, E95-10, E95-11)", () => {
       expect(out.stderr).not.toContain("Kestrel");
       expect(out.stderr).not.toContain(dirname(t.dbPath));
     }
+  });
+});
+
+describe("card E8.14 review fix pass: scope listings (E8.14-8)", () => {
+  test("a scope listing is counted apart from the reads", async () => {
+    const db = openSqlite(":memory:");
+    migrate(db);
+    const policy = parsePolicy(await readFile(PROFILE, "utf8"), "twin.yaml");
+    let n = 0;
+    const plane = createPlane({
+      db,
+      adapter: createFilesAdapter({ root: await mkdtemp(join(tmpdir(), "e814-")), owner: "dana" }),
+      policy,
+      newId: () => ID(800 + ++n),
+    });
+    await plane.listScopes(DANA, day(1));
+    await plane.listScopes(DANA, day(1));
+    await plane.read(DANA, { at: day(1) });
+    const { report } = dogfoodReport(allEvents(db), policy, [DANA]);
+    expect(report.reads.events).toBe(1);
+    expect(report.reads.as_declared).toBe(1);
+    expect(report.reads.scope_lists).toBe(2);
+    expect(formatReport(report)).toContain('"scope_lists": 2');
+    db.close();
   });
 });
