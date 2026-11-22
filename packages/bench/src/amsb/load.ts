@@ -72,7 +72,9 @@ export function loadAmsb(path = AMSB_FILE): AmsbCorpus {
     benign: scenarios.filter((s) => !s.malicious).length,
   };
   if (JSON.stringify(counts) !== JSON.stringify(file.counts))
-    throw new Error(`${path}: holds ${JSON.stringify(counts)}, says ${JSON.stringify(file.counts)}`);
+    throw new Error(
+      `${path}: holds ${JSON.stringify(counts)}, says ${JSON.stringify(file.counts)}`,
+    );
   const ids = new Set(scenarios.map((s) => s.id));
   if (ids.size !== scenarios.length) throw new Error(`${path}: a scenario id repeats`);
   return { commit: file.source.commit, sha256: sha256(text), counts, scenarios };

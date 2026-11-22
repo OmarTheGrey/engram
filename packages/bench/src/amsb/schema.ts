@@ -26,7 +26,11 @@ export type Severity = z.infer<typeof Severity>;
 /** Upstream's two source classes: content from a tool (untrusted) or typed by the user. */
 export const SourceClass = z.enum(["external_tool", "user_input"]);
 
-export const Step = z.strictObject({ key: z.string().min(1), value: Text, source_class: SourceClass });
+export const Step = z.strictObject({
+  key: z.string().min(1),
+  value: Text,
+  source_class: SourceClass,
+});
 
 export const Scenario = z
   .strictObject({

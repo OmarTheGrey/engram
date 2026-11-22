@@ -3,7 +3,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, test } from "vitest";
 import { deepsetEntries, lakeraEntries } from "../../src/redteam/corpus.ts";
-import { fetchPayloads, PAYLOAD_PINS, payloadPath, readPayloads } from "../../src/redteam/payloads.ts";
+import {
+  fetchPayloads,
+  PAYLOAD_PINS,
+  payloadPath,
+  readPayloads,
+} from "../../src/redteam/payloads.ts";
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -60,7 +65,9 @@ describe("the pinned payload sets", () => {
       ["deepset/train/0", true, "ignore that", "deepset/injection"],
       ["deepset/train/1", false, "", "deepset/benign"],
     ]);
-    expect(() => deepsetEntries([{ split: "x", index: 0, text: "t", label: null }])).toThrow(/label/);
+    expect(() => deepsetEntries([{ split: "x", index: 0, text: "t", label: null }])).toThrow(
+      /label/,
+    );
     expect(lakeraEntries([{ split: "test", index: 3, text: "p", label: null }])[0]).toMatchObject({
       id: "lakera/test/3",
       malicious: true,

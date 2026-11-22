@@ -25,7 +25,7 @@ import {
 } from "../src/redteam/corpus.ts";
 import { overlap } from "../src/redteam/overlap.ts";
 import { fetchPayloads, PAYLOAD_PINS, readPayloads } from "../src/redteam/payloads.ts";
-import { ROUTES, type Route, SOURCE_KINDS, type SourceKind } from "../src/redteam/routes.ts";
+import { PLANT_KINDS, type PlantKind, ROUTES, type Route } from "../src/redteam/routes.ts";
 import { runCell } from "../src/redteam/run.ts";
 import { buildSetting, type SettingSpec } from "../src/redteam/settings.ts";
 
@@ -34,8 +34,8 @@ const REPO = fileURLToPath(new URL("../../../", import.meta.url));
 interface Config {
   upstream: string;
   settings: SettingSpec[];
-  routes: Route[];
-  kinds: SourceKind[];
+  /** The kinds each route plants as. */
+  cells: Partial<Record<Route, PlantKind[]>>;
 }
 
 async function main(): Promise<void> {
@@ -47,15 +47,19 @@ async function main(): Promise<void> {
       "fetch-only": { type: "boolean", default: false },
     },
   });
-  if (!values.config) throw new Error("usage: redteam.ts --config <file> (--out <dir> | --fetch-only)");
+  if (!values.config)
+    throw new Error("usage: redteam.ts --config <file> (--out <dir> | --fetch-only)");
   const config = JSON.parse(readFileSync(values.config, "utf8")) as Config;
   const upstream = resolve(REPO, config.upstream);
   if (values.fetch || values["fetch-only"])
     for (const pin of PAYLOAD_PINS) await fetchPayloads(upstream, pin);
   if (values["fetch-only"]) return;
   if (!values.out) throw new Error("--out <dir> is required");
-  for (const r of config.routes) if (!ROUTES.includes(r)) throw new Error(`unknown route ${r}`);
-  for (const k of config.kinds) if (!SOURCE_KINDS.includes(k)) throw new Error(`unknown kind ${k}`);
+  const cells = Object.entries(config.cells) as [Route, PlantKind[]][];
+  for (const [r, kinds] of cells) {
+    if (!ROUTES.includes(r)) throw new Error(`unknown route ${r}`);
+    for (const k of kinds) if (!PLANT_KINDS.includes(k)) throw new Error(`unknown kind ${k}`);
+  }
   const settings = config.settings.map(buildSetting);
   if (new Set(settings.map((s) => s.name)).size !== settings.length)
     throw new Error("a setting name repeats");
@@ -63,21 +67,24 @@ async function main(): Promise<void> {
   const amsb = loadAmsb();
   const controls = loadControls();
   const [deepset, lakera] = PAYLOAD_PINS;
-  if (deepset?.name !== "deepset" || lakera?.name !== "lakera") throw new Error("payload pins out of order");
+  if (deepset?.name !== "deepset" || lakera?.name !== "lakera")
+    throw new Error("payload pins out of order");
   const entries: RedteamEntry[] = [
     ...amsbEntries(amsb.scenarios),
     ...deepsetEntries(await readPayloads(upstream, deepset)),
     ...lakeraEntries(await readPayloads(upstream, lakera)),
     ...controlEntries(controls.controls),
   ];
-  if (new Set(entries.map((e) => e.id)).size !== entries.length) throw new Error("an entry id repeats");
+  if (new Set(entries.map((e) => e.id)).size !== entries.length)
+    throw new Error("an entry id repeats");
 
   mkdirSync(values.out, { recursive: true });
   const lines: string[] = [];
   for (const setting of settings)
-    for (const route of config.routes)
-      for (const kind of config.kinds)
-        for (const row of await runCell(setting, route, kind, entries)) lines.push(JSON.stringify(row));
+    for (const [route, kinds] of cells)
+      for (const kind of kinds)
+        for (const row of await runCell(setting, route, kind, entries))
+          lines.push(JSON.stringify(row));
   writeFileSync(join(values.out, "rows.jsonl"), `${lines.join("\n")}\n`);
 
   const meta = {

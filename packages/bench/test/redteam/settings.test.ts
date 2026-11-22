@@ -18,18 +18,41 @@ describe("the red-team settings", () => {
       content_guards: { injection_screen: "default" },
     });
     expect(s.policy?.id).toBe("preset.medium");
-    expect(s.policy).toEqual({ ...loadPreset("medium"), content_guards: { injection_screen: "default" } });
+    expect(s.policy).toEqual({
+      ...loadPreset("medium"),
+      content_guards: { injection_screen: "default" },
+    });
   });
 
   test("a variant under a bare preset name is refused, so no registered cell is shadowed", () => {
     expect(() =>
-      buildSetting({ name: "medium", preset: "medium", content_guards: { injection_screen: "default" } }),
+      buildSetting({
+        name: "medium",
+        preset: "medium",
+        content_guards: { injection_screen: "default" },
+      }),
     ).toThrow(/registered preset runs under its own name/);
   });
 
-  test("a guard core does not enforce yet is refused by the loader, never run as if on", () => {
+  test("every variant passes core's loader, so a value core does not know is refused", () => {
     expect(() =>
-      buildSetting({ name: "medium+trust", preset: "medium", trust: { unattested_floor: "on" } }),
-    ).toThrow(/not enforced yet/);
+      buildSetting({
+        name: "medium+screen-maximal",
+        preset: "medium",
+        content_guards: { injection_screen: "maximal" as "default" },
+      }),
+    ).toThrow(/redteam setting medium\+screen-maximal/);
+  });
+
+  test("the trust variant changes only the trust block, so only the floors vary against medium", () => {
+    const s = buildSetting({
+      name: "medium+trust",
+      preset: "medium",
+      trust: { unattested_floor: "on", protect_trusted: "on" },
+    });
+    expect(s.policy).toEqual({
+      ...loadPreset("medium"),
+      trust: { unattested_floor: "on", protect_trusted: "on" },
+    });
   });
 });

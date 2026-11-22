@@ -116,7 +116,7 @@ class Literals:
         raise ValueError(f"not a string literal: {ast.dump(node)}")
 
     def text(self, node: ast.expr) -> Any:
-        """A string, `{"parts": [...]}` when built from a named fragment, or `{"repeat", "unit"}`."""
+        """A string; its parts when built from a named fragment; or a unit and its repeat count."""
         node = node.elts[0] if isinstance(node, ast.Tuple) and len(node.elts) == 1 else node
         if (
             isinstance(node, ast.BinOp)

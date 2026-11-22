@@ -39,7 +39,8 @@ export function amsbEntries(scenarios: readonly AmsbScenario[]): RedteamEntry[] 
 
 export function deepsetEntries(rows: readonly PayloadRow[]): RedteamEntry[] {
   return rows.map((r) => {
-    if (r.label !== 0 && r.label !== 1) throw new Error(`deepset ${r.split}/${r.index}: label ${r.label}`);
+    if (r.label !== 0 && r.label !== 1)
+      throw new Error(`deepset ${r.split}/${r.index}: label ${r.label}`);
     const malicious = r.label === 1;
     return {
       id: `deepset/${r.split}/${r.index}`,

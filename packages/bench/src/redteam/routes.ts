@@ -27,6 +27,20 @@ export type Route = (typeof ROUTES)[number];
 export const SOURCE_KINDS = ["user", "document", "tool", "model", "external"] as const;
 export type SourceKind = (typeof SOURCE_KINDS)[number];
 
+/**
+ * What a cell plants as: a source kind, or `unattested`, the write route
+ * only: the scenario's person writing with no attested source (a library
+ * caller, an HTTP client that sends none) while the item claims `user`, the
+ * most trusted kind. Without card E2.11's floor the claim stands (ADR 0004,
+ * decision D4); with it the write is recorded at the least trusted kind.
+ * Adoption always attests `import`, so the read route has no such cell.
+ */
+export const PLANT_KINDS = [...SOURCE_KINDS, "unattested"] as const;
+export type PlantKind = (typeof PLANT_KINDS)[number];
+
+/** The kind an unattested writer's item claims. */
+export const UNATTESTED_CLAIM = "user";
+
 /** The MEM-INV-Bench origin channel each kind's writer is, or null (external). */
 export const KIND_CHANNEL: Readonly<Record<SourceKind, OriginChannel | null>> = {
   user: "user",
@@ -65,7 +79,11 @@ export const readerOf = (s: Scopes): Actor => ({
 });
 
 /** Who writes, as which actor, into which scope, on the write route. */
-export function writeTarget(kind: SourceKind, s: Scopes): { actor: Actor; scope: string; owner: string } {
+export function writeTarget(
+  kind: PlantKind,
+  s: Scopes,
+): { actor: Actor; scope: string; owner: string } {
+  if (kind === "unattested") return { actor: readerOf(s), scope: s.person, owner: s.person };
   const w = writerOf(kind);
   if (w.actor === OPERATOR)
     return { actor: { ...readerOf(s), source: kind }, scope: s.person, owner: s.person };
@@ -84,7 +102,7 @@ export function plantedItem(args: {
   scope: string;
   owner: string;
   content: string;
-  kind: SourceKind;
+  kind: MemoryItem["provenance"]["kind"];
   actor: string;
   ref: string;
   hash: string;

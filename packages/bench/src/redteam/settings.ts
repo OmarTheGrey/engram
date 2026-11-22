@@ -28,7 +28,9 @@ export interface Setting {
 export function buildSetting(spec: SettingSpec): Setting {
   if (spec.preset === undefined) {
     if (spec.name !== "store" || spec.content_guards || spec.trust)
-      throw new Error(`setting ${spec.name}: only "store" runs with no preset, and it has no guards`);
+      throw new Error(
+        `setting ${spec.name}: only "store" runs with no preset, and it has no guards`,
+      );
     return { name: spec.name, policy: null };
   }
   if (!PRESETS.includes(spec.preset)) throw new Error(`setting ${spec.name}: unknown preset`);
@@ -38,7 +40,9 @@ export function buildSetting(spec: SettingSpec): Setting {
       `setting ${spec.name}: a registered preset runs under its own name and a variant under another`,
     );
   if (variant && !spec.name.startsWith(`${spec.preset}+`))
-    throw new Error(`setting ${spec.name}: a variant of ${spec.preset} is named ${spec.preset}+<what>`);
+    throw new Error(
+      `setting ${spec.name}: a variant of ${spec.preset} is named ${spec.preset}+<what>`,
+    );
   const base = loadPreset(spec.preset);
   const policy: Policy = {
     ...base,
@@ -46,5 +50,8 @@ export function buildSetting(spec: SettingSpec): Setting {
     ...(spec.trust ? { trust: spec.trust } : {}),
   };
   // JSON is YAML: the loader's semantic checks refuse an option core does not enforce yet.
-  return { name: spec.name, policy: parsePolicy(JSON.stringify(policy), `redteam setting ${spec.name}`) };
+  return {
+    name: spec.name,
+    policy: parsePolicy(JSON.stringify(policy), `redteam setting ${spec.name}`),
+  };
 }
