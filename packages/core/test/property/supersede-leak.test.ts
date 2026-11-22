@@ -125,13 +125,13 @@ describe("the supersession plan and the read filter (card L6, L6-1)", () => {
   test(LEAK, () => {
     fc.assert(
       fc.property(arbLog, (items) => {
-        const hidden = items.filter((i) => !i.content.startsWith("visible"));
-        const visible = items.filter((i) => i.content.startsWith("visible"));
+        const hidden = items.filter((i) => !String(i.content).startsWith("visible"));
+        const visible = items.filter((i) => String(i.content).startsWith("visible"));
         const full = logOf(items);
         const bare = logOf(visible);
         const unknown = planSupersession(full, policy, mate, UNKNOWN, AT);
         const secrets = hidden.flatMap((i) => [
-          i.content,
+          String(i.content),
           i.valid_from,
           ...(i.valid_to ? [i.valid_to] : []),
         ]);
