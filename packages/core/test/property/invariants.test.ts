@@ -1856,7 +1856,7 @@ async function promotionsLandOnlyWherePermitted(name: string) {
     unreachable: 0,
   };
   // Card D3 review, D3-5: replay admissions and each replay refusal.
-  const replaySeen = { landed: 0, source: 0, item: 0, split: 0, short: 0 };
+  const replaySeen = { landed: 0, source: 0, item: 0, split: 0, refOnly: 0, short: 0 };
   await fc.assert(
     fc.asyncProperty(
       arbPromotionCase,
@@ -2073,6 +2073,17 @@ async function promotionsLandOnlyWherePermitted(name: string) {
           if (id === "engram/promote/validation-source") replaySeen.source++;
           if (id === "engram/promote/replay-item") replaySeen.item++;
           if (id === "engram/promote/replay-split") replaySeen.split++;
+          // Only the source's own distill ref stood in the way: the replay's
+          // own list does not leak, the ref is mappable, and its tasks are
+          // not the ones the replay names (the ref check alone refuses it).
+          const ownList = new Set(presented.induced_from);
+          if (
+            id === "engram/promote/replay-split" &&
+            !presented.outcomes.some((o) => ownList.has(o.task)) &&
+            !rc.ref.includes("s9") &&
+            rc.induced !== "ref"
+          )
+            replaySeen.refOnly++;
           if (id === "engram/promote/no-evidence") replaySeen.short++;
           if (result.decision === "allow") replaySeen.landed++;
         }
@@ -2187,7 +2198,7 @@ async function promotionsLandOnlyWherePermitted(name: string) {
   );
   expect(
     Object.values(replaySeen).every((n) => n > 0),
-    `invariant 2 over promotions needs replay admissions and refusals by the presenter's source, another item's replay, a split that is not the ref's, and too few passes; it saw ${JSON.stringify(replaySeen)}`,
+    `invariant 2 over promotions needs replay admissions and refusals by the presenter's source, another item's replay, a split that is not the ref's, one only the ref's tasks refuse, and too few passes; it saw ${JSON.stringify(replaySeen)}`,
   ).toBe(true);
   expect(
     Object.values(seen).every((n) => n > 0),
