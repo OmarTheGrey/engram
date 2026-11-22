@@ -1,0 +1,25 @@
+{
+  "name": "near-duplicate",
+  "kind": "measurement",
+  "hypothesis": "H3",
+  "status": "exploratory: not part of H3's registered analysis until the near-duplicate arm (P4 in docs/research/preregistration.md, section 'Proposed amendments, not yet registered') is registered by amendment",
+  "faults": "fixtures/faults",
+  "threshold": 0.85,
+  "agreement_thresholds": [0.8, 0.85, 0.9],
+  "near_pairs_at_or_above": 0.7,
+  "oracle": {
+    "package": "datasketch",
+    "version": "2.0.0",
+    "num_perm": 128,
+    "seed": 1
+  },
+  "confidence": 0.95,
+  "limits": [
+    "The oracle estimates the same Jaccard similarity the lint estimates, with other hash functions: agreement checks the implementation, not whether the lint finds what a person would call a duplicate (card R2's decision, docs/log/2026-11-21-r2-decision-l5-oracle-is-agreement.md).",
+    "Precision and recall are on the tier's own two fixtures, written by the card's author with the vetoes in mind: they say the fixtures pass, nothing about natural memory.",
+    "Small: the fault catalogue holds 66 compared pairs, so the Wilson intervals are wide.",
+    "Easy pairs: most compared pairs sit far below every threshold, where any two estimators agree; the agreement over all pairs flatters the implementation, and `near_pairs` (estimate or exact similarity at least 0.7) is the figure to read.",
+    "English only: the number and polarity vetoes read English weekday and month names and English negations.",
+    "Off in every registered preset and condition: no registered arm runs near-duplicate-tier."
+  ]
+}

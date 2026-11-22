@@ -16,6 +16,10 @@
 //   injection-signature   the injection screen (policy/injection-screen.ts, card E2.10) holds the item's
 //                         content under its provenance kind: the policy's profile when it turns the
 //                         gate stage on, else the default profile; a floor, never a defence
+//   near-duplicate-tier   same scope and class as an earlier active item, other strict content hash,
+//                         MinHash-estimated Jaccard similarity and IDF cosine at least the policy's
+//                         `near-duplicate` threshold, and no veto on rare terms, numbers or polarity
+//                         (lint/near-duplicate.ts, card L5, ADR 0018); only when a policy lists this id
 //
 // An item the linting actor cannot reach counts as absent, so a finding says
 // nothing about what the actor could not read (decision D5). A finding is
@@ -34,6 +38,11 @@ import { promotionRuleId } from "../policy/promotion.ts";
 import { isExpired, itemExpiry } from "../policy/retention.ts";
 import { Id, type LintFinding, type MemoryItem, type Policy } from "../schema.ts";
 import { compareTimestamps } from "../time.ts";
+import {
+  DEFAULT_NEAR_DUPLICATE_THRESHOLD,
+  findNearDuplicates,
+  MINHASH_PERMUTATIONS,
+} from "./near-duplicate.ts";
 
 /** A finding before the plane gives it an id: what one lint says about one item. */
 export type DetFinding = Pick<
@@ -50,6 +59,7 @@ export const DET_LINT_SEVERITY: Record<DeterministicLintId, LintFinding["severit
   orphan: "warn",
   duplicate: "warn",
   "injection-signature": "warn",
+  "near-duplicate-tier": "info",
 };
 
 /** What the lints read besides the item itself. */
@@ -224,6 +234,36 @@ export function duplicates(items: readonly MemoryItem[]): DetFinding[] {
   return out;
 }
 
+/** The similarity the near-duplicate tier flags at: the policy's `near-duplicate` threshold, else preset medium's. */
+export function nearDuplicateThreshold(policy: Policy): number {
+  return policy.lints.thresholds["near-duplicate"] ?? DEFAULT_NEAR_DUPLICATE_THRESHOLD;
+}
+
+/**
+ * near-duplicate-tier: every active item of one scope and class whose
+ * earliest earlier near-duplicate (lint/near-duplicate.ts) the precision tier
+ * admits; the earlier one is named, not flagged. Exact copies are left to
+ * `duplicate`, which this changes in nothing. Takes the scope's active items,
+ * in any order; IDF is over all of them.
+ */
+export function nearDuplicates(items: readonly MemoryItem[], threshold: number): DetFinding[] {
+  const fixed = (x: number) => x.toFixed(3);
+  return findNearDuplicates(items, threshold, (i) => strictContentHash(i.content)).matches.map(
+    (m) =>
+      finding(
+        "near-duplicate-tier",
+        m.item,
+        `it nearly restates ${m.of.id}, an earlier active ${m.item.class} item in ${m.item.scope}: estimated Jaccard similarity ${fixed(m.estimate)}, threshold ${fixed(threshold)}`,
+        [
+          `near-duplicate of ${m.of.id}`,
+          `estimated Jaccard ${fixed(m.estimate)} over ${MINHASH_PERMUTATIONS} MinHash permutations of ${m.kind === "char" ? "character 3-grams" : "word 2-grams"}`,
+          `IDF cosine ${fixed(m.cosine)}`,
+          "no rare-term, number or polarity veto",
+        ],
+      ),
+  );
+}
+
 /**
  * injection-signature: the item's content is what the injection screen would
  * hold at the write gate (ADR 0039), judged under its own provenance kind, so
@@ -276,6 +316,10 @@ export function lintScope(
     if (!enabled.includes(lintId)) continue;
     if (lintId === "duplicate") {
       out.push(...duplicates(active));
+      continue;
+    }
+    if (lintId === "near-duplicate-tier") {
+      out.push(...nearDuplicates(active, nearDuplicateThreshold(ctx.policy)));
       continue;
     }
     for (const item of active) {

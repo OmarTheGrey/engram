@@ -25,6 +25,11 @@ export const DETERMINISTIC_LINT_IDS = [
   // Card E2.10 (ADR 0039): the injection screen's rules over stored content.
   // No registered preset or profile lists it, so no registered lint run changes.
   "injection-signature",
+  // Card L5 (ADR 0018): the near-duplicate tier, MinHash candidates and a
+  // precision tier. Switched on by this id alone, never by the
+  // `near-duplicate` threshold, which every registered preset sets; no
+  // registered preset or profile lists it, so no registered lint run changes.
+  "near-duplicate-tier",
 ] as const;
 export type DeterministicLintId = (typeof DETERMINISTIC_LINT_IDS)[number];
 export const MODEL_LINT_IDS = ["contradiction", "unsupported-claim"] as const;
@@ -40,9 +45,10 @@ export const LIFECYCLE_TRIGGERS = ["replay-drift", "environment-changed"] as con
 export type LifecycleTrigger = (typeof LIFECYCLE_TRIGGERS)[number];
 
 /**
- * The keys `lints.thresholds` may set: the similarity at which `duplicate`
- * flags a near-duplicate, and the replay-drift trigger's success floor and
- * minimum trial count (ADR 0011 amendment).
+ * The keys `lints.thresholds` may set: the similarity at which the
+ * `near-duplicate-tier` lint flags a near-duplicate (card L5; it is read only
+ * when a policy lists that lint), and the replay-drift trigger's success floor
+ * and minimum trial count (ADR 0011 amendment).
  */
 export const LINT_THRESHOLD_KEYS = [
   "near-duplicate",
