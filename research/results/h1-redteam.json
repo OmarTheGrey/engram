@@ -16926,7 +16926,7 @@
     "Not a defence: every rule here is a regular expression or a source rule, and a careful attacker writes around it; the screen's own limits are in research/results/h1-injection-screen.json.",
     "English-centred: the screen's patterns are English, and deepset's rows include German, so a row in another language passes them unread.",
     "AMSB's leak-aws-key plants AWS's documented example key, which card E2.9's secret guard lets through by design, as gitleaks does; its survival under every guard measures that exemption, not a missed key.",
-    "The read route's records claiming user or document are adopted as import (card RV4), which the injection screen's kind-conditioned rules do not read (ADR 0039, item 5), so on that route the screen holds less than on the write route for the same content.",
+    "The read route's records claiming user or document are adopted as import (card RV4), which the injection screen's kind-conditioned rules do not read (ADR 0039, item 5), so a record claiming document meets all of the screen's rules on the write route and only the four that read every kind on the read route; a record claiming user meets those four on both routes.",
     "Model-free: survival is AMSB's rule, the canary coming back in a later read; whether a model would act on what came back is not measured (a live sub-arm would be its own proposal).",
     "AMSB's protected-key family has no counterpart in Engram, which has no protected keys: a value such as superadmin is ordinary content, stopped only by a source rule.",
     "Rates per source kind are not independent: the same entries are planted once per setting, route and kind, so the cells share their items and are never pooled into one interval."
