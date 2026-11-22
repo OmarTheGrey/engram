@@ -13,6 +13,8 @@ import { type Io, run } from "../run.ts";
 export interface Exchange {
   method: string;
   path: string;
+  /** The request's JSON body; undefined when it had none (card E8.15c: the parity test reads it). */
+  request?: unknown;
   status: number;
   /** The response's JSON body; undefined when it had none. */
   body: unknown;
@@ -23,6 +25,12 @@ export interface RunResult {
   code: number;
   out: string;
   err: string;
+  /**
+   * What the same answer prints in the other mode (card E8.15c): the --json
+   * output of a command run as text, for the JSON view; undefined when the
+   * command has no --json or made no call.
+   */
+  other?: string;
   /** Every client call the command made, in order. */
   calls: Exchange[];
 }
@@ -31,12 +39,19 @@ export interface RunResult {
 export async function runCommand(argv: readonly string[], io: Io): Promise<RunResult> {
   let out = "";
   let err = "";
+  let other: string | undefined;
   const calls: Exchange[] = [];
   const tee =
     (fetch: Fetch): Fetch =>
     async (request) => {
       const method = request.method;
       const path = new URL(request.url).pathname;
+      let sent: unknown;
+      try {
+        sent = JSON.parse(await request.clone().text());
+      } catch {
+        sent = undefined;
+      }
       const response = await fetch(request);
       let body: unknown;
       try {
@@ -44,7 +59,7 @@ export async function runCommand(argv: readonly string[], io: Io): Promise<RunRe
       } catch {
         body = undefined;
       }
-      calls.push({ method, path, status: response.status, body });
+      calls.push({ method, path, status: response.status, body, request: sent });
       return response;
     };
   const { stdin: _stdin, stdout: _stdout, ...rest } = io;
@@ -57,6 +72,9 @@ export async function runCommand(argv: readonly string[], io: Io): Promise<RunRe
       err += s;
     },
     transport: (fetch) => tee(io.transport ? io.transport(fetch) : fetch),
+    otherView: (text) => {
+      other = text;
+    },
   });
-  return { argv: [...argv], code, out, err, calls };
+  return { argv: [...argv], code, out, err, calls, ...(other === undefined ? {} : { other }) };
 }

@@ -19,7 +19,38 @@ export const EVERYWHERE: readonly ScreenKind[] = [
   "workspace",
   "form",
   "result",
+  "read",
+  "explain",
+  "item",
+  "write",
+  "promote",
+  "grants",
+  "events",
+  "policy",
+  "who",
+  "supersede",
 ];
+
+/**
+ * The memory and audit screens (card E8.15c, docs/design/tui.md 8.5 to 8.8,
+ * 8.16 to 8.19, 8.22, 8.26): each mixes fields with a result, a list or both,
+ * so tab moves between them and up and down move within a list.
+ */
+export const RICH: readonly ScreenKind[] = [
+  "read",
+  "explain",
+  "item",
+  "write",
+  "promote",
+  "grants",
+  "events",
+  "policy",
+  "who",
+  "supersede",
+];
+
+/** The rich screens that show a command's result, with its plain and JSON views. */
+const VIEWS: readonly ScreenKind[] = RICH.filter((k) => k !== "item");
 
 export interface KeyAction {
   /** The action's name, what a screen acts on. */
@@ -94,7 +125,7 @@ export const KEYS: readonly KeyAction[] = [
     keys: ["q"],
     label: "q",
     description: "back, outside a field",
-    where: ["loop", "form", "result", "workspace"],
+    where: ["loop", "form", "result", "workspace", ...RICH],
   },
   {
     action: "line",
@@ -215,7 +246,146 @@ export const KEYS: readonly KeyAction[] = [
     keys: ["r"],
     label: "r",
     description: "run again with the same flags",
-    where: ["result"],
+    where: ["result", "read", "explain", "events", "policy", "who"],
+  },
+  // The memory and audit screens (card E8.15c).
+  { action: "next", keys: ["tab"], label: "tab", description: "next field or pane", where: RICH },
+  {
+    action: "prev",
+    keys: ["shift+tab"],
+    label: "shift+tab",
+    description: "previous field or pane",
+    where: RICH,
+  },
+  { action: "up", keys: ["up", "k"], label: "up k", description: "move up", where: RICH },
+  { action: "down", keys: ["down", "j"], label: "down j", description: "move down", where: RICH },
+  { action: "page-up", keys: ["pageUp"], label: "pgup", description: "page up", where: RICH },
+  { action: "page-down", keys: ["pageDown"], label: "pgdn", description: "page down", where: RICH },
+  {
+    action: "first",
+    keys: ["home"],
+    label: "home",
+    description: "first, outside a text field",
+    where: RICH,
+  },
+  {
+    action: "last",
+    keys: ["end"],
+    label: "end",
+    description: "last, outside a text field",
+    where: RICH,
+  },
+  {
+    action: "accept",
+    keys: ["enter"],
+    label: "enter",
+    description: "run, open or choose",
+    where: RICH,
+  },
+  {
+    action: "submit",
+    keys: ["ctrl+s"],
+    label: "ctrl+s",
+    description: "run (it asks first where a change needs it)",
+    where: RICH,
+  },
+  {
+    action: "toggle",
+    keys: ["space"],
+    label: "space",
+    description: "toggle or choose, outside a text field",
+    where: RICH,
+  },
+  {
+    action: "choose-prev",
+    keys: ["left"],
+    label: "left",
+    description: "the previous choice, outside a text field",
+    where: RICH,
+  },
+  {
+    action: "choose-next",
+    keys: ["right"],
+    label: "right",
+    description: "the next choice, outside a text field",
+    where: RICH,
+  },
+  {
+    action: "plain",
+    keys: ["v", "alt+v"],
+    label: "v (alt+v in a field)",
+    description: "plain view: the command's exact text output",
+    where: VIEWS,
+  },
+  {
+    action: "json",
+    keys: ["shift+j", "alt+j"],
+    label: "J (alt+j in a field)",
+    description: "JSON view: the exact --json output",
+    where: VIEWS,
+  },
+  {
+    action: "explain",
+    keys: ["e"],
+    label: "e",
+    description: "explain the selected read",
+    where: ["read", "events"],
+  },
+  {
+    action: "item",
+    keys: ["o"],
+    label: "o",
+    description: "the selected event's item page",
+    where: ["events"],
+  },
+  {
+    action: "promote",
+    keys: ["p"],
+    label: "p",
+    description: "promote the selected item",
+    where: ["read", "item", "events"],
+  },
+  {
+    action: "grants",
+    keys: ["g"],
+    label: "g",
+    description: "grants on the selected item",
+    where: ["read", "item"],
+  },
+  {
+    action: "who",
+    keys: ["w"],
+    label: "w",
+    description: "who can read the selected item",
+    where: ["read", "item"],
+  },
+  {
+    action: "supersede",
+    keys: ["shift+s"],
+    label: "S",
+    description: "supersede: the selected item's chain",
+    where: ["read", "item"],
+  },
+  {
+    action: "undo",
+    keys: ["u"],
+    label: "u",
+    description: "undo the last grant change, as a new governed change",
+    where: ["grants"],
+  },
+  {
+    action: "follow",
+    keys: ["f"],
+    label: "f",
+    description: "follow new events (a poll every 2 s while this screen is open)",
+    where: ["events"],
+  },
+  {
+    action: "find",
+    keys: ["/"],
+    label: "/",
+    description: "find: events by reason, the policy by text",
+    where: ["events", "policy"],
   },
   // Overlays.
   {
@@ -291,7 +461,7 @@ function managerFor(where: Where) {
 }
 
 /** Actions that leave a text field its own keys: space types, left and right move the cursor. */
-const INERT_IN_FIELD = new Set(["toggle", "choose-prev", "choose-next"]);
+const INERT_IN_FIELD = new Set(["toggle", "choose-prev", "choose-next", "first", "last"]);
 
 /**
  * The action a key names on a screen or overlay, if any. In a text field

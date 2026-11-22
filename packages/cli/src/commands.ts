@@ -248,7 +248,13 @@ export async function runPlane<O extends Options, P extends Prepared, Req, Res>(
   const p = c.prepare(values, positionals, io);
   const { conn, actor } = open(p);
   try {
-    const printed = await c.print(p, actor, await c.call(conn, c.request(p, actor)), conn);
+    const answer = await c.call(conn, c.request(p, actor));
+    const printed = await c.print(p, actor, answer, conn);
+    // The TUI's other view (card E8.15c): the same answer printed in the other
+    // mode, text or --json, so its plain and JSON views are both the CLI's
+    // bytes from one call. Only a command that has --json prints both ways.
+    if (io.otherView !== undefined && Object.hasOwn(c.options, "json"))
+      io.otherView((await c.print({ ...p, json: !p.json }, actor, answer, conn)).out);
     io.out(printed.out);
     return printed.code;
   } finally {

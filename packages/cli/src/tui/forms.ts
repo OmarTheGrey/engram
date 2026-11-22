@@ -145,6 +145,9 @@ export interface FormError {
   message: string;
 }
 
+/** The id a check hands prepare in place of a fresh one: a valid UUIDv7 no run uses. */
+const CHECKING_ID = "00000000-0000-7000-8000-000000000000";
+
 /** A form's state: one value per field, and a text editor per text field. */
 export class Form {
   readonly spec: CommandSpec;
@@ -273,11 +276,13 @@ export class Form {
    * command's parse, then for a plane command its prepare (and the actor it
    * builds), else the time and number checks of its time and number flags.
    */
-  validate(ws: Workspace, io: Io): FormError[] {
+  validate(ws: Workspace, given: Io): FormError[] {
     const argv = this.argv(ws);
     const words = this.spec.name.split(" ").filter((w) => !w.startsWith("--"));
     // The handler gets the words after the first, as run hands them on.
     const args = argv.slice(1);
+    // Checking draws no id: the ids are the run's, as the plain command draws them (parity, E8.15c).
+    const io: Io = { ...given, newId: () => CHECKING_ID };
     try {
       const plane = PLANE[words[0] as string];
       if (plane !== undefined) {

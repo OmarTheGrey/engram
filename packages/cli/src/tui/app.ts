@@ -27,7 +27,7 @@ import type { Io } from "../run.ts";
 import { redactSecrets } from "../setup.ts";
 import { commandLine, cutAround, detectShell, middleCut, type Shell } from "./argv.ts";
 import { type Clipboard, createClipboard } from "./clipboard.ts";
-import { actionFor } from "./keys.ts";
+import { actionFor, RICH } from "./keys.ts";
 import { clean, cut, fit, overlay, rows, visibleWidth } from "./layout.ts";
 import { checkLogInChild, type LogCheckInput } from "./log-check.ts";
 import {
@@ -45,10 +45,11 @@ import {
   type SavedOptions,
   writeSaved,
 } from "./saved.ts";
-import type { CommandRow, ConfirmRequest, Ctx, Overlay, Ran, Screen } from "./screen.ts";
+import type { CommandRow, ConfirmRequest, Ctx, Handoff, Overlay, Ran, Screen } from "./screen.ts";
 import { FirstRunScreen } from "./screens/first-run.ts";
 import { FormScreen } from "./screens/form.ts";
 import { HomeScreen } from "./screens/home.ts";
+import { memoryScreen } from "./screens/memory.ts";
 import { tooSmall, tooSmallLines } from "./screens/too-small.ts";
 import { WorkspaceScreen } from "./screens/workspace.ts";
 import { colorModeFor, glyphSetFor, makeTheme, paletteFor, type Theme } from "./theme.ts";
@@ -104,7 +105,7 @@ function parseSgrMouse(
 }
 
 /** The screens the wheel moves, by their up and down actions. */
-const WHEELED = new Set(["home", "result", "loop"]);
+const WHEELED = new Set(["home", "result", "loop", ...RICH]);
 
 /** A read, by its route: read, read --item and scopes run the store's sweep and adoption first. */
 const isRead = (spec: CommandSpec) => spec.name.startsWith("read") || spec.name === "scopes";
@@ -151,6 +152,8 @@ export class App implements Component, Ctx {
   readonly ws: Workspace;
   checks: CheapChecks;
   readonly ran: Ran[] = [];
+  readonly results: RunResult[] = [];
+  handoff: Handoff | undefined;
   lastDoctor: { code: number; at: string } | undefined;
   savedInUse: boolean;
   readonly noSaved: boolean;
@@ -210,6 +213,9 @@ export class App implements Component, Ctx {
       this.finish = resolve;
     });
     this.stack = this.initialStack(o.options.screen);
+    // A screen opened by --screen runs what it shows, as one opened by a key does.
+    const first = this.stack.at(-1)?.opened?.bind(this.stack.at(-1));
+    if (first !== undefined) this.enqueue(() => first(this));
     if (this.checks.pendingLog && o.options.screen === undefined && this.stack[0]?.kind === "home")
       this.startedOnHome = this.stack[0];
     if (this.savedProblem !== undefined) this.message = this.savedProblem;
@@ -223,7 +229,7 @@ export class App implements Component, Ctx {
     if (screen === "workspace") return [home, new WorkspaceScreen(this)];
     if (screen !== undefined) {
       const spec = home.commands().find((s) => s.name === screen);
-      if (spec !== undefined) return [home, new FormScreen(spec, this)];
+      if (spec !== undefined) return [home, memoryScreen(spec, this) ?? new FormScreen(spec, this)];
     }
     return usable(this.checks) ? [home] : [new FirstRunScreen(this)];
   }
@@ -247,20 +253,43 @@ export class App implements Component, Ctx {
 
   push(screen: Screen): void {
     this.stack.push(screen);
+    const opened = screen.opened?.bind(screen);
+    if (opened !== undefined) this.enqueue(() => opened(this));
   }
   pop(): boolean {
     if (this.stack.length <= 1) return false;
-    this.stack.pop();
+    this.stack.pop()?.close?.();
     return true;
   }
   home(): void {
+    for (const s of this.stack) s.close?.();
     this.stack = [new HomeScreen()];
   }
   replace(screen: Screen): void {
+    this.stack[this.stack.length - 1]?.close?.();
     this.stack[this.stack.length - 1] = screen;
   }
   openCommand(spec: CommandSpec, values: Values = {}, positionals: readonly string[] = []): void {
-    this.push(new FormScreen(spec, this, values, positionals));
+    // The memory and audit screens (card E8.15c), else the generated form.
+    this.push(
+      memoryScreen(spec, this, values, positionals) ??
+        new FormScreen(spec, this, values, positionals),
+    );
+  }
+  startHandoff(reviewer: string, target: string): void {
+    const before = this.handoff?.before ?? this.ws.actorLabel();
+    this.ws.setForSession("as", reviewer);
+    this.ws.setForSession("member", [target]);
+    this.handoff = { reviewer, target, before };
+    this.recheck(false);
+  }
+  endHandoff(): boolean {
+    if (this.handoff === undefined) return false;
+    this.ws.restore("as");
+    this.ws.restore("member");
+    this.handoff = undefined;
+    this.recheck(false);
+    return true;
   }
   showOverlay(o: Overlay): void {
     this.overlays.push(o);
@@ -401,6 +430,7 @@ export class App implements Component, Ctx {
     this.stopped = true;
     // A log check still running is stopped, or its child would keep the process alive.
     this.logAbort?.abort();
+    for (const s of this.stack) s.close?.();
     this.tui?.stop();
     this.finish({ ran: [...this.ran], deferred: [...this.clipboard.deferred] });
   }
@@ -489,6 +519,7 @@ export class App implements Component, Ctx {
     spec: CommandSpec,
     argv: readonly string[],
     values: Values,
+    extra: readonly string[] = [],
   ): Promise<RunResult | undefined> {
     const word = argv[0] as string;
     const why = NOT_RUN_HERE[word];
@@ -499,7 +530,8 @@ export class App implements Component, Ctx {
     // What the command changes, judged from the command line being run, as run will parse it.
     const flags = this.flagsOf(spec, argv, values);
     const writes = spec.writes(flags, {});
-    const ask = this.confirmation(spec, argv, writes);
+    const asked = this.confirmation(spec, argv, writes);
+    const ask = asked === undefined ? undefined : { ...asked, lines: [...asked.lines, ...extra] };
     if (ask !== undefined) {
       if (!(await this.confirm(ask))) {
         this.say("cancelled: nothing ran");
@@ -532,12 +564,20 @@ export class App implements Component, Ctx {
     try {
       const result = await runCommand(argv, this.io);
       this.ran.push({ argv: [...argv], code: result.code });
+      this.results.push(result);
       if (argv[0] === "doctor") this.lastDoctor = { code: result.code, at: this.io.now() };
       this.recheck();
       return result;
     } finally {
       this.busy = undefined;
     }
+  }
+
+  async peek(argv: readonly string[]): Promise<RunResult> {
+    // A look draws its ids apart from the session's, so the next action's are the plain command's.
+    let n = 0;
+    const newId = () => `00000000-0000-7000-8000-${String(++n).padStart(12, "0")}`;
+    return runCommand(argv, { ...this.io, newId });
   }
 
   // Input.
@@ -707,7 +747,9 @@ export class App implements Component, Ctx {
         ? `  log ${this.checks.logLabel}`
         : "";
     const connection = this.serverUp === false ? "server unreachable" : this.ws.connectionLabel();
-    const right = `${connection}${log}  ${this.ws.actorLabel()} `;
+    // The reviewer handoff is marked while it is on (docs/design/tui.md 8.8).
+    const reviewer = this.handoff === undefined ? "" : " reviewer, this session";
+    const right = `${connection}${log}  ${this.ws.actorLabel()}${reviewer} `;
     const gap = width - visibleWidth(left) - visibleWidth(right);
     const text = gap >= 2 ? `${left}${" ".repeat(gap)}${right}` : left;
     return this.theme.reverse(fit(text, width));

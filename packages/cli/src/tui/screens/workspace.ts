@@ -347,6 +347,7 @@ export class WorkspaceScreen implements Screen {
       saved: "saved",
       set: "set here",
       default: "default",
+      session: "for this session (reviewer)",
     }[s];
     return ctx.ws.get(flag) === undefined && s === "default" ? "" : named;
   }
