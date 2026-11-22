@@ -5,4 +5,6 @@ import { readFileSync } from "node:fs";
 import { createFakeAdapter } from "@engram/adapters";
 import { openSqlite } from "@engram/core";
 
-export const bypass = { readFileSync, createFakeAdapter, openSqlite };
+const fs = process.getBuiltinModule("node:fs");
+
+export const bypass = { readFileSync, createFakeAdapter, openSqlite, fs };

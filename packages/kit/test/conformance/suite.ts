@@ -5,20 +5,28 @@
 // on failure, so a test file registers `for (const c of cases) test(c.name, c.run)`.
 //
 // What every adapter on the kit must show:
-//   1. no path reaches a store except through the plane: at run time every
-//      store call happens inside a request the plane is serving, every item
-//      the store holds has the plane's allow event, and the adapter's own
-//      source and package reach no store, store SDK, file system or log
-//      (a static check of its dependencies and import statements);
-//   2. a denied write surfaces as the kit's typed rejection, EngramRejected,
+//   1. its package reaches no store and no pi by what it depends on and
+//      imports: a static check over its dependency closure (every package it
+//      depends on, and theirs) and over the import statements of every
+//      workspace package in that closure. This is the suite's claim about
+//      store access; it is static, so an adapter that computes a module name
+//      at run time is out of its reach (review finding E8.14-3);
+//   2. a read shows the reader's own memory and nothing from a scope it may
+//      not read;
+//   3. a denied write surfaces as the kit's typed rejection, EngramRejected,
 //      carrying the deny event the log holds, and the store gets nothing;
-//   3. the actor cannot be changed by model output: a write or read whose
-//      model-supplied input names another actor, source, owner or provenance
-//      is still made as the actor given at construction, source `model`, and
-//      changing that actor object after construction changes nothing.
-import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join } from "node:path";
-import { type Adapter, createFakeAdapter } from "@engram/adapters";
+//   4. the actor cannot be changed by model output: built from an actor whose
+//      source is `user`, a write or read whose model-supplied input names
+//      another actor, source, owner or provenance is still made as that
+//      actor with source `model`, and changing the actor object after
+//      construction changes nothing (review finding E8.14-2).
+//
+// The first version of this suite also checked at run time that every store
+// call came inside a plane request. No adapter can fail that check, since the
+// suite's store is reachable only through the plane, so it was dropped (E8.14-3).
+import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { createFakeAdapter } from "@engram/adapters";
 import { loadPreset, type MemoryItem, migrate, openSqlite } from "@engram/core";
 import { createEngramClient } from "@engram/sdk";
 import { createApp, workspaceOf } from "@engram/server";
@@ -50,11 +58,16 @@ export interface ConformanceCase {
 }
 
 export const NOW = "2026-11-01T12:00:00.000Z";
-/** The actor every subject is built with: may write into its person scope as a model, not into the team. */
+/**
+ * The actor every subject is built with: may write into its person scope as
+ * a model, not into the team. Its source is `user`, so an adapter that keeps
+ * the caller's source instead of `model` is caught (E8.14-2).
+ */
 export const BOUND = {
   id: "person:dana",
   level: "person" as const,
   memberships: ["person:dana", "team:platform"],
+  source: "user" as const,
 };
 /** What a model might put in a tool call to act as someone else. */
 export const FORGED = {
@@ -78,45 +91,23 @@ function check(ok: boolean, message: string): asserts ok {
   if (!ok) throw new ConformanceFailure(message);
 }
 
-/** A workspace over the fake store, whose every store call must come inside a plane request. */
+/** A workspace over the fake store, the medium preset and a fixed clock. */
 function workspace() {
   const db = openSqlite(":memory:");
   migrate(db);
   const store = createFakeAdapter();
-  const outside: string[] = [];
-  let serving = 0;
-  // A fake around the fake: each store method notes a call made while the
-  // plane serves no request (rule 2).
-  const guarded = Object.create(store) as Adapter;
-  for (const method of ["read", "write", "delete", "list", "search", "history"] as const) {
-    const inner = (store as unknown as Record<string, unknown>)[method];
-    if (typeof inner !== "function") continue;
-    (guarded as unknown as Record<string, unknown>)[method] = (...args: unknown[]) => {
-      if (serving === 0) outside.push(method);
-      return (inner as (...a: unknown[]) => unknown).apply(store, args);
-    };
-  }
   let n = 0;
   const newId = () => `01970000-0000-7000-8000-${String(++n).padStart(12, "0")}`;
-  const ws = workspaceOf({ db, adapter: guarded, policy: loadPreset("medium"), newId });
+  const ws = workspaceOf({ db, adapter: store, policy: loadPreset("medium"), newId });
   const app = createApp(ws, { port: 7313, now: () => NOW });
-  /** Runs `call` as the plane serving a request: the store calls it makes are the plane's. */
-  const inPlane = async <T>(call: () => Promise<T>): Promise<T> => {
-    serving++;
-    try {
-      return await call();
-    } finally {
-      serving--;
-    }
-  };
   const client = createEngramClient({
     baseUrl: "http://127.0.0.1:7313",
-    fetch: (request) => inPlane(async () => app.fetch(request)),
+    fetch: async (request) => app.fetch(request),
   });
-  return { db, store, ws, client, outside, inPlane };
+  return { db, store, ws, client };
 }
 
-/** Seeds what a user wrote: dana's fact in her scope and eve's in hers. */
+/** Seeds what a user wrote, through the plane: dana's fact in her scope and eve's in hers. */
 async function seed(w: ReturnType<typeof workspace>) {
   const item = (n: number, scope: string, owner: string, content: string) =>
     ({
@@ -137,16 +128,13 @@ async function seed(w: ReturnType<typeof workspace>) {
       store_ref: null,
       schema_version: 1,
     }) as MemoryItem;
-  const dana = { ...BOUND, source: "user" as const };
   const eve = { id: "person:eve", level: "person" as const, memberships: ["person:eve"] };
-  // Through the plane directly: the seed is not the adapter's call.
-  await w.inPlane(() => w.ws.plane.write(dana, item(1, "person:dana", dana.id, DANA_FACT), NOW));
-  await w.inPlane(() =>
-    w.ws.plane.write({ ...eve, source: "user" }, item(2, "person:eve", eve.id, EVE_FACT), NOW),
-  );
+  await w.ws.plane.write(BOUND, item(1, "person:dana", BOUND.id, DANA_FACT), NOW);
+  await w.ws.plane.write({ ...eve, source: "user" }, item(2, "person:eve", eve.id, EVE_FACT), NOW);
 }
 
-function build(subject: KitAdapterSubject, w: ReturnType<typeof workspace>, actor = { ...BOUND }) {
+function build(subject: KitAdapterSubject, w: ReturnType<typeof workspace>) {
+  const actor = { ...BOUND, memberships: [...BOUND.memberships] };
   let n = 0;
   const instance = subject.create({
     client: w.client,
@@ -164,9 +152,15 @@ async function rejection(p: Promise<unknown>): Promise<unknown> {
   );
 }
 
-/** Store packages and modules an adapter on the kit must not depend on or import. */
+/**
+ * Packages an adapter's dependency closure must not hold: stores and store
+ * SDKs, the log's drivers, and the surfaces that open a workspace (the
+ * server, the CLI), which reach the log and the store themselves (E8.14-3).
+ */
 export const FORBIDDEN_DEPENDENCIES = [
   "@engram/adapters",
+  "@engram/server",
+  "@engram/cli",
   "mem0ai",
   "better-sqlite3",
   "@letta-ai/letta-client",
@@ -174,6 +168,11 @@ export const FORBIDDEN_DEPENDENCIES = [
   "pg",
   "postgres",
 ];
+/** And no pi package, by ADR 0033 (E8.14-4). */
+const forbiddenDependency = (name: string) =>
+  FORBIDDEN_DEPENDENCIES.includes(name) || name.startsWith("@earendil-works/");
+
+/** Modules a workspace package in the closure must not import. */
 export const FORBIDDEN_IMPORTS = [
   ...FORBIDDEN_DEPENDENCIES,
   "node:fs",
@@ -186,6 +185,7 @@ export const FORBIDDEN_IMPORTS = [
 ];
 
 function sourceFiles(dir: string): string[] {
+  if (!existsSync(dir)) return [];
   return readdirSync(dir).flatMap((name) => {
     const path = join(dir, name);
     if (statSync(path).isDirectory()) return sourceFiles(path);
@@ -206,28 +206,82 @@ function imports(text: string): { spec: string; typeOnly: boolean }[] {
   return found;
 }
 
+const packageName = (spec: string) =>
+  spec
+    .split("/")
+    .slice(0, spec.startsWith("@") ? 2 : 1)
+    .join("/");
+
+/** The workspace's packages by name, found from the folder holding pnpm-workspace.yaml. */
+function workspacePackages(from: string): Map<string, string> {
+  let dir = from;
+  while (!existsSync(join(dir, "pnpm-workspace.yaml")) && dirname(dir) !== dir) dir = dirname(dir);
+  const found = new Map<string, string>();
+  for (const parent of [join(dir, "packages"), join(dir, "sdk")])
+    for (const name of existsSync(parent) ? readdirSync(parent) : []) {
+      const pkg = join(parent, name, "package.json");
+      if (existsSync(pkg))
+        found.set(JSON.parse(readFileSync(pkg, "utf8")).name, join(parent, name));
+    }
+  return found;
+}
+
+/** Where an external package `name` resolves from `dir`: node_modules lookup, pnpm links followed. */
+function externalPackage(name: string, dir: string): string | undefined {
+  let at = dir;
+  for (;;) {
+    const candidate = join(at, "node_modules", name);
+    if (existsSync(join(candidate, "package.json"))) return realpathSync(candidate);
+    if (dirname(at) === at) return undefined;
+    at = dirname(at);
+  }
+}
+
 /** What the static check finds wrong with an adapter package: empty when it passes. */
 export function staticViolations(root: string): string[] {
   const problems: string[] = [];
-  const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8")) as Record<
-    string,
-    Record<string, string> | undefined
-  >;
-  for (const field of ["dependencies", "peerDependencies", "optionalDependencies"])
-    for (const dep of Object.keys(pkg[field] ?? {}))
-      if (FORBIDDEN_DEPENDENCIES.includes(dep)) problems.push(`${field} names ${dep}`);
-  for (const file of sourceFiles(join(root, "src")))
-    for (const { spec, typeOnly } of imports(readFileSync(file, "utf8"))) {
-      const name = spec
-        .split("/")
-        .slice(0, spec.startsWith("@") ? 2 : 1)
-        .join("/");
-      if (FORBIDDEN_IMPORTS.includes(spec) || FORBIDDEN_IMPORTS.includes(name))
-        problems.push(`${file} imports ${spec}`);
-      // Core opens logs and builds planes over stores; an adapter takes its types only.
-      if (name === "@engram/core" && !typeOnly)
-        problems.push(`${file} imports @engram/core at run time`);
+  const workspace = workspacePackages(root);
+  type Node = { dir: string; path: string; inWorkspace: boolean };
+  const seen = new Set<string>();
+  const queue: Node[] = [{ dir: root, path: "(the adapter)", inWorkspace: true }];
+  while (queue.length > 0) {
+    const node = queue.shift() as Node;
+    if (seen.has(node.dir)) continue;
+    seen.add(node.dir);
+    const pkg = JSON.parse(readFileSync(join(node.dir, "package.json"), "utf8")) as Record<
+      string,
+      Record<string, string> | undefined
+    >;
+    for (const field of ["dependencies", "peerDependencies", "optionalDependencies"])
+      for (const dep of Object.keys(pkg[field] ?? {})) {
+        if (forbiddenDependency(dep)) {
+          problems.push(`${node.path} ${field} names ${dep}`);
+          continue;
+        }
+        // Core is taken for its types only (the import check below holds every
+        // workspace package in the closure to that), so its own dependencies,
+        // the log's drivers among them, are not followed.
+        if (dep === "@engram/core") continue;
+        const inWorkspace = workspace.has(dep);
+        const dir = inWorkspace ? workspace.get(dep) : externalPackage(dep, node.dir);
+        if (dir !== undefined) queue.push({ dir, path: `${node.path} > ${dep}`, inWorkspace });
+      }
+    if (!node.inWorkspace) continue;
+    for (const file of sourceFiles(join(node.dir, "src"))) {
+      const text = readFileSync(file, "utf8");
+      for (const { spec, typeOnly } of imports(text)) {
+        const name = packageName(spec);
+        if (FORBIDDEN_IMPORTS.includes(spec) || FORBIDDEN_IMPORTS.includes(name))
+          problems.push(`${file} imports ${spec}`);
+        else if (name.startsWith("@earendil-works/")) problems.push(`${file} imports ${spec}`);
+        // Core opens logs and builds planes over stores; the closure takes its types only.
+        if (name === "@engram/core" && !typeOnly)
+          problems.push(`${file} imports @engram/core at run time`);
+      }
+      // A built-in module fetched at run time is an import the check above cannot see.
+      if (/\bgetBuiltinModule\b/.test(text)) problems.push(`${file} uses process.getBuiltinModule`);
     }
+  }
   return problems;
 }
 
@@ -237,33 +291,19 @@ export function kitConformance(subject: KitAdapterSubject): ConformanceCase[] {
     run,
   });
   return [
-    c("its package and source reach no store except through the client", async () => {
+    c("its dependency closure and imports reach no store and no pi", async () => {
       const problems = staticViolations(subject.root);
-      check(problems.length === 0, `store reached outside the plane: ${problems.join("; ")}`);
+      check(problems.length === 0, `store or pi reached: ${problems.join("; ")}`);
     }),
 
-    c(
-      "every store call happens inside a plane request, and the store holds only what the plane allowed",
-      async () => {
-        const w = workspace();
-        await seed(w);
-        const { instance } = build(subject, w);
-        await instance.write({ content: "dana prefers short summaries", scope: "person:dana" });
-        const shown = await instance.read({ query: "deploys" });
-        check(w.outside.length === 0, `store called outside the plane: ${w.outside.join(", ")}`);
-        check(shown.includes(DANA_FACT), `the read did not show the reader's own fact: ${shown}`);
-        check(!shown.includes("payroll"), `the read showed another person's fact: ${shown}`);
-        const allowed = new Set(
-          w.ws.plane
-            .events()
-            .filter((e) => e.op === "write" && e.decision === "allow")
-            .map((e) => e.item_id),
-        );
-        for (const scope of ["person:dana", "person:eve", "team:platform"])
-          for (const held of await w.store.list(scope))
-            check(allowed.has(held.id), `the store holds ${held.id}, which no allow event wrote`);
-      },
-    ),
+    c("a read shows the reader's own memory and nothing another person's scope holds", async () => {
+      const w = workspace();
+      await seed(w);
+      const { instance } = build(subject, w);
+      const shown = await instance.read({ query: "deploys" });
+      check(shown.includes(DANA_FACT), `the read did not show the reader's own fact: ${shown}`);
+      check(!shown.includes("payroll"), `the read showed another person's fact: ${shown}`);
+    }),
 
     c("a denied write surfaces as EngramRejected carrying the log's deny event", async () => {
       const w = workspace();
@@ -280,7 +320,7 @@ export function kitConformance(subject: KitAdapterSubject): ConformanceCase[] {
       );
       check(error.event.actor === BOUND.id, `the deny event names ${error.event.actor}`);
       check((await w.store.list("team:platform")).length === 0, "the store got the denied item");
-      // An unknown scope is refused the same way.
+      // A write into another person's scope is refused the same way.
       const outsider = await rejection(instance.write({ content: "x", scope: "person:eve" }));
       check(
         outsider instanceof EngramRejected,
@@ -302,7 +342,7 @@ export function kitConformance(subject: KitAdapterSubject): ConformanceCase[] {
       check(write.item?.owner === BOUND.id, `the item's owner is ${write.item?.owner}`);
       check(
         write.item?.provenance.kind === "model" && write.item.provenance.actor === BOUND.id,
-        `the item's provenance is ${JSON.stringify(write.item?.provenance)}`,
+        `the item's provenance is ${JSON.stringify(write.item?.provenance)}; built from a user-sourced actor, the adapter must write as source model`,
       );
       const shown = await instance.read({ ...FORGED, query: "deploys payroll secret" });
       const read = w.ws.plane.events().at(-1);

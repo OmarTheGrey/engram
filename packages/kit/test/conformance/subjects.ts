@@ -97,7 +97,63 @@ export const BROKEN: Broken[] = [
   },
   {
     // A package that depends on and imports a store adapter.
+    // Writes through the plane, but as the caller's actor with its own source
+    // (user), not through the kit, which would make it model (E8.14-2).
+    subject: variant("keeps source", (options: KitOptions) => {
+      const inner = reference.create(options);
+      let n = 0;
+      return {
+        async write(input) {
+          const at = options.now();
+          const answer = await options.client.POST("/api/v1/items", {
+            body: {
+              actor: options.actor,
+              item: {
+                id: options.newId(),
+                class: "semantic",
+                scope: String(input.scope),
+                owner: options.actor.id,
+                content: String(input.content),
+                provenance: {
+                  kind: "user",
+                  ref: `keeps-source:${++n}`,
+                  hash: `sha256:${"0".repeat(64)}`,
+                  actor: options.actor.id,
+                },
+                confidence: 0.5,
+                valid_from: at,
+                valid_to: null,
+                ttl: null,
+                grants: [],
+                version: 1,
+                lineage: [],
+                status: "active",
+                store_ref: null,
+                schema_version: 1,
+              },
+            },
+          });
+          const event = answer.data?.event;
+          if (answer.data?.item === null && event) throw new EngramRejected(event);
+          return answer.data?.item;
+        },
+        read: inner.read,
+      };
+    }),
+    fails: "model output cannot change the actor, its source or the item's provenance",
+  },
+  {
+    // Shows the model nothing it read.
+    subject: variant("reads nothing", (options: KitOptions) => ({
+      write: reference.create(options).write,
+      read: async () => "",
+    })),
+    fails: "a read shows the reader's own memory and nothing another person's scope holds",
+  },
+  {
+    // A package that depends on and imports a store, the server and pi, and
+    // fetches a built-in module at run time.
     subject: variant("imports a store", reference.create, BYPASSING_ROOT),
-    fails: "its package and source reach no store except through the client",
+    fails: "its dependency closure and imports reach no store and no pi",
   },
 ];
