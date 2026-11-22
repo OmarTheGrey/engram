@@ -19,6 +19,7 @@ export const EVERYWHERE: readonly ScreenKind[] = [
   "workspace",
   "form",
   "result",
+  "surface",
 ];
 
 export interface KeyAction {
@@ -32,7 +33,9 @@ export interface KeyAction {
 }
 
 const LIST: readonly ScreenKind[] = ["home", "result"];
-const FIELDS: readonly ScreenKind[] = ["first-run", "workspace", "form"];
+const FIELDS: readonly ScreenKind[] = ["first-run", "workspace", "form", "surface"];
+/** The screens with a form's choice, toggle and submit keys (card E8.15d adds its own). */
+const FORMS: readonly ScreenKind[] = ["workspace", "form", "surface"];
 
 /** The table, in the order the help overlay lists it. */
 export const KEYS: readonly KeyAction[] = [
@@ -94,7 +97,7 @@ export const KEYS: readonly KeyAction[] = [
     keys: ["q"],
     label: "q",
     description: "back, outside a field",
-    where: ["loop", "form", "result", "workspace"],
+    where: ["loop", "form", "result", "workspace", "surface"],
   },
   {
     action: "line",
@@ -150,28 +153,28 @@ export const KEYS: readonly KeyAction[] = [
     keys: ["space"],
     label: "space",
     description: "toggle or choose, outside a text field",
-    where: ["workspace", "form"],
+    where: FORMS,
   },
   {
     action: "choose-prev",
     keys: ["left"],
     label: "left",
     description: "the previous choice, outside a text field",
-    where: ["workspace", "form"],
+    where: FORMS,
   },
   {
     action: "choose-next",
     keys: ["right"],
     label: "right",
     description: "the next choice, outside a text field",
-    where: ["workspace", "form"],
+    where: FORMS,
   },
   {
     action: "submit",
     keys: ["ctrl+s"],
     label: "ctrl+s",
     description: "run the form (it asks first where a change needs it)",
-    where: ["workspace", "form"],
+    where: FORMS,
   },
   { action: "doctor", keys: ["d"], label: "d", description: "run doctor", where: ["first-run"] },
   // The first loop.
@@ -216,6 +219,69 @@ export const KEYS: readonly KeyAction[] = [
     label: "r",
     description: "run again with the same flags",
     where: ["result"],
+  },
+  // Card E8.15d: the hand-made screens of lint, retention, simulate, doctor,
+  // serve, MCP, the hook, export, import, keys and log verify. Each acts on
+  // the ones it names (Screen.actions); none is a key a text field types.
+  {
+    action: "plain",
+    keys: ["v"],
+    label: "v",
+    description: "plain view: the command's exact output",
+    where: ["surface"],
+  },
+  {
+    action: "json",
+    keys: ["shift+j"],
+    label: "J",
+    description: "JSON view: the exact --json output",
+    where: ["surface"],
+  },
+  {
+    action: "rerun",
+    keys: ["r"],
+    label: "r",
+    description: "run again with the same flags",
+    where: ["surface"],
+  },
+  { action: "stop", keys: ["s"], label: "s", description: "stop the server", where: ["surface"] },
+  {
+    action: "open",
+    keys: ["o"],
+    label: "o",
+    description: "copy the inspector's address",
+    where: ["surface"],
+  },
+  { action: "keys", keys: ["k"], label: "k", description: "keys: create one", where: ["surface"] },
+  { action: "new-key", keys: ["n"], label: "n", description: "a new key", where: ["surface"] },
+  {
+    action: "revoke",
+    keys: ["shift+r"],
+    label: "R",
+    description: "revoke the selected key",
+    where: ["surface"],
+  },
+  {
+    action: "try",
+    keys: ["t"],
+    label: "t",
+    description: "Try it on a scratch log",
+    where: ["surface"],
+  },
+  { action: "all", keys: ["a"], label: "a", description: "all rows", where: ["surface"] },
+  {
+    action: "page-up",
+    keys: ["pageUp"],
+    label: "pgup",
+    description: "page up",
+    where: ["surface"],
+  },
+  {
+    action: "page-down",
+    keys: ["pageDown"],
+    label: "pgdn",
+    description: "page down",
+    where: ["surface"],
   },
   // Overlays.
   {

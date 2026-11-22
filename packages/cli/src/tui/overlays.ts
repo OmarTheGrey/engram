@@ -72,7 +72,11 @@ export class HelpOverlay implements Overlay {
 
   private body(ctx: Ctx, inner: number): string[] {
     const kind = this.screen.kind;
-    const own = actionsOn(kind).filter((a) => !GLOBAL_ACTIONS.has(a.action));
+    // A screen that names its actions (card E8.15d) lists only those.
+    const named = this.screen.actions?.();
+    const own = actionsOn(kind).filter(
+      (a) => !GLOBAL_ACTIONS.has(a.action) && (named === undefined || named.includes(a.action)),
+    );
     const everywhere = actionsOn(EVERYWHERE[0] as "home").filter((a) =>
       GLOBAL_ACTIONS.has(a.action),
     );

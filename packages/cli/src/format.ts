@@ -58,10 +58,10 @@ export function decisionLines(event: MemoryEvent, item: MemoryItem | null): stri
 export const plural = (count: number, one: string, many = `${one}s`) =>
   `${count} ${count === 1 ? one : many}`;
 
-const policyName = (r: PolicyRun) => `${r.policy_id} v${r.policy_version}`;
+export const policyName = (r: PolicyRun) => `${r.policy_id} v${r.policy_version}`;
 
 /** One step's outcome in a change line: its decision, and for a read what it returned. */
-function outcomeText(o: StepOutcome): string {
+export function outcomeText(o: StepOutcome): string {
   const retired = [
     o.evicted.length > 0 ? `evicted ${o.evicted.join(", ")}` : "",
     o.expired.length > 0 ? `expired ${o.expired.join(", ")}` : "",

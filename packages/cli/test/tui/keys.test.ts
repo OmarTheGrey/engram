@@ -6,6 +6,7 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { command } from "../../src/registry.ts";
 import {
   actionFor,
   actionsOn,
@@ -287,7 +288,8 @@ describe("confirmation (9.5)", () => {
     const h = await usable({ cwd });
     await h.press("R");
     await h.type("ab12cd34");
-    await h.press(TAB, ENTER, TAB); // open the workspace flags' fold: --keys is one
+    // Card E8.15d's Revoke screen holds the key file under the id.
+    await h.press(TAB);
     expect(h.focused()).toBe("keys");
     await h.type("k/keys.json");
     await h.press("\x13");
@@ -301,11 +303,27 @@ describe("confirmation (9.5)", () => {
     await h.quit();
   });
 
-  it("does not run serve, mcp or the hook on its own terminal", async () => {
-    const h = await usable();
-    await h.press("h", "\x13");
+  it("never runs mcp over stdio or the hook on its own terminal: their screens are setup, and Try it a child (card E8.15d)", async () => {
+    const cwd = await tempDir();
+    const h = await usable({ cwd });
+    const missing = { command: join(cwd, "missing-engram.exe"), prefix: [], note: undefined };
+    await h.press("b");
+    expect(await h.text()).toContain(".claude/settings.json, hooks.PreToolUse:");
+    (h.app.top() as unknown as { setLaunch(l: typeof missing): void }).setLaunch(missing);
+    await h.press("\x13"); // Try it
+    expect(await h.text()).toContain("the hook did not run");
+    await h.press(ESC, "m");
+    expect(await h.text()).toContain("For Claude Code, .mcp.json:");
+    (h.app.top() as unknown as { setLaunch(l: typeof missing): void }).setLaunch(missing);
+    await h.press("\x13"); // Try it
+    expect(await h.text()).toContain("the harness would get no Engram tools");
     expect(h.ran()).toEqual([]);
-    expect(await h.text()).toContain("engram serve runs until stopped");
+    // The router itself never runs them: a pasted or rerun line is refused, with the reason.
+    expect(await h.app.act(command("mcp") as never, ["mcp"], {})).toBeUndefined();
+    expect(
+      await h.app.act(command("hook claude-code") as never, ["hook", "claude-code"], {}),
+    ).toBeUndefined();
+    expect(h.ran()).toEqual([]);
     await h.quit();
   });
 });

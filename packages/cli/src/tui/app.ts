@@ -49,6 +49,7 @@ import type { CommandRow, ConfirmRequest, Ctx, Overlay, Ran, Screen } from "./sc
 import { FirstRunScreen } from "./screens/first-run.ts";
 import { FormScreen } from "./screens/form.ts";
 import { HomeScreen } from "./screens/home.ts";
+import { surfaceScreen } from "./screens/surfaces.ts";
 import { tooSmall, tooSmallLines } from "./screens/too-small.ts";
 import { WorkspaceScreen } from "./screens/workspace.ts";
 import { colorModeFor, glyphSetFor, makeTheme, paletteFor, type Theme } from "./theme.ts";
@@ -104,7 +105,7 @@ function parseSgrMouse(
 }
 
 /** The screens the wheel moves, by their up and down actions. */
-const WHEELED = new Set(["home", "result", "loop"]);
+const WHEELED = new Set(["home", "result", "loop", "surface"]);
 
 /** A read, by its route: read, read --item and scopes run the store's sweep and adoption first. */
 const isRead = (spec: CommandSpec) => spec.name.startsWith("read") || spec.name === "scopes";
@@ -123,7 +124,11 @@ const hostOf = (url: string) => {
   }
 };
 
-/** Commands whose screens come with card E8.15d: they run until stopped, or read the terminal. */
+/**
+ * Commands never run through `act` (card E8.15d): serve runs until stopped,
+ * from its own screen; mcp over stdio and the hook read this terminal, so
+ * their screens build the configuration and Try it runs them as children.
+ */
 const NOT_RUN_HERE: Readonly<Record<string, string>> = {
   serve: "engram serve runs until stopped",
   mcp: "engram mcp speaks MCP on this terminal, or serves until stopped",
@@ -223,7 +228,7 @@ export class App implements Component, Ctx {
     if (screen === "workspace") return [home, new WorkspaceScreen(this)];
     if (screen !== undefined) {
       const spec = home.commands().find((s) => s.name === screen);
-      if (spec !== undefined) return [home, new FormScreen(spec, this)];
+      if (spec !== undefined) return [home, this.screenFor(spec)];
     }
     return usable(this.checks) ? [home] : [new FirstRunScreen(this)];
   }
@@ -260,7 +265,23 @@ export class App implements Component, Ctx {
     this.stack[this.stack.length - 1] = screen;
   }
   openCommand(spec: CommandSpec, values: Values = {}, positionals: readonly string[] = []): void {
-    this.push(new FormScreen(spec, this, values, positionals));
+    this.push(this.screenFor(spec, values, positionals));
+  }
+  /** A command's screen: its hand-made one where it has one (card E8.15d), else its generated form. */
+  private screenFor(spec: CommandSpec, values: Values = {}, positionals: readonly string[] = []) {
+    return (
+      surfaceScreen(spec, this, values, positionals) ??
+      new FormScreen(spec, this, values, positionals)
+    );
+  }
+  /** What quitting stops first (card E8.15d). */
+  private readonly stops = new Set<() => Promise<void>>();
+  record(ran: Ran): void {
+    this.ran.push(ran);
+  }
+  onQuit(stop: () => Promise<void>): () => void {
+    this.stops.add(stop);
+    return () => this.stops.delete(stop);
   }
   showOverlay(o: Overlay): void {
     this.overlays.push(o);
@@ -402,7 +423,18 @@ export class App implements Component, Ctx {
     // A log check still running is stopped, or its child would keep the process alive.
     this.logAbort?.abort();
     this.tui?.stop();
-    this.finish({ ran: [...this.ran], deferred: [...this.clipboard.deferred] });
+    const done = () => this.finish({ ran: [...this.ran], deferred: [...this.clipboard.deferred] });
+    // A running server and a Try it child stop first (card E8.15d), each given ten seconds.
+    const stops = [...this.stops].map((stop) => stop().catch(() => undefined));
+    this.stops.clear();
+    if (stops.length === 0) {
+      done();
+      return;
+    }
+    void Promise.race([
+      Promise.all(stops),
+      new Promise((r) => setTimeout(r, 10_000).unref?.()),
+    ]).then(done);
   }
   redraw(): void {
     this.tui?.requestRender();
@@ -493,7 +525,7 @@ export class App implements Component, Ctx {
     const word = argv[0] as string;
     const why = NOT_RUN_HERE[word];
     if (why !== undefined) {
-      this.say(`${why}: its screen comes with card E8.15d; c copies the command to run in a shell`);
+      this.say(`${why}: open its screen from Home; c copies the command to run in a shell`);
       return undefined;
     }
     // What the command changes, judged from the command line being run, as run will parse it.
@@ -640,7 +672,7 @@ export class App implements Component, Ctx {
         this.say("line mode comes with card E8.15e; engram --help lists the plain commands");
         return;
       case "back":
-        if (screen.kind === "form") await screen.action("leave", this);
+        if (screen.kind === "form" || screen.kind === "surface") await screen.action("leave", this);
         else if (!(await screen.action("back", this))) this.pop();
         return;
     }
@@ -823,7 +855,10 @@ export function summaryText(summary: Summary, shell: Shell, quiet: boolean): str
   const lines: string[] = [];
   if (!quiet && summary.ran.length > 0) {
     lines.push("# engram tui: the commands this session ran");
-    for (const r of summary.ran) lines.push(`${shownLine(r.argv, shell)}  # exit ${r.code}`);
+    for (const r of summary.ran)
+      lines.push(
+        `${shownLine(r.argv, shell)}  # exit ${r.code}${r.note === undefined ? "" : `, ${r.note}`}`,
+      );
   }
   if (summary.deferred.length > 0) {
     lines.push("# engram tui: what c could not copy (this terminal has no clipboard path)");

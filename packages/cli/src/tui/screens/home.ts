@@ -77,7 +77,7 @@ export function changesText(spec: CommandSpec, ws: Values, root: string | undefi
     case "file":
       return "Writes a file. Asks first, naming it.";
     case "process":
-      return "Runs until stopped (card E8.15d's screen runs it).";
+      return "Runs until stopped: s on its screen, or quitting the TUI, stops it.";
   }
 }
 

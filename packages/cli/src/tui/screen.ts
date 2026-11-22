@@ -19,6 +19,8 @@ export type ScreenKind =
   | "workspace"
   | "form"
   | "result"
+  // Card E8.15d: the hand-made screens of the policy, surface, machine and data commands.
+  | "surface"
   | "too-small";
 
 /** The overlays, which take the keys while open. */
@@ -62,6 +64,8 @@ export interface Screen {
   clickAt?(row: number, count: number, ctx: Ctx): boolean | Promise<boolean>;
   /** The id of the focused field or row, for tests and the help overlay. */
   focused?(): string | undefined;
+  /** The key table actions this screen acts on, when fewer than its kind's (the help overlay lists only these). */
+  actions?(): readonly string[];
 }
 
 export interface Overlay {
@@ -79,6 +83,8 @@ export interface Overlay {
 export interface Ran {
   argv: readonly string[];
   code: number;
+  /** A note printed after the exit code on quit: "stopped when the TUI quit" (card E8.15d). */
+  note?: string;
 }
 
 export interface ConfirmRequest {
@@ -140,6 +146,13 @@ export interface Ctx {
   act(spec: CommandSpec, argv: readonly string[], values: Values): Promise<RunResult | undefined>;
   /** Runs a command with no confirmation: the caller has asked (the first loop's steps). */
   runNow(argv: readonly string[]): Promise<RunResult>;
+  /** Records a command run outside runNow (a server the Serve screen ran until stopped, card E8.15d). */
+  record(ran: Ran): void;
+  /**
+   * Registers what quitting must stop first (a running server, a Try it
+   * child, card E8.15d); returns the function that unregisters it.
+   */
+  onQuit(stop: () => Promise<void>): () => void;
   /** Shows a line in the hints row until the next key. */
   say(message: string): void;
   /** Copies the command row of the screen underneath, whole. */
