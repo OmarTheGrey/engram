@@ -37,7 +37,7 @@
 
 
 $ engram policy   exit 0
- ? help  enter fold  / find  J json  ; commands  esc back
+ ? help  J json  enter fold  / find  ; commands  esc back
 --- styles
 r0 c0-119 inverse
 r5 c0-119 inverse

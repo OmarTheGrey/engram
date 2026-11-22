@@ -6,10 +6,10 @@
  >   id  fixture.policy
      version  1
    v write
-     > person  sources, confidence_floor
-     > team  sources, forbidden_classes, confidence_floor
-   > read  honour_grants
-   > lints  enabled
+     + person  sources, confidence_floor
+     + team  sources, forbidden_classes, confidence_floor
+   + read  honour_grants
+   + lints  enabled
 
 
 
@@ -21,7 +21,7 @@
 
 
 $ engram policy   exit 0
- ? help  enter fold  / find  J json  ; commands  esc back
+ ? help  J json  enter fold  / find  ; commands  esc back
 --- styles
 r0 c0-79 inverse
 r5 c0-79 inverse

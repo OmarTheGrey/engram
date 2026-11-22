@@ -98,11 +98,17 @@ export class EventsScreen extends RichScreen {
     this.more = [];
     this.focusOn("events");
     const shown = this.shown();
+    this.unseen = undefined;
     if (this.select !== undefined) {
       const at = shown.findIndex((e) => e.seq === this.select);
-      this.selected = at < 0 ? Math.max(0, shown.length - 1) : at;
+      // An event the viewer may not see is said so, and nothing is selected in its place (review 7).
+      if (at < 0) this.unseen = this.select;
+      this.selected = at < 0 ? -1 : at;
     } else this.selected = Math.max(0, shown.length - 1);
   }
+
+  /** The event asked for that is not among those the viewer may see. */
+  private unseen: number | undefined;
 
   override close(): void {
     super.close();
@@ -129,6 +135,7 @@ export class EventsScreen extends RichScreen {
   }
 
   private selectedEvent(): MemoryEvent | undefined {
+    if (this.selected < 0) return undefined;
     const shown = this.shown();
     this.selected = Math.max(0, Math.min(this.selected, shown.length - 1));
     return shown[this.selected];
@@ -202,12 +209,16 @@ export class EventsScreen extends RichScreen {
         return true;
       case "up":
       case "down":
-        if (stop?.kind === "list") this.selected += name === "up" ? -1 : 1;
+        if (stop?.kind === "list")
+          this.selected = Math.max(0, this.selected + (name === "up" ? -1 : 1));
         else this.focus = Math.max(0, this.focus + (name === "up" ? -1 : 1));
         return true;
       case "page-up":
       case "page-down":
-        this.selected += (name === "page-up" ? -1 : 1) * Math.max(1, ctx.rows - 14);
+        this.selected = Math.max(
+          0,
+          this.selected + (name === "page-up" ? -1 : 1) * Math.max(1, ctx.rows - 14),
+        );
         return true;
       case "first":
         this.selected = 0;
@@ -269,7 +280,7 @@ export class EventsScreen extends RichScreen {
   }
 
   protected ownHints(): string {
-    return "enter detail  o item  e explain  / search  f follow  J json";
+    return "J json  enter detail  o item  e explain  / search  f follow";
   }
 
   protected body(ctx: Ctx, width: number, height: number): string[] {
@@ -299,10 +310,12 @@ export class EventsScreen extends RichScreen {
     if (all.length === 0) {
       out.push(
         ...para(
-          "No events you may see. Events show to their maker and to readers of their scopes.",
+          "No events you may see. An event shows to a member of a scope it names whose level may read that scope; one that names no scope, such as a read, only to the actor who made it.",
           width,
         ),
       );
+      if (this.unseen !== undefined)
+        out.push("", ` event ${this.unseen} is not one you may see; nothing is selected`);
       return out;
     }
     const head = wide
@@ -325,6 +338,8 @@ export class EventsScreen extends RichScreen {
         this.start + i === at && on === "events" ? t.reverse(cut(text, width)) : cut(text, width),
       );
     });
+    if (this.unseen !== undefined && chosen === undefined)
+      out.push("", ` event ${this.unseen} is not one you may see; nothing is selected`);
     if (chosen !== undefined) {
       out.push("");
       if (this.detail)
@@ -503,7 +518,7 @@ export class PolicyScreen extends RichScreen {
   }
 
   protected ownHints(): string {
-    return "enter fold  / find  J json";
+    return "J json  enter fold  / find";
   }
 
   protected body(ctx: Ctx, width: number, height: number): string[] {

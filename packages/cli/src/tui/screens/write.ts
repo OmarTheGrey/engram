@@ -18,6 +18,8 @@
 // reviewer on; Switch back in the workspace panel restores the actor.
 // Against a server with credentials the handoff is not offered: the identity
 // comes from the key or token, not from Acting as.
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import type { MemoryEvent } from "@engram/sdk";
 import { parseMemberships } from "@engram/view";
 import { type CommandSpec, command, type Values } from "../../registry.ts";
@@ -143,6 +145,27 @@ export class WriteScreen extends RichScreen {
     this.timer.unref?.();
   }
 
+  /**
+   * The fields From file sets (8.7): those whose key the item JSON holds, read
+   * as the CLI reads the file; marked "from file" until edited. Nothing when
+   * the file is not there or is not JSON: the check says why.
+   */
+  private fromFile(ctx: Ctx): Set<string> {
+    const file = String(this.form.get("file")).trim();
+    if (file === "") return new Set();
+    try {
+      const item = JSON.parse(readFileSync(resolve(ctx.io.cwd, file), "utf8")) as Record<
+        string,
+        unknown
+      >;
+      return new Set(
+        Object.keys(FILE_KEYS).filter((id) => Object.hasOwn(item, FILE_KEYS[id] as string)),
+      );
+    } catch {
+      return new Set();
+    }
+  }
+
   /** `engram check` with the write's flags: the same form, the check command. */
   private checkForm(ctx: Ctx): Form {
     const spec = command("check") as CommandSpec;
@@ -260,7 +283,7 @@ export class WriteScreen extends RichScreen {
   }
 
   protected ownHints(): string {
-    if (this.result !== undefined && !this.edited) return "enter choose  v plain  J json";
+    if (this.result !== undefined && !this.edited) return "v plain  J json  enter choose";
     return "ctrl+s write  tab next";
   }
 
@@ -305,8 +328,21 @@ export class WriteScreen extends RichScreen {
     const scopeHint = viewerOf(ctx)
       ? `default ${ctx.ws.get("owner") !== undefined ? `person:${ctx.ws.get("owner")}` : viewerOf(ctx)?.id}; person:<id>, role:<id>, team:<id> or org`
       : "person:<id>, role:<id>, team:<id> or org";
+    const fromFile = this.fromFile(ctx);
     for (const id of WRITE_FIELDS)
-      out.push(this.fieldRow(ctx, id, width, 12, id === "scope" ? scopeHint : undefined));
+      out.push(
+        this.fieldRow(
+          ctx,
+          id,
+          width,
+          12,
+          fromFile.has(id) && this.form.get(id) === ""
+            ? "from file"
+            : id === "scope"
+              ? scopeHint
+              : undefined,
+        ),
+      );
     out.push(...this.advancedLines(ctx, width));
     const members = ctx.ws.list("member");
     if (members.length > 0)
@@ -331,6 +367,17 @@ export class WriteScreen extends RichScreen {
     return out;
   }
 }
+
+/** The item JSON's keys each field stands for, as engram write lets the flags fill what the file leaves out. */
+const FILE_KEYS: Readonly<Record<string, string>> = {
+  content: "content",
+  scope: "scope",
+  class: "class",
+  confidence: "confidence",
+  "valid-from": "valid_from",
+  "valid-to": "valid_to",
+  id: "id",
+};
 
 const safeErr = (r: RunResult) => oneLine(r.err.replace(/^engram [a-z-]+: /, ""));
 
@@ -486,7 +533,7 @@ export class PromoteScreen extends RichScreen {
   }
 
   protected ownHints(): string {
-    return "ctrl+s promote  tab next  v plain  J json";
+    return "v plain  J json  ctrl+s promote  tab next";
   }
 
   protected body(ctx: Ctx, width: number): string[] {

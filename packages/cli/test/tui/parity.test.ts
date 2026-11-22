@@ -227,7 +227,7 @@ const CASES: Case[] = [
       await open("supersede", {}, [NEW])(h);
       await h.press(" ", CTRL_S, "y");
     },
-    runs: ["supersede", "supersede"],
+    runs: ["supersede", "supersede", "supersede"],
   },
 ];
 
@@ -260,6 +260,7 @@ const MEANS: Record<string, (ran: readonly RunResult[]) => string[][]> = {
   "supersede, plan then accept": () => [
     ["supersede", NEW],
     ["supersede", NEW, "--accept", OLD],
+    ["supersede", NEW],
   ],
 };
 

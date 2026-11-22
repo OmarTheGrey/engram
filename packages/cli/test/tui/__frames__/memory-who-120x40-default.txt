@@ -37,7 +37,7 @@
 
 
 $ engram who-can-read 01940000-0000-7000-8000-000000000001 --owner dana --db engram.db --root mem   exit 0
- ? help  enter ask  tab item or scope  J json  ; commands  esc back
+ ? help  J json  enter ask  tab item or scope  ; commands  esc back
 --- styles
 r0 c0-119 inverse
 r6 c1-1 fg #00A67A

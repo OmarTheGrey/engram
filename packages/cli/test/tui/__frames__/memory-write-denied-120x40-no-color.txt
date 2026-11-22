@@ -37,7 +37,7 @@
 
 
 $ engram write --content x --scope team:lantern --owner dana --db engram.db --root mem   exit 1
- ? help  enter choose  v plain  J json  ; commands  esc back
+ ? help  v plain  J json  enter choose  ; commands  esc back
 --- styles
 r0 c0-119 inverse
 r10 c1-18 inverse

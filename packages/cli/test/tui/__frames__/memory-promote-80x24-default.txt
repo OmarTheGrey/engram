@@ -21,7 +21,7 @@
 
 
 $ engram promote 01940000-0000-7000...er dana --db engram.db --root mem   exit 1
- ? help  ctrl+s promote  tab next  v plain  J json  ; commands  esc back
+ ? help  v plain  J json  ctrl+s promote  tab next  ; commands  esc back
 --- styles
 r0 c0-79 inverse
 r6 c1-1 fg #E86A1A

@@ -6,7 +6,7 @@
    Confidence   [                                        ]  default 0.9
    Valid from   [                                        ]  default now
    Valid to     [                                        ]  default open
-   > Advanced: id, the test clock and this command's workspace flags
+   + Advanced: id, the test clock and this command's workspace flags
 
  The gate would  x deny  a fixture rule refuses it: the writer is not a member
  of team:lantern  (fixture/write/team)  preview, nothing stored

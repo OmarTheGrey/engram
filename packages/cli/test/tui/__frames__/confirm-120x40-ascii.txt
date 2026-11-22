@@ -6,7 +6,7 @@
    Confidence   [                                          ]  default 0.9
    Valid from   [                                          ]  default now
    Valid to     [                                          ]  default open
-   > Advanced: id, the test clock and this command's workspace flags
+   + Advanced: id, the test clock and this command's workspace flags
 
  The gate would  - not yet: the preview runs 400 ms after you stop typing
 

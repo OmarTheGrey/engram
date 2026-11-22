@@ -21,7 +21,7 @@
 
 
 $ engram events --owner dana --db engram.db   exit 0
- ? help  enter detail  o item  e explain  / search  f follow  J json  ; comma...
+ ? help  J json  enter detail  o item  e explain  / search  f follow  ; comma...
 --- styles
 r0 c0-79 inverse
 r6 c26-26 bold

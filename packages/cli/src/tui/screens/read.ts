@@ -20,7 +20,7 @@ import { explanationLines, plural } from "../../format.ts";
 import { type CommandSpec, command, type Values } from "../../registry.ts";
 import { box, cut, fit, para } from "../layout.ts";
 import type { RunResult } from "../runner.ts";
-import type { Ctx } from "../screen.ts";
+import type { CommandRow, Ctx } from "../screen.ts";
 import { shortPath } from "../workspace.ts";
 import {
   answerOf,
@@ -104,6 +104,18 @@ export class ReadScreen extends RichScreen {
     const items = this.items();
     this.selected = Math.max(0, Math.min(this.selected, items.length - 1));
     return items[this.selected];
+  }
+
+  /**
+   * Every later read with a store folder says in the command row what the
+   * first one asked about (8.5): it changes the log too.
+   */
+  override command(ctx: Ctx): CommandRow {
+    const row = super.command(ctx);
+    const asked = ctx.ran.some((r) => r.argv[0] === "read" && r.argv.includes("--root"));
+    return asked && (row.argv ?? []).includes("--root")
+      ? { ...row, note: "also sweeps and adopts the store, as asked" }
+      : row;
   }
 
   /** esc in the lanes goes back to the query, as to the form; esc in a field leaves. */
@@ -192,7 +204,7 @@ export class ReadScreen extends RichScreen {
   protected ownHints(): string {
     return this.answer() === undefined
       ? "enter read  tab next field"
-      : "enter item page  e explain  p promote  g grants  w who  S supersede  v plain  J json";
+      : "v plain  J json  enter item page  e explain  p promote  g grants  w who  S supersede";
   }
 
   private fieldsLine(_ctx: Ctx, width: number): string {
@@ -251,17 +263,14 @@ export class ReadScreen extends RichScreen {
       const a = s.adoption;
       if (wide) {
         out.push(
-          cut(
-            ` ${t.glyphs.open} store ${oneLine(s.store.name)} at ${shortPath(s.store.root, ctx.io)}`,
-            width,
-          ),
+          cut(` store ${oneLine(s.store.name)} at ${shortPath(s.store.root, ctx.io)}`, width),
           `   retention: ${s.retention.expired.length} expired, ${s.retention.evicted.length} evicted`,
           `   imported ${a.allowed + a.denied} of ${a.listed}: ${a.allowed} allowed, ${a.denied} denied, ${a.unchanged} already in the log`,
         );
       } else
         out.push(
           cut(
-            ` ${t.glyphs.closed} store ${oneLine(s.store.name)} ${shortPath(s.store.root, ctx.io)}: ${a.allowed + a.denied} imported, ${a.allowed} allowed, ${a.denied} denied; ${s.retention.expired.length} expired`,
+            ` store ${oneLine(s.store.name)} ${shortPath(s.store.root, ctx.io)}: ${a.allowed + a.denied} imported, ${a.allowed} allowed, ${a.denied} denied; ${s.retention.expired.length} expired`,
             width,
           ),
         );
@@ -443,7 +452,7 @@ export class ExplainScreen extends RichScreen {
 
   protected ownHints(): string {
     return this.view()?.kind === "own"
-      ? "enter item page  r again  v plain  J json"
+      ? "v plain  J json  enter item page  r again"
       : "enter explain  ctrl+o who you act as";
   }
 

@@ -64,6 +64,11 @@ export class WhoScreen extends RichScreen {
           return true;
         }
         if (stop?.id === "result" && name === "accept") return true;
+        // Ran on opening, or already asked: ctrl+s sends nothing until something changed (review 9).
+        if (this.result !== undefined && !this.edited && this.staleAs(ctx) === undefined) {
+          ctx.say("asked already: change the item or the scope, or r asks again");
+          return true;
+        }
         await this.ask(ctx);
         return true;
       case "toggle":
@@ -81,7 +86,7 @@ export class WhoScreen extends RichScreen {
   }
 
   protected ownHints(): string {
-    return "enter ask  tab item or scope  J json";
+    return "J json  enter ask  tab item or scope";
   }
 
   protected body(ctx: Ctx, width: number): string[] {
@@ -137,6 +142,8 @@ export class SupersedeScreen extends RichScreen {
   private plan: RunResult | undefined;
   private readonly chosen = new Set<string>();
   private selected = 0;
+  /** The accepting run, whose decisions stay on screen under the plan made after it. */
+  private applied: RunResult | undefined;
 
   constructor(
     spec: CommandSpec,
@@ -157,6 +164,7 @@ export class SupersedeScreen extends RichScreen {
     else if (this.plan !== undefined) out.push({ kind: "list", id: "result" });
     if (this.planAnswer() !== undefined)
       out.push({ kind: "button", id: "apply", label: "Accept chosen" });
+    if (this.head() !== undefined) out.push({ kind: "button", id: "head", label: "Open the head" });
     out.push(...this.advancedStops());
     return out;
   }
@@ -183,9 +191,22 @@ export class SupersedeScreen extends RichScreen {
     const plan = this.planAnswer();
     const order = (plan?.proposals ?? []).map((p) => p.item_id).filter((id) => this.chosen.has(id));
     this.form.setValue("accept", order);
-    await this.run(ctx, this.argvNow(ctx), [
+    const r = await this.run(ctx, this.argvNow(ctx), [
       "Accepting writes a new version of each chosen ancestor with that end date; the write gate decides each, as for any update. Nothing is retired.",
     ]);
+    this.form.setValue("accept", []);
+    if (r === undefined) return;
+    // The plan again, so what is offered is the chain as it stands now (review 11).
+    this.applied = r;
+    await this.propose(ctx);
+  }
+
+  /** The chain's head, when the item asked about is not it: S on an older version offers the head. */
+  private head(): string | undefined {
+    const plan = this.planAnswer();
+    return plan?.head.ok && plan.head.head_id !== String(this.form.get("pos:itemId")).trim()
+      ? plan.head.head_id
+      : undefined;
   }
 
   protected async onKey(name: string, ctx: Ctx, stop: Stop | undefined): Promise<boolean> {
@@ -201,7 +222,11 @@ export class SupersedeScreen extends RichScreen {
       case "accept":
         if (stop?.id === "advanced") this.advancedOpen = !this.advancedOpen;
         else if (stop?.id === "apply") await this.apply(ctx);
-        else if (stop?.kind === "field") await this.propose(ctx);
+        else if (stop?.id === "head") {
+          this.form.setValue("pos:itemId", this.head() as string);
+          this.applied = undefined;
+          await this.propose(ctx);
+        } else if (stop?.kind === "field") await this.propose(ctx);
         return true;
       case "toggle": {
         if (stop?.id === "advanced") this.advancedOpen = !this.advancedOpen;
@@ -251,7 +276,7 @@ export class SupersedeScreen extends RichScreen {
   }
 
   protected ownHints(): string {
-    return "space choose  ctrl+s accept chosen  J json";
+    return "J json  space choose  ctrl+s accept chosen";
   }
 
   protected body(ctx: Ctx, width: number): string[] {
@@ -279,7 +304,7 @@ export class SupersedeScreen extends RichScreen {
     out.push(
       ...para(
         plan.head.ok
-          ? `head ${plan.head.head_id}, a chain of ${plan.head.chain.length}`
+          ? `head ${plan.head.head_id}, chain ${plan.head.chain.join(" -> ")}`
           : `${oneLine(plan.head.error)}: the chain does not resolve; nothing proposed`,
         width,
       ),
@@ -299,8 +324,15 @@ export class SupersedeScreen extends RichScreen {
       out.push(...para(oneLine(p.reason), width, "              ").slice(0, 2));
     });
     out.push("", `   ${this.button(ctx, "apply", "Accept chosen")}   ctrl+s`);
-    const r = this.result;
-    if (r !== undefined && r !== this.plan) {
+    const head = this.head();
+    if (head !== undefined)
+      out.push(
+        "",
+        ...para(`This item is not the head of its chain; ${head} is.`, width),
+        `   ${this.button(ctx, "head", "Open the head")}`,
+      );
+    const r = this.applied;
+    if (r !== undefined) {
       const applied = answerOf<SupersedeAnswer>(r, /\/api\/v1\/supersede$/);
       out.push("", decisionHead(t, this.command_, r));
       for (const a of applied?.applied ?? [])
@@ -311,7 +343,7 @@ export class SupersedeScreen extends RichScreen {
           ),
         );
       if (applied === undefined) out.push(...errorLines(r, width));
-      else out.push(...outputLines(r, width).slice(-2));
+      else out.push(...outputLines(r, width));
     }
     return out;
   }

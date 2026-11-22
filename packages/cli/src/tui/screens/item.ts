@@ -36,6 +36,7 @@ import {
   readItems,
   type Stop,
   safe,
+  statusOf,
   viewerOf,
   windowOf,
 } from "./rich.ts";
@@ -346,9 +347,25 @@ export class ItemScreen extends RichScreen {
     );
     if (eLines.length === 0) eLines.push(" no event you may see names this item");
     const chosen = events[Math.min(this.sel.events, events.length - 1)];
-    if (this.detail && chosen !== undefined)
-      for (const [k, v] of eventDetail(chosen))
-        eLines.push(cut(`   ${fit(k, 11)}${oneLine(v)}`, width - 2));
+    // The detail in place of the list, the reason second and whole, so it is in reach at 80x24 (review 14).
+    if (this.detail && chosen !== undefined) {
+      const fields = eventDetail(chosen);
+      const reason = fields.find(([k]) => k === "reason")?.[1] ?? "";
+      const lines = [
+        cut(
+          ` event ${chosen.seq}  ${chosen.op}  ${t.status(statusOf(chosen.decision), chosen.decision)}  by ${chosen.actor}`,
+          width - 2,
+        ),
+        ...para(`reason     ${oneLine(reason)}`, width - 2, "   "),
+        ...fields
+          .filter(([k]) => k !== "reason")
+          .map(([k, v]) => cut(`   ${fit(k, 11)}${oneLine(v)}`, width - 2)),
+      ];
+      out.push(
+        ...box(t, `Event ${chosen.seq}  enter goes back to the list`, lines, width, evHeight),
+      );
+      return out;
+    }
     out.push(
       ...pick(
         "events",

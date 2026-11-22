@@ -1,7 +1,7 @@
  engram  Who can read                          in process  person:dana (person)
    Item     [ 01940000-0000-7000-8000-000000000001     ]  an item id, or leav...
    Scope    [                                          ]  or a scope: every i...
-   > Advanced: id, the test clock and this command's workspace flags
+   + Advanced: id, the test clock and this command's workspace flags
 
  who can read item 01940000-0000-7000-8000-000000000001 at 2026-10-25T12:00:0...
  + answered   exit 0
@@ -21,7 +21,7 @@
 
 
 $ engram who-can-read 01940000-0000...er dana --db engram.db --root mem   exit 0
- ? help  enter ask  tab item or scope  J json  ; commands  esc back
+ ? help  J json  enter ask  tab item or scope  ; commands  esc back
 --- styles
 r0 c0-79 inverse
 r6 c1-1 fg #00A67A

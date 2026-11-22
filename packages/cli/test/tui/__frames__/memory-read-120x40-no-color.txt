@@ -1,7 +1,7 @@
  engram  Read and explain                                             in process  log ~/engram.db  person:dana (person)
   Query [ deploy                                   ]   Judge validity windows at [ now (the server' ]
  read 01940000-0000-7000-8000-000000000900  ✓ allow   2 items returned, 0 filtered at 2026-10-25T12:00:00.000Z under ...
- ▾ store files at mem
+ store files at mem
    retention: 0 expired, 0 evicted
    imported 1 of 1: 1 allowed, 0 denied, 0 already in the log
    returned 2 of 2 candidates; 0 filtered
@@ -37,7 +37,7 @@
 
  log engram.db; engram explain 01940000-0000-7000-8000-000000000900
 $ engram read deploy --owner dana --db engram.db --root mem   exit 0
- ? help  enter item page  e explain  p promote  g grants  w who  S supersede  v plain  J json  ; commands  esc back
+ ? help  v plain  J json  enter item page  e explain  p promote  g grants  w who  S supersede  ; commands  esc back
 --- styles
 r0 c0-119 inverse
 r10 c1-118 inverse

@@ -6,7 +6,7 @@
    Co+- Write a memory? --------------------------------------------------+
    Va| Runs engram write as person:dana (person): the plane decides it    |
    Va| and records the decision as an event.                              |
-   > |                                                                    |
+   + |                                                                    |
      | It cannot be undone; a later change is a new version or a new      |
  The | event.                                                             |
      |                                                                    |

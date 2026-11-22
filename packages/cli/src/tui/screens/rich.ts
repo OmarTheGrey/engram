@@ -144,7 +144,10 @@ export class Views {
   render(ctx: Ctx, r: RunResult, width: number, height: number): string[] {
     const json = this.mode === "json";
     const text = json
-      ? (r.other ?? "This command prints no --json output.\n")
+      ? (r.other ??
+        (r.code !== 0
+          ? `The command failed before it printed (exit ${r.code}):\n${r.err}`
+          : "This command prints no --json output.\n"))
       : `${r.out}${r.err}` || "(no output)\n";
     const lines = safe(text).replace(/\n$/, "").split("\n");
     const head = [

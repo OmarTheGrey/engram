@@ -2,7 +2,7 @@
    Item         [ 01940000-0000-7000-8000-000000000001   ]  an item id (a UUI...
    To scope     [ team:lantern                           ]  the item's own or...
    Approve as reviewer [ ] off  approve as a reviewer: a member of the target...
-   > Advanced: id, the test clock and this command's workspace flags
+   + Advanced: id, the test clock and this command's workspace flags
 
  x deny   exit 1  deny, ask or an error
  promote 01940000-0000-7000-8000-000000000511 at 2026-10-25T12:00:00.000Z by
@@ -21,7 +21,7 @@
 
 
 $ engram promote 01940000-0000-7000...er dana --db engram.db --root mem   exit 1
- ? help  ctrl+s promote  tab next  v plain  J json  ; commands  esc back
+ ? help  v plain  J json  ctrl+s promote  tab next  ; commands  esc back
 --- styles
 r0 c0-79 inverse
 r6 c1-1 fg #E86A1A

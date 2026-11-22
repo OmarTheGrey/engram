@@ -109,7 +109,9 @@ describe("Read and explain (8.5, 8.6)", () => {
     expect(text).toContain("Person scope");
     expect(text).toContain("admitted by");
     expect(h.app.top().command(h.app)).toMatchObject({ exit: 0 });
-    expect(text).toContain("$ engram read --db engram.db --owne");
+    // The command row: the read as it ran, saying it changes the log too (8.5, review 10).
+    expect(text).toContain("$ engram read");
+    expect(text).toContain("also sweeps and adopts the store, as asked");
     // esc goes back to the query; the second read in the session does not ask.
     await h.press(ESC);
     expect(h.focused()).toBe("pos:query");
@@ -511,7 +513,10 @@ describe("Supersede (8.26)", () => {
     await h.press("y");
     text = await h.text();
     expect(text).toContain("✓ allow");
-    expect(h.ran().at(-1)).toEqual(expect.arrayContaining(["--accept", OLD]));
+    // The accept, then the plan again (review 11): the close is no longer offered.
+    expect(h.ran().at(-2)).toEqual(expect.arrayContaining(["--accept", OLD]));
+    expect(h.ran().at(-1)).not.toContain("--accept");
+    expect(await h.text()).not.toContain(`[x] close  ${OLD}`);
     await h.quit();
   });
 });
@@ -642,5 +647,91 @@ describe("found driving the real terminal (E8.15c's pseudoconsole pass)", () => 
       .join("")
       .replace(/^log/, "");
     expect(rejoined).toBe(`${word}${word}`);
+  });
+});
+
+describe("the review fix pass (E8.15c)", () => {
+  it("7: Open the event for an event the viewer may not see says so and selects nothing", async () => {
+    const w = await workspace();
+    const { h } = await start(w);
+    await h.press("w");
+    await h.type("x");
+    await h.focusField("scope");
+    await h.type("team:platform");
+    await h.press(CTRL_S, "y");
+    expect(await h.text()).toMatch(/✗ deny {3}exit 1/);
+    await h.focusField("event");
+    await h.press(ENTER);
+    expect(h.screen()).toBe("events");
+    const text = await h.text();
+    expect(text).toMatch(/event \d+ is not one you may see; nothing is selected/);
+    expect(text.split("\n").filter((l) => /^ >\s+\d/.test(l))).toEqual([]);
+    expect(text).not.toContain("Events show to their maker");
+    await h.quit();
+  });
+
+  it("9: Who can read sends nothing more on ctrl+s when it ran on opening and nothing changed", async () => {
+    const w = await withItem();
+    const { h, calls } = await start(w);
+    h.app.openCommand(command("who-can-read") as never, {}, [ITEM]);
+    await h.app.settled();
+    const asked = calls.length;
+    expect(asked).toBe(1);
+    await h.press(CTRL_S);
+    expect(calls.length).toBe(asked);
+    await h.press("r");
+    expect(calls.length).toBe(asked + 1);
+    await h.quit();
+  });
+
+  it("13: J after a failed run says the command failed before it printed", async () => {
+    const w = await workspace();
+    const { h } = await start(w);
+    h.app.openCommand(command("explain") as never, {}, ["01930000-0000-7000-8000-0000000fffff"]);
+    await h.press(CTRL_S);
+    expect(h.app.results.at(-1)?.code).not.toBe(0);
+    await h.press("J");
+    expect(await h.text()).toContain("The command failed before it printed (exit 1):");
+    await h.quit();
+  });
+
+  it("10: Write marks the fields From file sets, until they are edited", async () => {
+    const w = await workspace();
+    await writeFile(
+      join(w.cwd, "item.json"),
+      JSON.stringify({ scope: "team:core", content: "From the file." }),
+    );
+    const { h } = await start(w);
+    await h.press("w");
+    await h.focusField("file");
+    await h.type("item.json");
+    const rows = (await h.frame()).filter((l) => l.includes("from file"));
+    expect(rows.map((l) => l.trim().split(/\s+/)[0])).toEqual(["Content", "Scope"]);
+    await h.quit();
+  });
+
+  it("UX: S on an item that is not its chain's head offers the head", async () => {
+    const w = await workspace();
+    const replacement = join(w.cwd, "replacement.json");
+    await writeFile(replacement, JSON.stringify({ lineage: [OLD] }));
+    for (const [id, content, more] of [
+      [OLD, "Tuesday.", []],
+      [NEW, "Thursday.", ["--file", replacement]],
+    ] as const)
+      expect(
+        (
+          await cli(["write", ...w.flags, "--id", id, "--content", content, ...more], {
+            cwd: w.cwd,
+          })
+        ).code,
+      ).toBe(0);
+    const { h } = await start(w);
+    h.app.openCommand(command("supersede") as never, {}, [OLD]);
+    await h.app.settled();
+    expect(await flat(h)).toContain(`This item is not the head of its chain; ${NEW} is.`);
+    await h.focusField("head");
+    await h.press(ENTER);
+    expect(h.ran().at(-1)).toEqual(expect.arrayContaining(["supersede", NEW]));
+    await h.quit();
   });
 });
