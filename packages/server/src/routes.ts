@@ -14,7 +14,6 @@ import {
   accessTime,
   BUNDLE_FORMAT,
   BUNDLE_VERSION,
-  bundleRows,
   currentItems,
   eventById,
   type MemoryItem,
@@ -212,23 +211,23 @@ export const ROUTES: readonly Route[] = [
     method: "post",
     path: "/export",
     summary:
-      "The actor's memory bundle (card E9.8, docs/bundle.md): the items core's bundleRows picks, each with its visible events; nothing is written and no event appended.",
+      "The actor's memory bundle (card E9.8, docs/bundle.md): the items core's bundleRows picks, each with its visible events; one read event by the actor records the export (Plane.export).",
     request: C.ExportRequest,
     response: C.ExportResponse,
     errors: [400],
-    handler: async ({ workspace, body, now }) => ({
-      format: BUNDLE_FORMAT,
-      version: BUNDLE_VERSION,
-      exported_at: now(),
-      exported_by: body.actor.id,
-      policy: policyLabel(workspace),
-      rows: bundleRows(
-        workspace.policy,
-        body.actor,
-        currentItems(workspace.deps.db),
-        workspace.plane.events(),
-      ),
-    }),
+    handler: async ({ workspace, body, now }) => {
+      const at = now();
+      // Plane.export picks the rows (core's bundleRows) and records the export.
+      const { rows } = await workspace.plane.export(body.actor, at);
+      return {
+        format: BUNDLE_FORMAT,
+        version: BUNDLE_VERSION,
+        exported_at: at,
+        exported_by: body.actor.id,
+        policy: policyLabel(workspace),
+        rows,
+      };
+    },
   }),
   route({
     id: "policy",

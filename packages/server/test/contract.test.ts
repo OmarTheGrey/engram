@@ -244,7 +244,7 @@ describe("the routes, through the generated client, on the fake store", () => {
     expect(C.LintResponse.parse(other.data)).toMatchObject({ decision: "deny", findings: [] });
   });
 
-  it("export: the actor's bundle, its own scope's items with their events, nothing appended", async () => {
+  it("export: the actor's bundle, its own scope's items with their events, one read event appended", async () => {
     const { client, workspace } = testWorkspace();
     await client.POST("/api/v1/items", {
       body: { actor: { ...dana, source: "user" }, item: itemFor(1) },
@@ -262,7 +262,14 @@ describe("the routes, through the generated client, on the fake store", () => {
     });
     expect(bundle.rows.map((r) => r.item.content)).toEqual(["fact 1"]);
     expect(bundle.rows[0]?.events.map((e) => [e.op, e.decision])).toEqual([["write", "allow"]]);
-    expect(workspace.plane.events()).toHaveLength(before);
+    expect(workspace.plane.events()).toHaveLength(before + 1);
+    expect(workspace.plane.events().at(-1)).toMatchObject({
+      op: "read",
+      actor: dana.id,
+      ts: NOW,
+      scope_to: null,
+      reason: expect.stringMatching(/^exported 1 item with 1 event as a bundle under /),
+    });
     // Another person takes nothing out of dana's scope.
     const other = await client.POST("/api/v1/export", { body: { actor: eve } });
     expect(C.ExportResponse.parse(other.data).rows).toEqual([]);

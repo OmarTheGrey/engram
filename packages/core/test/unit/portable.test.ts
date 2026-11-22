@@ -5,6 +5,7 @@
 import { describe, expect, it } from "vitest";
 import { currentItems } from "../../src/events.ts";
 import { BUNDLE_VERSION, bundleRows, exportable } from "../../src/portable.ts";
+import { eventVisibleTo } from "../../src/visible.ts";
 import { AT, fresh, id, item, testPolicy } from "./plane/helpers.ts";
 
 const omar = {
@@ -87,6 +88,28 @@ describe("bundleRows", () => {
     expect(exportable(testPolicy(), omar, { ...retired, scope: "org", owner: "person:sara" })).toBe(
       false,
     );
+  });
+
+  it("Plane.export returns the rows and appends one read event only its maker sees", async () => {
+    const w = await workload();
+    const before = w.plane.events().length;
+    const { rows, event } = await w.plane.export(omar, AT);
+    expect(rows.map((r) => r.item.id)).toEqual([id(1), id(3), id(4)]);
+    expect(w.plane.events()).toHaveLength(before + 1);
+    expect(event).toMatchObject({
+      op: "read",
+      actor: "person:omar",
+      item_id: null,
+      scope_from: null,
+      scope_to: null,
+      decision: "allow",
+      policy_id: "test/read/person",
+    });
+    expect(event.reason).toMatch(/^exported 3 items with 5 events as a bundle under test v1/);
+    expect(event.item_ids).toBeUndefined();
+    expect(eventVisibleTo(omar, event, w.policy)).toBe(true);
+    expect(eventVisibleTo(sara, event, w.policy)).toBe(false);
+    await expect(w.plane.export({ ...omar, id: "" }, AT)).rejects.toThrow(/invalid actor/);
   });
 
   it("names its format version", () => {

@@ -27,6 +27,7 @@ export {
 } from "./plane/adopt.ts";
 
 import { recordBypass } from "./plane/bypass.ts";
+import { type ExportResult, exportBundle } from "./plane/export.ts";
 import { changeGrants } from "./plane/grants.ts";
 import { type LintReport, lint } from "./plane/lint.ts";
 import { promote } from "./plane/promote.ts";
@@ -316,6 +317,13 @@ export interface Plane {
    * another actor is refused with ExplainDeniedError (decision D5).
    */
   explain(actor: Actor, readId: ReadId): Promise<Explanation[]>;
+  /**
+   * The actor's memory bundle (card E9.8, docs/bundle.md): the rows core's
+   * bundleRows picks, and one read event by the actor, naming no item and no
+   * scope, that records the export (review finding E9.8-3). Refuses an
+   * invalid actor or time with InvalidCallError.
+   */
+  export(actor: Actor, at: string): Promise<ExportResult>;
   /** The event log, in sequence order. */
   events(): MemoryEvent[];
 }
@@ -375,6 +383,7 @@ export function createPlane(deps: PlaneDeps): Plane {
     distill: async () => {
       throw new NotImplementedYet("distill", "D2");
     },
+    export: (actor, at) => exportBundle(deps, actor, at),
     events: () => allEvents(deps.db),
   };
 }
