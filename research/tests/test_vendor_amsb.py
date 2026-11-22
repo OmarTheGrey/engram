@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+from collections.abc import Callable
 from pathlib import Path
 from types import ModuleType
 
@@ -29,7 +30,7 @@ def expected() -> dict[str, str]:
     return {path: hashlib.sha256(body).hexdigest() for path, body in BODIES.items()}
 
 
-def serve(bodies: dict[str, bytes]):
+def serve(bodies: dict[str, bytes]) -> Callable[[str], bytes]:
     return lambda path: bodies[path]
 
 
