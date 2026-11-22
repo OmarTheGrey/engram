@@ -318,6 +318,15 @@ Open, for the lead. Each was drafted by a card's agent while implementing it; th
 | 5. mouse | on by default, `--no-mouse` to turn it off; the help overlay says Shift+drag selects text | clicks and the wheel help most people; the waiver keeps terminal selection and accessibility tools for those who need them |
 | 6. commands on quit | a short list of the session's commands on every quit; `--quiet` turns it off | it teaches the CLI, which is the point of the TUI |
 
+63. **ADR 0046, the replay validation record's source (card D3).** ADR 0026 left open where a procedural candidate's validation record comes from; ADR 0046 fills it. The lead answered two of its questions on 2026-11-22 (review findings D3-1 and D3-2), and ADR 0046 now carries both:
+    - D3-1, the pass rule: "5 tasks, no worse". "4 of 5 runs" means n = 5 held-out tasks, drawn by the config's seed from the split. A task passes when the candidate's mean reward over the 3 seeds reaches the threshold and is not below the mean reward without it on that task. Admit at 4 of 5. The plane computes all of it from the outcomes, and refuses a replay of any other number of held-out tasks.
+    - D3-2, the threshold: "Fixed at 2/3". A task's mean reward must be at least 2/3, which for 0 or 1 rewards is success on at least 2 of 3 seeds. The value is fixed in core as the registered one, and the plane refuses a replay naming any other.
+    - D3-13, the seeds (the lead's reading of "3 seeds", 2026-11-22): the seed set is exactly 1, 2 and 3, fixed in core (`REPLAY_SEEDS`). A replay on any other set (one seed, or seeds the caller picked) is refused as an invalid call before the log is touched, like the threshold.
+
+    What is left is accepting the ADR's text:
+    - (a) Accept ADR 0046 as written. A user-sourced actor presents the held-out outcomes, and the plane counts k of n itself. The replay is bound to the item's id, content hash and distill ref, through an injected session index. A mismatch is a deny event, the replay's sha256 is in every reason, and no surface exposes `replay` before verified actors (ADR 0042).
+    - (b) Accept it, and record each replay in the log in a schema card, so the oracle and the dogfood report can judge a replay admission from the log alone.
+    - (c) Keep procedural candidates unpromotable through the plane until a replay can be measured, not presented: admission waits for H5's runner (card X11) to call the plane itself.
 64. **ADR 0045, the AWM induction prompt adapted to tool use (card D2).** ADR 0012 says the prompt is vendored verbatim; card D2 asks for it adapted from web tasks to tool-use sessions (review finding D2-1). The lead answered on 2026-11-22: adapt, and record it in a new ADR ("Adapt, new ADR"). What is left is accepting the ADR's text, which lists every change.
     - (a) Accept ADR 0045: the adapted prompt pinned in `packages/core/src/distill/induce.ts`, the eighteen changes it lists, and ADR 0012's verbatim clause superseded.
     - (b) Accept it with changes to the list.
