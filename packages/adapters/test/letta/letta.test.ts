@@ -442,36 +442,45 @@ describe("two adapter instances on one repository (the lock)", () => {
         }),
       );
 
-    test("three holders in turn, each under the wait and together over it, then the waiter writes", async () => {
-      const root = await freshLettaRepo();
-      const c = clock();
-      const adapter = await createLettaAdapter({
-        root,
-        lockWaitMs: 1_000,
-        lockSeams: { now: c.now },
-      });
-      await hold(root, "holder-a", c.t);
-      const write = adapter
-        .write(item(48))
-        .catch((e: Error) => e)
-        .finally(() => {
-          c.settled = true;
+    // M-2 itself is the second row: one instance (one token) taking the lock
+    // again and again, each acquisition told apart only by its start time.
+    test.each([
+      ["three instances in turn", ["holder-a", "holder-b", "holder-c"]],
+      ["one instance taking it three times", ["holder-a", "holder-a", "holder-a"]],
+    ])(
+      "%s, each hold under the wait and together over it: the waiter writes",
+      async (_, tokens) => {
+        const [first, second, third] = tokens as [string, string, string];
+        const root = await freshLettaRepo();
+        const c = clock();
+        const adapter = await createLettaAdapter({
+          root,
+          lockWaitMs: 1_000,
+          lockSeams: { now: c.now },
         });
-      await polled(c);
-      c.t = 800;
-      await hold(root, "holder-b", c.t);
-      await polled(c);
-      c.t = 1_600;
-      await hold(root, "holder-c", c.t);
-      await polled(c);
-      c.t = 2_400;
-      await rm(lockPath(root));
-      const ref = await write;
-      if (ref instanceof Error) throw ref;
-      expect(await adapter.read(ref)).toEqual({ ...item(48), store_ref: ref });
-      expect(await commits(root)).toHaveLength(2);
-      expect(await readdir(join(root, ".git"))).not.toContain("engram.lock");
-    });
+        await hold(root, first, c.t);
+        const write = adapter
+          .write(item(48))
+          .catch((e: Error) => e)
+          .finally(() => {
+            c.settled = true;
+          });
+        await polled(c);
+        c.t = 800;
+        await hold(root, second, c.t);
+        await polled(c);
+        c.t = 1_600;
+        await hold(root, third, c.t);
+        await polled(c);
+        c.t = 2_400;
+        await rm(lockPath(root));
+        const ref = await write;
+        if (ref instanceof Error) throw ref;
+        expect(await adapter.read(ref)).toEqual({ ...item(48), store_ref: ref });
+        expect(await commits(root)).toHaveLength(2);
+        expect(await readdir(join(root, ".git"))).not.toContain("engram.lock");
+      },
+    );
 
     test("a holder that keeps it past the wait after a hand-over is refused, naming that holder", async () => {
       const root = await freshLettaRepo();
