@@ -33,6 +33,24 @@ const ask = (premise: string, hypothesis: string, model: string = NLI_MODEL.id):
   hypothesis,
 });
 
+/**
+ * Runs `fn` with ENGRAM_OFFLINE set to `value` (unset when undefined), then
+ * restores it. CI sets ENGRAM_OFFLINE=1; a test of the fetch or recording path
+ * with a fake fetch or a scripted scorer clears it, and a test of the guard
+ * sets it (review of card L7, the offline failure).
+ */
+async function withOffline<T>(value: string | undefined, fn: () => Promise<T>): Promise<T> {
+  const before = process.env.ENGRAM_OFFLINE;
+  if (value === undefined) delete process.env.ENGRAM_OFFLINE;
+  else process.env.ENGRAM_OFFLINE = value;
+  try {
+    return await fn();
+  } finally {
+    if (before === undefined) delete process.env.ENGRAM_OFFLINE;
+    else process.env.ENGRAM_OFFLINE = before;
+  }
+}
+
 const dirs: string[] = [];
 const temp = () => {
   const d = mkdtempSync(join(tmpdir(), "engram-nli-"));
@@ -125,15 +143,15 @@ describe("cachedNli", () => {
   });
 
   test("ENGRAM_OFFLINE=1 refuses a miss when offline is unset", async () => {
-    const before = process.env.ENGRAM_OFFLINE;
-    process.env.ENGRAM_OFFLINE = "1";
-    try {
-      const score = cachedNli(scripted().inner, { cache: memoryNliCache() });
-      await expect(score(ask("x", "y", SCRIPTED))).rejects.toThrow(/make nli-scores/);
-    } finally {
-      if (before === undefined) delete process.env.ENGRAM_OFFLINE;
-      else process.env.ENGRAM_OFFLINE = before;
-    }
+    const s = scripted();
+    const score = cachedNli(s.inner, { cache: memoryNliCache() });
+    await withOffline("1", () =>
+      expect(score(ask("x", "y", SCRIPTED))).rejects.toThrow(/make nli-scores/),
+    );
+    expect(s.calls()).toBe(0);
+    // Unset, the same miss is scored and recorded.
+    await withOffline(undefined, () => score(ask("x", "y", SCRIPTED)));
+    expect(s.calls()).toBe(1);
   });
 });
 
@@ -208,7 +226,9 @@ describe("fetchNliModel and verifyNliModel", () => {
 
   test("a file whose sha256 differs from the pin is never kept", async () => {
     const dir = temp();
-    await expect(fetchNliModel(dir, { fetch: fakeFetch() })).rejects.toThrow(/not the pinned/);
+    await withOffline(undefined, () =>
+      expect(fetchNliModel(dir, { fetch: fakeFetch() })).rejects.toThrow(/not the pinned/),
+    );
     expect(existsSync(join(dir, "onnx", "model.onnx"))).toBe(false);
   });
 
@@ -218,19 +238,17 @@ describe("fetchNliModel and verifyNliModel", () => {
       urls.push(String(url));
       return new Response("x");
     }) as typeof fetch;
-    await expect(fetchNliModel(temp(), { fetch: recording })).rejects.toThrow();
+    await withOffline(undefined, () =>
+      expect(fetchNliModel(temp(), { fetch: recording })).rejects.toThrow(/not the pinned/),
+    );
     expect(urls[0]).toBe(
       `https://huggingface.co/${NLI_MODEL.repository}/resolve/${NLI_MODEL.revision}/onnx/model.onnx`,
     );
-    const before = process.env.ENGRAM_OFFLINE;
-    process.env.ENGRAM_OFFLINE = "1";
-    try {
-      await expect(fetchNliModel(temp(), { fetch: recording })).rejects.toThrow(/offline/);
-      expect(urls).toHaveLength(1);
-    } finally {
-      if (before === undefined) delete process.env.ENGRAM_OFFLINE;
-      else process.env.ENGRAM_OFFLINE = before;
-    }
+    // The guard: offline, nothing is fetched, the fake included.
+    await withOffline("1", () =>
+      expect(fetchNliModel(temp(), { fetch: recording })).rejects.toThrow(/offline/),
+    );
+    expect(urls).toHaveLength(1);
   });
 
   test("verify names a missing file and a file that differs", async () => {

@@ -11,6 +11,25 @@ import { readFaultSetConfig, readSetPolicy, runFaultSetConfig } from "../src/lin
 import { readLintConfig, runLintConfig, withNliTier } from "../src/lint-faults.ts";
 
 const REPO = resolve(import.meta.dirname, "../../..");
+
+/**
+ * Runs `fn` with ENGRAM_OFFLINE set to `value` (unset when undefined), then
+ * restores it. CI sets ENGRAM_OFFLINE=1; a test of the fetch or recording path
+ * with a fake fetch or a scripted scorer clears it, and a test of the guard
+ * sets it (review of card L7, the offline failure).
+ */
+async function withOffline<T>(value: string | undefined, fn: () => Promise<T>): Promise<T> {
+  const before = process.env.ENGRAM_OFFLINE;
+  if (value === undefined) delete process.env.ENGRAM_OFFLINE;
+  else process.env.ENGRAM_OFFLINE = value;
+  try {
+    return await fn();
+  } finally {
+    if (before === undefined) delete process.env.ENGRAM_OFFLINE;
+    else process.env.ENGRAM_OFFLINE = before;
+  }
+}
+
 const config = (name: string) => join(REPO, "research/configs", `${name}.json`);
 
 describe("the fault-set fixture with the tier (h3-lint-nli-fixture)", () => {
@@ -50,17 +69,41 @@ describe("the fault-set fixture with the tier (h3-lint-nli-fixture)", () => {
     if (c.nli === undefined) throw new Error("h3-lint-nli-fixture has no nli block");
     const scripted = { ...c, nli: { ...c.nli, model: "scripted/nli-1" } };
     const cache = memoryNliCache();
-    const run = await runFaultSetConfig(scripted, {
-      offline: true,
-      nliCache: cache,
-      nliScore: scriptedNliScore("scripted/nli-1", () => [0, 0, 5]),
-    });
+    // Recording is refused under ENGRAM_OFFLINE=1, which CI sets: cleared here,
+    // as the scorer is scripted and nothing reaches the network.
+    const run = await withOffline(undefined, () =>
+      runFaultSetConfig(scripted, {
+        offline: true,
+        nliCache: cache,
+        nliScore: scriptedNliScore("scripted/nli-1", () => [0, 0, 5]),
+      }),
+    );
     // Two seeds of the same pairs: the first scores them, the second reads them back.
     expect(run.scores?.new).toBe(run.scores?.cached);
     expect(run.rows.flatMap((r) => r.nli ?? []).every((j) => j.band === "drop")).toBe(true);
     expect(run.rows.flatMap((r) => r.judgments).every((j) => j.lint_id !== "contradiction")).toBe(
       true,
     );
+  });
+});
+
+describe("recording under ENGRAM_OFFLINE=1", () => {
+  test("a scorer given to the run records nothing: a miss is an error and the scorer is never asked", async () => {
+    const c = readFaultSetConfig(config("h3-lint-nli-fixture"));
+    if (c.nli === undefined) throw new Error("h3-lint-nli-fixture has no nli block");
+    const scripted = { ...c, nli: { ...c.nli, model: "scripted/nli-1" } };
+    let asked = 0;
+    const score = scriptedNliScore("scripted/nli-1", () => {
+      asked++;
+      return [0, 0, 5];
+    });
+    const cache = memoryNliCache();
+    await withOffline("1", () =>
+      expect(
+        runFaultSetConfig(scripted, { offline: true, nliCache: cache, nliScore: score }),
+      ).rejects.toBeInstanceOf(NliMissError),
+    );
+    expect(asked).toBe(0);
   });
 });
 
