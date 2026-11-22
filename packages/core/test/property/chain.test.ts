@@ -155,6 +155,9 @@ async function run(db: Db, c: Case, seen: Seen) {
   const report = await offboard(deps, DANA, LEAVE, LATER);
   expect(report.decision).toBe("allow");
   for (const op of c.after) await apply(op, LATER, new Set(["person:dana"]));
+  // Every surviving scope linted once more, so each run holds salted lint events.
+  for (const scope of SCOPES.filter((sc) => sc !== "person:dana"))
+    await apply({ op: "lint", scope }, LATER, new Set(["person:dana"]));
 
   // What the offboarding redacted, for the guards.
   const erasedIds = new Set(report.erased.items);
@@ -211,10 +214,6 @@ function attempt(db: Db, fn: () => ChainReport | null): ChainReport | null {
   return out;
 }
 
-const bodyOf = (db: Db, seq: number) =>
-  JSON.parse(
-    String(db.prepare("SELECT body FROM events WHERE seq = ?").get(seq)?.body),
-  ) as MemoryEvent;
 const setBody = (db: Db, seq: number, event: MemoryEvent) =>
   db.prepare("UPDATE events SET body = ? WHERE seq = ?").run(JSON.stringify(event), seq);
 
