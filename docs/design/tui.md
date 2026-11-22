@@ -143,7 +143,7 @@ The route table has routes the inspector uses that have no plain command. Leavin
 
 Decided on 2026-11-22 under the lead's delegation (section 14, item 3): the four commands are added by E8.15a. Card E8.14 adds two more routes of the same kind (`/read/{itemId}`, `/scopes`; section 3.7); E8.15a also adds `engram read --item <id>` and `engram scopes` once E8.14 has merged. Both of those routes append a read event, and `/read/{itemId}` runs the same sweep and adoption as `/read`, so the TUI treats them as reads (9.5): `engram scopes` is called once per actor per session and its answer cached for every scope picker, refreshed only when the person asks (`ctrl+r` in a picker), never once per picker opened.
 
-### 3.7 In flight on 2026-11-21
+### 3.7 In flight on 2026-11-21 (E8.12 merged since)
 
 Read from the branches, read-only, on 2026-11-21 and 2026-11-22; card E1.6's row comes from its card, since its branch had no commits. The registry (6.1) takes each as one entry; none needs a redesign. Each screen is drawn in section 8 and marked there too.
 
@@ -151,7 +151,7 @@ Read from the branches, read-only, on 2026-11-21 and 2026-11-22; card E1.6's row
 |---|---|---|
 | E9.8, `e9-8-import-export` | `engram export [--out <file>] [--recipient <age1...>]... [--passphrase-file <file>]` with the actor and log flags; route `POST /export`; always exit 0. `engram import <bundle> \| --claude <file> [--scope] [--confidence] [--identity <file>]... [--passphrase-file]` with the store and actor flags; one `POST /items` per row as `import:<importer>`; exit 0 all allowed, 1 any denied; `--json` `{importer, actor, source, rows, allowed, denied, lineage_dropped, id_map, decisions}` | Export and Import (8.20, 8.21); in flight, card E9.8 |
 | E2.13, `e2-13-who-can-read` | `engram who-can-read <itemId> \| --scope <scope>` with store, actor and client flags and `--json`; routes `POST /who-can-read/item` and `/who-can-read/scope`; exit 0 answered, 1 refused, 2 bad id | Who can read (8.22), and `w` on any item; in flight, card E2.13 |
-| E8.12, `e8-12-verified-actors` | ADR 0042 (proposed). `serve` and `mcp --http` refuse to start without a credential: `--keys <file>`, or `--issuer` with `--jwks` and `--subjects` (and `--audience`, `--resource`), or the waiver `--insecure-loopback` ("the server needs authentication: give --keys <file> or --issuer with --jwks and --subjects, or --insecure-loopback to serve loopback with self-asserted actors (ADR 0042)"); a host beyond loopback only with credentials and an https `--resource`. `engram key create --keys <file> --as <principal> --source <kind> --expires <iso> [--level] [--member]...` prints the key once; `engram key list --keys <file>` prints `<masked>  <status>  <actor> (<level>, source <kind>)  expires <iso>`; `engram key revoke <id> --keys <file>`. `ENGRAM_TOKEN` is the bearer token sent over `--server`. `doctor` takes `--host` and serve's credential flags and fails a bind without authentication. 401 with `WWW-Authenticate`, 403 `forbidden_actor` | Keys (8.23); Serve and MCP built around a credential (8.13, 8.14); Doctor's form gains the bind flags; the status bar's token indicator; in flight, card E8.12 |
+| E8.12, merged into main on 2026-11-22 (`1ecf4aa9`) | ADR 0042 (proposed). `serve` and `mcp --http` refuse to start without a credential: `--keys <file>`, or `--issuer` with `--jwks` and `--subjects` (and `--audience`, `--resource`), or the waiver `--insecure-loopback` ("the server needs authentication: give --keys <file> or --issuer with --jwks and --subjects, or --insecure-loopback to serve loopback with self-asserted actors (ADR 0042)"); a host beyond loopback only with credentials and an https `--resource`. `engram key create --keys <file> --as <principal> --source <kind> --expires <iso> [--level] [--member]...` prints the key once; `engram key list --keys <file>` prints `<masked>  <status>  <actor> (<level>, source <kind>)  expires <iso>`; `engram key revoke <id> --keys <file>`. `ENGRAM_TOKEN` is the bearer token sent over `--server`. `doctor` takes `--host` and serve's credential flags and fails a bind without authentication. 401 with `WWW-Authenticate`, 403 `forbidden_actor` | Keys (8.23); Serve and MCP built around a credential (8.13, 8.14); Doctor's form gains the bind flags; the status bar's token indicator; card E8.12, merged |
 | E8.13, `e8-13-otel-export` | `--otlp <url>` and `--export-jsonl <file>` on read, write, promote, retain, lint, serve, mcp and hook; `ENGRAM_OTLP_URL`, `ENGRAM_EXPORT_JSONL`; refused with `--server`; a failed export is one stderr line that does not change the exit code; `run` waits for pending exports (`drainExports`) in its `finally`, which the prepare, call and print split of 6.2 must keep; with `--otlp` the decisions leave the machine for the named collector | workspace bar, "Decision export", which shows the collector's URL whenever it is on; in flight, card E8.13 |
 | E1.6, card only (its branch had no commits) | `engram log verify` (first broken link, an UNSIGNED verdict for an unsigned checkpoint, Ed25519 checkpoint signing); flags not yet fixed | Log verify (8.24); in flight, card E1.6. The form is built from the registry entry when it lands |
 | E2.12, `e2-12-cedar-export` | core only (`exportCedar`); no command | none until a command exists; the Policy screen reserves an action slot for it; in flight, card E2.12 |
@@ -258,7 +258,7 @@ interface CommandSpec {
                                    // that added it
   helpSection: string[];           // the "<name> options:" block of HELP, verbatim
   exitCodes: { code: number; when: string }[];
-  writes: (values: Values, ws: Workspace) => "none" | "audit" | "state" | "erase" | "file" | "process";
+  writes: (values: Values, ws: Workspace) => "none" | "audit" | "state" | "retire" | "erase" | "file" | "process";
                                    // drives confirmation (9.5); a function, because a read with a store
                                    // folder adopts (and as the owner sweeps) while one without does not
   handler: (args: string[], io: Io) => Promise<number>;
@@ -936,7 +936,7 @@ Lines the CLI prints wider than the pane wrap with a two-space hanging indent; p
 
 ### 8.8 Promote
 
-Item comes from the selected item (`p` on Read, Events or the item page) or a picker of items the last read returned; it can be typed, and is checked as the CLI checks it ("nope is not an item id (a UUIDv7)"). To scope is a scope field with suggestions from the actor's memberships and `org`. "Approve as reviewer" is `--review`; turning it on shows the CLI's limit text verbatim. The result shows the decision and every further event the promotion recorded, as the CLI prints them, and no advice of its own. The reviewer handoff is always offered after a promotion that did not land, whatever the reason: "Switch to a reviewer and approve" asks for the reviewer's principal, sets Acting as to it and Member of to the target scope in the workspace (both shown before they apply), and reopens Promote with As reviewer on. Whether that reviewer may approve is the plane's answer, as for any promotion.
+Item comes from the selected item (`p` on Read, Events or the item page) or a picker of items the last read returned; it can be typed, and is checked as the CLI checks it ("nope is not an item id (a UUIDv7)"). To scope is a scope field with suggestions from the actor's memberships and `org`. "Approve as reviewer" is `--review`; turning it on shows the CLI's limit text verbatim. The result shows the decision and every further event the promotion recorded, as the CLI prints them, and no advice of its own. The reviewer handoff is always offered after a promotion that did not land, whatever the reason: "Switch to a reviewer and approve" asks for the reviewer's principal, sets Acting as to it and Member of to the target scope for this session only (both shown before they apply; the switch is never written to the saved workspace), and reopens Promote with As reviewer on. The title bar then marks the reviewer "for this session", and "Switch back" in the workspace panel (ctrl+o) restores the previous actor and memberships. Whether that reviewer may approve is the plane's answer, as for any promotion. Against a server with credentials (card E8.12) the handoff is not offered: the identity comes from the key or token, not from Acting as, so the reviewer approves in their own session with their own credential, and the screen says so.
 
 Promote (80x24):
 
@@ -969,7 +969,7 @@ $ engram promote 01a1ff1a-eb0e-7b15-9e1e-af7066dfc62c --to team:platform ...
 
 ### 8.9 Retention sweep
 
-One field, Scope, with the actor's member scopes offered. The confirmation is the strongest in the TUI, because a sweep retires expired items for good and evicts over-budget ones: it says "Retiring cannot be undone. Retired items stay in the log; reads no longer return them." There is no preview route for a sweep, and the screen does not pretend there is.
+One field, Scope, with the actor's member scopes offered. The confirmation is the strong dialog of 9.5, because a sweep retires expired items for good and evicts over-budget ones: the action button is not focused, and it says "Retiring cannot be undone. Retired items stay in the log; reads no longer return them." There is no preview route for a sweep, and the screen does not pretend there is.
 
 Retention sweep (80x24):
 
@@ -1197,7 +1197,7 @@ While doctor runs, each check's row shows "running" with the static busy marker 
 
 ### 8.13 Serve
 
-Designed for card E8.12, which merges before E8.15b: `engram serve` refuses to start without a credential or the explicit waiver, so the screen starts with "Who may call this server?" and three answers. The default is API keys from a key file, with "Create a key" one press away (it opens Keys, 8.23, with the file filled in, and comes back). The second is a token issuer (`--issuer`, `--jwks`, `--subjects`, with `--audience` and `--resource` under Advanced). The third is labelled in words, not as a default: "No authentication: this machine only, anyone on it can act as anyone" (`--insecure-loopback`). Host, Port and the inspector's viewer follow. Start runs `serveCommand` in the TUI's process with an `Io.stop` the screen controls; the screen shows the server's start line, which names how it authenticates, the inspector's URL as an OSC 8 link, and a live request count from the client transport. A refusal from the server (`bindRefusal`) is shown verbatim with the field it names focused. `s` stops it and shows the stop line. Quitting the TUI stops a running server first and says so.
+Designed for card E8.12, merged on 2026-11-22: `engram serve` refuses to start without a credential or the explicit waiver, so the screen starts with "Who may call this server?" and three answers. The default is API keys from a key file, with "Create a key" one press away (it opens Keys, 8.23, with the file filled in, and comes back). The second is a token issuer (`--issuer`, `--jwks`, `--subjects`, with `--audience` and `--resource` under Advanced). The third is labelled in words, not as a default: "No authentication: this machine only, anyone on it can act as anyone" (`--insecure-loopback`). Host, Port and the inspector's viewer follow. Start runs `serveCommand` in the TUI's process with an `Io.stop` the screen controls; the screen shows the server's start line, which names how it authenticates, the inspector's URL as an OSC 8 link, and a live request count from the client transport. A refusal from the server (`bindRefusal`) is shown verbatim with the field it names focused. `s` stops it and shows the stop line. Quitting the TUI stops a running server first and says so.
 
 Serve (80x24):
 
@@ -1228,15 +1228,15 @@ $ engram serve --keys ~/.engram/keys.json --as person:dana --root ~/demo/mem
  s stop  o open inspector  k keys  c copy  ? help  esc back (keeps it running)
 ```
 
-The start line is the shape `serve.ts` prints on the E8.12 branch: it ends with "authenticated, resource <url>", or "insecure loopback: actors are self-asserted" under the waiver; `sqlite ~/demo/engram.db` stands for whatever `workspace.target.label` prints.
+The start line is the shape `serve.ts` prints since card E8.12 merged: it ends with "authenticated, resource <url>", or "insecure loopback: actors are self-asserted" under the waiver; `sqlite ~/demo/engram.db` stands for whatever `workspace.target.label` prints.
 
 ### 8.14 MCP server
 
 The MCP server is normally launched by the harness, not by a person, so this screen is setup: it builds the `engram mcp` command for the actor and memberships chosen, shows the configuration for Claude Code's `.mcp.json` and Codex's `config.toml` in exactly the shape of the repository's tested fixtures (`fixtures/harness/claude-code/.mcp.json`, `fixtures/harness/codex/config.toml`: `command` and an `args` list), and copies each with `c`. "Offer memory_supersede" is `--supersede` (card L6). The HTTP transport takes the same three authentication answers as Serve (card E8.12).
 
-The command in the snippet must run where the harness runs it. `engram` is a private workspace binary, not on the PATH unless the person installed it, and a hook or server command that cannot start fails open for the hook (8.15) and silently for MCP. So the TUI looks `engram` up on the PATH (with `PATHEXT` on Windows) and uses it only when it resolves to this same CLI; otherwise it writes the absolute command it is itself running (`process.execPath` and the absolute path of `packages/cli/src/main.ts`) and says so above the snippet: "engram is not on your PATH; the snippet uses the full path of this checkout's CLI."
+The command in the snippet must run where the harness runs it. `engram` is a private workspace binary, not on the PATH unless the person installed it, and a hook or server command that cannot start fails open for the hook (8.15) and silently for MCP. So the TUI looks `engram` up on the PATH (with `PATHEXT` on Windows) and uses it only when it resolves to this same CLI and, on Windows, to an `.exe`: both Claude Code's command-and-args form and Node's `spawn` without a shell start a real executable only, so an `engram.cmd` or `engram.ps1` shim (what `npm` and `pnpm` install) would not start and the hook would fail open. Otherwise it writes the absolute command it is itself running (`process.execPath`, `node.exe` on Windows, then the absolute path of `packages/cli/src/main.ts` as the first argument) and says why above the snippet: "engram is not on your PATH", or "engram on your PATH is a .cmd shim, which this form cannot start on Windows".
 
-"Try it" spawns exactly the command and arguments of the snippet, as a child process with piped stdin and stdout (never the TUI's own terminal), speaks the MCP handshake to it as layer 6 does, lists its tools, and stops it. It runs on a scratch log: the child's environment sets `ENGRAM_DB_URL=:memory:`, and when the snippet names `--db` itself, Try it replaces only that value and says so. A child that does not start (exit 127, a missing file) or exits before the handshake is shown as a failure in words: "✗ the command did not start (exit 127): the harness would get no Engram tools".
+"Try it" spawns exactly the command and arguments of the snippet, as a child process with piped stdin and stdout (never the TUI's own terminal), speaks the MCP handshake to it as layer 6 does, lists its tools, and stops it. It runs on a scratch log and reaches no server: the child's environment sets `ENGRAM_DB_URL=:memory:` and has `ENGRAM_SERVER_URL` removed, a `--db` in the snippet is replaced by `:memory:`, and a `--server <url>` in the snippet is replaced by `--db :memory:`; the screen lists each replacement ("Try it ran with --db :memory: in place of --server http://127.0.0.1:7313"), so the person knows what was and was not tried. A child that does not start (exit 127, a missing file) or exits before the handshake is shown as a failure in words: "✗ the command did not start (exit 127): the harness would get no Engram tools".
 
 MCP server (80x24):
 
@@ -1271,36 +1271,36 @@ The tool names listed come from the handshake at run time; the four shown are th
 
 ### 8.15 Claude Code hook setup
 
-The hook reads JSON on stdin from Claude Code, so a person never runs it by hand. The screen builds the `engram hook claude-code` command from Store roots (`--root`, repeatable, written relative to `${CLAUDE_PROJECT_DIR}` when inside the project, as the fixture does), Protected files (`--protect`, repeatable; with a server, the TUI fills in the log `engram serve --db` names and says why, as `docs/dogfood.md` asks), the block actor (`--as`, default `agent:claude-code`) and the log or server. It shows the `.claude/settings.json` entry in exactly the shape of the tested fixture (`fixtures/harness/claude-code/.claude/settings.json`: `"matcher": "*"`, a `command` and an `args` list), with the command resolved as in 8.14. The TUI writes no settings file itself.
+The hook reads JSON on stdin from Claude Code, so a person never runs it by hand. The screen builds the `engram hook claude-code` command from Store roots (`--root`, repeatable, written as absolute paths: the fixture's `${CLAUDE_PROJECT_DIR}/memory` relies on Claude Code expanding the variable inside `args`, which its documentation does not promise, and an unexpanded root would protect nothing), Protected files (`--protect`, repeatable; with a server, the TUI fills in the log `engram serve --db` names and says why, as `docs/dogfood.md` asks), the block actor (`--as`, default `agent:claude-code`) and the log or server. It shows the `.claude/settings.json` entry in exactly the shape of the tested fixture (`fixtures/harness/claude-code/.claude/settings.json`: `"matcher": "*"`, a `command` and an `args` list), with the command resolved as in 8.14 (on Windows, `node.exe` and the absolute `main.ts` unless `engram` on the PATH is an `.exe`). The entry differs from the fixture only in those two ways, both so it runs as pasted. The TUI writes no settings file itself.
 
-"Try it" never touches the workspace's log. It spawns exactly the copied command and arguments as a child process, with `ENGRAM_DB_URL=:memory:` in its environment (and `--db` replaced by `:memory:` if the entry names one), `CLAUDE_PROJECT_DIR` set to the project, and two sample PreToolUse inputs on stdin: one that touches a store root (expect a deny printed) and one that does not (expect nothing). Each result shows the child's exit code. Claude Code acts on a hook's JSON only on exit 0 and lets the call through on any other code but 2, so a failure to start is shown loudly: "✗ the hook did not run (exit 127). Claude Code would let every tool call through. Fix the command before pasting it."
+"Try it" never touches the workspace's log and reaches no server. It spawns exactly the copied command and arguments as a child process, with `ENGRAM_DB_URL=:memory:` in its environment and `ENGRAM_SERVER_URL` removed (a `--db` in the entry replaced by `:memory:`, a `--server <url>` replaced by `--db :memory:`, each replacement listed on screen), `CLAUDE_PROJECT_DIR` set to the project, and two sample PreToolUse inputs on stdin: one that touches a store root (expect a deny printed) and one that does not (expect nothing). Each result shows the child's exit code. Claude Code acts on a hook's JSON only on exit 0 and lets the call through on any other code but 2, so a failure to start is shown loudly: "✗ the hook did not run (exit 127). Claude Code would let every tool call through. Fix the command before pasting it."
 
 Claude Code hook setup (80x24):
 
 ```text
  engram  Claude Code hook setup                in process  person:dana (person)
- Store roots     ${CLAUDE_PROJECT_DIR}/memory  [+ add]
+ Store roots     C:\src\lantern\memory  [+ add]
  Protected files [+ add]     the log is protected already
  Block events as [ person:dana     ]
 
- engram is on your PATH (C:\Users\dana\AppData\Roaming\npm\engram.cmd).
+ engram on your PATH is a .cmd shim, which this form cannot start on Windows.
  .claude/settings.json, hooks.PreToolUse:
-   { "matcher": "*", "hooks": [ { "type": "command", "command": "engram",
-     "args": ["hook", "claude-code", "--root",
-     "${CLAUDE_PROJECT_DIR}/memory", "--as", "person:dana"] } ] }
+   { "matcher": "*", "hooks": [ { "type": "command",
+     "command": "C:\\Program Files\\nodejs\\node.exe",
+     "args": ["C:\\src\\engram\\packages\\cli\\src\\main.ts", "hook",
+     "claude-code", "--root", "C:\\src\\lantern\\memory", "--as",
+     "person:dana"] } ] }
 
  [ Copy the entry ]   [ Try it on a scratch log ]
 
- ✓ Read memory/user_role.md   exit 0, blocked: permissionDecision deny
- ✓ Read ./README.md           exit 0, allowed: the hook printed nothing
+ ✓ Read memory\user_role.md   exit 0, blocked: permissionDecision deny
+ ✓ Read README.md              exit 0, allowed: the hook printed nothing
 
 
 
 
 
-
-
-$ engram hook claude-code --root ${CLAUDE_PROJECT_DIR}/memory --as person:dana
+$ engram hook claude-code --root C:\src\lantern\memory --as person:dana
  enter choose  c copy command  ? help  esc back
 ```
 
@@ -1543,7 +1543,7 @@ $ engram who-can-read 01a1ff1a-eb0e-7b15-9e1e-af7066dfc62c --owner dana
  tab item or scope  J json  c copy  ? help  esc back
 ```
 
-### 8.23 Keys (in flight, card E8.12)
+### 8.23 Keys (card E8.12, merged)
 
 `engram key create | list | revoke` from the registry; every call names the key file (`--keys <file>`), which the screen holds at the top and saves with the workspace (its path only). List shows each key as `engram key list` prints it: the masked key, its status, its actor with level and source, and its expiry. Create asks for the actor (`--as`, `--level`, `--member`), its source (`--source`) and an expiry (`--expires`, required), then shows the new key once, in full, with "copy it now; it is not shown again" and the file holding only its hash. Revoke asks with a typed confirmation of the key's id, since it cannot be undone. Serve and MCP open this screen for "Create a key" and return to where they were.
 
@@ -1620,7 +1620,7 @@ There is no Procedures screen and no Home entry. `POST /distill` answers 501 nam
 
 ### 8.26 Supersede (in flight, card L6)
 
-On an item, `S` runs `engram supersede <itemId>` without `--accept`: the plan, which names the head of the item's chain and, for each ancestor the actor may read, a proposed close (`valid_to` set to the item's `valid_from`) or a review flag. Each proposal row shows the ancestor's id, which is what `--accept` takes. Choosing proposals and applying runs `engram supersede <itemId> --accept <ancestor id>...`: each accepted close is a new version through the write gate, so it asks first and shows each write's decision. Nothing is retired, and an id with no proposed close refuses the whole call before anything is written, as the CLI does.
+On an item, `S` runs `engram supersede <itemId>` without `--accept`: the plan, which names the head of the item's chain and, for each ancestor the actor may read, a proposed close (`valid_to` set to the item's `valid_from`) or a review flag. Each proposal row shows the ancestor's id, which is what `--accept` takes. Only a close can be accepted, so only close rows have a checkbox; a review row is shown for the person to act on elsewhere, with no control. Choosing proposals and applying runs `engram supersede <itemId> --accept <ancestor id>...`: each accepted close is a new version through the write gate, so it asks first and shows each write's decision. Nothing is retired, and an id with no proposed close refuses the whole call before anything is written, as the CLI does.
 
 Supersede (80x24):
 
@@ -1633,7 +1633,7 @@ Supersede (80x24):
  Proposals, one per ancestor you may read
    [x] close   00000000-0000-7fec-aeaa-eb2bfa22eb9b  valid_to
                2026-11-22T09:00:00Z, this item's valid_from
-   [ ] review  00000000-0000-705b-a9ef-bd1e9ea92409  flagged for review
+       review  00000000-0000-705b-a9ef-bd1e9ea92409  flagged for review
 
  Accepting writes a new version of each chosen ancestor with that end date;
  the write gate decides each, as for any update.
@@ -1881,7 +1881,8 @@ From the registry's `writes` function (6.1), evaluated with the form's values an
 |---|---|---|
 | `none` | doctor, simulate, explain, policy, check, events, who-can-read (its routes append no event), key list, log verify, and the Try it of MCP and hook setup (a child process on a scratch `:memory:` log, 8.14 and 8.15) | none |
 | `audit` | lint (appends lint events); read and `read --item` with no store folder (append one read event); `scopes`, which appends a read event | none |
-| `state` | read and `read --item` with a store folder (adoption, and as the store's owner the retention sweep, 8.5); write, promote, grants, retain, import, supersede with `--accept`, key create, log checkpoint signing (it adds a checkpoint and removes nothing) | the dialog of 8.29; for a read, the dialog of 8.5, once per session per workspace, its first line then repeated in the command row of every later read |
+| `state` | read and `read --item` with a store folder (adoption, and as the store's owner the retention sweep, 8.5); write, promote, grants, import, supersede with `--accept`, key create, log checkpoint signing (it adds a checkpoint and removes nothing) | the dialog of 8.29; for a read, the dialog of 8.5, once per session per workspace, its first line then repeated in the command row of every later read |
+| `retire` | retain | the strong dialog of 8.9: the action button not focused, and "Retiring cannot be undone. Retired items stay in the log; reads no longer return them." |
 | `erase` | key revoke, and any erasure command a later card adds | the dialog, with the action button not focused and a typed confirmation: the key id, item id or the word `erase` |
 | `file` | export (writes the bundle file) | the dialog names the file and says whether it exists and will be overwritten |
 | `process` | serve, and mcp over HTTP | none to start; the screen shows it running and how it authenticates; quitting the TUI stops it and says so |
@@ -1940,7 +1941,7 @@ Secrets never appear: every message the TUI shows has passed the same `redactSec
 
 - Server mode checks `GET /health` on entering the workspace and before each call only after a failure; the title bar shows "server 127.0.0.1:7313" or "server unreachable". A refused connection shows "The server at http://127.0.0.1:7313 did not answer. Start it with engram serve, or switch to in process." with both actions. The TUI never falls back to in process by itself, since that would change which log the next call writes.
 - `ENGRAM_OFFLINE=1` changes nothing in the TUI. The TUI reaches the network only where the CLI would: a named server, a Postgres log, and, when the person turns decision export on (card E8.13, `--otlp` or `ENGRAM_OTLP_URL`), the named collector, which the workspace bar then shows by URL.
-- A 401 or 403 `forbidden_actor` (card E8.12) shows the reason and "set ENGRAM_TOKEN or pass a token", never the token.
+- A 401 or 403 `forbidden_actor` (card E8.12) shows the reason and "set ENGRAM_TOKEN to a token or key this server accepts", never the token; the CLI has no token flag, so the variable is the only way to send one.
 
 ## 11. Accessibility
 
@@ -2023,8 +2024,8 @@ Following `docs/conventions/testing.md`: fakes, no mocks; an injected clock and 
 | registry | `packages/cli/test/registry.test.ts` | `HELP` from the registry equals the pinned snapshot byte for byte (then with only the first line and the new commands' lines changed); every handler's option object is the registry's; every command has exit codes and a `writes` function |
 | snapshot frames | `packages/cli/test/tui/frames.test.ts` | each screen of section 8 rendered through a `FakeTerminal` into `@xterm/headless` at 80x24 and 120x40, in the default, `--no-color`, `--high-contrast` and `--ascii` modes, against committed text snapshots under `packages/cli/test/tui/__frames__/`; no snapshot line exceeds its width; the 79x24 and 80x23 frames are the too-small screen |
 | keys | `packages/cli/test/tui/keys.test.ts` | on every screen no key is bound to two actions; every action has a binding with no function key, no Alt and neither ctrl+p nor F1 alone; Home's letters avoid the global and list keys |
-| key flows | `packages/cli/test/tui/flows.test.ts` | first run to the guided first loop; a second start with a saved workspace opens Home with no doctor call; Forget saved workspace deletes the file; the first read with a store folder in a session, with an expired item in the owner's scope, shows the dialog of 8.5 before any call is made, and a second read does not; write with a denied preview, its neutral shortcuts and "Record this write"; promote with the reviewer handoff; grant add then undo; palette search and paste of a command line; resize during a form keeps its input; `ctrl+c` stops a running serve; a scope picker opened five times makes one `scopes` call |
-| snippets | `packages/cli/test/tui/snippets.test.ts` | the Claude Code entry and the MCP and Codex configuration have the shape of `fixtures/harness/claude-code/.claude/settings.json`, `.mcp.json` and `fixtures/harness/codex/config.toml`; an `engram` that does not resolve on the PATH gives the absolute command and the warning; Try it of a command that cannot start shows the loud failure; after Try it the workspace log's event count is unchanged |
+| key flows | `packages/cli/test/tui/flows.test.ts` | first run to the guided first loop; a second start with a saved workspace opens Home with no doctor call; Forget saved workspace deletes the file; the first read with a store folder in a session, with an expired item in the owner's scope, shows the dialog of 8.5 before any call is made, and a second read does not; write with a denied preview, its neutral shortcuts and "Record this write"; promote with the reviewer handoff, which is not saved to `tui.json`, is undone by Switch back, and is not offered against a server with credentials; grant add then undo; palette search and paste of a command line; resize during a form keeps its input; `ctrl+c` stops a running serve; a scope picker opened five times makes one `scopes` call |
+| snippets | `packages/cli/test/tui/snippets.test.ts` | the Claude Code entry and the MCP and Codex configuration have the shape of `fixtures/harness/claude-code/.claude/settings.json`, `.mcp.json` and `fixtures/harness/codex/config.toml`; an `engram` that does not resolve on the PATH gives the absolute command and the warning; on Windows an `engram.cmd` put on the PATH gives the `node.exe` and absolute `main.ts` form, and only an `engram.exe` is used as is; the roots in the generated entry are absolute; Try it of the generated entry blocks the store sample and allows the other; Try it of a command that cannot start shows the loud failure; after Try it the workspace log's event count is unchanged; with `ENGRAM_SERVER_URL` pointing at a counting fake server, and with `--server` in the snippet, Try it makes zero requests to it |
 | parity | `packages/cli/test/tui/parity.test.ts` | for every registry command and every flag: the TUI action issues the same request (method, path, body) through `Io.transport` as `run(argv, io)` with the argument vector it shows, in process and against a server (`createApp` behind a fetch); the argument vector shown equals the one run; `v` shows `run`'s stdout byte for byte, `J` the `--json` stdout; card E8.12's serve, mcp and key entries included |
 | refusals | `packages/cli/test/tui/entry.test.ts` | each row of 5.2 prints its line, exits 2 and writes no escape sequence; bare `engram` prints the help with its new first line and exits 2 |
 | line mode | `packages/cli/test/tui/line.test.ts` | a scripted stdin produces the transcript of 8.31 with the command's exact output; an empty Enter lists the commands and does not quit; `quit` and end of input leave; mcp and hook print their configuration and never run on the terminal; `ENGRAM_TUI_LINE=1` starts it |
