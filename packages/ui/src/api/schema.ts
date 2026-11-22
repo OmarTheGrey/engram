@@ -51,6 +51,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/read/{itemId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Read one item by its id through the plane's read filter as the actor at the server's clock (card E8.14): the item and its explanation when the actor may read it, nothing otherwise, and one read event; with a store, the same sweep and adoption as /read run first. */
+        post: operations["readById"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/scopes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** The scopes the actor can see at the server's clock (card E8.14): its member scopes the read matrix lets its level read, and the scope of every item a read would admit through a live grant; one read event records the decision; with a store, the same sweep and adoption as /read run first. */
+        post: operations["listScopes"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/explain/{readId}": {
         parameters: {
             query?: never;
@@ -561,6 +595,30 @@ export interface components {
             event: components["schemas"]["MemoryEvent"];
             sync: components["schemas"]["StoreSync"] | null;
             /** @description The policy the read was decided under: <id> v<version>. */
+            policy: string;
+        };
+        ReadByIdRequest: {
+            actor: components["schemas"]["Actor"];
+            /**
+             * Format: date-time
+             * @description The time validity windows are judged at, UTC ISO 8601, when the reader asks what was true at another time. The read itself happens at the server's clock: its event's ts, and the time status, ttl and grant expiry are judged at. It sweeps nothing, and the read event's reason records it.
+             */
+            at?: string;
+        };
+        ScopesRequest: {
+            actor: components["schemas"]["Actor"];
+        };
+        /** @description A scope the actor can see: `membership`, a member scope the read matrix lets its level read; `grant`, otherwise, the scope of an item a read now admits through a live grant (card E8.14). */
+        VisibleScope: {
+            scope: string;
+            /** @enum {string} */
+            via: "membership" | "grant";
+        };
+        ScopesResponse: {
+            scopes: components["schemas"]["VisibleScope"][];
+            event: components["schemas"]["MemoryEvent"];
+            sync: components["schemas"]["StoreSync"] | null;
+            /** @description The policy the listing was decided under: <id> v<version>. */
             policy: string;
         };
         /** @description What the workspace did before the read, as the store's owner: its retention sweep, then the adoption of the store's own memories (ADR 0025, decision D8). */
@@ -1222,6 +1280,182 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ReadResponse"];
+                };
+            };
+            /** @description the request fails its schema, or the plane refused the call (InvalidCallError) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description on a server with credentials (ADR 0042): no bearer credential, or one it does not accept; WWW-Authenticate names the protected-resource metadata */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description the Host or Origin is not this server's, the credential's actor is not the request's (forbidden_actor), or the actor may not explain this read */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description no such route, or the read id names no read event */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description the body is over the size limit */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description the body is not application/json */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description an unexpected error; the body carries no internals */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    readById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                itemId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReadByIdRequest"];
+            };
+        };
+        responses: {
+            /** @description the result; a policy decision of any kind is 200 with its event */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadResponse"];
+                };
+            };
+            /** @description the request fails its schema, or the plane refused the call (InvalidCallError) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description on a server with credentials (ADR 0042): no bearer credential, or one it does not accept; WWW-Authenticate names the protected-resource metadata */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description the Host or Origin is not this server's, the credential's actor is not the request's (forbidden_actor), or the actor may not explain this read */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description no such route, or the read id names no read event */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description the body is over the size limit */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description the body is not application/json */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description an unexpected error; the body carries no internals */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    listScopes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScopesRequest"];
+            };
+        };
+        responses: {
+            /** @description the result; a policy decision of any kind is 200 with its event */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScopesResponse"];
                 };
             };
             /** @description the request fails its schema, or the plane refused the call (InvalidCallError) */

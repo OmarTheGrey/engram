@@ -26,6 +26,10 @@ export * from "./lint/intervals.ts";
 export * from "./lint/model.ts";
 export * from "./lint/supersession.ts";
 export * from "./lint.ts";
+export * from "./log/chain.ts";
+export * from "./log/merkle.ts";
+export * from "./log/redact.ts";
+export * from "./log/verify.ts";
 export * from "./model.ts";
 export * from "./no-bypass.ts";
 export {

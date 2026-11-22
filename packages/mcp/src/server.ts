@@ -46,15 +46,9 @@ import {
   type PresetName,
   type WorkloadStep,
 } from "@engram/core";
-import { recallDetails, tagRecall } from "@engram/pi-extension/tag";
-import {
-  MEMORY_EXPLAIN,
-  MEMORY_READ,
-  MEMORY_SIMULATE,
-  MEMORY_WRITE,
-  writeResultText,
-} from "@engram/pi-extension/tools";
+import { MEMORY_EXPLAIN, MEMORY_SIMULATE } from "@engram/pi-extension/tools";
 import type { EngramClient } from "@engram/sdk";
+import { MEMORY_READ, MEMORY_WRITE, recallDetails, tagRecall, writeResultText } from "@engram/tag";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import {
   CallToolRequestSchema,
