@@ -14,6 +14,7 @@ import { describe, expect, it } from "vitest";
 import { command } from "../../src/registry.ts";
 import { summaryText } from "../../src/tui/app.ts";
 import type { EventsScreen } from "../../src/tui/screens/events.ts";
+import type { ItemScreen } from "../../src/tui/screens/item.ts";
 import { cli, fixtureCopy, tempDir, VALID_FROM } from "../helpers.ts";
 import { type Harness, startHarness } from "./harness.ts";
 
@@ -96,10 +97,12 @@ type Open = (h: Harness) => Promise<void>;
 
 const SCREENS: Record<string, { open: Open; mark: string }> = {
   "the item page": {
+    // dana's read returns her note too, so the session holds its state: the page must not use it for sam.
     open: async (h) => {
+      await h.press("r", CTRL_S, "y", ESC, ESC);
       h.app.openCommand(command("read --item") as never, {}, [TEAM]);
       await h.app.settled();
-      await h.press("y");
+      if (h.overlay() === "confirm") await h.press("y");
     },
     mark: NOTE,
   },
@@ -158,6 +161,12 @@ describe("after a change of actor, no screen draws another actor's answer", () =
         await change(h);
         expect(h.app.ws.actorLabel()).toContain("person:sam");
         const frames = [await h.text()];
+        // The item page builds nothing from dana's answers: not its graph, not its versions (finding 1).
+        if (h.screen() === "item")
+          for (const m of MARKS)
+            expect(
+              JSON.stringify((h.app.top() as unknown as ItemScreen).page(h.app)),
+            ).not.toContain(m);
         expect(frames[0]).toContain("made as person:dana");
         expect(frames[0]).toContain("r runs it again as you");
         // r runs the command again, as the actor now: the command line is rebuilt from the workspace.
