@@ -30,6 +30,7 @@ export {
 } from "./plane/adopt.ts";
 
 import { recordBypass } from "./plane/bypass.ts";
+import { type ExportResult, exportBundle } from "./plane/export.ts";
 import { changeGrants } from "./plane/grants.ts";
 import { type LintReport, lint } from "./plane/lint.ts";
 import { promote } from "./plane/promote.ts";
@@ -371,6 +372,13 @@ export interface Plane {
    */
   explain(actor: Actor, readId: ReadId): Promise<Explanation[]>;
   /**
+   * The actor's memory bundle (card E9.8, docs/bundle.md): the rows core's
+   * bundleRows picks, and one read event by the actor, naming no item and no
+   * scope, that records the export (review finding E9.8-3). Refuses an
+   * invalid actor or time with InvalidCallError.
+   */
+  export(actor: Actor, at: string): Promise<ExportResult>;
+  /**
    * Who can read one item at `at` (card E2.13): a symbolic set of readers,
    * each entry with the read matrix row or the grant that admits it,
    * computed from the read filter's own rules, and why nobody may read it
@@ -469,6 +477,7 @@ export function createPlane(deps: PlaneDeps): Plane {
       // backlog work ("Plane.distill and the /distill route").
       throw new NotImplementedYet("distill", "backlog");
     },
+    export: (actor, at) => exportBundle(deps, actor, at),
     whoCanReadItem: (actor, itemId, at) => whoCanReadItem(deps, actor, itemId, at),
     whoCanRead: (actor, scope, at) => whoCanRead(deps, actor, scope, at),
     events: () => allEvents(deps.db),

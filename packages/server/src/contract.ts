@@ -6,6 +6,8 @@
 // core contracts keep the names of sdk/schema/*.json.
 import {
   ActorShape,
+  BUNDLE_FORMAT,
+  BUNDLE_VERSION,
   CONTRACTS,
   Explanation,
   Grant,
@@ -193,6 +195,27 @@ export const EventsResponse = z.strictObject({ events: z.array(MemoryEvent) });
 
 export const PolicyResponse = z.strictObject({ policy: Policy, label: z.string() });
 
+/** One row of a memory bundle (card E9.8, docs/bundle.md): an item and its events, each without its item state. */
+export const BundleRow = z.strictObject({
+  item: MemoryItem,
+  events: z.array(MemoryEvent.omit({ item: true })),
+});
+
+export const ExportRequest = z.strictObject({ actor: Actor });
+export const ExportResponse = z
+  .strictObject({
+    format: z.literal(BUNDLE_FORMAT),
+    version: z.literal(BUNDLE_VERSION),
+    exported_at: Timestamp,
+    exported_by: z.string(),
+    policy: z.string(),
+    rows: z.array(BundleRow),
+  })
+  .meta({
+    description:
+      "The actor's memory bundle (docs/bundle.md): every item in its own person scope and its own items in the other scopes the read matrix lets it read, of every status, ordered by id, each with the events naming it that the actor may see. `engram export` writes it as JSONL, a header line then one row per line.",
+  });
+
 export const LintRequest = z.strictObject({ actor: Actor, scope: z.string() });
 /** Plane.lint's LintReport (card L1): deny when the actor is not a member of the scope. */
 export const LintResponse = z.strictObject({
@@ -322,6 +345,9 @@ export const COMPONENTS = {
   EventsRequest,
   EventsResponse,
   PolicyResponse,
+  BundleRow,
+  ExportRequest,
+  ExportResponse,
   LintRequest,
   LintResponse,
   Workload,

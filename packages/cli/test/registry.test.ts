@@ -32,12 +32,12 @@ import { cli } from "./helpers.ts";
 const HERE = dirname(fileURLToPath(import.meta.url));
 /**
  * HELP as main printed it before the registry: packages/cli/src/run.ts at
- * 62a4c6e5, the last main merged into this branch whose HELP was a literal.
+ * 8046a6c2, the last main merged into this branch whose HELP was a literal.
  * A card that adds a command on main refreshes it from its own run.ts.
  */
 const MAIN_HELP = readFileSync(join(HERE, "help-main.txt"), "utf8");
 const MAIN_FIRST_LINE = "engram: the Engram control plane from the command line";
-/** The commands main had at 62a4c6e5: E8.12's key, E8.13's export flags, E2.13's who-can-read, E1.6's log and L6's supersede among them. */
+/** The commands main had at 8046a6c2: E8.12's key, E8.13's export flags, E2.13's who-can-read, E1.6's log, L6's supersede and E9.8's export and import among them. */
 const ON_MAIN = [
   "read",
   "write",
@@ -47,6 +47,8 @@ const ON_MAIN = [
   "retain",
   "lint",
   "simulate",
+  "export",
+  "import",
   "who-can-read",
   "serve",
   "mcp",
@@ -119,10 +121,10 @@ describe("HELP from the registry", () => {
 
   it("lists in each shared heading the commands whose entries name it, as main's headings did", () => {
     expect(HELP).toContain(
-      "store options (read, write, promote, supersede, retain, lint, who-can-read, serve, mcp):",
+      "store options (read, write, promote, supersede, retain, lint, import, who-can-read, serve, mcp):",
     );
     expect(HELP).toContain(
-      "actor options (read, write, promote, supersede, explain, retain, lint, who-can-read):",
+      "actor options (read, write, promote, supersede, explain, retain, lint, export, import, who-can-read):",
     );
     expect(HELP).toContain(
       "export options (read, write, promote, retain, lint, serve, mcp, hook claude-code):",

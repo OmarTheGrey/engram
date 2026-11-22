@@ -171,7 +171,7 @@ It replays your log through the invariants' oracle (`packages/core/src/oracle.ts
 | key | what it counts |
 |---|---|
 | `events`, `days_with_events`, `span_days`, `by_op` | the events, the days with one, the days from the first to the last, and events by operation and decision |
-| `reads` | read events (`as_declared`: by your actor; `as_others`: by any other principal), items returned, and items returned only through a grant; `scope_lists` counts scope listings (`POST /scopes`, card E8.14) apart |
+| `reads` | read events (`as_declared`: by your actor; `as_others`: by any other principal), items returned, and items returned only through a grant; `scope_lists` counts scope listings (`POST /scopes`, card E8.14) apart; an `engram export` is recorded as a read event but is not counted here (it returns no read; it is in `events` and `by_op`, card E9.8) |
 | `writes` | write events allowed and denied (adoptions included) |
 | `grants` | allowed events that changed what an item's grants admit, and the grants they added and removed |
 | `denials` | denied events by rule id (a rule id of another shape counts as `other`); `asks`; `bypass_blocked` |

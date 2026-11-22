@@ -59,6 +59,7 @@ import {
   withdrawalProblem,
   withinValidity,
 } from "./oracle.ts";
+import { isExportEvent } from "./plane/export.ts";
 import { readValidAt } from "./plane/read-reason.ts";
 import { SCOPE_LIST_PREFIX } from "./plane/scopes.ts";
 import {
@@ -347,7 +348,9 @@ export function dogfoodReport(
       (e.item_ids ?? []).length === 0
     )
       r.reads.scope_lists++;
-    else if (e.op === "read" && e.decision === "allow") {
+    // An export (card E9.8) is recorded as a read event but returns no read:
+    // it is counted in events and by_op only (finding E9.8-9).
+    else if (e.op === "read" && e.decision === "allow" && !isExportEvent(e)) {
       r.reads.events++;
       r.reads[actors.has(e.actor) ? "as_declared" : "as_others"]++;
       const actor = actorFor(e.actor);

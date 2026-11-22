@@ -15,7 +15,14 @@ async function owned() {
   const root = await tempDir();
   const db = join(await tempDir(), "engram.db");
   const ws = ["--root", root, "--owner", "dana", "--db", db];
-  const w = await cli(["write", ...ws, "--id", ITEM, "--content", "Dana prefers written standups."]);
+  const w = await cli([
+    "write",
+    ...ws,
+    "--id",
+    ITEM,
+    "--content",
+    "Dana prefers written standups.",
+  ]);
   expect(w.code).toBe(0);
   return { db, ws };
 }
@@ -32,7 +39,9 @@ describe("engram grants", () => {
     expect(lines[0]).toMatch(/^update \S+ at \S+ by person:dana$/);
     expect(lines[1]).toMatch(/^allow: /);
     expect(lines[2]).toBe("policy engram/grant/change");
-    expect(added.out).toContain("grants:\n  person:sam: semantic, read, until 2026-12-01T00:00:00Z\n");
+    expect(added.out).toContain(
+      "grants:\n  person:sam: semantic, read, until 2026-12-01T00:00:00Z\n",
+    );
     expect(lines.at(-2)).toBe(`log ${db}`);
 
     const removed = await cli(["grants", ITEM, ...ws, "--remove", SAM, "--json"]);

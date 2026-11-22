@@ -56,7 +56,9 @@ describe("engram scopes", () => {
     expect(sam.err).toBe("");
     expect(sam.code).toBe(0);
     const lines = sam.out.split("\n");
-    expect(lines[0]).toMatch(/^scopes person:sam can see at \S+ under preset\.medium v\d+: 2 scopes$/);
+    expect(lines[0]).toMatch(
+      /^scopes person:sam can see at \S+ under preset\.medium v\d+: 2 scopes$/,
+    );
     expect(lines).toContain("  person:dana (grant)");
     expect(lines).toContain("  person:sam (membership)");
     expect(lines.at(-2)).toBe(`log ${db}`);
@@ -89,10 +91,9 @@ describe("engram read --item", () => {
   it("reads one item by its id, explained, with read's output", async () => {
     const { db, root } = await granted();
     const c = counting();
-    const r = await cli(
-      ["read", "--item", ITEM, "--root", root, "--owner", "dana", "--db", db],
-      { transport: c.transport },
-    );
+    const r = await cli(["read", "--item", ITEM, "--root", root, "--owner", "dana", "--db", db], {
+      transport: c.transport,
+    });
     expect(r.err).toBe("");
     expect(r.code).toBe(0);
     expect(c.paths).toEqual([`POST /api/v1/read/${ITEM}`]);
