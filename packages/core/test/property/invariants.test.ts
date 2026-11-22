@@ -1709,8 +1709,9 @@ const arbReplayCase = fc.record({
   passes: fc.constantFrom(2, 3, 3, 4, 5, 5),
   // Tasks passing without the candidate, and whether the candidate's tasks
   // miss their third seed (2/3: at the threshold, below a baseline of 1).
-  baseWins: fc.constantFrom(0, 0, 0, 1, 2, 5),
-  dip: fc.constantFrom(false, false, false, true),
+  baseWins: fc.constantFrom(0, 0, 0, 2, 5, 5),
+  dip: fc.constantFrom(false, false, true),
+  agent: fc.constantFrom(false, false, false, true),
   seeds: fc.constantFrom([1], [1, 2, 3], [1, 2, 3]),
   sameScope: fc.constantFrom(true, true, false),
 });
@@ -1859,24 +1860,43 @@ async function promotionsLandOnlyWherePermitted(name: string) {
     unreachable: 0,
   };
   // Card D3 review, D3-5: replay admissions and each replay refusal.
-  const replaySeen = { landed: 0, source: 0, item: 0, split: 0, refOnly: 0, short: 0 };
+  const replaySeen = {
+    landed: 0,
+    source: 0,
+    item: 0,
+    split: 0,
+    refOnly: 0,
+    short: 0,
+    noWorseOnly: 0,
+  };
   await fc.assert(
     fc.asyncProperty(
       arbPromotionCase,
       async ({
         policy: { policy: drawnPolicy, target: drawn },
         source: drawnSource,
-        restatements,
-        promoter,
+        restatements: drawnRestatements,
+        promoter: drawnPromoter,
         at,
         after,
         replay: rc,
       }) => {
-        // A replay case's source is a procedural candidate, under its ref.
+        // A replay case's source is a procedural candidate, under its ref,
+        // with no hidden text and no ttl, so the replay decides most of them.
         const source = rc.use
-          ? { ...drawnSource, class: "procedural" as const, status: "candidate" as const }
+          ? {
+              ...drawnSource,
+              class: "procedural" as const,
+              status: "candidate" as const,
+              hidden: false,
+              ttl: null,
+            }
           : drawnSource;
         const target = rc.use && rc.sameScope ? source.scope : drawn;
+        // Nor restatements (a restatement in the target is a duplicate) or a
+        // review (the owner never reviews its own item).
+        const restatements = rc.use ? [] : drawnRestatements;
+        const promoter = rc.use ? { ...drawnPromoter, review: false } : drawnPromoter;
         // A replay case opens the rules of the source's and the target's
         // levels to every source and class, and reads as an opened case
         // does, so the replay rather than the rule decides most of them.
@@ -2011,14 +2031,23 @@ async function promotionsLandOnlyWherePermitted(name: string) {
             });
         }
         const when = addSeconds(at, after) as string;
-        const actor: Actor = {
-          id: promoter.id,
-          level: promoter.level,
-          memberships: [
-            ...new Set([...promoter.extra, ...(promoter.joins ? [source.scope, target] : [])]),
-          ],
-          ...(promoter.source ? { source: promoter.source } : {}),
-        };
+        // A replay case's promoter is the owner, a member of both scopes,
+        // user-sourced or, one time in four, model-sourced.
+        const actor: Actor = rc.use
+          ? {
+              id: source.owner,
+              level: "person",
+              memberships: [...new Set([source.scope, target])],
+              source: rc.agent ? "model" : "user",
+            }
+          : {
+              id: promoter.id,
+              level: promoter.level,
+              memberships: [
+                ...new Set([...promoter.extra, ...(promoter.joins ? [source.scope, target] : [])]),
+              ],
+              ...(promoter.source ? { source: promoter.source } : {}),
+            };
         const before = currentItems(db);
         const retired = retiredByEvent(db);
         const projected = before.find((i) => i.id === P_SOURCE_ID) as MemoryItem;
@@ -2088,6 +2117,20 @@ async function promotionsLandOnlyWherePermitted(name: string) {
           )
             replaySeen.refOnly++;
           if (id === "engram/promote/no-evidence") replaySeen.short++;
+          // Only the no-worse rule stood in the way: by the threshold alone,
+          // replay_k tasks of replay_n would pass (the lead's D3-1 answer).
+          const byTask = new Map<string, { w: number; runs: number }>();
+          for (const o of presented.outcomes) {
+            const t = byTask.get(o.task) ?? { w: 0, runs: 0 };
+            byTask.set(o.task, { w: t.w + o.with, runs: t.runs + 1 });
+          }
+          const thresholdOnly = [...byTask.values()].filter((t) => 3 * t.w >= 2 * t.runs).length;
+          if (
+            id === "engram/promote/no-evidence" &&
+            byTask.size === policy.promotion.procedural.replay_n &&
+            thresholdOnly >= policy.promotion.procedural.replay_k
+          )
+            replaySeen.noWorseOnly++;
           if (result.decision === "allow") replaySeen.landed++;
         }
         const added = plane.events().slice(logLength);
@@ -2194,14 +2237,14 @@ async function promotionsLandOnlyWherePermitted(name: string) {
           `the promoted item is more trusted than its source: ${shown}`,
         ).toBeGreaterThanOrEqual(TRUST.indexOf(projected.provenance.kind));
         expect((await adapter.list(landed.scope)).map((i) => i.id)).toContain(landed.id);
-        seen[promoter.review ? "byReview" : "byConfirmation"]++;
+        if (!presented) seen[promoter.review ? "byReview" : "byConfirmation"]++;
       },
     ),
     { numRuns: RUNS, seed: seedFor(name) },
   );
   expect(
     Object.values(replaySeen).every((n) => n > 0),
-    `invariant 2 over promotions needs replay admissions and refusals by the presenter's source, another item's replay, a split that is not the ref's, one only the ref's tasks refuse, and too few passes; it saw ${JSON.stringify(replaySeen)}`,
+    `invariant 2 over promotions needs replay admissions and refusals by the presenter's source, another item's replay, a split that is not the ref's, one only the ref's tasks refuse, too few passes, and one only the no-worse rule refuses; it saw ${JSON.stringify(replaySeen)}`,
   ).toBe(true);
   expect(
     Object.values(seen).every((n) => n > 0),
