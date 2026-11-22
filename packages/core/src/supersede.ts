@@ -22,7 +22,7 @@ import type { Db } from "./db/db.ts";
 import { currentItems } from "./events.ts";
 import { itemById } from "./items.ts";
 import { proposeSupersession, SupersessionProposal } from "./lint/supersession.ts";
-import { readableAt } from "./policy/evaluate.ts";
+import { evaluateRead } from "./policy/evaluate.ts";
 import type { MemoryItem, Policy } from "./schema.ts";
 
 /** What the resolver reads of an item: its id and the ids it supersedes. */
@@ -114,16 +114,20 @@ export type SupersessionPlan = z.infer<typeof SupersessionPlan>;
 
 /**
  * The plan for `itemId` as `actor` may see the projection at `at` (the
- * read's access time, `accessTime`). Only items the actor can read at `at`
- * (readableAt: a readable scope or a live grant) take part, so the plan
- * names nothing the actor could not read: an item it cannot read is
- * `unknown_id`, and an ancestor reached only through one is not a
- * candidate. The head is resolved over the readable items that are not
- * retired (a retired version supersedes nothing, as in items.ts), with the
- * asked item among them whatever its status. A cycle or a chain deeper than
- * 32 is reported and proposes nothing: the lineage needs a person first.
- * Otherwise the candidates are the asked item's ancestors, walked through
- * readable items breadth first, and the proposals are `proposeSupersession`'s.
+ * read's access time, `accessTime`). Only items the read filter admits for
+ * the actor at `at` take part (evaluateRead: active, not past its ttl,
+ * inside its validity window, by a readable scope or a live grant; review
+ * fix L6-1), as the start, as a link of its chain and as a candidate. An
+ * item the actor could not read so changes nothing in the plan: asked
+ * about, it is `unknown_id` exactly as an id no item holds; named in a
+ * lineage, it is as absent as a dangling id. So a retired version
+ * supersedes nothing (as in items.ts), and a version not yet valid at `at`
+ * cannot be planned until it is. A cycle in the chain forward from the item,
+ * or a chain deeper than 32, is reported and proposes nothing: the lineage
+ * needs a person first. Otherwise the candidates are the item's ancestors,
+ * walked breadth first through admitted items with each id visited once (so
+ * a cycle among the ancestors ends the walk there, each ancestor a candidate
+ * once), and the proposals are `proposeSupersession`'s.
  */
 export function planSupersession(
   db: Db,
@@ -134,14 +138,13 @@ export function planSupersession(
 ): SupersessionPlan {
   const readable = new Map(
     currentItems(db)
-      .filter((i) => readableAt(policy, actor, i, at))
+      .filter((i) => evaluateRead(policy, actor, i, at).admitted)
       .map((i) => [i.id, i]),
   );
   const start = readable.get(itemId);
   if (start === undefined)
     return { item_id: itemId, head: { ok: false, error: "unknown_id", chain: [] }, proposals: [] };
-  const links = [...readable.values()].filter((i) => i.status !== "retired" || i.id === itemId);
-  const head = resolveSupersessionHead({ items: links, startId: itemId });
+  const head = resolveSupersessionHead({ items: [...readable.values()], startId: itemId });
   if (!head.ok) return { item_id: itemId, head, proposals: [] };
 
   const seen = new Set([itemId]);
