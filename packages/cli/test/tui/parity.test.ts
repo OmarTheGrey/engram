@@ -19,7 +19,6 @@ import type { RunResult } from "../../src/tui/runner.ts";
 import { FIXTURE, HOME, NOW, REPO, tempDir, testId, VALID_FROM } from "../helpers.ts";
 import { type Harness, startHarness } from "./harness.ts";
 
-const ENTER = "\r";
 const CTRL_S = "\x13";
 const ITEM = "01950000-0000-7000-8000-00000000f001";
 const OLD = "01950000-0000-7000-8000-00000000f011";
