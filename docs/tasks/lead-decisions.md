@@ -305,6 +305,19 @@ Open, for the lead. Each was drafted by a card's agent while implementing it; th
     - (b) Accept it, and add an opt-in content mode as the GenAI conventions allow, off by default.
     - (c) Keep the JSONL sink only, so nothing leaves the machine, and drop OTLP until after the thesis.
 
+62. **ADR 0044, the CLI's terminal interface (card E8.15).** Card E8.15 is the lead's own request of 2026-11-21 for a TUI, not one of the absorb plan's thirty pull requests; it is listed here with the absorb cards' proposals because it was drafted with them. The design is `docs/design/tui.md`.
+    - Open for the lead: accept ADR 0044 (pi-tui at the pi pin, only under `packages/cli/src/tui/`), or (b) Ink 8.0.0 with React 19.3.1, or (c) no TUI until after the thesis. Until then the design proceeds on (a), as decided below.
+    - Decided on 2026-11-22 under the lead's delegation, six calls the design raised; binding until the lead overturns one:
+
+| call | answer | reason |
+|---|---|---|
+| 1. library | pi-tui 1.3.0 at the pi pin, imported only under `packages/cli/src/tui/`, AGENTS.md's "What not to do" line amended; ADR 0044 stays proposed | no new package in the lockfile, the pi family's own library, an injectable terminal for headless tests, Windows input handled; the spike passed under ConPTY and Git Bash |
+| 2. entry | bare `engram` keeps its help on stderr and exit 2; the TUI opens only with `engram tui`; HELP's first line names `engram tui` | one word doing two things by TTY detection misleads in tmux, SSH and mintty; the first line makes the TUI findable |
+| 3. new commands | `check`, `events`, `policy`, `grants` in E8.15a; `scopes` and `read --item <id>` in E8.15a once E8.14 merges | every TUI screen needs a plain command to teach; without them the timeline, grants, policy view and write preview are lost |
+| 4. shared view logic | not an `@engram/ui/view` export: `view.ts` and `provenance.ts` move into a new React-free package, `@engram/view`, which the inspector and the TUI import | the CLI never depends on React, xyflow, dagre or tanstack, and the leak rule exists once |
+| 5. mouse | on by default, `--no-mouse` to turn it off; the help overlay says Shift+drag selects text | clicks and the wheel help most people; the waiver keeps terminal selection and accessibility tools for those who need them |
+| 6. commands on quit | a short list of the session's commands on every quit; `--quiet` turns it off | it teaches the CLI, which is the point of the TUI |
+
 ## Decided on 2026-11-21, under the lead's delegation
 
 On 2026-11-21 the lead delegated items 49 to 56 as well: close them with the best answer the project's record supports. Every item takes option (a). These answers are binding until the lead overturns one. ADRs [0038](../decisions/0038-tamper-evident-log-that-keeps-erasure.md), [0039](../decisions/0039-content-guards-at-the-write-gate.md), [0040](../decisions/0040-trust-floors.md) and [0041](../decisions/0041-cedar-export-for-analysis.md) are accepted with them.
