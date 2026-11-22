@@ -15,9 +15,20 @@
 // through Plane.changeGrants. The plane decides; the editor shows the
 // decision and its event's rule and reason, and the lanes and timeline are
 // read again, so the change's update event appears on the timeline.
+//
+// Who can read this memory (card E2.13): each item card asks the plane who
+// can read the item (Plane.whoCanReadItem) and lists each reader with the
+// rule or grant that admits it; the plane decides what the viewer is told.
 import { type ReactNode, useEffect, useMemo, useState } from "react";
-import type { Actor, EngramClient, Grant, MemoryEvent } from "./api/index.ts";
-import { changeGrants, fetchExplain, fetchViewer, type Inspection, inspect } from "./data.ts";
+import type { Actor, EngramClient, Grant, MemoryEvent, WhoCanReadAnswer } from "./api/index.ts";
+import {
+  changeGrants,
+  fetchExplain,
+  fetchViewer,
+  fetchWhoCanRead,
+  type Inspection,
+  inspect,
+} from "./data.ts";
 import {
   EMPTY_DRAFT,
   type ExplainView,
@@ -38,6 +49,8 @@ import {
   LEVELS,
   laneGroups,
   NO_FILTER,
+  type ReaderView,
+  readerView,
   scopeText,
   score,
   type TimelineFilter,
@@ -140,6 +153,11 @@ export function App({ client }: { client: EngramClient }) {
             readId={inspection.read.event.id}
             policy={inspection.read.policy}
             outcome={outcome}
+            onAsk={(itemId) =>
+              viewer === null
+                ? Promise.reject(new Error("no viewer"))
+                : fetchWhoCanRead(client, viewer, itemId)
+            }
             onGrant={(itemId, change) => {
               if (viewer === null) return;
               changeGrants(client, viewer, itemId, change)
@@ -233,12 +251,14 @@ function Lanes({
   readId,
   policy,
   outcome,
+  onAsk,
   onGrant,
 }: {
   lanes: Lane[];
   readId: string;
   policy: string;
   outcome: GrantOutcome | null;
+  onAsk: Ask;
   onGrant: (itemId: string, change: GrantChangeRequest) => void;
 }) {
   const groups = useMemo(() => laneGroups(lanes), [lanes]);
@@ -261,7 +281,14 @@ function Lanes({
           ) : (
             <div className="lane-row">
               {group.lanes.map((lane) => (
-                <LaneView key={lane.scope} lane={lane} outcome={outcome} onGrant={onGrant} />
+                <LaneView
+                  key={lane.scope}
+                  lane={lane}
+                  readId={readId}
+                  outcome={outcome}
+                  onAsk={onAsk}
+                  onGrant={onGrant}
+                />
               ))}
             </div>
           )}
@@ -273,11 +300,15 @@ function Lanes({
 
 function LaneView({
   lane,
+  readId,
   outcome,
+  onAsk,
   onGrant,
 }: {
   lane: Lane;
+  readId: string;
   outcome: GrantOutcome | null;
+  onAsk: Ask;
   onGrant: (itemId: string, change: GrantChangeRequest) => void;
 }) {
   return (
@@ -303,6 +334,8 @@ function LaneView({
             outcome={outcome?.itemId === item.id ? outcome : null}
             onGrant={onGrant}
           />
+          {/* Asked afresh after every read the lanes make: a new viewer or a grant change. */}
+          <WhoCanRead key={readId} itemId={item.id} onAsk={onAsk} />
         </article>
       ))}
     </div>
@@ -367,6 +400,63 @@ function Grants({
           <span className={`decision ${outcome.decision}`}>{outcome.decision}</span>{" "}
           <code data-testid="grant-outcome-policy">{outcome.policyId}</code>: {outcome.reason}
         </p>
+      )}
+    </div>
+  );
+}
+
+type Ask = (itemId: string) => Promise<WhoCanReadAnswer>;
+
+/** Who can read one item, as the plane tells the viewer (card E2.13). */
+function WhoCanRead({ itemId, onAsk }: { itemId: string; onAsk: Ask }) {
+  const [view, setView] = useState<ReaderView | null>(null);
+  const [problem, setProblem] = useState<string | null>(null);
+  return (
+    <div className="who-can-read" data-testid="who-can-read">
+      <button
+        type="button"
+        data-testid="who-can-read-ask"
+        onClick={() =>
+          onAsk(itemId)
+            .then((a) => {
+              setProblem(null);
+              setView(readerView(a));
+            })
+            .catch((e) => setProblem(message(e)))
+        }
+      >
+        Who can read this
+      </button>
+      {problem !== null && <span className="error">{problem}</span>}
+      {view !== null && (
+        <div data-testid="who-can-read-answer" data-answered={String(view.answered)}>
+          <p className="muted" data-testid="who-can-read-reason">
+            {view.reason}
+          </p>
+          {view.closed !== null && (
+            <p data-testid="who-can-read-closed">Nobody now: {view.closed}</p>
+          )}
+          {view.answered && view.closed === null && view.rows.length === 0 && (
+            <p className="muted">Nobody: no read matrix row or live grant admits a reader.</p>
+          )}
+          <ul>
+            {view.rows.map((r) => (
+              <li key={r.key} data-testid="who-can-read-reader" data-kind={r.kind} data-who={r.who}>
+                {r.text} <code>{r.policyId}</code>
+              </li>
+            ))}
+          </ul>
+          {view.dormant.map((d) => (
+            <p key={d} className="muted" data-testid="who-can-read-dormant">
+              dormant {d}
+            </p>
+          ))}
+          {view.withheld && (
+            <p className="muted" data-testid="who-can-read-withheld">
+              Grants naming others are shown to the owner only.
+            </p>
+          )}
+        </div>
       )}
     </div>
   );
