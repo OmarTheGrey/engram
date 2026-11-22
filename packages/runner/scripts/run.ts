@@ -532,7 +532,7 @@ async function runInduce(path: string, out: string, flags: Flags): Promise<Outco
     `${config.name}: ${config.items === "all" ? "all" : config.items.length} sessions x methods ${config.methods.join(", ")} x seeds ${config.seeds.join(", ")}, model ${config.model}, preset ${config.preset}`,
     `model calls: ${result.calls.new} new, ${result.calls.cached} from cassettes`,
     ...result.rows.flatMap((r) => [
-      `  ${r.method} seed ${r.seed}: ${r.examples.length} examples, ${r.skipped.length} skipped${r.sequence === undefined ? "" : r.sequence === null ? ", no shared run of tool calls" : `, run ${r.sequence.tools.join(" ")} on ${r.sequence.support} examples`}`,
+      `  ${r.method} seed ${r.seed}: ${r.examples.length} examples, ${r.skipped.length} skipped${r.dedup === undefined ? "" : `, ${r.dedup.templates} after the template deduplication, ${r.dedup.trajectories} after the trajectory deduplication`}`,
       ...r.candidates.map((c) =>
         c.status === "candidate"
           ? `    candidate ${c.skill_name} (tools ${(c.tools ?? []).join(" ")}): write ${c.write?.decision} ${c.write?.policy_id}`

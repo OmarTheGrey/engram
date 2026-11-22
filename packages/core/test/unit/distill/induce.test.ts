@@ -7,6 +7,7 @@ import {
   AWM_INSTRUCTION,
   AWM_ONE_SHOT,
   AWM_SETTINGS,
+  abstractTrajectory,
   awmRequest,
   CANDIDATE_CONFIDENCE,
   type CandidateFrame,
@@ -534,29 +535,78 @@ describe("parseWorkflows", () => {
   });
 });
 
-describe("induceByRule, the control", () => {
-  test("takes the run of tool calls most examples share, calling no model", () => {
-    const report = induceByRule([S1, S2, S3, FAILED], frame());
-    // read,edit is on all three; read,edit,read on two; ties go to support first.
-    expect(report.sequence).toEqual({ tools: ["read", "edit"], support: 3 });
-    expect(report.items).toHaveLength(1);
-    const item = report.items[0];
-    expect(item?.content).toMatchObject({ tools: ["read", "edit"] });
-    expect(item?.provenance.ref).toBe("distill:rule:s1aaaaaa,s2bbbbbb,s3cccccc");
-    expect(item?.provenance.model).toBeUndefined();
+/** S1's instruction again, another session: the template deduplication drops it. */
+const SAME_TEMPLATE = session({
+  id: "s9aaaaaa",
+  task: "synthetic/rename-2",
+  query: "Rename   parseRow to parseRecord.",
+  rounds: [{ text: "Editing.", calls: [edit("src/load.ts"), read("src/load.ts")] }],
+});
+/** Another instruction, S3's calls on the same first arguments: the trajectory deduplication drops it. */
+const SAME_ABSTRACT = session({
+  id: "s9bbbbbb",
+  task: "synthetic/docs-2",
+  query: "Describe the timeout option.",
+  rounds: [
+    { text: "Reading.", calls: [{ name: "read", args: { path: "README.md", limit: 5 } }] },
+    { text: "Editing.", calls: [edit("README.md")] },
+  ],
+});
+
+describe("induceByRule, the control: AWM's rule-based induction", () => {
+  test("keeps one success per template, then one per abstract trajectory, each whole, calling no model", () => {
+    const report = induceByRule([S1, FAILED, S2, SAME_TEMPLATE, S3, SAME_ABSTRACT], frame());
+    expect(report.skipped.map((s) => s.session_id)).toEqual(["s4dddddd"]);
+    expect(report.dedup).toEqual({ templates: 4, trajectories: 3 });
+    expect(report.items.map((i) => i.provenance.ref)).toEqual([
+      "distill:rule:s1aaaaaa",
+      "distill:rule:s2bbbbbb",
+      "distill:rule:s3cccccc",
+    ]);
+    expect(report.items.map((i) => i.provenance.kind)).toEqual(["compaction", "model", "model"]);
+    expect(report.items.map((i) => (i.content as { tools: string[] }).tools)).toEqual([
+      ["read", "edit"],
+      ["read", "edit"],
+      ["read", "edit"],
+    ]);
+    for (const item of report.items) expect(item.provenance.model).toBeUndefined();
+  });
+
+  test("writes the trajectory whole, its failed calls left out, as a SKILL.md named by its instruction", () => {
+    const [item] = induceByRule([S1], frame()).items;
     const text = toSkillMd(item as never);
-    expect(validateSkillMd(text, parseSkillMd(text).name)).toEqual([]);
-    expect(parseSkillMd(text).name).toBe("call-read-then-edit");
+    const skill = parseSkillMd(text);
+    expect(validateSkillMd(text, skill.name)).toEqual([]);
+    expect(skill.name).toBe("rename-parserow-to-parserecord");
+    expect(skill.description).toBe(
+      "Rename parseRow to parseRecord. Use when a task asks for the same.",
+    );
+    expect(skill.body).toContain('read({"path":"src/load.ts"})');
+    expect(skill.body).toContain('edit({"path":"src/load.ts"})');
+    expect(skill.body).not.toContain("grep -rn parseRow");
+    expect(skill.body).not.toContain("sed -i");
   });
 
-  test("prefers the longer run when support ties", () => {
-    const report = induceByRule([S1, S2], frame());
-    expect(report.sequence).toEqual({ tools: ["read", "edit", "read"], support: 2 });
+  test("abstracts each call to its tool and first argument's value", () => {
+    const [a, b] = prepareSessions([S3, SAME_ABSTRACT]).examples;
+    expect(abstractTrajectory(a as never)).toBe(abstractTrajectory(b as never));
+    expect(abstractTrajectory(a as never)).toBe('[["read","README.md"],["edit","README.md"]]');
   });
 
-  test("induces nothing when no run of two calls is shared by two examples", () => {
-    const report = induceByRule([S3], frame());
-    expect(report.sequence).toBeNull();
+  test("refuses a later trajectory whose instruction gives a skill name already taken", () => {
+    const twin = session({
+      id: "s9cccccc",
+      task: "synthetic/docs-3",
+      query: "document the retry option!",
+      rounds: [{ text: "Editing.", calls: [edit("docs/retry.md")] }],
+    });
+    const report = induceByRule([S3, twin], frame());
+    expect(report.workflows.map((w) => w.status)).toEqual(["candidate", "rejected"]);
+  });
+
+  test("induces nothing from no example", () => {
+    const report = induceByRule([FAILED], frame());
+    expect(report.dedup).toEqual({ templates: 0, trajectories: 0 });
     expect(report.items).toEqual([]);
   });
 });

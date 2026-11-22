@@ -40,11 +40,23 @@
 //   succeeded), and its title gives a SKILL.md the specification accepts
 //   with a name no earlier workflow of the reply took. Every other workflow
 //   is reported as rejected with its reason; nothing is retried.
-// - The control (card D2 step 4) calls no model: the contiguous run of at
-//   least two tool calls found on the most examples' final branches (ties
-//   to the longer run, then the first in code-unit order), when two or more
-//   examples share it; one candidate, its steps that run as the first
-//   example holding it made it.
+// - The control (card D2 step 3) calls no model: a port of AWM's
+//   rule-based induction (webarena/induce_rule.py, the paper's Appendix B),
+//   fixture-only, proposed in the pre-registration's "Proposed amendments,
+//   not yet registered" and run by no registered config. Upstream takes the
+//   successful trajectories, keeps one per intent template, then one per
+//   abstract trajectory (each action's name and first argument), and writes
+//   each kept trajectory whole, after `remove_invalid_steps`. The mapping,
+//   recorded in docs/log/2026-11-22-d2-decision-rule-port.md: a success is
+//   an example (its verdict `success`, as upstream's `gt` criterion); a
+//   template is the example's instruction, whitespace collapsed (sessions
+//   carry no template id); an abstract trajectory is each call's tool and
+//   its first argument's value; the sample of one is the first in the
+//   order given, not a random one; an invalid step is a call that did not
+//   succeed or was withdrawn, as for the model's examples; the manual
+//   inspection is skipped, as upstream's `--auto`; each kept trajectory is
+//   one candidate titled by its instruction, its steps the session's own
+//   reasoning and calls, its lineage that one session.
 //
 // Every candidate is a procedural item with status `candidate`, version 1,
 // confidence CANDIDATE_CONFIDENCE, no ttl, no grants and an empty lineage
@@ -542,8 +554,12 @@ export interface InductionReport {
   request?: ModelRequest;
   /** The model's reply (awm only). */
   reply?: string;
-  /** The control's chosen run of tools and how many examples hold it (rule only). */
-  sequence?: { tools: string[]; support: number } | null;
+  /**
+   * What the rule-based induction kept (rule only): the examples left after
+   * the template deduplication, then the trajectories left after the
+   * abstract-trajectory deduplication, each one candidate unless refused.
+   */
+  dedup?: { templates: number; trajectories: number };
   workflows: WorkflowOutcome[];
   /** The candidates, in the order of `workflows`. */
   items: MemoryItem[];
@@ -689,7 +705,41 @@ export async function induceAwm(
   };
 }
 
-/** The control: the most frequent successful run of tool calls, with no model (see the header). */
+/** The arguments of an action `tool(<JSON>)`, as the trajectory wrote them. */
+function actionArguments(action: string, tool: string): unknown {
+  try {
+    return JSON.parse(action.slice(tool.length + 1, -1));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The abstract trajectory of an example (AWM's `get_abstract_trajectory`):
+ * each call as its tool and its first argument's value, in order.
+ */
+export function abstractTrajectory(e: Pick<InductionExample, "trajectory">): string {
+  const parts = e.trajectory.flatMap((s) =>
+    s.tools.map((tool, i) => {
+      const args = actionArguments(s.actions[i] as string, tool);
+      const first =
+        args !== null && typeof args === "object" && !Array.isArray(args)
+          ? Object.values(args as Record<string, unknown>)[0]
+          : undefined;
+      return first === undefined ? [tool] : [tool, first];
+    }),
+  );
+  return canonicalJson(parts);
+}
+
+/** The key the template deduplication groups by: the example's instruction, whitespace collapsed. */
+const templateOf = (e: Pick<InductionExample, "query">) => e.query.replace(/\s+/g, " ").trim();
+
+/**
+ * The control: AWM's rule-based induction (webarena/induce_rule.py,
+ * Appendix B), with no model (see the header). One candidate per kept
+ * trajectory, the trajectory whole, its lineage the one session it is.
+ */
 export function induceByRule(sessions: readonly Session[], frame: CandidateFrame): InductionReport {
   const { examples, skipped } = prepareSessions(sessions);
   const base = {
@@ -697,68 +747,37 @@ export function induceByRule(sessions: readonly Session[], frame: CandidateFrame
     examples: examples.map((e) => ({ session_id: e.session_id, task_id: e.task_id })),
     skipped,
   };
-  // Each example's calls in order, with the step each came from.
-  const calls = examples.map((e) =>
-    e.trajectory.flatMap((s) =>
-      s.tools.map((tool, i) => ({ tool, action: s.actions[i] as string, think: s.think })),
-    ),
-  );
-  const support = new Map<string, Set<number>>();
-  calls.forEach((seq, ex) => {
-    for (let i = 0; i < seq.length; i++)
-      for (let j = i + MIN_WORKFLOW_STEPS; j <= seq.length; j++) {
-        const key = seq
-          .slice(i, j)
-          .map((c) => c.tool)
-          .join("\u0000");
-        const holders = support.get(key) ?? new Set<number>();
-        holders.add(ex);
-        support.set(key, holders);
-      }
+  // Upstream samples one trajectory per intent template, then one per
+  // abstract trajectory, at random; core draws no randomness, so each keeps
+  // the first in the order given.
+  const firstBy = (list: readonly InductionExample[], key: (e: InductionExample) => string) => {
+    const seen = new Set<string>();
+    return list.filter((e) => {
+      const k = key(e);
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+  };
+  const byTemplate = firstBy(examples, templateOf);
+  const kept = firstBy(byTemplate, abstractTrajectory);
+  const names = new Set<string>();
+  const workflows: WorkflowOutcome[] = kept.map((e) => {
+    const title = templateOf(e);
+    const body = workflowBody({
+      title,
+      when: "a task asks for the same",
+      steps: e.trajectory.map((s) => ({ think: s.think, actions: s.actions })),
+    });
+    const tools = [...new Set(e.trajectory.flatMap((s) => s.tools))];
+    const problem = skillProblem(body, tools, names);
+    return problem === null
+      ? { title, status: "candidate", item: candidate("rule", body, tools, [e], frame) }
+      : { title, status: "rejected", reason: problem };
   });
-  let best: { key: string; tools: string[]; holders: Set<number> } | null = null;
-  for (const [key, holders] of support) {
-    const tools = key.split("\u0000");
-    if (
-      best === null ||
-      holders.size > best.holders.size ||
-      (holders.size === best.holders.size &&
-        (tools.length > best.tools.length ||
-          (tools.length === best.tools.length && key < best.key)))
-    )
-      best = { key, tools, holders };
-  }
-  if (best === null || best.holders.size < 2)
-    return { ...base, sequence: null, workflows: [], items: [] };
-  const first = Math.min(...best.holders);
-  const seq = calls[first] as { tool: string; action: string; think: string }[];
-  let at = 0;
-  for (; at + best.tools.length <= seq.length; at++)
-    if (
-      seq
-        .slice(at, at + best.tools.length)
-        .map((c) => c.tool)
-        .join("\u0000") === best.key
-    )
-      break;
-  const run = seq.slice(at, at + best.tools.length);
-  const title = `Call ${best.tools.join(", then ")}`;
-  const description = `${title}, in this order: the run of tool calls found on the most successful sessions, ${best.holders.size} of ${examples.length}. Use when a task resembles the sessions it was induced from.`;
-  const steps = run.map((c, i) => {
-    const f = fence(c.action);
-    return `${i + 1}. Call \`${c.tool}\`, as one session did:\n\n   ${f}\n   ${c.action}\n   ${f}`;
-  });
-  const body = `# ${title}\n\n${description}\n\n## Steps\n\n${steps.join("\n\n")}\n`;
-  const tools = [...new Set(best.tools)];
-  const problem = skillProblem(body, tools, new Set());
-  const workflows: WorkflowOutcome[] = [
-    problem === null
-      ? { title, status: "candidate", item: candidate("rule", body, tools, examples, frame) }
-      : { title, status: "rejected", reason: problem },
-  ];
   return {
     ...base,
-    sequence: { tools: best.tools, support: best.holders.size },
+    dedup: { templates: byTemplate.length, trajectories: kept.length },
     workflows,
     items: workflows.flatMap((w) => (w.status === "candidate" ? [w.item] : [])),
   };

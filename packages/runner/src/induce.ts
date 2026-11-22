@@ -200,7 +200,8 @@ export interface InduceRow {
   preset: string;
   examples: { file: string; session_id: string; task_id: string | null }[];
   skipped: { file: string; session_id: string; reason: string }[];
-  sequence?: { tools: string[]; support: number } | null;
+  /** What the rule-based induction kept at each deduplication (rule only). */
+  dedup?: { templates: number; trajectories: number };
   /** Characters of the induction prompt (awm). */
   prompt_chars?: number;
   candidates: InducedCandidate[];
@@ -315,7 +316,7 @@ export async function runInduceConfig(
             ...e,
           })),
           skipped: report.skipped.map((s) => ({ file: fileOf.get(s.session_id) as string, ...s })),
-          ...(report.sequence === undefined ? {} : { sequence: report.sequence }),
+          ...(report.dedup === undefined ? {} : { dedup: report.dedup }),
           ...(report.request === undefined
             ? {}
             : { prompt_chars: report.request.messages.reduce((n, m) => n + m.content.length, 0) }),
