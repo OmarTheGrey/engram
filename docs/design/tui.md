@@ -1117,7 +1117,7 @@ $ engram simulate --workload fixtures/workloads/e8-9-two-presets.json --policy m
 
 ### 8.12 Doctor
 
-Doctor's checks as a list, each with its status as symbol and word, its name and its detail, exactly the CLI's text. A failing check is sorted first in the TUI (the plain output keeps its order), with "What this means" and "What to do" text taken from a fixed table keyed by check name (log, policy, store, adapter files, adapter mem0, adapter letta, provider keys, benchmark pins, pi pin, node; in flight the serve-flags check of card E8.12), never from parsing the detail. `r` reruns it. Doctor's own flags (`--db`, `--policy`, `--root`) are the workspace's.
+Doctor's checks as a list, each with its status as symbol and word, its name and its detail, exactly the CLI's text. A failing check is sorted first in the TUI (the plain output keeps its order), with "What this means" and "What to do" text taken from a fixed table keyed by check name (log, policy, store, adapter files, adapter mem0, adapter letta, provider keys, benchmark pins, pi pin, node; in flight the serve-flags check of card E8.12), never from parsing the detail. `r` reruns it. Doctor's own flags (`--db`, `--policy`, `--root`) are the workspace's. Card E8.12 adds `--host` and serve's credential flags to doctor, which check the bind `engram serve` would make; the Doctor form takes them from the Serve screen's answers, so doctor checks what Serve would start.
 
 Doctor (80x24):
 
