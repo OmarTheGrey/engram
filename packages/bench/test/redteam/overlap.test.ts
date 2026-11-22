@@ -14,6 +14,7 @@ describe("the overlap with MEM-INV-Bench's laundering channels", () => {
       tool: ["tool_echo"],
       model: ["summarize"],
       external: [],
+      unattested: [],
     });
   });
 

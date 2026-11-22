@@ -11,7 +11,7 @@
 // and its metric is a consequential action, not canary survival.
 import { entryKind, OPERATIONS, OPERATOR } from "../mem-inv-bench/plane.ts";
 import type { Case } from "../mem-inv-bench/schema.ts";
-import { ROUTES, type Route, SOURCE_KINDS, type SourceKind, writerOf } from "./routes.ts";
+import { PLANT_KINDS, type PlantKind, ROUTES, type Route, SOURCE_KINDS, writerOf } from "./routes.ts";
 
 const UNTRUSTED = new Set(["web", "inbox"]);
 const levelOf = (scope: string) =>
@@ -19,7 +19,7 @@ const levelOf = (scope: string) =>
 
 export interface OverlapRow {
   route: Route;
-  kind: SourceKind;
+  kind: PlantKind;
   /** The writer's actor and scope level in MEM-INV-Bench's deployment; null on the read route. */
   writer: { actor: string; scope_level: string } | null;
   /** MEM-INV-Bench attack channels whose attacker entries take this write path, sorted. */
@@ -45,9 +45,20 @@ export function overlap(cases: readonly Case[]): OverlapRow[] {
   }
   const out: OverlapRow[] = [];
   for (const route of ROUTES)
-    for (const kind of SOURCE_KINDS) {
+    for (const kind of route === "read" ? SOURCE_KINDS : PLANT_KINDS) {
       if (route === "read") {
         out.push({ route, kind, writer: null, mem_inv_channels: [], mem_inv_cases: 0 });
+        continue;
+      }
+      // MEM-INV-Bench's harness attests a source on every write, so an unattested writer shares no channel.
+      if (kind === "unattested") {
+        out.push({
+          route,
+          kind,
+          writer: { actor: OPERATOR, scope_level: "person" },
+          mem_inv_channels: [],
+          mem_inv_cases: 0,
+        });
         continue;
       }
       const w = writerOf(kind);

@@ -41,8 +41,11 @@ OWASP Agent Memory Guard
 
 packages/core/src/policy/injection-screen.ts copies the pattern text of
 src/agent_memory_guard/detectors/injection.py, memory_persistence_injection.py
-and standing_directive.py, and fixtures/injection-screen/corpus.json copies the
-AMSB scenario payloads of src/agent_memory_guard/bench/scenarios.py, from OWASP
+and standing_directive.py, fixtures/injection-screen/corpus.json copies the
+AMSB scenario payloads of src/agent_memory_guard/bench/scenarios.py,
+fixtures/bench/amsb/scenarios.json copies the whole AMSB corpus of that file as
+data (card X14), and research/scripts/redteam.py ports the scorecard of
+src/agent_memory_guard/bench/scoring.py, from OWASP
 Agent Memory Guard (https://github.com/OWASP/www-project-agent-memory-guard,
 commit b052787cc3426ff5f5f7e8e0eecb514052a168ba):
 
@@ -50,7 +53,8 @@ commit b052787cc3426ff5f5f7e8e0eecb514052a168ba):
 
   Licensed under the Apache License, Version 2.0 (see LICENSE). The project
   ships no NOTICE file at that commit. Its authors file names Vaishnavi Gudur
-  and Anshul Rajkumar. Modified here: see the header of injection-screen.ts.
+  and Anshul Rajkumar. Modified here: see the header of injection-screen.ts,
+  of packages/bench/scripts/vendor-amsb.py and of research/scripts/redteam.py.
 
 ------------------------------------------------------------------------
 Mnemowall

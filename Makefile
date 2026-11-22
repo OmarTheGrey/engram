@@ -8,7 +8,7 @@ SHELL := bash
 PNPM ?= pnpm
 UV ?= uv
 
-.PHONY: help test test-invariants test-scale test-one test-e2e test-repro lint lint-docs api api-check ui bench run h1-table h1-figure l3-variance h3-lint-delta fixtures fault-workspace gitleaks-rules thesis engram dogfood-report verify-spec perf-budget
+.PHONY: help test test-invariants test-scale test-one test-e2e test-repro lint lint-docs api api-check ui bench run h1-table h1-figure l3-variance h3-lint-delta fixtures fault-workspace gitleaks-rules thesis engram dogfood-report verify-spec perf-budget redteam
 
 help: ## list targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | sed -E 's/:.*## /\t/' | expand -t 16
@@ -119,6 +119,10 @@ h3-lint-delta: ## after H3's live model-lint run (make run CONFIG=research/confi
 
 PERF_BUDGET := $(UV) run python research/scripts/perf_budget.py --config research/configs/perf-budget.json
 
+redteam: ## card X14: the red-team harness, model-free and offline once the data is fetched: OWASP's AMSB scenarios (fixtures/bench/amsb), the deepset and Lakera payload sets (fetched at their pins in packages/bench/PINS.md into .engram/upstream, data only) and card X14's controls, planted through Plane.write (write route) and adopted at read (read route) as each source kind, under the store directly, medium and its guard variants (research/configs/redteam.json), then research/scripts/redteam.py: attack survival and benign false holds with Wilson intervals, guard on against off with the paired BCa interval, into research/results/h1-redteam.json (an engineering check: proposal P1 is not registered)
+	env -u ENGRAM_OFFLINE node packages/bench/scripts/redteam.ts --config research/configs/redteam.json --fetch-only
+	ENGRAM_OFFLINE=1 $(UV) run python research/scripts/redteam.py --config research/configs/redteam.json --out research/results/h1-redteam.json
+
 perf-budget: ## card X15: research/results/h2-perf-budget.json from the committed samples, research/results/h2-perf-budget-samples.jsonl (what make test-repro regenerates; no suite run); MEASURE=1 first reruns the plane-overhead suite (packages/core/bench/plane-overhead.ts) into those samples, about 15 to 25 minutes, replacing them; CHECK=1 is the rerun check instead, about 15 to 25 minutes: the suite into a temporary file (FRESH=<file> keeps it, or reads it when it exists), passing when every median lies within the config's per-cell band of the committed one, each op's geometric mean of median ratios at most its aggregate band (one-sided: a faster run passes), and every query count and starting log size equal; nothing committed is written
 ifeq ($(CHECK),1)
 	$(PERF_BUDGET) --rerun $(if $(FRESH),--fresh "$(FRESH)")
@@ -158,6 +162,7 @@ fixtures: ## regenerate golden files and scripted cassettes; refuses without MSG
 	env -u ENGRAM_OFFLINE ENGRAM_UPDATE_FIXTURES=1 node packages/bench/scripts/run-tau2.ts --setup
 	env -u ENGRAM_OFFLINE ENGRAM_UPDATE_FIXTURES=1 node packages/bench/scripts/run-tau2.ts --config research/configs/b11-tau2-fixture.json --out .engram/bench/tau2-record --record
 	$(UV) run python -I packages/bench/scripts/vendor-mem-inv-bench.py --upstream "$(MEM_INV_UPSTREAM)" --fetch --out fixtures/bench/mem-inv-bench
+	$(UV) run python -I packages/bench/scripts/vendor-amsb.py --upstream .engram/upstream/amsb --fetch --out fixtures/bench/amsb
 	$(UV) run python -I packages/bench/scripts/upstream-mem-inv-golden.py --upstream "$(MEM_INV_UPSTREAM)" --fixtures fixtures/bench/mem-inv-bench --out fixtures/bench/mem-inv-bench/upstream-golden.json
 	env -u ENGRAM_OFFLINE node packages/bench/scripts/vendor-longmemeval.ts --upstream "$(LONGMEMEVAL_UPSTREAM)" --fetch --out fixtures/bench/longmemeval
 	node packages/bench/scripts/fault-set.ts --data fixtures/bench/longmemeval/questions.jsonl --config research/configs/h3-fault-set.json --out fixtures/fault-sets/longmemeval
