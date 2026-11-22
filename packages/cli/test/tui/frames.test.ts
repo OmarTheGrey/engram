@@ -191,8 +191,10 @@ describe("high contrast (11.3)", () => {
   it("styles a denial bold and underlined, unlike focus, which is reverse video", async () => {
     const { cells } = await shoot("denied", "high-contrast", 80, 24);
     const row = cells.filter((c) => c.row === 1);
-    const word = row.filter((c) => "deny".includes(c.char) && c.char !== " ");
-    expect(word.length).toBeGreaterThanOrEqual(4);
+    // The symbol and its word both: a mutation of either is caught here, not only by a snapshot.
+    const word = row.filter((c) => "✗deny".includes(c.char) && c.char !== " ");
+    expect(word.some((c) => c.char === "✗")).toBe(true);
+    expect(word.length).toBeGreaterThanOrEqual(5);
     for (const c of word) {
       expect(c.bold && c.underline, `r1 c${c.col}`).toBe(true);
       expect(c.inverse, `r1 c${c.col}`).toBe(false);
