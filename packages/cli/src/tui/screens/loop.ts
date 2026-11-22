@@ -114,7 +114,7 @@ export class LoopScreen implements Screen {
   }
 
   hints(): string {
-    return this.current() === undefined ? "enter Home" : "enter run this step  ctrl+n skip  esc Home";
+    return this.current() === undefined ? "enter Home" : "enter run this step  ctrl+n skip";
   }
 
   private stepLines(ctx: Ctx, step: Step, i: number, width: number): string[] {
@@ -162,12 +162,20 @@ export class LoopScreen implements Screen {
 
   render(ctx: Ctx, width: number, height: number): string[] {
     const lines = [" Your first loop: write a memory, read it back, see why it came back.", ""];
-    for (const [i, s] of STEPS.entries()) lines.push(...this.stepLines(ctx, s, i, width));
+    let focus = 0;
+    for (const [i, s] of STEPS.entries()) {
+      if (i === this.step) focus = lines.length;
+      lines.push(...this.stepLines(ctx, s, i, width));
+    }
+    if (this.current() === undefined) focus = lines.length;
     lines.push(
       this.current() === undefined
         ? " Done. Press enter for Home; every action there shows its command the same way."
         : " Each step is the plain command; c copies it. Next time, type it yourself.",
     );
-    return rows(lines, height, width);
+    // Scroll so the current step, and the lines after it, show.
+    const end = Math.min(lines.length, focus + Math.max(8, height - 4));
+    const start = Math.max(0, end - height);
+    return rows(lines.slice(start), height, width);
   }
 }

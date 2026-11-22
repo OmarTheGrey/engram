@@ -470,7 +470,8 @@ export class App implements Component, Ctx {
     if (this.message !== undefined) return cut(` ${this.message}`, width);
     const screen = this.top();
     const own = screen.hints(this);
-    const end = screen.kind === "home" || screen.kind === "first-run" ? "q quit" : "esc back";
+    const end =
+      screen.kind === "home" || screen.kind === "first-run" ? "q quit" : screen.kind === "loop" ? "esc Home" : "esc back";
     return cut(` ${own}  ? help  ; commands  ${end}`, width);
   }
 
