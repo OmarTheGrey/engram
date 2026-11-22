@@ -8,7 +8,7 @@ SHELL := bash
 PNPM ?= pnpm
 UV ?= uv
 
-.PHONY: help test test-invariants test-scale test-one test-e2e test-repro lint lint-docs api api-check ui bench run h1-table h1-figure l3-variance h3-lint-delta fixtures fault-workspace gitleaks-rules thesis engram dogfood-report verify-spec perf-budget
+.PHONY: help test test-invariants test-scale test-one test-e2e test-repro lint lint-docs api api-check ui bench run h1-table h1-figure l3-variance h3-lint-delta nli-scores nli-determinism h3-lint-nli fixtures fault-workspace gitleaks-rules thesis engram dogfood-report verify-spec perf-budget
 
 help: ## list targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | sed -E 's/:.*## /\t/' | expand -t 16
@@ -116,6 +116,16 @@ l3-variance: ## after the L3 pilot's live run (make run CONFIG=research/configs/
 
 h3-lint-delta: ## after H3's live model-lint run (make run CONFIG=research/configs/h3-lint-model.json MODEL=<provider/model> LIVE=1) and its model named in research/configs/h3-lint-delta.json: what card L3's model lints add to the deterministic floor per class, keyed and unkeyed apart, per seed and across seeds, replayed offline from that run's cassettes, into research/results/h3-lint-delta.json; FIXTURE=1 runs it on the scripted fixture run (research/configs/h3-lint-delta-fixture.json) into .engram/h3-lint-delta-fixture.json, not a result
 	$(UV) run python research/scripts/h3_lint_delta.py $(if $(filter 1,$(FIXTURE)),--config research/configs/h3-lint-delta-fixture.json --out .engram/h3-lint-delta-fixture.json,--config research/configs/h3-lint-delta.json --out research/results/h3-lint-delta.json)
+
+nli-scores: ## card L7: a lint config with an nli block (research/configs/l3-lint-nli-fixture.json, h3-lint-nli-fixture.json) run with its model calls replayed and each NLI score its cassettes miss computed by the pinned local model (fetched by sha256 into .engram/upstream when missing, network) and recorded; make run replays it with zero new scores
+	@[ -n "$(CONFIG)" ] || { echo "usage: make nli-scores CONFIG=<lint config with an nli block>"; exit 2; }
+	env -u ENGRAM_OFFLINE node packages/runner/scripts/run.ts --config "$(CONFIG)" --out "$(RUN_OUT)-nli" --record-nli
+
+nli-determinism: ## card L7: the pinned NLI model scores 200 pairs of the fixture-size LongMemEval fault set in two processes, compared bit for bit and to a tolerance of 1e-6, into .engram/nli/determinism/summary.json (fetches the model when missing, network)
+	env -u ENGRAM_OFFLINE node packages/runner/scripts/nli-determinism.ts
+
+h3-lint-nli: ## card L7, arm P3 (proposed, not registered): the NLI tier beside the model tier on the fixture, replayed offline from committed cassettes with zero new calls and scores: thresholds checked against card L3's contradiction fixtures, model calls saved, every contradiction label's band, recall and precision per class, into research/results/h3-lint-nli.json; an engineering check, not a thesis result
+	$(UV) run python research/scripts/h3_lint_nli.py --config research/configs/h3-lint-nli.json --out research/results/h3-lint-nli.json
 
 PERF_BUDGET := $(UV) run python research/scripts/perf_budget.py --config research/configs/perf-budget.json
 

@@ -7,7 +7,8 @@
 // scores them with the real scorer and no cache, one pair at a time, and
 // writes the logits; the parent compares them bit for bit and by the largest
 // difference of any probability. No model call; the scores are not cached.
-// Writes .engram/nli/determinism/summary.json, without paths or times.
+// Writes .engram/nli/determinism/summary.json, without paths or times. The
+// model is fetched by sha256 into .engram/upstream first when missing.
 //
 //   node packages/runner/scripts/nli-determinism.ts
 import { spawnSync } from "node:child_process";
@@ -15,7 +16,14 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { appendEvent, canonicalJson, migrate, openSqlite, planModelLints } from "@engram/core";
-import { NLI_MODEL, NLI_RUNTIME, nliModelDir, onnxNliScore, softmax } from "@engram/model";
+import {
+  fetchNliModel,
+  NLI_MODEL,
+  NLI_RUNTIME,
+  nliModelDir,
+  onnxNliScore,
+  softmax,
+} from "@engram/model";
 import { readSetPolicy, readSetStates } from "../src/lint-fault-set.ts";
 
 const REPO = fileURLToPath(new URL("../../../", import.meta.url));
@@ -71,6 +79,7 @@ async function child(pairsFile: string, outFile: string): Promise<void> {
 async function main(): Promise<void> {
   const [mode, a, b] = process.argv.slice(2);
   if (mode === "--child") return child(a as string, b as string);
+  await fetchNliModel(nliModelDir(REPO), { log: (l) => console.log(l) });
   mkdirSync(OUT, { recursive: true });
   const pairsFile = join(OUT, "pairs.json");
   writeFileSync(pairsFile, `${JSON.stringify(await plan())}\n`);
