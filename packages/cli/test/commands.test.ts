@@ -3,20 +3,26 @@
 import { describe, expect, it } from "vitest";
 import { cli } from "./helpers.ts";
 
-const HELP = `engram: the Engram control plane from the command line
+const HELP = `engram: the Engram control plane from the command line; engram tui opens the terminal interface
 
 usage: engram <command> [options]
 
 commands:
   read [query]      read through the plane and explain every returned item
+  read --item <id>  read one item by its id and explain it, if the actor may read it
   write             write one item through the plane's write gate
+  check             the decision a write would get now: nothing stored, no event
   promote <itemId>  promote an item through the plane's promotion gate
   supersede <itemId>  propose end dates for the versions an item supersedes; apply accepted ones
+  grants <itemId>   add or remove grants on an item, as its owner
   explain <readId>  the explanations a read recorded
+  events            the events the actor may see, each with its decision, rule and reason
   retain            sweep one scope's retention: expired items retired, budgets enforced
   lint              run the policy's deterministic lints over a scope, each finding with its reason
   simulate          replay a recorded workload under the policy and a candidate; compare them
+  policy            the policy the workspace decides with, and its label
   who-can-read      who can read an item or a scope, each reader with the rule or grant admitting it
+  scopes            the scopes the actor can see, by membership or through a grant
   serve             serve the HTTP API to authenticated callers, or on loopback with --insecure-loopback
   mcp               the MCP server for Claude Code and Codex, as one fixed actor
   hook claude-code  a Claude Code PreToolUse hook that blocks store bypasses
@@ -51,12 +57,23 @@ actor options (read, write, promote, supersede, explain, retain, lint, who-can-r
   --test-clock                for tests and fixtures only: --at sets the clock of an
                               in-process call that is not a read (refused with --server)
 
+read --item options:
+  --item <id>                 one item by its id instead of a query (card E8.14's route):
+                              the item and its explanation if the actor may read it,
+                              nothing otherwise; one read event, after the same sweep and
+                              adoption as a read, with read's options and output
+
 write options:
   --content <text>            the item's content
   --file <item.json>          a JSON item; the flags and defaults fill the fields it leaves out
   --id <uuidv7>  --scope <scope>  --class <episodic|semantic>
   --confidence <0..1>  --valid-from <iso>  --valid-to <iso>
   the plane records a write as source user by the acting principal, whatever the item claims
+
+check options:
+  the write, store and actor options above: the decision engram write would get with
+  the same flags now, from the same gate; nothing is stored and no event is appended;
+  the write is decided again when it is made. exit 1 on deny or ask
 
 promote options:
   --to <scope>                the target scope: the item's own or a wider one
@@ -74,8 +91,25 @@ supersede options:
   id with no proposed close refuses the call before anything is written; exit 1 on an
   unresolved chain or a write the gate did not allow
 
+grants options:
+  <itemId>                    the item; only its owner, user-sourced, may change its grants
+  --add <to>[,class=<class>][,mode=<mode>][,expires=<iso>]
+                              add a grant: who it is for (person:sam, agent:claude-code/*),
+                              the class it covers, read or read_write (default read), and
+                              when it expires, a UTC date or time; repeatable
+  --remove <grant>            remove a grant, written as for --add, exactly as the item
+                              carries it; repeatable
+  with the store and actor options above; one governed change, decided by the plane
+  and recorded as one event; exit 1 on deny
+
 explain options:
   --db <path|url>  --policy <preset|path>  and --as or --owner: only the reader may explain a read
+
+events options:
+  --after <seq>               only the events with a seq above this one (default every event)
+  with --db, --policy and --as or --owner: the events naming a scope the actor may read
+  as a member, and those it made that name no scope; an item is shown only as a read
+  would return it. The log must exist; nothing is appended
 
 retain options:
   --scope <scope>             the scope to sweep, as a user-sourced member of it; exit 1 if refused
@@ -89,12 +123,23 @@ who-can-read options:
                               the item or the scope, grant holders named to the owner only;
                               exit 1 if refused
 
+scopes options:
+  with the store options above and --as, --level and --member: the member scopes the
+  read matrix lets the actor's level read, and the scope of each item a read would admit
+  through a live grant (card E8.14's route). It is a read: one read event, and with a
+  store folder the same sweep and adoption as engram read first
+
 simulate options:
   --workload <workload.json>  a recorded workload: {id, actors, steps} (default empty)
   --policy <preset|path>      the baseline policy (default medium)
   --candidate <preset|path>   the policy to compare it with (default the baseline)
   each policy replays the workload on a scratch log and store; the real log and store are
   never read or written, and no model is called
+
+policy options:
+  --policy <preset|path>      the policy to show (default medium), or --server <url>: its own
+  printed as YAML a policy file may hold, under a comment naming it; --json for JSON.
+  No actor is needed and the log is not opened
 
 serve options:
   --keys <file>               accept the API keys in this key file (engram key)
