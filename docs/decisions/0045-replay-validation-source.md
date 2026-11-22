@@ -1,6 +1,6 @@
 # ADR 0045: The replay validation record's source: the plane derives it from the held-out outcomes a user-sourced actor presents
 
-Status: proposed, 2026-11-21
+Status: proposed, 2026-11-21; revised 2026-11-22 by card D3's review fix pass (findings D3-3 and D3-6)
 Deciders: drafted by card D3 of the absorb plan; for the lead's acceptance
 Supersedes: nothing. It fills the slot ADR 0026 left open ("the plane passes none until card D3 gives it a source") and amends its sentence "The validation record is not a Plane argument".
 
@@ -12,11 +12,13 @@ Supersedes: nothing. It fills the slot ADR 0026 left open ("the plane passes non
 
 ## Decision
 
-1. `PromoteOptions.replay` carries the replay itself: the tasks the candidate was induced from, the threshold, and each held-out task's reward per seed without and with the candidate. It never carries a record.
+1. `PromoteOptions.replay` carries the replay itself: the item's id and the strict hash of the content it installed, the tasks the candidate was induced from, the threshold, and each held-out task's reward per seed without and with the candidate. It carries no k and n, but it does carry the per-task outcomes the count is made from, and the plane cannot verify those: they are the caller's evidence, not the plane's measurement.
 2. The plane derives the record from it with core's pure `scoreReplay` (`packages/core/src/distill/validate.ts`): a task passes when its mean reward with the candidate is at or above the threshold; k is the passing tasks, n the held-out tasks, with the threshold and the baseline (tasks passing without the candidate) beside them so the event's reason carries the counts. The evaluator decides it against the policy's `replay_k` of `replay_n` as before.
-3. A replay the plane cannot judge is refused with `InvalidCallError` before the log is touched, like an invalid scope: a replayed task the candidate was induced from (leakage), a reward outside 0 to 1, the same task and seed twice, or tasks run on different seeds.
+3. A malformed replay is refused with `InvalidCallError` before the log is touched, like an invalid scope: no item id or content hash, a reward outside 0 to 1, the same task and seed twice, or tasks run on different seeds.
 4. Only a user-sourced actor may present a replay (`engram/promote/validation-source`): the person who ran it. An agent presenting a replay of its own procedure is the self-granted authority ADR 0026 refuses.
 5. The threshold is the replay's, stated by its caller (the runner's config), since the policy's promotion rule holds `replay_k` and `replay_n` only.
+6. The replay is bound to the item (review finding D3-3). One run for another id, or for other content, is denied under `engram/promote/replay-item`. Its induction tasks must be exactly the tasks of the item's own distill ref (`distill:<method>:<sessions>`, card D2), which the plane names through a session index injected at construction (`PlaneDeps.distillTasks`, card D1's index). None of them may be replayed. Either failure is denied under `engram/promote/replay-split`, and so is a leaked split in the caller's own list (finding D3-6: a policy decision, so an event). An item with no distill ref was induced from no recorded session. A distill ref the plane cannot map is refused. Each decision's reason carries the replay's sha256 (`replayDigest`, the sha256 of its canonical JSON), so the log names the exact evidence it judged without a schema change.
+7. No surface (the HTTP API, the MCP server, the CLI, the pi extension) may expose `replay` until verified actors (card E8.12, ADR 0042) are in place. Point 4 trusts the actor's source, and on a surface with self-asserted actors any caller could claim `user`.
 
 ## Alternatives considered
 
@@ -29,8 +31,8 @@ Supersedes: nothing. It fills the slot ADR 0026 left open ("the plane passes non
 
 - `Plane.promote` admits a procedural candidate for the first time; the promote event's reason reads, for example, "the validation record 4 of 5 held-out tasks at or above 1 with the procedure (2 of 5 without it) meets 4 of 5".
 - The plane trusts the outcomes as presented: a user who invents them is believed. That is the same trust a user-typed write gets, and the runner's cassettes make a fixture's outcomes reproducible.
-- The invariants' oracle (`promotionPermitted`, `packages/core/src/oracle.ts`, the lead's) still says a procedural candidate never lands, which stays sound because the invariants never present a replay. Extending invariant 2 to replays needs the oracle to see the replay, which this ADR does not record in the log.
-- Once candidates carry their sessions (card D2's `distill:<method>:<sessions>` ref), the plane could check `induced_from` against the candidate's own ref instead of taking the caller's list.
+- The invariants' oracle (`promotionPermitted`, `packages/core/src/oracle.ts`, the lead's) takes the presented replay and the session index, and judges a replay admission by its own reading (`replayAdmits`). Invariant 2 presents replays (review finding D3-5). The replay itself is still not in the log: the oracle judges what the test presented, and a dogfood log replayed later cannot be judged on it.
+- A caller can still cherry-pick which held-out tasks it reports. The split and the binding stop it reporting an induction task or another item's replay, but not leaving out held-out tasks it failed. That is closed only once the registered n is fixed (lead question D3-1): then a replay must cover exactly the registered held-out set.
 - Drafted as 0042 and renumbered 0045 the same day: cards E8.12 and E8.13 and the TUI design hold 0042 to 0044.
 
 ## Sources

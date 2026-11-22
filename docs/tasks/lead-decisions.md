@@ -292,6 +292,15 @@ Prices come from `research/results/h2-cost-table.json` (card RV8, OpenRouter's l
 
 The answers card that carries these into the pre-registration, the ADRs and the roadmap follows as its own PR, as on 2026-11-19.
 
+## F. Proposed by the absorb cards, 2026-11-21
+
+Open, for the lead. Each was drafted by a card's agent while implementing it; the card ships the recommendation behind it, and accepting or changing it is a `decision` log entry plus a status change in the ADR.
+
+63. **ADR 0045, the replay validation record's source (card D3).** ADR 0026 left open where a procedural candidate's validation record comes from; ADR 0045 fills it.
+    - (a) Accept ADR 0045 as written. A user-sourced actor presents the held-out outcomes, and the plane counts k of n itself. The replay is bound to the item's id, content hash and distill ref, through an injected session index. A mismatch is a deny event, the replay's sha256 is in every reason, and no surface exposes `replay` before verified actors (ADR 0042).
+    - (b) Accept it, and record each replay in the log in a schema card, so the oracle and the dogfood report can judge a replay admission from the log alone.
+    - (c) Keep procedural candidates unpromotable through the plane until a replay can be measured, not presented: admission waits for H5's runner (card X11) to call the plane itself.
+
 ## Decided on 2026-11-21, under the lead's delegation
 
 On 2026-11-21 the lead delegated items 49 to 56 as well: close them with the best answer the project's record supports. Every item takes option (a). These answers are binding until the lead overturns one. ADRs [0038](../decisions/0038-tamper-evident-log-that-keeps-erasure.md), [0039](../decisions/0039-content-guards-at-the-write-gate.md), [0040](../decisions/0040-trust-floors.md) and [0041](../decisions/0041-cedar-export-for-analysis.md) are accepted with them.
