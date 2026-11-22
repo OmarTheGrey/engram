@@ -431,8 +431,20 @@ export class ConfirmOverlay implements Overlay {
     const inner = width - 2;
     const body: string[] = [];
     for (const p of this.request.lines) body.push(...para(`${p}`, inner - 1), "");
-    if (this.request.argv !== undefined)
-      body.push(...para(`$ ${ctx.shown(this.request.argv)}`, inner - 1), "");
+    if (this.request.argv !== undefined) {
+      // The buttons stay in sight: a command too long for the room is cut, and shown whole below (card E8.15c).
+      const command = para(`$ ${ctx.shown(this.request.argv)}`, inner - 1);
+      const room = height - 2 - body.length - 4 - (this.typed === undefined ? 0 : 2);
+      body.push(
+        ...(command.length <= room
+          ? command
+          : [
+              ...command.slice(0, Math.max(1, room - 1)),
+              " ... (cut to fit the dialog; it runs whole)",
+            ]),
+        "",
+      );
+    }
     if (this.typed !== undefined) {
       // The box fits the dialog whatever the word's length (review E8.15d-10).
       const label = ` Type ${this.request.typed} to go on: [ `;

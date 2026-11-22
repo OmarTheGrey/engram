@@ -8,12 +8,13 @@
 // own text; nothing is derived from a reason or a rule id.
 import type { LintFinding, SimReport, StepChange } from "@engram/core";
 import { outcomeText, plural, policyName } from "../../format.ts";
-import type { CommandSpec, Values } from "../../registry.ts";
+import { type CommandSpec, command, type Values } from "../../registry.ts";
 import { middleCut } from "../argv.ts";
 import { clean, fit, para } from "../layout.ts";
 import type { RunResult } from "../runner.ts";
 import type { Ctx } from "../screen.ts";
 import type { StatusKind } from "../theme.ts";
+import { oneLine } from "./rich.ts";
 import { bodyJson, type Row, SurfaceScreen } from "./surface.ts";
 
 /** The first line of the command's own output: its summary line, verbatim. */
@@ -128,9 +129,10 @@ export class LintScreen extends SurfaceScreen {
       if (this.open.has(id)) {
         lines.push(`   ${t.glyphs.open} evidence`);
         for (const e of f.evidence) lines.push(...para(clean(e), width - 5, "     "));
-        const rule = body.events?.[i]?.policy_id;
-        if (rule !== undefined) lines.push(`   rule ${rule}`);
-      } else lines.push(`   ${t.glyphs.closed} evidence: enter`);
+        // The finding's own event: its rule drawn as text, never compared (card E8.15c's guard).
+        const event = body.events?.[i];
+        if (event !== undefined) lines.push(`   rule ${oneLine(event.policy_id)}`);
+      } else lines.push(`   ${t.glyphs.closed} evidence: space; the item page: enter`);
       rows.push({
         kind: "item",
         id,
@@ -139,6 +141,8 @@ export class LintScreen extends SurfaceScreen {
           if (this.open.has(id)) this.open.delete(id);
           else this.open.add(id);
         },
+        // Enter opens the finding's item page (card E8.15c's screen, docs/design/tui.md 8.10).
+        open: (c) => c.openCommand(command("read --item") as CommandSpec, {}, [f.item_id]),
       });
     });
     const said =
@@ -154,7 +158,7 @@ export class LintScreen extends SurfaceScreen {
   protected override keyHints(): string {
     return this.result === undefined
       ? "ctrl+s lint  tab next"
-      : "enter evidence  r lint again  v plain  J json";
+      : "enter item page  space evidence  r again  v plain  J json";
   }
 }
 
@@ -257,14 +261,14 @@ export class SimulateScreen extends SurfaceScreen {
     if (this.open.has(id)) {
       lines.push(
         ...para(
-          `baseline   ${d.baseline.decision}: ${clean(d.baseline.reason)} (${d.baseline.policy_id})`,
+          `baseline   ${d.baseline.decision}: ${oneLine(d.baseline.reason)} (${oneLine(d.baseline.policy_id)})`,
           width - 4,
           "     ",
         ),
       );
       lines.push(
         ...para(
-          `candidate  ${d.candidate.decision}: ${clean(d.candidate.reason)} (${d.candidate.policy_id})`,
+          `candidate  ${d.candidate.decision}: ${oneLine(d.candidate.reason)} (${oneLine(d.candidate.policy_id)})`,
           width - 4,
           "     ",
         ),

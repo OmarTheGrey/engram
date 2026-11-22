@@ -92,7 +92,7 @@ describe("I3: pgup and pgdn reach the screens", () => {
     await h.press("\x1b[5~");
     expect(h.focused()).toBe("read");
     await h.press("y", CTRL_S); // the policy in force: a long result
-    expect(h.screen()).toBe("result");
+    expect(h.screen()).toBe("policy"); // Policy's own screen since card E8.15c
     const before = await h.text();
     await h.press("\x1b[6~");
     expect(await h.text()).not.toBe(before);
@@ -127,7 +127,7 @@ describe("I2: control characters in a command's output never reach the terminal"
     await h.press(";");
     await h.type("read hello");
     await h.press("\r", CTRL_S, "y");
-    expect(h.screen()).toBe("result");
+    expect(h.screen()).toBe("read"); // Read's own screen since card E8.15c
     for (let i = 0; i < 6; i++) await h.press("\x1b[6~");
     const text = (await h.frame()).join("\n");
     const written = h.term.output.slice(start);
@@ -535,14 +535,14 @@ describe("C1: a read with a store folder asks for the folder its own command lin
       await h.press(";");
       await h.type(`read --root ${root}`);
       await h.press("\r");
-      expect(h.screen()).toBe("form");
+      expect(h.screen()).toBe("read"); // Read's own screen since card E8.15c
       await h.press(CTRL_S);
       expect(h.overlay(), `no dialog before the read of ${root}`).toBe("confirm");
       const text = await h.text();
       expect(text).toContain(`Read with .../${root.split("/").at(-1)}?`);
       expect(text).not.toContain("the server's store");
       await h.press("y");
-      expect(h.screen()).toBe("result");
+      expect(h.screen()).toBe("read");
       await h.press(ESC, ESC);
     }
     expect(h.ran()).toHaveLength(2);

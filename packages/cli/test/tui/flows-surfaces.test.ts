@@ -348,10 +348,17 @@ describe("Lint (8.10)", () => {
     expect(text).toMatch(/[▲!] warn {2}duplicate {2}\S+/);
     const id = await focusStarting(h, "finding:");
     expect(id).toBeDefined();
-    await h.press(ENTER);
+    await h.press(SPACE);
     const open = await h.text();
     expect(open).toContain("evidence");
     expect(open).toContain("rule fixture.faults/lint/duplicate");
+    // Enter opens the finding's item page (card E8.15c's screen), for the finding's item.
+    const item = /warn {2}duplicate {2}(\S+)/.exec(open)?.[1];
+    await h.press(ENTER);
+    if (h.overlay() === "confirm") await h.press("y");
+    await h.app.settled();
+    expect(h.screen()).toBe("item");
+    expect((h.app.top() as unknown as { itemId(): string }).itemId()).toBe(item);
     await h.quit();
   });
 });
@@ -642,7 +649,7 @@ describe("the review's fix pass (E8.15d)", () => {
     h.app.push(screen as never);
     await h.frame();
     await focusStarting(h, "finding:01950000-0000-7000-8000-0000000000a2");
-    await h.press(ENTER);
+    await h.press(SPACE);
     const text = await h.text();
     expect(text).toContain("rule fixture/lint/orphan");
     expect(text).not.toContain("rule fixture/lint/duplicate");

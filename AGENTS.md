@@ -29,6 +29,7 @@ packages/ai-sdk/          @engram/ai-sdk, the Vercel AI SDK adapter on the kit: 
 packages/cli/             `engram` command; calls core and adapters, holds no policy logic
 packages/server/          HTTP API over core (route table, loopback only), the workspace opener; OpenAPI generated from it
 packages/ui/              inspector; calls the generated client
+packages/view/            the pure view logic the inspector and the TUI share (lanes, explain, the timeline, the item page); the generated client's types only, no React (card E8.15c)
 packages/bench/           benchmark runners on the pi SDK, pinned in packages/bench/PINS.md; vendored upstream judges
 packages/runner/          experiment runner: pi SDK sessions, seeded, cached; Pi Durable behind a flag
 packages/model/           the model-call layer bench and runner share: the cached, seeded call (ADR 0017) and the scripted models; imports neither of them, and reaches pi-ai for the faux provider (ADR 0033)

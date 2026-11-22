@@ -42,11 +42,14 @@ export const SERVER_REFUSES: readonly WsFlag[] = [
   "export-jsonl",
 ];
 
-export type Source = "flag" | "env" | "saved" | "set" | "default";
+/** Where a value came from; "session" is the reviewer handoff's, never saved (8.8). */
+export type Source = "flag" | "env" | "saved" | "set" | "default" | "session";
 
 export interface WsValue {
   value: string | readonly string[];
   source: Source;
+  /** A session value's predecessor: what Switch back restores and tui.json keeps. */
+  previous?: WsValue;
 }
 
 export const isWsFlag = (k: string): k is WsFlag =>
@@ -99,6 +102,8 @@ export class Workspace {
     const empty =
       value === undefined || value === "" || (Array.isArray(value) && value.length === 0);
     if (empty) this.values.delete(flag);
+    // A session value set again (the workspace panel applied) keeps what it replaced.
+    else if (source === "session") this.setForSession(flag, value);
     else this.values.set(flag, { value: Array.isArray(value) ? [...value] : value, source });
   }
 
@@ -106,11 +111,38 @@ export class Workspace {
   flagValues(): Record<string, string | readonly string[]> {
     return Object.fromEntries([...this.values].map(([k, v]) => [k, v.value]));
   }
-  /** The flags set here (not from the environment or the default), for tui.json. */
+  /**
+   * The flags set here (not from the environment or the default), for
+   * tui.json; a session value (the reviewer handoff) is never written, its
+   * predecessor is (docs/design/tui.md 8.8).
+   */
   savable(): Record<string, string | readonly string[]> {
-    return Object.fromEntries(
-      [...this.values].filter(([, v]) => v.source !== "env").map(([k, v]) => [k, v.value]),
-    );
+    const out: Record<string, string | readonly string[]> = {};
+    for (const [k, v] of this.values) {
+      const kept = v.source === "session" ? v.previous : v;
+      if (kept !== undefined && kept.source !== "env") out[k] = kept.value;
+    }
+    return out;
+  }
+
+  /** Sets a flag for this session only, keeping what it replaces for `restore` (8.8). */
+  setForSession(flag: WsFlag, value: string | readonly string[]): void {
+    const now = this.values.get(flag);
+    const previous = now?.source === "session" ? now.previous : now;
+    this.values.set(flag, {
+      value: Array.isArray(value) ? [...value] : value,
+      source: "session",
+      ...(previous === undefined ? {} : { previous }),
+    });
+  }
+
+  /** Puts back what `setForSession` replaced; true when a session value was there. */
+  restore(flag: WsFlag): boolean {
+    const now = this.values.get(flag);
+    if (now?.source !== "session") return false;
+    if (now.previous === undefined) this.values.delete(flag);
+    else this.values.set(flag, now.previous);
+    return true;
   }
 
   /** The server named, by a flag or ENGRAM_SERVER_URL. */
@@ -227,7 +259,7 @@ export interface CheapChecks {
   log: CheapCheck;
   policy: CheapCheck;
   actor: CheapCheck;
-  /** The policy's label, `preset.medium v1`, when it loaded. */
+  /** The policy's label, `<id> v<version>` as core writes it, when it loaded. */
   policyLabel?: string;
   /** The log's label for display, when the target parsed. */
   logLabel?: string;

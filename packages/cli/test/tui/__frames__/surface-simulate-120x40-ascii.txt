@@ -2,7 +2,7 @@
    Workload     [ workload.json                            ]  a recorded workload (.json)
    Policy       [                                          ]  the baseline: a preset or a file
    Candidate    [ candidate.yaml                           ]  a preset or a file; default the baseline
-   > More flags: 2, set: --db
+   + More flags: 2, set: --db
 
  [ Simulate ]
 

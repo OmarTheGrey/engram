@@ -2,7 +2,7 @@
  > Store roots     /src/lantern/memory  [                                          ]  written absolute; enter adds
    Protected files [                                          ]  the log is protected already
    Block events as [ person:dana                              ]  default agent:claude-code
-   > More flags: 5, set: --db
+   + More flags: 5, set: --db
 
  [ Copy the entry ]  [ Try it on a scratch log ]
 

@@ -3,7 +3,7 @@
 
    Out          [ dana.jsonl                   ]  the bundle file; the TUI ne...
    Encryption   (o) none   ( ) age recipients   ( ) passphrase file
-   > More flags: 7, set: --db --owner
+   + More flags: 7, set: --db --owner
 
  [ Export ]
 

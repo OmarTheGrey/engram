@@ -190,7 +190,7 @@ export class DoctorScreen extends SurfaceScreen {
   }
   protected override async jsonOf(ctx: Ctx, result: RunResult) {
     // Doctor changes nothing, so its --json view is a second run of the same checks.
-    const again = await ctx.runNow([...result.argv, "--json"]);
+    const again = await ctx.peek([...result.argv, "--json"]);
     return again.out;
   }
   protected override status(ctx: Ctx, result: RunResult): string {

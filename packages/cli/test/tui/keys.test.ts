@@ -102,7 +102,7 @@ describe("the frame's keys", () => {
   it("ctrl+g opens help from inside a field, where ? types", async () => {
     const h = await usable();
     await h.press("w"); // Write a memory: the content field is focused
-    expect(h.screen()).toBe("form");
+    expect(h.screen()).toBe("write");
     await h.press("?");
     expect(h.overlay()).toBeUndefined();
     expect(await h.text()).toContain("[ ?");
@@ -132,7 +132,7 @@ describe("the frame's keys", () => {
   it("q on Home quits; q in a form field types; esc on a form with input asks first", async () => {
     const h = await usable();
     await h.press("w", "q");
-    expect(h.screen()).toBe("form");
+    expect(h.screen()).toBe("write"); // Write's own screen since card E8.15c
     expect(await h.text()).toContain("[ q");
     await h.press(ESC);
     expect(h.overlay()).toBe("confirm");
@@ -152,8 +152,8 @@ describe("the frame's keys", () => {
     await h.press(DOWN);
     expect(h.focused()).toBe("lint");
     await h.press("p");
-    expect(h.screen()).toBe("form");
-    expect(await h.text()).toContain("engram promote <itemId>");
+    expect(h.screen()).toBe("promote"); // Promote's own screen since card E8.15c
+    expect(await h.text()).toContain("engram promote");
     await h.quit();
   });
 
@@ -181,7 +181,7 @@ describe("the frame's keys", () => {
     await h.type("read release --at 2026-10-25T12:00:00Z");
     expect(await h.text()).toContain("Open as typed");
     await h.press(ENTER);
-    expect(h.screen()).toBe("form");
+    expect(h.screen()).toBe("read"); // Read's own screen since card E8.15c
     const app = h.app.top() as unknown as { form: { argv(ws: unknown): string[] } };
     expect(app.form.argv(h.app.ws)).toEqual([
       "read",
@@ -214,7 +214,7 @@ describe("the frame's keys", () => {
     await h.resize(80, 23);
     expect(await h.text()).toContain("this terminal is 80x23");
     await h.resize(80, 24);
-    expect(h.screen()).toBe("form");
+    expect(h.screen()).toBe("write");
     expect(await h.text()).toContain("kept across the resize");
     await h.quit();
   });
@@ -260,7 +260,7 @@ describe("confirmation (9.5)", () => {
     expect(h.overlay()).toBeUndefined();
     expect(h.ran()).toEqual([]);
     await h.press("\x13", "y");
-    expect(h.screen()).toBe("result");
+    expect(h.screen()).toBe("write"); // the result is drawn on Write's own screen (E8.15c)
     expect(h.ran()).toHaveLength(1);
     expect(await h.text()).toContain("exit 0");
     await h.quit();

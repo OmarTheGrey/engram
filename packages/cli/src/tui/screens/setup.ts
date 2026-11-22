@@ -384,6 +384,8 @@ export class McpScreen extends ProcessScreen {
     ctx.push(
       new KeyCreateScreen(ctx, { keys: String(this.form.get("keys")) || undefined }, (file) => {
         this.form.setValue("keys", file);
+        // Touched, so the workspace's own key file does not replace it (E8.15c's syncWorkspace).
+        this.form.touched.add("keys");
       }),
     );
   }

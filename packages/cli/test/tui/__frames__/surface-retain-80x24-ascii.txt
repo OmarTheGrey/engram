@@ -1,6 +1,6 @@
  engram  Retention sweep                       in process  person:dana (person)
    Scope        [ person:dana                  ]  swept as a user-sourced mem...
-   > More flags: 13, set: --root --owner --db
+   + More flags: 13, set: --root --owner --db
 
  [ Sweep ]
 

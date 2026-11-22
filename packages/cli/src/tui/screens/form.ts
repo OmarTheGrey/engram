@@ -6,7 +6,8 @@
 // first where the entry's `writes` says it changes state. The result is the
 // command's own output, byte for byte, with its exit code.
 import type { CommandSpec, Values } from "../../registry.ts";
-import { type Field, Form, type FormError } from "../forms.ts";
+import { madeAsLines, madeAsOther } from "../actor.ts";
+import { type Field, Form, type FormError, rebuildArgv } from "../forms.ts";
 import { clean, cut, fit, para, rows, wrap } from "../layout.ts";
 import type { RunResult } from "../runner.ts";
 import type { CommandRow, Ctx, Screen } from "../screen.ts";
@@ -333,13 +334,14 @@ export class ResultScreen implements Screen {
   readonly kind = "result" as const;
   readonly spec_: CommandSpec;
   result: RunResult;
-  private readonly values: Values;
   private offset = 0;
+  /** J: the command's --json output for the same answer, from the same call (card E8.15c). */
+  private json = false;
 
-  constructor(spec: CommandSpec, result: RunResult, values: Values) {
+  /** `_values` is kept for callers: r runs from the workspace now (rebuildArgv), not from them. */
+  constructor(spec: CommandSpec, result: RunResult, _values: Values = {}) {
     this.spec_ = spec;
     this.result = result;
-    this.values = values;
   }
 
   title(): string {
@@ -347,7 +349,10 @@ export class ResultScreen implements Screen {
   }
 
   private lines(width: number): string[] {
-    const text = clean(`${this.result.out}${this.result.err}`).replace(/\n$/, "");
+    const shown = this.json
+      ? (this.result.other ?? "This command prints no --json output.\n")
+      : `${this.result.out}${this.result.err}`;
+    const text = clean(shown).replace(/\n$/, "");
     return text === "" ? [" (no output)"] : text.split("\n").flatMap((l) => para(l, width));
   }
 
@@ -373,7 +378,9 @@ export class ResultScreen implements Screen {
         this.offset = Number.MAX_SAFE_INTEGER;
         return true;
       case "rerun": {
-        const again = await ctx.act(this.spec_, this.result.argv, this.values);
+        // From the workspace as it is now: after a change of actor, as the actor now (review finding 2).
+        const argv = rebuildArgv(this.spec_, this.result.argv, ctx.ws);
+        const again = await ctx.act(this.spec_, argv, {});
         if (again !== undefined) {
           this.result = again;
           this.offset = 0;
@@ -382,6 +389,18 @@ export class ResultScreen implements Screen {
       }
       case "leave":
         ctx.pop();
+        return true;
+      case "json":
+        if (madeAsOther(ctx.ws, this.result) !== undefined) {
+          ctx.say("that answer was made as another actor; r runs it again as you");
+          return true;
+        }
+        this.json = !this.json;
+        this.offset = 0;
+        return true;
+      case "plain":
+        this.json = false;
+        this.offset = 0;
         return true;
     }
     return false;
@@ -394,12 +413,14 @@ export class ResultScreen implements Screen {
     return false;
   }
 
-  command(): CommandRow {
+  command(ctx: Ctx): CommandRow {
+    if (madeAsOther(ctx.ws, this.result) !== undefined)
+      return { argv: rebuildArgv(this.spec_, this.result.argv, ctx.ws) };
     return { argv: this.result.argv, exit: this.result.code };
   }
 
   hints(): string {
-    return "r run again  up down scroll";
+    return this.json ? "J the text output  up down scroll" : "r run again  up down scroll";
   }
 
   spec(): CommandSpec {
@@ -408,6 +429,13 @@ export class ResultScreen implements Screen {
 
   render(ctx: Ctx, width: number, height: number): string[] {
     const t = ctx.theme;
+    const made = madeAsOther(ctx.ws, this.result);
+    if (made !== undefined)
+      return rows(
+        ["", ...madeAsLines(made, ctx.ws.actorId()).flatMap((l) => para(l, width))],
+        height,
+        width,
+      );
     const code = this.result.code;
     const kind = code === 0 ? "ok" : code === 2 ? "warn" : "fail";
     // The plane's decision first, as the answer carries it; then the exit code the plain command returns.
@@ -416,7 +444,9 @@ export class ResultScreen implements Screen {
       decision === undefined
         ? ` ${t.status(kind, `exit ${code}`)}  ${exitMeaning(this.spec_, code)}`
         : ` ${t.status(decision, decision)}   exit ${code}  ${exitMeaning(this.spec_, code)}`,
-      "",
+      this.json
+        ? " JSON view: the --json output, byte for byte as engram prints it; J goes back"
+        : "",
     ];
     const body = this.lines(width - 1);
     const room = height - head.length;

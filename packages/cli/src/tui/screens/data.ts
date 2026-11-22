@@ -10,6 +10,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { type CommandSpec, command, type Values } from "../../registry.ts";
+import { actorNow, actorOfResult } from "../actor.ts";
 import { Form, type FormError } from "../forms.ts";
 import { clean, para } from "../layout.ts";
 import type { RunResult } from "../runner.ts";
@@ -161,6 +162,11 @@ export class ImportScreen extends SurfaceScreen {
   protected override buttons(): Button[] {
     return [{ id: "button:run", label: "Import", press: (c) => this.run(c) }];
   }
+  /** Each row is written by the import actor of the importer (`import:<importer>`): it is the importer's answer. */
+  protected override madeAsOther(ctx: Ctx, result: RunResult): string | undefined {
+    const made = actorOfResult(result)?.replace(/^import:/, "");
+    return made === undefined || made === actorNow(ctx.ws)?.id ? undefined : made;
+  }
   /** Asks first, naming how many rows it offers and that the write gate decides each. */
   protected override async execute(
     ctx: Ctx,
@@ -267,6 +273,8 @@ export class KeysScreen extends SurfaceScreen {
     ctx.push(
       new KeyCreateScreen(ctx, { keys: this.file() || undefined }, async (file) => {
         this.form.setValue("keys", file);
+        // Touched, so the workspace's own key file does not replace it (E8.15c's syncWorkspace).
+        this.form.touched.add("keys");
         await this.run(ctx);
       }),
     );
@@ -330,7 +338,7 @@ export class KeysScreen extends SurfaceScreen {
   }
   protected override async jsonOf(ctx: Ctx, result: RunResult) {
     // Listing changes nothing, so its --json view is a second listing.
-    return (await ctx.runNow([...result.argv, "--json"])).out;
+    return (await ctx.peek([...result.argv, "--json"])).out;
   }
   protected override keyHints(): string {
     return "n new  R revoke  r list again";
@@ -490,7 +498,7 @@ export class LogVerifyScreen extends SurfaceScreen {
   }
   protected override async jsonOf(ctx: Ctx, result: RunResult) {
     // Verifying reads the log only, so its --json view is a second verification.
-    return (await ctx.runNow([...result.argv, "--json"])).out;
+    return (await ctx.peek([...result.argv, "--json"])).out;
   }
   protected override keyHints(): string {
     return "ctrl+s verify  v plain  J json";

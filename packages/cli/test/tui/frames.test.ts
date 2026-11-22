@@ -60,7 +60,8 @@ const SCREENS: Record<
     },
   },
   workspace: { given: USABLE, keys: (h) => h.press("\x0f") },
-  form: { given: USABLE, keys: (h) => h.press("w") },
+  // The generated form, on a command with no screen of its own (Write has one since card E8.15c).
+  form: { given: USABLE, keys: (h) => h.press("C") },
   help: { given: USABLE, keys: (h) => h.press("?") },
   palette: {
     given: USABLE,

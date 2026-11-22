@@ -145,6 +145,9 @@ export interface FormError {
   message: string;
 }
 
+/** The id a check hands prepare in place of a fresh one: a valid UUIDv7 no run uses. */
+const CHECKING_ID = "00000000-0000-7000-8000-000000000000";
+
 /** A form's state: one value per field, and a text editor per text field. */
 export class Form {
   readonly spec: CommandSpec;
@@ -154,6 +157,8 @@ export class Form {
   readonly editors = new Map<string, TextField>();
   /** The field ids the person changed, so leaving asks first. */
   readonly touched = new Set<string>();
+  /** The workspace fields a command line gave the form: with the touched ones, they win over the workspace. */
+  private readonly given = new Set<string>();
 
   constructor(
     spec: CommandSpec,
@@ -188,7 +193,9 @@ export class Form {
     for (const [k, v] of Object.entries(values)) {
       if (k === flagWord || v === undefined) continue;
       const f = this.fields.find((x) => !x.positional && x.name === k);
-      if (f !== undefined) this.setValue(f.id, v as FieldValue);
+      if (f === undefined) continue;
+      this.setValue(f.id, v as FieldValue);
+      if (f.workspace) this.given.add(f.id);
     }
   }
 
@@ -243,6 +250,7 @@ export class Form {
    * workspace's when it calls a server, as connect refuses them).
    */
   argv(ws: Workspace): string[] {
+    this.syncWorkspace(ws);
     const words = this.spec.name.split(" ");
     const out = words.filter((w) => !w.startsWith("--"));
     const nameFlag = this.nameFlag();
@@ -269,17 +277,34 @@ export class Form {
   }
 
   /**
+   * The workspace's flags as the workspace has them now, in every workspace
+   * field the person did not change and no command line gave (card E8.15c
+   * review, finding 2): after a change of actor the form runs as the actor
+   * now, not as the one it was opened under.
+   */
+  syncWorkspace(ws: Workspace): void {
+    for (const f of this.fields) {
+      if (!f.workspace || this.touched.has(f.id) || this.given.has(f.id)) continue;
+      const now = f.multiple ? [...ws.list(f.name as never)] : (ws.get(f.name as never) ?? "");
+      const was = this.get(f.id);
+      if (JSON.stringify(was) !== JSON.stringify(now)) this.setValue(f.id, now as FieldValue);
+    }
+  }
+
+  /**
    * The CLI's own checks over the argument vector, without the call: the
    * command's parse, then for a plane command its prepare (and the actor it
    * builds), else the time and number checks of its time and number flags.
    */
-  validate(ws: Workspace, io: Io): FormError[] {
+  validate(ws: Workspace, given: Io): FormError[] {
     const argv = this.argv(ws);
     const words = this.spec.name.split(" ").filter((w) => !w.startsWith("--"));
     // The handler gets the words after the first, as run hands them on.
     // A command whose handler takes no positionals (log verify) is handed the words after its
     // name; the others the words after the first, the subcommand among them (card E8.15d).
     const args = this.spec.allowPositionals ? argv.slice(1) : argv.slice(words.length);
+    // Checking draws no id: the ids are the run's, as the plain command draws them (parity, E8.15c).
+    const io: Io = { ...given, newId: () => CHECKING_ID };
     try {
       const plane = PLANE[words[0] as string];
       if (plane !== undefined) {
@@ -340,5 +365,22 @@ export class Form {
   /** Whether the person changed anything. */
   dirty(): boolean {
     return this.touched.size > 0;
+  }
+}
+
+/**
+ * A command line run again from the workspace as it is now (card E8.15c
+ * review, finding 2): its own flags and positionals kept, the workspace's
+ * flags taken from the workspace, so r after a change of actor runs as the
+ * actor now. A line that does not parse is returned as it was.
+ */
+export function rebuildArgv(spec: CommandSpec, argv: readonly string[], ws: Workspace): string[] {
+  const words = spec.name.split(" ").filter((w) => !w.startsWith("--"));
+  try {
+    const { values, positionals } = parse(argv.slice(1), parseOptions(spec), spec.allowPositionals);
+    const own = Object.fromEntries(Object.entries(values).filter(([k]) => !isWsFlag(k)));
+    return new Form(spec, ws, own as Values, positionals.slice(words.length - 1)).argv(ws);
+  } catch {
+    return [...argv];
   }
 }

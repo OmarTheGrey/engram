@@ -41,6 +41,12 @@ export interface Io {
   /** Standard output as a stream, for `engram mcp` over stdio. */
   stdout?: NodeJS.WritableStream;
   /**
+   * The TUI's plain and JSON views (card E8.15c): handed what a plane command
+   * would print for the same answer in the other mode (--json when it prints
+   * text, text when it prints --json), with no second call. Unset outside the TUI.
+   */
+  otherView?: (out: string) => void;
+  /**
    * Doctor's store probes by check name, in place of the real ones; unset
    * outside tests (main.ts never sets it). A test about something else
    * (redaction, say) passes cheap probes so it does not open Mem0 and a

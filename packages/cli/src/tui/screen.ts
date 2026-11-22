@@ -19,9 +19,20 @@ export type ScreenKind =
   | "workspace"
   | "form"
   | "result"
+  | "too-small"
   // Card E8.15d: the hand-made screens of the policy, surface, machine and data commands.
   | "surface"
-  | "too-small";
+  // The memory and audit screens (card E8.15c).
+  | "read"
+  | "explain"
+  | "item"
+  | "write"
+  | "promote"
+  | "grants"
+  | "events"
+  | "policy"
+  | "who"
+  | "supersede";
 
 /** The overlays, which take the keys while open. */
 export type OverlayKind = "help" | "palette" | "confirm";
@@ -66,6 +77,14 @@ export interface Screen {
   focused?(): string | undefined;
   /** The key table actions this screen acts on, when fewer than its kind's (the help overlay lists only these). */
   actions?(): readonly string[];
+  /** Called once when the screen leaves the stack: a timer or a poll it runs stops (card E8.15c). */
+  close?(): void;
+  /**
+   * Called once after the screen is pushed, queued behind the key that
+   * opened it: a screen that shows a command's answer runs it here (Events,
+   * Policy), asking first where the registry says so (card E8.15c).
+   */
+  opened?(ctx: Ctx): Promise<void>;
 }
 
 export interface Overlay {
@@ -99,6 +118,22 @@ export interface ConfirmRequest {
   typed?: string;
 }
 
+/**
+ * The reviewer handoff of docs/design/tui.md 8.8 (card E8.15c): Acting as
+ * and Member of set for this session only, never saved; Switch back in the
+ * workspace panel restores them.
+ */
+export interface Handoff {
+  /** The reviewer's principal, now Acting as. */
+  reviewer: string;
+  /** The promotion's target scope. */
+  target: string;
+  /** The reviewer's memberships for this session, now Member of. */
+  members: readonly string[];
+  /** The actor before the switch, as the title bar wrote it. */
+  before: string;
+}
+
 /** What every screen and overlay can reach. */
 export interface Ctx {
   readonly io: Io;
@@ -108,6 +143,17 @@ export interface Ctx {
   checks: CheapChecks;
   /** The commands this session ran, oldest first. */
   readonly ran: readonly Ran[];
+  /**
+   * What each of them returned, oldest first: the item pickers, the grants
+   * list and the item page read the session's last read here (card E8.15c).
+   */
+  readonly results: readonly RunResult[];
+  /** The reviewer handoff, while one is on. */
+  readonly handoff: Handoff | undefined;
+  /** Switches to a reviewer for this session: Acting as and Member of (8.8). */
+  startHandoff(reviewer: string, members: readonly string[], target?: string): void;
+  /** Switch back: the actor and memberships before the handoff; false when none was on. */
+  endHandoff(): boolean;
   /** The last doctor run of this session. */
   lastDoctor: { code: number; at: string } | undefined;
   /** Whether tui.json was read or written this session (the status strip's "workspace saved"). */
@@ -125,6 +171,8 @@ export interface Ctx {
   readonly rows: number;
 
   push(screen: Screen): void;
+  /** The screen on top, the one drawn (a covered screen does not poll, card E8.15c review). */
+  top(): Screen;
   /** Back one screen; false at the bottom of the stack. */
   pop(): boolean;
   /** Replaces the whole stack with Home. */
@@ -143,7 +191,13 @@ export interface Ctx {
    * Runs a command as `engram <argv>`, asking first when the registry entry
    * says it changes state; undefined when it was cancelled or is not run here.
    */
-  act(spec: CommandSpec, argv: readonly string[], values: Values): Promise<RunResult | undefined>;
+  act(
+    spec: CommandSpec,
+    argv: readonly string[],
+    values: Values,
+    /** More lines for the confirmation, such as a write's preview (card E8.15c). */
+    extra?: readonly string[],
+  ): Promise<RunResult | undefined>;
   /** Runs a command with no confirmation: the caller has asked (the first loop's steps). */
   runNow(argv: readonly string[]): Promise<RunResult>;
   /** Records a command run outside runNow (a server the Serve screen ran until stopped, card E8.15d). */
@@ -153,6 +207,12 @@ export interface Ctx {
    * child, card E8.15d); returns the function that unregisters it.
    */
   onQuit(stop: () => Promise<void>): () => void;
+  /**
+   * A command that only looks (a write's check preview, the events screen's
+   * follow poll): never asked, not in the session's summary, and drawing
+   * no id from the session's ids (card E8.15c).
+   */
+  peek(argv: readonly string[]): Promise<RunResult>;
   /** Shows a line in the hints row until the next key. */
   say(message: string): void;
   /** Copies the command row of the screen underneath, whole. */

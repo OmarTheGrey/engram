@@ -11,7 +11,8 @@
 // what a screen shows of a decision is a field of the answer, or the
 // command's own text.
 import type { CommandSpec, Values } from "../../registry.ts";
-import { type Field, Form, type FormError } from "../forms.ts";
+import { actorNow, madeAsLines, madeAsOther } from "../actor.ts";
+import { type Field, Form, type FormError, rebuildArgv } from "../forms.ts";
 import { clean, cut, fit, para, rows, visibleWidth, wrap } from "../layout.ts";
 import type { RunResult } from "../runner.ts";
 import type { CommandRow, Ctx, Screen } from "../screen.ts";
@@ -31,7 +32,14 @@ export type Row =
     }
   | { kind: "buttons"; buttons: readonly Button[] }
   | { kind: "fold"; id: string }
-  | { kind: "item"; id: string; lines: readonly string[]; press?: (ctx: Ctx) => unknown }
+  | {
+      kind: "item";
+      id: string;
+      lines: readonly string[];
+      press?: (ctx: Ctx) => unknown;
+      /** What enter opens, when the entry names something (a finding's item page). */
+      open?: (ctx: Ctx) => unknown;
+    }
   | { kind: "text"; lines: readonly string[] }
   /** A paragraph wrapped at the screen's width when drawn. */
   | { kind: "para"; text: string };
@@ -107,6 +115,10 @@ export abstract class SurfaceScreen implements Screen {
   /** The buttons under the form; Run by default. */
   protected buttons(_ctx: Ctx): Button[] {
     return [{ id: "button:run", label: `Run: engram ${this.words()}`, press: (c) => this.run(c) }];
+  }
+  /** The actor a result was made as, when not the actor now (card E8.15c's rule); a screen may name its own. */
+  protected madeAsOther(ctx: Ctx, result: RunResult): string | undefined {
+    return madeAsOther(ctx.ws, result);
   }
   /** The rows of the result in the screen's own view; the command's text by default. */
   protected rich(_ctx: Ctx, width: number, result: RunResult): Row[] {
@@ -335,7 +347,9 @@ export abstract class SurfaceScreen implements Screen {
       }
       case "rerun":
         if (this.result === undefined) await this.submit(ctx);
-        else await this.run(ctx, this.result.argv);
+        // Rebuilt from the workspace as it is now: after a change of actor, r runs as the actor
+        // now (card E8.15c's rebuildArgv).
+        else await this.run(ctx, rebuildArgv(this.spec_, this.result.argv, ctx.ws));
         return true;
       case "toggle":
       case "accept":
@@ -377,7 +391,9 @@ export abstract class SurfaceScreen implements Screen {
         }
         return true;
       case "item":
-        if (name === "accept" || name === "toggle") await r.press?.(ctx);
+        // Enter opens what the entry names where it names something, space unfolds it.
+        if (name === "accept" && r.open !== undefined) await r.open(ctx);
+        else if (name === "accept" || name === "toggle") await r.press?.(ctx);
         return true;
       case "choice": {
         const values = r.options.map((o) => o.value);
@@ -515,6 +531,15 @@ export abstract class SurfaceScreen implements Screen {
   }
 
   private resultRows(ctx: Ctx, width: number, result: RunResult): Row[] {
+    // An answer made as another actor is not drawn, in any view (card E8.15c's rule).
+    const other = this.madeAsOther(ctx, result);
+    if (other !== undefined)
+      return [
+        {
+          kind: "text",
+          lines: ["", ...madeAsLines(other, actorNow(ctx.ws)?.id).flatMap((l) => para(l, width))],
+        },
+      ];
     const head: Row = { kind: "text", lines: ["", this.status(ctx, result), ""] };
     if (this.view === "plain")
       return [head, { kind: "text", lines: this.plainLines(result, width) }];

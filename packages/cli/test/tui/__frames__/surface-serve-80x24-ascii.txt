@@ -7,7 +7,7 @@
    Host             (o) 127.0.0.1   ( ) ::1   ( ) localhost
    Port             [                          ]  default 7313
    Viewer           [ person:dana              ]  shown by the inspector
-   > More flags: 11, set: --root --owner --db
+   + More flags: 11, set: --root --owner --db
 
  [ Stop ]  [ Create a key ]
 

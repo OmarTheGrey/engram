@@ -285,6 +285,8 @@ describe("E8.15d parity: this part's commands", () => {
       const flags = Object.keys(spec.options).filter((f) => f !== "json");
       for (const f of flags) expect(form.field(f), `${spec.name} --${f}`).toBeDefined();
       for (const f of form.fields) {
+        // Typed, as a person sets it: the workspace's flags then stay as set (E8.15c's syncWorkspace).
+        form.touched.add(f.id);
         if (f.boolean) form.setValue(f.id, true);
         else if (f.multiple) form.setValue(f.id, ["v1"]);
         else if (f.choices) form.setValue(f.id, f.choices[0] as string);
