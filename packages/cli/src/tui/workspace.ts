@@ -259,7 +259,7 @@ export interface CheapChecks {
   log: CheapCheck;
   policy: CheapCheck;
   actor: CheapCheck;
-  /** The policy's label, `preset.medium v1`, when it loaded. */
+  /** The policy's label, `<id> v<version>` as core writes it, when it loaded. */
   policyLabel?: string;
   /** The log's label for display, when the target parsed. */
   logLabel?: string;
