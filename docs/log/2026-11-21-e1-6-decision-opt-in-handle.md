@@ -8,7 +8,7 @@ pillar: plane
 hypothesis: none
 evidence:
   - packages/core/src/log/chain.ts
-  - packages/cli/src/chain.ts
+  - packages/server/src/workspace.ts
 supersedes: none
 ---
 

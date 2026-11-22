@@ -9,7 +9,7 @@ hypothesis: none
 evidence:
   - packages/cli/src/log.ts
   - packages/cli/src/signing.ts
-  - packages/cli/src/chain.ts
+  - packages/server/src/workspace.ts
   - packages/cli/test/log.test.ts
 supersedes: none
 ---
