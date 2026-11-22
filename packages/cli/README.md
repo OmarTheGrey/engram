@@ -17,11 +17,17 @@ The `engram` command. It calls core and the adapters through the HTTP API's gene
 |---|---|
 | `engram write` | write one item through the write gate (`--content` or `--file`, `--scope`, `--class`, `--confidence`, `--valid-from`, `--valid-to`) |
 | `engram read [query]` | adopt the store's own memories, then read through the plane and explain every returned item |
+| `engram read --item <id>` | one item by its id through the read filter, explained, with read's output (card E8.15a over E8.14's route) |
+| `engram check` | the decision `engram write` would get with the same flags: nothing stored, no event; exit 1 on deny or ask (card E8.15a) |
 | `engram explain <readId>` | the explanations a read recorded, for the reader who made it only |
 | `engram promote <itemId> --to <scope>` | promote through the promotion gate; `--review` approves as a reviewer |
+| `engram grants <itemId> --add <grant> --remove <grant>` | one governed grant change as the item's owner, a grant written `<to>[,class=..][,mode=..][,expires=..]` (card E8.15a) |
+| `engram events [--after <seq>]` | the events the actor may see, each with its decision, rule and reason (card E8.15a) |
+| `engram scopes` | the scopes the actor can see, by membership or through a grant; a read (card E8.15a over E8.14's route) |
 | `engram retain --scope <scope>` | sweep one scope's retention: expired items retired, budgets enforced |
 | `engram lint --scope <scope>` | the policy's deterministic lints over one scope; exit 1 on a finding |
 | `engram simulate --workload <file> --policy <p> --candidate <p>` | replay a recorded workload under two policies on scratch logs and stores; `--json` for the report |
+| `engram policy` | the policy in force and its label, as YAML a policy file may hold; no actor, no log (card E8.15a) |
 | `engram serve` | the HTTP API and the inspector on loopback (default port 7313) |
 | `engram mcp` | the MCP server for Claude Code and Codex, over stdio or `--http <port>` |
 | `engram hook claude-code` | the Claude Code PreToolUse hook that blocks store bypasses |
@@ -34,8 +40,9 @@ Shared flags: `--store files|letta`, `--root <folder>`, `--owner <id>`, `--polic
 | module | what it holds |
 |---|---|
 | `src/main.ts` | the entry point (`bin: engram`) |
+| `src/registry.ts` | the command registry (card E8.15a): one entry per command with its flags, help lines, group, exit codes and what it writes; HELP, the command table and every handler's parse config come from it |
 | `src/run.ts` | `run(argv, io)` and the help text; every id and time comes from the injected `Io`, so a run with a fixed `Io` is reproducible |
-| `src/commands.ts` | the commands that reach the plane, each one client call |
+| `src/commands.ts` | the commands that reach the plane, each one client call, split into `prepare`, `call` and `print` (card E8.15a) so the TUI makes the same call |
 | `src/connect.ts` | the in-process client, or the client to `--server` |
 | `src/serve.ts`, `src/mcp.ts`, `src/hook.ts` | `engram serve`, `engram mcp` and `engram hook claude-code` |
 | `src/doctor.ts` | `engram doctor`: one line per check with its reason; secrets in a Postgres URL are never printed |
