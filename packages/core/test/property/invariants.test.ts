@@ -2299,6 +2299,8 @@ async function promotionsLandOnlyWherePermitted(name: string) {
  * workload it is given, on scratch logs and stores (card E8.9);
  * `changeGrants` refuses an outsider in the same words for a hidden and an
  * unknown item, naming no scope, and returns no item (card E9.4, ADR 0034);
+ * `export` returns only the exporter's own person scope and its own items in
+ * scopes it may read (card E9.8);
  * `readById` answers for the hidden item's id exactly as for an id the log
  * never held, and `listScopes` lists no scope the outsider cannot read
  * (card E8.14);
@@ -2321,6 +2323,7 @@ async function planeSurfaceLeaksNothing() {
     "distill",
     "events",
     "explain",
+    "export",
     "lint",
     "listScopes",
     "promote",
@@ -2431,6 +2434,11 @@ async function planeSurfaceLeaksNothing() {
   );
   expect(await rejection(plane.explain(outsider, ownRead.id))).toBeInstanceOf(ExplainDeniedError);
   leaks("lint", await plane.lint(outsider, at, "person:s"));
+  // export hands out only the exporter's own person scope and its own items
+  // in scopes it may read (card E9.8): nothing of person:s (review finding E9.8-3).
+  const exported = await plane.export(outsider, at);
+  leaks("export", exported);
+  expect(exported.rows).toEqual([]);
   // A grant the outsider asks for on the secret: refused, no item, no scope,
   // and the same words as for an id that names nothing (card E9.4).
   const grant = {
