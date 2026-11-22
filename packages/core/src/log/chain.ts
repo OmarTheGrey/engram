@@ -21,14 +21,19 @@
 // after it SHA-256(0x02 || hash(i-1) || leaf i): RFC 6962's leaf prefix, and a
 // link prefix of its own (0x01 stays RFC 6962's interior node, used by the
 // checkpoint's root, log/merkle.ts), with hash(-1) a constant of this format. A meta row (chain_head)
-// anchors the head hash, the entry count and the last chained seq, so a
-// truncated tail is detected. Checkpoints (log/verify.ts) sign the head.
+// anchors the head hash, the entry count and the last chained seq, so a tail
+// cut with the row left stale is detected; one cut with the row rewritten is
+// detected only by a checkpoint held outside the database (log/verify.ts).
 //
-// Which handles keep the chain: a handle registered with keepChain, which the
-// CLI does with node:crypto randomness. A handle not registered appends no
-// link, so research runs and tests pay nothing and change nothing; an event
-// such a handle appends to a chained log is reported by the verifier as
-// unchained, so a writer that skips the chain is visible, never trusted.
+// Which handles keep the chain: a handle registered with keepChain. The
+// shared opener, openWorkspace().open() in packages/server, registers every
+// log it opens with node:crypto salts, so the CLI, serve, mcp, the hook and
+// the pi package all chain (review fix pass, E1.6-1). A handle not
+// registered (the runner's and the bench's own) appends no link, so research
+// runs pay nothing and change nothing; an event such a handle appends to a
+// chained log verifies FAILED at the anchor ("not chained"), so a writer that
+// skips the chain is visible, never trusted. `counts.unchained` counts only
+// the events before the genesis.
 // Appends run inside appendEvent's transaction, under the log's lock (card
 // E2.6), so writers on several handles chain in seq order.
 //
