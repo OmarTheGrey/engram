@@ -5,7 +5,7 @@
 // revoked with the id typed; Export's confirmation saying whether the file
 // exists; Import's per-row decisions; Doctor taking Serve's bind flags;
 // Lint's findings from a fault fixture; Simulate's changed steps; Log verify.
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { appendEvent, migrate, openSqlite } from "@engram/core";
 import { describe, expect, it } from "vitest";
@@ -653,6 +653,47 @@ describe("the review's fix pass (E8.15d)", () => {
     const text = await h.text();
     expect(text).toContain("rule fixture/lint/orphan");
     expect(text).not.toContain("rule fixture/lint/duplicate");
+    await h.quit();
+  });
+});
+
+describe("r runs the same command line (coordinator's note on E8.15c's rebuildArgv)", () => {
+  it("keeps a chosen --db and --root, and after a change of actor takes only the actor flags from the workspace", async () => {
+    const cwd = await tempDir();
+    const root = await fixtureCopy();
+    const h = await usable({ cwd, given: { owner: "dana", db: "engram.db", root } });
+    await h.press("t");
+    await h.focusField("fold:more");
+    await h.press(ENTER);
+    await h.focusField("db");
+    await h.press("");
+    await h.type("other.db");
+    await h.press(SAVE, "y");
+    const first = h.ran().at(-1) ?? [];
+    expect(first.slice(first.indexOf("--db"), first.indexOf("--db") + 2)).toEqual([
+      "--db",
+      "other.db",
+    ]);
+    await h.press("r", "y");
+    expect(h.ran().at(-1)).toEqual(first);
+    // As another actor: the same line, its actor flags the workspace's now.
+    h.app.startHandoff("person:sam", ["person:dana"]);
+    await h.app.settled();
+    await h.press("r");
+    if (h.overlay() === "confirm") await h.press("y");
+    const again = h.ran().at(-1) ?? [];
+    expect(again.slice(again.indexOf("--db"), again.indexOf("--db") + 2)).toEqual([
+      "--db",
+      "other.db",
+    ]);
+    expect(again).toContain(root);
+    expect(again.slice(again.indexOf("--as"), again.indexOf("--as") + 2)).toEqual([
+      "--as",
+      "person:sam",
+    ]);
+    expect(again.filter((w) => w === "--member")).toHaveLength(1);
+    expect(existsSync(join(cwd, "home", ".engram", "engram.db"))).toBe(false);
+    expect(existsSync(join(cwd, ".engram", "engram.db"))).toBe(false);
     await h.quit();
   });
 });

@@ -129,9 +129,8 @@ export class LintScreen extends SurfaceScreen {
       if (this.open.has(id)) {
         lines.push(`   ${t.glyphs.open} evidence`);
         for (const e of f.evidence) lines.push(...para(clean(e), width - 5, "     "));
-        // The finding's own event: its rule drawn as text, never compared (card E8.15c's guard).
-        const event = body.events?.[i];
-        if (event !== undefined) lines.push(`   rule ${oneLine(event.policy_id)}`);
+        // The finding's own event's rule, drawn in a template and nothing else (card E8.15c's guard).
+        lines.push(`   rule ${body.events?.[i]?.policy_id}`);
       } else lines.push(`   ${t.glyphs.closed} evidence: space; the item page: enter`);
       rows.push({
         kind: "item",

@@ -374,8 +374,12 @@ export interface SampleResult {
   stdout: string;
 }
 
+/** What Claude Code does with a hook that fails, by its version (code.claude.com/docs/en/hooks). */
+const FAILED_HOOK =
+  "With onFailure block (Claude Code v2.1.295 or later) Claude Code would block every tool call; before v2.1.295 it would let every tool call through.";
+
 const DID_NOT_RUN = (code: string) =>
-  `the hook did not run (${code}). Claude Code would let every tool call through. Fix the command before pasting it.`;
+  `the hook did not run (${code}). ${FAILED_HOOK} Fix the command before pasting it.`;
 
 /** What a hook's run means to Claude Code, from its exit code and its stdout only. */
 function judgeHook(sample: Sample, r: Spawned): SampleResult {
@@ -395,7 +399,7 @@ function judgeHook(sample: Sample, r: Spawned): SampleResult {
           ? DID_NOT_RUN("it was stopped")
           : r.code === 127
             ? DID_NOT_RUN("exit 127")
-            : `the hook failed (exit ${r.code}). Claude Code would let every tool call through. Fix the command before pasting it.`;
+            : `the hook failed (exit ${r.code}). ${FAILED_HOOK} Fix the command before pasting it.`;
     return { ...base, outcome: "failed", expected: false, detail };
   }
   const out = r.stdout.trim();

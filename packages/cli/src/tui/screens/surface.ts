@@ -12,11 +12,12 @@
 // command's own text.
 import type { CommandSpec, Values } from "../../registry.ts";
 import { actorNow, madeAsLines, madeAsOther } from "../actor.ts";
-import { type Field, Form, type FormError, rebuildArgv } from "../forms.ts";
+import { type Field, Form, type FormError } from "../forms.ts";
 import { clean, cut, fit, para, rows, visibleWidth, wrap } from "../layout.ts";
 import type { RunResult } from "../runner.ts";
 import type { CommandRow, Ctx, Screen } from "../screen.ts";
 import type { StatusKind } from "../theme.ts";
+import type { Workspace } from "../workspace.ts";
 import { decisionOf, exitMeaning } from "./form.ts";
 
 /** One row of a screen: a field, a screen-level choice, buttons, a fold, a list entry, or text. */
@@ -347,9 +348,16 @@ export abstract class SurfaceScreen implements Screen {
       }
       case "rerun":
         if (this.result === undefined) await this.submit(ctx);
-        // Rebuilt from the workspace as it is now: after a change of actor, r runs as the actor
-        // now (card E8.15c's rebuildArgv).
-        else await this.run(ctx, rebuildArgv(this.spec_, this.result.argv, ctx.ws));
+        // The same command line; only when the answer was made as another actor are its actor
+        // flags the workspace's now (coordinator's note on E8.15c's rebuildArgv: a chosen --db
+        // or --root is never replaced).
+        else
+          await this.run(
+            ctx,
+            this.madeAsOther(ctx, this.result) === undefined
+              ? this.result.argv
+              : asActorNow(this.result.argv, ctx.ws, this.form.fields),
+          );
         return true;
       case "toggle":
       case "accept":
@@ -761,6 +769,28 @@ export function dropFlags(
     }
     out.push(w);
   }
+  return out;
+}
+
+/** The actor flags: the only ones a rerun after a change of actor takes from the workspace. */
+const ACTOR_FLAGS = ["as", "level", "member"] as const;
+
+/**
+ * `argv` with its actor flags the workspace's now (after a change of actor):
+ * --as, --level and --member dropped and written again from the workspace,
+ * every other word as it was.
+ */
+export function asActorNow(
+  argv: readonly string[],
+  ws: Workspace,
+  fields: readonly Field[],
+): string[] {
+  const out = dropFlags(argv, new Set(ACTOR_FLAGS), fields);
+  const as = ws.get("as");
+  if (as !== undefined) out.push("--as", as);
+  const level = ws.get("level");
+  if (level !== undefined) out.push("--level", level);
+  for (const m of ws.list("member")) out.push("--member", m);
   return out;
 }
 

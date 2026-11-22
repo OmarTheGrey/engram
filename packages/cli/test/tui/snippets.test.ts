@@ -345,7 +345,9 @@ describe("Try it (8.15)", () => {
     expect(first?.outcome).toBe("failed");
     expect(first?.expected).toBe(false);
     expect(first?.detail).toContain("the hook failed (exit 1)");
-    expect(first?.detail).toContain("Claude Code would let every tool call through");
+    expect(first?.detail).toContain(
+      "With onFailure block (Claude Code v2.1.295 or later) Claude Code would block every tool call; before v2.1.295 it would let every tool call through",
+    );
   });
 
   it("removes and lists the decision export: --otlp, --export-jsonl, ENGRAM_OTLP_URL, ENGRAM_EXPORT_JSONL (review E8.15d-5)", () => {
@@ -390,6 +392,35 @@ describe("Try it (8.15)", () => {
     expect(forgotten).toEqual([1]);
   }, 30_000);
 
+  it("a slow Try it child is stopped when the TUI quits (review E8.15d, verification)", async () => {
+    const cwd = await tempDir();
+    const h = await startHarness({ cwd, home: cwd, given: { owner: "dana", db: "engram.db" } });
+    await h.press("b");
+    const screen = h.app.top() as unknown as {
+      setLaunch(l: { command: string; prefix: string[]; note: string | undefined }): void;
+      tried?: { results?: { outcome: string }[] };
+    };
+    screen.setLaunch({
+      command: process.execPath,
+      prefix: ["-e", "setTimeout(() => {}, 120000)"],
+      note: undefined,
+    });
+    // ctrl+s starts Try it; its key is still being handled while the child waits.
+    h.term.send("\x13");
+    // Drawn without waiting for the key to be handled: it waits on the child.
+    const drawn = () => h.app.render(80).join("\n");
+    for (let i = 0; i < 400 && !drawn().includes("Try it is running"); i++)
+      await new Promise((r) => setTimeout(r, 25));
+    expect(drawn()).toContain("Try it is running");
+    const started = Date.now();
+    h.app.quit();
+    await h.app.done;
+    expect(Date.now() - started).toBeLessThan(15_000);
+    for (let i = 0; i < 200 && screen.tried?.results === undefined; i++)
+      await new Promise((r) => setTimeout(r, 25));
+    expect(screen.tried?.results?.[0]?.outcome).toBe("failed");
+  }, 40_000);
+
   it("shows a command that cannot start as a failure: the hook did not run", async () => {
     const project = await tempDir();
     const missing = { command: join(project, "no-such-engram.exe"), prefix: [], note: undefined };
@@ -398,7 +429,9 @@ describe("Try it (8.15)", () => {
     for (const r of results) {
       expect(r.outcome).toBe("failed");
       expect(r.detail).toContain("the hook did not run");
-      expect(r.detail).toContain("Claude Code would let every tool call through");
+      expect(r.detail).toContain(
+        "With onFailure block (Claude Code v2.1.295 or later) Claude Code would block every tool call; before v2.1.295 it would let every tool call through",
+      );
     }
   });
 
@@ -429,7 +462,9 @@ describe("Try it (8.15)", () => {
     const text = await h.text();
     expect(text).toContain("✗");
     expect(text).toContain("the hook did not run");
-    expect(text).toContain("Claude Code would let every tool call through");
+    expect(text.replace(/\s+/g, " ")).toContain(
+      "With onFailure block (Claude Code v2.1.295 or later) Claude Code would block every tool call; before v2.1.295 it would let every tool call through",
+    );
     await h.quit();
   }, 30_000);
 

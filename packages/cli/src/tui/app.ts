@@ -295,6 +295,11 @@ export class App implements Component, Ctx {
     this.ran.push(ran);
   }
   onQuit(stop: () => Promise<void>): () => void {
+    // After the quit began, what registers is stopped at once (a Try it's next sample).
+    if (this.stopped) {
+      void stop().catch(() => undefined);
+      return () => false;
+    }
     this.stops.add(stop);
     return () => this.stops.delete(stop);
   }
