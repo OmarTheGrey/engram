@@ -3,10 +3,27 @@
 // medium preset, a member of team:x who does not own the scope's items asks
 // about, and accepts the close of, a candidate held for review and an item
 // past its ttl, next to an active item it may read.
-import { appendEvent, itemById, type MemoryItem } from "@engram/core";
-import { describe, expect, it } from "vitest";
+import { copyFile, mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { createFilesAdapter } from "@engram/adapters";
+import {
+  appendEvent,
+  closedVersion,
+  itemById,
+  loadPreset,
+  type MemoryItem,
+  migrate,
+  openSqlite,
+} from "@engram/core";
+import { createEngramClient } from "@engram/sdk";
+import { afterAll, describe, expect, it } from "vitest";
+import { createApp } from "../src/app.ts";
 import * as C from "../src/contract.ts";
-import { dana, itemFor, testWorkspace } from "./helpers.ts";
+import { writeClosures } from "../src/routes.ts";
+import { workspaceOf } from "../src/workspace.ts";
+import { dana, itemFor, NOW, testWorkspace } from "./helpers.ts";
 
 const id = (n: number) => `01960000-0000-7000-8000-${String(n).padStart(12, "0")}`;
 const mate = {
@@ -126,5 +143,82 @@ describe("the supersede route and the store (L6-7)", () => {
       body: { actor: { ...dana, source: "user" }, item_id: itemFor(1).id as string },
     });
     expect(C.SupersedeResponse.parse(data).head).toMatchObject({ ok: true });
+  });
+});
+
+describe("writing accepted closes (L6-3, L6-9)", () => {
+  const dirs: string[] = [];
+  afterAll(async () => {
+    for (const dir of dirs) await rm(dir, { recursive: true, force: true });
+  });
+  const MEMORY = resolve(
+    fileURLToPath(import.meta.url),
+    "../../../../fixtures/stores/claude-code-memory/project_release_freeze.md",
+  );
+  const END = "2026-10-15T00:00:00.000Z";
+
+  it("writes a writable close, then stops at the read-only one and reports both", async () => {
+    // A plan proposes at most one close (test/property/supersede-one-close.test.ts),
+    // so two closes are given to the write loop directly.
+    const root = await mkdtemp(join(tmpdir(), "engram-l6-"));
+    dirs.push(root);
+    await copyFile(MEMORY, join(root, "project_release_freeze.md"));
+    const db = openSqlite(":memory:");
+    migrate(db);
+    let n = 0;
+    const adapter = createFilesAdapter({
+      root,
+      owner: "dana",
+      importValidFrom: "2026-10-01T00:00:00.000Z",
+    });
+    const workspace = workspaceOf(
+      { db, adapter, policy: loadPreset("medium"), newId: () => id(400 + ++n) },
+      { store: { name: "files", root, adapter, owner: "dana", scope: "person:dana" } },
+    );
+    const owner = { ...dana, source: "user" as const };
+    // The memory file adopted as a read-only item; a writable item written through the plane.
+    const app = createApp(workspace, { port: 7313, now: () => NOW });
+    const client = createEngramClient({
+      baseUrl: "http://127.0.0.1:7313",
+      fetch: async (request) => app.fetch(request),
+    });
+    expect((await client.POST("/api/v1/read", { body: { actor: owner } })).response.status).toBe(
+      200,
+    );
+    const writable = itemFor(1, {
+      valid_from: "2026-10-02T00:00:00.000Z",
+    }) as unknown as MemoryItem;
+    const later = itemFor(3, { valid_from: "2026-10-03T00:00:00.000Z" }) as unknown as MemoryItem;
+    for (const item of [writable, later])
+      expect((await workspace.plane.write(owner, item, NOW)).event.decision).toBe("allow");
+    const imported = workspace.plane
+      .events()
+      .find((e) => e.item?.provenance.kind === "import")?.item;
+    if (!imported) throw new Error("the memory file was not adopted");
+    const bytes = await readFile(join(root, "project_release_freeze.md"), "utf8");
+    const close = (item: MemoryItem) =>
+      closedVersion(item, {
+        item_id: item.id,
+        action: "close",
+        relation: "finishedBy",
+        valid_to: END,
+        reason: "test",
+      });
+    const first = close(itemById(db, writable.id) as MemoryItem);
+    const second = close(imported);
+    const third = close(itemById(db, later.id) as MemoryItem);
+    const out = await writeClosures(workspace, owner, [first, second, third], NOW);
+    // The third is never sent: the loop stops at the store's refusal.
+    expect(out.submitted.map((i) => i.id)).toEqual([writable.id, imported.id]);
+    expect(itemById(db, later.id)).toMatchObject({ version: 1, valid_to: null });
+    expect(out.applied.map((a) => [a.event.item_id, a.event.decision])).toEqual([
+      [writable.id, "allow"],
+    ]);
+    expect(out.stopped).toMatchObject({
+      item_id: imported.id,
+      event: { op: "write", decision: "deny", policy_id: "engram/write/store-failure" },
+    });
+    expect(itemById(db, writable.id)).toMatchObject({ version: 2, valid_to: END });
+    expect(await readFile(join(root, "project_release_freeze.md"), "utf8")).toBe(bytes);
   });
 });

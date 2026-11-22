@@ -84,6 +84,41 @@ async function syncStore(workspace: Workspace, reader: Actor, now: string) {
   };
 }
 
+/**
+ * Write accepted closes in order, each one Plane.write (card L6). A store
+ * that refuses a close after the gate allowed it (Plane.write logs the deny
+ * and throws, decision D6) stops the loop: that close and its deny event
+ * are `stopped`, the writes before it are in `applied`, and none after it
+ * is sent (review fix L6-3). A plan proposes at most one close, so the
+ * route gives one at most; this takes any number.
+ */
+export async function writeClosures(
+  workspace: Workspace,
+  actor: Actor,
+  closes: readonly MemoryItem[],
+  at: string,
+) {
+  const submitted: MemoryItem[] = [];
+  const applied = [];
+  let stopped: { item_id: string; event: MemoryEvent } | null = null;
+  for (const item of closes) {
+    const mark = workspace.plane.events().length;
+    submitted.push(item);
+    try {
+      applied.push(await workspace.plane.write(actor, item, at));
+    } catch (e) {
+      const event = workspace.plane
+        .events()
+        .slice(mark)
+        .findLast((x) => x.item_id === item.id);
+      if (event === undefined) throw e;
+      stopped = { item_id: item.id, event };
+      break;
+    }
+  }
+  return { submitted, applied, stopped };
+}
+
 export const ROUTES: readonly Route[] = [
   route<z.infer<typeof C.WriteRequest>>({
     id: "write",
@@ -301,27 +336,8 @@ export const ROUTES: readonly Route[] = [
         body.item_id,
         accessTime(db, at),
       );
-      const submitted: MemoryItem[] = [];
-      const applied = [];
-      let stopped: { item_id: string; event: MemoryEvent } | null = null;
-      for (const item of acceptedClosures(db, plan, body.accept ?? [])) {
-        const mark = workspace.plane.events().length;
-        submitted.push(item);
-        try {
-          applied.push(await workspace.plane.write(body.actor, item, at));
-        } catch (e) {
-          // A store that refuses after the gate allowed: Plane.write logged the
-          // deny and threw (decision D6). Report it and what landed before it (L6-3).
-          const event = workspace.plane
-            .events()
-            .slice(mark)
-            .findLast((x) => x.item_id === item.id);
-          if (event === undefined) throw e;
-          stopped = { item_id: item.id, event };
-          break;
-        }
-      }
-      return { ...plan, submitted, applied, stopped };
+      const closes = acceptedClosures(db, plan, body.accept ?? []);
+      return { ...plan, ...(await writeClosures(workspace, body.actor, closes, at)) };
     },
   }),
   route<z.infer<typeof C.BypassRequest>>({
