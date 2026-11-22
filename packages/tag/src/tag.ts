@@ -65,21 +65,38 @@ export function recallDetails(
   };
 }
 
-/**
- * A tag opener: `<`, a lookalike of it or its numeric character reference
- * (`&#60;`, `&#x3c;`, review finding E8.14-7), optional spaces or invisible
- * characters, an optional `/`, then `engram`.
- */
+/** A tag opener: `<` or a lookalike, optional spaces or invisible characters, an optional `/`, then `engram`. */
 const TAG_OPENER =
-  /(?:[<\uff1c\ufe64\u2039\u3008\u27e8\u2329]|&#0*60;|&#x0*3c;)([\s\u00ad\u200b-\u200f\u2060\ufeff]*\/?[\s\u00ad\u200b-\u200f\u2060\ufeff]*)(engram)/gi;
+  /[<\uff1c\ufe64\u2039\u3008\u27e8\u2329]([\s\u00ad\u200b-\u200f\u2060\ufeff]*\/?[\s\u00ad\u200b-\u200f\u2060\ufeff]*)(engram)/gi;
 
-/** `text` with every tag opener defused, so it can never read as Engram markup. */
+/**
+ * `text` with every tag opener defused, so it can never read as Engram
+ * markup. The pi extension's context handler and every registered condition
+ * use this one, unchanged from before card E8.14 (review finding E8.14-13,
+ * the lead's decision): it does not touch an opener written as a numeric
+ * character reference.
+ */
 export const neutraliseTags = (text: string) => text.replace(TAG_OPENER, "&lt;$1$2");
 
-/** A tag opener at the start of a text (TAG_OPENER, anchored). */
-const OPENER_START = /^(?:[<＜﹤‹〈⟨〈]|&#0*60;|&#x0*3c;)[\s­​-‏⁠﻿]*\/?[\s­​-‏⁠﻿]*engram/i;
+/**
+ * TAG_OPENER, also matching an opener written as its numeric character
+ * reference (`&#60;`, `&#x3c;`, review finding E8.14-7).
+ */
+const TAG_OPENER_ENTITIES =
+  /(?:[<\uff1c\ufe64\u2039\u3008\u27e8\u2329]|&#0*60;|&#x0*3c;)([\s\u00ad\u200b-\u200f\u2060\ufeff]*\/?[\s\u00ad\u200b-\u200f\u2060\ufeff]*)(engram)/gi;
+
+/**
+ * neutraliseTags, and also an opener written as a numeric character
+ * reference. For the framework adapters (`@engram/ai-sdk`) only, never the pi
+ * path, so no registered condition's prompt changes (E8.14-13).
+ */
+export const neutraliseEntities = (text: string) => text.replace(TAG_OPENER_ENTITIES, "&lt;$1$2");
+
+/** A tag opener at the start of a text (TAG_OPENER_ENTITIES, anchored). */
+const OPENER_START =
+  /^(?:[<\uff1c\ufe64\u2039\u3008\u27e8\u2329]|&#0*60;|&#x0*3c;)[\s\u00ad\u200b-\u200f\u2060\ufeff]*\/?[\s\u00ad\u200b-\u200f\u2060\ufeff]*engram/i;
 /** Where an opener can begin: an opener character, or the `&` of a character reference. */
-const OPENER_HEAD = /[<＜﹤‹〈⟨〈&]/g;
+const OPENER_HEAD = /[<\uff1c\ufe64\u2039\u3008\u27e8\u2329&]/g;
 /** How far past its head an opener can reach, generously. */
 const OPENER_REACH = 64;
 
@@ -88,11 +105,12 @@ const OPENER_REACH = 64;
  * one) with every tag opener defused, one that begins in one text and ends in
  * the next included (review finding E8.14-7): such an opener's first
  * character becomes `&lt;`, or `&amp;` for the `&` of a character reference.
- * Each text is also defused on its own (neutraliseTags). Returns as many
+ * Each text is also defused on its own (neutraliseEntities). For the
+ * framework adapters only, as neutraliseEntities is (E8.14-13). Returns as many
  * texts as it is given.
  */
 export function neutraliseAcross(texts: readonly string[]): string[] {
-  const out = texts.map(neutraliseTags);
+  const out = texts.map(neutraliseEntities);
   for (let i = 0; i < out.length - 1; i++) {
     const text = out[i] as string;
     const after = out

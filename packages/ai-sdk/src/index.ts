@@ -36,7 +36,7 @@ import {
   MEMORY_READ,
   MEMORY_WRITE,
   neutraliseAcross,
-  neutraliseTags,
+  neutraliseEntities,
   WITHHELD,
   writeResultText,
 } from "@engram/tag";
@@ -114,7 +114,7 @@ export function lastUserText(prompt: LanguageModelV4Prompt): string | undefined 
 const SIGNED = new Set(["reasoning", "reasoning-file", "redacted-reasoning"]);
 
 function defuseDeep(value: unknown): unknown {
-  if (typeof value === "string") return neutraliseTags(value);
+  if (typeof value === "string") return neutraliseEntities(value);
   if (
     value !== null &&
     typeof value === "object" &&
@@ -213,7 +213,7 @@ export function engramMemory(options: EngramMemoryOptions): EngramMemory {
 
   function defusePrompt(prompt: LanguageModelV4Prompt): LanguageModelV4Prompt {
     return prompt.map((m): LanguageModelV4Message => {
-      if (m.role === "system") return { ...m, content: neutraliseTags(m.content) };
+      if (m.role === "system") return { ...m, content: neutraliseEntities(m.content) };
       if (m.role === "user")
         return { ...m, content: acrossTextRuns(m.content.map((p) => defuseDeep(p) as typeof p)) };
       if (m.role === "assistant")

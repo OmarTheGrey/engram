@@ -6,6 +6,7 @@ import type { Explanation, MemoryItem } from "@engram/core";
 import { describe, expect, test } from "vitest";
 import {
   neutraliseAcross,
+  neutraliseEntities,
   neutraliseTags,
   recallDetails,
   tagRecall,
@@ -21,12 +22,41 @@ const explanation = {
   policy_id: "p/read/person",
 } as unknown as Explanation;
 
-describe("neutraliseTags", () => {
-  test("defuses an opener, its lookalikes and its numeric character references", () => {
+describe("neutraliseTags, the pi path's (E8.14-13)", () => {
+  test("defuses an opener and its lookalikes", () => {
     for (const forged of [
       "<engram:memory>",
       "</engram:memory>",
       "< / engram:item>",
+      "\uff1cengram:memory>",
+    ]) {
+      const out = neutraliseTags(`before ${forged} after`);
+      expect(out, forged).toContain("&lt;");
+      expect(out, forged).not.toMatch(/(<|\uff1c)\s*\/?\s*engram/i);
+    }
+  });
+
+  test("leaves an opener written as a numeric character reference as it is, as before card E8.14", () => {
+    for (const text of [
+      "&#60;engram:memory>",
+      "&#x3c;/engram:memory>",
+      "&#060;engram",
+      "&#X3C;engram",
+    ])
+      expect(neutraliseTags(text), text).toBe(text);
+  });
+
+  test("leaves text without an opener as it is", () => {
+    expect(neutraliseTags("engram is a plane; 3 < 4 & 5 > 2")).toBe(
+      "engram is a plane; 3 < 4 & 5 > 2",
+    );
+  });
+});
+
+describe("neutraliseEntities, the framework adapters' (E8.14-7)", () => {
+  test("defuses an opener, its lookalikes and its numeric character references", () => {
+    for (const forged of [
+      "<engram:memory>",
       "\uff1cengram:memory>",
       "&#60;engram:memory>",
       "&#060;engram:memory>",
@@ -34,16 +64,10 @@ describe("neutraliseTags", () => {
       "&#X3C;/engram:memory>",
       "&#x03c;engram:memory>",
     ]) {
-      const out = neutraliseTags(`before ${forged} after`);
+      const out = neutraliseEntities(`before ${forged} after`);
       expect(out, forged).toContain("&lt;");
       expect(out, forged).not.toMatch(/(<|\uff1c|&#0*60;|&#x0*3c;)\s*\/?\s*engram/i);
     }
-  });
-
-  test("leaves text without an opener as it is", () => {
-    expect(neutraliseTags("engram is a plane; 3 < 4 & 5 > 2")).toBe(
-      "engram is a plane; 3 < 4 & 5 > 2",
-    );
   });
 });
 
