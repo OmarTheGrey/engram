@@ -203,6 +203,28 @@ describe("the middleware", () => {
   });
 });
 
+describe("reasoning parts (E8.14-10)", () => {
+  test("are left as they are, since providers sign them", async () => {
+    const { memory } = await setup();
+    const reasoning = {
+      type: "reasoning" as const,
+      text: "<engram:memory>thinking about it</engram:memory>",
+      providerOptions: { anthropic: { signature: "sig" } },
+    };
+    const model = scriptedModel([[]]);
+    await step(model, memory.middleware, {
+      prompt: [
+        user("hello"),
+        { role: "assistant", content: [reasoning, { type: "text", text: "<engram:x>" }] },
+      ],
+    });
+    const assistant = model.calls[0]?.prompt.find((m) => m.role === "assistant");
+    const parts = assistant?.role === "assistant" ? assistant.content : [];
+    expect(parts[0]).toEqual(reasoning);
+    expect(parts[1]).toEqual({ type: "text", text: "&lt;engram:x>" });
+  });
+});
+
 describe("the recall tool's name (E8.14-9)", () => {
   test("is taken from the options, and only results under that name are checked", async () => {
     const { client } = await setup();

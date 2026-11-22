@@ -107,8 +107,20 @@ export function lastUserText(prompt: LanguageModelV4Prompt): string | undefined 
 }
 
 /** Every string in a plain value with its tag openers defused; anything else as it is. */
+/**
+ * Parts a provider signs, left as they are, as the pi extension leaves its
+ * thinking blocks (review finding E8.14-10).
+ */
+const SIGNED = new Set(["reasoning", "reasoning-file", "redacted-reasoning"]);
+
 function defuseDeep(value: unknown): unknown {
   if (typeof value === "string") return neutraliseTags(value);
+  if (
+    value !== null &&
+    typeof value === "object" &&
+    SIGNED.has(String((value as { type?: unknown }).type))
+  )
+    return value;
   if (Array.isArray(value)) return value.map(defuseDeep);
   if (
     value !== null &&
