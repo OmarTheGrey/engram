@@ -24,11 +24,21 @@ Supersedes: nothing. It amends ADR 0003 (the event log is the source of truth) w
    - **The manifest.** Each offboarding adds one record to the chain, with its erase events (`engram/offboard/erase`, one per erased item): the sorted sequence numbers of every event it redacted, item events and lint events alike. A lint event about another item, redacted because its evidence named an erased id or hash, is in the manifest too.
    - **The verifier's rule.** While an event has its salts, each commitment is recomputed from the event and must match. An event with no salts verifies as erased only when its sequence number is in a chained manifest and its redacted parts hold the redaction marker. A missing salt or a blanked part with no manifest entry is reported as tampering, so a redaction cannot be used to hide an edit.
 4. **One canonical form.** A single function serialises the skeleton for the writer and the verifier: UTC timestamps at fixed precision, every number in one fixed textual form, keys in a fixed order, RFC 6962's leaf and node prefixes for domain separation.
-5. **Anchors.** Each log has a genesis record. A meta row holds the head hash and the event count, so truncating the tail is detected.
+5. **Anchors.** Each log has a genesis record. A meta row holds the head hash and the event count, so truncating the tail is detected. (Amended 2026-11-21 by card E1.6's review fix pass, finding E1.6-7: the meta row detects a truncated tail only when the row is left stale, since it sits in the same database. Anyone with database access who also rewrites the row, or the whole chain, is detected only by a checkpoint held outside the database; without one the verdict is UNSIGNED, never OK. See the amendments below.)
 6. **Where the chain starts.** After the migrations that rewrote bodies in place, with a backfill checkpoint that records the sequence number it starts at. Events before it are stated as unchained.
 7. **Signed checkpoints.** A checkpoint is the head hash, the count and a time, signed by a function injected at the boundary. Core holds no key. The CLI signs with an Ed25519 key the operator holds, and an unsigned checkpoint verifies as UNSIGNED, a verdict of its own.
 8. **A new invariant.** In the always-on file: over random operations including an offboarding, an injected edit, deletion, reorder or tail truncation is detected, on SQLite and on Postgres.
 9. **Independent of key destruction.** Erasure by destroying a per-person key (the research's plans R-083 to R-089) is a separate later decision and builds on this chain.
+
+## Amendments
+
+- **2026-11-21, card E1.6 review fix pass (the lead's decisions on findings E1.6-1, E1.6-4 and E1.6-10).**
+  - Decision 5's "is detected" holds only for a stale head row (E1.6-7). The verifier and `engram log verify --help` say plainly what cannot be detected.
+  - The verdict (decision 7): OK only when a signed checkpoint, verified under the pinned public key, covers the whole chain. UNSIGNED for anything less: no checkpoint, no key pinned, no signature that counts, or entries after the latest signed checkpoint. FAILED when a check fails. A checkpoint is signed only after the whole log verifies, under the signer's own key and every checkpoint the operator holds.
+  - Chain links take a domain-separation prefix of their own, 0x02, distinct from RFC 6962's 0x00 leaf and 0x01 interior node, so no chain hash is a Merkle node; the checkpoint's RFC 6962 root is unchanged.
+  - Decision 3's manifest also lists its erase events, and must: a manifest naming a redacted event names an erase event, and every item event it names is about an item one of its erase events erased.
+  - The chain is kept by the shared opener (`openWorkspace().open()` in packages/server), so every surface chains its events; the card was widened to packages/server for this.
+  - Card E8.12's `event_attestations` rows are outside the chain; an edited attestation verifies clean until a later card adds their digest to each event's chain record.
 
 ## Alternatives considered
 
