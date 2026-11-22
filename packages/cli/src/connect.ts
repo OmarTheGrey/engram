@@ -12,6 +12,7 @@ import {
   openWorkspace,
   type WorkspaceOptions,
 } from "@engram/server";
+import { keepLogChain } from "./chain.ts";
 import type { Io } from "./run.ts";
 import { UsageError } from "./setup.ts";
 
@@ -85,6 +86,8 @@ export function connect(
   });
   try {
     open?.(ws);
+    // The log opened: its handle keeps the hash chain (card E1.6).
+    if (open !== undefined) keepLogChain(ws.open().db);
   } catch (e) {
     ws.close();
     throw e;

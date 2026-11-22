@@ -19,8 +19,10 @@ commands:
   mcp               the MCP server for Claude Code and Codex, as one fixed actor
   hook claude-code  a Claude Code PreToolUse hook that blocks store bypasses
   doctor            check the log, policy, store, adapters, provider keys, pins and Node
+  log verify        verify the event log's hash chain: the first broken link, or OK or UNSIGNED
+  log checkpoint    record a checkpoint of the chain's head, signed with --key when given
 
-every command but doctor, serve, mcp and hook is one call to the HTTP API: in process
+every command but doctor, serve, mcp, hook and log is one call to the HTTP API: in process
 over the workspace its flags name, or to a running server:
   --server <url>              call engram serve at <url> (default $ENGRAM_SERVER_URL);
                               the server's own flags then name the log, policy and store
@@ -97,6 +99,21 @@ hook claude-code options:
                               repeatable; with --server, name the log engram serve writes
   --server <url> or --db and --policy, as for the other commands
   reads the hook's JSON on stdin; a block answers permissionDecision deny with the reason
+
+log verify options (on this machine only; never --server):
+  --db <path|url>             the event log (default as above); read only, nothing is migrated
+  --key <public.pem>          the operator's Ed25519 public key, pinned: a checkpoint signed
+                              under any other key fails
+  --checkpoint <file>         a checkpoint kept outside the log (log checkpoint --out);
+                              repeatable; the log must extend it
+  exit 0 OK, 1 FAILED (the first broken link is named), 3 UNSIGNED (every check holds, but
+  the latest checkpoint carries no signature)
+
+log checkpoint options:
+  --db <path|url>             the event log (default as above); it must exist
+  --key <private.pem>         the operator's Ed25519 private key; without it the checkpoint is unsigned
+  --out <file>                also write the checkpoint there, to keep outside the log
+  the key is the operator's to hold: a signature proves its holder saw that head
 
 doctor options:
   --db <path|url>             the event log to check (default as above); doctor never creates one

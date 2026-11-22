@@ -4,6 +4,7 @@
 // decision 5); like the CLI's --as they are self-asserted, since no
 // authentication exists in v0.
 import { DEFAULT_PORT, listen, openWorkspace } from "@engram/server";
+import { keepLogChain } from "./chain.ts";
 import { parse, STORE_OPTIONS } from "./commands.ts";
 import type { Io } from "./run.ts";
 import { buildActor, checkTime, UsageError } from "./setup.ts";
@@ -43,7 +44,8 @@ export async function serveCommand(args: string[], io: Io): Promise<number> {
     newId: io.newId,
   });
   try {
-    workspace.open();
+    // The log opened, and its handle keeps the hash chain (card E1.6).
+    keepLogChain(workspace.open().db);
     const server = await listen(workspace, {
       host: values.host,
       port,
