@@ -123,6 +123,7 @@ describe("engram doctor on this checkout", () => {
       "benchmark pins",
       "pi pin",
       "node",
+      "serve",
     ]);
     expect(report.failed).toBe(0);
   });

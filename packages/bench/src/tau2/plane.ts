@@ -65,7 +65,13 @@ export async function startPlaneMemory(options: PlaneMemoryOptions): Promise<Pla
       read: (actor: Actor, query: Parameters<typeof core.read>[1]) => core.read(actor, query),
     },
   };
-  const server = await listen(workspace, { port: 0, now: () => options.at, ui: null });
+  // Loopback with self-asserted actors, as before card E8.12 (ADR 0042 decision 5).
+  const server = await listen(workspace, {
+    port: 0,
+    now: () => options.at,
+    ui: null,
+    auth: { insecureLoopback: true },
+  });
   return {
     url: server.url.replace(/\/$/, ""),
     close: async () => {

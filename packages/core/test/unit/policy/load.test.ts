@@ -336,8 +336,9 @@ describe("the content_guards and trust blocks", () => {
     ["content_guards", "pii", [...GuardMode.options], null],
     ["content_guards", "injection_screen", [...InjectionScreen.options], null],
     ["content_guards", "max_content_bytes", ["1", "65536"], null],
-    ["trust", "unattested_floor", [...TrustSwitch.options], "E2.11"],
-    ["trust", "protect_trusted", [...TrustSwitch.options], "E2.11"],
+    // Both trust options landed with card E2.11 (policy/trust.ts).
+    ["trust", "unattested_floor", [...TrustSwitch.options], null],
+    ["trust", "protect_trusted", [...TrustSwitch.options], null],
   ];
   describe.each(OPTIONS)("%s.%s", (block, option, values, card) => {
     test.each(values)("%s passes the schema; only off loads, until its card", (value) => {

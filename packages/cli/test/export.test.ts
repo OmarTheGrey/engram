@@ -140,7 +140,16 @@ describe("engram serve with a decision export", () => {
     const stop = new AbortController();
     const lines: string[] = [];
     const running = run(
-      ["serve", "--port", "0", "--db", join(dir, "engram.db"), "--export-jsonl", file],
+      [
+        "serve",
+        "--insecure-loopback",
+        "--port",
+        "0",
+        "--db",
+        join(dir, "engram.db"),
+        "--export-jsonl",
+        file,
+      ],
       {
         out: (s) => lines.push(s),
         err: (s) => lines.push(s),
