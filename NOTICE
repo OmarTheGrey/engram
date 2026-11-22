@@ -179,6 +179,37 @@ Daniel Fried and Graham Neubig:
   lists every change.
 
 ------------------------------------------------------------------------
+Remnic (supersession chain)
+
+packages/core/src/supersede.ts (resolveSupersessionHead) and its tests in
+packages/core/test/unit/supersede.test.ts copy Remnic's supersession chain
+resolver (https://github.com/joshuaswarren/remnic, commit
+ce22909cc219e36d0e31b1158a4ab74f175008a0,
+packages/remnic-core/src/shared-context/supersession-chain.ts), under the MIT
+License, whose copyright line and permission notice are given in the Remnic
+entry above: Copyright (c) 2025 Joshua Warren. Modified here: see the header
+of supersede.ts.
+
+Ported by card L6, with their notices kept as a courtesy:
+
+gaptime (https://github.com/davccavalcante/gaptime, commit
+9835236c1d6d571a724213c958b62c157285b26c), src/temporal/intervals.ts, in
+packages/core/src/lint/intervals.ts; its NOTICE reads in part:
+  @takk/gaptime
+  Copyright 2026 David C Cavalcante / Takk Innovate Studio
+  This product includes software developed by David C Cavalcante
+  (https://takk.ag - davcavalcante@proton.me / say@takk.ag).
+  Licensed under the Apache License, Version 2.0.
+
+Graphiti (https://github.com/getzep/graphiti, commit
+9b8a4630092084734b080f2e6f409c2c23bdcc3a),
+graphiti_core/utils/maintenance/edge_operations.py, in
+packages/core/src/lint/supersession.ts:
+  Copyright 2024, Zep Software, Inc.
+  Licensed under the Apache License, Version 2.0. The repository carries no
+  NOTICE file at the commit taken.
+
+------------------------------------------------------------------------
 Claude-Mem
 
 packages/core/test/unit/lint/near-duplicate.test.ts copies the golden vectors
