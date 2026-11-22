@@ -13,7 +13,7 @@
 // shape: concrete examples, then summary workflows; the example itself is
 // rewritten for tool use), and webarena/induce_rule.py (the rule-based
 // variant, the paper's Appendix B, as the control). The adaptation from web
-// tasks to tool-use sessions is ADR 0046 (proposed), which lists every
+// tasks to tool-use sessions is ADR 0045 (proposed), which lists every
 // change and supersedes ADR 0012's "vendored verbatim" clause:
 // - the instruction's web terms become tool-use terms, and two sentences
 //   are added (the abandoned attempts; the `Workflow`/`Use when:` format);
@@ -125,7 +125,7 @@ export function parseDistillRef(
  * web's non-fixed elements and invariants become a tool session's, and two
  * sentences are added: one on the abandoned attempts (negative evidence), and
  * one on the output format the one-shot shows, `Workflow <n>:` and the
- * `Use when:` line a SKILL.md description needs (ADR 0046).
+ * `Use when:` line a SKILL.md description needs (ADR 0045).
  */
 export const AWM_INSTRUCTION = [
   "Given a list of tool-use tasks, your task is to extract the common workflows to solve these tasks.",

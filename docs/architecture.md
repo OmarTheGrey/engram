@@ -163,7 +163,7 @@ Surfaces
                  tool definitions and memory tag; engram hook claude-code, a PreToolUse hook that blocks bypasses
   HTTP           packages/server, a Hono app over one route table (ADR 0027): /api/v1/items, /items/check, /read,
                  /explain/{readId}, /promote, /grants, /retain, /events (visibleEvents), /policy, /lint, /simulate,
-                 /distill (501 naming D2), /bypass, /viewer, /health; a decision is 200 with its event;
+                 /distill (501 naming `backlog`: no card implements it yet), /bypass, /viewer, /health; a decision is 200 with its event;
                  loopback Host and Origin only, JSON bodies only, no CORS, 1 MiB bodies; OpenAPI generated
                  into sdk/openapi.json, the client into sdk/ts and packages/ui/src/api
   CLI            engram write | read | promote | explain | retain | lint | simulate (--candidate), each one client call, in

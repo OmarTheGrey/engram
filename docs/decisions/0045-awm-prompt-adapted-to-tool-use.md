@@ -1,4 +1,4 @@
-# ADR 0046: Agent Workflow Memory's induction prompt is adapted to tool-use sessions, not vendored verbatim
+# ADR 0045: Agent Workflow Memory's induction prompt is adapted to tool-use sessions, not vendored verbatim
 
 Status: proposed, 2026-11-22
 Deciders: drafted by card D2 of the absorb plan; for the lead's acceptance
@@ -12,7 +12,7 @@ The upstream prompt is `webarena/prompt/instruction.txt` at commit `8c0ff8cd11d6
 
 ## Decision
 
-The induction prompt is the adapted one, pinned as `AWM_INSTRUCTION` and `AWM_ONE_SHOT` in `packages/core/src/distill/induce.ts` at the commit that merges card D2. It is cited, with the upstream text at `8c0ff8cd`, in that file's header, in `NOTICE` and in `docs/absorbed.md`. Every change to the upstream method:
+The induction prompt is the adapted one, pinned as `AWM_INSTRUCTION` and `AWM_ONE_SHOT` in `packages/core/src/distill/induce.ts` at the commit that merges card D2. It is cited, with the upstream text at `8c0ff8cd`, in that file's header, in `NOTICE` and in `docs/absorbed.md`. Every change to the upstream method, eighteen in all:
 
 1. Instruction, sentence 1: "web navigation tasks" becomes "tool-use tasks".
 2. Instruction, sentence 2: "a series of actions" becomes "a series of steps", each "the agent's reasoning and the tool calls it made, one call per line as tool_name(arguments as JSON)", and "the repetitive subset of actions" becomes "of steps".
@@ -29,6 +29,11 @@ The induction prompt is the adapted one, pinned as `AWM_INSTRUCTION` and `AWM_ON
 13. Upstream picks one random trajectory per intent template (`random_group_sample`). Here the run's config names the example sessions, and nothing is sampled.
 14. Upstream writes the model's reply to a workflow file whole. Here the reply is split into workflows on its `Workflow <n>:` lines. A workflow becomes a candidate only if it makes at least two calls, calls only tools that succeeded in an example, and gives a valid SKILL.md whose name no earlier workflow took.
 
+15. The request carries the config's seed (ADR 0017, AGENTS.md rule 6). Upstream's call sends none.
+16. Upstream appends two fixed lines to the model's reply before writing the workflow file, `click('id') # input string id value for all actions` and `select_option('id', 'value') # for dropdown menu`. They are browser calls, and nothing is appended here.
+17. An example is a session whose recorded verdict (its `engram.outcome` entry) is `success`. Upstream takes trajectories whose ground-truth reward is set (`gt`) or that its model evaluator judged correct (`autoeval`).
+18. An example's `Query:` is the first user message on its final branch. Upstream's is the task config's `intent`; a pi session has no such field.
+
 Kept as upstream has them: the assembly (instruction, one-shot, `## Concrete Examples`, the examples, `## Summary Workflows`), one user message with no system prompt, temperature 1.0 and 2048 tokens, the `Query:`, `Actions:`, `<think>` and `<action>` layout, and every sentence of the instruction not listed above.
 
 ## Alternatives considered
@@ -37,7 +42,7 @@ Kept as upstream has them: the assembly (instruction, one-shot, `## Concrete Exa
 
 ## Consequences
 
-H5's induction runs the adapted prompt in both C2 and C5 (the pre-registration's "same induction method" holds, since both arms share it). A reviewer comparing with the paper reads this list. Changing the prompt after the pre-registration's tag needs an amendment and a new ADR. ADR 0012 carries a note naming this ADR. Until the lead accepts this ADR, the prompt in the code is the card's and the review's, and `scripts/test/tasks-and-decisions.test.ts` lists 0046 among the ADRs left for the owner.
+H5's induction runs the adapted prompt in both C2 and C5 (the pre-registration's "same induction method" holds, since both arms share it). A reviewer comparing with the paper reads this list. Changing the prompt after the pre-registration's tag needs an amendment and a new ADR. ADR 0012 carries a note naming this ADR. Until the lead accepts this ADR, the prompt in the code is the card's and the review's, and `scripts/test/tasks-and-decisions.test.ts` lists 0045 among the ADRs left for the owner.
 
 ## Sources
 
