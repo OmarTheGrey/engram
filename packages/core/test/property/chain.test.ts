@@ -194,7 +194,10 @@ async function run(db: Db, c: Case, seen: Seen) {
     expect(outcome.first_break, name).not.toBeNull();
     seen.detected[name] = (seen.detected[name] ?? 0) + 1;
     // Rolled back: the log verifies again.
-    expect(verifyChain(db, { verify: ed25519Check }).verdict, `${name} rolled back`).toBe("OK");
+    expect(
+      verifyChain(db, { verify: ed25519Check, pin: signer.publicKey }).verdict,
+      `${name} rolled back`,
+    ).toBe("OK");
   }
 }
 

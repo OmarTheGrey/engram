@@ -18,8 +18,9 @@
 // stated as unchained), one entry per event in seq order, and one manifest
 // per offboarding (the sorted seqs of every event it redacted, and its erase
 // events). Leaf i is SHA-256(0x00 || canonical(record i)) and the chain hash
-// after it SHA-256(0x01 || hash(i-1) || leaf i), RFC 6962's leaf and node
-// prefixes, with hash(-1) a constant of this format. A meta row (chain_head)
+// after it SHA-256(0x02 || hash(i-1) || leaf i): RFC 6962's leaf prefix, and a
+// link prefix of its own (0x01 stays RFC 6962's interior node, used by the
+// checkpoint's root, log/merkle.ts), with hash(-1) a constant of this format. A meta row (chain_head)
 // anchors the head hash, the entry count and the last chained seq, so a
 // truncated tail is detected. Checkpoints (log/verify.ts) sign the head.
 //
@@ -117,9 +118,17 @@ export function nodeHash(left: string, right: string): string {
   );
 }
 
-/** The chain hash after an entry: of the hash before it and the entry's leaf, both hex, in hex. */
+/**
+ * The chain hash after an entry, SHA-256(0x02 || previous || leaf), of two
+ * hex hashes, in hex. Its own prefix, distinct from RFC 6962's 0x00 and 0x01
+ * (review of card E1.6, E1.6-10), so no chain hash is a well-formed Merkle
+ * interior node, and inclusion or consistency proofs over the RFC 6962 root
+ * can be added without changing a chain.
+ */
 export function chainLink(prev: string, leaf: string): string {
-  return nodeHash(prev, leaf);
+  return sha256(Uint8Array.of(2), Buffer.from(prev, "hex"), Buffer.from(leaf, "hex")).toString(
+    "hex",
+  );
 }
 
 /** A part of an event that an erasure may rewrite, and so is committed rather than hashed. */
@@ -290,7 +299,7 @@ function append(db: Db, kind: string, seq: number | null, data: string, record: 
     throw new Error(
       "the event log's chain has no head row (chain_head): it was deleted, or the chain never began",
     );
-  const hash = nodeHash(head.hash, leafHash(record));
+  const hash = chainLink(head.hash, leafHash(record));
   db.prepare("INSERT INTO chain (pos, kind, seq, data, hash) VALUES (?, ?, ?, ?, ?)").run(
     head.size,
     kind,
@@ -339,7 +348,7 @@ export function keepChain(db: Db, keeper: ChainKeeper): Genesis {
       start,
     };
     const text = chainCanonical(record);
-    const hash = nodeHash(CHAIN_SEED, leafHash(text));
+    const hash = chainLink(CHAIN_SEED, leafHash(text));
     db.prepare(
       "INSERT INTO chain (pos, kind, seq, data, hash) VALUES (0, 'genesis', NULL, ?, ?)",
     ).run(text, hash);

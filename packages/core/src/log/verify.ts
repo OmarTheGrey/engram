@@ -9,32 +9,44 @@
 //                the seqs from the genesis's start without a gap, each event
 //                row matches its own body, its record recomputes from the
 //                body and its stored commitments, and its hash links to the
-//                one before; manifests recompute and name only erase events
-//                chained before them
+//                one before; a manifest recomputes, names only erase events
+//                chained before it, names an erase event whenever it names a
+//                redacted event, and names only item events whose item one of
+//                its erase events erased (review fix pass, E1.6-3)
 //   anchor       the head row holds the entry count, the last hash and the
 //                last chained seq, and no event lies beyond it (a truncated
 //                tail, or an event a writer appended outside the chain)
 //   commitments  an event with its salt recomputes every commitment from its
-//                body; one without verifies as erased only when a chained
-//                manifest names it and its redacted parts hold the marker;
-//                an event a manifest names keeps no salt
+//                body; one without verifies as erased only when a manifest
+//                chained after it names it and its redacted parts hold the
+//                marker; an event a manifest names keeps no salt
 //   checkpoints  each stored checkpoint's root (RFC 6962, log/merkle.ts) and
 //                head recompute at its size, and its signature verifies
 //   held         each checkpoint the operator kept outside the log does too
 //
-// The verdict is FAILED when a check fails, UNSIGNED when every check holds
-// but the latest checkpoint carries no signature the injected check accepts
-// (or there is none), and OK otherwise. Signing and signature checks are
+// A row that is not what this chain writes (a null body, a manifest whose
+// lists are not lists of seqs) fails the check that reads it; it never
+// throws (E1.6-6).
+//
+// The verdict (the lead's rule of the review fix pass, E1.6-4): FAILED when a
+// check fails; OK only when a signed checkpoint, verified under the pinned
+// public key, covers the whole chain; UNSIGNED for anything less: no
+// checkpoint, no key pinned, no signature check given, no signature that
+// counts, or entries after the latest signed checkpoint. What the design
+// cannot detect: without a checkpoint held outside the database, anyone with
+// database access can cut the tail or rewrite the whole chain (E1.6-7); the
+// verdict is then UNSIGNED, never OK. Signing and signature checks are
 // injected (the CLI holds the Ed25519 key), so core holds no key.
 //
 // Ported in part from world-model-mcp (https://github.com/SaravananJaichandar/world-model-mcp,
 // commit c46462dbf816f6b5b95b3fd021629d513c4d23e9, world_model_server/etch_verify.py,
 // MIT): ordered named checks where each pass needs the previous one, the first
 // failure ending the walk, an UNSIGNED verdict of its own with exit code 3,
-// key pinning, and the note on what is not covered by a signature. The head
-// and count anchor against tail truncation is octopus-blackboard's and
-// Compartment's (docs/research/absorb/19-github-scout.md); the checkpoint
-// body is C2SP tlog-checkpoint's (origin, size, base64 root, extension lines).
+// key pinning, and the note on what is not covered by a signature. Its OK
+// (at least one epoch signed) is narrowed here as above. The head and count
+// anchor is an idea from octopus-blackboard and Compartment, as the research
+// reports them (docs/research/absorb/19-github-scout.md); the checkpoint body
+// is C2SP tlog-checkpoint's (origin, size, base64 root, extension lines).
 import type { Db, Row } from "../db/db.ts";
 import { ERASURE_ID } from "../events.ts";
 import { type MemoryEvent, type MemoryItem, Timestamp } from "../schema.ts";
@@ -42,6 +54,7 @@ import {
   CHAIN_SEED,
   CHAIN_VERSION,
   chainCanonical,
+  chainLink,
   chainTables,
   commitments,
   committedParts,
@@ -49,7 +62,6 @@ import {
   type Genesis,
   leafHash,
   type Manifest,
-  nodeHash,
   readHead,
 } from "./chain.ts";
 import { merkleRoot } from "./merkle.ts";
@@ -129,40 +141,63 @@ export interface StoredCheckpoint extends Checkpoint {
 export interface VerifyOptions {
   /** Checks signatures; without it a signature cannot be checked and the verdict is at best UNSIGNED. */
   verify?: SignatureCheck;
-  /** The operator's public key, pinned: a checkpoint signed under any other fails. */
+  /** The operator's public key, pinned: a checkpoint signed under any other fails; without it the verdict is at best UNSIGNED. */
   pin?: string;
   /** Checkpoints the operator kept outside the log; the log must extend each. */
   held?: Checkpoint[];
 }
 
 const b64 = (hex: string) => Buffer.from(hex, "hex").toString("base64");
-const unb64 = (text: string) => Buffer.from(text, "base64").toString("hex");
+
+/** The hex of a canonical standard base64 encoding of 32 bytes, or null (C2SP: decoders reject anything else). */
+function hash32(text: string): string | null {
+  const bytes = Buffer.from(text, "base64");
+  if (bytes.length !== 32 || bytes.toString("base64") !== text) return null;
+  return bytes.toString("hex");
+}
 
 /** The C2SP tlog-checkpoint body of a checkpoint. */
 export function checkpointNote(log: string, size: number, root: string, head: string, at: string) {
   return `engram.log/${log}\n${size}\n${b64(root)}\nhead ${b64(head)}\ntime ${at}\n`;
 }
 
-/** The fields of a checkpoint note, or null when it is not one. */
+/**
+ * The fields of a checkpoint note, or null when it is not one: a decimal size
+ * with no leading zero, and each hash 32 bytes in canonical base64, as C2SP's
+ * tlog-checkpoint requires of a decoder (E1.6-10).
+ */
 export function parseNote(
   note: string,
 ): { log: string; size: number; root: string; head: string; at: string } | null {
   const m =
-    /^engram\.log\/([0-9a-f]+)\n(\d+)\n([A-Za-z0-9+/=]+)\nhead ([A-Za-z0-9+/=]+)\ntime (\S+)\n$/.exec(
+    /^engram\.log\/([0-9a-f]+)\n(0|[1-9][0-9]*)\n([A-Za-z0-9+/=]+)\nhead ([A-Za-z0-9+/=]+)\ntime (\S+)\n$/.exec(
       note,
     );
   if (!m) return null;
   const [, log, size, root, head, at] = m as unknown as string[];
-  return {
-    log: log as string,
-    size: Number(size),
-    root: unb64(root as string),
-    head: unb64(head as string),
-    at: at as string,
-  };
+  const r = hash32(root as string);
+  const h = hash32(head as string);
+  if (r === null || h === null || !Number.isSafeInteger(Number(size))) return null;
+  return { log: log as string, size: Number(size), root: r, head: h, at: at as string };
 }
 
 const COLUMNS = ["id", "op", "item_id", "actor", "scope_from", "scope_to", "decision"] as const;
+
+/** A JSON object: not null, not an array. */
+const isRecord = (v: unknown): v is Record<string, unknown> =>
+  typeof v === "object" && v !== null && !Array.isArray(v);
+
+/** A list of seqs: non-negative integers. */
+const isSeqs = (v: unknown): v is number[] =>
+  Array.isArray(v) && v.every((x) => Number.isSafeInteger(x) && (x as number) >= 0);
+
+function parsed(text: unknown): unknown {
+  try {
+    return JSON.parse(String(text));
+  } catch {
+    return undefined;
+  }
+}
 
 interface Walk {
   checks: Check[];
@@ -173,7 +208,7 @@ interface Walk {
   counts: ChainReport["counts"];
 }
 
-/** The checks up to `commitments`, which a checkpoint needs to hold before it is written. */
+/** The checks up to `commitments`. */
 function walk(db: Db): Walk {
   const checks: Check[] = [];
   const counts = { entries: 0, events: 0, unchained: 0, erased: 0, manifests: 0, checkpoints: 0 };
@@ -201,19 +236,17 @@ function walk(db: Db): Walk {
       "the chain has no genesis at position 0: it never began, or it was cut",
       0,
     );
-  let genesis: Genesis;
-  try {
-    genesis = JSON.parse(String(first.data)) as Genesis;
-  } catch {
-    return fail("genesis", "the genesis record is not JSON", 0);
-  }
+  const g = parsed(first.data);
+  if (!isRecord(g)) return fail("genesis", "the genesis record is not a JSON object", 0);
+  const genesis = g as unknown as Genesis;
   const genesisText = chainCanonical(genesis);
   if (
     genesisText !== String(first.data) ||
     genesis.kind !== "genesis" ||
     genesis.version !== CHAIN_VERSION ||
     typeof genesis.log !== "string" ||
-    !Number.isInteger(genesis.start) ||
+    !/^[0-9a-f]+$/.test(genesis.log) ||
+    !Number.isSafeInteger(genesis.start) ||
     genesis.start < 0
   )
     return fail(
@@ -222,7 +255,7 @@ function walk(db: Db): Walk {
       0,
     );
   const genesisLeaf = leafHash(genesisText);
-  const genesisHash = nodeHash(CHAIN_SEED, genesisLeaf);
+  const genesisHash = chainLink(CHAIN_SEED, genesisLeaf);
   if (genesisHash !== String(first.hash))
     return fail("genesis", "the genesis's hash does not link from the chain's seed", 0);
   out.genesis = genesis;
@@ -240,7 +273,7 @@ function walk(db: Db): Walk {
   const bodies = new Map<number, MemoryEvent>();
   const given = new Map<number, Record<string, string>>();
   const entryPos = new Map<number, number>();
-  /** seq to the position of the manifest that names it. */
+  /** seq to the position of the first manifest that names it. */
   const named = new Map<number, number>();
   let next = genesis.start;
   let prev = genesisHash;
@@ -257,14 +290,11 @@ function walk(db: Db): Walk {
       const stored = events.get(seq);
       if (!stored)
         return fail("links", `event ${seq} is chained but not in the log: deleted`, pos, seq);
-      let body: MemoryEvent;
-      try {
-        body = JSON.parse(String(stored.body)) as MemoryEvent;
-      } catch {
-        return fail("links", `event ${seq}'s body is not JSON`, pos, seq);
-      }
+      const b = parsed(stored.body);
+      if (!isRecord(b)) return fail("links", `event ${seq}'s body is not a JSON object`, pos, seq);
+      const body = b as unknown as MemoryEvent;
       if (body.seq !== seq)
-        return fail("links", `event ${seq}'s body says seq ${body.seq}: moved`, pos, seq);
+        return fail("links", `event ${seq}'s body says seq ${String(body.seq)}: moved`, pos, seq);
       for (const column of COLUMNS)
         if ((stored[column] ?? null) !== (body[column] ?? null))
           return fail(
@@ -273,12 +303,15 @@ function walk(db: Db): Walk {
             pos,
             seq,
           );
-      let commits: Record<string, string>;
-      try {
-        commits = JSON.parse(String(row.data)) as Record<string, string>;
-      } catch {
-        return fail("links", `event ${seq}'s commitments are not JSON`, pos, seq);
-      }
+      const c = parsed(row.data);
+      if (!isRecord(c) || !Object.values(c).every((v) => typeof v === "string"))
+        return fail(
+          "links",
+          `event ${seq}'s commitments are not a JSON object of strings`,
+          pos,
+          seq,
+        );
+      const commits = c as Record<string, string>;
       const expected = [...committedParts(body).keys()].sort().join(",");
       if (Object.keys(commits).sort().join(",") !== expected)
         return fail(
@@ -294,15 +327,24 @@ function walk(db: Db): Walk {
       counts.events++;
       next++;
     } else if (row.kind === "manifest") {
-      let manifest: Manifest;
-      try {
-        manifest = JSON.parse(String(row.data)) as Manifest;
-      } catch {
-        return fail("links", "a manifest record is not JSON", pos);
-      }
+      const m = parsed(row.data);
+      if (!isRecord(m) || m.kind !== "manifest" || !isSeqs(m.redacted) || !isSeqs(m.erase))
+        return fail(
+          "links",
+          "a manifest record is not one this chain writes: its redacted and erase fields must be lists of seqs",
+          pos,
+        );
+      const manifest = m as unknown as Manifest;
       record = chainCanonical(manifest);
-      if (record !== String(row.data) || manifest.kind !== "manifest")
-        return fail("links", "a manifest record is not one this chain writes", pos);
+      if (record !== String(row.data))
+        return fail("links", "a manifest record is not in the chain's canonical form", pos);
+      if (manifest.redacted.length > 0 && manifest.erase.length === 0)
+        return fail(
+          "links",
+          `the manifest names ${manifest.redacted.length} redacted events but no erase event: a redaction no offboarding made`,
+          pos,
+        );
+      const erasedItems = new Set<string>();
       for (const seq of manifest.erase) {
         const erase = bodies.get(seq);
         if (erase?.decision !== "allow" || erase.op !== "retire" || erase.policy_id !== ERASURE_ID)
@@ -312,8 +354,26 @@ function walk(db: Db): Walk {
             pos,
             seq,
           );
+        if (typeof erase.item_id === "string") erasedItems.add(erase.item_id);
       }
-      for (const seq of manifest.redacted) if (!named.has(seq)) named.set(seq, pos);
+      for (const seq of manifest.redacted) {
+        const redactedEvent = bodies.get(seq);
+        // An item event the manifest names must be about an item its erase
+        // events erased; a lint event may be about another item, whose
+        // evidence named an erased one, and is accepted beside an erase event.
+        if (
+          redactedEvent?.item !== undefined &&
+          redactedEvent.item !== null &&
+          !erasedItems.has(String(redactedEvent.item_id))
+        )
+          return fail(
+            "links",
+            `the manifest names event ${seq}, whose item ${String(redactedEvent.item_id)} is not among the items its erase events erased`,
+            pos,
+            seq,
+          );
+        if (!named.has(seq)) named.set(seq, pos);
+      }
       counts.manifests++;
     } else {
       return fail(
@@ -323,7 +383,7 @@ function walk(db: Db): Walk {
       );
     }
     const leaf = leafHash(record);
-    const hash = nodeHash(prev, leaf);
+    const hash = chainLink(prev, leaf);
     if (hash !== String(row.hash))
       return fail(
         "links",
@@ -350,7 +410,7 @@ function walk(db: Db): Walk {
   if (beyond.length > 0)
     return fail(
       "anchor",
-      `event ${beyond[0]} is not chained: appended outside the chain (by a writer that does not keep it) or inserted`,
+      `event ${beyond[0]} is not chained: appended by a writer that does not keep the chain, or inserted`,
       null,
       beyond[0] ?? null,
     );
@@ -415,12 +475,13 @@ function walk(db: Db): Walk {
 
 /** Whether an erased event's redacted parts hold the marker: redacting it again changes nothing. */
 function holdsMarker(event: MemoryEvent): boolean {
-  if (
-    event.item &&
-    chainCanonical(redacted(event.item as MemoryItem)) !== chainCanonical(event.item)
-  )
-    return false;
-  if (event.op === "lint" && redactedLintReason(event.reason) !== event.reason) return false;
+  const it = event.item as unknown;
+  if (it !== undefined && it !== null) {
+    if (!isRecord(it) || !isRecord(it.provenance)) return false;
+    if (chainCanonical(redacted(it as unknown as MemoryItem)) !== chainCanonical(it)) return false;
+  }
+  if (event.op === "lint")
+    return typeof event.reason === "string" && redactedLintReason(event.reason) === event.reason;
   return true;
 }
 
@@ -442,6 +503,10 @@ function storedCheckpoints(db: Db): StoredCheckpoint[] {
       signature: r.signature === null ? null : String(r.signature),
     }));
 }
+
+/** What the operator cannot get from the database alone. */
+const LIMIT =
+  "without a checkpoint held outside the database (log checkpoint --out, then --checkpoint), anyone with database access can cut the tail or rewrite the whole chain, and the verdict is then UNSIGNED, never OK";
 
 /**
  * Verifies the log's chain, its anchor, its commitments and its checkpoints,
@@ -469,17 +534,18 @@ export function verifyChain(db: Db, options: VerifyOptions = {}): ChainReport {
   };
   if (w.failure !== null || !w.genesis) return report;
   const log = w.genesis.log;
+  const size = w.leaves.length;
 
   /** Whether a checkpoint at a size the chain holds recomputes, and whether its signature counts. */
   const judge = (c: Checkpoint, what: string): string | { signed: boolean; size: number } => {
-    const f = parseNote(c.note);
+    const f = typeof c.note === "string" ? parseNote(c.note) : null;
     if (!f) return `${what} is not a checkpoint note this log writes`;
     if (f.log !== log) return `${what} is of log ${f.log}, not this log (${log})`;
-    if (f.size < 1 || f.size > w.leaves.length)
-      return `${what} covers ${f.size} entries, but the chain holds ${w.leaves.length}: its tail was cut`;
+    if (f.size < 1 || f.size > size)
+      return `${what} covers ${f.size} entries, but the chain holds ${size}: its tail was cut`;
     if (merkleRoot(w.leaves.slice(0, f.size)) !== f.root || w.hashes[f.size - 1] !== f.head)
       return `${what} at size ${f.size} does not match the chain at that size: the log was rewritten`;
-    if (c.signature === null || c.signature === undefined || c.key === null || c.key === undefined)
+    if (typeof c.signature !== "string" || typeof c.key !== "string")
       return { signed: false, size: f.size };
     if (options.pin !== undefined && c.key !== options.pin)
       return `${what} is signed by a key other than the pinned one`;
@@ -491,47 +557,46 @@ export function verifyChain(db: Db, options: VerifyOptions = {}): ChainReport {
 
   const stored = storedCheckpoints(db);
   report.counts.checkpoints = stored.length;
-  let latest: { signed: boolean; size: number } | null = null;
-  const keep = (j: { signed: boolean; size: number }) => {
-    if (!latest || j.size > latest.size || (j.size === latest.size && j.signed)) latest = j;
-  };
+  const judged: { signed: boolean; size: number }[] = [];
   for (const c of stored) {
     const f = parseNote(c.note);
     if (!f || f.size !== c.size || f.root !== c.root || f.head !== c.head || f.at !== c.at)
       return fail("checkpoints", `checkpoint ${c.n}'s columns differ from its note`);
     const j = judge(c, `checkpoint ${c.n}`);
     if (typeof j === "string") return fail("checkpoints", j);
-    keep(j);
+    judged.push(j);
   }
   w.checks.push({ name: "checkpoints", ok: true });
   for (const [i, c] of (options.held ?? []).entries()) {
     const j = judge(c, `the held checkpoint ${i + 1}`);
     if (typeof j === "string") return fail("held", j);
-    keep(j);
+    judged.push(j);
   }
   if ((options.held ?? []).length > 0) w.checks.push({ name: "held", ok: true });
 
-  const last = latest as { signed: boolean; size: number } | null;
-  report.verdict = last?.signed ? "OK" : "UNSIGNED";
-  if (!last) notes.push("no checkpoint: nothing signs this log's head, so the verdict is UNSIGNED");
-  else if (!last.signed)
+  // OK only when a signed checkpoint under the pinned key covers the whole chain.
+  const signedSizes = judged.filter((j) => j.signed).map((j) => j.size);
+  const latestSigned = signedSizes.length > 0 ? Math.max(...signedSizes) : 0;
+  const pinned = options.pin !== undefined && options.verify !== undefined;
+  report.verdict = pinned && latestSigned === size ? "OK" : "UNSIGNED";
+  if (judged.length === 0) notes.push(`no checkpoint: nothing signs this log's head; ${LIMIT}`);
+  if (options.verify === undefined)
+    notes.push("no signature check was given, so no signature counts and the verdict is UNSIGNED");
+  else if (options.pin === undefined)
     notes.push(
-      options.verify
-        ? "the latest checkpoint carries no signature, so the verdict is UNSIGNED"
-        : "no signature check was given, so no signature counts and the verdict is UNSIGNED",
+      "no public key is pinned (--key), so the verdict is UNSIGNED: a signature proves only that the holder of the key a checkpoint names signed it, and a rewriter can be that holder",
     );
-  if (last && last.size < w.leaves.length)
+  if (judged.length > 0 && latestSigned === 0)
+    notes.push("no checkpoint carries a signature that counts, so the verdict is UNSIGNED");
+  if (latestSigned > 0 && latestSigned < size)
     notes.push(
-      `${w.leaves.length - last.size} chain entries after the latest checkpoint are covered by no checkpoint`,
-    );
-  if (last?.signed && options.pin === undefined)
-    notes.push(
-      "signatures were checked against the key each checkpoint names; pin the operator's public key, or a rewriter with database access can sign a new history",
+      `${size - latestSigned} chain entries after the latest signed checkpoint are covered by no signature, so the verdict is UNSIGNED; sign a new checkpoint to cover them`,
     );
   if (w.counts.unchained > 0)
     notes.push(
       `${w.counts.unchained} events before seq ${w.genesis.start} were appended before the chain began; nothing vouches for them`,
     );
+  if (judged.length > 0 && (options.held ?? []).length === 0) notes.push(LIMIT);
   notes.push(
     "the chain vouches for the log only: an erasure verified here may still have left content in a store (card E1.5, finding E1.5-1); the deletion report and the dogfood report are where that shows",
   );
@@ -540,21 +605,29 @@ export function verifyChain(db: Db, options: VerifyOptions = {}): ChainReport {
 
 /**
  * Writes a checkpoint of the head at time `at`, signed by `signer` when one
- * is given, inside one transaction. Refuses (throws) when the chain does not
- * verify, so no key signs a broken log.
+ * is given, inside one transaction. Refuses (throws) unless the whole log
+ * verifies under `options` first: the chain, every stored checkpoint, every
+ * held one and the pinned key (review fix pass, E1.6-2; C2SP: a log never
+ * signs a checkpoint inconsistent with one it signed before). A signer whose
+ * key is not the pinned one is refused.
  */
-export function writeCheckpoint(db: Db, at: string, signer?: CheckpointSigner): StoredCheckpoint {
+export function writeCheckpoint(
+  db: Db,
+  at: string,
+  signer?: CheckpointSigner,
+  options: VerifyOptions = {},
+): StoredCheckpoint {
   if (!Timestamp.safeParse(at).success) throw new Error(`checkpoint: ${at} is not a UTC timestamp`);
+  if (signer && options.pin !== undefined && signer.key !== options.pin)
+    throw new Error("checkpoint: the signer's key is not the pinned one; no checkpoint is written");
   return db.transaction(() => {
-    const w = walk(db);
-    if (w.failure !== null || !w.genesis)
+    const r = verifyChain(db, options);
+    if (r.first_break !== null || r.head === null || r.log === null)
       throw new Error(
-        `checkpoint: the chain does not verify (${w.failure?.check}: ${w.failure?.detail}); no checkpoint is written`,
+        `checkpoint: the log does not verify (${r.first_break?.check}: ${r.first_break?.detail}); no checkpoint is written`,
       );
-    const size = w.leaves.length;
-    const root = merkleRoot(w.leaves);
-    const head = w.hashes[size - 1] as string;
-    const note = checkpointNote(w.genesis.log, size, root, head, at);
+    const { size, root, hash: head } = r.head;
+    const note = checkpointNote(r.log, size, root, head, at);
     const signature = signer ? signer.sign(Buffer.from(note, "utf8")) : null;
     const key = signer ? signer.key : null;
     const n = Number(
@@ -563,6 +636,6 @@ export function writeCheckpoint(db: Db, at: string, signer?: CheckpointSigner): 
     db.prepare(
       "INSERT INTO chain_checkpoints (n, size, root, head, at, note, key, signature) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
     ).run(n, size, root, head, at, note, key, signature);
-    return { n, log: w.genesis.log, size, root, head, at, note, key, signature };
+    return { n, log: r.log, size, root, head, at, note, key, signature };
   });
 }

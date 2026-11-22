@@ -10,6 +10,7 @@ import { appendEvent, type EventInput } from "../../../src/events.ts";
 import {
   CHAIN_SEED,
   chainCanonical,
+  chainLink,
   keepChain,
   keepsChain,
   leafHash,
@@ -199,7 +200,14 @@ forEachBackend((backend) => {
     expect(report.first_break).toMatchObject({ check: "held" });
     // And the log it was taken from extends it.
     appendEvent(db, event());
-    expect(verifyChain(db, { verify: ed25519Check, held: [held] }).verdict).toBe("OK");
+    // It extends the held checkpoint; the new entry is covered by no signature yet.
+    const extended = verifyChain(db, {
+      verify: ed25519Check,
+      pin: fixedSigner().publicKey,
+      held: [held],
+    });
+    expect(extended.first_break).toBeNull();
+    expect(extended.verdict).toBe("UNSIGNED");
   });
 
   test("no checkpoint is written over a chain that does not verify", () => {
@@ -252,6 +260,6 @@ forEachBackend((backend) => {
     const db: Db = open();
     keepChain(db, seededKeeper(7));
     const row = db.prepare("SELECT data, hash FROM chain WHERE pos = 0").get();
-    expect(String(row?.hash)).toBe(nodeHash(CHAIN_SEED, leafHash(String(row?.data))));
+    expect(String(row?.hash)).toBe(chainLink(CHAIN_SEED, leafHash(String(row?.data))));
   });
 });
