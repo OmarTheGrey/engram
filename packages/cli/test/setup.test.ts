@@ -335,12 +335,24 @@ describe("packages/cli never imports pi (P3-15)", () => {
     expect("const PI = /^@earendil-works\\/pi-/;").not.toMatch(PI_IMPORT);
   });
 
-  it("has no pi package in package.json and no pi import in any file under src", () => {
-    const manifest = readFileSync(join(REPO, "packages/cli/package.json"), "utf8");
-    expect(manifest).not.toContain("@earendil-works/");
+  // ADR 0044 (card E8.15b) makes one exception: pi-tui, at the pi pin, imported
+  // only under packages/cli/src/tui; pi-ai, pi-coding-agent and pi-durable stay out.
+  it("has no pi package in package.json but pi-tui, and no pi import under src but pi-tui's under src/tui", () => {
+    const manifest = JSON.parse(readFileSync(join(REPO, "packages/cli/package.json"), "utf8"));
+    const pi = Object.keys({ ...manifest.dependencies, ...manifest.devDependencies }).filter((d) =>
+      d.startsWith("@earendil-works/"),
+    );
+    expect(pi).toEqual(["@earendil-works/pi-tui"]);
     const files = walk(join(REPO, "packages/cli/src"));
     expect(files.length).toBeGreaterThan(5);
-    for (const file of files) expect(readFileSync(file, "utf8"), file).not.toMatch(PI_IMPORT);
+    const tui = join(REPO, "packages/cli/src/tui");
+    for (const file of files) {
+      const text = readFileSync(file, "utf8");
+      if (!file.startsWith(tui)) expect(text, file).not.toMatch(PI_IMPORT);
+      else
+        for (const m of text.matchAll(new RegExp(`${PI_IMPORT.source}([^"'\`]+)`, "g")))
+          expect(`@earendil-works/${m[1]}`, file).toBe("@earendil-works/pi-tui");
+    }
   });
 });
 
