@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from typing import Any
 
+import pytest
+
 from scripts import h3_lint_nli
 from scripts.results_io import REPO, dumps_result, load_config
 
@@ -43,6 +45,63 @@ def test_the_upper_is_the_first_step_above_every_pass_and_at_least_its_floor() -
     assert got["upper"] == 1.0
 
 
+def test_a_pass_scored_1_leaves_no_upper_strictly_above_it_and_is_refused() -> None:
+    # Review L7-8: the upper stays strictly above every pass; at a pass of 1.0 no
+    # upper of at most 1 is, so the rule refuses rather than flag that pass.
+    with pytest.raises(ValueError, match="strictly above"):
+        h3_lint_nli.derive_thresholds(
+            [row("x", [("a", "pass", 1.0, 0.2), ("b", "flag", 0.99, 0.99)])], RULE
+        )
+
+
+def scored(unit: str, item: str, forward: float, backward: float) -> dict[str, Any]:
+    return {
+        "unit": unit,
+        "item_id": item,
+        "forward": {"contradiction": forward},
+        "backward": {"contradiction": backward},
+        "contradiction": max(forward, backward),
+    }
+
+
+def test_score_counts_at_each_cut_both_directions_and_forward_only() -> None:
+    # Review L7-2: two seeds of the same question count each pair once.
+    pairs = [
+        scored("u1", "i1", 0.95, 0.2),
+        scored("u2", "i2", 0.3, 0.999),
+        scored("u3", "i3", 0.6, 0.4),
+        scored("u4", "i1", 0.9999, 0.9999),
+    ]
+    rows = [{"question_id": "q", "seed": s, "nli": pairs} for s in (1, 2)]
+    got = h3_lint_nli.score_counts(rows)
+    assert got["pairs"] == 4
+    assert got["both_directions"] == {"0.5": 4, "0.9": 3, "0.99": 2, "0.999": 2}
+    assert got["forward_only"] == {"0.5": 3, "0.9": 2, "0.99": 1, "0.999": 1}
+
+
+def test_forward_only_flags_split_into_faults_other_labels_and_unlabelled_items() -> None:
+    pairs = [
+        scored("u1", "fault", 0.95, 0.2),
+        scored("u2", "near", 0.91, 0.1),
+        scored("u3", "plain", 0.99, 0.1),
+        scored("u4", "plain", 0.92, 0.1),
+        scored("u5", "low", 0.2, 0.99),
+    ]
+    rows = [{"question_id": "q", "seed": 1, "nli": pairs}]
+    labels = {
+        "q": [
+            {"finding_on": "fault", "kind": "fault"},
+            {"finding_on": "near", "kind": "near-miss"},
+        ]
+    }
+    got = h3_lint_nli.forward_flags(rows, labels, 0.9)
+    assert got["pairs"] == 4
+    assert got["items"] == 3
+    assert got["fault_items"] == 1
+    assert got["near_miss_items"] == 1
+    assert got["unlabelled"] == [{"question_id": "q", "item_id": "plain", "pairs": 2}]
+
+
 def test_the_lower_is_the_last_step_at_or_below_every_flag_and_at_most_its_ceiling() -> None:
     got = h3_lint_nli.derive_thresholds(
         [row("x", [("a", "pass", 0.01, 0.02), ("b", "flag", 0.057, 0.03)])], RULE
@@ -75,5 +134,6 @@ def test_the_committed_result_replays_byte_for_byte() -> None:
     config = load_config(REPO / "research" / "configs" / "h3-lint-nli.json")
     built = h3_lint_nli.build(config)
     assert built["registered"] is False
+    assert built["decides"] is False
     committed = (REPO / "research" / "results" / "h3-lint-nli.json").read_text(encoding="utf-8")
     assert dumps_result(built) == committed
