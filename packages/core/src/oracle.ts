@@ -26,6 +26,16 @@
 // (`sameStrictContent`); the landed item is judged by `writeForbidden` like
 // any write.
 //
+// Replay admission (card D3 review, D3-5) gives `promotionPermitted` an
+// optional replay: a procedural candidate lands only with one, judged by the
+// oracle's own reading. The replay names the source and the strict hash of
+// its content (the plane's hash, content-hash.ts: a hash is a contract to
+// match, not a reading to re-derive); its induction tasks are exactly the
+// tasks of the source's distill ref, by the session index the plane was
+// given, and none is replayed; it is presented by a user-sourced actor; and
+// its own count (a task passes when its rewards with the candidate sum to at
+// least the threshold times its runs) meets replay_k of replay_n.
+//
 // Where it lives (card E9.5): moved from packages/core/test/property/ into
 // core's source, unchanged, so the twin dogfood's violation report
 // (src/dogfood.ts) can judge a member's log with the same oracle; the old
@@ -36,6 +46,7 @@
 // (`grantsChanged`, `priorVersion`, `grantChangeProblem`; ADR 0034,
 // decision 6) and `withinValidity`, at the end of the file.
 import type { Actor } from "./actor.ts";
+import { strictContentHash } from "./content-hash.ts";
 import type { Grant, MemoryEvent, MemoryItem, Policy } from "./schema.ts";
 import { compareTimestamps } from "./time.ts";
 
@@ -355,8 +366,8 @@ function replayed(events: readonly MemoryEvent[]): Map<string, MemoryItem> {
  *   writes, in its scope, of its content (strict reading), with a user,
  *   document or tool source, of items still active now (the item's own
  *   write aside), or a reviewer where the policy allows review; a
- *   procedural candidate never lands (no validation record reaches the
- *   plane before card D3); anything else needs a reviewer.
+ *   procedural candidate lands only with a replay `replayAdmits` admits
+ *   (card D3 review, D3-5); anything else needs a reviewer.
  *
  * Whether the landed item may be written into the target is `writeForbidden`'s.
  */
@@ -368,6 +379,7 @@ export function promotionPermitted(
   events: readonly MemoryEvent[],
   review: boolean,
   at: string,
+  presented?: OracleReplay,
 ): boolean {
   const items = replayed(events);
   const source = items.get(sourceId);
@@ -441,8 +453,72 @@ export function promotionPermitted(
     const { confirmations, or_review } = policy.promotion.episodic_to_semantic;
     return actors.size >= confirmations || (or_review && reviewed);
   }
-  if (source.class === "procedural" && source.status === "candidate") return false;
+  if (source.class === "procedural" && source.status === "candidate")
+    return presented !== undefined && replayAdmits(policy, actor, source, presented);
   return reviewed;
+}
+
+/** A replay presented with a promotion (card D3), and the session index the plane was given. */
+export interface OracleReplay {
+  replay: {
+    item_id: string;
+    content_hash: string;
+    induced_from: readonly string[];
+    threshold: number;
+    outcomes: readonly { task: string; seed: number; without: number; with: number }[];
+  };
+  /** Session id to task id; absent when the plane was given none. */
+  sessions?: ReadonlyMap<string, string>;
+}
+
+/**
+ * Does `presented` admit the procedural candidate `source` (card D3 review,
+ * D3-5)? Its own reading of ADR 0045 (proposed): the presenter is
+ * user-sourced; the replay is the source's (its id and content hash); its
+ * induction tasks are exactly those of the source's distill ref, and none is
+ * replayed; its shape is sound; and its count meets replay_k of replay_n.
+ */
+export function replayAdmits(
+  policy: Policy,
+  actor: Actor,
+  source: MemoryItem,
+  { replay, sessions }: OracleReplay,
+): boolean {
+  if (actor.source !== "user") return false;
+  if (replay.item_id !== source.id) return false;
+  if (replay.content_hash !== strictContentHash(source.content)) return false;
+  // The tasks the source's ref names, read with the oracle's own pattern.
+  const ref = /^distill:(?:awm|rule):(.+)$/.exec(source.provenance.ref);
+  const own = new Set<string>();
+  if (ref) {
+    if (!sessions) return false;
+    for (const session of (ref[1] as string).split(",")) {
+      const task = sessions.get(session);
+      if (task === undefined) return false;
+      own.add(task);
+    }
+  }
+  const claimed = new Set(replay.induced_from);
+  if (claimed.size !== own.size || [...own].some((t) => !claimed.has(t))) return false;
+  if (!(replay.threshold > 0 && replay.threshold <= 1)) return false;
+  const runs = new Map<string, number[]>();
+  const sums = new Map<string, number>();
+  for (const o of replay.outcomes) {
+    if (own.has(o.task) || claimed.has(o.task)) return false;
+    for (const r of [o.with, o.without]) if (!(r >= 0 && r <= 1)) return false;
+    const seeds = runs.get(o.task) ?? [];
+    if (seeds.includes(o.seed)) return false;
+    runs.set(o.task, [...seeds, o.seed]);
+    sums.set(o.task, (sums.get(o.task) ?? 0) + o.with);
+  }
+  const seedSets = [...runs.values()].map((x) => [...x].sort((a, b) => a - b).join(","));
+  if (seedSets.length === 0 || seedSets.some((x) => x !== seedSets[0])) return false;
+  let k = 0;
+  for (const [task, seeds] of runs)
+    if ((sums.get(task) as number) >= replay.threshold * seeds.length) k++;
+  const n = runs.size;
+  const { replay_k, replay_n } = policy.promotion.procedural;
+  return k >= replay_k && n >= replay_n && k * replay_n >= replay_k * n;
 }
 
 // Card E9.5: the oracle's own replay of a log, and its reading of who may

@@ -99,6 +99,7 @@ import { createFakeAdapter } from "@engram/adapters";
 import fc from "fast-check";
 import { describe, expect, test } from "vitest";
 import type { Adapter } from "../../src/adapter.ts";
+import { strictContentHash } from "../../src/content-hash.ts";
 import type { Db } from "../../src/db/db.ts";
 import { migrate } from "../../src/db/migrate.ts";
 import { openSqlite } from "../../src/db/sqlite.ts";
@@ -150,13 +151,19 @@ const RUNS = 1000;
 /** The two-handle walk opens a log per run and interleaves two operation lists: fewer runs. */
 const RUNS_TWO_HANDLES = 300;
 
-function freshPlane(policy: Policy, search = true) {
+function freshPlane(policy: Policy, search = true, distillTasks?: ReadonlyMap<string, string>) {
   const db = openSqlite(":memory:");
   migrate(db);
   const adapter = createFakeAdapter({ search });
   let n = 0;
   const newId = () => `01920000-0000-7000-8000-${String(++n).padStart(12, "0")}`;
-  const plane: Plane = createPlane({ db, adapter, policy, newId });
+  const plane: Plane = createPlane({
+    db,
+    adapter,
+    policy,
+    newId,
+    ...(distillTasks === undefined ? {} : { distillTasks }),
+  });
   /** A plane over the same log and store that writes under `other`. */
   const under = (other: Policy): Plane => createPlane({ db, adapter, policy: other, newId });
   return { db, adapter, plane, under, newId };
@@ -1679,6 +1686,32 @@ const arbRestatement: fc.Arbitrary<Restatement> = fc.record({
   inTarget: fc.constantFrom(false, false, false, false, false, true),
 });
 
+/**
+ * Card D3 review, D3-5: the session index invariant 2's plane is given (s9
+ * is a session it does not hold), and a replay case. One case in six the
+ * source is a procedural candidate whose provenance ref is a distill ref (or
+ * none), and the promoter presents a replay: for the source or another item,
+ * of its content or other content, naming the ref's induction tasks or none
+ * or only t1, sometimes replaying t1, with a pass count around replay_k.
+ */
+const P_SESSIONS: ReadonlyMap<string, string> = new Map([
+  ["s1", "t1"],
+  ["s2", "t2"],
+]);
+const arbReplayCase = fc.record({
+  use: fc.constantFrom(false, false, false, false, false, true),
+  ref: fc.constantFrom("r", "distill:awm:s1", "distill:awm:s1,s2", "distill:rule:s1,s9"),
+  ownItem: fc.constantFrom(true, true, true, true, true, false),
+  ownContent: fc.constantFrom(true, true, true, true, true, false),
+  induced: fc.constantFrom("ref", "ref", "ref", "none", "t1"),
+  leak: fc.constantFrom(false, false, false, false, true),
+  n: fc.integer({ min: 4, max: 6 }),
+  passes: fc.integer({ min: 2, max: 6 }),
+  seeds: fc.constantFrom([1], [1], [1, 2]),
+  threshold: fc.constantFrom(1, 1, 0.5),
+  sameScope: fc.constantFrom(true, true, false),
+});
+
 /** True three times in four: most cases reach the evidence rules rather than stopping earlier. */
 const oftenTrue = fc.constantFrom(true, true, true, false);
 
@@ -1799,6 +1832,7 @@ const arbPromotionCase = fc.record({
   }),
   at: arbTimestamp,
   after: fc.constantFrom(0, 0, 0, 5),
+  replay: arbReplayCase,
 });
 
 /** Invariant 2 over promotions (ADR 0026); runs inside invariant 2's test. */
@@ -1821,11 +1855,53 @@ async function promotionsLandOnlyWherePermitted(name: string) {
     duplicate: 0,
     unreachable: 0,
   };
+  // Card D3 review, D3-5: replay admissions and each replay refusal.
+  const replaySeen = { landed: 0, source: 0, item: 0, split: 0, short: 0 };
   await fc.assert(
     fc.asyncProperty(
       arbPromotionCase,
-      async ({ policy: { policy, target }, source, restatements, promoter, at, after }) => {
-        const { db, adapter, plane, under } = freshPlane(policy);
+      async ({
+        policy: { policy: drawnPolicy, target: drawn },
+        source: drawnSource,
+        restatements,
+        promoter,
+        at,
+        after,
+        replay: rc,
+      }) => {
+        // A replay case's source is a procedural candidate, under its ref.
+        const source = rc.use
+          ? { ...drawnSource, class: "procedural" as const, status: "candidate" as const }
+          : drawnSource;
+        const target = rc.use && rc.sameScope ? source.scope : drawn;
+        // A replay case opens the rules of the source's and the target's
+        // levels to every source and class, and reads as an opened case
+        // does, so the replay rather than the rule decides most of them.
+        const opened = (level: string) => ({
+          scope: level as Policy["write"][number]["scope"],
+          allowed_sources: [...KINDS] as Kind[],
+          confidence_floor: 0,
+          forbidden_classes: [],
+          requires_review: false,
+        });
+        const levels = new Set([levelOf(source.scope), levelOf(target)]);
+        const policy: Policy = rc.use
+          ? {
+              ...drawnPolicy,
+              write: [
+                ...drawnPolicy.write.filter((r) => !levels.has(r.scope)),
+                ...[...levels].map(opened),
+              ],
+              read: {
+                matrix: [
+                  { reader: "person", may_read: ["person", "role", "team", "org"] },
+                  { reader: "team", may_read: ["role", "team", "org"] },
+                ],
+                honour_grants: true,
+              },
+            }
+          : drawnPolicy;
+        const { db, adapter, plane, under } = freshPlane(policy, true, P_SESSIONS);
         const store = under(ADMIT_ALL);
         // The source's text, with a tag-character payload when it is hidden.
         const word = source.hidden ? `alpha${String.fromCodePoint(0xe0041)}` : "alpha";
@@ -1865,6 +1941,14 @@ async function promotionsLandOnlyWherePermitted(name: string) {
           class: source.class,
           status: source.status === "retired" ? "active" : source.status,
           content: source.class === "procedural" ? { body: word, tools: [] } : word,
+          ...(rc.use
+            ? {
+                provenance: {
+                  ...make(-1, source.scope, source.owner, word).provenance,
+                  ref: rc.ref,
+                },
+              }
+            : {}),
           ttl: source.ttl,
           // Model, compaction and external content carries no grants (decision D4).
           grants:
@@ -1949,10 +2033,49 @@ async function promotionsLandOnlyWherePermitted(name: string) {
               ]
             : [],
         );
+        // The replay the promoter presents in a replay case.
+        const refTasks = rc.ref.startsWith("distill:")
+          ? [
+              ...new Set(
+                rc.ref
+                  .split(":")[2]
+                  ?.split(",")
+                  .map((x) => P_SESSIONS.get(x) ?? x),
+              ),
+            ]
+          : [];
+        const heldOut = Array.from({ length: rc.n }, (_, i) => `h${i}`);
+        const presented = rc.use
+          ? {
+              item_id: rc.ownItem ? P_SOURCE_ID : pId(99),
+              content_hash: strictContentHash(
+                rc.ownContent ? { body: word, tools: [] } : { body: "other", tools: [] },
+              ),
+              induced_from: rc.induced === "ref" ? refTasks : rc.induced === "t1" ? ["t1"] : [],
+              threshold: rc.threshold,
+              outcomes: (rc.leak ? ["t1", ...heldOut.slice(1)] : heldOut).flatMap((task, i) =>
+                rc.seeds.map((seed) => ({
+                  task,
+                  seed,
+                  without: 0,
+                  with: i < rc.passes ? 1 : 0,
+                })),
+              ),
+            }
+          : undefined;
         const logLength = plane.events().length;
         const result = await plane.promote(actor, P_SOURCE_ID, target, when, {
           review: promoter.review,
+          ...(presented ? { replay: presented } : {}),
         });
+        if (presented) {
+          const id = result.event.policy_id;
+          if (id === "engram/promote/validation-source") replaySeen.source++;
+          if (id === "engram/promote/replay-item") replaySeen.item++;
+          if (id === "engram/promote/replay-split") replaySeen.split++;
+          if (id === "engram/promote/no-evidence") replaySeen.short++;
+          if (result.decision === "allow") replaySeen.landed++;
+        }
         const added = plane.events().slice(logLength);
         expect(added[0], "the decision is the first event the promotion appends").toEqual(
           result.event,
@@ -2035,8 +2158,17 @@ async function promotionsLandOnlyWherePermitted(name: string) {
         const landed = result.event.item as MemoryItem;
         expect(result.item === null || result.item.id === landed.id).toBe(true);
         expect(
-          promotionPermitted(policy, actor, P_SOURCE_ID, target, log, promoter.review, when),
-          `a promotion landed without the evidence ADR 0026 asks for: ${shown}`,
+          promotionPermitted(
+            policy,
+            actor,
+            P_SOURCE_ID,
+            target,
+            log,
+            promoter.review,
+            when,
+            presented ? { replay: presented, sessions: P_SESSIONS } : undefined,
+          ),
+          `a promotion landed without the evidence ADR 0026 asks for: ${shown}${presented ? `; replay ${JSON.stringify(presented)} under ref ${rc.ref}` : ""}`,
         ).toBe(true);
         const { source: _source, ...judged } = actor;
         expect(
@@ -2053,6 +2185,10 @@ async function promotionsLandOnlyWherePermitted(name: string) {
     ),
     { numRuns: RUNS, seed: seedFor(name) },
   );
+  expect(
+    Object.values(replaySeen).every((n) => n > 0),
+    `invariant 2 over promotions needs replay admissions and refusals by the presenter's source, another item's replay, a split that is not the ref's, and too few passes; it saw ${JSON.stringify(replaySeen)}`,
+  ).toBe(true);
   expect(
     Object.values(seen).every((n) => n > 0),
     `invariant 2 over promotions needs landings by confirmation and by review, an ask, refusals where only the distinct-actor rule, only the trusted-kind rule, only retired confirmers, only the owner-as-reviewer rule or only the target's write rule stood in the way, and refusals by authorship, confirmation, expiry, hidden text, a widening's source, a duplicate, reach and a read grant; it saw ${JSON.stringify(seen)}`,
