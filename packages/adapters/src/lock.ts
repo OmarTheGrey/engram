@@ -13,12 +13,14 @@
 // between creating and filling it) is judged by its file time. Otherwise the
 // writer waits, and refuses, naming the holder, once one holder has kept the
 // lock for `waitMs` by the wall clock. The wait bounds one holder, not the
-// queue: each time the lock passes to another holder it starts again. The
-// lock is not fair (a holder with another write queued takes it again before
-// a waiter's next poll), so a waiter can sit behind many writes in turn, and
-// a bound on the whole wait refused a write while every writer before it was
-// making progress (the M-2 flake, 2026-11-22). Breaking is serialised through a second file (`<lock>.break`), so
-// two waiters never remove each other's fresh lock; a holder removes the lock
+// queue: it starts again at each new acquisition, seen as a new lock text
+// (another instance's token or a new start time). The lock is not fair (a
+// holder with another write queued takes it again before a waiter's next
+// poll), so a waiter can sit behind many writes in turn, and a bound on the
+// whole wait refused a write while every writer before it was making
+// progress (the M-2 flake, 2026-11-22). Breaking is serialised through a
+// second file (`<lock>.break`), so two waiters never remove each other's
+// fresh lock; a holder removes the lock
 // only while it still holds its own token. Tests replace the clock and add
 // pause points through `seams` (test seams only; the defaults are the wall
 // clock and no-ops).
@@ -39,7 +41,10 @@ import { codeOf, isMissing, isRecord, sleep } from "./fs-safe.ts";
  * one minute at most.
  */
 export const LOCK_STALE_MS = 60_000;
-/** Default wait for one live holder of the lock, by the wall clock; it starts again at each hand-over. */
+/**
+ * Default wait for one live holder of the lock, by the wall clock; it starts
+ * again at each new acquisition (another instance's token or a new start time).
+ */
 export const LOCK_WAIT_MS = 10_000;
 const BUSY = ["EEXIST", "EPERM", "EACCES", "EBUSY"];
 
@@ -56,7 +61,11 @@ export interface LockSeams {
 export interface StoreLockOptions {
   /** The lock file's path. */
   path: string;
-  /** How long to wait for one live holder, in ms; it starts again whenever the lock changes hands. */
+  /**
+   * How long to wait for one live holder, in ms; it starts again at each new
+   * acquisition, seen as a new lock text (another instance's token or a new
+   * start time).
+   */
   waitMs: number;
   /** Starts the refusal message, for example `files adapter`. */
   label: string;
@@ -208,7 +217,8 @@ export function createStoreLock(options: StoreLockOptions): StoreLock {
     let seen: string | undefined;
     for (let attempt = 0; !(await tryLock()); attempt++) {
       const text = await readLock();
-      // Another holder since the last poll: the store is live, so the wait starts again.
+      // Each new acquisition, seen as a new lock text (another instance's token
+      // or a new start time): the store is live, so the wait starts again.
       if (text !== undefined && text !== seen) {
         if (seen !== undefined) deadline = now() + waitMs;
         seen = text;

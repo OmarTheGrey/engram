@@ -78,7 +78,11 @@ export interface FilesAdapterOptions {
   importValidFrom?: string;
   /** Confidence for imported files. Default 0.5: model-written, never reviewed. */
   importConfidence?: number;
-  /** How long a write or delete waits for any one other writer holding the lock, in ms; a hand-over starts it again. Default 10 000. */
+  /**
+   * How long a write or delete waits for any one other writer holding the
+   * lock, in ms; each new acquisition (another instance's token or a new
+   * start time) starts it again. Default 10 000.
+   */
   lockWaitMs?: number;
   /**
    * Test seams for the folder lock, never set in production: the defaults are

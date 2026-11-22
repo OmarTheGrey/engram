@@ -12,9 +12,9 @@ evidence:
 supersedes: none
 ---
 
-**What.** The store lock's wait bounds one holder and starts again each time the lock changes hands; the lock is not made fair and the 10 s default is not raised.
+**What.** The store lock's wait bounds one holder and starts again at each new acquisition; the lock is not made fair and the 10 s default is not raised.
 
-**Why.** The refusal is for a stuck or slow writer, and its message names one holder; a queue of live writers is progress. A higher default only moves the threshold. A fair lock across processes needs a ticket queue in files. A hand-over shows as a new lock text, since each acquisition records its own token and time.
+**Why.** The refusal is for a stuck or slow writer, and its message names one holder; a queue of live writers is progress. A higher default only moves the threshold. A fair lock across processes needs a ticket queue in files. Each new acquisition is seen as a new lock text (another instance's token or a new start time); the token is per instance.
 
 **Result.** ADR 0013 amendment, proposed. The files and Letta adapters both take it; no option or default changed.
 
