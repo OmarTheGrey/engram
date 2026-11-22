@@ -62,7 +62,8 @@ export function sideBySide(
 ): string[] {
   const n = Math.max(left.length, right.length);
   const out: string[] = [];
-  for (let i = 0; i < n; i++) out.push(fit(left[i] ?? "", leftWidth) + fit(right[i] ?? "", rightWidth));
+  for (let i = 0; i < n; i++)
+    out.push(fit(left[i] ?? "", leftWidth) + fit(right[i] ?? "", rightWidth));
   return out;
 }
 

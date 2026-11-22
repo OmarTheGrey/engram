@@ -6,14 +6,25 @@
 // run through `run` (./runner.ts), asking first where the registry entry's
 // `writes` says the command changes state (9.5); what the plane decided is
 // shown as the command printed it.
-import { type Component, type NativeClipboard, type Terminal, TuiAltScreen } from "@earendil-works/pi-tui";
+import {
+  type Component,
+  type NativeClipboard,
+  type Terminal,
+  TuiAltScreen,
+} from "@earendil-works/pi-tui";
 import type { CommandSpec, Values, Writes } from "../registry.ts";
 import type { Io } from "../run.ts";
 import { commandLine, detectShell, middleCut, type Shell } from "./argv.ts";
 import { type Clipboard, createClipboard } from "./clipboard.ts";
 import { actionFor } from "./keys.ts";
 import { cut, fit, overlay, rows, visibleWidth } from "./layout.ts";
-import { ConfirmOverlay, HelpOverlay, PaletteOverlay, registerWorkspaceScreen } from "./overlays.ts";
+import {
+  ConfirmOverlay,
+  HelpOverlay,
+  PaletteOverlay,
+  registerWorkspaceScreen,
+} from "./overlays.ts";
+import { type RunResult, runCommand } from "./runner.ts";
 import { forgetSaved, loadSaved, writeSaved } from "./saved.ts";
 import type { CommandRow, ConfirmRequest, Ctx, Overlay, Ran, Screen } from "./screen.ts";
 import { FirstRunScreen } from "./screens/first-run.ts";
@@ -21,7 +32,6 @@ import { FormScreen } from "./screens/form.ts";
 import { HomeScreen } from "./screens/home.ts";
 import { tooSmall, tooSmallLines } from "./screens/too-small.ts";
 import { WorkspaceScreen } from "./screens/workspace.ts";
-import { runCommand, type RunResult } from "./runner.ts";
 import { colorModeFor, glyphSetFor, makeTheme, paletteFor, type Theme } from "./theme.ts";
 import { type CheapChecks, cheapChecks, shortPath, usable, Workspace } from "./workspace.ts";
 
@@ -117,7 +127,11 @@ export class App implements Component, Ctx {
     this.noSaved = o.options.noSaved;
     this.mouse = o.options.mouse;
     const platform = o.platform ?? process.platform;
-    const choice = { noColor: o.options.noColor, highContrast: o.options.highContrast, ascii: o.options.ascii };
+    const choice = {
+      noColor: o.options.noColor,
+      highContrast: o.options.highContrast,
+      ascii: o.options.ascii,
+    };
     this.theme = makeTheme(
       paletteFor(choice, o.io.env, o.scheme),
       glyphSetFor(choice, o.io.env, platform),
@@ -248,7 +262,11 @@ export class App implements Component, Ctx {
   }
 
   /** The confirmation a command needs before it runs, or undefined (9.5). */
-  confirmation(spec: CommandSpec, argv: readonly string[], writes: Writes): ConfirmRequest | undefined {
+  confirmation(
+    spec: CommandSpec,
+    argv: readonly string[],
+    writes: Writes,
+  ): ConfirmRequest | undefined {
     const actor = this.ws.actorLabel();
     const isRead = spec.name.startsWith("read") || spec.name === "scopes";
     if (isRead) {
@@ -292,7 +310,11 @@ export class App implements Component, Ctx {
         };
       case "erase": {
         const typed = argv[2] ?? "erase";
-        return { ...base, lines: ["This cannot be undone: a revoked key is never accepted again."], typed };
+        return {
+          ...base,
+          lines: ["This cannot be undone: a revoked key is never accepted again."],
+          typed,
+        };
       }
       case "file": {
         const out = argv[argv.indexOf("--out") + 1] ?? "";
@@ -306,7 +328,11 @@ export class App implements Component, Ctx {
     }
   }
 
-  async act(spec: CommandSpec, argv: readonly string[], values: Values): Promise<RunResult | undefined> {
+  async act(
+    spec: CommandSpec,
+    argv: readonly string[],
+    values: Values,
+  ): Promise<RunResult | undefined> {
     const word = argv[0] as string;
     const why = NOT_RUN_HERE[word];
     if (why !== undefined) {
@@ -320,7 +346,8 @@ export class App implements Component, Ctx {
         this.say("cancelled: nothing ran");
         return undefined;
       }
-      if (spec.name.startsWith("read") || spec.name === "scopes") this.readonce.add(this.ws.argsFor(spec).join("\u0000"));
+      if (spec.name.startsWith("read") || spec.name === "scopes")
+        this.readonce.add(this.ws.argsFor(spec).join("\u0000"));
     }
     return this.runNow(argv);
   }
@@ -449,7 +476,10 @@ export class App implements Component, Ctx {
   private titleBar(width: number): string {
     const wide = width >= 120;
     const left = ` engram  ${this.top().title(this)}`;
-    const log = wide && this.ws.server() === undefined && this.checks.logLabel ? `  log ${this.checks.logLabel}` : "";
+    const log =
+      wide && this.ws.server() === undefined && this.checks.logLabel
+        ? `  log ${this.checks.logLabel}`
+        : "";
     const right = `${this.ws.connectionLabel()}${log}  ${this.ws.actorLabel()} `;
     const gap = width - visibleWidth(left) - visibleWidth(right);
     const text = gap >= 2 ? `${left}${" ".repeat(gap)}${right}` : left;
@@ -461,7 +491,10 @@ export class App implements Component, Ctx {
     const row = this.top().command(this);
     const text = this.commandText(row);
     if (text === "") return row.note === undefined ? "" : cut(`$ ${row.note}`, width);
-    const tail = [row.exit === undefined ? "" : `   exit ${row.exit}`, row.note === undefined ? "" : `  ${row.note}`].join("");
+    const tail = [
+      row.exit === undefined ? "" : `   exit ${row.exit}`,
+      row.note === undefined ? "" : `  ${row.note}`,
+    ].join("");
     const room = Math.max(10, width - 2 - visibleWidth(tail));
     return fit(`$ ${middleCut(text, room)}${tail}`, width);
   }
@@ -471,7 +504,11 @@ export class App implements Component, Ctx {
     const screen = this.top();
     const own = screen.hints(this);
     const end =
-      screen.kind === "home" || screen.kind === "first-run" ? "q quit" : screen.kind === "loop" ? "esc Home" : "esc back";
+      screen.kind === "home" || screen.kind === "first-run"
+        ? "q quit"
+        : screen.kind === "loop"
+          ? "esc Home"
+          : "esc back";
     return cut(` ${own}  ? help  ; commands  ${end}`, width);
   }
 
@@ -479,7 +516,9 @@ export class App implements Component, Ctx {
     const height = this.rows;
     if (tooSmall(width, height)) {
       const row = this.top().command(this);
-      return tooSmallLines(width, height, this.commandText(row) || "engram --help").map((l) => fit(l, width));
+      return tooSmallLines(width, height, this.commandText(row) || "engram --help").map((l) =>
+        fit(l, width),
+      );
     }
     const body = rows(this.top().render(this, width, height - 3), height - 3, width);
     let frame = [this.titleBar(width), ...body, this.commandRow(width), this.hintsRow(width)];

@@ -6,7 +6,7 @@
 // first where the entry's `writes` says it changes state. The result is the
 // command's own output, byte for byte, with its exit code.
 import type { CommandSpec, Values } from "../../registry.ts";
-import { Form, type FormError, type Field } from "../forms.ts";
+import { type Field, Form, type FormError } from "../forms.ts";
 import { cut, fit, para, rows, wrap } from "../layout.ts";
 import type { RunResult } from "../runner.ts";
 import type { CommandRow, Ctx, Screen } from "../screen.ts";
@@ -26,7 +26,12 @@ export class FormScreen implements Screen {
   private error: FormError | undefined;
   private scroll = 0;
 
-  constructor(spec: CommandSpec, ctx: Ctx, values: Values = {}, positionals: readonly string[] = []) {
+  constructor(
+    spec: CommandSpec,
+    ctx: Ctx,
+    values: Values = {},
+    positionals: readonly string[] = [],
+  ) {
     this.form = new Form(spec, ctx.ws, values, positionals);
     // Opened from a pasted command line, show the folds it filled.
     for (const f of this.form.fields) {
@@ -46,7 +51,9 @@ export class FormScreen implements Screen {
 
   rowsOf(): Row[] {
     const fields = this.form.fields.filter((f) => this.visible(f));
-    const out: Row[] = fields.filter((f) => !f.advanced && !f.workspace).map((field) => ({ kind: "field", field }));
+    const out: Row[] = fields
+      .filter((f) => !f.advanced && !f.workspace)
+      .map((field) => ({ kind: "field", field }));
     const advanced = fields.filter((f) => f.advanced && !f.workspace);
     if (advanced.length > 0) {
       out.push({ kind: "fold", fold: "advanced" });
@@ -55,7 +62,8 @@ export class FormScreen implements Screen {
     const workspace = fields.filter((f) => f.workspace);
     if (workspace.length > 0) {
       out.push({ kind: "fold", fold: "workspace" });
-      if (this.open.workspace) out.push(...workspace.map((field): Row => ({ kind: "field", field })));
+      if (this.open.workspace)
+        out.push(...workspace.map((field): Row => ({ kind: "field", field })));
     }
     out.push({ kind: "run" });
     return out;
@@ -103,7 +111,8 @@ export class FormScreen implements Screen {
     }
     const argv = this.form.argv(ctx.ws);
     const result = await ctx.act(this.form.spec, argv, this.form.flagValues());
-    if (result !== undefined) ctx.push(new ResultScreen(this.form.spec, result, this.form.flagValues()));
+    if (result !== undefined)
+      ctx.push(new ResultScreen(this.form.spec, result, this.form.flagValues()));
   }
 
   async action(name: string, ctx: Ctx): Promise<boolean> {
@@ -132,7 +141,8 @@ export class FormScreen implements Screen {
           return true;
         }
         if (r?.kind === "fold") {
-          if (name !== "choose-prev" && name !== "choose-next") this.open[r.fold] = !this.open[r.fold];
+          if (name !== "choose-prev" && name !== "choose-next")
+            this.open[r.fold] = !this.open[r.fold];
           return true;
         }
         if (r?.kind !== "field") return false;
@@ -199,7 +209,10 @@ export class FormScreen implements Screen {
     const f = this.form.field(this.error.field);
     const flag = f === undefined ? undefined : f.positional ? undefined : `--${f.name}`;
     const at = flag === undefined ? -1 : argv.indexOf(flag);
-    return { argv: at < 0 ? argv : [...argv.slice(0, at + 1), "<here>", ...argv.slice(at + 2)], note: "(not run: see the form)" };
+    return {
+      argv: at < 0 ? argv : [...argv.slice(0, at + 1), "<here>", ...argv.slice(at + 2)],
+      note: "(not run: see the form)",
+    };
   }
 
   hints(): string {
@@ -210,13 +223,16 @@ export class FormScreen implements Screen {
     return this.form.spec;
   }
 
-  private control(ctx: Ctx, f: Field, focused: boolean, width: number): string {
+  private control(_ctx: Ctx, f: Field, focused: boolean, width: number): string {
     const v = this.form.get(f.id);
     if (f.boolean) return v === true ? "[x] on" : "[ ] off";
     if (f.choices !== undefined) {
       const choices = ["", ...f.choices];
       return choices
-        .map((c) => `${c === v ? "(o)" : "( )"} ${c === "" ? (f.defaultText === undefined ? "unset" : "default") : c}`)
+        .map(
+          (c) =>
+            `${c === v ? "(o)" : "( )"} ${c === "" ? (f.defaultText === undefined ? "unset" : "default") : c}`,
+        )
         .join("  ");
     }
     const editor = this.form.editors.get(f.id);
@@ -251,7 +267,10 @@ export class FormScreen implements Screen {
       if (on) focusLine = lines.length;
       const mark = on ? ">" : " ";
       if (r.kind === "fold") {
-        const fields = this.form.fields.filter((f) => this.visible(f) && (r.fold === "workspace" ? f.workspace : f.advanced && !f.workspace));
+        const fields = this.form.fields.filter(
+          (f) =>
+            this.visible(f) && (r.fold === "workspace" ? f.workspace : f.advanced && !f.workspace),
+        );
         const glyph = this.open[r.fold] ? t.glyphs.open : t.glyphs.closed;
         const summary =
           r.fold === "workspace"
@@ -264,7 +283,10 @@ export class FormScreen implements Screen {
       if (r.kind === "run") {
         lines.push("");
         if (on) focusLine = lines.length;
-        const label = `[ Run: engram ${spec.name.split(" ").filter((w) => !w.startsWith("--")).join(" ")} ]`;
+        const label = `[ Run: engram ${spec.name
+          .split(" ")
+          .filter((w) => !w.startsWith("--"))
+          .join(" ")} ]`;
         lines.push(`   ${on ? t.reverse(label) : label}   ctrl+s from any field`);
         continue;
       }
@@ -274,7 +296,8 @@ export class FormScreen implements Screen {
       const text = ` ${mark} ${label} ${control}  ${this.hint(f)}`;
       lines.push(on && !this.inField() ? t.reverse(cut(text, width)) : cut(text, width));
       if (this.error?.field === f.id)
-        for (const l of wrap(t.status("fail", this.error.message), width - LABEL - 6)) lines.push(`${" ".repeat(LABEL + 4)}${l}`);
+        for (const l of wrap(t.status("fail", this.error.message), width - LABEL - 6))
+          lines.push(`${" ".repeat(LABEL + 4)}${l}`);
     }
     const room = height - head.length;
     if (focusLine < this.scroll) this.scroll = focusLine;
@@ -307,7 +330,7 @@ export class ResultScreen implements Screen {
 
   private lines(width: number): string[] {
     const text = `${this.result.out}${this.result.err}`.replace(/\n$/, "");
-    return text === "" ? [" (no output)"] : text.split("\n").flatMap((l) => wrap(` ${l}`, width));
+    return text === "" ? [" (no output)"] : text.split("\n").flatMap((l) => para(l, width));
   }
 
   async action(name: string, ctx: Ctx): Promise<boolean> {

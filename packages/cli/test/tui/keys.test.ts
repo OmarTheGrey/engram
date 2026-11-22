@@ -6,14 +6,21 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { actionFor, actionsOn, EVERYWHERE, KEYS, printable, type Where } from "../../src/tui/keys.ts";
+import {
+  actionFor,
+  actionsOn,
+  EVERYWHERE,
+  KEYS,
+  printable,
+  type Where,
+} from "../../src/tui/keys.ts";
 import { offered } from "../../src/tui/overlays.ts";
 import { LETTERS, RESERVED_LETTERS } from "../../src/tui/screens/home.ts";
 import { fixtureCopy, tempDir } from "../helpers.ts";
 import { type Harness, startHarness } from "./harness.ts";
 
 const ALL: Where[] = [...EVERYWHERE, "too-small", "help", "palette", "confirm"];
-const UP = "\x1b[A";
+const _UP = "\x1b[A";
 const DOWN = "\x1b[B";
 const ESC = "\x1b";
 const ENTER = "\r";
@@ -30,27 +37,36 @@ describe("the key table", () => {
         }
       if (where === "home")
         for (const letter of Object.values(LETTERS))
-          expect(seen.get(letter), `home: ${letter} is a letter and ${seen.get(letter)}`).toBeUndefined();
+          expect(
+            seen.get(letter),
+            `home: ${letter} is a letter and ${seen.get(letter)}`,
+          ).toBeUndefined();
     }
   });
 
   it("gives every action a binding with no function key, no Alt, and not ctrl+p or F1 alone", () => {
     for (const a of KEYS) {
-      const plain = a.keys.filter((k) => !/^f\d+$/.test(k) && !k.includes("alt+") && k !== "ctrl+p");
+      const plain = a.keys.filter(
+        (k) => !/^f\d+$/.test(k) && !k.includes("alt+") && k !== "ctrl+p",
+      );
       expect(plain.length, `${a.action} needs a key every terminal passes`).toBeGreaterThan(0);
     }
   });
 
   it("gives every command on Home one letter, none of them a global or list key", () => {
     const letters = offered().map((s) => LETTERS[s.name]);
-    expect(letters.every((l) => l !== undefined && l.length === 1), JSON.stringify(letters)).toBe(true);
+    expect(
+      letters.every((l) => l !== undefined && l.length === 1),
+      JSON.stringify(letters),
+    ).toBe(true);
     expect(new Set(letters).size).toBe(letters.length);
     for (const l of letters) expect(RESERVED_LETTERS as readonly string[]).not.toContain(l);
     for (const d of ["1", "2", "3", "4", "5", "6"]) expect(letters).not.toContain(d);
   });
 
   it("lets a text field type every printable key, : and ; and ? and q included", () => {
-    for (const k of [":", ";", "?", "q", "c", "j", "s", " "]) expect(actionFor(k, "form", true)).toBeUndefined();
+    for (const k of [":", ";", "?", "q", "c", "j", "s", " "])
+      expect(actionFor(k, "form", true)).toBeUndefined();
     expect(actionFor(";", "home", false)).toBe("palette");
     expect(actionFor("\x07", "form", true)).toBe("help"); // ctrl+g
     expect(actionFor("\x10", "form", true)).toBe("palette"); // ctrl+p
@@ -157,7 +173,9 @@ describe("the frame's keys", () => {
     const h = await usable();
     await h.press(";");
     await h.type("--review");
-    expect((await h.frame()).find((l) => l.includes(">") && l.includes("Promote an item"))).toBeDefined();
+    expect(
+      (await h.frame()).find((l) => l.includes(">") && l.includes("Promote an item")),
+    ).toBeDefined();
     await h.press(ESC, ";");
     await h.type("read release --at 2026-10-25T12:00:00Z");
     expect(await h.text()).toContain("Open as typed");
@@ -218,7 +236,9 @@ describe("the frame's keys", () => {
   it("copies by OSC 52 in Windows Terminal", async () => {
     const h = await usable({ env: { WT_SESSION: "1" } });
     await h.press("c");
-    expect(h.term.output).toContain(`\x1b]52;c;${Buffer.from("engram read --db engram.db --owner dana").toString("base64")}\x07`);
+    expect(h.term.output).toContain(
+      `\x1b]52;c;${Buffer.from("engram read --db engram.db --owner dana").toString("base64")}\x07`,
+    );
     expect(await h.text()).toContain("copied");
     await h.quit();
   });
@@ -301,7 +321,9 @@ describe("the first loop", () => {
     await h.type("dana");
     await h.press(ENTER, ENTER);
     expect(h.screen()).toBe("loop");
-    expect(await h.text()).toContain('1  Write    engram write --content "The deploy key rotates every 90 days."');
+    expect(await h.text()).toContain(
+      '1  Write    engram write --content "The deploy key rotates every 90 days."',
+    );
     await h.press(ENTER);
     await h.press(ENTER);
     await h.press(ENTER);

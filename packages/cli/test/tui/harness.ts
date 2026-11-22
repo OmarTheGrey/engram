@@ -6,7 +6,7 @@
 import xterm from "@xterm/headless";
 import type { Values } from "../../src/registry.ts";
 import type { Io } from "../../src/run.ts";
-import { type App, startTui, type Summary, type TuiOptions } from "../../src/tui/app.ts";
+import { type App, type Summary, startTui, type TuiOptions } from "../../src/tui/app.ts";
 import { FakeTerminal } from "../../src/tui/term.ts";
 import { HOME, NOW, REPO, testId } from "../helpers.ts";
 
@@ -121,7 +121,8 @@ export async function startHarness(o: HarnessOptions = {}) {
       await flush();
       const buf = xt.buffer.active;
       const out: string[] = [];
-      for (let i = 0; i < xt.rows; i++) out.push(buf.getLine(buf.viewportY + i)?.translateToString(true) ?? "");
+      for (let i = 0; i < xt.rows; i++)
+        out.push(buf.getLine(buf.viewportY + i)?.translateToString(true) ?? "");
       return out;
     },
     async text(): Promise<string> {

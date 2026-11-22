@@ -1,0 +1,43 @@
+ engram  Write a memory                                                 in process  log engram.db  person:dana (person)
+ engram write: write one item through the plane's write gate
+
+ > Content                [                                          ]
+   From file              [                                          ]
+   Scope                  [                                          ]  default the owner's person scope, else the actor
+   Class                  (o) default  ( ) episodic  ( ) semantic  default semantic
+   Confidence             [                                          ]  default 0.9
+   Valid from             [                                          ]  default now
+   Valid to               [                                          ]  default open
+   ▸ Advanced: 2 more
+   ▸ Workspace flags  --root --owner --db; ctrl+o sets them for every command
+
+   [ Run: engram write ]   ctrl+s from any field
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+$ engram write --db engram.db --owner dana --root mem
+ tab next  space toggle  ctrl+s run  ? help  ; commands  esc back
+--- styles
+r0 c0-119 inverse
+r3 c28-28 inverse

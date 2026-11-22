@@ -9,11 +9,11 @@
 // starts.
 import { existsSync, statSync } from "node:fs";
 import { resolve } from "node:path";
+import { command } from "../../registry.ts";
 import { TextField } from "../fields.ts";
-import { cut, para, rows, wrap } from "../layout.ts";
+import { cut, para, rows } from "../layout.ts";
 import type { CommandRow, Ctx, Screen } from "../screen.ts";
 import type { CheapCheck } from "../workspace.ts";
-import { command } from "../../registry.ts";
 import { ResultScreen } from "./form.ts";
 import { LoopScreen } from "./loop.ts";
 
@@ -100,7 +100,8 @@ export class FirstRunScreen implements Screen {
   private field(): TextField | undefined {
     if (this.question === "who") return this.owner;
     if (this.question === "folder") return this.folder;
-    if (this.question === "log") return this.logChoice === 1 ? this.dbFile : this.logChoice === 3 ? this.dbUrl : undefined;
+    if (this.question === "log")
+      return this.logChoice === 1 ? this.dbFile : this.logChoice === 3 ? this.dbUrl : undefined;
     if (this.question === "policy") return this.policyChoice === 3 ? this.policyFile : undefined;
     return undefined;
   }
@@ -123,7 +124,11 @@ export class FirstRunScreen implements Screen {
     ctx.ws.set("root", this.folder.value.trim(), "set");
     if (this.needsPolicy) {
       const p = POLICY_CHOICES[this.policyChoice];
-      ctx.ws.set("policy", p === "file" ? this.policyFile.value.trim() : p === "medium" ? undefined : p, "set");
+      ctx.ws.set(
+        "policy",
+        p === "file" ? this.policyFile.value.trim() : p === "medium" ? undefined : p,
+        "set",
+      );
     }
     ctx.recheck();
   }
@@ -150,12 +155,13 @@ export class FirstRunScreen implements Screen {
     const failed = (["log", "policy", "actor"] as const).find((k) => c[k].status === "fail");
     if (failed !== undefined) {
       this.problem = `${failed === "actor" ? "who" : failed}: ${c[failed].detail}`;
-      this.question = failed === "actor" ? "who" : failed === "policy" && this.needsPolicy ? "policy" : "log";
+      this.question =
+        failed === "actor" ? "who" : failed === "policy" && this.needsPolicy ? "policy" : "log";
       return;
     }
     this.problem = undefined;
     ctx.save();
-    ctx.replace(new LoopScreen(ctx));
+    ctx.replace(new LoopScreen());
   }
 
   async action(name: string, ctx: Ctx): Promise<boolean> {
@@ -174,9 +180,11 @@ export class FirstRunScreen implements Screen {
       case "field-up":
       case "field-down": {
         const step = name === "field-up" ? -1 : 1;
-        if (this.question === "log") this.logChoice = (this.logChoice + step + LOG_CHOICES.length) % LOG_CHOICES.length;
+        if (this.question === "log")
+          this.logChoice = (this.logChoice + step + LOG_CHOICES.length) % LOG_CHOICES.length;
         else if (this.question === "policy")
-          this.policyChoice = (this.policyChoice + step + POLICY_CHOICES.length) % POLICY_CHOICES.length;
+          this.policyChoice =
+            (this.policyChoice + step + POLICY_CHOICES.length) % POLICY_CHOICES.length;
         else this.move(ctx, step);
         this.apply(ctx);
         return true;
@@ -208,17 +216,21 @@ export class FirstRunScreen implements Screen {
       const v = ctx.ws.get(f as never);
       return v === undefined ? [] : [`--${f}`, v];
     });
-    return { text: flags.length === 0 ? "" : ctx.line(flags).replace(/^engram /, ""), note: "(every command)" };
+    if (flags.length === 0)
+      return { text: "", note: "(no flags yet: every command takes the CLI's defaults)" };
+    return { text: ctx.line(flags).replace(/^engram /, ""), note: "(every command)" };
   }
 
   hints(): string {
-    return "tab next  shift+tab back  enter accept  d doctor  L line mode";
+    return "tab next  shift+tab back  enter accept  d doctor";
   }
 
-  private checkLine(ctx: Ctx, name: string, c: CheapCheck | undefined): string {
-    if (c === undefined) return "";
+  private checkLines(ctx: Ctx, name: string, c: CheapCheck | undefined, width: number): string[] {
+    if (c === undefined) return [];
     const word = c.status === "ok" ? "ok" : c.status === "fail" ? "fail" : "skip";
-    return `    ${ctx.theme.status(c.status, word)}  ${name}: ${c.detail}`;
+    const lines = para(`${name}: ${c.detail}`, width, " ".repeat(12));
+    lines[0] = `    ${ctx.theme.status(c.status, word)}  ${(lines[0] ?? "").trimStart()}`;
+    return lines;
   }
 
   render(ctx: Ctx, width: number, height: number): string[] {
@@ -239,17 +251,22 @@ export class FirstRunScreen implements Screen {
       const row = `     ${radio} ${c.label}   ${extra}`;
       lines.push(focused && !this.inField() ? t.reverse(cut(row, width)) : row);
     }
-    lines.push("", this.checkLine(ctx, "log", ctx.checks.log), "");
+    lines.push("", ...this.checkLines(ctx, "log", ctx.checks.log, width), "");
     let n = 2;
     if (this.needsPolicy) {
       lines.push(` ${mark(q === "policy")} ${n}  Which policy?`);
       for (const [i, p] of POLICY_CHOICES.entries()) {
         const radio = i === this.policyChoice ? "(o)" : "( )";
         const focused = q === "policy" && i === this.policyChoice;
-        const extra = p === "file" ? `a file  [ ${this.policyFile.render(30, focused)} ]` : p === "medium" ? "medium   the default preset" : `${p}   a bundled preset`;
+        const extra =
+          p === "file"
+            ? `a file  [ ${this.policyFile.render(30, focused)} ]`
+            : p === "medium"
+              ? "medium   the default preset"
+              : `${p}   a bundled preset`;
         lines.push(`     ${radio} ${extra}`);
       }
-      lines.push(this.checkLine(ctx, "policy", ctx.checks.policy), "");
+      lines.push(...this.checkLines(ctx, "policy", ctx.checks.policy, width), "");
       n++;
     }
     const owner = this.owner.value.trim();
@@ -262,9 +279,21 @@ export class FirstRunScreen implements Screen {
       ` ${mark(q === "folder")} ${n}  Which memory folder?  [ ${this.folder.render(16, q === "folder")} ]  ${folder === undefined ? "optional; enter with it empty skips" : `${t.symbol(folder.status)} ${folder.detail}`}`,
     );
     lines.push("");
-    if (this.problem !== undefined) lines.push(...para(`${t.status("fail", this.problem)}`, width), "");
-    lines.push(...wrap(" Nothing is written until your first read or write. Every answer is a flag: you can type the same thing at the shell next time.", width - 1));
-    lines.push("", " Using a screen reader? Line mode (L, or ENGRAM_TUI_LINE=1) comes with card E8.15e.");
+    if (this.problem !== undefined)
+      lines.push(...para(`${t.status("fail", this.problem)}`, width), "");
+    lines.push(
+      ...para(
+        "Nothing is written until your first read or write. Every answer is a flag: you can type the same thing at the shell next time.",
+        width,
+      ),
+    );
+    lines.push(
+      "",
+      ...para(
+        "Using a screen reader? Line mode (L, or ENGRAM_TUI_LINE=1) comes with card E8.15e.",
+        width,
+      ),
+    );
     return rows(lines, height, width);
   }
 }

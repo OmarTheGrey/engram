@@ -6,15 +6,15 @@
 // pasted command line as its form; and the confirmation, one shape for
 // every action that changes state, the safe button focused.
 import { fuzzyFilter } from "@earendil-works/pi-tui";
+import { parse } from "../commands.ts";
 import {
-  closest,
   type CommandSpec,
+  closest,
   commandWords,
   parseOptions,
   REGISTRY,
   type Values,
 } from "../registry.ts";
-import { parse } from "../commands.ts";
 import { splitWords } from "./argv.ts";
 import { TextField } from "./fields.ts";
 import { actionsOn, EVERYWHERE, type KeyAction } from "./keys.ts";
@@ -46,7 +46,15 @@ function keyLines(actions: readonly KeyAction[], width: number): string[] {
   return lines;
 }
 
-const GLOBAL_ACTIONS = new Set(["help", "palette", "workspace", "back", "copy", "redraw", "quit-now"]);
+const GLOBAL_ACTIONS = new Set([
+  "help",
+  "palette",
+  "workspace",
+  "back",
+  "copy",
+  "redraw",
+  "quit-now",
+]);
 
 export class HelpOverlay implements Overlay {
   readonly kind = "help" as const;
@@ -64,7 +72,9 @@ export class HelpOverlay implements Overlay {
   private body(ctx: Ctx, inner: number): string[] {
     const kind = this.screen.kind;
     const own = actionsOn(kind).filter((a) => !GLOBAL_ACTIONS.has(a.action));
-    const everywhere = actionsOn(EVERYWHERE[0] as "home").filter((a) => GLOBAL_ACTIONS.has(a.action));
+    const everywhere = actionsOn(EVERYWHERE[0] as "home").filter((a) =>
+      GLOBAL_ACTIONS.has(a.action),
+    );
     const lines = [
       "This screen",
       ...(own.length > 0 ? keyLines(own, inner) : ["  no keys of its own"]),
@@ -91,9 +101,16 @@ export class HelpOverlay implements Overlay {
     const shown = body.slice(this.offset, this.offset + room);
     if (body.length > room) {
       const below = body.length - this.offset - room;
-      shown[shown.length - 1] = below > 0 ? ` ${ctx.theme.glyphs.open} ${below} more: down` : (shown.at(-1) ?? "");
+      shown[shown.length - 1] =
+        below > 0 ? ` ${ctx.theme.glyphs.open} ${below} more: down` : (shown.at(-1) ?? "");
     }
-    return box(ctx.theme, `Help: ${this.screen.title(ctx)}`, shown, width, Math.min(height, body.length + 2));
+    return box(
+      ctx.theme,
+      `Help: ${this.screen.title(ctx)}`,
+      shown,
+      width,
+      Math.min(height, body.length + 2),
+    );
   }
 
   action(name: string, ctx: Ctx): boolean {
@@ -130,7 +147,10 @@ export function specOfWords(words: readonly string[]): CommandSpec | undefined {
   let best: CommandSpec | undefined;
   for (const s of offered()) {
     const n = s.name.split(" ");
-    if (n.every((w, i) => words[i] === w) && (best === undefined || n.length > best.name.split(" ").length))
+    if (
+      n.every((w, i) => words[i] === w) &&
+      (best === undefined || n.length > best.name.split(" ").length)
+    )
       best = s;
   }
   return best;
@@ -151,16 +171,38 @@ export class PaletteOverlay implements Overlay {
       (s): PaletteItem => ({
         label: s.title,
         command: `engram ${s.usage}`,
-        search: [s.title, s.name, ...Object.keys(s.options).map((o) => `--${o}`), s.summary].join(" "),
+        search: [s.title, s.name, ...Object.keys(s.options).map((o) => `--${o}`), s.summary].join(
+          " ",
+        ),
         run: (c) => c.openCommand(s),
       }),
     );
     const own: PaletteItem[] = [
-      { label: "Open the workspace", command: "ctrl+o", search: "workspace switch actor connection log", run: (c) => c.push(workspaceScreen(c)) },
-      { label: "Forget saved workspace", command: "tui.json", search: "forget saved workspace delete", run: (c) => forgetFlow(c) },
+      {
+        label: "Open the workspace",
+        command: "ctrl+o",
+        search: "workspace switch actor connection log",
+        run: (c) => c.push(workspaceScreen(c)),
+      },
+      {
+        label: "Forget saved workspace",
+        command: "tui.json",
+        search: "forget saved workspace delete",
+        run: (c) => forgetFlow(c),
+      },
       { label: "Home", command: "", search: "home menu", run: (c) => c.home() },
-      { label: "Line mode", command: "card E8.15e", search: "line mode screen reader", run: (c) => c.say("line mode comes with card E8.15e; engram --help lists the plain commands") },
-      { label: "Procedures: not yet available (backlog)", command: "", search: "procedures distill" },
+      {
+        label: "Line mode",
+        command: "card E8.15e",
+        search: "line mode screen reader",
+        run: (c) =>
+          c.say("line mode comes with card E8.15e; engram --help lists the plain commands"),
+      },
+      {
+        label: "Procedures: not yet available (backlog)",
+        command: "",
+        search: "procedures distill",
+      },
     ];
     const recent = [...ctx.ran].reverse().map(
       (r): PaletteItem => ({
@@ -215,7 +257,8 @@ export class PaletteOverlay implements Overlay {
     else if (name === "down") this.selected = Math.min(items.length - 1, this.selected + 1);
     else if (name === "fill") {
       const item = items[this.selected];
-      if (item?.command.startsWith("engram ")) this.query.set(item.command.replace(/ <[^>]+>| \[[^\]]+\]/g, ""));
+      if (item?.command.startsWith("engram "))
+        this.query.set(item.command.replace(/ <[^>]+>| \[[^\]]+\]/g, ""));
     } else if (name === "choose") {
       const item = items[this.selected];
       if (item?.run === undefined) {
@@ -267,7 +310,11 @@ export function openLine(ctx: Ctx, words: readonly string[]): void {
   const spec = specOfWords(words);
   if (spec === undefined) throw new Error(`no command starts ${words.slice(0, 2).join(" ")}`);
   const nameWords = spec.name.split(" ").filter((w) => !w.startsWith("--"));
-  const { values, positionals } = parse([...words.slice(1)], parseOptions(spec), spec.allowPositionals);
+  const { values, positionals } = parse(
+    [...words.slice(1)],
+    parseOptions(spec),
+    spec.allowPositionals,
+  );
   ctx.openCommand(spec, values as Values, positionals.slice(nameWords.length - 1));
 }
 
@@ -290,7 +337,11 @@ export async function forgetFlow(ctx: Ctx): Promise<void> {
     action: "Forget",
   });
   if (!yes) return;
-  ctx.say(ctx.forget() ? "the saved workspace is forgotten: tui.json deleted" : "there was no saved workspace");
+  ctx.say(
+    ctx.forget()
+      ? "the saved workspace is forgotten: tui.json deleted"
+      : "there was no saved workspace",
+  );
 }
 
 export class ConfirmOverlay implements Overlay {
@@ -318,14 +369,22 @@ export class ConfirmOverlay implements Overlay {
     const inner = width - 2;
     const body: string[] = [];
     for (const p of this.request.lines) body.push(...para(`${p}`, inner), "");
-    if (this.request.argv !== undefined) body.push(...para(`$ ${ctx.line(this.request.argv)}`, inner), "");
+    if (this.request.argv !== undefined)
+      body.push(...para(`$ ${ctx.line(this.request.argv)}`, inner), "");
     if (this.typed !== undefined)
-      body.push(` Type ${this.request.typed} to go on: [ ${this.typed.render(Math.min(40, inner - 22), true)} ]`, "");
-    const button = (label: string, on: boolean) => (on ? ctx.theme.reverse(`[ ${label} ]`) : `[ ${label} ]`);
+      body.push(
+        ` Type ${this.request.typed} to go on: [ ${this.typed.render(Math.min(40, inner - 22), true)} ]`,
+        "",
+      );
+    const button = (label: string, on: boolean) =>
+      on ? ctx.theme.reverse(`[ ${label} ]`) : `[ ${label} ]`;
     body.push(
       `       ${button("Cancel", this.focus === "cancel")}      ${button(this.request.action, this.focus === "action")}`,
     );
-    body.push("", ` y ${this.request.action.toLowerCase()}   n or esc cancel   tab the other button`);
+    body.push(
+      "",
+      ` y ${this.request.action.toLowerCase()}   n or esc cancel   tab the other button`,
+    );
     return box(ctx.theme, this.request.title, body, width, Math.min(height, body.length + 2));
   }
 

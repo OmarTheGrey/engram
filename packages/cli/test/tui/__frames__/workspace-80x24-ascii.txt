@@ -1,0 +1,27 @@
+ engram  Workspace                             in process  person:dana (person)
+ > Connection             (o) in process  ( ) server
+   Event log              [ engram.db                      ]  from a flag; a ...
+   Policy                 [                                ]  strict, medium,...
+   Store kind             (o) default  ( ) files  ( ) letta
+   Store folder           [ mem                            ]  from a flag
+   Owner                  [ dana                           ]  from a flag; th...
+   Acting as              [                                ]  a principal suc...
+   Level                  (o) default  ( ) person  ( ) role  ( ) team  ( ) org
+   Member of              the actor's own scope  [                      ]  en...
+
+ Advanced
+   Imported valid from    [                                ]  default each fi...
+   Key file               [                                ]
+   Decision export OTLP   [                                ]  off unless name...
+   Decision export file   [                                ]
+
+ Saved in ~/.engram/tui.json: flags only.
+   [ Forget saved workspace ]
+   [ Apply and save ]
+
+
+$ --db engram.db --owner dana --root mem  (every command)
+ tab next  space choose  enter apply and save  ? help  ; commands  esc back
+--- styles
+r0 c0-79 inverse
+r1 c0-79 inverse

@@ -4,21 +4,32 @@
 // prints the help with its new first line and exits 2; on a terminal the TUI
 // starts, and quitting prints the session's commands unless --quiet.
 import { describe, expect, it } from "vitest";
-import { HELP } from "../../src/run.ts";
-import { type Io, run } from "../../src/run.ts";
-import { FakeTerminal } from "../../src/tui/term.ts";
+import { HELP, type Io, run } from "../../src/run.ts";
 import { tuiCommand } from "../../src/tui/main.ts";
 import { writeSaved } from "../../src/tui/saved.ts";
+import { FakeTerminal } from "../../src/tui/term.ts";
 import { cli, HOME, NOW, REPO, tempDir, testId } from "../helpers.ts";
 
 /** A stream that says it is a terminal, or not, and records what is written to it. */
 const stream = (tty: boolean) => {
-  const s = { isTTY: tty, written: "", write: (d: string) => ((s.written += d), true), pause: () => undefined };
+  const s = {
+    isTTY: tty,
+    written: "",
+    write: (d: string) => {
+      s.written += d;
+      return true;
+    },
+    pause: () => undefined,
+  };
   return s;
 };
 
 let n = 9000;
-function ioFor(env: Record<string, string | undefined>, tty: { stdin: boolean; stdout: boolean }, home = HOME) {
+function ioFor(
+  env: Record<string, string | undefined>,
+  tty: { stdin: boolean; stdout: boolean },
+  home = HOME,
+) {
   const stdin = stream(tty.stdin);
   const stdout = stream(tty.stdout);
   const got = { out: "", err: "" };
@@ -67,8 +78,20 @@ describe("engram tui refuses to start (5.2)", () => {
       { stdin: false, stdout: true },
       "engram tui: stdin is not a terminal; run the plain commands (engram --help lists them)\n",
     ],
-    ["CI is set", [], { CI: "true" }, TTY, "engram tui: CI is set; run the plain commands (engram --help lists them)\n"],
-    ["TERM is dumb", [], { TERM: "dumb" }, TTY, "engram tui: TERM is dumb; try engram tui --line, or the plain commands\n"],
+    [
+      "CI is set",
+      [],
+      { CI: "true" },
+      TTY,
+      "engram tui: CI is set; run the plain commands (engram --help lists them)\n",
+    ],
+    [
+      "TERM is dumb",
+      [],
+      { TERM: "dumb" },
+      TTY,
+      "engram tui: TERM is dumb; try engram tui --line, or the plain commands\n",
+    ],
     [
       "--json anywhere",
       ["--owner", "dana", "--json"],
@@ -162,7 +185,11 @@ describe("the help names engram tui", () => {
 });
 
 describe("engram tui on a terminal", () => {
-  async function session(args: string[], keys: (term: FakeTerminal) => Promise<void>, home?: string) {
+  async function session(
+    args: string[],
+    keys: (term: FakeTerminal) => Promise<void>,
+    home?: string,
+  ) {
     const h = home ?? (await tempDir());
     const { io, got, stdout } = ioFor({ LANG: "C.UTF-8" }, TTY, h);
     const term = new FakeTerminal({ columns: 80, rows: 24 });

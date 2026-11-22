@@ -152,14 +152,20 @@ export class Form {
   /** The field ids the person changed, so leaving asks first. */
   readonly touched = new Set<string>();
 
-  constructor(spec: CommandSpec, ws: Workspace, values: Values = {}, positionals: readonly string[] = []) {
+  constructor(
+    spec: CommandSpec,
+    ws: Workspace,
+    values: Values = {},
+    positionals: readonly string[] = [],
+  ) {
     this.spec = spec;
     this.fields = formFields(spec);
     for (const f of this.fields) {
       if (f.boolean) this.values.set(f.id, false);
       else if (f.multiple) this.values.set(f.id, f.workspace ? [...ws.list(f.name as never)] : []);
       else if (f.choices) this.values.set(f.id, f.workspace ? (ws.get(f.name as never) ?? "") : "");
-      else this.editors.set(f.id, new TextField(f.workspace ? (ws.get(f.name as never) ?? "") : ""));
+      else
+        this.editors.set(f.id, new TextField(f.workspace ? (ws.get(f.name as never) ?? "") : ""));
       if (f.multiple) this.editors.set(f.id, new TextField(""));
     }
     this.fill(values, positionals);
@@ -245,7 +251,8 @@ export class Form {
       else out.push(v);
     });
     const local = ws.clone();
-    for (const f of this.fields) if (f.workspace) local.set(f.name as never, this.get(f.id) as never);
+    for (const f of this.fields)
+      if (f.workspace) local.set(f.name as never, this.get(f.id) as never);
     for (const f of this.fields) {
       if (f.positional || f.workspace) continue;
       if (f.name === "at" && !this.offersAt()) continue;

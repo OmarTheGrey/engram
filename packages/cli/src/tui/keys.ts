@@ -5,7 +5,7 @@
 // read it. On each screen a key has one meaning. Every action has a binding
 // with no function key, no Alt and neither ctrl+p nor F1 alone, which
 // VS Code keeps for itself (they are only ever second bindings).
-import { type KeyId, KeybindingsManager, matchesKey } from "@earendil-works/pi-tui";
+import { KeybindingsManager, type KeyId, matchesKey } from "@earendil-works/pi-tui";
 import type { OverlayKind, ScreenKind } from "./screen.ts";
 
 /** Where a binding acts: the screens and overlays it names. */
@@ -51,7 +51,13 @@ export const KEYS: readonly KeyAction[] = [
     description: "commands",
     where: EVERYWHERE,
   },
-  { action: "workspace", keys: ["ctrl+o"], label: "ctrl+o", description: "workspace", where: EVERYWHERE },
+  {
+    action: "workspace",
+    keys: ["ctrl+o"],
+    label: "ctrl+o",
+    description: "workspace",
+    where: EVERYWHERE,
+  },
   { action: "back", keys: ["escape"], label: "esc", description: "back", where: EVERYWHERE },
   {
     action: "copy",
@@ -75,7 +81,13 @@ export const KEYS: readonly KeyAction[] = [
     where: [...EVERYWHERE, "too-small", "help", "palette", "confirm"],
   },
   // Quitting and line mode.
-  { action: "quit", keys: ["q"], label: "q", description: "quit", where: ["home", "first-run", "too-small"] },
+  {
+    action: "quit",
+    keys: ["q"],
+    label: "q",
+    description: "quit",
+    where: ["home", "first-run", "too-small"],
+  },
   {
     action: "leave",
     keys: ["q"],
@@ -117,7 +129,13 @@ export const KEYS: readonly KeyAction[] = [
     description: "previous field",
     where: FIELDS,
   },
-  { action: "field-up", keys: ["up"], label: "up", description: "the field or choice above", where: FIELDS },
+  {
+    action: "field-up",
+    keys: ["up"],
+    label: "up",
+    description: "the field or choice above",
+    where: FIELDS,
+  },
   {
     action: "field-down",
     keys: ["down"],
@@ -156,7 +174,13 @@ export const KEYS: readonly KeyAction[] = [
   },
   { action: "doctor", keys: ["d"], label: "d", description: "run doctor", where: ["first-run"] },
   // The first loop.
-  { action: "run-step", keys: ["enter"], label: "enter", description: "run this step", where: ["loop"] },
+  {
+    action: "run-step",
+    keys: ["enter"],
+    label: "enter",
+    description: "run this step",
+    where: ["loop"],
+  },
   {
     action: "skip",
     keys: ["s", "ctrl+n"],
@@ -165,16 +189,52 @@ export const KEYS: readonly KeyAction[] = [
     where: ["loop"],
   },
   // Results.
-  { action: "rerun", keys: ["r"], label: "r", description: "run again with the same flags", where: ["result"] },
+  {
+    action: "rerun",
+    keys: ["r"],
+    label: "r",
+    description: "run again with the same flags",
+    where: ["result"],
+  },
   // Overlays.
-  { action: "close", keys: ["escape"], label: "esc", description: "close", where: ["help", "palette"] },
+  {
+    action: "close",
+    keys: ["escape"],
+    label: "esc",
+    description: "close",
+    where: ["help", "palette"],
+  },
   { action: "close-help", keys: ["?"], label: "?", description: "close", where: ["help"] },
   { action: "up", keys: ["up"], label: "up", description: "move up", where: ["help", "palette"] },
-  { action: "down", keys: ["down"], label: "down", description: "move down", where: ["help", "palette"] },
-  { action: "choose", keys: ["enter"], label: "enter", description: "open", where: ["palette", "confirm"] },
-  { action: "fill", keys: ["tab"], label: "tab", description: "fill the line with the command", where: ["palette"] },
+  {
+    action: "down",
+    keys: ["down"],
+    label: "down",
+    description: "move down",
+    where: ["help", "palette"],
+  },
+  {
+    action: "choose",
+    keys: ["enter"],
+    label: "enter",
+    description: "open",
+    where: ["palette", "confirm"],
+  },
+  {
+    action: "fill",
+    keys: ["tab"],
+    label: "tab",
+    description: "fill the line with the command",
+    where: ["palette"],
+  },
   { action: "yes", keys: ["y"], label: "y", description: "the action", where: ["confirm"] },
-  { action: "no", keys: ["n", "escape"], label: "n esc", description: "cancel", where: ["confirm"] },
+  {
+    action: "no",
+    keys: ["n", "escape"],
+    label: "n esc",
+    description: "cancel",
+    where: ["confirm"],
+  },
   {
     action: "switch",
     keys: ["tab", "shift+tab", "left", "right"],
@@ -198,7 +258,10 @@ function managerFor(where: Where) {
   if (m === undefined) {
     const actions = KEYS.filter((k) => k.where.includes(where));
     const definitions = Object.fromEntries(
-      actions.map((a, i) => [bindingId(i, a), { defaultKeys: [...a.keys], description: a.description }]),
+      actions.map((a, i) => [
+        bindingId(i, a),
+        { defaultKeys: [...a.keys], description: a.description },
+      ]),
     );
     m = { manager: new KeybindingsManager(definitions), actions };
     managers.set(where, m);

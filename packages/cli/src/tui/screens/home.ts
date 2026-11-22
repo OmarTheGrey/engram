@@ -6,7 +6,7 @@
 // opens its command. No letter is one of the keys that act everywhere or in
 // lists. At 80x24 the list scrolls and says how much is below.
 import { type CommandSpec, GROUPS, type Group, type Values, type Writes } from "../../registry.ts";
-import { box, cut, fit, para, sideBySide, wrap } from "../layout.ts";
+import { box, cut, fit, para, sideBySide } from "../layout.ts";
 import { offered } from "../overlays.ts";
 import type { CommandRow, Ctx, Screen } from "../screen.ts";
 import { shortPath } from "../workspace.ts";
@@ -206,8 +206,8 @@ export class HomeScreen implements Screen {
         const card = r.spec.card === undefined ? "" : `  ${r.spec.card}`;
         const head = `${on ? ">" : " "} [${letter}] ${r.spec.title}`;
         const text = wide
-          ? `  ${fit(head, 36)} ${fit(`engram ${r.spec.usage}`, width - 42 - card.length)}${card}`
-          : `  ${fit(head, width - 3 - card.length)}${card}`;
+          ? ` ${fit(head, 37)} ${fit(`engram ${r.spec.usage}`, width - 42 - card.length)}${card}`
+          : ` ${fit(head, width - 2 - card.length)}${card}`;
         lines.push(on ? ctx.theme.reverse(fit(text, width)) : text);
       }
       index.push(i);
@@ -240,7 +240,7 @@ export class HomeScreen implements Screen {
   }
 
   /** The health strip: the last doctor run of this session, the log, the policy. */
-  strip(ctx: Ctx, width: number, wide: boolean): string[] {
+  strip(ctx: Ctx, _width: number, wide: boolean): string[] {
     const t = ctx.theme;
     const doctor =
       ctx.lastDoctor === undefined
@@ -248,8 +248,10 @@ export class HomeScreen implements Screen {
         : ctx.lastDoctor.code === 0
           ? `${t.symbol("ok")} doctor: all checks passed ${ctx.lastDoctor.at.slice(11, 16)}`
           : `${t.symbol("fail")} doctor: a check failed ${ctx.lastDoctor.at.slice(11, 16)}`;
-    const log = ctx.ws.server() !== undefined ? "log the server's own" : `log ${ctx.checks.logLabel ?? "?"}`;
-    const policy = ctx.ws.server() !== undefined ? "" : `policy ${ctx.checks.policyLabel ?? "does not load"}`;
+    const log =
+      ctx.ws.server() !== undefined ? "log the server's own" : `log ${ctx.checks.logLabel ?? "?"}`;
+    const policy =
+      ctx.ws.server() !== undefined ? "" : `policy ${ctx.checks.policyLabel ?? "does not load"}`;
     const first = ` ${doctor}   ${log}   ${policy}`;
     if (!wide) return [first];
     const store = ctx.ws.get("root");
@@ -258,14 +260,18 @@ export class HomeScreen implements Screen {
       ` store ${ctx.ws.get("store") ?? "files"} ${store === undefined ? "(none: reading the log only)" : shortPath(store, ctx.io)}`,
       `owner ${ctx.ws.get("owner") ?? "none"}`,
       `member of ${ctx.ws.list("member").join(", ") || "the actor's own scope"}`,
-      ctx.noSaved ? "not saved (--no-saved)" : ctx.savedInUse ? "workspace saved" : "workspace not saved",
+      ctx.noSaved
+        ? "not saved (--no-saved)"
+        : ctx.savedInUse
+          ? "workspace saved"
+          : "workspace not saved",
       `decision export ${exp === undefined ? "off" : `on: ${exp}`}`,
     ].join("    ");
     return [first, second];
   }
 
   render(ctx: Ctx, width: number, height: number): string[] {
-    const wide = width >= 120 && height >= 40;
+    const wide = width >= 120 && ctx.rows >= 40;
     const strip = this.strip(ctx, width, wide);
     const boxHeight = height - strip.length;
     const leftWidth = wide ? Math.floor(width * 0.6) : Math.floor(width * 0.45);
@@ -277,7 +283,13 @@ export class HomeScreen implements Screen {
       leftWidth,
       boxHeight,
     );
-    const right = box(ctx.theme, wide ? "Selected" : "", this.detailLines(ctx, rightWidth - 2), rightWidth, boxHeight);
+    const right = box(
+      ctx.theme,
+      wide ? "Selected" : "",
+      this.detailLines(ctx, rightWidth - 2),
+      rightWidth,
+      boxHeight,
+    );
     return [...sideBySide(left, leftWidth, right, rightWidth), ...strip.map((l) => cut(l, width))];
   }
 }

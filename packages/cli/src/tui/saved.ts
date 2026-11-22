@@ -51,8 +51,13 @@ export const savedPath = (home: string) => join(home, ".engram", "tui.json");
 
 const isFlag = (k: string): k is SavedFlag => (SAVED_FLAGS as readonly string[]).includes(k);
 
-/** A value fit to save: printable, one line. */
-const printable = (v: string) => v !== "" && !/[\u0000-\u001f\u007f]/.test(v);
+/** A value fit to save: printable, one line (no control character). */
+const printable = (v: string) =>
+  v !== "" &&
+  [...v].every((ch) => {
+    const c = ch.codePointAt(0) ?? 0;
+    return c >= 32 && c !== 127;
+  });
 
 /** A URL with its userinfo and query removed; the value unchanged when it is not a URL. */
 function withoutCredentials(value: string): string {

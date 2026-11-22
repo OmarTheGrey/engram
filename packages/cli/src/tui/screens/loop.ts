@@ -35,8 +35,6 @@ export class LoopScreen implements Screen {
   private readonly query = new TextField(queryOf(SAMPLE));
   private readonly results = new Map<Step, RunResult | "skipped">();
 
-  constructor(_ctx: Ctx) {}
-
   title(): string {
     return "Getting started  first loop";
   }
@@ -53,7 +51,8 @@ export class LoopScreen implements Screen {
     const spec = command(step);
     const ws = spec === undefined ? [] : ctx.ws.argsFor(spec);
     if (step === "write") return ["write", "--content", this.content.value, ...ws];
-    if (step === "read") return ["read", ...(this.query.value.trim() === "" ? [] : [this.query.value.trim()]), ...ws];
+    if (step === "read")
+      return ["read", ...(this.query.value.trim() === "" ? [] : [this.query.value.trim()]), ...ws];
     const r = this.results.get("read");
     return ["explain", readIdOf(r === "skipped" ? undefined : r) ?? "<the read's id>", ...ws];
   }
@@ -122,15 +121,26 @@ export class LoopScreen implements Screen {
     const label = { write: "Write  ", read: "Read   ", explain: "Explain" }[step];
     const r = this.results.get(step);
     const on = i === this.step;
-    const mark = r === undefined ? (on ? ">" : " ") : r === "skipped" ? t.symbol("skip") : t.symbol(r.code === 0 ? "ok" : "fail");
+    const mark =
+      r === undefined
+        ? on
+          ? ">"
+          : " "
+        : r === "skipped"
+          ? t.symbol("skip")
+          : t.symbol(r.code === 0 ? "ok" : "fail");
     const indent = " ".repeat(15);
     const lines: string[] = [];
     const cmd = wrap(ctx.line(this.argv(ctx, step)), width - 16);
-    lines.push(` ${mark} ${i + 1}  ${label}  ${cmd[0] ?? ""}`, ...cmd.slice(1).map((l) => `${indent} ${l}`));
+    lines.push(
+      ` ${mark} ${i + 1}  ${label}  ${cmd[0] ?? ""}`,
+      ...cmd.slice(1).map((l) => `${indent} ${l}`),
+    );
     if (r === "skipped") lines.push(`${indent} skipped`);
     else if (r !== undefined) {
       const out = `${r.out}${r.err}`.split("\n").filter((l) => l !== "");
-      for (const l of out.slice(0, 3)) lines.push(...wrap(l, width - 16).map((w) => `${indent} ${w}`));
+      for (const l of out.slice(0, 3))
+        lines.push(...wrap(l, width - 16).map((w) => `${indent} ${w}`));
       lines.push(`${indent} exit ${r.code}`);
     } else if (on) {
       const root = ctx.ws.get("root");

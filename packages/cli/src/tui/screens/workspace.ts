@@ -6,8 +6,9 @@
 // URL parse, dbTarget), sets them for every command, saves them to tui.json
 // (unless --no-saved) and shows the flags it now adds. "Forget saved
 // workspace" deletes tui.json after a confirmation.
-import { buildActor, dbTarget } from "../../setup.ts";
+
 import { ScopeLevel } from "@engram/core";
+import { buildActor, dbTarget } from "../../setup.ts";
 import { TextField } from "../fields.ts";
 import { cut, fit, para, rows, wrap } from "../layout.ts";
 import { forgetFlow } from "../overlays.ts";
@@ -28,16 +29,40 @@ const ROWS: readonly Row[] = [
   { id: "server", label: "Server URL", kind: "text", flag: "server" },
   { id: "db", label: "Event log", kind: "text", flag: "db" },
   { id: "policy", label: "Policy", kind: "text", flag: "policy" },
-  { id: "store", label: "Store kind", kind: "radio", flag: "store", choices: ["", "files", "letta"] },
+  {
+    id: "store",
+    label: "Store kind",
+    kind: "radio",
+    flag: "store",
+    choices: ["", "files", "letta"],
+  },
   { id: "root", label: "Store folder", kind: "text", flag: "root" },
   { id: "owner", label: "Owner", kind: "text", flag: "owner" },
   { id: "as", label: "Acting as", kind: "text", flag: "as" },
-  { id: "level", label: "Level", kind: "radio", flag: "level", choices: ["", ...ScopeLevel.options] },
+  {
+    id: "level",
+    label: "Level",
+    kind: "radio",
+    flag: "level",
+    choices: ["", ...ScopeLevel.options],
+  },
   { id: "member", label: "Member of", kind: "list", flag: "member" },
-  { id: "import-valid-from", label: "Imported valid from", kind: "text", flag: "import-valid-from", advanced: true },
+  {
+    id: "import-valid-from",
+    label: "Imported valid from",
+    kind: "text",
+    flag: "import-valid-from",
+    advanced: true,
+  },
   { id: "keys", label: "Key file", kind: "text", flag: "keys", advanced: true },
   { id: "otlp", label: "Decision export OTLP", kind: "text", flag: "otlp", advanced: true },
-  { id: "export-jsonl", label: "Decision export file", kind: "text", flag: "export-jsonl", advanced: true },
+  {
+    id: "export-jsonl",
+    label: "Decision export file",
+    kind: "text",
+    flag: "export-jsonl",
+    advanced: true,
+  },
   { id: "forget", label: "Forget saved workspace", kind: "button" },
   { id: "apply", label: "Apply and save", kind: "button" },
 ];
@@ -65,8 +90,12 @@ export class WorkspaceScreen implements Screen {
     this.serverMode = ctx.ws.server() !== undefined;
     for (const r of ROWS)
       if (r.kind === "text" || r.kind === "list")
-        this.editors.set(r.id, new TextField(r.kind === "list" ? "" : (this.draft.get(r.flag as WsFlag) ?? "")));
-    if (ctx.ws.get("server") === undefined && this.serverMode) this.editors.get("server")?.set(ctx.ws.server() ?? "");
+        this.editors.set(
+          r.id,
+          new TextField(r.kind === "list" ? "" : (this.draft.get(r.flag as WsFlag) ?? "")),
+        );
+    if (ctx.ws.get("server") === undefined && this.serverMode)
+      this.editors.get("server")?.set(ctx.ws.server() ?? "");
   }
 
   title(): string {
@@ -134,7 +163,10 @@ export class WorkspaceScreen implements Screen {
       }
       if (!this.serverMode) dbTarget(ws.get("db"), ctx.io);
       if (ws.get("as") !== undefined || ws.get("owner") !== undefined)
-        buildActor({ as: ws.get("as"), level: ws.get("level"), member: [...ws.list("member")] }, ws.get("owner"));
+        buildActor(
+          { as: ws.get("as"), level: ws.get("level"), member: [...ws.list("member")] },
+          ws.get("owner"),
+        );
     } catch (e) {
       return (e as Error).message;
     }
@@ -155,7 +187,9 @@ export class WorkspaceScreen implements Screen {
     ctx.recheck();
     ctx.save();
     ctx.pop();
-    ctx.say(`applied${ctx.noSaved ? " (not saved: --no-saved)" : " and saved"}: ${flags || "no flags"} on every command`);
+    ctx.say(
+      `applied${ctx.noSaved ? " (not saved: --no-saved)" : " and saved"}: ${flags || "no flags"} on every command`,
+    );
   }
 
   async action(name: string, ctx: Ctx): Promise<boolean> {
@@ -220,7 +254,21 @@ export class WorkspaceScreen implements Screen {
     const ws = this.collect(ctx);
     if (typeof ws === "string") return { text: "", note: "(not applied: see the panel)" };
     const flags: string[] = [];
-    for (const f of ["server", "db", "policy", "owner", "as", "level", "member", "store", "root", "import-valid-from", "keys", "otlp", "export-jsonl"] as WsFlag[]) {
+    for (const f of [
+      "server",
+      "db",
+      "policy",
+      "owner",
+      "as",
+      "level",
+      "member",
+      "store",
+      "root",
+      "import-valid-from",
+      "keys",
+      "otlp",
+      "export-jsonl",
+    ] as WsFlag[]) {
       if (this.serverMode && SERVER_REFUSES.includes(f)) continue;
       const v = f === "member" ? ws.list(f) : ws.get(f);
       for (const one of typeof v === "string" ? [v] : (v ?? [])) flags.push(`--${f}`, one);
@@ -235,7 +283,13 @@ export class WorkspaceScreen implements Screen {
   private source(ctx: Ctx, flag: WsFlag | undefined): string {
     if (flag === undefined) return "";
     const s = this.draft.source(flag);
-    const named = { flag: "from a flag", env: flag === "db" ? "from ENGRAM_DB_URL" : "from ENGRAM_SERVER_URL", saved: "saved", set: "set here", default: "default" }[s];
+    const named = {
+      flag: "from a flag",
+      env: flag === "db" ? "from ENGRAM_DB_URL" : "from ENGRAM_SERVER_URL",
+      saved: "saved",
+      set: "set here",
+      default: "default",
+    }[s];
     return ctx.ws.get(flag) === undefined && s === "default" ? "" : named;
   }
 
@@ -254,15 +308,23 @@ export class WorkspaceScreen implements Screen {
       if (greyed) {
         if (!refusalShown) {
           refusalShown = true;
-          const msg = serverRefusal(ctx.io, ctx.ws.server() ?? this.editors.get("server")?.value ?? "the server");
-          lines.push(...wrap(t.dim(` Event log, policy, store: the server's own. ${msg}`), width - 1));
+          const msg = serverRefusal(
+            ctx.io,
+            ctx.ws.server() ?? this.editors.get("server")?.value ?? "the server",
+          );
+          lines.push(
+            ...wrap(t.dim(` Event log, policy, store: the server's own. ${msg}`), width - 1),
+          );
         }
         continue;
       }
       if (r.id === "forget") {
         lines.push(
           "",
-          ...para(`Saved in ~/.engram/tui.json: flags only.${ctx.noSaved ? " Not read or written this session (--no-saved)." : ""}`, width),
+          ...para(
+            `Saved in ~/.engram/tui.json: flags only.${ctx.noSaved ? " Not read or written this session (--no-saved)." : ""}`,
+            width,
+          ),
         );
       }
       if (r.id === "import-valid-from") lines.push("", " Advanced");
@@ -279,11 +341,15 @@ export class WorkspaceScreen implements Screen {
       const label = r.kind === "button" ? "" : fit(r.label, 22);
       const note = [this.source(ctx, r.flag), HINT[r.id] ?? ""].filter((x) => x !== "").join("; ");
       const text = ` ${mark} ${label}${r.kind === "button" ? "" : " "}${control}  ${note}`;
-      lines.push(on && (r.kind === "radio") ? t.reverse(cut(text, width)) : cut(text, width));
+      lines.push(on && r.kind === "radio" ? t.reverse(cut(text, width)) : cut(text, width));
     }
     if (this.serverMode)
-      lines.push("", ` Token        ${ctx.ws.tokenSet() ? "set" : "not set"} (ENGRAM_TOKEN; its value is never shown)`);
-    if (this.problem !== undefined) lines.push("", ...para(`${t.status("fail", this.problem)}`, width));
+      lines.push(
+        "",
+        ` Token        ${ctx.ws.tokenSet() ? "set" : "not set"} (ENGRAM_TOKEN; its value is never shown)`,
+      );
+    if (this.problem !== undefined)
+      lines.push("", ...para(`${t.status("fail", this.problem)}`, width));
     const focusAt = lines.findIndex((l) => l.includes(`> `));
     const start = focusAt >= height ? focusAt - height + 2 : 0;
     return rows(lines.slice(start), height, width);

@@ -1,0 +1,43 @@
+ engram  Policy in force                                                in process  log engram.db  person:dana (person)
+ ✓ exit 0  shown
+
+ # preset.medium v1: the policy the workspace decides with
+ id: "preset.medium"
+ version: 1
+ write:
+   - scope: "person"
+     allowed_sources: ["user", "document", "tool", "import", "model", "compaction"]
+     confidence_floor: 0.3
+     forbidden_classes: []
+     requires_review: false
+   - scope: "role"
+     allowed_sources: ["user", "document", "tool", "import"]
+     confidence_floor: 0.5
+     forbidden_classes: ["episodic"]
+     requires_review: false
+   - scope: "team"
+     allowed_sources: ["user", "document", "tool", "import"]
+     confidence_floor: 0.6
+     forbidden_classes: ["episodic"]
+     requires_review: false
+   - scope: "org"
+     allowed_sources: ["user", "document", "tool", "import"]
+     confidence_floor: 0.8
+     forbidden_classes: ["episodic"]
+     requires_review: true
+ read:
+   matrix:
+     - reader: "person"
+       may_read: ["person", "role", "team", "org"]
+     - reader: "role"
+       may_read: ["person", "role", "team", "org"]
+     - reader: "team"
+       may_read: ["role", "team", "org"]
+     - reader: "org"
+       may_read: ["team", "org"]
+ ▾ 60 more lines: pgdn
+$ engram policy   exit 0
+ r run again  up down scroll  q back  ? help  ; commands  esc back
+--- styles
+r0 c0-119 inverse
+r1 c1-1 fg #00A67A

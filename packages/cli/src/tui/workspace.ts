@@ -9,7 +9,7 @@
 import { relative, sep } from "node:path";
 import { connect, SERVER_URL_ENV, TOKEN_ENV } from "../connect.ts";
 import { type CheckResult, checkLog } from "../doctor.ts";
-import { type CommandSpec, type Values } from "../registry.ts";
+import type { CommandSpec, Values } from "../registry.ts";
 import type { Io } from "../run.ts";
 import { buildActor, DB_URL_ENV, type DbTarget, dbTarget, loadPolicy } from "../setup.ts";
 
@@ -49,7 +49,8 @@ export interface WsValue {
   source: Source;
 }
 
-export const isWsFlag = (k: string): k is WsFlag => (WORKSPACE_FLAGS as readonly string[]).includes(k);
+export const isWsFlag = (k: string): k is WsFlag =>
+  (WORKSPACE_FLAGS as readonly string[]).includes(k);
 
 export class Workspace {
   private readonly values = new Map<WsFlag, WsValue>();
@@ -95,7 +96,8 @@ export class Workspace {
   }
   /** Sets a flag; an empty value, or an empty list, unsets it. */
   set(flag: WsFlag, value: string | readonly string[] | undefined, source: Source = "set"): void {
-    const empty = value === undefined || value === "" || (Array.isArray(value) && value.length === 0);
+    const empty =
+      value === undefined || value === "" || (Array.isArray(value) && value.length === 0);
     if (empty) this.values.delete(flag);
     else this.values.set(flag, { value: Array.isArray(value) ? [...value] : value, source });
   }
@@ -137,7 +139,10 @@ export class Workspace {
 
   /** The actor's id: --as, else person:<owner>; undefined when neither is set. */
   actorId(): string | undefined {
-    return this.get("as") ?? (this.get("owner") === undefined ? undefined : `person:${this.get("owner")}`);
+    return (
+      this.get("as") ??
+      (this.get("owner") === undefined ? undefined : `person:${this.get("owner")}`)
+    );
   }
 
   /** The title bar's actor: `person:dana (person)`, or "no actor yet". */
@@ -193,7 +198,9 @@ export function shortPath(path: string, io: Pick<Io, "home" | "cwd">): string {
   const norm = (p: string) => p.split(sep).join("/");
   const inside = (base: string) => {
     const r = relative(base, path);
-    return r !== "" && !r.startsWith("..") && !/^[a-zA-Z]:/.test(r) && !r.startsWith(sep) ? r : undefined;
+    return r !== "" && !r.startsWith("..") && !/^[a-zA-Z]:/.test(r) && !r.startsWith(sep)
+      ? r
+      : undefined;
   };
   if (path === io.cwd) return ".";
   const underCwd = inside(io.cwd);

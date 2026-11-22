@@ -1,0 +1,29 @@
+ engram  Home                                  in process  person:dana (person)
+┌──────────────────────────────────┐┌──────────────────────────────────────────┐
+│ 1 ┌─ Commands ───────────────────────────────────────────────────────────┐   │
+│ > │ > prom                                                               │   │
+│   │                                                                      │ry │
+│   │ > Promote an item                  engram promote <itemId>           │   │
+│   │   Check a write                    engram check                      │   │
+│   │   Write a memory                   engram write                      │ts │
+│   │   Grants on an item                engram grants <itemId>            │.  │
+│   │   Read one item                    engram read --item <id>           │   │
+│   │   Who can read                     engram who-can-read               │   │
+│   │   Retention sweep                  engram retain                     │   │
+│   │   Read and explain                 engram read [query]               │   │
+│ 2 │   Export a bundle                  engram export                     │t, │
+│   │   MCP server                       engram mcp                        │   │
+│   │   Explain a read                   engram explain <readId>           │   │
+│   │   Lint a scope                     engram lint                       │   │
+│   │   Supersede                        engram supersede <itemId>         │   │
+│ 3 │                                                                      │   │
+│   │ enter open   tab fill   esc close                                    │   │
+└───└──────────────────────────────────────────────────────────────────────┘───┘
+ · doctor not run this session: d   log engram.db   policy preset.medium v1
+$ engram read --db engram.db --owner dana --root mem
+ enter open  1-6 group  letter action  ? help  ; commands  q quit
+--- styles
+r0 c0-79 inverse
+r3 c1-3 inverse
+r3 c12-12 inverse
+r5 c5-74 inverse

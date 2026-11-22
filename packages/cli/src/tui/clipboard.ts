@@ -22,7 +22,8 @@ export function copyPath(env: Env, platform: NodeJS.Platform, native: boolean): 
 }
 
 /** The OSC 52 sequence that puts `text` on the system clipboard. */
-export const osc52 = (text: string) => `\x1b]52;c;${Buffer.from(text, "utf8").toString("base64")}\x07`;
+export const osc52 = (text: string) =>
+  `\x1b]52;c;${Buffer.from(text, "utf8").toString("base64")}\x07`;
 
 export interface Clipboard {
   readonly path: CopyPath;

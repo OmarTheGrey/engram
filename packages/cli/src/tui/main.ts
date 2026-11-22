@@ -9,8 +9,8 @@ import { parse } from "../commands.ts";
 import { closest, OPTIONS } from "../registry.ts";
 import type { Io } from "../run.ts";
 import { UsageError } from "../setup.ts";
-import { detectShell } from "./argv.ts";
 import { startTui, summaryText, type TuiOptions } from "./app.ts";
+import { detectShell } from "./argv.ts";
 import { offered } from "./overlays.ts";
 import { loadSaved } from "./saved.ts";
 import { processTerminal, type Terminal } from "./term.ts";
@@ -24,13 +24,23 @@ export interface TuiDeps {
 const PLAIN = "run the plain commands (engram --help lists them)";
 
 /** The screens --screen opens: Home, the workspace, first run, and every command's form. */
-export const screenNames = () => ["home", "workspace", "first-run", ...offered().map((s) => s.name)];
+export const screenNames = () => [
+  "home",
+  "workspace",
+  "first-run",
+  ...offered().map((s) => s.name),
+];
 
 const isTty = (s: unknown) => (s as { isTTY?: boolean } | undefined)?.isTTY === true;
 
 /** The line a refusal prints, or undefined when the TUI may start (5.2). */
-export function refusal(io: Io, values: { json?: boolean | undefined }, line: boolean): string | undefined {
-  const winpty = io.env.MSYSTEM && !isTty(io.stdin) ? "; under Git Bash, try winpty engram tui" : "";
+export function refusal(
+  io: Io,
+  values: { json?: boolean | undefined },
+  line: boolean,
+): string | undefined {
+  const winpty =
+    io.env.MSYSTEM && !isTty(io.stdin) ? "; under Git Bash, try winpty engram tui" : "";
   if (values.json === true) return "--json is for scripts; run the plain command with --json";
   if (!isTty(io.stdout)) return `stdout is not a terminal; ${PLAIN}${winpty}`;
   if (!isTty(io.stdin)) return `stdin is not a terminal; ${PLAIN}${winpty}`;
@@ -57,9 +67,15 @@ export async function tuiCommand(args: string[], io: Io, deps: TuiDeps = {}): Pr
   }
   const options: TuiOptions = {
     noColor: values["no-color"] === true || Boolean(env.NO_COLOR),
-    highContrast: values["high-contrast"] === true || env.ENGRAM_TUI_CONTRAST === "high" || saved?.contrast === "high",
+    highContrast:
+      values["high-contrast"] === true ||
+      env.ENGRAM_TUI_CONTRAST === "high" ||
+      saved?.contrast === "high",
     ascii: values.ascii === true || env.ENGRAM_TUI_ASCII === "1" || saved?.ascii === true,
-    reducedMotion: values["reduced-motion"] === true || env.ENGRAM_TUI_MOTION === "reduce" || saved?.motion === "reduce",
+    reducedMotion:
+      values["reduced-motion"] === true ||
+      env.ENGRAM_TUI_MOTION === "reduce" ||
+      saved?.motion === "reduce",
     mouse: !(values["no-mouse"] === true || env.ENGRAM_TUI_MOUSE === "0" || saved?.mouse === false),
     quiet: values.quiet === true,
     noSaved: values["no-saved"] === true,
