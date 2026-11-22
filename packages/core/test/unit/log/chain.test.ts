@@ -5,7 +5,7 @@
 import { createHash } from "node:crypto";
 import { describe, expect, test } from "vitest";
 import type { Db } from "../../../src/db/db.ts";
-import { MIGRATIONS, type Migration, migrate } from "../../../src/db/migrate.ts";
+import { MIGRATIONS, migrate } from "../../../src/db/migrate.ts";
 import { appendEvent, type EventInput } from "../../../src/events.ts";
 import {
   CHAIN_SEED,
@@ -109,13 +109,6 @@ const event = (over: Partial<EventInput> = {}): EventInput => ({
   ...over,
 });
 
-/** The migrations with a stand-in for card E8.12's 6: a side table of its own. */
-const SIX: Migration = {
-  id: 6,
-  name: "a later side table (stand-in for card E8.12)",
-  up: "CREATE TABLE later_side (seq INTEGER PRIMARY KEY, note TEXT NOT NULL);",
-};
-
 forEachBackend((backend) => {
   const open = () => {
     const db = backend.open();
@@ -218,21 +211,41 @@ forEachBackend((backend) => {
     expect(() => writeCheckpoint(db, "yesterday")).toThrow(/not a UTC timestamp/);
   });
 
-  test("migration 5 applies after a later migration already applied, and before it on a fresh log", () => {
+  test("migration 5 applies after card E8.12's 6 already applied, and before it on a fresh log", () => {
     const later = backend.open();
-    migrate(later, [...MIGRATIONS.filter((m) => m.id !== 5), SIX]);
-    appendEvent(later, event());
-    expect(migrate(later, [...MIGRATIONS, SIX])).toEqual([5]);
+    expect(
+      migrate(
+        later,
+        MIGRATIONS.filter((m) => m.id !== 5),
+      ),
+    ).toEqual([1, 2, 3, 4, 6]);
+    const first = appendEvent(later, event());
+    const attest = (seq: number, id: string) =>
+      later
+        .prepare(
+          "INSERT INTO event_attestations (seq, event_id, surface, method, actor, issuer, subject) VALUES (?, ?, 'http', 'api_key', 'person:dana', NULL, 'k1')",
+        )
+        .run(seq, id);
+    attest(first.seq, first.id);
+    expect(migrate(later)).toEqual([5]);
     keepChain(later, seededKeeper(6));
-    appendEvent(later, event());
+    const second = appendEvent(later, event());
+    attest(second.seq, second.id);
     expect(verifyChain(later).first_break).toBeNull();
     expect(verifyChain(later).counts.unchained).toBe(1);
+    // The attestation rows are outside the chain (decision entry
+    // attestations-outside): an edited one is not detected today.
+    later
+      .prepare("UPDATE event_attestations SET actor = 'person:mallory' WHERE seq = ?")
+      .run(second.seq);
+    expect(verifyChain(later).first_break).toBeNull();
 
     const fresh = backend.open();
-    expect(migrate(fresh, [...MIGRATIONS, SIX])).toEqual(MIGRATIONS.map((m) => m.id).concat(6));
+    expect(migrate(fresh)).toEqual(MIGRATIONS.map((m) => m.id));
     keepChain(fresh, seededKeeper(6));
     appendEvent(fresh, event());
     expect(verifyChain(fresh).first_break).toBeNull();
+    expect(migrate(fresh)).toEqual([]);
   });
 
   test("the genesis links from the chain's seed", () => {
