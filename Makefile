@@ -8,7 +8,7 @@ SHELL := bash
 PNPM ?= pnpm
 UV ?= uv
 
-.PHONY: help test test-invariants test-scale test-one test-e2e test-repro lint lint-docs api api-check ui bench run h1-table h1-figure l3-variance h3-lint-delta perf-budget fixtures fault-workspace thesis engram dogfood-report verify-spec
+.PHONY: help test test-invariants test-scale test-one test-e2e test-repro lint lint-docs api api-check ui bench run h1-table h1-figure l3-variance h3-lint-delta fixtures fault-workspace gitleaks-rules thesis engram dogfood-report verify-spec perf-budget
 
 help: ## list targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | sed -E 's/:.*## /\t/' | expand -t 16
@@ -17,7 +17,7 @@ test: ## layers 1 to 5 and 7 (vitest) and research tests (pytest)
 	$(PNPM) exec vitest run
 	$(UV) run pytest research || [ $$? -eq 5 ]
 
-test-invariants: ## the seven invariants against the real Plane, with counterexample and seed (issue #1), and card E1.4's stateful model of the Plane
+test-invariants: ## the eight invariants against the real Plane, with counterexample and seed (issue #1), and card E1.4's stateful model of the Plane
 	ENGRAM_INVARIANTS=1 $(PNPM) --filter core exec vitest run test/property/invariants.test.ts test/property/stateful.test.ts
 
 test-scale: ## card RV1: H1's GateMem results at full size (26,616 rows, about 540 million characters) written and read back a line at a time; slow, writes about half a gigabyte to the temp folder
@@ -177,6 +177,9 @@ fault-workspace: ## a SQLite log and policy from one fault fixture, to lint with
 	@[ -n "$(FAULT)" ] || { echo "fault-workspace: give FAULT=<name> from fixtures/faults"; exit 2; }
 	rm -rf ".engram/faults/$(FAULT)"
 	node packages/core/scripts/faults.ts workspace "fixtures/faults/$(FAULT).json" ".engram/faults/$(FAULT)"
+
+gitleaks-rules: ## card E2.9: regenerate packages/core/src/vendor/gitleaks-rules.ts from gitleaks' rules at the pinned commit (fetched into .engram/upstream when missing); about five minutes
+	node packages/core/scripts/gitleaks-rules.ts
 
 dogfood-report: ## the twin dogfood's violation report over your own log, counts only: make dogfood-report ARGS="--as person:<you>"
 	@node packages/core/scripts/dogfood-report.ts $(ARGS)

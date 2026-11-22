@@ -15,15 +15,21 @@
 // through Plane.changeGrants. The plane decides; the editor shows the
 // decision and its event's rule and reason, and the lanes and timeline are
 // read again, so the change's update event appears on the timeline.
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+//
+// The item page (card E8.11): at `#/item/<id>`, opened from a lane's item or
+// an event's detail, the item's provenance graph, its version diff and the
+// events naming it, from the same read and events. It is loaded lazily, so
+// the graph library is fetched only there. The timeline is the event table
+// (EventTable.tsx): virtualised, sortable, filtered by type, decision, actor
+// and scope.
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import type { Actor, EngramClient, Grant, MemoryEvent } from "./api/index.ts";
 import { changeGrants, fetchExplain, fetchViewer, type Inspection, inspect } from "./data.ts";
+import { EventTable } from "./EventTable.tsx";
+import { EventDetail, Pair } from "./parts.tsx";
 import {
   EMPTY_DRAFT,
   type ExplainView,
-  eventDetail,
-  filterEvents,
-  filterOptions,
   formatMemberships,
   GRANT_CLASSES,
   GRANT_MODES,
@@ -32,17 +38,21 @@ import {
   grantFrom,
   grantLabel,
   grantOutcome,
+  itemHref,
   keepSelection,
   type Lane,
   type LaneItem,
   LEVELS,
   laneGroups,
   NO_FILTER,
-  scopeText,
+  parseRoute,
+  type Route,
   score,
   type TimelineFilter,
   viewerFrom,
 } from "./view.ts";
+
+const ItemPage = lazy(() => import("./ItemPage.tsx"));
 
 type GrantChangeRequest = { add?: Grant[]; remove?: Grant[] };
 
@@ -63,6 +73,13 @@ export function App({ client }: { client: EngramClient }) {
   // decision stays on screen until the viewer changes.
   const [reload, setReload] = useState(0);
   const [outcome, setOutcome] = useState<GrantOutcome | null>(null);
+  const [route, setRoute] = useState<Route>(() => parseRoute(window.location.hash));
+
+  useEffect(() => {
+    const follow = () => setRoute(parseRoute(window.location.hash));
+    window.addEventListener("hashchange", follow);
+    return () => window.removeEventListener("hashchange", follow);
+  }, []);
 
   useEffect(() => {
     let live = true;
@@ -133,7 +150,16 @@ export function App({ client }: { client: EngramClient }) {
       {ready && viewer === null && (
         <p className="empty">Name a viewer to see what it may read and the events it may see.</p>
       )}
-      {inspection !== null && (
+      {inspection !== null && route.page === "item" && (
+        <Suspense fallback={<p className="empty">Loading the item's page.</p>}>
+          <ItemPage
+            key={`${inspection.viewer.id} ${route.itemId}`}
+            itemId={route.itemId}
+            inspection={inspection}
+          />
+        </Suspense>
+      )}
+      {inspection !== null && route.page === "workspace" && (
         <main>
           <Lanes
             lanes={inspection.lanes}
@@ -150,13 +176,16 @@ export function App({ client }: { client: EngramClient }) {
                 .catch((e) => setError(message(e)));
             }}
           />
-          <Timeline
-            events={inspection.events}
-            filter={filter}
-            onFilter={setFilter}
-            selected={selected}
-            onSelect={setSelected}
-          />
+          <section className="timeline">
+            <h2>Timeline</h2>
+            <EventTable
+              events={inspection.events}
+              filter={filter}
+              onFilter={setFilter}
+              selected={selected}
+              onSelect={setSelected}
+            />
+          </section>
           <aside>
             {selected === null ? (
               <p className="empty">Select an event to see its detail.</p>
@@ -289,6 +318,11 @@ function LaneView({
       {lane.items.map((item) => (
         <article key={item.id} className="card" data-testid="lane-item" data-id={item.id}>
           <p>{item.content}</p>
+          <p>
+            <a href={itemHref(item.id)} data-testid="lane-item-open">
+              The item's page
+            </a>
+          </p>
           <dl>
             <Pair term="class">{item.class}</Pair>
             <Pair term="status">{item.status}</Pair>
@@ -445,105 +479,6 @@ function GrantForm({ onAdd }: { onAdd: (grant: Grant) => void }) {
   );
 }
 
-function Timeline({
-  events,
-  filter,
-  onFilter,
-  selected,
-  onSelect,
-}: {
-  events: MemoryEvent[];
-  filter: TimelineFilter;
-  onFilter: (f: TimelineFilter) => void;
-  selected: MemoryEvent | null;
-  onSelect: (e: MemoryEvent) => void;
-}) {
-  const options = useMemo(() => filterOptions(events), [events]);
-  const shown = useMemo(() => filterEvents(events, filter), [events, filter]);
-  const choose = (key: keyof TimelineFilter, values: string[]) => (
-    <label>
-      {key}
-      <select
-        data-testid={`filter-${key}`}
-        value={filter[key] ?? ""}
-        onChange={(e) =>
-          onFilter({ ...filter, [key]: e.target.value === "" ? null : e.target.value })
-        }
-      >
-        <option value="">any</option>
-        {values.map((v) => (
-          <option key={v}>{v}</option>
-        ))}
-      </select>
-    </label>
-  );
-  return (
-    <section className="timeline">
-      <h2>Timeline</h2>
-      <div className="filters">
-        {choose("scope", options.scopes)}
-        {choose("op", options.ops)}
-        {choose("decision", options.decisions)}
-        <span className="muted" data-testid="timeline-count">
-          {shown.length} of {events.length} events
-        </span>
-      </div>
-      <table>
-        <thead>
-          <tr>
-            <th>seq</th>
-            <th>time</th>
-            <th>op</th>
-            <th>decision</th>
-            <th>actor</th>
-            <th>scope</th>
-            <th>policy id</th>
-            <th>reason</th>
-          </tr>
-        </thead>
-        <tbody>
-          {shown.map((e) => (
-            <tr
-              key={e.id}
-              data-testid="timeline-row"
-              data-id={e.id}
-              data-op={e.op}
-              className={selected?.id === e.id ? "selected" : undefined}
-              onClick={() => onSelect(e)}
-            >
-              <td>{e.seq}</td>
-              <td>{e.ts}</td>
-              <td>{e.op}</td>
-              <td className={`decision ${e.decision}`}>{e.decision}</td>
-              <td>{e.actor}</td>
-              <td>{scopeText(e)}</td>
-              <td>
-                <code>{e.policy_id}</code>
-              </td>
-              <td className="reason">{e.reason}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </section>
-  );
-}
-
-function EventDetail({ event }: { event: MemoryEvent }) {
-  return (
-    <section data-testid="event-detail">
-      <h2>Event</h2>
-      <dl>
-        {eventDetail(event).map(([term, value]) => (
-          <Pair key={term} term={term}>
-            {value}
-          </Pair>
-        ))}
-      </dl>
-    </section>
-  );
-}
-
 function Explain({ view }: { view: ExplainView }) {
   if (view.kind === "not-read") return null;
   if (view.kind === "other")
@@ -621,14 +556,5 @@ function Explain({ view }: { view: ExplainView }) {
         </tbody>
       </table>
     </section>
-  );
-}
-
-function Pair({ term, children }: { term: string; children: ReactNode }) {
-  return (
-    <>
-      <dt>{term}</dt>
-      <dd>{children}</dd>
-    </>
   );
 }
