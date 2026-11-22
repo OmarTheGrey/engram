@@ -401,4 +401,115 @@ describe("two adapter instances on one repository (the lock)", () => {
     expect(await commits(root)).toHaveLength(1);
     expect((await stat(join(root, ".git", "engram.lock"))).isFile()).toBe(true);
   });
+
+  // The flake of M-2 (repository.test.ts), made deterministic: a writer that
+  // releases the lock and has another write queued takes it again before any
+  // waiter polls, so four instances writing at once run in four blocks of
+  // five and the last waits through fifteen holds. The wait bounds one
+  // holder, never the queue: each hand-over restarts it.
+  describe("the wait bounds one holder, not the writers before it", () => {
+    const lockPath = (root: string) => join(root, ".git", "engram.lock");
+    /**
+     * A clock the test moves, a count of the waiter's reads of it, and
+     * whether the waiter's write has settled (then it reads no more).
+     */
+    const clock = () => {
+      const c = {
+        t: 0,
+        reads: 0,
+        settled: false,
+        now: () => {
+          c.reads++;
+          return c.t;
+        },
+      };
+      return c;
+    };
+    /** Resolves once the waiter has read the clock four more times (one whole poll since), or settled. */
+    const polled = async (c: { reads: number; settled: boolean }) => {
+      const from = c.reads;
+      while (c.reads < from + 4 && !c.settled) await new Promise((r) => setTimeout(r, 5));
+    };
+    /** Another live writer on this machine takes the lock at the clock's time. */
+    const hold = (root: string, token: string, t: number) =>
+      writeFile(
+        lockPath(root),
+        JSON.stringify({
+          pid: process.pid,
+          host: hostname(),
+          token,
+          started: new Date(t).toISOString(),
+        }),
+      );
+
+    // M-2 itself is the second row: one instance (one token) taking the lock
+    // again and again, each acquisition told apart only by its start time.
+    test.each([
+      ["three instances in turn", ["holder-a", "holder-b", "holder-c"]],
+      ["one instance taking it three times", ["holder-a", "holder-a", "holder-a"]],
+    ])(
+      "%s, each hold under the wait and together over it: the waiter writes",
+      async (_, tokens) => {
+        const [first, second, third] = tokens as [string, string, string];
+        const root = await freshLettaRepo();
+        const c = clock();
+        const adapter = await createLettaAdapter({
+          root,
+          lockWaitMs: 1_000,
+          lockSeams: { now: c.now },
+        });
+        await hold(root, first, c.t);
+        const write = adapter
+          .write(item(48))
+          .catch((e: Error) => e)
+          .finally(() => {
+            c.settled = true;
+          });
+        await polled(c);
+        c.t = 800;
+        await hold(root, second, c.t);
+        await polled(c);
+        c.t = 1_600;
+        await hold(root, third, c.t);
+        await polled(c);
+        c.t = 2_400;
+        await rm(lockPath(root));
+        const ref = await write;
+        if (ref instanceof Error) throw ref;
+        expect(await adapter.read(ref)).toEqual({ ...item(48), store_ref: ref });
+        expect(await commits(root)).toHaveLength(2);
+        expect(await readdir(join(root, ".git"))).not.toContain("engram.lock");
+      },
+    );
+
+    test("a holder that keeps it past the wait after a hand-over is refused, naming that holder", async () => {
+      const root = await freshLettaRepo();
+      const c = clock();
+      const adapter = await createLettaAdapter({
+        root,
+        lockWaitMs: 1_000,
+        lockSeams: { now: c.now },
+      });
+      await hold(root, "holder-a", c.t);
+      const write = adapter
+        .write(item(49))
+        .catch((e: Error) => e)
+        .finally(() => {
+          c.settled = true;
+        });
+      await polled(c);
+      c.t = 800;
+      await hold(root, "holder-b", c.t);
+      await polled(c);
+      c.t = 1_900;
+      await polled(c);
+      await polled(c);
+      expect(c.settled, "not refused within two polls past the wait").toBe(true);
+      const error = await write;
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toContain(`since ${new Date(800).toISOString()}`);
+      expect(await commits(root)).toHaveLength(1);
+      expect(JSON.parse(await readFile(lockPath(root), "utf8")).token).toBe("holder-b");
+    });
+  });
 });
