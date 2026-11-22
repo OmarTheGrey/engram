@@ -50,7 +50,7 @@ export const RICH: readonly ScreenKind[] = [
 ];
 
 /** The rich screens that show a command's result, with its plain and JSON views. */
-const VIEWS: readonly ScreenKind[] = RICH.filter((k) => k !== "item");
+const VIEWS: readonly ScreenKind[] = [...RICH.filter((k) => k !== "item"), "result"];
 
 export interface KeyAction {
   /** The action's name, what a screen acts on. */

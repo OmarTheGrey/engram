@@ -105,7 +105,8 @@ export class GrantsScreen extends RichScreen {
     const r = await this.run(ctx, this.argvNow(ctx), extra);
     if (r === undefined) return;
     this.last = decisionOf(r) === "allow" ? c : undefined;
-    // Off the fields, so u, c, v and J act on the answer.
+    // Off the fields, so u, c, v and J act on the answer; the list as the answer now has it.
+    this.shownList = this.grants(ctx)?.grants ?? [];
     if (!this.focusOn("grants")) this.focusOn("apply");
   }
 

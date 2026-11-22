@@ -335,6 +335,8 @@ export class ResultScreen implements Screen {
   result: RunResult;
   private readonly values: Values;
   private offset = 0;
+  /** J: the command's --json output for the same answer, from the same call (card E8.15c). */
+  private json = false;
 
   constructor(spec: CommandSpec, result: RunResult, values: Values) {
     this.spec_ = spec;
@@ -347,7 +349,10 @@ export class ResultScreen implements Screen {
   }
 
   private lines(width: number): string[] {
-    const text = clean(`${this.result.out}${this.result.err}`).replace(/\n$/, "");
+    const shown = this.json
+      ? (this.result.other ?? "This command prints no --json output.\n")
+      : `${this.result.out}${this.result.err}`;
+    const text = clean(shown).replace(/\n$/, "");
     return text === "" ? [" (no output)"] : text.split("\n").flatMap((l) => para(l, width));
   }
 
@@ -383,6 +388,14 @@ export class ResultScreen implements Screen {
       case "leave":
         ctx.pop();
         return true;
+      case "json":
+        this.json = !this.json;
+        this.offset = 0;
+        return true;
+      case "plain":
+        this.json = false;
+        this.offset = 0;
+        return true;
     }
     return false;
   }
@@ -399,7 +412,7 @@ export class ResultScreen implements Screen {
   }
 
   hints(): string {
-    return "r run again  up down scroll";
+    return this.json ? "J the text output  up down scroll" : "r run again  J json  up down scroll";
   }
 
   spec(): CommandSpec {
@@ -416,7 +429,9 @@ export class ResultScreen implements Screen {
       decision === undefined
         ? ` ${t.status(kind, `exit ${code}`)}  ${exitMeaning(this.spec_, code)}`
         : ` ${t.status(decision, decision)}   exit ${code}  ${exitMeaning(this.spec_, code)}`,
-      "",
+      this.json
+        ? " JSON view: the --json output, byte for byte as engram prints it; J goes back"
+        : "",
     ];
     const body = this.lines(width - 1);
     const room = height - head.length;
