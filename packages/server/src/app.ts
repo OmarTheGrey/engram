@@ -50,6 +50,7 @@ import {
   wwwAuthenticate,
 } from "./auth.ts";
 import type { ErrorResponse } from "./contract.ts";
+import type { DecisionExport } from "./export.ts";
 import { API_PREFIX, ROUTES, type Route } from "./routes.ts";
 import { isApiPath, uiResponse } from "./static.ts";
 import { NoStoreError, type Workspace } from "./workspace.ts";
@@ -90,6 +91,12 @@ export interface AppOptions {
    * / beside the API; none when null or absent (static.ts).
    */
   ui?: string | null;
+  /**
+   * The decision export (card E8.13, ADR 0043): flushed after every API
+   * call, so each event the call appended leaves as a span; none when absent,
+   * the default. A failed flush goes to `onError` and never fails the call.
+   */
+  decisions?: DecisionExport;
   /** How a served app authenticates; absent for the in-process client (ADR 0027 decision 3). */
   auth?: AppAuth;
 }
@@ -316,6 +323,12 @@ function register(
       return c.json(result as object, 200);
     } catch (e) {
       return mapError(e, options.onError);
+    } finally {
+      try {
+        options.decisions?.flush();
+      } catch (e) {
+        options.onError?.(e);
+      }
     }
   });
 }

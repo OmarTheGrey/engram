@@ -4,16 +4,21 @@
 // (--issuer, --jwks, --subjects), or the waiver --insecure-loopback, under
 // which actors are self-asserted as before; with neither it refuses to
 // start. --as and --member name the viewer the inspector shows (plan
-// decision 5).
+// decision 5). Card E8.13 (ADR 0043): --otlp or --export-jsonl exports the
+// decisions its calls append, off unless named.
 import { resolve } from "node:path";
 import {
   bindRefusal,
   DEFAULT_PORT,
+  exportConfig,
+  exportsAnything,
   hasCredentialFlags,
   listen,
   openCredentials,
+  openSinks,
   openWorkspace,
   type ServeAuth,
+  startExport,
 } from "@engram/server";
 import { parse, STORE_OPTIONS } from "./commands.ts";
 import type { Io } from "./run.ts";
@@ -99,6 +104,7 @@ export async function serveCommand(args: string[], io: Io): Promise<number> {
     values.as === undefined && values.member === undefined
       ? null
       : buildActor({ as: values.as, level: values.level, member: values.member }, values.owner);
+  const exporting = exportConfig(values, io.env, io.cwd);
   const workspace = openWorkspace({
     store: values.store,
     root: values.root,
@@ -114,7 +120,16 @@ export async function serveCommand(args: string[], io: Io): Promise<number> {
   });
   try {
     workspace.open();
+    // The decision export (card E8.13, ADR 0043): off unless --otlp or --export-jsonl names a sink.
+    const failed = (e: unknown) =>
+      io.err(
+        `engram serve: decision export failed: ${e instanceof Error ? e.message : String(e)}\n`,
+      );
+    const decisions = exportsAnything(exporting)
+      ? startExport(workspace.deps.db, openSinks(exporting, failed), failed)
+      : undefined;
     const server = await listen(workspace, {
+      ...(decisions ? { decisions } : {}),
       host: values.host,
       port,
       now: io.now,
@@ -132,12 +147,17 @@ export async function serveCommand(args: string[], io: Io): Promise<number> {
     io.out(
       `engram serve: listening on ${server.url} (log ${workspace.target.label}, ${workspace.policyLabel}, ${store}, viewer ${viewer?.id ?? "none"}, ${access})\n`,
     );
+    if (decisions)
+      io.out(
+        `engram serve: exporting decisions to ${decisions.sinks.map((s) => s.label).join(", ")}\n`,
+      );
     await new Promise<void>((done) => {
       if (io.stop === undefined) return;
       if (io.stop.aborted) done();
       else io.stop.addEventListener("abort", () => done(), { once: true });
     });
     await server.close();
+    await decisions?.close();
     io.out("engram serve: stopped\n");
     return 0;
   } finally {

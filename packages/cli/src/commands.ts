@@ -24,7 +24,17 @@ import { buildActor, checkNumber, checkTime, loadPolicy, MEMORY_DB, UsageError }
 
 type Options = NonNullable<ParseArgsConfig["options"]>;
 
+/**
+ * Where this process exports its decisions as spans (card E8.13, ADR 0043):
+ * none unless one is named, here or by ENGRAM_OTLP_URL or ENGRAM_EXPORT_JSONL.
+ */
+export const EXPORT_OPTIONS = {
+  otlp: { type: "string" },
+  "export-jsonl": { type: "string" },
+} satisfies Options;
+
 export const STORE_OPTIONS = {
+  ...EXPORT_OPTIONS,
   store: { type: "string" },
   root: { type: "string" },
   owner: { type: "string" },
@@ -98,6 +108,9 @@ function callClock(
 }
 
 interface WorkspaceFlags {
+  /** Where the decisions go (card E8.13); read by connect, not by the workspace. */
+  otlp?: string;
+  "export-jsonl"?: string;
   store?: string;
   root?: string;
   owner?: string;

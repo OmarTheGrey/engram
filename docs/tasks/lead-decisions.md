@@ -300,6 +300,23 @@ Open, for the lead. Each was drafted by a card's agent while implementing it; th
     - (a) Accept ADR 0042: the operator's subjects file maps a token's exact issuer and subject (and the key file maps a key) to one actor with its level, memberships and source; no claim sets any of them, a request may only narrow its memberships, and a source sent on an authenticated call is ignored; a served surface needs a credential flag or `--insecure-loopback`; each event a served surface appends gets a row in a side table naming the authenticated requester or the waiver.
     - (b) Accept it, but derive an actor from a subject the subjects file does not name (`person:<sub>`, a member of its own scope only), so a new person needs no file edit.
     - (c) Keep self-asserted actors on loopback, with the ADR as the design for after the thesis.
+61. **ADR 0043, decision export and egress (card E8.13).** Decisions can be sent as OpenTelemetry spans to a collector, which takes them off the machine (rule 12).
+    - (a) Accept ADR 0043: off unless the operator names a sink (`--otlp` or `--export-jsonl`, or their `ENGRAM_` variables; `OTEL_*` never turns it on); a span carries the decision, its rule, the actor, the scopes and ids, never content, a content hash, a store path or a reason clause outside the content-free templates; no content mode exists.
+    - (b) Accept it, and add an opt-in content mode as the GenAI conventions allow, off by default.
+    - (c) Keep the JSONL sink only, so nothing leaves the machine, and drop OTLP until after the thesis.
+
+62. **ADR 0044, the CLI's terminal interface (card E8.15).** Card E8.15 is the lead's own request of 2026-11-21 for a TUI, not one of the absorb plan's thirty pull requests; it is listed here with the absorb cards' proposals because it was drafted with them. The design is `docs/design/tui.md`.
+    - Open for the lead: accept ADR 0044 (pi-tui at the pi pin, only under `packages/cli/src/tui/`), or (b) Ink 8.0.0 with React 19.3.1, or (c) no TUI until after the thesis. Until then the design proceeds on (a), as decided below.
+    - Decided on 2026-11-22 under the lead's delegation, six calls the design raised; binding until the lead overturns one:
+
+| call | answer | reason |
+|---|---|---|
+| 1. library | pi-tui 1.3.0 at the pi pin, imported only under `packages/cli/src/tui/`, AGENTS.md's "What not to do" line amended; ADR 0044 stays proposed | no new package in the lockfile, the pi family's own library, an injectable terminal for headless tests, Windows input handled; the spike passed under ConPTY and Git Bash |
+| 2. entry | bare `engram` keeps its help on stderr and exit 2; the TUI opens only with `engram tui`; HELP's first line names `engram tui` | one word doing two things by TTY detection misleads in tmux, SSH and mintty; the first line makes the TUI findable |
+| 3. new commands | `check`, `events`, `policy`, `grants` in E8.15a; `scopes` and `read --item <id>` in E8.15a once E8.14 merges | every TUI screen needs a plain command to teach; without them the timeline, grants, policy view and write preview are lost |
+| 4. shared view logic | not an `@engram/ui/view` export: `view.ts` and `provenance.ts` move into a new React-free package, `@engram/view`, which the inspector and the TUI import | the CLI never depends on React, xyflow, dagre or tanstack, and the leak rule exists once |
+| 5. mouse | on by default, `--no-mouse` to turn it off; the help overlay says Shift+drag selects text | clicks and the wheel help most people; the waiver keeps terminal selection and accessibility tools for those who need them |
+| 6. commands on quit | a short list of the session's commands on every quit; `--quiet` turns it off | it teaches the CLI, which is the point of the TUI |
 
 65. **ADR 0047, the by-id read and the scope list (card E8.14).** What a read of one id and a list of visible scopes may reveal, and how a framework adapter writes.
     - (a) Accept ADR 0047: a by-id read drops a candidate reached only through a grant that does not admit it, so such an id, one out of reach and one never held answer alike; a scope list holds the readable member scopes and the scopes of items a live grant admits; both are read events, a by-id read marked by a reason clause; `POST /read/{itemId}` and `POST /scopes` join the route table; the kit forces source `model`.
