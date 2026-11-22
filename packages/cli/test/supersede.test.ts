@@ -7,6 +7,7 @@
 // (an id the plan proposes no close for is the server's 400, refused before
 // anything is written), 2 on bad usage.
 import { readFile, writeFile } from "node:fs/promises";
+import { createServer } from "node:net";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { cli, fixtureCopy, logEvents, tempDir, VALID_FROM } from "./helpers.ts";
@@ -236,5 +237,96 @@ describe("engram supersede", () => {
     expect(human.out).toContain(`not applied: ${OLD_FILE}`);
     expect(human.out).toContain("engram/write/store-failure");
     expect(await readFile(file, "utf8")).toBe(bytes);
+  });
+});
+
+/** A loopback port free a moment ago. */
+const freePort = () =>
+  new Promise<number>((done, fail) => {
+    const probe = createServer();
+    probe.once("error", fail);
+    probe.listen(0, "127.0.0.1", () => {
+      const address = probe.address();
+      probe.close(() => done(typeof address === "object" && address ? address.port : 0));
+    });
+  });
+
+/** One JSON-RPC message of a streamable HTTP reply, JSON or a server-sent event. */
+async function rpc(url: string, key: string, body: object, session?: string) {
+  const r = await fetch(url, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${key}`,
+      "content-type": "application/json",
+      accept: "application/json, text/event-stream",
+      ...(session ? { "mcp-session-id": session } : {}),
+    },
+    body: JSON.stringify(body),
+  });
+  const text = await r.text();
+  const data = text.includes("data:")
+    ? (text.split("\n").find((l) => l.startsWith("data:")) ?? "").slice(5)
+    : text;
+  return {
+    session: r.headers.get("mcp-session-id") ?? undefined,
+    message: JSON.parse(data || "{}"),
+  };
+}
+
+describe("engram mcp --http with credentials and --supersede (L6-8)", () => {
+  it("every authenticated session lists memory_supersede", async () => {
+    const keys = join(await tempDir(), "keys.json");
+    const made = await cli([
+      ...["key", "create", "--keys", keys, "--as", "person:dana", "--member", "person:dana"],
+      ...["--source", "user", "--expires", "2026-12-25T12:00:00.000Z"],
+    ]);
+    expect(made.code).toBe(0);
+    const key = made.out.split("\n")[0] ?? "";
+    const port = await freePort();
+    const stop = new AbortController();
+    const running = cli(
+      ["mcp", "--http", String(port), "--keys", keys, "--db", ":memory:", "--supersede"],
+      { stop: stop.signal },
+    );
+    try {
+      const url = `http://127.0.0.1:${port}/mcp`;
+      let init: Awaited<ReturnType<typeof rpc>> | undefined;
+      for (let i = 0; i < 100 && init === undefined; i++)
+        init = await rpc(url, key, {
+          jsonrpc: "2.0",
+          id: 1,
+          method: "initialize",
+          params: {
+            protocolVersion: "2025-06-18",
+            capabilities: {},
+            clientInfo: { name: "t", version: "0" },
+          },
+        }).catch(async () => {
+          await new Promise((wait) => setTimeout(wait, 50));
+          return undefined;
+        });
+      expect(init?.session).toBeDefined();
+      await fetch(url, {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${key}`,
+          "content-type": "application/json",
+          accept: "application/json, text/event-stream",
+          "mcp-session-id": init?.session ?? "",
+        },
+        body: JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" }),
+      });
+      const listed = await rpc(
+        url,
+        key,
+        { jsonrpc: "2.0", id: 2, method: "tools/list" },
+        init?.session,
+      );
+      const names = (listed.message.result?.tools ?? []).map((t: { name: string }) => t.name);
+      expect(names.at(-1)).toBe("memory_supersede");
+    } finally {
+      stop.abort();
+      await running;
+    }
   });
 });
