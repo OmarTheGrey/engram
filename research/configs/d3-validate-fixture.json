@@ -1,0 +1,29 @@
+{
+  "name": "d3-validate-fixture",
+  "kind": "pipeline",
+  "benchmark": "replay-validate",
+  "induce": "./d2-induce-fixture.json",
+  "sessions_index": "../../fixtures/sessions/d1/index.json",
+  "data": "../../fixtures/distill/d3-validate",
+  "model": "scripted/d3-agent",
+  "seeds": [1, 2, 3],
+  "preset": "medium",
+  "draw_seed": 1,
+  "at": "2026-11-21T13:00:00.000Z",
+  "candidates": [
+    "edit-a-file-and-check-the-edit",
+    "inspect-a-source-file-before-changing-it",
+    "run-a-command-then-read-what-it-points-at",
+    "raise-the-fetch-timeout-from-5-to-10-seconds",
+    "rename-parserow-to-parserecord-everywhere"
+  ],
+  "expected": {
+    "edit-a-file-and-check-the-edit": "active",
+    "inspect-a-source-file-before-changing-it": "candidate",
+    "raise-the-fetch-timeout-from-5-to-10-seconds": "candidate",
+    "rename-parserow-to-parserecord-everywhere": "candidate",
+    "run-a-command-then-read-what-it-points-at": "candidate"
+  },
+  "script": "../../fixtures/distill/d3-validate/script.json",
+  "cassettes": "../../fixtures/cassettes/d3-validate-fixture"
+}

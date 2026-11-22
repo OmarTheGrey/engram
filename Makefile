@@ -139,6 +139,9 @@ RUNNER_FIXTURES += x1-h1-mem-inv
 RUNNER_FIXTURES += b5-longmemeval-plane
 RUNNER_FIXTURES += l3-lint-fixture
 RUNNER_FIXTURES += h3-lint-model-fixture
+RUNNER_FIXTURES += d2-induce-fixture
+# After D2: card D3 replays the candidates D2's cassette induces.
+RUNNER_FIXTURES += d3-validate-fixture
 
 # MEM-INV-Bench at its pinned commit (card B4); the vendoring clones it here when missing.
 MEM_INV_UPSTREAM ?= .engram/upstream/mem-inv-bench

@@ -1,0 +1,163 @@
+{
+  "_comment": "Card D3's replay task pool: tasks of card D1's fixture sessions (fixtures/sessions/d1/index.json), each with an invented starting repository, so card D2's candidates can be replayed on tasks they were not induced from. synthetic/bump-timeout-06 is one of the ten tasks D2's AWM candidates were induced from, and the one task of the rule candidate raise-the-fetch-timeout-from-5-to-10-seconds: the split drops it for those candidates. For the rule candidate rename-parserow-to-parserecord-everywhere, induced from another session, it is held out, drawn and replayed, so the script has sessions for it. It and the held-out synthetic/bump-timeout-16 share a prompt and each have their own starting repository: a held-out task with an induction task's prompt and start state is refused (card D3 review, D3-8). Each check is the task's own, a repository-state hash in the manner of tau2-bench's database check: the session's final files against the files the gold edits produce from the same start. Synthetic content, no real person or repository.",
+  "tasks": [
+    {
+      "id": "synthetic/rename-symbol-11",
+      "prompt": "Rename parseRow to parseRecord everywhere.",
+      "files": {
+        "src/rows.ts": "export function parseRow(line: string) {\n  return line.split(\",\");\n}\n",
+        "src/load.ts": "import { parseRow } from \"./rows\";\nexport const load = (lines: string[]) => lines.map(parseRow);\n"
+      },
+      "commands": {
+        "grep -rn parseRow src": "src/rows.ts:1: export function parseRow\nsrc/load.ts:1: import { parseRow }\nsrc/load.ts:2: lines.map(parseRow)"
+      },
+      "check": {
+        "kind": "state-hash",
+        "gold": [
+          {
+            "name": "edit",
+            "arguments": {
+              "path": "src/rows.ts",
+              "old": "function parseRow(",
+              "new": "function parseRecord("
+            }
+          },
+          {
+            "name": "edit",
+            "arguments": {
+              "path": "src/load.ts",
+              "old": "import { parseRow }",
+              "new": "import { parseRecord }"
+            }
+          },
+          {
+            "name": "edit",
+            "arguments": {
+              "path": "src/load.ts",
+              "old": "map(parseRow)",
+              "new": "map(parseRecord)"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "synthetic/fix-failing-test-32",
+      "prompt": "The test for totals fails; make it pass.",
+      "files": {
+        "src/totals.ts": "export const total = (xs: number[]) => xs.reduce((a, b) => a + b, 1);\n",
+        "test/totals.test.ts": "import { total } from \"../src/totals\";\ntest(\"total\", () => expect(total([1, 2, 3])).toBe(6));\n"
+      },
+      "commands": {
+        "npm test": "FAIL test/totals.test.ts: expected 6, received 7 (src/totals.ts:1)"
+      },
+      "check": {
+        "kind": "state-hash",
+        "gold": [
+          {
+            "name": "edit",
+            "arguments": {
+              "path": "src/totals.ts",
+              "old": "a + b, 1)",
+              "new": "a + b, 0)"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "synthetic/remove-dead-code-15",
+      "prompt": "Remove the unused legacyFormat helper.",
+      "files": {
+        "src/format.ts": "export function format(x: number) {\n  return x.toFixed(2);\n}\n\nexport function legacyFormat(x: number) {\n  return String(x);\n}\n",
+        "src/index.ts": "export { format } from \"./format\";\n"
+      },
+      "commands": {
+        "grep -rn legacyFormat src": "src/format.ts:5: export function legacyFormat(x: number) {"
+      },
+      "check": {
+        "kind": "state-hash",
+        "gold": [
+          {
+            "name": "edit",
+            "arguments": {
+              "path": "src/format.ts",
+              "old": "\nexport function legacyFormat(x: number) {\n  return String(x);\n}\n",
+              "new": ""
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "synthetic/bump-timeout-06",
+      "prompt": "Raise the fetch timeout from 5 to 10 seconds.",
+      "files": {
+        "src/http.ts": "export const TIMEOUT_SECONDS = 5;\n",
+        "src/client.ts": "import { TIMEOUT_SECONDS } from \"./http\";\nexport const timeoutMs = TIMEOUT_SECONDS * 1000;\n"
+      },
+      "commands": {},
+      "check": {
+        "kind": "state-hash",
+        "gold": [
+          {
+            "name": "edit",
+            "arguments": {
+              "path": "src/http.ts",
+              "old": "TIMEOUT_SECONDS = 5",
+              "new": "TIMEOUT_SECONDS = 10"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "synthetic/bump-timeout-16",
+      "prompt": "Raise the fetch timeout from 5 to 10 seconds.",
+      "files": {
+        "src/fetch.ts": "export const FETCH_TIMEOUT_SECONDS = 5;\nexport const fetchTimeoutMs = FETCH_TIMEOUT_SECONDS * 1000;\n",
+        "src/config.ts": "export const config = { retries: 3 };\n"
+      },
+      "commands": {
+        "grep -rn timeout src": "src/fetch.ts:1: export const FETCH_TIMEOUT_SECONDS = 5;\nsrc/fetch.ts:2: export const fetchTimeoutMs = FETCH_TIMEOUT_SECONDS * 1000;"
+      },
+      "check": {
+        "kind": "state-hash",
+        "gold": [
+          {
+            "name": "edit",
+            "arguments": {
+              "path": "src/fetch.ts",
+              "old": "FETCH_TIMEOUT_SECONDS = 5",
+              "new": "FETCH_TIMEOUT_SECONDS = 10"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "synthetic/log-level-29",
+      "prompt": "Log retries at debug level, not info.",
+      "files": {
+        "src/retry.ts": "import { log } from \"./log\";\nexport function retry(n: number) {\n  log.info(\"retrying\", n);\n}\n",
+        "src/log.ts": "export const log = { level: \"info\", info: console.info, debug: console.debug };\n"
+      },
+      "commands": {
+        "npm test": "PASS 3 tests"
+      },
+      "check": {
+        "kind": "state-hash",
+        "gold": [
+          {
+            "name": "edit",
+            "arguments": {
+              "path": "src/retry.ts",
+              "old": "log.info(\"retrying\"",
+              "new": "log.debug(\"retrying\""
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

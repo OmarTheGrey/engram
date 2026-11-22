@@ -1,0 +1,177 @@
+{
+  "_comment": "Card D2: SKILL.md texts for the Agent Skills specification's own validator (skills-ref, agentskills/agentskills at 83021e2be457a9b6679148719c1f6074f0ad975e). packages/core/scripts/skill-spec-golden.py runs it on each case, in a directory named `dir`, and writes expected.json with each text's sha256; packages/core/test/unit/distill/skill.test.ts holds validateSkillMd to it. A case marked `subset` is YAML the validator accepts and parseSkillMd refuses, since it reads a stricter subset; every other case is read alike by both.",
+  "cases": [
+    {
+      "id": "minimal",
+      "dir": "skill-name",
+      "text": "---\nname: skill-name\ndescription: A description of what this skill does and when to use it.\n---\n"
+    },
+    {
+      "id": "optional-fields",
+      "dir": "pdf-processing",
+      "text": "---\nname: pdf-processing\ndescription: Extract PDF text, fill forms, merge files. Use when handling PDFs.\nlicense: Apache-2.0\ncompatibility: Requires git, jq, make, and access to the internet\nallowed-tools: Bash(git:*) Bash(jq:*) Read\nmetadata:\n  author: example-org\n  version: \"1.0\"\n---\n\n# PDF processing\n\nBody.\n"
+    },
+    {
+      "id": "quoted-values",
+      "dir": "quoted",
+      "text": "---\nname: 'quoted'\ndescription: \"Say \\\"hi\\\", then stop. Use when greeting.\"\nallowed-tools: \"read edit\"\n---\nBody.\n"
+    },
+    {
+      "id": "uppercase-name",
+      "dir": "PDF-Processing",
+      "text": "---\nname: PDF-Processing\ndescription: A skill.\n---\n"
+    },
+    {
+      "id": "leading-hyphen",
+      "dir": "-pdf",
+      "text": "---\nname: -pdf\ndescription: A skill.\n---\n"
+    },
+    {
+      "id": "trailing-hyphen",
+      "dir": "pdf-",
+      "text": "---\nname: pdf-\ndescription: A skill.\n---\n"
+    },
+    {
+      "id": "consecutive-hyphens",
+      "dir": "pdf--processing",
+      "text": "---\nname: pdf--processing\ndescription: A skill.\n---\n"
+    },
+    {
+      "id": "invalid-characters",
+      "dir": "pdf_processing",
+      "text": "---\nname: pdf_processing\ndescription: A skill.\n---\n"
+    },
+    {
+      "id": "name-with-space",
+      "dir": "pdf processing",
+      "text": "---\nname: pdf processing\ndescription: A skill.\n---\n"
+    },
+    {
+      "id": "name-64",
+      "dir": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "text": "---\nname: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\ndescription: A skill.\n---\n"
+    },
+    {
+      "id": "name-65",
+      "dir": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "text": "---\nname: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\ndescription: A skill.\n---\n"
+    },
+    {
+      "id": "unicode-lowercase-name",
+      "dir": "café",
+      "text": "---\nname: café\ndescription: A skill.\n---\n"
+    },
+    {
+      "id": "directory-mismatch",
+      "dir": "other-name",
+      "text": "---\nname: skill-name\ndescription: A skill.\n---\n"
+    },
+    {
+      "id": "missing-name",
+      "dir": "skill-name",
+      "text": "---\ndescription: A skill.\n---\n"
+    },
+    {
+      "id": "empty-name",
+      "dir": "skill-name",
+      "text": "---\nname: ''\ndescription: A skill.\n---\n"
+    },
+    {
+      "id": "missing-description",
+      "dir": "skill-name",
+      "text": "---\nname: skill-name\n---\n"
+    },
+    {
+      "id": "blank-description",
+      "dir": "skill-name",
+      "text": "---\nname: skill-name\ndescription: \"   \"\n---\n"
+    },
+    {
+      "id": "description-1024",
+      "dir": "skill-name",
+      "text": "---\nname: skill-name\ndescription: dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\n---\n"
+    },
+    {
+      "id": "description-1025",
+      "dir": "skill-name",
+      "text": "---\nname: skill-name\ndescription: ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\n---\n"
+    },
+    {
+      "id": "compatibility-501",
+      "dir": "skill-name",
+      "text": "---\nname: skill-name\ndescription: A skill.\ncompatibility: ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\n---\n"
+    },
+    {
+      "id": "unknown-fields",
+      "dir": "skill-name",
+      "text": "---\nname: skill-name\ndescription: A skill.\nversion: 2\nauthor: someone\n---\n"
+    },
+    {
+      "id": "no-frontmatter",
+      "dir": "skill-name",
+      "text": "# A skill\n\nNo frontmatter.\n"
+    },
+    {
+      "id": "unclosed-frontmatter",
+      "dir": "skill-name",
+      "text": "---\nname: skill-name\ndescription: A skill.\n"
+    },
+    {
+      "id": "not-a-mapping",
+      "dir": "skill-name",
+      "text": "---\njust a line\n---\n"
+    },
+    {
+      "id": "two-errors",
+      "dir": "x",
+      "text": "---\nname: Bad--Name\n---\n"
+    },
+    {
+      "id": "tab-after-colon",
+      "dir": "skill-name",
+      "text": "---\nname:\tskill-name\ndescription: A skill.\n---\n"
+    },
+    {
+      "id": "subset-multiline-plain",
+      "dir": "skill-name",
+      "subset": true,
+      "text": "---\nname: skill-name\ndescription: A skill that\n  spans two lines.\n---\n"
+    },
+    {
+      "id": "subset-folded-block",
+      "dir": "skill-name",
+      "subset": true,
+      "text": "---\nname: skill-name\ndescription: >\n  A folded\n  description.\n---\n"
+    },
+    {
+      "id": "subset-literal-block",
+      "dir": "skill-name",
+      "subset": true,
+      "text": "---\nname: skill-name\ndescription: |\n  A literal\n  description.\n---\n"
+    },
+    {
+      "id": "subset-yaml-escape",
+      "dir": "skill-name",
+      "subset": true,
+      "text": "---\nname: skill-name\ndescription: \"A \\x41 escape.\"\n---\n"
+    },
+    {
+      "id": "subset-closing-trailing-space",
+      "dir": "skill-name",
+      "subset": true,
+      "text": "---\nname: skill-name\ndescription: A skill.\n--- \n\nBody.\n"
+    },
+    {
+      "id": "subset-space-before-colon",
+      "dir": "skill-name",
+      "subset": true,
+      "text": "---\nname : skill-name\ndescription: A skill.\n---\n"
+    },
+    {
+      "id": "subset-allowed-tools-list",
+      "dir": "skill-name",
+      "subset": true,
+      "text": "---\nname: skill-name\ndescription: A skill.\nallowed-tools:\n  - Read\n  - Bash\n---\n"
+    }
+  ]
+}
