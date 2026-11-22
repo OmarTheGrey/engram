@@ -24,5 +24,5 @@ One row per results file. A results file exists only if `research/scripts/<scrip
 | research/results/h1-injection-screen.json | research/configs/injection-screen.json | research/scripts/injection_screen.py | 0ed347b4 | 3e35dd39db1ae69b49047678164434c8cf22b0f13c153ffca8e31da5a269b0a4 | none |
 | research/results/h1-secret-guard.json | research/configs/secret-guard.json | research/scripts/secret_guard.py | 322b2ab1 | ea5b75615024cc0045a9bce7d760ce5d84f79ce2b39428a0253270377b4773d9 | none |
 | research/results/h2-perf-budget.json | research/configs/perf-budget.json | research/scripts/perf_budget.py | 0cab0dad | 0ebdd59c0d61bb2126725ba713b9c9c8c929785bef78e3da4b214828f5dbc254 | none |
-| research/results/h3-near-duplicate.json | research/configs/near-duplicate.json | research/scripts/near_duplicate.py | a3d403ea | f50c8f465a2479c84894d4a6fd0fcfbd55df71bcdcc7d3559515d9b46e9b8b3b | none |
+| research/results/h3-near-duplicate.json | research/configs/near-duplicate.json | research/scripts/near_duplicate.py | 8387b6a6 | f50c8f465a2479c84894d4a6fd0fcfbd55df71bcdcc7d3559515d9b46e9b8b3b | none |
 | research/results/h3-lint-nli.json | research/configs/h3-lint-nli.json | research/scripts/h3_lint_nli.py | 44a169f6 | a70036622ac5ddc795c6e4a949e66e5c35d649929888c0cbf71a44efb5c25918 | none |
