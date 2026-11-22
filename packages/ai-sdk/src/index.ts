@@ -32,7 +32,14 @@ import type {
   LanguageModelV4Prompt,
 } from "@ai-sdk/provider";
 import { createKit, type EngramKit, type KitOptions, scopeOf } from "@engram/kit";
-import { MEMORY_READ, MEMORY_WRITE, neutraliseTags, WITHHELD, writeResultText } from "@engram/tag";
+import {
+  MEMORY_READ,
+  MEMORY_WRITE,
+  neutraliseAcross,
+  neutraliseTags,
+  WITHHELD,
+  writeResultText,
+} from "@engram/tag";
 import { z } from "zod";
 
 export interface EngramMemoryOptions extends KitOptions {
@@ -101,6 +108,29 @@ function defuseDeep(value: unknown): unknown {
   return value;
 }
 
+/**
+ * A message's parts with each run of consecutive text parts defused as one
+ * text (neutraliseAcross), so an opener split between two parts is defused
+ * too (review finding E8.14-7).
+ */
+function acrossTextRuns<P extends { type: string }>(parts: P[]): P[] {
+  const out = [...parts];
+  let start = 0;
+  while (start < out.length) {
+    if (out[start]?.type !== "text") {
+      start++;
+      continue;
+    }
+    let end = start;
+    while (out[end]?.type === "text") end++;
+    const run = out.slice(start, end) as unknown as { text: string }[];
+    const texts = neutraliseAcross(run.map((p) => p.text));
+    for (let k = start; k < end; k++) out[k] = { ...(out[k] as P), text: texts[k - start] } as P;
+    start = end;
+  }
+  return out;
+}
+
 export function engramMemory(options: EngramMemoryOptions): EngramMemory {
   const kit = createKit(options);
   const defaultScope = scopeOf(options.namespace);
@@ -159,8 +189,9 @@ export function engramMemory(options: EngramMemoryOptions): EngramMemory {
     return prompt.map((m): LanguageModelV4Message => {
       if (m.role === "system") return { ...m, content: neutraliseTags(m.content) };
       if (m.role === "user")
-        return { ...m, content: m.content.map((p) => defuseDeep(p) as typeof p) };
-      if (m.role === "assistant") return { ...m, content: m.content.map((p) => toolPart(p)) };
+        return { ...m, content: acrossTextRuns(m.content.map((p) => defuseDeep(p) as typeof p)) };
+      if (m.role === "assistant")
+        return { ...m, content: acrossTextRuns(m.content.map((p) => toolPart(p))) };
       return { ...m, content: m.content.map((p) => toolPart(p)) };
     });
   }

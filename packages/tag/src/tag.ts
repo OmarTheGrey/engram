@@ -76,6 +76,43 @@ const TAG_OPENER =
 /** `text` with every tag opener defused, so it can never read as Engram markup. */
 export const neutraliseTags = (text: string) => text.replace(TAG_OPENER, "&lt;$1$2");
 
+/** A tag opener at the start of a text (TAG_OPENER, anchored). */
+const OPENER_START = /^(?:[<＜﹤‹〈⟨〈]|&#0*60;|&#x0*3c;)[\s­​-‏⁠﻿]*\/?[\s­​-‏⁠﻿]*engram/i;
+/** Where an opener can begin: an opener character, or the `&` of a character reference. */
+const OPENER_HEAD = /[<＜﹤‹〈⟨〈&]/g;
+/** How far past its head an opener can reach, generously. */
+const OPENER_REACH = 64;
+
+/**
+ * Adjacent texts (a message's consecutive text parts, which a model reads as
+ * one) with every tag opener defused, one that begins in one text and ends in
+ * the next included (review finding E8.14-7): such an opener's first
+ * character becomes `&lt;`, or `&amp;` for the `&` of a character reference.
+ * Each text is also defused on its own (neutraliseTags). Returns as many
+ * texts as it is given.
+ */
+export function neutraliseAcross(texts: readonly string[]): string[] {
+  const out = texts.map(neutraliseTags);
+  for (let i = 0; i < out.length - 1; i++) {
+    const text = out[i] as string;
+    const after = out
+      .slice(i + 1)
+      .join("")
+      .slice(0, OPENER_REACH);
+    let fixed = "";
+    let from = 0;
+    for (const m of text.matchAll(OPENER_HEAD)) {
+      const at = m.index;
+      const tail = text.slice(at);
+      if (tail.length > OPENER_REACH || !OPENER_START.test(tail + after)) continue;
+      fixed += text.slice(from, at) + (m[0] === "&" ? "&amp;" : "&lt;");
+      from = at + 1;
+    }
+    out[i] = fixed + text.slice(from);
+  }
+  return out;
+}
+
 /** Escapes text so it is never markup: `&` first, then the angle brackets and quotes. */
 const escapeMarkup = (s: string) =>
   s
