@@ -501,7 +501,7 @@ export interface components {
             schema_version: 1;
         };
         JsonValue: unknown;
-        /** @description Who acts, as the caller asserts it (no authentication in v0, ADR 0027): id, the level it reads as, its member scopes, and the provenance kind of what it writes. */
+        /** @description Who acts: id, the level it reads as, its member scopes, and the provenance kind of what it writes. On a server with credentials (ADR 0042) the id and level must be the credential's and the memberships a subset of its own, and the source sent is ignored for the credential's; in process and under --insecure-loopback it is taken as the caller asserts it. */
         Actor: {
             id: string;
             /** @enum {string} */
@@ -914,7 +914,7 @@ export interface components {
         ErrorResponse: {
             error: {
                 /** @enum {string} */
-                code: "bad_request" | "invalid_call" | "explain_denied" | "not_found" | "unsupported_media_type" | "payload_too_large" | "forbidden_host" | "forbidden_origin" | "not_implemented" | "no_store" | "internal";
+                code: "bad_request" | "invalid_call" | "explain_denied" | "not_found" | "unsupported_media_type" | "payload_too_large" | "forbidden_host" | "forbidden_origin" | "unauthorized" | "forbidden_actor" | "not_implemented" | "no_store" | "internal";
                 message: string;
                 card?: string;
             };
@@ -959,7 +959,16 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description the Host or Origin is not this loopback server's, or the actor may not explain this read */
+            /** @description on a server with credentials (ADR 0042): no bearer credential, or one it does not accept; WWW-Authenticate names the protected-resource metadata */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description the Host or Origin is not this server's, the credential's actor is not the request's (forbidden_actor), or the actor may not explain this read */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -1046,7 +1055,16 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description the Host or Origin is not this loopback server's, or the actor may not explain this read */
+            /** @description on a server with credentials (ADR 0042): no bearer credential, or one it does not accept; WWW-Authenticate names the protected-resource metadata */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description the Host or Origin is not this server's, the credential's actor is not the request's (forbidden_actor), or the actor may not explain this read */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -1124,7 +1142,16 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description the Host or Origin is not this loopback server's, or the actor may not explain this read */
+            /** @description on a server with credentials (ADR 0042): no bearer credential, or one it does not accept; WWW-Authenticate names the protected-resource metadata */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description the Host or Origin is not this server's, the credential's actor is not the request's (forbidden_actor), or the actor may not explain this read */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -1362,7 +1389,16 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description the Host or Origin is not this loopback server's, or the actor may not explain this read */
+            /** @description on a server with credentials (ADR 0042): no bearer credential, or one it does not accept; WWW-Authenticate names the protected-resource metadata */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description the Host or Origin is not this server's, the credential's actor is not the request's (forbidden_actor), or the actor may not explain this read */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -1440,7 +1476,16 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description the Host or Origin is not this loopback server's, or the actor may not explain this read */
+            /** @description on a server with credentials (ADR 0042): no bearer credential, or one it does not accept; WWW-Authenticate names the protected-resource metadata */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description the Host or Origin is not this server's, the credential's actor is not the request's (forbidden_actor), or the actor may not explain this read */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -1527,7 +1572,16 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description the Host or Origin is not this loopback server's, or the actor may not explain this read */
+            /** @description on a server with credentials (ADR 0042): no bearer credential, or one it does not accept; WWW-Authenticate names the protected-resource metadata */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description the Host or Origin is not this server's, the credential's actor is not the request's (forbidden_actor), or the actor may not explain this read */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -1614,7 +1668,16 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description the Host or Origin is not this loopback server's, or the actor may not explain this read */
+            /** @description on a server with credentials (ADR 0042): no bearer credential, or one it does not accept; WWW-Authenticate names the protected-resource metadata */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description the Host or Origin is not this server's, the credential's actor is not the request's (forbidden_actor), or the actor may not explain this read */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -1692,7 +1755,16 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description the Host or Origin is not this loopback server's, or the actor may not explain this read */
+            /** @description on a server with credentials (ADR 0042): no bearer credential, or one it does not accept; WWW-Authenticate names the protected-resource metadata */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description the Host or Origin is not this server's, the credential's actor is not the request's (forbidden_actor), or the actor may not explain this read */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -1757,7 +1829,16 @@ export interface operations {
                     "application/json": components["schemas"]["PolicyResponse"];
                 };
             };
-            /** @description the Host or Origin is not this loopback server's, or the actor may not explain this read */
+            /** @description on a server with credentials (ADR 0042): no bearer credential, or one it does not accept; WWW-Authenticate names the protected-resource metadata */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description the Host or Origin is not this server's, the credential's actor is not the request's (forbidden_actor), or the actor may not explain this read */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -1817,7 +1898,16 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description the Host or Origin is not this loopback server's, or the actor may not explain this read */
+            /** @description on a server with credentials (ADR 0042): no bearer credential, or one it does not accept; WWW-Authenticate names the protected-resource metadata */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description the Host or Origin is not this server's, the credential's actor is not the request's (forbidden_actor), or the actor may not explain this read */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -1895,7 +1985,16 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description the Host or Origin is not this loopback server's, or the actor may not explain this read */
+            /** @description on a server with credentials (ADR 0042): no bearer credential, or one it does not accept; WWW-Authenticate names the protected-resource metadata */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description the Host or Origin is not this server's, the credential's actor is not the request's (forbidden_actor), or the actor may not explain this read */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -1973,7 +2072,16 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description the Host or Origin is not this loopback server's, or the actor may not explain this read */
+            /** @description on a server with credentials (ADR 0042): no bearer credential, or one it does not accept; WWW-Authenticate names the protected-resource metadata */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description the Host or Origin is not this server's, the credential's actor is not the request's (forbidden_actor), or the actor may not explain this read */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -2060,7 +2168,16 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description the Host or Origin is not this loopback server's, or the actor may not explain this read */
+            /** @description on a server with credentials (ADR 0042): no bearer credential, or one it does not accept; WWW-Authenticate names the protected-resource metadata */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description the Host or Origin is not this server's, the credential's actor is not the request's (forbidden_actor), or the actor may not explain this read */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -2125,7 +2242,16 @@ export interface operations {
                     "application/json": components["schemas"]["ViewerResponse"];
                 };
             };
-            /** @description the Host or Origin is not this loopback server's, or the actor may not explain this read */
+            /** @description on a server with credentials (ADR 0042): no bearer credential, or one it does not accept; WWW-Authenticate names the protected-resource metadata */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description the Host or Origin is not this server's, the credential's actor is not the request's (forbidden_actor), or the actor may not explain this read */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -2172,7 +2298,7 @@ export interface operations {
                     "application/json": components["schemas"]["HealthResponse"];
                 };
             };
-            /** @description the Host or Origin is not this loopback server's, or the actor may not explain this read */
+            /** @description the Host or Origin is not this server's, the credential's actor is not the request's (forbidden_actor), or the actor may not explain this read */
             403: {
                 headers: {
                     [name: string]: unknown;

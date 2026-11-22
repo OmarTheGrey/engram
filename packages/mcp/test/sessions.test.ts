@@ -75,7 +75,11 @@ describe("RV5-5: the HTTP transport's sessions", () => {
 
   it("past the cap, the least recently used session is evicted, and its next request is told so", async () => {
     const ws = await testWorkspace();
-    const server = await serveHttp(() => ws.makeServer(), { port: 0, maxSessions: 2 });
+    const server = await serveHttp(() => ws.makeServer(), {
+      port: 0,
+      maxSessions: 2,
+      auth: { insecureLoopback: true },
+    });
     listening.push(server);
     const a = await connect(server.url);
     const b = await connect(server.url);
@@ -101,6 +105,7 @@ describe("RV5-5: the HTTP transport's sessions", () => {
       port: 0,
       idleMs: 60_000,
       now: () => clock,
+      auth: { insecureLoopback: true },
     });
     listening.push(server);
     const a = await connect(server.url);

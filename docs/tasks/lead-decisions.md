@@ -296,6 +296,11 @@ The answers card that carries these into the pre-registration, the ADRs and the 
 
 Open, for the lead. Each was drafted by a card's agent while implementing it; the card ships the recommendation behind it, and accepting or changing it is a `decision` log entry plus a status change in the ADR.
 
+60. **ADR 0042, verified actors (card E8.12).** Item 54 chose tokens from an external issuer and hashed local API keys; the ADR fixes how a credential becomes an actor.
+    - (a) Accept ADR 0042: the operator's subjects file maps a token's exact issuer and subject (and the key file maps a key) to one actor with its level, memberships and source; no claim sets any of them, a request may only narrow its memberships, and a source sent on an authenticated call is ignored; a served surface needs a credential flag or `--insecure-loopback`; each event a served surface appends gets a row in a side table naming the authenticated requester or the waiver.
+    - (b) Accept it, but derive an actor from a subject the subjects file does not name (`person:<sub>`, a member of its own scope only), so a new person needs no file edit.
+    - (c) Keep self-asserted actors on loopback, with the ADR as the design for after the thesis.
+
 65. **ADR 0047, the by-id read and the scope list (card E8.14).** What a read of one id and a list of visible scopes may reveal, and how a framework adapter writes.
     - (a) Accept ADR 0047: a by-id read drops a candidate reached only through a grant that does not admit it, so such an id, one out of reach and one never held answer alike; a scope list holds the readable member scopes and the scopes of items a live grant admits; both are read events, a by-id read marked by a reason clause; `POST /read/{itemId}` and `POST /scopes` join the route table; the kit forces source `model`.
     - (b) Accept it, but answer a by-id read as a text read does (`filtered: 1` for a grant that does not admit), keeping one rule for every read at the cost of confirming the id exists.
