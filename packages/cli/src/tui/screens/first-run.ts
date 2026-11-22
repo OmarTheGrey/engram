@@ -111,7 +111,8 @@ export class FirstRunScreen implements Screen {
   }
 
   /** The workspace flags the answers amount to. */
-  private apply(ctx: Ctx): void {
+  /** The answers into the workspace; the log is checked only when `log`, on leaving a question, never per key (review I1). */
+  private apply(ctx: Ctx, log = true): void {
     const choice = LOG_CHOICES[this.logChoice];
     const db =
       choice?.id === "file"
@@ -130,7 +131,7 @@ export class FirstRunScreen implements Screen {
         "set",
       );
     }
-    ctx.recheck();
+    ctx.recheck(log);
   }
 
   private folderCheck(ctx: Ctx): CheapCheck | undefined {
@@ -186,7 +187,7 @@ export class FirstRunScreen implements Screen {
           this.policyChoice =
             (this.policyChoice + step + POLICY_CHOICES.length) % POLICY_CHOICES.length;
         else this.move(ctx, step);
-        this.apply(ctx);
+        this.apply(ctx, false);
         return true;
       }
       case "doctor":
@@ -207,7 +208,7 @@ export class FirstRunScreen implements Screen {
     const f = this.field();
     if (f === undefined) return false;
     f.type(data);
-    this.apply(ctx);
+    this.apply(ctx, false);
     return true;
   }
 

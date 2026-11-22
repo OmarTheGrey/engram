@@ -8,18 +8,21 @@
 // shown as the command printed it.
 import {
   type Component,
+  matchesKey,
   type NativeClipboard,
   type Terminal,
   TuiAltScreen,
 } from "@earendil-works/pi-tui";
 import { parse } from "../commands.ts";
 import { SERVER_URL_ENV } from "../connect.ts";
+import type { CheckResult } from "../doctor.ts";
 import { type CommandSpec, parseOptions, type Values, type Writes } from "../registry.ts";
 import type { Io } from "../run.ts";
 import { commandLine, detectShell, middleCut, type Shell } from "./argv.ts";
 import { type Clipboard, createClipboard } from "./clipboard.ts";
 import { actionFor } from "./keys.ts";
 import { cut, fit, overlay, rows, visibleWidth } from "./layout.ts";
+import { checkLogInChild, type LogCheckInput } from "./log-check.ts";
 import {
   ConfirmOverlay,
   HelpOverlay,
@@ -63,6 +66,8 @@ export interface StartOptions {
   scheme?: "dark" | "light";
   /** The native clipboard, pi-tui's by default. */
   native?: () => NativeClipboard | undefined;
+  /** A Postgres log's check, off the input path: a child process by default (./log-check.ts). */
+  logCheck?: (input: LogCheckInput) => Promise<CheckResult>;
 }
 
 /** What the session leaves for the shell on quit. */
@@ -160,7 +165,9 @@ export class App implements Component, Ctx {
     const loaded = this.noSaved ? {} : loadSaved(o.io.home);
     this.savedProblem = loaded.problem;
     this.ws = Workspace.from(o.io.env, o.given, loaded.saved?.flags);
-    this.checks = cheapChecks(this.ws, o.io);
+    this.logCheck = o.logCheck ?? ((input) => checkLogInChild(input));
+    this.checks = cheapChecks(this.ws, o.io, "defer");
+    this.startLogCheck();
     this.savedInUse = loaded.saved !== undefined && usable(this.checks);
     this.clipboard = createClipboard({
       env: o.io.env,
@@ -253,8 +260,41 @@ export class App implements Component, Ctx {
   line(argv: readonly string[]): string {
     return commandLine(argv, this.shell);
   }
-  recheck(): void {
-    this.checks = cheapChecks(this.ws, this.io);
+  /**
+   * The cheap checks again. With `log` false the log's answer is kept (a
+   * keystroke in a field); a Postgres log is checked off the input path.
+   */
+  recheck(log = true): void {
+    const before = this.checks.log;
+    const pending = this.checks.pendingLog;
+    this.checks = cheapChecks(this.ws, this.io, "defer");
+    if (!log) {
+      this.checks.log = before;
+      if (pending) this.checks.pendingLog = true;
+      else delete this.checks.pendingLog;
+      return;
+    }
+    this.startLogCheck();
+  }
+
+  private readonly logCheck: (input: LogCheckInput) => Promise<CheckResult>;
+  /** The newest log check; an older one's answer is dropped. */
+  private logGeneration = 0;
+
+  private startLogCheck(): void {
+    if (!this.checks.pendingLog) return;
+    const generation = ++this.logGeneration;
+    void this.logCheck({
+      db: this.ws.get("db"),
+      cwd: this.io.cwd,
+      home: this.io.home,
+      env: this.io.env,
+    }).then(([status, detail]) => {
+      if (generation !== this.logGeneration || this.stopped) return;
+      this.checks.log = { status, detail };
+      delete this.checks.pendingLog;
+      this.redraw();
+    });
   }
   save(): void {
     if (this.noSaved) return;
@@ -417,6 +457,11 @@ export class App implements Component, Ctx {
   private parked = 0;
 
   handleInput(data: string): void {
+    // ctrl+c quits now, ahead of any key or call still being handled (9.1).
+    if (matchesKey(data, "ctrl+c")) {
+      this.quit();
+      return;
+    }
     // While a confirmation waits, the action that asked is parked on the main
     // chain; the keys that answer it go on a side chain, or nothing could answer.
     const onSide = this.parked > 0;

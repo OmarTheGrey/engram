@@ -136,7 +136,7 @@ export interface Ctx {
   /** The command line of an argument vector, quoted for the shell. */
   line(argv: readonly string[]): string;
   /** Runs the cheap checks again. */
-  recheck(): void;
+  recheck(log?: boolean): void;
   /** Writes tui.json from the workspace, unless --no-saved. */
   save(): void;
   /** Deletes tui.json. */

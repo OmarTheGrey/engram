@@ -231,6 +231,11 @@ export interface CheapChecks {
   policyLabel?: string;
   /** The log's label for display, when the target parsed. */
   logLabel?: string;
+  /**
+   * A Postgres log whose check was left to the caller: opening a connection
+   * blocks, so the TUI runs it off the input path (review finding I1).
+   */
+  pendingLog?: true;
 }
 
 /** Usable when no cheap check failed. */
@@ -243,7 +248,7 @@ export const usable = (c: CheapChecks) =>
  * (--as or --owner, built as every command builds it). Never the full doctor.
  * With a server, its log and policy are its own and are not checked here.
  */
-export function cheapChecks(ws: Workspace, io: Io): CheapChecks {
+export function cheapChecks(ws: Workspace, io: Io, postgres: "now" | "defer" = "now"): CheapChecks {
   const out: CheapChecks = {
     log: { status: "skip", detail: "the server's own" },
     policy: { status: "skip", detail: "the server's own" },
@@ -254,8 +259,13 @@ export function cheapChecks(ws: Workspace, io: Io): CheapChecks {
       const target = dbTarget(ws.get("db"), io);
       const label = logLabel(target, io);
       out.logLabel = label;
-      const [status, detail] = checkLog(target);
-      out.log = { status, detail: detail.split(target.label).join(label) };
+      if (target.backend === "postgres" && postgres === "defer") {
+        out.log = { status: "skip", detail: `${label}: checking the log...` };
+        out.pendingLog = true;
+      } else {
+        const [status, detail] = checkLog(target);
+        out.log = { status, detail: detail.split(target.label).join(label) };
+      }
     } catch (e) {
       out.log = { status: "fail", detail: (e as Error).message };
     }

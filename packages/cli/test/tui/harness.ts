@@ -6,7 +6,13 @@
 import xterm from "@xterm/headless";
 import type { Values } from "../../src/registry.ts";
 import type { Io } from "../../src/run.ts";
-import { type App, type Summary, startTui, type TuiOptions } from "../../src/tui/app.ts";
+import {
+  type App,
+  type StartOptions,
+  type Summary,
+  startTui,
+  type TuiOptions,
+} from "../../src/tui/app.ts";
 import { FakeTerminal } from "../../src/tui/term.ts";
 import { HOME, NOW, REPO, testId } from "../helpers.ts";
 
@@ -20,6 +26,10 @@ export interface HarnessOptions {
   rows?: number;
   platform?: NodeJS.Platform;
   transport?: Io["transport"];
+  /** The log check of a Postgres log (App option), a fake in tests. */
+  logCheck?: StartOptions["logCheck"];
+  /** The fetch a named server is called through. */
+  fetch?: Io["fetch"];
 }
 
 export const DEFAULT_OPTIONS: TuiOptions = {
@@ -73,6 +83,7 @@ export async function startHarness(o: HarnessOptions = {}) {
     repo: REPO,
     doctorProbes: PROBES,
     ...(o.transport ? { transport: o.transport } : {}),
+    ...(o.fetch ? { fetch: o.fetch } : {}),
   };
   const { app, tui } = startTui({
     terminal: term,
@@ -81,6 +92,7 @@ export async function startHarness(o: HarnessOptions = {}) {
     options: { ...DEFAULT_OPTIONS, ...(o.options ?? {}) },
     platform: o.platform ?? "linux",
     native: () => undefined,
+    ...(o.logCheck ? { logCheck: o.logCheck } : {}),
   });
   const flush = () => new Promise<void>((r) => xt.write("", r));
   const h = {
