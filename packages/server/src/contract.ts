@@ -18,6 +18,8 @@ import {
   ReaderEntry,
   SCHEMA_VERSION,
   SimReport,
+  SupersessionChain,
+  SupersessionProposal,
   Timestamp,
   WhoCanReadAnswer,
   Workload,
@@ -226,6 +228,39 @@ export const BypassRequest = z.strictObject({
 });
 export const EventResponse = z.strictObject({ event: MemoryEvent });
 
+export const SupersedeRequest = z.strictObject({
+  actor: Actor,
+  item_id: z.string().meta({
+    description:
+      "The new version, whose lineage names the items it supersedes; only items the actor may read take part.",
+  }),
+  accept: z.array(z.string()).optional().meta({
+    description:
+      "Ids of candidates whose proposed close the caller accepts. Each is written as a new version in place through the write gate, which decides it; an id with no proposed close refuses the whole call (400) before anything is written. Absent or empty: the plan only.",
+  }),
+});
+
+/** Card L6: the supersession plan, and the governed write of each accepted close. */
+export const SupersedeResponse = z.strictObject({
+  item_id: z.string(),
+  head: SupersessionChain,
+  proposals: z.array(SupersessionProposal),
+  /**
+   * The new version each accepted close sent to the write gate, in order:
+   * those of `applied`, then the one `stopped` names. Each is a version of
+   * an item the read filter admitted for the actor (L6-1).
+   */
+  submitted: z.array(MemoryItem),
+  applied: z.array(WriteResponse),
+  /**
+   * The close whose write the store refused after the gate allowed it
+   * (review fix L6-3): its deny event (engram/write/store-failure), with the
+   * writes before it in `applied` and none after it sent. Null when every
+   * accepted close was written or decided.
+   */
+  stopped: z.strictObject({ item_id: z.string(), event: MemoryEvent }).nullable(),
+});
+
 export const ViewerResponse = z.strictObject({ viewer: Actor.nullable() });
 
 export const HealthResponse = z.strictObject({
@@ -296,6 +331,10 @@ export const COMPONENTS = {
   OpenReport,
   BypassRequest,
   EventResponse,
+  SupersessionChain,
+  SupersessionProposal,
+  SupersedeRequest,
+  SupersedeResponse,
   ViewerResponse,
   HealthResponse,
   ErrorResponse,
