@@ -260,12 +260,13 @@ export class GrantsScreen extends RichScreen {
     const r = this.result;
     if (r !== undefined && !this.edited) {
       const allowed = decisionOf(r) === "allow";
+      // The decision first, then what undo would do, then the command's own lines (8.19).
       out.push("", decisionHead(t, this.command_, r));
-      out.push(...outputLines(r, width).slice(0, 3), ...errorLines(r, width));
       if (allowed && this.last !== undefined)
         out.push(
           ` u undo (${this.last.op === "add" ? "removes it again" : "adds it back"}, a new governed change)`,
         );
+      out.push(...outputLines(r, width), ...errorLines(r, width));
     }
     return out;
   }

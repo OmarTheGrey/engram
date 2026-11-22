@@ -13,11 +13,11 @@
    ▸ Advanced: id, the test clock and this command's workspace flags
 
  ✓ allow   exit 0  allow
+ u undo (removes it again, a new governed change)
  update 01940000-0000-7000-8000-000000000512 at 2026-10-25T12:00:00.000Z by person:dana
  allow: a fixture rule lets the owner change grants
  policy fixture/grant/change
- u undo (removes it again, a new governed change)
-
+ log engram.db
 
 
 
