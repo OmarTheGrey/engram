@@ -90,7 +90,7 @@ export interface LettaAdapterOptions {
    * and a repository without engram/ is read as holding no items.
    */
   create?: boolean;
-  /** How long a write or delete waits for another writer's live lock, in ms. Default 10 000. */
+  /** How long a write or delete waits for any one other writer holding the lock, in ms; a hand-over starts it again. Default 10 000. */
   lockWaitMs?: number;
   /** Test seams for the lock, never set in production (../lock.ts). */
   lockSeams?: LockSeams;

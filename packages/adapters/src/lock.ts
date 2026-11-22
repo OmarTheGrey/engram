@@ -11,8 +11,13 @@
 // this machine and its pid is not alive (a crashed writer), or it is older
 // than LOCK_STALE_MS. A lock with no readable holder (a writer that stopped
 // between creating and filling it) is judged by its file time. Otherwise the
-// writer waits up to `waitMs` by the wall clock, then refuses, naming the
-// holder. Breaking is serialised through a second file (`<lock>.break`), so
+// writer waits, and refuses, naming the holder, once one holder has kept the
+// lock for `waitMs` by the wall clock. The wait bounds one holder, not the
+// queue: each time the lock passes to another holder it starts again. The
+// lock is not fair (a holder with another write queued takes it again before
+// a waiter's next poll), so a waiter can sit behind many writes in turn, and
+// a bound on the whole wait refused a write while every writer before it was
+// making progress (the M-2 flake, 2026-11-22). Breaking is serialised through a second file (`<lock>.break`), so
 // two waiters never remove each other's fresh lock; a holder removes the lock
 // only while it still holds its own token. Tests replace the clock and add
 // pause points through `seams` (test seams only; the defaults are the wall
@@ -34,7 +39,7 @@ import { codeOf, isMissing, isRecord, sleep } from "./fs-safe.ts";
  * one minute at most.
  */
 export const LOCK_STALE_MS = 60_000;
-/** Default wait for a live lock, by the wall clock. */
+/** Default wait for one live holder of the lock, by the wall clock; it starts again at each hand-over. */
 export const LOCK_WAIT_MS = 10_000;
 const BUSY = ["EEXIST", "EPERM", "EACCES", "EBUSY"];
 
@@ -51,7 +56,7 @@ export interface LockSeams {
 export interface StoreLockOptions {
   /** The lock file's path. */
   path: string;
-  /** How long to wait for a live lock, in ms. */
+  /** How long to wait for one live holder, in ms; it starts again whenever the lock changes hands. */
   waitMs: number;
   /** Starts the refusal message, for example `files adapter`. */
   label: string;
@@ -199,9 +204,15 @@ export function createStoreLock(options: StoreLockOptions): StoreLock {
   }
 
   return async <T>(fn: () => Promise<T>): Promise<T> => {
-    const deadline = now() + waitMs;
+    let deadline = now() + waitMs;
+    let seen: string | undefined;
     for (let attempt = 0; !(await tryLock()); attempt++) {
       const text = await readLock();
+      // Another holder since the last poll: the store is live, so the wait starts again.
+      if (text !== undefined && text !== seen) {
+        if (seen !== undefined) deadline = now() + waitMs;
+        seen = text;
+      }
       const judged = text === undefined ? undefined : await judgeLock(text);
       if (text !== undefined && judged?.stale) {
         await beforeBreak(text);
