@@ -18,14 +18,15 @@
 //     refused to decide (a malformed actor, time or id: 400) or could not
 //     reach;
 //   - governed recall rendered in the shared memory tag
-//     (packages/pi-extension/src/tag.ts: read id, admitting rules, content
+//     (@engram/tag, packages/tag: read id, admitting rules, content
 //     escaped), the shape the pi extension and the MCP server show a model.
 //
 // Like ADR 0022 says of MCP, an adapter governs what passes through its seam,
 // not state the framework keeps elsewhere (graph state, checkpointers, chat
 // history), and not other tools that write elsewhere.
-import { type RecallDetails, recallDetails, tagRecall } from "@engram/pi-extension/tag";
+
 import type { Actor, EngramClient, MemoryEvent, MemoryItem } from "@engram/sdk";
+import { type RecallDetails, recallDetails, tagRecall } from "@engram/tag";
 
 /** The scope levels a namespace may name (packages/core's ScopeLevel). */
 export const SCOPE_LEVELS = ["person", "role", "team", "org"] as const;

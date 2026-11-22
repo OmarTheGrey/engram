@@ -275,6 +275,7 @@ The question: what does enforcing memory governance at the boundary cost, compar
 | [`packages/pi-extension`](packages/pi-extension/README.md) | the Engram pi extension: tools, `tool_call` and `context` handlers, custom entries, session replay |
 | [`packages/pi-package`](packages/pi-package/README.md) | the distributable pi package: extension, skill, prompt template, profiles |
 | [`packages/mcp`](packages/mcp/README.md) | the MCP server for Claude Code and Codex; the Claude Code hook |
+| [`packages/tag`](packages/tag/README.md) | the memory tag and the memory_write and memory_read definitions, pure, no pi |
 | [`packages/kit`](packages/kit/README.md) | the framework kit: a fixed actor, a namespace to scope mapper, a typed rejection; the adapter conformance suite |
 | [`packages/ai-sdk`](packages/ai-sdk/README.md) | `@engram/ai-sdk`: governed recall as a Vercel AI SDK middleware, remember and recall tools |
 | [`packages/cli`](packages/cli/README.md) | the `engram` command |

@@ -11,7 +11,7 @@
 // @ai-sdk/provider, a peer dependency, types only) takes the text of the last
 // user message, reads with it, and when the read admitted anything inserts
 // one system message after the prompt's leading system messages holding the
-// memory tag (packages/pi-extension/src/tag.ts: read id, admitting rules,
+// memory tag (@engram/tag, packages/tag: read id, admitting rules,
 // content escaped), its read id also in `providerOptions.engram.read_id`. It
 // also defuses every `<engram` tag opener in the rest of the prompt (as the
 // pi extension's context handler does, ADR 0009 decision D11), so no user
@@ -32,8 +32,7 @@ import type {
   LanguageModelV4Prompt,
 } from "@ai-sdk/provider";
 import { createKit, type EngramKit, type KitOptions, scopeOf } from "@engram/kit";
-import { neutraliseTags, WITHHELD } from "@engram/pi-extension/tag";
-import { MEMORY_READ, MEMORY_WRITE, writeResultText } from "@engram/pi-extension/tools";
+import { MEMORY_READ, MEMORY_WRITE, neutraliseTags, WITHHELD, writeResultText } from "@engram/tag";
 import { z } from "zod";
 
 export interface EngramMemoryOptions extends KitOptions {

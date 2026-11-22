@@ -14,7 +14,7 @@ What every adapter for an agent framework repeats, in one place, so each adapter
 
 | module | what it holds |
 |---|---|
-| `src/index.ts` | `createKit(options)`: `remember` (one write through the gate, an `EngramRejected` carrying the deny event when the plane does not store it), `recall` (a governed read rendered in the shared memory tag of `@engram/pi-extension/tag`, with its event), `get` (`POST /read/{itemId}`) and `scopes` (`POST /scopes`); `scopeOf` and `namespaceOf` (`["person", "omar"]` to `person:omar`, `["org"]` to `org`, deeper namespaces refused); `EngramRejected`, `EngramCallError` |
+| `src/index.ts` | `createKit(options)`: `remember` (one write through the gate, an `EngramRejected` carrying the deny event when the plane does not store it), `recall` (a governed read rendered in the shared memory tag of `@engram/tag`, with its event), `get` (`POST /read/{itemId}`) and `scopes` (`POST /scopes`); `scopeOf` and `namespaceOf` (`["person", "omar"]` to `person:omar`, `["org"]` to `org`, deeper namespaces refused); `EngramRejected`, `EngramCallError` |
 | `test/conformance/suite.ts` | `@engram/kit/conformance`: `kitConformance(subject)`, the cases every adapter on the kit must pass (no path to a store but the plane, a denied write as `EngramRejected`, the actor unchanged by model output), and `staticViolations(root)` |
 
 ## Use

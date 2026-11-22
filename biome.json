@@ -40,6 +40,7 @@
       "includes": [
         "packages/core/**",
         "packages/adapters/**",
+        "packages/tag/**",
         "packages/kit/**",
         "packages/ai-sdk/**"
       ],
@@ -50,14 +51,14 @@
               "level": "error",
               "options": {
                 "paths": {
-                  "@earendil-works/pi-ai": "AGENTS.md rule 4 and What not to do: packages/core, packages/adapters, packages/kit and packages/ai-sdk never import pi; inject a ModelCall instead.",
-                  "@earendil-works/pi-coding-agent": "AGENTS.md rule 4 and What not to do: packages/core, packages/adapters, packages/kit and packages/ai-sdk never import pi; inject a ModelCall instead.",
-                  "@earendil-works/pi-durable": "AGENTS.md rule 4 and What not to do: packages/core, packages/adapters, packages/kit and packages/ai-sdk never import pi; inject a ModelCall instead."
+                  "@earendil-works/pi-ai": "AGENTS.md rule 4 and What not to do: packages/core, packages/adapters, packages/tag, packages/kit and packages/ai-sdk never import pi; inject a ModelCall instead.",
+                  "@earendil-works/pi-coding-agent": "AGENTS.md rule 4 and What not to do: packages/core, packages/adapters, packages/tag, packages/kit and packages/ai-sdk never import pi; inject a ModelCall instead.",
+                  "@earendil-works/pi-durable": "AGENTS.md rule 4 and What not to do: packages/core, packages/adapters, packages/tag, packages/kit and packages/ai-sdk never import pi; inject a ModelCall instead."
                 },
                 "patterns": [
                   {
                     "group": ["@earendil-works/pi-*/**"],
-                    "message": "AGENTS.md rule 4 and What not to do: packages/core, packages/adapters, packages/kit and packages/ai-sdk never import pi; inject a ModelCall instead."
+                    "message": "AGENTS.md rule 4 and What not to do: packages/core, packages/adapters, packages/tag, packages/kit and packages/ai-sdk never import pi; inject a ModelCall instead."
                   }
                 ]
               }

@@ -23,8 +23,9 @@ packages/adapters/        one adapter per store: files, mem0, letta. Each implem
 packages/pi-extension/    the Engram pi extension: tools, tool_call and context handlers, commands, custom entries
 packages/pi-package/      the distributable pi package (extension, skills, prompt templates)
 packages/mcp/             MCP server exposing governed read, write, explain, simulate to Claude Code and Codex; the Claude Code hook
-packages/kit/             what every agent-framework adapter repeats: an actor fixed at construction, a namespace to scope mapper, a typed rejection carrying the event; calls only the generated client; its conformance suite (@engram/kit/conformance)
-packages/ai-sdk/          @engram/ai-sdk, the Vercel AI SDK adapter on the kit: a middleware adding governed recall to the prompt, remember and recall tools; @ai-sdk/provider is a peer dependency
+packages/tag/             the memory tag and the memory_write and memory_read definitions every surface shows a model; pure, no pi; its only workspace dependency is core, for types
+packages/kit/             what every agent-framework adapter repeats: an actor fixed at construction, a namespace to scope mapper, a typed rejection carrying the event; calls only the generated client; no pi in its dependency closure; its conformance suite (@engram/kit/conformance)
+packages/ai-sdk/          @engram/ai-sdk, the Vercel AI SDK adapter on the kit: a middleware adding governed recall to the prompt, remember and recall tools; @ai-sdk/provider is a peer dependency; no pi in its dependency closure
 packages/cli/             `engram` command; calls core and adapters, holds no policy logic
 packages/server/          HTTP API over core (route table, loopback only), the workspace opener; OpenAPI generated from it
 packages/ui/              inspector; calls the generated client
@@ -148,7 +149,7 @@ Cards live in `docs/tasks/<id>.md`. Each has a goal, the files you may touch, wh
 ## What not to do
 
 - Do not add a store-specific branch to `packages/core`. If a store needs special handling, it goes in its adapter behind the contract.
-- Do not import pi-ai, pi-coding-agent or pi-durable in `packages/core`, `packages/adapters`, `packages/kit` or `packages/ai-sdk`. They are reached only from `packages/pi-extension`, `packages/pi-package`, `packages/runner`, `packages/bench` and `packages/model` (ADR 0033).
+- Do not import pi-ai, pi-coding-agent or pi-durable in `packages/core`, `packages/adapters`, `packages/tag`, `packages/kit` or `packages/ai-sdk`, nor make one of those depend on a package that does. They are reached only from `packages/pi-extension`, `packages/pi-package`, `packages/runner`, `packages/bench` and `packages/model` (ADR 0033).
 - Do not bypass the Engram tools from inside a pi session. A direct `bash` call to a store's CLI is a write the gate never saw; the extension blocks known store commands in `user_bash` and `tool_call`.
 - Do not add a benchmark, an induction method, or a statistical test that is not in `docs/research/preregistration.md`. Propose it there first; the change is reviewed before any run.
 - Do not write retrieval ranking that cannot be explained. Every returned item carries the components of its score and the policy decision that admitted it.
