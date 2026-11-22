@@ -2199,10 +2199,18 @@ async function planeSurfaceLeaksNothing() {
     target: secret.id,
     reason: noReaders.reason.replace(unknown, secret.id),
   });
-  expect(JSON.stringify(readers)).not.toContain('person:s"');
+  // No trace of the secret's scope or owner at all (review finding E2.13-5).
+  expect(JSON.stringify(readers)).not.toContain("person:s");
   const scoped = await plane.whoCanRead(outsider, "person:s", at);
   leaks("whoCanRead", scoped);
   expect(scoped.answered).toBe(false);
+  // The scope refusal is the one a scope holding nothing gets, but its name (E2.13-5).
+  const empty = await plane.whoCanRead(outsider, "person:z", at);
+  expect(scoped).toEqual({
+    ...empty,
+    target: "person:s",
+    reason: empty.reason.replace("person:z", "person:s"),
+  });
   expect(plane.events().length, "a who-can-read query appends no event").toBe(asked);
   // simulate replays only the workload it is given, on scratch logs and
   // stores (card E8.9): the outsider's own read of the secret's words finds
