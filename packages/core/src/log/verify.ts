@@ -195,7 +195,7 @@ function walk(db: Db): Walk {
 
   const rows = db.prepare("SELECT pos, kind, seq, data, hash FROM chain ORDER BY pos").all();
   const first = rows[0];
-  if (!first || first.kind !== "genesis")
+  if (first?.kind !== "genesis")
     return fail(
       "genesis",
       "the chain has no genesis at position 0: it never began, or it was cut",
@@ -305,12 +305,7 @@ function walk(db: Db): Walk {
         return fail("links", "a manifest record is not one this chain writes", pos);
       for (const seq of manifest.erase) {
         const erase = bodies.get(seq);
-        if (
-          !erase ||
-          erase.decision !== "allow" ||
-          erase.op !== "retire" ||
-          erase.policy_id !== ERASURE_ID
-        )
+        if (erase?.decision !== "allow" || erase.op !== "retire" || erase.policy_id !== ERASURE_ID)
           return fail(
             "links",
             `the manifest names seq ${seq} as an erase event, which no erase event chained before it is`,
@@ -420,7 +415,10 @@ function walk(db: Db): Walk {
 
 /** Whether an erased event's redacted parts hold the marker: redacting it again changes nothing. */
 function holdsMarker(event: MemoryEvent): boolean {
-  if (event.item && chainCanonical(redacted(event.item as MemoryItem)) !== chainCanonical(event.item))
+  if (
+    event.item &&
+    chainCanonical(redacted(event.item as MemoryItem)) !== chainCanonical(event.item)
+  )
     return false;
   if (event.op === "lint" && redactedLintReason(event.reason) !== event.reason) return false;
   return true;

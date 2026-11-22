@@ -41,7 +41,7 @@
 // research reports them (docs/research/absorb/19-github-scout.md).
 import { createHash } from "node:crypto";
 import type { Db } from "../db/db.ts";
-import type { MemoryEvent } from "../schema.ts";
+import type { MemoryEvent, MemoryItem } from "../schema.ts";
 import { normalTimestamp } from "../time.ts";
 import { lintHead } from "./redact.ts";
 
@@ -128,11 +128,20 @@ export type Part =
 /** A part's value, or its absence (session_entry_id is optional, and an erasure removes it). */
 type PartValue = { present: true; value: unknown } | { present: false };
 
+/**
+ * Whether the event carries an item, in the sense of the skeleton: an object.
+ * A body edited to hold anything else is hashed as it is, so the verifier
+ * reports it rather than throwing.
+ */
+function carriesItem(event: MemoryEvent): event is MemoryEvent & { item: MemoryItem } {
+  return typeof event.item === "object" && event.item !== null && !Array.isArray(event.item);
+}
+
 /** The parts of `event` the skeleton commits to, by name. */
 export function committedParts(event: MemoryEvent): Map<Part, PartValue> {
   const parts = new Map<Part, PartValue>();
-  if (event.item) {
-    const { provenance } = event.item;
+  if (carriesItem(event)) {
+    const provenance = (event.item.provenance ?? {}) as Partial<MemoryItem["provenance"]>;
     parts.set("content", { present: true, value: event.item.content });
     parts.set("provenance.ref", { present: true, value: provenance.ref });
     parts.set("provenance.hash", { present: true, value: provenance.hash });
@@ -143,7 +152,7 @@ export function committedParts(event: MemoryEvent): Map<Part, PartValue> {
         : { present: true, value: provenance.session_entry_id },
     );
   }
-  if (event.op === "lint") {
+  if (event.op === "lint" && typeof event.reason === "string") {
     const head = lintHead(event.reason);
     parts.set("reason.evidence", {
       present: true,
@@ -180,9 +189,9 @@ export function commitments(event: MemoryEvent, salt: Uint8Array): Record<string
 export function skeleton(event: MemoryEvent, given: Readonly<Record<string, string>>): unknown {
   const c = (part: Part) => given[part] ?? null;
   const out: Record<string, unknown> = { ...event };
-  if (event.item) {
+  if (carriesItem(event)) {
     const { content: _content, provenance, ...item } = event.item;
-    const { ref: _ref, hash: _hash, session_entry_id: _entry, ...rest } = provenance;
+    const { ref: _ref, hash: _hash, session_entry_id: _entry, ...rest } = provenance ?? {};
     out.item = {
       ...item,
       content: c("content"),
@@ -194,7 +203,7 @@ export function skeleton(event: MemoryEvent, given: Readonly<Record<string, stri
       },
     };
   }
-  if (event.op === "lint")
+  if (event.op === "lint" && typeof event.reason === "string")
     out.reason = { head: lintHead(event.reason), evidence: c("reason.evidence") };
   return out;
 }
