@@ -11,7 +11,7 @@ import { sliceByColumn } from "@earendil-works/pi-tui";
 import type { Actor, MemoryItem, ReadResponse } from "@engram/sdk";
 import { contentText } from "@engram/view";
 import type { CommandSpec, Values } from "../../registry.ts";
-import { buildActor, redactSecrets } from "../../setup.ts";
+import { redactSecrets } from "../../setup.ts";
 import { actorNow, madeAsLines, madeAsOther } from "../actor.ts";
 import type { TextField } from "../fields.ts";
 import { type Field, type FieldValue, Form, type FormError } from "../forms.ts";

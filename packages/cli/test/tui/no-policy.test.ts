@@ -165,6 +165,9 @@ function violations(path: string, text: string): string[] {
   return out;
 }
 
+/** A probe's source with a template placeholder: `$[` stands for the dollar and brace a template opens with. */
+const tpl = (code: string) => code.replaceAll("$[", `${"$"}{`);
+
 describe("no policy in the TUI's source", () => {
   it("reads its forbidden lists from core, and they are not empty", () => {
     expect(PRESETS.length).toBeGreaterThanOrEqual(3);
@@ -210,14 +213,16 @@ describe("no policy in the TUI's source", () => {
       "a policy id switched on": "switch (a.event.policy_id) { default: }",
       "a rule id": 'const RULE = "engram/write/membership";',
       "a preset name": 'const FALLBACK = "strict";',
-      "a reason in a template is drawn, but its other use is not":
-        "const t = `${oneLine(e.reason)}`; if (e.reason) f();",
+      "a reason in a template is drawn, but its other use is not": tpl(
+        "const t = `$[oneLine(e.reason)}`; if (e.reason) f();",
+      ),
     };
     for (const [name, code] of Object.entries(survivors))
       expect(violations("probe.ts", code).length, name).toBeGreaterThan(0);
     // And what the screens do is allowed: drawn through a helper or a template.
-    const drawn =
-      "out.push(`${oneLine(e.reason)}`, safe(e.policy_id), para(oneLine(v.reason), w));";
+    const drawn = tpl(
+      "out.push(`$[oneLine(e.reason)}`, safe(e.policy_id), para(oneLine(v.reason), w));",
+    );
     expect(violations("probe.ts", drawn)).toEqual([]);
   });
 });

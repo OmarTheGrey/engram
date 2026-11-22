@@ -334,15 +334,14 @@ export class ResultScreen implements Screen {
   readonly kind = "result" as const;
   readonly spec_: CommandSpec;
   result: RunResult;
-  private readonly values: Values;
   private offset = 0;
   /** J: the command's --json output for the same answer, from the same call (card E8.15c). */
   private json = false;
 
-  constructor(spec: CommandSpec, result: RunResult, values: Values) {
+  /** `_values` is kept for callers: r runs from the workspace now (rebuildArgv), not from them. */
+  constructor(spec: CommandSpec, result: RunResult, _values: Values = {}) {
     this.spec_ = spec;
     this.result = result;
-    this.values = values;
   }
 
   title(): string {
