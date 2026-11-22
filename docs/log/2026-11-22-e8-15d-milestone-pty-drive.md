@@ -15,7 +15,7 @@ supersedes: none
 
 **What.** The real TUI driven under ConPTY over every new screen, at 80x24 and 120x40, with the log, store and home in the scratchpad; then the hook entry it copied, run as Claude Code runs one.
 
-**Why.** The card's acceptance asks for both.
+**Why.** The card's acceptance.
 
 **Result.** Retain asked with the strong dialog and swept on y; Lint, Simulate and Doctor ran; Serve refused without a key file (exit 2, the CLI's message), created a key, started authenticated, stopped, kept running on esc, was stopped by ctrl+c with "exit 0, stopped when the TUI quit" printed; Doctor took `--keys` from Serve; MCP and the hook ran Try it; Export, Import, Keys and Log verify ran. The copied entry, `node.exe` plus the absolute `main.ts`, denied `mem0 add x` and a Read in the store root, each exit 0, and printed nothing for README.md.
 
