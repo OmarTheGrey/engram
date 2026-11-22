@@ -1,6 +1,6 @@
  engram  Promote an item                                              in process  log ~/engram.db  person:dana (person)
    Item         [ 01940000-0000-7000-8000-000000000001     ]  an item id (a UUIDv7)
-   To scope     [ team:lantern                             ]  the item's own or wider; yours: org
+   To scope     [ team:lantern                             ]  the item's own or wider; yours: person:dana, org
    Approve as reviewer [ ] off  approve as a reviewer: a member of the target who does not own the item
    ▸ Advanced: id, the test clock and this command's workspace flags
 

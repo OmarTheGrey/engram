@@ -14,7 +14,12 @@ import type { Workspace } from "./workspace.ts";
 export function actorNow(ws: Workspace): Actor | undefined {
   try {
     return buildActor(
-      { as: ws.get("as"), level: ws.get("level"), member: [...ws.list("member")] },
+      // No --member is the actor's own scope, as every command builds it: not an empty list (N3).
+      {
+        as: ws.get("as"),
+        level: ws.get("level"),
+        member: ws.list("member").length > 0 ? [...ws.list("member")] : undefined,
+      },
       ws.get("owner"),
     ) as Actor;
   } catch {
