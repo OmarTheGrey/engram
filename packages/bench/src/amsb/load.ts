@@ -8,10 +8,10 @@ import { fileURLToPath } from "node:url";
 import { AmsbFile, ControlsFile, type Severity, type Text } from "./schema.ts";
 
 export const AMSB_FILE = fileURLToPath(
-  new URL("../../../../fixtures/bench/amsb/scenarios.json", import.meta.url),
+  new URL("../../../../fixtures/amsb/scenarios.json", import.meta.url),
 );
 export const CONTROLS_FILE = fileURLToPath(
-  new URL("../../../../fixtures/bench/amsb/controls.json", import.meta.url),
+  new URL("../../../../fixtures/amsb/controls.json", import.meta.url),
 );
 
 /** The commit the corpus was copied from; card R2 counted 21 scenarios there. */

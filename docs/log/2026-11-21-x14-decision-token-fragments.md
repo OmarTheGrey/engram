@@ -7,7 +7,7 @@ chapter: implementation
 pillar: research
 hypothesis: none
 evidence:
-  - fixtures/bench/amsb/scenarios.json
+  - fixtures/amsb/scenarios.json
   - packages/bench/scripts/vendor-amsb.py
 supersedes: none
 ---

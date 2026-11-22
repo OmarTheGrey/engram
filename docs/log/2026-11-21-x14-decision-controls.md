@@ -7,7 +7,7 @@ chapter: design
 pillar: research
 hypothesis: none
 evidence:
-  - fixtures/bench/amsb/controls.json
+  - fixtures/amsb/controls.json
 supersedes: none
 ---
 

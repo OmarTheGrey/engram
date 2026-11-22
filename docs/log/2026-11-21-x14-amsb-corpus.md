@@ -7,14 +7,14 @@ chapter: implementation
 pillar: research
 hypothesis: none
 evidence:
-  - fixtures/bench/amsb/scenarios.json
+  - fixtures/amsb/scenarios.json
   - packages/bench/scripts/vendor-amsb.py
   - packages/bench/src/amsb/load.ts
   - "make test-one T=packages/bench/test/redteam/amsb.test.ts"
 supersedes: none
 ---
 
-**What.** Card X14 copied OWASP Agent Memory Guard's AMSB scenario corpus as data into `fixtures/bench/amsb/scenarios.json`, with a loader in `packages/bench/src/amsb/`.
+**What.** Card X14 copied OWASP Agent Memory Guard's AMSB scenario corpus as data into `fixtures/amsb/scenarios.json`, with a loader in `packages/bench/src/amsb/`.
 
 **Why.** The red-team harness needs an attack suite the guard cards did not write for themselves, with AMSB's own canaries and severity grades.
 

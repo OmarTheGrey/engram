@@ -43,7 +43,7 @@ packages/core/src/policy/injection-screen.ts copies the pattern text of
 src/agent_memory_guard/detectors/injection.py, memory_persistence_injection.py
 and standing_directive.py, fixtures/injection-screen/corpus.json copies the
 AMSB scenario payloads of src/agent_memory_guard/bench/scenarios.py,
-fixtures/bench/amsb/scenarios.json copies the whole AMSB corpus of that file as
+fixtures/amsb/scenarios.json copies the whole AMSB corpus of that file as
 data (card X14), and research/scripts/redteam.py ports the scorecard of
 src/agent_memory_guard/bench/scoring.py, from OWASP
 Agent Memory Guard (https://github.com/OWASP/www-project-agent-memory-guard,

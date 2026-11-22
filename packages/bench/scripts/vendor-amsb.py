@@ -16,7 +16,7 @@ token's literal nor 150,000 characters; packages/bench/src/amsb/load.ts
 assembles both.
 
     python -I packages/bench/scripts/vendor-amsb.py \\
-        --upstream .engram/upstream/amsb --fetch --out fixtures/bench/amsb
+        --upstream .engram/upstream/amsb --fetch --out fixtures/amsb
 
 --fetch downloads scenarios.py and LICENSE.md at the pinned commit into
 --upstream when missing (HTTPS, data only; never a model), and refuses a
