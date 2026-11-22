@@ -301,6 +301,9 @@ function tamperings(db: Db, c: Case, held: { size: number }): Tamper[] {
   const erasedItemEvents = events.filter(
     (e) => e.item && !salted.has(e.seq) && e.item.content === REDACTED,
   );
+  const erasedLints = events.filter(
+    (e) => e.op === "lint" && !salted.has(e.seq) && redactedLintReason(e.reason) === e.reason,
+  );
   const notErase = events.filter((e) => !erases.includes(e));
   const genesis = JSON.parse(
     String(db.prepare("SELECT data FROM chain WHERE pos = 0").get()?.data),
@@ -494,6 +497,17 @@ function tamperings(db: Db, c: Case, held: { size: number }): Tamper[] {
       },
     ],
     [
+      "an erased lint event rewritten after its erasure",
+      ["commitments"],
+      () => {
+        const e = pick(erasedLints, 1);
+        setBodyAt(db, e.seq, {
+          ...e,
+          reason: `${e.reason.replace(REDACTED, "")}the evidence, back`,
+        });
+      },
+    ],
+    [
       "a salt kept for an erased event",
       ["commitments"],
       () => {
@@ -655,6 +669,7 @@ const TAMPERS = [
   "every salt deleted",
   "a column-only edit",
   "an erased event rewritten after its erasure",
+  "an erased lint event rewritten after its erasure",
   "a salt kept for an erased event",
   "a stray salt",
   "a forged manifest",
