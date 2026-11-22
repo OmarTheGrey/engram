@@ -4,6 +4,8 @@
 // the served app appends is attested. Each test fails without the rule it
 // names. The app is called in process (app.fetch), with the auth a served
 // app carries; the socket is attestation.test.ts's.
+
+import { readFileSync } from "node:fs";
 import { allEvents, type MemoryEvent, type MemoryItem } from "@engram/core";
 import { SignJWT, UnsecuredJWT } from "jose";
 import { describe, expect, it } from "vitest";
@@ -18,6 +20,7 @@ import {
   DANA,
   EVE,
   ISSUER,
+  KID,
   NOW_S,
   tempDir,
 } from "./auth-helpers.ts";
@@ -364,5 +367,31 @@ describe("review finding E8.12-8: a resource URL beyond loopback is https, whate
     expect(on("http://127.0.0.1:7313")).toBeUndefined();
     expect(on("http://localhost:7313/mcp")).toBeUndefined();
     expect(on("http://[::1]:7313")).toBeUndefined();
+  });
+});
+
+describe("review finding E8.12-9: algorithm confusion", () => {
+  it("refuses an HS256 token whose secret is the issuer's public JWK", async () => {
+    const s = await server();
+    const jwks = JSON.parse(readFileSync(s.iss.jwks, "utf8")) as {
+      keys: Record<string, unknown>[];
+    };
+    const publicJwk = jwks.keys[0] ?? {};
+    // The classic confusion: a verifier that took the key's bytes as an HMAC
+    // secret would accept this; jose refuses HS256 for an EC key, and the
+    // algorithm list admits no HS* at all.
+    for (const secret of [JSON.stringify(publicJwk), String(publicJwk.x), JSON.stringify(jwks)]) {
+      const forged = await new SignJWT({})
+        .setProtectedHeader({ alg: "HS256", kid: KID })
+        .setIssuer(ISSUER)
+        .setSubject("sub-dana")
+        .setAudience(BASE)
+        .setExpirationTime(NOW_S + 3600)
+        .sign(new TextEncoder().encode(secret.padEnd(32, "#")));
+      const r = await s.write(forged, asDana);
+      expect(r.status).toBe(401);
+      expect(r.headers.get("www-authenticate")).toContain('error="invalid_token"');
+    }
+    expect(allEvents(s.db)).toHaveLength(0);
   });
 });
