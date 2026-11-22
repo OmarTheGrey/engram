@@ -8,7 +8,7 @@ pillar: distill
 hypothesis: none
 evidence:
   - scripts/test/tasks-and-decisions.test.ts
-  - docs/decisions/0045-replay-validation-source.md
+  - docs/decisions/0046-replay-validation-source.md
 supersedes: none
 ---
 

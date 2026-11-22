@@ -1,4 +1,4 @@
-// The replay validation gate (card D3; ADR 0011, ADR 0026, ADR 0045
+// The replay validation gate (card D3; ADR 0011, ADR 0026, ADR 0046
 // proposed): a candidate procedure is replayed on tasks it was not induced
 // from, and becomes active through Plane.promote only when it passes at least
 // replay_k of replay_n of them.
@@ -697,7 +697,7 @@ export async function runReplayConfig(
         outcomes,
       };
       const decided = admission(policy, replay);
-      // The owner who ran the replay presents it, user-sourced (ADR 0045 proposed).
+      // The owner who ran the replay presents it, user-sourced (ADR 0046 proposed).
       const operator: Actor = { ...writer, source: "user" };
       const promoted = await plane.promote(operator, c.item.id, c.item.scope, config.at, {
         replay,

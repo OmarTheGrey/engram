@@ -229,7 +229,7 @@ async function decideAndCommit(
       ),
       review: options.review === true,
       // The record is derived here from the replay's outcomes, never taken
-      // from the caller (card D3, ADR 0045 proposed), and the replay is
+      // from the caller (card D3, ADR 0046 proposed), and the replay is
       // checked against the item: its id, content and distill ref (D3-3).
       ...(options.replay === undefined ? {} : replayEvidence(deps, item, options.replay)),
     },

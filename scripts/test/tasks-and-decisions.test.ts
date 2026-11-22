@@ -3,8 +3,8 @@
 // with a `decision` log entry that cites it. OWNER_DECIDES lists any ADR left
 // for the owner to decide. The lead accepted ADRs 0031 to 0033 on 2026-11-19
 // (docs/log/2026-11-19-lead-decision-adrs-accepted.md); ADR 0034, proposed
-// by card E9.4, is left for the owner, and so is ADR 0045, proposed by card
-// D3 (docs/log/2026-11-21-d3-decision-validation-source-adr-0045.md). ADRs 0038 to 0041, proposed by
+// by card E9.4, is left for the owner, and so is ADR 0046, proposed by card
+// D3 (docs/log/2026-11-22-d3-decision-adr-renumbered-0046.md). ADRs 0038 to 0041, proposed by
 // the absorb plan on 2026-11-21, were accepted that day under the lead's
 // delegation (docs/log/2026-11-21-orch-decision-adrs-0038-0041-accepted.md).
 // ADR 0046, proposed by card D2 on 2026-11-22 (the AWM prompt adapted to tool

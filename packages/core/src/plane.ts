@@ -231,7 +231,7 @@ export interface PromoteOptions {
    */
   review?: boolean;
   /**
-   * A procedural candidate's replay on held-out tasks (card D3, ADR 0045
+   * A procedural candidate's replay on held-out tasks (card D3, ADR 0046
    * proposed): the outcomes the plane derives the validation record from
    * (distill/validate.ts), never a record the caller states. Only a
    * user-sourced actor may present one (`engram/promote/validation-source`);

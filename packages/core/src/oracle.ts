@@ -497,7 +497,7 @@ export interface OracleReplay {
 
 /**
  * Does `presented` admit the procedural candidate `source` (card D3 review,
- * D3-5)? Its own reading of ADR 0045 (proposed): the presenter is
+ * D3-5)? Its own reading of ADR 0046 (proposed): the presenter is
  * user-sourced; the replay is the source's (its id and content hash); its
  * induction tasks are exactly those of the source's distill ref, and none is
  * replayed; its shape is sound; and its count meets replay_k of replay_n.

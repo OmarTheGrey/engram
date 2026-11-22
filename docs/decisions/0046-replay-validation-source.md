@@ -1,4 +1,4 @@
-# ADR 0045: The replay validation record's source: the plane derives it from the held-out outcomes a user-sourced actor presents
+# ADR 0046: The replay validation record's source: the plane derives it from the held-out outcomes a user-sourced actor presents
 
 Status: proposed, 2026-11-21; revised 2026-11-22 by card D3's review fix pass (findings D3-3 and D3-6), and the same day for the lead's answers to findings D3-1 and D3-2 and the lead's reading of "3 seeds" (finding D3-13; `docs/tasks/lead-decisions.md`, item 63)
 Deciders: drafted by card D3 of the absorb plan; for the lead's acceptance
@@ -35,7 +35,7 @@ Supersedes: nothing. It fills the slot ADR 0026 left open ("the plane passes non
 - The plane trusts the outcomes as presented: a user who invents them is believed. That is the same trust a user-typed write gets, and the runner's cassettes make a fixture's outcomes reproducible.
 - The invariants' oracle (`promotionPermitted`, `packages/core/src/oracle.ts`, the lead's) takes the presented replay and the session index, and judges a replay admission by its own reading (`replayAdmits`). Invariant 2 presents replays (review finding D3-5). The replay itself is still not in the log: the oracle judges what the test presented, and a dogfood log replayed later cannot be judged on it.
 - Cherry-picking held-out tasks is narrowed by point 8, not closed: a replay covers exactly `replay_n` tasks on the registered seeds, and the runner draws them by the config's seed, but the draw stays the caller's (point 8).
-- Drafted as 0042 and renumbered 0045 the same day: cards E8.12 and E8.13 and the TUI design hold 0042 to 0044.
+- Drafted as 0042 and renumbered 0045 the same day, since cards E8.12 and E8.13 and the TUI design hold 0042 to 0044; renumbered 0046 on 2026-11-22, since card D2 merges first and its ADR takes 0045.
 
 ## Sources
 

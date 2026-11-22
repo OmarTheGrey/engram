@@ -1,4 +1,4 @@
-// Card D3's admission decision (ADR 0011, ADR 0026, ADR 0045 proposed): the
+// Card D3's admission decision (ADR 0011, ADR 0026, ADR 0046 proposed): the
 // held-out split is made by construction, a replay that names a task the
 // candidate was induced from is refused, a replay is bound to its item and to
 // the tasks of the item's own distill ref, a held-out task passes when its mean

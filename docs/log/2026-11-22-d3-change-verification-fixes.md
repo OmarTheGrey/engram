@@ -10,7 +10,7 @@ evidence:
   - packages/core/src/distill/validate.ts
   - packages/core/test/unit/oracle.test.ts
   - fixtures/distill/d3-validate/tasks.json
-  - docs/decisions/0045-replay-validation-source.md
+  - docs/decisions/0046-replay-validation-source.md
 supersedes: none
 ---
 

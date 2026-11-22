@@ -9,7 +9,7 @@ hypothesis: H5
 evidence:
   - packages/core/src/plane/promote.ts
   - packages/runner/src/replay-validate.ts
-  - docs/decisions/0045-replay-validation-source.md
+  - docs/decisions/0046-replay-validation-source.md
 supersedes: docs/log/2026-11-22-d3-decision-replay-size-and-draw.md
 ---
 

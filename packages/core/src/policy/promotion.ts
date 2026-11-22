@@ -513,7 +513,7 @@ export function evaluatePromotion(
   } else if (item.class === "procedural" && item.status === "candidate") {
     reviewable = false;
     const v = evidence.validation;
-    // A replay record is evidence a caller presents (card D3, ADR 0045
+    // A replay record is evidence a caller presents (card D3, ADR 0046
     // proposed): an agent presenting one for its own procedure would grant
     // itself the authority ADR 0026 withholds (2609.01836), so only a
     // user-sourced actor, the person who ran the replay, may present one.

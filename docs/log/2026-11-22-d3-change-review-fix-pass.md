@@ -9,7 +9,7 @@ hypothesis: H5
 evidence:
   - packages/core/src/distill/validate.ts
   - packages/runner/src/replay-validate.ts
-  - docs/decisions/0045-replay-validation-source.md
+  - docs/decisions/0046-replay-validation-source.md
   - "make run CONFIG=research/configs/d3-validate-fixture.json"
 supersedes: none
 ---

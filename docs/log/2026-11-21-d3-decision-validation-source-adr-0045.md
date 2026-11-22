@@ -7,7 +7,7 @@ chapter: design
 pillar: distill
 hypothesis: H5
 evidence:
-  - docs/decisions/0045-replay-validation-source.md
+  - docs/decisions/0046-replay-validation-source.md
   - packages/core/src/policy/promotion.ts
   - scripts/test/tasks-and-decisions.test.ts
 supersedes: docs/log/2026-11-21-d3-decision-validation-source.md
