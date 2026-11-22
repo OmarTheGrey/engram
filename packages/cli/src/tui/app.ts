@@ -8,9 +8,12 @@
 // shown as the command printed it.
 import {
   type Component,
+  KeybindingsManager,
   matchesKey,
   type NativeClipboard,
+  setKeybindings,
   type Terminal,
+  TUI_KEYBINDINGS,
   TuiAltScreen,
 } from "@earendil-works/pi-tui";
 import { parse } from "../commands.ts";
@@ -625,7 +628,22 @@ export interface Session {
 }
 
 /** Starts the TUI on a terminal: the alternate screen, the mouse unless --no-mouse. */
+/**
+ * pi-tui's alternate screen scrolls its own viewport on pgup, pgdn and the
+ * rest; the TUI draws exactly one screen, so those keys belong to its
+ * screens (review finding I3). The editing and list bindings stay pi-tui's.
+ */
+function keepScrollKeys(): void {
+  const none = Object.fromEntries(
+    Object.keys(TUI_KEYBINDINGS)
+      .filter((k) => k.startsWith("tui.altScreen."))
+      .map((k) => [k, []]),
+  );
+  setKeybindings(new KeybindingsManager(TUI_KEYBINDINGS, none));
+}
+
 export function startTui(o: StartOptions): Session {
+  keepScrollKeys();
   const app = new App(o);
   const tui = new TuiAltScreen(o.terminal, false, undefined, {
     mouse: o.options.mouse,

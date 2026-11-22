@@ -51,6 +51,24 @@ describe("I1: a Postgres log is checked off the input path", () => {
   });
 });
 
+describe("I3: pgup and pgdn reach the screens", () => {
+  it("move Home's selection by a page and scroll a result", async () => {
+    const cwd = await tempDir();
+    const h = await startHarness({ cwd, home: cwd, given: { owner: "dana", db: "engram.db" } });
+    expect(h.focused()).toBe("read");
+    await h.press("\x1b[6~");
+    expect(h.focused()).not.toBe("read");
+    await h.press("\x1b[5~");
+    expect(h.focused()).toBe("read");
+    await h.press("y", CTRL_S); // the policy in force: a long result
+    expect(h.screen()).toBe("result");
+    const before = await h.text();
+    await h.press("\x1b[6~");
+    expect(await h.text()).not.toBe(before);
+    await h.quit();
+  });
+});
+
 describe("C1: a read with a store folder asks for the folder its own command line names", () => {
   it("asks for folder A, then again for folder B, each dialog naming its folder", async () => {
     const cwd = await tempDir();
