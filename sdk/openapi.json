@@ -337,6 +337,12 @@
       "post": {
         "operationId": "readById",
         "summary": "Read one item by its id through the plane's read filter as the actor at the server's clock (card E8.14): the item and its explanation when the actor may read it, nothing otherwise, and one read event; with a store, the same sweep and adoption as /read run first.",
+        "security": [
+          {},
+          {
+            "bearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "itemId",
@@ -378,8 +384,18 @@
               }
             }
           },
+          "401": {
+            "description": "on a server with credentials (ADR 0042): no bearer credential, or one it does not accept; WWW-Authenticate names the protected-resource metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "403": {
-            "description": "the Host or Origin is not this loopback server's, or the actor may not explain this read",
+            "description": "the Host or Origin is not this server's, the credential's actor is not the request's (forbidden_actor), or the actor may not explain this read",
             "content": {
               "application/json": {
                 "schema": {
@@ -435,6 +451,12 @@
       "post": {
         "operationId": "listScopes",
         "summary": "The scopes the actor can see at the server's clock (card E8.14): its member scopes the read matrix lets its level read, and the scope of every item a read would admit through a live grant; one read event records the decision; with a store, the same sweep and adoption as /read run first.",
+        "security": [
+          {},
+          {
+            "bearer": []
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -466,8 +488,18 @@
               }
             }
           },
+          "401": {
+            "description": "on a server with credentials (ADR 0042): no bearer credential, or one it does not accept; WWW-Authenticate names the protected-resource metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "403": {
-            "description": "the Host or Origin is not this loopback server's, or the actor may not explain this read",
+            "description": "the Host or Origin is not this server's, the credential's actor is not the request's (forbidden_actor), or the actor may not explain this read",
             "content": {
               "application/json": {
                 "schema": {
