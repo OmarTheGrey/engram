@@ -64,6 +64,11 @@ export function bindRefusal(bind: {
       return `--resource ${bind.resource} is not an http or https URL`;
     if (url.search !== "" || url.hash !== "")
       return `--resource ${bind.resource} carries a query or fragment`;
+    // A public name is reached through the TLS proxy in front, whatever this
+    // server binds (review finding E8.12-8); http is only for loopback.
+    const loopbackName = ["127.0.0.1", "localhost", "[::1]"].includes(url.hostname.toLowerCase());
+    if (!loopbackName && url.protocol !== "https:")
+      return `--resource ${bind.resource} names a host beyond loopback, so it must be https (the TLS proxy in front of the server)`;
   }
   if (isLoopbackHost(bind.host)) return undefined;
   if (bind.insecureLoopback)

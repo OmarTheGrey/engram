@@ -10,6 +10,7 @@ import { describe, expect, it } from "vitest";
 import { type AppAuth, createApp } from "../src/app.ts";
 import { attestations } from "../src/attest.ts";
 import { bindActor, metadataPath, wwwAuthenticate } from "../src/auth.ts";
+import { bindRefusal } from "../src/listen.ts";
 import {
   AGENT,
   attestedWorkspace,
@@ -350,5 +351,18 @@ describe("the waiver and the in-process client", () => {
     expect(r.status).toBe(200);
     expect(allEvents(db)).toHaveLength(1);
     expect(attestations(db)).toEqual([]);
+  });
+});
+
+describe("review finding E8.12-8: a resource URL beyond loopback is https, whatever the bind", () => {
+  it("refuses an http --resource with a public name even on a loopback bind", () => {
+    const on = (resource: string) =>
+      bindRefusal({ host: "127.0.0.1", insecureLoopback: false, credentials: true, resource });
+    expect(on("http://memory.example")).toContain("must be https");
+    expect(on("http://10.0.0.5:7313")).toContain("must be https");
+    expect(on("https://memory.example")).toBeUndefined();
+    expect(on("http://127.0.0.1:7313")).toBeUndefined();
+    expect(on("http://localhost:7313/mcp")).toBeUndefined();
+    expect(on("http://[::1]:7313")).toBeUndefined();
   });
 });
