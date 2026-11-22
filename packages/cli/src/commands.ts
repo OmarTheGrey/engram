@@ -5,32 +5,27 @@
 // Every id comes from the Io (`io.newId`), so a run with a fixed Io is
 // reproducible.
 import { createHash } from "node:crypto";
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, statSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { type ParseArgsConfig, parseArgs } from "node:util";
 import {
   type Actor,
   type BundleRow,
   Id,
+  type ImportSource,
+  importActor,
+  importedWrite,
+  importOrder,
   type LintFinding,
   type MemoryEvent,
   type MemoryItem,
+  mapLineage,
   Scope,
   type SimReport,
 } from "@engram/core";
 import { type Connection, connect, result, serverOf } from "./connect.ts";
 import { decisionLines, explanationLines, plural, preview, simulationLines } from "./format.ts";
-import {
-  type BundleHeader,
-  bundleText,
-  type ImportedFields,
-  importActor,
-  importedItem,
-  lineageOrder,
-  mapLineage,
-  parseBundle,
-  rowFields,
-} from "./import/bundle.ts";
+import { type BundleHeader, bundleText, MAX_INPUT_BYTES, parseBundle } from "./import/bundle.ts";
 import { parseClaudeMemory } from "./import/claude.ts";
 import {
   decryptBundle,
@@ -727,46 +722,63 @@ const IMPORT_OPTIONS = {
   "passphrase-file": { type: "string" },
 } satisfies Options;
 
-/** One planned row of an import: where it came from, and its fields. */
+/** One planned row of an import: where it came from, its source and the scope it goes to. */
 interface Planned {
   from: string;
-  ref: string;
   scope: string;
-  fields: ImportedFields;
+  lineage: readonly string[];
+  source: BundleRow | ImportSource;
+  /** What the parser changed about the row, reported beside its decision. */
+  note: string | null;
 }
 
 /** What a row of the import did. */
 interface ImportedRow {
   from: string;
   to: string;
+  kind: string;
   decision: MemoryEvent["decision"];
   status: MemoryItem["status"] | null;
   policy_id: string;
   reason: string;
+  note: string | null;
 }
 
-/** The rows of a pasted Claude memory list, each a semantic item in `scope`. */
-function claudeRows(file: string, scope: string, confidence: number, at: string, io: Io) {
-  let text: string;
+/** A file an import reads, refused over MAX_INPUT_BYTES before it is read. */
+function readInput(file: string, flag: string, io: Io): Buffer {
+  const path = resolve(io.cwd, file);
   try {
-    text = readFileSync(resolve(io.cwd, file), "utf8");
+    const size = statSync(path).size;
+    if (size > MAX_INPUT_BYTES)
+      throw new UsageError(
+        `${flag}${file} is ${size} bytes; engram import reads files of at most ${MAX_INPUT_BYTES} bytes (64 MiB): split the bundle, or export fewer scopes`,
+      );
+    return readFileSync(path);
   } catch (e) {
-    throw new UsageError(`--claude ${file}: ${(e as Error).message}`);
+    if (e instanceof UsageError) throw e;
+    throw new UsageError(`${flag}${file}: ${(e as Error).message}`);
   }
-  return parseClaudeMemory(text).map(
+}
+
+/** The rows of a pasted Claude memory list, each a semantic memory in `scope` as an import. */
+function claudeRows(file: string, scope: string, confidence: number, at: string, io: Io) {
+  const text = readInput(file, "--claude ", io).toString("utf8");
+  return parseClaudeMemory(text, at).map(
     (e): Planned => ({
       from: `line ${e.line}`,
-      ref: `claude-memory:${e.section === null ? "" : `${e.section}:`}line-${e.line}`,
       scope,
-      fields: {
+      lineage: [],
+      note: e.note,
+      source: {
         class: "semantic",
         content: e.text,
         confidence,
         valid_from: e.valid_from ?? at,
         valid_to: null,
         ttl: null,
-        retired: false,
-        lineage: [],
+        status: "candidate",
+        provenance: { kind: "import" },
+        ref: `claude-memory:${e.section === null ? "" : `${e.section}:`}line-${e.line}`,
       },
     }),
   );
@@ -778,12 +790,7 @@ async function bundleRowsOf(
   values: { identity?: string[]; "passphrase-file"?: string; scope?: string },
   io: Io,
 ): Promise<Planned[]> {
-  let bytes: Buffer;
-  try {
-    bytes = readFileSync(resolve(io.cwd, file));
-  } catch (e) {
-    throw new UsageError(`${file}: ${(e as Error).message}`);
-  }
+  const bytes = readInput(file, "", io);
   const text = isEncrypted(bytes)
     ? await decryptBundle(
         bytes,
@@ -795,22 +802,23 @@ async function bundleRowsOf(
     : bytes.toString("utf8");
   return parseBundle(text).rows.map((row) => ({
     from: row.item.id,
-    ref: `engram-bundle:${row.item.id}`,
     scope: values.scope ?? row.item.scope,
-    fields: rowFields(row),
+    lineage: row.item.lineage,
+    source: row,
+    note: null,
   }));
 }
 
 /**
  * `engram import <bundle> | --claude <file>`: every row one Plane.write (card
  * E9.8, decision item 55) by the dedicated import actor `import:<importer>`,
- * source import, owned by the importer, status candidate (a retired row
+ * as core's importedWrite makes it: kind the least trusted of what the row
+ * claims and import, owned by the importer, status candidate (a retired row
  * retired), no grants, a new id; the gate decides each. Rows are written in
- * the bundle's order, each after the rows its lineage names (lineageOrder),
- * and a lineage pointer is mapped to the new id of a row already allowed,
- * else dropped and counted.
- * Prints the id map and each decision. Exit 0 when every row was allowed, 1
- * when any was denied.
+ * core's importOrder (each after the rows its lineage names), and a lineage
+ * pointer is mapped to the new id of a row already allowed, else dropped and
+ * counted. Prints the id map and each decision. Exit 0 when every row was
+ * allowed, 1 when any was denied.
  */
 export async function importCommand(args: string[], io: Io): Promise<number> {
   const { values, positionals } = parse(
@@ -832,9 +840,10 @@ export async function importCommand(args: string[], io: Io): Promise<number> {
     throw new UsageError("--confidence applies to --claude only; a bundle row keeps its own");
   const clock = callClock(values, io);
   // The importer names no source: it writes nothing itself. Its import actor
-  // writes every row, with source import, never the user source engram write sets.
+  // writes every row, never with the user source engram write sets: core
+  // chooses each row's source (importedWrite).
   const importer = buildActor(values, values.owner);
-  const actor = importActor(importer);
+  const actorId = importActor(importer, "import").id;
 
   let planned: Planned[];
   if (values.claude !== undefined) {
@@ -851,14 +860,15 @@ export async function importCommand(args: string[], io: Io): Promise<number> {
     const ids = new Map<string, string>();
     const rows: ImportedRow[] = [];
     let dropped = 0;
-    for (const p of lineageOrder(planned)) {
-      const lineage = mapLineage(p.fields.lineage, ids);
+    for (const p of importOrder(planned)) {
+      const lineage = mapLineage(p.lineage, ids);
       dropped += lineage.dropped;
       const to = io.newId();
-      const item = importedItem(
-        { ...p.fields, lineage: lineage.lineage },
-        { id: to, scope: p.scope, owner: importer.id, actor, ref: p.ref },
-      );
+      const { actor, item } = importedWrite(importer, p.source, {
+        id: to,
+        scope: p.scope,
+        lineage: lineage.lineage,
+      });
       const answer = result(await conn.client.POST("/api/v1/items", { body: { actor, item } }));
       const { item: stored, event } = answer as unknown as {
         item: MemoryItem | null;
@@ -868,10 +878,12 @@ export async function importCommand(args: string[], io: Io): Promise<number> {
       rows.push({
         from: p.from,
         to,
+        kind: item.provenance.kind,
         decision: event.decision,
         status: stored?.status ?? null,
         policy_id: event.policy_id,
         reason: event.reason,
+        note: p.note,
       });
     }
     const allowed = rows.filter((r) => r.decision === "allow").length;
@@ -881,7 +893,7 @@ export async function importCommand(args: string[], io: Io): Promise<number> {
         `${JSON.stringify(
           {
             importer: importer.id,
-            actor: actor.id,
+            actor: actorId,
             source: values.claude === undefined ? "bundle" : "claude",
             rows: rows.length,
             allowed,
@@ -897,10 +909,10 @@ export async function importCommand(args: string[], io: Io): Promise<number> {
     else
       io.out(
         `${[
-          `import as ${actor.id} for ${importer.id}: ${plural(rows.length, "row")}, ${allowed} allowed, ${denied} denied${dropped > 0 ? `, ${plural(dropped, "lineage pointer")} dropped (to a version not imported)` : ""}`,
+          `import as ${actorId} for ${importer.id}: ${plural(rows.length, "row")}, ${allowed} allowed, ${denied} denied${dropped > 0 ? `, ${plural(dropped, "lineage pointer")} dropped (to a version not imported)` : ""}`,
           ...rows.map(
             (r) =>
-              `  ${r.from} -> ${r.to}: ${r.decision}${r.status === null ? "" : ` as ${r.status}`}: ${r.reason} (${r.policy_id})`,
+              `  ${r.from} -> ${r.to}: ${r.decision}${r.status === null ? "" : ` as ${r.status}`}, kind ${r.kind}: ${r.reason} (${r.policy_id})${r.note === null ? "" : `; ${r.note}`}`,
           ),
           logHint(conn),
         ].join("\n")}\n`,

@@ -7,7 +7,13 @@
 // candidate, no grants, the gate deciding. Synthetic content only (rule 12).
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { MemoryItem } from "@engram/core";
+import {
+  type Actor,
+  eventVisibleTo,
+  loadPreset,
+  type MemoryEvent,
+  type MemoryItem,
+} from "@engram/core";
 import { generateIdentity, identityToRecipient } from "age-encryption";
 import { describe, expect, it } from "vitest";
 import type { Fetch } from "../src/connect.ts";
@@ -35,6 +41,9 @@ const DANA = ["--as", "person:dana", "--member", "person:dana", "--member", "tea
 /** sam, a user-sourced member of dana's scope and the team: a reviewer who is neither owner nor author. */
 const SAM = ["--as", "person:sam", "--member", "person:dana", "--member", "team:platform"];
 const LEE = ["--as", "person:lee", "--member", "person:dana", "--member", "person:lee"];
+
+/** The medium preset with card E2.11's trust options on, as a policy file (the CLI names only the registered presets). */
+const TRUST = join(REPO, "packages/core/policies/medium-trust.yaml");
 
 const EPISODE = "01950000-0000-7000-8000-000000000001";
 const FACT = "Dana deploys on Tuesdays.";
@@ -121,12 +130,33 @@ describe("engram export", () => {
     expect(ids).toEqual([...ids].sort());
   });
 
-  it("appends nothing to the log", async () => {
+  it("appends exactly one read event, which only the exporter sees (review finding E9.8-3)", async () => {
     const a = await workspace();
     await populate(a.store);
     const before = logEvents(a.db).length;
     expect((await exportAs(a.store)).code).toBe(0);
-    expect(logEvents(a.db)).toHaveLength(before);
+    const after = logEvents(a.db);
+    expect(after).toHaveLength(before + 1);
+    const event = after.at(-1);
+    expect(event).toMatchObject({
+      op: "read",
+      actor: "person:dana",
+      item_id: null,
+      scope_from: null,
+      scope_to: null,
+      decision: "allow",
+      policy_id: "preset.medium/read/person",
+    });
+    expect(event?.reason).toMatch(
+      /^exported 7 items with \d+ events as a bundle under preset\.medium v1/,
+    );
+    expect(event?.item_ids).toBeUndefined();
+    // The event names no scope, so only its maker sees it (visible.ts), even
+    // a member of the exported scope.
+    const policy = loadPreset("medium");
+    const as = (id: string): Actor => ({ id, level: "person", memberships: ["person:dana"] });
+    expect(eventVisibleTo(as("person:dana"), event as MemoryEvent, policy)).toBe(true);
+    expect(eventVisibleTo(as("person:sam"), event as MemoryEvent, policy)).toBe(false);
   });
 
   it("writes to --out with a summary, and refuses a log that does not exist", async () => {
@@ -312,6 +342,136 @@ describe("engram import: the import actor", () => {
     const last = events.at(-1)?.item;
     expect(last?.lineage).toEqual([report.id_map["01950000-0000-7000-8000-00000000a001"]]);
     expect(events.map((e) => e.item?.status)).toEqual(["retired", "candidate", "candidate"]);
+  });
+
+  /** A bundle of the one row `claiming` writes, with its kind and scope changed. */
+  async function rowOf(kind: string, scope: string) {
+    const file = await claiming();
+    const [head, line] = readFileSync(file, "utf8").split("\n");
+    const row = JSON.parse(line as string) as Row;
+    row.item = {
+      ...row.item,
+      scope,
+      grants: [],
+      provenance: {
+        ...row.item.provenance,
+        kind,
+        ...(kind === "model" || kind === "compaction" ? { model: "faux/scripted" } : {}),
+      },
+    } as MemoryItem;
+    writeFileSync(file, `${head}\n${JSON.stringify(row)}\n`, "utf8");
+    return file;
+  }
+
+  it.each([
+    ["model", "source model is not allowed in team scope"],
+    ["external", "source external is not allowed in team scope"],
+  ])(
+    "never raises trust: a %s row aimed at team scope is denied as a direct write is (E9.8-1)",
+    async (kind, reason) => {
+      const file = await rowOf(kind, "team:platform");
+      const b = await workspace();
+      const r = await cli(["import", file, ...b.store, ...DANA, "--json"]);
+      expect(r.code).toBe(1);
+      const [d] = JSON.parse(r.out).decisions;
+      expect(d).toMatchObject({ kind, decision: "deny", policy_id: "preset.medium/write/team" });
+      expect(d.reason).toContain(reason);
+    },
+  );
+
+  it("never raises trust: a model row in person scope lands as a model candidate", async () => {
+    const file = await rowOf("model", "person:dana");
+    const b = await workspace();
+    const r = await cli(["import", file, ...b.store, ...DANA, "--json"]);
+    expect(r.code).toBe(0);
+    const write = logEvents(b.db).find((e) => e.op === "write");
+    expect(write).toMatchObject({ actor: "import:person:dana", decision: "allow" });
+    expect(write?.item?.provenance).toMatchObject({ kind: "model", model: "faux/scripted" });
+    expect(write?.item?.status).toBe("candidate");
+  });
+
+  it("never raises trust: under strict a compaction row is refused in person scope", async () => {
+    const file = await rowOf("compaction", "person:dana");
+    const b = await workspace();
+    const r = await cli(["import", file, ...b.store, ...DANA, "--policy", "strict", "--json"]);
+    expect(r.code).toBe(1);
+    const [d] = JSON.parse(r.out).decisions;
+    expect(d).toMatchObject({ kind: "compaction", policy_id: "preset.strict/write/person" });
+  });
+
+  it("under medium-trust (card E2.11's options on) the import actor's attested kind stands", async () => {
+    const b = await workspace();
+    const file = join(REPO, "fixtures/bundles/synthetic-v1.jsonl");
+    const r = await cli(["import", file, ...b.store, ...DANA, "--policy", TRUST, "--json"]);
+    expect(r.err).toBe("");
+    expect(r.code).toBe(0);
+    expect(JSON.parse(r.out)).toMatchObject({ rows: 3, allowed: 3 });
+    for (const e of logEvents(b.db).filter((x) => x.op === "write"))
+      expect(e.item?.provenance.kind).toBe("import");
+    const model = await rowOf("model", "person:dana");
+    const c = await workspace();
+    const m = await cli(["import", model, ...c.store, ...DANA, "--policy", TRUST]);
+    expect(m.code).toBe(0);
+    expect(logEvents(c.db).find((e) => e.op === "write")?.item?.provenance.kind).toBe("model");
+  });
+
+  it("writes every row into --scope when given", async () => {
+    const b = await workspace();
+    const file = join(REPO, "fixtures/bundles/synthetic-v1.jsonl");
+    const r = await cli([
+      "import",
+      file,
+      ...b.store,
+      ...DANA,
+      "--scope",
+      "team:platform",
+      "--json",
+    ]);
+    expect(r.code).toBe(0);
+    expect(JSON.parse(r.out)).toMatchObject({ rows: 3, allowed: 3 });
+    const writes = logEvents(b.db).filter((e) => e.op === "write");
+    expect(writes.map((e) => e.item?.scope)).toEqual([
+      "team:platform",
+      "team:platform",
+      "team:platform",
+    ]);
+  });
+
+  it("refuses a bundle holding one item id twice, naming the line (E9.8-2)", async () => {
+    const text = readFileSync(join(REPO, "fixtures/bundles/synthetic-v1.jsonl"), "utf8");
+    const [head, first, second] = text.split("\n");
+    const header = JSON.parse(head as string);
+    const file = join(await tempDir(), "twice.jsonl");
+    writeFileSync(
+      file,
+      [JSON.stringify({ ...header, rows: 3 }), first, second, first, ""].join("\n"),
+    );
+    const b = await workspace();
+    const r = await cli(["import", file, ...b.store, ...DANA]);
+    expect(r.code).toBe(2);
+    expect(r.err).toContain(
+      "line 4: item 01950000-0000-7000-8000-00000000a001 is already on line 2",
+    );
+    expect(existsSync(b.db)).toBe(false);
+  });
+
+  it("refuses an input over 64 MiB before reading it", async () => {
+    const dir = await tempDir();
+    const big = join(dir, "big.jsonl");
+    // A sparse file: its size is past the bound, its bytes never written.
+    const { openSync, ftruncateSync, closeSync } = await import("node:fs");
+    const fd = openSync(big, "w");
+    ftruncateSync(fd, 64 * 1024 * 1024 + 1);
+    closeSync(fd);
+    const b = await workspace();
+    for (const args of [[big], ["--claude", big]]) {
+      const r = await cli(["import", ...args, ...b.store, ...DANA]);
+      expect(r.code).toBe(2);
+      expect(r.err).toContain(
+        "is 67108865 bytes; engram import reads files of at most 67108864 bytes (64 MiB)",
+      );
+    }
+    expect(existsSync(b.db)).toBe(false);
   });
 
   it.each([

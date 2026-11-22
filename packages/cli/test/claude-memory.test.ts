@@ -37,10 +37,39 @@ describe("parseClaudeMemory", () => {
       "Notes:\n- [2026-02-30] - Not a day\n- [2026-02-28T09:30:00Z] - A timestamp\n\nA paragraph\n",
     );
     expect(entries).toEqual([
-      { text: "[2026-02-30] - Not a day", section: "Notes", line: 2, valid_from: null },
-      { text: "A timestamp", section: "Notes", line: 3, valid_from: "2026-02-28T09:30:00.000Z" },
-      { text: "A paragraph", section: "Notes", line: 5, valid_from: null },
+      { text: "[2026-02-30] - Not a day", section: "Notes", line: 2, valid_from: null, note: null },
+      {
+        text: "A timestamp",
+        section: "Notes",
+        line: 3,
+        valid_from: "2026-02-28T09:30:00.000Z",
+        note: null,
+      },
+      { text: "A paragraph", section: "Notes", line: 5, valid_from: null, note: null },
     ]);
+  });
+
+  it("reads only the fenced lines when the text holds a code block (review finding E9.8-5)", () => {
+    const text = [
+      "Sure! Here is everything I remember about you.",
+      "",
+      "```",
+      "- Prefers tea to coffee",
+      "```",
+      "",
+      "Let me know if anything is missing.",
+    ].join("\n");
+    expect(parseClaudeMemory(text).map((e) => e.text)).toEqual(["Prefers tea to coffee"]);
+  });
+
+  it("does not take a date after the import time, and says so", () => {
+    const [entry] = parseClaudeMemory("- [2027-06-01] - Plans a demo", "2026-11-21T12:00:00.000Z");
+    expect(entry).toMatchObject({ text: "Plans a demo", valid_from: null });
+    expect(entry?.note).toBe(
+      "the date 2027-06-01 is after the import time, so valid_from is the import time",
+    );
+    const [past] = parseClaudeMemory("- [2026-06-01] - Gave a demo", "2026-11-21T12:00:00.000Z");
+    expect(past).toMatchObject({ valid_from: "2026-06-01T00:00:00.000Z", note: null });
   });
 
   it("finds nothing in empty or heading-only text", () => {

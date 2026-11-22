@@ -18,9 +18,21 @@
 // (`eventVisibleTo`, visible.ts), in log order, each without its `item`
 // state: the row carries the item as it stands, and an earlier state may
 // hold content a later version took out.
+//
+// What an import makes of a row (decision item 55; review finding E9.8-1):
+// one write by the dedicated import actor `import:<importer>`, whose source
+// is the least trusted of the kind the row claims and `import`, as adoption
+// records a record it did not write (`adoptedItem`, plane/write.ts, card
+// RV4). A row may claim `user` and is recorded `import`; a model, compaction
+// or external row keeps its kind, so the gate's rules for that kind (source
+// rules, source isolation, no grants, no restating retired content) hold for
+// it as for a direct write. The status is candidate, or retired for a retired
+// row, never more; grants are dropped; the id is new and the version 1.
 import type { Actor } from "./actor.ts";
+import { contentHash } from "./content-hash.ts";
 import { readableScope } from "./policy/evaluate.ts";
-import type { MemoryEvent, MemoryItem, Policy } from "./schema.ts";
+import { leastTrusted } from "./policy/promotion.ts";
+import type { MemoryEvent, MemoryItem, Policy, Provenance } from "./schema.ts";
 import { eventVisibleTo } from "./visible.ts";
 
 /** The bundle format's name and version (docs/bundle.md); an importer refuses any other. */
@@ -40,9 +52,9 @@ export function exportable(policy: Policy, actor: Actor, item: MemoryItem): bool
 }
 
 /**
- * The rows of `actor`'s bundle, ordered by item id (creation order, ADR
- * 0003), each with its visible events in the order given (the log's seq
- * order).
+ * The rows of `actor`'s bundle, ordered by item id (a UUIDv7, ADR 0003: the
+ * order the plane minted them in, unless a caller chose an id), each with
+ * its visible events in the order given (the log's seq order).
  */
 export function bundleRows(
   policy: Policy,
@@ -61,4 +73,143 @@ export function bundleRows(
     list.push(rest);
   }
   return chosen.map((item) => ({ item, events: byItem.get(item.id) ?? [] }));
+}
+
+type Kind = Provenance["kind"];
+
+/**
+ * The dedicated import actor (decision item 55): `import:<importer>`, at the
+ * importer's level, a member of exactly the importer's scopes, with `source`
+ * (the kind the plane records, importedWrite's choice). Its id names who it
+ * imports for, so the log tells every imported row from the importer's own
+ * writes, and the importer, who owns the rows, cannot approve their
+ * promotion (ADR 0026: the owner never approves).
+ */
+export function importActor(importer: Actor, source: Kind): Actor {
+  return {
+    id: `import:${importer.id}`,
+    level: importer.level,
+    memberships: [...importer.memberships],
+    source,
+  };
+}
+
+/** What an imported row says of itself: a bundle row's item, or a pasted memory. */
+export interface ImportSource {
+  class: MemoryItem["class"];
+  content: MemoryItem["content"];
+  confidence: number;
+  valid_from: string;
+  valid_to: string | null;
+  ttl: number | null;
+  status: MemoryItem["status"];
+  /** The provenance the row claims; only its kind and model are read. */
+  provenance: Pick<Provenance, "kind" | "model">;
+  /** Where the row came from, recorded as the provenance ref. */
+  ref: string;
+}
+
+/** A bundle row as an import source (see the module comment). */
+export function bundleSource(row: BundleRow): ImportSource {
+  const { item } = row;
+  return {
+    class: item.class,
+    content: item.content,
+    confidence: item.confidence,
+    valid_from: item.valid_from,
+    valid_to: item.valid_to,
+    ttl: item.ttl,
+    status: item.status,
+    provenance: item.provenance,
+    ref: `engram-bundle:${item.id}`,
+  };
+}
+
+const RECORDS_MODEL: ReadonlySet<Kind> = new Set(["model", "compaction"]);
+
+/**
+ * The write an import makes of one row, and the actor that makes it (see
+ * the module comment): kind the least trusted of the row's claim and
+ * `import`, owner the importer, status candidate (retired for a retired
+ * row), no grants, version 1, the id, scope and mapped lineage given.
+ */
+export function importedWrite(
+  importer: Actor,
+  row: BundleRow | ImportSource,
+  at: { id: string; scope: string; lineage: string[] },
+): { actor: Actor; item: MemoryItem } {
+  const source = "item" in row ? bundleSource(row) : row;
+  const kind = leastTrusted([source.provenance.kind, "import"]);
+  const actor = importActor(importer, kind);
+  const model = RECORDS_MODEL.has(kind) ? source.provenance.model : undefined;
+  const item = {
+    id: at.id,
+    class: source.class,
+    scope: at.scope,
+    owner: importer.id,
+    content: source.content,
+    provenance: {
+      kind,
+      ref: source.ref,
+      hash: contentHash(source.content),
+      actor: actor.id,
+      ...(model === undefined ? {} : { model }),
+    },
+    confidence: source.confidence,
+    valid_from: source.valid_from,
+    valid_to: source.valid_to,
+    ttl: source.ttl,
+    grants: [],
+    version: 1,
+    lineage: at.lineage,
+    status: source.status === "retired" ? "retired" : "candidate",
+    store_ref: null,
+    schema_version: 1,
+  } as MemoryItem;
+  return { actor, item };
+}
+
+/**
+ * The order an import writes rows in: as given, except that a row comes
+ * after every row its lineage names, so a pointer to a row in the bundle
+ * always finds that row's new id. A lineage cycle, which no plane writes, is
+ * broken at the row met first.
+ */
+export function importOrder<T extends { from: string; lineage: readonly string[] }>(
+  rows: readonly T[],
+): T[] {
+  const byId = new Map(rows.map((r) => [r.from, r]));
+  const placed = new Set<string>();
+  const visiting = new Set<string>();
+  const out: T[] = [];
+  const place = (row: T) => {
+    if (placed.has(row.from) || visiting.has(row.from)) return;
+    visiting.add(row.from);
+    for (const id of row.lineage) {
+      const ancestor = byId.get(id);
+      if (ancestor !== undefined) place(ancestor);
+    }
+    visiting.delete(row.from);
+    placed.add(row.from);
+    out.push(row);
+  };
+  for (const row of rows) place(row);
+  return out;
+}
+
+/**
+ * A lineage mapped onto the ids an import minted so far: a pointer to a row
+ * already imported takes its new id; any other (a version the bundle does
+ * not hold, a row the gate denied) is dropped and counted, so no imported
+ * item names an id the workspace does not hold.
+ */
+export function mapLineage(
+  lineage: readonly string[],
+  ids: ReadonlyMap<string, string>,
+): { lineage: string[]; dropped: number } {
+  const kept = lineage.flatMap((id) => {
+    const to = ids.get(id);
+    return to === undefined ? [] : [to];
+  });
+  return { lineage: kept, dropped: lineage.length - kept.length };
 }

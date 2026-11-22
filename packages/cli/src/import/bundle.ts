@@ -1,13 +1,8 @@
 // The memory bundle as a file (card E9.8, docs/bundle.md): JSONL, a header
 // line, then one row per line, each an item and the decision events on it.
-// And what an import makes of a row: an item for Plane.write by the
-// dedicated import actor. Nothing here decides; the plane's gate does
-// (AGENTS.md rule 1). What the import sets is the harness's part, as the CLI
-// sets source `user` for `engram write` (ADR 0004, decision D4): the source
-// `import`, the status `candidate`, no grants (decision item 55).
-import { createHash } from "node:crypto";
+// Parsing only: what an import makes of a row is core's (importedWrite,
+// packages/core/src/portable.ts; AGENTS.md rule 1), and the gate decides.
 import {
-  type Actor,
   BUNDLE_FORMAT,
   BUNDLE_VERSION,
   type BundleRow,
@@ -28,6 +23,9 @@ export interface BundleHeader {
 }
 
 const BundleEvent = MemoryEvent.omit({ item: true });
+
+/** The largest bundle or pasted memory list an import reads: 64 MiB. */
+export const MAX_INPUT_BYTES = 64 * 1024 * 1024;
 
 /** The bundle a call to the export route answered with, as JSONL text with a final newline. */
 export function bundleText(header: Omit<BundleHeader, "rows">, rows: readonly BundleRow[]): string {
@@ -65,6 +63,7 @@ export function parseBundle(text: string): { header: BundleHeader; rows: BundleR
   const header = head as Record<string, unknown>;
   const problem = headerProblem(header);
   if (problem) throw new UsageError(`line 1: the header ${problem}`);
+  const seen = new Map<string, number>();
   const rows = rest.map((line, i) => {
     const n = i + 2;
     const raw = json(line, n) as { item?: unknown; events?: unknown } | null;
@@ -81,6 +80,12 @@ export function parseBundle(text: string): { header: BundleHeader; rows: BundleR
         throw new UsageError(`line ${n}: events[${k}] fails its schema: ${issues(event.error)}`);
       return event.data;
     });
+    const twice = seen.get(item.data.id);
+    if (twice !== undefined)
+      throw new UsageError(
+        `line ${n}: item ${item.data.id} is already on line ${twice}; a bundle holds each item once`,
+      );
+    seen.set(item.data.id, n);
     return { item: item.data, events } as BundleRow;
   });
   if (rows.length !== header.rows)
@@ -107,134 +112,3 @@ const issues = (e: { issues: readonly { path: readonly PropertyKey[]; message: s
     .slice(0, 3)
     .map((i) => `${i.path.map(String).join(".") || "value"}: ${i.message}`)
     .join("; ");
-
-/**
- * The dedicated import actor (decision item 55): `import:<importer>`, at the
- * importer's level, a member of exactly the importer's scopes, with source
- * `import`. Its source is set here, by the harness, and never read from a
- * bundle; its id names who it imports for, so the log tells every imported
- * row from the importer's own writes, and the importer, who owns the rows,
- * cannot approve their promotion (ADR 0026: the owner never approves).
- */
-export function importActor(importer: Actor): Actor {
-  return {
-    id: `import:${importer.id}`,
-    level: importer.level,
-    memberships: [...importer.memberships],
-    source: "import",
-  };
-}
-
-const sha256 = (text: string) => `sha256:${createHash("sha256").update(text).digest("hex")}`;
-const contentText = (content: unknown) =>
-  typeof content === "string" ? content : JSON.stringify(content);
-
-/** What an imported row may say of itself: its content, class, confidence and validity. */
-export interface ImportedFields {
-  class: MemoryItem["class"];
-  content: MemoryItem["content"];
-  confidence: number;
-  valid_from: string;
-  valid_to: string | null;
-  ttl: number | null;
-  /** Retired rows stay retired; any other status lands as a candidate. */
-  retired: boolean;
-  lineage: string[];
-}
-
-/**
- * The item an import writes: a new id, owned by the importer, written by the
- * import actor with provenance kind `import` (the plane sets the kind and
- * actor from the actor's source again, ADR 0004 decision D4), status
- * `candidate` (`retired` for a retired row, never more), no grants, version
- * 1; `ref` names where the row came from.
- */
-export function importedItem(
-  fields: ImportedFields,
-  at: { id: string; scope: string; owner: string; actor: Actor; ref: string },
-): Record<string, unknown> {
-  return {
-    id: at.id,
-    class: fields.class,
-    scope: at.scope,
-    owner: at.owner,
-    content: fields.content,
-    provenance: {
-      kind: "import",
-      ref: at.ref,
-      hash: sha256(contentText(fields.content)),
-      actor: at.actor.id,
-    },
-    confidence: fields.confidence,
-    valid_from: fields.valid_from,
-    valid_to: fields.valid_to,
-    ttl: fields.ttl,
-    grants: [],
-    version: 1,
-    lineage: fields.lineage,
-    status: fields.retired ? "retired" : "candidate",
-    store_ref: null,
-    schema_version: 1,
-  };
-}
-
-/** A bundle row's fields, before its lineage is mapped onto the new ids. */
-export function rowFields(row: BundleRow): ImportedFields {
-  const { item } = row;
-  return {
-    class: item.class,
-    content: item.content,
-    confidence: item.confidence,
-    valid_from: item.valid_from,
-    valid_to: item.valid_to,
-    ttl: item.ttl,
-    retired: item.status === "retired",
-    lineage: item.lineage,
-  };
-}
-
-/**
- * Maps a lineage onto the ids this import minted so far: a pointer to a row
- * already imported takes that row's new id; any other (a version the bundle
- * does not hold, a row the gate denied, a later row) is dropped and counted,
- * so no imported item names an id the workspace does not hold.
- */
-export function mapLineage(
-  lineage: readonly string[],
-  ids: ReadonlyMap<string, string>,
-): { lineage: string[]; dropped: number } {
-  const kept = lineage.flatMap((id) => {
-    const to = ids.get(id);
-    return to === undefined ? [] : [to];
-  });
-  return { lineage: kept, dropped: lineage.length - kept.length };
-}
-
-/**
- * The rows in the order an import writes them: by bundle order (item id),
- * except that a row comes after every row its lineage names, so a lineage
- * pointer to a row in the bundle always finds that row's new id. An id is
- * not always creation order (a caller may choose one), and a lineage cycle,
- * which no plane writes, is broken at the row met first.
- */
-export function lineageOrder<T extends { from: string; fields: { lineage: readonly string[] } }>(
-  rows: readonly T[],
-): T[] {
-  const byId = new Map(rows.map((r) => [r.from, r]));
-  const placed = new Set<string>();
-  const visiting = new Set<string>();
-  const out: T[] = [];
-  const place = (row: T) => {
-    if (placed.has(row.from) || visiting.has(row.from)) return;
-    visiting.add(row.from);
-    for (const id of row.fields.lineage) {
-      const ancestor = byId.get(id);
-      if (ancestor !== undefined) place(ancestor);
-    }
-    visiting.delete(row.from);
-    placed.add(row.from);
-    out.push(row);
-  };
-  for (const row of rows) place(row);
-  return out;
-}
