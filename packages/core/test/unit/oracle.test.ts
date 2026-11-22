@@ -4,12 +4,16 @@ import { describe, expect, test } from "vitest";
 import type { Actor } from "../../src/plane.ts";
 import type { Grant, MemoryEvent, MemoryItem, Policy } from "../../src/schema.ts";
 import {
+  attestedKind,
   budgetVictims,
+  effectiveKind,
+  floorProblem,
   grantAllowed,
   holdsHiddenText,
   pastTtl,
   patternCovers,
   promotionPermitted,
+  protectionProblem,
   readable,
   sameContent,
   sameStrictContent,
@@ -355,5 +359,153 @@ describe("promotionPermitted", () => {
       status: "candidate",
     } as MemoryItem);
     expect(promotionPermitted(p, sara, "e", "person:a", [skill], true, AT)).toBe(false);
+  });
+});
+
+// Card E2.11, review E2.11-3: invariant 8's readings of the trust floors.
+describe("the trust floors (invariant 8)", () => {
+  const ON = { unattested_floor: "on", protect_trusted: "on" } as const;
+  const trusting = { ...policy, trust: ON } as unknown as Policy;
+  const kindOf = (kind: MemoryItem["provenance"]["kind"], over: Partial<MemoryItem> = {}) =>
+    ({
+      id: "i",
+      scope: "person:a",
+      owner: "person:a",
+      class: "semantic",
+      status: "active",
+      grants: [],
+      provenance: { kind },
+      ...over,
+    }) as unknown as MemoryItem;
+  const someone = (source?: MemoryItem["provenance"]["kind"], who = "agent:x"): Actor => ({
+    id: who,
+    level: "person",
+    memberships: ["person:a"],
+    ...(source ? { source } : {}),
+  });
+  const event = (over: Partial<MemoryEvent>) =>
+    ({
+      op: "write",
+      decision: "allow",
+      actor: "agent:x",
+      policy_id: "p",
+      reason: "",
+      ...over,
+    }) as MemoryEvent;
+
+  test("attestedKind: the source, or external when none", () => {
+    expect(attestedKind({ source: "tool" })).toBe("tool");
+    expect(attestedKind({})).toBe("external");
+  });
+
+  test("effectiveKind and writeForbidden judge a sourceless writer at external under the floor", () => {
+    expect(effectiveKind(someone(), kindOf("user"))).toBe("user");
+    expect(effectiveKind(someone(), kindOf("user"), trusting)).toBe("external");
+    expect(effectiveKind(someone("tool"), kindOf("user"), trusting)).toBe("tool");
+    const admitsUser = {
+      ...trusting,
+      write: [
+        {
+          scope: "team",
+          allowed_sources: ["user"],
+          forbidden_classes: [],
+          confidence_floor: 0,
+          requires_review: false,
+        },
+      ],
+    } as unknown as Policy;
+    const teamItem = kindOf("user", { scope: "team:t" });
+    const member = { ...someone(), memberships: ["team:t"] };
+    expect(writeForbidden({ ...admitsUser, trust: undefined } as Policy, member, teamItem)).toBe(
+      false,
+    );
+    expect(writeForbidden(admitsUser, member, teamItem)).toBe(true);
+  });
+
+  test("floorProblem: a write recorded more trusted than its actor attests, only under the floor", () => {
+    const raised = event({ item: kindOf("user") });
+    expect(floorProblem(trusting, someone(), raised)).toContain("more trusted than external");
+    expect(floorProblem(trusting, someone("tool"), raised)).toContain("more trusted than tool");
+    expect(floorProblem(trusting, someone("user"), raised)).toBeUndefined();
+    expect(floorProblem(trusting, someone(), event({ item: kindOf("external") }))).toBeUndefined();
+    expect(floorProblem(policy, someone(), raised)).toBeUndefined();
+    expect(floorProblem(trusting, someone(), { ...raised, op: "promote" })).toBeUndefined();
+    expect(floorProblem(trusting, someone(), { ...raised, decision: "deny" })).toBeUndefined();
+  });
+
+  test("protectionProblem: a less trusted write or eviction of an active more trusted item, unless its owner acts as user", () => {
+    const held = kindOf("user");
+    const rewrite = event({ item: kindOf("tool") });
+    expect(protectionProblem(trusting, someone("tool"), held, rewrite)).toContain(
+      "rewrote active user item",
+    );
+    expect(
+      protectionProblem(
+        trusting,
+        someone("tool"),
+        held,
+        event({ item: kindOf("tool", { status: "retired" }) }),
+      ),
+    ).toContain("retired active user item");
+    expect(
+      protectionProblem(trusting, someone("user"), held, event({ item: kindOf("user") })),
+    ).toBeUndefined();
+    expect(
+      protectionProblem(trusting, someone("tool"), { ...held, status: "candidate" }, rewrite),
+    ).toBeUndefined();
+    expect(protectionProblem(policy, someone("tool"), held, rewrite)).toBeUndefined();
+    const evict = event({ op: "evict", item: undefined });
+    expect(protectionProblem(trusting, someone("user"), held, evict, "model")).toContain(
+      "eviction at model",
+    );
+    expect(protectionProblem(trusting, someone(), held, evict)).toContain("eviction at external");
+    expect(protectionProblem(trusting, someone("user"), held, evict, "user")).toBeUndefined();
+    // The owner acting as user is exempt.
+    const owner = someone("user", "person:a");
+    expect(
+      protectionProblem(trusting, owner, held, { ...evict, actor: "person:a" }, "model"),
+    ).toBeUndefined();
+  });
+
+  test("protectionProblem: adoption's retraction after a denied edit is judged, other retires are not", () => {
+    const held = kindOf("user");
+    const retract = event({ op: "retire", policy_id: "engram/adopt/retract", item: undefined });
+    const adopter = someone("import");
+    expect(
+      protectionProblem(trusting, adopter, held, {
+        ...retract,
+        reason: "the store's version of item i was denied (engram/write/downgrade)",
+      }),
+    ).toContain("retracted active user item");
+    expect(
+      protectionProblem(trusting, adopter, held, {
+        ...retract,
+        reason: "item i is no longer in store",
+      }),
+    ).toBeUndefined();
+    expect(
+      protectionProblem(
+        trusting,
+        adopter,
+        held,
+        event({ op: "retire", policy_id: "x/retention/person/semantic" }),
+      ),
+    ).toBeUndefined();
+  });
+});
+
+describe("budgetVictims with eligible (card E2.11)", () => {
+  test("passes over an ineligible item, and names fewer victims when too few are eligible", () => {
+    const its = ["id-1", "id-2", "id-3"].map((id) => ({ id }) as MemoryItem);
+    const changed = new Map([
+      ["id-1", 1],
+      ["id-2", 2],
+      ["id-3", 3],
+    ]);
+    const notOne = (i: MemoryItem) => i.id !== "id-1";
+    expect(budgetVictims("recency", 2, its, changed, new Map(), undefined, notOne)).toEqual([
+      "id-2",
+    ]);
+    expect(budgetVictims("recency", 1, its, changed, new Map(), "id-3", notOne)).toEqual(["id-2"]);
   });
 });
