@@ -1,5 +1,5 @@
 {
-  "_comment": "Card D3's replay task pool: tasks of card D1's fixture sessions (fixtures/sessions/d1/index.json), each with an invented starting repository, so card D2's candidates can be replayed on tasks they were not induced from. synthetic/bump-timeout-06 is one of the ten tasks D2 induced from: the split drops it, and the script has no session for it. Its starting repository differs from that of the held-out synthetic/bump-timeout-16, which shares its prompt: a held-out task with an induction task's prompt and start state is refused (card D3 review, D3-8). Each check is the task's own, a repository-state hash in the manner of tau2-bench's database check: the session's final files against the files the gold edits produce from the same start. Synthetic content, no real person or repository.",
+  "_comment": "Card D3's replay task pool: tasks of card D1's fixture sessions (fixtures/sessions/d1/index.json), each with an invented starting repository, so card D2's candidates can be replayed on tasks they were not induced from. synthetic/bump-timeout-06 is one of the ten tasks D2 induced from: the split drops it, and the script has no session for it. Its starting repository differs from that of the held-out synthetic/bump-timeout-16, which shares its prompt and has a repository of its own too: a held-out task with an induction task's prompt and start state is refused (card D3 review, D3-8). Each check is the task's own, a repository-state hash in the manner of tau2-bench's database check: the session's final files against the files the gold edits produce from the same start. Synthetic content, no real person or repository.",
   "tasks": [
     {
       "id": "synthetic/rename-symbol-11",
@@ -115,11 +115,11 @@
       "id": "synthetic/bump-timeout-16",
       "prompt": "Raise the fetch timeout from 5 to 10 seconds.",
       "files": {
-        "src/fetch.ts": "import { config } from \"./config\";\nexport const fetchTimeoutMs = config.timeoutSeconds * 1000;\n",
-        "src/config.ts": "export const config = { timeoutSeconds: 5 };\n"
+        "src/fetch.ts": "export const FETCH_TIMEOUT_SECONDS = 5;\nexport const fetchTimeoutMs = FETCH_TIMEOUT_SECONDS * 1000;\n",
+        "src/config.ts": "export const config = { retries: 3 };\n"
       },
       "commands": {
-        "grep -rn timeout src": "src/config.ts:1: export const config = { timeoutSeconds: 5 };\nsrc/fetch.ts:2: export const fetchTimeoutMs = config.timeoutSeconds * 1000;"
+        "grep -rn timeout src": "src/fetch.ts:1: export const FETCH_TIMEOUT_SECONDS = 5;\nsrc/fetch.ts:2: export const fetchTimeoutMs = FETCH_TIMEOUT_SECONDS * 1000;"
       },
       "check": {
         "kind": "state-hash",
@@ -127,9 +127,9 @@
           {
             "name": "edit",
             "arguments": {
-              "path": "src/config.ts",
-              "old": "timeoutSeconds: 5",
-              "new": "timeoutSeconds: 10"
+              "path": "src/fetch.ts",
+              "old": "FETCH_TIMEOUT_SECONDS = 5",
+              "new": "FETCH_TIMEOUT_SECONDS = 10"
             }
           }
         ]

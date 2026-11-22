@@ -605,7 +605,7 @@ async function runReplay(path: string, out: string, flags: Flags): Promise<Outco
   const result = await runReplayConfig(config, { offline: !flags.record });
   writeReplayResult(result, out);
   const lines = [
-    `${config.name}: ${result.rows.length} sessions, model ${config.model}, preset ${config.preset}, threshold ${config.threshold}`,
+    `${config.name}: ${result.rows.length} sessions, model ${config.model}, preset ${config.preset}, threshold 2/3 (registered), draw seed ${config.draw_seed}`,
     `model calls: ${result.calls.new} new, ${result.calls.cached} from cassettes (D2's induction: ${result.induce_calls.new} new, ${result.induce_calls.cached} from its cassette)`,
     ...result.candidates.map(
       (c) =>

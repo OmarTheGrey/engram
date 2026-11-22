@@ -61,6 +61,7 @@ import {
   openSqlite,
   parseDistillRef,
   parseSkillMd,
+  REPLAY_THRESHOLD,
   type ReplayOutcome,
   type ReplayRecord,
   strictContentHash,
@@ -106,8 +107,14 @@ export const ReplayConfig = z.strictObject({
   seeds: z.array(z.number().int()).min(1).refine(unique, "seeds must be unique"),
   /** The policy the admission is judged under: its replay_k of replay_n. */
   preset: z.enum(["strict", "medium", "permissive"]),
-  /** A held-out task passes when its mean reward with the candidate is at or above this. */
-  threshold: z.number().gt(0).lte(1),
+  /**
+   * The seed the replay_n held-out tasks are drawn by from each candidate's
+   * split (the lead's answer to D3-1, 2026-11-22). The pass threshold is not
+   * a config field: it is core's registered REPLAY_THRESHOLD, 2/3 (D3-2).
+   */
+  draw_seed: z.number().int(),
+  /** The candidates replayed, by skill name: a fixed subset of D2's, so the fixture stays small. */
+  candidates: z.array(z.string().min(1)).min(1).refine(unique, "candidates must be unique"),
   /** The time every write and promotion is made at; injected, never read from a clock. */
   at: z.iso.datetime(),
   /** The fixture's label per candidate skill name, read only by the run's final check. */
@@ -237,15 +244,48 @@ export function candidatesOf(
 const taskKey = (t: Pick<Task, "prompt" | "files">) =>
   `${t.prompt}\u0000${stateHash({ files: t.files })}`;
 
+/** mulberry32, seeded by sha256 of the draw seed: the seeded draw the runner uses (rule 6). */
+function seededStream(seed: number): () => number {
+  let a = createHash("sha256").update(`d3-draw:${seed}`).digest().readUInt32BE(0);
+  return () => {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
 /**
- * The held-out tasks per candidate (core's split), and every task a baseline
- * runs on, in pool order. A held-out task whose prompt and start state equal
- * those of one of the candidate's induction tasks in the pool is the same
- * task under another id, and is refused (card D3 review, D3-8).
+ * `n` tasks of a candidate's split, drawn by `seed` (the lead's answer to
+ * D3-1): a Fisher-Yates shuffle of the split in pool order, its first `n`,
+ * back in pool order. A split of fewer than `n` tasks cannot be replayed.
+ */
+export function drawHeldOut(split: readonly string[], n: number, seed: number): string[] {
+  if (split.length < n)
+    throw new Error(
+      `the split holds ${split.length} held-out tasks, fewer than the policy's replay_n ${n}`,
+    );
+  const next = seededStream(seed);
+  const order = [...split];
+  for (let i = order.length - 1; i > 0; i--) {
+    const j = Math.floor(next() * (i + 1));
+    [order[i], order[j]] = [order[j] as string, order[i] as string];
+  }
+  const drawn = new Set(order.slice(0, n));
+  return split.filter((t) => drawn.has(t));
+}
+
+/**
+ * The held-out tasks per candidate (core's split, then `n` of it drawn by
+ * `seed`), and every task a baseline runs on, in pool order. A held-out task
+ * whose prompt and start state equal those of one of the candidate's
+ * induction tasks in the pool is the same task under another id, and is
+ * refused (card D3 review, D3-8).
  */
 export function replayPlan(
   tasks: readonly Task[],
   candidates: readonly Pick<Candidate, "name" | "induced_from">[],
+  draw: { n: number; seed: number },
 ): { held_out: Record<string, string[]>; baseline: string[] } {
   const pool = tasks.map((t) => t.id);
   const byId = new Map(tasks.map((t) => [t.id, t]));
@@ -265,7 +305,7 @@ export function replayPlan(
             `held-out task ${id} has the prompt and start state of ${same}, a task ${c.name} was induced from`,
           );
       }
-      return [c.name, held];
+      return [c.name, drawHeldOut(held, draw.n, draw.seed)];
     }),
   );
   const any = new Set(Object.values(held_out).flat());
@@ -490,7 +530,8 @@ async function replaySession(
     cwd,
     cache,
     context: replayContext(task.id, candidate?.name ?? null),
-    answers: answersFor(config, script[key], key),
+    // A seed's own steps when the script has them, else the session's.
+    answers: answersFor(config, script[`${key}@${seed}`] ?? script[key], `${key}@${seed}`),
     ...(options.offline === undefined ? {} : { offline: options.offline }),
     onUsage,
   });
@@ -567,7 +608,14 @@ export async function induceCandidates(
   const induced = await runInduceConfig(readInduceConfig(config.induce), {
     ...(options.offline === undefined ? {} : { offline: options.offline }),
   });
-  return { candidates: candidatesOf(induced.items, sessionTasks(config)), calls: induced.calls };
+  const all = candidatesOf(induced.items, sessionTasks(config));
+  const byName = new Map(all.map((c) => [c.name, c]));
+  const candidates = config.candidates.map((name) => {
+    const c = byName.get(name);
+    if (c === undefined) throw new Error(`config ${config.name}: D2 induced no candidate ${name}`);
+    return c;
+  });
+  return { candidates, calls: induced.calls };
 }
 
 /** Replay every candidate of the config and present each replay to Plane.promote. */
@@ -579,7 +627,11 @@ export async function runReplayConfig(
   // The induction replays its own committed cassette; `cache` is the replay's.
   const induced = await induceCandidates(config, { offline: true });
   const candidates = induced.candidates;
-  const plan = replayPlan(tasks, candidates);
+  const policy = loadPreset(config.preset);
+  const plan = replayPlan(tasks, candidates, {
+    n: policy.promotion.procedural.replay_n,
+    seed: config.draw_seed,
+  });
   const script = Script.parse(JSON.parse(readFileSync(config.script, "utf8"))).sessions;
   const cache = options.cache ?? fileCache(config.cassettes);
   const usage: UsageRecord[] = [];
@@ -598,7 +650,6 @@ export async function runReplayConfig(
   for (const t of plan.baseline)
     for (const seed of config.seeds) without.set(`${t}@${seed}`, (await run(t, null, seed)).reward);
 
-  const policy = loadPreset(config.preset);
   const db = openSqlite(":memory:");
   try {
     migrate(db);
@@ -639,7 +690,7 @@ export async function runReplayConfig(
         item_id: c.item.id,
         content_hash: strictContentHash(c.item.content),
         induced_from: c.induced_from,
-        threshold: config.threshold,
+        threshold: REPLAY_THRESHOLD,
         outcomes,
       };
       const decided = admission(policy, replay);
@@ -729,7 +780,10 @@ export interface ReplayCount {
 export async function countReplayConfig(config: ReplayConfig, repo?: string): Promise<ReplayCount> {
   const tasks = loadReplayTasks(config);
   const { candidates } = await induceCandidates(config, { offline: true });
-  const plan = replayPlan(tasks, candidates);
+  const plan = replayPlan(tasks, candidates, {
+    n: loadPreset(config.preset).promotion.procedural.replay_n,
+    seed: config.draw_seed,
+  });
   const seeds = config.seeds.length;
   const counted = candidates.map((c) => {
     const held = plan.held_out[c.name] as string[];

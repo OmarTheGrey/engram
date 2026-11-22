@@ -13,6 +13,7 @@ import {
   applyActions,
   type Candidate,
   countReplayConfig,
+  drawHeldOut,
   induceCandidates,
   loadReplayTasks,
   procedureBlock,
@@ -54,39 +55,68 @@ describe("D2's candidates are the replay's input", () => {
 describe("the split by construction (card D3, step 1)", () => {
   const tasks = loadReplayTasks(config);
 
-  test("for every candidate: never replayed on a task it was induced from", () => {
-    const plan = replayPlan(tasks, candidates);
+  const DRAW = { n: 5, seed: config.draw_seed };
+
+  test("for every candidate: replay_n tasks of its split, never one it was induced from", () => {
+    const plan = replayPlan(tasks, candidates, DRAW);
     const pool = tasks.map((t) => t.id);
     for (const c of candidates) {
       const held = plan.held_out[c.name] ?? [];
-      expect(held.length, c.name).toBeGreaterThan(0);
+      expect(held.length, c.name).toBe(5);
       expect(
         held.filter((t) => c.induced_from.includes(t)),
         c.name,
       ).toEqual([]);
-      expect([...held, ...pool.filter((t) => c.induced_from.includes(t))].sort()).toEqual(
-        [...pool].sort(),
-      );
+      const split = pool.filter((t) => !c.induced_from.includes(t));
+      expect(held.every((t) => split.includes(t))).toBe(true);
     }
+  });
+
+  test("the draw is the seed's: the same seed the same tasks, in pool order", () => {
+    const split = ["a", "b", "c", "d", "e", "f", "g"];
+    const drawn = drawHeldOut(split, 5, 1);
+    expect(drawn).toEqual(drawHeldOut(split, 5, 1));
+    expect(drawn.length).toBe(5);
+    expect(drawn).toEqual(split.filter((t) => drawn.includes(t)));
+    expect(drawHeldOut(split.slice(0, 5), 5, 9)).toEqual(split.slice(0, 5));
+    expect(() => drawHeldOut(split.slice(0, 4), 5, 1)).toThrow(
+      "fewer than the policy's replay_n 5",
+    );
+    const seeds = new Set([1, 2, 3, 4, 5, 6].map((seed) => drawHeldOut(split, 5, seed).join()));
+    expect(seeds.size).toBeGreaterThan(1);
+  });
+
+  test("a split larger than replay_n is drawn: the rename rule candidate's six tasks give five", () => {
+    const plan = replayPlan(tasks, candidates, DRAW);
+    expect(plan.held_out["rename-parserow-to-parserecord-everywhere"]).toEqual([
+      "synthetic/fix-failing-test-32",
+      "synthetic/remove-dead-code-15",
+      "synthetic/bump-timeout-06",
+      "synthetic/bump-timeout-16",
+      "synthetic/log-level-29",
+    ]);
   });
 
   test("a held-out task with an induction task's prompt and start state is refused (D3-8)", () => {
     const induced = tasks.find((t) => t.id === "synthetic/bump-timeout-06") as Task;
     const copy: Task = { ...induced, id: "synthetic/bump-timeout-99" };
-    expect(() => replayPlan([...tasks, copy], candidates)).toThrow(
+    expect(() => replayPlan([...tasks, copy], candidates, DRAW)).toThrow(
       "held-out task synthetic/bump-timeout-99 has the prompt and start state of synthetic/bump-timeout-06",
     );
     // The same prompt over another start state is another task.
     const other: Task = { ...copy, files: { "src/fetch.ts": "export const t = 1;\n" } };
-    expect(() => replayPlan([...tasks, other], candidates)).not.toThrow();
+    expect(() => replayPlan([...tasks, other], candidates, DRAW)).not.toThrow();
   });
 
-  test("the pool holds an induction task, and the split drops it", () => {
-    const induced = new Set(candidates.flatMap((c) => c.induced_from));
-    const inPool = tasks.filter((t) => induced.has(t.id)).map((t) => t.id);
-    expect(inPool).toEqual(["synthetic/bump-timeout-06"]);
-    const plan = replayPlan(tasks, candidates);
-    expect(plan.baseline).not.toContain("synthetic/bump-timeout-06");
+  test("the pool holds an induction task, and the split drops it for each candidate induced from it", () => {
+    const plan = replayPlan(tasks, candidates, DRAW);
+    for (const c of candidates)
+      if (c.induced_from.includes("synthetic/bump-timeout-06"))
+        expect(plan.held_out[c.name], c.name).not.toContain("synthetic/bump-timeout-06");
+    const timeout = candidates.find(
+      (c) => c.name === "raise-the-fetch-timeout-from-5-to-10-seconds",
+    );
+    expect(timeout?.induced_from).toEqual(["synthetic/bump-timeout-06"]);
   });
 });
 
@@ -151,22 +181,34 @@ describe("acceptance (card D3): the replayed fixture admits one candidate and re
     const by = Object.fromEntries(result.candidates.map((c) => [c.name, c]));
     expect(by["edit-a-file-and-check-the-edit"]).toMatchObject({
       status: "active",
-      record: { k: 4, n: 5, threshold: 1, baseline: 2 },
+      record: { k: 4, n: 5, threshold: 2 / 3, baseline: 2 },
       event: { op: "promote", decision: "allow", policy_id: "preset.medium/promotion/procedural" },
     });
     expect(by["edit-a-file-and-check-the-edit"]?.event.reason).toContain(
-      "the validation record 4 of 5 held-out tasks at or above 1 with the procedure (2 of 5 without it) meets 4 of 5",
+      "the validation record 4 of 5 held-out tasks pass with the procedure (a mean reward of at least 2/3 over the seeds, and no lower than without it; 2 of 5 reach 2/3 without it) meets 4 of 5",
     );
-    expect(by["call-read-then-read"]).toMatchObject({
-      status: "candidate",
-      record: { k: 1, n: 5, baseline: 2 },
-      event: { op: "promote", decision: "deny", policy_id: "engram/promote/no-evidence" },
-    });
-    for (const name of [
-      "inspect-a-source-file-before-changing-it",
-      "run-a-command-then-read-what-it-points-at",
-    ])
-      expect(by[name]).toMatchObject({ status: "candidate", record: { k: 3, n: 5 } });
+    // fix-failing-test-32 passes at 2 of 3 seeds: the registered 2/3.
+    expect(
+      by["edit-a-file-and-check-the-edit"]?.tasks.find(
+        (t) => t.task === "synthetic/fix-failing-test-32",
+      ),
+    ).toMatchObject({ runs: 3, with: 2 / 3, passed: true });
+    const refused = (name: string, k: number) =>
+      expect(by[name], name).toMatchObject({
+        status: "candidate",
+        record: { k, n: 5 },
+        event: { op: "promote", decision: "deny", policy_id: "engram/promote/no-evidence" },
+      });
+    refused("inspect-a-source-file-before-changing-it", 2);
+    refused("run-a-command-then-read-what-it-points-at", 3);
+    refused("raise-the-fetch-timeout-from-5-to-10-seconds", 1);
+    refused("rename-parserow-to-parserecord-everywhere", 0);
+    // The no-worse rule (D3-1): its rename task reaches 2/3 and falls below a baseline of 1.
+    expect(
+      by["run-a-command-then-read-what-it-points-at"]?.tasks.find(
+        (t) => t.task === "synthetic/rename-symbol-11",
+      ),
+    ).toMatchObject({ with: 2 / 3, without: 1, passed: false });
     // Every replayed session ran a held-out task of its candidate.
     for (const row of result.rows)
       if (row.candidate !== null)
@@ -184,7 +226,12 @@ describe("acceptance (card D3): the replayed fixture admits one candidate and re
 describe("COUNT=1", () => {
   test("counts the sessions without calling a model", async () => {
     const count = await countReplayConfig(config);
-    expect(count).toMatchObject({ pool: 6, baseline_sessions: 5, sessions: 25 });
-    expect(count.candidates.map((c) => c.held_out.length)).toEqual([5, 5, 5, 5]);
+    expect(count).toMatchObject({
+      pool: 6,
+      baseline_sessions: 18,
+      candidate_sessions: 75,
+      sessions: 93,
+    });
+    expect(count.candidates.map((c) => c.held_out.length)).toEqual([5, 5, 5, 5, 5]);
   }, 60_000);
 });
