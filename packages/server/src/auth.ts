@@ -227,7 +227,7 @@ export async function authenticate(
   if (credential.startsWith(KEY_PREFIX)) {
     if (credentials.keys === undefined)
       return unauthorized("this server accepts no API keys", true);
-    const check = credentials.keys.verify(credential, context.now);
+    const check = await credentials.keys.verify(credential, context.now);
     if (!check.ok) return unauthorized(check.reason, true);
     return {
       ok: true,

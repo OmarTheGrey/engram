@@ -18,10 +18,12 @@
 // Changed: the prefix is Engram's and a 12-character key id sits between it
 // and the secret, so a key is found without trying every hash; the hash is of
 // the key, with no pepper (the source's environment configuration removed);
-// a hash shorter than 32 bytes or with a cost above 2^20 is refused (the
+// verification runs the asynchronous crypto.scrypt, off the event loop, where
+// the source ran scryptSync (review finding E8.12-5); it accepts only r = 8,
+// p = 1 and a power-of-two N up to 2^16, and a hash of at least 32 bytes (the
 // source verified a hash cut short); the comments are ours; the password
 // generator and the generic masking are not taken.
-import { createHash, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes, scrypt, scryptSync, timingSafeEqual } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { ActorShape, ProvenanceKind, Scope, Timestamp } from "@engram/core";
@@ -74,7 +76,8 @@ const SCRYPT_N = 16384;
 const SCRYPT_R = 8;
 const SCRYPT_P = 1;
 const KEYLEN = 32;
-const MAX_SCRYPT_N = 1 << 20;
+/** The largest cost verification accepts: 2^16 needs 64 MiB, so a crafted hash cannot ask for more. */
+const MAX_SCRYPT_N = 1 << 16;
 
 const scryptHash = (plain: string, salt: Buffer, n: number, r: number, p: number, keylen: number) =>
   scryptSync(Buffer.from(plain, "utf8"), salt, keylen, { N: n, r, p });
@@ -86,8 +89,35 @@ export function hashKey(plain: string, random: Random = randomBytes): string {
   return `${HASH_PREFIX}${SCRYPT_N},${SCRYPT_R},${SCRYPT_P}$${salt.toString("base64url")}$${hash.toString("base64url")}`;
 }
 
-/** Whether `plain` matches a stored hash; a malformed hash is false, never a throw. */
-export function verifyKeyHash(plain: string, stored: string): boolean {
+/** scrypt off the event loop (the libuv thread pool), so a wrong key never blocks other requests. */
+const scryptAsync = (
+  plain: string,
+  salt: Buffer,
+  n: number,
+  r: number,
+  p: number,
+  keylen: number,
+) =>
+  new Promise<Buffer>((done, fail) =>
+    // maxmem lets the largest accepted N run; Node's default stops at 32 MiB.
+    scrypt(
+      Buffer.from(plain, "utf8"),
+      salt,
+      keylen,
+      { N: n, r, p, maxmem: 256 * n * r },
+      (e, key) => (e ? fail(e) : done(key)),
+    ),
+  );
+
+/**
+ * Whether `plain` matches a stored hash; a malformed hash is false, never a
+ * throw. Not in the source: the hash runs on the thread pool (`crypto.scrypt`,
+ * review finding E8.12-5); r and p must be the 8 and 1 hashKey writes, N a
+ * power of two no larger than MAX_SCRYPT_N, 2^16 (E8.12-4), and the stored hash at
+ * least KEYLEN bytes, since scrypt's shorter outputs are prefixes of its
+ * longer ones and a hash cut short would still verify.
+ */
+export async function verifyKeyHash(plain: string, stored: string): Promise<boolean> {
   try {
     if (!stored.startsWith(HASH_PREFIX)) return false;
     const body = stored.slice(HASH_PREFIX.length);
@@ -96,18 +126,15 @@ export function verifyKeyHash(plain: string, stored: string): boolean {
     const params = body.slice(0, firstSep).split(",");
     if (params.length !== 3) return false;
     const [n, r, p] = params.map(Number) as [number, number, number];
-    if (!Number.isFinite(n) || !Number.isFinite(r) || !Number.isFinite(p)) return false;
+    if (!Number.isInteger(n) || n < 2 || n > MAX_SCRYPT_N || (n & (n - 1)) !== 0) return false;
+    if (r !== SCRYPT_R || p !== SCRYPT_P) return false;
     const rest = body.slice(firstSep + 1);
     const secondSep = rest.indexOf("$");
     if (secondSep < 0) return false;
     const salt = Buffer.from(rest.slice(0, secondSep), "base64url");
     const expected = Buffer.from(rest.slice(secondSep + 1), "base64url");
-    // Not in the source: scrypt's shorter outputs are prefixes of its longer
-    // ones, so a hash cut short would still verify, and a one-byte hash would
-    // accept one key in 256. A stored hash shorter than KEYLEN is refused, and
-    // so is a cost past MAX_SCRYPT_N, which a crafted file could use to stall.
-    if (expected.length < KEYLEN || n > MAX_SCRYPT_N) return false;
-    const actual = scryptHash(plain, salt, n, r, p, expected.length);
+    if (expected.length < KEYLEN) return false;
+    const actual = await scryptAsync(plain, salt, n, r, p, expected.length);
     if (actual.length !== expected.length) return false;
     return timingSafeEqual(actual, expected);
   } catch {
@@ -248,10 +275,13 @@ export type KeyCheck = { ok: true; record: KeyRecord } | { ok: false; reason: st
 export interface KeyStore {
   readonly path: string;
   /** The key's record when it is well formed, known, matches its hash, unrevoked and unexpired at `now`. */
-  verify(key: string, now: string): KeyCheck;
+  verify(key: string, now: string): Promise<KeyCheck>;
   /** How many keys are active at `now`; doctor reports it. */
   active(now: string): number;
 }
+
+/** A well-formed hash no key matches: an unknown id costs the same scrypt as a known one. */
+const DUMMY_HASH = `${HASH_PREFIX}${SCRYPT_N},${SCRYPT_R},${SCRYPT_P}$${Buffer.alloc(SALT_LEN).toString("base64url")}$${Buffer.alloc(KEYLEN).toString("base64url")}`;
 
 const digest = (text: string) => createHash("sha256").update(text).digest("hex");
 
@@ -269,7 +299,6 @@ export function openKeyStore(path: string): KeyStore {
   let file = readKeyFile(path);
   let seen = stamp(path);
   const verified = new Map<string, string>();
-  let dummy: string | undefined;
   const current = () => {
     const now = stamp(path);
     if (now !== seen) {
@@ -280,18 +309,18 @@ export function openKeyStore(path: string): KeyStore {
   };
   return {
     path,
-    verify(key, now) {
+    async verify(key, now) {
       const parsed = parseKey(key);
       if (parsed === undefined) return { ok: false, reason: "not an Engram API key" };
       const record = current().keys.find((k) => k.id === parsed.id);
       if (record === undefined) {
-        dummy ??= hashKey(generateKey());
-        verifyKeyHash(key, dummy);
+        await verifyKeyHash(key, DUMMY_HASH);
         return { ok: false, reason: "unknown API key" };
       }
       const d = digest(key);
       if (verified.get(d) !== record.hash) {
-        if (!verifyKeyHash(key, record.hash)) return { ok: false, reason: "unknown API key" };
+        if (!(await verifyKeyHash(key, record.hash)))
+          return { ok: false, reason: "unknown API key" };
         verified.set(d, record.hash);
       }
       const status = keyStatus(record, now);
