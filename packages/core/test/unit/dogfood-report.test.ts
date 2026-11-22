@@ -251,6 +251,24 @@ function itemOf(t: Twin, id: string): MemoryItem {
   return last?.item as MemoryItem;
 }
 
+describe("an export is no read (card E9.8, finding E9.8-9)", () => {
+  test("Plane.export's event is not counted among reads.events, and judges no item", async () => {
+    const t = await twoWeeks();
+    const before = report(t).report;
+    const { event } = await t.plane.export(DANA, day(13, 13));
+    expect(event.op).toBe("read");
+    expect(event.reason.startsWith("exported ")).toBe(true);
+    const { report: r, details } = report(t);
+    expect(r.reads.events).toBe(before.reads.events);
+    expect(r.reads.as_declared).toBe(before.reads.as_declared);
+    expect(r.reads.items_returned).toBe(before.reads.items_returned);
+    expect(r.violations.total).toBe(0);
+    expect(details).toEqual([]);
+    // The event itself is still in the log's count of events.
+    expect(r.events).toBe(before.events + 1);
+  });
+});
+
 describe("the violation report on a realistic two weeks", () => {
   test("reads, writes, grants added and removed, denials by rule, and zero violations", async () => {
     const t = await twoWeeks();

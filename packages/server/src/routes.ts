@@ -14,12 +14,16 @@ import {
   type Actor,
   acceptedClosures,
   accessTime,
+  BUNDLE_FORMAT,
+  BUNDLE_VERSION,
   currentItems,
   eventById,
+  itemById,
   type MemoryEvent,
   type MemoryItem,
   planSupersession,
   readCounts,
+  servedImport,
   syncBeforeRead,
   visibleEvents,
 } from "@engram/core";
@@ -60,6 +64,9 @@ export const API_PREFIX = "/api/v1";
 const route = <Req>(r: Route<Req>): Route => r as unknown as Route;
 
 const policyLabel = (w: Workspace) => `${w.policy.id} v${w.policy.version}`;
+
+/** The projected item of an id, through core, for servedImport's held kind. */
+const heldItem = (w: Workspace) => (id: string) => itemById(w.deps.db, id);
 
 /**
  * What runs before a read (core's syncBeforeRead, card RV5, finding
@@ -128,8 +135,12 @@ export const ROUTES: readonly Route[] = [
     request: C.WriteRequest,
     response: C.WriteResponse,
     errors: [400, 503],
-    handler: ({ workspace, body, now }) =>
-      workspace.plane.write(body.actor, body.item as unknown as MemoryItem, now()),
+    // An import-sourced actor's write is mapped as an imported row (core's
+    // servedImport, card E9.8): a client can only lower trust.
+    handler: ({ workspace, body, now }) => {
+      const { actor, item } = servedImport(body.actor, body.item, heldItem(workspace));
+      return workspace.plane.write(actor, item as MemoryItem, now());
+    },
   }),
   route<z.infer<typeof C.WriteRequest>>({
     id: "checkWrite",
@@ -139,8 +150,10 @@ export const ROUTES: readonly Route[] = [
     request: C.WriteRequest,
     response: C.CheckResponse,
     errors: [400],
-    handler: ({ workspace, body, now }) =>
-      workspace.plane.checkWrite(body.actor, body.item as unknown as MemoryItem, now()),
+    handler: ({ workspace, body, now }) => {
+      const { actor, item } = servedImport(body.actor, body.item, heldItem(workspace));
+      return workspace.plane.checkWrite(actor, item as MemoryItem, now());
+    },
   }),
   route<z.infer<typeof C.ReadRequest>>({
     id: "read",
@@ -305,6 +318,29 @@ export const ROUTES: readonly Route[] = [
         current: (id: string) => items.get(id),
       };
       return { events: visibleEvents(body.actor, events, view) };
+    },
+  }),
+  route<z.infer<typeof C.ExportRequest>>({
+    id: "export",
+    method: "post",
+    path: "/export",
+    summary:
+      "The actor's memory bundle (card E9.8, docs/bundle.md): the items core's bundleRows picks, each with its visible events; one read event by the actor records the export (Plane.export).",
+    request: C.ExportRequest,
+    response: C.ExportResponse,
+    errors: [400],
+    handler: async ({ workspace, body, now }) => {
+      const at = now();
+      // Plane.export picks the rows (core's bundleRows) and records the export.
+      const { rows } = await workspace.plane.export(body.actor, at);
+      return {
+        format: BUNDLE_FORMAT,
+        version: BUNDLE_VERSION,
+        exported_at: at,
+        exported_by: body.actor.id,
+        policy: policyLabel(workspace),
+        rows,
+      };
     },
   }),
   route({

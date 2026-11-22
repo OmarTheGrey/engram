@@ -203,7 +203,7 @@ describe("lintScope", () => {
     ]);
     expect(lintScope(ctx(items), "team:platform", [])).toEqual([]);
   });
-  test("isDeterministicLint knows the seven ids and no model lint", () => {
+  test("isDeterministicLint knows the eight ids and no model lint", () => {
     expect(DETERMINISTIC_LINT_IDS.every(isDeterministicLint)).toBe(true);
     expect(isDeterministicLint("contradiction")).toBe(false);
   });

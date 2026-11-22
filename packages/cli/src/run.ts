@@ -2,11 +2,16 @@
 // directory, clock) and resolves to the exit code: 0 done, 1 a denied write,
 // a denied or asked promotion, a refused sweep, a failed check or an error,
 // 2 bad usage or a command whose card has not landed (the card named). Every
-// command but doctor, serve, mcp, hook, key and log is one call of the generated client
-// (card E8.2, ADR 0027): in process over the workspace its flags open, or to
-// the server --server or ENGRAM_SERVER_URL names.
+// command but doctor, serve, mcp, hook, key, log and import is one call of the
+// generated client (card E8.2, ADR 0027): in process over the workspace its
+// flags open, or to the server --server or ENGRAM_SERVER_URL names. Import
+// makes one write call per row (card E9.8), so each row is one Plane.write the
+// gate decides and no request carries more than one row under the server's
+// body limit.
 import {
   explainCommand,
+  exportCommand,
+  importCommand,
   lintCommand,
   promoteCommand,
   readCommand,
@@ -80,6 +85,8 @@ commands:
   retain            sweep one scope's retention: expired items retired, budgets enforced
   lint              run the policy's deterministic lints over a scope, each finding with its reason
   simulate          replay a recorded workload under the policy and a candidate; compare them
+  export            write the actor's memories as a bundle (docs/bundle.md), optionally encrypted
+  import <bundle>   bring a bundle, or a pasted Claude memory list, in as candidates
   who-can-read      who can read an item or a scope, each reader with the rule or grant admitting it
   serve             serve the HTTP API to authenticated callers, or on loopback with --insecure-loopback
   mcp               the MCP server for Claude Code and Codex, as one fixed actor
@@ -89,13 +96,14 @@ commands:
   log verify        verify the event log's hash chain: the first broken link, or OK or UNSIGNED
   log checkpoint    record a checkpoint of the chain's head, signed with --key when given
 
-every command but doctor, serve, mcp, hook, key and log is one call to the HTTP API: in process
+every command but doctor, serve, mcp, hook, key, log and import is one call to the
+HTTP API (import makes one write call per row): in process
 over the workspace its flags name, or to a running server:
   --server <url>              call engram serve at <url> (default $ENGRAM_SERVER_URL);
                               the server's own flags then name the log, policy and store;
                               $ENGRAM_TOKEN, when set, is sent as the bearer credential
 
-store options (read, write, promote, supersede, retain, lint, who-can-read, serve, mcp):
+store options (read, write, promote, supersede, retain, lint, import, who-can-read, serve, mcp):
   --store <name>              the store adapter: files or letta (default files)
   --root <folder>             the store folder: a Claude Code memory folder (files),
                               or a MemFS repository or an empty folder (letta)
@@ -105,7 +113,7 @@ store options (read, write, promote, supersede, retain, lint, who-can-read, serv
   --db <path|url>             the event log: a SQLite file, :memory: for none, or postgres://...
                               (default $ENGRAM_DB_URL, else <home>/.engram/engram.db)
 
-actor options (read, write, promote, supersede, explain, retain, lint, who-can-read):
+actor options (read, write, promote, supersede, explain, retain, lint, export, import, who-can-read):
   --as <principal>            who acts (default person:<owner>)
   --level <level>             person, role, team or org (default the actor's own level)
   --member <scope>            a scope the actor belongs to; repeatable (default the actor's scope)
@@ -159,6 +167,30 @@ simulate options:
   --candidate <preset|path>   the policy to compare it with (default the baseline)
   each policy replays the workload on a scratch log and store; the real log and store are
   never read or written, and no model is called
+
+engram export options (the bundle format: docs/bundle.md in the repository):
+  --db <path|url>  --policy <preset|path>  and --as or --owner: who exports
+  --out <file>                write the bundle there (default stdout)
+  --recipient <age1...>       encrypt with age to this public key; repeatable
+  --passphrase-file <file>    encrypt with age and the passphrase on its first line
+  the bundle holds every item of the actor's own person scope and the actor's own items
+  in the other scopes the read matrix lets it read, of every status, each with its events
+
+engram import options:
+  <bundle>                    a bundle engram export wrote, plain or age encrypted
+  --claude <file>             instead, a memory list Claude showed you, pasted as text;
+                              each bullet, dated line or paragraph is one memory
+  --scope <scope>             write every row there (default each row's own scope; for
+                              --claude, the importer's person scope)
+  --confidence <0..1>         --claude only: each memory's confidence (default 0.7)
+  --identity <file>           an age identity file to decrypt with; repeatable
+  --passphrase-file <file>    the passphrase to decrypt with, on the file's first line
+  every row is a write by the import actor import:<importer>, its kind the least trusted
+  of the row's claim and import (a row never raises trust), owned by the importer, a
+  candidate (a retired row stays retired), with no grants and a new id; the gate decides
+  each row. Files over 64 MiB are refused. A candidate becomes active only through engram promote by a
+  reviewer, a user-sourced member of its scope other than its owner (ADR 0026). Prints
+  the id map; exit 1 if any row was denied
 
 serve options:
   --keys <file>               accept the API keys in this key file (engram key)
@@ -255,6 +287,8 @@ const COMMANDS: Record<string, (args: string[], io: Io) => Promise<number>> = {
   retain: retainCommand,
   lint: lintCommand,
   simulate: simulateCommand,
+  export: exportCommand,
+  import: importCommand,
   "who-can-read": whoCanReadCommand,
   serve: serveCommand,
   mcp: mcpCommand,

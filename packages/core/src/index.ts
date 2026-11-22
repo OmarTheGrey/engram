@@ -32,6 +32,7 @@ export * from "./log/redact.ts";
 export * from "./log/verify.ts";
 export * from "./model.ts";
 export * from "./no-bypass.ts";
+export { type ExportResult, exportReason, isExportEvent } from "./plane/export.ts";
 export {
   matchesQuery,
   queryTerms,
@@ -49,6 +50,7 @@ export * from "./policy/grants.ts";
 export * from "./policy/load.ts";
 export * from "./policy/promotion.ts";
 export * from "./policy/retention.ts";
+export * from "./portable.ts";
 export * from "./replay.ts";
 export * from "./schema.ts";
 export * from "./simulate.ts";
