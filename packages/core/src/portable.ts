@@ -138,29 +138,59 @@ export function importKind(claimed: Kind): Kind {
   return leastTrusted([claimed, "import"]);
 }
 
+/** The principal an import actor acts for: its id without the `import:` prefix. */
+export function importerOf(actor: Actor): string {
+  return actor.id.startsWith("import:") ? actor.id.slice("import:".length) : actor.id;
+}
+
 /**
- * An `import`-sourced actor as a served write records it (the lead's
- * decision of 2026-11-22 on card E9.8): its source lowered to importKind of
- * the kind the item claims, so a client can only lower trust, never raise
- * it. A credential's source replaces the one a client sends (ADR 0042), so
- * an import key held at `import` would otherwise record a model row as
- * `import`. Any other actor, and an item whose claimed kind is not a kind
- * (the plane's schema rule denies it), are returned unchanged. Plane.write
- * and adoption are untouched.
+ * A served write by an `import`-sourced actor, mapped as an imported row
+ * (the lead's decisions of 2026-11-22 on card E9.8, findings E9.8-8 and the
+ * one before it). A credential's source replaces the one a client sends
+ * (ADR 0042), so the route cannot rely on the client to cap anything; this
+ * applies the whole mapping instead:
+ *
+ * - the actor's source, so the kind the plane records, is the least trusted
+ *   of the kind the item claims, the kind the plane holds for its id when it
+ *   holds one (`held`), and `import`, as adoption's `adoptedItem` (card
+ *   RV4): a rewrite never raises an agent's `model` item to `import`;
+ * - status candidate, or retired for a retired row;
+ * - no grants;
+ * - owner the importer (`importerOf`).
+ *
+ * Any other actor, and a body that is not an object (the plane's schema
+ * rule denies it), are returned unchanged. Plane.write, adoption and the
+ * oracle are untouched; the item is still judged whole by the gate.
  */
-export function capImportSource(actor: Actor, item: unknown): Actor {
-  if (actor.source !== "import") return actor;
-  const provenance =
-    typeof item === "object" && item !== null
-      ? (item as { provenance?: unknown }).provenance
-      : undefined;
+export function servedImport(
+  actor: Actor,
+  item: unknown,
+  held: (id: string) => MemoryItem | undefined,
+): { actor: Actor; item: unknown } {
+  if (actor.source !== "import") return { actor, item };
+  if (typeof item !== "object" || item === null || Array.isArray(item)) return { actor, item };
+  const record = item as Record<string, unknown>;
+  const provenance = record.provenance;
   const claimed = ProvenanceKind.safeParse(
     typeof provenance === "object" && provenance !== null
       ? (provenance as { kind?: unknown }).kind
       : undefined,
   );
-  if (!claimed.success) return actor;
-  return { ...actor, source: importKind(claimed.data) };
+  const known = typeof record.id === "string" ? held(record.id) : undefined;
+  const kind = leastTrusted([
+    ...(claimed.success ? [claimed.data] : []),
+    ...(known ? [known.provenance.kind] : []),
+    "import",
+  ]);
+  return {
+    actor: { ...actor, source: kind },
+    item: {
+      ...record,
+      owner: importerOf(actor),
+      status: record.status === "retired" ? "retired" : "candidate",
+      grants: [],
+    },
+  };
 }
 
 /**

@@ -9,11 +9,11 @@ import type { Actor } from "../../src/actor.ts";
 import { loadPreset } from "../../src/policy/load.ts";
 import {
   type BundleRow,
-  capImportSource,
   importActor,
   importedWrite,
   importOrder,
   mapLineage,
+  servedImport,
 } from "../../src/portable.ts";
 import type { MemoryItem, Provenance } from "../../src/schema.ts";
 import { AT, fresh, id, item, testPolicy } from "./plane/helpers.ts";
@@ -164,9 +164,14 @@ describe("importedWrite: a row never raises trust", () => {
   });
 });
 
-describe("capImportSource: a served import write only lowers trust", () => {
+describe("servedImport: a served import write is mapped as an imported row", () => {
   const importer = { ...dana, id: "import:person:dana", source: "import" as const };
-  const claiming = (kind: string) => ({ provenance: { kind } });
+  const none = () => undefined;
+  const claiming = (kind: string, over: Record<string, unknown> = {}) => ({
+    id: id(9),
+    provenance: { kind },
+    ...over,
+  });
 
   it.each([
     ["user", "import"],
@@ -177,15 +182,35 @@ describe("capImportSource: a served import write only lowers trust", () => {
     ["compaction", "compaction"],
     ["external", "external"],
   ] as const)("an import actor writing a %s claim writes as %s", (claimed, source) => {
-    expect(capImportSource(importer, claiming(claimed)).source).toBe(source);
+    expect(servedImport(importer, claiming(claimed), none).actor.source).toBe(source);
   });
 
-  it("leaves any other actor, and an item that claims no kind, unchanged", () => {
+  it("takes the kind the plane holds for the id into the least trusted (E9.8-8)", () => {
+    const held = item(9, { kind: "model" });
+    const { actor } = servedImport(importer, claiming("user"), (i) =>
+      i === id(9) ? held : undefined,
+    );
+    expect(actor.source).toBe("model");
+  });
+
+  it("makes the row a candidate owned by the importer with no grants; a retired row stays retired", () => {
+    const grant = { to: "person:sam", class: "semantic", mode: "read" };
+    const sent = claiming("user", { status: "active", owner: "person:sam", grants: [grant] });
+    expect(servedImport(importer, sent, none).item).toMatchObject({
+      status: "candidate",
+      owner: "person:dana",
+      grants: [],
+    });
+    const retired = servedImport(importer, claiming("user", { status: "retired" }), none);
+    expect(retired.item).toMatchObject({ status: "retired" });
+  });
+
+  it("leaves any other actor, and a body that is no object, unchanged", () => {
     const user = { ...dana, source: "user" as const };
-    expect(capImportSource(user, claiming("model"))).toBe(user);
-    expect(capImportSource(dana, claiming("model"))).toBe(dana);
-    expect(capImportSource(importer, { provenance: { kind: "rumour" } })).toBe(importer);
-    expect(capImportSource(importer, null)).toBe(importer);
+    const body = claiming("model");
+    expect(servedImport(user, body, none)).toEqual({ actor: user, item: body });
+    expect(servedImport(dana, body, none).actor).toBe(dana);
+    expect(servedImport(importer, null, none)).toEqual({ actor: importer, item: null });
   });
 });
 

@@ -14,11 +14,12 @@ import {
   accessTime,
   BUNDLE_FORMAT,
   BUNDLE_VERSION,
-  capImportSource,
   currentItems,
   eventById,
+  itemById,
   type MemoryItem,
   readCounts,
+  servedImport,
   syncBeforeRead,
   visibleEvents,
 } from "@engram/core";
@@ -60,6 +61,9 @@ const route = <Req>(r: Route<Req>): Route => r as unknown as Route;
 
 const policyLabel = (w: Workspace) => `${w.policy.id} v${w.policy.version}`;
 
+/** The projected item of an id, through core, for servedImport's held kind. */
+const heldItem = (w: Workspace) => (id: string) => itemById(w.deps.db, id);
+
 /**
  * What runs before a read (core's syncBeforeRead, card RV5, finding
  * RV-SRF-1): the store owner's sweep when the owner reads, at the server's
@@ -92,14 +96,12 @@ export const ROUTES: readonly Route[] = [
     request: C.WriteRequest,
     response: C.WriteResponse,
     errors: [400, 503],
-    // An import-sourced actor writes at no more than import (core's
-    // capImportSource, card E9.8): a client can only lower trust.
-    handler: ({ workspace, body, now }) =>
-      workspace.plane.write(
-        capImportSource(body.actor, body.item),
-        body.item as unknown as MemoryItem,
-        now(),
-      ),
+    // An import-sourced actor's write is mapped as an imported row (core's
+    // servedImport, card E9.8): a client can only lower trust.
+    handler: ({ workspace, body, now }) => {
+      const { actor, item } = servedImport(body.actor, body.item, heldItem(workspace));
+      return workspace.plane.write(actor, item as MemoryItem, now());
+    },
   }),
   route<z.infer<typeof C.WriteRequest>>({
     id: "checkWrite",
@@ -109,12 +111,10 @@ export const ROUTES: readonly Route[] = [
     request: C.WriteRequest,
     response: C.CheckResponse,
     errors: [400],
-    handler: ({ workspace, body, now }) =>
-      workspace.plane.checkWrite(
-        capImportSource(body.actor, body.item),
-        body.item as unknown as MemoryItem,
-        now(),
-      ),
+    handler: ({ workspace, body, now }) => {
+      const { actor, item } = servedImport(body.actor, body.item, heldItem(workspace));
+      return workspace.plane.checkWrite(actor, item as MemoryItem, now());
+    },
   }),
   route<z.infer<typeof C.ReadRequest>>({
     id: "read",

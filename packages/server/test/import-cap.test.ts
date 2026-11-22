@@ -1,10 +1,10 @@
-// The import cap over a server with credentials (card E9.8, the lead's
-// decision on the finding of 2026-11-22). A credential's source replaces the
-// one a client sends (bindActor, ADR 0042), so an import key held with
-// source `import` would record a model row as `import`. The write route
-// applies core's cap (capImportSource): an `import`-sourced actor writes at
-// the least trusted of the item's claimed kind and `import`, so a client can
-// only lower trust. Over `listen` with an API key, through real HTTP.
+// The import mapping over a server with credentials (card E9.8, the lead's
+// decisions of 2026-11-22). A credential's source replaces the one a client
+// sends (bindActor, ADR 0042), so the write route maps an `import`-sourced
+// actor's write as an imported row (core's servedImport): kind the least
+// trusted of the claim, the kind the plane holds for the id and `import`;
+// status candidate unless retired; no grants; owner the importer. A client
+// can only lower trust. Over `listen` with an API key, through real HTTP.
 import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import { openCredentials } from "../src/auth.ts";
@@ -36,6 +36,7 @@ async function served() {
   const credentials = openCredentials({ keys: path }, (p) => p);
   if (credentials === undefined) throw new Error("no credentials");
   const { workspace } = attestedWorkspace();
+  const plane = workspace.plane;
   const server = await listen(workspace, {
     port: 0,
     now: () => NOW,
@@ -43,11 +44,17 @@ async function served() {
     auth: { credentials },
   });
   servers.push(server);
-  const write = async (n: number, kind: string, scope: string) => {
+  const write = async (
+    n: number,
+    kind: string,
+    scope: string,
+    over: Record<string, unknown> = {},
+  ) => {
     const base = itemFor(n);
     const item = {
       ...base,
       scope,
+      ...over,
       provenance: {
         ...(base.provenance as object),
         kind,
@@ -62,11 +69,17 @@ async function served() {
     });
     expect(response.status).toBe(200);
     return (await response.json()) as {
-      item: { provenance: { kind: string; actor: string }; status: string } | null;
+      item: {
+        provenance: { kind: string; actor: string };
+        status: string;
+        owner: string;
+        grants: unknown[];
+        version: number;
+      } | null;
       event: { decision: string; policy_id: string; reason: string; actor: string };
     };
   };
-  return { write };
+  return { write, plane };
 }
 
 describe("an import key's write never raises trust", () => {
@@ -97,5 +110,55 @@ describe("an import key's write never raises trust", () => {
     const r = await write(3, "user", "team:platform");
     expect(r.event.decision).toBe("allow");
     expect(r.item?.provenance.kind).toBe("import");
+  });
+
+  it("a rewrite of an agent's model item keeps kind model, whatever it claims (E9.8-8)", async () => {
+    const { write, plane } = await served();
+    // An agent's active model item in dana's scope, written in process.
+    const agent = {
+      id: "agent:pi",
+      level: "person" as const,
+      memberships: ["person:dana"],
+      source: "model" as const,
+    };
+    const base = itemFor(4);
+    const held = await plane.write(
+      agent,
+      {
+        ...base,
+        provenance: { ...(base.provenance as object), kind: "model", model: "faux/scripted" },
+      } as never,
+      NOW,
+    );
+    expect(held.item?.provenance.kind).toBe("model");
+    const r = await write(4, "user", "person:dana", { version: 2, content: "fact 4, edited" });
+    expect(r.event.decision).toBe("allow");
+    expect(r.item).toMatchObject({ version: 2, provenance: { kind: "model" } });
+  });
+
+  it("a retired model row the key wrote stays model when the key rewrites it claiming user", async () => {
+    const { write } = await served();
+    const first = await write(5, "model", "person:dana", { status: "retired" });
+    expect(first.item).toMatchObject({ status: "retired", provenance: { kind: "model" } });
+    const again = await write(5, "user", "person:dana", { status: "retired", version: 2 });
+    expect(again.item?.provenance.kind).toBe("model");
+  });
+
+  it("a row sent active, with grants and another owner, lands a candidate owned by the importer, no grants", async () => {
+    const { write } = await served();
+    const r = await write(6, "user", "person:dana", {
+      status: "active",
+      owner: "person:sam",
+      grants: [
+        { to: "person:sam", class: "semantic", mode: "read", expires: "2026-12-01T00:00:00.000Z" },
+      ],
+    });
+    expect(r.event.decision).toBe("allow");
+    expect(r.item).toMatchObject({
+      status: "candidate",
+      owner: "person:dana",
+      grants: [],
+      provenance: { kind: "import" },
+    });
   });
 });
