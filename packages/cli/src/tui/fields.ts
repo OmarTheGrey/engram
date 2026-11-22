@@ -52,6 +52,11 @@ export class TextField {
 
   /** A key typed into the field: pi-tui's editing keys and printable text. */
   type(data: string): void {
+    // Typing into a given secret starts it afresh, so a keystroke never reveals the rest of it.
+    const printableKey =
+      data.length > 0 && (data.codePointAt(0) ?? 0) >= 32 && data.codePointAt(0) !== 127;
+    if (this.secret && !this.edited && printableKey && this.shown() !== this.value)
+      this.input.setValue("");
     this.edited = true;
     this.input.handleInput(data);
   }

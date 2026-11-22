@@ -51,7 +51,9 @@ describe("I1: a Postgres log is checked off the input path", () => {
       home: cwd,
       given: { db: PG, owner: "dana" },
       logCheck: () =>
-        new Promise((r) => setTimeout(() => r(["fail", "postgres 127.0.0.1:1: connect ECONNREFUSED"]), 100)),
+        new Promise((r) =>
+          setTimeout(() => r(["fail", "postgres 127.0.0.1:1: connect ECONNREFUSED"]), 100),
+        ),
     });
     expect(h.screen()).toBe("home");
     await new Promise((r) => setTimeout(r, 250));
@@ -150,6 +152,11 @@ describe("I4: secrets are not shown, while c copies the whole command", () => {
     expect(h.screen()).toBe("first-run");
     expect(await h.text()).not.toContain("hunter2secret");
     expect(await h.text()).toContain("postgres://***@127.0.0.1:1/engram");
+    // A keystroke in the field starts the URL afresh; it never reveals the given one.
+    if (h.focused() === "log") {
+      await h.type("p");
+      expect(await h.text()).not.toContain("hunter2secret");
+    }
     h.app.home();
     await h.press("\x0f");
     expect(h.screen()).toBe("workspace");
