@@ -5,6 +5,7 @@
 // emitted.json is what toSkillMd writes for the sample items below;
 // ENGRAM_UPDATE_FIXTURES=1 rewrites it, after which the golden script must
 // be run again.
+import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import { describe, expect, test } from "vitest";
 import {
@@ -20,11 +21,12 @@ import {
 import type { MemoryItem } from "../../../src/schema.ts";
 
 const SPEC = new URL("./skill-spec/", import.meta.url);
-type Case = { id: string; dir: string; text: string };
+type Case = { id: string; dir: string; text: string; subset?: boolean };
 const readCases = (name: string) =>
   (JSON.parse(readFileSync(new URL(name, SPEC), "utf8")) as { cases: Case[] }).cases;
 const EXPECTED = JSON.parse(readFileSync(new URL("expected.json", SPEC), "utf8")) as {
   errors: Record<string, string[]>;
+  sha256: Record<string, string>;
 };
 
 const procedural = (id: string, body: string, tools: string[]): MemoryItem => ({
@@ -158,7 +160,24 @@ describe("the derivations", () => {
 });
 
 describe("validateSkillMd against the specification's validator", () => {
-  for (const c of readCases("cases.json"))
+  test("expected.json was made from these very texts (each text's sha256)", () => {
+    for (const c of [...readCases("cases.json"), ...emitted()])
+      expect(createHash("sha256").update(c.text, "utf8").digest("hex"), c.id).toBe(
+        EXPECTED.sha256[c.id],
+      );
+  });
+
+  for (const c of readCases("cases.json").filter((x) => x.subset))
+    test(`subset case ${c.id}: the validator accepts it, and validateSkillMd refuses it`, () => {
+      expect(EXPECTED.errors[c.id]).toEqual([]);
+      const got = validateSkillMd(c.text, c.dir);
+      expect(got).toHaveLength(1);
+      expect(got[0]).toMatch(
+        /^Invalid YAML in frontmatter:|^SKILL\.md frontmatter not properly closed/,
+      );
+    });
+
+  for (const c of readCases("cases.json").filter((x) => !x.subset))
     test(`case ${c.id}`, () => {
       const want = EXPECTED.errors[c.id] as string[];
       expect(want, `expected.json has case ${c.id}`).toBeDefined();

@@ -1,5 +1,5 @@
 {
-  "_comment": "Card D2: SKILL.md texts for the Agent Skills specification's own validator (skills-ref, agentskills/agentskills at 83021e2be457a9b6679148719c1f6074f0ad975e). packages/core/scripts/skill-spec-golden.py runs it on each case, in a directory named `dir`, and writes expected.json; packages/core/test/unit/distill/skill.test.ts holds validateSkillMd to it. Every case stays inside the YAML that parseSkillMd reads, so the two parsers agree on the frontmatter.",
+  "_comment": "Card D2: SKILL.md texts for the Agent Skills specification's own validator (skills-ref, agentskills/agentskills at 83021e2be457a9b6679148719c1f6074f0ad975e). packages/core/scripts/skill-spec-golden.py runs it on each case, in a directory named `dir`, and writes expected.json with each text's sha256; packages/core/test/unit/distill/skill.test.ts holds validateSkillMd to it. A case marked `subset` is YAML the validator accepts and parseSkillMd refuses, since it reads a stricter subset; every other case is read alike by both.",
   "cases": [
     {
       "id": "minimal",
@@ -125,6 +125,53 @@
       "id": "two-errors",
       "dir": "x",
       "text": "---\nname: Bad--Name\n---\n"
+    },
+    {
+      "id": "tab-after-colon",
+      "dir": "skill-name",
+      "text": "---\nname:\tskill-name\ndescription: A skill.\n---\n"
+    },
+    {
+      "id": "subset-multiline-plain",
+      "dir": "skill-name",
+      "subset": true,
+      "text": "---\nname: skill-name\ndescription: A skill that\n  spans two lines.\n---\n"
+    },
+    {
+      "id": "subset-folded-block",
+      "dir": "skill-name",
+      "subset": true,
+      "text": "---\nname: skill-name\ndescription: >\n  A folded\n  description.\n---\n"
+    },
+    {
+      "id": "subset-literal-block",
+      "dir": "skill-name",
+      "subset": true,
+      "text": "---\nname: skill-name\ndescription: |\n  A literal\n  description.\n---\n"
+    },
+    {
+      "id": "subset-yaml-escape",
+      "dir": "skill-name",
+      "subset": true,
+      "text": "---\nname: skill-name\ndescription: \"A \\x41 escape.\"\n---\n"
+    },
+    {
+      "id": "subset-closing-trailing-space",
+      "dir": "skill-name",
+      "subset": true,
+      "text": "---\nname: skill-name\ndescription: A skill.\n--- \n\nBody.\n"
+    },
+    {
+      "id": "subset-space-before-colon",
+      "dir": "skill-name",
+      "subset": true,
+      "text": "---\nname : skill-name\ndescription: A skill.\n---\n"
+    },
+    {
+      "id": "subset-allowed-tools-list",
+      "dir": "skill-name",
+      "subset": true,
+      "text": "---\nname: skill-name\ndescription: A skill.\nallowed-tools:\n  - Read\n  - Bash\n---\n"
     }
   ]
 }
