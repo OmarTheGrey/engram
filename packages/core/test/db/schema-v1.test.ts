@@ -109,7 +109,7 @@ forEachBackend((backend) => {
   test("migration 4 upgrades a version 0 log to schema version 1", () => {
     const db = backend.open();
     versionZeroLog(db);
-    // Migration 4 and every later one (6, event attestations, card E8.12).
+    // Migration 4 and every later one (5, the hash chain, card E1.6; 6, event attestations, card E8.12).
     expect(migrate(db)).toEqual(MIGRATIONS.filter((m) => m.id >= 4).map((m) => m.id));
 
     const events = db

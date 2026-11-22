@@ -589,6 +589,51 @@ export const OPTIONS = {
     }),
     json: JSON_OUT,
   },
+  "log verify": {
+    db: { ...DB, help: "the event log; read only, nothing is migrated" },
+    key: flag({
+      type: "string",
+      label: "Public key",
+      help: "the operator's Ed25519 public key (PEM), pinned: a checkpoint signed under any other fails",
+      control: "file",
+      card: "E1.6",
+    }),
+    checkpoint: flag({
+      type: "string",
+      multiple: true,
+      label: "Held checkpoints",
+      help: "a checkpoint kept outside the log; repeatable; the log must extend it",
+      control: "list",
+      card: "E1.6",
+    }),
+    json: JSON_OUT,
+  },
+  "log checkpoint": {
+    db: { ...DB, help: "the event log; it must exist" },
+    key: flag({
+      type: "string",
+      label: "Private key",
+      help: "the operator's Ed25519 private key (PEM); without it the checkpoint is unsigned",
+      control: "file",
+      card: "E1.6",
+    }),
+    checkpoint: flag({
+      type: "string",
+      multiple: true,
+      label: "Held checkpoints",
+      help: "a checkpoint kept outside the log; repeatable; the log must extend it",
+      control: "list",
+      card: "E1.6",
+    }),
+    out: flag({
+      type: "string",
+      label: "Write it to",
+      help: "also write the checkpoint to this file, to keep outside the log",
+      control: "file",
+      card: "E1.6",
+    }),
+    json: JSON_OUT,
+  },
   doctor: {
     db: { ...DB, help: "the event log to check; doctor never creates one" },
     policy: { ...POLICY, help: "the policy to load and validate" },
@@ -640,6 +685,7 @@ const H = {
   hook: handler(async () => (await import("./hook.ts")).hookCommand),
   key: handler(async () => (await import("./key.ts")).keyCommand),
   doctor: handler(async () => (await import("./doctor.ts")).doctorCommand),
+  log: handler(async () => (await import("./log.ts")).logCommand),
 };
 
 /** Whether a store folder or a server is named, by the form or the workspace. */
@@ -1177,6 +1223,72 @@ export const REGISTRY: readonly CommandSpec[] = [
     writes: () => "none",
     handler: H.doctor,
   },
+  {
+    name: "log verify",
+    title: "Verify the log",
+    usage: "log verify",
+    summary: "verify the event log's hash chain: the first broken link, or OK or UNSIGNED",
+    listed: true,
+    group: "audit",
+    positionals: [],
+    options: OPTIONS["log verify"],
+    allowPositionals: false,
+    helpSection: [
+      "log verify options (on this machine only; never --server):",
+      "  --db <path|url>             the event log (default as above); read only, nothing is migrated",
+      "  --key <public.pem>          the operator's Ed25519 public key, pinned: a checkpoint signed",
+      "                              under any other key fails; without it the verdict is at best UNSIGNED",
+      "  --checkpoint <file>         a checkpoint kept outside the log (log checkpoint --out);",
+      "                              repeatable; the log must extend it",
+      "  exit 0 OK: every check holds and a signed checkpoint, verified under the pinned key,",
+      "    covers the whole chain",
+      "  exit 1 FAILED: a check failed; the first broken link is named",
+      "  exit 3 UNSIGNED: every check holds, but part of the chain is vouched for by no signature:",
+      "    no checkpoint, no --key, no signed checkpoint, or entries after the latest signed one",
+      "  limit: without a checkpoint held outside the database, anyone with database access can",
+      "  cut the tail or rewrite the whole chain undetected; the verdict is then UNSIGNED, never OK",
+    ],
+    helpAfter: "hook claude-code",
+    listedIn: [],
+    exitCodes: [
+      { code: 0, when: "OK: a signed checkpoint under the pinned key covers the whole chain" },
+      { code: 1, when: "FAILED: a check failed; the first broken link is named" },
+      PLANE_EXITS.usage,
+      { code: 3, when: "UNSIGNED: every check holds, but part of the chain has no signature" },
+    ],
+    writes: () => "none",
+    handler: H.log,
+  },
+  {
+    name: "log checkpoint",
+    title: "Checkpoint the log",
+    usage: "log checkpoint",
+    summary: "record a checkpoint of the chain's head, signed with --key when given",
+    listed: true,
+    group: "audit",
+    positionals: [],
+    options: OPTIONS["log checkpoint"],
+    allowPositionals: false,
+    helpSection: [
+      "log checkpoint options:",
+      "  --db <path|url>             the event log (default as above); it must exist",
+      "  --key <private.pem>         the operator's Ed25519 private key; without it the checkpoint is unsigned",
+      "  --checkpoint <file>         a checkpoint kept outside the log; repeatable; the log must extend it",
+      "  --out <file>                also write the checkpoint there, to keep outside the log",
+      "  nothing is signed unless the whole log verifies first, every earlier signature under",
+      "  this --key and every --checkpoint given; the key is the operator's to hold, and a",
+      "  signature proves only that its holder saw that head",
+    ],
+    helpAfter: "log verify",
+    listedIn: [],
+    exitCodes: [
+      { code: 0, when: "recorded" },
+      { code: 1, when: "the log does not verify, or an error" },
+      PLANE_EXITS.usage,
+    ],
+    writes: () => "state",
+    handler: H.log,
+  },
 ];
 
 // HELP (docs/design/tui.md 12.2): the first line names engram tui; every
@@ -1189,7 +1301,7 @@ export const HELP_FIRST_LINE =
 /** The shared blocks of HELP, around the commands' own sections. */
 const SHARED: Record<string, (specs: readonly CommandSpec[]) => readonly string[]> = {
   client: () => [
-    "every command but doctor, serve, mcp, hook and key is one call to the HTTP API: in process",
+    "every command but doctor, serve, mcp, hook, key and log is one call to the HTTP API: in process",
     "over the workspace its flags name, or to a running server:",
     "  --server <url>              call engram serve at <url> (default $ENGRAM_SERVER_URL);",
     "                              the server's own flags then name the log, policy and store;",
@@ -1305,15 +1417,9 @@ export function command(name: string): CommandSpec | undefined {
   return REGISTRY.find((s) => s.name === name);
 }
 
-/**
- * The parse config of a first word: the one its handler parses with, which
- * every entry of that word shares.
- */
-export function wordOptions(w: string): Readonly<Record<string, OptionSpec>> {
-  const s = REGISTRY.find((s) => word(s) === w);
-  if (s === undefined) throw new Error(`no command ${w}`);
-  return s.parse ?? s.options;
-}
+/** The parseArgs config a command's handler parses with: `parse`, else its `options`. */
+export const parseOptions = (s: CommandSpec): Readonly<Record<string, OptionSpec>> =>
+  s.parse ?? s.options;
 
 // "Did you mean" (docs/design/tui.md 12.2): a second stderr line for an
 // unknown command or flag within edit distance 2 of a known one.

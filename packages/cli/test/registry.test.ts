@@ -20,20 +20,24 @@ import {
   helpLine,
   helpText,
   OPTIONS,
+  parseOptions,
   REGISTRY,
   sectionOrder,
   WRITES,
   word,
-  wordOptions,
 } from "../src/registry.ts";
 import { HELP } from "../src/run.ts";
 import { cli } from "./helpers.ts";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-/** HELP as main printed it at d763deaa, before the registry (packages/cli/src/run.ts there). */
-const MAIN_HELP = readFileSync(join(HERE, "help-d763deaa.txt"), "utf8");
+/**
+ * HELP as main printed it before the registry: packages/cli/src/run.ts at
+ * 65ce8b66, the last main merged into this branch whose HELP was a literal.
+ * A card that adds a command on main refreshes it from its own run.ts.
+ */
+const MAIN_HELP = readFileSync(join(HERE, "help-main.txt"), "utf8");
 const MAIN_FIRST_LINE = "engram: the Engram control plane from the command line";
-/** The commands main had at d763deaa, E8.12's key, E8.13's export flags and E2.13's who-can-read among them. */
+/** The commands main had at 65ce8b66: E8.12's key, E8.13's export flags, E2.13's who-can-read and E1.6's log among them. */
 const ON_MAIN = [
   "read",
   "write",
@@ -50,6 +54,8 @@ const ON_MAIN = [
   "key list",
   "key revoke",
   "doctor",
+  "log verify",
+  "log checkpoint",
 ];
 /** The commands card E8.15a adds (docs/design/tui.md 3.6), read --item and scopes over card E8.14's routes. */
 const ADDED = ["read --item", "check", "grants", "events", "policy", "scopes"];
@@ -141,7 +147,8 @@ describe("the registry's entries", () => {
         s.exitCodes.map((e) => e.code),
         s.name,
       ).toContain(2);
-      for (const e of s.exitCodes) expect([0, 1, 2]).toContain(e.code);
+      // 3 is log verify's UNSIGNED (card E1.6).
+      for (const e of s.exitCodes) expect([0, 1, 2, 3]).toContain(e.code);
       for (const values of [{}, { root: "/tmp/m" }, { server: "http://127.0.0.1:7313" }])
         expect(WRITES, s.name).toContain(s.writes(values, {}));
       for (const [name, o] of Object.entries(s.options)) {
@@ -198,43 +205,46 @@ describe("the registry's entries", () => {
     }
   });
 
-  it("parses the entries of one first word with one config, the handler's, holding each entry's flags", () => {
-    expect(wordOptions("key")).toBe(OPTIONS.key);
-    expect(wordOptions("read")).toBe(OPTIONS.read);
-    for (const s of REGISTRY) {
-      expect(s.parse ?? s.options, s.name).toBe(wordOptions(word(s)));
+  it("parses each entry with one config, the handler's, holding the entry's flags", () => {
+    expect(parseOptions(command("key create") as CommandSpec)).toBe(OPTIONS.key);
+    expect(parseOptions(command("read --item") as CommandSpec)).toBe(OPTIONS.read);
+    for (const s of REGISTRY)
       for (const [name, o] of Object.entries(s.options))
-        expect(wordOptions(word(s))[name], `${s.name} --${name}`).toBe(o);
-    }
+        expect(parseOptions(s)[name], `${s.name} --${name}`).toBe(o);
   });
 });
 
 describe("every handler parses exactly its entry's flags, with their types", () => {
   const all = [
     ...new Set([
-      ...REGISTRY.flatMap((s) => Object.keys(s.parse ?? s.options)),
+      ...REGISTRY.flatMap((s) => Object.keys(parseOptions(s))),
       ...Object.values(OPTIONS).flatMap((o) => Object.keys(o)),
     ]),
   ];
-  const words = [...new Set(REGISTRY.map(word))];
-  for (const w of words) {
-    it(`engram ${w}`, async () => {
-      const argv = (REGISTRY.find((s) => word(s) === w) as CommandSpec).name.split(" ");
-      const own = wordOptions(w);
+  for (const spec of REGISTRY) {
+    it(`engram ${spec.name}`, async () => {
+      // The words that pick the handler and subcommand; read --item's flag is one of its options.
+      const argv = spec.name.split(" ").filter((w) => !w.startsWith("--"));
+      const w = word(spec);
+      const own = parseOptions(spec);
       for (const f of all) {
         const o = own[f];
         if (o === undefined) {
           const r = await cli([...argv, `--${f}`]);
-          expect(r.code, `${w} --${f}`).toBe(2);
-          expect(r.err, `${w} --${f}`).toContain(`engram ${w}: Unknown option '--${f}'`);
+          expect(r.code, `${spec.name} --${f}`).toBe(2);
+          expect(r.err, `${spec.name} --${f}`).toContain(`engram ${w}: Unknown option '--${f}'`);
         } else if (o.type === "string") {
           const r = await cli([...argv, `--${f}`]);
-          expect(r.code, `${w} --${f}`).toBe(2);
-          expect(r.err, `${w} --${f}`).toContain(`Option '--${f} <value>' argument missing`);
+          expect(r.code, `${spec.name} --${f}`).toBe(2);
+          expect(r.err, `${spec.name} --${f}`).toContain(
+            `Option '--${f} <value>' argument missing`,
+          );
         } else {
           const r = await cli([...argv, `--${f}=x`]);
-          expect(r.code, `${w} --${f}`).toBe(2);
-          expect(r.err, `${w} --${f}`).toContain(`Option '--${f}' does not take an argument`);
+          expect(r.code, `${spec.name} --${f}`).toBe(2);
+          expect(r.err, `${spec.name} --${f}`).toContain(
+            `Option '--${f}' does not take an argument`,
+          );
         }
       }
     });
