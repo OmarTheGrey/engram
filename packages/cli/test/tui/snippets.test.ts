@@ -144,9 +144,13 @@ describe("the snippets' shape (8.14, 8.15)", () => {
     "person:dana",
   ];
 
-  it("the Claude Code entry is the fixture's settings.json byte for byte, given its command and args", () => {
+  it("the Claude Code entry is the fixture's settings.json byte for byte, given its command and args, with onFailure block", () => {
     const text = `${JSON.stringify(hookSettings({ command: "engram", prefix: [], note: undefined }, fixtureArgs), null, 2)}\n`;
-    expect(text).toBe(readFileSync(join(FIXTURE, ".claude/settings.json"), "utf8"));
+    // The fixture's entry with one field more: a hook that fails blocks the call (Claude Code
+    // v2.1.295 and later, documented on code.claude.com/docs/en/hooks).
+    const fixture = JSON.parse(readFileSync(join(FIXTURE, ".claude/settings.json"), "utf8"));
+    fixture.hooks.PreToolUse[0].hooks[0].onFailure = "block";
+    expect(text).toBe(`${JSON.stringify(fixture, null, 2)}\n`);
   });
 
   it(".mcp.json and Codex's config.toml are the fixtures' shape", () => {

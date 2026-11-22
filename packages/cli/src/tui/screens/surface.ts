@@ -5,7 +5,9 @@
 // screen's rich view, the command's own text (v) or its --json (J). The
 // argument vector is the generated form's (./forms.ts), validated by the
 // CLI's own checks; running goes through the router's `act`, which asks
-// first where the entry's `writes` says so. Nothing here decides anything:
+// first where the entry's `writes` says so, but for Import, which asks its
+// own question (the rows it offers) and then runs through `runNow` (review
+// E8.15d-13). Nothing here decides anything:
 // what a screen shows of a decision is a field of the answer, or the
 // command's own text.
 import type { CommandSpec, Values } from "../../registry.ts";

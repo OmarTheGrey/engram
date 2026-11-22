@@ -7,15 +7,15 @@
  [ Copy the entry ]  [ Try it on a scratch log ]
 
  engram is not on your PATH; the snippet uses the full path of this CLI.
+ With "onFailure": "block", a hook that fails blocks the call; Claude Code reads it from v2.1.295 on, and before that a
+ failed hook lets the call through.
  .claude/settings.json, hooks.PreToolUse:
    { "matcher": "*", "hooks": [ { "type": "command", "command": "/usr/bin/node", "args": [
    "/src/engram/packages/cli/src/main.ts", "hook", "claude-code", "--db", ":memory:", "--as", "person:dana", "--root",
-   "/src/lantern/memory" ] } ] }
+   "/src/lantern/memory" ], "onFailure": "block" } ] }
 
  ✓ Read /src/lantern/memory/user_role.md   exit 0, blocked: permissionDecision deny
  ✓ Read /src/lantern/README.md   exit 0, allowed: the hook printed nothing
-
-
 
 
 
@@ -41,5 +41,5 @@ $ engram hook claude-code --db :memory: --as person:dana --root /src/lantern/mem
 --- styles
 r0 c0-119 inverse
 r1 c42-42 inverse
-r14 c1-1 fg #00A67A
-r15 c1-1 fg #00A67A
+r16 c1-1 fg #00A67A
+r17 c1-1 fg #00A67A

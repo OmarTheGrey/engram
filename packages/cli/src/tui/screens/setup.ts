@@ -217,7 +217,13 @@ export class HookScreen extends SurfaceScreen {
     const note = serverNote(ctx);
     if (note !== undefined) lines.push(...para(note, width), "");
     if (launch.note !== undefined) lines.push(...para(launch.note, width));
-    lines.push(" .claude/settings.json, hooks.PreToolUse:");
+    lines.push(
+      ...para(
+        'With "onFailure": "block", a hook that fails blocks the call; Claude Code reads it from v2.1.295 on, and before that a failed hook lets the call through.',
+        width,
+      ),
+      " .claude/settings.json, hooks.PreToolUse:",
+    );
     lines.push(...snippetLines(this.entry(ctx), width, this.snippetArgs(ctx)));
     if (this.tried !== undefined) {
       lines.push("");

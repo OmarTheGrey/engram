@@ -155,6 +155,9 @@ export const hookCommand = (launch: Launch, argv: readonly string[]) => ({
   type: "command" as const,
   command: launch.command,
   args: [...launch.prefix, ...argv],
+  // A hook that cannot start or exits other than 0 or 2 blocks the call instead of letting it
+  // through; documented for Claude Code v2.1.295 and later (code.claude.com/docs/en/hooks).
+  onFailure: "block" as const,
 });
 
 /** `.claude/settings.json` holding the PreToolUse entry, exactly as the fixture holds it. */
