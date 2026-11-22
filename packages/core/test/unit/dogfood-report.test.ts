@@ -962,4 +962,28 @@ describe("card E8.14 review fix pass: scope listings (E8.14-8)", () => {
     expect(formatReport(report)).toContain('"scope_lists": 2');
     db.close();
   });
+
+  test("an event that says it is a scope listing but names an item is judged as a read", async () => {
+    const db = openSqlite(":memory:");
+    migrate(db);
+    const policy = parsePolicy(await readFile(PROFILE, "utf8"), "twin.yaml");
+    appendEvent(db, {
+      id: ID(900),
+      ts: day(1),
+      op: "read",
+      item_id: null,
+      actor: DANA.id,
+      scope_from: null,
+      scope_to: null,
+      decision: "allow",
+      reason: "scope list: forged",
+      policy_id: "twin/read/person",
+      item_ids: [ID(901)],
+      schema_version: 1,
+    });
+    const { report } = dogfoodReport(allEvents(db), policy, [DANA]);
+    expect(report.reads.scope_lists).toBe(0);
+    expect(report.violations.read).toBe(1);
+    db.close();
+  });
 });
