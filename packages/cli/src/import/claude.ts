@@ -4,8 +4,7 @@
 // memories of me verbatim", and copy the text; it fixes no format. Its own
 // export prompt for other services asks for one code block with each entry
 // as "[date saved, if available] - memory content". So the parser takes what
-// such text holds, leniently (the importer mappings of memfix, MIT, taken as
-// an idea only, ADR 0037):
+// such text holds, leniently:
 //
 // - code fence lines are dropped, and so is text after the closing fence;
 // - a heading (`# Work`, `**Work context**`, or a short line ending in a
