@@ -17,6 +17,6 @@ supersedes: none
 
 **Why.** docs/design/tui.md 13 and card E8.15b's acceptance.
 
-**Result.** `make test-one T=packages/cli/test/tui/frames.test.ts`: 79 passed, and passed again unchanged. No drawn line exceeds the width and each frame is exactly its height; colour sits on status symbols only; no colour in `--no-color` or high contrast; no Unicode drawing in `--ascii`; the palettes meet 4.5:1; 79x24, 80x23, 60x20 and 39x4 are the too-small screen. Mutation: colouring the status word too fails 12 tests. Every CLI test file: 449 passed after the P3-15 change.
+**Result.** `make test-one T=packages/cli/test/tui/frames.test.ts`: 79 passed, and passed again unchanged. No drawn line exceeds the width and each frame is exactly its height; colour sits on status symbols only; no colour in `--no-color` or high contrast; no Unicode drawing in `--ascii`; the palettes meet 4.5:1; 79x24, 80x23, 60x20 and 39x4 are the too-small screen. Mutation: colouring the status word too fails 12 tests. Every CLI test file run together: 448 of 449, the one failure P3-15's no-pi test, then 26 of 26 in setup.test.ts once narrowed.
 
 **Consequence.** E8.15e's manual check renders what these frames pin.
