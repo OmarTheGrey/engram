@@ -4,6 +4,7 @@
 // requires the two to agree; both go through applyEvent, the one projection
 // rule. Nothing here reads the clock: callers supply ids and timestamps.
 import type { Db, Row } from "./db/db.ts";
+import { linkEvent } from "./log/chain.ts";
 import { type MemoryEvent, MemoryEvent as MemoryEventSchema, type MemoryItem } from "./schema.ts";
 
 export type EventInput = Omit<MemoryEvent, "seq">;
@@ -203,6 +204,9 @@ export function appendEvent(db: Db, input: EventInput): MemoryEvent {
       JSON.stringify(event),
     );
     project(db, event);
+    // The hash chain (card E1.6, ADR 0038), in this transaction, when this
+    // handle keeps it; otherwise nothing.
+    linkEvent(db, event);
     return event;
   });
 }

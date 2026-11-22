@@ -110,6 +110,8 @@ import {
 } from "../events.ts";
 import { itemById, itemsByStoreRef } from "../items.ts";
 import { refItemId } from "../lint/det.ts";
+import { chainManifest, forgetSalts } from "../log/chain.ts";
+import { REDACTED, REDACTED_HASH, redacted, redactedLintReason } from "../log/redact.ts";
 import type { PlaneDeps } from "../plane.ts";
 import { STORE_FAILURE_ID, scopeLevel } from "../policy/evaluate.ts";
 import { type MemoryEvent, type MemoryItem, Principal, SCHEMA_VERSION, Scope } from "../schema.ts";
@@ -144,9 +146,9 @@ export {
 /** How many times one item's handover is decided again after a conflict before it is left. */
 const HANDOVER_ATTEMPTS = 4;
 
-/** What an erased item's content and evidence become in the log. */
-export const REDACTED = "[erased]";
-const REDACTED_HASH = `sha256:${"0".repeat(64)}`;
+// What an erasure rewrites (REDACTED, redacted, redactedLintReason) lives in
+// log/redact.ts, shared with the hash chain's skeleton (ADR 0038).
+export { REDACTED };
 
 export interface OffboardRequest {
   /** The person scope to erase, `person:<id>`; its id is the leaver's principal. */
@@ -213,26 +215,6 @@ function checkRequest(request: unknown): OffboardRequest {
       throw bad(`${role.scope}: the successor must be a principal other than the leaver`);
   }
   return r;
-}
-
-/** The item as the log keeps it after erasure: everything but what was remembered. */
-function redacted(item: MemoryItem): MemoryItem {
-  const content = item.class === "procedural" ? { body: REDACTED, tools: [] } : REDACTED;
-  const { session_entry_id: _entry, ...provenance } = item.provenance;
-  return {
-    ...item,
-    content,
-    provenance: { ...provenance, ref: REDACTED, hash: REDACTED_HASH },
-  } as MemoryItem;
-}
-
-/**
- * A lint event's reason once the evidence is erased: its lint id and severity
- * (plane/lint.ts writes `<lint_id> (<severity>): ...`), nothing else.
- */
-function redactedLintReason(reason: string): string {
-  const head = /^(\S+) \((info|warn|error)\): /.exec(reason);
-  return head ? `${head[1]} (${head[2]}): ${REDACTED}` : REDACTED;
 }
 
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -542,6 +524,9 @@ async function run(
     const ids = new Set(erased.map((i) => i.id));
     let redactedEvents = 0;
     let explanationRows = 0;
+    // The seqs this erasure redacts: their salts are forgotten and the
+    // chain's manifest names them (ADR 0038, decision 3).
+    const redactedSeqs: number[] = [];
     const update = db.prepare("UPDATE events SET body = ? WHERE id = ?");
     // What lint evidence about an erased item may hold: its id, and the
     // content and evidence hashes of every version the log carries. A hash a
@@ -557,7 +542,7 @@ async function run(
     const hashes = new Set<string>();
     for (const i of erased) hashes.add(strictContentHash(i.content));
     for (const id of ids) {
-      for (const row of db.prepare("SELECT id, body FROM events WHERE item_id = ?").all(id)) {
+      for (const row of db.prepare("SELECT seq, id, body FROM events WHERE item_id = ?").all(id)) {
         const event = JSON.parse(String(row.body)) as MemoryEvent;
         if (!event.item) continue;
         hashes.add(strictContentHash(event.item.content));
@@ -565,6 +550,7 @@ async function run(
         const source = refItemId(event.item.provenance.ref);
         if (source === null || !survivingIds.has(source)) hashes.add(event.item.provenance.hash);
         update.run(JSON.stringify({ ...event, item: redacted(event.item) }), String(row.id));
+        redactedSeqs.push(Number(row.seq));
         redactedEvents++;
       }
       explanationRows += Number(
@@ -576,29 +562,39 @@ async function run(
     // Lint events (card L1) carry no item, only an id and evidence in their
     // reason: about an erased item, or naming one, the evidence goes.
     if (ids.size > 0)
-      for (const row of db.prepare("SELECT id, body FROM events WHERE op = 'lint'").all()) {
+      for (const row of db.prepare("SELECT seq, id, body FROM events WHERE op = 'lint'").all()) {
         const event = JSON.parse(String(row.body)) as MemoryEvent;
         const about = event.item_id !== null && ids.has(event.item_id);
         if (!about && !traces.some((t) => event.reason.includes(t))) continue;
         const reason = redactedLintReason(event.reason);
         if (reason === event.reason) continue;
         update.run(JSON.stringify({ ...event, reason }), String(row.id));
+        redactedSeqs.push(Number(row.seq));
         redactedEvents++;
       }
-    for (const i of erased)
-      events.push(
-        appendEvent(db, {
-          ...base,
-          id: newId(),
-          op: "retire",
-          item_id: i.id,
-          scope_from: person,
-          scope_to: null,
-          decision: "allow",
-          reason: `erased with ${person} at offboarding: ${inStore(i)}; removed from the projection and redacted in the log's copies${leftContent.has(i.id) ? `; ${LEFT_CONTENT_CLAUSE} (${[...(leftContent.get(i.id) as Set<string>)].sort().join(", ")})` : ""}`,
-          policy_id: ERASURE_ID,
-        }),
-      );
+    // The redacted events' salts go, whether or not this handle keeps the
+    // chain: with its salt a commitment confirms a guess of the content.
+    forgetSalts(db, redactedSeqs);
+    const eraseSeqs: number[] = [];
+    for (const i of erased) {
+      const erase = appendEvent(db, {
+        ...base,
+        id: newId(),
+        op: "retire",
+        item_id: i.id,
+        scope_from: person,
+        scope_to: null,
+        decision: "allow",
+        reason: `erased with ${person} at offboarding: ${inStore(i)}; removed from the projection and redacted in the log's copies${leftContent.has(i.id) ? `; ${LEFT_CONTENT_CLAUSE} (${[...(leftContent.get(i.id) as Set<string>)].sort().join(", ")})` : ""}`,
+        policy_id: ERASURE_ID,
+      });
+      eraseSeqs.push(erase.seq);
+      events.push(erase);
+    }
+    // One manifest per offboarding, chained after its erase events, naming
+    // every event it redacted (ADR 0038, decision 3); a handle that keeps no
+    // chain appends none.
+    chainManifest(db, redactedSeqs, eraseSeqs);
     return { erased, redactedEvents, explanationRows };
   });
   const ids = new Set(erased.map((i) => i.id));

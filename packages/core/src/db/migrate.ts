@@ -148,6 +148,74 @@ export const MIGRATIONS: readonly Migration[] = [
     `,
     },
   },
+  {
+    id: 5,
+    name: "the event log's hash chain",
+    // Card E1.6, ADR 0038 (log/chain.ts). Side tables only: no event body,
+    // item or explanation changes, and the chain begins later, when a handle
+    // first keeps it (keepChain), at the next seq. `chain`: one entry per
+    // position, the genesis at 0, then events (seq set, data their
+    // commitments) and offboarding manifests (data the record), each with
+    // its chain hash. `chain_salts`: one salt per event with committed parts,
+    // deleted by an erasure. `chain_head`: the one anchor row (head hash,
+    // entry count, last chained seq). `chain_checkpoints`: checkpoints of the
+    // head, signed or not. Independent of every other migration's tables, so
+    // it applies before or after a later one (card E8.12's 6).
+    up: {
+      sqlite: `
+      CREATE TABLE chain (
+        pos INTEGER PRIMARY KEY,
+        kind TEXT NOT NULL,
+        seq INTEGER UNIQUE,
+        data TEXT NOT NULL,
+        hash TEXT NOT NULL
+      );
+      CREATE TABLE chain_salts (seq INTEGER PRIMARY KEY, salt TEXT NOT NULL);
+      CREATE TABLE chain_head (
+        id INTEGER PRIMARY KEY CHECK (id = 0),
+        size INTEGER NOT NULL,
+        hash TEXT NOT NULL,
+        seq INTEGER NOT NULL
+      );
+      CREATE TABLE chain_checkpoints (
+        n INTEGER PRIMARY KEY,
+        size INTEGER NOT NULL,
+        root TEXT NOT NULL,
+        head TEXT NOT NULL,
+        at TEXT NOT NULL,
+        note TEXT NOT NULL,
+        key TEXT,
+        signature TEXT
+      );
+    `,
+      postgres: `
+      CREATE TABLE chain (
+        pos BIGINT PRIMARY KEY,
+        kind TEXT NOT NULL,
+        seq BIGINT UNIQUE,
+        data TEXT NOT NULL,
+        hash TEXT NOT NULL
+      );
+      CREATE TABLE chain_salts (seq BIGINT PRIMARY KEY, salt TEXT NOT NULL);
+      CREATE TABLE chain_head (
+        id INTEGER PRIMARY KEY CHECK (id = 0),
+        size BIGINT NOT NULL,
+        hash TEXT NOT NULL,
+        seq BIGINT NOT NULL
+      );
+      CREATE TABLE chain_checkpoints (
+        n BIGINT PRIMARY KEY,
+        size BIGINT NOT NULL,
+        root TEXT NOT NULL,
+        head TEXT NOT NULL,
+        at TEXT NOT NULL,
+        note TEXT NOT NULL,
+        key TEXT,
+        signature TEXT
+      );
+    `,
+    },
+  },
 ];
 
 /** Applies pending migrations in id order; returns the ids it applied. */
