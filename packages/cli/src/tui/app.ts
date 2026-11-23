@@ -87,6 +87,11 @@ export interface StartOptions {
   native?: () => NativeClipboard | undefined;
   /** A Postgres log's check, off the input path: a child process by default (./log-check.ts). */
   logCheck?: (input: LogCheckInput, signal: AbortSignal) => Promise<CheckResult>;
+  /**
+   * Leave tui.json's flags out: line mode's `screen` hands the workspace on
+   * whole (card E8.15e), so a flag unset there does not come back from the file.
+   */
+  skipSavedFlags?: boolean;
 }
 
 /** An SGR mouse report (ESC [ < button ; column ; row M, or m on release), its row 0-based. */
@@ -167,7 +172,7 @@ export class App implements Component, Ctx {
     const loaded = this.noSaved ? {} : loadSaved(o.io.home);
     this.savedOptions = loaded.saved?.options ?? {};
     this.savedProblem = loaded.problem;
-    this.ws = Workspace.from(o.io.env, o.given, loaded.saved?.flags);
+    this.ws = Workspace.from(o.io.env, o.given, o.skipSavedFlags ? undefined : loaded.saved?.flags);
     this.logCheck = o.logCheck ?? ((input, signal) => checkLogInChild(input, undefined, signal));
     this.checks = cheapChecks(this.ws, o.io, "defer");
     this.startLogCheck();
@@ -417,6 +422,14 @@ export class App implements Component, Ctx {
     this.savedInUse = false;
     return forgetSaved(this.io.home);
   }
+  /** L (card E8.15e): the full screen ends, keeping the workspace, and line mode starts. */
+  private toLineMode = false;
+  toLine(): void {
+    this.toLineMode = true;
+    // As q does, after pi-tui has finished with this input.
+    setImmediate(() => this.quit());
+  }
+
   quit(): void {
     if (this.stopped) return;
     this.stopped = true;
@@ -424,7 +437,12 @@ export class App implements Component, Ctx {
     this.logAbort?.abort();
     for (const s of this.stack) s.close?.();
     this.tui?.stop();
-    const done = () => this.finish({ ran: [...this.ran], deferred: [...this.clipboard.deferred] });
+    const done = () =>
+      this.finish({
+        ran: [...this.ran],
+        deferred: [...this.clipboard.deferred],
+        ...(this.toLineMode ? { line: true } : {}),
+      });
     // A running server and a Try it child stop first (card E8.15d), each given ten seconds.
     const stops = [...this.stops].map((stop) => stop().catch(() => undefined));
     this.stops.clear();
@@ -621,7 +639,7 @@ export class App implements Component, Ctx {
         return;
       }
       case "line":
-        this.say("line mode comes with card E8.15e; engram --help lists the plain commands");
+        this.toLine();
         return;
       case "back":
         if (screen.kind === "form" || screen.kind === "surface") await screen.action("leave", this);
@@ -767,13 +785,20 @@ function keepScrollKeys(): void {
   setKeybindings(new KeybindingsManager(TUI_KEYBINDINGS, none));
 }
 
+/** Where startTui keeps a terminal's own start. */
+const OWN_START = Symbol("engram tui: the terminal's own start");
+
 export function startTui(o: StartOptions): Session {
   keepScrollKeys();
   const app = new App(o);
   // pi-tui hands mouse events to layout nodes only, and its alternate screen
   // reads them before any input listener; so the App reads the ones it takes
   // from the terminal first, and every other byte goes on to pi-tui (review I8).
-  const start = o.terminal.start.bind(o.terminal);
+  // The terminal's own start, kept once: line mode's `screen` starts the TUI again on the same
+  // terminal (card E8.15e), and the stopped App must not stay in the input path.
+  const t = o.terminal as Terminal & { [OWN_START]?: Terminal["start"] };
+  t[OWN_START] ??= o.terminal.start.bind(o.terminal);
+  const start = t[OWN_START];
   o.terminal.start = (onInput, onResize) =>
     start((data) => {
       if (!app.mouseInput(data)) onInput(data);

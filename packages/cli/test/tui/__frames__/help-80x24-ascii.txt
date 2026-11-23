@@ -2,7 +2,7 @@
 +----------------------------------++------------------------------------------+
 | +- Help: Home -------------------------------------------------------------+ |
 | | This screen                                                              | |
-| |   q  quit                            L  line mode (card E8.15e)          | |
+| |   q  quit                            L  line mode, for screen readers    | |
 | |   up k  move up                      down j  move down                   | |
 | |   pgup  page up                      pgdn  page down                     | |
 | |   home  first                        end  last                           | |

@@ -1,0 +1,538 @@
+// Line mode (card E8.15e, docs/design/tui.md 8.31, 11.6 and 13): a scripted
+// stdin produces the transcript of 8.31 with each command's exact output, the
+// output the plain CLI prints for the command line shown; an empty Enter
+// lists the commands and does not quit; quit and end of input leave, and the
+// session's commands are printed unless --quiet; mcp and hook print their
+// configuration and never run on the terminal; ENGRAM_TUI_LINE=1, --line and
+// a saved line option start it; the CLI's own checks re-ask the field they
+// name; the confirmations of 9.5 are asked in words; an answer made as
+// another actor is never offered; L on Home switches to line mode keeping
+// the workspace and `screen` switches back; line mode imports no pi-tui.
+// Fakes only: the files adapter on temporary folders, a fixed clock, a
+// counter for ids, a PassThrough for stdin; no network, no model.
+import { mkdirSync, readFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import { PassThrough } from "node:stream";
+import { describe, expect, it } from "vitest";
+import { type Io, run } from "../../src/run.ts";
+import { menuText } from "../../src/tui/line.ts";
+import { tuiCommand } from "../../src/tui/main.ts";
+import { writeSaved } from "../../src/tui/saved.ts";
+import { FakeTerminal } from "../../src/tui/term.ts";
+import { splitWords } from "../../src/tui/words.ts";
+import { NOW, REPO, tempDir, testId } from "../helpers.ts";
+
+const MAIN = join(REPO, "packages", "cli", "src", "main.ts");
+const LAUNCH = { command: process.execPath, prefix: [MAIN], note: undefined };
+const INTRO =
+  "engram tui, line mode. Type a number or a command name; help explains; quit leaves.\n";
+const SUMMARY_HEAD = "# engram tui: the commands this session ran\n";
+const SAMPLE = "The deploy key rotates every 90 days.";
+
+/** A stream that says it is a terminal and records what is written to it. */
+function ttyOut() {
+  const s = {
+    isTTY: true,
+    written: "",
+    write: (d: string) => {
+      s.written += d;
+      return true;
+    },
+    on: () => s,
+  };
+  return s;
+}
+
+async function folders() {
+  const cwd = await tempDir();
+  const home = join(cwd, "home");
+  mkdirSync(home);
+  mkdirSync(join(cwd, "mem"));
+  return { cwd, home };
+}
+
+interface SessionOptions {
+  env?: Record<string, string | undefined>;
+  cwd?: string;
+  home?: string;
+  /** Ends stdin after the typed lines (end of input). */
+  eof?: boolean;
+  /** A full-screen terminal, for the switches between the two modes. */
+  terminal?: FakeTerminal;
+  /** Keys for the full screen, sent once it has started. */
+  keys?: (t: FakeTerminal) => Promise<void>;
+  /** Whether the stdin and stdout streams say they are terminals. */
+  tty?: { stdin: boolean; stdout: boolean };
+  /** Through run, as `engram tui` is reached, instead of tuiCommand with the test's echo. */
+  viaRun?: boolean;
+}
+
+/**
+ * Runs `engram tui <args>` with `typed` on stdin, one line each. The
+ * transcript is everything written to stdout and stderr, in order, with each
+ * line read echoed as `> line` (`>` alone for an empty one), as the terminal
+ * echoes what the person types.
+ */
+async function lineSession(args: string[], typed: string[], o: SessionOptions = {}) {
+  const f = o.cwd === undefined ? await folders() : { cwd: o.cwd, home: o.home ?? o.cwd };
+  const tty = o.tty ?? { stdin: true, stdout: true };
+  const stdin = Object.assign(new PassThrough(), { isTTY: tty.stdin });
+  const stdout = Object.assign(ttyOut(), { isTTY: tty.stdout });
+  let transcript = "";
+  let n = 7000;
+  const io: Io = {
+    out: (s) => {
+      transcript += s;
+    },
+    err: (s) => {
+      transcript += s;
+    },
+    cwd: f.cwd,
+    home: f.home,
+    now: () => NOW,
+    newId: () => testId(++n),
+    env: { LANG: "C.UTF-8", ...(o.env ?? {}) },
+    nodeVersion: process.versions.node,
+    repo: REPO,
+    stdin: stdin as unknown as NodeJS.ReadableStream,
+    stdout: stdout as unknown as NodeJS.WritableStream,
+  };
+  stdin.write(typed.map((l) => `${l}\n`).join(""));
+  if (o.eof === true) stdin.end();
+  const echo = (line: string) => {
+    transcript += line === "" ? ">\n" : `> ${line}\n`;
+  };
+  const done = o.viaRun
+    ? run(["tui", ...args], io)
+    : tuiCommand(args, io, {
+        echo,
+        launch: LAUNCH,
+        platform: "linux",
+        ...(o.terminal ? { terminal: o.terminal } : {}),
+      });
+  if (o.terminal !== undefined && o.keys !== undefined) await o.keys(o.terminal);
+  const code = await done;
+  // The folder the session ran in, as <cwd>, so the plain run's output in another folder compares.
+  const norm = transcript.replaceAll(f.cwd, "<cwd>");
+  return { code, transcript, norm, stdout: stdout.written, ...f };
+}
+
+/** The plain CLI's stdout and stderr for `argv` in a fresh workspace like the session's, ids from the same counter. */
+async function plain(argv: string[], start = 7000, f?: { cwd: string; home: string }) {
+  const where = f ?? (await folders());
+  let out = "";
+  let n = start;
+  const code = await run(argv, {
+    out: (s) => {
+      out += s;
+    },
+    err: (s) => {
+      out += s;
+    },
+    cwd: where.cwd,
+    home: where.home,
+    now: () => NOW,
+    newId: () => testId(++n),
+    env: { LANG: "C.UTF-8" },
+    nodeVersion: process.versions.node,
+    repo: REPO,
+  });
+  return { code, out: out.replaceAll(where.cwd, "<cwd>") };
+}
+
+/** The words of the last `run: ` line of a transcript. */
+function lastRun(transcript: string): string[] {
+  const line = transcript
+    .split("\n")
+    .filter((l) => l.startsWith("run: "))
+    .at(-1);
+  return splitWords((line ?? "").slice("run: ".length)) ?? [];
+}
+
+const WS = ["--owner", "dana", "--db", "engram.db", "--root", "mem", "--no-saved"];
+
+describe("line mode's transcript (8.31)", () => {
+  it("writes as 8.31 does: the menu, an empty Enter, the prompts, the preview, the question and write's own output", async () => {
+    const typed = ["", "write", SAMPLE, "", "", "", "", "", "", "", "yes", "quit"];
+    const s = await lineSession(["--line", ...WS], typed);
+    expect(s.code).toBe(0);
+    const argv = [
+      "write",
+      "--content",
+      SAMPLE,
+      "--db",
+      "engram.db",
+      "--owner",
+      "dana",
+      "--root",
+      "mem",
+    ];
+    const check = await plain(["check", ...argv.slice(1)], 9000);
+    const write = await plain(argv);
+    expect(write.code).toBe(0);
+    const menu = menuText();
+    const expected = [
+      INTRO,
+      menu,
+      "command: >\n",
+      menu,
+      "command: > write\n",
+      "write one item through the plane's write gate\n",
+      `content: > ${SAMPLE}\n`,
+      "from file: >\n",
+      "scope (default the owner's person scope, else the actor): >\n",
+      "class, episodic or semantic (default semantic): >\n",
+      "confidence (default 0.9): >\n",
+      "valid from (default now): >\n",
+      "valid to (default open): >\n",
+      "advanced options? yes or no (default no): >\n",
+      "the gate would decide, as engram check says (nothing stored, no event):\n",
+      check.out,
+      `run: engram write --content "${SAMPLE}" --db engram.db --owner dana --root mem\n`,
+      "Write a memory?\n",
+      "Runs engram write as person:dana (person): the plane decides it and records the decision as an event.\n",
+      "It cannot be undone; a later change is a new version or a new event.\n",
+      "write it? yes or no (default no): > yes\n",
+      write.out,
+      "exit 0\n",
+      "command: > quit\n",
+      SUMMARY_HEAD,
+      `engram write --content "${SAMPLE}" --db engram.db --owner dana --root mem  # exit 0\n`,
+    ].join("");
+    expect(s.norm).toBe(expected);
+    // Nothing line mode runs reads or writes the terminal's own streams.
+    expect(s.stdout).toBe("");
+  });
+
+  it("lists every command the registry offers, each with a number, mcp and hook as setup", () => {
+    const menu = menuText();
+    for (const name of ["read", "write", "check", "promote", "explain", "doctor", "serve"])
+      expect(menu).toMatch(new RegExp(`\\b\\d+ ${name}\\b`));
+    expect(menu).toMatch(/\b\d+ mcp setup\b/);
+    expect(menu).toMatch(/\b\d+ hook setup\b/);
+    expect(menu).not.toMatch(/\btui\b/);
+    expect(menu).toMatch(/^memory: 1 read /);
+    // No colour, no box drawing, no cursor movement: plain lines only.
+    expect(menu.includes(String.fromCharCode(27))).toBe(false);
+    expect(menu).not.toMatch(/[┌┐└┘─│]/);
+  });
+
+  it("runs a command by its number, as by its name", async () => {
+    const number = menuText().match(/(\d+) policy\b/)?.[1];
+    expect(number).toBeDefined();
+    const s = await lineSession(["--line", ...WS], [number as string, "quit"]);
+    expect(s.transcript).toContain(`command: > ${number}\n`);
+    const shown = lastRun(s.transcript);
+    expect(shown[0]).toBe("policy");
+    expect(s.norm).toContain((await plain(shown)).out);
+  });
+
+  it("an empty Enter does not quit; end of input leaves and prints the session's commands", async () => {
+    const s = await lineSession(["--line", ...WS], ["", "policy"], { eof: true });
+    expect(s.code).toBe(0);
+    const menu = menuText();
+    // Once at the start and once for the empty Enter.
+    expect(s.transcript.split(menu)).toHaveLength(3);
+    const shown = lastRun(s.transcript);
+    const p = await plain(shown);
+    expect(s.norm).toContain(`${p.out}exit ${p.code}\ncommand: \n${SUMMARY_HEAD}`);
+    expect(s.transcript.endsWith(`engram ${shown.join(" ")}  # exit ${p.code}\n`)).toBe(true);
+  });
+
+  it("prints nothing on quit with --quiet", async () => {
+    const s = await lineSession(["--line", "--quiet", ...WS], ["policy", "quit"]);
+    expect(s.code).toBe(0);
+    expect(s.transcript.endsWith("command: > quit\n")).toBe(true);
+    expect(s.transcript).not.toContain(SUMMARY_HEAD);
+  });
+
+  it("runs a whole command line as typed, with the workspace's flags it does not give", async () => {
+    const s = await lineSession(
+      ["--line", ...WS],
+      [`write --content "Typed whole." --scope person:dana`, "yes", "quit"],
+    );
+    expect(s.code).toBe(0);
+    const shown = lastRun(s.transcript);
+    expect(shown).toEqual([
+      "write",
+      "--content",
+      "Typed whole.",
+      "--scope",
+      "person:dana",
+      "--db",
+      "engram.db",
+      "--owner",
+      "dana",
+      "--root",
+      "mem",
+    ]);
+    expect(s.norm).toContain(`${(await plain(shown)).out}exit 0\n`);
+  });
+
+  it("says what help explains, and help <command> prints its options", async () => {
+    const s = await lineSession(["--line", ...WS], ["help", "help write", "quit"]);
+    expect(s.transcript).toContain("workspace shows the flags every command gets");
+    expect(s.transcript).toContain("screen opens the full-screen interface");
+    expect(s.transcript).toContain("  --content <text>            the item's content\n");
+  });
+
+  it("answers a name it does not know with the CLI's suggestion", async () => {
+    const s = await lineSession(["--line", ...WS], ["wirte", "quit"]);
+    expect(s.transcript).toContain(
+      'command: > wirte\nno command is named wirte; did you mean "write"? An empty answer lists them.\n',
+    );
+  });
+});
+
+describe("the CLI's own checks (9.4)", () => {
+  it("prints the CLI's usage message and asks again for the field it names", async () => {
+    const typed = ["write", "x", "", "", "", "high", "", "", "", "0.8", "no", "quit"];
+    const s = await lineSession(["--line", ...WS], typed);
+    expect(s.code).toBe(0);
+    expect(s.transcript).toContain(
+      'advanced options? yes or no (default no): >\nengram write: --confidence "high" is not a number\nconfidence (default 0.9): > 0.8\n',
+    );
+    expect(lastRun(s.transcript)).toContain("0.8");
+    expect(s.transcript).toContain(
+      "write it? yes or no (default no): > no\ncancelled: nothing ran\n",
+    );
+    expect(s.transcript).not.toContain(SUMMARY_HEAD);
+  });
+});
+
+describe("the confirmations of 9.5, in words", () => {
+  it("asks before a sweep, with the strong text, and no cancels it", async () => {
+    const s = await lineSession(["--line", ...WS], ["retain", "person:dana", "", "", "quit"]);
+    expect(s.transcript).toContain(
+      "Retiring cannot be undone. Retired items stay in the log; reads no longer return them.\nsweep it? yes or no (default no): >\ncancelled: nothing ran\n",
+    );
+    expect(s.transcript).not.toContain(SUMMARY_HEAD);
+  });
+
+  it("asks before the first read with a store folder in a session, and not before the second", async () => {
+    const read = ["read", "", "", ""];
+    const s = await lineSession(["--line", ...WS], [...read, "yes", ...read, "quit"]);
+    expect(s.code).toBe(0);
+    expect(s.transcript.split("Read with mem?\n")).toHaveLength(2);
+    expect(s.transcript.split("read it? yes or no (default no): > yes\n")).toHaveLength(2);
+    expect(s.transcript.split("\nexit 0\n")).toHaveLength(3);
+  });
+
+  it("asks for the key id, typed, before a revocation", async () => {
+    const s = await lineSession(
+      ["--line", ...WS],
+      ["key revoke 01930000-0000-7000-8000-000000000042 --keys keys.json", "", "quit"],
+    );
+    expect(s.transcript).toContain(
+      "This cannot be undone: a revoked key is never accepted again.\ntype 01930000-0000-7000-8000-000000000042 to revoke it, or an empty answer to cancel: >\ncancelled: nothing ran\n",
+    );
+  });
+});
+
+describe("actors (the read id offered)", () => {
+  it("offers the last read's id only while the actor who made it is the actor now", async () => {
+    const typed = [
+      "read",
+      "",
+      "",
+      "",
+      "yes",
+      "explain",
+      "",
+      "workspace",
+      "owner",
+      "sam",
+      "",
+      "explain",
+      "",
+      "quit",
+    ];
+    const s = await lineSession(["--line", ...WS], typed);
+    expect(s.code).toBe(0);
+    const readId = s.transcript.match(/^read (\S+) at /m)?.[1];
+    expect(readId).toBeDefined();
+    expect(s.transcript).toContain(`read (default the last read, ${readId}): >\n`);
+    // The explanation the plane gave dana, as engram explain prints it.
+    const explained = lastRunOf(s.transcript, "explain");
+    expect(explained).toContain(readId as string);
+    // After the change to sam, dana's read is not offered.
+    expect(s.transcript).toContain("--owner sam (set here)");
+    const after = s.transcript.slice(
+      s.transcript.lastIndexOf("command: > explain"),
+      s.transcript.lastIndexOf("command: > quit"),
+    );
+    expect(after).toContain("read (required): >\nnothing ran: read is required\n");
+    expect(after).not.toContain(readId as string);
+  });
+});
+
+/** The words of the last `run: ` line for a command. */
+function lastRunOf(transcript: string, word: string): string[] {
+  const line = transcript
+    .split("\n")
+    .filter((l) => l.startsWith(`run: engram ${word}`))
+    .at(-1);
+  return splitWords((line ?? "").slice("run: ".length)) ?? [];
+}
+
+describe("mcp and hook are setup only (8.14, 8.15)", () => {
+  it("prints the MCP configuration for Claude Code and Codex and never runs mcp", async () => {
+    const s = await lineSession(["--line", ...WS], ["mcp setup", "", "", "", "", "quit"]);
+    expect(s.code).toBe(0);
+    expect(s.transcript).toContain("engram mcp is never run here");
+    const json = s.transcript.slice(s.transcript.indexOf('{\n  "mcpServers"'));
+    const parsed = JSON.parse(json.slice(0, json.indexOf("\n}\n") + 2)) as {
+      mcpServers: { engram: { command: string; args: string[] } };
+    };
+    expect(parsed.mcpServers.engram.command).toBe(process.execPath);
+    const args = parsed.mcpServers.engram.args;
+    expect(args.slice(0, 2)).toEqual([MAIN, "mcp"]);
+    expect(args).toContain("agent:claude-code");
+    // Written absolute, as the harness runs it from elsewhere.
+    expect(args[args.indexOf("--db") + 1]).toBe(resolve(s.cwd, "engram.db"));
+    expect(s.transcript).toContain("[mcp_servers.engram]\n");
+    expect(s.transcript).toContain("try it on a scratch log? yes or no (default no): >\n");
+    // Never run: stdin was not handed to it (quit was still read), stdout untouched, nothing ran.
+    expect(s.transcript.endsWith("command: > quit\n")).toBe(true);
+    expect(s.stdout).toBe("");
+  });
+
+  it("refuses mcp typed as a command line, and the hook", async () => {
+    const s = await lineSession(
+      ["--line", ...WS],
+      ["mcp --http 7400 --insecure-loopback", "hook claude-code --root mem", "quit"],
+    );
+    expect(s.transcript).toContain(
+      "engram mcp is setup only here: mcp setup prints its configuration; run engram mcp in a shell, or let the harness launch it\n",
+    );
+    expect(s.transcript).toContain(
+      "engram hook is setup only here: hook setup prints its configuration; Claude Code runs the hook\n",
+    );
+    expect(s.transcript).not.toContain(SUMMARY_HEAD);
+    expect(s.stdout).toBe("");
+  });
+
+  it("prints the hook's entry and, on request, tries it on a scratch log", async () => {
+    const s = await lineSession(["--line", ...WS], ["hook setup", "", "", "", "yes", "quit"]);
+    expect(s.code).toBe(0);
+    expect(s.transcript).toContain(".claude/settings.json, hooks.PreToolUse:\n");
+    expect(s.transcript).toContain('"matcher": "*"');
+    expect(s.transcript).toContain(JSON.stringify(resolve(s.cwd, "mem")));
+    expect(s.transcript).toMatch(/ok: Read \S+user_role\.md {3}exit 0, blocked/);
+    expect(s.transcript).toMatch(/ok: Read \S+README\.md {3}exit 0, allowed/);
+    expect(s.transcript).toContain("Try it ran with --db :memory: in place of --db");
+    expect(s.transcript).not.toContain(SUMMARY_HEAD);
+  }, 60_000);
+});
+
+describe("serve in line mode", () => {
+  it("runs until Enter, then stops and records it", async () => {
+    const s = await lineSession(
+      ["--line", ...WS],
+      ["serve --insecure-loopback --port 0", "", "quit"],
+    );
+    expect(s.code).toBe(0);
+    expect(s.transcript).toMatch(/engram serve: listening on http:\/\/127\.0\.0\.1:\d+ /);
+    expect(s.transcript).toContain(
+      "engram serve is running; an empty answer, or end of input, stops it: >\nengram serve: stopped\nexit 0\n",
+    );
+    expect(s.transcript).toMatch(
+      /engram serve --insecure-loopback --port 0 .*# exit 0, stopped from line mode\n$/,
+    );
+  });
+});
+
+describe("how line mode starts", () => {
+  it("starts with ENGRAM_TUI_LINE=1, with --line and with a saved line option", async () => {
+    for (const o of [
+      { args: [], env: { ENGRAM_TUI_LINE: "1" } },
+      { args: ["--line"], env: {} },
+    ]) {
+      const s = await lineSession([...o.args, ...WS], ["quit"], { env: o.env, viaRun: true });
+      expect(s.code).toBe(0);
+      expect(s.transcript.startsWith(INTRO)).toBe(true);
+    }
+    const f = await folders();
+    writeSaved(f.home, { owner: "dana", db: ":memory:" }, { line: true });
+    const saved = await lineSession([], ["quit"], { ...f, viaRun: true });
+    expect(saved.transcript.startsWith(INTRO)).toBe(true);
+  });
+
+  it("starts where TERM is dumb, which the full screen refuses", async () => {
+    const s = await lineSession(["--line", ...WS], ["screen", "quit"], { env: { TERM: "dumb" } });
+    expect(s.code).toBe(0);
+    expect(s.transcript.startsWith(INTRO)).toBe(true);
+    expect(s.transcript).toContain(
+      "command: > screen\nengram tui: TERM is dumb; try engram tui --line, or the plain commands\n",
+    );
+  });
+
+  it("refuses as the full screen does without a terminal, with CI set or with --json", async () => {
+    const rows: [SessionOptions, string[], string][] = [
+      [{ tty: { stdin: true, stdout: false } }, ["--line"], "stdout is not a terminal"],
+      [{ tty: { stdin: false, stdout: true } }, ["--line"], "stdin is not a terminal"],
+      [{ env: { CI: "1" } }, ["--line"], "CI is set"],
+      [{}, ["--line", "--json"], "--json is for scripts"],
+    ];
+    for (const [o, args, line] of rows) {
+      const s = await lineSession(args, ["quit"], { ...o, viaRun: true });
+      expect(s.code).toBe(2);
+      expect(s.transcript).toMatch(new RegExp(`^engram tui: ${line}`));
+      expect(s.transcript).not.toContain(INTRO);
+    }
+  });
+});
+
+describe("switching between the full screen and line mode (11.6)", () => {
+  it("L on Home switches to line mode keeping the workspace; screen switches back", async () => {
+    const term = new FakeTerminal({ columns: 80, rows: 24 });
+    const tick = () => new Promise((r) => setTimeout(r, 20));
+    const s = await lineSession(
+      ["--owner", "dana", "--db", "engram.db", "--no-saved"],
+      ["scopes", "screen"],
+      {
+        terminal: term,
+        keys: async (t) => {
+          for (let i = 0; i < 200 && !t.started; i++) await tick();
+          await tick();
+          t.send("L");
+          // The full screen gives the terminal back, line mode reads, then screen starts it again.
+          for (let i = 0; i < 400 && !(t.started && t.output.split("\x1b[?1049h").length > 2); i++)
+            await tick();
+          await tick();
+          t.send("q");
+        },
+      },
+    );
+    expect(s.code).toBe(0);
+    expect(s.transcript.startsWith(INTRO)).toBe(true);
+    expect(lastRun(s.transcript)).toEqual(expect.arrayContaining(["--owner", "dana"]));
+    expect(s.transcript).toContain("command: > screen\n");
+    expect(term.output.split("\x1b[?1049h")).toHaveLength(3);
+    expect(s.transcript).toMatch(
+      /# engram tui: the commands this session ran\nengram scopes .*# exit 0\n$/,
+    );
+  }, 30_000);
+});
+
+describe("line mode imports no pi-tui (11.6)", () => {
+  it("reaches no pi-tui module from line.ts by a value import", () => {
+    const src = resolve(REPO, "packages", "cli", "src");
+    const seen = new Set<string>();
+    const reached: string[] = [];
+    const walk = (file: string) => {
+      if (seen.has(file)) return;
+      seen.add(file);
+      const text = readFileSync(file, "utf8");
+      for (const m of text.matchAll(/^(?:import|export)\s+(?!type\b)[^;]*?from\s+"([^"]+)"/gms)) {
+        const spec = m[1] as string;
+        reached.push(spec);
+        if (spec.startsWith(".")) walk(resolve(dirname(file), spec));
+      }
+    };
+    walk(join(src, "tui", "line.ts"));
+    expect(reached.some((r) => r.includes("pi-tui"))).toBe(false);
+    expect([...seen].some((f) => f.endsWith(join("tui", "app.ts")))).toBe(false);
+    expect(readFileSync(join(src, "tui", "line.ts"), "utf8")).toMatch(/from "node:readline"/);
+  });
+});

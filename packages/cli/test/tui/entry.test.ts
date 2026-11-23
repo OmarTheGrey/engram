@@ -2,7 +2,8 @@
 // of 5.2 prints its one line, exits 2 and writes no escape sequence; a bad
 // flag is the CLI's usage error with its "did you mean" line; bare engram
 // prints the help with its new first line and exits 2; on a terminal the TUI
-// starts, and quitting prints the session's commands unless --quiet.
+// starts, and quitting prints the session's commands unless --quiet. Line
+// mode, which these rows refused until card E8.15e, is line.test.ts's.
 import { describe, expect, it } from "vitest";
 import { HELP, type Io, run } from "../../src/run.ts";
 import { LOG_CHECK_TIMEOUT_MS, liveLogChecks } from "../../src/tui/log-check.ts";
@@ -99,20 +100,6 @@ describe("engram tui refuses to start (5.2)", () => {
       {},
       TTY,
       "engram tui: --json is for scripts; run the plain command with --json\n",
-    ],
-    [
-      "line mode, until card E8.15e",
-      ["--line"],
-      {},
-      TTY,
-      "engram tui: line mode comes with card E8.15e; run the plain commands (engram --help lists them)\n",
-    ],
-    [
-      "ENGRAM_TUI_LINE=1, until card E8.15e",
-      [],
-      { ENGRAM_TUI_LINE: "1" },
-      TTY,
-      "engram tui: line mode comes with card E8.15e; run the plain commands (engram --help lists them)\n",
     ],
   ];
   for (const [name, args, env, tty, line] of rows)

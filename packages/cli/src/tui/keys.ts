@@ -134,7 +134,7 @@ export const KEYS: readonly KeyAction[] = [
     action: "line",
     keys: ["shift+l"],
     label: "L",
-    description: "line mode (card E8.15e)",
+    description: "line mode, for screen readers",
     where: ["home", "first-run"],
   },
   // Lists.

@@ -75,6 +75,8 @@ const ROWS: readonly Row[] = [
   { id: "contrast", label: "High contrast", kind: "toggle" },
   { id: "motion", label: "Reduced motion", kind: "toggle" },
   { id: "mouse", label: "Mouse", kind: "toggle" },
+  // Card E8.15e: line mode at every start, as ENGRAM_TUI_LINE=1 (docs/design/tui.md 11.6).
+  { id: "line", label: "Line mode at start", kind: "toggle" },
   { id: "forget", label: "Forget saved workspace", kind: "button" },
   { id: "apply", label: "Apply and save", kind: "button" },
 ];
@@ -97,7 +99,13 @@ export class WorkspaceScreen implements Screen {
   private focus = 0;
   private problem: string | undefined;
   /** The options the panel saves: tui.json's, never the session's flags. */
-  private readonly options: { ascii: boolean; contrast: boolean; motion: boolean; mouse: boolean };
+  private readonly options: {
+    ascii: boolean;
+    contrast: boolean;
+    motion: boolean;
+    mouse: boolean;
+    line: boolean;
+  };
 
   /** The reviewer handoff on when the panel opened, which Switch back ends. */
   private readonly handoff: Ctx["handoff"];
@@ -111,6 +119,7 @@ export class WorkspaceScreen implements Screen {
       contrast: o.contrast === "high",
       motion: o.motion === "reduce",
       mouse: o.mouse !== false,
+      line: o.line === true,
     };
     this.serverMode = ctx.ws.server() !== undefined;
     for (const r of ROWS)
@@ -217,6 +226,7 @@ export class WorkspaceScreen implements Screen {
       ...(this.options.contrast ? { contrast: "high" as const } : {}),
       ...(this.options.motion ? { motion: "reduce" as const } : {}),
       ...(this.options.mouse ? {} : { mouse: false }),
+      ...(this.options.line ? { line: true } : {}),
     };
     for (const f of ["server", ...ROWS.flatMap((r) => (r.flag ? [r.flag] : []))] as WsFlag[]) {
       const v = f === "member" ? ws.list(f) : ws.get(f);

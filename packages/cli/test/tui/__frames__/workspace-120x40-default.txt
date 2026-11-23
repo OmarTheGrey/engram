@@ -20,11 +20,11 @@
    High contrast          [ ] off
    Reduced motion         [ ] off
    Mouse                  [x] on
+   Line mode at start     [ ] off
 
  Saved in ~/.engram/tui.json: flags only.
    [ Forget saved workspace ]
    [ Apply and save ]
-
 
 
 

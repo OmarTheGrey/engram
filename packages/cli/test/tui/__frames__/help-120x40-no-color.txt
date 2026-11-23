@@ -11,7 +11,7 @@
 │   [E] Explain a read                  engram explain <readId>        ││                                              │
 │   [n] Who ┌─ Help: Home ─────────────────────────────────────────────────────────────────────────────────┐ it cannot │
 │   [u] Scop│ This screen                                                                                  │; 2 usage: │
-│ 2 Policy  │   q  quit                                      L  line mode (card E8.15e)                    │aming a    │
+│ 2 Policy  │   q  quit                                      L  line mode, for screen readers              │aming a    │
 │   [t] Rete│   up k  move up                                down j  move down                             │           │
 │   [l] Lint│   pgup  page up                                pgdn  page down                               │           │
 │   [s] Simu│   home  first                                  end  last                                     │           │

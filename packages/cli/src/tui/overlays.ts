@@ -198,10 +198,9 @@ export class PaletteOverlay implements Overlay {
       { label: "Home", command: "", search: "home menu", run: (c) => c.home() },
       {
         label: "Line mode",
-        command: "card E8.15e",
+        command: "L on Home, or engram tui --line",
         search: "line mode screen reader",
-        run: (c) =>
-          c.say("line mode comes with card E8.15e; engram --help lists the plain commands"),
+        run: (c) => c.toLine(),
       },
       {
         label: "Procedures: not yet available (backlog)",

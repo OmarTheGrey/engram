@@ -210,7 +210,7 @@ export class FirstRunScreen implements Screen {
         ctx.quit();
         return true;
       case "line":
-        ctx.say("line mode comes with card E8.15e; engram --help lists the plain commands");
+        ctx.toLine();
         return true;
     }
     return false;
@@ -312,10 +312,7 @@ export class FirstRunScreen implements Screen {
     );
     lines.push(
       "",
-      ...para(
-        "Using a screen reader? Line mode (L, or ENGRAM_TUI_LINE=1) comes with card E8.15e.",
-        width,
-      ),
+      ...para("Using a screen reader? Press L for line mode, or set ENGRAM_TUI_LINE=1.", width),
     );
     return rows(lines, height, width);
   }

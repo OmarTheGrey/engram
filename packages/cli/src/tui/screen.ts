@@ -231,6 +231,8 @@ export interface Ctx {
   forget(): boolean;
   /** Quits the TUI. */
   quit(): void;
+  /** Leaves the full screen for line mode, keeping the workspace (L, card E8.15e). */
+  toLine(): void;
   /** Asks for a redraw. */
   redraw(): void;
 }

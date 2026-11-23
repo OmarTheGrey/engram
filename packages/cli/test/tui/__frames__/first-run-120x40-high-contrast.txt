@@ -16,7 +16,7 @@
  Nothing is written until your first read or write. Every answer is a flag: you can type the same thing at the shell
  next time.
 
- Using a screen reader? Line mode (L, or ENGRAM_TUI_LINE=1) comes with card E8.15e.
+ Using a screen reader? Press L for line mode, or set ENGRAM_TUI_LINE=1.
 
 
 
