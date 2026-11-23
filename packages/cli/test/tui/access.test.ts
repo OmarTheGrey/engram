@@ -442,6 +442,9 @@ describe("11.7 ASCII detection", () => {
     ["conhost: Windows, no WT_SESSION, not VS Code", {}, "win32", "conhost"],
     ["Windows Terminal", { WT_SESSION: "x" }, "win32", "unicode"],
     ["VS Code's terminal on Windows", { TERM_PROGRAM: "vscode" }, "win32", "unicode"],
+    // The manual check: Git Bash's mintty sets TERM_PROGRAM=mintty and renders every glyph.
+    ["Git Bash's mintty", { TERM_PROGRAM: "mintty" }, "win32", "unicode"],
+    ["WezTerm on Windows", { TERM_PROGRAM: "WezTerm" }, "win32", "unicode"],
   ];
   for (const [name, env, platform, set] of rows)
     it(`${name}: ${set}`, () => {

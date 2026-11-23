@@ -210,9 +210,14 @@ export interface ThemeChoice {
 
 type Env = Readonly<Record<string, string | undefined>>;
 
-/** Whether the terminal is Windows' legacy console: Windows, not Windows Terminal, not VS Code (11.7). */
+/**
+ * Whether the terminal is Windows' legacy console (11.7): Windows, not
+ * Windows Terminal, and no TERM_PROGRAM, which conhost never sets and VS
+ * Code (vscode), mintty (mintty) and WezTerm do (the manual check of card
+ * E8.15e: mintty drew its status symbols in ASCII under the narrower rule).
+ */
 export const isConhost = (env: Env, platform: NodeJS.Platform) =>
-  platform === "win32" && !env.WT_SESSION && env.TERM_PROGRAM !== "vscode";
+  platform === "win32" && !env.WT_SESSION && !env.TERM_PROGRAM;
 
 /** The glyph set: ASCII when asked or when the terminal cannot show box drawing, conhost's mix there. */
 export function glyphSetFor(choice: ThemeChoice, env: Env, platform: NodeJS.Platform) {
