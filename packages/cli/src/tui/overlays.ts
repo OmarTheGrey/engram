@@ -16,6 +16,7 @@ import {
   type Values,
 } from "../registry.ts";
 import { splitWords } from "./argv.ts";
+import { offered, specOfWords } from "./asks.ts";
 import { TextField } from "./fields.ts";
 import { actionsOn, EVERYWHERE, type KeyAction } from "./keys.ts";
 import { box, cut, fit, para, visibleWidth, wrap } from "./layout.ts";
@@ -145,22 +146,8 @@ interface PaletteItem {
   run?: (ctx: Ctx) => void;
 }
 
-/** The registry commands the TUI offers: every one but the TUI itself. */
-export const offered = () => REGISTRY.filter((s) => s.name !== "tui");
-
-/** The entry a command line names: the longest registry name its words start with. */
-export function specOfWords(words: readonly string[]): CommandSpec | undefined {
-  let best: CommandSpec | undefined;
-  for (const s of offered()) {
-    const n = s.name.split(" ");
-    if (
-      n.every((w, i) => words[i] === w) &&
-      (best === undefined || n.length > best.name.split(" ").length)
-    )
-      best = s;
-  }
-  return best;
-}
+// The commands offered and the entry a command line names are pure since card E8.15e (./asks.ts).
+export { offered, specOfWords } from "./asks.ts";
 
 export class PaletteOverlay implements Overlay {
   readonly kind = "palette" as const;

@@ -8,27 +8,6 @@
 // is not a plane call, the CLI's checkTime and checkNumber. What the CLI
 // does not check, the form does not check; the plane's answer is the answer.
 
-import { openWorkspace } from "@engram/server";
-import {
-  CHECK,
-  EVENTS,
-  EXPLAIN,
-  EXPORT,
-  GRANTS,
-  LINT,
-  POLICY,
-  PROMOTE,
-  type Prepared,
-  parse,
-  READ,
-  RETAIN,
-  SCOPES,
-  SIMULATE,
-  SUPERSEDE,
-  WHO_CAN_READ,
-  WRITE,
-} from "../commands.ts";
-import { serverOf } from "../connect.ts";
 import {
   type CommandSpec,
   type Control,
@@ -37,8 +16,8 @@ import {
   type Values,
 } from "../registry.ts";
 import type { Io } from "../run.ts";
-import { checkNumber, checkTime } from "../setup.ts";
 import { TextField } from "./fields.ts";
+import { checkArgv } from "./validate.ts";
 import { isWsFlag, type Workspace } from "./workspace.ts";
 
 /** A form control: a positional or a flag. */
@@ -112,41 +91,12 @@ export function formFields(spec: CommandSpec): Field[] {
 /** The value a field holds. */
 export type FieldValue = string | boolean | readonly string[];
 
-/** What the form needs of a plane command: its parse config and its prepare. */
-interface Preparing {
-  options: Readonly<Record<string, OptionSpec>>;
-  allowPositionals: boolean;
-  prepare(values: never, positionals: string[], io: Io): Prepared;
-}
-
-/** The plane commands whose own checks validate a form, by the command's first word. */
-const PLANE: Readonly<Record<string, Preparing>> = {
-  read: READ,
-  write: WRITE,
-  check: CHECK,
-  promote: PROMOTE,
-  supersede: SUPERSEDE,
-  grants: GRANTS,
-  explain: EXPLAIN,
-  events: EVENTS,
-  retain: RETAIN,
-  lint: LINT,
-  simulate: SIMULATE,
-  policy: POLICY,
-  scopes: SCOPES,
-  "who-can-read": WHO_CAN_READ,
-  export: EXPORT,
-};
-
 export interface FormError {
   /** The field the message names, if one. */
   field?: string;
   /** The CLI's message, without its `engram <command>: ` prefix. */
   message: string;
 }
-
-/** The id a check hands prepare in place of a fresh one: a valid UUIDv7 no run uses. */
-const CHECKING_ID = "00000000-0000-7000-8000-000000000000";
 
 /** A form's state: one value per field, and a text editor per text field. */
 export class Form {
@@ -297,54 +247,8 @@ export class Form {
    * builds), else the time and number checks of its time and number flags.
    */
   validate(ws: Workspace, given: Io): FormError[] {
-    const argv = this.argv(ws);
-    const words = this.spec.name.split(" ").filter((w) => !w.startsWith("--"));
-    // The handler gets the words after the first, as run hands them on.
-    // A command whose handler takes no positionals (log verify) is handed the words after its
-    // name; the others the words after the first, the subcommand among them (card E8.15d).
-    const args = this.spec.allowPositionals ? argv.slice(1) : argv.slice(words.length);
-    // Checking draws no id: the ids are the run's, as the plain command draws them (parity, E8.15c).
-    const io: Io = { ...given, newId: () => CHECKING_ID };
-    try {
-      const plane = PLANE[words[0] as string];
-      if (plane !== undefined) {
-        const { values, positionals } = parse(args, plane.options, plane.allowPositionals);
-        const p = plane.prepare(values as never, positionals, io);
-        if (p.session !== null) {
-          p.actor();
-          // The workspace's own checks too (a store a write needs, review M13), as
-          // connect would open it, with no log opened and the store read only.
-          if (serverOf(io, p.flags) === undefined) {
-            const opened = openWorkspace({
-              store: p.flags.store,
-              root: p.flags.root,
-              owner: p.flags.owner,
-              importValidFrom: checkTime("--import-valid-from", p.flags["import-valid-from"]),
-              policy: p.flags.policy,
-              db: p.flags.db,
-              requireStore: p.session.requireStore,
-              readOnlyStore: true,
-              cwd: io.cwd,
-              home: io.home,
-              env: io.env,
-              newId: io.newId,
-            });
-            opened.close();
-          }
-        }
-      } else {
-        const { values } = parse(args, parseOptions(this.spec), this.spec.allowPositionals);
-        for (const f of this.fields) {
-          const v = (values as Record<string, unknown>)[f.name];
-          if (typeof v !== "string") continue;
-          if (f.control === "time") checkTime(`--${f.name}`, v);
-          if (f.control === "number") checkNumber(`--${f.name}`, v);
-        }
-      }
-    } catch (e) {
-      return [this.place((e as Error).message)];
-    }
-    return [];
+    const message = checkArgv(this.spec, this.argv(ws), given);
+    return message === undefined ? [] : [this.place(message)];
   }
 
   /** The field a CLI message names: the first --flag in it that is one of the form's. */

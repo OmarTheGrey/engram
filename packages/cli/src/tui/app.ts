@@ -7,8 +7,6 @@
 // `writes` says the command changes state (9.5); what the plane decided is
 // shown as the command printed it.
 
-import { existsSync } from "node:fs";
-import { resolve } from "node:path";
 import {
   type Component,
   KeybindingsManager,
@@ -26,6 +24,7 @@ import { type CommandSpec, parseOptions, type Values, type Writes } from "../reg
 import type { Io } from "../run.ts";
 import { redactSecrets } from "../setup.ts";
 import { commandLine, cutAround, detectShell, middleCut, type Shell } from "./argv.ts";
+import { confirmationFor, isRead, readKey } from "./asks.ts";
 import { type Clipboard, createClipboard } from "./clipboard.ts";
 import { actionFor, RICH } from "./keys.ts";
 import { clean, cut, fit, overlay, rows, visibleWidth } from "./layout.ts";
@@ -54,9 +53,13 @@ import { surfaceScreen } from "./screens/surfaces.ts";
 import { tooSmall, tooSmallLines } from "./screens/too-small.ts";
 import { WorkspaceScreen } from "./screens/workspace.ts";
 import { colorModeFor, glyphSetFor, makeTheme, paletteFor, type Theme } from "./theme.ts";
-import { type CheapChecks, cheapChecks, shortPath, usable, Workspace } from "./workspace.ts";
+import type { Summary } from "./words.ts";
+import { type CheapChecks, cheapChecks, usable, Workspace } from "./workspace.ts";
 
 registerWorkspaceScreen((ctx, focus) => new WorkspaceScreen(ctx, focus));
+
+// What quitting prints is pure since card E8.15e, so line mode prints the same (./words.ts).
+export { type Summary, summaryText } from "./words.ts";
 
 /** The TUI's own options (docs/design/tui.md 5.1), from flags, the environment and tui.json. */
 export interface TuiOptions {
@@ -86,13 +89,6 @@ export interface StartOptions {
   logCheck?: (input: LogCheckInput, signal: AbortSignal) => Promise<CheckResult>;
 }
 
-/** What the session leaves for the shell on quit. */
-export interface Summary {
-  ran: readonly Ran[];
-  /** Commands `c` could not copy, printed instead. */
-  deferred: readonly string[];
-}
-
 /** An SGR mouse report (ESC [ < button ; column ; row M, or m on release), its row 0-based. */
 function parseSgrMouse(
   data: string,
@@ -108,23 +104,6 @@ function parseSgrMouse(
 /** The screens the wheel moves, by their up and down actions. */
 const WHEELED = new Set(["home", "result", "loop", "surface", ...RICH]);
 
-/** A read, by its route: read, read --item and scopes run the store's sweep and adoption first. */
-const isRead = (spec: CommandSpec) => spec.name.startsWith("read") || spec.name === "scopes";
-
-/** What makes two reads the same workspace for "asked once a session" (9.5). */
-const readKey = (f: Values) =>
-  JSON.stringify(
-    ["server", "db", "store", "root", "owner", "as", "level", "member"].map((k) => f[k] ?? null),
-  );
-
-const hostOf = (url: string) => {
-  try {
-    return new URL(url).host;
-  } catch {
-    return url;
-  }
-};
-
 /**
  * Commands never run through `act` (card E8.15d): serve runs until stopped,
  * from its own screen; mcp over stdio and the hook read this terminal, so
@@ -134,20 +113,6 @@ const NOT_RUN_HERE: Readonly<Record<string, string>> = {
   serve: "engram serve runs until stopped",
   mcp: "engram mcp speaks MCP on this terminal, or serves until stopped",
   hook: "engram hook reads the hook's JSON on stdin",
-};
-
-/** The action button of a confirmation, by command. */
-const ACTION_WORD: Readonly<Record<string, string>> = {
-  write: "Write",
-  promote: "Promote",
-  grants: "Change grants",
-  import: "Import",
-  supersede: "Apply",
-  "key create": "Create",
-  "key revoke": "Revoke",
-  "log checkpoint": "Record",
-  retain: "Sweep",
-  export: "Export",
 };
 
 export class App implements Component, Ctx {
@@ -479,81 +444,16 @@ export class App implements Component, Ctx {
     this.tui?.requestRender();
   }
 
-  /** The confirmation a command needs before it runs, or undefined (9.5). */
+  /** The confirmation a command needs before it runs, or undefined (9.5; ./asks.ts). */
   confirmation(
     spec: CommandSpec,
     argv: readonly string[],
     writes: Writes,
   ): ConfirmRequest | undefined {
-    const actor = this.ws.actorLabel();
-    if (isRead(spec)) {
-      if (writes !== "state") return undefined;
-      // The folder and the workspace are the ones the command line being run names (finding C1).
-      const flags = this.flagsOf(spec, argv);
-      if (this.readonce.has(readKey(flags))) return undefined;
-      const where =
-        flags.root !== undefined
-          ? shortPath(String(flags.root), this.io)
-          : flags.server !== undefined
-            ? `the store of the server at ${hostOf(String(flags.server))}`
-            : "the store";
-      return {
-        // A long path keeps its last part in the title, the whole of it in the text.
-        title: `Read with ${where.length > 40 ? `.../${where.split("/").at(-1)}` : where}?`,
-        lines: [
-          `This read also changes the log, as engram ${spec.name.split(" ")[0]} always does:`,
-          `1. as the store's owner, sweeps the owner's retention: any item past its ttl is retired for good, items over budget evicted.`,
-          `2. adopts the memories in ${where} into the log as ${flags.as ?? (flags.owner === undefined ? "the actor" : `person:${flags.owner}`)}; the files are not changed.`,
-          "3. reads through the plane and explains every item returned. Asked once a session.",
-        ],
-        argv,
-        action: "Read",
-      };
-    }
-    const word = ACTION_WORD[spec.name] ?? "Run";
-    const base = { title: `${spec.title}?`, argv, action: word };
-    switch (writes) {
-      case "state":
-        return {
-          ...base,
-          lines: [
-            `Runs engram ${spec.name} as ${actor}: the plane decides it and records the decision as an event.`,
-            spec.name === "grants"
-              ? "A grant change is undone only by another grant change, itself decided by the plane."
-              : "It cannot be undone; a later change is a new version or a new event.",
-          ],
-        };
-      case "retire":
-        return {
-          ...base,
-          lines: [
-            `Sweeps the scope's retention as ${actor}: every item past its ttl is retired, budgets enforced.`,
-            "Retiring cannot be undone. Retired items stay in the log; reads no longer return them.",
-          ],
-        };
-      case "erase": {
-        const typed = argv[2] ?? "erase";
-        return {
-          ...base,
-          lines: ["This cannot be undone: a revoked key is never accepted again."],
-          typed,
-        };
-      }
-      case "file": {
-        const out = argv[argv.indexOf("--out") + 1] ?? "";
-        return {
-          ...base,
-          lines: [
-            `Writes the bundle to ${out}.`,
-            existsSync(resolve(this.io.cwd, out))
-              ? `${out} exists: it will be overwritten.`
-              : `${out} does not exist yet: it will be created.`,
-          ],
-        };
-      }
-      default:
-        return undefined;
-    }
+    const flags = this.flagsOf(spec, argv);
+    // A read with a store folder asks once a session per workspace.
+    if (isRead(spec) && this.readonce.has(readKey(flags))) return undefined;
+    return confirmationFor(spec, argv, writes, flags, this.ws.actorLabel(), this.io);
   }
 
   async act(
@@ -903,27 +803,4 @@ export function shownLine(argv: readonly string[], shell: Shell): string {
   let text = commandLine(argv, shell);
   for (const word of argv) if (word.includes("://")) text = redactSecrets(text, word);
   return clean(text);
-}
-
-/** What quitting prints (docs/design/tui.md 4.1): the session's commands, each with its exit code. */
-export function summaryText(summary: Summary, shell: Shell, quiet: boolean): string {
-  const lines: string[] = [];
-  if (!quiet && summary.ran.length > 0) {
-    lines.push("# engram tui: the commands this session ran");
-    for (const r of summary.ran)
-      lines.push(
-        `${shownLine(r.argv, shell)}  # exit ${r.code}${r.note === undefined ? "" : `, ${r.note}`}`,
-      );
-  }
-  if (summary.deferred.length > 0) {
-    lines.push("# engram tui: what c could not copy (this terminal has no clipboard path)");
-    // Printed, so redacted like every printed command; the secret stays the person's to type.
-    for (const d of summary.deferred) {
-      let text = d;
-      for (const url of d.match(/[a-z][a-z0-9+.-]*:\/\/[^\s'"]+/gi) ?? [])
-        text = redactSecrets(text, url);
-      lines.push(clean(text));
-    }
-  }
-  return lines.length === 0 ? "" : `${lines.join("\n")}\n`;
 }

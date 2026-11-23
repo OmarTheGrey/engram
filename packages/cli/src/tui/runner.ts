@@ -35,33 +35,36 @@ export interface RunResult {
   calls: Exchange[];
 }
 
+/** A fetch that records every exchange it carries in `calls`, request and answer bodies parsed as JSON. */
+export const teeCalls =
+  (calls: Exchange[]) =>
+  (fetch: Fetch): Fetch =>
+  async (request) => {
+    const method = request.method;
+    const path = new URL(request.url).pathname;
+    let sent: unknown;
+    try {
+      sent = JSON.parse(await request.clone().text());
+    } catch {
+      sent = undefined;
+    }
+    const response = await fetch(request);
+    let body: unknown;
+    try {
+      body = await response.clone().json();
+    } catch {
+      body = undefined;
+    }
+    calls.push({ method, path, status: response.status, body, request: sent });
+    return response;
+  };
+
 /** Runs `argv` as `engram <argv>` does, capturing its output, exit code and client calls. */
 export async function runCommand(argv: readonly string[], io: Io): Promise<RunResult> {
   let out = "";
   let err = "";
   let other: string | undefined;
   const calls: Exchange[] = [];
-  const tee =
-    (fetch: Fetch): Fetch =>
-    async (request) => {
-      const method = request.method;
-      const path = new URL(request.url).pathname;
-      let sent: unknown;
-      try {
-        sent = JSON.parse(await request.clone().text());
-      } catch {
-        sent = undefined;
-      }
-      const response = await fetch(request);
-      let body: unknown;
-      try {
-        body = await response.clone().json();
-      } catch {
-        body = undefined;
-      }
-      calls.push({ method, path, status: response.status, body, request: sent });
-      return response;
-    };
   const { stdin: _stdin, stdout: _stdout, ...rest } = io;
   const code = await run([...argv], {
     ...rest,
@@ -71,7 +74,7 @@ export async function runCommand(argv: readonly string[], io: Io): Promise<RunRe
     err: (s) => {
       err += s;
     },
-    transport: (fetch) => tee(io.transport ? io.transport(fetch) : fetch),
+    transport: (fetch) => teeCalls(calls)(io.transport ? io.transport(fetch) : fetch),
     otherView: (text) => {
       other = text;
     },
