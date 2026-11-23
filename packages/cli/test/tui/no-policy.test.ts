@@ -156,26 +156,60 @@ function drawnAs(node: TS.Node): TS.Node {
 
 /** Whether text drawn from a decision field is then used to decide: a member of it read or called, compared, branched on (N2, gap 2). */
 function usedAfterDrawing(node: TS.Node): boolean {
-  const { parent, child } = consumer(drawnAs(node));
+  return decides(drawnAs(node));
+}
+
+/** Whether an expression is decided on: a member of it read or called, compared, negated, branched on. */
+function decides(node: TS.Node): boolean {
+  const { parent, child } = consumer(node);
   if (
     (ts.isPropertyAccessExpression(parent) || ts.isElementAccessExpression(parent)) &&
     parent.expression === child
   )
     return true;
   if (ts.isCallExpression(parent) && parent.expression === child) return true;
-  if (ts.isBinaryExpression(parent) && COMPARING.has(parent.operatorToken.kind)) return true;
+  if (ts.isBinaryExpression(parent)) {
+    const op = parent.operatorToken.kind;
+    if (COMPARING.has(op)) return true;
+    if (op === ts.SyntaxKind.AmpersandAmpersandToken || op === ts.SyntaxKind.BarBarToken)
+      return true;
+  }
   if (ts.isPrefixUnaryExpression(parent)) return true;
   if (
-    (ts.isIfStatement(parent) ||
-      ts.isWhileStatement(parent) ||
-      ts.isConditionalExpression(parent)) &&
-    parent.getChildAt(0) !== child
+    (ts.isIfStatement(parent) || ts.isWhileStatement(parent) || ts.isDoStatement(parent)) &&
+    parent.expression === child
   )
-    return parent.getChildren().includes(child) && !ts.isConditionalExpression(parent)
-      ? true
-      : (parent as TS.ConditionalExpression).condition === child;
-  if (ts.isSwitchStatement(parent)) return true;
+    return true;
+  if (ts.isConditionalExpression(parent) && parent.condition === child) return true;
+  if (ts.isSwitchStatement(parent) && parent.expression === child) return true;
+  if (ts.isCaseClause(parent) && parent.expression === child) return true;
   return false;
+}
+
+/**
+ * The local a drawn decision text, or a decision field itself, is kept in
+ * (re-verification 1): `const why = oneLine(p.reason)`. One level of
+ * assignment is followed, which is the guard's recorded limit: a second local
+ * copied from the first is not.
+ */
+function keptIn(node: TS.Node): TS.Identifier | undefined {
+  const { parent, child } = consumer(drawnAs(node));
+  if (
+    ts.isVariableDeclaration(parent) &&
+    parent.initializer === child &&
+    ts.isIdentifier(parent.name)
+  )
+    return parent.name;
+  // `const x = p.reason ?? ""` keeps the field too.
+  if (
+    ts.isBinaryExpression(parent) &&
+    parent.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken
+  ) {
+    const up = consumer(parent);
+    if (ts.isVariableDeclaration(up.parent) && ts.isIdentifier(up.parent.name))
+      return up.parent.name;
+  }
+  return undefined;
 }
 
 /** A key named by a constant: the string its declaration folds to, if it does. */
@@ -222,16 +256,6 @@ function bearsDecision(
 /** The calls that read an answer whole, as data, never under src/tui (N2, gap 3). */
 const WHOLE = new Set(["JSON.stringify", "Object.values", "Object.entries"]);
 
-/** Whether a node's line, or the line above it, says why the call is not on an answer. */
-function exempt(file: TS.SourceFile, n: TS.Node): boolean {
-  const line = file.getLineAndCharacterOfPosition(n.getStart()).line;
-  const lines = file.text.split("\n");
-  return [lines[line], lines[line - 1]].some(
-    (l) =>
-      (l ?? "").includes("no-policy: not an answer") || (l ?? "").includes("no-policy: printer"),
-  );
-}
-
 /** Every place a source decides on a decision field, or writes a string a screen must not. */
 function violations(
   path: string,
@@ -243,6 +267,8 @@ function violations(
     ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
   const checker = program?.checker;
   const out: string[] = [];
+  /** The locals that hold a decision field's text: by symbol with the checker, else by name. */
+  const tainted = new Set<TS.Symbol | string>();
   const at = (n: TS.Node) => `${path}:${file.getLineAndCharacterOfPosition(n.getStart()).line + 1}`;
   const visit = (n: TS.Node): void => {
     const field =
@@ -261,6 +287,22 @@ function violations(
       out.push(
         `${at(n)}: .${field} drawn, then decided on: ${n.parent.parent?.getText(file).slice(0, 80)}`,
       );
+    // A local holding drawn decision text, or the field, carries the taint (re-verification 1).
+    if (field !== undefined) {
+      const local = keptIn(n);
+      if (local !== undefined) tainted.add(checker?.getSymbolAtLocation(local) ?? local.text);
+    }
+    if (ts.isIdentifier(n) && !(ts.isVariableDeclaration(n.parent) && n.parent.name === n)) {
+      const key = checker?.getSymbolAtLocation(n) ?? n.text;
+      if (tainted.has(key) && decides(n))
+        out.push(`${at(n)}: ${n.text}, which holds a decision field's text, is decided on`);
+    }
+    // A regular expression is a string too (re-verification 3).
+    if (ts.isRegularExpressionLiteral(n)) {
+      const body = n.text.slice(1, n.text.lastIndexOf("/")).replace(/\\(.)/g, "$1");
+      const bad = badString(body);
+      if (bad !== undefined) out.push(`${at(n)}: ${bad} in ${n.text}`);
+    }
     // Gap 1: a destructuring that names a decision field.
     if (ts.isBindingElement(n)) {
       const name = (n.propertyName ?? n.name).getText(file);
@@ -294,7 +336,8 @@ function violations(
         out.push(`${at(n)}: a computed key on an answer: ${n.getText(file).slice(0, 80)}`);
     }
     // Gap 3: an answer read whole.
-    if (ts.isCallExpression(n) && WHOLE.has(n.expression.getText(file)) && !exempt(file, n)) {
+    // No exemption marker (re-verification 2): a real non-answer case would get a pinned (file, line) allow-list.
+    if (ts.isCallExpression(n) && WHOLE.has(n.expression.getText(file))) {
       const arg = n.arguments[0];
       const type =
         arg === undefined || checker === undefined ? undefined : checker.getTypeAtLocation(arg);
@@ -412,6 +455,17 @@ describe("no policy in the TUI's source", () => {
         'declare const run: { calls: { body: unknown }[] }; if (JSON.stringify(run).includes("x")) go();',
       "a computed key folding to a decision field":
         'const r = answer.event["rea" + "son"]; void r;',
+      "drawn text kept in a local, then searched":
+        'const why = oneLine(answer.event!.reason); if (why.includes("episodic")) go();',
+      "a template kept in a let, then compared": tpl(
+        'let t = `$[answer.event.reason}`; if (t === "x") go();',
+      ),
+      "a field kept with a fallback, then tested":
+        'const r = answer.event.reason ?? ""; if (r) go();',
+      "the reviewer's marker mutant":
+        '// no-policy: printer\nif (JSON.stringify(answer).includes("x")) go();',
+      "a rule id in a regular expression": "const R = /engram\\/write\\/team/; void R;",
+      "a preset in a regular expression": "const R = /preset\\.medium/; void R;",
       "a computed key named by a constant, through a cast":
         'const k = "rea" + "son"; void (answer.event as unknown as Record<string, string>)[k];',
       "a computed key on an answer":
@@ -421,8 +475,8 @@ describe("no policy in the TUI's source", () => {
       const source = `${ANSWER}\ndeclare function oneLine(s: string): string;\ndeclare function go(): void;\n${code}`;
       expect(violations("probe.ts", source, probeProgram(source)).length, name).toBeGreaterThan(0);
     }
-    // What is not an answer may still be read whole, with its reason given.
-    const allowed = `${ANSWER}\n// no-policy: not an answer (the form's own values)\nconst k = JSON.stringify([1, 2]); void k;`;
+    // Drawn text kept in a local and only drawn again is allowed.
+    const allowed = `${ANSWER}\ndeclare function oneLine(s: string): string;\nconst t = oneLine(answer.event.reason); const out: string[] = []; out.push(t);`;
     expect(violations("probe.ts", allowed, probeProgram(allowed))).toEqual([]);
   }, 60_000);
 

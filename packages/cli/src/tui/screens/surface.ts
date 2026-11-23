@@ -489,7 +489,13 @@ export abstract class SurfaceScreen implements Screen {
   // The command row and the hints.
 
   command(ctx: Ctx): CommandRow {
-    const argv = this.argv(ctx);
+    // After a change of actor the row is what r runs: the line that ran, its actor flags the
+    // workspace's now (E8.15c's rerun rule); otherwise the form as it stands.
+    const other = this.result !== undefined && this.madeAsOther(ctx, this.result) !== undefined;
+    const argv =
+      other && this.result !== undefined
+        ? rerunArgv(this.spec_, this.result.argv, ctx.ws, true)
+        : this.argv(ctx);
     if (this.error?.field !== undefined) {
       const f = this.form.field(this.error.field);
       const flag = f === undefined || f.positional ? undefined : `--${f.name}`;

@@ -115,6 +115,8 @@ describe("r runs again with the same flags", () => {
     const first = h.ran().at(-1) ?? [];
     h.app.startHandoff("person:sam", ["person:dana"]);
     await h.app.settled();
+    // The result screen's command row is what r will run (re-verification 4).
+    const row = h.app.top().command(h.app).argv;
     await h.press("r");
     if (h.overlay() === "confirm") await h.press("y");
     const again = h.ran().at(-1) ?? [];
@@ -126,6 +128,7 @@ describe("r runs again with the same flags", () => {
       expect.arrayContaining(["--as", "person:sam", "--member", "person:dana"]),
     );
     expect(again).toContain("chosen.db");
+    expect(row).toEqual(again);
     await h.quit();
   });
 
