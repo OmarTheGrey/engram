@@ -4,7 +4,7 @@
    Identity files  [                           ]  enter adds
    Passphrase file [                           ]
    Scope           [                           ]  default each row's own scop...
-   + More flags: 13, set: --root --owner --db
+   ~ More flags: 13, set: --root --owner --db
 
  [ Import ]
 

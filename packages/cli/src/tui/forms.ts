@@ -368,19 +368,39 @@ export class Form {
   }
 }
 
+/** The flags that name the actor, which a change of actor replaces (card E8.15c verification, N1). */
+export const ACTOR_FLAGS = ["owner", "as", "level", "member"] as const;
+
 /**
- * A command line run again from the workspace as it is now (card E8.15c
- * review, finding 2): its own flags and positionals kept, the workspace's
- * flags taken from the workspace, so r after a change of actor runs as the
- * actor now. A line that does not parse is returned as it was.
+ * The command line r runs (card E8.15c verification, finding N1; the lead's
+ * decision): the one that ran, exactly, every flag that is not the actor's
+ * kept, its log, its store, its scope and the rest. Only when the answer was
+ * made as another actor are the actor's flags (--owner, --as, --level,
+ * --member) replaced by the workspace's, and only those.
  */
-export function rebuildArgv(spec: CommandSpec, argv: readonly string[], ws: Workspace): string[] {
-  const words = spec.name.split(" ").filter((w) => !w.startsWith("--"));
-  try {
-    const { values, positionals } = parse(argv.slice(1), parseOptions(spec), spec.allowPositionals);
-    const own = Object.fromEntries(Object.entries(values).filter(([k]) => !isWsFlag(k)));
-    return new Form(spec, ws, own as Values, positionals.slice(words.length - 1)).argv(ws);
-  } catch {
-    return [...argv];
+export function rerunArgv(
+  spec: Pick<CommandSpec, "options">,
+  argv: readonly string[],
+  ws: Workspace,
+  otherActor: boolean,
+): string[] {
+  if (!otherActor) return [...argv];
+  const actor = new Set<string>(ACTOR_FLAGS);
+  const out: string[] = [];
+  for (let i = 0; i < argv.length; i++) {
+    const word = argv[i] as string;
+    const flag = /^--([a-z-]+)(=.*)?$/.exec(word);
+    if (flag !== null && actor.has(flag[1] as string)) {
+      if (flag[2] === undefined) i++;
+      continue;
+    }
+    out.push(word);
   }
+  for (const f of ACTOR_FLAGS) {
+    if (!Object.hasOwn(spec.options, f)) continue;
+    const values =
+      f === "member" ? ws.list(f) : ws.get(f) === undefined ? [] : [ws.get(f) as string];
+    for (const v of values) out.push(`--${f}`, v);
+  }
+  return out;
 }

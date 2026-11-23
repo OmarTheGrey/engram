@@ -69,9 +69,9 @@ const REMEDY_PATTERNS = [
 ];
 
 /** The decision fields of an answer, which the TUI shows and never reads. */
-const DECISION_FIELDS = new Set(["reason", "policy_id", "policyId", "admittedBy"]);
+const DECISION_FIELDS = new Set(["reason", "policy_id", "policyId", "admittedBy", "admitted_by"]);
 /** The helpers that only draw text. */
-const DISPLAY = new Set(["oneLine", "safe", "cut", "fit", "para", "wrap"]);
+const DISPLAY = new Set(["oneLine", "safe", "cut", "fit", "para", "wrap", "firstLines"]);
 
 /** What a string in the source says that a screen must not: a rule id, a preset, a remedy. */
 function badString(value: string): string | undefined {
@@ -128,9 +128,120 @@ function onlyDrawn(node: TS.Node): boolean {
   return false;
 }
 
+/** The comparison and membership operators: a decision field's text compared is a decision drawn from it. */
+const COMPARING = new Set([
+  ts.SyntaxKind.EqualsEqualsEqualsToken,
+  ts.SyntaxKind.ExclamationEqualsEqualsToken,
+  ts.SyntaxKind.EqualsEqualsToken,
+  ts.SyntaxKind.ExclamationEqualsToken,
+  ts.SyntaxKind.LessThanToken,
+  ts.SyntaxKind.GreaterThanToken,
+  ts.SyntaxKind.LessThanEqualsToken,
+  ts.SyntaxKind.GreaterThanEqualsToken,
+  ts.SyntaxKind.InKeyword,
+  ts.SyntaxKind.InstanceOfKeyword,
+]);
+
+/** The display expression a drawn field ends in: its template, or its helper's call, outward through nested ones. */
+function drawnAs(node: TS.Node): TS.Node {
+  let e: TS.Node = node;
+  for (;;) {
+    const { parent, child } = consumer(e);
+    if (ts.isTemplateSpan(parent)) e = parent.parent;
+    else if (ts.isCallExpression(parent) && parent.arguments.includes(child as TS.Expression))
+      e = parent;
+    else return e;
+  }
+}
+
+/** Whether text drawn from a decision field is then used to decide: a member of it read or called, compared, branched on (N2, gap 2). */
+function usedAfterDrawing(node: TS.Node): boolean {
+  const { parent, child } = consumer(drawnAs(node));
+  if (
+    (ts.isPropertyAccessExpression(parent) || ts.isElementAccessExpression(parent)) &&
+    parent.expression === child
+  )
+    return true;
+  if (ts.isCallExpression(parent) && parent.expression === child) return true;
+  if (ts.isBinaryExpression(parent) && COMPARING.has(parent.operatorToken.kind)) return true;
+  if (ts.isPrefixUnaryExpression(parent)) return true;
+  if (
+    (ts.isIfStatement(parent) ||
+      ts.isWhileStatement(parent) ||
+      ts.isConditionalExpression(parent)) &&
+    parent.getChildAt(0) !== child
+  )
+    return parent.getChildren().includes(child) && !ts.isConditionalExpression(parent)
+      ? true
+      : (parent as TS.ConditionalExpression).condition === child;
+  if (ts.isSwitchStatement(parent)) return true;
+  return false;
+}
+
+/** A key named by a constant: the string its declaration folds to, if it does. */
+function constantOf(checker: TS.TypeChecker, key: TS.Expression): string | undefined {
+  if (!ts.isIdentifier(key)) return undefined;
+  const decl = checker.getSymbolAtLocation(key)?.valueDeclaration;
+  return decl !== undefined && ts.isVariableDeclaration(decl) && decl.initializer !== undefined
+    ? folded(decl.initializer)
+    : undefined;
+}
+
+/** The fields a run keeps an answer in, as it came. */
+const ANSWER_SLOTS = new Set(["body", "request"]);
+
+/** Whether a type carries a decision field, at any depth up to four: an answer. */
+function bearsDecision(
+  checker: TS.TypeChecker,
+  type: TS.Type,
+  depth = 0,
+  seen = new Set<TS.Type>(),
+): boolean {
+  if (depth > 4 || seen.has(type)) return false;
+  seen.add(type);
+  if (type.isUnion() || type.isIntersection())
+    return type.types.some((t) => bearsDecision(checker, t, depth, seen));
+  for (const prop of checker.getPropertiesOfType(type)) {
+    if (DECISION_FIELDS.has(prop.getName())) return true;
+    const decl = prop.valueDeclaration ?? prop.declarations?.[0];
+    // An answer kept as it came, a call's body or request (./runner.ts Exchange), is typed unknown: it may hold one.
+    if (ANSWER_SLOTS.has(prop.getName()) && decl !== undefined) {
+      const t = checker.getTypeOfSymbolAtLocation(prop, decl);
+      if ((t.flags & (ts.TypeFlags.Any | ts.TypeFlags.Unknown)) !== 0) return true;
+    }
+    if (
+      decl !== undefined &&
+      bearsDecision(checker, checker.getTypeOfSymbolAtLocation(prop, decl), depth + 1, seen)
+    )
+      return true;
+  }
+  const items = type.getNumberIndexType() ?? type.getStringIndexType();
+  return items !== undefined && bearsDecision(checker, items, depth + 1, seen);
+}
+
+/** The calls that read an answer whole, as data, never under src/tui (N2, gap 3). */
+const WHOLE = new Set(["JSON.stringify", "Object.values", "Object.entries"]);
+
+/** Whether a node's line, or the line above it, says why the call is not on an answer. */
+function exempt(file: TS.SourceFile, n: TS.Node): boolean {
+  const line = file.getLineAndCharacterOfPosition(n.getStart()).line;
+  const lines = file.text.split("\n");
+  return [lines[line], lines[line - 1]].some(
+    (l) =>
+      (l ?? "").includes("no-policy: not an answer") || (l ?? "").includes("no-policy: printer"),
+  );
+}
+
 /** Every place a source decides on a decision field, or writes a string a screen must not. */
-function violations(path: string, text: string): string[] {
-  const file = ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+function violations(
+  path: string,
+  text: string,
+  program?: { file: TS.SourceFile; checker: TS.TypeChecker },
+): string[] {
+  const file =
+    program?.file ??
+    ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  const checker = program?.checker;
   const out: string[] = [];
   const at = (n: TS.Node) => `${path}:${file.getLineAndCharacterOfPosition(n.getStart()).line + 1}`;
   const visit = (n: TS.Node): void => {
@@ -146,6 +257,53 @@ function violations(path: string, text: string): string[] {
       out.push(
         `${at(n)}: .${field} used other than as text drawn: ${n.parent.getText(file).slice(0, 80)}`,
       );
+    else if (field !== undefined && usedAfterDrawing(n))
+      out.push(
+        `${at(n)}: .${field} drawn, then decided on: ${n.parent.parent?.getText(file).slice(0, 80)}`,
+      );
+    // Gap 1: a destructuring that names a decision field.
+    if (ts.isBindingElement(n)) {
+      const name = (n.propertyName ?? n.name).getText(file);
+      if (DECISION_FIELDS.has(name)) out.push(`${at(n)}: destructures .${name}`);
+    }
+    // Gap 4: a computed key on a decision-bearing object, or one that folds to a decision field.
+    if (ts.isElementAccessExpression(n) && field === undefined) {
+      const key = n.argumentExpression;
+      const value = folded(key) ?? (checker === undefined ? undefined : constantOf(checker, key));
+      const literal =
+        ts.isStringLiteral(key) ||
+        ts.isNumericLiteral(key) ||
+        ts.isNoSubstitutionTemplateLiteral(key);
+      // The object as it was before any cast: a cast hides an answer's type, not the answer.
+      let object: TS.Expression = n.expression;
+      while (
+        ts.isAsExpression(object) ||
+        ts.isParenthesizedExpression(object) ||
+        ts.isNonNullExpression(object)
+      )
+        object = object.expression;
+      if (value !== undefined && DECISION_FIELDS.has(value))
+        out.push(`${at(n)}: a computed key that is .${value}`);
+      else if (
+        !literal &&
+        checker !== undefined &&
+        // A position in a list is no field: only a key that could name one is read.
+        (checker.getTypeAtLocation(key).flags & ts.TypeFlags.NumberLike) === 0 &&
+        bearsDecision(checker, checker.getTypeAtLocation(object), 3)
+      )
+        out.push(`${at(n)}: a computed key on an answer: ${n.getText(file).slice(0, 80)}`);
+    }
+    // Gap 3: an answer read whole.
+    if (ts.isCallExpression(n) && WHOLE.has(n.expression.getText(file)) && !exempt(file, n)) {
+      const arg = n.arguments[0];
+      const type =
+        arg === undefined || checker === undefined ? undefined : checker.getTypeAtLocation(arg);
+      const answer =
+        type === undefined ||
+        (type.flags & (ts.TypeFlags.Any | ts.TypeFlags.Unknown)) !== 0 ||
+        (checker !== undefined && bearsDecision(checker, type));
+      if (answer) out.push(`${at(n)}: ${n.expression.getText(file)} on what may be an answer`);
+    }
     const value = folded(n);
     const isOuterChain =
       n.parent === undefined ||
@@ -155,7 +313,7 @@ function violations(path: string, text: string): string[] {
       if (bad !== undefined) out.push(`${at(n)}: ${bad} in ${JSON.stringify(value.slice(0, 80))}`);
     }
     if (ts.isTemplateExpression(n))
-      for (const part of [n.head, ...n.templateSpans.map((s) => s.literal)]) {
+      for (const part of [n.head, ...n.templateSpans.map((x) => x.literal)]) {
         const bad = badString(part.text);
         if (bad !== undefined) out.push(`${at(n)}: ${bad} in a template`);
       }
@@ -164,6 +322,43 @@ function violations(path: string, text: string): string[] {
   visit(file);
   return out;
 }
+
+/** The TUI's sources as one program, for the type checker: answers are told by their types. */
+function tuiProgram() {
+  const options: TS.CompilerOptions = {
+    target: ts.ScriptTarget.ES2022,
+    module: ts.ModuleKind.NodeNext,
+    moduleResolution: ts.ModuleResolutionKind.NodeNext,
+    allowImportingTsExtensions: true,
+    resolveJsonModule: true,
+    strict: true,
+    skipLibCheck: true,
+    noEmit: true,
+    types: ["node"],
+  };
+  const files = sources.map((x) => join(REPO, x.path));
+  const program = ts.createProgram(files, options);
+  return { program, checker: program.getTypeChecker() };
+}
+
+/** A probe compiled on its own, with its declarations, so its types are known too. */
+function probeProgram(code: string) {
+  const name = join(REPO, "packages", "cli", "src", "tui", "__probe__.ts").replaceAll("\\", "/");
+  const host = ts.createCompilerHost({ strict: true, noEmit: true, skipLibCheck: true });
+  const read = host.getSourceFile.bind(host);
+  host.getSourceFile = (f, v) =>
+    f === name ? ts.createSourceFile(f, code, ts.ScriptTarget.Latest, true) : read(f, v);
+  const program = ts.createProgram(
+    [name],
+    { strict: true, noEmit: true, skipLibCheck: true },
+    host,
+  );
+  return { file: program.getSourceFile(name) as TS.SourceFile, checker: program.getTypeChecker() };
+}
+
+/** An answer's type for probes: a decision under event. */
+const ANSWER =
+  "declare const answer: { event: { reason: string; policy_id: string }; items: string[] };";
 
 /** A probe's source with a template placeholder: `$[` stands for the dollar and brace a template opens with. */
 const tpl = (code: string) => code.replaceAll("$[", `${"$"}{`);
@@ -195,8 +390,41 @@ describe("no policy in the TUI's source", () => {
   });
 
   it("uses a reason, a policy id or an admitting rule only as text drawn, and writes no forbidden string (the syntax tree)", () => {
-    expect(sources.flatMap((s) => violations(s.path, s.text))).toEqual([]);
-  });
+    const { program, checker } = tuiProgram();
+    const found = sources.flatMap((x) => {
+      const file = program.getSourceFile(join(REPO, x.path));
+      return violations(x.path, x.text, file === undefined ? undefined : { file, checker });
+    });
+    expect(found).toEqual([]);
+  }, 120_000);
+
+  it("fails each of the verification's five gaps (N2)", () => {
+    const gaps: Record<string, string> = {
+      "a destructuring of a reason": "const { reason } = answer.event; if (reason) go();",
+      "a destructuring renamed": "const { policy_id: id } = answer.event; void id;",
+      "a member of a drawn template": tpl('if (`$[answer.event.reason}`.includes("class")) go();'),
+      "a member of a display helper's result":
+        'if (oneLine(answer.event!.reason).includes("class")) go();',
+      "a drawn reason compared": 'if (oneLine(answer.event.reason) === "x") go();',
+      "an answer read whole": 'if (JSON.stringify(answer).includes("episodic")) go();',
+      "an answer's values": "for (const v of Object.values(answer.event)) void v;",
+      "a run kept whole":
+        'declare const run: { calls: { body: unknown }[] }; if (JSON.stringify(run).includes("x")) go();',
+      "a computed key folding to a decision field":
+        'const r = answer.event["rea" + "son"]; void r;',
+      "a computed key named by a constant, through a cast":
+        'const k = "rea" + "son"; void (answer.event as unknown as Record<string, string>)[k];',
+      "a computed key on an answer":
+        'const k: string = String(1); void (answer.event as Record<string, string>)[k]; void answer.event[k as "reason"];',
+    };
+    for (const [name, code] of Object.entries(gaps)) {
+      const source = `${ANSWER}\ndeclare function oneLine(s: string): string;\ndeclare function go(): void;\n${code}`;
+      expect(violations("probe.ts", source, probeProgram(source)).length, name).toBeGreaterThan(0);
+    }
+    // What is not an answer may still be read whole, with its reason given.
+    const allowed = `${ANSWER}\n// no-policy: not an answer (the form's own values)\nconst k = JSON.stringify([1, 2]); void k;`;
+    expect(violations("probe.ts", allowed, probeProgram(allowed))).toEqual([]);
+  }, 60_000);
 
   it("fails each of the review's five survivors, and the earlier probes", () => {
     const survivors: Record<string, string> = {

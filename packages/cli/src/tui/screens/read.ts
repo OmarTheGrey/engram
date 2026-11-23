@@ -18,9 +18,9 @@ import {
 } from "@engram/view";
 import { explanationLines, plural } from "../../format.ts";
 import { type CommandSpec, command, type Values } from "../../registry.ts";
-import { box, cut, fit, para } from "../layout.ts";
+import { box, cut, fit, para, rows } from "../layout.ts";
 import type { RunResult } from "../runner.ts";
-import type { CommandRow, Ctx } from "../screen.ts";
+import type { Ctx } from "../screen.ts";
 import { shortPath } from "../workspace.ts";
 import {
   answerOf,
@@ -107,15 +107,26 @@ export class ReadScreen extends RichScreen {
   }
 
   /**
-   * Every later read with a store folder says in the command row what the
-   * first one asked about (8.5): it changes the log too.
+   * Every later read with a store folder repeats what the first one asked
+   * about (8.5): it changes the log too. Only on a later read, never on the
+   * first, and on its own row, so it never squeezes the command row (N5).
    */
-  override command(ctx: Ctx): CommandRow {
-    const row = super.command(ctx);
-    const asked = ctx.ran.some((r) => r.argv[0] === "read" && r.argv.includes("--root"));
-    return asked && (row.argv ?? []).includes("--root")
-      ? { ...row, note: "also sweeps and adopts the store, as asked" }
-      : row;
+  private laterReadNote(ctx: Ctx): string | undefined {
+    const first = ctx.ran.findIndex((r) => r.argv[0] === "read" && r.argv.includes("--root"));
+    if (first < 0) return undefined;
+    const argv = this.command(ctx).argv ?? [];
+    if (!argv.includes("--root")) return undefined;
+    // The first read with a store folder, shown as its own result, is the one that asked.
+    const at = this.result === undefined || this.edited ? -1 : ctx.results.indexOf(this.result);
+    if (at === first) return undefined;
+    return " This read also changes the log, as asked: it sweeps and adopts the store.";
+  }
+
+  protected body(ctx: Ctx, width: number, height: number): string[] {
+    const out = this.main(ctx, width, height);
+    const note = this.laterReadNote(ctx);
+    if (note === undefined) return out;
+    return [...rows(out, height - 1, width), cut(note, width)];
   }
 
   /** esc in the lanes goes back to the query, as to the form; esc in a field leaves. */
@@ -152,7 +163,7 @@ export class ReadScreen extends RichScreen {
         await this.read(ctx);
         return true;
       case "rerun":
-        if (this.result !== undefined) await this.read(ctx);
+        if (this.result !== undefined) await this.read(ctx, this.rerunLine(ctx));
         return true;
       case "up":
       case "down":
@@ -218,7 +229,7 @@ export class ReadScreen extends RichScreen {
     return cut(` ${query}  ${when}`, width);
   }
 
-  protected body(ctx: Ctx, width: number, height: number): string[] {
+  private main(ctx: Ctx, width: number, height: number): string[] {
     const t = ctx.theme;
     const wide = width >= 120 && ctx.rows >= 40;
     const out = [this.fieldsLine(ctx, width), ...this.errorHead(ctx, width)];
@@ -426,7 +437,7 @@ export class ExplainScreen extends RichScreen {
         await this.explain(ctx);
         return true;
       case "rerun":
-        if (this.result !== undefined) await this.explain(ctx);
+        if (this.result !== undefined) await this.explain(ctx, this.rerunLine(ctx));
         return true;
       case "accept": {
         if (stop?.kind === "list") {

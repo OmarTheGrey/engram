@@ -34,6 +34,7 @@ import {
   answerOf,
   decisionHead,
   errorLines,
+  firstLines,
   oneLine,
   RichScreen,
   type Stop,
@@ -205,7 +206,7 @@ export class EventsScreen extends RichScreen {
         ctx.say("r runs it again");
         return true;
       case "rerun":
-        await this.load(ctx);
+        await this.load(ctx, this.result === undefined ? undefined : this.rerunLine(ctx));
         return true;
       case "up":
       case "down":
@@ -355,7 +356,7 @@ export class EventsScreen extends RichScreen {
             width,
           ),
         );
-        out.push(...para(`reason  ${oneLine(chosen.reason)}`, width).slice(0, 2));
+        out.push(...firstLines(para(`reason  ${oneLine(chosen.reason)}`, width), 2));
       }
     }
     return out;
@@ -479,7 +480,7 @@ export class PolicyScreen extends RichScreen {
         ctx.say("r runs it again");
         return true;
       case "rerun":
-        await this.load(ctx);
+        await this.load(ctx, this.result === undefined ? undefined : this.rerunLine(ctx));
         return true;
       case "find":
         this.focusOn("find");

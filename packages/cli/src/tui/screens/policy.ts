@@ -15,7 +15,7 @@ import type { RunResult } from "../runner.ts";
 import type { Ctx } from "../screen.ts";
 import type { StatusKind } from "../theme.ts";
 import { oneLine } from "./rich.ts";
-import { bodyJson, type Row, SurfaceScreen } from "./surface.ts";
+import { otherJson, type Row, SurfaceScreen } from "./surface.ts";
 
 /** The first line of the command's own output: its summary line, verbatim. */
 const firstLine = (r: RunResult) => clean(r.out).split("\n")[0] ?? "";
@@ -75,7 +75,7 @@ export class RetainScreen extends SurfaceScreen {
     ];
   }
   protected override async jsonOf(_ctx: Ctx, result: RunResult) {
-    return bodyJson(result, "/api/v1/retain");
+    return otherJson(result);
   }
   protected override keyHints(): string {
     return this.result === undefined ? "ctrl+s sweep  tab next" : "r sweep again  v plain  J json";
@@ -152,7 +152,7 @@ export class LintScreen extends SurfaceScreen {
     return rows;
   }
   protected override async jsonOf(_ctx: Ctx, result: RunResult) {
-    return bodyJson(result, "/api/v1/lint");
+    return otherJson(result);
   }
   protected override keyHints(): string {
     return this.result === undefined
@@ -300,7 +300,7 @@ export class SimulateScreen extends SurfaceScreen {
     ];
   }
   protected override async jsonOf(_ctx: Ctx, result: RunResult) {
-    return bodyJson(result, "/api/v1/simulate");
+    return otherJson(result);
   }
   protected override keyHints(): string {
     return this.result === undefined

@@ -10,7 +10,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { type CommandSpec, command, type Values } from "../../registry.ts";
-import { actorNow, actorOfResult } from "../actor.ts";
+import { actorKey, actorKeyOfResult, actorNow, madeAsOther } from "../actor.ts";
 import { Form, type FormError } from "../forms.ts";
 import { clean, para } from "../layout.ts";
 import type { RunResult } from "../runner.ts";
@@ -164,8 +164,13 @@ export class ImportScreen extends SurfaceScreen {
   }
   /** Each row is written by the import actor of the importer (`import:<importer>`): it is the importer's answer. */
   protected override madeAsOther(ctx: Ctx, result: RunResult): string | undefined {
-    const made = actorOfResult(result)?.replace(/^import:/, "");
-    return made === undefined || made === actorNow(ctx.ws)?.id ? undefined : made;
+    // The import actor carries the importer's level and memberships (an actor is its id, level
+    // and memberships, card E8.15c): the importer's own answer is the import actor of the actor now.
+    const now = actorNow(ctx.ws);
+    const made = actorKeyOfResult(result);
+    if (made === undefined || now === undefined) return undefined;
+    if (made === actorKey({ ...now, id: `import:${now.id}` })) return undefined;
+    return madeAsOther(ctx.ws, result)?.replace(/^import:/, "");
   }
   /** Asks first, naming how many rows it offers and that the write gate decides each. */
   protected override async execute(

@@ -1,5 +1,5 @@
  engram  Doctor                                                         in process  log engram.db  person:dana (person)
-   + More flags: 11, set: --db --root
+   ~ More flags: 11, set: --db --root
 
  [ Run doctor again ]
 

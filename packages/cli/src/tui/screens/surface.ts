@@ -12,12 +12,11 @@
 // command's own text.
 import type { CommandSpec, Values } from "../../registry.ts";
 import { actorNow, madeAsLines, madeAsOther } from "../actor.ts";
-import { type Field, Form, type FormError } from "../forms.ts";
+import { type Field, Form, type FormError, rerunArgv } from "../forms.ts";
 import { clean, cut, fit, para, rows, visibleWidth, wrap } from "../layout.ts";
 import type { RunResult } from "../runner.ts";
 import type { CommandRow, Ctx, Screen } from "../screen.ts";
 import type { StatusKind } from "../theme.ts";
-import type { Workspace } from "../workspace.ts";
 import { decisionOf, exitMeaning } from "./form.ts";
 
 /** One row of a screen: a field, a screen-level choice, buttons, a fold, a list entry, or text. */
@@ -348,15 +347,17 @@ export abstract class SurfaceScreen implements Screen {
       }
       case "rerun":
         if (this.result === undefined) await this.submit(ctx);
-        // The same command line; only when the answer was made as another actor are its actor
-        // flags the workspace's now (coordinator's note on E8.15c's rebuildArgv: a chosen --db
-        // or --root is never replaced).
+        // The command line that ran; only for another actor's answer are its actor flags the
+        // workspace's (card E8.15c's rerunArgv, the one implementation).
         else
           await this.run(
             ctx,
-            this.madeAsOther(ctx, this.result) === undefined
-              ? this.result.argv
-              : asActorNow(this.result.argv, ctx.ws, this.form.fields),
+            rerunArgv(
+              this.spec_,
+              this.result.argv,
+              ctx.ws,
+              this.madeAsOther(ctx, this.result) !== undefined,
+            ),
           );
         return true;
       case "toggle":
@@ -772,36 +773,14 @@ export function dropFlags(
   return out;
 }
 
-/** The actor flags: the only ones a rerun after a change of actor takes from the workspace. */
-const ACTOR_FLAGS = ["as", "level", "member"] as const;
-
-/**
- * `argv` with its actor flags the workspace's now (after a change of actor):
- * --as, --level and --member dropped and written again from the workspace,
- * every other word as it was.
- */
-export function asActorNow(
-  argv: readonly string[],
-  ws: Workspace,
-  fields: readonly Field[],
-): string[] {
-  const out = dropFlags(argv, new Set(ACTOR_FLAGS), fields);
-  const as = ws.get("as");
-  if (as !== undefined) out.push("--as", as);
-  const level = ws.get("level");
-  if (level !== undefined) out.push("--level", level);
-  for (const m of ws.list("member")) out.push("--member", m);
-  return out;
-}
-
 const sameArgv = (a: readonly string[], b: readonly string[]) =>
   a.length === b.length && a.every((w, i) => w === b[i]);
 
-/** The JSON of the last call to `path`, as the command prints it with --json (`json(report)`). */
-export function bodyJson(result: RunResult, path: string): string | undefined {
-  const call = [...result.calls].reverse().find((c) => c.path === path && c.status === 200);
-  return call === undefined ? undefined : `${JSON.stringify(call.body, null, 2)}\n`;
-}
+/**
+ * A plane command's --json bytes for the answer already made (card E8.15c's
+ * `other`, printed by the command itself): no second call, nothing rebuilt here.
+ */
+export const otherJson = (result: RunResult): string | undefined => result.other;
 
 /** Session state the screens share: the Serve screen's answers, which Doctor and the hook read. */
 export interface Shared {

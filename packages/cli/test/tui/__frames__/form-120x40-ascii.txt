@@ -8,8 +8,8 @@
    Confidence             [                                          ]  default 0.9
    Valid from             [                                          ]  default now
    Valid to               [                                          ]  default open
-   + Advanced: 2 more
-   + Workspace flags  --root --owner --db; ctrl+o sets them for every command
+   ~ Advanced: 2 more
+   ~ Workspace flags  --root --owner --db; ctrl+o sets them for every command
 
    [ Run: engram check ]   ctrl+s from any field
 

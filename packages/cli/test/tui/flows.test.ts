@@ -16,6 +16,7 @@ import type { ItemScreen } from "../../src/tui/screens/item.ts";
 import type { ReadScreen } from "../../src/tui/screens/read.ts";
 import { outputLines } from "../../src/tui/screens/rich.ts";
 import type { PromoteScreen, WriteScreen } from "../../src/tui/screens/write.ts";
+import { ASCII } from "../../src/tui/theme.ts";
 import { cli, fixtureCopy, NOW, tempDir, VALID_FROM } from "../helpers.ts";
 import { type HarnessOptions, startHarness } from "./harness.ts";
 
@@ -109,15 +110,19 @@ describe("Read and explain (8.5, 8.6)", () => {
     expect(text).toContain("Person scope");
     expect(text).toContain("admitted by");
     expect(h.app.top().command(h.app)).toMatchObject({ exit: 0 });
-    // The command row: the read as it ran, saying it changes the log too (8.5, review 10).
+    // The command row: the read as it ran, and the first read says nothing more (it asked).
     expect(text).toContain("$ engram read");
-    expect(text).toContain("also sweeps and adopts the store, as asked");
+    expect(text).not.toContain("also changes the log, as asked");
     // esc goes back to the query; the second read in the session does not ask.
     await h.press(ESC);
     expect(h.focused()).toBe("pos:query");
     await h.press(CTRL_S);
     expect(h.overlay()).toBeUndefined();
     expect(h.ran()).toHaveLength(2);
+    // A later read says, on its own row above the command row, what the first asked about (8.5, N5).
+    const rows = (await h.frame()).map((l) => l.trimEnd());
+    expect(rows.at(-3)).toContain("This read also changes the log, as asked");
+    expect(rows.at(-2)).not.toContain("as asked");
     await h.quit();
   });
 
@@ -735,5 +740,29 @@ describe("the review fix pass (E8.15c)", () => {
     await h.press(ENTER);
     expect(h.ran().at(-1)).toEqual(expect.arrayContaining(["supersede", NEW]));
     await h.quit();
+  });
+});
+
+describe("the verification's findings (E8.15c)", () => {
+  it("N4: the handoff never prefills another person's scope", async () => {
+    const w = await withItem({ member: ["person:dana"] });
+    const { h } = await start(w);
+    await h.press("r", CTRL_S, "y", ESC);
+    h.app.openCommand(command("promote") as never, { to: "team:core" }, [ITEM]);
+    await h.press(CTRL_S, "y");
+    expect(h.focused()).toBe("handoff");
+    await h.press(ENTER);
+    const members = (
+      h.app.top() as unknown as { extras: Map<string, { value: string }> }
+    ).extras.get("members");
+    expect(members?.value).toBe("team:core");
+    await h.quit();
+  });
+
+  it("N5: the ASCII closed fold is no other ASCII glyph and not the selection mark", () => {
+    const { closed, ...rest } = ASCII;
+    expect(Object.values(rest)).not.toContain(closed);
+    expect(closed).not.toBe(">");
+    expect([...closed].every((c) => c.charCodeAt(0) < 128)).toBe(true);
   });
 });

@@ -20,7 +20,7 @@ import {
   type Version,
 } from "@engram/view";
 import { type CommandSpec, command } from "../../registry.ts";
-import { actorOfResult, madeAsOther } from "../actor.ts";
+import { actorKeyNow, actorKeyOfResult, madeAsOther } from "../actor.ts";
 import { Form } from "../forms.ts";
 import { box, cut, fit, para } from "../layout.ts";
 import type { RunResult } from "../runner.ts";
@@ -37,7 +37,6 @@ import {
   type Stop,
   safe,
   statusOf,
-  viewerOf,
   windowOf,
 } from "./rich.ts";
 
@@ -114,10 +113,14 @@ export class ItemScreen extends RichScreen {
   }
 
   /** Reads the item by id when the session has no read of it, then the events; asks where 8.5 says. */
-  private async load(ctx: Ctx): Promise<void> {
+  private async load(
+    ctx: Ctx,
+    readLine?: readonly string[],
+    eventsLine?: readonly string[],
+  ): Promise<void> {
     const id = this.itemId();
     if (!readItems(ctx).some((i) => i.id === id)) {
-      const r = await this.run(ctx);
+      const r = await this.run(ctx, readLine);
       if (r === undefined) return;
       this.readById = r;
       if (r.code !== 0) return;
@@ -125,7 +128,7 @@ export class ItemScreen extends RichScreen {
     const spec = command("events") as CommandSpec;
     const events = new Form(spec, ctx.ws);
     if (events.validate(ctx.ws, ctx.io).length > 0) return;
-    const r = await ctx.act(spec, events.argv(ctx.ws), events.flagValues());
+    const r = await ctx.act(spec, eventsLine ?? events.argv(ctx.ws), events.flagValues());
     if (r === undefined) return;
     this.events = r;
     this.result = r;
@@ -135,7 +138,7 @@ export class ItemScreen extends RichScreen {
 
   /** The events the page was built from, only when they were made as the actor now (review finding 1). */
   private visibleEvents(ctx: Ctx): MemoryEvent[] {
-    if (actorOfResult(this.events) !== viewerOf(ctx)?.id) return [];
+    if (actorKeyOfResult(this.events) !== actorKeyNow(ctx.ws)) return [];
     return answerOf<{ events: MemoryEvent[] }>(this.events, /\/api\/v1\/events$/)?.events ?? [];
   }
 
@@ -164,11 +167,15 @@ export class ItemScreen extends RichScreen {
   protected async onKey(name: string, ctx: Ctx, stop: Stop | undefined): Promise<boolean> {
     const pane = stop?.kind === "list" ? (stop.id as Pane) : undefined;
     switch (name) {
-      case "rerun":
+      case "rerun": {
+        // The same command lines again (N1): the actor's flags the workspace's when another actor made them.
+        const read = this.readById === undefined ? undefined : this.rerunLine(ctx, this.readById);
+        const events = this.events === undefined ? undefined : this.rerunLine(ctx, this.events);
         this.events = undefined;
         this.readById = undefined;
-        await this.load(ctx);
+        await this.load(ctx, read, events);
         return true;
+      }
       case "accept":
       case "submit":
         if (pane === undefined) {

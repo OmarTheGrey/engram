@@ -241,6 +241,42 @@ describe("Follow after a change of actor", () => {
   });
 });
 
+describe("the same principal with other memberships is another actor (verification N3)", () => {
+  it("dana drops team:core: the team item is no longer shown, before r or after", async () => {
+    const w = await workspace();
+    const h = await startHarness({
+      cwd: w.cwd,
+      home: w.cwd,
+      given: w.given,
+      options: { noSaved: true },
+      columns: 120,
+      rows: 40,
+    });
+    await h.press("r", CTRL_S, "y");
+    expect(await h.text()).toContain("The team's fact.");
+    h.app.openCommand(command("read --item") as never, {}, [TEAM]);
+    await h.app.settled();
+    expect(await h.text()).toContain("The team's fact.");
+    // The workspace panel: Member of loses team:core.
+    await h.press(CTRL_O);
+    await h.focusField("member");
+    await h.press("\x7f", ENTER, CTRL_S);
+    expect(h.app.ws.list("member")).toEqual(["person:dana"]);
+    const page = h.app.top() as unknown as ItemScreen;
+    expect(JSON.stringify(page.page(h.app))).not.toContain("The team's fact.");
+    let text = await h.text();
+    expect(text).toContain("made as person:dana as a member of person:dana, team:core");
+    expect(text).not.toContain("The team's fact.");
+    await h.press("r");
+    if (h.overlay() === "confirm") await h.press("y");
+    text = await h.text();
+    expect(text).not.toContain("The team's fact.");
+    await h.press(ESC);
+    expect(await h.text()).not.toContain("The team's fact.");
+    await h.quit();
+  });
+});
+
 // Card E8.15d's screens whose answers are made as an actor: Retention sweep,
 // Lint, Export and Import. Doctor, Simulate, Keys and Log verify answer for
 // no actor (their requests name none), so a change of actor leaves them drawn.

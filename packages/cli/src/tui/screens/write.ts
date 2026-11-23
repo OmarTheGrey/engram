@@ -498,7 +498,9 @@ export class PromoteScreen extends RichScreen {
   private memberDefault(ctx: Ctx): string[] {
     const to = String(this.form.get("to")).trim();
     const own = knownState(ctx, String(this.form.get("pos:itemId")).trim())?.scope;
-    return [...new Set([to, ...(own === undefined ? [] : [own])].filter((s) => s !== ""))];
+    // Never a person scope: it is its owner's alone, and a reviewer is no member of it (N4).
+    const item = own === undefined || own.startsWith("person:") ? [] : [own];
+    return [...new Set([to, ...item].filter((s) => s !== ""))];
   }
 
   /** The handoff: both changes shown before they apply, for this session only (8.8). */

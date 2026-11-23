@@ -102,8 +102,8 @@ export const ASCII: Glyphs = {
   br: "+",
   h: "-",
   v: "|",
-  // "+" for a closed fold, so it is never taken for the ">" that marks the selection (E8.15c review).
-  closed: "+",
+  // "~" for a closed fold: no other ASCII glyph, and not the ">" that marks the selection (E8.15c verification N5).
+  closed: "~",
   open: "v",
   allow: "+",
   deny: "x",

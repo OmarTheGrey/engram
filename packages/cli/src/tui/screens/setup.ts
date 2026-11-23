@@ -42,13 +42,18 @@ function drawn(text: string, args: readonly string[]): string {
   return out;
 }
 
+/** A snippet the screen builds: the hook's entry or `.mcp.json`, never an answer of the plane. */
+type Snippet =
+  | { matcher: string; hooks: ReturnType<typeof hookCommand>[] }
+  | ReturnType<typeof mcpJson>;
+
 /** Wrapped JSON of a snippet, compact, for the screen; the copy is the pretty one. */
-const snippetLines = (value: unknown, width: number, args: readonly string[]) =>
+const snippetLines = (value: Snippet, width: number, args: readonly string[]) =>
   wrap(drawn(JSON.stringify(value, null, 1).replace(/\n\s*/g, " "), args), width - 4).map(
     (l) => `   ${l}`,
   );
 
-const pretty = (value: unknown) => `${JSON.stringify(value, null, 2)}\n`;
+const pretty = (value: Snippet) => `${JSON.stringify(value, null, 2)}\n`;
 
 /**
  * The command line with the workspace's server written out: the CLI finds a
