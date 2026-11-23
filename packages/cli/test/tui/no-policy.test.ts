@@ -178,6 +178,9 @@ function usedAfterDrawing(node: TS.Node): boolean {
   return false;
 }
 
+/** The fields a run keeps an answer in, as it came. */
+const ANSWER_SLOTS = new Set(["body", "request"]);
+
 /** Whether a type carries a decision field, at any depth up to four: an answer. */
 function bearsDecision(
   checker: TS.TypeChecker,
@@ -192,6 +195,11 @@ function bearsDecision(
   for (const prop of checker.getPropertiesOfType(type)) {
     if (DECISION_FIELDS.has(prop.getName())) return true;
     const decl = prop.valueDeclaration ?? prop.declarations?.[0];
+    // An answer kept as it came, a call's body or request (./runner.ts Exchange), is typed unknown: it may hold one.
+    if (ANSWER_SLOTS.has(prop.getName()) && decl !== undefined) {
+      const t = checker.getTypeOfSymbolAtLocation(prop, decl);
+      if ((t.flags & (ts.TypeFlags.Any | ts.TypeFlags.Unknown)) !== 0) return true;
+    }
     if (
       decl !== undefined &&
       bearsDecision(checker, checker.getTypeOfSymbolAtLocation(prop, decl), depth + 1, seen)
@@ -209,7 +217,10 @@ const WHOLE = new Set(["JSON.stringify", "Object.values", "Object.entries"]);
 function exempt(file: TS.SourceFile, n: TS.Node): boolean {
   const line = file.getLineAndCharacterOfPosition(n.getStart()).line;
   const lines = file.text.split("\n");
-  return [lines[line], lines[line - 1]].some((l) => (l ?? "").includes("no-policy: not an answer"));
+  return [lines[line], lines[line - 1]].some(
+    (l) =>
+      (l ?? "").includes("no-policy: not an answer") || (l ?? "").includes("no-policy: printer"),
+  );
 }
 
 /** Every place a source decides on a decision field, or writes a string a screen must not. */
@@ -380,6 +391,8 @@ describe("no policy in the TUI's source", () => {
       "a drawn reason compared": 'if (oneLine(answer.event.reason) === "x") go();',
       "an answer read whole": 'if (JSON.stringify(answer).includes("episodic")) go();',
       "an answer's values": "for (const v of Object.values(answer.event)) void v;",
+      "a run kept whole":
+        'declare const run: { calls: { body: unknown }[] }; if (JSON.stringify(run).includes("x")) go();',
       "a computed key folding to a decision field":
         'const r = answer.event["rea" + "son"]; void r;',
       "a computed key on an answer":
