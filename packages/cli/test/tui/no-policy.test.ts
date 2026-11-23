@@ -192,6 +192,59 @@ function decides(node: TS.Node): boolean {
  * assignment is followed, which is the guard's recorded limit: a second local
  * copied from the first is not.
  */
+/** The class a node is in, by name, for the fields its methods share. */
+function classOf(node: TS.Node): string | undefined {
+  for (let n: TS.Node | undefined = node.parent; n !== undefined; n = n.parent)
+    if (ts.isClassDeclaration(n) || ts.isClassExpression(n)) return n.name?.text ?? "<class>";
+  return undefined;
+}
+
+/**
+ * The field of the class a drawn decision text, or a decision field, is kept
+ * in: `this.why = oneLine(p.reason)`, or a field declared with it. Its
+ * methods share it as a local's code shares a local, so it carries the taint
+ * the same one level.
+ */
+function keptInField(node: TS.Node): string | undefined {
+  let { parent, child } = consumer(drawnAs(node));
+  if (
+    ts.isBinaryExpression(parent) &&
+    parent.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken
+  )
+    ({ parent, child } = consumer(parent));
+  const cls = classOf(node);
+  if (cls === undefined) return undefined;
+  if (
+    ts.isBinaryExpression(parent) &&
+    parent.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+    parent.right === child &&
+    ts.isPropertyAccessExpression(parent.left) &&
+    parent.left.expression.kind === ts.SyntaxKind.ThisKeyword
+  )
+    return `${cls}.${parent.left.name.text}`;
+  if (
+    ts.isPropertyDeclaration(parent) &&
+    parent.initializer === child &&
+    ts.isIdentifier(parent.name)
+  )
+    return `${cls}.${parent.name.text}`;
+  return undefined;
+}
+
+/** The fields of a file's classes that hold a decision field's text, found before any use is checked. */
+function taintedFields(file: TS.SourceFile): Set<string> {
+  const out = new Set<string>();
+  const walk = (n: TS.Node): void => {
+    if (ts.isPropertyAccessExpression(n) && DECISION_FIELDS.has(n.name.text)) {
+      const key = keptInField(n);
+      if (key !== undefined) out.add(key);
+    }
+    ts.forEachChild(n, walk);
+  };
+  walk(file);
+  return out;
+}
+
 function keptIn(node: TS.Node): TS.Identifier | undefined {
   const { parent, child } = consumer(drawnAs(node));
   if (
@@ -269,6 +322,8 @@ function violations(
   const out: string[] = [];
   /** The locals that hold a decision field's text: by symbol with the checker, else by name. */
   const tainted = new Set<TS.Symbol | string>();
+  /** The class fields that hold one: `this.why` set from drawn decision text anywhere in its class. */
+  const fields = taintedFields(file);
   const at = (n: TS.Node) => `${path}:${file.getLineAndCharacterOfPosition(n.getStart()).line + 1}`;
   const visit = (n: TS.Node): void => {
     const field =
@@ -297,6 +352,14 @@ function violations(
       if (tainted.has(key) && decides(n))
         out.push(`${at(n)}: ${n.text}, which holds a decision field's text, is decided on`);
     }
+    // A field of the class holding drawn decision text, decided on in any of its methods.
+    if (
+      ts.isPropertyAccessExpression(n) &&
+      n.expression.kind === ts.SyntaxKind.ThisKeyword &&
+      fields.has(`${classOf(n)}.${n.name.text}`) &&
+      decides(n)
+    )
+      out.push(`${at(n)}: this.${n.name.text}, which holds a decision field's text, is decided on`);
     // A regular expression is a string too (re-verification 3).
     if (ts.isRegularExpressionLiteral(n)) {
       const body = n.text.slice(1, n.text.lastIndexOf("/")).replace(/\\(.)/g, "$1");
@@ -462,6 +525,10 @@ describe("no policy in the TUI's source", () => {
       ),
       "a field kept with a fallback, then tested":
         'const r = answer.event.reason ?? ""; if (r) go();',
+      "drawn text kept in a field, then searched in another method":
+        'class S { why = ""; set() { this.why = oneLine(answer.event!.reason); } use() { if (this.why.includes("episodic")) go(); } }',
+      "a field declared with a reason, then compared":
+        'class S { why = answer.event.reason ?? ""; use() { if (this.why === "x") go(); } }',
       "the reviewer's marker mutant":
         '// no-policy: printer\nif (JSON.stringify(answer).includes("x")) go();',
       "a rule id in a regular expression": "const R = /engram\\/write\\/team/; void R;",
