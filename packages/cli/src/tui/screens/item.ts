@@ -37,7 +37,6 @@ import {
   type Stop,
   safe,
   statusOf,
-  viewerOf,
   windowOf,
 } from "./rich.ts";
 
