@@ -778,3 +778,84 @@ describe("the verification's findings (E8.15c)", () => {
     expect([...closed].every((c) => c.charCodeAt(0) < 128)).toBe(true);
   });
 });
+
+describe("the write preview's check is sent once for the same input (the flake of 2026-11-23)", () => {
+  /** A scheduler the test fires by hand: the preview's pause, without a clock. */
+  function manual() {
+    const pending: (() => void)[] = [];
+    return {
+      pending,
+      schedule: (fn: () => void) => {
+        pending.push(fn);
+        return { cancel: () => pending.splice(pending.indexOf(fn), 1) };
+      },
+      fire: async () => {
+        for (const fn of pending.splice(0)) fn();
+      },
+    };
+  }
+
+  it("Check again before the pause ends: the pause's own check is not sent too", async () => {
+    const w = await workspace();
+    const { h, calls } = await start(w);
+    await h.press("w");
+    const screen = top<WriteScreen>(h);
+    const clock = manual();
+    (screen as unknown as { schedule: typeof clock.schedule }).schedule = clock.schedule;
+    await h.type("x");
+    expect(clock.pending.length).toBe(1);
+    await h.focusField("check");
+    await h.press(ENTER);
+    await screen.previewed();
+    // The racing order: the pause ends after the person asked.
+    await clock.fire();
+    await screen.previewed();
+    await h.app.settled();
+    expect(calls.filter((c) => c.path === "/api/v1/items/check")).toHaveLength(1);
+    await h.quit();
+  });
+
+  it("after a write, Check again on the same input checks again: the preview was cleared", async () => {
+    const w = await workspace();
+    const { h, calls } = await start(w);
+    await h.press("w");
+    const screen = top<WriteScreen>(h);
+    (screen as unknown as { schedule: ReturnType<typeof manual>["schedule"] }).schedule =
+      manual().schedule;
+    await h.type("x");
+    await h.focusField("check");
+    await h.press(ENTER);
+    await screen.previewed();
+    await h.press(CTRL_S, "y");
+    await h.focusField("retry");
+    await h.press(ENTER);
+    await h.focusField("check");
+    await h.press(ENTER);
+    await screen.previewed();
+    expect(calls.filter((c) => c.path === "/api/v1/items/check")).toHaveLength(2);
+    await h.quit();
+  });
+
+  it("the pause ends, then Check again with nothing changed: one check", async () => {
+    const w = await workspace();
+    const { h, calls } = await start(w);
+    await h.press("w");
+    const screen = top<WriteScreen>(h);
+    const clock = manual();
+    (screen as unknown as { schedule: typeof clock.schedule }).schedule = clock.schedule;
+    await h.type("x");
+    await clock.fire();
+    await screen.previewed();
+    await h.focusField("check");
+    await h.press(ENTER);
+    await screen.previewed();
+    expect(calls.filter((c) => c.path === "/api/v1/items/check")).toHaveLength(1);
+    // A change, and the next pause, checks again.
+    await h.focusField("content");
+    await h.type("y");
+    await clock.fire();
+    await screen.previewed();
+    expect(calls.filter((c) => c.path === "/api/v1/items/check")).toHaveLength(2);
+    await h.quit();
+  });
+});

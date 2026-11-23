@@ -82,7 +82,13 @@ export class WriteScreen extends RichScreen {
   /** The last preview's run of `engram check`, and the command it ran. */
   private preview: RunResult | undefined;
   private previewProblem: string | undefined;
-  private timer: ReturnType<typeof setTimeout> | undefined;
+  private timer: { cancel(): void } | undefined;
+  /** How the pause is timed: a real timer, or a test's hand (the flake of 2026-11-23). */
+  protected schedule = (fn: () => void, ms: number): { cancel(): void } => {
+    const t = setTimeout(fn, ms);
+    t.unref?.();
+    return { cancel: () => clearTimeout(t) };
+  };
   private generation = 0;
   private previewing: Promise<void> = Promise.resolve();
 
@@ -130,19 +136,18 @@ export class WriteScreen extends RichScreen {
 
   override close(): void {
     super.close();
-    if (this.timer !== undefined) clearTimeout(this.timer);
+    this.timer?.cancel();
     this.timer = undefined;
   }
 
   protected override changed(ctx: Ctx): void {
     super.changed(ctx);
     // After a pause, never on every key (8.7).
-    if (this.timer !== undefined) clearTimeout(this.timer);
-    this.timer = setTimeout(() => {
+    this.timer?.cancel();
+    this.timer = this.schedule(() => {
       this.timer = undefined;
       if (!this.closed) void this.check(ctx);
     }, PREVIEW_DELAY_MS);
-    this.timer.unref?.();
   }
 
   /**
@@ -172,17 +177,33 @@ export class WriteScreen extends RichScreen {
     return new Form(spec, ctx.ws, this.form.flagValues() as Values);
   }
 
-  /** Runs the preview now; an older preview's answer is dropped. */
+  /** The command line of the last check sent: the same input is checked once (the flake of 2026-11-23). */
+  private checked: string | undefined;
+
+  /**
+   * Runs the preview now; an older preview's answer is dropped. A pause still
+   * pending is cancelled, so asking before it ends sends one check, not two,
+   * and a check of the same command line as the last one is not sent again.
+   */
   check(ctx: Ctx): Promise<void> {
-    const generation = ++this.generation;
+    this.timer?.cancel();
+    this.timer = undefined;
     const form = this.checkForm(ctx);
+    const line = JSON.stringify(form.argv(ctx.ws));
+    if (line === this.checked) {
+      ctx.say("checked already: nothing changed since the last check");
+      return this.previewing;
+    }
+    const generation = ++this.generation;
     const problem = form.validate(ctx.ws, ctx.io)[0];
     if (problem !== undefined) {
       this.preview = undefined;
+      this.checked = undefined;
       this.previewProblem = problem.message;
       ctx.redraw();
       return Promise.resolve();
     }
+    this.checked = line;
     this.previewing = ctx.peek(form.argv(ctx.ws)).then((r) => {
       if (generation !== this.generation || this.closed) return;
       this.preview = r;
@@ -194,7 +215,7 @@ export class WriteScreen extends RichScreen {
   }
 
   private async submit(ctx: Ctx): Promise<void> {
-    if (this.timer !== undefined) clearTimeout(this.timer);
+    this.timer?.cancel();
     this.timer = undefined;
     const p = this.previewAnswer();
     const extra =
@@ -206,6 +227,7 @@ export class WriteScreen extends RichScreen {
     const r = await this.run(ctx, this.argvNow(ctx), extra);
     if (r !== undefined) {
       this.preview = undefined;
+      this.checked = undefined;
       this.focus = 0;
     }
   }
@@ -274,6 +296,7 @@ export class WriteScreen extends RichScreen {
         this.form = new Form(this.command_, ctx.ws);
         this.result = undefined;
         this.preview = undefined;
+        this.checked = undefined;
         this.previewProblem = undefined;
         this.edited = false;
         this.focus = 0;
