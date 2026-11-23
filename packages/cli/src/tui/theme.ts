@@ -252,6 +252,23 @@ export function paletteFor(
   return scheme ?? schemeFromColorFgBg(env.COLORFGBG) ?? "unknown";
 }
 
+/**
+ * The scheme of a background the terminal reported (OSC 11, card E8.15e):
+ * dark when white text on it has the higher contrast, light when black does;
+ * undefined when it reported none.
+ */
+export function schemeOfBackground(
+  rgb: { r: number; g: number; b: number } | undefined,
+): "dark" | "light" | undefined {
+  if (rgb === undefined) return undefined;
+  const byte = (c: number) =>
+    Math.max(0, Math.min(255, Math.round(c)))
+      .toString(16)
+      .padStart(2, "0");
+  const hex = `#${byte(rgb.r)}${byte(rgb.g)}${byte(rgb.b)}`;
+  return contrastRatio(hex, "#ffffff") >= contrastRatio(hex, "#000000") ? "dark" : "light";
+}
+
 /** Truecolor when COLORTERM says so, else the 256-colour nearest (11.3). */
 export const colorModeFor = (env: Env): TerminalColorMode =>
   /^(truecolor|24bit)$/i.test(env.COLORTERM ?? "") ? "truecolor" : "256color";

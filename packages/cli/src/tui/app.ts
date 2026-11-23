@@ -52,7 +52,14 @@ import { memoryScreen } from "./screens/memory.ts";
 import { surfaceScreen } from "./screens/surfaces.ts";
 import { tooSmall, tooSmallLines } from "./screens/too-small.ts";
 import { WorkspaceScreen } from "./screens/workspace.ts";
-import { colorModeFor, glyphSetFor, makeTheme, paletteFor, type Theme } from "./theme.ts";
+import {
+  colorModeFor,
+  glyphSetFor,
+  makeTheme,
+  paletteFor,
+  schemeOfBackground,
+  type Theme,
+} from "./theme.ts";
 import type { Summary } from "./words.ts";
 import { type CheapChecks, cheapChecks, usable, Workspace } from "./workspace.ts";
 
@@ -92,7 +99,40 @@ export interface StartOptions {
    * whole (card E8.15e), so a flag unset there does not come back from the file.
    */
   skipSavedFlags?: boolean;
+  /** The timers of the busy line (10.2): real ones by default, a test's hand in tests. */
+  timers?: Timers;
 }
+
+/** A timer that can be cancelled. */
+export interface Cancel {
+  cancel(): void;
+}
+
+/** What the busy line is timed by: once after a pause, and every so often (10.2, 11.5). */
+export interface Timers {
+  later(fn: () => void, ms: number): Cancel;
+  repeat(fn: () => void, ms: number): Cancel;
+}
+
+/** Real timers, which never keep the process alive. */
+const REAL_TIMERS: Timers = {
+  later: (fn, ms) => {
+    const t = setTimeout(fn, ms);
+    t.unref?.();
+    return { cancel: () => clearTimeout(t) };
+  },
+  repeat: (fn, ms) => {
+    const t = setInterval(fn, ms);
+    t.unref?.();
+    return { cancel: () => clearInterval(t) };
+  },
+};
+
+/** The pause before the pane shows a busy line, and the busy indicator's beat (10.2). */
+export const BUSY_AFTER_MS = 300;
+export const BUSY_FRAME_MS = 120;
+/** The busy indicator's four frames: ASCII, so every terminal shows them. */
+export const BUSY_FRAMES = ["-", "\\", "|", "/"] as const;
 
 /** An SGR mouse report (ESC [ < button ; column ; row M, or m on release), its row 0-based. */
 function parseSgrMouse(
@@ -122,7 +162,8 @@ const NOT_RUN_HERE: Readonly<Record<string, string>> = {
 
 export class App implements Component, Ctx {
   readonly io: Io;
-  readonly theme: Theme;
+  /** The theme: its palette changes once, when the terminal answers the colour query (11.3). */
+  theme: Theme;
   readonly shell: Shell;
   readonly ws: Workspace;
   checks: CheapChecks;
@@ -137,6 +178,61 @@ export class App implements Component, Ctx {
   readonly options: TuiOptions;
   readonly terminal: Terminal;
   tui: TuiAltScreen | undefined;
+
+  private readonly glyphSet: Theme["glyphSet"];
+  private readonly colorMode: ReturnType<typeof colorModeFor>;
+  private readonly timers: Timers;
+  /** The busy line (10.2): shown once a call has run BUSY_AFTER_MS; its frame. */
+  private busyShown = false;
+  private busyFrame = 0;
+  private busyTimers: Cancel[] = [];
+
+  /**
+   * The background the terminal reported to the colour query (11.3): the
+   * dark or light hues, when no flag, NO_COLOR or COLORFGBG chose already.
+   */
+  setScheme(scheme: "dark" | "light"): void {
+    if (this.theme.palette !== "unknown" || this.stopped) return;
+    this.theme = makeTheme(scheme, this.glyphSet, this.colorMode);
+    this.redraw();
+  }
+
+  private startBusy(): void {
+    this.stopBusy();
+    this.busyTimers.push(
+      this.timers.later(() => {
+        this.busyShown = true;
+        // Reduced motion (11.5): a static marker, no frames.
+        if (!this.options.reducedMotion)
+          this.busyTimers.push(
+            this.timers.repeat(() => {
+              this.busyFrame++;
+              this.redraw();
+            }, BUSY_FRAME_MS),
+          );
+        this.redraw();
+      }, BUSY_AFTER_MS),
+    );
+  }
+  private stopBusy(): void {
+    for (const t of this.busyTimers) t.cancel();
+    this.busyTimers = [];
+    this.busyShown = false;
+    this.busyFrame = 0;
+  }
+
+  /** The busy line: the marker, then the command being run, its name and positionals. */
+  private busyLine(width: number): string {
+    const marker = this.options.reducedMotion
+      ? this.theme.glyphs.more
+      : (BUSY_FRAMES[this.busyFrame % BUSY_FRAMES.length] as string);
+    const words: string[] = [];
+    for (const w of this.busy ?? []) {
+      if (w.startsWith("-")) break;
+      words.push(w);
+    }
+    return cut(` ${marker} running ${this.shown(words)}`, width);
+  }
 
   private stack: Screen[] = [];
   private overlays: Overlay[] = [];
@@ -163,11 +259,10 @@ export class App implements Component, Ctx {
       highContrast: o.options.highContrast,
       ascii: o.options.ascii,
     };
-    this.theme = makeTheme(
-      paletteFor(choice, o.io.env, o.scheme),
-      glyphSetFor(choice, o.io.env, platform),
-      colorModeFor(o.io.env),
-    );
+    this.glyphSet = glyphSetFor(choice, o.io.env, platform);
+    this.colorMode = colorModeFor(o.io.env);
+    this.theme = makeTheme(paletteFor(choice, o.io.env, o.scheme), this.glyphSet, this.colorMode);
+    this.timers = o.timers ?? REAL_TIMERS;
     this.shell = detectShell(o.io.env);
     const loaded = this.noSaved ? {} : loadSaved(o.io.home);
     this.savedOptions = loaded.saved?.options ?? {};
@@ -519,6 +614,7 @@ export class App implements Component, Ctx {
 
   async runNow(argv: readonly string[]): Promise<RunResult> {
     this.busy = argv;
+    this.startBusy();
     this.redraw();
     try {
       const result = await runCommand(argv, this.io);
@@ -529,6 +625,7 @@ export class App implements Component, Ctx {
       return result;
     } finally {
       this.busy = undefined;
+      this.stopBusy();
     }
   }
 
@@ -753,6 +850,9 @@ export class App implements Component, Ctx {
       );
     }
     const body = rows(this.top().render(this, width, height - 3), height - 3, width);
+    // A call running for BUSY_AFTER_MS says so in the pane's last row (10.2).
+    if (this.busyShown && this.busy !== undefined && body.length > 0)
+      body[body.length - 1] = this.busyLine(width);
     let frame = [this.titleBar(width), ...body, this.commandRow(width), this.hintsRow(width)];
     for (const o of this.overlays) {
       const w = Math.max(20, o.width(width));
@@ -785,6 +885,9 @@ function keepScrollKeys(): void {
   setKeybindings(new KeybindingsManager(TUI_KEYBINDINGS, none));
 }
 
+/** How long the colour query waits for the terminal's answer (11.3). */
+export const COLOR_QUERY_MS = 500;
+
 /** Where startTui keeps a terminal's own start. */
 const OWN_START = Symbol("engram tui: the terminal's own start");
 
@@ -815,6 +918,17 @@ export function startTui(o: StartOptions): Session {
   tui.addChild(app);
   tui.setFocus(app);
   tui.start();
+  // The terminal's background, when no flag, NO_COLOR or COLORFGBG chose a palette (11.3):
+  // pi-tui's colour query (OSC 11, ended by a DA1 request); a terminal that does not answer
+  // keeps the bold, colourless symbols.
+  if (app.theme.palette === "unknown")
+    void tui
+      .queryTerminalColors({ timeoutMs: COLOR_QUERY_MS })
+      .then((colors) => {
+        const scheme = schemeOfBackground(colors.background);
+        if (scheme !== undefined) app.setScheme(scheme);
+      })
+      .catch(() => undefined);
   o.io.stop?.addEventListener("abort", () => app.quit(), { once: true });
   return { app, tui };
 }

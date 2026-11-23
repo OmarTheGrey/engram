@@ -18,7 +18,7 @@ import { UsageError } from "../setup.ts";
 import { startTui, type TuiOptions } from "./app.ts";
 import { offered } from "./asks.ts";
 import { lineMode } from "./line.ts";
-import { loadSaved } from "./saved.ts";
+import { loadSaved, type SavedOptions } from "./saved.ts";
 import type { Ran } from "./screen.ts";
 import type { Launch } from "./snippets.ts";
 import { processTerminal, type Terminal } from "./term.ts";
@@ -83,22 +83,7 @@ export async function tuiCommand(args: string[], io: Io, deps: TuiDeps = {}): Pr
     if (near !== undefined) io.err(`engram tui: did you mean --screen ${near}?\n`);
     return 2;
   }
-  const options: TuiOptions = {
-    noColor: values["no-color"] === true || Boolean(env.NO_COLOR),
-    highContrast:
-      values["high-contrast"] === true ||
-      env.ENGRAM_TUI_CONTRAST === "high" ||
-      saved?.contrast === "high",
-    ascii: values.ascii === true || env.ENGRAM_TUI_ASCII === "1" || saved?.ascii === true,
-    reducedMotion:
-      values["reduced-motion"] === true ||
-      env.ENGRAM_TUI_MOTION === "reduce" ||
-      saved?.motion === "reduce",
-    mouse: !(values["no-mouse"] === true || env.ENGRAM_TUI_MOUSE === "0" || saved?.mouse === false),
-    quiet: values.quiet === true,
-    noSaved: values["no-saved"] === true,
-    ...(values.screen === undefined ? {} : { screen: values.screen }),
-  };
+  const options = tuiOptions(values, env, saved);
   let given: Values = Object.fromEntries(
     Object.entries(values).filter(([k]) => !Object.hasOwn(TUI_OWN, k)),
   );
@@ -154,6 +139,33 @@ export async function tuiCommand(args: string[], io: Io, deps: TuiDeps = {}): Pr
     // The console is gone; the session's commands are in the log.
   }
   return 0;
+}
+
+/**
+ * The TUI's own options (docs/design/tui.md 5.1 and 11): a flag, else its
+ * environment variable, else tui.json's saved option.
+ */
+export function tuiOptions(
+  values: Values,
+  env: Readonly<Record<string, string | undefined>>,
+  saved: SavedOptions | undefined,
+): TuiOptions {
+  return {
+    noColor: values["no-color"] === true || Boolean(env.NO_COLOR),
+    highContrast:
+      values["high-contrast"] === true ||
+      env.ENGRAM_TUI_CONTRAST === "high" ||
+      saved?.contrast === "high",
+    ascii: values.ascii === true || env.ENGRAM_TUI_ASCII === "1" || saved?.ascii === true,
+    reducedMotion:
+      values["reduced-motion"] === true ||
+      env.ENGRAM_TUI_MOTION === "reduce" ||
+      saved?.motion === "reduce",
+    mouse: !(values["no-mouse"] === true || env.ENGRAM_TUI_MOUSE === "0" || saved?.mouse === false),
+    quiet: values.quiet === true,
+    noSaved: values["no-saved"] === true,
+    ...(typeof values.screen === "string" ? { screen: values.screen } : {}),
+  };
 }
 
 /** The TUI's own flags, which are not the workspace's. */

@@ -32,6 +32,8 @@ export interface HarnessOptions {
   fetch?: Io["fetch"];
   /** The ids the TUI's commands draw; a shared counter by default (card E8.15c's parity test sets its own). */
   newId?: Io["newId"];
+  /** The busy line's timers (card E8.15e): a test's hand. */
+  timers?: StartOptions["timers"];
 }
 
 export const DEFAULT_OPTIONS: TuiOptions = {
@@ -95,6 +97,7 @@ export async function startHarness(o: HarnessOptions = {}) {
     platform: o.platform ?? "linux",
     native: () => undefined,
     ...(o.logCheck ? { logCheck: o.logCheck } : {}),
+    ...(o.timers ? { timers: o.timers } : {}),
   });
   const flush = () => new Promise<void>((r) => xt.write("", r));
   const h = {
@@ -131,6 +134,16 @@ export async function startHarness(o: HarnessOptions = {}) {
     /** The screen as the terminal shows it, one string a row. */
     async frame(): Promise<string[]> {
       await app.settled();
+      tui.renderNow(true);
+      await flush();
+      const buf = xt.buffer.active;
+      const out: string[] = [];
+      for (let i = 0; i < xt.rows; i++)
+        out.push(buf.getLine(buf.viewportY + i)?.translateToString(true) ?? "");
+      return out;
+    },
+    /** The screen now, without waiting for the keys in flight to settle (a call held open, card E8.15e). */
+    async frameNow(): Promise<string[]> {
       tui.renderNow(true);
       await flush();
       const buf = xt.buffer.active;
