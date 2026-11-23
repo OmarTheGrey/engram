@@ -23,6 +23,7 @@ import {
   answerOf,
   decisionHead,
   errorLines,
+  firstLines,
   oneLine,
   outputLines,
   RichScreen,
@@ -324,7 +325,7 @@ export class SupersedeScreen extends RichScreen {
         width,
       );
       out.push(onList && i === this.selected ? t.reverse(text) : text);
-      out.push(...para(oneLine(p.reason), width, "              ").slice(0, 2));
+      out.push(...firstLines(para(oneLine(p.reason), width, "              "), 2));
     });
     out.push("", `   ${this.button(ctx, "apply", "Accept chosen")}   ctrl+s`);
     const head = this.head();

@@ -30,6 +30,9 @@ export function safe(text: string): string {
   return out;
 }
 
+/** The first `n` lines drawn: a display helper, so a drawn reason is cut without being read (N2). */
+export const firstLines = (lines: readonly string[], n: number): string[] => lines.slice(0, n);
+
 /** One line of text as a single row: newlines as spaces. */
 export const oneLine = (text: string) => safe(text).replace(/\s*\n\s*/g, " ");
 

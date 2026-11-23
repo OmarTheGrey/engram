@@ -34,6 +34,7 @@ import {
   answerOf,
   decisionHead,
   errorLines,
+  firstLines,
   oneLine,
   RichScreen,
   type Stop,
@@ -355,7 +356,7 @@ export class EventsScreen extends RichScreen {
             width,
           ),
         );
-        out.push(...para(`reason  ${oneLine(chosen.reason)}`, width).slice(0, 2));
+        out.push(...firstLines(para(`reason  ${oneLine(chosen.reason)}`, width), 2));
       }
     }
     return out;
