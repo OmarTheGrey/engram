@@ -269,6 +269,33 @@ export function schemeOfBackground(
   return contrastRatio(hex, "#ffffff") >= contrastRatio(hex, "#000000") ? "dark" : "light";
 }
 
+const ESC = String.fromCharCode(27);
+const BEL = String.fromCharCode(7);
+
+/** The question for the terminal's background colour (OSC 11), ended by BEL. */
+export const BACKGROUND_QUERY = `${ESC}]11;?${BEL}`;
+
+/** An OSC 11 answer: `ESC ] 11 ; rgb:R/G/B` ended by BEL or ST, each part one to four hex digits. */
+const ANSWER = new RegExp(
+  String.raw`^${ESC}\]11;(?:rgb:([0-9a-f]{1,4})/([0-9a-f]{1,4})/([0-9a-f]{1,4})|[^${BEL}${ESC}]*)(?:${BEL}|${ESC}\\)$`,
+  "i",
+);
+
+/**
+ * The terminal's answer to BACKGROUND_QUERY, when `data` is one: its colour
+ * scaled to 0..255, or no colour for an answer in a form not read here;
+ * undefined when `data` is not an OSC 11 answer at all.
+ */
+export function backgroundAnswer(
+  data: string,
+): { rgb: { r: number; g: number; b: number } | undefined } | undefined {
+  const m = ANSWER.exec(data);
+  if (m === null) return undefined;
+  if (m[1] === undefined || m[2] === undefined || m[3] === undefined) return { rgb: undefined };
+  const scale = (hex: string) => (Number.parseInt(hex, 16) / (16 ** hex.length - 1)) * 255;
+  return { rgb: { r: scale(m[1]), g: scale(m[2]), b: scale(m[3]) } };
+}
+
 /** Truecolor when COLORTERM says so, else the 256-colour nearest (11.3). */
 export const colorModeFor = (env: Env): TerminalColorMode =>
   /^(truecolor|24bit)$/i.test(env.COLORTERM ?? "") ? "truecolor" : "256color";

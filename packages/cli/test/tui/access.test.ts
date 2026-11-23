@@ -24,7 +24,13 @@ import {
 import { tuiCommand, tuiOptions } from "../../src/tui/main.ts";
 import { type SavedOptions, writeSaved } from "../../src/tui/saved.ts";
 import { FakeTerminal } from "../../src/tui/term.ts";
-import { glyphSetFor, HUES, schemeOfBackground } from "../../src/tui/theme.ts";
+import {
+  BACKGROUND_QUERY,
+  backgroundAnswer,
+  glyphSetFor,
+  HUES,
+  schemeOfBackground,
+} from "../../src/tui/theme.ts";
 import { NOW, REPO, tempDir, testId } from "../helpers.ts";
 import { startHarness } from "./harness.ts";
 
@@ -221,6 +227,46 @@ describe("11.3 palettes", () => {
     expect(dark.fg).toBe(HUES.dark.allow.toUpperCase());
   });
 
+  it("takes the answer whatever comes before it: device attributes first, as a pseudoconsole sends them", async () => {
+    const { cwd, home } = await folders();
+    const h = await startHarness({ cwd, home, env: { COLORTERM: "truecolor" }, given: {} });
+    h.term.send(`${ESC}[?61;4c`);
+    h.term.send(`${ESC}]10;rgb:cccc/cccc/cccc${ESC}\\`);
+    h.term.send(`${ESC}]11;rgb:0c/0c/0c\x07`);
+    const tick = (await h.cells()).find((c) => c.char === "✓");
+    expect(tick?.fg).toBe(HUES.dark.allow.toUpperCase());
+    await h.quit();
+  });
+
+  it("never types a late answer into a field, and keeps the colourless symbols after the wait", async () => {
+    const { cwd, home } = await folders();
+    const clock = handTimers();
+    const h = await startHarness({ cwd, home, given: {}, timers: clock.timers });
+    expect(clock.later.map((t) => t.ms)).toEqual([COLOR_QUERY_MS]);
+    clock.fireLater();
+    expect(h.screen()).toBe("first-run");
+    h.term.send(`${ESC}]11;rgb:ffff/ffff/ffff${ESC}\\`);
+    const text = await h.text();
+    expect(text).not.toContain("rgb:");
+    expect(text).not.toContain("11;");
+    const tick = (await h.cells()).find((c) => c.char === "✓");
+    expect(tick?.fg).toBe("default");
+    await h.quit();
+  });
+
+  it("reads an answer's colour in one to four hex digits a part, and nothing else", () => {
+    expect(backgroundAnswer(`${ESC}]11;rgb:ffff/8080/0000${ESC}\\`)?.rgb).toEqual({
+      r: 255,
+      g: (0x8080 / 0xffff) * 255,
+      b: 0,
+    });
+    expect(backgroundAnswer(`${ESC}]11;rgb:f/0/f\x07`)?.rgb).toEqual({ r: 255, g: 0, b: 255 });
+    expect(backgroundAnswer(`${ESC}]11;rgba:1/1/1/1\x07`)).toEqual({ rgb: undefined });
+    expect(backgroundAnswer(`${ESC}]10;rgb:ffff/ffff/ffff\x07`)).toBeUndefined();
+    expect(backgroundAnswer("q")).toBeUndefined();
+    expect(BACKGROUND_QUERY).toBe(`${ESC}]11;?\x07`);
+  });
+
   it("keeps bold symbols with no hue when the terminal does not answer", async () => {
     const none = await tickAfter(undefined);
     expect(none.asked).toBe(true);
@@ -247,6 +293,8 @@ describe("11.5 reduced motion and the busy line of 10.2", () => {
     const h = await startHarness({
       cwd,
       home,
+      // COLORFGBG names the background, so the colour query's wait is not among the timers.
+      env: { COLORFGBG: "15;0" },
       given: USABLE,
       options: { reducedMotion },
       transport: call.transport,
@@ -357,6 +405,26 @@ describe("11.6 the screen-reader hint and L", () => {
     expect(await h.text()).toContain("L on Home, or engram tui --line");
     await h.press("\r");
     expect((await h.app.done).line).toBe(true);
+  });
+});
+
+describe("the title bar names the actor (manual check, conhost)", () => {
+  it("drops a long log path, then the connection, before the actor", async () => {
+    const { cwd, home } = await folders();
+    const db = `${"deep/".repeat(18)}engram.db`;
+    const h = await startHarness({
+      cwd,
+      home,
+      given: { owner: "dana", db, root: "mem" },
+      columns: 120,
+      rows: 40,
+    });
+    const title = (await h.frame())[0] ?? "";
+    expect(title).toMatch(/^ engram {2}Home +in process {2}person:dana \(person\) $/);
+    expect(title).not.toContain("deep/");
+    await h.resize(80, 24);
+    expect((await h.frame())[0]).toMatch(/person:dana \(person\) $/);
+    await h.quit();
   });
 });
 

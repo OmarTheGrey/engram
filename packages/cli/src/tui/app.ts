@@ -53,6 +53,8 @@ import { surfaceScreen } from "./screens/surfaces.ts";
 import { tooSmall, tooSmallLines } from "./screens/too-small.ts";
 import { WorkspaceScreen } from "./screens/workspace.ts";
 import {
+  BACKGROUND_QUERY,
+  backgroundAnswer,
   colorModeFor,
   glyphSetFor,
   makeTheme,
@@ -191,6 +193,11 @@ export class App implements Component, Ctx {
    * The background the terminal reported to the colour query (11.3): the
    * dark or light hues, when no flag, NO_COLOR or COLORFGBG chose already.
    */
+  /** The timers the App runs on (the colour query's wait, card E8.15e). */
+  timersOf(): Timers {
+    return this.timers;
+  }
+
   setScheme(scheme: "dark" | "light"): void {
     if (this.theme.palette !== "unknown" || this.stopped) return;
     this.theme = makeTheme(scheme, this.glyphSet, this.colorMode);
@@ -811,9 +818,16 @@ export class App implements Component, Ctx {
     // The reviewer handoff is marked while it is on (docs/design/tui.md 8.8).
     const reviewer =
       this.handoff === undefined ? "" : wide ? " reviewer, for this session" : " reviewer";
-    const right = `${connection}${log}  ${this.ws.actorLabel()}${reviewer} `;
-    const gap = width - visibleWidth(left) - visibleWidth(right);
-    const text = gap >= 2 ? `${left}${" ".repeat(gap)}${right}` : left;
+    const actor = `${this.ws.actorLabel()}${reviewer} `;
+    // Whom the TUI acts as always shows: a long log path goes first, then the connection
+    // (the manual check of card E8.15e: a scratch log's path hid the actor in conhost).
+    const right = [`${connection}${log}  ${actor}`, `${connection}  ${actor}`, actor].find(
+      (r) => width - visibleWidth(left) - visibleWidth(r) >= 2,
+    );
+    const text =
+      right === undefined
+        ? left
+        : `${left}${" ".repeat(width - visibleWidth(left) - visibleWidth(right))}${right}`;
     return this.theme.reverse(fit(text, width));
   }
 
@@ -904,8 +918,22 @@ export function startTui(o: StartOptions): Session {
   const t = o.terminal as Terminal & { [OWN_START]?: Terminal["start"] };
   t[OWN_START] ??= o.terminal.start.bind(o.terminal);
   const start = t[OWN_START];
+  // The terminal's background (11.3), asked with OSC 11 when no flag, NO_COLOR or COLORFGBG
+  // chose a palette. Its answer is read here, before pi-tui, whenever it comes: through
+  // Windows' pseudoconsole the device attributes that end pi-tui's own colour query can
+  // arrive first (the manual check of card E8.15e). An answer is never typed into the TUI.
+  let asking = app.theme.palette === "unknown";
   o.terminal.start = (onInput, onResize) =>
     start((data) => {
+      const answer = backgroundAnswer(data);
+      if (answer !== undefined) {
+        if (asking && answer.rgb !== undefined) {
+          const scheme = schemeOfBackground(answer.rgb);
+          if (scheme !== undefined) app.setScheme(scheme);
+        }
+        asking = false;
+        return;
+      }
       if (!app.mouseInput(data)) onInput(data);
     }, onResize);
   const tui = new TuiAltScreen(o.terminal, false, undefined, {
@@ -921,16 +949,13 @@ export function startTui(o: StartOptions): Session {
   tui.setFocus(app);
   tui.start();
   // The terminal's background, when no flag, NO_COLOR or COLORFGBG chose a palette (11.3):
-  // pi-tui's colour query (OSC 11, ended by a DA1 request); a terminal that does not answer
-  // keeps the bold, colourless symbols.
-  if (app.theme.palette === "unknown")
-    void tui
-      .queryTerminalColors({ timeoutMs: COLOR_QUERY_MS })
-      .then((colors) => {
-        const scheme = schemeOfBackground(colors.background);
-        if (scheme !== undefined) app.setScheme(scheme);
-      })
-      .catch(() => undefined);
+  // A terminal that does not answer within COLOR_QUERY_MS keeps the bold, colourless symbols.
+  if (asking) {
+    o.terminal.write(BACKGROUND_QUERY);
+    app.timersOf().later(() => {
+      asking = false;
+    }, COLOR_QUERY_MS);
+  }
   o.io.stop?.addEventListener("abort", () => app.quit(), { once: true });
   return { app, tui };
 }
