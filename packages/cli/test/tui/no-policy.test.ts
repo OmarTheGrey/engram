@@ -178,6 +178,15 @@ function usedAfterDrawing(node: TS.Node): boolean {
   return false;
 }
 
+/** A key named by a constant: the string its declaration folds to, if it does. */
+function constantOf(checker: TS.TypeChecker, key: TS.Expression): string | undefined {
+  if (!ts.isIdentifier(key)) return undefined;
+  const decl = checker.getSymbolAtLocation(key)?.valueDeclaration;
+  return decl !== undefined && ts.isVariableDeclaration(decl) && decl.initializer !== undefined
+    ? folded(decl.initializer)
+    : undefined;
+}
+
 /** The fields a run keeps an answer in, as it came. */
 const ANSWER_SLOTS = new Set(["body", "request"]);
 
@@ -260,11 +269,19 @@ function violations(
     // Gap 4: a computed key on a decision-bearing object, or one that folds to a decision field.
     if (ts.isElementAccessExpression(n) && field === undefined) {
       const key = n.argumentExpression;
-      const value = folded(key);
+      const value = folded(key) ?? (checker === undefined ? undefined : constantOf(checker, key));
       const literal =
         ts.isStringLiteral(key) ||
         ts.isNumericLiteral(key) ||
         ts.isNoSubstitutionTemplateLiteral(key);
+      // The object as it was before any cast: a cast hides an answer's type, not the answer.
+      let object: TS.Expression = n.expression;
+      while (
+        ts.isAsExpression(object) ||
+        ts.isParenthesizedExpression(object) ||
+        ts.isNonNullExpression(object)
+      )
+        object = object.expression;
       if (value !== undefined && DECISION_FIELDS.has(value))
         out.push(`${at(n)}: a computed key that is .${value}`);
       else if (
@@ -272,7 +289,7 @@ function violations(
         checker !== undefined &&
         // A position in a list is no field: only a key that could name one is read.
         (checker.getTypeAtLocation(key).flags & ts.TypeFlags.NumberLike) === 0 &&
-        bearsDecision(checker, checker.getTypeAtLocation(n.expression), 3)
+        bearsDecision(checker, checker.getTypeAtLocation(object), 3)
       )
         out.push(`${at(n)}: a computed key on an answer: ${n.getText(file).slice(0, 80)}`);
     }
@@ -395,6 +412,8 @@ describe("no policy in the TUI's source", () => {
         'declare const run: { calls: { body: unknown }[] }; if (JSON.stringify(run).includes("x")) go();',
       "a computed key folding to a decision field":
         'const r = answer.event["rea" + "son"]; void r;',
+      "a computed key named by a constant, through a cast":
+        'const k = "rea" + "son"; void (answer.event as unknown as Record<string, string>)[k];',
       "a computed key on an answer":
         'const k: string = String(1); void (answer.event as Record<string, string>)[k]; void answer.event[k as "reason"];',
     };
