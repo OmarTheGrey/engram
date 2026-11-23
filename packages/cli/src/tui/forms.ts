@@ -8,13 +8,7 @@
 // is not a plane call, the CLI's checkTime and checkNumber. What the CLI
 // does not check, the form does not check; the plane's answer is the answer.
 
-import {
-  type CommandSpec,
-  type Control,
-  type OptionSpec,
-  parseOptions,
-  type Values,
-} from "../registry.ts";
+import type { CommandSpec, Control, OptionSpec, Values } from "../registry.ts";
 import type { Io } from "../run.ts";
 import { TextField } from "./fields.ts";
 import { checkArgv } from "./validate.ts";

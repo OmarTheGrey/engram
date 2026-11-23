@@ -7,14 +7,7 @@
 // every action that changes state, the safe button focused.
 import { fuzzyFilter } from "@earendil-works/pi-tui";
 import { parse } from "../commands.ts";
-import {
-  type CommandSpec,
-  closest,
-  commandWords,
-  parseOptions,
-  REGISTRY,
-  type Values,
-} from "../registry.ts";
+import { closest, commandWords, parseOptions, type Values } from "../registry.ts";
 import { splitWords } from "./argv.ts";
 import { offered, specOfWords } from "./asks.ts";
 import { TextField } from "./fields.ts";
