@@ -11,6 +11,8 @@
 // Home and first run switches to it, and its `screen` back, each keeping the
 // workspace. line.ts itself imports no pi-tui; this file loads the full
 // screen's modules with it, as before, and line mode never calls them.
+import { spawn } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { parse } from "../commands.ts";
 import { closest, OPTIONS, type Values } from "../registry.ts";
 import type { Io } from "../run.ts";
@@ -98,7 +100,11 @@ export async function tuiCommand(args: string[], io: Io, deps: TuiDeps = {}): Pr
     if (mode === "line") {
       const end = await lineMode(
         io,
-        { given, saved: first ? loaded.saved?.flags : undefined, noSaved: options.noSaved },
+        {
+          given,
+          saved: first ? loaded.saved?.flags : undefined,
+          noSaved: options.noSaved,
+        },
         {
           ...(deps.echo ? { echo: deps.echo } : {}),
           ...(deps.launch ? { launch: deps.launch } : {}),
@@ -125,11 +131,24 @@ export async function tuiCommand(args: string[], io: Io, deps: TuiDeps = {}): Pr
       deferred.push(...summary.deferred);
       if (summary.line !== true) break;
       given = app.ws.savable();
+      if (deps.terminal === undefined) {
+        // On the real console L starts line mode as a child process on the same terminal: in
+        // this one, stdin read again after raw mode loses the first line typed and keeps the
+        // process alive at the end on Windows (libuv; failure entry of card E8.15e). This
+        // process prints the full screen's commands now; line mode prints its own as it ends.
+        print(io, summaryText({ ran, deferred }, detectShell(env), options.quiet));
+        return lineInChild(io, given, options);
+      }
     }
     first = false;
     mode = mode === "line" ? "screen" : "line";
   }
-  const text = summaryText({ ran, deferred }, detectShell(env), options.quiet);
+  print(io, summaryText({ ran, deferred }, detectShell(env), options.quiet));
+  return 0;
+}
+
+/** Writes what quitting prints, guarded. */
+function print(io: Io, text: string): void {
   // A console closed under the quit must not turn it into a crash (review E8.15d-2): the
   // summary is written when the console takes it, and a write error is not uncaught.
   (io.stdout as { on?: (e: string, f: () => void) => void } | undefined)?.on?.("error", () => {});
@@ -138,8 +157,45 @@ export async function tuiCommand(args: string[], io: Io, deps: TuiDeps = {}): Pr
   } catch {
     // The console is gone; the session's commands are in the log.
   }
-  return 0;
 }
+
+/** The workspace's flags as command-line words. */
+export function flagWords(flags: Values): string[] {
+  const out: string[] = [];
+  for (const [k, v] of Object.entries(flags)) {
+    if (typeof v === "string") out.push(`--${k}`, v);
+    else if (Array.isArray(v)) for (const one of v) out.push(`--${k}`, one);
+  }
+  return out;
+}
+
+/**
+ * `engram tui --line` with the workspace's flags, a child of this process on
+ * the same terminal (L on the real console); its exit code is this one's.
+ */
+async function lineInChild(io: Io, given: Values, options: TuiOptions): Promise<number> {
+  const args = [
+    MAIN,
+    "tui",
+    "--line",
+    ...(options.quiet ? ["--quiet"] : []),
+    ...(options.noSaved ? ["--no-saved"] : []),
+    ...flagWords(given),
+  ];
+  const env: Record<string, string> = {};
+  for (const [k, v] of Object.entries(io.env)) if (v !== undefined) env[k] = v;
+  const child = spawn(process.execPath, args, { stdio: "inherit", cwd: io.cwd, env });
+  return new Promise((resolve) => {
+    child.on("error", (e) => {
+      io.err(`engram tui: line mode did not start (${e.message}); run engram tui --line\n`);
+      resolve(1);
+    });
+    child.on("exit", (code) => resolve(code ?? 1));
+  });
+}
+
+/** This CLI's entry, which line mode's child runs. */
+const MAIN = fileURLToPath(new URL("../main.ts", import.meta.url));
 
 /**
  * The TUI's own options (docs/design/tui.md 5.1 and 11): a flag, else its

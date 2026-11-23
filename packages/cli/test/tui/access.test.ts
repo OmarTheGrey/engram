@@ -183,9 +183,9 @@ describe("11.2 no colour", () => {
 describe("11.3 palettes", () => {
   it("uses no hue with ENGRAM_TUI_CONTRAST=high, as with --high-contrast", async () => {
     const colourful = { COLORFGBG: "15;0", COLORTERM: "truecolor" };
-    expect((await session(FIRST, { ...colourful, ENGRAM_TUI_CONTRAST: "high" })).output).not.toMatch(
-      COLOUR,
-    );
+    expect(
+      (await session(FIRST, { ...colourful, ENGRAM_TUI_CONTRAST: "high" })).output,
+    ).not.toMatch(COLOUR);
   });
 
   it("tells a dark background from a light one", () => {

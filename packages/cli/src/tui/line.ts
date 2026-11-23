@@ -97,11 +97,19 @@ class Lines {
   private ended = false;
   private readonly rl: ReturnType<typeof createInterface>;
   private readonly echo: ((line: string) => void) | undefined;
+  private readonly write: (text: string) => void;
 
-  constructor(input: NodeJS.ReadableStream, echo?: (line: string) => void) {
+  /**
+   * The terminal's own line editing and echo, which screen readers know:
+   * readline reads lines (terminal: false) and writes nothing at all.
+   */
+  constructor(
+    input: NodeJS.ReadableStream,
+    write: (text: string) => void,
+    echo: ((line: string) => void) | undefined,
+  ) {
     this.echo = echo;
-    // terminal: false: the terminal's own line editing and echo, which screen readers know;
-    // readline then writes nothing at all to the terminal.
+    this.write = write;
     this.rl = createInterface({ input: input as Readable, terminal: false, crlfDelay: Infinity });
     this.rl.on("line", (line) => {
       const w = this.waiting;
@@ -112,6 +120,11 @@ class Lines {
       } else this.queue.push(line);
     });
     this.rl.on("close", () => this.end());
+  }
+
+  /** Writes a question. */
+  prompt(text: string): void {
+    this.write(text);
   }
 
   next(): Promise<string | undefined> {
@@ -295,7 +308,7 @@ class LineSession {
 
   /** Asks `prompt`, its colon added; throws Ended at the end of input. */
   private async ask(prompt: string): Promise<string> {
-    this.out(`${prompt}: `);
+    this.lines.prompt(`${prompt}: `);
     const line = await this.lines.next();
     if (line === undefined) {
       this.out("\n");
@@ -840,7 +853,7 @@ class LineSession {
  */
 export async function lineMode(io: Io, o: LineOptions, deps: LineDeps = {}): Promise<LineEnd> {
   const ws = Workspace.from(io.env, o.given, o.saved);
-  const lines = new Lines(io.stdin as NodeJS.ReadableStream, deps.echo);
+  const lines = new Lines(io.stdin as NodeJS.ReadableStream, (t) => io.out(t), deps.echo);
   const onStop = () => lines.close();
   io.stop?.addEventListener("abort", onStop, { once: true });
   const session = new LineSession(io, ws, lines, o, deps);

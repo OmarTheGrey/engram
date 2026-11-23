@@ -531,7 +531,9 @@ export class App implements Component, Ctx {
     // A log check still running is stopped, or its child would keep the process alive.
     this.logAbort?.abort();
     for (const s of this.stack) s.close?.();
-    this.tui?.stop();
+    // The terminal as it was before the TUI started (card E8.15e): pi-tui otherwise prints the
+    // last frame into the scrollback, memory content and all; only the session's commands are.
+    this.tui?.stop({ preserveScreen: true });
     const done = () =>
       this.finish({
         ran: [...this.ran],
