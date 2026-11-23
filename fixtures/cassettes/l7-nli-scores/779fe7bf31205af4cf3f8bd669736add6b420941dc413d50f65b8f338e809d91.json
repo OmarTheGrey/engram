@@ -1,0 +1,24 @@
+{
+  "key": "779fe7bf31205af4cf3f8bd669736add6b420941dc413d50f65b8f338e809d91",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "tokenizer_sha256": "5124ef2ead1a10a717703bc436de7f353da76d6340e4587719b42b1693707964",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "scorer": "engram-nli-scorer/1",
+  "pair": "b4c056b82276f32478f1ac1d8eec27cc1e74c26b40c52407984dfe3be2f42786",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "The release freeze ends on the following Wednesday.",
+    "hypothesis": "The staging database runs Postgres 16."
+  },
+  "response": {
+    "contradiction": 0.0007378614729946241,
+    "entailment": 0.00012723924438917195,
+    "neutral": 0.9991348992826162,
+    "logits": [
+      -1.5668126344680786,
+      -3.3244996070861816,
+      5.644076347351074
+    ]
+  }
+}

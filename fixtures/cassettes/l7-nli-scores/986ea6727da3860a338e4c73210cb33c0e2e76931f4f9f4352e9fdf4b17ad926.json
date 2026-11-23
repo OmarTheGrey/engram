@@ -1,0 +1,24 @@
+{
+  "key": "986ea6727da3860a338e4c73210cb33c0e2e76931f4f9f4352e9fdf4b17ad926",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "tokenizer_sha256": "5124ef2ead1a10a717703bc436de7f353da76d6340e4587719b42b1693707964",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "scorer": "engram-nli-scorer/1",
+  "pair": "0be23598316ec7cedcef23f62e6626701869bcc5113e326a5859fee58b97a456",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "The user's favourite sushi place is Umi Bar, most of the time.",
+    "hypothesis": "My favourite podcast is The Long Table at the moment."
+  },
+  "response": {
+    "contradiction": 0.9983576169735571,
+    "entailment": 0.000028734451657296388,
+    "neutral": 0.001613648574785559,
+    "logits": [
+      5.5876007080078125,
+      -4.86816930770874,
+      -0.8400130271911621
+    ]
+  }
+}

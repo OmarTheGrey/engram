@@ -1,0 +1,24 @@
+{
+  "key": "b9d9bd5e1d7feffd65d835900ad0ea70be0cf5ac3e1d27eed1c7dccbfad58aae",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "tokenizer_sha256": "5124ef2ead1a10a717703bc436de7f353da76d6340e4587719b42b1693707964",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "scorer": "engram-nli-scorer/1",
+  "pair": "8aac72f8113fce59980e4cc3c312a73f82765d36e0cf602816d38845eee1758d",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "According to the user, their internet provider is NetWave.",
+    "hypothesis": "The user said: \"Alex and I talked about our jobs and commutes, and he recommended some podcasts to listen to.\""
+  },
+  "response": {
+    "contradiction": 0.002774611196604412,
+    "entailment": 0.00014889631027325864,
+    "neutral": 0.9970764924931224,
+    "logits": [
+      -0.7235016226768494,
+      -3.648517370223999,
+      5.160815238952637
+    ]
+  }
+}

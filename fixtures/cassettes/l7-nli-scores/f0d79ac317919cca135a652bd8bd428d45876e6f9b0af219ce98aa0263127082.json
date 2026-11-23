@@ -1,0 +1,24 @@
+{
+  "key": "f0d79ac317919cca135a652bd8bd428d45876e6f9b0af219ce98aa0263127082",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "tokenizer_sha256": "5124ef2ead1a10a717703bc436de7f353da76d6340e4587719b42b1693707964",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "scorer": "engram-nli-scorer/1",
+  "pair": "9e531790f087eb54db192905a172d01ab8b9c02af59eae36b6490d0111a57422",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "The user said: \"She's into indie music, and we talked about some new bands to check out.\"",
+    "hypothesis": "The user said: \"I'll start filling out the template.\""
+  },
+  "response": {
+    "contradiction": 0.23480722035990165,
+    "entailment": 0.00017172637145654502,
+    "neutral": 0.7650210532686419,
+    "logits": [
+      2.0963244438171387,
+      -5.124293327331543,
+      3.277462959289551
+    ]
+  }
+}

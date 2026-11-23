@@ -1,0 +1,24 @@
+{
+  "key": "355c05423fdb3bd766e08cdeaee08927540ead3faebe569589ad89dae0fbba75",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "tokenizer_sha256": "5124ef2ead1a10a717703bc436de7f353da76d6340e4587719b42b1693707964",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "scorer": "engram-nli-scorer/1",
+  "pair": "44dd57f5d31416b581337c2b434e605416d1255063cf395dde69c6031c7939bf",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "The user said: \"I got her a pair of silver hoop earrings with a small pearl in the center.\"",
+    "hypothesis": "The user said: \"I got her some groceries and flowers when she was recovering from surgery.\""
+  },
+  "response": {
+    "contradiction": 0.999779473097821,
+    "entailment": 0.000009805507670003893,
+    "neutral": 0.0002107213945090212,
+    "logits": [
+      6.664567947387695,
+      -4.8677778244018555,
+      -1.800185203552246
+    ]
+  }
+}

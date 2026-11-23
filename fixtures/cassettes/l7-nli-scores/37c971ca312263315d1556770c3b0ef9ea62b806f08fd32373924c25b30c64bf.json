@@ -1,0 +1,24 @@
+{
+  "key": "37c971ca312263315d1556770c3b0ef9ea62b806f08fd32373924c25b30c64bf",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "tokenizer_sha256": "5124ef2ead1a10a717703bc436de7f353da76d6340e4587719b42b1693707964",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "scorer": "engram-nli-scorer/1",
+  "pair": "27dda1ed1659306a7d6f48babd18c690e9f898426773f35e217e1f425a00fa92",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "As it stands, my cat's name is Juniper.",
+    "hypothesis": "My chess club night is Wednesday."
+  },
+  "response": {
+    "contradiction": 0.9997963683847699,
+    "entailment": 0.00001368132670468503,
+    "neutral": 0.00018995028852534238,
+    "logits": [
+      6.577023029327393,
+      -4.622251987457275,
+      -1.9915214776992798
+    ]
+  }
+}

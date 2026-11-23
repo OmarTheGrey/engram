@@ -19,6 +19,7 @@ import {
   visit,
 } from "yaml";
 import type { z } from "zod";
+import { NLI_LINT_ID, nliThresholdProblems } from "../lint/nli.ts";
 import { LIFECYCLE_TRIGGERS, LINT_IDS, LINT_THRESHOLD_KEYS } from "../lint.ts";
 import { Policy, ScopeLevel } from "../schema.ts";
 
@@ -258,6 +259,10 @@ function semanticProblems(policy: Policy): Located[] {
       key: "near-duplicate",
       message: `near-duplicate is ${similarity}; the near-duplicate-tier lint needs a similarity in (0, 1]`,
     });
+  // Card L7: the NLI tier needs both its thresholds, in order.
+  if (policy.lints.enabled.includes(NLI_LINT_ID))
+    for (const message of nliThresholdProblems(policy.lints.thresholds))
+      out.push({ path: ["lints", "thresholds"], message });
   for (const [block, options] of Object.entries(NOT_ENFORCED_YET)) {
     const set: Record<string, unknown> | undefined = policy[block as keyof typeof NOT_ENFORCED_YET];
     for (const [option, card] of Object.entries(options)) {

@@ -1,0 +1,24 @@
+{
+  "key": "93d7344580322c8ea6f422e7aea90f5fc2a916021e7430f9fc31f4ddc8a9e570",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "tokenizer_sha256": "5124ef2ead1a10a717703bc436de7f353da76d6340e4587719b42b1693707964",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "scorer": "engram-nli-scorer/1",
+  "pair": "7cb0cf8ac719dc902556b16b125422c625be9425da2d9f4b6aae0f91ceda2237",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "According to the user, their streaming service is ViewPort.",
+    "hypothesis": "To be clear, my chess club night is Wednesday."
+  },
+  "response": {
+    "contradiction": 0.9960665678227362,
+    "entailment": 0.000019149112278294114,
+    "neutral": 0.003914283064985544,
+    "logits": [
+      5.462845802307129,
+      -5.396467208862305,
+      -0.0763361006975174
+    ]
+  }
+}

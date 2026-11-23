@@ -1,0 +1,24 @@
+{
+  "key": "3249a3e6a6cbe626540b5799421cc0bb20c0260b6bcfe896521c5b95d8793a65",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "tokenizer_sha256": "5124ef2ead1a10a717703bc436de7f353da76d6340e4587719b42b1693707964",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "scorer": "engram-nli-scorer/1",
+  "pair": "79c9497f28747cbdeb3055c898e9ecde748cd47ab8ca81c434b01644fc3a5cea",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "My dry cleaner is Pressed Perfect at the moment.",
+    "hypothesis": "Just so you know, my Spanish tutor is Mateo."
+  },
+  "response": {
+    "contradiction": 0.9742079473512124,
+    "entailment": 0.00008443868115238507,
+    "neutral": 0.025707613967635264,
+    "logits": [
+      4.37358283996582,
+      -4.979771614074707,
+      0.7387452721595764
+    ]
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "key": "8b7c638db127d11982e1db35fb831dfc7e4cb7b8166a279804bafdd1bfa740d4",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "tokenizer_sha256": "5124ef2ead1a10a717703bc436de7f353da76d6340e4587719b42b1693707964",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "scorer": "engram-nli-scorer/1",
+  "pair": "e4857136051c49669bd317fdc85661212c50f9769ebcc42df76b11620ecbd58e",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "My dentist is Dr. Okafor at the moment.",
+    "hypothesis": "For the record, my favourite wine is a Chenin Blanc."
+  },
+  "response": {
+    "contradiction": 0.0028275834645131548,
+    "entailment": 0.00007986710840037793,
+    "neutral": 0.9970925494270865,
+    "logits": [
+      -0.48568376898765564,
+      -4.052497386932373,
+      5.379737377166748
+    ]
+  }
+}

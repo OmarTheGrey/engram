@@ -24,6 +24,7 @@ export * from "./items.ts";
 export * from "./lint/det.ts";
 export * from "./lint/intervals.ts";
 export * from "./lint/model.ts";
+export * from "./lint/nli.ts";
 export * from "./lint/supersession.ts";
 export * from "./lint.ts";
 export * from "./log/chain.ts";

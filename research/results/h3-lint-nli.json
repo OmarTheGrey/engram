@@ -1,0 +1,3465 @@
+{
+  "arm": "P3",
+  "decides": false,
+  "forward_only_flags": {
+    "contradiction_fault_items": 4,
+    "contradiction_near_miss_items": 4,
+    "cut": 0.9,
+    "items": 28,
+    "other_label_items": 14,
+    "pairs": 81,
+    "unlabelled": [
+      {
+        "item_id": "01960000-0000-7000-8000-000000000035",
+        "pairs": 3,
+        "question_id": "3d86fd0a"
+      },
+      {
+        "item_id": "01960000-0000-7000-8000-000000000055",
+        "pairs": 2,
+        "question_id": "3d86fd0a"
+      },
+      {
+        "item_id": "01960000-0000-7000-8000-000000000070",
+        "pairs": 5,
+        "question_id": "3d86fd0a"
+      },
+      {
+        "item_id": "01960000-0000-7000-8000-000000000013",
+        "pairs": 1,
+        "question_id": "66f24dbb"
+      },
+      {
+        "item_id": "01960000-0000-7000-8000-000000000036",
+        "pairs": 3,
+        "question_id": "66f24dbb"
+      },
+      {
+        "item_id": "01960000-0000-7000-8000-000000000038",
+        "pairs": 1,
+        "question_id": "66f24dbb"
+      }
+    ]
+  },
+  "hypothesis": "H3",
+  "label_bands": {
+    "by_subtype": {
+      "conflict": {
+        "fault": {
+          "drop": 0,
+          "flag": 0,
+          "model": 2,
+          "not_scored": 0
+        },
+        "near-miss": {
+          "drop": 2,
+          "flag": 0,
+          "model": 0,
+          "not_scored": 0
+        }
+      },
+      "superseded": {
+        "fault": {
+          "drop": 0,
+          "flag": 0,
+          "model": 2,
+          "not_scored": 0
+        },
+        "near-miss": {
+          "drop": 2,
+          "flag": 0,
+          "model": 0,
+          "not_scored": 0
+        }
+      }
+    },
+    "labels": [
+      {
+        "band": "model",
+        "contradiction": 0.999128,
+        "item_id": "01960000-0000-7000-8000-000000000070",
+        "kind": "fault",
+        "question_id": "3d86fd0a",
+        "subtype": "superseded"
+      },
+      {
+        "band": "drop",
+        "contradiction": 0.014772,
+        "item_id": "01960000-0000-7000-8000-000000000003",
+        "kind": "near-miss",
+        "question_id": "3d86fd0a",
+        "subtype": "superseded"
+      },
+      {
+        "band": "model",
+        "contradiction": 0.999308,
+        "item_id": "01960000-0000-7000-8000-000000000057",
+        "kind": "fault",
+        "question_id": "3d86fd0a",
+        "subtype": "conflict"
+      },
+      {
+        "band": "drop",
+        "contradiction": 5.6e-05,
+        "item_id": "01960000-0000-7000-8000-000000000037",
+        "kind": "near-miss",
+        "question_id": "3d86fd0a",
+        "subtype": "conflict"
+      },
+      {
+        "band": "model",
+        "contradiction": 0.993204,
+        "item_id": "01960000-0000-7000-8000-000000000005",
+        "kind": "fault",
+        "question_id": "66f24dbb",
+        "subtype": "superseded"
+      },
+      {
+        "band": "drop",
+        "contradiction": 0.000438,
+        "item_id": "01960000-0000-7000-8000-000000000036",
+        "kind": "near-miss",
+        "question_id": "66f24dbb",
+        "subtype": "superseded"
+      },
+      {
+        "band": "model",
+        "contradiction": 0.998807,
+        "item_id": "01960000-0000-7000-8000-000000000015",
+        "kind": "fault",
+        "question_id": "66f24dbb",
+        "subtype": "conflict"
+      },
+      {
+        "band": "drop",
+        "contradiction": 0.000134,
+        "item_id": "01960000-0000-7000-8000-000000000040",
+        "kind": "near-miss",
+        "question_id": "66f24dbb",
+        "subtype": "conflict"
+      }
+    ]
+  },
+  "limits": "the model tier and the tiered lint run on card L4's scripted model, whose planted answers make their recall and precision pipeline checks; the band counts, the calls saved, every label's band and the tier alone's figures come from the pinned NLI model's scores; two LongMemEval questions, English only",
+  "matching": "as card L4's scorer: a label is flagged when the contradiction lint lands on its finding_on; the tier's own flags (lint contradiction-nli) are scored as the contradiction lint's; tiered is the tier's flags with the band's model findings; nli_alone is the tier's flags only",
+  "model": "scripted/lint-l4",
+  "model_tier_config": "research/configs/h3-lint-model-fixture.json",
+  "name": "h3-lint-nli",
+  "nli_model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "per_seed": {
+    "1": {
+      "bands": {
+        "drop": 18,
+        "flag": 0,
+        "model": 95
+      },
+      "calls": {
+        "model_tier_contradiction": 113,
+        "saved": 18,
+        "saved_share": 0.159292,
+        "tiered_contradiction": 95,
+        "unsupported_claim_both": 12
+      },
+      "model_tier": {
+        "by_class": {
+          "contradictory": {
+            "all": {
+              "faults": 2,
+              "fp": 0,
+              "near_misses": 2,
+              "precision": {
+                "ci": [
+                  0.34238,
+                  1.0
+                ],
+                "value": 1.0
+              },
+              "recall": {
+                "ci": [
+                  0.34238,
+                  1.0
+                ],
+                "value": 1.0
+              },
+              "tp": 2
+            },
+            "keyed": {
+              "faults": 0,
+              "fp": 0,
+              "near_misses": 0,
+              "precision": {
+                "ci": null,
+                "value": null
+              },
+              "recall": {
+                "ci": null,
+                "value": null
+              },
+              "tp": 0
+            },
+            "unkeyed": {
+              "faults": 2,
+              "fp": 0,
+              "near_misses": 2,
+              "precision": {
+                "ci": [
+                  0.34238,
+                  1.0
+                ],
+                "value": 1.0
+              },
+              "recall": {
+                "ci": [
+                  0.34238,
+                  1.0
+                ],
+                "value": 1.0
+              },
+              "tp": 2
+            }
+          },
+          "misplaced": {
+            "all": {
+              "faults": 4,
+              "fp": 0,
+              "near_misses": 4,
+              "precision": {
+                "ci": null,
+                "value": null
+              },
+              "recall": {
+                "ci": [
+                  0.0,
+                  0.489891
+                ],
+                "value": 0.0
+              },
+              "tp": 0
+            },
+            "keyed": {
+              "faults": 2,
+              "fp": 0,
+              "near_misses": 2,
+              "precision": {
+                "ci": null,
+                "value": null
+              },
+              "recall": {
+                "ci": [
+                  0.0,
+                  0.65762
+                ],
+                "value": 0.0
+              },
+              "tp": 0
+            },
+            "unkeyed": {
+              "faults": 2,
+              "fp": 0,
+              "near_misses": 2,
+              "precision": {
+                "ci": null,
+                "value": null
+              },
+              "recall": {
+                "ci": [
+                  0.0,
+                  0.65762
+                ],
+                "value": 0.0
+              },
+              "tp": 0
+            }
+          },
+          "stale": {
+            "all": {
+              "faults": 6,
+              "fp": 0,
+              "near_misses": 6,
+              "precision": {
+                "ci": null,
+                "value": null
+              },
+              "recall": {
+                "ci": [
+                  0.0,
+                  0.390334
+                ],
+                "value": 0.0
+              },
+              "tp": 0
+            },
+            "keyed": {
+              "faults": 4,
+              "fp": 0,
+              "near_misses": 4,
+              "precision": {
+                "ci": null,
+                "value": null
+              },
+              "recall": {
+                "ci": [
+                  0.0,
+                  0.489891
+                ],
+                "value": 0.0
+              },
+              "tp": 0
+            },
+            "unkeyed": {
+              "faults": 2,
+              "fp": 0,
+              "near_misses": 2,
+              "precision": {
+                "ci": null,
+                "value": null
+              },
+              "recall": {
+                "ci": [
+                  0.0,
+                  0.65762
+                ],
+                "value": 0.0
+              },
+              "tp": 0
+            }
+          },
+          "unsupported": {
+            "all": {
+              "faults": 6,
+              "fp": 0,
+              "near_misses": 6,
+              "precision": {
+                "ci": [
+                  0.34238,
+                  1.0
+                ],
+                "value": 1.0
+              },
+              "recall": {
+                "ci": [
+                  0.096771,
+                  0.700007
+                ],
+                "value": 0.333333
+              },
+              "tp": 2
+            },
+            "keyed": {
+              "faults": 4,
+              "fp": 0,
+              "near_misses": 4,
+              "precision": {
+                "ci": null,
+                "value": null
+              },
+              "recall": {
+                "ci": [
+                  0.0,
+                  0.489891
+                ],
+                "value": 0.0
+              },
+              "tp": 0
+            },
+            "unkeyed": {
+              "faults": 2,
+              "fp": 0,
+              "near_misses": 2,
+              "precision": {
+                "ci": [
+                  0.34238,
+                  1.0
+                ],
+                "value": 1.0
+              },
+              "recall": {
+                "ci": [
+                  0.34238,
+                  1.0
+                ],
+                "value": 1.0
+              },
+              "tp": 2
+            }
+          }
+        },
+        "by_subtype": {
+          "conflict": {
+            "class": "contradictory",
+            "faults": 2,
+            "fp": 0,
+            "keyed": false,
+            "near_misses": 2,
+            "precision": {
+              "ci": [
+                0.34238,
+                1.0
+              ],
+              "value": 1.0
+            },
+            "recall": {
+              "ci": [
+                0.34238,
+                1.0
+              ],
+              "value": 1.0
+            },
+            "tp": 2
+          },
+          "expired-validity": {
+            "class": "stale",
+            "faults": 2,
+            "fp": 0,
+            "keyed": true,
+            "near_misses": 2,
+            "precision": {
+              "ci": null,
+              "value": null
+            },
+            "recall": {
+              "ci": [
+                0.0,
+                0.65762
+              ],
+              "value": 0.0
+            },
+            "tp": 0,
+            "variants": {
+              "ttl": {
+                "faults": 2,
+                "fp": 0,
+                "near_misses": 2,
+                "precision": {
+                  "ci": null,
+                  "value": null
+                },
+                "recall": {
+                  "ci": [
+                    0.0,
+                    0.65762
+                  ],
+                  "value": 0.0
+                },
+                "tp": 0
+              }
+            }
+          },
+          "forbidden-class": {
+            "class": "misplaced",
+            "faults": 2,
+            "fp": 0,
+            "keyed": true,
+            "near_misses": 2,
+            "precision": {
+              "ci": null,
+              "value": null
+            },
+            "recall": {
+              "ci": [
+                0.0,
+                0.65762
+              ],
+              "value": 0.0
+            },
+            "tp": 0
+          },
+          "missing-provenance": {
+            "class": "unsupported",
+            "faults": 2,
+            "fp": 0,
+            "keyed": true,
+            "near_misses": 2,
+            "precision": {
+              "ci": null,
+              "value": null
+            },
+            "recall": {
+              "ci": [
+                0.0,
+                0.65762
+              ],
+              "value": 0.0
+            },
+            "tp": 0
+          },
+          "orphan": {
+            "class": "unsupported",
+            "faults": 2,
+            "fp": 0,
+            "keyed": true,
+            "near_misses": 2,
+            "precision": {
+              "ci": null,
+              "value": null
+            },
+            "recall": {
+              "ci": [
+                0.0,
+                0.65762
+              ],
+              "value": 0.0
+            },
+            "tp": 0
+          },
+          "source-changed": {
+            "class": "stale",
+            "faults": 2,
+            "fp": 0,
+            "keyed": true,
+            "near_misses": 2,
+            "precision": {
+              "ci": null,
+              "value": null
+            },
+            "recall": {
+              "ci": [
+                0.0,
+                0.65762
+              ],
+              "value": 0.0
+            },
+            "tp": 0
+          },
+          "superseded": {
+            "class": "stale",
+            "faults": 2,
+            "fp": 0,
+            "keyed": false,
+            "near_misses": 2,
+            "precision": {
+              "ci": null,
+              "value": null
+            },
+            "recall": {
+              "ci": [
+                0.0,
+                0.65762
+              ],
+              "value": 0.0
+            },
+            "tp": 0
+          },
+          "unsupported-claim": {
+            "class": "unsupported",
+            "faults": 2,
+            "fp": 0,
+            "keyed": false,
+            "near_misses": 2,
+            "precision": {
+              "ci": [
+                0.34238,
+                1.0
+              ],
+              "value": 1.0
+            },
+            "recall": {
+              "ci": [
+                0.34238,
+                1.0
+              ],
+              "value": 1.0
+            },
+            "tp": 2,
+            "variants": {
+              "other-attribute": {
+                "faults": 1,
+                "fp": 0,
+                "near_misses": 1,
+                "precision": {
+                  "ci": [
+                    0.206549,
+                    1.0
+                  ],
+                  "value": 1.0
+                },
+                "recall": {
+                  "ci": [
+                    0.206549,
+                    1.0
+                  ],
+                  "value": 1.0
+                },
+                "tp": 1
+              },
+              "qualifier-added": {
+                "faults": 1,
+                "fp": 0,
+                "near_misses": 1,
+                "precision": {
+                  "ci": [
+                    0.206549,
+                    1.0
+                  ],
+                  "value": 1.0
+                },
+                "recall": {
+                  "ci": [
+                    0.206549,
+                    1.0
+                  ],
+                  "value": 1.0
+                },
+                "tp": 1
+              }
+            }
+          },
+          "wrong-scope": {
+            "class": "misplaced",
+            "faults": 2,
+            "fp": 0,
+            "keyed": false,
+            "near_misses": 2,
+            "precision": {
+              "ci": null,
+              "value": null
+            },
+            "recall": {
+              "ci": [
+                0.0,
+                0.65762
+              ],
+              "value": 0.0
+            },
+            "tp": 0
+          }
+        },
+        "overall": {
+          "all": {
+            "faults": 18,
+            "fp": 0,
+            "near_misses": 18,
+            "precision": {
+              "ci": [
+                0.510109,
+                1.0
+              ],
+              "value": 1.0
+            },
+            "recall": {
+              "ci": [
+                0.090009,
+                0.452146
+              ],
+              "value": 0.222222
+            },
+            "tp": 4
+          },
+          "keyed": {
+            "faults": 10,
+            "fp": 0,
+            "near_misses": 10,
+            "precision": {
+              "ci": null,
+              "value": null
+            },
+            "recall": {
+              "ci": [
+                0.0,
+                0.277533
+              ],
+              "value": 0.0
+            },
+            "tp": 0
+          },
+          "unkeyed": {
+            "faults": 8,
+            "fp": 0,
+            "near_misses": 8,
+            "precision": {
+              "ci": [
+                0.510109,
+                1.0
+              ],
+              "value": 1.0
+            },
+            "recall": {
+              "ci": [
+                0.215216,
+                0.784784
+              ],
+              "value": 0.5
+            },
+            "tp": 4
+          }
+        },
+        "unverified": {
+          "base": 0,
+          "injected": 1,
+          "other_lint": 0
+        }
+      },
+      "nli_alone": {
+        "by_class": {
+          "contradictory": {
+            "all": {
+              "faults": 2,
+              "fp": 0,
+              "near_misses": 2,
+              "precision": {
+                "ci": null,
+                "value": null
+              },
+              "recall": {
+                "ci": [
+                  0.0,
+                  0.65762
+                ],
+                "value": 0.0
+              },
+              "tp": 0
+            },
+            "keyed": {
+              "faults": 0,
+              "fp": 0,
+              "near_misses": 0,
+              "precision": {
+                "ci": null,
+                "value": null
+              },
+              "recall": {
+                "ci": null,
+                "value": null
+              },
+              "tp": 0
+            },
+            "unkeyed": {
+              "faults": 2,
+              "fp": 0,
+              "near_misses": 2,
+              "precision": {
+                "ci": null,
+                "value": null
+              },
+              "recall": {
+                "ci": [
+                  0.0,
+                  0.65762
+                ],
+                "value": 0.0
+              },
+              "tp": 0
+            }
+          },
+          "misplaced": {
+            "all": {
+              "faults": 4,
+              "fp": 0,
+              "near_misses": 4,
+              "precision": {
+                "ci": null,
+                "value": null
+              },
+              "recall": {
+                "ci": [
+                  0.0,
+                  0.489891
+                ],
+                "value": 0.0
+              },
+              "tp": 0
+            },
+            "keyed": {
+              "faults": 2,
+              "fp": 0,
+              "near_misses": 2,
+              "precision": {
+                "ci": null,
+                "value": null
+              },
+              "recall": {
+                "ci": [
+                  0.0,
+                  0.65762
+                ],
+                "value": 0.0
+              },
+              "tp": 0
+            },
+            "unkeyed": {
+              "faults": 2,
+              "fp": 0,
+              "near_misses": 2,
+              "precision": {
+                "ci": null,
+                "value": null
+              },
+              "recall": {
+                "ci": [
+                  0.0,
+                  0.65762
+                ],
+                "value": 0.0
+              },
+              "tp": 0
+            }
+          },
+          "stale": {
+            "all": {
+              "faults": 6,
+              "fp": 0,
+              "near_misses": 6,
+              "precision": {
+                "ci": null,
+                "value": null
+              },
+              "recall": {
+                "ci": [
+                  0.0,
+                  0.390334
+                ],
+                "value": 0.0
+              },
+              "tp": 0
+            },
+            "keyed": {
+              "faults": 4,
+              "fp": 0,
+              "near_misses": 4,
+              "precision": {
+                "ci": null,
+                "value": null
+              },
+              "recall": {
+                "ci": [
+                  0.0,
+                  0.489891
+                ],
+                "value": 0.0
+              },
+              "tp": 0
+            },
+            "unkeyed": {
+              "faults": 2,
+              "fp": 0,
+              "near_misses": 2,
+              "precision": {
+                "ci": null,
+                "value": null
+              },
+              "recall": {
+                "ci": [
+                  0.0,
+                  0.65762
+                ],
+                "value": 0.0
+              },
+              "tp": 0
+            }
+          },
+          "unsupported": {
+            "all": {
+              "faults": 6,
+              "fp": 0,
+              "near_misses": 6,
+              "precision": {
+                "ci": null,
+                "value": null
+              },
+              "recall": {
+                "ci": [
+                  0.0,
+                  0.390334
+                ],
+                "value": 0.0
+              },
+              "tp": 0
+            },
+            "keyed": {
+              "faults": 4,
+              "fp": 0,
+              "near_misses": 4,
+              "precision": {
+                "ci": null,
+                "value": null
+              },
+              "recall": {
+                "ci": [
+                  0.0,
+                  0.489891
+                ],
+                "value": 0.0
+              },
+              "tp": 0
+            },
+            "unkeyed": {
+              "faults": 2,
+              "fp": 0,
+              "near_misses": 2,
+              "precision": {
+                "ci": null,
+                "value": null
+              },
+              "recall": {
+                "ci": [
+                  0.0,
+                  0.65762
+                ],
+                "value": 0.0
+              },
+              "tp": 0
+            }
+          }
+        },
+        "by_subtype": {
+          "conflict": {
+            "class": "contradictory",
+            "faults": 2,
+            "fp": 0,
+            "keyed": false,
+            "near_misses": 2,
+            "precision": {
+              "ci": null,
+              "value": null
+            },
+            "recall": {
+              "ci": [
+                0.0,
+                0.65762
+              ],
+              "value": 0.0
+            },
+            "tp": 0
+          },
+          "expired-validity": {
+            "class": "stale",
+            "faults": 2,
+            "fp": 0,
+            "keyed": true,
+            "near_misses": 2,
+            "precision": {
+              "ci": null,
+              "value": null
+            },
+            "recall": {
+              "ci": [
+                0.0,
+                0.65762
+              ],
+              "value": 0.0
+            },
+            "tp": 0,
+            "variants": {
+              "ttl": {
+                "faults": 2,
+                "fp": 0,
+                "near_misses": 2,
+                "precision": {
+                  "ci": null,
+                  "value": null
+                },
+                "recall": {
+                  "ci": [
+                    0.0,
+                    0.65762
+                  ],
+                  "value": 0.0
+                },
+                "tp": 0
+              }
+            }
+          },
+          "forbidden-class": {
+            "class": "misplaced",
+            "faults": 2,
+            "fp": 0,
+            "keyed": true,
+            "near_misses": 2,
+            "precision": {
+              "ci": null,
+              "value": null
+            },
+            "recall": {
+              "ci": [
+                0.0,
+                0.65762
+              ],
+              "value": 0.0
+            },
+            "tp": 0
+          },
+          "missing-provenance": {
+            "class": "unsupported",
+            "faults": 2,
+            "fp": 0,
+            "keyed": true,
+            "near_misses": 2,
+            "precision": {
+              "ci": null,
+              "value": null
+            },
+            "recall": {
+              "ci": [
+                0.0,
+                0.65762
+              ],
+              "value": 0.0
+            },
+            "tp": 0
+          },
+          "orphan": {
+            "class": "unsupported",
+            "faults": 2,
+            "fp": 0,
+            "keyed": true,
+            "near_misses": 2,
+            "precision": {
+              "ci": null,
+              "value": null
+            },
+            "recall": {
+              "ci": [
+                0.0,
+                0.65762
+              ],
+              "value": 0.0
+            },
+            "tp": 0
+          },
+          "source-changed": {
+            "class": "stale",
+            "faults": 2,
+            "fp": 0,
+            "keyed": true,
+            "near_misses": 2,
+            "precision": {
+              "ci": null,
+              "value": null
+            },
+            "recall": {
+              "ci": [
+                0.0,
+                0.65762
+              ],
+              "value": 0.0
+            },
+            "tp": 0
+          },
+          "superseded": {
+            "class": "stale",
+            "faults": 2,
+            "fp": 0,
+            "keyed": false,
+            "near_misses": 2,
+            "precision": {
+              "ci": null,
+              "value": null
+            },
+            "recall": {
+              "ci": [
+                0.0,
+                0.65762
+              ],
+              "value": 0.0
+            },
+            "tp": 0
+          },
+          "unsupported-claim": {
+            "class": "unsupported",
+            "faults": 2,
+            "fp": 0,
+            "keyed": false,
+            "near_misses": 2,
+            "precision": {
+              "ci": null,
+              "value": null
+            },
+            "recall": {
+              "ci": [
+                0.0,
+                0.65762
+              ],
+              "value": 0.0
+            },
+            "tp": 0,
+            "variants": {
+              "other-attribute": {
+                "faults": 1,
+                "fp": 0,
+                "near_misses": 1,
+                "precision": {
+                  "ci": null,
+                  "value": null
+                },
+                "recall": {
+                  "ci": [
+                    0.0,
+                    0.793451
+                  ],
+                  "value": 0.0
+                },
+                "tp": 0
+              },
+              "qualifier-added": {
+                "faults": 1,
+                "fp": 0,
+                "near_misses": 1,
+                "precision": {
+                  "ci": null,
+                  "value": null
+                },
+                "recall": {
+                  "ci": [
+                    0.0,
+                    0.793451
+                  ],
+                  "value": 0.0
+                },
+                "tp": 0
+              }
+            }
+          },
+          "wrong-scope": {
+            "class": "misplaced",
+            "faults": 2,
+            "fp": 0,
+            "keyed": false,
+            "near_misses": 2,
+            "precision": {
+              "ci": null,
+              "value": null
+            },
+            "recall": {
+              "ci": [
+                0.0,
+                0.65762
+              ],
+              "value": 0.0
+            },
+            "tp": 0
+          }
+        },
+        "overall": {
+          "all": {
+            "faults": 18,
+            "fp": 0,
+            "near_misses": 18,
+            "precision": {
+              "ci": null,
+              "value": null
+            },
+            "recall": {
+              "ci": [
+                0.0,
+                0.175879
+              ],
+              "value": 0.0
+            },
+            "tp": 0
+          },
+          "keyed": {
+            "faults": 10,
+            "fp": 0,
+            "near_misses": 10,
+            "precision": {
+              "ci": null,
+              "value": null
+            },
+            "recall": {
+              "ci": [
+                0.0,
+                0.277533
+              ],
+              "value": 0.0
+            },
+            "tp": 0
+          },
+          "unkeyed": {
+            "faults": 8,
+            "fp": 0,
+            "near_misses": 8,
+            "precision": {
+              "ci": null,
+              "value": null
+            },
+            "recall": {
+              "ci": [
+                0.0,
+                0.324408
+              ],
+              "value": 0.0
+            },
+            "tp": 0
+          }
+        },
+        "unverified": {
+          "base": 0,
+          "injected": 0,
+          "other_lint": 0
+        }
+      },
+      "tiered": {
+        "by_class": {
+          "contradictory": {
+            "all": {
+              "faults": 2,
+              "fp": 0,
+              "near_misses": 2,
+              "precision": {
+                "ci": [
+                  0.34238,
+                  1.0
+                ],
+                "value": 1.0
+              },
+              "recall": {
+                "ci": [
+                  0.34238,
+                  1.0
+                ],
+                "value": 1.0
+              },
+              "tp": 2
+            },
+            "keyed": {
+              "faults": 0,
+              "fp": 0,
+              "near_misses": 0,
+              "precision": {
+                "ci": null,
+                "value": null
+              },
+              "recall": {
+                "ci": null,
+                "value": null
+              },
+              "tp": 0
+            },
+            "unkeyed": {
+              "faults": 2,
+              "fp": 0,
+              "near_misses": 2,
+              "precision": {
+                "ci": [
+                  0.34238,
+                  1.0
+                ],
+                "value": 1.0
+              },
+              "recall": {
+                "ci": [
+                  0.34238,
+                  1.0
+                ],
+                "value": 1.0
+              },
+              "tp": 2
+            }
+          },
+          "misplaced": {
+            "all": {
+              "faults": 4,
+              "fp": 0,
+              "near_misses": 4,
+              "precision": {
+                "ci": null,
+                "value": null
+              },
+              "recall": {
+                "ci": [
+                  0.0,
+                  0.489891
+                ],
+                "value": 0.0
+              },
+              "tp": 0
+            },
+            "keyed": {
+              "faults": 2,
+              "fp": 0,
+              "near_misses": 2,
+              "precision": {
+                "ci": null,
+                "value": null
+              },
+              "recall": {
+                "ci": [
+                  0.0,
+                  0.65762
+                ],
+                "value": 0.0
+              },
+              "tp": 0
+            },
+            "unkeyed": {
+              "faults": 2,
+              "fp": 0,
+              "near_misses": 2,
+              "precision": {
+                "ci": null,
+                "value": null
+              },
+              "recall": {
+                "ci": [
+                  0.0,
+                  0.65762
+                ],
+                "value": 0.0
+              },
+              "tp": 0
+            }
+          },
+          "stale": {
+            "all": {
+              "faults": 6,
+              "fp": 0,
+              "near_misses": 6,
+              "precision": {
+                "ci": null,
+                "value": null
+              },
+              "recall": {
+                "ci": [
+                  0.0,
+                  0.390334
+                ],
+                "value": 0.0
+              },
+              "tp": 0
+            },
+            "keyed": {
+              "faults": 4,
+              "fp": 0,
+              "near_misses": 4,
+              "precision": {
+                "ci": null,
+                "value": null
+              },
+              "recall": {
+                "ci": [
+                  0.0,
+                  0.489891
+                ],
+                "value": 0.0
+              },
+              "tp": 0
+            },
+            "unkeyed": {
+              "faults": 2,
+              "fp": 0,
+              "near_misses": 2,
+              "precision": {
+                "ci": null,
+                "value": null
+              },
+              "recall": {
+                "ci": [
+                  0.0,
+                  0.65762
+                ],
+                "value": 0.0
+              },
+              "tp": 0
+            }
+          },
+          "unsupported": {
+            "all": {
+              "faults": 6,
+              "fp": 0,
+              "near_misses": 6,
+              "precision": {
+                "ci": [
+                  0.34238,
+                  1.0
+                ],
+                "value": 1.0
+              },
+              "recall": {
+                "ci": [
+                  0.096771,
+                  0.700007
+                ],
+                "value": 0.333333
+              },
+              "tp": 2
+            },
+            "keyed": {
+              "faults": 4,
+              "fp": 0,
+              "near_misses": 4,
+              "precision": {
+                "ci": null,
+                "value": null
+              },
+              "recall": {
+                "ci": [
+                  0.0,
+                  0.489891
+                ],
+                "value": 0.0
+              },
+              "tp": 0
+            },
+            "unkeyed": {
+              "faults": 2,
+              "fp": 0,
+              "near_misses": 2,
+              "precision": {
+                "ci": [
+                  0.34238,
+                  1.0
+                ],
+                "value": 1.0
+              },
+              "recall": {
+                "ci": [
+                  0.34238,
+                  1.0
+                ],
+                "value": 1.0
+              },
+              "tp": 2
+            }
+          }
+        },
+        "by_subtype": {
+          "conflict": {
+            "class": "contradictory",
+            "faults": 2,
+            "fp": 0,
+            "keyed": false,
+            "near_misses": 2,
+            "precision": {
+              "ci": [
+                0.34238,
+                1.0
+              ],
+              "value": 1.0
+            },
+            "recall": {
+              "ci": [
+                0.34238,
+                1.0
+              ],
+              "value": 1.0
+            },
+            "tp": 2
+          },
+          "expired-validity": {
+            "class": "stale",
+            "faults": 2,
+            "fp": 0,
+            "keyed": true,
+            "near_misses": 2,
+            "precision": {
+              "ci": null,
+              "value": null
+            },
+            "recall": {
+              "ci": [
+                0.0,
+                0.65762
+              ],
+              "value": 0.0
+            },
+            "tp": 0,
+            "variants": {
+              "ttl": {
+                "faults": 2,
+                "fp": 0,
+                "near_misses": 2,
+                "precision": {
+                  "ci": null,
+                  "value": null
+                },
+                "recall": {
+                  "ci": [
+                    0.0,
+                    0.65762
+                  ],
+                  "value": 0.0
+                },
+                "tp": 0
+              }
+            }
+          },
+          "forbidden-class": {
+            "class": "misplaced",
+            "faults": 2,
+            "fp": 0,
+            "keyed": true,
+            "near_misses": 2,
+            "precision": {
+              "ci": null,
+              "value": null
+            },
+            "recall": {
+              "ci": [
+                0.0,
+                0.65762
+              ],
+              "value": 0.0
+            },
+            "tp": 0
+          },
+          "missing-provenance": {
+            "class": "unsupported",
+            "faults": 2,
+            "fp": 0,
+            "keyed": true,
+            "near_misses": 2,
+            "precision": {
+              "ci": null,
+              "value": null
+            },
+            "recall": {
+              "ci": [
+                0.0,
+                0.65762
+              ],
+              "value": 0.0
+            },
+            "tp": 0
+          },
+          "orphan": {
+            "class": "unsupported",
+            "faults": 2,
+            "fp": 0,
+            "keyed": true,
+            "near_misses": 2,
+            "precision": {
+              "ci": null,
+              "value": null
+            },
+            "recall": {
+              "ci": [
+                0.0,
+                0.65762
+              ],
+              "value": 0.0
+            },
+            "tp": 0
+          },
+          "source-changed": {
+            "class": "stale",
+            "faults": 2,
+            "fp": 0,
+            "keyed": true,
+            "near_misses": 2,
+            "precision": {
+              "ci": null,
+              "value": null
+            },
+            "recall": {
+              "ci": [
+                0.0,
+                0.65762
+              ],
+              "value": 0.0
+            },
+            "tp": 0
+          },
+          "superseded": {
+            "class": "stale",
+            "faults": 2,
+            "fp": 0,
+            "keyed": false,
+            "near_misses": 2,
+            "precision": {
+              "ci": null,
+              "value": null
+            },
+            "recall": {
+              "ci": [
+                0.0,
+                0.65762
+              ],
+              "value": 0.0
+            },
+            "tp": 0
+          },
+          "unsupported-claim": {
+            "class": "unsupported",
+            "faults": 2,
+            "fp": 0,
+            "keyed": false,
+            "near_misses": 2,
+            "precision": {
+              "ci": [
+                0.34238,
+                1.0
+              ],
+              "value": 1.0
+            },
+            "recall": {
+              "ci": [
+                0.34238,
+                1.0
+              ],
+              "value": 1.0
+            },
+            "tp": 2,
+            "variants": {
+              "other-attribute": {
+                "faults": 1,
+                "fp": 0,
+                "near_misses": 1,
+                "precision": {
+                  "ci": [
+                    0.206549,
+                    1.0
+                  ],
+                  "value": 1.0
+                },
+                "recall": {
+                  "ci": [
+                    0.206549,
+                    1.0
+                  ],
+                  "value": 1.0
+                },
+                "tp": 1
+              },
+              "qualifier-added": {
+                "faults": 1,
+                "fp": 0,
+                "near_misses": 1,
+                "precision": {
+                  "ci": [
+                    0.206549,
+                    1.0
+                  ],
+                  "value": 1.0
+                },
+                "recall": {
+                  "ci": [
+                    0.206549,
+                    1.0
+                  ],
+                  "value": 1.0
+                },
+                "tp": 1
+              }
+            }
+          },
+          "wrong-scope": {
+            "class": "misplaced",
+            "faults": 2,
+            "fp": 0,
+            "keyed": false,
+            "near_misses": 2,
+            "precision": {
+              "ci": null,
+              "value": null
+            },
+            "recall": {
+              "ci": [
+                0.0,
+                0.65762
+              ],
+              "value": 0.0
+            },
+            "tp": 0
+          }
+        },
+        "overall": {
+          "all": {
+            "faults": 18,
+            "fp": 0,
+            "near_misses": 18,
+            "precision": {
+              "ci": [
+                0.510109,
+                1.0
+              ],
+              "value": 1.0
+            },
+            "recall": {
+              "ci": [
+                0.090009,
+                0.452146
+              ],
+              "value": 0.222222
+            },
+            "tp": 4
+          },
+          "keyed": {
+            "faults": 10,
+            "fp": 0,
+            "near_misses": 10,
+            "precision": {
+              "ci": null,
+              "value": null
+            },
+            "recall": {
+              "ci": [
+                0.0,
+                0.277533
+              ],
+              "value": 0.0
+            },
+            "tp": 0
+          },
+          "unkeyed": {
+            "faults": 8,
+            "fp": 0,
+            "near_misses": 8,
+            "precision": {
+              "ci": [
+                0.510109,
+                1.0
+              ],
+              "value": 1.0
+            },
+            "recall": {
+              "ci": [
+                0.215216,
+                0.784784
+              ],
+              "value": 0.5
+            },
+            "tp": 4
+          }
+        },
+        "unverified": {
+          "base": 0,
+          "injected": 1,
+          "other_lint": 0
+        }
+      }
+    },
+    "2": {
+      "bands": {
+        "drop": 18,
+        "flag": 0,
+        "model": 95
+      },
+      "calls": {
+        "model_tier_contradiction": 113,
+        "saved": 18,
+        "saved_share": 0.159292,
+        "tiered_contradiction": 95,
+        "unsupported_claim_both": 12
+      },
+      "model_tier": {
+        "by_class": {
+          "contradictory": {
+            "all": {
+              "faults": 2,
+              "fp": 2,
+              "near_misses": 2,
+              "precision": {
+                "ci": [
+                  0.061492,
+                  0.79234
+                ],
+                "value": 0.333333
+              },
+              "recall": {
+                "ci": [
+                  0.094531,
+                  0.905469
+                ],
+                "value": 0.5
+              },
+              "tp": 1
+            },
+            "keyed": {
+              "faults": 0,
+              "fp": 0,
+              "near_misses": 0,
+              "precision": {
+                "ci": null,
+                "value": null
+              },
+              "recall": {
+                "ci": null,
+                "value": null
+              },
+              "tp": 0
+            },
+            "unkeyed": {
+              "faults": 2,
+              "fp": 2,
+              "near_misses": 2,
+              "precision": {
+                "ci": [
+                  0.061492,
+                  0.79234
+                ],
+                "value": 0.333333
+              },
+              "recall": {
+                "ci": [
+                  0.094531,
+                  0.905469
+                ],
+                "value": 0.5
+              },
+              "tp": 1
+            }
+          },
+          "misplaced": {
+            "all": {
+              "faults": 4,
+              "fp": 0,
+              "near_misses": 4,
+              "precision": {
+                "ci": null,
+                "value": null
+              },
+              "recall": {
+                "ci": [
+                  0.0,
+                  0.489891
+                ],
+                "value": 0.0
+              },
+              "tp": 0
+            },
+            "keyed": {
+              "faults": 2,
+              "fp": 0,
+              "near_misses": 2,
+              "precision": {
+                "ci": null,
+                "value": null
+              },
+              "recall": {
+                "ci": [
+                  0.0,
+                  0.65762
+                ],
+                "value": 0.0
+              },
+              "tp": 0
+            },
+            "unkeyed": {
+              "faults": 2,
+              "fp": 0,
+              "near_misses": 2,
+              "precision": {
+                "ci": null,
+                "value": null
+              },
+              "recall": {
+                "ci": [
+                  0.0,
+                  0.65762
+                ],
+                "value": 0.0
+              },
+              "tp": 0
+            }
+          },
+          "stale": {
+            "all": {
+              "faults": 6,
+              "fp": 0,
+              "near_misses": 6,
+              "precision": {
+                "ci": [
+                  0.34238,
+                  1.0
+                ],
+                "value": 1.0
+              },
+              "recall": {
+                "ci": [
+                  0.096771,
+                  0.700007
+                ],
+                "value": 0.333333
+              },
+              "tp": 2
+            },
+            "keyed": {
+              "faults": 4,
+              "fp": 0,
+              "near_misses": 4,
+              "precision": {
+                "ci": null,
+                "value": null
+              },
+              "recall": {
+                "ci": [
+                  0.0,
+                  0.489891
+                ],
+                "value": 0.0
+              },
+              "tp": 0
+            },
+            "unkeyed": {
+              "faults": 2,
+              "fp": 0,
+              "near_misses": 2,
+              "precision": {
+                "ci": [
+                  0.34238,
+                  1.0
+                ],
+                "value": 1.0
+              },
+              "recall": {
+                "ci": [
+                  0.34238,
+                  1.0
+                ],
+                "value": 1.0
+              },
+              "tp": 2
+            }
+          },
+          "unsupported": {
+            "all": {
+              "faults": 6,
+              "fp": 0,
+              "near_misses": 6,
+              "precision": {
+                "ci": [
+                  0.206549,
+                  1.0
+                ],
+                "value": 1.0
+              },
+              "recall": {
+                "ci": [
+                  0.030053,
+                  0.563503
+                ],
+                "value": 0.166667
+              },
+              "tp": 1
+            },
+            "keyed": {
+              "faults": 4,
+              "fp": 0,
+              "near_misses": 4,
+              "precision": {
+                "ci": null,
+                "value": null
+              },
+              "recall": {
+                "ci": [
+                  0.0,
+                  0.489891
+                ],
+                "value": 0.0
+              },
+              "tp": 0
+            },
+            "unkeyed": {
+              "faults": 2,
+              "fp": 0,
+              "near_misses": 2,
+              "precision": {
+                "ci": [
+                  0.206549,
+                  1.0
+                ],
+                "value": 1.0
+              },
+              "recall": {
+                "ci": [
+                  0.094531,
+                  0.905469
+                ],
+                "value": 0.5
+              },
+              "tp": 1
+            }
+          }
+        },
+        "by_subtype": {
+          "conflict": {
+            "class": "contradictory",
+            "faults": 2,
+            "fp": 2,
+            "keyed": false,
+            "near_misses": 2,
+            "precision": {
+              "ci": [
+                0.061492,
+                0.79234
+              ],
+              "value": 0.333333
+            },
+            "recall": {
+              "ci": [
+                0.094531,
+                0.905469
+              ],
+              "value": 0.5
+            },
+            "tp": 1
+          },
+          "expired-validity": {
+            "class": "stale",
+            "faults": 2,
+            "fp": 0,
+            "keyed": true,
+            "near_misses": 2,
+            "precision": {
+              "ci": null,
+              "value": null
+            },
+            "recall": {
+              "ci": [
+                0.0,
+                0.65762
+              ],
+              "value": 0.0
+            },
+            "tp": 0,
+            "variants": {
+              "ttl": {
+                "faults": 2,
+                "fp": 0,
+                "near_misses": 2,
+                "precision": {
+                  "ci": null,
+                  "value": null
+                },
+                "recall": {
+                  "ci": [
+                    0.0,
+                    0.65762
+                  ],
+                  "value": 0.0
+                },
+                "tp": 0
+              }
+            }
+          },
+          "forbidden-class": {
+            "class": "misplaced",
+            "faults": 2,
+            "fp": 0,
+            "keyed": true,
+            "near_misses": 2,
+            "precision": {
+              "ci": null,
+              "value": null
+            },
+            "recall": {
+              "ci": [
+                0.0,
+                0.65762
+              ],
+              "value": 0.0
+            },
+            "tp": 0
+          },
+          "missing-provenance": {
+            "class": "unsupported",
+            "faults": 2,
+            "fp": 0,
+            "keyed": true,
+            "near_misses": 2,
+            "precision": {
+              "ci": null,
+              "value": null
+            },
+            "recall": {
+              "ci": [
+                0.0,
+                0.65762
+              ],
+              "value": 0.0
+            },
+            "tp": 0
+          },
+          "orphan": {
+            "class": "unsupported",
+            "faults": 2,
+            "fp": 0,
+            "keyed": true,
+            "near_misses": 2,
+            "precision": {
+              "ci": null,
+              "value": null
+            },
+            "recall": {
+              "ci": [
+                0.0,
+                0.65762
+              ],
+              "value": 0.0
+            },
+            "tp": 0
+          },
+          "source-changed": {
+            "class": "stale",
+            "faults": 2,
+            "fp": 0,
+            "keyed": true,
+            "near_misses": 2,
+            "precision": {
+              "ci": null,
+              "value": null
+            },
+            "recall": {
+              "ci": [
+                0.0,
+                0.65762
+              ],
+              "value": 0.0
+            },
+            "tp": 0
+          },
+          "superseded": {
+            "class": "stale",
+            "faults": 2,
+            "fp": 0,
+            "keyed": false,
+            "near_misses": 2,
+            "precision": {
+              "ci": [
+                0.34238,
+                1.0
+              ],
+              "value": 1.0
+            },
+            "recall": {
+              "ci": [
+                0.34238,
+                1.0
+              ],
+              "value": 1.0
+            },
+            "tp": 2
+          },
+          "unsupported-claim": {
+            "class": "unsupported",
+            "faults": 2,
+            "fp": 0,
+            "keyed": false,
+            "near_misses": 2,
+            "precision": {
+              "ci": [
+                0.206549,
+                1.0
+              ],
+              "value": 1.0
+            },
+            "recall": {
+              "ci": [
+                0.094531,
+                0.905469
+              ],
+              "value": 0.5
+            },
+            "tp": 1,
+            "variants": {
+              "other-attribute": {
+                "faults": 1,
+                "fp": 0,
+                "near_misses": 1,
+                "precision": {
+                  "ci": null,
+                  "value": null
+                },
+                "recall": {
+                  "ci": [
+                    0.0,
+                    0.793451
+                  ],
+                  "value": 0.0
+                },
+                "tp": 0
+              },
+              "qualifier-added": {
+                "faults": 1,
+                "fp": 0,
+                "near_misses": 1,
+                "precision": {
+                  "ci": [
+                    0.206549,
+                    1.0
+                  ],
+                  "value": 1.0
+                },
+                "recall": {
+                  "ci": [
+                    0.206549,
+                    1.0
+                  ],
+                  "value": 1.0
+                },
+                "tp": 1
+              }
+            }
+          },
+          "wrong-scope": {
+            "class": "misplaced",
+            "faults": 2,
+            "fp": 0,
+            "keyed": false,
+            "near_misses": 2,
+            "precision": {
+              "ci": null,
+              "value": null
+            },
+            "recall": {
+              "ci": [
+                0.0,
+                0.65762
+              ],
+              "value": 0.0
+            },
+            "tp": 0
+          }
+        },
+        "overall": {
+          "all": {
+            "faults": 18,
+            "fp": 2,
+            "near_misses": 18,
+            "precision": {
+              "ci": [
+                0.299993,
+                0.903229
+              ],
+              "value": 0.666667
+            },
+            "recall": {
+              "ci": [
+                0.090009,
+                0.452146
+              ],
+              "value": 0.222222
+            },
+            "tp": 4
+          },
+          "keyed": {
+            "faults": 10,
+            "fp": 0,
+            "near_misses": 10,
+            "precision": {
+              "ci": null,
+              "value": null
+            },
+            "recall": {
+              "ci": [
+                0.0,
+                0.277533
+              ],
+              "value": 0.0
+            },
+            "tp": 0
+          },
+          "unkeyed": {
+            "faults": 8,
+            "fp": 2,
+            "near_misses": 8,
+            "precision": {
+              "ci": [
+                0.299993,
+                0.903229
+              ],
+              "value": 0.666667
+            },
+            "recall": {
+              "ci": [
+                0.215216,
+                0.784784
+              ],
+              "value": 0.5
+            },
+            "tp": 4
+          }
+        },
+        "unverified": {
+          "base": 0,
+          "injected": 0,
+          "other_lint": 0
+        }
+      },
+      "nli_alone": {
+        "by_class": {
+          "contradictory": {
+            "all": {
+              "faults": 2,
+              "fp": 0,
+              "near_misses": 2,
+              "precision": {
+                "ci": null,
+                "value": null
+              },
+              "recall": {
+                "ci": [
+                  0.0,
+                  0.65762
+                ],
+                "value": 0.0
+              },
+              "tp": 0
+            },
+            "keyed": {
+              "faults": 0,
+              "fp": 0,
+              "near_misses": 0,
+              "precision": {
+                "ci": null,
+                "value": null
+              },
+              "recall": {
+                "ci": null,
+                "value": null
+              },
+              "tp": 0
+            },
+            "unkeyed": {
+              "faults": 2,
+              "fp": 0,
+              "near_misses": 2,
+              "precision": {
+                "ci": null,
+                "value": null
+              },
+              "recall": {
+                "ci": [
+                  0.0,
+                  0.65762
+                ],
+                "value": 0.0
+              },
+              "tp": 0
+            }
+          },
+          "misplaced": {
+            "all": {
+              "faults": 4,
+              "fp": 0,
+              "near_misses": 4,
+              "precision": {
+                "ci": null,
+                "value": null
+              },
+              "recall": {
+                "ci": [
+                  0.0,
+                  0.489891
+                ],
+                "value": 0.0
+              },
+              "tp": 0
+            },
+            "keyed": {
+              "faults": 2,
+              "fp": 0,
+              "near_misses": 2,
+              "precision": {
+                "ci": null,
+                "value": null
+              },
+              "recall": {
+                "ci": [
+                  0.0,
+                  0.65762
+                ],
+                "value": 0.0
+              },
+              "tp": 0
+            },
+            "unkeyed": {
+              "faults": 2,
+              "fp": 0,
+              "near_misses": 2,
+              "precision": {
+                "ci": null,
+                "value": null
+              },
+              "recall": {
+                "ci": [
+                  0.0,
+                  0.65762
+                ],
+                "value": 0.0
+              },
+              "tp": 0
+            }
+          },
+          "stale": {
+            "all": {
+              "faults": 6,
+              "fp": 0,
+              "near_misses": 6,
+              "precision": {
+                "ci": null,
+                "value": null
+              },
+              "recall": {
+                "ci": [
+                  0.0,
+                  0.390334
+                ],
+                "value": 0.0
+              },
+              "tp": 0
+            },
+            "keyed": {
+              "faults": 4,
+              "fp": 0,
+              "near_misses": 4,
+              "precision": {
+                "ci": null,
+                "value": null
+              },
+              "recall": {
+                "ci": [
+                  0.0,
+                  0.489891
+                ],
+                "value": 0.0
+              },
+              "tp": 0
+            },
+            "unkeyed": {
+              "faults": 2,
+              "fp": 0,
+              "near_misses": 2,
+              "precision": {
+                "ci": null,
+                "value": null
+              },
+              "recall": {
+                "ci": [
+                  0.0,
+                  0.65762
+                ],
+                "value": 0.0
+              },
+              "tp": 0
+            }
+          },
+          "unsupported": {
+            "all": {
+              "faults": 6,
+              "fp": 0,
+              "near_misses": 6,
+              "precision": {
+                "ci": null,
+                "value": null
+              },
+              "recall": {
+                "ci": [
+                  0.0,
+                  0.390334
+                ],
+                "value": 0.0
+              },
+              "tp": 0
+            },
+            "keyed": {
+              "faults": 4,
+              "fp": 0,
+              "near_misses": 4,
+              "precision": {
+                "ci": null,
+                "value": null
+              },
+              "recall": {
+                "ci": [
+                  0.0,
+                  0.489891
+                ],
+                "value": 0.0
+              },
+              "tp": 0
+            },
+            "unkeyed": {
+              "faults": 2,
+              "fp": 0,
+              "near_misses": 2,
+              "precision": {
+                "ci": null,
+                "value": null
+              },
+              "recall": {
+                "ci": [
+                  0.0,
+                  0.65762
+                ],
+                "value": 0.0
+              },
+              "tp": 0
+            }
+          }
+        },
+        "by_subtype": {
+          "conflict": {
+            "class": "contradictory",
+            "faults": 2,
+            "fp": 0,
+            "keyed": false,
+            "near_misses": 2,
+            "precision": {
+              "ci": null,
+              "value": null
+            },
+            "recall": {
+              "ci": [
+                0.0,
+                0.65762
+              ],
+              "value": 0.0
+            },
+            "tp": 0
+          },
+          "expired-validity": {
+            "class": "stale",
+            "faults": 2,
+            "fp": 0,
+            "keyed": true,
+            "near_misses": 2,
+            "precision": {
+              "ci": null,
+              "value": null
+            },
+            "recall": {
+              "ci": [
+                0.0,
+                0.65762
+              ],
+              "value": 0.0
+            },
+            "tp": 0,
+            "variants": {
+              "ttl": {
+                "faults": 2,
+                "fp": 0,
+                "near_misses": 2,
+                "precision": {
+                  "ci": null,
+                  "value": null
+                },
+                "recall": {
+                  "ci": [
+                    0.0,
+                    0.65762
+                  ],
+                  "value": 0.0
+                },
+                "tp": 0
+              }
+            }
+          },
+          "forbidden-class": {
+            "class": "misplaced",
+            "faults": 2,
+            "fp": 0,
+            "keyed": true,
+            "near_misses": 2,
+            "precision": {
+              "ci": null,
+              "value": null
+            },
+            "recall": {
+              "ci": [
+                0.0,
+                0.65762
+              ],
+              "value": 0.0
+            },
+            "tp": 0
+          },
+          "missing-provenance": {
+            "class": "unsupported",
+            "faults": 2,
+            "fp": 0,
+            "keyed": true,
+            "near_misses": 2,
+            "precision": {
+              "ci": null,
+              "value": null
+            },
+            "recall": {
+              "ci": [
+                0.0,
+                0.65762
+              ],
+              "value": 0.0
+            },
+            "tp": 0
+          },
+          "orphan": {
+            "class": "unsupported",
+            "faults": 2,
+            "fp": 0,
+            "keyed": true,
+            "near_misses": 2,
+            "precision": {
+              "ci": null,
+              "value": null
+            },
+            "recall": {
+              "ci": [
+                0.0,
+                0.65762
+              ],
+              "value": 0.0
+            },
+            "tp": 0
+          },
+          "source-changed": {
+            "class": "stale",
+            "faults": 2,
+            "fp": 0,
+            "keyed": true,
+            "near_misses": 2,
+            "precision": {
+              "ci": null,
+              "value": null
+            },
+            "recall": {
+              "ci": [
+                0.0,
+                0.65762
+              ],
+              "value": 0.0
+            },
+            "tp": 0
+          },
+          "superseded": {
+            "class": "stale",
+            "faults": 2,
+            "fp": 0,
+            "keyed": false,
+            "near_misses": 2,
+            "precision": {
+              "ci": null,
+              "value": null
+            },
+            "recall": {
+              "ci": [
+                0.0,
+                0.65762
+              ],
+              "value": 0.0
+            },
+            "tp": 0
+          },
+          "unsupported-claim": {
+            "class": "unsupported",
+            "faults": 2,
+            "fp": 0,
+            "keyed": false,
+            "near_misses": 2,
+            "precision": {
+              "ci": null,
+              "value": null
+            },
+            "recall": {
+              "ci": [
+                0.0,
+                0.65762
+              ],
+              "value": 0.0
+            },
+            "tp": 0,
+            "variants": {
+              "other-attribute": {
+                "faults": 1,
+                "fp": 0,
+                "near_misses": 1,
+                "precision": {
+                  "ci": null,
+                  "value": null
+                },
+                "recall": {
+                  "ci": [
+                    0.0,
+                    0.793451
+                  ],
+                  "value": 0.0
+                },
+                "tp": 0
+              },
+              "qualifier-added": {
+                "faults": 1,
+                "fp": 0,
+                "near_misses": 1,
+                "precision": {
+                  "ci": null,
+                  "value": null
+                },
+                "recall": {
+                  "ci": [
+                    0.0,
+                    0.793451
+                  ],
+                  "value": 0.0
+                },
+                "tp": 0
+              }
+            }
+          },
+          "wrong-scope": {
+            "class": "misplaced",
+            "faults": 2,
+            "fp": 0,
+            "keyed": false,
+            "near_misses": 2,
+            "precision": {
+              "ci": null,
+              "value": null
+            },
+            "recall": {
+              "ci": [
+                0.0,
+                0.65762
+              ],
+              "value": 0.0
+            },
+            "tp": 0
+          }
+        },
+        "overall": {
+          "all": {
+            "faults": 18,
+            "fp": 0,
+            "near_misses": 18,
+            "precision": {
+              "ci": null,
+              "value": null
+            },
+            "recall": {
+              "ci": [
+                0.0,
+                0.175879
+              ],
+              "value": 0.0
+            },
+            "tp": 0
+          },
+          "keyed": {
+            "faults": 10,
+            "fp": 0,
+            "near_misses": 10,
+            "precision": {
+              "ci": null,
+              "value": null
+            },
+            "recall": {
+              "ci": [
+                0.0,
+                0.277533
+              ],
+              "value": 0.0
+            },
+            "tp": 0
+          },
+          "unkeyed": {
+            "faults": 8,
+            "fp": 0,
+            "near_misses": 8,
+            "precision": {
+              "ci": null,
+              "value": null
+            },
+            "recall": {
+              "ci": [
+                0.0,
+                0.324408
+              ],
+              "value": 0.0
+            },
+            "tp": 0
+          }
+        },
+        "unverified": {
+          "base": 0,
+          "injected": 0,
+          "other_lint": 0
+        }
+      },
+      "tiered": {
+        "by_class": {
+          "contradictory": {
+            "all": {
+              "faults": 2,
+              "fp": 0,
+              "near_misses": 2,
+              "precision": {
+                "ci": [
+                  0.206549,
+                  1.0
+                ],
+                "value": 1.0
+              },
+              "recall": {
+                "ci": [
+                  0.094531,
+                  0.905469
+                ],
+                "value": 0.5
+              },
+              "tp": 1
+            },
+            "keyed": {
+              "faults": 0,
+              "fp": 0,
+              "near_misses": 0,
+              "precision": {
+                "ci": null,
+                "value": null
+              },
+              "recall": {
+                "ci": null,
+                "value": null
+              },
+              "tp": 0
+            },
+            "unkeyed": {
+              "faults": 2,
+              "fp": 0,
+              "near_misses": 2,
+              "precision": {
+                "ci": [
+                  0.206549,
+                  1.0
+                ],
+                "value": 1.0
+              },
+              "recall": {
+                "ci": [
+                  0.094531,
+                  0.905469
+                ],
+                "value": 0.5
+              },
+              "tp": 1
+            }
+          },
+          "misplaced": {
+            "all": {
+              "faults": 4,
+              "fp": 0,
+              "near_misses": 4,
+              "precision": {
+                "ci": null,
+                "value": null
+              },
+              "recall": {
+                "ci": [
+                  0.0,
+                  0.489891
+                ],
+                "value": 0.0
+              },
+              "tp": 0
+            },
+            "keyed": {
+              "faults": 2,
+              "fp": 0,
+              "near_misses": 2,
+              "precision": {
+                "ci": null,
+                "value": null
+              },
+              "recall": {
+                "ci": [
+                  0.0,
+                  0.65762
+                ],
+                "value": 0.0
+              },
+              "tp": 0
+            },
+            "unkeyed": {
+              "faults": 2,
+              "fp": 0,
+              "near_misses": 2,
+              "precision": {
+                "ci": null,
+                "value": null
+              },
+              "recall": {
+                "ci": [
+                  0.0,
+                  0.65762
+                ],
+                "value": 0.0
+              },
+              "tp": 0
+            }
+          },
+          "stale": {
+            "all": {
+              "faults": 6,
+              "fp": 0,
+              "near_misses": 6,
+              "precision": {
+                "ci": [
+                  0.34238,
+                  1.0
+                ],
+                "value": 1.0
+              },
+              "recall": {
+                "ci": [
+                  0.096771,
+                  0.700007
+                ],
+                "value": 0.333333
+              },
+              "tp": 2
+            },
+            "keyed": {
+              "faults": 4,
+              "fp": 0,
+              "near_misses": 4,
+              "precision": {
+                "ci": null,
+                "value": null
+              },
+              "recall": {
+                "ci": [
+                  0.0,
+                  0.489891
+                ],
+                "value": 0.0
+              },
+              "tp": 0
+            },
+            "unkeyed": {
+              "faults": 2,
+              "fp": 0,
+              "near_misses": 2,
+              "precision": {
+                "ci": [
+                  0.34238,
+                  1.0
+                ],
+                "value": 1.0
+              },
+              "recall": {
+                "ci": [
+                  0.34238,
+                  1.0
+                ],
+                "value": 1.0
+              },
+              "tp": 2
+            }
+          },
+          "unsupported": {
+            "all": {
+              "faults": 6,
+              "fp": 0,
+              "near_misses": 6,
+              "precision": {
+                "ci": [
+                  0.206549,
+                  1.0
+                ],
+                "value": 1.0
+              },
+              "recall": {
+                "ci": [
+                  0.030053,
+                  0.563503
+                ],
+                "value": 0.166667
+              },
+              "tp": 1
+            },
+            "keyed": {
+              "faults": 4,
+              "fp": 0,
+              "near_misses": 4,
+              "precision": {
+                "ci": null,
+                "value": null
+              },
+              "recall": {
+                "ci": [
+                  0.0,
+                  0.489891
+                ],
+                "value": 0.0
+              },
+              "tp": 0
+            },
+            "unkeyed": {
+              "faults": 2,
+              "fp": 0,
+              "near_misses": 2,
+              "precision": {
+                "ci": [
+                  0.206549,
+                  1.0
+                ],
+                "value": 1.0
+              },
+              "recall": {
+                "ci": [
+                  0.094531,
+                  0.905469
+                ],
+                "value": 0.5
+              },
+              "tp": 1
+            }
+          }
+        },
+        "by_subtype": {
+          "conflict": {
+            "class": "contradictory",
+            "faults": 2,
+            "fp": 0,
+            "keyed": false,
+            "near_misses": 2,
+            "precision": {
+              "ci": [
+                0.206549,
+                1.0
+              ],
+              "value": 1.0
+            },
+            "recall": {
+              "ci": [
+                0.094531,
+                0.905469
+              ],
+              "value": 0.5
+            },
+            "tp": 1
+          },
+          "expired-validity": {
+            "class": "stale",
+            "faults": 2,
+            "fp": 0,
+            "keyed": true,
+            "near_misses": 2,
+            "precision": {
+              "ci": null,
+              "value": null
+            },
+            "recall": {
+              "ci": [
+                0.0,
+                0.65762
+              ],
+              "value": 0.0
+            },
+            "tp": 0,
+            "variants": {
+              "ttl": {
+                "faults": 2,
+                "fp": 0,
+                "near_misses": 2,
+                "precision": {
+                  "ci": null,
+                  "value": null
+                },
+                "recall": {
+                  "ci": [
+                    0.0,
+                    0.65762
+                  ],
+                  "value": 0.0
+                },
+                "tp": 0
+              }
+            }
+          },
+          "forbidden-class": {
+            "class": "misplaced",
+            "faults": 2,
+            "fp": 0,
+            "keyed": true,
+            "near_misses": 2,
+            "precision": {
+              "ci": null,
+              "value": null
+            },
+            "recall": {
+              "ci": [
+                0.0,
+                0.65762
+              ],
+              "value": 0.0
+            },
+            "tp": 0
+          },
+          "missing-provenance": {
+            "class": "unsupported",
+            "faults": 2,
+            "fp": 0,
+            "keyed": true,
+            "near_misses": 2,
+            "precision": {
+              "ci": null,
+              "value": null
+            },
+            "recall": {
+              "ci": [
+                0.0,
+                0.65762
+              ],
+              "value": 0.0
+            },
+            "tp": 0
+          },
+          "orphan": {
+            "class": "unsupported",
+            "faults": 2,
+            "fp": 0,
+            "keyed": true,
+            "near_misses": 2,
+            "precision": {
+              "ci": null,
+              "value": null
+            },
+            "recall": {
+              "ci": [
+                0.0,
+                0.65762
+              ],
+              "value": 0.0
+            },
+            "tp": 0
+          },
+          "source-changed": {
+            "class": "stale",
+            "faults": 2,
+            "fp": 0,
+            "keyed": true,
+            "near_misses": 2,
+            "precision": {
+              "ci": null,
+              "value": null
+            },
+            "recall": {
+              "ci": [
+                0.0,
+                0.65762
+              ],
+              "value": 0.0
+            },
+            "tp": 0
+          },
+          "superseded": {
+            "class": "stale",
+            "faults": 2,
+            "fp": 0,
+            "keyed": false,
+            "near_misses": 2,
+            "precision": {
+              "ci": [
+                0.34238,
+                1.0
+              ],
+              "value": 1.0
+            },
+            "recall": {
+              "ci": [
+                0.34238,
+                1.0
+              ],
+              "value": 1.0
+            },
+            "tp": 2
+          },
+          "unsupported-claim": {
+            "class": "unsupported",
+            "faults": 2,
+            "fp": 0,
+            "keyed": false,
+            "near_misses": 2,
+            "precision": {
+              "ci": [
+                0.206549,
+                1.0
+              ],
+              "value": 1.0
+            },
+            "recall": {
+              "ci": [
+                0.094531,
+                0.905469
+              ],
+              "value": 0.5
+            },
+            "tp": 1,
+            "variants": {
+              "other-attribute": {
+                "faults": 1,
+                "fp": 0,
+                "near_misses": 1,
+                "precision": {
+                  "ci": null,
+                  "value": null
+                },
+                "recall": {
+                  "ci": [
+                    0.0,
+                    0.793451
+                  ],
+                  "value": 0.0
+                },
+                "tp": 0
+              },
+              "qualifier-added": {
+                "faults": 1,
+                "fp": 0,
+                "near_misses": 1,
+                "precision": {
+                  "ci": [
+                    0.206549,
+                    1.0
+                  ],
+                  "value": 1.0
+                },
+                "recall": {
+                  "ci": [
+                    0.206549,
+                    1.0
+                  ],
+                  "value": 1.0
+                },
+                "tp": 1
+              }
+            }
+          },
+          "wrong-scope": {
+            "class": "misplaced",
+            "faults": 2,
+            "fp": 0,
+            "keyed": false,
+            "near_misses": 2,
+            "precision": {
+              "ci": null,
+              "value": null
+            },
+            "recall": {
+              "ci": [
+                0.0,
+                0.65762
+              ],
+              "value": 0.0
+            },
+            "tp": 0
+          }
+        },
+        "overall": {
+          "all": {
+            "faults": 18,
+            "fp": 0,
+            "near_misses": 18,
+            "precision": {
+              "ci": [
+                0.510109,
+                1.0
+              ],
+              "value": 1.0
+            },
+            "recall": {
+              "ci": [
+                0.090009,
+                0.452146
+              ],
+              "value": 0.222222
+            },
+            "tp": 4
+          },
+          "keyed": {
+            "faults": 10,
+            "fp": 0,
+            "near_misses": 10,
+            "precision": {
+              "ci": null,
+              "value": null
+            },
+            "recall": {
+              "ci": [
+                0.0,
+                0.277533
+              ],
+              "value": 0.0
+            },
+            "tp": 0
+          },
+          "unkeyed": {
+            "faults": 8,
+            "fp": 0,
+            "near_misses": 8,
+            "precision": {
+              "ci": [
+                0.510109,
+                1.0
+              ],
+              "value": 1.0
+            },
+            "recall": {
+              "ci": [
+                0.215216,
+                0.784784
+              ],
+              "value": 0.5
+            },
+            "tp": 4
+          }
+        },
+        "unverified": {
+          "base": 0,
+          "injected": 0,
+          "other_lint": 0
+        }
+      }
+    }
+  },
+  "questions": 2,
+  "registered": false,
+  "replays": {
+    "model_tier": {
+      "calls": {
+        "cached": 250,
+        "new": 0
+      }
+    },
+    "threshold": {
+      "calls": {
+        "cached": 9,
+        "new": 0
+      },
+      "scores": {
+        "cached": 72,
+        "new": 0
+      }
+    },
+    "tiered": {
+      "calls": {
+        "cached": 214,
+        "new": 0
+      },
+      "scores": {
+        "cached": 452,
+        "new": 0
+      }
+    }
+  },
+  "runner_config": "research/configs/h3-lint-nli-fixture.json",
+  "score_counts": {
+    "both_directions": {
+      "0.5": 92,
+      "0.9": 87,
+      "0.99": 79,
+      "0.999": 61
+    },
+    "forward_only": {
+      "0.5": 85,
+      "0.9": 81,
+      "0.99": 70,
+      "0.999": 56
+    },
+    "pairs": 113
+  },
+  "scripted_model": true,
+  "seeds": [
+    1,
+    2
+  ],
+  "status": "engineering check: arm P3 is proposed in docs/research/preregistration.md, not registered; no number here is a thesis result",
+  "thresholds": {
+    "labelled_units": [
+      {
+        "backward": 0.004105,
+        "contradiction": 0.004105,
+        "fixture": "contradiction.flag",
+        "forward": 0.000675,
+        "unit": "contradiction:01950000-0000-7000-8000-000000000001+01950000-0000-7000-8000-000000000002",
+        "verdict": "pass"
+      },
+      {
+        "backward": 0.999682,
+        "contradiction": 0.999715,
+        "fixture": "contradiction.flag",
+        "forward": 0.999715,
+        "unit": "contradiction:01950000-0000-7000-8000-000000000001+01950000-0000-7000-8000-000000000003",
+        "verdict": "flag"
+      },
+      {
+        "backward": 0.021945,
+        "contradiction": 0.021945,
+        "fixture": "contradiction.flag",
+        "forward": 0.009764,
+        "unit": "contradiction:01950000-0000-7000-8000-000000000001+01950000-0000-7000-8000-000000000004",
+        "verdict": "pass"
+      },
+      {
+        "backward": 0.000674,
+        "contradiction": 0.005908,
+        "fixture": "contradiction.flag",
+        "forward": 0.005908,
+        "unit": "contradiction:01950000-0000-7000-8000-000000000002+01950000-0000-7000-8000-000000000003",
+        "verdict": "pass"
+      },
+      {
+        "backward": 0.99956,
+        "contradiction": 0.999848,
+        "fixture": "contradiction.flag",
+        "forward": 0.999848,
+        "unit": "contradiction:01950000-0000-7000-8000-000000000002+01950000-0000-7000-8000-000000000004",
+        "verdict": "flag"
+      },
+      {
+        "backward": 0.022523,
+        "contradiction": 0.022523,
+        "fixture": "contradiction.flag",
+        "forward": 0.009261,
+        "unit": "contradiction:01950000-0000-7000-8000-000000000003+01950000-0000-7000-8000-000000000004",
+        "verdict": "pass"
+      },
+      {
+        "backward": 0.996065,
+        "contradiction": 0.996065,
+        "fixture": "contradiction.near-miss",
+        "forward": 0.515664,
+        "unit": "contradiction:01950000-0000-7000-8000-000000000001+01950000-0000-7000-8000-000000000002",
+        "verdict": "pass"
+      },
+      {
+        "backward": 0.004105,
+        "contradiction": 0.004105,
+        "fixture": "contradiction.near-miss",
+        "forward": 0.000675,
+        "unit": "contradiction:01950000-0000-7000-8000-000000000001+01950000-0000-7000-8000-000000000003",
+        "verdict": "pass"
+      },
+      {
+        "backward": 0.003809,
+        "contradiction": 0.003809,
+        "fixture": "contradiction.near-miss",
+        "forward": 0.001383,
+        "unit": "contradiction:01950000-0000-7000-8000-000000000001+01950000-0000-7000-8000-000000000004",
+        "verdict": "pass"
+      },
+      {
+        "backward": 0.003415,
+        "contradiction": 0.003415,
+        "fixture": "contradiction.near-miss",
+        "forward": 0.000738,
+        "unit": "contradiction:01950000-0000-7000-8000-000000000002+01950000-0000-7000-8000-000000000003",
+        "verdict": "pass"
+      },
+      {
+        "backward": 0.004009,
+        "contradiction": 0.004009,
+        "fixture": "contradiction.near-miss",
+        "forward": 0.001219,
+        "unit": "contradiction:01950000-0000-7000-8000-000000000002+01950000-0000-7000-8000-000000000004",
+        "verdict": "pass"
+      },
+      {
+        "backward": 0.006715,
+        "contradiction": 0.017003,
+        "fixture": "contradiction.near-miss",
+        "forward": 0.017003,
+        "unit": "contradiction:01950000-0000-7000-8000-000000000003+01950000-0000-7000-8000-000000000004",
+        "verdict": "pass"
+      }
+    ],
+    "lower": 0.1,
+    "rule": {
+      "grid": 0.01,
+      "lower_at_most": 0.1,
+      "upper_at_least": 0.9
+    },
+    "set_on": "research/configs/l3-lint-nli-fixture.json",
+    "upper": 1.0
+  }
+}

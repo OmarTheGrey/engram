@@ -1,0 +1,24 @@
+{
+  "key": "3ae4a35daa1dc0c09a784480f0821cf1b7db74973f543f63041ddaea3ec9144c",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "tokenizer_sha256": "5124ef2ead1a10a717703bc436de7f353da76d6340e4587719b42b1693707964",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "scorer": "engram-nli-scorer/1",
+  "pair": "1e5b88f9714cba6a4aa5f9cf80b7aadc21d524ba98fe3efd68712e4be3f61d20",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "As it stands, my cat's name is Juniper.",
+    "hypothesis": "Just so you know, my Spanish tutor is Mateo."
+  },
+  "response": {
+    "contradiction": 0.9991949723012095,
+    "entailment": 0.000010225223357984848,
+    "neutral": 0.0007948024754325535,
+    "logits": [
+      6.1641740798950195,
+      -5.325673580169678,
+      -0.9724375009536743
+    ]
+  }
+}

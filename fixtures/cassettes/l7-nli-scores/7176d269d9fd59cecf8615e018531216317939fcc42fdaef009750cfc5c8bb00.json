@@ -1,0 +1,24 @@
+{
+  "key": "7176d269d9fd59cecf8615e018531216317939fcc42fdaef009750cfc5c8bb00",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "tokenizer_sha256": "5124ef2ead1a10a717703bc436de7f353da76d6340e4587719b42b1693707964",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "scorer": "engram-nli-scorer/1",
+  "pair": "b876bcc020418fa53689f256421915e964673f225552db98e5a5c9f443546db2",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "The user said: \"I'll start filling out the template.\"",
+    "hypothesis": "The user said: \"I need help organizing my contacts.\""
+  },
+  "response": {
+    "contradiction": 0.9601133382567368,
+    "entailment": 0.00012521210024126086,
+    "neutral": 0.03976144964302184,
+    "logits": [
+      4.0675458908081055,
+      -4.877251625061035,
+      0.8833923935890198
+    ]
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "key": "a743eadd9c47c8ec056998b8aaf667014d1cc6439a4289e6ce92450686520107",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "tokenizer_sha256": "5124ef2ead1a10a717703bc436de7f353da76d6340e4587719b42b1693707964",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "scorer": "engram-nli-scorer/1",
+  "pair": "460a43549d2b44f0f463d5383174da838fbdd1b38bbf3e56ba1272185a7ab2de",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "For the record, my favourite wine is a Chenin Blanc.",
+    "hypothesis": "Just so you know, my favourite podcast is The Long Table."
+  },
+  "response": {
+    "contradiction": 0.9990335572271252,
+    "entailment": 0.000015135151595049802,
+    "neutral": 0.0009513076212797896,
+    "logits": [
+      6.021341323852539,
+      -5.0761823654174805,
+      -0.935364842414856
+    ]
+  }
+}

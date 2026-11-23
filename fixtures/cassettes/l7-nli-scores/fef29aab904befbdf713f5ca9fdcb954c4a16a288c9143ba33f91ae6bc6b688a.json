@@ -1,0 +1,24 @@
+{
+  "key": "fef29aab904befbdf713f5ca9fdcb954c4a16a288c9143ba33f91ae6bc6b688a",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "tokenizer_sha256": "5124ef2ead1a10a717703bc436de7f353da76d6340e4587719b42b1693707964",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "scorer": "engram-nli-scorer/1",
+  "pair": "223ebfee137357e837b0151c8a5352fedf409d163a4c08ebda5ae4bfe5c4f038",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "Right now my go-to pizza place is Forno Rosso.",
+    "hypothesis": "Just so you know, my go-to pizza place is Forno Rosso."
+  },
+  "response": {
+    "contradiction": 0.00013423412957043191,
+    "entailment": 0.9839018097060035,
+    "neutral": 0.015963956164425995,
+    "logits": [
+      -4.565668106079102,
+      4.3340277671813965,
+      0.21283510327339172
+    ]
+  }
+}

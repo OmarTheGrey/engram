@@ -1,0 +1,24 @@
+{
+  "key": "3c293d6d4ad6e6406894934ed428ebe28faf8b2f42079280e7ac9ae192afd4c8",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "tokenizer_sha256": "5124ef2ead1a10a717703bc436de7f353da76d6340e4587719b42b1693707964",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "scorer": "engram-nli-scorer/1",
+  "pair": "6f65c2bbd9bc793f61fc4477712c8ef214bd5544c2765118c0cdcdec914eb3c7",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "The staging database runs MySQL 8 and has never run Postgres.",
+    "hypothesis": "The staging database runs Postgres 16."
+  },
+  "response": {
+    "contradiction": 0.9995601565118891,
+    "entailment": 0.000027114466736651516,
+    "neutral": 0.0004127290213743366,
+    "logits": [
+      6.104917526245117,
+      -4.410085678100586,
+      -1.6873618364334106
+    ]
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "key": "93a5b9161eedb2f1434fdc9c9a920469ce514154095ce46fd6454fa0eb993b4a",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "tokenizer_sha256": "5124ef2ead1a10a717703bc436de7f353da76d6340e4587719b42b1693707964",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "scorer": "engram-nli-scorer/1",
+  "pair": "cc08b7e1b56a0660d4e839a0412c89d90b58098ff73a57d314ed7dfc4a4f16de",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "Just so you know, my Spanish tutor is Mateo.",
+    "hypothesis": "To be clear, my chess club night is Wednesday."
+  },
+  "response": {
+    "contradiction": 0.9945819619946186,
+    "entailment": 0.00004663347620737306,
+    "neutral": 0.005371404529173983,
+    "logits": [
+      5.069788932800293,
+      -4.897970199584961,
+      -0.15144415199756622
+    ]
+  }
+}

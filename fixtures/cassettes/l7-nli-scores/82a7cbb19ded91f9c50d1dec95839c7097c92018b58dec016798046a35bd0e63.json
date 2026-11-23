@@ -1,0 +1,24 @@
+{
+  "key": "82a7cbb19ded91f9c50d1dec95839c7097c92018b58dec016798046a35bd0e63",
+  "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+  "model_sha256": "59fd8dd78926e15907ab419303179e4196bdedd710e888773e2f0143fe430897",
+  "tokenizer_sha256": "5124ef2ead1a10a717703bc436de7f353da76d6340e4587719b42b1693707964",
+  "runtime": "onnxruntime-node@1.31.1+@huggingface/tokenizers@0.2.0",
+  "scorer": "engram-nli-scorer/1",
+  "pair": "3bd15d89e1d4d708519ecb578bcc5eb3e04c3fee2215cf251cb43267637e30f3",
+  "request": {
+    "model": "cross-encoder/nli-deberta-v3-small@fa2804872c3b4bd748f38c0185cc85775361e735",
+    "premise": "My chess club night is Wednesday.",
+    "hypothesis": "To be clear, my chess club night is Wednesday."
+  },
+  "response": {
+    "contradiction": 0.00025598264274559376,
+    "entailment": 0.9919225975675506,
+    "neutral": 0.007821419789703698,
+    "logits": [
+      -3.9060261249542236,
+      4.356264591217041,
+      -0.4865143895149231
+    ]
+  }
+}
