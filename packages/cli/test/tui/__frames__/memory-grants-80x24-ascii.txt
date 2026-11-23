@@ -10,7 +10,7 @@
      Class [ semantic ]   Mode [ read ]   space or left and right choose
    Expires        [                                          ]  a UTC date or...
    [ Add to the change ]   [ Apply the change ]   ctrl+s
-   + Advanced: id, the test clock and this command's workspace flags
+   ~ Advanced: id, the test clock and this command's workspace flags
 
  + allow   exit 0  allow
  u undo on 01940000-0000-7000-8000-000000000001 (removes it again, a new gove...
