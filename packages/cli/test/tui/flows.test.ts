@@ -744,6 +744,18 @@ describe("the review fix pass (E8.15c)", () => {
 });
 
 describe("the verification's findings (E8.15c)", () => {
+  it("N5: the later-read note follows the read that asked, whatever else the session's command list holds", async () => {
+    const w = await workspace();
+    const { h } = await start(w);
+    // A command the summary lists with no result of the TUI's (E8.15d's record() does this).
+    h.app.ran.push({ argv: ["serve", "--insecure-loopback"], code: 0 });
+    await h.press("r", CTRL_S, "y");
+    expect(await h.text()).not.toContain("also changes the log, as asked");
+    await h.press(ESC, CTRL_S);
+    expect((await h.frame()).at(-3)).toContain("This read also changes the log, as asked");
+    await h.quit();
+  });
+
   it("N4: the handoff never prefills another person's scope", async () => {
     const w = await withItem({ member: ["person:dana"] });
     const { h } = await start(w);

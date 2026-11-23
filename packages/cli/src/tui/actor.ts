@@ -72,7 +72,8 @@ export function madeAsOther(ws: Workspace, r: RunResult | undefined): string | u
   if (made === undefined || actorKey(made) === actorKeyNow(ws)) return undefined;
   if (made.id !== actorNow(ws)?.id) return made.id;
   const members = Array.isArray(made.memberships) ? (made.memberships as string[]).join(", ") : "";
-  return `${made.id} as a member of ${members || "its own scope"}`;
+  // The same id: named with what differs, its level and its memberships (re-verification 4).
+  return `${made.id} (${String(made.level)}) as a member of ${members || "its own scope"}`;
 }
 
 /** What a screen says in place of an answer made as another actor. */

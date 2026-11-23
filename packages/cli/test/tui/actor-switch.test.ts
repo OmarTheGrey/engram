@@ -241,6 +241,26 @@ describe("Follow after a change of actor", () => {
   });
 });
 
+describe("the same principal at another level is another actor (re-verification 4)", () => {
+  it("dana's answer as a person is not drawn for dana at level team", async () => {
+    const w = await workspace();
+    const h = await startHarness({
+      cwd: w.cwd,
+      home: w.cwd,
+      given: w.given,
+      options: { noSaved: true },
+    });
+    await h.press("r", CTRL_S, "y");
+    expect(await h.text()).toContain(SECRET);
+    h.app.ws.set("level", "team", "set");
+    h.app.recheck(false);
+    const text = await h.text();
+    expect(text).toContain("This answer was made as person:dana (person) as a member of");
+    expect(text).not.toContain(SECRET);
+    await h.quit();
+  });
+});
+
 describe("the same principal with other memberships is another actor (verification N3)", () => {
   it("dana drops team:core: the team item is no longer shown, before r or after", async () => {
     const w = await workspace();
@@ -265,7 +285,7 @@ describe("the same principal with other memberships is another actor (verificati
     const page = h.app.top() as unknown as ItemScreen;
     expect(JSON.stringify(page.page(h.app))).not.toContain("The team's fact.");
     let text = await h.text();
-    expect(text).toContain("made as person:dana as a member of person:dana, team:core");
+    expect(text).toContain("made as person:dana (person) as a member of person:dana, team:core");
     expect(text).not.toContain("The team's fact.");
     await h.press("r");
     if (h.overlay() === "confirm") await h.press("y");

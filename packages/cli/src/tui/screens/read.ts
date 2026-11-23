@@ -112,13 +112,14 @@ export class ReadScreen extends RichScreen {
    * first, and on its own row, so it never squeezes the command row (N5).
    */
   private laterReadNote(ctx: Ctx): string | undefined {
-    const first = ctx.ran.findIndex((r) => r.argv[0] === "read" && r.argv.includes("--root"));
-    if (first < 0) return undefined;
+    // The first read with a store folder, by its result itself: the session's command list may
+    // hold commands that left no result (re-verification 5), so positions in the two do not agree.
+    const first = ctx.results.find((r) => r.argv[0] === "read" && r.argv.includes("--root"));
+    if (first === undefined) return undefined;
     const argv = this.command(ctx).argv ?? [];
     if (!argv.includes("--root")) return undefined;
-    // The first read with a store folder, shown as its own result, is the one that asked.
-    const at = this.result === undefined || this.edited ? -1 : ctx.results.indexOf(this.result);
-    if (at === first) return undefined;
+    // That read, shown as its own result, is the one that asked.
+    if (this.result === first && !this.edited) return undefined;
     return " This read also changes the log, as asked: it sweeps and adopts the store.";
   }
 
