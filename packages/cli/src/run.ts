@@ -132,7 +132,8 @@ write options:
 
 promote options:
   --to <scope>                the target scope: the item's own or a wider one
-  --review                    approve as a reviewer: a member of the target who does not own the item
+  --review                    approve as a reviewer: a member of the target who does not own the item;
+                              or, as its owner, accept a candidate in your own person scope (ADR 0049)
   the plane records the promoter as source user; exit 1 on deny, or on ask when the target needs review
   limit: the CLI does not authenticate. --as and --member are taken as given, so the
   distinct-actor and reviewer rules hold only as far as this single-user machine does;
@@ -188,8 +189,9 @@ engram import options:
   every row is a write by the import actor import:<importer>, its kind the least trusted
   of the row's claim and import (a row never raises trust), owned by the importer, a
   candidate (a retired row stays retired), with no grants and a new id; the gate decides
-  each row. Files over 64 MiB are refused. A candidate becomes active only through engram promote by a
-  reviewer, a user-sourced member of its scope other than its owner (ADR 0026). Prints
+  each row. Files over 64 MiB are refused. A candidate becomes active only through engram promote
+  --review: in your own person scope you accept it as its owner (ADR 0049); elsewhere a reviewer,
+  a user-sourced member of its scope other than its owner, approves it (ADR 0026). Prints
   the id map; exit 1 if any row was denied
 
 serve options:

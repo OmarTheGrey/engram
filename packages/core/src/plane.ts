@@ -252,6 +252,9 @@ export interface PromoteOptions {
   /**
    * The actor approves as a reviewer: it must be user-sourced, a member of
    * the target scope and not the item's owner, else `engram/promote/reviewer`.
+   * The one exception (card E9.9, ADR 0049): the owner of a semantic
+   * candidate in their own person scope, user-sourced at the person level,
+   * accepts it there in place (`engram/promote/owner-person`).
    */
   review?: boolean;
   /**
