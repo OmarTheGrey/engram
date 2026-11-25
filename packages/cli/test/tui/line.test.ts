@@ -17,7 +17,7 @@ import { describe, expect, it } from "vitest";
 import { command } from "../../src/registry.ts";
 import { type Io, run } from "../../src/run.ts";
 import { menuText } from "../../src/tui/line.ts";
-import { childArgs, childEnv, type TuiDeps, tuiCommand } from "../../src/tui/main.ts";
+import { asHandBack, childArgs, childEnv, type TuiDeps, tuiCommand } from "../../src/tui/main.ts";
 import { savedPath, writeSaved } from "../../src/tui/saved.ts";
 import { FakeTerminal } from "../../src/tui/term.ts";
 import { checkArgv } from "../../src/tui/validate.ts";
@@ -942,4 +942,101 @@ describe("verification R-4: the help says where quit and exit cannot be values",
       "A prompted field cannot take the words quit or exit; type the whole command line to give them, such as write --content quit.",
     );
   });
+});
+
+// Final review F-1 and F-2: the child's side of L on the real console, and the parent's.
+
+/** An IPC channel whose parent answers the child's hello with its own token. */
+function answering() {
+  let listener: ((m: unknown) => void) | undefined;
+  return {
+    send: (m: unknown, done?: () => void) => {
+      const hello = (m as { engramTuiHello?: string }).engramTuiHello;
+      if (hello !== undefined) setImmediate(() => listener?.({ engramTuiAck: hello }));
+      done?.();
+    },
+    on: (_e: "message", f: (m: unknown) => void) => {
+      listener = f;
+    },
+    disconnect: () => undefined,
+  };
+}
+
+const HANDOFF = { reviewer: "person:rev", members: ["team:lantern"], target: "team:lantern" };
+
+describe("final review F-1: an L child takes the handoff from its environment", () => {
+  it("acts as the reviewer, for this session, when ENGRAM_TUI_HANDOFF names one", async () => {
+    const s = await lineSession(["--line", ...WS], ["workspace", "quit"], {
+      env: { ENGRAM_TUI_HANDBACK: "a1b2", ENGRAM_TUI_HANDOFF: JSON.stringify(HANDOFF) },
+      deps: { ipc: answering() },
+    });
+    expect(s.code).toBe(0);
+    expect(s.transcript).toContain("acting as person:rev (person), a member of team:lantern\n");
+    expect(s.transcript).toContain("--as person:rev (for this session)");
+    expect(s.transcript).toContain("--member team:lantern (for this session)");
+  });
+
+  for (const [what, value] of [
+    ["not JSON", "{not json"],
+    ["no reviewer", JSON.stringify({ members: ["team:lantern"], target: "team:lantern" })],
+    ["a member that is not text", JSON.stringify({ ...HANDOFF, members: [7] })],
+  ] as const)
+    it(`takes no handoff from a value that is ${what}`, async () => {
+      const s = await lineSession(["--line", ...WS], ["quit"], {
+        env: { ENGRAM_TUI_HANDBACK: "a1b2", ENGRAM_TUI_HANDOFF: value },
+        deps: { ipc: answering() },
+      });
+      expect(s.transcript).toContain("acting as person:dana (person), a member of person:dana\n");
+      expect(s.transcript).not.toContain("person:rev");
+    });
+
+  it("takes none without the token, whatever ENGRAM_TUI_HANDOFF says", async () => {
+    const s = await lineSession(["--line", ...WS], ["quit"], {
+      env: { ENGRAM_TUI_HANDOFF: JSON.stringify(HANDOFF) },
+    });
+    expect(s.transcript).toContain("acting as person:dana (person), a member of person:dana\n");
+  });
+});
+
+describe("final review F-2: the parent's token check, and the env commands see", () => {
+  it("takes a hand-back only with the token the parent gave", () => {
+    const back = {
+      given: { owner: "dana" },
+      ran: [{ argv: ["policy"], code: 0 }],
+      handoff: HANDOFF,
+    };
+    expect(asHandBack({ ...back, token: "t0k" }, "t0k")).toEqual(back);
+    expect(asHandBack({ ...back, token: "other" }, "t0k")).toBeUndefined();
+    expect(asHandBack(back, "t0k")).toBeUndefined();
+    expect(asHandBack({ given: {}, ran: "x", token: "t0k" }, "t0k")).toBeUndefined();
+  });
+
+  it("removes the token and the handoff from the environment the commands are given", async () => {
+    const term = new FakeTerminal({ columns: 80, rows: 24 });
+    const tick = () => new Promise((r) => setTimeout(r, 20));
+    let env: Record<string, string | undefined> | undefined;
+    const s = await lineSession(["--owner", "dana", "--db", "engram.db", "--no-saved"], [], {
+      env: {
+        ENGRAM_TUI_HANDBACK: "a1b2",
+        ENGRAM_TUI_HANDOFF: JSON.stringify(HANDOFF),
+        KEPT: "yes",
+      },
+      terminal: term,
+      deps: {
+        ipc: answering(),
+        onApp: (a) => {
+          env = (a as unknown as { io: Io }).io.env;
+        },
+      },
+      keys: async (t) => {
+        for (let i = 0; i < 200 && !t.started; i++) await tick();
+        await tick();
+        t.send("q");
+      },
+    });
+    expect(s.code).toBe(0);
+    expect(env?.KEPT).toBe("yes");
+    expect(env).not.toHaveProperty("ENGRAM_TUI_HANDBACK");
+    expect(env).not.toHaveProperty("ENGRAM_TUI_HANDOFF");
+  }, 30_000);
 });

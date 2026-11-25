@@ -337,7 +337,7 @@ export function childArgs(given: Values, options: Pick<TuiOptions, "quiet" | "no
 }
 
 /** A hand-back as it arrives over IPC with this session's token, checked for its shape. */
-function asHandBack(m: unknown, token: string): HandBack | undefined {
+export function asHandBack(m: unknown, token: string): HandBack | undefined {
   const o = m as { given?: unknown; ran?: unknown; token?: unknown; handoff?: unknown } | null;
   if (o === null || typeof o !== "object" || o.token !== token) return undefined;
   if (typeof o.given !== "object" || o.given === null || !Array.isArray(o.ran)) return undefined;
