@@ -70,7 +70,7 @@ Lane R is the research spine, lane P the product. "Week" is the roadmap's week: 
 | 29 | E9.15 | The signed audit report | P | W15 | M | none |
 | 30 | E9.16 | The subject access export and the Article 30 record | P | W16 | M | none |
 
-Existing cards the plan rewrites: D4 (open since the roadmap; unblocked by D3) and E8.8 (open; it now carries the approval surfaces). All others are new. Follow-ups of the first wave that the thirty close are listed in section 6.
+Existing cards the plan rewrites: D4 (open since the roadmap; unblocked by D3) and E8.8 (open; it now carries the approval surfaces). All others are new. Follow-ups of the first wave that the thirty close are listed in section 9.
 
 ## 5. Each pull request: why, how, and what it may not move
 
@@ -297,3 +297,75 @@ Every entry names its goal, its source with licence and the head commit read on 
 - *Files.* `packages/core/src/portable.ts`, `packages/core/src/audit/ropa.ts` (new), `packages/cli/src/commands.ts`, `docs/compliance/`, `research/configs/crosswalk.json`.
 - *Acceptance.* A round-trip test of the subject export and a fixture record.
 - *Serves.* Twin and Govern; GDPR Articles 15, 20 and 30 in the crosswalk. *Risk.* Derived items out of reach appear only as a count. *Guard.* New commands only.
+
+## 6. Waves and parallelism
+
+The waves follow the calendar; inside a wave, cards run at once unless they share a file named below. Four cards regenerate the generated contracts with `make api` (E2.14, E2.17, E8.8, E2.20): they merge one at a time, each rebased on the last and regenerated after it.
+
+| Wave | Weeks | Cards | Run together? |
+|---|---|---|---|
+| 0, before the tag | W8 (to 29 Nov) | E0.6, E0.7 | Yes: `scripts/` files apart; E0.6 alone edits the Makefile. |
+| 1, during H1's runs | W9 (30 Nov to 6 Dec) | E8.16, E1.8, X16, E9.10 | Yes. E8.16 starts once RD1 merges. Shared files: the Makefile (E1.8 only), MANIFEST (X16 only), AGENTS.md and CLAUDE.md (E9.10 only). |
+| 2, Gate C | W10 (7 to 13 Dec, after H1's `MERGE=4`) | X17, E1.7, E2.14, E2.15 | X17 and E2.14 with anything. E1.7 waits for E1.8 and merges before E2.15: both edit `plane/write.ts`. |
+| 3 | W11 | X18, X19, E2.16, E1.9, E9.11 | X18, X19 and E2.16 together (MANIFEST rows are additive). E1.9 before E9.11: both add a migration to `db/migrate.ts`. E2.16 after E1.7 and E2.15 (`adopt.ts`, `oracle.ts`). |
+| 4 | W12 | L9, D5, A6, E2.17, E9.12, E8.17 | Yes. Only E2.17 runs `make api`. D5 edits `plane/promote.ts`, which E2.19 edits next wave. |
+| 5 | W13 | D4, E2.18, E9.13, E2.19 | D4, E2.18 and E2.19 together. E9.13 waits for E9.11 and X19, and for E2.15 in `plane/write.ts`. |
+| 6 | W14 | E9.14, E8.8 | Yes. E8.8 runs `make api`. |
+| 7 | W15 to W16 | E2.20, E9.15, E9.16 | E2.20 after E8.8 (`make api`). E9.15 and E9.16 share `packages/core/src/audit/`: E9.15 first. |
+
+Friday demonstrations the plan adds: W9, a leak probe through every surface coming back clean, and a Quint trace replayed on the real Plane; W10, Gate C's table on the results page; W11, a log fault detected by `engram log verify` inside the fault-injection check; W12, a Codex shell command naming a store blocked by the hook; W13, a procedure retired on drift and a queue of approvals routed to their approvers; W14, an offboarding with its signed receipt verified, and the residue check before and after shredding.
+
+**Cost.** At the roadmap's rates (S 0.25, M 0.5, L 1.0 FTE-week) the thirty come to 15.25 FTE-weeks: 9.25 on the research lane and 6.0 on the product lane. The roadmap's own tables cannot hold that at their rates; as for the first plan, the plan rests on the pace observed (the first thirty merged in four days). Re-estimate at Gate C. If H1 needs the team, the product lane waits first, in the cut order of the roadmap.
+
+## 7. What is left out, and why
+
+- **Work that is not absorb work.** The pre-tag conditions still open, the request-identity check Gate D rests on, and the Knowledge dogfood card are named in section 9, not planned here: the lead asked for absorb work, and they must not wait for it.
+- **Anything that bumps `schema_version`** (R-068 to R-071 derived-from edges and their lints, R-072 the read manifest, R-074 and R-075 taint rules, R-076 an approval request id, R-092 and R-093 outcome events, R-099 and R-100 recency per class, R-101 to R-103 the policy hash on events, R-106 the dense tier, R-123, R-125, R-144). A bump moves H1's cassette keys after H1 has run, and H3's pinned fault-set hashes before H3 runs (section 3). Each waits for an ADR that separates the policy's version from the item and event version, or for side-table designs like E9.11's; neither is urgent before Gate D.
+- **Changes to what a registered condition sees.** Datamarking and session taint (R-046, R-047, R-116, R-117; proposal U1) change C5's memory tag; the dense tier (R-066, R-107 to R-110; U2) changes retrieval; the Distiller prompt wrapper (R-045) changes ADR 0045's prompt; recording sessions under the guard (card D1's follow-ups) changes H5's input after H5's design is fixed; the lineage-as-revocation question of card A5 and the text-read question of card E8.14 change registered reads. Each is an amendment, so each is the lead's, and none is pressing.
+- **A second small-model tier, the injection classifier (R-158).** Card L7 found that its NLI scores did not separate contradictions from unrelated pairs on the fixture; a second tier of that kind should wait for proposal P2's registration and a tested premise.
+- **Frameworks and MCP's next version** (R-136, R-137, R-141 to R-143). Card E8.14 built the kit; the LangGraph and Mastra adapters and the MCP SDK version 2 migration widen reach, serve no hypothesis, and the migration risks the surface H4 names. After Gate D.
+- **The hot paths card X15 measured.** Whole-table scans and the read-history scan in the budget check are a production problem, and the fix touches the load-bearing read and write paths while the frontier runs (X6 to X8) depend on them. After the frontier runs.
+- **Delegation for sub-agents** (R-016, R-049, R-129). No hypothesis depends on it, and the research itself recommends waiting until a test shows the log cannot say on whose behalf an agent acted.
+- **Operations and reach that a member can do by hand:** log backup and tail (R-060; a member copies the file, and the chain verifies the copy), retention preview, templates and the kill switch (R-112 to R-114), the AI-BOM, OSCAL, OpenLineage and Parquet exports (R-061, R-132, R-161, R-166), a Python client and docs site (R-165, the roadmap's W23).
+- **Methods that need live calls or a later premise:** the retrieval bisect (R-036; real failures exist only after live runs), quote-grounding's deterministic sibling for unsupported claims (R-126, after L9), population and usage lints (R-124), the cross-family guard (R-097; the three model slots already come from three makers), ForgetEval (R-118, U5; the residue check comes first), memory-system baselines (R-152 to R-154), skills import and export (R-155 to R-157).
+- **Ingestion and consolidation** (R-144 to R-151): parked after Gate D by the research, and the 2026 evidence is that model-written consolidation often degrades memory.
+- **The injection screen on adopted records** (backlog, finding E2.10-4). Decided here: it stays as built until proposal P2 is registered, since the screen is off in every preset and the question is the arm's.
+
+All of these stay candidates in `docs/research/absorb/long-list.md`.
+
+## 8. Questions for the lead
+
+Only money and the pre-registration go to the lead; everything else in this plan was decided, with its reason, in the decision entries of 2026-11-25 (`docs/log/2026-11-25-ap2-*`).
+
+1. **Money: the programme-wide spend cap (item 59, pre-tag condition 7).** The runner card that enforces the cap in billed dollars is not on main and has no card file, five days before the tag. Either a card is written and merged before 30 November (outside this plan), or the operator's fallback in the pre-tag condition (reading OpenRouter's credit balance at least every two hours and stopping the shards below the margin) is how H1 is capped. Recommendation: the fallback for H1, the card in W10 before any later live run.
+2. **Pre-registration: quote-grounding for H3 (card L9).** Register it, by amendment before H3's live run (card X10, W17), as a variant of H3's model tier, or keep it an engineering check. Recommendation: decide from L9's fixture result, read once and not tuned.
+3. **Pre-registration: the arms U6 and U7 (cards X18 and X19).** Register either as a descriptive arm once its engineering check is merged, or keep both as checks. Recommendation: register U7, since it is the only measured evidence for Twin's offboarding claim; keep U6 a check unless H3's primary test is undecided.
+4. **Pre-registration: H5's prerequisites (item 30).** By item 9 they are fixed before H1's data exist, and no draft is on main. Cards D4 and D5 assume H5's configs as registered, with drift and the safety scan off; that assumption holds whatever the prerequisites say, but the prerequisites themselves are owed before 1 December.
+
+## 9. Follow-ups the thirty close, and work they do not own
+
+The first wave's follow-ups that rank among the thirty, with where each was recorded:
+
+| Follow-up | Recorded in | Card |
+|---|---|---|
+| The register's check (ADR 0037, decision 8) | backlog, "Follow-ups from the absorb plan" | E0.6 |
+| Crosswalk C44, injected time | backlog, card R4's follow-ups | E0.7 |
+| Tests that break only under `ENGRAM_OFFLINE=1` | `docs/log/2026-11-22-l7-failure-tests-under-offline.md` | E0.7 |
+| A surface-level suite | `docs/log/2026-11-21-x14-finding-not-covered.md` | E8.16 |
+| The sweep's put-back leak; the purge race on swept ids | backlog, card E1.5's follow-ups | E1.7 |
+| Stale `ContentGuards` and `Trust` comments in the schema | backlog, the README overhaul's follow-ups | E2.14 |
+| Grants on laundered agent content (E14-F3) | backlog, card E1.4's follow-ups | E2.15 |
+| The import cap and a served credential | `docs/log/2026-11-22-e9-8-finding-credential-source-replaces-cap.md` | E2.15 |
+| A close turns a person's fact into a model's | `docs/log/2026-11-22-l6-finding-close-provenance-trust.md` | E2.15 |
+| The guard scans `content` only; the unkeyed hash; the secret-name over-match | backlog, cards E2.9's and D1's follow-ups | E2.16 |
+| The oracle does not know the content-guard stage | `docs/log/2026-11-21-e2-9-finding-oracle.md` | E2.16 |
+| Attestations outside the chain; handles that keep no chain; the first-migration race | backlog, the README overhaul's follow-ups; `docs/log/2026-11-21-e1-6-finding-unkept-writers.md` | E1.9 |
+| Crosswalk C48, procedure drift | backlog, card R4's follow-ups | D4 |
+| The inspector has no credential | `docs/log/2026-11-21-e8-12-finding-inspector-and-forwarding.md` | E8.8 |
+| Crypto-shredded erasure, "the first thing to add after the thirty" | `docs/tasks/absorb-plan.md`, section 7 | E9.11, E9.13 |
+
+Work the gates need that no card owns, found while planning (`docs/log/2026-11-25-ap2-finding-gate-work-unowned.md`): pre-tag conditions 2 (the audit configs' `on_stop`), 3 (items 14 and 15), 5 (the OpenRouter endpoints) and 7 (the spend cap); H5's prerequisites (item 30); Gate D's request-identity check (ADR 0035, decision 1) and the Knowledge profile's dogfood (item 28); and before H3's live run, the contradiction prompt's change (item 44). Each needs its own card, written by the orchestrator, not by this plan.
+
+## 10. How the cards are worked
+
+As every card: `docs/tasks/<id>.md`, a plan in the pull request before code, the acceptance test first, an independent review, a fix pass and a verification, the local gates (`make lint`, `make lint-docs`, `make test`, `make test-invariants`, `make api-check`, `make test-e2e`, and `make test-repro` for every MANIFEST row the change can reach), and log entries for each deliverable, decision and failure. A card that copies or ports adds its rows to `docs/absorbed.md` and `NOTICE` in the same pull request, and rereads the licence at the commit it takes from. A card whose change the terminal interface would show writes a `finding` for branch `cliupgrade`.
