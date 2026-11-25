@@ -17,6 +17,9 @@ import {
   BUNDLE_FORMAT,
   BUNDLE_VERSION,
   currentItems,
+  disclosedEvent,
+  disclosedItem,
+  disclosedWrite,
   eventById,
   itemById,
   type MemoryEvent,
@@ -413,7 +416,24 @@ export const ROUTES: readonly Route[] = [
         accessTime(db, at),
       );
       const closes = acceptedClosures(db, plan, body.accept ?? []);
-      return { ...plan, ...(await writeClosures(workspace, body.actor, closes, at)) };
+      const written = await writeClosures(workspace, body.actor, closes, at);
+      // The closes as the actor is shown them (card RD1): core's disclosure,
+      // since a close is built from the item as the log holds it.
+      const items = new Map(currentItems(db).map((i) => [i.id, i]));
+      const view = {
+        policy: workspace.policy,
+        at: accessTime(db, at),
+        current: (i: string) => items.get(i),
+      };
+      return {
+        ...plan,
+        submitted: written.submitted.map((i) => disclosedItem(body.actor, i, view)),
+        applied: written.applied.map((w) => disclosedWrite(body.actor, w, view)),
+        stopped: written.stopped && {
+          ...written.stopped,
+          event: disclosedEvent(body.actor, written.stopped.event, view),
+        },
+      };
     },
   }),
   route<z.infer<typeof C.BypassRequest>>({

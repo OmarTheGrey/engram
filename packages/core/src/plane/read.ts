@@ -52,6 +52,7 @@ import {
 } from "../policy/evaluate.ts";
 import { type Explanation, Id, type MemoryItem, SCHEMA_VERSION } from "../schema.ts";
 import { compareTimestamps } from "../time.ts";
+import { disclosedGrantsUsed, disclosedItem } from "../visible.ts";
 import { formatReadReason } from "./read-reason.ts";
 import { matchesQuery, queryTerms, retrieve, scoreComponents } from "./retrieve.ts";
 import { checkCall } from "./write.ts";
@@ -287,12 +288,18 @@ export async function filteredRead(
     // order; the core pipeline's list is already in its order.
     if (!core) admitted.sort((a, b) => b.total - a.total);
 
+    // What the reader is shown of each item (card RD1, visible.ts): every
+    // grant to its owner and only its own to anyone else, the grants used
+    // numbered by the grants shown, and only the lineage ids it may ask for
+    // by id (ADR 0047) at this read's times. The log keeps the items whole.
+    const byId = new Map(projected.map((i) => [i.id, i]));
+    const view = { policy, at, validAt, current: (itemId: string) => byId.get(itemId) };
     const explanations: Explanation[] = admitted.map(({ item, decision, parts, total }, i) => ({
       item_id: item.id,
       rank: i + 1,
       score: { total, components: parts },
       policy_id: decision.policy_id,
-      grants_used: decision.grants_used,
+      grants_used: disclosedGrantsUsed(policy, actor, item, decision.grants_used),
       validity: { at: validAt, valid_from: item.valid_from, valid_to: item.valid_to },
       schema_version: 1 as const,
     }));
@@ -336,7 +343,12 @@ export async function filteredRead(
       "INSERT INTO explanations (read_id, rank, item_id, body) VALUES (?, ?, ?, ?)",
     );
     for (const e of explanations) insert.run(appended.id, e.rank, e.item_id, JSON.stringify(e));
-    return { items: admitted.map((a) => a.item), explanations, filtered, event: appended };
+    return {
+      items: admitted.map((a) => disclosedItem(actor, a.item, view)),
+      explanations,
+      filtered,
+      event: appended,
+    };
   });
   return { items, explanations, filtered, event };
 }

@@ -63,6 +63,7 @@ import {
   promotionRuleId,
 } from "../policy/promotion.ts";
 import { Id, type MemoryEvent, type MemoryItem, Scope } from "../schema.ts";
+import { disclosedEvent, disclosedItem } from "../visible.ts";
 import {
   basisNow,
   ERASING_ID,
@@ -75,6 +76,7 @@ import {
   staleness,
 } from "./commit.ts";
 import { inWriteQueue } from "./queue.ts";
+import { accessTime } from "./read.ts";
 import { budgetRefusal, enforceBudget } from "./retention.ts";
 import { refProblem, retiredContent } from "./write.ts";
 
@@ -390,9 +392,20 @@ async function decideAndCommit(
     }
   }
   const { committed, retention } = outcome;
-  const [event] = committed as [MemoryEvent, ...MemoryEvent[]];
   // The event is the audit record; the item goes back only to a promoter
-  // who can read where it landed (P5-7).
-  const visibleItem = readableScope(policy, actor, stored.scope) ? stored : null;
-  return { decision: "allow", item: visibleItem, event, events: [...committed, ...retention] };
+  // who can read where it landed (P5-7), and the item and the events as the
+  // promoter is shown them (card RD1, visible.ts): a reviewer who is not the
+  // owner sees no grant naming anyone else, and no lineage id it may not ask for.
+  const projected = new Map(currentItems(db).map((i) => [i.id, i]));
+  const view = { policy, at: accessTime(db, at), current: (i: string) => projected.get(i) };
+  const visibleItem = readableScope(policy, actor, stored.scope)
+    ? disclosedItem(actor, stored, view)
+    : null;
+  const [event, ...rest] = [...committed, ...retention].map((e) => disclosedEvent(actor, e, view));
+  return {
+    decision: "allow",
+    item: visibleItem,
+    event: event as MemoryEvent,
+    events: [event as MemoryEvent, ...rest],
+  };
 }

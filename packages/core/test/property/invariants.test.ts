@@ -1002,11 +1002,19 @@ describe("invariants", () => {
             // The item's grants are those of the latest allowed event for it in the
             // oracle's replay, so no grant comes back once removed (V-7), and every
             // change of its grants, or of its class while it carried grants, was its
-            // owner's write or grant change (I1, V-4).
+            // owner's write or grant change (I1, V-4). The reader is shown them all
+            // when it owns the item and reads its scope, else only those naming it
+            // (card RD1, lead-decisions item 36).
+            const latest = was as MemoryItem;
+            const owns =
+              reader.id === latest.owner &&
+              readable(policy, reader, { ...latest, grants: [] } as MemoryItem, at);
             expect(
               it.grants,
-              `${it.id} returned with grants its latest event does not carry`,
-            ).toEqual((was as MemoryItem).grants);
+              `${it.id} returned with grants its latest event does not carry, as ${reader.id} is shown them`,
+            ).toEqual(
+              owns ? latest.grants : latest.grants.filter((g) => patternCovers(g.to, reader.id)),
+            );
             let before: MemoryItem | undefined;
             for (const e of log) {
               if (e.decision !== "allow" || e.item?.id !== it.id) continue;
