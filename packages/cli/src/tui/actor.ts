@@ -7,6 +7,7 @@
 // here decides anything: it compares two principals' ids.
 import type { Actor } from "@engram/sdk";
 import { buildActor } from "../setup.ts";
+import { ACTOR_FLAGS } from "./forms.ts";
 import type { RunResult } from "./runner.ts";
 import type { Workspace } from "./workspace.ts";
 
@@ -74,6 +75,36 @@ export function madeAsOther(ws: Workspace, r: RunResult | undefined): string | u
   const members = Array.isArray(made.memberships) ? (made.memberships as string[]).join(", ") : "";
   // The same id: named with what differs, its level and its memberships (re-verification 4).
   return `${made.id} (${String(made.level)}) as a member of ${members || "its own scope"}`;
+}
+
+/**
+ * Whether a command line names, by its own actor flags, an actor other than
+ * the workspace's now (final review F-3): the palette's rerun has the
+ * session's argv and no answer, so it compares the actor that argv builds,
+ * as madeAsOther compares the actor a request carried. A line with no actor
+ * flag (policy, doctor) is no one's.
+ */
+export function argvAsOther(ws: Workspace, argv: readonly string[]): boolean {
+  const flags: { owner?: string; as?: string; level?: string; member?: string[] } = {};
+  let named = false;
+  const actor = new Set<string>(ACTOR_FLAGS);
+  for (let i = 0; i < argv.length; i++) {
+    const m = /^--([a-z-]+)(?:=(.*))?$/.exec(argv[i] as string);
+    if (m === null || !actor.has(m[1] as string)) continue;
+    named = true;
+    const value = m[2] ?? argv[++i] ?? "";
+    if (m[1] === "member") flags.member = [...(flags.member ?? []), value];
+    else flags[m[1] as "owner" | "as" | "level"] = value;
+  }
+  if (!named) return false;
+  let made: Actor | undefined;
+  try {
+    made = buildActor(flags, flags.owner) as Actor;
+  } catch {
+    // Actor flags the CLI refuses: not the workspace's actor.
+    return true;
+  }
+  return actorKey(made) !== actorKeyNow(ws);
 }
 
 /** What a screen says in place of an answer made as another actor. */

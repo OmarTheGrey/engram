@@ -364,3 +364,45 @@ describe("after a change of actor, card E8.15d's screens draw no other actor's a
     await h.quit();
   });
 });
+
+// Final review F-3: the palette's "Run the last command again" is r under another key, so it
+// rebuilds the command line from the workspace as r does (rerunArgv), and its row shows that line.
+describe("the palette's rerun after a change of actor", () => {
+  for (const [how, change] of Object.entries(SWITCHES))
+    it(`runs as the actor now, through ${how}`, async () => {
+      const w = await workspace();
+      const h = await startHarness({
+        cwd: w.cwd,
+        home: w.cwd,
+        given: w.given,
+        options: { noSaved: true },
+        columns: 120,
+        rows: 40,
+      });
+      await h.press("r", CTRL_S, "y");
+      expect(h.ran().at(-1)).toContain("dana");
+      await change(h);
+      expect(h.app.ws.actorLabel()).toContain("person:sam");
+      await h.press(ESC, ESC, ";");
+      await h.type("rerun");
+      const palette = await h.text();
+      const row = palette.split("\n").find((l) => l.includes("Run the last command again")) ?? "";
+      // The row is cut to the palette's width; the line that ran as dana began with her actor flags.
+      expect(row).toContain("engram read --db engram.db");
+      expect(row).not.toContain("--owner dana");
+      const before = h.ran().length;
+      await h.press(ENTER);
+      // The rerun's call is not on the key chain: wait for its confirmation or its run.
+      for (let i = 0; i < 600 && h.ran().length === before && h.overlay() !== "confirm"; i++)
+        await new Promise((r) => setTimeout(r, 10));
+      if (h.overlay() === "confirm") await h.press("y");
+      for (let i = 0; i < 600 && h.ran().length === before; i++)
+        await new Promise((r) => setTimeout(r, 10));
+      await h.app.settled();
+      const last = h.ran().at(-1) ?? [];
+      expect(last).toContain("person:sam");
+      expect(last.join(" ")).not.toMatch(/--member person:dana/);
+      expect(await h.text()).not.toContain(SECRET);
+      await h.quit();
+    }, 60_000);
+});

@@ -7,10 +7,12 @@
 // every action that changes state, the safe button focused.
 import { fuzzyFilter } from "@earendil-works/pi-tui";
 import { parse } from "../commands.ts";
-import { closest, commandWords, parseOptions, type Values } from "../registry.ts";
+import { type CommandSpec, closest, commandWords, parseOptions, type Values } from "../registry.ts";
+import { argvAsOther } from "./actor.ts";
 import { splitWords } from "./argv.ts";
 import { offered, specOfWords } from "./asks.ts";
 import { TextField } from "./fields.ts";
+import { rerunArgv } from "./forms.ts";
 import { actionsOn, EVERYWHERE, type KeyAction } from "./keys.ts";
 import { box, cut, fit, para, visibleWidth, wrap } from "./layout.ts";
 import type { ConfirmRequest, Ctx, Overlay, Screen } from "./screen.ts";
@@ -184,8 +186,10 @@ export class PaletteOverlay implements Overlay {
       },
       {
         label: "Run the last command again",
-        command:
-          ctx.ran.length === 0 ? "nothing has run yet" : ctx.shown(ctx.ran.at(-1)?.argv ?? []),
+        command: (() => {
+          const again = lastAgain(ctx);
+          return again === undefined ? "nothing has run yet" : ctx.shown(again.argv);
+        })(),
         search: "rerun run the last command again repeat",
         run: (c) => void rerunLast(c),
       },
@@ -355,16 +359,27 @@ export const registerWorkspaceScreen = (make: (ctx: Ctx, focus?: string) => Scre
   workspaceScreen = make;
 };
 
-/** The palette's rerun: the session's last command, run again through the same path, asking as before. */
-async function rerunLast(ctx: Ctx): Promise<void> {
+/**
+ * The command line the palette's rerun runs: the session's last, as r builds
+ * it (rerunArgv), its actor flags replaced by the workspace's when it was
+ * made as another actor (final review F-3).
+ */
+function lastAgain(ctx: Ctx): { spec: CommandSpec; argv: string[] } | undefined {
   const last = ctx.ran.at(-1);
   const spec = last === undefined ? undefined : specOfWords(last.argv);
-  if (last === undefined || spec === undefined) {
+  if (last === undefined || spec === undefined) return undefined;
+  return { spec, argv: rerunArgv(spec, last.argv, ctx.ws, argvAsOther(ctx.ws, last.argv)) };
+}
+
+/** The palette's rerun: the session's last command, run again through the same path, asking as before. */
+async function rerunLast(ctx: Ctx): Promise<void> {
+  const again = lastAgain(ctx);
+  if (again === undefined) {
     ctx.say("nothing has run this session");
     return;
   }
-  const result = await ctx.act(spec, last.argv, {});
-  if (result !== undefined) ctx.push(new ResultScreen(spec, result, {}));
+  const result = await ctx.act(again.spec, again.argv, {});
+  if (result !== undefined) ctx.push(new ResultScreen(again.spec, result, {}));
 }
 
 /** Forget saved workspace: asks, then deletes tui.json. */
