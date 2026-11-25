@@ -238,7 +238,7 @@ describe("11.3 palettes", () => {
     await h.quit();
   });
 
-  it("never types a late answer into a field, and keeps the colourless symbols after the wait", async () => {
+  it("keeps the colourless symbols when the answer comes after the wait", async () => {
     const { cwd, home } = await folders();
     const clock = handTimers();
     const h = await startHarness({ cwd, home, given: {}, timers: clock.timers });
@@ -246,11 +246,43 @@ describe("11.3 palettes", () => {
     clock.fireLater();
     expect(h.screen()).toBe("first-run");
     h.term.send(`${ESC}]11;rgb:ffff/ffff/ffff${ESC}\\`);
-    const text = await h.text();
-    expect(text).not.toContain("rgb:");
-    expect(text).not.toContain("11;");
     const tick = (await h.cells()).find((c) => c.char === "✓");
     expect(tick?.fg).toBe("default");
+    await h.quit();
+  });
+
+  // Review E-5: pi-tui 1.3.0 itself drops an OSC answer typed into a field, so the first test
+  // below would pass without the TUI's guard; the second holds the guard where it acts.
+  it("never types a late answer into a focused field", async () => {
+    const { cwd, home } = await folders();
+    const h = await startHarness({ cwd, home, given: USABLE });
+    await h.press("w");
+    expect(h.focused()).toBe("content");
+    await h.type("abc");
+    h.term.send(`${ESC}]11;rgb:ffff/ffff/ffff${ESC}\\`);
+    await h.type("d");
+    const text = await h.text();
+    expect(text).toContain("[ abcd");
+    expect(text).not.toContain("rgb:");
+    await h.quit();
+  });
+
+  it("hands no OSC 11 answer on to pi-tui, early or late, while other keys pass", async () => {
+    const { cwd, home } = await folders();
+    const clock = handTimers();
+    const h = await startHarness({ cwd, home, given: {}, timers: clock.timers });
+    const seen: string[] = [];
+    h.tui.addInputListener((data) => {
+      seen.push(data);
+      return undefined;
+    });
+    h.term.send(`${ESC}]11;rgb:0c0c/0c0c/0c0c${ESC}\\`);
+    clock.fireLater();
+    h.term.send(`${ESC}]11;rgb:ffff/ffff/ffff\x07`);
+    h.term.send("x");
+    await h.frame();
+    expect(seen.some((d) => d.includes("]11;"))).toBe(false);
+    expect(seen).toContain("x");
     await h.quit();
   });
 
@@ -405,6 +437,21 @@ describe("11.6 the screen-reader hint and L", () => {
     expect(await h.text()).toContain("L on Home, or engram tui --line");
     await h.press("\r");
     expect((await h.app.done).line).toBe(true);
+  });
+});
+
+describe("the terminal given back on quit (review E-5)", () => {
+  it("leaves the alternate screen and writes no frame after it, so nothing stays in the scrollback", async () => {
+    const { cwd, home } = await folders();
+    const h = await startHarness({ cwd, home, given: USABLE });
+    expect(await h.text()).toContain("Read and explain");
+    await h.quit();
+    const out = h.term.output;
+    const left = out.lastIndexOf("\x1b[?1049l");
+    expect(left).toBeGreaterThan(out.indexOf("\x1b[?1049h"));
+    const after = out.slice(left);
+    expect(after).not.toContain("Read and explain");
+    expect(after).not.toContain("engram  Home");
   });
 });
 

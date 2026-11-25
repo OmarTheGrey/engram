@@ -28,7 +28,7 @@ import {
   type Values,
 } from "../registry.ts";
 import { type Io, run } from "../run.ts";
-import { actorKeyNow, actorKeyOfResult } from "./actor.ts";
+import { actorKeyNow, actorKeyOfResult, actorNow } from "./actor.ts";
 import { confirmationFor, isRead, offered, readKey, specOfWords } from "./asks.ts";
 import { type Exchange, type RunResult, teeCalls } from "./runner.ts";
 import { savedPath, writeSaved } from "./saved.ts";
@@ -84,11 +84,25 @@ const HELP_LINES = [
   "workspace shows the flags every command gets, and changes them.",
   "screen opens the full-screen interface, with the same workspace.",
   "help followed by a command's name prints that command's options.",
-  "quit, or end of input, leaves; the commands this session ran are printed then, unless --quiet.",
+  "quit or exit, at any question, or end of input, leaves: ctrl+D, or ctrl+Z then Enter on Windows; the commands this session ran are printed then, unless --quiet.",
 ];
 
-/** The end of input, at any question: line mode leaves. */
+/** The end of input, or quit or exit, at any question: line mode leaves. */
 class Ended extends Error {}
+
+/** Whom line mode acts as: the actor every command builds from the workspace, with its level and memberships. */
+export function actingAs(ws: Workspace): string {
+  const a = actorNow(ws);
+  if (a === undefined) return "acting as no one yet: workspace sets --owner or --as";
+  const members = a.memberships.length === 0 ? "its own scope" : a.memberships.join(", ");
+  return `acting as ${a.id} (${a.level}), a member of ${members}`;
+}
+
+/** A line that is the end of input: ctrl+Z (Windows) or ctrl+D, alone. */
+const END_OF_INPUT = new Set([String.fromCharCode(26), String.fromCharCode(4)]);
+
+/** The words that leave line mode from any question (review E-4). */
+const LEAVE = new Set(["quit", "exit"]);
 
 /** The lines of standard input, one a question; undefined at the end of input. */
 class Lines {
@@ -112,6 +126,12 @@ class Lines {
     this.write = write;
     this.rl = createInterface({ input: input as Readable, terminal: false, crlfDelay: Infinity });
     this.rl.on("line", (line) => {
+      // Windows' end of input (ctrl+Z then Enter) and ctrl+D arrive as a line of one control
+      // character through a console: the end of input, as on a POSIX terminal (review E-2).
+      if (END_OF_INPUT.has(line.trim())) {
+        this.end();
+        return;
+      }
       const w = this.waiting;
       if (w !== undefined) {
         this.waiting = undefined;
@@ -314,6 +334,7 @@ class LineSession {
       this.out("\n");
       throw new Ended();
     }
+    if (LEAVE.has(line.trim().toLowerCase())) throw new Ended();
     return line;
   }
 
@@ -329,6 +350,8 @@ class LineSession {
   /** The loop: until quit or the end of input; true when `screen` was typed. */
   async loop(): Promise<boolean> {
     this.say(LINE_INTRO);
+    // Whom every command acts as, as the full screen's title bar says it (review E-1).
+    this.say(actingAs(this.ws));
     this.out(menuText());
     for (;;) {
       let line: string;
@@ -343,7 +366,6 @@ class LineSession {
         this.out(menuText());
         continue;
       }
-      if (typed === "quit") return false;
       if (typed === "screen") {
         const refused = this.deps.screenRefusal?.();
         if (refused === undefined) return true;
@@ -598,12 +620,35 @@ class LineSession {
     );
     const argv = [...words, ...this.ws.argsFor(spec, given)];
     const message = checkArgv(spec, argv, this.io);
-    if (message !== undefined) {
-      this.io.err(`engram ${spec.name.split(" ")[0]}: ${message}\n`);
-      this.say("nothing ran");
-      return;
-    }
+    if (message !== undefined) return this.refused(spec, argv, message);
     return this.confirmAndRun(spec, argv);
+  }
+
+  /**
+   * A typed command line the CLI's checks refuse (review E-3): shown, then
+   * what the plain CLI prints for it, its exit code shown and recorded. A
+   * line its parse refuses goes through `run` itself, which fails at that
+   * parse before anything is opened, so its "did you mean" line is the CLI's.
+   */
+  private async refused(spec: CommandSpec, argv: string[], message: string): Promise<void> {
+    this.say(`run: ${printedLine(argv, this.shell)}`);
+    let code = 2;
+    if (this.parseFails(spec, argv)) code = await run([...argv], this.runIo([]));
+    else this.io.err(`engram ${spec.name.split(" ")[0]}: ${message}\n`);
+    this.say(`exit ${code}`);
+    this.ran.push({ argv: [...argv], code });
+  }
+
+  /** Whether the command's own parse refuses `argv`. */
+  private parseFails(spec: CommandSpec, argv: readonly string[]): boolean {
+    const words = spec.name.split(" ").filter((w) => !w.startsWith("--"));
+    const args = spec.allowPositionals ? argv.slice(1) : argv.slice(words.length);
+    try {
+      parse([...args], parseOptions(spec), spec.allowPositionals);
+      return false;
+    } catch {
+      return true;
+    }
   }
 
   // Confirming and running.

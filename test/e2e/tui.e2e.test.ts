@@ -10,20 +10,50 @@
 // mode with L. Every run is on a scratch log, store folder and home with
 // --no-saved. Skipped, with the reason printed, where no pseudoconsole can
 // be had.
+
+import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { afterAll, describe, expect, it } from "vitest";
-import { type PtySession, probePty, startPty } from "../../packages/cli/test/tui/pty.ts";
+import { afterAll, afterEach, describe, expect, it } from "vitest";
+import { killAll, type PtySession, probePty, startPty } from "../../packages/cli/test/tui/pty.ts";
 
 const REPO = resolve(fileURLToPath(import.meta.url), "../../..");
 const MAIN = join(REPO, "packages/cli/src/main.ts");
 const dirs: string[] = [];
-afterAll(() => {
-  for (const dir of dirs) rmSync(dir, { recursive: true, force: true });
+// Review E-6: a failed expectation must not leave a TUI, or Serve's port, behind, and a folder
+// a dying process still holds must not hide the failure that came first.
+afterEach(async () => {
+  await killAll();
 });
+afterAll(() => {
+  for (const dir of dirs)
+    try {
+      rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+    } catch (e) {
+      console.warn(`tui.e2e: could not remove ${dir}: ${(e as Error).message}`);
+    }
+});
+
+/** How many node processes run this CLI's tui on a scratch folder (review E-8: no grandchild). */
+function tuiProcesses(dir: string): number {
+  const name = dir.split(/[\\/]/).at(-1) as string;
+  const list =
+    process.platform === "win32"
+      ? spawnSync(
+          "powershell",
+          [
+            "-NoProfile",
+            "-Command",
+            "Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" | ForEach-Object { $_.CommandLine }",
+          ],
+          { encoding: "utf8" },
+        ).stdout
+      : spawnSync("ps", ["-eo", "args"], { encoding: "utf8" }).stdout;
+  return list.split(/\r?\n/).filter((l) => l.includes(" tui") && l.includes(name)).length;
+}
 
 /** A scratch workspace: its folder, the home inside it, and the flags that name it. */
 function scratch() {
@@ -179,4 +209,42 @@ describe.skipIf(skip !== undefined)("engram tui under a pseudoconsole", () => {
     );
     expect(s.uncaught()).toBe("");
   }, 90_000);
+
+  it("leaves line mode on ctrl+Z then Enter, Windows' end of input (review E-2)", async () => {
+    const w = scratch();
+    const s = startPty(pty, {
+      main: MAIN,
+      args: ["tui", "--line", ...w.flags],
+      cwd: w.dir,
+      home: w.home,
+    });
+    expect(await s.find("command:"), await shown(s)).toBe(true);
+    await s.keys("policy\r", 200);
+    expect(await s.find("exit 0"), await shown(s)).toBe(true);
+    await s.keys("\x1a\r", 0);
+    expect(await s.exit(), await shown(s)).toBe(0);
+    expect(await s.text()).toMatch(/# engram tui: the commands this session ran\nengram policy/);
+    expect(await s.text()).not.toContain("no command is named");
+  }, 90_000);
+
+  it("returns from L's child to the full screen with screen, nesting no process (review E-8)", async () => {
+    const w = scratch();
+    const s = startPty(pty, { main: MAIN, args: ["tui", ...w.flags], cwd: w.dir, home: w.home });
+    expect(await s.find("> [r] Read and explain"), await shown(s)).toBe(true);
+    await s.keys("L", 600);
+    expect(await s.find("command:"), await shown(s)).toBe(true);
+    expect(tuiProcesses(w.dir)).toBe(2);
+    await s.keys("policy\r", 200);
+    expect(await s.find("exit 0"), await shown(s)).toBe(true);
+    await s.keys("screen\r", 600);
+    expect(await s.find("> [r] Read and explain"), await shown(s)).toBe(true);
+    // The child has ended; the parent's full screen is back, alone.
+    expect(tuiProcesses(w.dir)).toBe(1);
+    await s.keys("L", 600);
+    expect(await s.find("command:"), await shown(s)).toBe(true);
+    expect(tuiProcesses(w.dir)).toBe(2);
+    await s.keys("quit\r", 0);
+    expect(await s.exit(), await shown(s)).toBe(0);
+    expect(s.uncaught()).toBe("");
+  }, 120_000);
 });

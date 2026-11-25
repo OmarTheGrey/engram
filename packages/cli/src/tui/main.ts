@@ -17,7 +17,7 @@ import { parse } from "../commands.ts";
 import { closest, OPTIONS, type Values } from "../registry.ts";
 import type { Io } from "../run.ts";
 import { UsageError } from "../setup.ts";
-import { startTui, type TuiOptions } from "./app.ts";
+import { type App, startTui, type TuiOptions } from "./app.ts";
 import { offered } from "./asks.ts";
 import { lineMode } from "./line.ts";
 import { loadSaved, type SavedOptions } from "./saved.ts";
@@ -34,6 +34,33 @@ export interface TuiDeps {
   echo?: (line: string) => void;
   /** Line mode's mcp and hook setup: the command the snippets name, in place of the PATH's. */
   launch?: Launch;
+  /** Told of the App each time the full screen starts (tests: a reviewer handoff, review E-1). */
+  onApp?: (app: App) => void;
+  /**
+   * A line-mode child of L: hands its workspace and commands back to the
+   * parent when screen is typed (review E-8); the parent's IPC channel when
+   * absent and this process is such a child.
+   */
+  handBack?: (back: HandBack) => void | Promise<void>;
+}
+
+/** What a line-mode child of L hands back to the full screen that started it. */
+export interface HandBack {
+  given: Values;
+  ran: Ran[];
+}
+
+/** Set in the environment of a line-mode child of L, whose parent listens on IPC. */
+const HANDBACK_ENV = "ENGRAM_TUI_HANDBACK";
+
+/** The hand-back of this process: the test's, or the IPC channel to the parent that started it. */
+function handBackOf(io: Io, deps: TuiDeps): TuiDeps["handBack"] {
+  if (deps.handBack !== undefined) return deps.handBack;
+  if (io.env[HANDBACK_ENV] !== "1" || typeof process.send !== "function") return undefined;
+  return (back) =>
+    new Promise<void>((resolve) => {
+      process.send?.(back, undefined, {}, () => resolve());
+    });
 }
 
 const PLAIN = "run the plain commands (engram --help lists them)";
@@ -96,52 +123,75 @@ export async function tuiCommand(args: string[], io: Io, deps: TuiDeps = {}): Pr
   // The first mode reads tui.json's flags; a switch hands the workspace on whole.
   let first = true;
   let mode: "line" | "screen" = line ? "line" : "screen";
-  for (;;) {
-    if (mode === "line") {
-      const end = await lineMode(
-        io,
-        {
+  const handBack = handBackOf(io, deps);
+  try {
+    for (;;) {
+      if (mode === "line") {
+        const end = await lineMode(
+          io,
+          {
+            given,
+            saved: first ? loaded.saved?.flags : undefined,
+            noSaved: options.noSaved,
+          },
+          {
+            ...(deps.echo ? { echo: deps.echo } : {}),
+            ...(deps.launch ? { launch: deps.launch } : {}),
+            ...(deps.platform ? { platform: deps.platform } : {}),
+            screenRefusal: () => refusal(io, values, false),
+          },
+        );
+        ran.push(...end.ran);
+        if (!end.screen) break;
+        if (handBack !== undefined) {
+          // A child of L: the full screen is the parent's, which prints the session's commands.
+          await handBack({ given: end.given, ran: [...ran] });
+          return 0;
+        }
+        given = end.given;
+      } else {
+        const terminal = deps.terminal ?? processTerminal();
+        const { app } = startTui({
+          terminal,
+          io,
           given,
-          saved: first ? loaded.saved?.flags : undefined,
-          noSaved: options.noSaved,
-        },
-        {
-          ...(deps.echo ? { echo: deps.echo } : {}),
-          ...(deps.launch ? { launch: deps.launch } : {}),
+          options: first ? options : again,
           ...(deps.platform ? { platform: deps.platform } : {}),
-          screenRefusal: () => refusal(io, values, false),
-        },
-      );
-      ran.push(...end.ran);
-      if (!end.screen) break;
-      given = end.given;
-    } else {
-      const terminal = deps.terminal ?? processTerminal();
-      const { app } = startTui({
-        terminal,
-        io,
-        given,
-        options: first ? options : again,
-        ...(deps.platform ? { platform: deps.platform } : {}),
-        ...(first ? {} : { skipSavedFlags: true }),
-      });
-      const summary = await app.done;
-      if (deps.terminal === undefined) (io.stdin as { pause?: () => void } | undefined)?.pause?.();
-      ran.push(...summary.ran);
-      deferred.push(...summary.deferred);
-      if (summary.line !== true) break;
-      given = app.ws.savable();
-      if (deps.terminal === undefined) {
-        // On the real console L starts line mode as a child process on the same terminal: in
-        // this one, stdin read again after raw mode loses the first line typed and keeps the
-        // process alive at the end on Windows (libuv; failure entry of card E8.15e). This
-        // process prints the full screen's commands now; line mode prints its own as it ends.
-        print(io, summaryText({ ran, deferred }, detectShell(env), options.quiet));
-        return lineInChild(io, given, options);
+          ...(first ? {} : { skipSavedFlags: true }),
+        });
+        deps.onApp?.(app);
+        const summary = await app.done;
+        if (deps.terminal === undefined)
+          (io.stdin as { pause?: () => void } | undefined)?.pause?.();
+        ran.push(...summary.ran);
+        deferred.push(...summary.deferred);
+        if (summary.line !== true) break;
+        // The workspace as it acts now, a reviewer handoff's session values included (review E-1).
+        given = app.ws.flagValues();
+        if (deps.terminal === undefined) {
+          // On the real console L starts line mode as a child process on the same terminal: in
+          // this one, stdin read again after raw mode loses the first line typed and keeps the
+          // process alive at the end on Windows (libuv; failure entry of card E8.15e). This
+          // process prints the full screen's commands now; line mode prints its own as it ends,
+          // or hands them back here when screen is typed (review E-8).
+          print(io, summaryText({ ran, deferred }, detectShell(env), options.quiet));
+          ran.length = 0;
+          deferred.length = 0;
+          const child = await lineInChild(io, given, options);
+          if (child.back === undefined) return child.code;
+          ran.push(...child.back.ran);
+          given = child.back.given;
+          first = false;
+          continue;
+        }
       }
+      first = false;
+      mode = mode === "line" ? "screen" : "line";
     }
-    first = false;
-    mode = mode === "line" ? "screen" : "line";
+  } finally {
+    // A child of L lets its parent's channel go, or it would never exit.
+    if (deps.handBack === undefined && io.env[HANDBACK_ENV] === "1" && process.connected)
+      process.disconnect();
   }
   print(io, summaryText({ ran, deferred }, detectShell(env), options.quiet));
   return 0;
@@ -169,12 +219,9 @@ export function flagWords(flags: Values): string[] {
   return out;
 }
 
-/**
- * `engram tui --line` with the workspace's flags, a child of this process on
- * the same terminal (L on the real console); its exit code is this one's.
- */
-async function lineInChild(io: Io, given: Values, options: TuiOptions): Promise<number> {
-  const args = [
+/** The arguments of L's line-mode child: this CLI, tui --line, the TUI's options that carry over, the workspace. */
+export function childArgs(given: Values, options: Pick<TuiOptions, "quiet" | "noSaved">): string[] {
+  return [
     MAIN,
     "tui",
     "--line",
@@ -182,15 +229,44 @@ async function lineInChild(io: Io, given: Values, options: TuiOptions): Promise<
     ...(options.noSaved ? ["--no-saved"] : []),
     ...flagWords(given),
   ];
+}
+
+/** A hand-back as it arrives over IPC, checked for its shape. */
+function asHandBack(m: unknown): HandBack | undefined {
+  const o = m as { given?: unknown; ran?: unknown } | null;
+  if (o === null || typeof o !== "object" || typeof o.given !== "object" || !Array.isArray(o.ran))
+    return undefined;
+  return { given: o.given as Values, ran: o.ran as Ran[] };
+}
+
+/**
+ * `engram tui --line` with the workspace's flags, a child of this process on
+ * the same terminal (L on the real console): its exit code, and what it
+ * handed back when screen was typed there.
+ */
+async function lineInChild(
+  io: Io,
+  given: Values,
+  options: TuiOptions,
+): Promise<{ code: number; back?: HandBack }> {
   const env: Record<string, string> = {};
   for (const [k, v] of Object.entries(io.env)) if (v !== undefined) env[k] = v;
-  const child = spawn(process.execPath, args, { stdio: "inherit", cwd: io.cwd, env });
+  env[HANDBACK_ENV] = "1";
+  const child = spawn(process.execPath, childArgs(given, options), {
+    stdio: ["inherit", "inherit", "inherit", "ipc"],
+    cwd: io.cwd,
+    env,
+  });
+  let back: HandBack | undefined;
+  child.on("message", (m) => {
+    back = asHandBack(m) ?? back;
+  });
   return new Promise((resolve) => {
     child.on("error", (e) => {
       io.err(`engram tui: line mode did not start (${e.message}); run engram tui --line\n`);
-      resolve(1);
+      resolve({ code: 1 });
     });
-    child.on("exit", (code) => resolve(code ?? 1));
+    child.on("exit", (code) => resolve({ code: code ?? 1, ...(back ? { back } : {}) }));
   });
 }
 

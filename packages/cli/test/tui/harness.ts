@@ -186,6 +186,7 @@ export async function startHarness(o: HarnessOptions = {}) {
       }
       return out;
     },
+    tui,
     ran: () => app.ran.map((r) => r.argv),
     async quit(): Promise<Summary> {
       app.quit();

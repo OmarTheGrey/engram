@@ -6,6 +6,7 @@
 // only a real console does: the process's exit, its streams after the TUI
 // gives the terminal back, and stdin moving between raw mode and line mode.
 // `probePty` says whether a pseudoconsole can be had here, and why not.
+import { spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -16,6 +17,7 @@ type IPty = {
   onExit(cb: (e: { exitCode: number }) => void): void;
   write(d: string): void;
   kill(): void;
+  readonly pid: number;
 };
 type PtyModule = {
   spawn(
@@ -75,6 +77,8 @@ export interface PtySession {
   after(): string;
   /** What the exit hook saw: uncaught exceptions and unhandled rejections, one a line. */
   uncaught(): string;
+  /** Kills the TUI and every process under it, and waits for it to end (review E-6). */
+  kill(): Promise<void>;
 }
 
 export interface PtyStart {
@@ -85,6 +89,16 @@ export interface PtyStart {
   cols?: number;
   rows?: number;
   env?: Record<string, string>;
+}
+
+/** Every session started and not yet ended: what killAll stops after a test. */
+const live = new Set<PtySession>();
+
+/** Kills every session still running, each with its process tree (review E-6: a failed expectation left them). */
+export async function killAll(): Promise<void> {
+  const all = [...live];
+  live.clear();
+  await Promise.all(all.map((s) => s.kill()));
 }
 
 /**
@@ -149,7 +163,7 @@ export function startPty(pty: PtyModule, o: PtyStart): PtySession {
       out.push(b.getLine(b.viewportY + i)?.translateToString(true) ?? "");
     return out;
   };
-  return {
+  const session: PtySession = {
     screen,
     async find(text, ms = 20_000) {
       const until = Date.now() + ms;
@@ -190,6 +204,19 @@ export function startPty(pty: PtyModule, o: PtyStart): PtySession {
       const at = raw.lastIndexOf("\x1b[?1049l");
       return at < 0 ? "" : raw.slice(at + "\x1b[?1049l".length);
     },
+    async kill() {
+      live.delete(session);
+      if (code !== undefined) return;
+      if (process.platform === "win32")
+        spawnSync("taskkill", ["/PID", String(p.pid), "/T", "/F"], { stdio: "ignore" });
+      else
+        try {
+          process.kill(-p.pid, "SIGKILL");
+        } catch {
+          p.kill();
+        }
+      await Promise.race([exited, wait(5_000)]);
+    },
     uncaught: () => {
       try {
         return readFileSync(log, "utf8");
@@ -198,4 +225,7 @@ export function startPty(pty: PtyModule, o: PtyStart): PtySession {
       }
     },
   };
+  live.add(session);
+  void exited.then(() => live.delete(session));
+  return session;
 }

@@ -16,7 +16,7 @@ import { PassThrough } from "node:stream";
 import { describe, expect, it } from "vitest";
 import { type Io, run } from "../../src/run.ts";
 import { menuText } from "../../src/tui/line.ts";
-import { tuiCommand } from "../../src/tui/main.ts";
+import { childArgs, type TuiDeps, tuiCommand } from "../../src/tui/main.ts";
 import { writeSaved } from "../../src/tui/saved.ts";
 import { FakeTerminal } from "../../src/tui/term.ts";
 import { splitWords } from "../../src/tui/words.ts";
@@ -65,6 +65,8 @@ interface SessionOptions {
   tty?: { stdin: boolean; stdout: boolean };
   /** Through run, as `engram tui` is reached, instead of tuiCommand with the test's echo. */
   viaRun?: boolean;
+  /** Extra seams of tuiCommand: the App once started, and a line-mode child's hand-back. */
+  deps?: Partial<TuiDeps>;
 }
 
 /**
@@ -109,6 +111,7 @@ async function lineSession(args: string[], typed: string[], o: SessionOptions = 
         launch: LAUNCH,
         platform: "linux",
         ...(o.terminal ? { terminal: o.terminal } : {}),
+        ...(o.deps ?? {}),
       });
   if (o.terminal !== undefined && o.keys !== undefined) await o.keys(o.terminal);
   const code = await done;
@@ -173,6 +176,7 @@ describe("line mode's transcript (8.31)", () => {
     const menu = menuText();
     const expected = [
       INTRO,
+      "acting as person:dana (person), a member of person:dana\n",
       menu,
       "command: >\n",
       menu,
@@ -534,5 +538,146 @@ describe("line mode imports no pi-tui (11.6)", () => {
     expect(reached.some((r) => r.includes("pi-tui"))).toBe(false);
     expect([...seen].some((f) => f.endsWith(join("tui", "app.ts")))).toBe(false);
     expect(readFileSync(join(src, "tui", "line.ts"), "utf8")).toMatch(/from "node:readline"/);
+  });
+});
+
+// Card E8.15e's review (findings E-1 to E-4 and E-8).
+
+describe("review E-2: Windows' end of input", () => {
+  for (const [name, eot] of [
+    ["ctrl+Z then Enter", "\x1a"],
+    ["ctrl+D", "\x04"],
+  ] as const)
+    it(`leaves on a line holding only ${name}, as at the end of input`, async () => {
+      const s = await lineSession(["--line", ...WS], ["policy", eot]);
+      expect(s.code).toBe(0);
+      expect(s.transcript).not.toContain("no command is named");
+      expect(s.transcript).toMatch(
+        /# engram tui: the commands this session ran\nengram policy {2}# exit 0\n$/,
+      );
+    });
+});
+
+describe("review E-3: a refused command line prints what the plain CLI prints", () => {
+  for (const line of ["policy --jsn", "read --rot x"])
+    it(`${line}: the CLI's own stderr, did you mean included, and exit 2 shown and recorded`, async () => {
+      const s = await lineSession(["--line", ...WS], [line, "quit"]);
+      const shown = lastRun(s.transcript);
+      expect(shown.slice(0, line.split(" ").length)).toEqual(line.split(" "));
+      const p = await plain(shown);
+      expect(p.code).toBe(2);
+      expect(p.out).toContain("did you mean");
+      expect(s.norm).toContain(
+        `run: ${s.transcript
+          .split("\n")
+          .find((l) => l.startsWith("run: "))
+          ?.slice(5)}\n${p.out}exit 2\n`.replaceAll(s.cwd, "<cwd>"),
+      );
+      expect(s.transcript).toMatch(
+        new RegExp(
+          `# engram tui: the commands this session ran\\nengram ${line.split(" ")[0]} [^\\n]*# exit 2\\n$`,
+        ),
+      );
+    });
+});
+
+describe("review E-4: quit and exit leave from any question", () => {
+  it("leaves at a yes or no question, running nothing", async () => {
+    const s = await lineSession(["--line", ...WS], ["retain --scope person:dana", "quit"]);
+    expect(s.code).toBe(0);
+    expect(s.transcript).toContain("sweep it? yes or no (default no): > quit\n");
+    expect(s.transcript).not.toContain("answer yes or no");
+    expect(s.transcript).not.toContain("# engram tui: the commands");
+  });
+
+  it("takes exit as quit, at the command prompt and at a question, and says so in help", async () => {
+    const a = await lineSession(["--line", ...WS], ["help", "exit"]);
+    expect(a.code).toBe(0);
+    expect(a.transcript).toContain("quit or exit, at any question, or end of input, leaves");
+    expect(a.transcript.endsWith("command: > exit\n")).toBe(true);
+    const b = await lineSession(["--line", ...WS], ["write", "exit"]);
+    expect(b.code).toBe(0);
+    expect(b.transcript.endsWith("content: > exit\n")).toBe(true);
+  });
+});
+
+describe("review E-1: L keeps the reviewer handoff's actor", () => {
+  it("hands the child the session's --as and --member, not their predecessors", () => {
+    const args = childArgs(
+      { owner: "dana", db: "x.db", as: "person:rev", member: ["team:lantern"] },
+      { quiet: false, noSaved: true },
+    );
+    expect(args).toEqual(
+      expect.arrayContaining([
+        "tui",
+        "--line",
+        "--no-saved",
+        "--as",
+        "person:rev",
+        "--member",
+        "team:lantern",
+      ]),
+    );
+  });
+
+  it("acts as the reviewer in line mode after L, and its intro says so", async () => {
+    const term = new FakeTerminal({ columns: 80, rows: 24 });
+    const tick = () => new Promise((r) => setTimeout(r, 20));
+    let app: { startHandoff(r: string, m: readonly string[]): void } | undefined;
+    const s = await lineSession(
+      ["--owner", "dana", "--db", "engram.db", "--no-saved"],
+      ["events --after 0", "quit"],
+      {
+        terminal: term,
+        deps: {
+          onApp: (a) => {
+            app = a;
+          },
+        },
+        keys: async (t) => {
+          for (let i = 0; i < 200 && !t.started; i++) await tick();
+          app?.startHandoff("person:rev", ["team:lantern"]);
+          await tick();
+          t.send("L");
+        },
+      },
+    );
+    expect(s.code).toBe(0);
+    expect(s.transcript).toContain("acting as person:rev (person), a member of team:lantern\n");
+    expect(lastRun(s.transcript)).toEqual(
+      expect.arrayContaining(["--as", "person:rev", "--member", "team:lantern"]),
+    );
+  }, 30_000);
+
+  it("names the actor in the intro, its level and memberships", async () => {
+    const s = await lineSession(["--line", ...WS], ["quit"]);
+    expect(
+      s.transcript.startsWith(`${INTRO}acting as person:dana (person), a member of person:dana\n`),
+    ).toBe(true);
+    const none = await lineSession(["--line", "--no-saved"], ["quit"]);
+    expect(none.transcript).toContain("acting as no one yet: workspace sets --owner or --as\n");
+  });
+});
+
+describe("review E-8: screen in an L child hands back to the parent", () => {
+  it("ends the child with its workspace and commands, starting no full screen of its own", async () => {
+    const back: unknown[] = [];
+    const s = await lineSession(["--line", ...WS], ["policy", "screen"], {
+      deps: {
+        handBack: (m) => {
+          back.push(m);
+        },
+      },
+    });
+    expect(s.code).toBe(0);
+    expect(back).toHaveLength(1);
+    const m = back[0] as {
+      given: Record<string, unknown>;
+      ran: { argv: string[]; code: number }[];
+    };
+    expect(m.ran.map((r) => r.argv[0])).toEqual(["policy"]);
+    expect(m.given).toMatchObject({ owner: "dana", db: "engram.db" });
+    // The parent prints the session's commands; the child prints none.
+    expect(s.transcript).not.toContain("# engram tui: the commands");
   });
 });
