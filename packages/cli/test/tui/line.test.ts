@@ -871,8 +871,9 @@ describe("verification R-3: the hand-back acts only for the parent that started 
       env: { ENGRAM_TUI_HANDBACK: "a1b2" },
       deps: { ipc: c.ipc },
     });
-    expect(s.transcript).toContain("no full screen to return to: this line mode was not started by L
-");
+    expect(s.transcript).toContain(
+      "no full screen to return to: this line mode was not started by L\n",
+    );
     expect(c.sent.some((m) => (m as { ran?: unknown }).ran !== undefined)).toBe(false);
   });
 
