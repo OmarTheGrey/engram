@@ -19,12 +19,12 @@ import xterm from "@xterm/headless";
 import type { Values } from "../src/registry.ts";
 import { type Io, run } from "../src/run.ts";
 import { type App, startTui, type TuiOptions } from "../src/tui/app.ts";
+import { visibleWidth } from "../src/tui/layout.ts";
 import { tuiCommand } from "../src/tui/main.ts";
 import type { RunResult } from "../src/tui/runner.ts";
 import type { SurfaceScreen } from "../src/tui/screens/surface.ts";
 import type { Launch } from "../src/tui/snippets.ts";
 import { FakeTerminal } from "../src/tui/term.ts";
-import { visibleWidth } from "../src/tui/layout.ts";
 import { BACKGROUNDS } from "../src/tui/theme.ts";
 
 export const REPO = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
@@ -37,10 +37,8 @@ export const WORK = join(REPO, ".engram", "tui-screens", "work");
 const NOW = "2026-10-29T12:00:00.000Z";
 const ENTER = "\r";
 const TAB = "\t";
-const ESC = "\x1b";
 const CTRL_S = "\x13";
 const RIGHT = "\x1b[C";
-const DOWN = "\x1b[B";
 const SPACE = " ";
 
 /** The command the MCP and hook snippets name, fixed so no path of this machine is drawn. */
@@ -115,7 +113,10 @@ export async function buildWorkspace(work: string): Promise<void> {
       ...["--test-clock", "--at", step.at],
     ];
     let said = "";
-    const code = await run(argv, baseIo(work, newId, (s) => (said += s)));
+    const code = await run(
+      argv,
+      baseIo(work, newId, (s) => (said += s)),
+    );
     // A denied fixture write is part of the log (exit 1); anything else is a broken seed.
     if (code !== 0 && !said.includes("deny")) throw new Error(`seed write failed: ${said}`);
   }
@@ -806,7 +807,7 @@ async function pngs(out: string, shots: Shot[]): Promise<void> {
     const page = await browser.newPage({ deviceScaleFactor: 1 });
     for (const s of shots) {
       await page.goto(`file:///${join(out, `${s.file}.html`).replaceAll("\\", "/")}`);
-      await page.evaluate(() => document.fonts.ready);
+      await page.evaluate("document.fonts.ready");
       await page.locator("#frame").screenshot({ path: join(out, `${s.file}.png`) });
     }
   } finally {
@@ -832,11 +833,8 @@ async function main(argv: string[]) {
   if (only === undefined) writeFileSync(join(out, "index.md"), indexText(), "utf8");
   if (!argv.includes("--no-png")) await pngs(out, shots);
   rmSync(work, { recursive: true, force: true });
-  process.stdout.write(
-    `tui-screens: ${shots.length} screens into ${relative(REPO, out) || "."}\n`,
-  );
+  process.stdout.write(`tui-screens: ${shots.length} screens into ${relative(REPO, out) || "."}\n`);
 }
 
 if (process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url))
   await main(process.argv.slice(2));
-
