@@ -537,6 +537,18 @@ export function evaluatePromotion(
       `${actor.id} acts with source ${actor.source ?? "none"}; only the owner acting as user may accept a candidate in their own person scope (${OWNER_PERSON_RULE})`,
       PROMOTE_REVIEWER_ID,
     );
+  // A content guard's hold on an item that carries live grants would reach
+  // other people once released, so it keeps ADR 0026's independent reviewer
+  // (review E99-2, ADR 0049 decision 5). The screen's holds carry no grants.
+  const live = item.grants.filter(
+    (g) => g.expires === undefined || compareTimestamps(g.expires, at) > 0,
+  ).length;
+  if (accepting && guardHeld && live > 0)
+    return deny(
+      "reviewer",
+      `item ${item.id} carries ${live} live grant${live === 1 ? "" : "s"} and the content guard held it (${write.policy_id}); releasing it to others needs a reviewer who does not own it, a user-sourced member of ${target} (${OWNER_PERSON_RULE} stops at grants)`,
+      PROMOTE_REVIEWER_ID,
+    );
   if (evidence.review && !accepting) {
     const problem = reviewerProblem(actor, item, target, evidence.authors, counted.confirmers);
     if (problem) return deny("reviewer", problem, PROMOTE_REVIEWER_ID);

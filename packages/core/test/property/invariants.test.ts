@@ -1875,18 +1875,24 @@ type PromotionCase = typeof arbPromotionCase extends fc.Arbitrary<infer T> ? T :
 /**
  * Card E9.9 (ADR 0049, amending ADR 0026; a `decision` log entry records the
  * change): promotion cases drawn around an owner's acceptance. The source is
- * in person:a, three times in four owned by person:a, a candidate and
- * semantic; the promoter asks to review, three times in four as person:a, in
- * person:a; person scope's rule admits every source and class and requires
- * review half the time. The promoter's level, source and memberships, the
- * restatements and the rest stay drawn, so refusals by source, level,
- * class, status and target come with the landings.
+ * in person:a, one time in four in person:b instead (a person scope that is
+ * not the promoter's, review E99-1); half the time owned by person:a, and
+ * otherwise written by person:a three times in four (an author who is not the
+ * owner, E99-1); three times in four a candidate and semantic. The promoter
+ * asks to review, three times in four as person:a, three times in four in
+ * the source's own scope; person scope's rule admits every source and class
+ * and requires review half the time. The promoter's level, source and
+ * memberships, the restatements and the rest stay drawn, so refusals by
+ * source, level, class, status, scope, owner and target come with the
+ * landings.
  */
 const arbOwnerCase: fc.Arbitrary<PromotionCase> = fc
   .tuple(
     arbPromotionCase,
     fc.record({
-      owner: oftenTrue,
+      owner: fc.boolean(),
+      authorA: oftenTrue,
+      otherScope: fc.constantFrom(false, false, false, true),
       candidate: oftenTrue,
       semantic: oftenTrue,
       own: oftenTrue,
@@ -1902,10 +1908,12 @@ const arbOwnerCase: fc.Arbitrary<PromotionCase> = fc
       forbidden_classes: [],
       requires_review: o.review,
     };
+    const scope = (o.otherScope ? "person:b" : "person:a") as PromotionCase["source"]["scope"];
+    const owner = o.owner ? ("person:a" as const) : c.source.owner;
     return {
       ...c,
       policy: {
-        target: o.own ? ("person:a" as const) : c.policy.target,
+        target: o.own ? (scope as PromotionCase["policy"]["target"]) : c.policy.target,
         policy: {
           ...c.policy.policy,
           write: [...c.policy.policy.write.filter((r) => r.scope !== "person"), person],
@@ -1913,8 +1921,9 @@ const arbOwnerCase: fc.Arbitrary<PromotionCase> = fc
       },
       source: {
         ...c.source,
-        scope: "person:a" as const,
-        owner: o.owner ? ("person:a" as const) : c.source.owner,
+        scope,
+        owner,
+        author: owner !== "person:a" && o.authorA ? ("person:a" as const) : c.source.author,
         class: o.semantic ? ("semantic" as const) : c.source.class,
         status: o.candidate ? ("candidate" as const) : c.source.status,
       },
@@ -1929,7 +1938,7 @@ const arbOwnerCase: fc.Arbitrary<PromotionCase> = fc
 
 /** Invariant 2 over promotions (ADR 0026); runs inside invariant 2's test. */
 async function promotionsLandOnlyWherePermitted(name: string) {
-  const seen = {
+  const counters = () => ({
     byConfirmation: 0,
     byReview: 0,
     asked: 0,
@@ -1949,7 +1958,9 @@ async function promotionsLandOnlyWherePermitted(name: string) {
     // Card E9.9 (ADR 0049): an owner's acceptance, and the owner's agent refused.
     ownerAccepted: 0,
     ownerAgentRefused: 0,
-  };
+  });
+  // The run's counters: the original run's, then the owner run's apart (review E99-3).
+  let seen = counters();
   // Card D3 review, D3-5: replay admissions and each replay refusal.
   const replaySeen = {
     landed: 0,
@@ -2353,18 +2364,30 @@ async function promotionsLandOnlyWherePermitted(name: string) {
     numRuns: RUNS,
     seed: seedFor(name),
   });
-  // Card E9.9: the cases drawn around an owner's acceptance, under their own seed.
+  expect(
+    Object.values(replaySeen).every((n) => n > 0),
+    `invariant 2 over promotions needs replay admissions and refusals by the presenter's source, another item's replay, a split that is not the ref's, one only the ref's tasks refuse, too few passes, one only the no-worse rule refuses, and a replay off the registered seeds; it saw ${JSON.stringify(replaySeen)}`,
+  ).toBe(true);
+  // The original run alone meets its guards (review E99-3); the owner
+  // acceptance counters are the owner run's.
+  const { ownerAccepted: _accepted, ownerAgentRefused: _refused, ...original } = seen;
+  expect(
+    Object.values(original).every((n) => n > 0),
+    `invariant 2 over promotions needs landings by confirmation and by review, an ask, refusals where only the distinct-actor rule, only the trusted-kind rule, only retired confirmers, only the owner-as-reviewer rule or only the target's write rule stood in the way, and refusals by authorship, confirmation, expiry, hidden text, a widening's source, a duplicate, reach and a read grant; it saw ${JSON.stringify(seen)}`,
+  ).toBe(true);
+  // Card E9.9: the cases drawn around an owner's acceptance, under their own
+  // seed and their own counters.
+  seen = counters();
   await fc.assert(fc.asyncProperty(arbOwnerCase, check), {
     numRuns: RUNS / 4,
     seed: seedFor(`${name}, owner acceptance`),
   });
   expect(
-    Object.values(replaySeen).every((n) => n > 0),
-    `invariant 2 over promotions needs replay admissions and refusals by the presenter's source, another item's replay, a split that is not the ref's, one only the ref's tasks refuse, too few passes, one only the no-worse rule refuses, and a replay off the registered seeds; it saw ${JSON.stringify(replaySeen)}`,
-  ).toBe(true);
-  expect(
-    Object.values(seen).every((n) => n > 0),
-    `invariant 2 over promotions needs landings by confirmation and by review, an ask, refusals where only the distinct-actor rule, only the trusted-kind rule, only retired confirmers, only the owner-as-reviewer rule or only the target's write rule stood in the way, and refusals by authorship, confirmation, expiry, hidden text, a widening's source, a duplicate, reach and a read grant, and an owner's acceptance in their own person scope with the owner's agent refused it (card E9.9); it saw ${JSON.stringify(seen)}`,
+    seen.ownerAccepted > 0 &&
+      seen.ownerAgentRefused > 0 &&
+      seen.ownerReview > 0 &&
+      seen.authorReview > 0,
+    `invariant 2's owner acceptance run needs acceptances that land, the owner's agent refused, and the owner and an author refused as reviewers (card E9.9); it saw ${JSON.stringify(seen)}`,
   ).toBe(true);
 }
 

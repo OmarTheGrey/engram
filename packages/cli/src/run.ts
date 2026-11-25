@@ -133,7 +133,7 @@ write options:
 promote options:
   --to <scope>                the target scope: the item's own or a wider one
   --review                    approve as a reviewer: a member of the target who does not own the item;
-                              or, as its owner, accept a candidate in your own person scope (ADR 0049)
+                              or, as its owner, accept a semantic candidate in your own person scope (ADR 0049)
   the plane records the promoter as source user; exit 1 on deny, or on ask when the target needs review
   limit: the CLI does not authenticate. --as and --member are taken as given, so the
   distinct-actor and reviewer rules hold only as far as this single-user machine does;

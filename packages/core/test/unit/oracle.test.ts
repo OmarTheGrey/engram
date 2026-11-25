@@ -400,6 +400,44 @@ describe("promotionPermitted", () => {
     expect(ok({ ...promoter, id: "person:s" }, [wrote("person:s", hers)], true, "person:a")).toBe(
       false,
     );
+    // Review E99-1: person:a wrote it, naming person:s as owner, so is its
+    // author and not its owner: neither an acceptance nor a review.
+    expect(ok(promoter, [wrote("person:a", hers)], true, "person:a")).toBe(false);
+    // Review E99-1: a role context the read matrix lets read person scope is
+    // still no person-level owner (the matrix, not the level, refused it above).
+    const roleReads = {
+      ...p,
+      read: {
+        matrix: [
+          { reader: "person", may_read: ["person", "team"] },
+          { reader: "role", may_read: ["person", "team"] },
+        ],
+        honour_grants: true,
+      },
+    } as unknown as Policy;
+    const asRole = { ...promoter, level: "role" as const };
+    expect(
+      promotionPermitted(
+        roleReads,
+        asRole,
+        "e",
+        "person:a",
+        [wrote("person:a", candidate)],
+        true,
+        AT,
+      ),
+    ).toBe(false);
+    expect(
+      promotionPermitted(
+        roleReads,
+        promoter,
+        "e",
+        "person:a",
+        [wrote("person:a", candidate)],
+        true,
+        AT,
+      ),
+    ).toBe(true);
   });
 });
 

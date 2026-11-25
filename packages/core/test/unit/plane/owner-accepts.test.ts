@@ -259,4 +259,73 @@ describe("acceptance (card E9.9): the injection screen's and the content guard's
     expect(r.event.policy_id).toBe(PROMOTE_OWNER_PERSON_ID);
     expect(r.event.reason).toContain(`the content guard held it (${PII_ID})`);
   });
+
+  test("review E99-2: a guard hold carrying live grants needs a second person; the owner is refused", async () => {
+    const { plane } = fresh({
+      ...MEDIUM,
+      id: "preset.medium+pii",
+      content_guards: { pii: "review" },
+    });
+    const toSam = {
+      to: "person:sam",
+      class: "semantic" as const,
+      mode: "read" as const,
+      expires: "2027-01-01T00:00:00Z",
+    };
+    const w = await plane.write(
+      dana,
+      item(1, {
+        scope: "person:dana",
+        owner: "person:dana",
+        content: "Reach me at dana@example.com",
+        grants: [toSam],
+      }),
+      AT,
+    );
+    expect(w.event.policy_id).toBe(PII_ID);
+    expect(w.item?.status).toBe("candidate");
+    const samReads = { ...sam, memberships: ["person:sam"] };
+    expect(await readsOf(plane, samReads, "reach")).toEqual([]);
+
+    const own = await plane.promote(dana, id(1), "person:dana", AT, { review: true });
+    expect(own).toMatchObject({ decision: "deny", item: null });
+    expect(own.event.policy_id).toBe(PROMOTE_REVIEWER_ID);
+    expect(own.event.reason).toContain("1 live grant");
+    expect(own.event.reason).toContain(`the content guard held it (${PII_ID})`);
+    expect(own.event.reason).toContain("a reviewer who does not own it");
+    expect(await readsOf(plane, samReads, "reach")).toEqual([]);
+
+    // A second member, user-sourced and not its owner, may release it as before.
+    const lee: Actor = { ...sam, id: "person:lee" };
+    const r = await plane.promote(lee, id(1), "person:dana", AT, { review: true });
+    expect(r.decision).toBe("allow");
+    expect(r.event.policy_id).toBe("preset.medium+pii/promotion/review");
+  });
+
+  test("review E99-2: an expired grant does not stop the owner's acceptance", async () => {
+    const { plane } = fresh({
+      ...MEDIUM,
+      id: "preset.medium+pii",
+      content_guards: { pii: "review" },
+    });
+    const lapsed = {
+      to: "person:sam",
+      class: "semantic" as const,
+      mode: "read" as const,
+      expires: "2026-01-01T00:00:00Z",
+    };
+    await plane.write(
+      dana,
+      item(1, {
+        scope: "person:dana",
+        owner: "person:dana",
+        content: "Reach me at dana@example.com",
+        grants: [lapsed],
+      }),
+      AT,
+    );
+    const r = await plane.promote(dana, id(1), "person:dana", AT, { review: true });
+    expect(r.decision).toBe("allow");
+    expect(r.event.policy_id).toBe(PROMOTE_OWNER_PERSON_ID);
+  });
 });
