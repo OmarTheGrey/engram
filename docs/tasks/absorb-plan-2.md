@@ -315,7 +315,7 @@ The waves follow the calendar; inside a wave, cards run at once unless they shar
 
 Friday demonstrations the plan adds: W9, a leak probe through every surface coming back clean, and a Quint trace replayed on the real Plane; W10, Gate C's table on the results page; W11, a log fault detected by `engram log verify` inside the fault-injection check; W12, a Codex shell command naming a store blocked by the hook; W13, a procedure retired on drift and a queue of approvals routed to their approvers; W14, an offboarding with its signed receipt verified, and the residue check before and after shredding.
 
-**Cost.** At the roadmap's rates (S 0.25, M 0.5, L 1.0 FTE-week) the thirty come to 15.25 FTE-weeks: 9.25 on the research lane and 6.0 on the product lane. The roadmap's own tables cannot hold that at their rates; as for the first plan, the plan rests on the pace observed (the first thirty merged in four days). Re-estimate at Gate C. If H1 needs the team, the product lane waits first, in the cut order of the roadmap.
+**Cost.** At the roadmap's rates (S 0.25, M 0.5, L 1.0 FTE-week) the thirty come to 15.0 FTE-weeks: 8.5 on the research lane (cards 1 to 5 and 7 to 20) and 6.5 on the product lane. The roadmap's own tables cannot hold that at their rates; as for the first plan, the plan rests on the pace observed (the first thirty merged within three days of their plan). Re-estimate at Gate C. If H1 needs the team, the product lane waits first, in the cut order of the roadmap.
 
 ## 7. What is left out, and why
 
