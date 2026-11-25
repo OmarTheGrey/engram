@@ -1,7 +1,7 @@
 # ADR 0043: Decisions may leave the machine as OpenTelemetry spans, opt-in, carrying no memory content
 
-Status: proposed, 2026-11-21
-Deciders: drafted by card E8.13 of the absorb plan; for the lead's acceptance (`docs/tasks/lead-decisions.md`, item 61)
+Status: accepted, 2026-11-25, by the lead ("accept the adrs"); proposed 2026-11-21
+Deciders: drafted by card E8.13 of the absorb plan; accepted by the lead on 2026-11-25 (`docs/tasks/lead-decisions.md`, item 61, option (a))
 Supersedes: nothing. It is the first ADR on egress: until now nothing Engram writes leaves the machine except a model call (ADR 0017) and the cassette deposit (ADR 0036).
 
 ## Context

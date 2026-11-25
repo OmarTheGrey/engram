@@ -1,7 +1,7 @@
 # ADR 0044: The CLI's terminal interface is built on pi-tui, inside packages/cli/src/tui only
 
-Status: proposed, 2026-11-21; review fix pass 2026-11-22. On 2026-11-22 the design was set to proceed on this choice under the lead's delegation (`docs/tasks/lead-decisions.md`, item 62); the ADR stays proposed until the lead accepts it.
-Deciders: drafted by card E8.15 (the lead's own request of 2026-11-21 for a TUI, not one of the absorb plan's thirty pull requests); for the lead's acceptance
+Status: accepted, 2026-11-25, by the lead ("accept the adrs"); proposed 2026-11-21; review fix pass 2026-11-22. On 2026-11-22 the design was set to proceed on this choice under the lead's delegation (`docs/tasks/lead-decisions.md`, item 62), with six smaller calls decided in that item's table; the lead's acceptance keeps all six.
+Deciders: drafted by card E8.15 (the lead's own request of 2026-11-21 for a TUI, not one of the absorb plan's thirty pull requests); accepted by the lead on 2026-11-25 (`docs/tasks/lead-decisions.md`, item 62, option (a))
 Supersedes: nothing. It adds one exception to AGENTS.md's "What not to do" line on where pi packages are imported; ADR 0033's accepted text is not edited.
 
 ## Context
