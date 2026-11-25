@@ -47,7 +47,7 @@ import {
   tryHook,
   tryMcp,
 } from "./snippets.ts";
-import { checkArgv } from "./validate.ts";
+import { checkArgv, refusalOf } from "./validate.ts";
 import { detectShell, printedLine, type Shell, splitWords, stripControls } from "./words.ts";
 import { isWsFlag, type Source, WORKSPACE_FLAGS, Workspace, type WsFlag } from "./workspace.ts";
 
@@ -86,6 +86,7 @@ const HELP_LINES = [
   "screen opens the full-screen interface, with the same workspace.",
   "help followed by a command's name prints that command's options.",
   "quit or exit, at any question, or end of input, leaves: ctrl+D, or ctrl+Z then Enter on Windows; the commands this session ran are printed then, unless --quiet.",
+  "A prompted field cannot take the words quit or exit; type the whole command line to give them, such as write --content quit.",
 ];
 
 /** The end of input, or quit or exit, at any question: line mode leaves. */
@@ -194,6 +195,18 @@ export interface LineOptions {
   /** tui.json's flags, unless --no-saved. */
   saved: Readonly<Record<string, string | readonly string[]>> | undefined;
   noSaved: boolean;
+  /**
+   * The full screen's reviewer handoff (8.8), carried apart from the flags
+   * (verification R-1): set for this session only, never saved, never given.
+   */
+  handoff?: SessionHandoff;
+}
+
+/** A reviewer handoff as it moves between the full screen and line mode. */
+export interface SessionHandoff {
+  reviewer: string;
+  members: string[];
+  target: string;
 }
 
 export interface LineDeps {
@@ -203,7 +216,7 @@ export interface LineDeps {
   launch?: Launch;
   platform?: NodeJS.Platform;
   /** Why the full screen cannot start here, for `screen`; undefined when it can. */
-  screenRefusal?: () => string | undefined;
+  screenRefusal?: () => string | undefined | Promise<string | undefined>;
 }
 
 export interface LineEnd {
@@ -211,6 +224,8 @@ export interface LineEnd {
   /** `screen` was typed: the full screen starts next, with `given`. */
   screen: boolean;
   given: Values;
+  /** The handoff still on, for the full screen to take up again. */
+  handoff?: SessionHandoff;
 }
 
 /** A question: a positional or a flag of a command's entry. */
@@ -382,9 +397,9 @@ class LineSession {
         continue;
       }
       if (typed === "screen") {
-        const refused = this.deps.screenRefusal?.();
+        const refused = await this.deps.screenRefusal?.();
         if (refused === undefined) return true;
-        this.say(`engram tui: ${refused}`);
+        this.say(refused);
         continue;
       }
       try {
@@ -585,8 +600,14 @@ class LineSession {
     // The CLI's own checks; the field a message names is asked again (9.4).
     for (let round = 0; ; round++) {
       const argv = this.argvOf(spec, values);
-      const message = checkArgv(spec, argv, this.io);
-      if (message === undefined) return this.confirmAndRun(spec, argv);
+      const refusal = refusalOf(spec, argv, this.io);
+      if (refusal === undefined) return this.confirmAndRun(spec, argv);
+      const message = refusal.message;
+      if (refusal.stage === "own") {
+        this.say(`line mode's own check refused it: ${message}`);
+        this.say("nothing ran");
+        return;
+      }
       this.io.err(`engram ${spec.name.split(" ")[0]}: ${message}\n`);
       const q = round < 3 ? this.named(message, spec, asked) : undefined;
       if (q === undefined) {
@@ -634,8 +655,8 @@ class LineSession {
       words.filter((w) => w.startsWith("--")).map((w) => w.slice(2).split("=")[0] as string),
     );
     const argv = [...words, ...this.ws.argsFor(spec, given)];
-    const message = checkArgv(spec, argv, this.io);
-    if (message !== undefined) return this.refused(spec, argv, message);
+    const refusal = refusalOf(spec, argv, this.io);
+    if (refusal !== undefined) return this.refused(spec, argv, refusal);
     return this.confirmAndRun(spec, argv);
   }
 
@@ -645,25 +666,23 @@ class LineSession {
    * line its parse refuses goes through `run` itself, which fails at that
    * parse before anything is opened, so its "did you mean" line is the CLI's.
    */
-  private async refused(spec: CommandSpec, argv: string[], message: string): Promise<void> {
+  private async refused(
+    spec: CommandSpec,
+    argv: string[],
+    refusal: { message: string; stage: "parse" | "prepare" | "own" },
+  ): Promise<void> {
+    // A check of line mode's own is never printed as the CLI's (verification R-2): the
+    // CLI may answer the same line otherwise, so it is said as line mode's, and nothing runs.
+    if (refusal.stage === "own") {
+      this.say(`line mode's own check refused it: ${refusal.message}`);
+      this.say("nothing ran");
+      return;
+    }
+    // The command's parse or prepare, which run makes before it opens anything.
     this.say(`run: ${printedLine(argv, this.shell)}`);
-    let code = 2;
-    if (this.parseFails(spec, argv)) code = await run([...argv], this.runIo([]));
-    else this.io.err(`engram ${spec.name.split(" ")[0]}: ${message}\n`);
+    const code = await run([...argv], this.runIo([]));
     this.say(`exit ${code}`);
     this.ran.push({ argv: [...argv], code });
-  }
-
-  /** Whether the command's own parse refuses `argv`. */
-  private parseFails(spec: CommandSpec, argv: readonly string[]): boolean {
-    const words = spec.name.split(" ").filter((w) => !w.startsWith("--"));
-    const args = spec.allowPositionals ? argv.slice(1) : argv.slice(words.length);
-    try {
-      parse([...args], parseOptions(spec), spec.allowPositionals);
-      return false;
-    } catch {
-      return true;
-    }
   }
 
   // Confirming and running.
@@ -913,13 +932,32 @@ class LineSession {
  */
 export async function lineMode(io: Io, o: LineOptions, deps: LineDeps = {}): Promise<LineEnd> {
   const ws = Workspace.from(io.env, o.given, o.saved);
+  if (o.handoff !== undefined) {
+    ws.setForSession("as", o.handoff.reviewer);
+    ws.setForSession("member", o.handoff.members);
+  }
   const lines = new Lines(io.stdin as NodeJS.ReadableStream, (t) => io.out(t), deps.echo);
   const onStop = () => lines.close();
   io.stop?.addEventListener("abort", onStop, { once: true });
   const session = new LineSession(io, ws, lines, o, deps);
   try {
     const screen = await session.loop();
-    return { ran: session.ran, screen, given: ws.savable() };
+    // A handoff the person did not replace goes back with the session; savable() leaves it out.
+    const on = o.handoff !== undefined && ws.source("as") === "session";
+    return {
+      ran: session.ran,
+      screen,
+      given: ws.savable(),
+      ...(on && o.handoff
+        ? {
+            handoff: {
+              ...o.handoff,
+              reviewer: ws.get("as") as string,
+              members: [...ws.list("member")],
+            },
+          }
+        : {}),
+    };
   } finally {
     io.stop?.removeEventListener("abort", onStop);
     lines.close();

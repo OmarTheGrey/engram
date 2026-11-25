@@ -103,6 +103,8 @@ export interface StartOptions {
   skipSavedFlags?: boolean;
   /** The timers of the busy line (10.2): real ones by default, a test's hand in tests. */
   timers?: Timers;
+  /** A reviewer handoff line mode handed back (verification R-1): taken up again, for this session. */
+  handoff?: { reviewer: string; members: readonly string[]; target: string };
 }
 
 /** A timer that can be cancelled. */
@@ -280,6 +282,8 @@ export class App implements Component, Ctx {
     this.startLogCheck();
     void this.checkServer();
     this.savedInUse = loaded.saved !== undefined && usable(this.checks);
+    if (o.handoff !== undefined)
+      this.startHandoff(o.handoff.reviewer, o.handoff.members, o.handoff.target);
     this.clipboard = createClipboard({
       env: o.io.env,
       platform,

@@ -12,6 +12,7 @@
 // workspace. line.ts itself imports no pi-tui; this file loads the full
 // screen's modules with it, as before, and line mode never calls them.
 import { spawn } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { parse } from "../commands.ts";
 import { closest, OPTIONS, type Values } from "../registry.ts";
@@ -19,7 +20,7 @@ import type { Io } from "../run.ts";
 import { UsageError } from "../setup.ts";
 import { type App, startTui, type TuiOptions } from "./app.ts";
 import { offered } from "./asks.ts";
-import { lineMode } from "./line.ts";
+import { lineMode, type SessionHandoff } from "./line.ts";
 import { loadSaved, type SavedOptions } from "./saved.ts";
 import type { Ran } from "./screen.ts";
 import type { Launch } from "./snippets.ts";
@@ -38,29 +39,70 @@ export interface TuiDeps {
   onApp?: (app: App) => void;
   /**
    * A line-mode child of L: hands its workspace and commands back to the
-   * parent when screen is typed (review E-8); the parent's IPC channel when
-   * absent and this process is such a child.
+   * parent when screen is typed (review E-8). Tests only; a real child uses
+   * the IPC channel, and only once its parent has answered its token.
    */
   handBack?: (back: HandBack) => void | Promise<void>;
+  /** The IPC channel to a parent, process's own when absent (tests play the parent, verification R-3). */
+  ipc?: Ipc;
 }
 
 /** What a line-mode child of L hands back to the full screen that started it. */
 export interface HandBack {
   given: Values;
   ran: Ran[];
+  /** The reviewer handoff still on, carried apart from the flags (verification R-1). */
+  handoff?: SessionHandoff;
 }
 
-/** Set in the environment of a line-mode child of L, whose parent listens on IPC. */
-const HANDBACK_ENV = "ENGRAM_TUI_HANDBACK";
+/** An IPC channel to a parent process. */
+export interface Ipc {
+  send(message: unknown, done?: () => void): void;
+  on(event: "message", listener: (message: unknown) => void): void;
+  disconnect?(): void;
+}
 
-/** The hand-back of this process: the test's, or the IPC channel to the parent that started it. */
-function handBackOf(io: Io, deps: TuiDeps): TuiDeps["handBack"] {
-  if (deps.handBack !== undefined) return deps.handBack;
-  if (io.env[HANDBACK_ENV] !== "1" || typeof process.send !== "function") return undefined;
-  return (back) =>
-    new Promise<void>((resolve) => {
-      process.send?.(back, undefined, {}, () => resolve());
-    });
+/**
+ * Set by L in its line-mode child's environment: a random token the child
+ * says hello with, which only the parent that started it answers (verification
+ * R-3); the reviewer handoff rides beside it. Both are removed from the
+ * environment the commands and Try it's children see.
+ */
+const HANDBACK_ENV = "ENGRAM_TUI_HANDBACK";
+const HANDOFF_ENV = "ENGRAM_TUI_HANDOFF";
+
+/** The process's own IPC channel, when it has one. */
+function processIpc(): Ipc | undefined {
+  if (typeof process.send !== "function") return undefined;
+  return {
+    send: (m, done) => {
+      process.send?.(m as never, undefined, {}, () => done?.());
+    },
+    on: (e, f) => {
+      process.on(e, f);
+    },
+    disconnect: () => {
+      if (process.connected) process.disconnect();
+    },
+  };
+}
+
+/** The handoff a parent put in the environment, checked for its shape. */
+function handoffOf(text: string | undefined): SessionHandoff | undefined {
+  if (text === undefined) return undefined;
+  try {
+    const o = JSON.parse(text) as Partial<SessionHandoff>;
+    if (
+      typeof o.reviewer === "string" &&
+      typeof o.target === "string" &&
+      Array.isArray(o.members) &&
+      o.members.every((m) => typeof m === "string")
+    )
+      return { reviewer: o.reviewer, target: o.target, members: [...o.members] };
+  } catch {
+    // Not one: no handoff.
+  }
+  return undefined;
 }
 
 const PLAIN = "run the plain commands (engram --help lists them)";
@@ -96,7 +138,12 @@ export function refusal(
   return undefined;
 }
 
-export async function tuiCommand(args: string[], io: Io, deps: TuiDeps = {}): Promise<number> {
+export async function tuiCommand(args: string[], given0: Io, deps: TuiDeps = {}): Promise<number> {
+  // L's token and handoff are this process's own; no command or child sees them (R-3).
+  const token = given0.env[HANDBACK_ENV] || undefined;
+  let handoff = token === undefined ? undefined : handoffOf(given0.env[HANDOFF_ENV]);
+  const { [HANDBACK_ENV]: _token, [HANDOFF_ENV]: _handoff, ...cleanEnv } = given0.env;
+  const io: Io = { ...given0, env: cleanEnv };
   const { values } = parse(args, OPTIONS.tui, false);
   const env = io.env;
   const loaded = values["no-saved"] === true ? {} : loadSaved(io.home);
@@ -123,7 +170,49 @@ export async function tuiCommand(args: string[], io: Io, deps: TuiDeps = {}): Pr
   // The first mode reads tui.json's flags; a switch hands the workspace on whole.
   let first = true;
   let mode: "line" | "screen" = line ? "line" : "screen";
-  const handBack = handBackOf(io, deps);
+  // A child of L says hello with its token; only the parent that set it answers (R-3).
+  const ipc = token === undefined ? undefined : (deps.ipc ?? processIpc());
+  let answered = false;
+  let onAnswer: () => void = () => undefined;
+  const answer = new Promise<void>((resolve) => {
+    onAnswer = resolve;
+  });
+  if (token !== undefined && ipc !== undefined) {
+    ipc.on("message", (m) => {
+      if ((m as { engramTuiAck?: unknown } | null)?.engramTuiAck !== token) return;
+      answered = true;
+      onAnswer();
+    });
+    ipc.send({ engramTuiHello: token });
+  }
+  /** Whether the parent has answered, waiting up to two seconds for an answer on its way. */
+  const parentAnswered = async (): Promise<boolean> => {
+    if (answered || ipc === undefined) return answered;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    await Promise.race([
+      answer,
+      new Promise<void>((r) => {
+        timer = setTimeout(r, 2_000);
+        timer.unref?.();
+      }),
+    ]);
+    clearTimeout(timer);
+    return answered;
+  };
+  const handBack: ((b: HandBack) => void | Promise<void>) | undefined =
+    deps.handBack ??
+    (token !== undefined && ipc !== undefined
+      ? (b) =>
+          new Promise<void>((resolve) => {
+            ipc.send({ ...b, token }, resolve);
+          })
+      : undefined);
+  const screenRefusal = async (): Promise<string | undefined> => {
+    if (deps.handBack === undefined && token !== undefined && !(await parentAnswered()))
+      return "no full screen to return to: this line mode was not started by L";
+    const r = refusal(io, values, false);
+    return r === undefined ? undefined : `engram tui: ${r}`;
+  };
   try {
     for (;;) {
       if (mode === "line") {
@@ -133,22 +222,28 @@ export async function tuiCommand(args: string[], io: Io, deps: TuiDeps = {}): Pr
             given,
             saved: first ? loaded.saved?.flags : undefined,
             noSaved: options.noSaved,
+            ...(handoff ? { handoff } : {}),
           },
           {
             ...(deps.echo ? { echo: deps.echo } : {}),
             ...(deps.launch ? { launch: deps.launch } : {}),
             ...(deps.platform ? { platform: deps.platform } : {}),
-            screenRefusal: () => refusal(io, values, false),
+            screenRefusal,
           },
         );
         ran.push(...end.ran);
         if (!end.screen) break;
         if (handBack !== undefined) {
           // A child of L: the full screen is the parent's, which prints the session's commands.
-          await handBack({ given: end.given, ran: [...ran] });
+          await handBack({
+            given: end.given,
+            ran: [...ran],
+            ...(end.handoff ? { handoff: end.handoff } : {}),
+          });
           return 0;
         }
         given = end.given;
+        handoff = end.handoff;
       } else {
         const terminal = deps.terminal ?? processTerminal();
         const { app } = startTui({
@@ -158,6 +253,7 @@ export async function tuiCommand(args: string[], io: Io, deps: TuiDeps = {}): Pr
           options: first ? options : again,
           ...(deps.platform ? { platform: deps.platform } : {}),
           ...(first ? {} : { skipSavedFlags: true }),
+          ...(handoff ? { handoff } : {}),
         });
         deps.onApp?.(app);
         const summary = await app.done;
@@ -166,8 +262,17 @@ export async function tuiCommand(args: string[], io: Io, deps: TuiDeps = {}): Pr
         ran.push(...summary.ran);
         deferred.push(...summary.deferred);
         if (summary.line !== true) break;
-        // The workspace as it acts now, a reviewer handoff's session values included (review E-1).
-        given = app.ws.flagValues();
+        // The workspace's own flags, and a reviewer handoff apart from them: a session value
+        // is never given, listed as given or saved (8.8; verification R-1 of review E-1's fix).
+        given = app.ws.savable();
+        handoff =
+          app.handoff === undefined
+            ? undefined
+            : {
+                reviewer: app.handoff.reviewer,
+                members: [...app.handoff.members],
+                target: app.handoff.target,
+              };
         if (deps.terminal === undefined) {
           // On the real console L starts line mode as a child process on the same terminal: in
           // this one, stdin read again after raw mode loses the first line typed and keeps the
@@ -177,10 +282,11 @@ export async function tuiCommand(args: string[], io: Io, deps: TuiDeps = {}): Pr
           print(io, summaryText({ ran, deferred }, detectShell(env), options.quiet));
           ran.length = 0;
           deferred.length = 0;
-          const child = await lineInChild(io, given, options);
+          const child = await lineInChild(io, given, handoff, options);
           if (child.back === undefined) return child.code;
           ran.push(...child.back.ran);
           given = child.back.given;
+          handoff = child.back.handoff;
           first = false;
           continue;
         }
@@ -190,8 +296,7 @@ export async function tuiCommand(args: string[], io: Io, deps: TuiDeps = {}): Pr
     }
   } finally {
     // A child of L lets its parent's channel go, or it would never exit.
-    if (deps.handBack === undefined && io.env[HANDBACK_ENV] === "1" && process.connected)
-      process.disconnect();
+    if (deps.handBack === undefined && ipc !== undefined) ipc.disconnect?.();
   }
   print(io, summaryText({ ran, deferred }, detectShell(env), options.quiet));
   return 0;
@@ -231,35 +336,52 @@ export function childArgs(given: Values, options: Pick<TuiOptions, "quiet" | "no
   ];
 }
 
-/** A hand-back as it arrives over IPC, checked for its shape. */
-function asHandBack(m: unknown): HandBack | undefined {
-  const o = m as { given?: unknown; ran?: unknown } | null;
-  if (o === null || typeof o !== "object" || typeof o.given !== "object" || !Array.isArray(o.ran))
-    return undefined;
-  return { given: o.given as Values, ran: o.ran as Ran[] };
+/** A hand-back as it arrives over IPC with this session's token, checked for its shape. */
+function asHandBack(m: unknown, token: string): HandBack | undefined {
+  const o = m as { given?: unknown; ran?: unknown; token?: unknown; handoff?: unknown } | null;
+  if (o === null || typeof o !== "object" || o.token !== token) return undefined;
+  if (typeof o.given !== "object" || o.given === null || !Array.isArray(o.ran)) return undefined;
+  const handoff = handoffOf(o.handoff === undefined ? undefined : JSON.stringify(o.handoff));
+  return { given: o.given as Values, ran: o.ran as Ran[], ...(handoff ? { handoff } : {}) };
+}
+
+/** The environment of L's line-mode child: this one's, with its token and the handoff, if one is on. */
+export function childEnv(
+  env: Readonly<Record<string, string | undefined>>,
+  token: string,
+  handoff: SessionHandoff | undefined,
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(env)) if (v !== undefined) out[k] = v;
+  out[HANDBACK_ENV] = token;
+  if (handoff !== undefined) out[HANDOFF_ENV] = JSON.stringify(handoff);
+  else delete out[HANDOFF_ENV];
+  return out;
 }
 
 /**
  * `engram tui --line` with the workspace's flags, a child of this process on
  * the same terminal (L on the real console): its exit code, and what it
- * handed back when screen was typed there.
+ * handed back when screen was typed there. It answers the child's hello, and
+ * takes a hand-back only with the token it gave (verification R-3).
  */
 async function lineInChild(
   io: Io,
   given: Values,
+  handoff: SessionHandoff | undefined,
   options: TuiOptions,
 ): Promise<{ code: number; back?: HandBack }> {
-  const env: Record<string, string> = {};
-  for (const [k, v] of Object.entries(io.env)) if (v !== undefined) env[k] = v;
-  env[HANDBACK_ENV] = "1";
+  const token = randomBytes(16).toString("hex");
   const child = spawn(process.execPath, childArgs(given, options), {
     stdio: ["inherit", "inherit", "inherit", "ipc"],
     cwd: io.cwd,
-    env,
+    env: childEnv(io.env, token, handoff),
   });
   let back: HandBack | undefined;
   child.on("message", (m) => {
-    back = asHandBack(m) ?? back;
+    if ((m as { engramTuiHello?: unknown } | null)?.engramTuiHello === token)
+      child.send({ engramTuiAck: token });
+    else back = asHandBack(m, token) ?? back;
   });
   return new Promise((resolve) => {
     child.on("error", (e) => {

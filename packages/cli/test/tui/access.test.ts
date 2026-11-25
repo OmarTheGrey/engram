@@ -455,6 +455,26 @@ describe("the terminal given back on quit (review E-5)", () => {
   });
 });
 
+describe("verification R-2: the full screen's write to a store it creates", () => {
+  for (const store of ["letta", "files"])
+    it(`writes to a new --store ${store} root, as the plain CLI does`, async () => {
+      const { cwd, home } = await folders();
+      const h = await startHarness({
+        cwd,
+        home,
+        env: { COLORFGBG: "15;0" },
+        given: { owner: "dana", db: "engram.db", store, root: "newroot" },
+      });
+      await h.press("w");
+      await h.type("hi");
+      await h.press("\x13");
+      expect(h.overlay()).toBe("confirm");
+      await h.press("y");
+      expect(h.app.ran.map((r) => [r.argv[0], r.code])).toEqual([["write", 0]]);
+      await h.quit();
+    }, 60_000);
+});
+
 describe("the title bar names the actor (manual check, conhost)", () => {
   it("drops a long log path, then the connection, before the actor", async () => {
     const { cwd, home } = await folders();

@@ -10,15 +10,17 @@
 // the workspace and `screen` switches back; line mode imports no pi-tui.
 // Fakes only: the files adapter on temporary folders, a fixed clock, a
 // counter for ids, a PassThrough for stdin; no network, no model.
-import { mkdirSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { PassThrough } from "node:stream";
 import { describe, expect, it } from "vitest";
+import { command } from "../../src/registry.ts";
 import { type Io, run } from "../../src/run.ts";
 import { menuText } from "../../src/tui/line.ts";
-import { childArgs, type TuiDeps, tuiCommand } from "../../src/tui/main.ts";
-import { writeSaved } from "../../src/tui/saved.ts";
+import { childArgs, childEnv, type TuiDeps, tuiCommand } from "../../src/tui/main.ts";
+import { savedPath, writeSaved } from "../../src/tui/saved.ts";
 import { FakeTerminal } from "../../src/tui/term.ts";
+import { checkArgv } from "../../src/tui/validate.ts";
 import { splitWords } from "../../src/tui/words.ts";
 import { NOW, REPO, tempDir, testId } from "../helpers.ts";
 
@@ -602,22 +604,31 @@ describe("review E-4: quit and exit leave from any question", () => {
 });
 
 describe("review E-1: L keeps the reviewer handoff's actor", () => {
-  it("hands the child the session's --as and --member, not their predecessors", () => {
-    const args = childArgs(
-      { owner: "dana", db: "x.db", as: "person:rev", member: ["team:lantern"] },
-      { quiet: false, noSaved: true },
-    );
-    expect(args).toEqual(
-      expect.arrayContaining([
-        "tui",
-        "--line",
-        "--no-saved",
-        "--as",
-        "person:rev",
-        "--member",
-        "team:lantern",
-      ]),
-    );
+  it("hands the child the handoff apart from its flags, with the session's token (verification R-1)", () => {
+    const args = childArgs({ owner: "dana", db: "x.db" }, { quiet: false, noSaved: true });
+    expect(args.slice(1)).toEqual([
+      "tui",
+      "--line",
+      "--no-saved",
+      "--owner",
+      "dana",
+      "--db",
+      "x.db",
+    ]);
+    const env = childEnv({ PATH: "p" }, "t0k", {
+      reviewer: "person:rev",
+      members: ["team:lantern"],
+      target: "team:lantern",
+    });
+    expect(env.ENGRAM_TUI_HANDBACK).toBe("t0k");
+    expect(JSON.parse(env.ENGRAM_TUI_HANDOFF as string)).toEqual({
+      reviewer: "person:rev",
+      members: ["team:lantern"],
+      target: "team:lantern",
+    });
+    expect(
+      childEnv({ ENGRAM_TUI_HANDOFF: "{}" }, "t", undefined).ENGRAM_TUI_HANDOFF,
+    ).toBeUndefined();
   });
 
   it("acts as the reviewer in line mode after L, and its intro says so", async () => {
@@ -687,5 +698,188 @@ describe("review E-8: screen in an L child hands back to the parent", () => {
     expect(m.given).toMatchObject({ owner: "dana", db: "engram.db" });
     // The parent prints the session's commands; the child prints none.
     expect(s.transcript).not.toContain("# engram tui: the commands");
+  });
+});
+
+// Card E8.15e's verification (findings R-1 to R-4).
+
+describe("verification R-1: a reviewer handoff stays a session value through L", () => {
+  const tick = () => new Promise((r) => setTimeout(r, 20));
+  type Apps = {
+    startHandoff(r: string, m: readonly string[]): void;
+    handoff?: { reviewer: string };
+  }[];
+
+  it("lists it as for this session and never saves it to tui.json", async () => {
+    const term = new FakeTerminal({ columns: 80, rows: 24 });
+    const apps: Apps = [];
+    const f = await folders();
+    const s = await lineSession(
+      ["--owner", "dana", "--db", "engram.db"],
+      ["workspace", "level", "person", "", "yes", "quit"],
+      {
+        ...f,
+        terminal: term,
+        deps: { onApp: (a) => void apps.push(a as never) },
+        keys: async (t) => {
+          for (let i = 0; i < 200 && !t.started; i++) await tick();
+          apps[0]?.startHandoff("person:rev", ["team:lantern"]);
+          await tick();
+          t.send("L");
+        },
+      },
+    );
+    expect(s.code).toBe(0);
+    expect(s.transcript).toContain("--as person:rev (for this session)");
+    const saved = readFileSync(savedPath(f.home), "utf8");
+    expect(saved).toContain('"level": "person"');
+    expect(saved).not.toContain("person:rev");
+    expect(saved).not.toContain("team:lantern");
+  }, 30_000);
+
+  it("comes back to the full screen as the handoff, with its mark and Switch back", async () => {
+    const term = new FakeTerminal({ columns: 120, rows: 40 });
+    const apps: (Apps[number] & {
+      render(w: number): string[];
+      endHandoff(): boolean;
+      ws: { actorLabel(): string; savable(): Record<string, unknown> };
+    })[] = [];
+    let title = "";
+    let back = false;
+    let after = "";
+    let savable: Record<string, unknown> = {};
+    const s = await lineSession(
+      ["--owner", "dana", "--db", "engram.db", "--no-saved"],
+      ["screen"],
+      {
+        terminal: term,
+        deps: { onApp: (a) => void apps.push(a as never) },
+        keys: async (t) => {
+          for (let i = 0; i < 200 && !t.started; i++) await tick();
+          apps[0]?.startHandoff("person:rev", ["team:lantern"]);
+          await tick();
+          t.send("L");
+          for (let i = 0; i < 400 && apps.length < 2; i++) await tick();
+          await tick();
+          const second = apps[1];
+          title = second?.render(120)[0] ?? "";
+          savable = second?.ws.savable() ?? {};
+          back = second?.endHandoff() ?? false;
+          after = second?.ws.actorLabel() ?? "";
+          t.send("q");
+        },
+      },
+    );
+    expect(s.code).toBe(0);
+    expect(title).toContain("person:rev (person) reviewer, for this session");
+    expect(savable.as).toBeUndefined();
+    expect(back).toBe(true);
+    expect(after).toBe("person:dana (person)");
+  }, 30_000);
+});
+
+describe("verification R-2: a write that creates its store runs as the plain CLI runs it", () => {
+  for (const store of ["letta", "files"])
+    it(`--store ${store} with a root that does not exist yet: the write runs and exits 0`, async () => {
+      const line = `write --content hi --store ${store} --root newroot`;
+      const s = await lineSession(
+        ["--line", "--owner", "dana", "--db", "engram.db", "--no-saved"],
+        [line, "yes", "quit"],
+      );
+      const shown = lastRun(s.transcript);
+      const p = await plain(shown);
+      expect(p.code).toBe(0);
+      expect(s.norm).toContain(`${p.out}exit 0\n`);
+      expect(s.transcript).toMatch(/# exit 0\n$/);
+    }, 60_000);
+
+  it("is not refused by the checks the full screen's forms use", async () => {
+    const f = await folders();
+    const spec = command("write") as NonNullable<ReturnType<typeof command>>;
+    const io: Io = {
+      out: () => undefined,
+      err: () => undefined,
+      cwd: f.cwd,
+      home: f.home,
+      now: () => NOW,
+      newId: () => testId(1),
+      env: {},
+      nodeVersion: process.versions.node,
+      repo: REPO,
+    };
+    const argv = ["write", "--content", "hi", "--store", "letta", "--root", "newroot"];
+    expect(checkArgv(spec, [...argv, "--owner", "dana", "--db", "engram.db"], io)).toBeUndefined();
+    expect(existsSync(join(f.cwd, "newroot"))).toBe(false);
+  });
+
+  it("names a refusal of its own check as line mode's, never as the CLI's, and records no exit code", async () => {
+    // check writes nothing, so its check still opens the store read only, where a new Letta root is refused.
+    const s = await lineSession(
+      ["--line", "--owner", "dana", "--db", "engram.db", "--no-saved"],
+      ["check --content hi --store letta --root newroot", "quit"],
+    );
+    expect(s.transcript).toMatch(/line mode's own check refused it: [^\n]+\nnothing ran\n/);
+    expect(s.transcript).not.toMatch(/\nexit \d\n/);
+    expect(s.transcript).not.toContain("# engram tui: the commands");
+  });
+});
+
+describe("verification R-3: the hand-back acts only for the parent that started the child", () => {
+  /** An IPC channel the test plays the parent of. */
+  function channel(ack: boolean) {
+    const sent: unknown[] = [];
+    let listener: ((m: unknown) => void) | undefined;
+    return {
+      sent,
+      ipc: {
+        send: (m: unknown, done?: () => void) => {
+          sent.push(m);
+          const hello = (m as { engramTuiHello?: string }).engramTuiHello;
+          if (ack && hello !== undefined) setImmediate(() => listener?.({ engramTuiAck: hello }));
+          done?.();
+        },
+        on: (_e: "message", f: (m: unknown) => void) => {
+          listener = f;
+        },
+        disconnect: () => undefined,
+      },
+    };
+  }
+
+  it("says there is no full screen to return to under a parent that never answered", async () => {
+    const c = channel(false);
+    const s = await lineSession(["--line", ...WS], ["screen", "quit"], {
+      env: { ENGRAM_TUI_HANDBACK: "a1b2" },
+      deps: { ipc: c.ipc },
+    });
+    expect(s.code).toBe(0);
+    expect(s.transcript).toContain(
+      "command: > screen\nno full screen to return to: this line mode was not started by L\n",
+    );
+    expect(c.sent.some((m) => (m as { ran?: unknown }).ran !== undefined)).toBe(false);
+  });
+
+  it("hands back, with the token, to the parent that answered it", async () => {
+    const c = channel(true);
+    const s = await lineSession(["--line", ...WS], ["policy", "screen"], {
+      env: { ENGRAM_TUI_HANDBACK: "a1b2" },
+      deps: { ipc: c.ipc },
+    });
+    expect(s.code).toBe(0);
+    const back = c.sent.find((m) => (m as { ran?: unknown }).ran !== undefined) as {
+      token: string;
+      ran: { argv: string[] }[];
+    };
+    expect(back.token).toBe("a1b2");
+    expect(back.ran.map((r) => r.argv[0])).toEqual(["policy"]);
+  });
+});
+
+describe("verification R-4: the help says where quit and exit cannot be values", () => {
+  it("names the whole command line as the way to give them", async () => {
+    const s = await lineSession(["--line", ...WS], ["help", "quit"]);
+    expect(s.transcript).toContain(
+      "A prompted field cannot take the words quit or exit; type the whole command line to give them, such as write --content quit.",
+    );
   });
 });

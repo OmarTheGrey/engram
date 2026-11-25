@@ -27,7 +27,7 @@ import {
   WRITE,
 } from "../commands.ts";
 import { serverOf } from "../connect.ts";
-import { type CommandSpec, type OptionSpec, parseOptions } from "../registry.ts";
+import { type CommandSpec, type OptionSpec, parseOptions, type Values } from "../registry.ts";
 import type { Io } from "../run.ts";
 import { checkNumber, checkTime } from "../setup.ts";
 
@@ -71,21 +71,48 @@ export function checkArgv(
   argv: readonly string[],
   given: Io,
 ): string | undefined {
+  return refusalOf(spec, argv, given)?.message;
+}
+
+/**
+ * Where a refusal of `checkArgv` came from: the command's own parse, or its
+ * prepare (the CLI's own checks, which a run makes before it opens anything,
+ * so `run` reproduces them byte for byte), or a check of the TUI's own (the
+ * workspace opened read only, the time and number checks of a command that
+ * is not a plane call), which the CLI may answer otherwise.
+ */
+export type RefusalStage = "parse" | "prepare" | "own";
+
+/** The CLI's message for what is wrong with `argv`, and where it came from; undefined when the checks pass. */
+export function refusalOf(
+  spec: CommandSpec,
+  argv: readonly string[],
+  given: Io,
+): { message: string; stage: RefusalStage } | undefined {
   const words = spec.name.split(" ").filter((w) => !w.startsWith("--"));
   // The handler gets the words after the first, as run hands them on. A command whose
   // handler takes no positionals (log verify) is handed the words after its name (card E8.15d).
   const args = spec.allowPositionals ? argv.slice(1) : argv.slice(words.length);
   const io: Io = { ...given, newId: () => CHECKING_ID };
+  const plane = PLANE[words[0] as string];
+  let stage: RefusalStage = "parse";
   try {
-    const plane = PLANE[words[0] as string];
     if (plane !== undefined) {
       const { values, positionals } = parse([...args], plane.options, plane.allowPositionals);
+      stage = "prepare";
       const p = plane.prepare(values as never, positionals, io);
       if (p.session !== null) {
         p.actor();
-        // The workspace's own checks too (a store a write needs, review M13), as
-        // connect would open it, with no log opened and the store read only.
-        if (serverOf(io, p.flags) === undefined) {
+        // The workspace's own checks too (a store a write needs, review M13), as connect
+        // would open it, with no log opened and the store read only; but never for a
+        // command that changes state, whose run may create or initialise the store
+        // (a new Letta root, verification R-2): its store errors are the run's own. With no
+        // store folder named there is nothing to create, and the missing store is said here (M13).
+        const writes = spec.writes(values as Values, {});
+        stage = "own";
+        const opensNothingNew =
+          writes === "none" || writes === "audit" || p.flags.root === undefined;
+        if (serverOf(io, p.flags) === undefined && opensNothingNew) {
           const opened = openWorkspace({
             store: p.flags.store,
             root: p.flags.root,
@@ -105,6 +132,7 @@ export function checkArgv(
       }
     } else {
       const { values } = parse([...args], parseOptions(spec), spec.allowPositionals);
+      stage = "own";
       for (const [name, o] of Object.entries(spec.options)) {
         const v = (values as Record<string, unknown>)[name];
         if (typeof v !== "string") continue;
@@ -113,7 +141,7 @@ export function checkArgv(
       }
     }
   } catch (e) {
-    return (e as Error).message;
+    return { message: (e as Error).message, stage };
   }
   return undefined;
 }
