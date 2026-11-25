@@ -1,0 +1,36 @@
+[7m engram  MCP server                                                     in process  log engram.db  person:dana (person) [0m
+ > Acting as              [ agent:claude-code[7m [0m                       ]  source model, fixed at launch
+   Member of              person:dana, team:core  [                                          ]  default the actor's o...
+   Level                  (o) default  ( ) person  ( ) role  ( ) team  ( ) org  default the actor's own level
+   Transport              (o) stdio, launched by the harness   ( ) HTTP, needs authentication
+   Offer memory_supersede [ ] off
+   ▸ More flags: 9, set: --root --owner --policy --db
+
+ [ Copy .mcp.json ]  [ Copy Codex config.toml ]  [ Try it ]
+
+ For Claude Code, .mcp.json:
+   { "mcpServers": { "engram": { "command": "engram", "args": [ "mcp", "--db", "~/demo/engram.db", "--policy",
+   "policy.yaml", "--owner", "dana", "--as", "agent:claude-code", "--member", "person:dana", "--member", "team:core",
+   "--root", "~/demo/mem" ] } } }
+ For Codex, config.toml:
+   [mcp_servers.engram]
+   command = "engram"
+   args = ["mcp", "--db", "~/demo/engram.db", "--policy", "policy.yaml", "--owner", "dana", "--as",
+   "agent:claude-code", "--member", "person:dana", "--member", "team:core", "--root", "~/demo/mem"]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+$ engram mcp --db "~/demo/engram.db" --policy policy.yaml --...member person:dana --member team:core --root "~/demo/mem"
+ ctrl+g help  tab next  ctrl+s try it  alt+c copy  alt+p commands  esc back
