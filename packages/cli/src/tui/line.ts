@@ -603,11 +603,6 @@ class LineSession {
       const refusal = refusalOf(spec, argv, this.io);
       if (refusal === undefined) return this.confirmAndRun(spec, argv);
       const message = refusal.message;
-      if (refusal.stage === "own") {
-        this.say(`line mode's own check refused it: ${message}`);
-        this.say("nothing ran");
-        return;
-      }
       this.io.err(`engram ${spec.name.split(" ")[0]}: ${message}\n`);
       const q = round < 3 ? this.named(message, spec, asked) : undefined;
       if (q === undefined) {
@@ -656,7 +651,7 @@ class LineSession {
     );
     const argv = [...words, ...this.ws.argsFor(spec, given)];
     const refusal = refusalOf(spec, argv, this.io);
-    if (refusal !== undefined) return this.refused(argv, refusal);
+    if (refusal !== undefined) return this.refused(argv);
     return this.confirmAndRun(spec, argv);
   }
 
@@ -666,18 +661,8 @@ class LineSession {
    * line its parse refuses goes through `run` itself, which fails at that
    * parse before anything is opened, so its "did you mean" line is the CLI's.
    */
-  private async refused(
-    argv: string[],
-    refusal: { message: string; stage: "parse" | "prepare" | "own" },
-  ): Promise<void> {
-    // A check of line mode's own is never printed as the CLI's (verification R-2): the
-    // CLI may answer the same line otherwise, so it is said as line mode's, and nothing runs.
-    if (refusal.stage === "own") {
-      this.say(`line mode's own check refused it: ${refusal.message}`);
-      this.say("nothing ran");
-      return;
-    }
-    // The command's parse or prepare, which run makes before it opens anything.
+  private async refused(argv: string[]): Promise<void> {
+    // The command's parse or its own checks, which run makes before it changes anything (F-7).
     this.say(`run: ${printedLine(argv, this.shell)}`);
     const code = await run([...argv], this.runIo([]));
     this.say(`exit ${code}`);

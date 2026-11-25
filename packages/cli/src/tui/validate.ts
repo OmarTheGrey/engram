@@ -75,13 +75,16 @@ export function checkArgv(
 }
 
 /**
- * Where a refusal of `checkArgv` came from: the command's own parse, or its
- * prepare (the CLI's own checks, which a run makes before it opens anything,
- * so `run` reproduces them byte for byte), or a check of the TUI's own (the
- * workspace opened read only, the time and number checks of a command that
- * is not a plane call), which the CLI may answer otherwise.
+ * Where a refusal of `checkArgv` came from: the command's own parse, or the
+ * CLI's own checks after it (a plane command's prepare and the workspace
+ * opened read only, or the time and number checks of a command that is not
+ * a plane call), each one the plain command makes with the same message
+ * before it changes anything, so `run` reproduces it byte for byte (final
+ * review F-7). The one open whose answer could differ from the run's, a
+ * store a command that changes state may create, is never made here
+ * (verification R-2).
  */
-export type RefusalStage = "parse" | "prepare" | "own";
+export type RefusalStage = "parse" | "prepare";
 
 /** The CLI's message for what is wrong with `argv`, and where it came from; undefined when the checks pass. */
 export function refusalOf(
@@ -109,7 +112,6 @@ export function refusalOf(
         // (a new Letta root, verification R-2): its store errors are the run's own. With no
         // store folder named there is nothing to create, and the missing store is said here (M13).
         const writes = spec.writes(values as Values, {});
-        stage = "own";
         const opensNothingNew =
           writes === "none" || writes === "audit" || p.flags.root === undefined;
         if (serverOf(io, p.flags) === undefined && opensNothingNew) {
@@ -132,7 +134,7 @@ export function refusalOf(
       }
     } else {
       const { values } = parse([...args], parseOptions(spec), spec.allowPositionals);
-      stage = "own";
+      stage = "prepare";
       for (const [name, o] of Object.entries(spec.options)) {
         const v = (values as Record<string, unknown>)[name];
         if (typeof v !== "string") continue;

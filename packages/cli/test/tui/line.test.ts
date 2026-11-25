@@ -812,15 +812,57 @@ describe("verification R-2: a write that creates its store runs as the plain CLI
     expect(existsSync(join(f.cwd, "newroot"))).toBe(false);
   });
 
-  it("names a refusal of its own check as line mode's, never as the CLI's, and records no exit code", async () => {
+  it("prints the plain CLI's refusal of a store check, records its exit 2, and creates no store (final review F-7)", async () => {
     // check writes nothing, so its check still opens the store read only, where a new Letta root is refused.
     const s = await lineSession(
       ["--line", "--owner", "dana", "--db", "engram.db", "--no-saved"],
       ["check --content hi --store letta --root newroot", "quit"],
     );
-    expect(s.transcript).toMatch(/line mode's own check refused it: [^\n]+\nnothing ran\n/);
-    expect(s.transcript).not.toMatch(/\nexit \d\n/);
-    expect(s.transcript).not.toContain("# engram tui: the commands");
+    const shown = lastRun(s.transcript);
+    const f = await folders();
+    const p = await plain(shown, 7000, f);
+    expect(p.code).toBe(2);
+    expect(p.out).toContain("engram check: letta adapter: ");
+    expect(s.norm).toContain(`${p.out}exit 2\n`);
+    expect(s.transcript).not.toContain("line mode's own check");
+    expect(s.transcript).toMatch(
+      /# engram tui: the commands this session ran\nengram check [^\n]*# exit 2\n$/,
+    );
+    expect(existsSync(join(s.cwd, "newroot"))).toBe(false);
+    expect(existsSync(join(f.cwd, "newroot"))).toBe(false);
+  });
+});
+
+describe("final review F-7: line mode prints the CLI's own refusals as the plain CLI does", () => {
+  for (const line of [
+    "key create --keys k.json --as person:a --source user --expires notatime",
+    "check --content hi --store letta --root newroot",
+  ])
+    it(`${line}: the plain CLI's message and exit code, shown and recorded`, async () => {
+      const s = await lineSession(["--line", "--no-saved"], [line, "quit"]);
+      const shown = lastRun(s.transcript);
+      expect(shown.slice(0, line.split(" ").length)).toEqual(line.split(" "));
+      const f = await folders();
+      const p = await plain(shown, 7000, f);
+      expect(p.code).toBe(2);
+      expect(s.norm).toContain(`run: `);
+      expect(s.norm).toContain(`${p.out}exit 2\n`);
+      expect(s.transcript).not.toContain("line mode's own check");
+      expect(s.transcript).toMatch(/# exit 2\n$/);
+      // Neither made a file or a store the other did not.
+      for (const name of ["k.json", "newroot", "engram.db"])
+        expect(existsSync(join(s.cwd, name)), name).toBe(existsSync(join(f.cwd, name)));
+    }, 60_000);
+
+  it("re-asks the field a prompted refusal names, with the CLI's own message", async () => {
+    const s = await lineSession(
+      ["--line", "--no-saved"],
+      ["key create", "k.json", "person:a", "user", "notatime", "quit"],
+    );
+    expect(s.transcript).toContain(
+      "engram key: --expires notatime is not an ISO 8601 UTC time such as 2026-10-25T12:00:00Z\n",
+    );
+    expect(s.transcript).not.toContain("line mode's own check");
   });
 });
 
