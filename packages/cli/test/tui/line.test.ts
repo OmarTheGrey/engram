@@ -826,7 +826,7 @@ describe("verification R-2: a write that creates its store runs as the plain CLI
 
 describe("verification R-3: the hand-back acts only for the parent that started the child", () => {
   /** An IPC channel the test plays the parent of. */
-  function channel(ack: boolean) {
+  function channel(ack: boolean | "other") {
     const sent: unknown[] = [];
     let listener: ((m: unknown) => void) | undefined;
     return {
@@ -835,7 +835,13 @@ describe("verification R-3: the hand-back acts only for the parent that started 
         send: (m: unknown, done?: () => void) => {
           sent.push(m);
           const hello = (m as { engramTuiHello?: string }).engramTuiHello;
-          if (ack && hello !== undefined) setImmediate(() => listener?.({ engramTuiAck: hello }));
+          if (ack === "other" && hello !== undefined)
+            setImmediate(() => {
+              listener?.({ engramTuiAck: "not-the-token" });
+              listener?.({ something: "else" });
+            });
+          else if (ack && hello !== undefined)
+            setImmediate(() => listener?.({ engramTuiAck: hello }));
           done?.();
         },
         on: (_e: "message", f: (m: unknown) => void) => {
@@ -856,6 +862,17 @@ describe("verification R-3: the hand-back acts only for the parent that started 
     expect(s.transcript).toContain(
       "command: > screen\nno full screen to return to: this line mode was not started by L\n",
     );
+    expect(c.sent.some((m) => (m as { ran?: unknown }).ran !== undefined)).toBe(false);
+  });
+
+  it("takes no other answer, or other message, for the parent's", async () => {
+    const c = channel("other");
+    const s = await lineSession(["--line", ...WS], ["screen", "quit"], {
+      env: { ENGRAM_TUI_HANDBACK: "a1b2" },
+      deps: { ipc: c.ipc },
+    });
+    expect(s.transcript).toContain("no full screen to return to: this line mode was not started by L
+");
     expect(c.sent.some((m) => (m as { ran?: unknown }).ran !== undefined)).toBe(false);
   });
 
