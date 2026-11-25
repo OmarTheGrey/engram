@@ -44,18 +44,39 @@ const cites = (number: string, since?: string) =>
   });
 
 /**
- * A bulk acceptance: a decision entry dated exactly `on` that cites the ADR
- * index itself, as the lead's acceptance of ADRs 0002 to 0030 on 2026-11-02
- * does (docs/log/2026-11-02-adrs-accepted.md). It counts only for an ADR
- * whose own Status line is dated that same day.
+ * The bulk acceptances: decision entries that accepted a range of ADRs by
+ * citing the index rather than each file (the lead's acceptance of ADRs 0002
+ * to 0030 on 2026-11-02). Named by path, so no other entry that cites the
+ * index, a proposal or a renumbering, counts as one (review finding ANS2-8).
+ * Each counts only for an ADR whose own Status line carries the entry's date.
  */
-const acceptsIndexOn = (on: string) =>
-  decisionEntries.some((fields) => {
+const BULK_ACCEPTANCES = ["docs/log/2026-11-02-adrs-accepted.md"];
+
+const acceptanceEntries = readdirSync("docs/log")
+  .filter((f) => f.endsWith(".md") && !f.startsWith("_"))
+  .map((f) => {
+    const path = `docs/log/${f}`;
+    const { fields, body } = parseFrontmatter(readFileSync(path, "utf8"));
+    return { path, fields, body };
+  })
+  .filter(({ fields }) => fields.get("type") === "decision");
+
+/**
+ * An acceptance of the ADR on or after `since`: a decision entry so dated
+ * that cites the ADR's file and whose body names its number, or a named
+ * bulk acceptance of exactly that date.
+ */
+const accepted = (number: string, since: string) =>
+  acceptanceEntries.some(({ path, fields, body }) => {
+    const date = fields.get("date");
+    if (typeof date !== "string") return false;
+    if (BULK_ACCEPTANCES.includes(path)) return date === since;
     const evidence = fields.get("evidence");
     return (
-      fields.get("date") === on &&
+      date >= since &&
       Array.isArray(evidence) &&
-      evidence.includes("docs/decisions/README.md")
+      evidence.some((e) => e.startsWith(`docs/decisions/${number}-`)) &&
+      body.includes(number)
     );
   });
 
@@ -120,8 +141,8 @@ describe("decisions", () => {
       expect(own?.date, `ADR ${number}'s Status line names no date`).toBeDefined();
       const date = own?.date ?? "";
       expect(
-        cites(number, date) || acceptsIndexOn(date),
-        `no decision entry on or after ${date} cites ADR ${number}, and none of that day cites the index`,
+        accepted(number, date),
+        `no decision entry on or after ${date} cites ADR ${number} and names it in its body`,
       ).toBe(true);
     },
   );
