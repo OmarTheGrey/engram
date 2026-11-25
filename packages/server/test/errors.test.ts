@@ -1,6 +1,7 @@
 // ADR 0027 decision 6: a policy decision is a response, not an error; the
 // errors a route can raise map to fixed statuses with a JSON body, and an
 // unexpected one is 500 with no internals (it goes to onError instead).
+import { readFileSync } from "node:fs";
 import { createEngramClient } from "@engram/sdk";
 import { describe, expect, it } from "vitest";
 import { createApp } from "../src/app.ts";
@@ -36,6 +37,31 @@ describe("error statuses", () => {
     });
     expect(response.status).toBe(400);
     expect(error?.error.code).toBe("invalid_call");
+  });
+
+  // ADR 0046, decision 7 (card E2.21): no surface exposes `replay` until
+  // verified actors are in place. The strict PromoteRequest refuses the field
+  // before the plane is called, and the OpenAPI document does not offer it.
+  it("400 for a promote body carrying a replay, which the same body without it is not", async () => {
+    const { client } = testWorkspace();
+    const body = { actor: dana, item_id: "01930000-0000-7000-8000-000000000001", to: "team:x" };
+    const plain = await client.POST("/api/v1/promote", { body });
+    expect(plain.response.status).toBe(200);
+    const replay = { tasks: [], runs: [] };
+    const { response, error } = await client.POST("/api/v1/promote", {
+      body: { ...body, replay } as never,
+    });
+    expect(response.status).toBe(400);
+    expect(error?.error.code).toBe("bad_request");
+    const spec = JSON.parse(
+      readFileSync(new URL("../../../sdk/openapi.json", import.meta.url), "utf8"),
+    );
+    expect(Object.keys(spec.components.schemas.PromoteRequest.properties).sort()).toEqual([
+      "actor",
+      "item_id",
+      "review",
+      "to",
+    ]);
   });
 
   it("403 when another actor asks to explain a read", async () => {

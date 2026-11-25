@@ -70,6 +70,18 @@ describe("over the in-memory transport", () => {
       expect(names).not.toContain(forbidden);
   });
 
+  // ADR 0046, decision 7 (card E2.21): no surface exposes `replay` until
+  // verified actors are in place. No MCP tool promotes, and none takes a replay.
+  it("offers no promotion and no replay in any tool", async () => {
+    const client = await inMemory(await testWorkspace());
+    const { tools } = await client.listTools();
+    expect(tools.length).toBeGreaterThan(0);
+    for (const t of tools) {
+      expect(t.name).not.toMatch(/promot/);
+      expect(Object.keys(t.inputSchema.properties ?? {})).not.toContain("replay");
+    }
+  });
+
   it("explains a fixture read: the read's tag and its explanations", async () => {
     const ws = await testWorkspace();
     const client = await inMemory(ws);

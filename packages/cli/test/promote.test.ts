@@ -143,4 +143,20 @@ describe("engram promote", () => {
     expect(code).toBe(2);
     expect(err).toContain(text);
   });
+
+  // ADR 0046, decision 7 (card E2.21): no surface exposes `replay` until
+  // verified actors are in place. The CLI has no --replay option, and the
+  // refusal records nothing.
+  it.each([["--replay", "replay.json"], ["--replay=replay.json"]])(
+    "refuses %j as bad usage, exit 2, with nothing logged",
+    async (...flag) => {
+      const { root, db } = await setup();
+      expect((await cli(record(db, root, "person:dana", 1))).code).toBe(0);
+      const before = logEvents(db).length;
+      const { code, err } = await cli([...promote(db, root), ...flag]);
+      expect(code).toBe(2);
+      expect(err).toContain("replay");
+      expect(logEvents(db)).toHaveLength(before);
+    },
+  );
 });
