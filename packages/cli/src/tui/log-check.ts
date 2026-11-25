@@ -44,7 +44,9 @@ export function checkLogInChild(
       windowsHide: true,
       // Not L's token or handoff, which this process holds for itself alone (final review F-2).
       env: Object.fromEntries(
-        Object.entries(process.env).filter(([k]) => !k.startsWith("ENGRAM_TUI_HAND")),
+        Object.entries(process.env).filter(
+          ([k]) => k !== "ENGRAM_TUI_HANDBACK" && k !== "ENGRAM_TUI_HANDOFF",
+        ),
       ),
     });
     live.add(child);

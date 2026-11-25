@@ -174,7 +174,7 @@ export class PaletteOverlay implements Overlay {
       },
       {
         label: "Forget saved workspace",
-        command: "tui.json",
+        command: ctx.noSaved ? "off: --no-saved" : "tui.json",
         search: "forget saved workspace delete",
         run: (c) => forgetFlow(c),
       },
@@ -382,8 +382,12 @@ async function rerunLast(ctx: Ctx): Promise<void> {
   if (result !== undefined) ctx.push(new ResultScreen(again.spec, result, {}));
 }
 
-/** Forget saved workspace: asks, then deletes tui.json. */
+/** Forget saved workspace: asks, then deletes tui.json; off under --no-saved, which never writes it (F-5). */
 export async function forgetFlow(ctx: Ctx): Promise<void> {
+  if (ctx.noSaved) {
+    ctx.say("Forget is off: tui.json is not read or written this session (--no-saved)");
+    return;
+  }
   const yes = await ctx.confirm({
     title: "Forget the saved workspace?",
     lines: [

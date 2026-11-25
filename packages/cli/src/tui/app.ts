@@ -525,6 +525,8 @@ export class App implements Component, Ctx {
     return up;
   }
   forget(): boolean {
+    // --no-saved neither reads nor writes tui.json, so it never deletes it (final review F-5).
+    if (this.noSaved) return false;
     this.savedInUse = false;
     return forgetSaved(this.io.home);
   }

@@ -212,7 +212,7 @@ log verify options (on this machine only; never --server):
                               repeatable; the log must extend it
   exit 0 OK: every check holds and a signed checkpoint, verified under the pinned key,
     covers the whole chain
-  exit 1 FAILED: a check failed; the first broken link is named
+  exit 1 FAILED: a check failed; the first broken link is named; or an error, such as no log
   exit 3 UNSIGNED: every check holds, but part of the chain is vouched for by no signature:
     no checkpoint, no --key, no signed checkpoint, or entries after the latest signed one
   limit: without a checkpoint held outside the database, anyone with database access can

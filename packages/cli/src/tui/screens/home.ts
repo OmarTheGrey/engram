@@ -287,7 +287,7 @@ export class HomeScreen implements Screen {
     const store = ctx.ws.get("root");
     const exp = ctx.ws.get("otlp") ?? ctx.ws.get("export-jsonl");
     const second = [
-      ` store ${ctx.ws.get("store") ?? "files"} ${store === undefined ? "(none: reading the log only)" : shortPath(store, ctx.io)}`,
+      ` store ${ctx.ws.get("store") ?? "files"} ${store === undefined ? "(none: read and write need --root)" : shortPath(store, ctx.io)}`,
       `owner ${ctx.ws.get("owner") ?? "none"}`,
       `member of ${ctx.ws.list("member").join(", ") || "the actor's own scope"}`,
       ctx.noSaved

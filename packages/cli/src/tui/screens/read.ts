@@ -249,7 +249,8 @@ export class ReadScreen extends RichScreen {
           root === undefined || ctx.ws.server() !== undefined
             ? ctx.ws.server() !== undefined
               ? "With a server, its own store and log."
-              : "No store: reading the log only."
+              : // A read needs its store folder, as the plain read does (final review F-4).
+                "No store folder: read needs --root <folder>, which ctrl+o sets."
             : `With ${shortPath(root, ctx.io)}: the store's memories are adopted into the log first; as its owner, your expired items are swept before that. The first read of a session asks.`,
           width,
         ),
