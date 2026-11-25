@@ -656,6 +656,14 @@ describe("review E-1: L keeps the reviewer handoff's actor", () => {
     ).toBe(true);
     const none = await lineSession(["--line", "--no-saved"], ["quit"]);
     expect(none.transcript).toContain("acting as no one yet: workspace sets --owner or --as\n");
+    // An actor the CLI refuses is named with the CLI's own reason, not as no one.
+    const bad = await lineSession(
+      ["--line", "--no-saved", "--as", "person:rev", "--member", "org:acme"],
+      ["quit"],
+    );
+    expect(bad.transcript).toContain(
+      "acting as person:rev, which every command refuses: --member org:acme is not a scope\n",
+    );
   });
 });
 

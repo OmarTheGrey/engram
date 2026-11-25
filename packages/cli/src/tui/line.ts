@@ -28,6 +28,7 @@ import {
   type Values,
 } from "../registry.ts";
 import { type Io, run } from "../run.ts";
+import { buildActor } from "../setup.ts";
 import { actorKeyNow, actorKeyOfResult, actorNow } from "./actor.ts";
 import { confirmationFor, isRead, offered, readKey, specOfWords } from "./asks.ts";
 import { type Exchange, type RunResult, teeCalls } from "./runner.ts";
@@ -93,7 +94,21 @@ class Ended extends Error {}
 /** Whom line mode acts as: the actor every command builds from the workspace, with its level and memberships. */
 export function actingAs(ws: Workspace): string {
   const a = actorNow(ws);
-  if (a === undefined) return "acting as no one yet: workspace sets --owner or --as";
+  if (a === undefined) {
+    const id = ws.actorId();
+    if (id === undefined) return "acting as no one yet: workspace sets --owner or --as";
+    // The CLI's own message: every command would refuse this actor the same way.
+    let why = "";
+    try {
+      buildActor(
+        { as: ws.get("as"), level: ws.get("level"), member: [...ws.list("member")] },
+        ws.get("owner"),
+      );
+    } catch (e) {
+      why = (e as Error).message;
+    }
+    return `acting as ${id}, which every command refuses: ${why}`;
+  }
   const members = a.memberships.length === 0 ? "its own scope" : a.memberships.join(", ");
   return `acting as ${a.id} (${a.level}), a member of ${members}`;
 }
