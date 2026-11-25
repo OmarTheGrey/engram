@@ -1,7 +1,7 @@
 # ADR 0042: Verified actors on the HTTP surfaces: a token's issuer and subject, or a local API key, name the actor the operator configured; claims never widen it, and a sent source is ignored
 
-Status: proposed, 2026-11-21
-Deciders: drafted by card E8.12 of the absorb plan; for the lead's acceptance
+Status: accepted, 2026-11-25, by the lead ("accept the adrs"); proposed 2026-11-21
+Deciders: drafted by card E8.12 of the absorb plan; accepted by the lead on 2026-11-25 (`docs/tasks/lead-decisions.md`, item 60, option (a))
 Supersedes: nothing. It amends ADR 0027 (decision 4, loopback only until authentication; decision 5, the actor is in the request and self-asserted) and completes ADR 0040's floor on the HTTP API (its decision 2, "its limit").
 
 ## Context
