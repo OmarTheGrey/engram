@@ -10,9 +10,10 @@
 // event with its reason (AGENTS.md rule 3).
 import { describe, expect, test } from "vitest";
 import type { Actor } from "../../../src/actor.ts";
+import { InvalidCallError } from "../../../src/actor.ts";
 import { strictContentHash } from "../../../src/content-hash.ts";
 import { appendEvent, currentItems } from "../../../src/events.ts";
-import type { LintReport } from "../../../src/plane/lint.ts";
+import { type LintReport, planModelLints } from "../../../src/plane/lint.ts";
 import { evaluateRead } from "../../../src/policy/evaluate.ts";
 import type { MemoryItem, Policy } from "../../../src/schema.ts";
 import { AT, fresh, id, item, testPolicy } from "./helpers.ts";
@@ -265,5 +266,84 @@ describe("the registered reach (card L8)", () => {
       /invalid reach "everything"/,
     );
     expect(env.plane.events()).toHaveLength(before);
+  });
+
+  test("a null reach, options that are no object, and an unknown reach to planModelLints are refused (review L8-1)", async () => {
+    const env = world([item(1)]);
+    const before = env.plane.events().length;
+    for (const options of [{ reach: null }, "scope-registered", null, 7, ["scope-registered"]])
+      await expect(
+        env.plane.lint(OMAR, AT, SCOPE, options as never),
+        JSON.stringify(options),
+      ).rejects.toBeInstanceOf(InvalidCallError);
+    expect(env.plane.events()).toHaveLength(before);
+    const setup = { model: "scripted/lint-1", seed: 1 };
+    for (const options of [{ reach: "x" }, { reach: null }, "read-filter"])
+      expect(() => planModelLints(env.deps, OMAR, AT, SCOPE, setup, options as never)).toThrow(
+        /planModelLints: invalid (reach|options)/,
+      );
+    expect(planModelLints(env.deps, OMAR, AT, SCOPE, setup, {})).toEqual([]);
+  });
+});
+
+describe("what the read filter refuses only on time, and supersession across scopes (review L8-3, L8-4)", () => {
+  test("a source of the linted scope not yet valid, or whose validity ended, is no orphan under either reach", async () => {
+    const later = item(1, { valid_from: "2026-11-01T00:00:00Z", content: "a dated source" });
+    const ended = item(2, { valid_to: "2026-10-20T00:00:00Z", content: "an ended source" });
+    const env = world([
+      later,
+      ended,
+      item(3, cites(later.id, { lineage: [later.id] })),
+      item(4, cites(ended.id, { lineage: [ended.id] })),
+    ]);
+    refused(env, later.id);
+    refused(env, ended.id);
+    for (const reach of ["read-filter", "scope-registered"] as const) {
+      const report = await env.plane.lint(OMAR, AT, SCOPE, { reach });
+      oneEventPerFinding(report);
+      expect(
+        report.findings.filter((f) => f.lint_id === "orphan"),
+        reach,
+      ).toEqual([]);
+    }
+    // At the default neither source's content is named: no source-changed shows its hash.
+    const report = await env.plane.lint(OMAR, AT, SCOPE);
+    expect(report.findings.map((f) => [f.lint_id, f.item_id])).toEqual([
+      ["expired-validity", ended.id],
+    ]);
+    expect(JSON.stringify(report)).not.toContain(strictContentHash("a dated source"));
+  });
+
+  test("a superseded predecessor outside the linted scope, reached by a live grant, reads as absent like any retired one", async () => {
+    const grant = [
+      {
+        to: OMAR.id,
+        class: "semantic" as const,
+        mode: "read" as const,
+        expires: "2026-12-01T00:00:00Z",
+      },
+    ];
+    const sam = { scope: "person:sam", owner: "person:sam", grants: grant };
+    const superseded = item(1, { ...sam, content: "sam's superseded note" });
+    const retired = item(2, { ...sam, content: "sam's retired note" });
+    const items = [
+      superseded,
+      retired,
+      item(3, { lineage: [superseded.id] }),
+      item(4, { lineage: [retired.id] }),
+    ];
+    const retire = { [superseded.id]: SUPERSEDED, [retired.id]: "test/x" };
+    const env = world(items, retire);
+    const report = await env.plane.lint(OMAR, AT, SCOPE);
+    oneEventPerFinding(report);
+    expect(said(report)).toEqual([
+      ["orphan", id(3), [`lineage ${superseded.id} ${UNREACHED}`]],
+      ["orphan", id(4), [`lineage ${retired.id} ${UNREACHED}`]],
+    ]);
+    // The registered reach keeps card L1's behaviour, the H3 runs' reach.
+    const registered = await world(items, retire).plane.lint(OMAR, AT, SCOPE, {
+      reach: "scope-registered",
+    });
+    expect(registered.findings.map((f) => [f.lint_id, f.item_id])).toEqual([["orphan", id(4)]]);
   });
 });
