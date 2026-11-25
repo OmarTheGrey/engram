@@ -26,11 +26,13 @@ What the Serve smoke pins, and what it does not: of the three behaviours card E8
 
 - **VS Code's integrated terminal.** The only VS Code here is the one hosting this session; opening and typing into one of its terminals from outside needs an extension or an automatic task this session cannot approve. VS Code's terminal is xterm.js over ConPTY, the stack the pseudoconsole smokes use (node-pty's ConPTY and xterm.js headless), so what they show is verified only through that pseudoconsole and headless xterm, not in VS Code. Its key handling (ctrl+p and F1 kept by VS Code, `;` and `?` hinted) is held by the unit tests only.
 - **macOS Terminal.** Not available: this is a Windows machine.
+- **Windows 10's console.** Not available: this machine runs Windows 11. Its console renders with GDI and no font fallback, so the status symbols may show as boxes there; this is why conhost keeps its ASCII status symbols (design 11.7).
 
 ## What it changed
 
 - The title bar drops a long log path, then the connection, before it drops the actor.
 - Any `TERM_PROGRAM` means a terminal that is not conhost.
 - Quitting gives the terminal back as it was (pi-tui otherwise printed the last frame into the scrollback).
-- L starts line mode as a child process on the real console, after the first in-process version lost the first line typed on Windows.
+- L starts line mode as a child process on the real console, after the first in-process version lost the first line typed on Windows; `screen` in that child hands back to the full screen that started it (review E-8).
+- In line mode, a line of only ctrl+Z (Windows' end of input, then Enter) or ctrl+D ends it, which the console delivers as a character (review E-2).
 - Observed, not changed: Doctor's checks run in process and keep Node busy, so the busy line of 10.2 did not appear during them (seen in tmux); it appears during calls that wait, as the unit tests show.
