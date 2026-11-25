@@ -635,9 +635,12 @@ export function htmlOf(xt: xterm.Terminal, v: Variant, title: string): string {
           r.italic ? "font-style:italic" : "",
           r.underline ? "text-decoration:underline" : "",
         ].filter((p) => p !== "");
-        return style.length === 0
-          ? esc(r.text)
-          : `<span style="${style.join(";")}">${esc(r.text)}</span>`;
+        // A full block is drawn as a filled cell: fonts leave gaps around the glyph.
+        const body = esc(r.text).replace(
+          /█+/g,
+          (m) => `<span class="b" style="background:${fg}">${" ".repeat(m.length)}</span>`,
+        );
+        return style.length === 0 ? body : `<span style="${style.join(";")}">${body}</span>`;
       })
       .join(""),
   );

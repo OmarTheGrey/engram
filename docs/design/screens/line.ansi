@@ -1,0 +1,42 @@
+engram tui, line mode. Type a number or a command name; help explains; quit leaves.
+acting as person:dana (person), a member of person:dana, team:core
+memory: 1 read  2 read --item  3 write  4 check  5 promote  6 supersede  7 grants  8 explain  9 who-can-read  10 scopes
+policy: 11 retain  12 lint  13 simulate  14 policy
+audit: 15 events  16 log verify  17 log checkpoint
+data: 18 export  19 import
+surfaces: 20 serve  21 mcp setup  22 hook setup  23 key create  24 key list  25 key revoke
+machine: 26 doctor
+command: > write
+write one item through the plane's write gate
+content: > The deploy key rotates every 90 days.
+from file: >
+scope (default the owner's person scope, else the actor): >
+class, episodic or semantic (default semantic): >
+confidence (default 0.9): >
+valid from (default now): >
+valid to (default open): >
+advanced options? yes or no (default no): >
+the gate would decide, as engram check says (nothing stored, no event):
+check a write to person:dana at 2026-10-29T12:00:00.000Z by person:dana: nothing stored, no event
+allow: semantic item from source user passes the person write rule; provenance set by the plane: source user, actor pers
+on:dana
+policy fixture.inspector/write/person
+log ~/demo/engram.db
+run: engram write --content "The deploy key rotates every 90 days." --db engram.db --policy policy.yaml --owner dana --m
+ember person:dana --member team:core --root mem
+Write a memory?
+Runs engram write as person:dana (person): the plane decides it and records the decision as an event.
+It cannot be undone; a later change is a new version or a new event.
+write it? yes or no (default no): > yes
+write 01960000-0000-7000-8000-000000007002 at 2026-10-29T12:00:00.000Z by person:dana
+allow: semantic item from source user passes the person write rule; provenance set by the plane: source user, actor pers
+on:dana
+policy fixture.inspector/write/person
+item 01960000-0000-7000-8000-000000007001 semantic in person:dana, status active, stored at files:01960000-0000-7000-800
+0-000000007001.md
+log ~/demo/engram.db
+exit 0
+command: > quit
+# engram tui: the commands this session ran
+engram write --content "The deploy key rotates every 90 days." --db engram.db --policy policy.yaml --owner dana --member
+ person:dana --member team:core --root mem  # exit 0
