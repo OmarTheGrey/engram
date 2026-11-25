@@ -372,6 +372,21 @@ The first wave's follow-ups that rank among the thirty, with where each was reco
 
 Work the gates need that no card owns, found while planning (`docs/log/2026-11-25-ap2-finding-gate-work-unowned.md`): pre-tag conditions 2 (the audit configs' `on_stop`), 3 (items 14 and 15), 5 (the OpenRouter endpoints) and 7 (the spend cap); H5's prerequisites (item 30); Gate D's request-identity check (ADR 0035, decision 1) and the Knowledge profile's dogfood (item 28); and before H3's live run, the contradiction prompt's change (item 44). Each needs its own card, written by the orchestrator, not by this plan.
 
+### Gate work cards (2026-11-25)
+
+The orchestrator wrote one card for each item of the paragraph above but H5's prerequisites, which are drafted apart (`docs/log/2026-11-25-gw-milestone-cards.md`):
+
+| Item | Card | Week |
+|---|---|---|
+| Pre-tag condition 2, the audit configs' `on_stop` | R5 | W8, by 28 November |
+| Pre-tag condition 3, item 14, a refused answer call | X20 | W8, by 30 November |
+| Pre-tag condition 3, item 15, capped utility sessions | X21 | W8, by 30 November |
+| Pre-tag condition 5, the OpenRouter endpoints | R6 | W8, by 29 November |
+| Pre-tag condition 7, the spend cap's runner check | X22 | W10, after H1's `MERGE=4`; H1 is capped by the operator's credit check (the lead's answer of 2026-11-25) |
+| Gate D, the request-identity check (ADR 0035, decision 1) | X23 | W11 |
+| Before H3's live run, the contradiction prompt (item 44) | L10 | W11 |
+| Gate D, the Knowledge profile's dogfood (item 28) | E9.17 | W13, run in W14 and W15 |
+
 ## 10. How the cards are worked
 
 As every card: `docs/tasks/<id>.md`, a plan in the pull request before code, the acceptance test first, an independent review, a fix pass and a verification, the local gates (`make lint`, `make lint-docs`, `make test`, `make test-invariants`, `make api-check`, `make test-e2e`, and `make test-repro` for every MANIFEST row the change can reach), and log entries for each deliverable, decision and failure. A card that copies or ports adds its rows to `docs/absorbed.md` and `NOTICE` in the same pull request, and rereads the licence at the commit it takes from. A card whose change the terminal interface would show writes a `finding` for branch `cliupgrade`.

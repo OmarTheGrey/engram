@@ -230,6 +230,17 @@ Added on 2026-11-25 (`docs/tasks/absorb-plan-2.md`). Before the tag only test to
 
 Moved by the plan: D4 from W19 to W13, since D3 is merged; E8.8 from W8 to W14, after the approval queue it now shows.
 
+### The gate work cards in the week plan
+
+Added on 2026-11-25 (`docs/tasks/absorb-plan-2.md`, section 9, "Gate work cards (2026-11-25)"). They own the work the gates need that no card owned. The four pre-tag cards merge by 30 November; the rest follow H1's `MERGE=4`.
+
+| Week | Dates | Research lane | Product lane |
+|---|---|---|---|
+| W8 | 23 to 29 Nov | R5 audit configs drop (by 28 Nov), R6 OpenRouter endpoints (by 29 Nov), X20 refused answer call, X21 capped utility count (both by 30 Nov) | |
+| W10 | 7 to 13 Dec | X22 programme-wide spend cap (after `MERGE=4`, before any later live run) | |
+| W11 | 14 to 20 Dec | X23 request-identity check, L10 contradiction prompt | |
+| W13 | 28 Dec to 3 Jan | | E9.17 Knowledge dogfood kit; the members run it in W14 and W15 beside the twin dogfood |
+
 ## Task cards
 
 Cards are grouped by epic. The dependency column is satisfied by earlier cards. Acceptance is a command the card creates; it must pass locally and in CI before the PR merges. Paste a card into a coding-agent session with the template at the end of this section.
@@ -417,6 +428,21 @@ Twenty-eight cards added by `docs/tasks/absorb-plan-2.md`, which also rewrote ca
 | E2.20 | Policy as code: `engram policy test` and `policy diff` | none | packages/core/src/policy/cases.ts | `make api-check` |
 | E9.15 | The signed audit report (DSSE, in-toto) | none | packages/core/src/audit/ | verify and tamper tests |
 | E9.16 | The subject access export and the Article 30 record | none | packages/core/src/audit/ropa.ts | round-trip test |
+
+### Gate work cards, 2026-11-25
+
+Eight cards for the gate work no card owned (`docs/tasks/absorb-plan-2.md`, section 9). H5's prerequisites (lead-decisions item 30) are drafted apart.
+
+| Card  | Goal | Depends | Files | Acceptance |
+|-------|------|---------|-------|------------|
+| R5    | Both audit configs read `on_stop: drop`; the two draw records regenerated, draws unchanged (pre-tag condition 2) | none | research/configs/label-audit*.json | label-audit tests; `make test-repro` |
+| R6    | Each live config pins its OpenRouter endpoints from a dated snapshot (pre-tag condition 5) | none | research/configs/openrouter-endpoints.json | `make test-one T=packages/runner/test/rv6-endpoints.test.ts` |
+| X20   | A refused answer call is an exclusion; a 401, 402 or 403 stops the run (pre-tag condition 3, item 14) | none | packages/runner/src/model/cassette.ts | `make test-one T=packages/runner/test/answer-refusal.test.ts` |
+| X21   | The H1 table counts the utility sessions the turn limit capped (pre-tag condition 3, item 15) | none | research/analysis/h1.py | H1 exclusion tests |
+| X22   | The runner enforces the programme-wide spend cap in billed dollars (pre-tag condition 7, after H1) | X20 | packages/runner/src/spend-cap.ts | `make test-one T=packages/runner/test/spend-cap.test.ts` |
+| X23   | The request-identity check on files, Mem0 and Letta, a rule-9 result (ADR 0035) | none | research/scripts/h4_request_identity.py | `make test-one T=packages/runner/test/request-identity.test.ts`; `make test-repro` row |
+| L10   | The contradiction prompt counts a later update of the same attribute (item 44) | R6 | packages/core/src/lint/model.ts | `make test-one T=packages/core/test/unit/lint/model.test.ts`; `make test-repro` |
+| E9.17 | The Knowledge profile's dogfood beside the twin dogfood (item 28) | E9.5 | docs/dogfood.md | `make test-one T=packages/core/test/unit/dogfood-knowledge.test.ts` |
 
 ### Card prompt template
 
