@@ -204,7 +204,7 @@ describe("Plane.lint as a member names or describes nothing the read filter refu
     ]);
   });
 
-  test("an item not yet valid: no finding is about it, none names it as a duplicate's original, a ref to it reads as absent", async () => {
+  test("an item not yet valid: no finding is about it, none names it as a duplicate's original, and a ref to it is no orphan (it is not gone, review L8-3) nor a source-changed naming its hash", async () => {
     const later = { valid_from: "2026-11-01T00:00:00Z" };
     const SAME = "the release train leaves on thursdays";
     const first = item(1, { ...later, content: SAME });
@@ -220,7 +220,8 @@ describe("Plane.lint as a member names or describes nothing the read filter refu
         new RegExp(`${hidden.id}(?! ${UNREACHED})`),
       );
     }
-    expect(said(report)).toEqual([["orphan", id(4), [`provenance.ref ${first.id} ${UNREACHED}`]]]);
+    // An item of the scope refused only on time is not gone (review L8-3), and its hash is never shown.
+    expect(said(report)).toEqual([]);
   });
 
   test("an item of the linted scope whose validity ended is still expired-validity's finding, and only its", async () => {

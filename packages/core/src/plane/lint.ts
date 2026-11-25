@@ -168,13 +168,29 @@ function lintContext(
       reach === "scope-registered"
         ? canAccess
         : (item: MemoryItem) => evaluateRead(policy, actor, item, at).admitted,
-    canAccess,
+    dated: (item: MemoryItem) => {
+      if (item.status !== "active") return false;
+      const { check } = evaluateRead(policy, actor, item, at);
+      // An expired item is refused before access is judged; outside-validity only after it passes.
+      return check === "outside-validity" || (check === "expired" && canAccess(item));
+    },
   };
 }
 
-/** The reach `options` names, `read-filter` when none; any other value is refused with InvalidCallError. */
+/**
+ * The reach `options` names: `read-filter` when `options` or its `reach` is
+ * absent (undefined). Options that are not a plain object (null, a string,
+ * an array) and a reach that is not one of the two names (null included)
+ * are refused with InvalidCallError (review L8-1).
+ */
 function lintReach(options: LintOptions | undefined, method: string): LintReach {
-  const reach = options?.reach ?? "read-filter";
+  if (options === undefined) return "read-filter";
+  if (typeof options !== "object" || options === null || Array.isArray(options))
+    throw new InvalidCallError(
+      `${method}: invalid options ${JSON.stringify(options)}; expected an object such as { reach: "read-filter" }`,
+    );
+  const reach: unknown = options.reach;
+  if (reach === undefined) return "read-filter";
   if (reach !== "read-filter" && reach !== "scope-registered")
     throw new InvalidCallError(
       `${method}: invalid reach ${JSON.stringify(reach)}; expected read-filter or scope-registered`,

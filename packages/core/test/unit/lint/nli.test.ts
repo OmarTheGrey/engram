@@ -37,7 +37,7 @@ function ctx(items: MemoryItem[]): LintContext {
     items: new Map(items.map((i) => [i.id, i])),
     retiredBy: new Map(),
     canReach: () => true,
-    canAccess: () => true,
+    dated: () => false,
   };
 }
 

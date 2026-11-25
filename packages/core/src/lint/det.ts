@@ -29,9 +29,15 @@
 // its subject. The one exception is expired-validity, whose finding is the
 // very reason the filter refuses an item of the linted scope: it looks at
 // every active item of that scope whose validity has begun, and names only
-// its own valid_to or ttl. A lineage id naming an item retired by its own
-// supersession is no orphan when the actor could read that item but for its
-// status (LintContext.canAccess); that adds nothing to a finding. A finding is
+// its own valid_to or ttl. Two more cases are no orphan, though the filter
+// refuses the item named, and only for an item of the linted scope, whose
+// events its members see anyway (review of L8, L8-3 and L8-4): an item
+// refused only on time, not yet valid or past its validity or ttl
+// (LintContext.dated), which is not gone, and a lineage id naming an item
+// retired by its own supersession. Neither is ever named or described: a
+// dated source raises no source-changed, so its hash is never shown. Outside
+// the linted scope both read as absent, so a grant into another scope tells
+// nothing of how its item was retired. A finding is
 // recorded as a lint event every member of the linted scope may see
 // (visible.ts), so it says nothing either about an item outside that scope
 // beyond what the linted item records itself (its provenance ref, hash and
@@ -89,12 +95,13 @@ export interface LintContext {
    */
   canReach: (item: MemoryItem) => boolean;
   /**
-   * Whether the actor could read an item by scope or a live grant at `at`,
-   * whatever its status or validity (readableAt). Used only to let a lineage
-   * id naming an item retired by its own supersession go unflagged; no
-   * finding names or describes an item through it.
+   * Whether an item is active, readable by the actor by scope or a live
+   * grant, and refused by the read filter only on time: before its
+   * valid_from, at or after its valid_to, or past its ttl. Used only so that
+   * orphan does not call such an item of the linted scope gone; no finding
+   * names or describes an item through it.
    */
-  canAccess: (item: MemoryItem) => boolean;
+  dated: (item: MemoryItem) => boolean;
 }
 
 const finding = (
@@ -203,7 +210,10 @@ export function orphan(item: MemoryItem, ctx: LintContext): DetFinding | null {
     const by = ctx.retiredBy.get(id);
     const supersededHere =
       lineage && target.status === "retired" && by?.op === "retire" && by.policy_id === superseded;
-    if (!ctx.canReach(target)) return supersededHere && ctx.canAccess(target) ? null : UNREACHED;
+    if (!ctx.canReach(target))
+      return target.scope === item.scope && (supersededHere || ctx.dated(target))
+        ? null
+        : UNREACHED;
     if (target.status !== "retired") return null;
     if (supersededHere) return null;
     // Outside the linted scope its status and retiring rule are not the
