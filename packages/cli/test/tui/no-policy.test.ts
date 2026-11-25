@@ -13,6 +13,15 @@
 // holding one or a comparison with one fails; every string the source writes,
 // a concatenation of literals folded, is checked against the lists and for
 // remedy wording. The reviewer's five survivors are run through it below.
+//
+// Since the final review (F-8) it walks @engram/view too, which every TUI
+// screen and the inspector draw through: a branch on a reason there would
+// reach them all. A view also carries a decision field unread, into a field
+// of a decision field's name (`policyId: r.event.policy_id`), whose every
+// use the guard then checks by that name, or as the value of a labelled row
+// (`["reason", e.reason]`), which is drawn. Its one search of reasons, for
+// the text the person typed (findInReasons, the Events screen's find), is
+// pinned by name in SEARCHES, never marked in the source.
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join, relative } from "node:path";
@@ -25,6 +34,8 @@ import { REPO } from "../helpers.ts";
 const ts = createRequire(join(REPO, "packages", "cli", "package.json"))("typescript") as typeof TS;
 
 const TUI = join(REPO, "packages", "cli", "src", "tui");
+/** @engram/view, which every TUI screen and the inspector draw through (final review F-8). */
+const VIEW = join(REPO, "packages", "view", "src");
 const CORE = join(REPO, "packages", "core", "src");
 
 function files(dir: string): string[] {
@@ -34,7 +45,7 @@ function files(dir: string): string[] {
   });
 }
 
-const sources = files(TUI).map((p) => ({
+const sources = [...files(TUI), ...files(VIEW)].map((p) => ({
   path: relative(REPO, p).split("\\").join("/"),
   text: readFileSync(p, "utf8"),
 }));
@@ -112,10 +123,41 @@ function consumer(node: TS.Node): { parent: TS.Node; child: TS.Node } {
   return { parent, child };
 }
 
-/** Whether a decision field read at `node` is only drawn: a display helper's argument or a template's. */
+/** A property assignment whose name is a decision field's: a decision carried, unread, under its own kind of name. */
+function carriedAs(node: TS.Node): boolean {
+  let { parent, child } = consumer(node);
+  // `admittedBy: e?.policy_id ?? null`: none is carried as null.
+  if (
+    ts.isBinaryExpression(parent) &&
+    parent.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken &&
+    parent.left === child &&
+    parent.right.kind === ts.SyntaxKind.NullKeyword
+  )
+    ({ parent, child } = consumer(parent));
+  return (
+    ts.isPropertyAssignment(parent) &&
+    parent.initializer === child &&
+    (ts.isIdentifier(parent.name) || ts.isStringLiteral(parent.name)) &&
+    DECISION_FIELDS.has(parent.name.text)
+  );
+}
+
+/** A labelled row, `["reason", e.reason]`: a string label and the value it labels, drawn. */
+function labelledRow(parent: TS.Node, child: TS.Node): boolean {
+  return (
+    ts.isArrayLiteralExpression(parent) &&
+    parent.elements.length === 2 &&
+    parent.elements[1] === child &&
+    ts.isStringLiteral(parent.elements[0] as TS.Node)
+  );
+}
+
+/** Whether a decision field read at `node` is only drawn: a display helper's argument or a template's, carried or labelled. */
 function onlyDrawn(node: TS.Node): boolean {
+  if (carriedAs(node)) return true;
   const { parent, child } = consumer(node);
   if (ts.isTemplateSpan(parent)) return true;
+  if (labelledRow(parent, child)) return true;
   if (ts.isCallExpression(parent) && parent.arguments.includes(child as TS.Expression)) {
     const callee = parent.expression;
     const name = ts.isIdentifier(callee)
@@ -148,6 +190,7 @@ function drawnAs(node: TS.Node): TS.Node {
   for (;;) {
     const { parent, child } = consumer(e);
     if (ts.isTemplateSpan(parent)) e = parent.parent;
+    else if (labelledRow(parent, child)) e = parent;
     else if (ts.isCallExpression(parent) && parent.arguments.includes(child as TS.Expression))
       e = parent;
     else return e;
@@ -429,6 +472,28 @@ function violations(
   return out;
 }
 
+/**
+ * The searches of reasons for text the person typed, by file and function:
+ * a filter on the person's own words, which decides nothing the plane
+ * decided (README, packages/view). Each must be found, once, where it is
+ * pinned; any other violation fails.
+ */
+const SEARCHES = [{ path: "packages/view/src/view.ts", fn: "findInReasons" }];
+
+/** The function a violation's line is in, by name. */
+function functionAt(file: TS.SourceFile, line: number): string | undefined {
+  let found: string | undefined;
+  const walk = (n: TS.Node): void => {
+    const start = file.getLineAndCharacterOfPosition(n.getStart()).line + 1;
+    const end = file.getLineAndCharacterOfPosition(n.getEnd()).line + 1;
+    if (line < start || line > end) return;
+    if (ts.isFunctionDeclaration(n) && n.name !== undefined) found = n.name.text;
+    ts.forEachChild(n, walk);
+  };
+  walk(file);
+  return found;
+}
+
 /** The TUI's sources as one program, for the type checker: answers are told by their types. */
 function tuiProgram() {
   const options: TS.CompilerOptions = {
@@ -475,6 +540,9 @@ describe("no policy in the TUI's source", () => {
     expect(RULE_IDS.length).toBeGreaterThan(30);
     expect(RULE_AREAS).toEqual(expect.arrayContaining(["engram/write/", "engram/promote/"]));
     expect(sources.length).toBeGreaterThan(20);
+    expect(sources.map((x) => x.path)).toEqual(
+      expect.arrayContaining(["packages/view/src/view.ts", "packages/view/src/provenance.ts"]),
+    );
   });
 
   it("names no rule id, no rule area and no preset's policy id, anywhere in the text", () => {
@@ -497,11 +565,23 @@ describe("no policy in the TUI's source", () => {
 
   it("uses a reason, a policy id or an admitting rule only as text drawn, and writes no forbidden string (the syntax tree)", () => {
     const { program, checker } = tuiProgram();
+    const pinned = new Map<string, number>();
     const found = sources.flatMap((x) => {
       const file = program.getSourceFile(join(REPO, x.path));
-      return violations(x.path, x.text, file === undefined ? undefined : { file, checker });
+      return violations(x.path, x.text, file === undefined ? undefined : { file, checker }).filter(
+        (v) => {
+          const line = Number(v.slice(x.path.length + 1).split(":")[0]);
+          const fn = file === undefined ? undefined : functionAt(file, line);
+          const s = SEARCHES.find((p) => p.path === x.path && p.fn === fn);
+          if (s === undefined) return true;
+          pinned.set(`${s.path} ${s.fn}`, (pinned.get(`${s.path} ${s.fn}`) ?? 0) + 1);
+          return false;
+        },
+      );
     });
     expect(found).toEqual([]);
+    // Every pinned search is still there, and is the one use its function makes.
+    for (const p of SEARCHES) expect(pinned.get(`${p.path} ${p.fn}`), p.fn).toBe(1);
   }, 120_000);
 
   it("fails each of the verification's five gaps (N2)", () => {
@@ -542,6 +622,21 @@ describe("no policy in the TUI's source", () => {
       const source = `${ANSWER}\ndeclare function oneLine(s: string): string;\ndeclare function go(): void;\n${code}`;
       expect(violations("probe.ts", source, probeProgram(source)).length, name).toBeGreaterThan(0);
     }
+    // F-8: a carry or a row is allowed only as it is; anything done with it is not.
+    const carried: Record<string, string> = {
+      "a reason carried under another name": "const v = { why: answer.event.reason }; void v;",
+      "a carried reason with a fallback other than null":
+        'const v = { reason: answer.event.reason ?? "x" }; void v;',
+      "a row's reason searched":
+        'const row = ["reason", answer.event.reason]; if (row[1]?.includes("x")) go();',
+      "a row with no label": "const row = [answer.event.policy_id, answer.event.reason]; void row;",
+    };
+    for (const [name, code] of Object.entries(carried)) {
+      const source = `${ANSWER}\ndeclare function go(): void;\n${code}`;
+      expect(violations("probe.ts", source, probeProgram(source)).length, name).toBeGreaterThan(0);
+    }
+    const carries = `${ANSWER}\nconst v = { policyId: answer.event.policy_id, admittedBy: answer.event.policy_id ?? null, reason: answer.event.reason }; const rows = [["policy id", answer.event.policy_id], ["reason", answer.event.reason]]; void v; void rows;`;
+    expect(violations("probe.ts", carries, probeProgram(carries))).toEqual([]);
     // Drawn text kept in a local and only drawn again is allowed.
     const allowed = `${ANSWER}\ndeclare function oneLine(s: string): string;\nconst t = oneLine(answer.event.reason); const out: string[] = []; out.push(t);`;
     expect(violations("probe.ts", allowed, probeProgram(allowed))).toEqual([]);
