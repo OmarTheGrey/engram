@@ -54,6 +54,7 @@ Every ADR, 0001 to 0033, is accepted by the lead, and the lead is its decider. A
 | 0046 | The replay validation record's source: the plane derives it from the held-out outcomes a user-sourced actor presents | proposed (card D3) |
 | 0047 | A by-id read and a scope list reveal no more than a read: an id out of reach or reached only through a grant that does not admit it answers as an unknown id; framework writes carry source model | proposed, 2026-11-22 (card E8.14), for the lead's acceptance |
 | 0048 | The contradiction lint's local NLI tier is an injected scorer behind its own lint id, its scores cached as cassettes | proposed, 2026-11-22 (card L7), for the lead's acceptance (lead-decisions, item 66) |
+| 0049 | In a person scope only, its owner, acting as user, accepts a candidate of that scope; acceptance never raises trust | accepted, 2026-11-25, under the lead's instruction (card E9.9) |
 
 ---
 

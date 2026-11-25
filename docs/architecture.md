@@ -151,7 +151,7 @@ Adapter
 Plane
   write(actor, itemIn, at) -> WriteResult    policy and provenance, then the adapter, then the event carrying store_ref; at is the injected time
   read(actor, query) -> ReadResult           search in readable member scopes, match granted items, filter, explanation, event
-  promote(actor, itemId, toScope, at, {review?}) -> GateResult   evidence from the log, judged as a write into toScope; new version or in place (ADR 0026)
+  promote(actor, itemId, toScope, at, {review?}) -> GateResult   evidence from the log, judged as a write into toScope; new version or in place (ADR 0026); in a person scope its owner, user-sourced, accepts a semantic candidate there in place (ADR 0049)
   changeGrants(actor, itemId, {add?, remove?}, at) -> GrantResult   the owner's grant change, one update event, a new version in place (card E9.4, ADR 0034)
   retain(actor, scope, at) -> RetentionReport  expiry then budgets over one scope, as a member, in the write queue (ADR 0025)
   lint(actor, at, scope) -> LintReport     the enabled deterministic lints over one scope, as a member, then the enabled model-based
