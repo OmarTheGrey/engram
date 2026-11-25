@@ -214,7 +214,7 @@ Friday demonstrations the plan adds: W8, the counterexample tests' findings and 
 
 ### The second absorb plan in the week plan
 
-Added on 2026-11-25 (`docs/tasks/absorb-plan-2.md`). Before the tag only test tooling merges; during H1's runs (1 to 8 December) only tests, specs, research scripts with new configs and new read-only commands; core changes, new configs and new MANIFEST rows resume after H1's `MERGE=4`. Card E2.21 (ADR 0034's grant cap, in flight on its own branch) builds its part 2 after `MERGE=4`, before E2.15.
+Added on 2026-11-25 (`docs/tasks/absorb-plan-2.md`). Before the tag only test tooling merges; during H1's runs (1 to 8 December) only tests, specs, research scripts and new read-only commands; core changes, new configs and new MANIFEST rows resume after H1's `MERGE=4`. Card E2.21 (ADR 0034's grant cap, in flight on its own branch) builds its part 2 after `MERGE=4`, before E2.15.
 
 | Week | Dates | Research lane | Product lane |
 |---|---|---|---|
