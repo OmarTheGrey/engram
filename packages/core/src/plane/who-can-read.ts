@@ -30,7 +30,8 @@
 // window or ttl expiry (the review's E2.13-1, the lead's decision). A scope's
 // answer names only the read matrix's rules: grants are on items, so it says
 // nothing of them. Item 36's rule (a non-owner sees only the grants naming
-// them on a read) is not built in core on main; this card does not build it.
+// them on a read) is built by card RD1 in visible.ts (`grantsShownTo`), the
+// same rule as this answer's.
 //
 // A query decides nothing and changes nothing, so it appends no event, as
 // explain does not (a `decision` log entry of card E2.13). It is judged at the

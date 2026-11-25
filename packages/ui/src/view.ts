@@ -58,8 +58,8 @@ export interface LaneItem {
   /**
    * The grants the lanes show (card E9.4): every grant the item carries when
    * the viewer is its owner, otherwise only those naming the viewer (review
-   * finding M2 of PR #44). The read returns them all; the inspector does not
-   * show one grantee who else may read the item.
+   * finding M2 of PR #44). Since card RD1 core's read returns a non-owner
+   * only those already, so this is the same rule, kept for display.
    */
   grants: Grant[];
   /** Whether `grants` is every grant on the item, or only the viewer's own. */

@@ -1,6 +1,6 @@
 # RD1 A read reveals no more than the reader may see: grants and lineage ids
 
-Status: open.
+Status: done on branch rd1-read-disclosure, awaiting review. Paths: packages/core/src/visible.ts, packages/core/src/plane/read.ts, packages/core/src/plane/promote.ts, packages/core/src/plane/export.ts, packages/core/src/plane/who-can-read.ts (comment), packages/server/src/routes.ts, packages/ui/src/view.ts (comment), packages/core/test/counterexamples/read-disclosure.test.ts, packages/core/test/property/invariants.test.ts, packages/server/test/read-disclosure.test.ts, packages/cli/test/read-disclosure.test.ts, packages/mcp/test/read-disclosure.test.ts, docs/decisions/0034-grant-change-is-the-owners-governed-write.md (amendment), docs/architecture.md, docs/tasks/backlog.md, docs/log/2026-11-25-rd1-*.
 
 From the lead's request of 2026-11-25 ("accept the adrs and resolve the open items"). Lane: plane. Week: W14. Effort: M. Read AGENTS.md, `docs/architecture.md` ("Read path"), ADR 0034 (decision 9) and ADR 0047 before starting.
 
@@ -12,10 +12,10 @@ Steps:
 
 1. Tests first, in the counterexample style: dana owns an item granted to sam and to eve; sam's read shows only his grant, eve's only hers, dana's both; a member of the item's scope who is neither owner nor grantee sees none. An item whose ancestor sam cannot read: sam's read names no ancestor id, over core, the CLI's `--json`, the HTTP route and MCP. Mutation-check each.
 2. One rule in core (`packages/core/src/visible.ts`): the grants and the lineage an actor is shown of an item. The owner (its id is the item's owner and it may read the item's scope, as `Plane.changeGrants` and `whoCanReadItem` know it) sees every grant; anyone else only the grants whose `to` names it. A lineage id is shown only when ADR 0047's by-id rule would let the actor ask for it: its item is in a scope the actor may read, or the read filter admits it at the read's time.
-3. Apply it on every core path that returns an item or names its grants to an actor: `Plane.read` and `Plane.readById` (items, and each explanation's `grants_used` renumbered to the grants shown, which `explain` returns as stored), `visibleEvents` (each shown item, and a grant change's reason), `Plane.promote` and `Plane.retain`, a write's retention events, the bundle export, and the supersede route's submitted closes.
+3. Apply it on every core path that returns an item or names its grants to an actor: `Plane.read` and `Plane.readById` (items, and each explanation's `grants_used` renumbered to the grants shown, which `explain` returns as stored), `visibleEvents` (each shown item, and a grant change's reason), `Plane.promote`, the bundle export, and the supersede route's submitted closes and writes. Retention events carry no item state, so `Plane.retain` and a write's retention events need nothing.
 4. Prove no registered byte moves: the MANIFEST rows the change can reach, the fixtures' tests, `make test-invariants`.
 
-Files: packages/core/src/visible.ts, packages/core/src/plane/read.ts, packages/core/src/plane/promote.ts, packages/core/src/plane/retention.ts, packages/core/src/plane/write.ts, packages/core/src/plane/export.ts, packages/core/src/plane.ts, packages/core/src/index.ts, packages/core/test/, packages/server/src/routes.ts, packages/server/test/, packages/cli/test/, packages/mcp/test/, docs/tasks/RD1.md, docs/tasks/backlog.md, docs/log/
+Files: packages/core/src/visible.ts, packages/core/src/plane/read.ts, packages/core/src/plane/promote.ts, packages/core/src/plane/export.ts, packages/core/src/plane/who-can-read.ts (comment), packages/core/test/, packages/server/src/routes.ts, packages/server/test/, packages/cli/test/, packages/mcp/test/, packages/ui/src/view.ts (comment), docs/decisions/0034-grant-change-is-the-owners-governed-write.md (an amendment), docs/architecture.md, docs/tasks/RD1.md, docs/tasks/backlog.md, docs/log/
 
 Depends on: E2.13, E8.14, E9.4, RV7 (all merged)
 
