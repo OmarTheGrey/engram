@@ -14,10 +14,10 @@ evidence:
 supersedes: none
 ---
 
-**What.** ADR 0034's one-year expiry cap and its first-write rule (item 34) are accepted but not implemented in `packages/core`.
+**What.** ADR 0034's one-year expiry cap and first-write rule (item 34) are accepted, not built.
 
-**Why.** The lead's acceptance asks that the code be checked against the ADR.
+**Why.** The acceptance asks for the code to be checked.
 
-**Result.** `grantDefect` in `packages/core/src/policy/evaluate.ts` checks the gate's grant rule, the class, expiry at or before `at`, and duplicates; it has no upper bound on `expires`. `evaluateWrite`'s loop judges a first write's grants by `grantProblem` and the duplicate check only (`if (!changesGrants || kept) continue;`), so a first write lands with an expired grant or one of another class. The test "a rewrite adding an expired grant is refused; a first write carrying one still lands" in `packages/core/test/unit/plane/write-grants.test.ts` pins today's behaviour.
+**Result.** `grantDefect` (`packages/core/src/policy/evaluate.ts`) has no upper bound on `expires`, and `evaluateWrite` skips it for every first write (`if (!changesGrants || kept) continue;`). Two tests in `write-grants.test.ts` pin this: "a rewrite adding an expired grant is refused; a first write carrying one still lands" and, at lines 135 to 153, "a grant naming another class than the item's is refused by a rewrite adding it and by a grant change".
 
-**Consequence.** A core card builds both rules, changes that test, and fixes the fixtures. It must first show that no MANIFEST byte or cassette moves. The backlog row names it. This PR changes no code.
+**Consequence.** Card E2.21 builds it; part 1 is on branch `e2-14-grant-cap`. Part 2 (the cap and first-write rule) lands, under the delegation, after H1's MERGE, behind a policy option `grants.expiry_cap` no registered preset sets: the cap would refuse 1,633 of 2,490 GateMem fixture writes. Part 2 must change both tests and the loop comment on `twin-reads.json`.

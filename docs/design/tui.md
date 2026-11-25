@@ -1,6 +1,6 @@
 # The engram terminal interface: design
 
-Status: design for card E8.15, 2026-11-21; review fix pass 2026-11-22. Card E8.15 is the lead's own request of 2026-11-21, not one of the absorb plan's thirty pull requests. [ADR 0044](../decisions/0044-cli-tui.md) was accepted by the lead on 2026-11-25; the six smaller calls of section 14 were decided on 2026-11-22 under the lead's delegation (`docs/tasks/lead-decisions.md`, item 62), and the lead's acceptance keeps them. The implementation card is [`docs/tasks/E8.15.md`](../tasks/E8.15.md), split into E8.15a to E8.15e.
+Status: design for card E8.15, 2026-11-21; review fix pass 2026-11-22. Card E8.15 is the lead's own request of 2026-11-21, not one of the absorb plan's thirty pull requests. [ADR 0044](../decisions/0044-cli-tui.md) was accepted by the lead on 2026-11-25; the six smaller calls of section 14 were decided on 2026-11-22 under the lead's delegation (`docs/tasks/lead-decisions.md`, item 62), and those delegated calls stand, since the lead has not overturned them. The implementation card is [`docs/tasks/E8.15.md`](../tasks/E8.15.md), split into E8.15a to E8.15e.
 
 The lead asked for a terminal interface to the `engram` CLI that is as friendly and appealing as possible, loses no function or feature, and makes everything easy to reach and use without a hitch. This document is the specification a later card builds from. Where it says "must", the implementation card's tests check it.
 

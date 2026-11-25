@@ -31,13 +31,48 @@ const decisionEntries = readdirSync("docs/log")
   .map((f) => parseFrontmatter(readFileSync(`docs/log/${f}`, "utf8")).fields)
   .filter((fields) => fields.get("type") === "decision");
 
-const cites = (number: string) =>
+/** A decision entry cites the ADR, dated on or after `since` when given (ISO dates compare as strings). */
+const cites = (number: string, since?: string) =>
+  decisionEntries.some((fields) => {
+    const evidence = fields.get("evidence");
+    const date = fields.get("date");
+    return (
+      Array.isArray(evidence) &&
+      evidence.some((e) => e.startsWith(`docs/decisions/${number}-`)) &&
+      (since === undefined || (typeof date === "string" && date >= since))
+    );
+  });
+
+/**
+ * A bulk acceptance: a decision entry dated exactly `on` that cites the ADR
+ * index itself, as the lead's acceptance of ADRs 0002 to 0030 on 2026-11-02
+ * does (docs/log/2026-11-02-adrs-accepted.md). It counts only for an ADR
+ * whose own Status line is dated that same day.
+ */
+const acceptsIndexOn = (on: string) =>
   decisionEntries.some((fields) => {
     const evidence = fields.get("evidence");
     return (
-      Array.isArray(evidence) && evidence.some((e) => e.startsWith(`docs/decisions/${number}-`))
+      fields.get("date") === on &&
+      Array.isArray(evidence) &&
+      evidence.includes("docs/decisions/README.md")
     );
   });
+
+/** The `Status:` line of an ADR's own file: its first word, and the first date on it (when it was decided). */
+const fileStatus = (number: string) => {
+  const file = readdirSync("docs/decisions").find((f) => f.startsWith(`${number}-`));
+  if (file === undefined) return undefined;
+  const line = readFileSync(`docs/decisions/${file}`, "utf8")
+    .split(/\r?\n/)
+    .find((l) => l.startsWith("Status:"));
+  if (line === undefined) return { word: "", date: undefined };
+  const rest = line.slice("Status:".length).trim();
+  return {
+    word: rest.split(/[\s,.;(]/)[0] ?? "",
+    date: rest.match(/\d{4}-\d{2}-\d{2}/)?.[0],
+  };
+};
 
 describe("task cards", () => {
   test("the roadmap lists its cards", () => {
@@ -63,6 +98,31 @@ describe("decisions", () => {
       expect(status).not.toMatch(/^proposed/);
       expect(readdirSync("docs/decisions").some((f) => f.startsWith(`${number}-`))).toBe(true);
       expect(cites(number)).toBe(true);
+    },
+  );
+
+  // Review finding ANS2-3 of card ANS-2026-11-25: the ADR's own file must say
+  // what the index says, and accepting an ADR is a decision entry dated on or
+  // after the acceptance, so an index row flipped without one fails.
+  test.each(adrs)("ADR $number's own Status line matches the index", ({ number, status }) => {
+    const own = fileStatus(number);
+    expect(own, `docs/decisions/${number}-*.md has no file`).toBeDefined();
+    const indexWord = status.split(/[\s,.;(]/)[0] ?? "";
+    expect(own?.word, `ADR ${number}: file says ${own?.word}, index says ${status}`).toBe(
+      indexWord,
+    );
+  });
+
+  test.each(adrs.filter((a) => !OWNER_DECIDES.has(a.number) && a.status.startsWith("accepted")))(
+    "ADR $number has a decision entry dated on or after its acceptance",
+    ({ number }) => {
+      const own = fileStatus(number);
+      expect(own?.date, `ADR ${number}'s Status line names no date`).toBeDefined();
+      const date = own?.date ?? "";
+      expect(
+        cites(number, date) || acceptsIndexOn(date),
+        `no decision entry on or after ${date} cites ADR ${number}, and none of that day cites the index`,
+      ).toBe(true);
     },
   );
 });

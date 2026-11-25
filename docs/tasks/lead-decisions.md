@@ -305,7 +305,7 @@ Answered by the lead on 2026-11-25, every item (a) (section "The lead's answers,
     - (b) Accept it, and add an opt-in content mode as the GenAI conventions allow, off by default.
     - (c) Keep the JSONL sink only, so nothing leaves the machine, and drop OTLP until after the thesis.
 
-62. **ADR 0044, the CLI's terminal interface (card E8.15).** Answered 2026-11-25 by the lead: (a), keeping the six calls below. Card E8.15 is the lead's own request of 2026-11-21 for a TUI, not one of the absorb plan's thirty pull requests; it is listed here with the absorb cards' proposals because it was drafted with them. The design is `docs/design/tui.md`.
+62. **ADR 0044, the CLI's terminal interface (card E8.15).** Answered 2026-11-25 by the lead: (a). The six delegated calls below stand. Card E8.15 is the lead's own request of 2026-11-21 for a TUI, not one of the absorb plan's thirty pull requests; it is listed here with the absorb cards' proposals because it was drafted with them. The design is `docs/design/tui.md`.
     - Open for the lead: accept ADR 0044 (pi-tui at the pi pin, only under `packages/cli/src/tui/`), or (b) Ink 8.0.0 with React 19.3.1, or (c) no TUI until after the thesis. Until then the design proceeds on (a), as decided below.
     - Decided on 2026-11-22 under the lead's delegation, six calls the design raised; binding until the lead overturns one:
 
@@ -373,19 +373,19 @@ Three questions the answers card's review raised (findings ANS-2 and ANS-6 of it
 
 ## The lead's answers, 2026-11-25
 
-On 2026-11-25 the lead wrote "accept the adrs". These are the lead's own answers, not answers under the delegation. They cover every ADR still proposed: 0034 and 0042 to 0048. Each takes option (a) of its item. Items 34 and 35 had been answered (a) under the delegation on 2026-11-20; the lead's acceptance confirms them. Card ANS-2026-11-25 (`docs/tasks/ANS-2026-11-25.md`) carries them into the ADRs.
+On 2026-11-25 the lead wrote "accept the adrs". That sentence is the lead's own answer, not an answer under the delegation; the rows below read it as option (a) of each item. They cover every ADR still proposed: 0034 and 0042 to 0048. Each takes option (a) of its item. Items 34 and 35 had been answered (a) under the delegation on 2026-11-20; the lead's acceptance confirms them. Card ANS-2026-11-25 (`docs/tasks/ANS-2026-11-25.md`) carries them into the ADRs.
 
 | item | answer | reason |
 |---|---|---|
-| 34 | the lead's answer: (a) accept ADR 0034, with a 1-year cap on a grant's expiry, and refuse an expired or other-class grant on a first write | the lead accepted the ADR as written, with decisions 3 and 6 amended the same day to carry the rule. The rule is not built yet: a core card builds it and fixes the fixtures that write such grants (`docs/tasks/backlog.md`, "ADR 0034's cap and first-write rule"; `docs/log/2026-11-25-ans-2026-11-25-finding-adr-0034-cap-not-built.md`) |
-| 35 | the lead's answer: (a) amend ADR 0034: an owner's promotion keeps the grant, which then admits nothing across a class change | the lead accepted the ADR as written; decision 6 carries the amendment, and the rule is built (`packages/core/src/policy/promotion.ts`, card RV7) |
-| 60 | the lead's answer: (a) accept ADR 0042 | the lead accepted the ADR as written |
-| 61 | the lead's answer: (a) accept ADR 0043 | the lead accepted the ADR as written |
-| 62 | the lead's answer: (a) accept ADR 0044, pi-tui at the pi pin, only under `packages/cli/src/tui/`; the six calls of item 62's table stand | the lead accepted the ADR as written |
-| 63 | the lead's answer: (a) accept ADR 0046 | the lead accepted the ADR as written |
-| 64 | the lead's answer: (a) accept ADR 0045 | the lead accepted the ADR as written |
-| 65 | the lead's answer: (a) accept ADR 0047 | the lead accepted the ADR as written |
-| 66 | the lead's answer: (a) accept ADR 0048 as written: both directions; on card L4's fixture the flag band is empty and the tier only drops | the lead accepted the ADR as written; this closes item 66 |
+| 34 | (a) accept ADR 0034, with a 1-year cap on a grant's expiry, and refuse an expired or other-class grant on a first write | the lead accepted the ADR, with decisions 3 and 6 amended to the 2026-11-20 answers; decision 3 fixes the year as 365 days from the write's event time, refused under `engram/write/grant-expiry-cap` (`docs/log/2026-11-25-ans-2026-11-25-decision-adr-0034-expiry-cap.md`). The lead's acceptance lifts the condition that the ADR stay proposed until the rule is built. The rule is not built yet: card E2.21 builds it and fixes the fixtures that write such grants The rule is not built yet: a core card builds it and fixes the fixtures that write such grants (`docs/tasks/backlog.md`, "ADR 0034's cap and first-write rule"; `docs/log/2026-11-25-ans-2026-11-25-finding-adr-0034-cap-not-built.md`) |
+| 35 | (a) "Amend the ADR: a promotion keeps the grant, which then admits nothing.", with RV7's amendment (a non-owner's promotion carries none), accepted with the ADR | the lead accepted the ADR, with decisions 3 and 6 amended to the 2026-11-20 answers; decision 6 carries item 35, and the rule is built (`packages/core/src/policy/promotion.ts`, card RV7) |
+| 60 | (a) accept ADR 0042 | the lead accepted the ADR as written |
+| 61 | (a) accept ADR 0043 | the lead accepted the ADR as written |
+| 62 | (a) accept ADR 0044, pi-tui at the pi pin, only under `packages/cli/src/tui/` | the lead accepted the ADR as written; the six calls of item 62's table were decided under the delegation and stand, since the lead has not overturned them |
+| 63 | (a) accept ADR 0046 | the lead accepted the ADR as written |
+| 64 | (a) accept ADR 0045 | the lead accepted the ADR as written |
+| 65 | (a) accept ADR 0047 | the lead accepted the ADR as written |
+| 66 | (a) accept ADR 0048 as written: both directions; on card L4's fixture the flag band is empty and the tier only drops | the lead accepted the ADR as written; two sentences that had left item 66 open now record the answer; this closes item 66 |
 
 **The other open items, resolved the same day.** The lead also asked for the remaining open items to be resolved on 2026-11-25. Each is resolved by its own card, not by this one:
 
