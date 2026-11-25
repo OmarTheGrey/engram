@@ -1005,3 +1005,53 @@ describe("card E8.14 review fix pass: scope listings (E8.14-8)", () => {
     db.close();
   });
 });
+
+describe("card E9.9: an owner's acceptance in her own person scope (ADR 0049)", () => {
+  test("judged as core judges it: no violation, the agent's refusal counted by rule, the read after it admitted", async () => {
+    const { createFakeAdapter } = await import("@engram/adapters");
+    const { importedWrite } = await import("../../src/portable.ts");
+    const db = openSqlite(":memory:");
+    migrate(db);
+    const policy = parsePolicy(await readFile(PROFILE, "utf8"), "twin.yaml");
+    let n = 0;
+    const newId = () => `01990000-0000-7000-8000-${String(700_000 + ++n).padStart(12, "0")}`;
+    const plane = createPlane({ db, adapter: createFakeAdapter(), policy, newId });
+    const row = {
+      class: "semantic" as const,
+      content: "Dana reads the changelog on Mondays.",
+      confidence: 0.7,
+      valid_from: day(0, 8),
+      valid_to: null,
+      ttl: null,
+      status: "active" as const,
+      provenance: { kind: "user" as const },
+      ref: "engram-bundle:test",
+    };
+    const { actor, item } = importedWrite(DANA, row, {
+      id: ID(70),
+      scope: "person:dana",
+      lineage: [],
+    });
+    expect((await plane.write(actor, item, day(1))).item?.status).toBe("candidate");
+    expect((await plane.read(DANA, { text: "changelog", at: day(1, 10) })).items).toEqual([]);
+    const refused = await plane.promote(AGENT, ID(70), "person:dana", day(1, 11), { review: true });
+    expect(refused.event.policy_id).toBe("engram/promote/reviewer");
+    const accepted = await plane.promote(DANA, ID(70), "person:dana", day(1, 12), { review: true });
+    expect(accepted.event.policy_id).toBe("engram/promote/owner-person");
+    const read = await plane.read(DANA, { text: "changelog", at: day(2) });
+    expect(read.items.map((i) => i.id)).toEqual([ID(70)]);
+
+    const res = dogfoodReport(allEvents(db), policy, [DANA]);
+    expect(res.details).toEqual([]);
+    expect(res.report.violations.total).toBe(0);
+    expect(res.report.denials).toEqual({ "engram/promote/reviewer": 1 });
+    expect(res.report.by_op.promote).toEqual({ allow: 1, deny: 1 });
+    expect(res.report.watch.provenance_raised).toBe(0);
+    expect(formatReport(res.report)).not.toContain("changelog");
+
+    // The same log with the acceptance taken out: the read after it returned a candidate.
+    const without = allEvents(db).filter((e) => e.id !== accepted.event.id);
+    expect(dogfoodReport(without, policy, [DANA]).report.violations.read).toBe(1);
+    db.close();
+  });
+});

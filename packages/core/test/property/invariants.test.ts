@@ -91,6 +91,12 @@
 // character payload (never promoted, P5-14); restatements are sometimes by
 // the item's own author; reviewers who confirmed are refused (P5-16); and a
 // guard requires a refusal that only retired confirmers caused (P5-17).
+// Since card E9.9 (ADR 0049, amending ADR 0026) the owner, user-sourced, at
+// the person level, may also accept a semantic candidate in place in their
+// own person scope; a second run draws cases around that rule, its oracle
+// reading is promotionPermitted's own, and guards require an acceptance that
+// lands with the item's provenance and confidence unchanged, and the same
+// asked by any other source refused.
 //
 // Invariant 1 also runs across two handles over one log and one store (card
 // E2.6, ADR 0007's amendment of 2026-11-19; a `decision` log entry records
@@ -1863,6 +1869,64 @@ const arbPromotionCase = fc.record({
   replay: arbReplayCase,
 });
 
+/** One drawn promotion case. */
+type PromotionCase = typeof arbPromotionCase extends fc.Arbitrary<infer T> ? T : never;
+
+/**
+ * Card E9.9 (ADR 0049, amending ADR 0026; a `decision` log entry records the
+ * change): promotion cases drawn around an owner's acceptance. The source is
+ * in person:a, three times in four owned by person:a, a candidate and
+ * semantic; the promoter asks to review, three times in four as person:a, in
+ * person:a; person scope's rule admits every source and class and requires
+ * review half the time. The promoter's level, source and memberships, the
+ * restatements and the rest stay drawn, so refusals by source, level,
+ * class, status and target come with the landings.
+ */
+const arbOwnerCase: fc.Arbitrary<PromotionCase> = fc
+  .tuple(
+    arbPromotionCase,
+    fc.record({
+      owner: oftenTrue,
+      candidate: oftenTrue,
+      semantic: oftenTrue,
+      own: oftenTrue,
+      promoter: oftenTrue,
+      review: fc.boolean(),
+    }),
+  )
+  .map(([c, o]) => {
+    const person = {
+      scope: "person" as const,
+      allowed_sources: [...KINDS] as Kind[],
+      confidence_floor: 0,
+      forbidden_classes: [],
+      requires_review: o.review,
+    };
+    return {
+      ...c,
+      policy: {
+        target: o.own ? ("person:a" as const) : c.policy.target,
+        policy: {
+          ...c.policy.policy,
+          write: [...c.policy.policy.write.filter((r) => r.scope !== "person"), person],
+        } as Policy,
+      },
+      source: {
+        ...c.source,
+        scope: "person:a" as const,
+        owner: o.owner ? ("person:a" as const) : c.source.owner,
+        class: o.semantic ? ("semantic" as const) : c.source.class,
+        status: o.candidate ? ("candidate" as const) : c.source.status,
+      },
+      promoter: {
+        ...c.promoter,
+        id: o.promoter ? ("person:a" as const) : c.promoter.id,
+        review: true,
+      },
+      replay: { ...c.replay, use: false },
+    };
+  });
+
 /** Invariant 2 over promotions (ADR 0026); runs inside invariant 2's test. */
 async function promotionsLandOnlyWherePermitted(name: string) {
   const seen = {
@@ -1882,6 +1946,9 @@ async function promotionsLandOnlyWherePermitted(name: string) {
     wideningSource: 0,
     duplicate: 0,
     unreachable: 0,
+    // Card E9.9 (ADR 0049): an owner's acceptance, and the owner's agent refused.
+    ownerAccepted: 0,
+    ownerAgentRefused: 0,
   };
   // Card D3 review, D3-5: replay admissions and each replay refusal.
   const replaySeen = {
@@ -1894,397 +1961,410 @@ async function promotionsLandOnlyWherePermitted(name: string) {
     noWorseOnly: 0,
     seeds: 0,
   };
-  await fc.assert(
-    fc.asyncProperty(
-      arbPromotionCase,
-      async ({
-        policy: { policy: drawnPolicy, target: drawn },
-        source: drawnSource,
-        restatements: drawnRestatements,
-        promoter: drawnPromoter,
-        at,
-        after,
-        replay: rc,
-      }) => {
-        // A replay case's source is a procedural candidate, under its ref,
-        // with no hidden text and no ttl, so the replay decides most of them.
-        const source = rc.use
-          ? {
-              ...drawnSource,
-              class: "procedural" as const,
-              status: "candidate" as const,
-              hidden: false,
-              ttl: null,
-            }
-          : drawnSource;
-        const target = rc.use && rc.sameScope ? source.scope : drawn;
-        // Nor restatements (a restatement in the target is a duplicate) or a
-        // review (the owner never reviews its own item).
-        const restatements = rc.use ? [] : drawnRestatements;
-        const promoter = rc.use ? { ...drawnPromoter, review: false } : drawnPromoter;
-        // A replay case opens the rules of the source's and the target's
-        // levels to every source and class, and reads as an opened case
-        // does, so the replay rather than the rule decides most of them.
-        const opened = (level: string) => ({
-          scope: level as Policy["write"][number]["scope"],
-          allowed_sources: [...KINDS] as Kind[],
-          confidence_floor: 0,
-          forbidden_classes: [],
-          requires_review: false,
-        });
-        const levels = new Set([levelOf(source.scope), levelOf(target)]);
-        const policy: Policy = rc.use
-          ? {
-              ...drawnPolicy,
-              write: [
-                ...drawnPolicy.write.filter((r) => !levels.has(r.scope)),
-                ...[...levels].map(opened),
-              ],
-              read: {
-                matrix: [
-                  { reader: "person", may_read: ["person", "role", "team", "org"] },
-                  { reader: "team", may_read: ["role", "team", "org"] },
-                ],
-                honour_grants: true,
-              },
-            }
-          : drawnPolicy;
-        const { db, adapter, plane, under } = freshPlane(policy, true, P_SESSIONS);
-        const store = under(ADMIT_ALL);
-        // The source's text, with a tag-character payload when it is hidden.
-        const word = source.hidden ? `alpha${String.fromCodePoint(0xe0041)}` : "alpha";
-        // The same content in spacing only (strictly the same), or also in
-        // case (the same only in the merging form, P5-12).
-        const content = (r: Restatement) =>
-          !r.same ? "beta" : r.loud ? restated(word) : ` ${word} \n`;
-        const make = (n: number, scope: string, owner: string, text: MemoryItem["content"]) =>
-          ({
-            id: n < 0 ? P_SOURCE_ID : pId(n),
-            class: source.class,
-            scope,
-            owner,
-            content: source.class === "procedural" ? { body: String(text), tools: [] } : text,
-            provenance: { kind: "user", ref: "r", hash: `sha256:${"0".repeat(64)}`, actor: owner },
-            confidence: source.confidence,
-            valid_from: at,
-            valid_to: null,
-            ttl: null,
-            grants: [],
-            version: 1,
-            lineage: [],
-            status: "active",
-            store_ref: null,
-            schema_version: 1,
-          }) as MemoryItem;
-        const writer = (id: string, scope: string, kind: Kind): Actor => ({
-          id,
-          level: "person",
-          memberships: [scope],
-          source: kind,
-        });
-        // A retired source is written active and retired by an event, never
-        // written retired (review finding P4-7).
-        const item = {
-          ...make(-1, source.scope, source.owner, word),
-          class: source.class,
-          status: source.status === "retired" ? "active" : source.status,
-          content: source.class === "procedural" ? { body: word, tools: [] } : word,
-          ...(rc.use
-            ? {
-                provenance: {
-                  ...make(-1, source.scope, source.owner, word).provenance,
-                  ref: rc.ref,
-                },
-              }
-            : {}),
-          ttl: source.ttl,
-          // Model, compaction and external content carries no grants (decision D4).
-          grants:
-            source.grantTo && !["model", "compaction", "external"].includes(source.kind)
-              ? [
-                  {
-                    to: source.grantTo,
-                    class: source.class,
-                    mode: "read",
-                    expires: "2099-01-01T00:00:00Z",
-                  },
-                ]
-              : [],
-        } as MemoryItem;
-        const author = source.author ?? source.owner;
-        expect(
-          (await store.write(writer(author, source.scope, source.kind), item, at)).item,
-        ).not.toBeNull();
-        if (source.status === "retired")
-          appendEvent(db, {
-            id: "01950000-0000-7000-8000-0000000000ff",
-            ts: at,
-            op: "retire",
-            item_id: P_SOURCE_ID,
-            actor: source.owner,
-            scope_from: null,
-            scope_to: source.scope,
-            decision: "allow",
-            reason: "retired before the promotion under test",
-            policy_id: "test/retire",
-            schema_version: 1,
-          });
-        for (const [n, r] of restatements.entries()) {
-          const scope = r.inTarget ? target : r.inScope ? source.scope : "role:z";
-          const by = r.byAuthor ? author : r.actor;
-          const restatement = make(n, scope, by, content(r));
-          const { item: landed } = await store.write(
-            writer(by, scope, r.kind),
-            r.inTarget && source.class === "episodic"
-              ? ({ ...restatement, class: "semantic" } as MemoryItem)
-              : restatement,
-            at,
-          );
-          if (landed && r.retired)
-            appendEvent(db, {
-              id: `01950000-0000-7000-8000-0000000001${String(n).padStart(2, "0")}`,
-              ts: at,
-              op: "retire",
-              item_id: landed.id,
-              actor: by,
-              scope_from: null,
-              scope_to: scope,
-              decision: "allow",
-              reason: "a confirmer retired before the promotion",
-              policy_id: "test/retire",
-              schema_version: 1,
-            });
+  const check = async ({
+    policy: { policy: drawnPolicy, target: drawn },
+    source: drawnSource,
+    restatements: drawnRestatements,
+    promoter: drawnPromoter,
+    at,
+    after,
+    replay: rc,
+  }: PromotionCase) => {
+    // A replay case's source is a procedural candidate, under its ref,
+    // with no hidden text and no ttl, so the replay decides most of them.
+    const source = rc.use
+      ? {
+          ...drawnSource,
+          class: "procedural" as const,
+          status: "candidate" as const,
+          hidden: false,
+          ttl: null,
         }
-        const when = addSeconds(at, after) as string;
-        // A replay case's promoter is the owner, a member of both scopes,
-        // user-sourced or, one time in four, model-sourced.
-        const actor: Actor = rc.use
-          ? {
-              id: source.owner,
-              level: "person",
-              memberships: [...new Set([source.scope, target])],
-              source: rc.agent ? "model" : "user",
-            }
-          : {
-              id: promoter.id,
-              level: promoter.level,
-              memberships: [
-                ...new Set([...promoter.extra, ...(promoter.joins ? [source.scope, target] : [])]),
-              ],
-              ...(promoter.source ? { source: promoter.source } : {}),
-            };
-        const before = currentItems(db);
-        const retired = retiredByEvent(db);
-        const projected = before.find((i) => i.id === P_SOURCE_ID) as MemoryItem;
-        const log = allEvents(db);
-        const writes = log.flatMap((e) =>
-          e.op === "write" && e.decision === "allow" && e.item
-            ? [
-                {
-                  item_id: e.item.id,
-                  actor: e.actor,
-                  kind: e.item.provenance.kind,
-                  scope: e.item.scope,
-                  content: e.item.content,
-                },
-              ]
-            : [],
-        );
-        // The replay the promoter presents in a replay case.
-        const refTasks = rc.ref.startsWith("distill:")
-          ? [
-              ...new Set(
-                rc.ref
-                  .split(":")[2]
-                  ?.split(",")
-                  .map((x) => P_SESSIONS.get(x) ?? x),
-              ),
-            ]
-          : [];
-        const heldOut = Array.from({ length: rc.n }, (_, i) => `h${i}`);
-        const presented = rc.use
-          ? {
-              item_id: rc.ownItem ? P_SOURCE_ID : pId(99),
-              content_hash: strictContentHash(
-                rc.ownContent ? { body: word, tools: [] } : { body: "other", tools: [] },
-              ),
-              induced_from: rc.induced === "ref" ? refTasks : rc.induced === "t1" ? ["t1"] : [],
-              threshold: 2 / 3,
-              outcomes: (rc.leak ? ["t1", ...heldOut.slice(1)] : heldOut).flatMap((task, i) =>
-                rc.seeds.map((seed) => ({
-                  task,
-                  seed,
-                  without: i < rc.baseWins ? 1 : 0,
-                  with: i < rc.passes && !(rc.dip && seed === 3) ? 1 : 0,
-                })),
-              ),
-            }
-          : undefined;
-        const logLength = plane.events().length;
-        // A replay not on the registered seeds 1, 2, 3 is an invalid call:
-        // refused before the log is touched, and nothing changes (D3-13).
-        if (presented && rc.seeds.join() !== "1,2,3") {
-          await expect(
-            plane.promote(actor, P_SOURCE_ID, target, when, { replay: presented }),
-          ).rejects.toThrow(InvalidCallError);
-          expect(plane.events().length).toBe(logLength);
-          expect(currentItems(db)).toEqual(before);
-          replaySeen.seeds++;
-          return;
+      : drawnSource;
+    const target = rc.use && rc.sameScope ? source.scope : drawn;
+    // Nor restatements (a restatement in the target is a duplicate) or a
+    // review (the owner never reviews its own item).
+    const restatements = rc.use ? [] : drawnRestatements;
+    const promoter = rc.use ? { ...drawnPromoter, review: false } : drawnPromoter;
+    // A replay case opens the rules of the source's and the target's
+    // levels to every source and class, and reads as an opened case
+    // does, so the replay rather than the rule decides most of them.
+    const opened = (level: string) => ({
+      scope: level as Policy["write"][number]["scope"],
+      allowed_sources: [...KINDS] as Kind[],
+      confidence_floor: 0,
+      forbidden_classes: [],
+      requires_review: false,
+    });
+    const levels = new Set([levelOf(source.scope), levelOf(target)]);
+    const policy: Policy = rc.use
+      ? {
+          ...drawnPolicy,
+          write: [
+            ...drawnPolicy.write.filter((r) => !levels.has(r.scope)),
+            ...[...levels].map(opened),
+          ],
+          read: {
+            matrix: [
+              { reader: "person", may_read: ["person", "role", "team", "org"] },
+              { reader: "team", may_read: ["role", "team", "org"] },
+            ],
+            honour_grants: true,
+          },
         }
-        const result = await plane.promote(actor, P_SOURCE_ID, target, when, {
-          review: promoter.review,
-          ...(presented ? { replay: presented } : {}),
-        });
-        if (presented) {
-          const id = result.event.policy_id;
-          if (id === "engram/promote/validation-source") replaySeen.source++;
-          if (id === "engram/promote/replay-item") replaySeen.item++;
-          if (id === "engram/promote/replay-split") replaySeen.split++;
-          // Only the source's own distill ref stood in the way: the replay's
-          // own list does not leak, the ref is mappable, and its tasks are
-          // not the ones the replay names (the ref check alone refuses it).
-          const ownList = new Set(presented.induced_from);
-          if (
-            id === "engram/promote/replay-split" &&
-            !presented.outcomes.some((o) => ownList.has(o.task)) &&
-            !rc.ref.includes("s9") &&
-            rc.induced !== "ref"
-          )
-            replaySeen.refOnly++;
-          if (id === "engram/promote/no-evidence") replaySeen.short++;
-          // Only the no-worse rule stood in the way: by the threshold alone,
-          // replay_k tasks of replay_n would pass (the lead's D3-1 answer).
-          const byTask = new Map<string, { w: number; runs: number }>();
-          for (const o of presented.outcomes) {
-            const t = byTask.get(o.task) ?? { w: 0, runs: 0 };
-            byTask.set(o.task, { w: t.w + o.with, runs: t.runs + 1 });
+      : drawnPolicy;
+    const { db, adapter, plane, under } = freshPlane(policy, true, P_SESSIONS);
+    const store = under(ADMIT_ALL);
+    // The source's text, with a tag-character payload when it is hidden.
+    const word = source.hidden ? `alpha${String.fromCodePoint(0xe0041)}` : "alpha";
+    // The same content in spacing only (strictly the same), or also in
+    // case (the same only in the merging form, P5-12).
+    const content = (r: Restatement) =>
+      !r.same ? "beta" : r.loud ? restated(word) : ` ${word} \n`;
+    const make = (n: number, scope: string, owner: string, text: MemoryItem["content"]) =>
+      ({
+        id: n < 0 ? P_SOURCE_ID : pId(n),
+        class: source.class,
+        scope,
+        owner,
+        content: source.class === "procedural" ? { body: String(text), tools: [] } : text,
+        provenance: { kind: "user", ref: "r", hash: `sha256:${"0".repeat(64)}`, actor: owner },
+        confidence: source.confidence,
+        valid_from: at,
+        valid_to: null,
+        ttl: null,
+        grants: [],
+        version: 1,
+        lineage: [],
+        status: "active",
+        store_ref: null,
+        schema_version: 1,
+      }) as MemoryItem;
+    const writer = (id: string, scope: string, kind: Kind): Actor => ({
+      id,
+      level: "person",
+      memberships: [scope],
+      source: kind,
+    });
+    // A retired source is written active and retired by an event, never
+    // written retired (review finding P4-7).
+    const item = {
+      ...make(-1, source.scope, source.owner, word),
+      class: source.class,
+      status: source.status === "retired" ? "active" : source.status,
+      content: source.class === "procedural" ? { body: word, tools: [] } : word,
+      ...(rc.use
+        ? {
+            provenance: {
+              ...make(-1, source.scope, source.owner, word).provenance,
+              ref: rc.ref,
+            },
           }
-          const thresholdOnly = [...byTask.values()].filter((t) => 3 * t.w >= 2 * t.runs).length;
-          if (
-            id === "engram/promote/no-evidence" &&
-            byTask.size === policy.promotion.procedural.replay_n &&
-            thresholdOnly >= policy.promotion.procedural.replay_k
-          )
-            replaySeen.noWorseOnly++;
-          if (result.decision === "allow") replaySeen.landed++;
+        : {}),
+      ttl: source.ttl,
+      // Model, compaction and external content carries no grants (decision D4).
+      grants:
+        source.grantTo && !["model", "compaction", "external"].includes(source.kind)
+          ? [
+              {
+                to: source.grantTo,
+                class: source.class,
+                mode: "read",
+                expires: "2099-01-01T00:00:00Z",
+              },
+            ]
+          : [],
+    } as MemoryItem;
+    const author = source.author ?? source.owner;
+    expect(
+      (await store.write(writer(author, source.scope, source.kind), item, at)).item,
+    ).not.toBeNull();
+    if (source.status === "retired")
+      appendEvent(db, {
+        id: "01950000-0000-7000-8000-0000000000ff",
+        ts: at,
+        op: "retire",
+        item_id: P_SOURCE_ID,
+        actor: source.owner,
+        scope_from: null,
+        scope_to: source.scope,
+        decision: "allow",
+        reason: "retired before the promotion under test",
+        policy_id: "test/retire",
+        schema_version: 1,
+      });
+    for (const [n, r] of restatements.entries()) {
+      const scope = r.inTarget ? target : r.inScope ? source.scope : "role:z";
+      const by = r.byAuthor ? author : r.actor;
+      const restatement = make(n, scope, by, content(r));
+      const { item: landed } = await store.write(
+        writer(by, scope, r.kind),
+        r.inTarget && source.class === "episodic"
+          ? ({ ...restatement, class: "semantic" } as MemoryItem)
+          : restatement,
+        at,
+      );
+      if (landed && r.retired)
+        appendEvent(db, {
+          id: `01950000-0000-7000-8000-0000000001${String(n).padStart(2, "0")}`,
+          ts: at,
+          op: "retire",
+          item_id: landed.id,
+          actor: by,
+          scope_from: null,
+          scope_to: scope,
+          decision: "allow",
+          reason: "a confirmer retired before the promotion",
+          policy_id: "test/retire",
+          schema_version: 1,
+        });
+    }
+    const when = addSeconds(at, after) as string;
+    // A replay case's promoter is the owner, a member of both scopes,
+    // user-sourced or, one time in four, model-sourced.
+    const actor: Actor = rc.use
+      ? {
+          id: source.owner,
+          level: "person",
+          memberships: [...new Set([source.scope, target])],
+          source: rc.agent ? "model" : "user",
         }
-        const added = plane.events().slice(logLength);
-        expect(added[0], "the decision is the first event the promotion appends").toEqual(
-          result.event,
-        );
-        expect(result.events).toEqual(added.slice(0, result.events.length));
-        for (const e of added) {
-          expect(e.reason).not.toBe("");
-          expect(e.policy_id).not.toBe("");
-        }
-        const shown = `${projected.class} ${projected.status} item of ${projected.owner} (${projected.provenance.kind}) in ${projected.scope}, promoted to ${target} by ${actor.id} (source ${actor.source ?? "none"}, member of [${actor.memberships.join(", ")}], review ${promoter.review}) after writes ${JSON.stringify(writes.map((w) => [w.actor, w.kind, w.scope, w.content]))} under ${JSON.stringify({ write: policy.write, promotion: policy.promotion })}: ${result.event.decision} ${result.event.policy_id} ${result.event.reason}`;
-
-        // The evidence counts the oracle reads, for the guards.
-        const sameText = writes.filter(
-          (w) => w.scope === projected.scope && sameStrictContent(w.content, projected.content),
-        );
-        const isActive = (id: string) =>
-          id === P_SOURCE_ID || before.find((i) => i.id === id)?.status === "active";
-        const activeTrustedActors = new Set(
-          sameText
-            .filter((w) => TRUSTED.includes(w.kind) && isActive(w.item_id))
-            .map((w) => w.actor),
-        ).size;
-        const k = policy.promotion.episodic_to_semantic.confirmations;
-        const trustedItems = new Set(
-          sameText.filter((w) => TRUSTED.includes(w.kind)).map((w) => w.item_id),
-        ).size;
-        const trustedActors = new Set(
-          sameText.filter((w) => TRUSTED.includes(w.kind)).map((w) => w.actor),
-        ).size;
-        const anyActors = new Set(sameText.map((w) => w.actor)).size;
-
-        if (result.decision === "deny" && result.event.policy_id === "engram/promote/expired")
-          seen.expired++;
-        if (result.event.policy_id === "engram/promote/widening-source") seen.wideningSource++;
-        if (result.event.policy_id === "engram/promote/duplicate") seen.duplicate++;
-        if (result.event.policy_id === "engram/promote/hidden-text") seen.hiddenText++;
-        // A grantee who reads it but is not a member: the named refusal (P5-15).
-        if (result.event.reason.includes("a grant lets others read an item")) seen.grantee++;
-        if (result.event.reason.includes("confirmed item")) seen.confirmerReview++;
-        if (
-          result.event.policy_id === "engram/promote/membership" &&
-          actor.memberships.includes(projected.scope)
-        )
-          seen.unreachable++;
-        if (
-          result.event.policy_id === "engram/promote/reviewer" &&
-          actor.id !== projected.owner &&
-          actor.id === author &&
-          actor.source === "user" &&
-          actor.memberships.includes(target)
-        )
-          seen.authorReview++;
-        // A promoter who cannot read the target gets a null item even when it
-        // lands (P5-7); what landed is the decision event's item.
-        if (result.decision !== "allow") {
-          expect(result.item).toBeNull();
-          expect(
-            currentItems(db),
-            `a promotion that did not land changed nothing: ${shown}`,
-          ).toEqual(before);
-          if (result.decision === "ask") seen.asked++;
-          const evidenceOnly =
-            result.event.policy_id === "engram/promote/no-evidence" &&
-            projected.class === "episodic" &&
-            !promoter.review;
-          if (evidenceOnly && trustedItems >= k && trustedActors < k) seen.sameActorOnly++;
-          if (evidenceOnly && anyActors >= k && trustedActors < k) seen.untrustedOnly++;
-          // Only confirmers retired since stood in the way (P5-17).
-          if (evidenceOnly && trustedActors >= k && activeTrustedActors < k) seen.retiredOnly++;
-          if (
-            result.event.policy_id === "engram/promote/reviewer" &&
-            actor.id === projected.owner &&
-            actor.source === "user" &&
-            actor.memberships.includes(target)
-          )
-            seen.ownerReview++;
-          if (/\/write\//.test(result.event.policy_id) && trustedActors >= k) seen.writeRule++;
-          return;
-        }
-        const landed = result.event.item as MemoryItem;
-        expect(result.item === null || result.item.id === landed.id).toBe(true);
-        expect(
-          promotionPermitted(
-            policy,
-            actor,
-            P_SOURCE_ID,
-            target,
-            log,
-            promoter.review,
-            when,
-            presented ? { replay: presented, sessions: P_SESSIONS } : undefined,
+      : {
+          id: promoter.id,
+          level: promoter.level,
+          memberships: [
+            ...new Set([...promoter.extra, ...(promoter.joins ? [source.scope, target] : [])]),
+          ],
+          ...(promoter.source ? { source: promoter.source } : {}),
+        };
+    const before = currentItems(db);
+    const retired = retiredByEvent(db);
+    const projected = before.find((i) => i.id === P_SOURCE_ID) as MemoryItem;
+    const log = allEvents(db);
+    const writes = log.flatMap((e) =>
+      e.op === "write" && e.decision === "allow" && e.item
+        ? [
+            {
+              item_id: e.item.id,
+              actor: e.actor,
+              kind: e.item.provenance.kind,
+              scope: e.item.scope,
+              content: e.item.content,
+            },
+          ]
+        : [],
+    );
+    // The replay the promoter presents in a replay case.
+    const refTasks = rc.ref.startsWith("distill:")
+      ? [
+          ...new Set(
+            rc.ref
+              .split(":")[2]
+              ?.split(",")
+              .map((x) => P_SESSIONS.get(x) ?? x),
           ),
-          `a promotion landed without the evidence ADR 0026 asks for: ${shown}${presented ? `; replay ${JSON.stringify(presented)} under ref ${rc.ref}` : ""}`,
-        ).toBe(true);
-        const { source: _source, ...judged } = actor;
-        expect(
-          writeForbidden(policy, judged, landed, retired),
-          `a promotion landed an item a write could not: ${JSON.stringify(landed)}; ${shown}`,
-        ).toBe(false);
-        expect(
-          TRUST.indexOf(landed.provenance.kind),
-          `the promoted item is more trusted than its source: ${shown}`,
-        ).toBeGreaterThanOrEqual(TRUST.indexOf(projected.provenance.kind));
-        expect((await adapter.list(landed.scope)).map((i) => i.id)).toContain(landed.id);
-        if (!presented) seen[promoter.review ? "byReview" : "byConfirmation"]++;
-      },
-    ),
-    { numRuns: RUNS, seed: seedFor(name) },
-  );
+        ]
+      : [];
+    const heldOut = Array.from({ length: rc.n }, (_, i) => `h${i}`);
+    const presented = rc.use
+      ? {
+          item_id: rc.ownItem ? P_SOURCE_ID : pId(99),
+          content_hash: strictContentHash(
+            rc.ownContent ? { body: word, tools: [] } : { body: "other", tools: [] },
+          ),
+          induced_from: rc.induced === "ref" ? refTasks : rc.induced === "t1" ? ["t1"] : [],
+          threshold: 2 / 3,
+          outcomes: (rc.leak ? ["t1", ...heldOut.slice(1)] : heldOut).flatMap((task, i) =>
+            rc.seeds.map((seed) => ({
+              task,
+              seed,
+              without: i < rc.baseWins ? 1 : 0,
+              with: i < rc.passes && !(rc.dip && seed === 3) ? 1 : 0,
+            })),
+          ),
+        }
+      : undefined;
+    const logLength = plane.events().length;
+    // A replay not on the registered seeds 1, 2, 3 is an invalid call:
+    // refused before the log is touched, and nothing changes (D3-13).
+    if (presented && rc.seeds.join() !== "1,2,3") {
+      await expect(
+        plane.promote(actor, P_SOURCE_ID, target, when, { replay: presented }),
+      ).rejects.toThrow(InvalidCallError);
+      expect(plane.events().length).toBe(logLength);
+      expect(currentItems(db)).toEqual(before);
+      replaySeen.seeds++;
+      return;
+    }
+    const result = await plane.promote(actor, P_SOURCE_ID, target, when, {
+      review: promoter.review,
+      ...(presented ? { replay: presented } : {}),
+    });
+    if (presented) {
+      const id = result.event.policy_id;
+      if (id === "engram/promote/validation-source") replaySeen.source++;
+      if (id === "engram/promote/replay-item") replaySeen.item++;
+      if (id === "engram/promote/replay-split") replaySeen.split++;
+      // Only the source's own distill ref stood in the way: the replay's
+      // own list does not leak, the ref is mappable, and its tasks are
+      // not the ones the replay names (the ref check alone refuses it).
+      const ownList = new Set(presented.induced_from);
+      if (
+        id === "engram/promote/replay-split" &&
+        !presented.outcomes.some((o) => ownList.has(o.task)) &&
+        !rc.ref.includes("s9") &&
+        rc.induced !== "ref"
+      )
+        replaySeen.refOnly++;
+      if (id === "engram/promote/no-evidence") replaySeen.short++;
+      // Only the no-worse rule stood in the way: by the threshold alone,
+      // replay_k tasks of replay_n would pass (the lead's D3-1 answer).
+      const byTask = new Map<string, { w: number; runs: number }>();
+      for (const o of presented.outcomes) {
+        const t = byTask.get(o.task) ?? { w: 0, runs: 0 };
+        byTask.set(o.task, { w: t.w + o.with, runs: t.runs + 1 });
+      }
+      const thresholdOnly = [...byTask.values()].filter((t) => 3 * t.w >= 2 * t.runs).length;
+      if (
+        id === "engram/promote/no-evidence" &&
+        byTask.size === policy.promotion.procedural.replay_n &&
+        thresholdOnly >= policy.promotion.procedural.replay_k
+      )
+        replaySeen.noWorseOnly++;
+      if (result.decision === "allow") replaySeen.landed++;
+    }
+    const added = plane.events().slice(logLength);
+    expect(added[0], "the decision is the first event the promotion appends").toEqual(result.event);
+    expect(result.events).toEqual(added.slice(0, result.events.length));
+    for (const e of added) {
+      expect(e.reason).not.toBe("");
+      expect(e.policy_id).not.toBe("");
+    }
+    const shown = `${projected.class} ${projected.status} item of ${projected.owner} (${projected.provenance.kind}) in ${projected.scope}, promoted to ${target} by ${actor.id} (source ${actor.source ?? "none"}, member of [${actor.memberships.join(", ")}], review ${promoter.review}) after writes ${JSON.stringify(writes.map((w) => [w.actor, w.kind, w.scope, w.content]))} under ${JSON.stringify({ write: policy.write, promotion: policy.promotion })}: ${result.event.decision} ${result.event.policy_id} ${result.event.reason}`;
+
+    // The evidence counts the oracle reads, for the guards.
+    const sameText = writes.filter(
+      (w) => w.scope === projected.scope && sameStrictContent(w.content, projected.content),
+    );
+    const isActive = (id: string) =>
+      id === P_SOURCE_ID || before.find((i) => i.id === id)?.status === "active";
+    const activeTrustedActors = new Set(
+      sameText.filter((w) => TRUSTED.includes(w.kind) && isActive(w.item_id)).map((w) => w.actor),
+    ).size;
+    const k = policy.promotion.episodic_to_semantic.confirmations;
+    const trustedItems = new Set(
+      sameText.filter((w) => TRUSTED.includes(w.kind)).map((w) => w.item_id),
+    ).size;
+    const trustedActors = new Set(
+      sameText.filter((w) => TRUSTED.includes(w.kind)).map((w) => w.actor),
+    ).size;
+    const anyActors = new Set(sameText.map((w) => w.actor)).size;
+
+    if (result.decision === "deny" && result.event.policy_id === "engram/promote/expired")
+      seen.expired++;
+    if (result.event.policy_id === "engram/promote/widening-source") seen.wideningSource++;
+    if (result.event.policy_id === "engram/promote/duplicate") seen.duplicate++;
+    if (result.event.policy_id === "engram/promote/hidden-text") seen.hiddenText++;
+    // A grantee who reads it but is not a member: the named refusal (P5-15).
+    if (result.event.reason.includes("a grant lets others read an item")) seen.grantee++;
+    if (result.event.reason.includes("confirmed item")) seen.confirmerReview++;
+    if (
+      result.event.policy_id === "engram/promote/membership" &&
+      actor.memberships.includes(projected.scope)
+    )
+      seen.unreachable++;
+    if (
+      result.event.policy_id === "engram/promote/reviewer" &&
+      actor.id !== projected.owner &&
+      actor.id === author &&
+      actor.source === "user" &&
+      actor.memberships.includes(target)
+    )
+      seen.authorReview++;
+    // A promoter who cannot read the target gets a null item even when it
+    // lands (P5-7); what landed is the decision event's item.
+    if (result.decision !== "allow") {
+      expect(result.item).toBeNull();
+      expect(currentItems(db), `a promotion that did not land changed nothing: ${shown}`).toEqual(
+        before,
+      );
+      if (result.decision === "ask") seen.asked++;
+      const evidenceOnly =
+        result.event.policy_id === "engram/promote/no-evidence" &&
+        projected.class === "episodic" &&
+        !promoter.review;
+      if (evidenceOnly && trustedItems >= k && trustedActors < k) seen.sameActorOnly++;
+      if (evidenceOnly && anyActors >= k && trustedActors < k) seen.untrustedOnly++;
+      // Only confirmers retired since stood in the way (P5-17).
+      if (evidenceOnly && trustedActors >= k && activeTrustedActors < k) seen.retiredOnly++;
+      if (
+        result.event.policy_id === "engram/promote/reviewer" &&
+        actor.id === projected.owner &&
+        actor.source === "user" &&
+        actor.memberships.includes(target)
+      )
+        seen.ownerReview++;
+      if (
+        result.event.policy_id === "engram/promote/reviewer" &&
+        result.event.reason.includes("only the owner acting as user may accept")
+      )
+        seen.ownerAgentRefused++;
+      if (/\/write\//.test(result.event.policy_id) && trustedActors >= k) seen.writeRule++;
+      return;
+    }
+    const landed = result.event.item as MemoryItem;
+    expect(result.item === null || result.item.id === landed.id).toBe(true);
+    expect(
+      promotionPermitted(
+        policy,
+        actor,
+        P_SOURCE_ID,
+        target,
+        log,
+        promoter.review,
+        when,
+        presented ? { replay: presented, sessions: P_SESSIONS } : undefined,
+      ),
+      `a promotion landed without the evidence ADR 0026 asks for: ${shown}${presented ? `; replay ${JSON.stringify(presented)} under ref ${rc.ref}` : ""}`,
+    ).toBe(true);
+    const { source: _source, ...judged } = actor;
+    expect(
+      writeForbidden(policy, judged, landed, retired),
+      `a promotion landed an item a write could not: ${JSON.stringify(landed)}; ${shown}`,
+    ).toBe(false);
+    expect(
+      TRUST.indexOf(landed.provenance.kind),
+      `the promoted item is more trusted than its source: ${shown}`,
+    ).toBeGreaterThanOrEqual(TRUST.indexOf(projected.provenance.kind));
+    expect((await adapter.list(landed.scope)).map((i) => i.id)).toContain(landed.id);
+    // An owner's acceptance is in place: the provenance and confidence
+    // the plane held stand (card E9.9, ADR 0049: never raises trust).
+    if (result.event.policy_id === "engram/promote/owner-person") {
+      expect(landed, `an owner's acceptance changed more than the status: ${shown}`).toEqual({
+        ...projected,
+        status: "active",
+        version: projected.version + 1,
+        store_ref: landed.store_ref,
+      });
+      seen.ownerAccepted++;
+    } else if (!presented) seen[promoter.review ? "byReview" : "byConfirmation"]++;
+  };
+  await fc.assert(fc.asyncProperty(arbPromotionCase, check), {
+    numRuns: RUNS,
+    seed: seedFor(name),
+  });
+  // Card E9.9: the cases drawn around an owner's acceptance, under their own seed.
+  await fc.assert(fc.asyncProperty(arbOwnerCase, check), {
+    numRuns: RUNS / 4,
+    seed: seedFor(`${name}, owner acceptance`),
+  });
   expect(
     Object.values(replaySeen).every((n) => n > 0),
     `invariant 2 over promotions needs replay admissions and refusals by the presenter's source, another item's replay, a split that is not the ref's, one only the ref's tasks refuse, too few passes, one only the no-worse rule refuses, and a replay off the registered seeds; it saw ${JSON.stringify(replaySeen)}`,
   ).toBe(true);
   expect(
     Object.values(seen).every((n) => n > 0),
-    `invariant 2 over promotions needs landings by confirmation and by review, an ask, refusals where only the distinct-actor rule, only the trusted-kind rule, only retired confirmers, only the owner-as-reviewer rule or only the target's write rule stood in the way, and refusals by authorship, confirmation, expiry, hidden text, a widening's source, a duplicate, reach and a read grant; it saw ${JSON.stringify(seen)}`,
+    `invariant 2 over promotions needs landings by confirmation and by review, an ask, refusals where only the distinct-actor rule, only the trusted-kind rule, only retired confirmers, only the owner-as-reviewer rule or only the target's write rule stood in the way, and refusals by authorship, confirmation, expiry, hidden text, a widening's source, a duplicate, reach and a read grant, and an owner's acceptance in their own person scope with the owner's agent refused it (card E9.9); it saw ${JSON.stringify(seen)}`,
   ).toBe(true);
 }
 
