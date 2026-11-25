@@ -214,13 +214,13 @@ Friday demonstrations the plan adds: W8, the counterexample tests' findings and 
 
 ### The second absorb plan in the week plan
 
-Added on 2026-11-25 (`docs/tasks/absorb-plan-2.md`). Before the tag only test tooling merges; during H1's runs (1 to 8 December) only tests, specs, research scripts with new configs and new read-only commands; core changes resume after H1's `MERGE=4`.
+Added on 2026-11-25 (`docs/tasks/absorb-plan-2.md`). Before the tag only test tooling merges; during H1's runs (1 to 8 December) only tests, specs, research scripts with new configs and new read-only commands; core changes, new configs and new MANIFEST rows resume after H1's `MERGE=4`. Card E2.21 (ADR 0034's grant cap, in flight on its own branch) builds its part 2 after `MERGE=4`, before E2.15.
 
 | Week | Dates | Research lane | Product lane |
 |---|---|---|---|
 | W8 | 23 to 29 Nov | E0.6 register check, E0.7 determinism guards | |
-| W9 | 30 Nov to 6 Dec | E8.16 surface parity and leaks, E1.8 Quint trace replay, X16 gate mutation audit | E9.10 engram discover |
-| W10 | 7 to 13 Dec | X17 results page, E1.7 erasure gaps, E2.14 policy schema, E2.15 provenance across rewrites | |
+| W9 | 30 Nov to 6 Dec | E8.16 surface parity and leaks, E1.8 Quint trace replay | E9.10 engram discover |
+| W10 | 7 to 13 Dec | X16 gate mutation audit, X17 results page, E1.7 erasure gaps, E2.14 policy schema, E2.15 provenance across rewrites (after E2.21's part 2) | |
 | W11 | 14 to 20 Dec | X18 fault-injection check, X19 erasure-residue check, E2.16 content-guard gaps, E1.9 chain coverage | E9.11 crypto-shredding ADR and keys |
 | W12 | 21 to 27 Dec | L9 quote-grounding, D5 procedure safety scan, A6 MCP memory store, E2.17 why not this item | E9.12 do not record, E8.17 Codex hook |
 | W13 | 28 Dec to 3 Jan | D4 drift and retirement, E2.18 Cedar symbolic proofs | E9.13 crypto-shredded erasure, E2.19 approval queue |
@@ -397,8 +397,8 @@ Twenty-eight cards added by `docs/tasks/absorb-plan-2.md`, which also rewrote ca
 | E9.10 | `engram discover`: harness memory outside the plane, counted; a doctor warning | none | packages/core/src/discover.ts | classifier test |
 | X17   | The results page: every MANIFEST row with its hash and command | none | research/scripts/results_page.py | `make test-repro` row |
 | E1.7  | Erasure: close the two gaps the Quint model found | E1.8 | packages/core/src/plane/offboard.ts | `make verify-spec`; invariants |
-| E2.14 | Policy schema: this plan's options, absent by default, no version bump | none | packages/core/src/schema.ts | `make api-check` |
-| E2.15 | Provenance holds across rewrites, closes and imports | none | packages/core/src/plane/write.ts | `make test-invariants` |
+| E2.14 | Policy schema: this plan's options and E2.21's `grants.expiry_cap`, absent meaning today's behaviour, no version bump | none | packages/core/src/schema.ts | `make api-check` |
+| E2.15 | Provenance holds across rewrites, closes and imports | E2.21 | packages/core/src/plane/write.ts | `make test-invariants` |
 | X18   | The paired fault-injection check for H3 (proposal U6) | none | research/scripts/h3_fault_injection.py | `make test-repro` row |
 | X19   | The erasure-residue check (proposal U7) | E1.7 | research/scripts/h3_erasure_residue.py | `make test-repro` row |
 | E2.16 | The content guards: ref scan, keyed hashes, word-based names, the oracle | none | packages/core/src/policy/secrets.ts | `make test-invariants` |
@@ -412,7 +412,7 @@ Twenty-eight cards added by `docs/tasks/absorb-plan-2.md`, which also rewrote ca
 | E9.12 | Do not record: consent at the write gate | E2.14 | packages/core/src/policy/consent.ts | property test |
 | E8.17 | Codex under the gate: PreToolUse hook and idempotent installer | none | packages/mcp/src/hook.ts | `make test-e2e` |
 | E9.13 | Crypto-shredded erasure in offboarding | E9.11, X19 | packages/core/src/crypto/seal.ts | invariants; residue rerun |
-| E2.19 | The approval queue: routed approvers, expiry, no self-approval | E2.14, E9.9 | packages/core/src/plane/approvals.ts | `make test-invariants` |
+| E2.19 | The approval queue: routed approvers, expiry, no self-approval | E2.14, E9.9 | packages/core/src/plane/approvals.ts | its property test; `make test-invariants` |
 | E9.14 | The signed erasure receipt, with residue verification | E9.13 | packages/core/src/receipt.ts | tamper tests |
 | E2.20 | Policy as code: `engram policy test` and `policy diff` | none | packages/core/src/policy/cases.ts | `make api-check` |
 | E9.15 | The signed audit report (DSSE, in-toto) | none | packages/core/src/audit/ | verify and tamper tests |
