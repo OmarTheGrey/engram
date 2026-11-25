@@ -387,6 +387,17 @@ On 2026-11-25 the lead wrote "accept the adrs". That sentence is the lead's own 
 | 65 | (a) accept ADR 0047 | the lead accepted the ADR as written |
 | 66 | (a) accept ADR 0048 as written: both directions; on card L4's fixture the flag band is empty and the tier only drops | the lead accepted the ADR as written; two sentences that had left item 66 open now record the answer; this closes item 66 |
 
+### The lead's answers to the second absorb plan's questions, 2026-11-25
+
+The lead also answered, himself, four of the five questions of `docs/tasks/absorb-plan-2.md`, section 8 (merged as #112). These are the lead's own answers, not answers under the delegation. Question 2 (quote-grounding for H3, card L9) stays open, as the plan recommends: it is decided from L9's fixture result.
+
+| question | answer | reason |
+|---|---|---|
+| Q1, the spend cap (item 59, pre-tag condition 7) | the operator's fallback caps H1: OpenRouter's credit balance read at least every two hours, and the shards stopped below the margin; the runner card that enforces the cap follows in W10, before any later live run | the plan's recommendation: no card enforcing the cap can be written, reviewed and merged before the tag on 30 November (`docs/log/2026-11-25-ans-2026-11-25-decision-spend-cap-fallback.md`) |
+| Q3, the arms U6 and U7 (cards X18 and X19) | U7 is registered as a descriptive arm, by amendment, once X19's check merges; U6 stays an engineering check unless H3's primary test is undecided | the plan's recommendation: U7 is the only measured evidence for Twin's offboarding claim (`docs/log/2026-11-25-ans-2026-11-25-decision-u6-u7.md`) |
+| Q4, H5's prerequisites (item 30) | the orchestrator drafts them as a proposed amendment pull request; nothing is registered until the lead approves the text | item 9 fixes them before H1's data exist, and a registration is the lead's (`docs/log/2026-11-25-ans-2026-11-25-decision-h5-prerequisites.md`) |
+| Q5, ADR 0034's cap after H1 (card E2.21) | `grants.expiry_cap` stays opt-in until the thesis runs are done: on in the twin and knowledge profiles only, never in a registered preset; H2 to H4 run under H1's policy | the plan's recommendation: as a default the cap would refuse 1,633 of 2,490 GateMem fixture writes, and H2 to H4's GateMem cells would run under a policy other than H1's (`docs/log/2026-11-25-ans-2026-11-25-decision-grant-cap-opt-in.md`) |
+
 **The other open items, resolved the same day.** The lead also asked for the remaining open items to be resolved on 2026-11-25. Each is resolved by its own card, not by this one:
 
 - item 36 (a non-owner sees only the grants naming them, in core), and the read route naming lineage ids its reader cannot read: card RD1;
