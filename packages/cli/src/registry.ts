@@ -1662,6 +1662,8 @@ export const REGISTRY: readonly CommandSpec[] = [
       "ENGRAM_TUI_CONTRAST",
       "ENGRAM_TUI_MOTION",
       "ENGRAM_TUI_MOUSE",
+      // Card E8.15e: set by L for its line-mode child, which hands back over IPC on screen.
+      "ENGRAM_TUI_HANDBACK",
       "NO_COLOR",
       "CI",
       "TERM",
