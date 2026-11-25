@@ -656,7 +656,7 @@ class LineSession {
     );
     const argv = [...words, ...this.ws.argsFor(spec, given)];
     const refusal = refusalOf(spec, argv, this.io);
-    if (refusal !== undefined) return this.refused(spec, argv, refusal);
+    if (refusal !== undefined) return this.refused(argv, refusal);
     return this.confirmAndRun(spec, argv);
   }
 
@@ -667,7 +667,6 @@ class LineSession {
    * parse before anything is opened, so its "did you mean" line is the CLI's.
    */
   private async refused(
-    spec: CommandSpec,
     argv: string[],
     refusal: { message: string; stage: "parse" | "prepare" | "own" },
   ): Promise<void> {
