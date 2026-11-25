@@ -7,9 +7,11 @@
 // here decides anything: it compares two principals' ids.
 import type { Actor } from "@engram/sdk";
 import { buildActor } from "../setup.ts";
-import { ACTOR_FLAGS } from "./forms.ts";
 import type { RunResult } from "./runner.ts";
 import type { Workspace } from "./workspace.ts";
+
+/** The flags that name the actor, which a change of actor replaces (card E8.15c verification, N1). */
+export const ACTOR_FLAGS = ["owner", "as", "level", "member"] as const;
 
 /** The actor the workspace names now, built as every command builds it; undefined when none. */
 export function actorNow(ws: Workspace): Actor | undefined {

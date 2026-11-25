@@ -10,6 +10,7 @@
 
 import type { CommandSpec, Control, OptionSpec, Values } from "../registry.ts";
 import type { Io } from "../run.ts";
+import { ACTOR_FLAGS } from "./actor.ts";
 import { TextField } from "./fields.ts";
 import { checkArgv } from "./validate.ts";
 import { isWsFlag, type Workspace } from "./workspace.ts";
@@ -265,9 +266,6 @@ export class Form {
     return this.touched.size > 0;
   }
 }
-
-/** The flags that name the actor, which a change of actor replaces (card E8.15c verification, N1). */
-export const ACTOR_FLAGS = ["owner", "as", "level", "member"] as const;
 
 /**
  * The command line r runs (card E8.15c verification, finding N1; the lead's
