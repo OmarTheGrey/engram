@@ -289,7 +289,9 @@ function planned(
   policy: Policy,
 ): PlannedUnit[] {
   return state.scopes.flatMap((scope) =>
-    planModelLints({ db, policy }, state.actor, state.at, scope, PLAN_SETUP).map((u) => ({
+    planModelLints({ db, policy }, state.actor, state.at, scope, PLAN_SETUP, {
+      reach: "scope-registered",
+    }).map((u) => ({
       unit: u.unit,
       lint_id: u.lint_id,
       item_id: u.item_id,
@@ -310,7 +312,7 @@ async function lintAll(
   const judgments: SetJudgment[] = [];
   const nli: NliRowJudgment[] = [];
   for (const scope of state.scopes) {
-    const report = await plane.lint(state.actor, state.at, scope);
+    const report = await plane.lint(state.actor, state.at, scope, { reach: "scope-registered" });
     if (report.decision !== "allow")
       throw new Error(`${state.question_id}: the set's actor may not lint ${scope}`);
     for (const f of report.findings)

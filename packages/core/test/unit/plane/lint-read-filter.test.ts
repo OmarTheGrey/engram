@@ -242,3 +242,28 @@ describe("Plane.lint as a member names or describes nothing the read filter refu
     expect(JSON.stringify(report)).not.toContain(strictContentHash("a fact that ended"));
   });
 });
+
+describe("the registered reach (card L8)", () => {
+  test("reach scope-registered is card L1's reach, which the registered H3 runs pass", async () => {
+    const gone = item(1, { content: "a fact since retired by hand" });
+    const env = world([gone, item(2, cites(gone.id, { lineage: [gone.id] }))], {
+      [gone.id]: "test/x",
+    });
+    const report = await env.plane.lint(OMAR, AT, SCOPE, { reach: "scope-registered" });
+    oneEventPerFinding(report);
+    expect(report.findings.map((f) => f.lint_id)).toEqual(["source-changed", "orphan"]);
+    expect(report.findings[1]?.evidence).toEqual([
+      `provenance.ref ${gone.id} names an item retired by test/x`,
+      `lineage ${gone.id} names an item retired by test/x`,
+    ]);
+  });
+
+  test("an unknown reach is refused before the log is touched", async () => {
+    const env = world([item(1)]);
+    const before = env.plane.events().length;
+    await expect(env.plane.lint(OMAR, AT, SCOPE, { reach: "everything" as never })).rejects.toThrow(
+      /invalid reach "everything"/,
+    );
+    expect(env.plane.events()).toHaveLength(before);
+  });
+});
