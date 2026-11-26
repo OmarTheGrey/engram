@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<title>engram tui: explain</title>
+<style>
+html,body{margin:0;background:#1e1e1e}
+pre{margin:0;padding:12px;display:inline-block;color:#d4d4d4;background:#1e1e1e;
+font:14px/normal 'Cascadia Mono','Cascadia Code',Consolas,'DejaVu Sans Mono','Liberation Mono',Menlo,monospace;
+font-variant-ligatures:none}
+</style></head><body>
+<pre id="frame"><span style="color:#1e1e1e;background:#d4d4d4"> engram  Explain a read                                                 in process  log engram.db  person:dana (person) </span>
+   Read   [ 01960000-0000-7000-8000-000000005001     ]  a read id; the session's last read is filled in                 
+                                                                                                                        
+ read 01960000-0000-7000-8000-000000005001: 9 explanations                                                              
+                                                                                                                        
+ Returned 9 of 10 candidates; 1 filtered.                                                                               
+   1 outside the validity window                                                                                        
+   0 not active                                                                                                         
+   0 past their ttl                                                                                                     
+   0 by a grant's class or expiry                                                                                       
+ 1 projected item outside the reader's reach was not a candidate.                                                       
+                                                                                                                        
+ rank  item                                  score    admitted by                                                       
+<span style="color:#1e1e1e;background:#d4d4d4"> &gt; 1   01940000-0000-7000-8000-000000000009  1.7219   fixture.inspector/read/person                                     </span>
+   2   01940000-0000-7000-8000-000000000010  1.7219   fixture.inspector/read/person                                     
+   3   01940000-0000-7000-8000-000000000006  1.6792   fixture.inspector/read/person                                     
+   4   01940000-0000-7000-8000-000000000004  1.6660   fixture.inspector/read/person                                     
+   5   01940000-0000-7000-8000-000000000002  1.6595   fixture.inspector/read/person                                     
+   6   01940000-0000-7000-8000-000000000005  1.6595   fixture.inspector/read/person                                     
+   7   01940000-0000-7000-8000-000000000001  1.4128   fixture.inspector/read/person                                     
+   8   01940000-0000-7000-8000-000000000012  1.2390   fixture.inspector/read/person                                     
+   9   01940000-0000-7000-8000-000000000003  0.9905   fixture.inspector/read/person                                     
+                                                                                                                        
+ 1. 01940000-0000-7000-8000-000000000009                                                                                
+    score 1.7219 = confidence 0.9000 + recency 0.8219                                                                   
+    admitted by fixture.inspector/read/person                                                                           
+    valid 2026-10-23T00:00:00.000Z to open, at 2026-10-29T12:00:00.000Z                                                 
+    &gt; Dana's onboarding notes for Eve: start with the deploy checklist.                                                 
+                                                                                                                        
+ An item's text is what the lanes show now, not its text when the read was made.                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+$ engram explain 01960000-0000-7000-8000-000000005001 -... --owner dana --member person:dana --member team:core   exit 0
+ ? help  v plain  J json  enter item page  r again  ; commands  esc back                                                </pre>
+</body></html>

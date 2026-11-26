@@ -1,7 +1,7 @@
 # ADR 0048: The contradiction lint's local NLI tier is an injected scorer behind its own lint id, its scores cached as cassettes
 
-Status: proposed, 2026-11-22
-Deciders: drafted by card L7 of the absorb plan; for the lead's acceptance
+Status: accepted, 2026-11-25, by the lead ("accept the adrs"); proposed 2026-11-22
+Deciders: drafted by card L7 of the absorb plan; accepted by the lead on 2026-11-25 (`docs/tasks/lead-decisions.md`, item 66, option (a))
 Supersedes: nothing. It adds a tier to ADR 0008's two (and its L3 amendment) without changing either.
 
 ## Context
@@ -22,7 +22,7 @@ Supersedes: nothing. It adds a tier to ADR 0008's two (and its L3 amendment) wit
 
 - **transformers.js as the runtime.** Rejected for its weight (sharp, onnxruntime-web, a second onnxruntime-node); its tokenizer is the package used.
 - **A new tier value in the schema.** Not available outside card E2.8's schema pull request; the lint id already names the rule.
-- **One direction only.** Cheaper, and on card L3's near-miss pair it would have given a lower score (0.5157 against 0.9961); rejected before any score was seen, because a contradiction either way is one. On card L4's fixture forward-only scoring does not help either: at an upper of 0.9 it flags 81 pairs on 28 items, of which 4 are contradiction faults (`research/results/h3-lint-nli.json`, `forward_only_flags`; finding `docs/log/2026-11-22-l7-finding-scores-do-not-separate.md`). The lead chooses (lead-decisions, item 66).
+- **One direction only.** Cheaper, and on card L3's near-miss pair it would have given a lower score (0.5157 against 0.9961); rejected before any score was seen, because a contradiction either way is one. On card L4's fixture forward-only scoring does not help either: at an upper of 0.9 it flags 81 pairs on 28 items, of which 4 are contradiction faults (`research/results/h3-lint-nli.json`, `forward_only_flags`; finding `docs/log/2026-11-22-l7-finding-scores-do-not-separate.md`). The lead chose both directions on 2026-11-25 (lead-decisions, item 66, option (a)).
 - **Recomputing scores in a replay when they prove deterministic.** Two processes gave bitwise identical scores on 200 pairs, but a second machine was not checked; caching every score keeps a replay independent of the runtime.
 
 ## Consequences
@@ -30,7 +30,7 @@ Supersedes: nothing. It adds a tier to ADR 0008's two (and its L3 amendment) wit
 - No registered preset, profile or condition changes; the lint runs of L3 and L4 replay byte for byte.
 - The runner's lint configs take an `nli` block; `research/scripts/h3_lint_nli.py` reports the tier on the fixture as an engineering check.
 - A schema card may later give the tier its own `tier` value.
-- On the fixture the scores do not separate contradictions from unrelated pairs, so the tier's useful band is the drop band; whether a flag band exists at all is item 66.
+- On the fixture the scores do not separate contradictions from unrelated pairs, so the tier's useful band is the drop band. Item 66 was answered (a) on 2026-11-25: both directions and the thresholds as frozen on card L3's fixtures, so on this fixture the flag band is empty and the tier only drops; the flag band and the `contradiction-nli` finding stay.
 
 ## Sources
 

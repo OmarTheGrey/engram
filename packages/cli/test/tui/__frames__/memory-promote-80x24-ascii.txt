@@ -1,0 +1,28 @@
+ engram  Promote an item                       in process  person:dana (person)
+   Item         [ 01940000-0000-7000-8000-000000000001   ]  an item id (a UUI...
+   To scope     [ team:lantern                           ]  the item's own or...
+   Approve as reviewer [ ] off  approve as a reviewer: a member of the target...
+   ~ Advanced: id, the test clock and this command's workspace flags
+
+ x deny   exit 1  deny, ask or an error
+ promote 01940000-0000-7000-8000-000000000511 at 2026-10-25T12:00:00.000Z by
+   person:dana
+ deny: a fixture rule asks for a reviewer's approval
+ policy fixture/promote/review
+ log engram.db
+
+ [ Switch to a reviewer and approve ]   [ Edit and retry ]
+ Promotions cannot be undone from here.
+
+   [ Promote ]   ctrl+s from any field
+
+
+
+
+
+$ engram promote 01940000-0000-7000...er dana --db engram.db --root mem   exit 1
+ ? help  v plain  J json  ctrl+s promote  tab next  ; commands  esc back
+--- styles
+r0 c0-79 inverse
+r6 c1-1 fg #E86A1A
+r13 c1-36 inverse

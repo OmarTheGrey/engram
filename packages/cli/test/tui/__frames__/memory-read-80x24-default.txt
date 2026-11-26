@@ -1,0 +1,28 @@
+ engram  Read and explain                      in process  person:dana (person)
+  Query [ deploy                     ]   Judge validity windows at [ now (the...
+ read 01940000-0000-7000-8000-000000000900  ✓ allow   2 items returned, 0 fil...
+ store files mem: 1 imported, 1 allowed, 0 denied; 0 expired
+┌─ Lanes ──────────────────────────────────────────────────────────────────────┐
+│ Person scope                                                                 │
+│   person:dana  member                                                        │
+│ >  1  semantic  user    Fixture memory 1: the deploy key rotates every 90 ...│
+│    2  semantic  import  Fixture memory 2: reviews are short.                 │
+│ Role scopes                                                                  │
+│   none held                                                                  │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
+┌─ Explain  item 1 of 2 ───────────────────────────────────────────────────────┐
+│ 01940000-0000-7000-8000-000000000001  semantic  person:dana                  │
+│ score 1.9000 = confidence 0.9000 + recency 1.0000                            │
+│ admitted by fixture/read/person                                              │
+│ valid 2026-10-01T00:00:00.000Z to open, at 2026-10-25T12:00:00.000Z          │
+│ source user engram-cli                                                       │
+└──────────────────────────────────────────────────────────────────────────────┘
+$ engram read deploy --owner dana --db engram.db --root mem   exit 0
+ ? help  v plain  J json  enter item page  e explain  p promote  g grants  w ...
+--- styles
+r0 c0-79 inverse
+r2 c44-44 fg #00A67A
+r7 c1-75 inverse
