@@ -155,7 +155,7 @@ make tui-screens     # regenerate docs/design/screens/
 
 ## What is next
 
-From the second absorb plan ([`docs/tasks/absorb-plan-2.md`](../../docs/tasks/absorb-plan-2.md)), each a card of its own, none started:
+From the second absorb plan ([`docs/tasks/absorb-plan-2.md`](../../docs/tasks/absorb-plan-2.md)), each a card of its own, none merged yet:
 
 - Card E9.10: `engram discover`, which counts the harness memory that lives outside the plane, and its doctor check.
 - Card E8.17: a Codex PreToolUse hook beside `engram hook claude-code`, with an idempotent installer.
