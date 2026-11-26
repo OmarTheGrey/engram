@@ -4,10 +4,15 @@
   "source": "OpenRouter's public endpoint list per model, GET https://openrouter.ai/api/v1/models/<author>/<slug>/endpoints (no key), each endpoint's provider_name, tag, quantization, whether supported_parameters holds seed, and pricing.prompt, pricing.completion and pricing.input_cache_read in dollars per token, multiplied here by one million",
   "fetched": "2026-11-26",
   "unit": "US dollars per million tokens",
-  "rule": "Pre-registration, Models: each model and both judges pinned to the maker's own endpoint where OpenRouter lists one, otherwise the cheapest endpoint that honours seed, with allow_fallbacks false. A pin is openrouter_provider {order: [tag], allow_fallbacks: false}.",
+  "rule": "Pre-registration, Models: each model and both judges pinned to the maker's own endpoint where OpenRouter lists one, otherwise the cheapest endpoint that honours seed, with allow_fallbacks false. A maker's endpoint that does not honour seed does not qualify (AGENTS.md rule 6: every sampled call is seeded; the coordinator's decision on review finding R6-3). Cheapest is the lowest cost of price_weights' tokens at the endpoint's input and output prices. A pin is openrouter_provider {order: [tag], allow_fallbacks: false}.",
+  "price_weights": {
+    "source": "research/results/h1-cost.json, tokens.gatemem.high: the H1 GateMem arm's high estimate of answer tokens, the largest run on M1",
+    "input": 738446778.602545,
+    "output": 2324463.418884
+  },
   "notes": [
     "Each response was read once on the day fetched, saved, and hashed as served (response_sha256); the endpoint list is volatile, and an endpoint gone on the day of a run fails that run's first call under allow_fallbacks false, which is the registered behaviour: the list is read again and the new pin is its own PR, before the run starts.",
-    "deepseek/deepseek-v4-pro-0813: the maker's own endpoint (DeepSeek, tag deepseek) does not list seed among its supported parameters; the rule names the maker's endpoint first, so M1 is pinned to it and the seed the runner sends is not honoured upstream (decision 2026-11-26-r6-decision-m1-maker-endpoint-without-seed).",
+    "deepseek/deepseek-v4-pro-0813: the maker's own endpoint (DeepSeek, tag deepseek) does not list seed among its supported parameters, so it does not qualify; of the thirteen endpoints that honour seed, Wafer's wafer/us (mxfp4) costs least at price_weights' token mix, about 92 dollars against 220 for Wafer's wafer/mxfp4 and 433 for the first one not quantised to 4 bits as listed, Alibaba's alibaba (quantization unknown), and M1 is pinned to it (decision 2026-11-26-r6-decision-m1-cheapest-seeded-endpoint). It serves a 4-bit quantisation of M1.",
     "openai/gpt-5.4: OpenAI lists three endpoints of its own (openai, openai/flex, openai/fast); B1 is pinned to the standard tier, tag openai (decision 2026-11-26-r6-decision-b1-standard-tier).",
     "Prices are each endpoint's list price on the day fetched, not what the ledger meters (pi-ai's catalogue price, model.cost) and not a quote."
   ],
@@ -312,7 +317,7 @@
     }
   },
   "pins": {
-    "openrouter/deepseek/deepseek-v4-pro-0813": { "tag": "deepseek", "by": "maker" },
+    "openrouter/deepseek/deepseek-v4-pro-0813": { "tag": "wafer/us", "by": "cheapest-seed" },
     "openrouter/openai/gpt-5.4": { "tag": "openai", "by": "maker" },
     "openrouter/openai/gpt-4o": { "tag": "openai", "by": "maker" },
     "openrouter/openai/gpt-4o-2024-08-06": { "tag": "openai", "by": "maker" }
