@@ -12,5 +12,9 @@
   "cassettes": "../../.engram/runs/h1-mem-inv/cassettes",
   "read_limit": 20,
   "turn_limit": 8,
-  "spend_ceiling_usd": 2.32
+  "spend_ceiling_usd": 2.32,
+  "openrouter_provider": {
+    "answer": { "order": ["deepseek"], "allow_fallbacks": false },
+    "answer_model": "openrouter/deepseek/deepseek-v4-pro-0813"
+  }
 }

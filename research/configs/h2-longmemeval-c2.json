@@ -13,5 +13,10 @@
   "read_limit": 20,
   "turn_limit": 8,
   "spend_ceiling_usd": 102.29,
-  "judge": { "model": "openrouter/openai/gpt-4o-2024-08-06", "temperature": 0, "max_tokens": 10 }
+  "judge": { "model": "openrouter/openai/gpt-4o-2024-08-06", "temperature": 0, "max_tokens": 10 },
+  "openrouter_provider": {
+    "answer": { "order": ["deepseek"], "allow_fallbacks": false },
+    "answer_model": "openrouter/deepseek/deepseek-v4-pro-0813",
+    "judge": { "order": ["openai"], "allow_fallbacks": false }
+  }
 }

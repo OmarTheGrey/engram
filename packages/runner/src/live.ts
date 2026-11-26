@@ -28,6 +28,9 @@
 //   refuses it for a model that is not on OpenRouter, and for one model
 //   pinned two ways. Every live run records the upstream that served each
 //   OpenRouter call, pinned or not.
+// - A pin's `answer_model` (card R6) names the model its answer routing was
+//   chosen for; a live run on another model is refused, so a slot config
+//   (`prereg/M1`) never sends M1's routing to the model MODEL= names.
 import { existsSync, readdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { createModels } from "@earendil-works/pi-ai";
@@ -138,6 +141,7 @@ export function liveConfig<C extends LiveRunConfig>(config: C, request: LiveRunR
   if (offline(request.env ?? process.env)) {
     throw new LiveRunRefused("ENGRAM_OFFLINE=1 is set, and a live run reaches a model");
   }
+  pinnedFor(config, request.model);
   return { ...config, model: request.model, cassettes: liveCassettes(config, request) };
 }
 
@@ -172,6 +176,18 @@ function judgeModel(config: LiveRunConfig): string | undefined {
 }
 
 /**
+ * Refuses `model` when the config's answer pin names another model it was
+ * chosen for (`openrouter_provider.answer_model`, card R6); absent, any model.
+ */
+function pinnedFor(config: LiveRunConfig, model: string): void {
+  const chosen = config.openrouter_provider?.answer_model;
+  if (chosen === undefined || chosen === model) return;
+  throw new LiveRunRefused(
+    `openrouter_provider.answer was chosen for ${chosen}, and this run's model is ${model}; a pin for another model is its own config change`,
+  );
+}
+
+/**
  * The OpenRouter routing of each pinned model of `config` (card RV6):
  * `openrouter_provider.answer` for its model, `.judge` for its judge.
  * Refused for a model not on OpenRouter (pi-ai sends the routing to
@@ -181,6 +197,7 @@ export function upstreamRoutes(config: LiveRunConfig): Map<string, OpenRouterRou
   const routes = new Map<string, OpenRouterRouting>();
   const pinned = config.openrouter_provider;
   if (pinned === undefined) return routes;
+  pinnedFor(config, config.model);
   const roles: [string, string | undefined, OpenRouterRouting | undefined][] = [
     ["answer", config.model, pinned.answer],
     ["judge", judgeModel(config), pinned.judge],

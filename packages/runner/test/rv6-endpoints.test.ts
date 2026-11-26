@@ -61,7 +61,9 @@ export function ruleTag(model: string, snap: Snapshot = snapshot): string {
   const maker = entry.endpoints.filter((e) => e.provider === entry.maker);
   if (maker.length > 0) {
     if (chosen.by !== "maker" || !maker.some((e) => e.tag === chosen.tag)) {
-      throw new Error(`${model}: the maker lists an endpoint, and ${chosen.tag} is not the maker's`);
+      throw new Error(
+        `${model}: the maker lists an endpoint, and ${chosen.tag} is not the maker's`,
+      );
     }
     return chosen.tag;
   }
@@ -123,7 +125,9 @@ describe("card R6: the endpoint snapshot", () => {
   });
 
   test("a model with no snapshot entry fails the rule", () => {
-    expect(() => ruleTag("openrouter/nobody/no-model")).toThrow(/no entry in the endpoint snapshot/);
+    expect(() => ruleTag("openrouter/nobody/no-model")).toThrow(
+      /no entry in the endpoint snapshot/,
+    );
   });
 
   test("the rule takes the maker's endpoint first, else the cheapest that honours seed", () => {
@@ -237,9 +241,9 @@ describe("card R6: a pin names the model it was chosen for", () => {
       /chosen for openrouter\/deepseek/,
     );
     // The second defence, for a caller that skips liveConfig.
-    expect(() =>
-      upstreamRoutes({ ...config, model: "openrouter/z-ai/glm-5.3-flash" }),
-    ).toThrow(LiveRunRefused);
+    expect(() => upstreamRoutes({ ...config, model: "openrouter/z-ai/glm-5.3-flash" })).toThrow(
+      LiveRunRefused,
+    );
   });
 
   test("without answer_model, any MODEL= runs as before", () => {
