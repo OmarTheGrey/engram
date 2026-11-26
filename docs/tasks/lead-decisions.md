@@ -406,7 +406,7 @@ The lead also answered, himself, four of the five questions of `docs/tasks/absor
 
 ## The lead's answers, 2026-11-26
 
-The verification of the gate-work cards' fix pass (finding N3) found two changes to registered text made under the delegation, which the standing rule promotes to the lead: pre-tag condition 3's stopping set (card X20) and the Models section's endpoint rule (card R6). The lead answered both on 2026-11-26, himself, not under the delegation (`docs/log/2026-11-26-gwfix-decision-lead-answers.md`). Each card rewrites its sentence in its own pull request.
+The verification of the gate-work cards' fix pass (finding N3) found two changes to registered text made under the delegation, which the standing rule promotes to the lead: pre-tag condition 3's stopping set (card X20) and the Models section's endpoint rule (card R6). The lead answered both directly on 2026-11-26, not under the delegation (`docs/log/2026-11-26-gwfix-decision-lead-answers.md`). Each card rewrites its sentence in its own pull request.
 
 | question | answer | reason |
 |---|---|---|
