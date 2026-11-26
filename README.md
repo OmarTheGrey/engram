@@ -56,7 +56,7 @@ Three products sit on the one plane. Each is a policy profile plus a few command
 
 **Twin: a memory per person.** Profile [`twin.yaml`](packages/pi-package/profiles/twin.yaml). A person scope, private by default, and role scopes that pass to a successor when the person leaves. What works today:
 
-- explicit grants, each naming a class, a mode and an expiry, changed only by the item's owner as a governed write (ADR [0034](docs/decisions/0034-grant-change-is-the-owners-governed-write.md)), and editable in the inspector and the terminal interface;
+- explicit grants, each with a mode and optionally a class and an expiry, changed only by the item's owner as a governed write (ADR [0034](docs/decisions/0034-grant-change-is-the-owners-governed-write.md)), and editable in the inspector and the terminal interface;
 - who can read this memory, for any item or scope;
 - `engram export` and `engram import`: a versioned bundle of everything in your person scope and your own items in the other scopes you may read, never another member's item ([`docs/bundle.md`](docs/bundle.md)), optionally encrypted with age, and imported row by row through the write gate, never at more trust than `import` (card E9.8);
 - offboarding with a deletion report (a core function; no surface calls it yet), and a dogfood kit that checks a member's own log for violations and reports only counts ([`docs/dogfood.md`](docs/dogfood.md)).
