@@ -373,6 +373,12 @@ export interface ReadKnown {
   contents?: ReadonlyMap<string, string>;
 }
 
+/** The explain view's line for the projected items out of the reader's reach, in the number it counts (README review, 2026-11-26). */
+export const reachLine = (n: number): string =>
+  n === 1
+    ? " 1 projected item outside the reader's reach was not a candidate."
+    : ` ${n} projected items outside the reader's reach were not candidates.`;
+
 export class ExplainScreen extends RichScreen {
   readonly kind = "explain" as const;
   private readonly known: ReadKnown;
@@ -509,9 +515,7 @@ export class ExplainScreen extends RichScreen {
       const c = v.counts;
       out.push(` Returned ${c.returned} of ${c.candidates} candidates; ${c.filtered} filtered.`);
       for (const cat of v.categories) out.push(`   ${cat.count} ${cat.label}`);
-      out.push(
-        ` ${c.out_of_reach} projected ${c.out_of_reach === 1 ? "item" : "items"} outside the reader's reach ${c.out_of_reach === 1 ? "was" : "were"} not candidates.`,
-      );
+      out.push(reachLine(c.out_of_reach));
     }
     out.push("", ` rank  ${fit("item", 38)}${fit("score", 9)}admitted by`);
     this.selected = Math.max(0, Math.min(this.selected, v.rows.length - 1));

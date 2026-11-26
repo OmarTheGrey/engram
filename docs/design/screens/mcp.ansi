@@ -15,8 +15,8 @@
  For Codex, config.toml:
    [mcp_servers.engram]
    command = "engram"
-   args = ["mcp", "--db", "~/demo/engram.db", "--policy", "policy.yaml", "--owner", "dana", "--as",
-   "agent:claude-code", "--member", "person:dana", "--member", "team:core", "--root", "~/demo/mem"]
+   args = ["mcp", "--db", "~/demo/engram.db", "--policy", "policy.yaml", "--owner", "dana", "--as", "agent:codex",
+   "--member", "person:dana", "--member", "team:core", "--root", "~/demo/mem"]
 
 
 

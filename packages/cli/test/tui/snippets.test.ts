@@ -165,6 +165,20 @@ describe("the snippets' shape (8.14, 8.15)", () => {
     expect(codexToml(launch, args)).toBe(table);
   });
 
+  it("Codex's table acts as Codex's agent where the screen's default is Claude Code's, and keeps any other actor", () => {
+    const launch = { command: "engram", prefix: [], note: undefined };
+    const args = ["mcp", "--as", "agent:claude-code", "--member", "person:dana"];
+    expect(codexToml(launch, args)).toBe(
+      '[mcp_servers.engram]
+command = "engram"
+args = ["mcp", "--as", "agent:codex", "--member", "person:dana"]
+',
+    );
+    // Claude Code's own snippet keeps it.
+    expect(mcpJson(launch, args).mcpServers.engram.args).toEqual(args);
+    expect(codexToml(launch, ["mcp", "--as", "agent:other"])).toContain('"--as", "agent:other"');
+  });
+
   it("the absolute form puts main.ts first in args, escaped as JSON requires", () => {
     const launch = { command: "C:\\Program Files\\nodejs\\node.exe", prefix: [MAIN], note: "x" };
     const entry = hookSettings(launch, fixtureArgs).hooks.PreToolUse[0]?.hooks[0];

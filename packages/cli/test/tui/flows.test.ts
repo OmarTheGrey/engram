@@ -13,7 +13,7 @@ import { command } from "../../src/registry.ts";
 import type { EventsScreen, PolicyScreen } from "../../src/tui/screens/events.ts";
 import type { GrantsScreen } from "../../src/tui/screens/grants.ts";
 import type { ItemScreen } from "../../src/tui/screens/item.ts";
-import type { ReadScreen } from "../../src/tui/screens/read.ts";
+import { type ReadScreen, reachLine } from "../../src/tui/screens/read.ts";
 import { outputLines } from "../../src/tui/screens/rich.ts";
 import type { PromoteScreen, WriteScreen } from "../../src/tui/screens/write.ts";
 import { ASCII } from "../../src/tui/theme.ts";
@@ -124,6 +124,11 @@ describe("Read and explain (8.5, 8.6)", () => {
     expect(rows.at(-3)).toContain("This read also changes the log, as asked");
     expect(rows.at(-2)).not.toContain("as asked");
     await h.quit();
+  });
+
+  it("says one projected item out of reach in the singular", () => {
+    expect(reachLine(1)).toBe(" 1 projected item outside the reader's reach was not a candidate.");
+    expect(reachLine(0)).toBe(" 0 projected items outside the reader's reach were not candidates.");
   });
 
   it("e explains the read; enter on a row opens the item page", async () => {

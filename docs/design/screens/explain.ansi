@@ -8,7 +8,7 @@
    0 not active
    0 past their ttl
    0 by a grant's class or expiry
- 1 projected item outside the reader's reach was not candidates.
+ 1 projected item outside the reader's reach was not a candidate.
 
  rank  item                                  score    admitted by
 [7m > 1   01940000-0000-7000-8000-000000000009  1.7219   fixture.inspector/read/person                                     [0m

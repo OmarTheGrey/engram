@@ -15,8 +15,8 @@
  For Codex, config.toml:
    [mcp_servers.engram]
    command = "/usr/bin/node"
-   args = ["/src/engram/packages/cli/src/main.ts", "mcp", "--db", ":memory:", "--owner", "dana", "--as",
-   "agent:claude-code", "--member", "person:dana"]
+   args = ["/src/engram/packages/cli/src/main.ts", "mcp", "--db", ":memory:", "--owner", "dana", "--as", "agent:codex",
+   "--member", "person:dana"]
 
  + Try it on a scratch log: handshake ok as agent:claude-code; tools memory_write, memory_read, memory_explain,
  memory_simulate; stopped

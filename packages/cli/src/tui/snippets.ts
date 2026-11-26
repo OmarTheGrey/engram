@@ -172,9 +172,22 @@ export const mcpJson = (launch: Launch, argv: readonly string[]) => ({
   mcpServers: { engram: { command: launch.command, args: [...launch.prefix, ...argv] } },
 });
 
-/** Codex's `[mcp_servers.engram]` table, in the fixture's shape (TOML strings as JSON writes them). */
+/** The agent the MCP screen acts as by default, which is Claude Code's; Codex's snippet names Codex's instead. */
+export const CLAUDE_CODE_AGENT = "agent:claude-code";
+export const CODEX_AGENT = "agent:codex";
+
+/**
+ * `argv` as Codex runs it: `--as agent:claude-code`, the MCP screen's default,
+ * becomes `--as agent:codex`, so a Codex session is never recorded as Claude
+ * Code (README review, 2026-11-26). Any other actor is kept as given.
+ */
+export function codexArgv(argv: readonly string[]): string[] {
+  return argv.map((a, i) => (a === CLAUDE_CODE_AGENT && argv[i - 1] === "--as" ? CODEX_AGENT : a));
+}
+
+/** Codex's `[mcp_servers.engram]` table, in the fixture's shape (TOML strings as JSON writes them), acting as Codex's agent when the screen's default is Claude Code's. */
 export function codexToml(launch: Launch, argv: readonly string[]): string {
-  const args = [...launch.prefix, ...argv].map((a) => JSON.stringify(a)).join(", ");
+  const args = [...launch.prefix, ...codexArgv(argv)].map((a) => JSON.stringify(a)).join(", ");
   return `[mcp_servers.engram]\ncommand = ${JSON.stringify(launch.command)}\nargs = [${args}]\n`;
 }
 
