@@ -1,7 +1,7 @@
 # ADR 0047: A by-id read and a scope list reveal no more than a read: an id out of reach or reached only through a grant that does not admit it answers as an unknown id; framework writes carry source model
 
-Status: proposed, 2026-11-22
-Deciders: drafted by card E8.14 of the absorb plan; for the lead's acceptance
+Status: accepted, 2026-11-25, by the lead ("accept the adrs"); proposed 2026-11-22
+Deciders: drafted by card E8.14 of the absorb plan; accepted by the lead on 2026-11-25 (`docs/tasks/lead-decisions.md`, item 65, option (a))
 Supersedes: nothing. It extends decision D5 of ADR 0009 (what a read reveals) to two new Plane methods, and adds two routes to ADR 0027's route table.
 
 ## Context

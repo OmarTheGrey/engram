@@ -59,7 +59,7 @@ describe("readerView", () => {
         policyId: "profile.twin/read/grants",
       },
     ]);
-    expect(view.dormant).toEqual(["grants[1]:person:lee: it expired"]);
+    expect(view.dormant).toEqual([{ grant: "grants[1]:person:lee", reason: "it expired" }]);
     expect(view.withheld).toBe(false);
   });
 
@@ -68,7 +68,7 @@ describe("readerView", () => {
     expect(
       readerView({ ...base, closed: { policy_id: "engram/read/status", reason: "retired" } })
         .closed,
-    ).toBe("retired (engram/read/status)");
+    ).toEqual({ policy_id: "engram/read/status", reason: "retired" });
     const refused = readerView({ ...base, answered: false, grants_shown: null, reason: "no" });
     expect(refused).toMatchObject({ answered: false, reason: "no", rows: [], withheld: false });
   });
