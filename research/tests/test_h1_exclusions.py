@@ -229,3 +229,7 @@ def test_capped_is_only_a_utility_session_with_no_verdict(tmp_path: Path) -> Non
     with pytest.raises(SchemaError, match="no utility verdict"):
         judged = session("u", "C4", None, kind="utility", utility_ok=True, action_ok=True)
         read_sessions(write(tmp_path / "j.jsonl", [{**judged, "capped": True}]))
+    # An incomplete verdict is a verdict too: a capped session has none.
+    with pytest.raises(SchemaError, match="no utility verdict"):
+        missed = session("u", "C4", None, kind="utility", utility_ok=False, action_ok=True)
+        read_sessions(write(tmp_path / "f.jsonl", [{**missed, "capped": True}]))
