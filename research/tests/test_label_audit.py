@@ -641,7 +641,7 @@ def test_the_longmemeval_config_registers_fifty_items_and_the_three_members() ->
     config = lme_config()
     assert config["longmemeval"]["per_benchmark"] == 50
     assert config["members"] == ["omar", "mohamad", "shady"]
-    assert (config["reject_quorum"], config["stop_share"], config["on_stop"]) == (2, 0.1, "pause")
+    assert (config["reject_quorum"], config["stop_share"], config["on_stop"]) == (2, 0.1, "drop")
     assert config["seed"] == load_config(REPO / "research/configs/label-audit.json")["seed"]
 
 
@@ -747,7 +747,7 @@ def test_both_audit_configs_carry_the_rule_and_the_response() -> None:
     for name in ("label-audit.json", "label-audit-longmemeval.json"):
         config = load_config(REPO / "research/configs" / name)
         assert config["reject_quorum"] == 2, name
-        assert config["on_stop"] in agreement.ON_STOP, name
+        assert config["on_stop"] == "drop", name
 
 
 def test_the_draw_record_holds_no_id_label_or_key(monkeypatch: pytest.MonkeyPatch) -> None:
