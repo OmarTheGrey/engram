@@ -9,13 +9,13 @@ Engram is a graduation project at Egypt University of Informatics with a thesis 
 ## Contents
 
 - [What Engram is](#what-engram-is)
+- [Why it exists](#why-it-exists)
 - [The three products](#the-three-products)
 - [The terminal interface](#the-terminal-interface)
 - [Getting started](#getting-started)
-- [What landed recently: the absorb plan](#what-landed-recently-the-absorb-plan)
-- [Why it exists](#why-it-exists)
 - [How it fits together](#how-it-fits-together)
 - [Status, 2026-11-26](#status-2026-11-26)
+- [What landed recently: the absorb plan](#what-landed-recently-the-absorb-plan)
 - [The research programme](#the-research-programme)
 - [Common commands](#common-commands)
 - [Repository map](#repository-map)
@@ -36,12 +36,30 @@ Agents now keep memory across sessions: facts about a user, decisions of a team,
 | read filter | `Plane.read` admits only items in scopes the reader may read, or reached through a grant that names it, and only inside their validity window and time to live. Filtering comes before ranking, so hidden items never take a place in the results. A read by id answers an id out of reach as unknown (ADR [0047](docs/decisions/0047-by-id-read-and-scope-list.md)). |
 | event log | Every decision appends one `MemoryEvent` with the actor, the scopes, the decision (allow, deny or ask), a `reason` and a `policy_id`. The log is the source of truth: the item set is a projection of it. SQLite by default, Postgres as an option. Every event is hash-chained, what offboarding erases is held as a salted commitment so erasure still works, and `engram log checkpoint` signs the chain's head (ADR [0038](docs/decisions/0038-tamper-evident-log-that-keeps-erasure.md)). |
 | explain | Every item a read returns carries its score components (relevance, confidence, recency), its rank, the rule that admitted it, the grants it used and its validity window. `Plane.explain` returns them to the reader who made the read, and to no one else. |
-| who can read | For an item or a scope, the plane lists who may read it, each reader with the rule or grant that admits them, answered only to someone who may read it (card E2.13). |
+| who can read | For an item or a scope, the plane lists who may read it, each reader with the rule or grant that admits them, answered only to someone who may read it. |
 | replay | The item set as it stood after any event can be rebuilt from the log alone (`itemsAt`), and a recorded workload can be replayed under another policy to see what would change (`Plane.simulate`, `engram simulate`). |
 
 Terms such as *scope*, *grant*, *provenance*, *preset*, *cassette*, *task card*, *gate*, *MemFS*, *absorb plan* and *governance tax* are defined in the [glossary](docs/glossary.md). A *preset* is one of the three registered policies, strict, medium and permissive (core also ships `medium-trust`, medium with the trust floors on, which is not registered). A *task card* is one unit of work under `docs/tasks/`, named by an id such as E2.9 (its epic and number).
 
 **Where it runs.** Engram is built on [pi](https://pi.dev) (ADR [0001](docs/decisions/0001-pi-as-base.md)). Inside pi, the Engram extension intercepts writes in pi's `tool_call` handler and reads in its `context` handler, mirrors every decision into the pi session as a custom entry, and blocks shell commands and file tools that would reach a store directly. Claude Code and Codex reach the same plane through an MCP server, and Claude Code also gets a PreToolUse hook that blocks direct store access. Beside them: the `engram` CLI and its terminal interface, an HTTP API with a browser inspector, and a framework kit with a Vercel AI SDK middleware. No surface holds policy logic: each one calls core.
+
+## Why it exists
+
+Telling a model the rules ("do not reveal another user's notes") is a request, not a guarantee. Engram enforces the rules in code, before the model sees anything, and records why. The thesis measures what that costs.
+
+The novelty claim, exactly as card R3 restated it in [`docs/research/positioning.md`](docs/research/positioning.md):
+
+> To our knowledge, Engram is the first deterministic, event-logged, replayable control plane across memory stores, with a pre-registered measurement of its governance tax.
+
+Each word is a condition, and the claim is only as strong as the weakest:
+
+- **Deterministic.** Every decision is a pure function of the typed policy, the actor, the item and the time, evaluated by code. No model makes a decision or sets a trust-bearing input: the provenance kind and the actor come from the harness, and the scope, class and confidence a writing agent chooses are checked against the policy.
+- **Event-logged.** Every decision is a `MemoryEvent` with a reason and a policy id, and the log is the source of truth.
+- **Replayable.** State is rebuilt from the log alone (except items later erased by offboarding, which never come back), and a recorded workload replays every decision under any policy. A single decision cannot be decided again from events alone, because a denied write's event carries no item and a read's event carries no query (ADR [0032](docs/decisions/0032-simulator-replays-recorded-calls.md)).
+- **Across memory stores.** One adapter contract, one conformance suite, three adapters. Store independence is a design property (ADR [0035](docs/decisions/0035-store-independence-is-a-design-property.md)); the request-identity check meant to prove it is not built yet, and the registered H1 runs use one store, Mem0.
+- **Pre-registered measurement of its governance tax.** H1 and H2 register the cost of enforcement before any run. The analysis is to be tagged `prereg-v1` and deposited before the first run (ADR [0023](docs/decisions/0023-preregistration-in-repo.md)); today only `prereg-v0` is tagged, and nothing has run. The claim is about what is registered, not about a result.
+
+What the claim no longer says: "the first governance layer over existing stores" (HEAMS, arXiv 2611.20144, ships one), "the first measured governance tax", "the first to log each decision with its reason", and "the first deterministic policy on memory reads" (HEAMS offers deterministic rules too). The positioning document gives the evidence for each withdrawal and compares Engram with HEAMS and SAFE-Mem (arXiv 2610.22959) row by row.
 
 ## The three products
 
@@ -50,24 +68,24 @@ Three products sit on the one plane. Each is a policy profile plus a few command
 **Govern: trusted organisational memory.** Profile [`knowledge.yaml`](packages/pi-package/profiles/knowledge.yaml). What works today:
 
 - provenance on every item, validity windows, retention by time to live and by budget, and promotion from a person's scope to a team's through a review gate;
-- lints that flag what should not be trusted: a deterministic tier (expired items, changed or missing provenance, orphans, items in a scope that no longer allows their class, exact duplicates and injection signatures), a near-duplicate tier on MinHash candidates (card L5), and model-based checks for contradiction and unsupported claims (card L3) with an optional local NLI tier that drops consistent pairs before the model (card L7); the newer tiers are off in every registered preset;
-- `engram supersede`, which proposes an end date for each older version of a fact a newer one replaces, never retires anything, and writes each accepted close through the gate (card L6);
-- a tamper-evident log that `engram log verify` checks (card E1.6), decisions exported as content-free OpenTelemetry spans when asked (card E8.13), and the policy exported to Cedar with a differential test against Engram's own evaluator (card E2.12; the typed evaluator stays the authority).
+- lints that flag what should not be trusted: a deterministic tier (expired items, changed or missing provenance, orphans, items in a scope that no longer allows their class, exact duplicates and injection signatures), a near-duplicate tier on MinHash candidates, and model-based checks for contradiction and unsupported claims with an optional local NLI tier that drops consistent pairs before the model; the newer tiers are off in every registered preset;
+- `engram supersede`, which proposes an end date for each older version of a fact a newer one replaces, never retires anything, and writes each accepted close through the gate;
+- a tamper-evident log that `engram log verify` checks, decisions exported as content-free OpenTelemetry spans when asked, and the policy exported to Cedar with a differential test against Engram's own evaluator (the typed evaluator stays the authority).
 
 **Twin: a memory per person.** Profile [`twin.yaml`](packages/pi-package/profiles/twin.yaml). A person scope, private by default, and role scopes that pass to a successor when the person leaves. What works today:
 
 - explicit grants, each with a mode and optionally a class and an expiry, changed only by the item's owner as a governed write (ADR [0034](docs/decisions/0034-grant-change-is-the-owners-governed-write.md)), and editable in the inspector and the terminal interface;
 - who can read this memory, for any item or scope;
-- `engram export` and `engram import`: a versioned bundle of everything in your person scope and your own items in the other scopes you may read, never another member's item ([`docs/bundle.md`](docs/bundle.md)), optionally encrypted with age, and imported row by row through the write gate, never at more trust than `import` (card E9.8);
+- `engram export` and `engram import`: a versioned bundle of everything in your person scope and your own items in the other scopes you may read, never another member's item ([`docs/bundle.md`](docs/bundle.md)), optionally encrypted with age, and imported row by row through the write gate, never at more trust than `import`;
 - offboarding with a deletion report (a core function; no surface calls it yet), and a dogfood kit that checks a member's own log for violations and reports only counts ([`docs/dogfood.md`](docs/dogfood.md)).
 
 **Distill: procedures mined from agent sessions.** Admitted only after replay validation on held-out tasks. What works today:
 
-- the session recorder, which turns pi sessions into episodes (card D1);
-- induction with Agent Workflow Memory's prompt, adapted to tool-use sessions, writing each candidate as a SKILL.md (card D2, ADR [0045](docs/decisions/0045-awm-prompt-adapted-to-tool-use.md)); a rule-based method is kept as a fixture-only control;
-- the replay validation gate: `Plane.promote` admits a procedure only when it passes 4 of 5 held-out tasks, each at a mean reward of at least 2/3 over seeds 1 to 3 and no worse than without it, and derives the record itself from the outcomes (card D3, ADR [0046](docs/decisions/0046-replay-validation-source.md)).
+- the session recorder, which turns pi sessions into episodes;
+- induction with Agent Workflow Memory's prompt, adapted to tool-use sessions, writing each candidate as a SKILL.md (ADR [0045](docs/decisions/0045-awm-prompt-adapted-to-tool-use.md)); a rule-based method is kept as a fixture-only control;
+- the replay validation gate: `Plane.promote` admits a procedure only when it passes 4 of 5 held-out tasks, each at a mean reward of at least 2/3 over seeds 1 to 3 and no worse than without it, and derives the record itself from the outcomes (ADR [0046](docs/decisions/0046-replay-validation-source.md)).
 
-Not built yet: retirement on drift (card D4), and `Plane.distill` as one call (induction runs through the experiment runner today).
+Not built yet: retirement on drift, and `Plane.distill` as one call (induction runs through the experiment runner today).
 
 ## The terminal interface
 
@@ -181,41 +199,6 @@ The repository's [`.pi/settings.json`](.pi/settings.json) loads the Engram pi pa
 
 [`@engram/kit`](packages/kit/README.md) holds what every framework adapter repeats (a fixed actor, a namespace to scope mapper, a typed rejection), and [`@engram/ai-sdk`](packages/ai-sdk/README.md) puts governed recall into a Vercel AI SDK model call as a middleware, with `remember` and `recall` tools (card E8.14). Both reach the plane only through the generated client.
 
-## What landed recently: the absorb plan
-
-On 2026-11-21 the team read the field again (111 fact-checked notes in [`docs/readings/litreview/`](docs/readings/litreview/README.md)) and chose thirty pull requests that take in what is worth taking from open-source projects and recent papers ([`docs/tasks/absorb-plan.md`](docs/tasks/absorb-plan.md)). The plan itself is PR #69; all thirty cards merged on 2026-11-21 and 2026-11-22, in PRs #70 to #110. Every piece of code or data copied or ported, each from a source under an allowed licence, is registered in [`docs/absorbed.md`](docs/absorbed.md) (ADR [0037](docs/decisions/0037-absorbing-open-source.md)).
-
-| area | cards | what it added |
-|---|---|---|
-| research design | R2, R3, R4 | the proposed arms, written as proposals in the pre-registration; the novelty claim restated against HEAMS and SAFE-Mem ([`docs/research/positioning.md`](docs/research/positioning.md)); the claims crosswalk from each claim to its test ([`docs/compliance/`](docs/compliance/README.md)) |
-| trust at the gate | E2.7, E2.8, E2.9, E2.10, E2.11 | tests that confirmed two trust gaps, then the fixes as opt-in policy: the secret and personal-data guard, the deterministic injection screen, and trust floors with an eighth invariant |
-| correctness | A5, E1.4, E1.5, E1.6 | conformance cases for capability claims and a revocation grid per store; a stateful model-based test of the Plane with crash windows; a Quint model of the commit and erasure protocol ([`specs/`](specs/README.md)); the tamper-evident log with a ninth invariant |
-| lints | L5, L6, L7 | the near-duplicate tier, the supersession helper and the local NLI tier for the contradiction lint |
-| who sees what | E2.12, E2.13, E8.11 | the policy exported to Cedar; who can read; the inspector's item page |
-| surfaces | E8.12, E8.13, E8.14, E9.8 | verified actors on the HTTP API and MCP over HTTP; OpenTelemetry export; the framework kit and the AI SDK middleware; export and import |
-| benchmarks | B7, B10, B11, X14, X15 | MERIT and tau2-bench through the plane, run unmodified as external processes behind the cassette proxy; a red-team harness on OWASP's AMSB scenarios and pinned payload sets with benign controls; the plane's latency against bare SQLite |
-| Distill | D1, D2, D3 | the session recorder, induction and the replay validation gate (above) |
-
-Beside the plan: the terminal interface (card E8.15, design on main since PR #96, implementation on branch `cliupgrade`), and on 2026-11-25 the lead accepted ADRs 0034 and 0042 to 0048 and asked for a second plan of thirty ([`docs/tasks/absorb-plan-2.md`](docs/tasks/absorb-plan-2.md)). Also in flight on 2026-11-26, none merged: RD1 (what a read discloses), L8 (lints read through the read filter), E9.9 (an owner accepts their own imported candidates) and E2.21 (ADR 0034's grant rules).
-
-## Why it exists
-
-Telling a model the rules ("do not reveal another user's notes") is a request, not a guarantee. Engram enforces the rules in code, before the model sees anything, and records why. The thesis measures what that costs.
-
-The novelty claim, exactly as card R3 restated it in [`docs/research/positioning.md`](docs/research/positioning.md):
-
-> To our knowledge, Engram is the first deterministic, event-logged, replayable control plane across memory stores, with a pre-registered measurement of its governance tax.
-
-Each word is a condition, and the claim is only as strong as the weakest:
-
-- **Deterministic.** Every decision is a pure function of the typed policy, the actor, the item and the time, evaluated by code. No model makes a decision or sets a trust-bearing input: the provenance kind and the actor come from the harness, and the scope, class and confidence a writing agent chooses are checked against the policy.
-- **Event-logged.** Every decision is a `MemoryEvent` with a reason and a policy id, and the log is the source of truth.
-- **Replayable.** State is rebuilt from the log alone (except items later erased by offboarding, which never come back), and a recorded workload replays every decision under any policy. A single decision cannot be decided again from events alone, because a denied write's event carries no item and a read's event carries no query (ADR [0032](docs/decisions/0032-simulator-replays-recorded-calls.md)).
-- **Across memory stores.** One adapter contract, one conformance suite, three adapters. Store independence is a design property (ADR [0035](docs/decisions/0035-store-independence-is-a-design-property.md)); the request-identity check meant to prove it is not built yet, and the registered H1 runs use one store, Mem0.
-- **Pre-registered measurement of its governance tax.** H1 and H2 register the cost of enforcement before any run. The analysis is to be tagged `prereg-v1` and deposited before the first run (ADR [0023](docs/decisions/0023-preregistration-in-repo.md)); today only `prereg-v0` is tagged, and nothing has run. The claim is about what is registered, not about a result.
-
-What the claim no longer says: "the first governance layer over existing stores" (HEAMS, arXiv 2611.20144, ships one), "the first measured governance tax", "the first to log each decision with its reason", and "the first deterministic policy on memory reads" (HEAMS offers deterministic rules too). The positioning document gives the evidence for each withdrawal and compares Engram with HEAMS and SAFE-Mem (arXiv 2610.22959) row by row.
-
 ## How it fits together
 
 ```
@@ -251,6 +234,23 @@ The project started on 5 October 2026 and submits in the last week of March 2027
 - Outside pi the guarantee is weaker: MCP reads are filtered by scope and grants, but nothing governs what the harness already holds in its context (condition C7), and Codex has no hook yet (ADR [0022](docs/decisions/0022-other-harnesses-through-mcp.md); card E8.17 of the second plan adds one).
 - `Plane.distill` as one call, drift retirement (D4) and condition C6 (enforcement with lints) in the runner are not built.
 - The plane misses its proposed latency budget (proposed by card X15, not yet accepted) in three of four cells, measured at p99 on the fake store: a read of ten items takes 63.4 ms against 50 ms at 1,000 items and 203.4 ms against 100 ms at 10,000; a write meets its budget at 1,000 items (14.4 ms against 50 ms) and misses it at 10,000 (163.3 ms against 100 ms). Every call reads whole tables (the `budget` block of [`research/results/h2-perf-budget.json`](research/results/h2-perf-budget.json); the findings are in [`docs/tasks/backlog.md`](docs/tasks/backlog.md)).
+
+## What landed recently: the absorb plan
+
+On 2026-11-21 the team read the field again (111 fact-checked notes in [`docs/readings/litreview/`](docs/readings/litreview/README.md)) and chose thirty pull requests that take in what is worth taking from open-source projects and recent papers ([`docs/tasks/absorb-plan.md`](docs/tasks/absorb-plan.md)). The plan itself is PR #69; all thirty cards merged on 2026-11-21 and 2026-11-22, in PRs #70 to #110. Every piece of code or data copied or ported, each from a source under an allowed licence, is registered in [`docs/absorbed.md`](docs/absorbed.md) (ADR [0037](docs/decisions/0037-absorbing-open-source.md)).
+
+| area | cards | what it added |
+|---|---|---|
+| research design | R2, R3, R4 | the proposed arms, written as proposals in the pre-registration; the novelty claim restated against HEAMS and SAFE-Mem ([`docs/research/positioning.md`](docs/research/positioning.md)); the claims crosswalk from each claim to its test ([`docs/compliance/`](docs/compliance/README.md)) |
+| trust at the gate | E2.7, E2.8, E2.9, E2.10, E2.11 | tests that confirmed two trust gaps, then the fixes as opt-in policy: the secret and personal-data guard, the deterministic injection screen, and trust floors with an eighth invariant |
+| correctness | A5, E1.4, E1.5, E1.6 | conformance cases for capability claims and a revocation grid per store; a stateful model-based test of the Plane with crash windows; a Quint model of the commit and erasure protocol ([`specs/`](specs/README.md)); the tamper-evident log with a ninth invariant |
+| lints | L5, L6, L7 | the near-duplicate tier, the supersession helper and the local NLI tier for the contradiction lint |
+| who sees what | E2.12, E2.13, E8.11 | the policy exported to Cedar; who can read; the inspector's item page |
+| surfaces | E8.12, E8.13, E8.14, E9.8 | verified actors on the HTTP API and MCP over HTTP; OpenTelemetry export; the framework kit and the AI SDK middleware; export and import |
+| benchmarks | B7, B10, B11, X14, X15 | MERIT and tau2-bench through the plane, run unmodified as external processes behind the cassette proxy; a red-team harness on OWASP's AMSB scenarios and pinned payload sets with benign controls; the plane's latency against bare SQLite |
+| Distill | D1, D2, D3 | the session recorder, induction and the replay validation gate (above) |
+
+Beside the plan: the terminal interface (card E8.15, design on main since PR #96, implementation on branch `cliupgrade`), and on 2026-11-25 the lead accepted ADRs 0034 and 0042 to 0048 and asked for a second plan of thirty ([`docs/tasks/absorb-plan-2.md`](docs/tasks/absorb-plan-2.md)). Also in flight on 2026-11-26, none merged: RD1 (what a read discloses), L8 (lints read through the read filter), E9.9 (an owner accepts their own imported candidates) and E2.21 (ADR 0034's grant rules).
 
 ## The research programme
 
