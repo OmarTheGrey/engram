@@ -365,7 +365,7 @@ The code is licensed under the Apache License 2.0 ([`LICENSE`](LICENSE), ADR [00
 
 The thesis methods chapter states that implementation used coding agents under the conventions in `AGENTS.md`, that experiment code and analysis were hand-reviewed, and that every generated component carries tests.
 
-The team is four members on two tracks: the platform track owns adapters, surfaces, profiles and dogfood; the research track owns the policy engine, lints, benchmark harnesses, experiments and the thesis. The lead integrates.
+The team is four members on two tracks ([`docs/roadmap.md`](docs/roadmap.md), planning principle 2): the research track owns the memory model, the adapters, the policy engine, the benchmark harnesses, the experiments and the thesis; the product track owns the surfaces, the profiles, the inspector and dogfood. Product cards never block research cards. The lead integrates.
 
 ## Links
 
