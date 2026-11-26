@@ -169,10 +169,12 @@ describe("the snippets' shape (8.14, 8.15)", () => {
     const launch = { command: "engram", prefix: [], note: undefined };
     const args = ["mcp", "--as", "agent:claude-code", "--member", "person:dana"];
     expect(codexToml(launch, args)).toBe(
-      '[mcp_servers.engram]
-command = "engram"
-args = ["mcp", "--as", "agent:codex", "--member", "person:dana"]
-',
+      [
+        "[mcp_servers.engram]",
+        'command = "engram"',
+        'args = ["mcp", "--as", "agent:codex", "--member", "person:dana"]',
+        "",
+      ].join("\n"),
     );
     // Claude Code's own snippet keeps it.
     expect(mcpJson(launch, args).mcpServers.engram.args).toEqual(args);
