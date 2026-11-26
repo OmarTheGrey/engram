@@ -1,0 +1,36 @@
+[7m engram  Workspace                                                      in process  log engram.db  person:dana (person) [0m
+   Connection             (o) in process  ( ) server
+   Event log              [ engram.db                                ]  from a flag; a SQLite file, :memory: or postg...
+   Policy                 [ policy.yaml                              ]  from a flag; strict, medium, permissive or a ...
+   Store kind             (o) default  ( ) files  ( ) letta
+   Store folder           [ mem                                      ]  from a flag
+   Owner                  [ dana                                     ]  from a flag; the person whose folder it is
+ > Acting as              [ person:sam[7m [0m                              ]  a principal such as person:dana
+   Level                  (o) default  ( ) person  ( ) role  ( ) team  ( ) org
+   Member of              person:dana, team:core  [                      ]  from a flag; enter adds; backspace in the...
+
+ Advanced
+   Imported valid from    [                                          ]  default each file's mtime
+   Key file               [                                          ]
+   Decision export OTLP   [                                          ]  off unless named; the decisions leave the mac...
+   Decision export file   [                                          ]
+
+ The TUI's own options, saved for the next start
+   ASCII only             [ ] off
+   High contrast          [ ] off
+   Reduced motion         [ ] off
+   Mouse                  [x] on
+   Line mode at start     [ ] off
+
+ Saved in ~/.engram/tui.json: flags only. Not read or written this session (--no-saved).
+   [ Forget saved workspace ]
+   [ Apply and save ]
+
+
+
+
+
+
+
+$ --db engram.db --policy policy.yaml --owner dana ...-member person:dana --member team:core --root mem  (every command)
+ ctrl+g help  enter next  ctrl+s apply  alt+c copy  alt+p commands  esc back

@@ -42,10 +42,11 @@ import {
   type PlaneDeps,
 } from "@engram/core";
 import { bindRefusal, hasCredentialFlags, openCredentials } from "@engram/server";
-import { parse, STORE_OPTIONS } from "./commands.ts";
+import { parse } from "./commands.ts";
 import { plural } from "./format.ts";
+import { AUTH_OPTIONS, OPTIONS } from "./registry.ts";
 import type { Io } from "./run.ts";
-import { AUTH_OPTIONS, type AuthFlags, credentialFlags } from "./serve.ts";
+import { type AuthFlags, credentialFlags } from "./serve.ts";
 import {
   type DbTarget,
   dbTarget,
@@ -628,18 +629,7 @@ export function checkNode(version: string): CheckResult {
 }
 
 export async function doctorCommand(args: string[], io: Io): Promise<number> {
-  const { values } = parse(
-    args,
-    {
-      db: STORE_OPTIONS.db,
-      policy: STORE_OPTIONS.policy,
-      root: STORE_OPTIONS.root,
-      json: STORE_OPTIONS.json,
-      host: { type: "string" },
-      ...AUTH_OPTIONS,
-    },
-    false,
-  );
+  const { values } = parse(args, OPTIONS.doctor, false);
   const at = io.now();
   // Outside the checks: a bad --db or ENGRAM_DB_URL is usage (exit 2), not a failed check.
   const target = dbTarget(values.db, io);

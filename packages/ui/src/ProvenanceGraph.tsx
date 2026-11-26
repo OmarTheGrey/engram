@@ -18,15 +18,15 @@ import {
   ReactFlow,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { type KeyboardEvent, useMemo } from "react";
-import { layoutGraph } from "./layout.ts";
 import {
   type EventNode,
   type GraphNode,
   type ItemNode,
   type ProvenanceGraph,
   versionText,
-} from "./provenance.ts";
+} from "@engram/view";
+import { type KeyboardEvent, useMemo } from "react";
+import { layoutGraph } from "./layout.ts";
 
 type ItemFlowNode = Node<{ node: ItemNode }, "item">;
 type EventFlowNode = Node<{ node: EventNode }, "event">;

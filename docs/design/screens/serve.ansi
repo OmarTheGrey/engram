@@ -1,0 +1,36 @@
+[7m engram  Serve the API and inspector                                    in process  log engram.db  person:dana (person) [0m
+   Who may call it? ( ) API keys from a key file
+                    ( ) a token issuer: --issuer, --jwks, --subjects
+                    (o) No authentication: this machine only, anyone on it can act as anyone (--insecure-loopback)
+   Host             (o) 127.0.0.1   ( ) ::1   ( ) localhost
+ > Port             [ 7391[7m [0m                                    ]  default 7313
+   Viewer           [ person:dana                              ]  shown by the inspector
+   ▸ More flags: 12, set: --root --owner --policy --db --insecure-loopback --member
+
+ [ Stop ]
+
+ [38;2;86;180;233m●[0m running
+ engram serve: listening on http://127.0.0.1:7391 (log ~/demo/engram.db, fixture.inspector v1, store files at
+ ~/demo/mem, viewer person:dana, insecure loopback: actors are self-asserted)
+
+ Inspector  [4mhttp://127.0.0.1:7391/[0m   o copies it
+ It stops when you press s or quit the TUI.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+$ engram serve --insecure-loopback --port 7391 --db engram.d...n:dana --member person:dana --member team:core --root mem
+ ctrl+g help  tab next  ctrl+s stop  alt+c copy  alt+p commands  esc back
