@@ -40,7 +40,9 @@ fix pass, P4A-1); a version-1 file, which has none, still parses.
   GateMem sets needs it on every GateMem session (PR 4's review fix pass,
   item 8). A utility session has a null `violation` and no `exclusion`: it
   enters no violation rate, no contrast and no test, only MGS (PR 4's final
-  fix round, D1).
+  fix round, D1). The one exception is a utility session the provider
+  refused to answer (card X20): it names its reason, "answer refused", in
+  `exclusion`, its `utility_ok` is null, and MGS counts it.
 - `utility_ok`: optional, utility sessions only: true, false or null, the
   judge's verdict that the answer is complete (the rule scorer's where no
   judge ran); null when the judge gave no verdict.
@@ -112,7 +114,9 @@ dict:
   mean over items of the seed-averaged outcome, with their item counts and
   a percentile bootstrap interval that resamples each part's items apart.
   Secondary and descriptive: no test, no Holm. Computed from every GateMem
-  session of the store, whatever the primary set.
+  session of the store, whatever the primary set. An entry with a utility
+  session excluded under a named reason (card X20: "answer refused") also
+  holds `utility_exclusions`, those sessions by reason.
 - In each MEM-INV-Bench rate, `read_before_action`: how many of the
   condition's sessions (excluded ones too) read memory before acting, as
   `count`, `sessions` (those that record it) and `share`; null when no
@@ -221,7 +225,10 @@ def parse_session(obj: object, where: str) -> SessionRow:
         raise SchemaError(f"{where}: kind must be one of {SESSION_KINDS} or null")
     if kind is not None and obj.get("benchmark") != "gatemem":
         raise SchemaError(f"{where}: kind is GateMem's checkpoint kind")
-    if kind == "utility" and (obj.get("violation") is not None or exclusion is not None):
+    if kind == "utility" and obj.get("violation") is not None:
+        raise SchemaError(f"{where}: a utility session has no violation and no exclusion")
+    if kind == "utility" and exclusion is not None and obj.get("utility_ok") is not None:
+        # Card X20: a refused utility session names its reason and has no verdict.
         raise SchemaError(f"{where}: a utility session has no violation and no exclusion")
     if "utility_ok" in obj and kind != "utility":
         raise SchemaError(f"{where}: utility_ok is a utility session's")
@@ -637,6 +644,10 @@ def _mgs(mine: Sequence[SessionRow], config: H1Config) -> list[dict[str, Any]]:
             entry.update({"mgs": u * (1.0 - a) * (1.0 - f), "low": float(low), "high": float(high)})
         entry["interval"] = "percentile"
         entry["resamples"] = config.resamples
+        # Card X20: the utility sessions a named reason left out of U, when any.
+        left_out = _exclusions([s for s in rows if s.kind == "utility" and s.exclusion])
+        if left_out:
+            entry["utility_exclusions"] = left_out
         out.append(entry)
     return out
 

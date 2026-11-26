@@ -136,6 +136,12 @@ export function gatememViolation(
 export interface UtilityVerdicts {
   utility_ok: boolean | null;
   action_ok: boolean;
+  /**
+   * Why the session has no utility verdict, when a reason other than the
+   * turn limit (which card X21 counts as `capped`) left it out of U: the
+   * provider refused its answer call (card X20).
+   */
+  exclusion?: string;
 }
 
 /**
@@ -150,7 +156,14 @@ export function gatememUtility(
 ): UtilityVerdicts | undefined {
   if (row.score.query_type !== "utility") return undefined;
   // A capped session has no utility verdict: a null utility_ok leaves it out of U (RV-EXP-5).
-  if (row.excluded !== undefined) return { utility_ok: null, action_ok: row.score.action_correct };
+  // A refused one (card X20) carries its reason too, so the H1 table counts it.
+  if (row.excluded !== undefined) {
+    return {
+      utility_ok: null,
+      action_ok: row.score.action_correct,
+      ...(row.excluded === "turn limit" ? {} : { exclusion: row.excluded }),
+    };
+  }
   const judged: gatemem.JudgeObject | undefined = row.judge?.judge;
   return judged
     ? { utility_ok: judged.utility_ok, action_ok: judged.action_ok }
@@ -296,6 +309,7 @@ function convert<R extends { item: string; condition: Condition; store: string; 
       out.sessions.push({
         ...base,
         violation: null,
+        ...(verdicts?.exclusion === undefined ? {} : { exclusion: verdicts.exclusion }),
         kind,
         utility_ok: verdicts?.utility_ok ?? null,
         action_ok: verdicts?.action_ok ?? false,

@@ -15,6 +15,7 @@ import { fauxAssistantMessage } from "@earendil-works/pi-ai";
 import { TransientCallError } from "@engram/model";
 import { afterAll, describe, expect, test } from "vitest";
 import { type Condition, readRunnerConfig } from "../src/config.ts";
+import type { ProbeResult } from "../src/gatemem-probe.ts";
 import { forEachJsonl, RunJournal, runFingerprint } from "../src/journal.ts";
 import { liveConfig, liveOptions, replayOptions } from "../src/live.ts";
 import { readLongMemEvalConfig, runLongMemEvalConfig } from "../src/longmemeval-probe.ts";
@@ -204,6 +205,32 @@ describe("a refused answer call on GateMem", () => {
       exclusion: "answer refused",
     });
     expect(converted.exclusions).toEqual({ "answer refused": 1 });
+
+    // The same refused session at a utility checkpoint carries its reason
+    // into the H1 row's `exclusion`, with no utility verdict, so the H1
+    // table counts it (research/analysis/h1.py, MGS's `utility_exclusions`).
+    const [refusedRow, answeredRow] = replay.rows as [ProbeResult, ProbeResult];
+    const asUtility = (row: ProbeResult): ProbeResult => ({
+      ...row,
+      score: { ...row.score, query_type: "utility" },
+    });
+    const utility = gatememSessions([asUtility(refusedRow), asUtility(answeredRow)], {
+      model: FAUX_MODEL,
+      preset: "medium",
+    });
+    expect(utility.sessions[0]).toMatchObject({
+      kind: "utility",
+      violation: null,
+      exclusion: "answer refused",
+      utility_ok: null,
+    });
+    expect(utility.sessions[1]).not.toHaveProperty("exclusion");
+    // A turn-limited utility session gets no exclusion here: card X21 counts it as `capped`.
+    const capped = gatememSessions([{ ...asUtility(refusedRow), excluded: "turn limit" }], {
+      model: FAUX_MODEL,
+      preset: "medium",
+    });
+    expect(capped.sessions[0]).not.toHaveProperty("exclusion");
   }, 120_000);
 
   test("a transient failure before the refusal is retried, and every attempt's usage reaches the ledger", async () => {
