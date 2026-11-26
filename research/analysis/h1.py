@@ -13,7 +13,9 @@ JSON Lines, one object per session: one benchmark item under one condition,
 model, store, preset and seed. Every field below but `exclusion` is required
 and no other is allowed; (benchmark, model, store, condition, item, seed) is
 unique. Version 2 adds the optional `exclusion` (PR 4 of the plan, review
-fix pass, P4A-1); a version-1 file, which has none, still parses.
+fix pass, P4A-1); a version-1 file, which has none, still parses. The
+optional `capped` is a later field of version 2 (card X21): a file without
+it parses as before.
 
 - `benchmark`: "gatemem" or "mem-inv-bench", the arm.
 - `model`: string, the answer model, `provider/model-id`.
@@ -50,6 +52,12 @@ fix pass, P4A-1); a version-1 file, which has none, still parses.
   whether the answer took the expected action (the judge row's
   deterministic `action_ok`, the rule scorer's `action_correct` where no
   judge ran).
+- `capped`: optional, utility sessions only: true or false, whether the
+  turn limit cut the session off (the probe's `excluded: "turn limit"`,
+  RV-EXP-5). A capped session has no utility verdict, so its `utility_ok`
+  must be null and it leaves U as a session whose judge gave none does; the
+  table counts it apart (card X21, lead-decisions item 15). Absent counts as
+  false.
 - `gate_by_action`: optional, true or false: whether the converter counted a
   wrong action as a leak (upstream's `--gate_by_action`, D2). A session that
   names none was converted before the flag existed, leak only, and counts
@@ -84,7 +92,12 @@ dict:
   item, session and excluded counts, the excluded sessions by reason
   (`exclusions`, so an exclusion that differs between conditions is
   visible), and the rate of each seed alone (the seed spread the
-  pre-registration asks to report).
+  pre-registration asks to report). Beside `exclusions`, `capped_utility`:
+  how many of the store's utility sessions of that benchmark, model and
+  condition the turn limit capped, zero included (card X21). Utility
+  sessions enter no rate, so the count is the same in every set's rates;
+  it is always zero on MEM-INV-Bench, which has none, and whose capped
+  sessions are counted in `exclusions` under "turn limit".
 - `contrasts`: per benchmark and model, the paired bootstrap of the tested
   contrast (C4 minus C5) and of the descriptive ones (C3 minus C5, C2 minus
   C5): its item count `n`, the (item, seed) sessions dropped because either
@@ -114,9 +127,13 @@ dict:
   mean over items of the seed-averaged outcome, with their item counts and
   a percentile bootstrap interval that resamples each part's items apart.
   Secondary and descriptive: no test, no Holm. Computed from every GateMem
-  session of the store, whatever the primary set. An entry with a utility
-  session excluded under a named reason (card X20: "answer refused") also
-  holds `utility_exclusions`, those sessions by reason.
+  session of the store, whatever the primary set. Each entry also gives
+  `capped_utility`, the utility sessions the turn limit capped, which left
+  U, the same count as the condition's rates give (card X21). An entry with a
+  utility session excluded under a named reason (card X20: "answer refused")
+  also holds `utility_exclusions`, those sessions by reason. The two never
+  count one session twice: a capped utility session carries no `exclusion`,
+  and a session that carries one is never `capped`.
 - In each MEM-INV-Bench rate, `read_before_action`: how many of the
   condition's sessions (excluded ones too) read memory before acting, as
   `count`, `sessions` (those that record it) and `share`; null when no
@@ -167,6 +184,7 @@ OPTIONAL = (
     "action_ok",
     "gate_by_action",
     "read_before_action",
+    "capped",
 )
 GATEMEM_KINDS = ("access", "forgetting")
 # Every kind a GateMem session may name; utility sessions feed MGS only.
@@ -200,6 +218,7 @@ class SessionRow:
     action_ok: bool | None = None
     gate_by_action: bool | None = None
     read_before_action: bool | None = None
+    capped: bool | None = None
 
 
 def _optional_bool(obj: Mapping[str, Any], name: str, where: str) -> bool | None:
@@ -238,6 +257,14 @@ def parse_session(obj: object, where: str) -> SessionRow:
         raise SchemaError(f"{where}: a utility session needs action_ok, true or false")
     if "read_before_action" in obj and obj.get("benchmark") != "mem-inv-bench":
         raise SchemaError(f"{where}: read_before_action is MEM-INV-Bench's")
+    if "capped" in obj and kind != "utility":
+        raise SchemaError(f"{where}: capped is a utility session's")
+    capped = _optional_bool(obj, "capped", where)
+    if capped and obj.get("utility_ok") is not None:
+        raise SchemaError(f"{where}: a capped utility session has no utility verdict")
+    if capped and exclusion is not None:
+        # Card X20: capped_utility counts it; an exclusion would count it again.
+        raise SchemaError(f"{where}: a capped utility session names no exclusion")
     utility_ok = _optional_bool(obj, "utility_ok", where)
     action_ok = _optional_bool(obj, "action_ok", where)
     gate_by_action = _optional_bool(obj, "gate_by_action", where)
@@ -263,6 +290,7 @@ def parse_session(obj: object, where: str) -> SessionRow:
         action_ok=action_ok,
         gate_by_action=gate_by_action,
         read_before_action=read_before_action,
+        capped=capped,
     )
 
 
@@ -378,9 +406,15 @@ def _seed_for(seed: int, *parts: str) -> int:
 
 
 def _rates_and_contrasts(
-    mine: Sequence[SessionRow], config: H1Config, tag: str = ""
+    mine: Sequence[SessionRow],
+    config: H1Config,
+    capped: Mapping[tuple[str, str, str], int],
+    tag: str = "",
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """Rates per benchmark, model and condition, and the paired contrasts, for `mine`.
+
+    `capped` holds the capped utility sessions per (benchmark, model,
+    condition), which each rate reports beside its exclusions.
 
     `tag` names a secondary or sensitivity set; it enters each bootstrap's
     seed, so a set's contrasts are drawn apart from the primary's, which keep
@@ -412,6 +446,7 @@ def _rates_and_contrasts(
             "sessions": len(included),
             "excluded": len(rows) - len(included),
             "exclusions": _exclusions(rows),
+            "capped_utility": capped.get(key, 0),
             "rate": rate,
             "wilson_low": low,
             "wilson_high": high,
@@ -502,7 +537,8 @@ def build_h1_table(sessions: Sequence[SessionRow], config: H1Config) -> dict[str
         primary_sessions = [s for s in scored if s.benchmark != "gatemem"] + _gatemem_kinds(
             scored, GATEMEM_SETS[primary_set]
         )
-    rates, contrasts = _rates_and_contrasts(primary_sessions, config)
+    capped = _capped_utility(mine)
+    rates, contrasts = _rates_and_contrasts(primary_sessions, config, capped)
 
     def tested_on(benchmark: str) -> dict[str, Any] | None:
         return next(
@@ -558,7 +594,7 @@ def build_h1_table(sessions: Sequence[SessionRow], config: H1Config) -> dict[str
         if name == primary_set:
             continue
         set_rates, set_contrasts = _rates_and_contrasts(
-            _gatemem_kinds(scored, kinds), config, f"set {name}"
+            _gatemem_kinds(scored, kinds), config, capped, f"set {name}"
         )
         secondary.append(
             {
@@ -575,7 +611,7 @@ def build_h1_table(sessions: Sequence[SessionRow], config: H1Config) -> dict[str
         kept = [s for s in primary_sessions if s.benchmark == "gatemem" and s.item not in left_out]
         gone = {s.item for s in primary_sessions if s.benchmark == "gatemem"} & left_out
         set_rates, set_contrasts = _rates_and_contrasts(
-            kept, config, f"sensitivity {config.sensitivity_name}"
+            kept, config, capped, f"sensitivity {config.sensitivity_name}"
         )
         table["sensitivity"] = {
             "name": config.sensitivity_name,
@@ -629,6 +665,8 @@ def _mgs(mine: Sequence[SessionRow], config: H1Config) -> list[dict[str, Any]]:
         for kind in MGS_PARTS:
             entry[kind] = float(parts[kind].mean()) if parts[kind].size else None
             entry[f"{kind}_items"] = int(parts[kind].size)
+        # Beside U: the utility sessions the turn limit took out of it (card X21).
+        entry["capped_utility"] = _capped_utility(rows).get(("gatemem", model, condition), 0)
         u, a, f = entry["utility"], entry["access"], entry["forgetting"]
         if u is None or a is None or f is None:
             entry.update({"mgs": None, "low": None, "high": None})
@@ -660,6 +698,16 @@ def _exclusions(rows: Sequence[SessionRow]) -> dict[str, int]:
             reason = s.exclusion or UNSTATED
             counts[reason] = counts.get(reason, 0) + 1
     return dict(sorted(counts.items()))
+
+
+def _capped_utility(rows: Sequence[SessionRow]) -> dict[tuple[str, str, str], int]:
+    """The utility sessions the turn limit capped, per (benchmark, model, condition)."""
+    counts: dict[tuple[str, str, str], int] = {}
+    for s in rows:
+        if s.kind == "utility" and s.capped:
+            key = (s.benchmark, s.model, s.condition)
+            counts[key] = counts.get(key, 0) + 1
+    return counts
 
 
 def _outcome(s: SessionRow) -> float | None:

@@ -79,3 +79,18 @@ def test_a_utility_session_with_a_reason_and_a_verdict_is_refused(tmp_path: Path
         read_sessions(write(tmp_path / "s.jsonl", [judged]))
     with pytest.raises(SchemaError, match="null violation"):
         read_sessions(write(tmp_path / "v.jsonl", [{**REFUSED, "violation": True}]))
+
+
+def test_a_capped_utility_session_and_a_refused_one_are_counted_apart_never_twice(
+    tmp_path: Path,
+) -> None:
+    capped = session(
+        "u4", "C4", None, kind="utility", capped=True, utility_ok=None, action_ok=False
+    )
+    mgs = mgs_of(
+        build_h1_table(read_sessions(write(tmp_path / "s.jsonl", [*BASE, REFUSED, capped])), CONFIG)
+    )
+    assert mgs["C4"]["capped_utility"] == 1
+    assert mgs["C4"]["utility_exclusions"] == {"answer refused": 1}
+    with pytest.raises(SchemaError, match="capped utility session names no exclusion"):
+        read_sessions(write(tmp_path / "b.jsonl", [{**capped, "exclusion": "turn limit"}]))

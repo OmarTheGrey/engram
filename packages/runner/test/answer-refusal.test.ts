@@ -260,12 +260,15 @@ describe("a refused answer call on GateMem", () => {
       utility_ok: null,
     });
     expect(utility.sessions[1]).not.toHaveProperty("exclusion");
-    // A turn-limited utility session gets no exclusion here: card X21 counts it as `capped`.
+    // A turn-limited utility session gets no exclusion: card X21 counts it as `capped`.
     const capped = gatememSessions([{ ...asUtility(refusedRow), excluded: "turn limit" }], {
       model: FAUX_MODEL,
       preset: "medium",
     });
     expect(capped.sessions[0]).not.toHaveProperty("exclusion");
+    expect(capped.sessions[0]).toMatchObject({ capped: true, utility_ok: null });
+    // One session, one count: the refused utility row is never `capped`.
+    expect(utility.sessions[0]).not.toHaveProperty("capped");
   }, 120_000);
 
   test("a transient failure before the refusal is retried, and every attempt's usage reaches the ledger", async () => {
