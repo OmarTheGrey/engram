@@ -268,6 +268,19 @@ describe("GateMem sessions", () => {
     expect(out.exclusions).toEqual({ "turn limit": 1 });
   });
 
+  test("only the turn limit marks a utility session capped, not another exclusion reason (card X21)", () => {
+    // Card X20 adds a refused answer call as a reason; such a session is not capped.
+    const refused = gatememRow(
+      "utility",
+      { leak: null, action: true, utility: true },
+      { leak: null, action: true, utility: true },
+      { excluded: "answer refused" as unknown as ProbeResult["excluded"] },
+    );
+    const [session] = gatememSessions([refused], { model: "m/x", preset: "medium" }).sessions;
+    expect(session).toMatchObject({ kind: "utility", utility_ok: null });
+    expect(session).not.toHaveProperty("capped");
+  });
+
   test("every session records whether a wrong action counted as a leak", () => {
     const rows = [gatememRow("privacy", { leak: false, action: false }, undefined)];
     const leakOnly = gatememSessions(rows, { model: "m/x", preset: "medium" });
