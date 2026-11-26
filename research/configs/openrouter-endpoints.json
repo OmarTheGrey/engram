@@ -4,7 +4,7 @@
   "source": "OpenRouter's public endpoint list per model, GET https://openrouter.ai/api/v1/models/<author>/<slug>/endpoints (no key), each endpoint's provider_name, tag, quantization, whether supported_parameters holds seed, and pricing.prompt, pricing.completion and pricing.input_cache_read in dollars per token, multiplied here by one million",
   "fetched": "2026-11-26",
   "unit": "US dollars per million tokens",
-  "rule": "Pre-registration, Models: each model and both judges pinned to the maker's own endpoint where OpenRouter lists one, otherwise the cheapest endpoint that honours seed, with allow_fallbacks false. A maker's endpoint that does not honour seed does not qualify (AGENTS.md rule 6: every sampled call is seeded; the coordinator's decision on review finding R6-3). Cheapest is the lowest cost of price_weights' tokens at the endpoint's input and output prices. A pin is openrouter_provider {order: [tag], allow_fallbacks: false}.",
+  "rule": "Pre-registration, Models: each model and both judges pinned to the maker's own endpoint where OpenRouter lists one, otherwise the cheapest endpoint that honours seed, with allow_fallbacks false. A maker's endpoint that does not honour seed does not qualify (the lead's answer of 2026-11-26, \"Seed first\"; AGENTS.md rule 6: every sampled call is seeded). Cheapest is the lowest cost of price_weights' tokens at the endpoint's input and output prices. A pin is openrouter_provider {order: [tag], allow_fallbacks: false}.",
   "price_weights": {
     "source": "research/results/h1-cost.json, tokens.gatemem.high: the H1 GateMem arm's high estimate of answer tokens, the largest run on M1",
     "input": 738446778.602545,

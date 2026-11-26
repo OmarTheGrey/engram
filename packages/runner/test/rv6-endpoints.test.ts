@@ -51,8 +51,8 @@ const M1 = (() => {
  * The registered rule over the snapshot: the endpoint tag `model` is pinned
  * to. The maker's own endpoint where it lists one that honours `seed`
  * (several: the snapshot's recorded choice, which must be one of them); a
- * maker's endpoint without `seed` does not qualify (AGENTS.md rule 6, the
- * coordinator's decision on review finding R6-3). Otherwise the cheapest that
+ * maker's endpoint without `seed` does not qualify (the lead's answer of
+ * 2026-11-26, "Seed first"; AGENTS.md rule 6). Otherwise the cheapest that
  * honours `seed`: the lowest cost of the snapshot's `price_weights` tokens at
  * its input and output prices, a tie refused. A model with no snapshot entry,
  * or with no endpoint that honours `seed`, fails.
