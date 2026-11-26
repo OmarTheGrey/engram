@@ -317,7 +317,7 @@ A selection, grouped. [AGENTS.md, "Commands"](AGENTS.md#commands) is the full li
 | [`packages/pi-package`](packages/pi-package/README.md) | the distributable pi package: extension, skill, prompt template, profiles |
 | [`packages/mcp`](packages/mcp/README.md) | the MCP server for Claude Code and Codex; the Claude Code hook |
 | [`packages/tag`](packages/tag/README.md) | the memory tag and the memory_write and memory_read definitions, pure, no pi |
-| [`packages/kit`](packages/kit/README.md) | the framework kit: a fixed actor, a namespace to scope mapper, a typed rejection; the adapter conformance suite |
+| [`packages/kit`](packages/kit/README.md) | the framework kit: a fixed actor, a namespace to scope mapper, a typed rejection; the conformance suite for framework adapters |
 | [`packages/ai-sdk`](packages/ai-sdk/README.md) | `@engram/ai-sdk`: governed recall as a Vercel AI SDK middleware, remember and recall tools |
 | [`packages/cli`](packages/cli/README.md) | the `engram` command and its terminal interface |
 | [`packages/server`](packages/server/README.md) | the HTTP API, its authentication, its route table, the workspace opener |
