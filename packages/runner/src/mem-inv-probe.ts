@@ -372,7 +372,11 @@ async function memInvProbeOn(spec: MemInvProbeSpec, adapter: Adapter): Promise<M
   });
   try {
     await session.prompt(user);
-    const { failure, excluded } = sessionEnd(session.messages, cassette);
+    const { failure, excluded } = sessionEnd(
+      session.messages,
+      cassette,
+      `mem-inv-bench/${view.case_id}`,
+    );
     if (failure !== undefined) throw failure;
     const messages = session.messages;
     const toolCalls = messages.flatMap((m) =>

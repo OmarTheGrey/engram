@@ -14,6 +14,7 @@ import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fauxAssistantMessage } from "@earendil-works/pi-ai";
+import { gatemem } from "@engram/bench";
 import { TransientCallError } from "@engram/model";
 import { afterAll, beforeEach, describe, expect, test } from "vitest";
 import { type Condition, readRunnerConfig } from "../src/config.ts";
@@ -34,7 +35,7 @@ import {
 } from "../src/model/cassette.ts";
 import { httpStatus, JUDGE_RETRY, ProviderStopError, SESSION_RETRY } from "../src/model/retry.ts";
 import { gatememSessions, memInvViolation } from "../src/research/h1-sessions.ts";
-import { EVENTS_FILE, runConfig } from "../src/run.ts";
+import { EVENTS_FILE, gatememItems, runConfig } from "../src/run.ts";
 import { FAUX_MODEL, fauxLive, JUDGE_MODEL, withJudge } from "./live-fakes.ts";
 import { B3, B4 } from "./paths.ts";
 
@@ -397,11 +398,29 @@ describe("a stopping status at the judge stops the run too (review X20-1)", () =
   }, 120_000);
 });
 
-describe("the backstop: five refusals in a row stop the run (review X20-2)", () => {
-  test("the fifth refused session in a row stops the run unrecorded; the four before it are kept", async () => {
+describe("the backstop: five distinct items in a row refused stop the run (review X20-2, N1)", () => {
+  /** The fixture's first checkpoints, each a distinct item. */
+  const ITEMS = gatememItems(gatemem.loadDataset(b3.data)).slice(0, 6);
+
+  test("one item refused in all its 12 sessions (4 conditions, 3 seeds) does not stop the run", async () => {
     expect(REFUSAL_STREAK_LIMIT).toBe(5);
-    // Three checkpoints under C2 and C3: six sessions, each refused at its first call.
-    const config = liveOf({ ...two, items: b3.items });
+    const config = liveOf({
+      ...two,
+      conditions: ["C2", "C3", "C4", "C5"] as Condition[],
+      seeds: [1, 2, 3],
+    });
+    const provider = fauxLive({ failures: Array.from({ length: 12 }, () => OVERFLOW) });
+    const result = await runConfig(config, {
+      ...liveOptions(config, provider.models, {}),
+      ...noWait,
+    });
+    expect(result.rows).toHaveLength(12);
+    expect(result.rows.every((r) => r.excluded === "answer refused")).toBe(true);
+    expect(provider.state.calls).toBe(12);
+  }, 180_000);
+
+  test("five distinct items in a row, each refused, stop the run at the fifth's refusal, unrecorded", async () => {
+    const config = liveOf({ ...two, items: ITEMS, conditions: ["C2"] as Condition[] });
     const provider = fauxLive({ failures: Array.from({ length: 6 }, () => OVERFLOW) });
     const dir = fresh();
     const journal = journalFor(dir, config);
@@ -412,16 +431,29 @@ describe("the backstop: five refusals in a row stop the run (review X20-2)", () 
       ...noWait,
     });
     await expect(run).rejects.toBeInstanceOf(RefusalStreak);
-    await expect(run).rejects.toThrow(/5 sessions in a row/);
+    await expect(run).rejects.toThrow(/5 distinct items in a row/);
     journal.close();
     expect(provider.state.calls).toBe(5);
     const kept = lines(dir, "results.jsonl").map((l) => JSON.parse(l));
-    expect(kept.map((r) => r.excluded)).toEqual(Array(4).fill("answer refused"));
-  }, 120_000);
+    expect(kept.map((r) => r.item)).toEqual(ITEMS.slice(0, 4).map((i) => `gatemem/${i}`));
+    expect(kept.every((r) => r.excluded === "answer refused")).toBe(true);
+  }, 180_000);
 
-  test("a session that answers starts the count afresh", async () => {
-    // Refused, refused, refused, refused, answered (two calls), refused: never five in a row.
-    const config = liveOf({ ...two, items: b3.items });
+  test("an item's answered sessions do not reset the count: refused under C2 and answered under C3, five items stop it", async () => {
+    const config = liveOf({ ...two, items: ITEMS, conditions: ["C2", "C3"] as Condition[] });
+    // Per item: C2's call refused, then C3's two calls answered.
+    const provider = fauxLive({
+      failures: ITEMS.flatMap(() => [OVERFLOW, undefined, undefined]),
+    });
+    const run = runConfig(config, { ...liveOptions(config, provider.models, {}), ...noWait });
+    await expect(run).rejects.toBeInstanceOf(RefusalStreak);
+    // Four whole items (three calls each), then the fifth item's refused call.
+    expect(provider.state.calls).toBe(13);
+  }, 180_000);
+
+  test("an item none of whose sessions is refused resets the count", async () => {
+    // Items 1 to 4 refused, item 5 answered, item 6 refused: never five in a row.
+    const config = liveOf({ ...two, items: ITEMS, conditions: ["C2"] as Condition[] });
     const provider = fauxLive({
       failures: [OVERFLOW, OVERFLOW, OVERFLOW, OVERFLOW, undefined, undefined, OVERFLOW],
     });
@@ -437,7 +469,7 @@ describe("the backstop: five refusals in a row stop the run (review X20-2)", () 
       undefined,
       "answer refused",
     ]);
-  }, 120_000);
+  }, 180_000);
 });
 
 describe("a moderation 403 on GateMem", () => {
@@ -472,19 +504,27 @@ describe("the session's end, read from its messages and its cassette", () => {
     { role: "assistant", stopReason: "error", errorMessage: "400 ..." },
   ];
   test("a refusal that ended the session is an exclusion, not a failure; sessionFailure still calls it one", () => {
-    expect(sessionEnd(ended, { errors: [refusal], capped: false })).toEqual({
+    expect(sessionEnd(ended, { errors: [refusal], capped: false }, "gatemem/x")).toEqual({
       excluded: "answer refused",
     });
     // Other callers (D3's replay validation) keep reading it as a failure.
     expect(sessionFailure(ended, { errors: [refusal], capped: false })).toBe(refusal);
-    expect(sessionEnd(ended, { errors: [], capped: true })).toEqual({ excluded: "turn limit" });
+    expect(sessionEnd(ended, { errors: [], capped: true }, "gatemem/x")).toEqual({
+      excluded: "turn limit",
+    });
     const other = new Error("model call failed: 400 Bad Request");
-    expect(sessionEnd(ended, { errors: [other], capped: false })).toEqual({ failure: other });
+    expect(sessionEnd(ended, { errors: [other], capped: false }, "gatemem/x")).toEqual({
+      failure: other,
+    });
     expect(
-      sessionEnd([...ended, { role: "assistant", stopReason: "stop" }], {
-        errors: [refusal],
-        capped: false,
-      }),
+      sessionEnd(
+        [...ended, { role: "assistant", stopReason: "stop" }],
+        {
+          errors: [refusal],
+          capped: false,
+        },
+        "gatemem/x",
+      ),
     ).toEqual({});
   });
 });

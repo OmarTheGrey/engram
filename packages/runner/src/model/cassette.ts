@@ -362,28 +362,41 @@ export function answerFailure(
 }
 
 /**
- * The backstop (review X20-2): this many `answer refused` exclusions in a
- * row in one process stop the run, so a key or endpoint failure the
- * classifier misread cannot exclude the whole run.
+ * The backstop (review X20-2, the lead's answer of 2026-11-26): the run
+ * stops when this many distinct items in a row, in one process, each end in
+ * a refused answer call, so a key or endpoint failure the classifier misread
+ * cannot exclude the whole run. Items, not sessions: the runner runs an
+ * item's sessions (every condition, store and seed) back to back, and one
+ * over-long item refuses in all of them (review N1).
  */
 export const REFUSAL_STREAK_LIMIT = 5;
 
-/** Five refused sessions in a row: the run stops (see REFUSAL_STREAK_LIMIT). */
+/** Five distinct items in a row refused: the run stops (see REFUSAL_STREAK_LIMIT). */
 export class RefusalStreak extends Error {
-  constructor(limit: number) {
+  constructor(limit: number, items: readonly string[]) {
     super(
-      `${limit} sessions in a row ended in a refused answer call; the run stops with this one unrecorded, since a key, credit or endpoint failure may be misread as a refusal: check the provider, then rerun with RESUME=1 (the ${limit - 1} sessions before it are kept, excluded as answer refused)`,
+      `${limit} distinct items in a row each ended in a refused answer call (${items.join(", ")}); the run stops with this session unrecorded, since a key, credit or endpoint failure may be misread as a refusal: check the provider, then rerun with RESUME=1 (the sessions before it are kept, the refused ones excluded as answer refused)`,
     );
     this.name = "RefusalStreak";
   }
 }
 
-/** The refused sessions in a row this process has seen. */
-const streak = { refused: 0 };
+/**
+ * The backstop's count in this process: the distinct items in a row that
+ * each had a refused session, the item whose sessions are running, and
+ * whether one of them was refused. An item none of whose sessions was
+ * refused resets the count when the next item begins.
+ */
+const streak: { items: string[]; current?: string; refused: boolean } = {
+  items: [],
+  refused: false,
+};
 
 /** Start the backstop's count afresh (tests, which run many runs in one process). */
 export function resetRefusalStreak(): void {
-  streak.refused = 0;
+  streak.items = [];
+  delete streak.current;
+  streak.refused = false;
 }
 
 /** The session asked for a call past its turn limit (RV-EXP-5); the call is not made. */
@@ -531,24 +544,31 @@ export function sessionFailure(
  * when `sessionFailure` reads it as one, neither when it answered. Only the
  * probes read a refusal as an exclusion; `sessionFailure` alone, as D3's
  * replay validation calls it, still reads it as a failure. It keeps the
- * backstop's count: the REFUSAL_STREAK_LIMIT-th refusal in a row is a
- * RefusalStreak failure, and a session that answered or was capped starts
- * the count afresh.
+ * backstop's count of `item`'s refusals: the refused session that makes
+ * REFUSAL_STREAK_LIMIT distinct items in a row is a RefusalStreak failure.
  */
 export function sessionEnd(
   messages: readonly { role: string; stopReason?: string; errorMessage?: string }[],
   cassette: { errors: readonly unknown[]; capped: boolean },
+  item: string,
 ): { failure?: unknown; excluded?: Exclusion } {
+  if (streak.current !== item) {
+    // The previous item ended: one with no refused session resets the count.
+    if (streak.current !== undefined && !streak.refused) streak.items = [];
+    streak.current = item;
+    streak.refused = false;
+  }
   const failure = sessionFailure(messages, cassette);
   if (failure instanceof AnswerRefused) {
-    streak.refused++;
-    if (streak.refused >= REFUSAL_STREAK_LIMIT) {
-      streak.refused = 0;
-      return { failure: new RefusalStreak(REFUSAL_STREAK_LIMIT) };
+    streak.refused = true;
+    if (!streak.items.includes(item)) streak.items.push(item);
+    if (streak.items.length >= REFUSAL_STREAK_LIMIT) {
+      const items = streak.items;
+      resetRefusalStreak();
+      return { failure: new RefusalStreak(REFUSAL_STREAK_LIMIT, items) };
     }
     return { excluded: "answer refused" };
   }
   if (failure !== undefined) return { failure };
-  streak.refused = 0;
   return cassette.capped ? { excluded: "turn limit" } : {};
 }

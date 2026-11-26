@@ -481,7 +481,11 @@ async function probeOn(spec: ProbeSpec, adapter: Adapter | undefined): Promise<P
   });
   try {
     await session.prompt(user);
-    const { failure, excluded } = sessionEnd(session.messages, cassette);
+    const { failure, excluded } = sessionEnd(
+      session.messages,
+      cassette,
+      `gatemem/${spec.checkpointId}`,
+    );
     if (failure !== undefined) throw failure;
     const { output: read, toolCalls } = sessionOutput(session);
     // C1's memory is its prompt's long context, as GateMem's agent reports it.
