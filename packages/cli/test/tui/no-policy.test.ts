@@ -28,7 +28,8 @@
 //   (c) carried under a decision field's own name, the carrier only
 //       returned, listed, kept or added to a list (every later read is a
 //       field read, checked again);
-//   (d) compared with "" (=== or !==), to draw a placeholder;
+//   (d) compared with "", null or undefined, or given "" or "-" as its
+//       fallback, to draw a placeholder;
 //   (e) kept in a local, a binding, a class field, a list it is pushed to,
 //       or returned, after which every use of that local, field, list, call
 //       or getter is checked the same way.
@@ -48,7 +49,13 @@
 // follow decision text into the body of an allowlisted helper, across a
 // method called through an interface, or through a key held in a variable
 // and handed to a generic picker (`get(e, k)`). A length, or emptiness,
-// carries a little of the text's content, and both are permitted.
+// carries a little of the text's content, and both are permitted. Only
+// packages/cli/src/tui and packages/view are walked: the results of other
+// packages/cli/src functions (format.ts's decisionLines, policyName) are not
+// followed. The CLI's printed output (RunResult.out and .err) is not a
+// source, so text the TUI reads back from a command's output is not
+// followed. A lint finding's lint_id and message are not decision fields
+// here. And the find field's content is taken to be what the person typed.
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join, relative } from "node:path";
@@ -190,6 +197,14 @@ function classOf(node: TS.Node): string | undefined {
   return undefined;
 }
 
+/** Whether `n` is the target of a plain `=`, written, not read (`line = cut(line, w)`). */
+function assigned(n: TS.Node): boolean {
+  const p = n.parent;
+  return (
+    ts.isBinaryExpression(p) && p.operatorToken.kind === ts.SyntaxKind.EqualsToken && p.left === n
+  );
+}
+
 /** The function a return statement returns from. */
 function functionOf(node: TS.Node): TS.SignatureDeclaration | undefined {
   for (let n: TS.Node | undefined = node.parent; n !== undefined; n = n.parent)
@@ -212,6 +227,8 @@ const MAPPING = new Set(["map", "flatMap"]);
 const EACH = new Set(["forEach"]);
 /** String and list methods that return the same text, re-laid: their result stays decision text. */
 const RELAYING = new Set(["slice", "join", "padEnd", "padStart", "trim", "trimEnd", "trimStart"]);
+/** The fallbacks a screen draws for none: nothing, or a dash. */
+const PLACEHOLDERS = new Set(["", "-"]);
 /** The array methods that add drawn text to a list being drawn: the list then holds it. */
 const ADDING = new Set(["push", "unshift"]);
 
@@ -399,6 +416,7 @@ class Uses {
       if (ts.isBindingElement(p) || ts.isParameter(p)) return false;
       if (ts.isPropertyAccessExpression(p) && p.name === n) return false;
       if (ts.isPropertyAssignment(p) && p.name === n) return false;
+      if (assigned(n)) return false;
       return this.locals.has(this.keyOf(n));
     }
     if (
@@ -406,7 +424,7 @@ class Uses {
       n.expression.kind === ts.SyntaxKind.ThisKeyword &&
       this.fields.has(`${classOf(n)}.${n.name.text}`)
     )
-      return true;
+      return !assigned(n);
     if (this.checker === undefined) return false;
     if (ts.isCallExpression(n)) {
       const callee = ts.isPropertyAccessExpression(n.expression) ? n.expression.name : n.expression;
@@ -567,10 +585,17 @@ class Uses {
     if (ts.isBinaryExpression(parent)) {
       const op = parent.operatorToken.kind;
       const other = parent.left === child ? parent.right : parent.left;
+      // (d) empty or none: compared with "", null or undefined, to draw a placeholder.
+      const nothing =
+        folded(other) === "" ||
+        other.kind === ts.SyntaxKind.NullKeyword ||
+        (ts.isIdentifier(other) && other.text === "undefined");
       if (
         (op === ts.SyntaxKind.EqualsEqualsEqualsToken ||
-          op === ts.SyntaxKind.ExclamationEqualsEqualsToken) &&
-        folded(other) === ""
+          op === ts.SyntaxKind.ExclamationEqualsEqualsToken ||
+          op === ts.SyntaxKind.EqualsEqualsToken ||
+          op === ts.SyntaxKind.ExclamationEqualsToken) &&
+        nothing
       )
         return;
       // A fallback for none: `?? null`, `?? ""`; any other fallback is text the code chose.
@@ -578,7 +603,7 @@ class Uses {
         const none =
           parent.left === child &&
           (parent.right.kind === ts.SyntaxKind.NullKeyword ||
-            folded(parent.right) === "" ||
+            PLACEHOLDERS.has(folded(parent.right) ?? "\u0000") ||
             (ts.isIdentifier(parent.right) && parent.right.text === "undefined"));
         if (none) this.use(parent);
         else this.fail(n, "given a fallback");
@@ -662,14 +687,40 @@ class Uses {
 }
 
 /** Whether a type loses what it holds: any, unknown, or a string-keyed record naming no decision field. */
+/** `object` or `{}`: a type that names no field, so whatever it holds is read blind (A09, A10, B05). */
+function opaque(checker: TS.TypeChecker, type: TS.Type): boolean {
+  if ((type.flags & ts.TypeFlags.NonPrimitive) !== 0) return true;
+  return (
+    (type.flags & ts.TypeFlags.Object) !== 0 &&
+    checker.getPropertiesOfType(type).length === 0 &&
+    type.getCallSignatures().length === 0 &&
+    type.getConstructSignatures().length === 0 &&
+    type.getStringIndexType() === undefined &&
+    type.getNumberIndexType() === undefined
+  );
+}
+
 function loses(checker: TS.TypeChecker, type: TS.Type): boolean {
   // A type parameter loses it too (N9: a generic picker, `get<T, K extends keyof T>`).
   if ((type.flags & (ts.TypeFlags.Any | ts.TypeFlags.Unknown | ts.TypeFlags.TypeParameter)) !== 0)
     return true;
+  if (opaque(checker, type)) return true;
   if (type.isUnion()) return type.types.some((t) => loses(checker, t));
   return (
     type.getStringIndexType() !== undefined &&
     !checker.getPropertiesOfType(type).some((p) => DECISION_FIELDS.has(p.getName()))
+  );
+}
+
+/** Whether `n` is the key argument of a WeakMap's or WeakSet's method: held by identity, never read or listed. */
+function weakKey(checker: TS.TypeChecker, n: TS.Node): boolean {
+  const call = n.parent;
+  if (!ts.isCallExpression(call) || call.arguments[0] !== n) return false;
+  if (!ts.isPropertyAccessExpression(call.expression)) return false;
+  const decls = realSymbol(checker, call.expression.name)?.declarations ?? [];
+  return decls.some(
+    (d) =>
+      ts.isInterfaceDeclaration(d.parent) && ["WeakMap", "WeakSet"].includes(d.parent.name.text),
   );
 }
 
@@ -803,6 +854,7 @@ function violations(
       if (
         target !== undefined &&
         loses(checker, target) &&
+        !weakKey(checker, n) &&
         bearsDecision(checker, checker.getTypeAtLocation(n))
       )
         out.push(
@@ -857,7 +909,7 @@ function violations(
       const answer =
         type === undefined ||
         (type.flags & (ts.TypeFlags.Any | ts.TypeFlags.Unknown)) !== 0 ||
-        (checker !== undefined && bearsDecision(checker, type));
+        (checker !== undefined && (opaque(checker, type) || bearsDecision(checker, type)));
       if (answer) out.push(`${at(n)}: ${n.expression.getText(file)} on what may be an answer`);
     }
     const value = folded(n);
@@ -1353,6 +1405,50 @@ describe("no policy in the TUI's source", () => {
       },
       // Its false positives, legitimate display code that must pass (n1/mk2.mjs FP1 to FP4, with
       // the real helpers imported where the probe declared its own; FP2 through an import alias, FP5).
+      // The allowlist's verification (scratchpad al/mutants.py): an answer handed to `object` or `{}`.
+      {
+        name: "A09 event handed to an object-typed param, Object.values searched",
+        path: VIEW_TS,
+        from: before,
+        to: `function anyField(o: object, word: string): boolean { return Object.values(o).some((v) => String(v).includes(word)); }\nexport function mentionsGrant(e: MemoryEvent): boolean { return anyField(e, "grant"); }\n${before}`,
+      },
+      {
+        name: "A10 event JSON.stringify through an object-typed param",
+        path: VIEW_TS,
+        from: before,
+        to: `const dump = (o: object): string => JSON.stringify(o);\nexport function deniedByMembership(e: MemoryEvent): boolean { return dump(e).includes("not a member"); }\n${before}`,
+      },
+      {
+        name: "B05 event handed to a {}-typed param, then for-in",
+        path: VIEW_TS,
+        from: before,
+        to: `function scanAll(o: {}, w: string): boolean { for (const [, v] of Object.entries(o)) if (String(v).includes(w)) return true; return false; }\nexport function viaEmpty(e: MemoryEvent): boolean { return scanAll(e, "deny"); }\n${before}`,
+      },
+      // And what it relaxed after that verification: a placeholder for none, drawn text reassigned.
+      {
+        name: "pass P1 a reason that may be null, shown as a dash",
+        path: VIEW_TS,
+        from: before,
+        to: `export function reasonOrDash(e: { reason: string | null }): string { return e.reason === null ? "-" : \`\${e.reason}\`; }\n${before}`,
+      },
+      {
+        name: "pass P2 a policy id that may be missing, with a dash as its fallback",
+        path: VIEW_TS,
+        from: before,
+        to: `export function policyOrDash(e: { policy_id?: string }): string { return e.policy_id ?? "-"; }\n${before}`,
+      },
+      {
+        name: "pass P3 drawn text reassigned, cut again",
+        path: EVENTS_TS,
+        from: TOP,
+        to: `export function shortReason(e: MemoryEvent, w: number): string { let line = oneLine(e.reason); line = cut(line, w); return line; }\n${TOP}`,
+      },
+      {
+        name: "pass P4 a field of drawn text reassigned",
+        path: EVENTS_TS,
+        from: TOP,
+        to: `export class Why { line = ""; set(e: MemoryEvent, w: number): void { this.line = oneLine(e.reason); this.line = cut(this.line, w); } }\n${TOP}`,
+      },
       {
         name: "pass FP1 rows of drawn text, then mapped to lines",
         path: VIEW_TS,

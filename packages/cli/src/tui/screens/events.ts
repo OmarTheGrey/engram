@@ -378,8 +378,17 @@ interface TreeRow {
   foldable: boolean;
 }
 
+/** A value a policy file holds, as YAML parses it. */
+type PolicyValue =
+  | string
+  | number
+  | boolean
+  | null
+  | readonly PolicyValue[]
+  | { readonly [key: string]: PolicyValue };
+
 /** A value as one line: a scalar as itself, a list of scalars joined, anything else as JSON. */
-function scalarText(v: unknown): string {
+function scalarText(v: PolicyValue): string {
   if (v === null) return "null";
   if (Array.isArray(v) && v.every((x) => typeof x !== "object" || x === null))
     return v.length === 0 ? "none" : v.map((x) => String(x)).join(", ");
@@ -404,7 +413,7 @@ function treeRows(value: unknown, open: ReadonlySet<string>, path = "", depth = 
       const keys = Array.isArray(v) ? `${v.length} entries` : Object.keys(v).join(", ");
       out.push({ path: p, depth, key, text: keys, foldable: true });
       if (open.has(p)) out.push(...treeRows(v, open, p, depth + 1));
-    } else out.push({ path: p, depth, key, text: scalarText(v), foldable: false });
+    } else out.push({ path: p, depth, key, text: scalarText(v as PolicyValue), foldable: false });
   }
   return out;
 }

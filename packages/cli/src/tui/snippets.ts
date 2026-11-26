@@ -482,8 +482,16 @@ export interface McpResult {
   detail: string;
 }
 
+/** A JSON-RPC message Try it sends. */
+interface RpcMessage {
+  jsonrpc: "2.0";
+  id?: number;
+  method: string;
+  params?: Record<string, unknown>;
+}
+
 /** The MCP handshake Try it speaks (initialize, initialized, tools/list), as layer 6 does. */
-const HANDSHAKE = [
+const HANDSHAKE: readonly [RpcMessage, RpcMessage, RpcMessage] = [
   {
     jsonrpc: "2.0",
     id: 1,
@@ -519,10 +527,10 @@ export function tryMcp(s: Scratch, timeoutMs = 45_000, children?: Children): Pro
     });
     const timer = setTimeout(() => child.kill(), timeoutMs);
     const forget = children?.(() => child.kill());
-    const send = (m: object) => child.stdin?.write(`${JSON.stringify(m)}\n`);
+    const send = (m: RpcMessage) => child.stdin?.write(`${JSON.stringify(m)}\n`);
     child.on("spawn", () => {
       started = true;
-      send(HANDSHAKE[0] as object);
+      send(HANDSHAKE[0]);
     });
     let finished = false;
     child.on("error", (e) => {
@@ -550,8 +558,8 @@ export function tryMcp(s: Scratch, timeoutMs = 45_000, children?: Children): Pro
         if (m.id === 1 && m.result !== undefined) {
           const info = m.result.serverInfo as { name?: string; version?: string } | undefined;
           server = info === undefined ? undefined : `${info.name} ${info.version}`;
-          send(HANDSHAKE[1] as object);
-          send(HANDSHAKE[2] as object);
+          send(HANDSHAKE[1]);
+          send(HANDSHAKE[2]);
         } else if (m.id === 2 && m.result !== undefined) {
           tools = ((m.result.tools as { name: string }[] | undefined) ?? []).map((t) => t.name);
           child.stdin?.end();

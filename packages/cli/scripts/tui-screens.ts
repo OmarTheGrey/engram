@@ -11,7 +11,8 @@
 // folder's; tui.json is never read or written (noSaved).
 //
 //   node packages/cli/scripts/tui-screens.ts [--out <dir>] [--work <dir>] [--only a,b] [--no-png]
-// --work must be a folder under .engram/ or the OS temp folder (workFolder).
+// --work must be a folder under .engram/tui-screens/, or under an engram-tui-screens-* folder in
+// the OS temp folder (workFolder); anything else is refused, since the folder is emptied and removed.
 import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
