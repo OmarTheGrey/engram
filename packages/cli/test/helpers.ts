@@ -136,3 +136,10 @@ export function logEvents(db: string): MemoryEvent[] {
     log.close();
   }
 }
+
+/** A read's output with its read id and the item id asked for replaced, so two reads compare. */
+export function blind(out: string, itemId: string): string {
+  const readId = /"read_id": "([^"]+)"/.exec(out)?.[1] ?? /^read (\S+) at /.exec(out)?.[1];
+  if (readId === undefined) throw new Error(`no read id in ${out}`);
+  return out.replaceAll(readId, "<read>").replaceAll(itemId, "<item>");
+}

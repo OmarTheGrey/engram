@@ -1,0 +1,27 @@
+ engram  Check a write                         in process  person:dana (person)
+ engram check: the decision a write would get now: nothing stored, no event
+
+ > Content                [                                ]
+   From file              [                                ]
+   Scope                  [                                ]  default the own...
+   Class                  (o) default (semantic)  ( ) episodic  ( ) semantic ...
+   Confidence             [                                ]  default 0.9
+   Valid from             [                                ]  default now
+   Valid to               [                                ]  default open
+   ▸ Advanced: 2 more
+   ▸ Workspace flags  --root --owner --db; ctrl+o sets them for every command
+
+   [ Run: engram check ]   ctrl+s from any field
+
+
+
+
+
+
+
+
+$ engram check --db engram.db --owner dana --root mem
+ ctrl+g help  tab next  ctrl+s run  alt+c copy  alt+p commands  esc back
+--- styles
+r0 c0-79 inverse
+r3 c28-28 inverse

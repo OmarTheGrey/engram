@@ -24,7 +24,7 @@ The inspector: a browser view of one workspace as one viewer, served by `engram 
 |---|---|
 | `src/App.tsx`, `src/main.tsx`, `src/style.css` | the screens |
 | `src/data.ts` | what the inspector asks the server: `inspect`, `fetchExplain`, `fetchViewer`, `changeGrants` |
-| `src/view.ts` | pure functions from what the API returned to what each view shows |
+| `src/view.ts`, `src/provenance.ts` | one-line re-exports of [`@engram/view`](../view/README.md), which holds the pure functions from what the API returned to what each view shows (card E8.15c); the paths stay because log entries cite them |
 | `src/api/` | the generated client and types (do not edit) |
 
 The item page (card E8.11) is `src/ItemPage.tsx`, `src/ProvenanceGraph.tsx` with `src/layout.ts`, `src/TextDiff.tsx` with `src/diff.ts`, and `src/EventTable.tsx` (TanStack Table and Virtual); the who-can-read panel is `src/WhoCanRead.tsx` (card E2.13).

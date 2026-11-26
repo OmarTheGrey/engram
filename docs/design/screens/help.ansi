@@ -1,0 +1,36 @@
+[7m engram  Home                                                           in process  log engram.db  person:dana (person) [0m
+┌────────────────────────────────────────────────────┐┌────────────────────────────────────────────────────────────────┐
+│ 1 Memory                                           ││ Read and explain                                               │
+│[7m > [r] Read and explain                             [0m││                                                                │
+│   [o] Read one item                                ││ Read through the plane and explain every returned item.        │
+│   [w] Write a memory                               ││                                                                │
+│   [C] Check a write                                ││ Changes: adopts mem into the log; as its owner, first sweeps   │
+│   [p] Promote an item                              ││ your expired items. Asks the first time a session.             │
+│   [S] Supersede                                    ││                                                                │
+│   [g] Gran┌─ Help: Home ─────────────────────────────────────────────────────────────────────────────────┐server that│
+│   [E] Expl│ This screen                                                                                  │ a 501     │
+│   [n] Who │   q  quit                                      L  line mode, for screen readers              │           │
+│   [u] Scop│   up k  move up                                down j  move down                             │           │
+│ 2 Policy  │   pgup  page up                                pgdn  page down                               │           │
+│   [t] Rete│   home  first                                  end  last                                     │           │
+│   [l] Lint│   enter  open                                  1-6  jump to a group                          │           │
+│   [s] Simu│ Everywhere                                                                                   │           │
+│   [y] Poli│   ? (ctrl+g in a field)  this help             ; or alt+p (alt+p in a field)  commands       │           │
+│ 3 Audit   │   ctrl+o  workspace                            esc  back                                     │           │
+│   [e] Even│   c (alt+c in a field)  copy the command line  ctrl+l  redraw the screen                     │           │
+│   [f] Veri│   ctrl+c  quit now                                                                           │           │
+│   [F] Chec│   The mouse is off (--no-mouse): the terminal's own selection works.                         │           │
+│ 4 Data    │   In a text field every printable key types; ctrl+g opens this help.                         │           │
+│   [x] Expo│ engram read [query]                                                                          │           │
+│   [i] Impo│   read through the plane and explain every returned item                                     │           │
+│ 5 Surfaces└──────────────────────────────────────────────────────────────────────────────────────────────┘           │
+│   [h] Serve the API and inspector                  ││                                                                │
+│   [m] MCP server                                   ││                                                                │
+│   [b] Claude Code hook setup                       ││                                                                │
+│   [a] Create a key                                 ││                                                                │
+│   [A] List keys                                    ││                                                                │
+│   ▾ 3 more below: pgdn                             ││                                                                │
+└────────────────────────────────────────────────────┘└────────────────────────────────────────────────────────────────┘
+ · doctor not run this session: d   log engram.db   policy fixture.inspector v1
+$ engram read --db engram.db --policy policy.yaml --owner dana --member person:dana --member team:core --root mem
+ ? help  enter open  1-6 group  letter action  ; commands  q quit

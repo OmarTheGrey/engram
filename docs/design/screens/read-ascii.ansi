@@ -1,0 +1,36 @@
+[7m engram  Read and explain                                               in process  log engram.db  person:dana (person) [0m
+  Query [                                          ]   Judge validity windows at [ now (the server' ]
+ read 01960000-0000-7000-8000-000000005001  [38;2;0;166;122m+[0m allow   9 items returned, 1 filtered
+ store files mem: 0 imported, 0 allowed, 0 denied; 0 expired
++- Lanes --------------------------------------------------------------------------------------------------------------+
+| Person scope                                                                                                         |
+|   person:dana  member                                                                                                |
+|[7m >  1  semantic  user    Dana's onboarding notes for Eve: start with the deploy checklist.                            [0m|
+|    2  semantic  user    Dana might take Friday off.                                                                  |
+|    4  semantic  user    Dana met the auditors this morning.                                                          |
+|    6  semantic  user    Dana may move to the platform team.                                                          |
+|    7  semantic  user    Dana prefers tea in the morning.                                                             |
+|    9  semantic  user    Dana's old desk phone is 4411.                                                               |
+| Role scopes                                                                                                          |
+|   none held                                                                                                          |
+| Team and org                                                                                                         |
+|   team:core  member                                                                                                  |
+|    3  semantic  user    Sam owns the deploy checklist.                                                               |
+|    5  semantic  user    The release freeze starts on Friday.                                                         |
+|    8  semantic  user    The September sprint goal was the migration.                                                 |
+|                                                                                                                      |
+|                                                                                                                      |
+|                                                                                                                      |
+|                                                                                                                      |
+|                                                                                                                      |
+|                                                                                                                      |
++----------------------------------------------------------------------------------------------------------------------+
++- Explain  item 1 of 9 -----------------------------------------------------------------------------------------------+
+| 01940000-0000-7000-8000-000000000009  semantic  person:dana                                                          |
+| score 1.7219 = confidence 0.9000 + recency 0.8219                                                                    |
+| admitted by fixture.inspector/read/person                                                                            |
+| valid 2026-10-23T00:00:00.000Z to open, at 2026-10-29T12:00:00.000Z                                                  |
+| source user engram-cli                                                                                               |
++----------------------------------------------------------------------------------------------------------------------+
+$ engram read --db engram.db --policy policy.yaml --own...na --member person:dana --member team:core --root mem   exit 0
+ ? help  v plain  J json  enter item page  e explain  p promote  g grants  w who  S supersede  ; commands  esc back

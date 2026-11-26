@@ -6,6 +6,8 @@
 // Rows are one line high (a long reason is cut, its full text in the event's
 // detail and the row's title); headers sort by mouse or keyboard, and a row
 // is selected by click, Enter or Space.
+
+import { filterEvents, filterOptions, scopeText, type TimelineFilter } from "@engram/view";
 import {
   createColumnHelper,
   createSortedRowModel,
@@ -18,7 +20,6 @@ import {
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useMemo, useRef, useState } from "react";
 import type { MemoryEvent } from "./api/index.ts";
-import { filterEvents, filterOptions, scopeText, type TimelineFilter } from "./view.ts";
 
 const features = tableFeatures({
   rowSortingFeature,
