@@ -47,7 +47,12 @@ import {
   NO_STORE,
   statedPreset,
 } from "./config.ts";
-import { type AnswerSource, cassettePiModel, sessionFailure } from "./model/cassette.ts";
+import {
+  type AnswerSource,
+  cassettePiModel,
+  type Exclusion,
+  sessionEnd,
+} from "./model/cassette.ts";
 import type { RetryPolicy, Sleep } from "./model/retry.ts";
 import { closeStore, openStore, type StoreName } from "./stores.ts";
 
@@ -130,9 +135,11 @@ export interface ProbeResult {
   /**
    * Why the session is left out of the summaries, when it is: `turn limit`,
    * a session that asked for a model call past the config's turn_limit
-   * (RV-EXP-5). Its answer is what it had when it was cut off.
+   * (RV-EXP-5), its answer what it had when it was cut off; `answer
+   * refused`, a session whose answer call the provider refused with an
+   * error no retry can fix, its answer what it had before (card X20).
    */
-  excluded?: "turn limit";
+  excluded?: Exclusion;
 }
 
 export interface ProbeSpec {
@@ -474,7 +481,7 @@ async function probeOn(spec: ProbeSpec, adapter: Adapter | undefined): Promise<P
   });
   try {
     await session.prompt(user);
-    const failure = sessionFailure(session.messages, cassette);
+    const { failure, excluded } = sessionEnd(session.messages, cassette);
     if (failure !== undefined) throw failure;
     const { output: read, toolCalls } = sessionOutput(session);
     // C1's memory is its prompt's long context, as GateMem's agent reports it.
@@ -497,7 +504,7 @@ async function probeOn(spec: ProbeSpec, adapter: Adapter | undefined): Promise<P
       score: gatemem.scoreOne(checkpoint, output),
       decisions: sessionDecisions(sessionManager),
       events: plane ? plane.events().map(logged) : [],
-      ...(cassette.capped ? { excluded: "turn limit" as const } : {}),
+      ...(excluded === undefined ? {} : { excluded }),
     };
   } finally {
     session.dispose();

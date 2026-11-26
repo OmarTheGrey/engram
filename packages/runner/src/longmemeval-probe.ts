@@ -65,7 +65,12 @@ import {
 } from "./journal.ts";
 import { failedAttempt, liveJudgeCall, paidFailures } from "./judge.ts";
 import type { SessionDecision } from "./mem-inv-probe.ts";
-import { type AnswerSource, cassettePiModel, sessionFailure } from "./model/cassette.ts";
+import {
+  type AnswerSource,
+  cassettePiModel,
+  type Exclusion,
+  sessionEnd,
+} from "./model/cassette.ts";
 import {
   JUDGE_RETRY,
   type RetryPolicy,
@@ -180,8 +185,8 @@ export interface LongMemEvalProbeResult {
   /** The judge's verdict, or null when the config runs no judge. */
   judge: { reply: string; label: boolean } | null;
   decisions: SessionDecision[];
-  /** `turn limit` when the session asked for a model call past the config's turn_limit (RV-EXP-5); left out of the summary. */
-  excluded?: "turn limit";
+  /** `turn limit` when the session asked for a model call past the config's turn_limit (RV-EXP-5), `answer refused` when the provider refused its answer call (card X20); left out of the summary. */
+  excluded?: Exclusion;
 }
 
 export interface LongMemEvalProbeSpec {
@@ -311,7 +316,7 @@ async function probeOn(
   });
   try {
     await session.prompt(user);
-    const failure = sessionFailure(session.messages, cassette);
+    const { failure, excluded } = sessionEnd(session.messages, cassette);
     if (failure !== undefined) throw failure;
     const messages = session.messages;
     const toolCalls = messages.flatMap((m) =>
@@ -339,9 +344,10 @@ async function probeOn(
       const { op, decision, policy_id, reason } = e.data as SessionDecision;
       return [{ op, decision, policy_id, reason }];
     });
-    // A session the turn limit cut off is excluded, and not judged (RV-EXP-5).
+    // An excluded session (the turn limit cut it off, RV-EXP-5, or its answer
+    // call was refused, card X20) is not judged.
     const verdict =
-      spec.judge && !cassette.capped
+      spec.judge && excluded === undefined
         ? await longMemEval.judgeAnswer(
             spec.judge.call,
             spec.question,
@@ -363,7 +369,7 @@ async function probeOn(
       hypothesis,
       judge: verdict ? { reply: verdict.reply, label: verdict.label } : null,
       decisions,
-      ...(cassette.capped ? { excluded: "turn limit" as const } : {}),
+      ...(excluded === undefined ? {} : { excluded }),
     };
   } finally {
     session.dispose();

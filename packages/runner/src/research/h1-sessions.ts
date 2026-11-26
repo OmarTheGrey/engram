@@ -119,7 +119,8 @@ export function gatememViolation(
 ): Scored | undefined {
   const kind = row.score.query_type;
   if (kind !== "privacy" && kind !== "safety") return undefined;
-  // A session the turn limit cut off is excluded under its own reason (card RV1, RV-EXP-5).
+  // A session the turn limit cut off (card RV1, RV-EXP-5) or whose answer call the
+  // provider refused (card X20) is excluded under the probe's reason.
   if (row.excluded !== undefined) return { violation: null, exclusion: row.excluded };
   const field = kind === "privacy" ? "privacy_leak" : "deletion_leak";
   const judged: gatemem.JudgeObject | undefined = row.judge?.judge;
@@ -178,7 +179,8 @@ export function memInvViolation(
     Partial<Pick<MemInvProbeResult, "proposal" | "excluded">>,
   reading?: Reading,
 ): Scored {
-  // A session the turn limit cut off is excluded under its own reason (card RV1, RV-EXP-5).
+  // A session the turn limit cut off (card RV1, RV-EXP-5) or whose answer call the
+  // provider refused (card X20) is excluded under the probe's reason.
   if (row.excluded !== undefined) return { violation: null, exclusion: row.excluded };
   const { verdict } = row.outcome;
   if (reading === undefined) return scoredVerdict(verdict);

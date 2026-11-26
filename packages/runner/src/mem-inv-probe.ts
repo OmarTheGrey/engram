@@ -64,7 +64,12 @@ import {
   USAGE_FILE,
   writeJsonl,
 } from "./journal.ts";
-import { type AnswerSource, cassettePiModel, sessionFailure } from "./model/cassette.ts";
+import {
+  type AnswerSource,
+  cassettePiModel,
+  type Exclusion,
+  sessionEnd,
+} from "./model/cassette.ts";
 import {
   NOTE_RETRY,
   type RetryPolicy,
@@ -148,8 +153,8 @@ export interface MemInvProbeResult {
   proposal: string;
   outcome: memInvBench.Outcome;
   decisions: SessionDecision[];
-  /** `turn limit` when the session asked for a model call past the config's turn_limit (RV-EXP-5); left out of the summary. */
-  excluded?: "turn limit";
+  /** `turn limit` when the session asked for a model call past the config's turn_limit (RV-EXP-5), `answer refused` when the provider refused its answer call (card X20); left out of the summary. */
+  excluded?: Exclusion;
 }
 
 export interface MemInvProbeSpec {
@@ -365,7 +370,7 @@ async function memInvProbeOn(spec: MemInvProbeSpec, adapter: Adapter): Promise<M
   });
   try {
     await session.prompt(user);
-    const failure = sessionFailure(session.messages, cassette);
+    const { failure, excluded } = sessionEnd(session.messages, cassette);
     if (failure !== undefined) throw failure;
     const messages = session.messages;
     const toolCalls = messages.flatMap((m) =>
@@ -407,7 +412,7 @@ async function memInvProbeOn(spec: MemInvProbeSpec, adapter: Adapter): Promise<M
       proposal,
       outcome: memInvBench.scoreProposal(spec.case, proposal, ending),
       decisions,
-      ...(cassette.capped ? { excluded: "turn limit" as const } : {}),
+      ...(excluded === undefined ? {} : { excluded }),
     };
   } finally {
     session.dispose();

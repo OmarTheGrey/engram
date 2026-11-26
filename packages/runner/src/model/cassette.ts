@@ -31,6 +31,7 @@ import {
   type FauxResponseFactory,
   fauxAssistantMessage,
   fauxProvider,
+  isContextOverflow,
   type Message,
   type Model,
   type SimpleStreamOptions,
@@ -278,6 +279,109 @@ export interface CassetteModelOptions {
   turnLimit?: number;
 }
 
+/**
+ * Why a probe leaves a session out of its summaries: `turn limit`, a session
+ * that asked for a call past the config's turn_limit (RV-EXP-5); `answer
+ * refused`, a session whose answer call the provider refused with an error
+ * no retry can fix, a prompt over the model's context limit (card X20,
+ * lead-decisions item 14).
+ */
+export type Exclusion = "turn limit" | "answer refused";
+
+/**
+ * The provider refused an answer call with an error no retry can fix (card
+ * X20): recorded in the cassette, so a replay refuses the same call, and the
+ * probe excludes the session under `answer refused`.
+ */
+export class AnswerRefused extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "AnswerRefused";
+  }
+}
+
+/**
+ * The provider answered a call with HTTP 401, 402 or 403: a key or credit
+ * problem, the operator's to fix (the coordinator's decision of 2026-11-21).
+ * It stops the run, is never recorded and never a per-session exclusion, and
+ * the outer session retry does not retry it; RESUME=1 runs the session once
+ * the key or credit is fixed.
+ */
+export class ProviderAccountError extends Error {
+  readonly status: number;
+
+  constructor(status: number, message: string) {
+    super(
+      `the provider refused an answer call with HTTP ${status}, a key or credit problem; the run stops with this session unrecorded: fix the key or the credit, then rerun with RESUME=1 (${message})`,
+    );
+    this.name = "ProviderAccountError";
+    this.status = status;
+  }
+}
+
+/** What a cassette holds for a refused answer call: this mark, then the failure's message. */
+export const REFUSED_ANSWER_MARK = "\u0000engram/refused-answer\u0000";
+
+/** The statuses that stop the run: a key (401), credit (402) or key limit and moderation (403) problem. */
+const ACCOUNT_STATUSES: readonly number[] = [401, 402, 403];
+/** The statuses a context overflow comes with, when pi-ai's message carries one. */
+const REFUSAL_STATUSES: readonly number[] = [400, 413];
+/** The leading status as pi-ai writes it ("<status> <message>" or "<status>: <body>"), as retry.ts reads it. */
+const LEADING_STATUS = /^(?:HTTP )?(\d{3})\b/;
+/** A status in an error body pi-ai folded into the message (OpenRouter's `"code": 402`). */
+const BODY_CODE = /"code"\s*:\s*"?(\d{3})(?!\d)/g;
+/** Words of a key or credit problem: a message with any of them is never trusted as a refusal. */
+const ACCOUNT_WORDS =
+  /credit|afford|billing|payment|quota|api[ _-]?key|unauthori[sz]ed|forbidden|permission|auth(?:entication)? credentials/i;
+
+/** How a failed answer call is handled (card X20): see `answerFailure`. */
+export type AnswerFailure =
+  | { kind: "account"; status: number }
+  | { kind: "transient" }
+  | { kind: "refused" }
+  | { kind: "stop" };
+
+/**
+ * How a failed answer reply is handled, read from pi-ai's `errorMessage`,
+ * since pi-ai reports a provider's HTTP error as text (card X20). In order,
+ * so that a doubt always stops the run and never excludes a session:
+ *
+ * 1. `account`: the leading status, or a `"code"` in the body pi-ai folded
+ *    into the message, is 401, 402 or 403. The run stops.
+ * 2. `transient`: the retry policy's statuses and network errors (card RV1).
+ *    The session stops unrecorded, as before.
+ * 3. `refused`: pi-ai's own context-overflow patterns match the message
+ *    (`isContextOverflow`), its leading status, if any, is 400 or 413, and it
+ *    names no key or credit. Recorded; the session is excluded.
+ * 4. `stop`: anything else (a plain 400, a 404, an error with no status, an
+ *    aborted call). The run stops, as before.
+ */
+export function answerFailure(
+  reply: AssistantMessage,
+  retry: RetryPolicy | undefined,
+): AnswerFailure {
+  if (reply.stopReason !== "error") return { kind: "stop" };
+  const message = (reply.errorMessage ?? "").trim();
+  const lead = LEADING_STATUS.exec(message);
+  const leading = lead ? Number(lead[1]) : undefined;
+  if (leading !== undefined && ACCOUNT_STATUSES.includes(leading)) {
+    return { kind: "account", status: leading };
+  }
+  for (const code of message.matchAll(BODY_CODE)) {
+    const status = Number(code[1]);
+    if (ACCOUNT_STATUSES.includes(status)) return { kind: "account", status };
+  }
+  if (retry && isTransient(reply.errorMessage, retry)) return { kind: "transient" };
+  if (
+    isContextOverflow(reply) &&
+    (leading === undefined || REFUSAL_STATUSES.includes(leading)) &&
+    !ACCOUNT_WORDS.test(message)
+  ) {
+    return { kind: "refused" };
+  }
+  return { kind: "stop" };
+}
+
 /** The session asked for a call past its turn limit (RV-EXP-5); the call is not made. */
 export class TurnLimitReached extends Error {
   constructor(limit: number) {
@@ -289,7 +393,8 @@ export class TurnLimitReached extends Error {
 /**
  * A pi-ai provider and model for a session, answering every call through the
  * cache. `errors` holds what made a call fail (an offline miss, an exhausted
- * script, a transient failure that outlasted the retry), since the agent loop
+ * script, a transient failure that outlasted the retry, a refused answer, a
+ * key or credit error), since the agent loop
  * turns a provider error into an assistant message rather than a rejection.
  * `capped` is set when the session asked for a call past its turn limit.
  */
@@ -331,17 +436,27 @@ export function cassettePiModel(options: CassetteModelOptions) {
         ? await withRetry(once, options.retry, options.sleep ?? realSleep, paid)
         : { reply: await once(), attempts: 1 };
       if (reply.stopReason === "error" || reply.stopReason === "aborted") {
-        paid(reply);
         const message = `model call failed${attempts > 1 ? ` after ${attempts} attempts` : ""}: ${reply.errorMessage ?? reply.stopReason}`;
+        const failure = answerFailure(reply, options.retry);
+        // A refusal no retry can fix is a reply as much as an answer is
+        // (card X20): recorded, its usage reaching the ledger through
+        // `cached` as an answer's does, and replayed as the same refusal.
+        if (failure.kind === "refused") {
+          return {
+            text: `${REFUSED_ANSWER_MARK}${message}`,
+            usage: {
+              input_tokens: reply.usage.input,
+              output_tokens: reply.usage.output,
+              cost_usd: reply.usage.cost.total,
+            },
+          } satisfies ServedResponse;
+        }
+        paid(reply);
+        // A key or credit problem stops the run unrecorded (card X20).
+        if (failure.kind === "account") throw new ProviderAccountError(failure.status, message);
         // A transient failure that outlasted the retry stops the session
         // unrecorded; an outer retry or a resume makes the call again.
-        if (
-          reply.stopReason === "error" &&
-          options.retry &&
-          isTransient(reply.errorMessage, options.retry)
-        ) {
-          throw new TransientCallError(message);
-        }
+        if (failure.kind === "transient") throw new TransientCallError(message);
         throw new Error(message);
       }
       const upstream = servedBy(reply);
@@ -363,7 +478,11 @@ export function cassettePiModel(options: CassetteModelOptions) {
         ...(options.offline === undefined ? {} : { offline: options.offline }),
         ...(options.onUsage === undefined ? {} : { onUsage: options.onUsage }),
       });
-      return decode(await call(request));
+      const response = await call(request);
+      if (response.text.startsWith(REFUSED_ANSWER_MARK)) {
+        throw new AnswerRefused(response.text.slice(REFUSED_ANSWER_MARK.length));
+      }
+      return decode(response);
     } catch (e) {
       errors.push(e);
       throw e;
@@ -400,4 +519,21 @@ export function sessionFailure(
     cassette.errors.at(-1) ??
     new Error(`model call failed: ${final.errorMessage ?? final.stopReason}`)
   );
+}
+
+/**
+ * How a probe's session ended (card X20): `excluded` when the turn limit
+ * capped it or the provider refused the answer call that ended it, `failure`
+ * when `sessionFailure` reads it as one, neither when it answered. Only the
+ * probes read a refusal as an exclusion; `sessionFailure` alone, as D3's
+ * replay validation calls it, still reads it as a failure.
+ */
+export function sessionEnd(
+  messages: readonly { role: string; stopReason?: string; errorMessage?: string }[],
+  cassette: { errors: readonly unknown[]; capped: boolean },
+): { failure?: unknown; excluded?: Exclusion } {
+  const failure = sessionFailure(messages, cassette);
+  if (failure instanceof AnswerRefused) return { excluded: "answer refused" };
+  if (failure !== undefined) return { failure };
+  return cassette.capped ? { excluded: "turn limit" } : {};
 }

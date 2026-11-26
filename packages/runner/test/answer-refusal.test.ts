@@ -87,7 +87,7 @@ const lines = (dir: string, file: string) =>
 // formatProviderError gives "<status>: <body>" when the SDK error carries the
 // parsed body, and the openai SDK's own message is "<status> <message>".
 const OVERFLOW_TEXT =
-  "This endpoint's maximum context length is 163840 tokens. However, you requested about 201234 tokens (201234 of text input). Please reduce the length of either one, or use the \"middle-out\" transform to compress your prompt automatically.";
+  'This endpoint\'s maximum context length is 163840 tokens. However, you requested about 201234 tokens (201234 of text input). Please reduce the length of either one, or use the "middle-out" transform to compress your prompt automatically.';
 const OVERFLOW = `400: ${JSON.stringify({ message: OVERFLOW_TEXT, code: 400 })}`;
 const OVERFLOW_SDK = `400 ${OVERFLOW_TEXT}`;
 const ACCOUNT: Record<401 | 402 | 403, string[]> = {
@@ -147,9 +147,9 @@ describe("how a failed answer call is read (the classifier)", () => {
     ).toEqual({ kind: "stop" });
     // A 404 (no endpoint) would hit every session: it stops, as before.
     expect(answerFailure(failed(`404 ${OVERFLOW_TEXT}`), JUDGE_RETRY)).toEqual({ kind: "stop" });
-    expect(
-      answerFailure(fauxAssistantMessage([], { stopReason: "aborted" }), JUDGE_RETRY),
-    ).toEqual({ kind: "stop" });
+    expect(answerFailure(fauxAssistantMessage([], { stopReason: "aborted" }), JUDGE_RETRY)).toEqual(
+      { kind: "stop" },
+    );
     // With no retry policy a transient status is a stop, as today.
     expect(answerFailure(failed("503 busy"), undefined)).toEqual({ kind: "stop" });
   });
@@ -195,15 +195,15 @@ describe("a refused answer call on GateMem", () => {
     expect(replay.excluded).toEqual(result.excluded);
     expect(replay.summary).toEqual(result.summary);
 
-    // The H1 converter counts it with the reasons it already counts.
+    // The H1 converter counts it with the reasons it already counts (the
+    // checkpoint is an access-control one, so it has an H1 violation).
     const converted = gatememSessions(replay.rows, { model: FAUX_MODEL, preset: "medium" });
-    const refused = converted.sessions.find((s) => s.condition === "C2");
-    if (refused?.kind === "utility") {
-      expect(refused.utility_ok).toBeNull();
-    } else {
-      expect(refused).toMatchObject({ violation: null, exclusion: "answer refused" });
-      expect(converted.exclusions).toEqual({ "answer refused": 1 });
-    }
+    expect(converted.sessions.find((s) => s.condition === "C2")).toMatchObject({
+      kind: "access",
+      violation: null,
+      exclusion: "answer refused",
+    });
+    expect(converted.exclusions).toEqual({ "answer refused": 1 });
   }, 120_000);
 
   test("a transient failure before the refusal is retried, and every attempt's usage reaches the ledger", async () => {
