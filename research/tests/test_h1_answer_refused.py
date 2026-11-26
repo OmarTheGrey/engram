@@ -43,8 +43,11 @@ CONFIG = H1Config(primary_model="m/x", store="fake", seed=1, resamples=200)
 BASE = [
     *(session(f"a{i}", c, False, kind="access") for i in (1, 2) for c in ("C4", "C5")),
     *(session("f1", c, False, kind="forgetting") for c in ("C4", "C5")),
-    *(session(f"u{i}", c, None, kind="utility", utility_ok=True, action_ok=True)
-      for i in (1, 2) for c in ("C4", "C5")),
+    *(
+        session(f"u{i}", c, None, kind="utility", utility_ok=True, action_ok=True)
+        for i in (1, 2)
+        for c in ("C4", "C5")
+    ),
 ]
 REFUSED = session(
     "u3", "C4", None, kind="utility", exclusion="answer refused", utility_ok=None, action_ok=False
