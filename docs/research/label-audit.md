@@ -101,7 +101,7 @@ The rejection rule and what a tripped stop means were the lead's to decide, so e
 - `stop_share`: the stop, more than this share of a benchmark's items rejected (0.1).
 - `on_stop`: `pause`, the pre-registration's text (the benchmark's runs wait for an amendment), or `drop`, item 6's recommended answer (the rejected items are dropped, listed in v1, and the runs proceed).
 
-`agreement.json` gives, per benchmark, `reject_quorum` and `action`: the configured response and, when `stop` is true, what it means (with `drop`, how many items are kept). Changing an answer is one config value; nothing in the kit moves. Item 6's `drop` is not yet in the configs: both still read `pause`, and each draw record (`research/results/h1-label-audit.json`, `research/results/h2-label-audit-longmemeval.json`) records the value beside the draw, so the change regenerates the two records (their draws unchanged) and is its own PR, made before the agreement is computed (backlog).
+`agreement.json` gives, per benchmark, `reject_quorum` and `action`: the configured response and, when `stop` is true, what it means (with `drop`, how many items are kept). Changing an answer is one config value; nothing in the kit moves. Both configs read item 6's `drop` since card R5, whose PR regenerated the two draw records (`research/results/h1-label-audit.json`, `research/results/h2-label-audit-longmemeval.json`) that record the value beside the draw, their draws unchanged, before the agreement is computed.
 
 ## LongMemEval (card RV8)
 
