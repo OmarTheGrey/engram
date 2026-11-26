@@ -4,9 +4,9 @@ How Claude Code and Codex reach the plane (ADR [0022](../../docs/decisions/0022-
 
 ## Rules
 
-- **Every call is one fixed actor, labelled source `model`** (decision D4 of ADR [0004](../../docs/decisions/0004-provenance-and-source-trust.md)). The actor is named at launch (`--as`, `--member`), not by the model.
+- **Every call is one fixed actor, labelled source `model`** (decision D4 of ADR [0004](../../docs/decisions/0004-provenance-and-source-trust.md)). The actor is named at launch (`--as`, `--member`) over stdio, and by the session's credential over HTTP, never by the model.
 - **The server holds no policy logic.** Each tool call is one call of the generated client (`@engram/sdk`) to the HTTP API's route table, in process or to a running `engram serve`.
-- **Loopback only.** The streamable HTTP transport binds to 127.0.0.1 and runs behind the HTTP API's loopback guard (Host, Origin, JSON bodies only). There is no authentication yet (ADR [0027](../../docs/decisions/0027-http-contract-client-and-inspector.md)).
+- **Verified over HTTP.** The streamable HTTP transport binds to 127.0.0.1 and runs behind the HTTP API's guards. It takes `engram serve`'s credential flags (`--keys`, or `--issuer` with `--jwks` and `--subjects`), and each session is then the actor its credential names; without them it needs `--insecure-loopback` (card E8.12, ADR [0042](../../docs/decisions/0042-verified-actors.md)).
 - **The hook fails closed.** A block whose event cannot be recorded is still a deny, and an input that is not a PreToolUse object is denied.
 - **The limits are stated, not hidden.** Every `memory_read` through this server is filtered by scope and grants like any other read. What nothing on this path governs is what the harness already holds in its context: MCP has no equivalent of pi's `context` handler, so a harness here gets governed tools without the context filter (condition C7). Codex has no hook, so a store command is not blocked there. A hook cannot see a store reached through a path or a name a command computes at run time.
 
@@ -14,7 +14,7 @@ How Claude Code and Codex reach the plane (ADR [0022](../../docs/decisions/0022-
 
 | module | what it holds |
 |---|---|
-| `src/server.ts` | `createMcpServer(options)` and `toolList()`: the tools `memory_write`, `memory_read`, `memory_explain` and `memory_simulate`, with the definitions and wording of `@engram/pi-extension/tools`, so the model sees the same tools on every path; `memory_simulate` replays the calls this server made |
+| `src/server.ts` | `createMcpServer(options)` and `toolList()`: the tools `memory_write`, `memory_read`, `memory_explain` and `memory_simulate`, with the definitions and wording of `@engram/tag` (write and read) and `@engram/pi-extension/tools` (explain and simulate), so the model sees the same tools on every path; `memory_simulate` replays the calls this server made. With `--supersede` it also lists `memory_supersede` (card L6): the supersession plan, and each close the agent accepts written through the gate as source `model`; it is off by default, so the four tools stay condition C7's |
 | `src/transports.ts` | `serveStdio` (Claude Code and Codex launch it as a child process) and `serveHttp` (streamable HTTP on a loopback port, one server per MCP session, sessions capped and expired) |
 | `src/hook.ts` | `claudeCodeHook`: reads Claude Code's PreToolUse JSON on stdin, denies a Bash or PowerShell command that names a store and a file tool on a path inside a store root, guards the log, `.mcp.json` and `.claude/settings*.json`, and records each block as one `bypass_blocked` event. The checks are core's `shellBypass` and `toolBypass`, the same as the pi extension's |
 
@@ -24,7 +24,8 @@ Through the CLI:
 
 ```sh
 engram mcp --as person:dana --member person:dana --root memory --owner dana          # stdio
-engram mcp --as person:dana --member person:dana --root memory --owner dana --http 7314   # streamable HTTP on loopback
+engram mcp --as person:dana --member person:dana --root memory --owner dana --http 7314 --insecure-loopback   # streamable HTTP on loopback, unauthenticated
+engram mcp --root memory --owner dana --http 7314 --keys keys.json                      # each HTTP session as its API key's actor
 engram hook claude-code --root "$CLAUDE_PROJECT_DIR/memory" --as person:dana          # the hook, reading stdin
 ```
 
@@ -37,9 +38,12 @@ pnpm --filter mcp exec vitest run
 make test-e2e        # builds the inspector and needs Chromium (pnpm exec playwright install chromium); includes the handshake from both fixtures and the hook
 ```
 
-`test/mcp.test.ts` covers the tools and their results, `test/hook.test.ts` the hook's blocks, `test/sessions.test.ts` the HTTP sessions, `test/mcp.test.ts` also that explain refuses another actor's read id (only a read's maker may explain it), `test/explain-audit.test.ts` that neither `memory_read` nor `memory_explain` carries the audit counts of items out of the reader's reach, and `test/rv5.test.ts` the review fixes of card RV5. The end-to-end test `test/e2e/mcp.e2e.test.ts` launches each fixture's command and runs initialize, list tools, a write, a read and explain.
+`test/mcp.test.ts` covers the tools and their results, `test/hook.test.ts` the hook's blocks, `test/sessions.test.ts` the HTTP sessions, `test/mcp.test.ts` also that explain refuses another actor's read id (only a read's maker may explain it), `test/auth.test.ts` and `test/attestation.test.ts` the verified HTTP sessions, `test/supersede.test.ts` `memory_supersede`, `test/explain-audit.test.ts` that neither `memory_read` nor `memory_explain` carries the audit counts of items out of the reader's reach, and `test/rv5.test.ts` the review fixes of card RV5. The end-to-end test `test/e2e/mcp.e2e.test.ts` launches each fixture's command and runs initialize, list tools, a write, a read and explain.
 
 ## What is next
 
-- Card E8.12 (verified actors, in progress): `engram serve` and the HTTP MCP transport become an OAuth 2.1 resource server with audience-bound tokens, plus hashed API keys; stdio keeps `--as`. An ADR comes first.
-- Card L6 (in progress): its supersession proposals are applied through the CLI and this server as ordinary governed updates.
+From the second absorb plan ([`docs/tasks/absorb-plan-2.md`](../../docs/tasks/absorb-plan-2.md)), none merged yet:
+
+- Card E8.17: Codex under the gate. Codex has PreToolUse hooks (a finding of 2026-11-25), so it gets a hook beside Claude Code's, with an idempotent installer.
+- Card E8.16: a cross-surface parity and leak suite, this server against the HTTP API and pi.
+- Card E8.8: approvals on every surface, this server among them.
