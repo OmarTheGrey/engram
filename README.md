@@ -58,7 +58,7 @@ Three products sit on the one plane. Each is a policy profile plus a few command
 
 - explicit grants, each naming a class, a mode and an expiry, changed only by the item's owner as a governed write (ADR [0034](docs/decisions/0034-grant-change-is-the-owners-governed-write.md)), and editable in the inspector and the terminal interface;
 - who can read this memory, for any item or scope;
-- `engram export` and `engram import`: a versioned bundle of what you may read ([`docs/bundle.md`](docs/bundle.md)), optionally encrypted with age, and imported row by row through the write gate, never at more trust than `import` (card E9.8);
+- `engram export` and `engram import`: a versioned bundle of everything in your person scope and your own items in the other scopes you may read, never another member's item ([`docs/bundle.md`](docs/bundle.md)), optionally encrypted with age, and imported row by row through the write gate, never at more trust than `import` (card E9.8);
 - offboarding with a deletion report (a core function; no surface calls it yet), and a dogfood kit that checks a member's own log for violations and reports only counts ([`docs/dogfood.md`](docs/dogfood.md)).
 
 **Distill: procedures mined from agent sessions.** Admitted only after replay validation on held-out tasks. What works today:
