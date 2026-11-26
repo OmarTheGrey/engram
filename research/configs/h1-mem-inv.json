@@ -14,7 +14,7 @@
   "turn_limit": 8,
   "spend_ceiling_usd": 2.32,
   "openrouter_provider": {
-    "answer": { "order": ["deepseek"], "allow_fallbacks": false },
+    "answer": { "order": ["wafer/us"], "allow_fallbacks": false },
     "answer_model": "openrouter/deepseek/deepseek-v4-pro-0813"
   }
 }

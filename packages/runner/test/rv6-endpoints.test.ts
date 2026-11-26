@@ -30,6 +30,7 @@ interface Endpoint {
 }
 interface Snapshot {
   fetched: string;
+  price_weights: { input: number; output: number };
   models: Record<string, { maker: string; response_sha256: string; endpoints: Endpoint[] }>;
   pins: Record<string, { tag: string; by: "maker" | "cheapest-seed" }>;
 }
@@ -48,31 +49,35 @@ const M1 = (() => {
 
 /**
  * The registered rule over the snapshot: the endpoint tag `model` is pinned
- * to. The maker's own endpoint where it lists one (several: the snapshot's
- * recorded choice, which must be one of them), otherwise the cheapest that
- * honours `seed` (input plus output price; a tie is refused). A model with no
- * snapshot entry fails.
+ * to. The maker's own endpoint where it lists one that honours `seed`
+ * (several: the snapshot's recorded choice, which must be one of them); a
+ * maker's endpoint without `seed` does not qualify (AGENTS.md rule 6, the
+ * coordinator's decision on review finding R6-3). Otherwise the cheapest that
+ * honours `seed`: the lowest cost of the snapshot's `price_weights` tokens at
+ * its input and output prices, a tie refused. A model with no snapshot entry,
+ * or with no endpoint that honours `seed`, fails.
  */
 export function ruleTag(model: string, snap: Snapshot = snapshot): string {
   const entry = snap.models[model];
   if (entry === undefined) throw new Error(`${model} has no entry in the endpoint snapshot`);
   const chosen = snap.pins[model];
   if (chosen === undefined) throw new Error(`${model} has no recorded pin in the snapshot`);
-  const maker = entry.endpoints.filter((e) => e.provider === entry.maker);
+  const seededAll = entry.endpoints.filter((e) => e.seed);
+  if (seededAll.length === 0) throw new Error(`${model}: no endpoint honours seed`);
+  const maker = seededAll.filter((e) => e.provider === entry.maker);
   if (maker.length > 0) {
     if (chosen.by !== "maker" || !maker.some((e) => e.tag === chosen.tag)) {
       throw new Error(
-        `${model}: the maker lists an endpoint, and ${chosen.tag} is not the maker's`,
+        `${model}: the maker lists a seeded endpoint, and ${chosen.tag} is not the maker's`,
       );
     }
     return chosen.tag;
   }
-  const seeded = entry.endpoints
-    .filter((e) => e.seed)
-    .sort((a, b) => a.input + a.output - (b.input + b.output));
-  const [first, second] = seeded;
+  const w = snap.price_weights;
+  const cost = (e: Endpoint) => e.input * w.input + e.output * w.output;
+  const [first, second] = [...seededAll].sort((a, b) => cost(a) - cost(b));
   if (first === undefined) throw new Error(`${model}: no endpoint honours seed`);
-  if (second !== undefined && second.input + second.output === first.input + first.output) {
+  if (second !== undefined && cost(second) === cost(first)) {
     throw new Error(`${model}: two seeded endpoints tie on price; a decision names the pin`);
   }
   if (chosen.by !== "cheapest-seed" || chosen.tag !== first.tag) {
@@ -130,37 +135,58 @@ describe("card R6: the endpoint snapshot", () => {
     );
   });
 
-  test("the rule takes the maker's endpoint first, else the cheapest that honours seed", () => {
+  test("the rule takes the maker's seeded endpoint first, else the cheapest that honours seed", () => {
     const snap: Snapshot = {
       fetched: "2026-11-26",
+      price_weights: { input: 100, output: 1 },
       models: {
+        // The maker honours seed: its endpoint, however dear.
         "openrouter/a/m": {
           maker: "A",
           response_sha256: "0".repeat(64),
           endpoints: [
             { provider: "B", tag: "b", seed: true, input: 0.1, output: 0.1 },
-            { provider: "A", tag: "a", seed: false, input: 9, output: 9 },
+            { provider: "A", tag: "a", seed: true, input: 9, output: 9 },
           ],
         },
+        // The maker's endpoint has no seed: the cheapest seeded at the weights
+        // (e: 0.5 x 100 + 1 = 51; c: 1 x 100 + 0.1 = 100.1), not the lowest sum.
         "openrouter/z/m": {
           maker: "Z",
           response_sha256: "0".repeat(64),
           endpoints: [
-            { provider: "C", tag: "c", seed: true, input: 1, output: 1 },
+            { provider: "Z", tag: "z", seed: false, input: 0.01, output: 0.01 },
+            { provider: "C", tag: "c", seed: true, input: 1, output: 0.1 },
             { provider: "D", tag: "d", seed: false, input: 0.1, output: 0.1 },
             { provider: "E", tag: "e", seed: true, input: 0.5, output: 1 },
           ],
+        },
+        "openrouter/n/m": {
+          maker: "N",
+          response_sha256: "0".repeat(64),
+          endpoints: [{ provider: "N", tag: "n", seed: false, input: 1, output: 1 }],
         },
       },
       pins: {
         "openrouter/a/m": { tag: "a", by: "maker" },
         "openrouter/z/m": { tag: "e", by: "cheapest-seed" },
+        "openrouter/n/m": { tag: "n", by: "maker" },
       },
     };
     expect(ruleTag("openrouter/a/m", snap)).toBe("a");
     expect(ruleTag("openrouter/z/m", snap)).toBe("e");
+    expect(() => ruleTag("openrouter/n/m", snap)).toThrow(/no endpoint honours seed/);
     snap.pins["openrouter/a/m"] = { tag: "b", by: "cheapest-seed" };
     expect(() => ruleTag("openrouter/a/m", snap)).toThrow(/not the maker's/);
+    snap.pins["openrouter/z/m"] = { tag: "z", by: "maker" };
+    expect(() => ruleTag("openrouter/z/m", snap)).toThrow(/cheapest seeded endpoint is e/);
+  });
+
+  test("every pinned endpoint honours seed", () => {
+    for (const [model, pin] of Object.entries(snapshot.pins)) {
+      const endpoint = snapshot.models[model]?.endpoints.find((e) => e.tag === pin.tag);
+      expect(endpoint?.seed, model).toBe(true);
+    }
   });
 });
 
