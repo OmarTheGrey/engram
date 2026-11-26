@@ -101,7 +101,7 @@ The screenshots here are the real TUI driven through its FakeTerminal on a works
 
 **Doctor.** Every check (log, policy, store, adapters, provider keys by name, pins, Node), failures first, each with what it means.
 
-![Doctor: every check ok, with its detail](../../docs/design/screens/doctor.png)
+![Doctor: every check ok but serve, skipped, each with its detail](../../docs/design/screens/doctor.png)
 
 **Events.** The log as the actor may see it, each decision with its policy id and reason, with filters on scope, op, decision and actor, a find over reasons, and `f` to follow new events.
 

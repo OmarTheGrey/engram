@@ -75,7 +75,7 @@ Not built yet: retirement on drift (card D4), and `Plane.distill` as one call (i
 
 **Home.** Every command in six groups, each with its own key, and what the selected one changes and how it exits.
 
-<p align="center"><img src="docs/design/screens/home.png" alt="engram tui Home: commands grouped under Memory, Policy, Audit, Data, Surfaces and Machine, with the selected command's summary and the command line it would run" width="100%"></p>
+<p align="center"><img src="docs/design/screens/home.png" alt="engram tui Home: commands grouped under Memory, Policy, Audit, Data and Surfaces, with more below, and the selected command's summary and the command line it would run" width="100%"></p>
 
 **A denied write.** The decision first, then the gate's reason and the policy id verbatim. Nothing was stored, and the denial is itself an event in the log.
 
