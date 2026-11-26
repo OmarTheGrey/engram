@@ -301,7 +301,7 @@ A selection, grouped. [AGENTS.md, "Commands"](AGENTS.md#commands) is the full li
 | the terminal interface | `engram tui`, or `engram tui --line` |
 | the CLI | `engram write \| read \| promote \| supersede \| explain \| retain \| lint \| simulate \| export \| import \| who-can-read \| serve \| mcp \| hook claude-code \| key \| doctor \| log verify \| log checkpoint` |
 | a benchmark on its fixture subset, offline | `make bench BENCH=gatemem` (also `longmemeval`, `merit`, `tau2`; MERIT and tau2 fetch their pinned harness once) |
-| the red-team harness, offline | `make redteam` |
+| the red-team harness, model-free (fetches its pinned payload sets once) | `make redteam` |
 | replay a runner config from its cassettes | `make run CONFIG=research/configs/rn1-gatemem-probe.json` |
 | count a run's sessions, no model called | `make run CONFIG=research/configs/h1-gatemem.json COUNT=1` |
 | rerun every committed result and compare hashes | `make test-repro` |
