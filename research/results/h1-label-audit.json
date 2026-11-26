@@ -110,7 +110,7 @@
     "shady"
   ],
   "name": "label-audit",
-  "on_stop": "pause",
+  "on_stop": "drop",
   "reject_quorum": 2,
   "seed": 20261103,
   "stop_share": 0.1
