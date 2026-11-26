@@ -38,5 +38,5 @@ pnpm --filter pi-package exec vitest run
 
 ## What is next
 
-- Cards D2 and D3, in progress: D2 writes induced procedures as SKILL.md files, the format this package's skills folder already uses, and D3 admits them only after replay validation; card E9.6 (open, not started) adds the Procedures screens.
+- Distill's procedures: card D2 induces them as SKILL.md files, the format this package's skills folder already uses, and card D3 admits one only after replay validation (both merged on 2026-11-22). Installing an admitted procedure into a session, the Procedures screens (card E9.6, open) and retirement on drift (card D4) are not built.
 - The Knowledge profile's dogfood, which Gate D asks for beside the twin's, waits on a card not yet written (`docs/roadmap.md`, Gate D).

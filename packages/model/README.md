@@ -1,6 +1,6 @@
 # @engram/model
 
-The model-call layer the benchmarks and the runner share (ADR [0033](../../docs/decisions/0033-shared-model-package.md)): the cached, seeded call every model call in a run goes through (ADR [0017](../../docs/decisions/0017-cached-metered-seeded-model-calls.md)), the scripted models every test uses, and the cassette proxy that gives an outside harness the same guarantees (card B10, ADR [0036](../../docs/decisions/0036-cassettes-beyond-the-repository.md)). Back to the [root README](../../README.md).
+The model-call layer the benchmarks and the runner share (ADR [0033](../../docs/decisions/0033-shared-model-package.md)): the cached, seeded call every model call in a run goes through (ADR [0017](../../docs/decisions/0017-cached-metered-seeded-model-calls.md)), the scripted models every test uses, the cassette proxy that gives an outside harness the same guarantees (card B10, ADR [0036](../../docs/decisions/0036-cassettes-beyond-the-repository.md)), and the local NLI scorer the contradiction lint's tier uses (card L7, ADR [0048](../../docs/decisions/0048-local-nli-tier.md)). Back to the [root README](../../README.md).
 
 ## Rules
 
@@ -17,6 +17,7 @@ The model-call layer the benchmarks and the runner share (ADR [0033](../../docs/
 | `src/cached.ts` | `cached(inner, options)`: wraps a call with the cache and its usage ledger, so concurrent identical calls reach the model once; `cacheKey`, `memoryCache`, `fileCache` (a cassette folder), `OfflineMissError`, `TransientCallError` |
 | `src/scripted.ts` | `scriptedModelCall(table)`: a core `ModelCall` that answers from a table keyed on the request's hash; `scriptedPiModel` for pi SDK sessions; `scriptedChatCall` for the proxy's tests, with tool calls |
 | `src/proxy.ts` | `startProxy(options)`: a loopback server speaking OpenAI's chat-completions API (`POST /v1/chat/completions`), each request served through the cache; the experiment cell comes from the start-up configuration and `x-engram-*` headers; embeddings and streaming answer 501 until a harness needs them; `checkHarnessEndpoint` refuses a harness pointed anywhere else |
+| `src/nli.ts` | card L7's scorer: a pinned cross-encoder whose weights are fetched by sha256 into `.engram/upstream/` and never committed, injected into core as `ModelCall` is, every score cached by model hash, runtime version and pair hash; `make nli-scores` and `make nli-determinism` run it |
 | `src/recording.ts` | where recording is allowed: only under `.engram/` or outside the repository, never into committed fixtures except by `make fixtures` |
 
 ## Use
@@ -46,5 +47,4 @@ pnpm --filter model exec vitest run
 
 ## What is next
 
-- Card L7 (in progress): a local NLI scorer for the contradiction lint, `src/nli.ts`, injected into core as `ModelCall` is, its weights fetched by sha256 into `.engram/upstream/` and never committed, and every score cached by model hash, runtime version and pair hash.
 - Embeddings and streaming through the proxy, when a harness card needs them.
