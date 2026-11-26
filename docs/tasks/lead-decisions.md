@@ -403,3 +403,12 @@ The lead also answered, himself, four of the five questions of `docs/tasks/absor
 - item 36 (a non-owner sees only the grants naming them, in core), and the read route naming lineage ids its reader cannot read: card RD1;
 - `Plane.lint`'s reach (`docs/log/2026-11-22-l6-finding-lint-reads-scope.md`): card L8;
 - an owner's acceptance of their own candidates in their own person scope (`docs/log/2026-11-22-e9-8-finding-owner-acceptance-after-tag.md`): card E9.9, with a new ADR 0049.
+
+## The lead's answers, 2026-11-26
+
+The verification of the gate-work cards' fix pass (finding N3) found two changes to registered text made under the delegation, which the standing rule promotes to the lead: pre-tag condition 3's stopping set (card X20) and the Models section's endpoint rule (card R6). The lead answered both on 2026-11-26, himself, not under the delegation (`docs/log/2026-11-26-gwfix-decision-lead-answers.md`). Each card rewrites its sentence in its own pull request.
+
+| question | answer | reason |
+|---|---|---|
+| A, condition 3's stopping set (card X20, item 14) | "Amend: 404 + backstop". A 401, 402, 403 or 404 stops the run and is never a per-session exclusion, except that a 403 OpenRouter marks as a moderation flag is an exclusion for that session; and the run stops when five distinct items in a row each end in a refused answer call | a pinned endpoint that is gone answers every call with a 404, which would otherwise exclude a whole run; a moderation 403 refuses one prompt; the backstop counts items, since one item runs as consecutive sessions and an over-long item is refused in all of them |
+| B, the Models rule's endpoint choice (card R6) | "Seed first". The maker's own endpoint is used only if it honours `seed`, otherwise the cheapest endpoint that does | rule 6: every sampled call takes a seed, so an endpoint that drops it cannot serve a registered run |
