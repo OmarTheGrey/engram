@@ -46,6 +46,7 @@ import {
   NO_FILTER,
   parseRoute,
   type Route,
+  reachText,
   score,
   type TimelineFilter,
   viewerFrom,
@@ -519,9 +520,8 @@ function Explain({ view }: { view: ExplainView }) {
               </li>
             ))}
           </ul>
-          <p className="muted">
-            {counts.out_of_reach} projected {counts.out_of_reach === 1 ? "item" : "items"} outside
-            the reader's reach {counts.out_of_reach === 1 ? "was" : "were"} not candidates.
+          <p className="muted" data-testid="explain-reach">
+            {reachText(counts.out_of_reach)}
           </p>
         </>
       )}

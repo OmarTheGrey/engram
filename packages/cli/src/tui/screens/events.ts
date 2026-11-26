@@ -345,13 +345,15 @@ export class EventsScreen extends RichScreen {
       out.push("");
       if (this.detail) {
         // Each value whole, wrapped, never cut: the reason above all (10.1).
-        const field = (k: string, v: string) => {
-          const [first = "", ...rest] = para(v, width - 12, "");
+        const rows = [
+          ...eventFields(chosen),
+          ["policy id", oneLine(chosen.policy_id)],
+          ["reason", oneLine(chosen.reason)],
+        ];
+        for (const [k = "", v = ""] of rows) {
+          const [first = "", ...rest] = para(oneLine(v), width - 12, "");
           out.push(cut(` ${fit(k, 11)}${first}`, width), ...rest.map((l) => `            ${l}`));
-        };
-        for (const [k, v] of eventFields(chosen)) field(k, oneLine(v));
-        field("policy id", oneLine(chosen.policy_id));
-        field("reason", oneLine(chosen.reason));
+        }
       } else {
         out.push(
           cut(
@@ -412,15 +414,15 @@ export class PolicyScreen extends RichScreen {
   private readonly open = new Set<string>();
   private selected = 0;
   private start = 0;
-  /** The policy id a decision named, when the screen was opened from one: shown as it came. */
-  private readonly from: string | undefined;
+  /** The decision it was opened from, if any: its policy id is shown as it came. */
+  private readonly from: { policy_id: string } | undefined;
 
   constructor(
     spec: CommandSpec,
     ctx: Ctx,
     values: Values = {},
     positionals: readonly string[] = [],
-    from?: string,
+    from?: { policy_id: string },
   ) {
     super(spec, ctx, values, positionals);
     this.from = from;
@@ -543,7 +545,7 @@ export class PolicyScreen extends RichScreen {
       ),
     );
     if (this.from !== undefined)
-      out.push(cut(` opened from a decision: policy id ${oneLine(this.from)}`, width));
+      out.push(cut(` opened from a decision: policy id ${oneLine(this.from.policy_id)}`, width));
     out.push(
       cut(` ${on === "find" ? ">" : " "}Find [ ${find.render(24, on === "find")} ]`, width),
       "",

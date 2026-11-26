@@ -573,6 +573,27 @@ export function windowOf(selected: number, count: number, room: number, start: n
   return s;
 }
 
+/**
+ * A pane: `lines` in a box of `size` rows, scrolled so row `line` shows, that
+ * row drawn reversed when the pane has the focus (the item page's panes).
+ */
+export function paneBox(
+  t: Theme,
+  title: string,
+  lines: readonly string[],
+  line: number,
+  focused: boolean,
+  width: number,
+  size: number,
+): string[] {
+  const room = size - 2;
+  const start = windowOf(line, lines.length, room, 0);
+  const shown = lines
+    .slice(start, start + room)
+    .map((l, i) => (focused && start + i === line ? t.reverse(cut(l, width - 2)) : l));
+  return box(t, title, shown, width, size);
+}
+
 /** Lines in a box, cut to fit, with a line saying how many more there are. */
 export function boxed(
   theme: Theme,

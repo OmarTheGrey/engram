@@ -32,12 +32,12 @@ import {
   errorLines,
   firstLine,
   oneLine,
+  paneBox,
   RichScreen,
   readItems,
   type Stop,
   safe,
   statusOf,
-  windowOf,
 } from "./rich.ts";
 
 /** The lines of `a` and `b` as a line diff: kept, removed and added, in order (an LCS). */
@@ -308,20 +308,25 @@ export class ItemScreen extends RichScreen {
     }
     const rest = height - out.length;
     const focus = this.current()?.id;
-    const pick = (pane: Pane, lines: string[], size: number, title: string, rowsOf?: number[]) => {
-      const room = size - 2;
-      const at = Math.min(this.sel[pane], Math.max(0, (rowsOf?.length ?? lines.length) - 1));
+    // The row a pane shows selected, kept in range of its `count` rows (or of rowsOf, the rows that select).
+    const select = (pane: Pane, count: number, rowsOf?: number[]) => {
+      const at = Math.min(this.sel[pane], Math.max(0, (rowsOf?.length ?? count) - 1));
       this.sel[pane] = at;
-      const line = rowsOf?.[at] ?? at;
-      const start = windowOf(line, lines.length, room, 0);
-      const shown = lines
-        .slice(start, start + room)
-        .map((l, i) => (focus === pane && start + i === line ? t.reverse(cut(l, width - 2)) : l));
-      return box(t, title, shown, width, size);
+      return rowsOf?.[at] ?? at;
     };
     const tree = this.treeLines(ctx, graph);
     const provHeight = Math.max(4, Math.min(tree.length + 2, Math.floor(rest / 3)));
-    out.push(...pick("provenance", tree, provHeight, "Provenance"));
+    out.push(
+      ...paneBox(
+        t,
+        "Provenance",
+        tree,
+        select("provenance", tree.length),
+        focus === "provenance",
+        width,
+        provHeight,
+      ),
+    );
     // Versions: the list, then the diff of the selected one against the next.
     const vLines: string[] = [];
     if (versions.length <= 1) vLines.push(" one version; nothing to compare");
@@ -358,7 +363,6 @@ export class ItemScreen extends RichScreen {
     const chosen = events[Math.min(this.sel.events, events.length - 1)];
     // The detail in place of the list, the reason second and whole, so it is in reach at 80x24 (review 14).
     if (this.detail && chosen !== undefined) {
-      const field = (k: string, v: string) => cut(`   ${fit(k, 11)}${v}`, width - 2);
       out.push(
         ...box(
           t,
@@ -369,8 +373,9 @@ export class ItemScreen extends RichScreen {
               width - 2,
             ),
             ...para(`reason     ${oneLine(chosen.reason)}`, width - 2, "   "),
-            ...eventFields(chosen).map(([k, v]) => field(k, oneLine(v))),
-            field("policy id", oneLine(chosen.policy_id)),
+            ...[...eventFields(chosen), ["policy id", oneLine(chosen.policy_id)]].map(
+              ([k = "", v = ""]) => cut(`   ${fit(k, 11)}${oneLine(v)}`, width - 2),
+            ),
           ],
           width,
           evHeight,
@@ -379,12 +384,18 @@ export class ItemScreen extends RichScreen {
       return out;
     }
     out.push(
-      ...pick(
-        "events",
-        eLines,
-        evHeight,
+      ...paneBox(
+        t,
         "Events naming this item",
-        events.map((_, i) => i),
+        eLines,
+        select(
+          "events",
+          eLines.length,
+          events.map((_, i) => i),
+        ),
+        focus === "events",
+        width,
+        evHeight,
       ),
     );
     return out;

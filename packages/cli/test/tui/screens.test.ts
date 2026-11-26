@@ -5,12 +5,19 @@
 // The capture writes nothing outside its temporary workspace: not the
 // repository's tracked files, not the real ~/.engram.
 import { execFileSync } from "node:child_process";
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { OUT, REPO, SCREENS, shoot, WORK, workFolder } from "../../scripts/tui-screens.ts";
-import { tempDir } from "../helpers.ts";
+import {
+  OUT,
+  REPO,
+  SCREENS,
+  shoot,
+  TEMP_PREFIX,
+  WORK,
+  workFolder,
+} from "../../scripts/tui-screens.ts";
 
 const CHECKED = ["home", "read", "write-deny"];
 
@@ -32,7 +39,8 @@ const gitStatus = () =>
 
 describe("make tui-screens", () => {
   it("captures home, read and write deny byte for byte as committed, writing only inside its workspace", async () => {
-    const work = join(await tempDir(), "work");
+    const temp = mkdtempSync(join(tmpdir(), TEMP_PREFIX));
+    const work = join(temp, "work");
     const before = { engram: realEngram(), git: gitStatus() };
     for (const name of CHECKED) {
       const spec = SCREENS.find((s) => s.name === name);
@@ -47,16 +55,27 @@ describe("make tui-screens", () => {
     // Everything the sessions wrote is in the workspace: its log, store and home.
     expect(existsSync(join(work, "engram.db"))).toBe(true);
     expect(existsSync(join(work, "home", ".engram", "tui.json"))).toBe(false);
+    rmSync(temp, { recursive: true, force: true });
   }, 60_000);
 
-  it("takes a work folder only under the repository's .engram/ or the OS temp folder, which it empties (N-2)", async () => {
+  it("takes a work folder only under .engram/tui-screens/ or a temp folder of its own prefix, which it empties (N-2)", async () => {
     expect(workFolder(WORK)).toBe(WORK);
-    const temp = join(tmpdir(), "engram-screens-work");
-    expect(workFolder(temp)).toBe(temp);
+    for (const ok of [
+      join(tmpdir(), `${TEMP_PREFIX}abc`),
+      join(tmpdir(), `${TEMP_PREFIX}abc`, "work"),
+      join(REPO, ".engram", "tui-screens", "other"),
+    ])
+      expect(workFolder(ok), ok).toBe(ok);
     for (const bad of [
       REPO,
       join(REPO, "docs"),
       join(REPO, ".engram"),
+      join(REPO, ".engram", "tui-screens"),
+      join(REPO, ".engram", "runs"),
+      join(REPO, ".engram", "upstream"),
+      join(REPO, ".engram", "tui-screens", "..", "runs"),
+      join(tmpdir(), "engram-screens-work"),
+      join(tmpdir(), "claude", `${TEMP_PREFIX}x`),
       join(REPO, ".engram", "..", "docs"),
       join(REPO, ".engramx", "work"),
       tmpdir(),

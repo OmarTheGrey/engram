@@ -124,14 +124,21 @@ export class WhoScreen extends RichScreen {
     );
     if (!v.answered) return out;
     out.push("");
-    if (v.closed !== null) out.push(...para(`nobody now: ${oneLine(v.closed)}`, width, "   "));
+    if (v.closed !== null)
+      out.push(
+        ...para(
+          `nobody now: ${oneLine(v.closed.reason)} (${oneLine(v.closed.policy_id)})`,
+          width,
+          "   ",
+        ),
+      );
     else if (v.rows.length === 0)
       out.push("   nobody: no read matrix row or live grant admits a reader");
     for (const row of v.rows)
       out.push(cut(`   ${oneLine(row.text)}    ${safe(row.policyId)}`, width));
     out.push("", " Dormant");
     if (v.dormant.length === 0) out.push("   none");
-    for (const d of v.dormant) out.push(cut(`   ${oneLine(d)}`, width));
+    for (const d of v.dormant) out.push(cut(`   ${oneLine(d.grant)}: ${oneLine(d.reason)}`, width));
     if (v.withheld) out.push("", " Grants shown: only those naming you.");
     return out;
   }

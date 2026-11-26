@@ -362,6 +362,16 @@ export function eventFields(e: MemoryEvent): [string, string][] {
 
 // The explain view (card E8.6).
 
+/**
+ * The explain view's line for the projected items outside the reader's
+ * reach, in the number it counts (README review, 2026-11-26): the inspector
+ * and the TUI both print it.
+ */
+export const reachText = (n: number): string =>
+  n === 1
+    ? "1 projected item outside the reader's reach was not a candidate."
+    : `${n} projected items outside the reader's reach were not candidates.`;
+
 /** The filtered categories of a read, as the explain view labels them, in the reason's order. */
 export const FILTER_CATEGORIES = [
   ["outside_validity", "outside the validity window"],
@@ -489,11 +499,11 @@ export interface ReaderRow {
 export interface ReaderView {
   answered: boolean;
   reason: string;
-  /** Why nobody may read the item now, with its rule; null when it is open. */
-  closed: string | null;
+  /** Why nobody may read the item now, and its rule, as the plane gave them; null when it is open. */
+  closed: WhoCanReadAnswer["closed"];
   rows: ReaderRow[];
-  /** The owner's grants that admit nobody now, each with why. */
-  dormant: string[];
+  /** The owner's grants that admit nobody now, each with why, as the plane gave them. */
+  dormant: WhoCanReadAnswer["dormant"];
   /** Whether grants naming others are withheld from this viewer. */
   withheld: boolean;
 }
@@ -507,7 +517,7 @@ export function readerView(a: WhoCanReadAnswer): ReaderView {
   return {
     answered: a.answered,
     reason: a.reason,
-    closed: a.closed === null ? null : `${a.closed.reason} (${a.closed.policy_id})`,
+    closed: a.closed,
     rows: a.readers.map((r, i) =>
       r.kind === "members"
         ? {
@@ -526,7 +536,7 @@ export function readerView(a: WhoCanReadAnswer): ReaderView {
             policyId: r.policy_id,
           },
     ),
-    dormant: a.dormant.map((d) => `${d.grant}: ${d.reason}`),
+    dormant: a.dormant,
     withheld: a.grants_shown === "yours",
   };
 }

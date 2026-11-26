@@ -88,21 +88,31 @@ export const GIVEN: Values = {
   member: ["person:dana", "team:core"],
 };
 
+/** The prefix a temporary work folder's name starts with: one this script's runs make, nothing else in the temp folder. */
+export const TEMP_PREFIX = "engram-tui-screens-";
+
 /**
- * `given` resolved, when it is a folder under the repository's .engram/ or
- * the OS temp folder (not either one itself): the work folder is emptied
- * before the run and removed after it, so a mistyped --work must never name
- * anything else (final-review verification N-2). Anything else is refused.
+ * `given` resolved, when it is a folder under the repository's
+ * .engram/tui-screens/ (not that folder itself), or under the OS temp folder
+ * inside a folder whose name starts with TEMP_PREFIX. The work folder is
+ * emptied before the run and removed after it, so a mistyped --work must
+ * never name anything else: not .engram/runs with its paid cassettes, not
+ * .engram/upstream, not another tool's temporary folder (final-review
+ * verification N-2, narrowed after its second verification). Anything else
+ * is refused.
  */
 export function workFolder(given: string): string {
   const work = resolve(given);
-  const under = (root: string) => {
+  const inside = (root: string) => {
     const rel = relative(resolve(root), work);
-    return rel !== "" && !rel.startsWith("..") && !isAbsolute(rel);
+    return rel !== "" && !rel.startsWith("..") && !isAbsolute(rel) ? rel : undefined;
   };
-  if (!under(join(REPO, ".engram")) && !under(tmpdir()))
+  const screens = inside(join(REPO, ".engram", "tui-screens"));
+  const temp = inside(tmpdir());
+  const tempOk = temp !== undefined && (temp.split(/[\\/]/)[0] ?? "").startsWith(TEMP_PREFIX);
+  if (screens === undefined && !tempOk)
     throw new Error(
-      `tui-screens: --work ${given} is not under ${join(REPO, ".engram")} or ${tmpdir()}; it is emptied and removed, so nothing else is taken`,
+      `tui-screens: --work ${given} is not under ${join(REPO, ".engram", "tui-screens")} or a ${TEMP_PREFIX}* folder in ${tmpdir()}; it is emptied and removed, so nothing else is taken`,
     );
   return work;
 }

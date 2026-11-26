@@ -15,18 +15,40 @@
 // remedy wording. The reviewer's five survivors are run through it below.
 //
 // Since the final review (F-8) it walks @engram/view too, which every TUI
-// screen and the inspector draw through: a branch on a reason there would
-// reach them all. A view carries a decision field unread only under a
-// decision field's own name (`policyId: r.event.policy_id`), whose every
-// later use the guard checks by that name; never in a list or under another
-// name. Since the verification of that pass (N-1) the guard follows decision
-// text wherever it goes: into a literal at any depth, a `new Map`, a mapping
-// callback, a function's result (every call of it), a local copied from a
-// local, and it fails a carrier handed where its type is lost (any, unknown,
-// a string-keyed record). Its one search of reasons, for the text the person
-// typed (findInReasons, the Events screen's find), is pinned in SEARCHES by
-// its exact text, never marked in the source. The verification's bypasses
-// run through it below as mutants of the real sources.
+// screen and the inspector draw through. Since the second verification of
+// N-1 (2026-11-26) it is an allowlist of uses, not a list of forbidden ones.
+// Decision text (a reason, a policy id, an admitting rule, and anything made
+// of one) may only be:
+//   (a) an argument of a drawing or copying helper, resolved by the checker's
+//       symbol through import aliases (HELPERS: layout.ts, rich.ts, the
+//       theme, the clipboard, pi-tui), or a span of an untagged template;
+//       the result is decision text in turn;
+//   (b) measured (`.length`), re-laid (slice, join, pad, trim), indexed,
+//       iterated or mapped, each result followed in turn;
+//   (c) carried under a decision field's own name, the carrier only
+//       returned, listed, kept or added to a list (every later read is a
+//       field read, checked again);
+//   (d) compared with "" (=== or !==), to draw a placeholder;
+//   (e) kept in a local, a binding, a class field, a list it is pushed to,
+//       or returned, after which every use of that local, field, list, call
+//       or getter is checked the same way.
+// Anything else fails: a comparison, a branch, `+`, a regular expression,
+// a method such as includes or localeCompare, any other function's
+// argument, a tagged template, a fallback other than none, a callback's
+// result other than a map's. A carrier handed where its type is lost (any,
+// unknown, a type parameter, a string-keyed record) fails, as does a decision
+// field's name handed to a call, a computed key that folds to one, a
+// destructuring that names one, and an answer read whole (JSON.stringify,
+// Object.values, Reflect.get). The one search of reasons, findInReasons, is
+// pinned by its exact text (SEARCHES), and so is its one call, on the find
+// field the person types in (SEARCH_CALLS).
+//
+// Known limits. The guard is a tripwire against accidental policy logic in
+// display code, not a sound analysis; review remains the check. It does not
+// follow decision text into the body of an allowlisted helper, across a
+// method called through an interface, or through a key held in a variable
+// and handed to a generic picker (`get(e, k)`). A length, or emptiness,
+// carries a little of the text's content, and both are permitted.
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join, relative } from "node:path";
@@ -86,8 +108,6 @@ const REMEDY_PATTERNS = [
 
 /** The decision fields of an answer, which the TUI shows and never reads. */
 const DECISION_FIELDS = new Set(["reason", "policy_id", "policyId", "admittedBy", "admitted_by"]);
-/** The helpers that only draw text. */
-const DISPLAY = new Set(["oneLine", "safe", "cut", "fit", "para", "wrap", "firstLines"]);
 
 /** What a string in the source says that a screen must not: a rule id, a preset, a remedy. */
 function badString(value: string): string | undefined {
@@ -130,23 +150,16 @@ function consumer(node: TS.Node): { parent: TS.Node; child: TS.Node } {
 }
 
 /** A property name that is a decision field's. */
-function decisionName(name: TS.PropertyName): boolean {
-  return (ts.isIdentifier(name) || ts.isStringLiteral(name)) && DECISION_FIELDS.has(name.text);
-}
-
-/** A property assignment whose name is a decision field's: a decision carried, unread, under its own kind of name. */
-function carriedAs(node: TS.Node): boolean {
-  let { parent, child } = consumer(node);
-  // `admittedBy: e?.policy_id ?? null`: none is carried as null.
-  if (
-    ts.isBinaryExpression(parent) &&
-    parent.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken &&
-    parent.left === child &&
-    parent.right.kind === ts.SyntaxKind.NullKeyword
-  )
-    ({ parent, child } = consumer(parent));
+function decisionName(name: TS.PropertyName | TS.BindingName): boolean {
+  if (ts.isComputedPropertyName(name)) {
+    const v = folded(name.expression);
+    return v !== undefined && DECISION_FIELDS.has(v);
+  }
   return (
-    ts.isPropertyAssignment(parent) && parent.initializer === child && decisionName(parent.name)
+    (ts.isIdentifier(name) ||
+      ts.isStringLiteral(name) ||
+      ts.isNoSubstitutionTemplateLiteral(name)) &&
+    DECISION_FIELDS.has(name.text)
   );
 }
 
@@ -160,144 +173,14 @@ function calleeName(call: TS.CallExpression | TS.NewExpression): string {
       : "";
 }
 
-/** Whether a decision field read at `node` is only drawn: a display helper's argument or a template's, or carried under a decision field's name. */
-function onlyDrawn(node: TS.Node): boolean {
-  if (carriedAs(node)) return true;
-  const { parent, child } = consumer(node);
-  if (ts.isTemplateSpan(parent)) return true;
-  return (
-    ts.isCallExpression(parent) &&
-    parent.arguments.includes(child as TS.Expression) &&
-    DISPLAY.has(calleeName(parent))
-  );
-}
-
-/** The comparison and membership operators: a decision field's text compared is a decision drawn from it. */
-const COMPARING = new Set([
-  ts.SyntaxKind.EqualsEqualsEqualsToken,
-  ts.SyntaxKind.ExclamationEqualsEqualsToken,
-  ts.SyntaxKind.EqualsEqualsToken,
-  ts.SyntaxKind.ExclamationEqualsToken,
-  ts.SyntaxKind.LessThanToken,
-  ts.SyntaxKind.GreaterThanToken,
-  ts.SyntaxKind.LessThanEqualsToken,
-  ts.SyntaxKind.GreaterThanEqualsToken,
-  ts.SyntaxKind.InKeyword,
-  ts.SyntaxKind.InstanceOfKeyword,
-]);
-
-/** The list methods whose callback's result is the list's next value, carried on, not a decision. */
-const MAPPING = new Set(["map", "flatMap"]);
-
-/**
- * Where decision text goes, outward from where it is read (final-review
- * verification N-1): through the templates and display helpers that draw it,
- * a fallback, a conditional's branch, a spread, a `new` (a Map built on it),
- * a mapping callback's result, and every literal that holds it, nested to any
- * depth. `held` says how the first literal holds it: under a decision field's
- * name, whose every later use the guard checks by that name, or loose (a
- * list's element, a property of any other name), which no name follows, so
- * the literal itself carries the taint from there.
- */
-function flow(node: TS.Node): { end: TS.Node; held: "not" | "named" | "loose" } {
-  let e: TS.Node = node;
-  let held: "not" | "named" | "loose" = "not";
-  const hold = (h: "named" | "loose") => {
-    if (held === "not") held = h;
-  };
-  for (;;) {
-    const { parent, child } = consumer(e);
-    if (ts.isTemplateSpan(parent)) e = parent.parent;
-    else if (
-      ts.isCallExpression(parent) &&
-      parent.arguments.includes(child as TS.Expression) &&
-      DISPLAY.has(calleeName(parent))
-    )
-      e = parent;
-    else if (ts.isNewExpression(parent) && parent.arguments?.includes(child as TS.Expression))
-      e = parent;
-    else if (
-      ts.isBinaryExpression(parent) &&
-      parent.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken
-    )
-      e = parent;
-    else if (ts.isConditionalExpression(parent) && parent.condition !== child) e = parent;
-    else if (ts.isSpreadElement(parent)) e = parent;
-    else if (ts.isArrayLiteralExpression(parent)) {
-      hold("loose");
-      e = parent;
-    } else if (ts.isPropertyAssignment(parent) && parent.initializer === child) {
-      hold(decisionName(parent.name) ? "named" : "loose");
-      e = parent.parent;
-    } else if (ts.isSpreadAssignment(parent) || ts.isShorthandPropertyAssignment(parent)) {
-      hold("loose");
-      e = parent.parent;
-    } else if (
-      ts.isArrowFunction(parent) &&
-      parent.body === child &&
-      ts.isCallExpression(parent.parent) &&
-      parent.parent.arguments.includes(parent) &&
-      MAPPING.has(calleeName(parent.parent))
-    )
-      e = parent.parent;
-    else return { end: e, held };
+/** A decision field read at `n`: its name, else undefined. */
+function fieldRead(n: TS.Node): string | undefined {
+  if (ts.isPropertyAccessExpression(n) && DECISION_FIELDS.has(n.name.text)) return n.name.text;
+  if (ts.isElementAccessExpression(n)) {
+    const key = folded(n.argumentExpression);
+    if (key !== undefined && DECISION_FIELDS.has(key)) return key;
   }
-}
-
-/** The function whose result `end` is: an arrow's body or a return's value, else undefined. */
-function resultOf(end: TS.Node): TS.SignatureDeclaration | undefined {
-  const { parent, child } = consumer(end);
-  if (ts.isArrowFunction(parent) && parent.body === child) return parent;
-  if (!ts.isReturnStatement(parent)) return undefined;
-  for (let n: TS.Node | undefined = parent.parent; n !== undefined; n = n.parent)
-    if (ts.isFunctionLike(n)) return n;
   return undefined;
-}
-
-/** Whether a function is a callback handed to a call: its result is what that call decides on (filter, find, some, sort). */
-function isCallback(fn: TS.Node): boolean {
-  const { parent, child } = consumer(fn);
-  return (
-    (ts.isCallExpression(parent) || ts.isNewExpression(parent)) &&
-    parent.arguments?.includes(child as TS.Expression) === true
-  );
-}
-
-/** What is wrong with where decision text goes, if anything (N-1). */
-function misuse(node: TS.Node): string | undefined {
-  const { end, held } = flow(node);
-  if (decides(end)) return held === "not" ? "decided on" : "held in a literal that is decided on";
-  const fn = resultOf(end);
-  if (fn !== undefined && isCallback(fn))
-    return "the result of a callback, which its call decides on";
-  return undefined;
-}
-
-/** Whether an expression is decided on: a member of it read or called, compared, negated, branched on. */
-function decides(node: TS.Node): boolean {
-  const { parent, child } = consumer(node);
-  if (
-    (ts.isPropertyAccessExpression(parent) || ts.isElementAccessExpression(parent)) &&
-    parent.expression === child
-  )
-    return true;
-  if (ts.isCallExpression(parent) && parent.expression === child) return true;
-  if (ts.isBinaryExpression(parent)) {
-    const op = parent.operatorToken.kind;
-    if (COMPARING.has(op)) return true;
-    if (op === ts.SyntaxKind.AmpersandAmpersandToken || op === ts.SyntaxKind.BarBarToken)
-      return true;
-  }
-  if (ts.isPrefixUnaryExpression(parent)) return true;
-  if (
-    (ts.isIfStatement(parent) || ts.isWhileStatement(parent) || ts.isDoStatement(parent)) &&
-    parent.expression === child
-  )
-    return true;
-  if (ts.isConditionalExpression(parent) && parent.condition === child) return true;
-  if (ts.isSwitchStatement(parent) && parent.expression === child) return true;
-  if (ts.isCaseClause(parent) && parent.expression === child) return true;
-  return false;
 }
 
 /** The class a node is in, by name, for the fields its methods share. */
@@ -307,109 +190,482 @@ function classOf(node: TS.Node): string | undefined {
   return undefined;
 }
 
-/**
- * Where decision text, or a literal holding it loose, is kept (re-verification
- * 1, N-1): the local (`const why = oneLine(p.reason)`, `const row = [k,
- * safe(p.reason)]`) or the class field (`this.why = ...`, or a field declared
- * with it) the flow ends in. A literal holding it under a decision field's
- * name is left to the name check. The local's every use is followed in turn,
- * so a copy of a copy carries the taint too.
- */
-function keptAt(node: TS.Node): { local?: TS.Identifier; field?: string } {
-  const { end, held } = flow(node);
-  if (held === "named") return {};
-  const { parent, child } = consumer(end);
-  if (ts.isVariableDeclaration(parent) && parent.initializer === child)
-    return ts.isIdentifier(parent.name) ? { local: parent.name } : {};
-  const cls = classOf(node);
-  if (cls === undefined) return {};
-  if (
-    ts.isBinaryExpression(parent) &&
-    parent.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
-    parent.right === child &&
-    ts.isPropertyAccessExpression(parent.left) &&
-    parent.left.expression.kind === ts.SyntaxKind.ThisKeyword
-  )
-    return { field: `${cls}.${parent.left.name.text}` };
-  if (
-    ts.isPropertyDeclaration(parent) &&
-    parent.initializer === child &&
-    ts.isIdentifier(parent.name)
-  )
-    return { field: `${cls}.${parent.name.text}` };
-  return {};
-}
-
-/** A decision field read at `n`: its name, else undefined. */
-function fieldRead(n: TS.Node): string | undefined {
-  if (ts.isPropertyAccessExpression(n) && DECISION_FIELDS.has(n.name.text)) return n.name.text;
-  if (
-    ts.isElementAccessExpression(n) &&
-    ts.isStringLiteral(n.argumentExpression) &&
-    DECISION_FIELDS.has(n.argumentExpression.text)
-  )
-    return n.argumentExpression.text;
+/** The function a return statement returns from. */
+function functionOf(node: TS.Node): TS.SignatureDeclaration | undefined {
+  for (let n: TS.Node | undefined = node.parent; n !== undefined; n = n.parent)
+    if (ts.isFunctionLike(n)) return n;
   return undefined;
 }
 
+/** The call a function is handed to as a callback, if it is one. */
+function callbackOf(fn: TS.Node): TS.CallExpression | TS.NewExpression | undefined {
+  const { parent, child } = consumer(fn);
+  return (ts.isCallExpression(parent) || ts.isNewExpression(parent)) &&
+    parent.arguments?.includes(child as TS.Expression) === true
+    ? parent
+    : undefined;
+}
+
+/** The list methods whose callback's result is the list's next value: drawn text stays drawn text. */
+const MAPPING = new Set(["map", "flatMap"]);
+/** The list methods that call back with each element, whose result is not carried on. */
+const EACH = new Set(["forEach"]);
+/** String and list methods that return the same text, re-laid: their result stays decision text. */
+const RELAYING = new Set(["slice", "join", "padEnd", "padStart", "trim", "trimEnd", "trimStart"]);
+/** The array methods that add drawn text to a list being drawn: the list then holds it. */
+const ADDING = new Set(["push", "unshift"]);
+
 /**
- * What a file's sources of decision text taint before any use is checked:
- * the class fields that keep it, and, with the checker, the functions that
- * return it (N-1: `const whyRow = (e) => [k, safe(e.reason)]`), whose every
- * call is then followed as the text itself is. Run to a fixed point, so a
- * function returning another's result, or a field kept from one, is found.
+ * The helpers that only draw or copy text (N-1): resolved by the checker's
+ * symbol, following import aliases, to their declarations here, never by
+ * name alone (a local function called `cut` that decides is not one). Each
+ * file is listed with the names it may draw through; `*` takes every member
+ * of the named interface (the theme's colours, the clipboard's copy).
  */
-function taintedIn(
-  file: TS.SourceFile,
+const HELPERS: { file: string; names: readonly string[]; member?: string; args?: number[] }[] = [
+  {
+    file: "packages/cli/src/tui/layout.ts",
+    names: [
+      "fit",
+      "cut",
+      "wrap",
+      "para",
+      "box",
+      "rows",
+      "sideBySide",
+      "overlay",
+      "clean",
+      "visibleWidth",
+    ],
+  },
+  {
+    file: "packages/cli/src/tui/screens/rich.ts",
+    names: ["safe", "oneLine", "firstLines", "boxed", "paneBox"],
+  },
+  { file: "packages/cli/src/tui/theme.ts", names: ["*"], member: "Theme" },
+  { file: "packages/cli/src/tui/clipboard.ts", names: ["osc52", "copy"], member: "Clipboard" },
+  // A screen's run: its third argument is lines the confirmation draws (RichScreen.run).
+  { file: "packages/cli/src/tui/screens/rich.ts", names: ["run"], member: "RichScreen", args: [2] },
+];
+/** Without the checker (the syntax-only probes), the helpers by name. */
+const HELPER_NAMES = new Set([
+  "oneLine",
+  "safe",
+  "cut",
+  "fit",
+  "para",
+  "wrap",
+  "firstLines",
+  "box",
+]);
+
+/** Whether a declaration is one of HELPERS, or pi-tui's own drawing, for the argument at `arg`. */
+function isHelperDeclaration(decl: TS.Declaration, arg: number): boolean {
+  const path = decl.getSourceFile().fileName.replaceAll("\\", "/");
+  if (path.includes("/@earendil-works/pi-tui/")) return true;
+  const rel = path.startsWith(REPO_SLASH) ? path.slice(REPO_SLASH.length) : path;
+  const named = (decl as { name?: TS.Node }).name;
+  const name = named !== undefined && ts.isIdentifier(named) ? named.text : "";
+  return HELPERS.some((h) => {
+    if (h.file !== rel) return false;
+    if (h.args !== undefined && !h.args.includes(arg)) return false;
+    if (h.member !== undefined) {
+      const owner = decl.parent;
+      const inOwner =
+        (ts.isInterfaceDeclaration(owner) || ts.isClassDeclaration(owner)) &&
+        owner.name?.text === h.member;
+      if (inOwner) return h.names.includes("*") || h.names.includes(name);
+      if (h.args !== undefined) return false;
+    }
+    return h.names.includes(name);
+  });
+}
+const REPO_SLASH = `${REPO.replaceAll("\\", "/")}/`;
+
+/** The symbol a name stands for, past an import alias. */
+function realSymbol(checker: TS.TypeChecker, node: TS.Node): TS.Symbol | undefined {
+  const sym = checker.getSymbolAtLocation(node);
+  if (sym === undefined) return undefined;
+  return sym.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(sym) : sym;
+}
+
+/** What a call does with its argument `arg`: a drawing helper draws it (its result drawn text), a sink takes it, or neither. */
+function helperFor(
   checker: TS.TypeChecker | undefined,
-): { fields: Set<string>; fns: Set<TS.Symbol> } {
-  const fields = new Set<string>();
-  const fns = new Set<TS.Symbol>();
-  const fnOf = (end: TS.Node): TS.Symbol | undefined => {
-    const fn = resultOf(end);
-    if (fn === undefined || checker === undefined || isCallback(fn)) return undefined;
+  call: TS.CallExpression | TS.NewExpression,
+  arg: TS.Node,
+): "draws" | "sink" | undefined {
+  if (!isHelperCall(checker, call, arg)) return undefined;
+  if (checker === undefined) return "draws";
+  const callee = ts.isPropertyAccessExpression(call.expression)
+    ? call.expression.name
+    : call.expression;
+  const decls = realSymbol(checker, callee)?.declarations ?? [];
+  const sink = decls.some((d) => {
+    const rel = d.getSourceFile().fileName.replaceAll("\\", "/").slice(REPO_SLASH.length);
+    const named = (d as { name?: TS.Node }).name;
+    const name = named !== undefined && ts.isIdentifier(named) ? named.text : "";
+    return HELPERS.some((h) => h.file === rel && h.args !== undefined && h.names.includes(name));
+  });
+  return sink ? "sink" : "draws";
+}
+
+/** Whether a call is to a drawing or copying helper (HELPERS), by symbol, for its argument `arg`. */
+function isHelperCall(
+  checker: TS.TypeChecker | undefined,
+  call: TS.CallExpression | TS.NewExpression,
+  arg: TS.Node,
+): boolean {
+  if (checker === undefined) return HELPER_NAMES.has(calleeName(call));
+  const callee = ts.isPropertyAccessExpression(call.expression)
+    ? call.expression.name
+    : call.expression;
+  const sym = realSymbol(checker, callee);
+  const at = call.arguments?.indexOf(arg as TS.Expression) ?? -1;
+  return (sym?.declarations ?? []).some((d) => isHelperDeclaration(d, at));
+}
+
+/**
+ * Where decision text, and everything made of it, may go (the coordinator's
+ * allowlist of uses, after the N-1 verification): each step of `use` either
+ * permits the use, carries the taint to the expression it makes, or fails.
+ */
+class Uses {
+  /** Locals, parameters and bindings holding decision text: by symbol with the checker, else by name. */
+  readonly locals = new Set<TS.Symbol | string>();
+  /** Class fields holding it, by class and name. */
+  readonly fields = new Set<string>();
+  /** Functions, methods and getters returning it, by symbol. */
+  readonly fns = new Set<TS.Symbol>();
+  out: string[] = [];
+
+  readonly file: TS.SourceFile;
+  readonly checker: TS.TypeChecker | undefined;
+  readonly at: (n: TS.Node) => string;
+
+  constructor(
+    file: TS.SourceFile,
+    checker: TS.TypeChecker | undefined,
+    at: (n: TS.Node) => string,
+  ) {
+    this.file = file;
+    this.checker = checker;
+    this.at = at;
+  }
+
+  size(): number {
+    return this.locals.size + this.fields.size + this.fns.size;
+  }
+
+  private fail(n: TS.Node, why: string): void {
+    this.out.push(`${this.at(n)}: decision text ${why}: ${n.getText(this.file).slice(0, 80)}`);
+  }
+
+  private keyOf(node: TS.Node): TS.Symbol | string {
+    return this.checker?.getSymbolAtLocation(node) ?? node.getText(this.file);
+  }
+
+  /** A binding name (identifier or list pattern) taking decision text; an object pattern is refused. */
+  private bind(name: TS.BindingName, from: TS.Node): void {
+    if (ts.isIdentifier(name)) this.locals.add(this.keyOf(name));
+    else if (ts.isArrayBindingPattern(name)) {
+      for (const el of name.elements) if (ts.isBindingElement(el)) this.bind(el.name, from);
+    } else this.fail(from, "destructured by name");
+  }
+
+  /** A function returning decision text: its every call is decision text too. */
+  private returns(fn: TS.SignatureDeclaration, n: TS.Node): void {
+    const call = callbackOf(fn);
+    if (call !== undefined) {
+      if (ts.isCallExpression(call) && MAPPING.has(calleeName(call))) this.use(call);
+      else this.fail(n, `returned to ${calleeName(call) || "a call"}, which decides on it`);
+      return;
+    }
+    if (this.checker === undefined) return;
     const named =
       fn.name ??
       (ts.isVariableDeclaration(fn.parent) && fn.parent.initializer === fn
         ? fn.parent.name
         : undefined);
-    return named === undefined ? undefined : checker.getSymbolAtLocation(named);
-  };
-  let size = -1;
-  while (fields.size + fns.size !== size) {
-    size = fields.size + fns.size;
-    const walk = (n: TS.Node): void => {
-      const source =
-        fieldRead(n) !== undefined ||
-        (ts.isPropertyAccessExpression(n) &&
-          n.expression.kind === ts.SyntaxKind.ThisKeyword &&
-          fields.has(`${classOf(n)}.${n.name.text}`)) ||
-        (ts.isCallExpression(n) && checker !== undefined && calledFn(checker, n, fns));
-      if (source) {
-        const { field } = keptAt(n);
-        if (field !== undefined) fields.add(field);
-        const { end, held } = flow(n);
-        const sym = held === "named" ? undefined : fnOf(end);
-        if (sym !== undefined) fns.add(sym);
-      }
-      ts.forEachChild(n, walk);
-    };
-    walk(file);
+    const sym = named === undefined ? undefined : this.checker.getSymbolAtLocation(named);
+    if (sym !== undefined) this.fns.add(sym);
   }
-  return { fields, fns };
-}
 
-/** Whether a call is to one of `fns`, the functions that return decision text. */
-function calledFn(checker: TS.TypeChecker, call: TS.CallExpression, fns: Set<TS.Symbol>): boolean {
-  const sym = checker.getSymbolAtLocation(call.expression);
-  if (sym === undefined) return false;
-  const real = sym.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(sym) : sym;
-  return fns.has(real) || fns.has(sym);
+  /** Whether `n` is a source of decision text other than a field read: a local, a field, a call or getter returning it. */
+  holds(n: TS.Node): boolean {
+    if (ts.isIdentifier(n)) {
+      const p = n.parent;
+      if (ts.isVariableDeclaration(p) && p.name === n) return false;
+      if (ts.isBindingElement(p) || ts.isParameter(p)) return false;
+      if (ts.isPropertyAccessExpression(p) && p.name === n) return false;
+      if (ts.isPropertyAssignment(p) && p.name === n) return false;
+      return this.locals.has(this.keyOf(n));
+    }
+    if (
+      ts.isPropertyAccessExpression(n) &&
+      n.expression.kind === ts.SyntaxKind.ThisKeyword &&
+      this.fields.has(`${classOf(n)}.${n.name.text}`)
+    )
+      return true;
+    if (this.checker === undefined) return false;
+    if (ts.isCallExpression(n)) {
+      const callee = ts.isPropertyAccessExpression(n.expression) ? n.expression.name : n.expression;
+      const sym = realSymbol(this.checker, callee);
+      return sym !== undefined && this.fns.has(sym);
+    }
+    // A getter returning it, read as a property.
+    if (ts.isPropertyAccessExpression(n) && !ts.isCallExpression(n.parent)) {
+      const sym = realSymbol(this.checker, n.name);
+      return sym !== undefined && this.fns.has(sym);
+    }
+    return false;
+  }
+
+  /** A carrier: an object holding decision text under a decision field's own name, whose every later read is checked by that name. */
+  carrier(obj: TS.Node): void {
+    const { parent, child } = consumer(obj);
+    if (ts.isArrayLiteralExpression(parent) || ts.isSpreadElement(parent)) {
+      this.carrier(parent);
+      return;
+    }
+    if (ts.isPropertyAssignment(parent) && parent.initializer === child) {
+      this.carrier(parent.parent);
+      return;
+    }
+    if (ts.isConditionalExpression(parent) && parent.condition !== child) {
+      this.carrier(parent);
+      return;
+    }
+    if (
+      ts.isBinaryExpression(parent) &&
+      parent.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken
+    ) {
+      this.carrier(parent);
+      return;
+    }
+    if (ts.isVariableDeclaration(parent) && parent.initializer === child) {
+      if (!ts.isIdentifier(parent.name)) this.fail(obj, "destructured from its carrier");
+      return;
+    }
+    if (ts.isReturnStatement(parent) || (ts.isArrowFunction(parent) && parent.body === child)) {
+      const fn = ts.isReturnStatement(parent) ? functionOf(parent) : parent;
+      const call = fn === undefined ? undefined : callbackOf(fn);
+      if (call === undefined) return;
+      if (ts.isCallExpression(call) && MAPPING.has(calleeName(call))) {
+        this.carrier(call);
+        return;
+      }
+      this.fail(obj, `carried into ${calleeName(call) || "a call"}'s callback result`);
+      return;
+    }
+    if (
+      ts.isCallExpression(parent) &&
+      parent.arguments.includes(child as TS.Expression) &&
+      (ADDING.has(calleeName(parent)) || calleeName(parent) === "set")
+    )
+      return;
+    this.fail(obj, "carried, then used other than returned, listed or kept");
+  }
+
+  /** Decision text at `n` (a field read, or text made of one): where it goes must be a permitted use. */
+  use(n: TS.Node): void {
+    const { parent, child } = consumer(n);
+    // (a) drawn: a template, then where the template goes.
+    if (ts.isTemplateSpan(parent)) {
+      const tmpl = parent.parent;
+      if (ts.isTaggedTemplateExpression(tmpl.parent)) {
+        this.fail(n, "handed to a tagged template's tag");
+        return;
+      }
+      this.use(tmpl);
+      return;
+    }
+    if (ts.isTaggedTemplateExpression(parent)) {
+      this.fail(n, "a tagged template");
+      return;
+    }
+    // (a) drawn or copied: a helper's argument (by symbol), whose result is drawn text in turn.
+    if (
+      (ts.isCallExpression(parent) || ts.isNewExpression(parent)) &&
+      parent.arguments?.includes(child as TS.Expression)
+    ) {
+      const helper = helperFor(this.checker, parent, child);
+      // A drawing helper's result is drawn text in turn; a sink (a screen's run) keeps nothing.
+      if (helper === "draws") {
+        this.use(parent);
+        return;
+      }
+      if (helper === "sink") return;
+      if (
+        ts.isCallExpression(parent) &&
+        ADDING.has(calleeName(parent)) &&
+        ts.isPropertyAccessExpression(parent.expression)
+      ) {
+        // Drawn text added to a list: the list holds it from then on.
+        const list = parent.expression.expression;
+        if (ts.isIdentifier(list)) this.locals.add(this.keyOf(list));
+        else if (
+          ts.isPropertyAccessExpression(list) &&
+          list.expression.kind === ts.SyntaxKind.ThisKeyword
+        ) {
+          const cls = classOf(list);
+          if (cls !== undefined) this.fields.add(`${cls}.${list.name.text}`);
+        } else if (!this.holds(list)) {
+          this.fail(n, "added to a list that is not followed");
+          return;
+        }
+        return;
+      }
+      this.fail(n, `passed to ${calleeName(parent) || "a call"}, which is not a drawing helper`);
+      return;
+    }
+    if (ts.isSpreadElement(parent)) {
+      const up = parent.parent;
+      if (ts.isArrayLiteralExpression(up)) {
+        this.use(up);
+        return;
+      }
+      this.use(parent);
+      return;
+    }
+    // (b) layout: a length, or a member that re-lays the same text.
+    if (ts.isPropertyAccessExpression(parent) && parent.expression === child) {
+      const name = parent.name.text;
+      if (
+        name === "length" &&
+        !(ts.isCallExpression(parent.parent) && parent.parent.expression === parent)
+      )
+        return;
+      const call = parent.parent;
+      if (ts.isCallExpression(call) && call.expression === parent) {
+        if (ADDING.has(name)) return;
+        if (RELAYING.has(name)) {
+          this.use(call);
+          return;
+        }
+        const cb = call.arguments[0];
+        if (
+          (MAPPING.has(name) || EACH.has(name)) &&
+          cb !== undefined &&
+          (ts.isArrowFunction(cb) || ts.isFunctionExpression(cb))
+        ) {
+          const p = cb.parameters[0];
+          if (p !== undefined) this.bind(p.name, n);
+          return;
+        }
+        this.fail(n, `.${name}() called on it`);
+        return;
+      }
+      this.fail(n, `.${name} read on it`);
+      return;
+    }
+    if (ts.isElementAccessExpression(parent) && parent.expression === child) {
+      this.use(parent);
+      return;
+    }
+    // (d) the one comparison: empty or not, to draw a placeholder.
+    if (ts.isBinaryExpression(parent)) {
+      const op = parent.operatorToken.kind;
+      const other = parent.left === child ? parent.right : parent.left;
+      if (
+        (op === ts.SyntaxKind.EqualsEqualsEqualsToken ||
+          op === ts.SyntaxKind.ExclamationEqualsEqualsToken) &&
+        folded(other) === ""
+      )
+        return;
+      // A fallback for none: `?? null`, `?? ""`; any other fallback is text the code chose.
+      if (op === ts.SyntaxKind.QuestionQuestionToken) {
+        const none =
+          parent.left === child &&
+          (parent.right.kind === ts.SyntaxKind.NullKeyword ||
+            folded(parent.right) === "" ||
+            (ts.isIdentifier(parent.right) && parent.right.text === "undefined"));
+        if (none) this.use(parent);
+        else this.fail(n, "given a fallback");
+        return;
+      }
+      if (op === ts.SyntaxKind.EqualsToken && parent.right === child) {
+        const left = parent.left;
+        if (ts.isIdentifier(left)) this.locals.add(this.keyOf(left));
+        else if (
+          ts.isPropertyAccessExpression(left) &&
+          left.expression.kind === ts.SyntaxKind.ThisKeyword
+        ) {
+          const cls = classOf(left);
+          if (cls !== undefined) this.fields.add(`${cls}.${left.name.text}`);
+        } else this.fail(n, "assigned where it is not followed");
+        return;
+      }
+      this.fail(n, `in a ${ts.tokenToString(op) ?? "binary"} expression`);
+      return;
+    }
+    if (ts.isConditionalExpression(parent)) {
+      if (parent.condition === child) {
+        this.fail(n, "branched on");
+        return;
+      }
+      this.use(parent);
+      return;
+    }
+    if (ts.isArrayLiteralExpression(parent)) {
+      this.use(parent);
+      return;
+    }
+    // (c) carried under a decision field's own name.
+    if (ts.isPropertyAssignment(parent) && parent.initializer === child) {
+      if (decisionName(parent.name)) {
+        this.carrier(parent.parent);
+        return;
+      }
+      this.fail(n, `held under the name ${parent.name.getText(this.file)}`);
+      return;
+    }
+    if (ts.isShorthandPropertyAssignment(parent)) {
+      if (decisionName(parent.name)) {
+        this.carrier(parent.parent);
+        return;
+      }
+      this.fail(n, `held under the name ${parent.name.text}`);
+      return;
+    }
+    // Kept: a local, a binding, a loop variable, a class field.
+    if (ts.isVariableDeclaration(parent) && parent.initializer === child) {
+      this.bind(parent.name, n);
+      return;
+    }
+    if (ts.isForOfStatement(parent) && parent.expression === child) {
+      const init = parent.initializer;
+      if (ts.isVariableDeclarationList(init))
+        for (const d of init.declarations) this.bind(d.name, n);
+      else this.fail(n, "iterated into an assignment");
+      return;
+    }
+    if (ts.isPropertyDeclaration(parent) && parent.initializer === child) {
+      const cls = classOf(parent);
+      if (cls !== undefined && ts.isIdentifier(parent.name))
+        this.fields.add(`${cls}.${parent.name.text}`);
+      return;
+    }
+    // Returned: the function's every call is decision text.
+    if (ts.isReturnStatement(parent)) {
+      const fn = functionOf(parent);
+      if (fn !== undefined) this.returns(fn, n);
+      return;
+    }
+    if (ts.isArrowFunction(parent) && parent.body === child) {
+      this.returns(parent, n);
+      return;
+    }
+    if (ts.isExpressionStatement(parent) || ts.isVoidExpression(parent)) return;
+    this.fail(n, "used other than drawn");
+  }
 }
 
 /** Whether a type loses what it holds: any, unknown, or a string-keyed record naming no decision field. */
 function loses(checker: TS.TypeChecker, type: TS.Type): boolean {
-  if ((type.flags & (ts.TypeFlags.Any | ts.TypeFlags.Unknown)) !== 0) return true;
+  // A type parameter loses it too (N9: a generic picker, `get<T, K extends keyof T>`).
+  if ((type.flags & (ts.TypeFlags.Any | ts.TypeFlags.Unknown | ts.TypeFlags.TypeParameter)) !== 0)
+    return true;
   if (type.isUnion()) return type.types.some((t) => loses(checker, t));
   return (
     type.getStringIndexType() !== undefined &&
@@ -459,7 +715,28 @@ function bearsDecision(
 }
 
 /** The calls that read an answer whole, as data, never under src/tui (N2, gap 3). */
-const WHOLE = new Set(["JSON.stringify", "Object.values", "Object.entries"]);
+const WHOLE = new Set([
+  "JSON.stringify",
+  "Object.values",
+  "Object.entries",
+  "Object.getOwnPropertyDescriptor",
+  "Object.getOwnPropertyDescriptors",
+  "Reflect.get",
+  "Reflect.ownKeys",
+  "Reflect.getOwnPropertyDescriptor",
+]);
+
+/**
+ * The calls of the pinned search, by file and exact text (white space
+ * folded): its query is the Events screen's find field, what the person
+ * typed, never a word the code chose (N23: `findInReasons([e], "denied")`).
+ */
+const SEARCH_CALLS = [
+  {
+    path: "packages/cli/src/tui/screens/events.ts",
+    text: 'findInReasons(filterEvents(this.events(), this.filter), this.extras.get("find")?.value ?? "")',
+  },
+];
 
 /** Every place a source decides on a decision field, or writes a string a screen must not. */
 function violations(
@@ -472,39 +749,37 @@ function violations(
     ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
   const checker = program?.checker;
   const out: string[] = [];
-  /** The locals that hold decision text: by symbol with the checker, else by name. */
-  const tainted = new Set<TS.Symbol | string>();
-  /** The class fields that hold it, and the functions that return it. */
-  const { fields, fns } = taintedIn(file, checker);
   const at = (n: TS.Node) => `${path}:${file.getLineAndCharacterOfPosition(n.getStart()).line + 1}`;
+  // The uses of decision text, walked to a fixed point: a local, field or function found holding
+  // it later in the file is followed from its first use on the next pass.
+  const uses = new Uses(file, checker, at);
+  for (let pass = 0; pass < 8; pass++) {
+    const size = uses.size();
+    uses.out = [];
+    const walk = (n: TS.Node): void => {
+      if (fieldRead(n) !== undefined || uses.holds(n)) uses.use(n);
+      ts.forEachChild(n, walk);
+    };
+    walk(file);
+    if (uses.size() === size) break;
+  }
+  out.push(...uses.out);
   const visit = (n: TS.Node): void => {
-    const field = fieldRead(n);
-    // A source of decision text: a decision field read, a local or a class field keeping it, a call returning it.
-    const held =
-      ts.isIdentifier(n) &&
-      !(ts.isVariableDeclaration(n.parent) && n.parent.name === n) &&
-      tainted.has(checker?.getSymbolAtLocation(n) ?? n.text)
-        ? `${n.text}, which holds a decision field's text,`
-        : ts.isPropertyAccessExpression(n) &&
-            n.expression.kind === ts.SyntaxKind.ThisKeyword &&
-            fields.has(`${classOf(n)}.${n.name.text}`)
-          ? `this.${n.name.text}, which holds a decision field's text,`
-          : ts.isCallExpression(n) && checker !== undefined && calledFn(checker, n, fns)
-            ? `${n.expression.getText(file)}(), which returns a decision field's text,`
-            : undefined;
-    if (field !== undefined && !onlyDrawn(n))
-      out.push(
-        `${at(n)}: .${field} used other than as text drawn: ${n.parent.getText(file).slice(0, 80)}`,
-      );
-    else if (field !== undefined || held !== undefined) {
-      const wrong = misuse(n);
-      if (wrong !== undefined)
+    // N5, N9: a decision field named as a call's argument, a key handed to a picker (Reflect.get, `get(o, k)`).
+    if (
+      (ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n)) &&
+      DECISION_FIELDS.has(n.text) &&
+      (ts.isCallExpression(n.parent) || ts.isNewExpression(n.parent)) &&
+      n.parent.arguments?.includes(n) === true
+    )
+      out.push(`${at(n)}: a decision field's name handed to ${calleeName(n.parent) || "a call"}`);
+    // N23: the pinned search is called only on what the person typed.
+    if (ts.isCallExpression(n) && calleeName(n) === "findInReasons") {
+      const text = foldSpace(n.getText(file));
+      if (!SEARCH_CALLS.some((c) => c.path === path && c.text === text))
         out.push(
-          `${at(n)}: ${held ?? `.${field}`} ${wrong}: ${n.parent.getText(file).slice(0, 80)}`,
+          `${at(n)}: findInReasons called other than on the find field: ${text.slice(0, 80)}`,
         );
-      // A local keeping it carries the taint on (re-verification 1).
-      const { local } = keptAt(n);
-      if (local !== undefined) tainted.add(checker?.getSymbolAtLocation(local) ?? local.text);
     }
     // N-1: a value carrying a decision field where its type is lost (any, unknown, a string-keyed record), so no key read on it is seen.
     if (
@@ -542,11 +817,12 @@ function violations(
     }
     // Gap 1: a destructuring that names a decision field.
     if (ts.isBindingElement(n)) {
-      const name = (n.propertyName ?? n.name).getText(file);
-      if (DECISION_FIELDS.has(name)) out.push(`${at(n)}: destructures .${name}`);
+      const name = n.propertyName ?? n.name;
+      if (decisionName(name)) out.push(`${at(n)}: destructures .${name.getText(file)}`);
     }
     // Gap 4: a computed key on a decision-bearing object, or one that folds to a decision field.
-    if (ts.isElementAccessExpression(n) && field === undefined) {
+    // A key that folds to a decision field's name hides it (a plain string key is a field read, checked above).
+    if (ts.isElementAccessExpression(n) && !ts.isStringLiteral(n.argumentExpression)) {
       const key = n.argumentExpression;
       const value = folded(key) ?? (checker === undefined ? undefined : constantOf(checker, key));
       const literal =
@@ -704,6 +980,9 @@ function probeProgram(code: string) {
   return { file: program.getSourceFile(name) as TS.SourceFile, checker: program.getTypeChecker() };
 }
 
+/** The bypasses the guard does not catch, by id: its known limits (the header). */
+const LIMITS: string[] = [];
+
 /** An answer's type for probes: a decision under event. */
 const ANSWER =
   "declare const answer: { event: { reason: string; policy_id: string }; items: string[] };";
@@ -784,7 +1063,7 @@ describe("no policy in the TUI's source", () => {
         'const k: string = String(1); void (answer.event as Record<string, string>)[k]; void answer.event[k as "reason"];',
     };
     for (const [name, code] of Object.entries(gaps)) {
-      const source = `${ANSWER}\ndeclare function oneLine(s: string): string;\ndeclare function go(): void;\n${code}`;
+      const source = `${ANSWER}\nimport { oneLine } from "./screens/rich.ts";\ndeclare function go(): void;\n${code}`;
       expect(violations("probe.ts", source, probeProgram(source)).length, name).toBeGreaterThan(0);
     }
     // F-8: a carry or a row is allowed only as it is; anything done with it is not.
@@ -794,32 +1073,32 @@ describe("no policy in the TUI's source", () => {
         'const v = { reason: answer.event.reason ?? "x" }; void v;',
       "a row's reason searched":
         'const row = ["reason", answer.event.reason]; if (row[1]?.includes("x")) go();',
-      "a row with no label": "const row = [answer.event.policy_id, answer.event.reason]; void row;",
-      "a labelled row": 'const rows = [["reason", answer.event.reason]]; void rows;',
+      "a row put in a Map": 'const rows = new Map([["reason", answer.event.reason]]); void rows;',
+      "a row flattened": 'void [["reason", answer.event.reason]].flat();',
       "drawn text in a row, in a Map, read":
-        'declare function safe(s: string): string; if (new Map([["r", safe(answer.event.reason)]]).get("r") === "x") go();',
+        'if (new Map([["r", safe(answer.event.reason)]]).get("r") === "x") go();',
       "drawn text returned, the call compared":
-        'declare function safe(s: string): string; const why = () => safe(answer.event.reason); if (why() === "x") go();',
-      "drawn text as a filter's result":
-        "declare function safe(s: string): string; void [answer].filter((a) => safe(a.event.reason));",
+        'const why = () => safe(answer.event.reason); if (why() === "x") go();',
+      "drawn text as a filter's result": "void [answer].filter((a) => safe(a.event.reason));",
       "a local copied from a local, then searched":
-        'declare function safe(s: string): string; const a = safe(answer.event.reason); const b = a; if (b.includes("x")) go();',
+        'const a = safe(answer.event.reason); const b = a; if (b.includes("x")) go();',
       "a carrier cast to any": "const v = answer as any; void v;",
     };
     for (const [name, code] of Object.entries(carried)) {
-      const source = `${ANSWER}\ndeclare function go(): void;\n${code}`;
+      const source = `${ANSWER}\nimport { safe } from "./screens/rich.ts";\ndeclare function go(): void;\n${code}`;
       expect(violations("probe.ts", source, probeProgram(source)).length, name).toBeGreaterThan(0);
     }
-    const carries = `${ANSWER}\nconst v = { policyId: answer.event.policy_id, admittedBy: answer.event.policy_id ?? null, reason: answer.event.reason }; void v;`;
+    const carries = `${ANSWER}\nconst v = { policyId: answer.event.policy_id, admittedBy: answer.event.policy_id ?? null, reason: answer.event.reason }; void v; const rows = [["reason", answer.event.reason]]; void rows;`;
     expect(violations("probe.ts", carries, probeProgram(carries))).toEqual([]);
     // Drawn text kept in a local and only drawn again is allowed.
-    const allowed = `${ANSWER}\ndeclare function oneLine(s: string): string;\nconst t = oneLine(answer.event.reason); const out: string[] = []; out.push(t);`;
+    const allowed = `${ANSWER}\nimport { oneLine } from "./screens/rich.ts";\nconst t = oneLine(answer.event.reason); const out: string[] = []; out.push(t);`;
     expect(violations("probe.ts", allowed, probeProgram(allowed))).toEqual([]);
   }, 300_000);
 
   it("fails each bypass the fix pass's verification found (N-1, B1 to B7), and the fix pass's own source mutants", () => {
     const before = "export function findInReasons(";
     const events = "      filterEvents(this.events(), this.filter),";
+    const TOP = "/** One row of the policy tree. */";
     const VIEW_TS = "packages/view/src/view.ts";
     const EVENTS_TS = "packages/cli/src/tui/screens/events.ts";
     const mutants: { name: string; path: string; from: string; to: string }[] = [
@@ -885,6 +1164,219 @@ describe("no policy in the TUI's source", () => {
         from: "  const wanted = text.trim().toLowerCase();\n",
         to: '  const wanted = text.trim().toLowerCase();\n  if (events.some((e) => e.reason === "x")) return [];\n',
       },
+      // The verification of the N-1 pass, its 26 bypasses (scratchpad n1/mk.mjs), each a mutant here.
+      {
+        name: "N1 computed-key destructuring",
+        path: VIEW_TS,
+        from: "export function findInReasons(",
+        to: 'export function isDenied(e: MemoryEvent): boolean { const { ["reason"]: r } = e; return r.startsWith("denied"); }\nexport function findInReasons(',
+      },
+      {
+        name: "N2 string concatenation of a drawn reason",
+        path: VIEW_TS,
+        from: "export function findInReasons(",
+        to: tpl(
+          'export function isDenied(e: MemoryEvent): boolean { return ("" + `$[e.reason}`).includes("denied"); }\nexport function findInReasons(',
+        ),
+      },
+      {
+        name: "N3 drawn reason as a RegExp.test argument",
+        path: VIEW_TS,
+        from: "export function findInReasons(",
+        to: tpl(
+          "export function isDenied(e: MemoryEvent): boolean { return /denied/.test(`$[e.reason}`); }\nexport function findInReasons(",
+        ),
+      },
+      {
+        name: "N4 drawn policy id as an Array.includes / Object.is argument",
+        path: VIEW_TS,
+        from: "export function findInReasons(",
+        to: tpl(
+          'const DENY = ["x"]; export function isDenied(e: MemoryEvent): boolean { return DENY.includes(`$[e.policy_id}`) || Object.is(`$[e.policy_id}`, "y"); }\nexport function findInReasons(',
+        ),
+      },
+      {
+        name: "N5 Reflect.get with a literal key",
+        path: VIEW_TS,
+        from: "export function findInReasons(",
+        to: 'export function isDenied(e: MemoryEvent): boolean { return String(Reflect.get(e, "reason")).startsWith("denied"); }\nexport function findInReasons(',
+      },
+      {
+        name: "N6 Object.values through a destructured alias",
+        path: VIEW_TS,
+        from: "export function findInReasons(",
+        to: 'const { values } = Object; export function isDenied(e: MemoryEvent): boolean { return values(e).includes("denied"); }\nexport function findInReasons(',
+      },
+      {
+        name: "N7 class getter returning the drawn reason",
+        path: VIEW_TS,
+        from: "export function findInReasons(",
+        to: tpl(
+          'class Why { e: MemoryEvent; constructor(e: MemoryEvent) { this.e = e; } get text(): string { return `$[this.e.reason}`; } }\nexport function isDenied(e: MemoryEvent): boolean { return new Why(e).text.startsWith("denied"); }\nexport function findInReasons(',
+        ),
+      },
+      {
+        name: "N8 a deciding function named like a display helper (cut)",
+        path: VIEW_TS,
+        from: "export function findInReasons(",
+        to: 'function cut(s: string, keep: () => void): string { if (!s.startsWith("denied")) keep(); return s; }\nexport function hideDenied(events: readonly MemoryEvent[]): MemoryEvent[] { const out: MemoryEvent[] = []; for (const e of events) cut(e.reason, () => { out.push(e); }); return out; }\nexport function findInReasons(',
+      },
+      {
+        name: "N9 generic property picker",
+        path: VIEW_TS,
+        from: "export function findInReasons(",
+        to: 'function get<T, K extends keyof T>(o: T, k: K): T[K] { return o[k]; }\nexport function isDenied(e: MemoryEvent): boolean { return get(e, "policy_id") === "x"; }\nexport function findInReasons(',
+      },
+      {
+        name: "N10 optional chaining on a drawn reason (expected caught)",
+        path: VIEW_TS,
+        from: "export function findInReasons(",
+        to: tpl(
+          'export function isDenied(e?: MemoryEvent): boolean { return `$[e?.reason}`?.startsWith("denied") === true; }\nexport function findInReasons(',
+        ),
+      },
+      {
+        name: "N11 reduce concatenating drawn reasons",
+        path: VIEW_TS,
+        from: "export function findInReasons(",
+        to: tpl(
+          'export function anyDenied(events: readonly MemoryEvent[]): boolean { return events.reduce((acc, x) => acc + `$[x.reason}`, "").includes("denied"); }\nexport function findInReasons(',
+        ),
+      },
+      {
+        name: "N12 closure over a tainted local",
+        path: VIEW_TS,
+        from: "export function findInReasons(",
+        to: tpl(
+          'export function isDenied(e: MemoryEvent): boolean { const t = `$[e.reason}`; const f = () => t; return f().startsWith("denied"); }\nexport function findInReasons(',
+        ),
+      },
+      {
+        name: "N13 local predicate handed the drawn policy id",
+        path: VIEW_TS,
+        from: "export function findInReasons(",
+        to: tpl(
+          'const deny = (s: string) => s.startsWith("x");\nexport function isDenied(e: MemoryEvent): boolean { return deny(`$[e.policy_id}`); }\nexport function findInReasons(',
+        ),
+      },
+      {
+        name: "N14 Array.from of a drawn reason",
+        path: VIEW_TS,
+        from: "export function findInReasons(",
+        to: tpl(
+          'export function isDenied(e: MemoryEvent): boolean { return Array.from(`$[e.reason}`).join("").startsWith("denied"); }\nexport function findInReasons(',
+        ),
+      },
+      {
+        name: "N15 JSON round trip of a drawn reason",
+        path: VIEW_TS,
+        from: "export function findInReasons(",
+        to: tpl(
+          'export function isDenied(e: MemoryEvent): boolean { return (JSON.parse(JSON.stringify(`$[e.reason}`)) as string).startsWith("denied"); }\nexport function findInReasons(',
+        ),
+      },
+      {
+        name: "N16 spread then for-in computed key (expected caught)",
+        path: VIEW_TS,
+        from: "export function findInReasons(",
+        to: 'export function isDenied(e: MemoryEvent): boolean { const c = { ...e }; for (const k in c) if (String(c[k as keyof typeof c]).startsWith("denied")) return true; return false; }\nexport function findInReasons(',
+      },
+      {
+        name: "N17 template-literal key (expected caught)",
+        path: VIEW_TS,
+        from: "export function findInReasons(",
+        to: 'export function isDenied(e: MemoryEvent): boolean { return e[`reason`].startsWith("denied"); }\nexport function findInReasons(',
+      },
+      {
+        name: "N18 localeCompare against a drawn reason",
+        path: VIEW_TS,
+        from: "export function findInReasons(",
+        to: tpl(
+          'export function isDenied(e: MemoryEvent): boolean { return "denied".localeCompare(`$[e.reason}`) === 0; }\nexport function findInReasons(',
+        ),
+      },
+      {
+        name: "N19 String() of a drawn reason compared",
+        path: VIEW_TS,
+        from: "export function findInReasons(",
+        to: tpl(
+          'export function isDenied(e: MemoryEvent): boolean { return String(`$[e.reason}`) === "denied"; }\nexport function findInReasons(',
+        ),
+      },
+      {
+        name: "N20 Set.has of a drawn policy id",
+        path: VIEW_TS,
+        from: "export function findInReasons(",
+        to: tpl(
+          'const DENYING = new Set(["x"]);\nexport function isDenied(e: MemoryEvent): boolean { return DENYING.has(`$[e.policy_id}`); }\nexport function findInReasons(',
+        ),
+      },
+      {
+        name: "N21 Events screen hides denied via RegExp.test on a template",
+        path: EVENTS_TS,
+        from: "      filterEvents(this.events(), this.filter),",
+        to: tpl(
+          "      filterEvents(this.events(), this.filter).filter((e) => !/denied/.test(`$[e.reason}`)),",
+        ),
+      },
+      {
+        name: "N22 Events screen hides via String(safe(...)) compared",
+        path: EVENTS_TS,
+        from: "      filterEvents(this.events(), this.filter),",
+        to: '      filterEvents(this.events(), this.filter).filter((e) => String(safe(e.reason)) !== "denied"),',
+      },
+      {
+        name: "N23 Events screen uses the pinned findInReasons with a fixed word as a decision",
+        path: EVENTS_TS,
+        from: "      filterEvents(this.events(), this.filter),",
+        to: '      filterEvents(this.events(), this.filter).filter((e) => !findInReasons([e], "denied").length),',
+      },
+      {
+        name: "N24 Events screen: concatenation of oneLine(reason)",
+        path: EVENTS_TS,
+        from: "      filterEvents(this.events(), this.filter),",
+        to: '      filterEvents(this.events(), this.filter).filter((e) => (oneLine(e.reason) + "").indexOf("denied") < 0),',
+      },
+      {
+        name: "N25 tagged template on a reason",
+        path: VIEW_TS,
+        from: "export function findInReasons(",
+        to: tpl(
+          'const tag = (s: TemplateStringsArray, v: string) => v.startsWith("denied");\nexport function isDenied(e: MemoryEvent): boolean { return tag`$[e.reason}`; }\nexport function findInReasons(',
+        ),
+      },
+      {
+        name: "N26 destructuring a carried literal (expected caught)",
+        path: VIEW_TS,
+        from: "export function findInReasons(",
+        to: 'export function isDenied(e: MemoryEvent): boolean { const { reason } = { reason: e.reason }; return reason === "x"; }\nexport function findInReasons(',
+      },
+      // Its false positives, legitimate display code that must pass (n1/mk2.mjs FP1 to FP4, with
+      // the real helpers imported where the probe declared its own; FP2 through an import alias, FP5).
+      {
+        name: "pass FP1 rows of drawn text, then mapped to lines",
+        path: VIEW_TS,
+        from: before,
+        to: `export function detailLines(e: MemoryEvent): string[] { const rows = [["policy id", \`\${e.policy_id}\`], ["reason", \`\${e.reason}\`]]; return rows.map(([k, v]) => \`\${k}  \${v}\`); }\n${before}`,
+      },
+      {
+        name: "pass FP2 a wrapped reason's line count, for scrolling",
+        path: EVENTS_TS,
+        from: TOP,
+        to: `import { wrap as wrapLines } from "../layout.ts";\nexport function reasonHeight(e: MemoryEvent, w: number): number { const lines = wrapLines(e.reason, w); return lines.length; }\n${TOP}`,
+      },
+      {
+        name: "pass FP3 column width from drawn reasons",
+        path: VIEW_TS,
+        from: before,
+        to: `export function reasonWidth(events: readonly MemoryEvent[]): number { return Math.max(0, ...events.map((e) => \`\${e.reason}\`.length)); }\n${before}`,
+      },
+      {
+        name: "pass FP4 the reason copied to the clipboard as it came",
+        path: EVENTS_TS,
+        from: TOP,
+        to: `import type { Clipboard } from "../clipboard.ts";\nexport function copyReason(c: Clipboard, e: MemoryEvent): void { void c.copy(e.reason); }\n${TOP}`,
+      },
     ];
     // Each a copy of the real file, beside it so its imports resolve, compiled as one program.
     const made = mutants.map((m, i) => {
@@ -910,7 +1402,9 @@ describe("no policy in the TUI's source", () => {
     for (const m of made) {
       const file = program.getSourceFile(m.fake) as TS.SourceFile;
       const found = unpinned(m.path, m.code, { file, checker });
-      if (m.name.startsWith("control")) expect(found, m.name).toEqual([]);
+      if (m.name.startsWith("control") || m.name.startsWith("pass "))
+        expect(found, m.name).toEqual([]);
+      else if (LIMITS.some((l) => m.name.startsWith(`${l} `))) continue;
       else expect(found.length, m.name).toBeGreaterThan(0);
     }
   }, 300_000);

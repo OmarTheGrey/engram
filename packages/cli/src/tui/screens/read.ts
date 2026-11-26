@@ -15,6 +15,7 @@ import {
   type Lane,
   type LaneItem,
   laneGroups,
+  reachText,
 } from "@engram/view";
 import { explanationLines, plural } from "../../format.ts";
 import { type CommandSpec, command, type Values } from "../../registry.ts";
@@ -374,10 +375,7 @@ export interface ReadKnown {
 }
 
 /** The explain view's line for the projected items out of the reader's reach, in the number it counts (README review, 2026-11-26). */
-export const reachLine = (n: number): string =>
-  n === 1
-    ? " 1 projected item outside the reader's reach was not a candidate."
-    : ` ${n} projected items outside the reader's reach were not candidates.`;
+export const reachLine = (n: number): string => ` ${reachText(n)}`;
 
 export class ExplainScreen extends RichScreen {
   readonly kind = "explain" as const;

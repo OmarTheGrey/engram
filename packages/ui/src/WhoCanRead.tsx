@@ -42,7 +42,9 @@ export function WhoCanRead({ itemId, onAsk }: { itemId: string; onAsk: Ask }) {
             {view.reason}
           </p>
           {view.closed !== null && (
-            <p data-testid="who-can-read-closed">Nobody now: {view.closed}</p>
+            <p data-testid="who-can-read-closed">
+              Nobody now: {`${view.closed.reason} (${view.closed.policy_id})`}
+            </p>
           )}
           {view.answered && view.closed === null && view.rows.length === 0 && (
             <p className="muted">Nobody: no read matrix row or live grant admits a reader.</p>
@@ -55,8 +57,8 @@ export function WhoCanRead({ itemId, onAsk }: { itemId: string; onAsk: Ask }) {
             ))}
           </ul>
           {view.dormant.map((d) => (
-            <p key={d} className="muted" data-testid="who-can-read-dormant">
-              dormant {d}
+            <p key={d.grant} className="muted" data-testid="who-can-read-dormant">
+              dormant {`${d.grant}: ${d.reason}`}
             </p>
           ))}
           {view.withheld && (

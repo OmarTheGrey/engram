@@ -428,10 +428,13 @@ const SCREENS: Record<string, Build> = {
   events: (h) =>
     set(new EventsScreen(spec("events"), h.app), { result: EVENTS_RUN, focus: 5, selected: 2 }),
   policy: (h) => {
-    const s = set(new PolicyScreen(spec("policy"), h.app, {}, [], "fixture/write/team"), {
-      result: POLICY_RUN,
-      focus: 1,
-    });
+    const s = set(
+      new PolicyScreen(spec("policy"), h.app, {}, [], { policy_id: "fixture/write/team" }),
+      {
+        result: POLICY_RUN,
+        focus: 1,
+      },
+    );
     (s as unknown as { open: Set<string> }).open.add("write");
     return s;
   },
