@@ -10,13 +10,14 @@ evidence:
   - packages/runner/test/answer-refusal.test.ts
   - packages/runner/src/model/retry.ts
   - packages/runner/src/model/cassette.ts
+  - docs/tasks/lead-decisions.md
 supersedes: none
 ---
 
-**What.** The stopping set is 401, 402, 403 and 404; a 403 whose body carries OpenRouter's moderation metadata (`reasons`, `flagged_input`) is an `answer refused` exclusion; five `answer refused` sessions in a row in one process stop the run with a `RefusalStreak`.
+**What.** A 401, 402, 403 or 404 stops the run, except a 403 whose body carries OpenRouter's moderation metadata (`reasons`, `flagged_input`), an `answer refused` exclusion; the run stops when five distinct items in a row each end in a refused answer call (`RefusalStreak`).
 
-**Why.** The coordinator's decisions on review X20-2: with R6's `allow_fallbacks: false` a gone endpoint 404s every call, a moderation flag refuses one prompt, and a misread key or endpoint failure must not exclude a whole run.
+**Why.** The lead's answer of 2026-11-26 ("Amend: 404 + backstop", `docs/tasks/lead-decisions.md`): with R6's `allow_fallbacks: false` a gone endpoint 404s every call, and a misread key or endpoint failure must not exclude a whole run. Items, not sessions (review N1): the runner runs an item's 12 sessions back to back.
 
-**Result.** The fifth refused session is not recorded as a row; the four before it are kept, excluded. A session that answers or is capped resets the count. Each shard is its own process with its own count.
+**Result.** One item refused in all 12 sessions runs on; the fifth refused item's session stops the run unrecorded; an item with no refused session resets the count, an item's own answered sessions do not. The count is per process, so per shard.
 
-**Consequence.** On resume the count starts at zero; an operator resumes only after checking the provider. Five is low enough to stop within minutes.
+**Consequence.** A resume starts the count at zero; the operator resumes after checking the provider.
