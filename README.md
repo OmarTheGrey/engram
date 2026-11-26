@@ -250,7 +250,7 @@ The project started on 5 October 2026 and submits in the last week of March 2027
 - Content guards and trust floors are opt-in and off in every registered preset, so the registered runs measure the plane without them.
 - Outside pi the guarantee is weaker: MCP reads are filtered by scope and grants, but nothing governs what the harness already holds in its context (condition C7), and Codex has no hook yet (ADR [0022](docs/decisions/0022-other-harnesses-through-mcp.md); card E8.17 of the second plan adds one).
 - `Plane.distill` as one call, drift retirement (D4) and condition C6 (enforcement with lints) in the runner are not built.
-- At 10,000 items the plane misses its proposed latency budget, because every call reads whole tables (`h2-perf-budget.json`; the findings are in [`docs/tasks/backlog.md`](docs/tasks/backlog.md)).
+- The plane misses its proposed latency budget (proposed by card X15, not yet accepted) in three of four cells, measured at p99 on the fake store: a read of ten items takes 63.4 ms against 50 ms at 1,000 items and 203.4 ms against 100 ms at 10,000; a write meets its budget at 1,000 items (14.4 ms against 50 ms) and misses it at 10,000 (163.3 ms against 100 ms). Every call reads whole tables (the `budget` block of [`research/results/h2-perf-budget.json`](research/results/h2-perf-budget.json); the findings are in [`docs/tasks/backlog.md`](docs/tasks/backlog.md)).
 
 ## The research programme
 
