@@ -72,10 +72,12 @@ import {
 } from "./model/cassette.ts";
 import {
   NOTE_RETRY,
+  ProviderStopError,
   type RetryPolicy,
   realSleep,
   retrySession,
   type Sleep,
+  stoppingStatus,
   withRetry,
 } from "./model/retry.ts";
 import type { Shard } from "./shard.ts";
@@ -507,7 +509,9 @@ export const noteContext = (caseId: string): CallContext => ({
  * errors, waits of min(2^i, 20) seconds), and only the final reply is
  * recorded; when every attempt fails, a warning names the error, as
  * upstream's does, and the failure is recorded and falls back. An aborted
- * call is never recorded: the run stops (PR #25 review round 3, V-4).
+ * call is never recorded: the run stops (PR #25 review round 3, V-4); nor
+ * is a 401, 402, 404 or a 403 that is not a moderation flag, which stops the
+ * run too (card X20).
  */
 export async function withNotes(
   c: memInvBench.Case,
@@ -549,6 +553,15 @@ export async function withNotes(
       );
       if (reply.stopReason === "aborted") {
         throw new Error(`the note call for ${c.case_id} was aborted; nothing was recorded`);
+      }
+      // A key, credit or endpoint problem stops the run, never recorded (card
+      // X20): falling back would write every later case's memory differently.
+      const status = reply.stopReason === "error" ? stoppingStatus(reply.errorMessage) : undefined;
+      if (status !== undefined) {
+        throw new ProviderStopError(
+          status,
+          `the note call for ${c.case_id} failed: ${reply.errorMessage ?? "error"}`,
+        );
       }
       // A call that failed for good is upstream's `ok: False` with an empty
       // text: warned about, recorded, and the note falls back to the raw input.

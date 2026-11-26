@@ -1,10 +1,12 @@
 // Card X20 (pre-tag condition 3, lead-decisions item 14): an answer call the
 // provider refused with an error no retry can fix (a prompt over the
 // context limit) excludes that session under its own reason, `answer
-// refused`, counted per condition, and the run goes on; an HTTP 401, 402 or
-// 403 stops the run, names its status, records nothing for that session,
-// and a resume runs it once the key or credit is fixed. A replay excludes
-// the same session from its cassette with zero calls. pi-ai's faux provider
+// refused`, counted per condition, and the run goes on; so does OpenRouter's
+// moderation 403. An HTTP 401, 402, 404 or any other 403, at the answer call
+// or the judge, stops the run, names its status, records nothing for that
+// session, and a resume runs it once the key, credit or endpoint is fixed;
+// five refusals in a row stop it too (the backstop, review X20-2). A replay
+// excludes the same session from its cassette with zero calls. pi-ai's faux provider
 // stands in for OpenRouter on the seeded API, answering with error messages
 // in the shapes pi-ai 1.3.0 gives OpenRouter's documented error bodies;
 // nothing here reaches the network, and every wait is injected.
@@ -13,7 +15,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fauxAssistantMessage } from "@earendil-works/pi-ai";
 import { TransientCallError } from "@engram/model";
-import { afterAll, describe, expect, test } from "vitest";
+import { afterAll, beforeEach, describe, expect, test } from "vitest";
 import { type Condition, readRunnerConfig } from "../src/config.ts";
 import type { ProbeResult } from "../src/gatemem-probe.ts";
 import { forEachJsonl, RunJournal, runFingerprint } from "../src/journal.ts";
@@ -23,12 +25,14 @@ import { readMemInvConfig, runMemInvConfig } from "../src/mem-inv-probe.ts";
 import {
   AnswerRefused,
   answerFailure,
-  ProviderAccountError,
+  REFUSAL_STREAK_LIMIT,
   REFUSED_ANSWER_MARK,
+  RefusalStreak,
+  resetRefusalStreak,
   sessionEnd,
   sessionFailure,
 } from "../src/model/cassette.ts";
-import { JUDGE_RETRY, SESSION_RETRY } from "../src/model/retry.ts";
+import { httpStatus, JUDGE_RETRY, ProviderStopError, SESSION_RETRY } from "../src/model/retry.ts";
 import { gatememSessions, memInvViolation } from "../src/research/h1-sessions.ts";
 import { EVENTS_FILE, runConfig } from "../src/run.ts";
 import { FAUX_MODEL, fauxLive, JUDGE_MODEL, withJudge } from "./live-fakes.ts";
@@ -55,6 +59,8 @@ const fresh = () => {
 afterAll(() => {
   for (const dir of temp) rmSync(dir, { recursive: true, force: true });
 });
+// The backstop counts refusals in a row across one process; each test starts afresh.
+beforeEach(() => resetRefusalStreak());
 
 const liveOf = <C extends { name: string; model: string; cassettes: string }>(config: C) =>
   liveConfig(config, {
@@ -91,7 +97,7 @@ const OVERFLOW_TEXT =
   'This endpoint\'s maximum context length is 163840 tokens. However, you requested about 201234 tokens (201234 of text input). Please reduce the length of either one, or use the "middle-out" transform to compress your prompt automatically.';
 const OVERFLOW = `400: ${JSON.stringify({ message: OVERFLOW_TEXT, code: 400 })}`;
 const OVERFLOW_SDK = `400 ${OVERFLOW_TEXT}`;
-const ACCOUNT: Record<401 | 402 | 403, string[]> = {
+const STOPS: Record<401 | 402 | 403 | 404, string[]> = {
   401: [
     `401: ${JSON.stringify({ message: "No auth credentials found", code: 401 })}`,
     "401 User not found.",
@@ -103,9 +109,28 @@ const ACCOUNT: Record<401 | 402 | 403, string[]> = {
   ],
   403: [
     `403: ${JSON.stringify({ message: "Key limit exceeded (total limit). Manage it using https://openrouter.ai/settings/keys", code: 403 })}`,
+    // A 403 that names moderation but lacks OpenRouter's moderation metadata still stops.
     "403 Your chosen model requires moderation and your input was flagged for: too many tokens of harassment",
   ],
+  404: [
+    // A pinned endpoint that is gone (R6's allow_fallbacks false), even if its text names the context.
+    `404: ${JSON.stringify({ message: "No endpoints found matching your data policy (Paid model training). Configure: https://openrouter.ai/settings/privacy", code: 404 })}`,
+    `404 ${OVERFLOW_TEXT}`,
+  ],
 };
+// OpenRouter's documented moderation error: HTTP 403 with ModerationErrorMetadata
+// (reasons, flagged_input, provider_name, model_slug). One prompt refused, not the key.
+const MODERATION = `403: ${JSON.stringify({
+  code: 403,
+  message:
+    'faux-live/model-1 requires moderation on OpenRouter. Your input was flagged for "harassment"',
+  metadata: {
+    reasons: ["harassment"],
+    flagged_input: "You are a memory agent...",
+    provider_name: "Faux",
+    model_slug: "faux-live/model-1",
+  },
+})}`;
 
 const failed = (errorMessage: string) =>
   fauxAssistantMessage([], { stopReason: "error", errorMessage });
@@ -116,18 +141,28 @@ describe("how a failed answer call is read (the classifier)", () => {
     expect(answerFailure(failed(OVERFLOW_SDK), JUDGE_RETRY)).toEqual({ kind: "refused" });
   });
 
-  test("a 401, a 402 and a 403 are account stops naming their status, whatever the text says", () => {
-    for (const [status, messages] of Object.entries(ACCOUNT)) {
+  test("a 401, a 402, a 404 and a 403 that is not a moderation flag stop the run naming their status, whatever the text says", () => {
+    for (const [status, messages] of Object.entries(STOPS)) {
       for (const message of messages) {
         expect(answerFailure(failed(message), JUDGE_RETRY), message).toEqual({
-          kind: "account",
+          kind: "halt",
           status: Number(status),
         });
       }
     }
-    // A body whose code is an account status stops the run even under a 400 that reads as an overflow.
+    // A body whose code is a stopping status stops the run even under a 400 that reads as an overflow.
     const wrapped = `400: ${JSON.stringify({ message: OVERFLOW_TEXT, code: 402 })}`;
-    expect(answerFailure(failed(wrapped), JUDGE_RETRY)).toEqual({ kind: "account", status: 402 });
+    expect(answerFailure(failed(wrapped), JUDGE_RETRY)).toEqual({ kind: "halt", status: 402 });
+  });
+
+  test("OpenRouter's moderation 403, with its documented metadata, is a refusal", () => {
+    expect(answerFailure(failed(MODERATION), JUDGE_RETRY)).toEqual({ kind: "refused" });
+  });
+
+  test("the classifier reads the status with retry.ts's one parse", () => {
+    expect(
+      [OVERFLOW, OVERFLOW_SDK, MODERATION, "HTTP 402 x", "Insufficient"].map(httpStatus),
+    ).toEqual([400, 400, 403, 402, undefined]);
   });
 
   test("anything else is not a refusal: a plain 400, a transient status, a mid-stream error with no status, an abort", () => {
@@ -146,8 +181,6 @@ describe("how a failed answer call is read (the classifier)", () => {
     expect(
       answerFailure(failed(`${OVERFLOW_TEXT} Add credits to raise the limit.`), JUDGE_RETRY),
     ).toEqual({ kind: "stop" });
-    // A 404 (no endpoint) would hit every session: it stops, as before.
-    expect(answerFailure(failed(`404 ${OVERFLOW_TEXT}`), JUDGE_RETRY)).toEqual({ kind: "stop" });
     expect(answerFailure(fauxAssistantMessage([], { stopReason: "aborted" }), JUDGE_RETRY)).toEqual(
       { kind: "stop" },
     );
@@ -186,6 +219,7 @@ describe("a refused answer call on GateMem", () => {
     expect(readdirSync(config.cassettes)).toHaveLength(3);
     const paid = ledger(dir);
     expect(paid).toHaveLength(3);
+    // Exactly one ledger line per call, the refused one included (review X20-6).
     expect(new Set(paid.map((u) => u.key)).size).toBe(3);
     expect(paid.every((u) => !u.hit && u.cost_usd === 0.01)).toBe(true);
 
@@ -258,13 +292,13 @@ describe("a refused answer call on GateMem", () => {
   }, 120_000);
 });
 
-describe("an HTTP 401, 402 or 403 stops the run", () => {
-  for (const status of [401, 402, 403] as const) {
+describe("an HTTP 401, 402, 403 or 404 stops the run", () => {
+  for (const status of [401, 402, 403, 404] as const) {
     test(`a ${status} stops the run naming its status, keeps the sessions before it, records nothing for its own, and a resume runs it`, async () => {
       const config = liveOf(two);
       // The first session answers (two calls); the second's first call is refused for the key or credit.
       const provider = fauxLive({
-        failures: [undefined, undefined, ACCOUNT[status][0] as string],
+        failures: [undefined, undefined, STOPS[status][0] as string],
         cost: 0.01,
       });
       const dir = fresh();
@@ -276,7 +310,7 @@ describe("an HTTP 401, 402 or 403 stops the run", () => {
         ...noWait,
       });
       await expect(stop).rejects.toThrow(new RegExp(`HTTP ${status}`));
-      await expect(stop).rejects.toBeInstanceOf(ProviderAccountError);
+      await expect(stop).rejects.toBeInstanceOf(ProviderStopError);
       journal.close();
       // Not retried by the outer session retry, and never a row or a cassette.
       expect(provider.state.calls).toBe(3);
@@ -306,6 +340,117 @@ describe("an HTTP 401, 402 or 403 stops the run", () => {
       ]);
     }, 120_000);
   }
+});
+
+describe("a stopping status at the judge stops the run too (review X20-1)", () => {
+  const judged = { judge: { model: JUDGE_MODEL, temperature: 0, max_tokens: 4096 } };
+
+  test("GateMem: a 402 at the judge stops the run, nothing recorded for it, no further judge call; a resume judges it", async () => {
+    const config = liveOf({ ...two, conditions: ["C2"] as Condition[], ...judged });
+    const dir = fresh();
+    const broke = withJudge([{ error: STOPS[402][0] as string }], {
+      answers: fauxLive({ cost: 0.01 }).models,
+      cost: 0.01,
+    });
+    const first = journalFor(dir, config);
+    await expect(
+      runConfig(config, { ...liveOptions(config, broke.models, {}), journal: first, ...noWait }),
+    ).rejects.toBeInstanceOf(ProviderStopError);
+    first.close();
+    // One judge call, not judgeOne's further attempts, and only the two answer calls are cassettes.
+    expect(broke.asked).toHaveLength(1);
+    expect(readdirSync(config.cassettes)).toHaveLength(2);
+    expect(lines(dir, "results.jsonl")).toEqual([]);
+    // The 402 attempt was paid for: two answer calls and the judge call.
+    expect(ledger(dir)).toHaveLength(3);
+
+    const VERDICT =
+      '{"action_ok": true, "utility_ok": null, "privacy_leak": false, "deletion_leak": null, "notes": "ok"}';
+    const healthy = withJudge([{ text: VERDICT }], { answers: fauxLive().models });
+    const again = journalFor(dir, config, true);
+    const result = await runConfig(config, {
+      ...liveOptions(config, healthy.models, {}),
+      journal: again,
+      ...noWait,
+    });
+    again.close();
+    expect(result.sessions).toBe(1);
+    expect(result.calls).toEqual({ new: 1, cached: 2 });
+  }, 120_000);
+
+  test("LongMemEval: a 401 at the judge stops the run, unrecorded", async () => {
+    const base = readLongMemEvalConfig(join(CONFIGS, "b5-longmemeval-plane.json"));
+    const config = liveOf({
+      ...base,
+      items: ["66f24dbb"],
+      conditions: ["C2"] as Condition[],
+      store: "fake" as const,
+      judge: { model: JUDGE_MODEL, temperature: 0, max_tokens: 10 },
+    });
+    const broke = withJudge([{ error: STOPS[401][1] as string }], { answers: fauxLive().models });
+    await expect(
+      runLongMemEvalConfig(config, { ...liveOptions(config, broke.models, {}), ...noWait }),
+    ).rejects.toBeInstanceOf(ProviderStopError);
+    expect(broke.asked).toHaveLength(1);
+    // Only the answer calls are cassettes.
+    expect(readdirSync(config.cassettes)).toHaveLength(2);
+  }, 120_000);
+});
+
+describe("the backstop: five refusals in a row stop the run (review X20-2)", () => {
+  test("the fifth refused session in a row stops the run unrecorded; the four before it are kept", async () => {
+    expect(REFUSAL_STREAK_LIMIT).toBe(5);
+    // Three checkpoints under C2 and C3: six sessions, each refused at its first call.
+    const config = liveOf({ ...two, items: b3.items });
+    const provider = fauxLive({ failures: Array.from({ length: 6 }, () => OVERFLOW) });
+    const dir = fresh();
+    const journal = journalFor(dir, config);
+    const run = runConfig(config, {
+      ...liveOptions(config, provider.models, {}),
+      journal,
+      sessionRetry: SESSION_RETRY,
+      ...noWait,
+    });
+    await expect(run).rejects.toBeInstanceOf(RefusalStreak);
+    await expect(run).rejects.toThrow(/5 sessions in a row/);
+    journal.close();
+    expect(provider.state.calls).toBe(5);
+    const kept = lines(dir, "results.jsonl").map((l) => JSON.parse(l));
+    expect(kept.map((r) => r.excluded)).toEqual(Array(4).fill("answer refused"));
+  }, 120_000);
+
+  test("a session that answers starts the count afresh", async () => {
+    // Refused, refused, refused, refused, answered (two calls), refused: never five in a row.
+    const config = liveOf({ ...two, items: b3.items });
+    const provider = fauxLive({
+      failures: [OVERFLOW, OVERFLOW, OVERFLOW, OVERFLOW, undefined, undefined, OVERFLOW],
+    });
+    const result = await runConfig(config, {
+      ...liveOptions(config, provider.models, {}),
+      ...noWait,
+    });
+    expect(result.rows.map((r) => r.excluded)).toEqual([
+      "answer refused",
+      "answer refused",
+      "answer refused",
+      "answer refused",
+      undefined,
+      "answer refused",
+    ]);
+  }, 120_000);
+});
+
+describe("a moderation 403 on GateMem", () => {
+  test("excludes its session as `answer refused`, and the run goes on", async () => {
+    const config = liveOf(two);
+    const provider = fauxLive({ failures: [MODERATION] });
+    const result = await runConfig(config, {
+      ...liveOptions(config, provider.models, {}),
+      ...noWait,
+    });
+    expect(result.rows.map((r) => r.excluded)).toEqual(["answer refused", undefined]);
+    expect(result.excluded).toEqual({ C2: { "answer refused": 1 } });
+  }, 120_000);
 });
 
 describe("a transient failure that outlasts the retry is unchanged (card RV1)", () => {

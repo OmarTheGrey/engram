@@ -37,6 +37,7 @@ import {
   runMemInvProbe,
   withNotes,
 } from "../src/mem-inv-probe.ts";
+import { ProviderStopError } from "../src/model/retry.ts";
 import type { StoreName } from "../src/stores.ts";
 import { X1_MEM_INV } from "./paths.ts";
 
@@ -416,7 +417,8 @@ describe("the agent's own note is written by the model under test (PR #25 review
   });
 
   test("a failed note call is recorded, so a replay writes the same memory without asking again (R7)", async () => {
-    const { cache } = await noteFrom("", "error", "401 Unauthorized");
+    // A 400, not a 401: a key or credit error stops the run since card X20 (next test).
+    const { cache } = await noteFrom("", "error", "400 Bad Request");
     expect(cache.entries).toHaveLength(1);
     expect(JSON.parse(cache.entries[0]?.response.text ?? "{}")).toEqual({
       stopReason: "error",
@@ -430,6 +432,14 @@ describe("the agent's own note is written by the model under test (PR #25 review
     expect(replay.memory.find((e) => e.entry_id === agentEntry.entry_id)?.text).toBe(
       agentEntry.summarized_from,
     );
+  });
+
+  test.each([
+    "401 Unauthorized",
+    '402: {"message":"Insufficient credits","code":402}',
+    "404 No endpoints found for faux-live/model-1.",
+  ])("a note call answered %s stops the run and is not recorded (card X20)", async (error) => {
+    await expect(noteFrom("", "error", error)).rejects.toBeInstanceOf(ProviderStopError);
   });
 
   test("a run writes each note once, whatever the conditions, stores and seeds", async () => {

@@ -53,10 +53,14 @@ import {
 import type { CompletesSimple } from "./pi.ts";
 import {
   attemptUsage,
+  httpStatus,
+  isModerationFlag,
   isTransient,
+  ProviderStopError,
   type RetryPolicy,
   realSleep,
   type Sleep,
+  stoppingStatus,
   withRetry,
 } from "./retry.ts";
 import { servedBy } from "./upstream.ts";
@@ -300,60 +304,40 @@ export class AnswerRefused extends Error {
   }
 }
 
-/**
- * The provider answered a call with HTTP 401, 402 or 403: a key or credit
- * problem, the operator's to fix (the coordinator's decision of 2026-11-21).
- * It stops the run, is never recorded and never a per-session exclusion, and
- * the outer session retry does not retry it; RESUME=1 runs the session once
- * the key or credit is fixed.
- */
-export class ProviderAccountError extends Error {
-  readonly status: number;
-
-  constructor(status: number, message: string) {
-    super(
-      `the provider refused an answer call with HTTP ${status}, a key or credit problem; the run stops with this session unrecorded: fix the key or the credit, then rerun with RESUME=1 (${message})`,
-    );
-    this.name = "ProviderAccountError";
-    this.status = status;
-  }
-}
+export { ProviderStopError } from "./retry.ts";
 
 /** What a cassette holds for a refused answer call: this mark, then the failure's message. */
 export const REFUSED_ANSWER_MARK = "\u0000engram/refused-answer\u0000";
 
-/** The statuses that stop the run: a key (401), credit (402) or key limit and moderation (403) problem. */
-const ACCOUNT_STATUSES: readonly number[] = [401, 402, 403];
 /** The statuses a context overflow comes with, when pi-ai's message carries one. */
 const REFUSAL_STATUSES: readonly number[] = [400, 413];
-/** The leading status as pi-ai writes it ("<status> <message>" or "<status>: <body>"), as retry.ts reads it. */
-const LEADING_STATUS = /^(?:HTTP )?(\d{3})\b/;
-/** A status in an error body pi-ai folded into the message (OpenRouter's `"code": 402`). */
-const BODY_CODE = /"code"\s*:\s*"?(\d{3})(?!\d)/g;
 /** Words of a key or credit problem: a message with any of them is never trusted as a refusal. */
 const ACCOUNT_WORDS =
   /credit|afford|billing|payment|quota|api[ _-]?key|unauthori[sz]ed|forbidden|permission|auth(?:entication)? credentials/i;
 
 /** How a failed answer call is handled (card X20): see `answerFailure`. */
 export type AnswerFailure =
-  | { kind: "account"; status: number }
+  | { kind: "halt"; status: number }
   | { kind: "transient" }
   | { kind: "refused" }
   | { kind: "stop" };
 
 /**
- * How a failed answer reply is handled, read from pi-ai's `errorMessage`,
- * since pi-ai reports a provider's HTTP error as text (card X20). In order,
- * so that a doubt always stops the run and never excludes a session:
+ * How a failed answer reply is handled, read from pi-ai's `errorMessage`
+ * with retry.ts's one status parse, since pi-ai reports a provider's HTTP
+ * error as text (card X20). In order, so that a doubt always stops the run
+ * and never excludes a session:
  *
- * 1. `account`: the leading status, or a `"code"` in the body pi-ai folded
- *    into the message, is 401, 402 or 403. The run stops.
+ * 1. `halt`: `stoppingStatus` reads 401, 402, 404, or a 403 that is not
+ *    OpenRouter's moderation flag, from the leading status or a `"code"` in
+ *    the body. The run stops (ProviderStopError).
  * 2. `transient`: the retry policy's statuses and network errors (card RV1).
  *    The session stops unrecorded, as before.
- * 3. `refused`: pi-ai's own context-overflow patterns match the message
- *    (`isContextOverflow`), its leading status, if any, is 400 or 413, and it
- *    names no key or credit. Recorded; the session is excluded.
- * 4. `stop`: anything else (a plain 400, a 404, an error with no status, an
+ * 3. `refused`: OpenRouter's moderation flag (a 403 with its documented
+ *    metadata); or pi-ai's own context-overflow patterns match
+ *    (`isContextOverflow`), the leading status, if any, is 400 or 413, and
+ *    the message names no key or credit. Recorded; the session is excluded.
+ * 4. `stop`: anything else (a plain 400, an error with no status, an
  *    aborted call). The run stops, as before.
  */
 export function answerFailure(
@@ -362,16 +346,11 @@ export function answerFailure(
 ): AnswerFailure {
   if (reply.stopReason !== "error") return { kind: "stop" };
   const message = (reply.errorMessage ?? "").trim();
-  const lead = LEADING_STATUS.exec(message);
-  const leading = lead ? Number(lead[1]) : undefined;
-  if (leading !== undefined && ACCOUNT_STATUSES.includes(leading)) {
-    return { kind: "account", status: leading };
-  }
-  for (const code of message.matchAll(BODY_CODE)) {
-    const status = Number(code[1]);
-    if (ACCOUNT_STATUSES.includes(status)) return { kind: "account", status };
-  }
-  if (retry && isTransient(reply.errorMessage, retry)) return { kind: "transient" };
+  const status = stoppingStatus(message);
+  if (status !== undefined) return { kind: "halt", status };
+  if (retry && isTransient(message, retry)) return { kind: "transient" };
+  if (isModerationFlag(message)) return { kind: "refused" };
+  const leading = httpStatus(message);
   if (
     isContextOverflow(reply) &&
     (leading === undefined || REFUSAL_STATUSES.includes(leading)) &&
@@ -380,6 +359,31 @@ export function answerFailure(
     return { kind: "refused" };
   }
   return { kind: "stop" };
+}
+
+/**
+ * The backstop (review X20-2): this many `answer refused` exclusions in a
+ * row in one process stop the run, so a key or endpoint failure the
+ * classifier misread cannot exclude the whole run.
+ */
+export const REFUSAL_STREAK_LIMIT = 5;
+
+/** Five refused sessions in a row: the run stops (see REFUSAL_STREAK_LIMIT). */
+export class RefusalStreak extends Error {
+  constructor(limit: number) {
+    super(
+      `${limit} sessions in a row ended in a refused answer call; the run stops with this one unrecorded, since a key, credit or endpoint failure may be misread as a refusal: check the provider, then rerun with RESUME=1 (the ${limit - 1} sessions before it are kept, excluded as answer refused)`,
+    );
+    this.name = "RefusalStreak";
+  }
+}
+
+/** The refused sessions in a row this process has seen. */
+const streak = { refused: 0 };
+
+/** Start the backstop's count afresh (tests, which run many runs in one process). */
+export function resetRefusalStreak(): void {
+  streak.refused = 0;
 }
 
 /** The session asked for a call past its turn limit (RV-EXP-5); the call is not made. */
@@ -452,8 +456,8 @@ export function cassettePiModel(options: CassetteModelOptions) {
           } satisfies ServedResponse;
         }
         paid(reply);
-        // A key or credit problem stops the run unrecorded (card X20).
-        if (failure.kind === "account") throw new ProviderAccountError(failure.status, message);
+        // A key, credit or endpoint problem stops the run unrecorded (card X20).
+        if (failure.kind === "halt") throw new ProviderStopError(failure.status, message);
         // A transient failure that outlasted the retry stops the session
         // unrecorded; an outer retry or a resume makes the call again.
         if (failure.kind === "transient") throw new TransientCallError(message);
@@ -526,14 +530,25 @@ export function sessionFailure(
  * capped it or the provider refused the answer call that ended it, `failure`
  * when `sessionFailure` reads it as one, neither when it answered. Only the
  * probes read a refusal as an exclusion; `sessionFailure` alone, as D3's
- * replay validation calls it, still reads it as a failure.
+ * replay validation calls it, still reads it as a failure. It keeps the
+ * backstop's count: the REFUSAL_STREAK_LIMIT-th refusal in a row is a
+ * RefusalStreak failure, and a session that answered or was capped starts
+ * the count afresh.
  */
 export function sessionEnd(
   messages: readonly { role: string; stopReason?: string; errorMessage?: string }[],
   cassette: { errors: readonly unknown[]; capped: boolean },
 ): { failure?: unknown; excluded?: Exclusion } {
   const failure = sessionFailure(messages, cassette);
-  if (failure instanceof AnswerRefused) return { excluded: "answer refused" };
+  if (failure instanceof AnswerRefused) {
+    streak.refused++;
+    if (streak.refused >= REFUSAL_STREAK_LIMIT) {
+      streak.refused = 0;
+      return { failure: new RefusalStreak(REFUSAL_STREAK_LIMIT) };
+    }
+    return { excluded: "answer refused" };
+  }
   if (failure !== undefined) return { failure };
+  streak.refused = 0;
   return cassette.capped ? { excluded: "turn limit" } : {};
 }
