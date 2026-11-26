@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<title>engram tui: mcp</title>
+<style>
+html,body{margin:0;background:#1e1e1e}
+pre{margin:0;padding:12px;display:inline-block;color:#d4d4d4;background:#1e1e1e;
+font:14px/normal 'Cascadia Mono','Cascadia Code',Consolas,'DejaVu Sans Mono','Liberation Mono',Menlo,monospace;
+font-variant-ligatures:none}
+</style></head><body>
+<pre id="frame"><span style="color:#1e1e1e;background:#d4d4d4"> engram  MCP server                                                     in process  log engram.db  person:dana (person) </span>
+ &gt; Acting as              [ agent:claude-code<span style="color:#1e1e1e;background:#d4d4d4"> </span>                       ]  source model, fixed at launch                   
+   Member of              person:dana, team:core  [                                          ]  default the actor's o...
+   Level                  (o) default  ( ) person  ( ) role  ( ) team  ( ) org  default the actor's own level           
+   Transport              (o) stdio, launched by the harness   ( ) HTTP, needs authentication                           
+   Offer memory_supersede [ ] off                                                                                       
+   ▸ More flags: 9, set: --root --owner --policy --db                                                                   
+                                                                                                                        
+ [ Copy .mcp.json ]  [ Copy Codex config.toml ]  [ Try it ]                                                             
+                                                                                                                        
+ For Claude Code, .mcp.json:                                                                                            
+   { "mcpServers": { "engram": { "command": "engram", "args": [ "mcp", "--db", "~/demo/engram.db", "--policy",          
+   "policy.yaml", "--owner", "dana", "--as", "agent:claude-code", "--member", "person:dana", "--member", "team:core",   
+   "--root", "~/demo/mem" ] } } }                                                                                       
+ For Codex, config.toml:                                                                                                
+   [mcp_servers.engram]                                                                                                 
+   command = "engram"                                                                                                   
+   args = ["mcp", "--db", "~/demo/engram.db", "--policy", "policy.yaml", "--owner", "dana", "--as", "agent:codex",      
+   "--member", "person:dana", "--member", "team:core", "--root", "~/demo/mem"]                                          
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+$ engram mcp --db "~/demo/engram.db" --policy policy.yaml --...member person:dana --member team:core --root "~/demo/mem"
+ ctrl+g help  tab next  ctrl+s try it  alt+c copy  alt+p commands  esc back                                             </pre>
+</body></html>

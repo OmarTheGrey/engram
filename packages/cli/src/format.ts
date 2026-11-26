@@ -2,6 +2,7 @@
 import type {
   Actor,
   Explanation,
+  Grant,
   MemoryEvent,
   MemoryItem,
   PolicyRun,
@@ -57,10 +58,10 @@ export function decisionLines(event: MemoryEvent, item: MemoryItem | null): stri
 export const plural = (count: number, one: string, many = `${one}s`) =>
   `${count} ${count === 1 ? one : many}`;
 
-const policyName = (r: PolicyRun) => `${r.policy_id} v${r.policy_version}`;
+export const policyName = (r: PolicyRun) => `${r.policy_id} v${r.policy_version}`;
 
 /** One step's outcome in a change line: its decision, and for a read what it returned. */
-function outcomeText(o: StepOutcome): string {
+export function outcomeText(o: StepOutcome): string {
   const retired = [
     o.evicted.length > 0 ? `evicted ${o.evicted.join(", ")}` : "",
     o.expired.length > 0 ? `expired ${o.expired.join(", ")}` : "",
@@ -143,6 +144,93 @@ export function whoCanReadLines(a: WhoCanReadAnswer, actor: Actor): string[] {
   return lines;
 }
 
+/** An event's scope as the inspector's timeline shows it: from and to when they differ. */
+export function scopeText(e: Pick<MemoryEvent, "scope_from" | "scope_to">): string {
+  if (e.scope_from !== null && e.scope_to !== null && e.scope_from !== e.scope_to)
+    return `${e.scope_from} to ${e.scope_to}`;
+  return e.scope_to ?? e.scope_from ?? "-";
+}
+
+/**
+ * The timeline (card E8.15a, `engram events`): a heading, then per event its
+ * seq, time, op, decision, actor, scope and item, and under it the reason
+ * with the rule that decided.
+ */
+export function eventsLines(events: MemoryEvent[], actor: Actor, after?: number): string[] {
+  const since = after === undefined ? "" : ` after seq ${after}`;
+  const lines = [`events ${actor.id} may see${since}: ${plural(events.length, "event")}`];
+  for (const e of events)
+    lines.push(
+      `  ${e.seq} ${e.ts} ${e.op} ${e.decision} by ${e.actor} in ${scopeText(e)}, item ${e.item_id ?? "none"}`,
+      `    ${e.reason} (${e.policy_id})`,
+    );
+  return lines;
+}
+
+/** An item's grants as the inspector's editor lists them (grantLabel). */
+export function grantLines(grants: readonly Grant[]): string[] {
+  if (grants.length === 0) return ["grants: none"];
+  return [
+    "grants:",
+    ...grants.map(
+      (g) =>
+        `  ${g.to}: ${g.class ?? "any class"}, ${g.mode}, ${g.expires === undefined ? "no expiry" : `until ${g.expires}`}`,
+    ),
+  ];
+}
+
+/** The scopes an actor can see (card E8.15a over E8.14's route), each with how. */
+export function scopesLines(
+  answer: { scopes: { scope: string; via: string }[]; event: MemoryEvent; policy: string },
+  actor: Actor,
+): string[] {
+  return [
+    `scopes ${actor.id} can see at ${answer.event.ts} under ${answer.policy}: ${plural(answer.scopes.length, "scope")}`,
+    ...answer.scopes.map((s) => `  ${s.scope} (${s.via})`),
+  ];
+}
+
+const YAML_KEY = /^[A-Za-z_][A-Za-z0-9_.-]*$/;
+const isScalar = (v: unknown) => v === null || typeof v !== "object";
+const isEmpty = (v: unknown) =>
+  Array.isArray(v)
+    ? v.length === 0
+    : typeof v === "object" && v !== null && Object.keys(v).length === 0;
+/** A JSON value written inline: JSON's scalars and empty collections are YAML flow nodes too. */
+const inline = (v: unknown) =>
+  Array.isArray(v) ? `[${v.map((x) => JSON.stringify(x)).join(", ")}]` : JSON.stringify(v);
+
+/** A JSON value as block YAML, every scalar in JSON's syntax, so the text parses back to the same value. */
+function yamlLines(value: unknown, indent: string): string[] {
+  const lines: string[] = [];
+  if (Array.isArray(value)) {
+    for (const v of value) {
+      if (isScalar(v) || isEmpty(v)) lines.push(`${indent}- ${inline(v)}`);
+      else {
+        const [first = "", ...rest] = yamlLines(v, `${indent}  `);
+        lines.push(`${indent}- ${first.slice(indent.length + 2)}`, ...rest);
+      }
+    }
+    return lines;
+  }
+  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+    if (v === undefined) continue;
+    const key = YAML_KEY.test(k) ? k : JSON.stringify(k);
+    if (isScalar(v) || isEmpty(v) || (Array.isArray(v) && v.every(isScalar)))
+      lines.push(`${indent}${key}: ${inline(v)}`);
+    else lines.push(`${indent}${key}:`, ...yamlLines(v, `${indent}  `));
+  }
+  return lines;
+}
+
+/**
+ * The policy in force (card E8.15a, `engram policy`): a comment naming it,
+ * then the policy as block YAML a policy file may hold (`--policy <file>`
+ * loads it back to the same policy).
+ */
+export function policyLines(policy: Record<string, unknown>, label: string): string[] {
+  return [`# ${label}: the policy the workspace decides with`, ...yamlLines(policy, "")];
+}
 /** The supersede route's answer as engram supersede prints it (card L6). */
 export interface SupersedeAnswer {
   item_id: string;

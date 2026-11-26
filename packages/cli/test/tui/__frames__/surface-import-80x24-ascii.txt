@@ -1,0 +1,31 @@
+ engram  Import a bundle                       in process  person:dana (person)
+ > Source          (o) a bundle file   ( ) a Claude memory list (--claude)
+   Bundle          [                           ]  optional
+   Identity files  [                           ]  enter adds
+   Passphrase file [                           ]
+   Scope           [                           ]  default each row's own scop...
+   ~ More flags: 13, set: --root --owner --db
+
+ [ Import ]
+
+ + 1 allowed   x 1 denied   exit 1
+
+ import as import:person:dana for person:dana: 2 rows, 1 allowed, 1 denied
+   + 01950000-0000-7000-8000-000000000001 ->
+     01960000-0000-7000-8000-000000000001: allow as candidate, kind import: a
+     fixture rule admits it (fixture.policy/write/person)
+   x 01950000-0000-7000-8000-000000000002 ->
+     01960000-0000-7000-8000-000000000002: deny, kind import: episodic items are
+     forbidden in team scope (fixture.policy/write/team)
+ log engram.db
+
+ exit 1 as a plain command: a row was denied.
+$ engram import --db engram.db --owner dana --root mem
+ ? help  ctrl+s import  tab next  ; commands  esc back
+--- styles
+r0 c0-79 inverse
+r1 c0-79 inverse
+r10 c1-1 fg #00A67A
+r10 c15-15 fg #E86A1A
+r13 c3-3 fg #00A67A
+r16 c3-3 fg #E86A1A

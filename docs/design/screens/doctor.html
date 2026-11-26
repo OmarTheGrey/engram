@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<title>engram tui: doctor</title>
+<style>
+html,body{margin:0;background:#1e1e1e}
+pre{margin:0;padding:12px;display:inline-block;color:#d4d4d4;background:#1e1e1e;
+font:14px/normal 'Cascadia Mono','Cascadia Code',Consolas,'DejaVu Sans Mono','Liberation Mono',Menlo,monospace;
+font-variant-ligatures:none}
+</style></head><body>
+<pre id="frame"><span style="color:#1e1e1e;background:#d4d4d4"> engram  Doctor                                                         in process  log engram.db  person:dana (person) </span>
+   ▸ More flags: 11, set: --db --policy --root                                                                          
+                                                                                                                        
+ <span style="color:#1e1e1e;background:#d4d4d4">[ Run doctor again ]</span>                                                                                                   
+                                                                                                                        
+ <span style="color:#00a67a">✓</span> all checks passed   exit 0                                                                                           
+                                                                                                                        
+  <span style="color:#00a67a">✓</span> ok    log             sqlite ~/demo/engram.db: opens; up to date                                                    
+  <span style="color:#00a67a">✓</span> ok    policy          fixture.inspector v1 loads and validates                                                      
+  <span style="color:#00a67a">✓</span> ok    store           ~/demo/mem is a readable folder                                                               
+  <span style="color:#00a67a">✓</span> ok    adapter files   ~/demo/mem: 0 memories listed through the plane, 0 admitted, 0 denied (medium preset,         
+                          in-memory log)                                                                                
+  <span style="color:#00a67a">✓</span> ok    adapter mem0    in-memory Mem0 with the hashing embedder: a write and a read round-trip through the plane,    
+                          offline                                                                                       
+  <span style="color:#00a67a">✓</span> ok    adapter letta   git version 2.53.0.windows.1; a MemFS repository in a temporary folder: a write and a read    
+                          round-trip through the plane, one commit, and a delete, offline                               
+  <span style="color:#00a67a">✓</span> ok    provider keys   none of 38 key variables for 40 providers is set; live model calls need one, scripted and     
+                          cassette runs do not; not checked: amazon-bedrock, google-vertex (ADC), openai-codex          
+                          (credentials that are not a key variable)                                                     
+  <span style="color:#00a67a">✓</span> ok    benchmark pins  packages/bench/PINS.md: 6 benchmarks, 6 pinned; fixtures match their manifests: gatemem 24    
+                          lines at a983828, longmemeval 881 lines at 9e0b455, mem-inv-bench 1355 lines at cf3c9a4       
+  <span style="color:#00a67a">✓</span> ok    pi pin          pi-ai 1.3.0, pi-coding-agent 1.3.0, pi-tui 1.3.0: package.json pins and installed copies      
+                          match docs/deps.md                                                                            
+  <span style="color:#00a67a">✓</span> ok    node            Node 24.14.0                                                                                  
+  · skip  serve           no serve flags given (--host, --keys, --issuer, --insecure-loopback)                          
+                                                                                                                        
+ doctor: all checks passed      exit 0                                                                                  
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+$ engram doctor --db engram.db --policy policy.yaml --root mem   exit 0                                                 
+ ? help  r rerun  enter details  v plain  J json  ; commands  esc back                                                  </pre>
+</body></html>

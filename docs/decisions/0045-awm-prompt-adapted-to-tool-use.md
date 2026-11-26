@@ -1,7 +1,7 @@
 # ADR 0045: Agent Workflow Memory's induction prompt is adapted to tool-use sessions, not vendored verbatim
 
-Status: proposed, 2026-11-22
-Deciders: drafted by card D2 of the absorb plan; for the lead's acceptance
+Status: accepted, 2026-11-25, by the lead ("accept the adrs"); proposed 2026-11-22
+Deciders: drafted by card D2 of the absorb plan; accepted by the lead on 2026-11-25 (`docs/tasks/lead-decisions.md`, item 64, option (a))
 Supersedes: ADR 0012's clause "with the induction prompt vendored verbatim and cited", and only that clause. The rest of ADR 0012 stands: the method is Agent Workflow Memory over pi session trees, reimplemented in TypeScript, with abandoned branches as the failure signal and no strategies in v1.
 
 ## Context

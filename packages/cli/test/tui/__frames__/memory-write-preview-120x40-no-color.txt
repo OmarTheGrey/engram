@@ -1,0 +1,43 @@
+ engram  Write a memory                                               in process  log ~/engram.db  person:dana (person)
+   Content      [ x                                        ]  the item's content
+   From file    [                                          ]  a JSON item; the flags and defaults fill the fields it ...
+   Scope        [ team:lantern                             ]  default person:dana; person:<id>, role:<id>, team:<id> ...
+   Class        (o) default (semantic)  ( ) episodic  ( ) semantic  default semantic
+   Confidence   [                                          ]  default 0.9
+   Valid from   [                                          ]  default now
+   Valid to     [                                          ]  default open
+   ▸ Advanced: id, the test clock and this command's workspace flags
+
+ The gate would  ✗ deny  a fixture rule refuses it: the writer is not a member of team:lantern  (fixture/write/team)
+ preview, nothing stored
+
+ [ change Class ]  [ change Scope ]  [ open the rule in Policy ]   the preview runs again after a change
+
+   [ Record this write (the gate will deny it) ]   [ Check again ]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+$ engram write --content x --scope team:lantern --db engram.db --owner dana --root mem
+ ? help  ctrl+s write  tab next  ; commands  esc back
+--- styles
+r0 c0-119 inverse
+r13 c1-16 inverse
