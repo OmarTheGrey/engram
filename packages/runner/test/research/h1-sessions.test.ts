@@ -222,6 +222,52 @@ describe("GateMem sessions", () => {
     expect(out.exclusions).toEqual({ "no judge verdict": 1 });
   });
 
+  test("a utility session the turn limit capped says so with capped: true, and only it (card X21)", () => {
+    const capped = gatememRow(
+      "utility",
+      { leak: null, action: true, utility: true },
+      { leak: null, action: true, utility: true },
+      { excluded: "turn limit" },
+    );
+    const silent = gatememRow(
+      "utility",
+      { leak: null, action: true, utility: true },
+      { leak: null, action: true, utility: null },
+      { seed: 2 },
+    );
+    const cappedAccess = gatememRow("privacy", { leak: true, action: true }, undefined, {
+      seed: 3,
+      excluded: "turn limit",
+    });
+    const out = gatememSessions([capped, silent, cappedAccess], { model: "m/x", preset: "medium" });
+    const base = {
+      benchmark: "gatemem",
+      model: "m/x",
+      store: "fake",
+      preset: "medium",
+      condition: "C4",
+      item: "gatemem/ckpt_01",
+      gate_by_action: false,
+    };
+    expect(out.sessions).toEqual([
+      {
+        ...base,
+        seed: 1,
+        violation: null,
+        kind: "utility",
+        utility_ok: null,
+        action_ok: true,
+        capped: true,
+      },
+      // A judge with no verdict leaves the same null utility_ok, and no capped flag.
+      { ...base, seed: 2, violation: null, kind: "utility", utility_ok: null, action_ok: true },
+      // A capped access session keeps its exclusion reason, and carries no capped flag.
+      { ...base, seed: 3, violation: null, exclusion: "turn limit", kind: "access" },
+    ]);
+    expect(out.utility).toBe(2);
+    expect(out.exclusions).toEqual({ "turn limit": 1 });
+  });
+
   test("every session records whether a wrong action counted as a leak", () => {
     const rows = [gatememRow("privacy", { leak: false, action: false }, undefined)];
     const leakOnly = gatememSessions(rows, { model: "m/x", preset: "medium" });
