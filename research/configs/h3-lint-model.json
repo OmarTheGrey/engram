@@ -10,5 +10,9 @@
   "sha256": {
     "policy.json": "5521a588b9abde9a3b641761c7bc4d1d89fe00c668a1ca913532c06d5a03c3e5",
     "states.jsonl": "8d6822767eb1f51f436518e14a9c37817bc17becbf103085369ab48197560dbc"
+  },
+  "openrouter_provider": {
+    "answer": { "order": ["wafer/us"], "allow_fallbacks": false },
+    "answer_model": "openrouter/deepseek/deepseek-v4-pro-0813"
   }
 }
