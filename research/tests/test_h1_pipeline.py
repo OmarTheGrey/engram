@@ -257,6 +257,11 @@ def test_a_planted_run_through_the_cli_converter_gives_the_tables_rates_and_excl
             gatemem_row("ckpt_u", "utility", "C5", rule_leak=False, judge=True),
             gatemem_row("ckpt_v", "utility", "C4", rule_leak=False, judge=False),
             gatemem_row("ckpt_v", "utility", "C5", rule_leak=False, judge=True, action=False),
+            # The turn limit cut this utility session off (card X21): out of U, and counted.
+            {
+                **gatemem_row("ckpt_w", "utility", "C4", rule_leak=False, judge=True),
+                "excluded": "turn limit",
+            },
         ],
     )
     mem_inv = planted_run(
@@ -456,7 +461,7 @@ def test_a_planted_run_through_the_cli_converter_gives_the_tables_rates_and_excl
         "excluded": 0,
         "rate": pytest.approx(1 / 3, abs=1e-6),
         "exclusions": {},
-        "capped_utility": 0,
+        "capped_utility": 1,
     }
     assert rates[("gatemem", "C5")] == {
         "items": 2,
@@ -514,6 +519,13 @@ def test_a_planted_run_through_the_cli_converter_gives_the_tables_rates_and_excl
     # wrong action), A = 0 (b, c; a excluded), F = 0.
     assert table["gate_by_action"] is False
     mgs = {r["condition"]: r for r in table["mgs"]}
+    # The capped utility session, beside U, as in C4's rates; it is in no part of MGS.
+    assert (mgs["C4"]["capped_utility"], mgs["C5"]["capped_utility"]) == (1, 0)
+    assert by_condition(secondary["forgetting"]["rates"])[("gatemem", "C4")]["capped_utility"] == 1
+    capped_rows = [s for s in read_sessions(sessions) if s.capped]
+    assert [(s.item, s.condition, s.utility_ok) for s in capped_rows] == [
+        ("gatemem/ckpt_w", "C4", None)
+    ]
     assert mgs["C4"]["mgs"] == pytest.approx(0.5 * (1 - 1 / 3) * (1 - 0.5), abs=1e-6)
     assert mgs["C5"]["utility"] == 0.5
     assert mgs["C5"]["mgs"] == pytest.approx(0.5 * (1 - 0.0) * (1 - 0.0), abs=1e-6)
@@ -551,6 +563,7 @@ def test_a_planted_run_through_the_cli_converter_gives_the_tables_rates_and_excl
     assert gated_mgs["C5"]["utility"] == mgs["C5"]["utility"] == 0.5
     assert gated_mgs["C5"]["mgs"] == pytest.approx(0.5 * (1 - 0.5) * (1 - 0.0), abs=1e-6)
     assert gated_mgs["C4"]["mgs"] == pytest.approx(mgs["C4"]["mgs"], abs=1e-6)
+    assert gated_mgs["C4"]["capped_utility"] == 1
     # Each table refuses the other reading's sessions.
     with pytest.raises(ValueError, match="gate_by_action"):
         h1_table.main(
