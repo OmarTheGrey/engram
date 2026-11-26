@@ -99,7 +99,7 @@ The rejection rule and what a tripped stop means were the lead's to decide, so e
 
 - `reject_quorum`: how many members must reject an item. 2 is the recommended answer to item 5 (both of two, two of three); 1 is "any one" (5c) and 3 is "all three" (5b).
 - `stop_share`: the stop, more than this share of a benchmark's items rejected (0.1).
-- `on_stop`: `pause`, the pre-registration's text (the benchmark's runs wait for an amendment), or `drop`, item 6's recommended answer (the rejected items are dropped, listed in v1, and the runs proceed).
+- `on_stop`: `drop`, item 6's answer and the value both configs read since card R5 (the rejected items are dropped, listed in v1, and the runs proceed), or `pause`, the response the pre-registration named before item 6 (the benchmark's runs wait for an amendment), which the agreement script's functions still take as their default (`compare_dir`; its command line always reads the config's value).
 
 `agreement.json` gives, per benchmark, `reject_quorum` and `action`: the configured response and, when `stop` is true, what it means (with `drop`, how many items are kept). Changing an answer is one config value; nothing in the kit moves. Both configs read item 6's `drop` since card R5, whose PR regenerated the two draw records (`research/results/h1-label-audit.json`, `research/results/h2-label-audit-longmemeval.json`) that record the value beside the draw, their draws unchanged, before the agreement is computed.
 
