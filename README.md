@@ -183,7 +183,7 @@ The repository's [`.pi/settings.json`](.pi/settings.json) loads the Engram pi pa
 
 ## What landed recently: the absorb plan
 
-On 2026-11-21 the team read the field again (111 fact-checked notes in [`docs/readings/litreview/`](docs/readings/litreview/README.md)) and chose thirty pull requests that take in what is worth taking from open-source projects and recent papers ([`docs/tasks/absorb-plan.md`](docs/tasks/absorb-plan.md)). All thirty merged on 2026-11-21 and 2026-11-22, as PRs #69 to #110. Every piece of code or data copied or ported, each from a source under an allowed licence, is registered in [`docs/absorbed.md`](docs/absorbed.md) (ADR [0037](docs/decisions/0037-absorbing-open-source.md)).
+On 2026-11-21 the team read the field again (111 fact-checked notes in [`docs/readings/litreview/`](docs/readings/litreview/README.md)) and chose thirty pull requests that take in what is worth taking from open-source projects and recent papers ([`docs/tasks/absorb-plan.md`](docs/tasks/absorb-plan.md)). The plan itself is PR #69; all thirty cards merged on 2026-11-21 and 2026-11-22, in PRs #70 to #110. Every piece of code or data copied or ported, each from a source under an allowed licence, is registered in [`docs/absorbed.md`](docs/absorbed.md) (ADR [0037](docs/decisions/0037-absorbing-open-source.md)).
 
 | area | cards | what it added |
 |---|---|---|
