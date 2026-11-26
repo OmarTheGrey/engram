@@ -2,7 +2,7 @@
 //
 // Events is `engram events [--after <seq>]`: the inspector's timeline, the
 // events the actor may see, with its columns and filters (filterOptions,
-// filterEvents, scopeText, eventDetail from @engram/view), `/` to find in the
+// filterEvents, scopeText, eventFields from @engram/view), `/` to find in the
 // reasons, and `f` to follow: a poll every 2 s asking only for events after
 // the last seq seen, off by default, and only while the screen is open.
 //
@@ -12,7 +12,7 @@
 // nothing into it.
 import type { MemoryEvent } from "@engram/sdk";
 import {
-  eventDetail,
+  eventFields,
   explainTarget,
   filterEvents,
   filterOptions,
@@ -343,13 +343,16 @@ export class EventsScreen extends RichScreen {
       out.push("", ` event ${this.unseen} is not one you may see; nothing is selected`);
     if (chosen !== undefined) {
       out.push("");
-      if (this.detail)
-        for (const [k, v] of eventDetail(chosen)) {
-          // The reason whole, wrapped, never cut (10.1).
-          const [first = "", ...rest] = para(oneLine(v), width - 12, "");
+      if (this.detail) {
+        // Each value whole, wrapped, never cut: the reason above all (10.1).
+        const field = (k: string, v: string) => {
+          const [first = "", ...rest] = para(v, width - 12, "");
           out.push(cut(` ${fit(k, 11)}${first}`, width), ...rest.map((l) => `            ${l}`));
-        }
-      else {
+        };
+        for (const [k, v] of eventFields(chosen)) field(k, oneLine(v));
+        field("policy id", oneLine(chosen.policy_id));
+        field("reason", oneLine(chosen.reason));
+      } else {
         out.push(
           cut(
             ` event ${chosen.seq}  ${chosen.op}  ${t.status(statusOf(chosen.decision), chosen.decision)}  by ${chosen.actor}  item ${chosen.item_id ?? "none"}`,

@@ -17,6 +17,7 @@ import { describe, expect, it } from "vitest";
 import { command } from "../../src/registry.ts";
 import { type Io, run } from "../../src/run.ts";
 import { menuText } from "../../src/tui/line.ts";
+import { logCheckEnv } from "../../src/tui/log-check.ts";
 import { asHandBack, childArgs, childEnv, type TuiDeps, tuiCommand } from "../../src/tui/main.ts";
 import { savedPath, writeSaved } from "../../src/tui/saved.ts";
 import { FakeTerminal } from "../../src/tui/term.ts";
@@ -1009,6 +1010,17 @@ describe("final review F-2: the parent's token check, and the env commands see",
     expect(asHandBack({ ...back, token: "other" }, "t0k")).toBeUndefined();
     expect(asHandBack(back, "t0k")).toBeUndefined();
     expect(asHandBack({ given: {}, ran: "x", token: "t0k" }, "t0k")).toBeUndefined();
+  });
+
+  it("removes the token and the handoff from the log-check child's environment too", () => {
+    const env = {
+      ENGRAM_TUI_HANDBACK: "a1b2",
+      ENGRAM_TUI_HANDOFF: JSON.stringify(HANDOFF),
+      KEPT: "yes",
+    };
+    expect(logCheckEnv(env)).toEqual({ KEPT: "yes" });
+    // The environment it was given is left as it was.
+    expect(env.ENGRAM_TUI_HANDBACK).toBe("a1b2");
   });
 
   it("removes the token and the handoff from the environment the commands are given", async () => {

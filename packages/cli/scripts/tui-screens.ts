@@ -11,8 +11,10 @@
 // folder's; tui.json is never read or written (noSaved).
 //
 //   node packages/cli/scripts/tui-screens.ts [--out <dir>] [--work <dir>] [--only a,b] [--no-png]
+// --work must be a folder under .engram/ or the OS temp folder (workFolder).
 import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { dirname, join, relative, resolve } from "node:path";
+import { tmpdir } from "node:os";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { PassThrough } from "node:stream";
 import { fileURLToPath } from "node:url";
 import xterm from "@xterm/headless";
@@ -87,12 +89,31 @@ export const GIVEN: Values = {
 };
 
 /**
+ * `given` resolved, when it is a folder under the repository's .engram/ or
+ * the OS temp folder (not either one itself): the work folder is emptied
+ * before the run and removed after it, so a mistyped --work must never name
+ * anything else (final-review verification N-2). Anything else is refused.
+ */
+export function workFolder(given: string): string {
+  const work = resolve(given);
+  const under = (root: string) => {
+    const rel = relative(resolve(root), work);
+    return rel !== "" && !rel.startsWith("..") && !isAbsolute(rel);
+  };
+  if (!under(join(REPO, ".engram")) && !under(tmpdir()))
+    throw new Error(
+      `tui-screens: --work ${given} is not under ${join(REPO, ".engram")} or ${tmpdir()}; it is emptied and removed, so nothing else is taken`,
+    );
+  return work;
+}
+
+/**
  * The seeded workspace in `work` (emptied first): the inspector fixture's
  * policy and writes, each one in-process `engram write`, so the log and the
  * files store are what the CLI itself would leave; and a simulate workload.
  */
 export async function buildWorkspace(work: string): Promise<void> {
-  rmSync(work, { recursive: true, force: true });
+  rmSync(workFolder(work), { recursive: true, force: true });
   mkdirSync(join(work, "home"), { recursive: true });
   mkdirSync(join(work, "mem"));
   copyFileSync(join(FIXTURE, "policy.yaml"), join(work, "policy.yaml"));
@@ -821,7 +842,7 @@ async function main(argv: string[]) {
     return i >= 0 ? argv[i + 1] : undefined;
   };
   const out = resolve(arg("--out") ?? OUT);
-  const work = resolve(arg("--work") ?? WORK);
+  const work = workFolder(arg("--work") ?? WORK);
   const onlyArg = arg("--only");
   const only = onlyArg === undefined ? undefined : new Set(onlyArg.split(","));
   mkdirSync(out, { recursive: true });
@@ -832,7 +853,7 @@ async function main(argv: string[]) {
   }
   if (only === undefined) writeFileSync(join(out, "index.md"), indexText(), "utf8");
   if (!argv.includes("--no-png")) await pngs(out, shots);
-  rmSync(work, { recursive: true, force: true });
+  rmSync(workFolder(work), { recursive: true, force: true });
   process.stdout.write(`tui-screens: ${shots.length} screens into ${relative(REPO, out) || "."}\n`);
 }
 

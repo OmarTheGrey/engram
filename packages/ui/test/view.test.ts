@@ -3,9 +3,9 @@
 // timeline's filters and detail, and the explain view's rows and counts.
 import { describe, expect, it } from "vitest";
 import type { ExplainResponse, MemoryEvent, MemoryItem, ReadResponse } from "../src/api/index.ts";
+import { eventDetail } from "../src/detail.ts";
 import {
   buildLanes,
-  eventDetail,
   explainTarget,
   explainView,
   FILTER_CATEGORIES,

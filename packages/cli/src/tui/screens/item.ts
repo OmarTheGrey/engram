@@ -10,7 +10,7 @@
 // (with a store folder it asks once a session, 8.5).
 import type { MemoryEvent, MemoryItem } from "@engram/sdk";
 import {
-  eventDetail,
+  eventFields,
   type GraphEdge,
   type ItemNode,
   itemEvents,
@@ -346,30 +346,35 @@ export class ItemScreen extends RichScreen {
         verHeight,
       ),
     );
-    const eLines = events.map((e) =>
-      cut(
-        ` ${String(e.seq).padStart(4)}  ${fit(e.op, 8)} ${t.status(e.decision === "allow" ? "allow" : e.decision === "ask" ? "ask" : "deny", fit(e.decision, 6))}  ${safe(e.policy_id)}`,
-        width - 2,
-      ),
-    );
-    if (eLines.length === 0) eLines.push(" no event you may see names this item");
+    const eLines =
+      events.length === 0
+        ? [" no event you may see names this item"]
+        : events.map((e) =>
+            cut(
+              ` ${String(e.seq).padStart(4)}  ${fit(e.op, 8)} ${t.status(e.decision === "allow" ? "allow" : e.decision === "ask" ? "ask" : "deny", fit(e.decision, 6))}  ${safe(e.policy_id)}`,
+              width - 2,
+            ),
+          );
     const chosen = events[Math.min(this.sel.events, events.length - 1)];
     // The detail in place of the list, the reason second and whole, so it is in reach at 80x24 (review 14).
     if (this.detail && chosen !== undefined) {
-      const fields = eventDetail(chosen);
-      const reason = fields.find(([k]) => k === "reason")?.[1] ?? "";
-      const lines = [
-        cut(
-          ` event ${chosen.seq}  ${chosen.op}  ${t.status(statusOf(chosen.decision), chosen.decision)}  by ${chosen.actor}`,
-          width - 2,
-        ),
-        ...para(`reason     ${oneLine(reason)}`, width - 2, "   "),
-        ...fields
-          .filter(([k]) => k !== "reason")
-          .map(([k, v]) => cut(`   ${fit(k, 11)}${oneLine(v)}`, width - 2)),
-      ];
+      const field = (k: string, v: string) => cut(`   ${fit(k, 11)}${v}`, width - 2);
       out.push(
-        ...box(t, `Event ${chosen.seq}  enter goes back to the list`, lines, width, evHeight),
+        ...box(
+          t,
+          `Event ${chosen.seq}  enter goes back to the list`,
+          [
+            cut(
+              ` event ${chosen.seq}  ${chosen.op}  ${t.status(statusOf(chosen.decision), chosen.decision)}  by ${chosen.actor}`,
+              width - 2,
+            ),
+            ...para(`reason     ${oneLine(chosen.reason)}`, width - 2, "   "),
+            ...eventFields(chosen).map(([k, v]) => field(k, oneLine(v))),
+            field("policy id", oneLine(chosen.policy_id)),
+          ],
+          width,
+          evHeight,
+        ),
       );
       return out;
     }

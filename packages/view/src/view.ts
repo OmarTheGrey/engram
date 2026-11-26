@@ -339,8 +339,14 @@ export function scopeText(e: Pick<MemoryEvent, "scope_from" | "scope_to">): stri
   return e.scope_to ?? e.scope_from ?? "-";
 }
 
-/** Every field of an event, labelled, for its detail panel. */
-export function eventDetail(e: MemoryEvent): [string, string][] {
+/**
+ * Every field of an event but its policy id and its reason, labelled, for its
+ * detail panel. Those two each surface draws itself, by name, after these
+ * (the inspector's eventDetail, the TUI's Events and Item screens), so no
+ * decision field is carried here in a row a name could not follow (final
+ * review verification N-1).
+ */
+export function eventFields(e: MemoryEvent): [string, string][] {
   return [
     ["id", e.id],
     ["seq", String(e.seq)],
@@ -351,8 +357,6 @@ export function eventDetail(e: MemoryEvent): [string, string][] {
     ["item", e.item_id ?? "-"],
     ["from scope", e.scope_from ?? "-"],
     ["to scope", e.scope_to ?? "-"],
-    ["policy id", e.policy_id],
-    ["reason", e.reason],
   ];
 }
 

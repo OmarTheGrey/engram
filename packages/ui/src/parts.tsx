@@ -2,9 +2,10 @@
 // E8.11): a labelled pair, and an event's detail with a link to the page of
 // the item it names.
 
-import { eventDetail, itemHref } from "@engram/view";
+import { itemHref } from "@engram/view";
 import type { ReactNode } from "react";
 import type { MemoryEvent } from "./api/index.ts";
+import { eventDetail } from "./detail.ts";
 
 export function Pair({ term, children }: { term: string; children: ReactNode }) {
   return (

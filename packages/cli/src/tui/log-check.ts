@@ -18,6 +18,19 @@ export interface LogCheckInput {
   env: Readonly<Record<string, string | undefined>>;
 }
 
+/**
+ * The child's environment: this process's, less L's token and handoff, which
+ * this process holds for itself alone (final review F-2; pinned by
+ * line.test.ts since its verification).
+ */
+export function logCheckEnv(
+  env: Readonly<Record<string, string | undefined>>,
+): Record<string, string | undefined> {
+  return Object.fromEntries(
+    Object.entries(env).filter(([k]) => k !== "ENGRAM_TUI_HANDBACK" && k !== "ENGRAM_TUI_HANDOFF"),
+  );
+}
+
 /** The checks whose child process is still running (for quitting, and for tests). */
 const live = new Set<ChildProcess>();
 
@@ -42,12 +55,7 @@ export function checkLogInChild(
     const child = spawn(process.execPath, [fileURLToPath(import.meta.url)], {
       stdio: ["pipe", "pipe", "ignore"],
       windowsHide: true,
-      // Not L's token or handoff, which this process holds for itself alone (final review F-2).
-      env: Object.fromEntries(
-        Object.entries(process.env).filter(
-          ([k]) => k !== "ENGRAM_TUI_HANDBACK" && k !== "ENGRAM_TUI_HANDOFF",
-        ),
-      ),
+      env: logCheckEnv(process.env),
     });
     live.add(child);
     let out = "";

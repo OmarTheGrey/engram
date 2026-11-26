@@ -6,10 +6,10 @@
 // repository's tracked files, not the real ~/.engram.
 import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { homedir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { OUT, REPO, SCREENS, shoot } from "../../scripts/tui-screens.ts";
+import { OUT, REPO, SCREENS, shoot, WORK, workFolder } from "../../scripts/tui-screens.ts";
 import { tempDir } from "../helpers.ts";
 
 const CHECKED = ["home", "read", "write-deny"];
@@ -48,4 +48,27 @@ describe("make tui-screens", () => {
     expect(existsSync(join(work, "engram.db"))).toBe(true);
     expect(existsSync(join(work, "home", ".engram", "tui.json"))).toBe(false);
   }, 60_000);
+
+  it("takes a work folder only under the repository's .engram/ or the OS temp folder, which it empties (N-2)", async () => {
+    expect(workFolder(WORK)).toBe(WORK);
+    const temp = join(tmpdir(), "engram-screens-work");
+    expect(workFolder(temp)).toBe(temp);
+    for (const bad of [
+      REPO,
+      join(REPO, "docs"),
+      join(REPO, ".engram"),
+      join(REPO, ".engram", "..", "docs"),
+      join(REPO, ".engramx", "work"),
+      tmpdir(),
+      homedir(),
+      join(homedir(), ".engram"),
+    ])
+      expect(() => workFolder(bad), bad).toThrow(/is not under/);
+    // The capture refuses one too, before it removes or makes anything.
+    const spec = SCREENS.find((s) => s.name === "home");
+    if (spec === undefined) throw new Error("no screen home");
+    const outside = join(REPO, "tui-screens-no-such-work");
+    await expect(shoot(spec, "dark", outside)).rejects.toThrow(/is not under/);
+    expect(existsSync(outside)).toBe(false);
+  });
 });
