@@ -89,7 +89,7 @@ Line mode (`engram tui --line`) asks one question a line, for screen readers. Mo
 
 ## Getting started
 
-You need Node 24 or later, [pnpm](https://pnpm.io) and [uv](https://docs.astral.sh/uv/), and git on the path for the Letta adapter. No Docker, and no model key: everything below runs offline.
+You need Node 24 or later, [pnpm](https://pnpm.io) and [uv](https://docs.astral.sh/uv/), and git on the path for the Letta adapter. No Docker, and no model key. After the install, everything below runs offline, except the first run of `make bench BENCH=merit`, `BENCH=tau2` and `make redteam`, which fetch their pinned harness or data once.
 
 ### 1. Install and check
 
