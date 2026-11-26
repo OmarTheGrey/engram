@@ -115,7 +115,7 @@ The screenshots here are the real TUI driven through its FakeTerminal on a works
 
 ![The command palette filtered on "prom"](../../docs/design/screens/palette.png)
 
-The other screens: [MCP](../../docs/design/screens/mcp.png) (the configuration for Claude Code and Codex over this workspace, and Try it), [Serve](../../docs/design/screens/serve.png) (who may call the server, then its start line and the inspector's URL), [Help](../../docs/design/screens/help.png) (every key the screen binds) and the [actor switcher](../../docs/design/screens/actor.png) (each workspace flag with where its value came from).
+The other screens: [MCP](../../docs/design/screens/mcp.png) (the configuration for Claude Code, acting as `agent:claude-code`, and for Codex, acting as `agent:codex`, over this workspace, and Try it), [Serve](../../docs/design/screens/serve.png) (who may call the server, then its start line and the inspector's URL), [Help](../../docs/design/screens/help.png) (every key the screen binds) and the [actor switcher](../../docs/design/screens/actor.png) (each workspace flag with where its value came from).
 
 ### Line mode
 
@@ -148,10 +148,10 @@ Every variant exists for Home, Read and the denied write (`home-*`, `read-*`, `w
 pnpm --filter cli exec vitest run
 pnpm exec playwright install chromium   # once: make test-e2e also runs the inspector in Chromium, and make tui-screens renders PNGs with it
 make test-e2e        # builds the inspector (make ui) first; layer 6: doctor and a write, read, explain smoke on SQLite and embedded Postgres, on a temp folder and on a Letta repository; engram tui under a pseudoconsole (skipped, with its reason, where none can be had)
-make tui-screens     # regenerate docs/design/screens/
+make tui-screens     # regenerate docs/design/screens/; a --work folder (emptied, then removed) must be under .engram/tui-screens/ or an engram-tui-screens-* folder in the OS temp folder
 ```
 
-`test/commands.test.ts` holds the help snapshot (card E8.2's acceptance) and `test/main.test.ts` runs the binary as a process; there is a test file per command (`write`, `read`, `check`, `explain`, `promote`, `supersede`, `grants`, `who-can-read`, `scopes`, `events`, `policy`, `simulate`, `export` and `import`, `log`, `doctor`, `hook`), `test/verified-actors.test.ts` covers the authenticated server, and `test/redaction.property.test.ts` checks that no secret in a Postgres URL reaches the output. The TUI's layers are under `test/tui/`: frames in four modes, keys, flows, parity with the plain commands, line mode, accessibility, no policy logic, and a byte test of three screenshot frames.
+`test/commands.test.ts` holds the help snapshot (card E8.2's acceptance) and `test/main.test.ts` runs the binary as a process; there is a test file per command (`write`, `read`, `check`, `explain`, `promote`, `supersede`, `grants`, `who-can-read`, `scopes`, `events`, `policy`, `simulate`, `export` and `import`, `log`, `doctor`, `hook`), `test/verified-actors.test.ts` covers the authenticated server, and `test/redaction.property.test.ts` checks that no secret in a Postgres URL reaches the output. The TUI's layers are under `test/tui/`: frames in four modes, keys, flows, parity with the plain commands, line mode, accessibility, no policy logic, and a byte test of three screenshot frames. The no-policy guard (`test/tui/no-policy.test.ts`) is a tripwire against accidental policy logic in display code, not a sound analysis, and review remains the check: it walks only `src/tui` and `packages/view`, and does not follow the CLI's printed output or the results of other `src` functions (ADR [0044](../../docs/decisions/0044-cli-tui.md), amended 2026-11-26).
 
 ## What is next
 
