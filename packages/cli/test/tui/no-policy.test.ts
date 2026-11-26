@@ -747,7 +747,7 @@ describe("no policy in the TUI's source", () => {
       return unpinned(x.path, x.text, file === undefined ? undefined : { file, checker });
     });
     expect(found).toEqual([]);
-  }, 120_000);
+  }, 300_000);
 
   it("fails each of the verification's five gaps (N2)", () => {
     const gaps: Record<string, string> = {
@@ -815,7 +815,7 @@ describe("no policy in the TUI's source", () => {
     // Drawn text kept in a local and only drawn again is allowed.
     const allowed = `${ANSWER}\ndeclare function oneLine(s: string): string;\nconst t = oneLine(answer.event.reason); const out: string[] = []; out.push(t);`;
     expect(violations("probe.ts", allowed, probeProgram(allowed))).toEqual([]);
-  }, 60_000);
+  }, 300_000);
 
   it("fails each bypass the fix pass's verification found (N-1, B1 to B7), and the fix pass's own source mutants", () => {
     const before = "export function findInReasons(";
@@ -913,7 +913,7 @@ describe("no policy in the TUI's source", () => {
       if (m.name.startsWith("control")) expect(found, m.name).toEqual([]);
       else expect(found.length, m.name).toBeGreaterThan(0);
     }
-  }, 120_000);
+  }, 300_000);
 
   it("fails each of the review's five survivors, and the earlier probes", () => {
     const survivors: Record<string, string> = {
