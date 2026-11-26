@@ -196,7 +196,7 @@ On 2026-11-21 the team read the field again (111 fact-checked notes in [`docs/re
 | benchmarks | B7, B10, B11, X14, X15 | MERIT and tau2-bench through the plane, run unmodified as external processes behind the cassette proxy; a red-team harness on OWASP's AMSB scenarios and pinned payload sets with benign controls; the plane's latency against bare SQLite |
 | Distill | D1, D2, D3 | the session recorder, induction and the replay validation gate (above) |
 
-Beside the plan: the terminal interface (card E8.15, design on main since PR #96, implementation on branch `cliupgrade`), and on 2026-11-25 the lead accepted ADRs 0034 and 0042 to 0048 and asked for a second plan of thirty ([`docs/tasks/absorb-plan-2.md`](docs/tasks/absorb-plan-2.md)).
+Beside the plan: the terminal interface (card E8.15, design on main since PR #96, implementation on branch `cliupgrade`), and on 2026-11-25 the lead accepted ADRs 0034 and 0042 to 0048 and asked for a second plan of thirty ([`docs/tasks/absorb-plan-2.md`](docs/tasks/absorb-plan-2.md)). Also in flight on 2026-11-26, none merged: RD1 (what a read discloses), L8 (lints read through the read filter), E9.9 (an owner accepts their own imported candidates) and E2.21 (ADR 0034's grant rules).
 
 ## Why it exists
 
