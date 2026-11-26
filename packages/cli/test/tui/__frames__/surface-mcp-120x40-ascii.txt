@@ -1,0 +1,44 @@
+ engram  MCP server                                                      in process  log :memory:  person:dana (person)
+ > Acting as              [ agent:claude-code                        ]  source model, fixed at launch
+   Member of              person:dana  [                                          ]  default the actor's own scope; e...
+   Level                  (o) default  ( ) person  ( ) role  ( ) team  ( ) org  default the actor's own level
+   Transport              (o) stdio, launched by the harness   ( ) HTTP, needs authentication
+   Offer memory_supersede [ ] off
+   ~ More flags: 9, set: --owner --db
+
+ [ Copy .mcp.json ]  [ Copy Codex config.toml ]  [ Try it ]
+
+ engram is not on your PATH; the snippet uses the full path of this CLI.
+ For Claude Code, .mcp.json:
+   { "mcpServers": { "engram": { "command": "/usr/bin/node", "args": [ "/src/engram/packages/cli/src/main.ts", "mcp",
+   "--db", ":memory:", "--owner", "dana", "--as", "agent:claude-code", "--member", "person:dana" ] } } }
+ For Codex, config.toml:
+   [mcp_servers.engram]
+   command = "/usr/bin/node"
+   args = ["/src/engram/packages/cli/src/main.ts", "mcp", "--db", ":memory:", "--owner", "dana", "--as", "agent:codex",
+   "--member", "person:dana"]
+
+ + Try it on a scratch log: handshake ok as agent:claude-code; tools memory_write, memory_read, memory_explain,
+ memory_simulate; stopped
+ Try it ran with --db :memory: in place of --db engram.db
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+$ engram mcp --db :memory: --owner dana --as agent:claude-code --member person:dana
+ ctrl+g help  tab next  ctrl+s try it  alt+c copy  alt+p commands  esc back
+--- styles
+r0 c0-119 inverse
+r1 c45-45 inverse
+r20 c1-1 fg #00A67A

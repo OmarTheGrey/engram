@@ -1,0 +1,45 @@
+ engram  Create a key                                                   in process  log engram.db  person:dana (person)
+   Key file     [ keys.json                                ]
+   Acting as    [ agent:ci                                 ]  the key's actor
+   Level        (o) default  ( ) person  ( ) role  ( ) team  ( ) org  default the actor's own level
+   Member of    [                                          ]  default the actor's own scope; enter adds
+   Source       ( ) unset  ( ) user  ( ) document  ( ) tool  (o) model  ( ) import  ( ) compaction  ( ) external
+   Expires      [ 2026-12-31T00:00:00Z                     ]  required: every key carries an expiry
+
+ [ Create ]
+
+ ✓ exit 0  created
+
+ ▲ copy it now: it is not shown again (Shift+drag selects it)
+
+   egk_2b8e4f6a0c13_FIXTUREFIXTUREFIXTUREFIXTURE04aa
+
+ key 2b8e4f6a0c13 for agent:ci (level role, member of role:ci, source model), expires 2026-12-31T00:00:00Z
+ the key is shown once; keys.json holds its hash only
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+$ engram key create --source model --expires 2026-12-31T00:00:00Z --as agent:ci --keys keys.json
+ ? help  ctrl+s create  tab next  ; commands  esc back
+--- styles
+r0 c0-119 inverse
+r8 c1-10 inverse
+r10 c1-1 bold
+r12 c1-1 bold
