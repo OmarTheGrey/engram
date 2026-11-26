@@ -441,7 +441,8 @@ def test_a_planted_run_through_the_cli_converter_gives_the_tables_rates_and_excl
     def by_condition(section: list[dict[str, Any]]) -> dict[tuple[str, str], dict[str, Any]]:
         return {
             (r["benchmark"], r["condition"]): {
-                k: r[k] for k in ("items", "sessions", "excluded", "rate", "exclusions")
+                k: r[k]
+                for k in ("items", "sessions", "excluded", "rate", "exclusions", "capped_utility")
             }
             for r in section
         }
@@ -455,6 +456,7 @@ def test_a_planted_run_through_the_cli_converter_gives_the_tables_rates_and_excl
         "excluded": 0,
         "rate": pytest.approx(1 / 3, abs=1e-6),
         "exclusions": {},
+        "capped_utility": 0,
     }
     assert rates[("gatemem", "C5")] == {
         "items": 2,
@@ -462,6 +464,7 @@ def test_a_planted_run_through_the_cli_converter_gives_the_tables_rates_and_excl
         "excluded": 1,
         "rate": 0.0,
         "exclusions": {"no judge verdict": 1},
+        "capped_utility": 0,
     }
     assert table["primary"]["n"] == 2 and table["primary"]["mean"] == 0.5
     assert table["holm"]["p"] == table["primary"]["p_one_sided"]
@@ -487,6 +490,7 @@ def test_a_planted_run_through_the_cli_converter_gives_the_tables_rates_and_excl
         "excluded": 4,
         "rate": pytest.approx(2 / 3, abs=1e-6),
         "exclusions": {"EXCLUDED": 1, "FILTERED": 1, "MALFORMED": 1, "readers disagree": 1},
+        "capped_utility": 0,
     }
     assert rates[("mem-inv-bench", "C5")] == {
         "items": 2,
@@ -494,6 +498,7 @@ def test_a_planted_run_through_the_cli_converter_gives_the_tables_rates_and_excl
         "excluded": 0,
         "rate": 0.0,
         "exclusions": {},
+        "capped_utility": 0,
     }
     # Read-before-acting: of C4's seven attack sessions, two read memory before acting.
     mem_inv_rates = {r["condition"]: r for r in table["rates"] if r["benchmark"] == "mem-inv-bench"}

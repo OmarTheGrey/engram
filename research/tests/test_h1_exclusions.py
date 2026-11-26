@@ -109,3 +109,78 @@ def test_only_the_primary_sets_p_value_enters_the_decision(tmp_path: Path) -> No
     assert on_forgetting["decision"]["primary"] == "not supported"
     names = [s["name"] for s in on_access["secondary"]]
     assert names == ["forgetting", "access and forgetting"]
+
+
+# Utility sessions the turn limit capped (card X21, lead-decisions item 15).
+
+CAPPED_RUN = [
+    session("a", "C4", True, kind="access"),
+    session("b", "C4", False, kind="access"),
+    session("a", "C5", False, kind="access"),
+    session("b", "C5", False, kind="access"),
+    session("u1", "C4", None, kind="utility", utility_ok=True, action_ok=True),
+    session("u2", "C4", None, kind="utility", utility_ok=None, action_ok=True, capped=True),
+    session("u3", "C4", None, kind="utility", utility_ok=None, action_ok=False, capped=True),
+    session("u1", "C5", None, kind="utility", utility_ok=True, action_ok=True),
+    session("u2", "C5", None, kind="utility", utility_ok=False, action_ok=True),
+    session("u3", "C5", None, kind="utility", utility_ok=None, action_ok=True, capped=True),
+    # The judge gave no verdict: out of U as before, and not a capped session.
+    session("u4", "C5", None, kind="utility", utility_ok=None, action_ok=True),
+]
+
+
+def _uncapped(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [{k: v for k, v in r.items() if k != "capped"} for r in rows]
+
+
+def test_the_table_counts_the_capped_utility_sessions_per_arm_and_condition(
+    tmp_path: Path,
+) -> None:
+    cfg = H1Config(primary_model="m/x", store="fake", seed=1, resamples=500)
+    table = build_h1_table(read_sessions(write(tmp_path / "c.jsonl", CAPPED_RUN)), cfg)
+    by = {r["condition"]: r for r in table["rates"]}
+    assert by["C4"]["capped_utility"] == 2
+    assert by["C5"]["capped_utility"] == 1
+    # Utility sessions are in no violation rate, so the exclusions do not move.
+    assert by["C4"]["exclusions"] == {} and by["C5"]["exclusions"] == {}
+    # Everything else is today's table: MGS's U, A and F, every rate and contrast.
+    today = build_h1_table(read_sessions(write(tmp_path / "t.jsonl", _uncapped(CAPPED_RUN))), cfg)
+    for r in today["rates"]:
+        assert r["capped_utility"] == 0
+    strip = [{k: v for k, v in r.items() if k != "capped_utility"} for r in table["rates"]]
+    assert strip == [{k: v for k, v in r.items() if k != "capped_utility"} for r in today["rates"]]
+    assert {**table, "rates": None} == {**today, "rates": None}
+    mgs = {r["condition"]: r for r in table["mgs"]}
+    assert mgs["C4"]["utility"] == 1.0 and mgs["C4"]["utility_items"] == 1
+    assert mgs["C5"]["utility"] == 0.5 and mgs["C5"]["utility_items"] == 2
+
+
+def test_every_rate_names_its_capped_utility_count_zero_included(tmp_path: Path) -> None:
+    rows = [
+        session("a", "C4", True, kind="access"),
+        session("a", "C5", False, kind="access"),
+        {**session("m", "C4", True), "benchmark": "mem-inv-bench"},
+        {**session("m", "C5", False), "benchmark": "mem-inv-bench"},
+    ]
+    table = build_h1_table(
+        read_sessions(write(tmp_path / "z.jsonl", rows)),
+        H1Config(primary_model="m/x", store="fake", seed=1, resamples=500),
+    )
+    assert [r["capped_utility"] for r in table["rates"]] == [0, 0, 0, 0]
+
+
+def test_capped_is_only_a_utility_session_with_no_verdict(tmp_path: Path) -> None:
+    ok = [session("u", "C4", None, kind="utility", utility_ok=None, action_ok=True, capped=True)]
+    assert read_sessions(write(tmp_path / "ok.jsonl", ok))[0].capped is True
+    with pytest.raises(SchemaError, match="capped is a utility session's"):
+        read_sessions(
+            write(tmp_path / "a.jsonl", [session("a", "C4", None, kind="access", capped=True)])
+        )
+    with pytest.raises(SchemaError, match="capped is a utility session's"):
+        read_sessions(write(tmp_path / "n.jsonl", [session("a", "C4", True, capped=True)]))
+    with pytest.raises(SchemaError, match="capped must be"):
+        bad = session("u", "C4", None, kind="utility", utility_ok=None, action_ok=True, capped=1)
+        read_sessions(write(tmp_path / "b.jsonl", [bad]))
+    with pytest.raises(SchemaError, match="no utility verdict"):
+        judged = session("u", "C4", None, kind="utility", utility_ok=True, action_ok=True)
+        read_sessions(write(tmp_path / "j.jsonl", [{**judged, "capped": True}]))
