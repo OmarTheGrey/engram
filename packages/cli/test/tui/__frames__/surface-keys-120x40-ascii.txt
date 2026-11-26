@@ -1,0 +1,44 @@
+ engram  Keys                                                           in process  log engram.db  person:dana (person)
+   Key file     [ keys.json                                ]
+
+ [ List the keys ]  [ Create a key ]  [ Revoke the selected key ]
+
+ + exit 0  listed
+
+  egk_7f3a9c2e1b04_****9d1e  active   person:dana (person, source user)
+                                       expires 2027-01-01T00:00:00Z
+  egk_0c55d1e9a7b2_****71f0  revoked  person:sam (person, source user)
+                                       expires 2026-12-01T00:00:00Z
+
+ A key is shown in full once, when it is created. Revoking cannot be undone.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+$ engram key list --keys keys.json   exit 0
+ ? help  n new  R revoke  r list again  ; commands  esc back
+--- styles
+r0 c0-119 inverse
+r3 c1-17 inverse
+r5 c1-1 fg #00A67A

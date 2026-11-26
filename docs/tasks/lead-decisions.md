@@ -305,7 +305,7 @@ Answered by the lead on 2026-11-25, every item (a) (section "The lead's answers,
     - (b) Accept it, and add an opt-in content mode as the GenAI conventions allow, off by default.
     - (c) Keep the JSONL sink only, so nothing leaves the machine, and drop OTLP until after the thesis.
 
-62. **ADR 0044, the CLI's terminal interface (card E8.15).** Answered 2026-11-25 by the lead: (a). The six delegated calls below stand. Card E8.15 is the lead's own request of 2026-11-21 for a TUI, not one of the absorb plan's thirty pull requests; it is listed here with the absorb cards' proposals because it was drafted with them. The design is `docs/design/tui.md`.
+62. **ADR 0044, the CLI's terminal interface (card E8.15).** Answered 2026-11-25 by the lead: (a). The six delegated calls below stand. On 2026-11-26 the lead decided to merge branch `cliupgrade`, where the TUI was built, into main as one pull request (`docs/log/2026-11-26-e8-15-decision-merge-to-main.md`). Card E8.15 is the lead's own request of 2026-11-21 for a TUI, not one of the absorb plan's thirty pull requests; it is listed here with the absorb cards' proposals because it was drafted with them. The design is `docs/design/tui.md`.
     - Open for the lead: accept ADR 0044 (pi-tui at the pi pin, only under `packages/cli/src/tui/`), or (b) Ink 8.0.0 with React 19.3.1, or (c) no TUI until after the thesis. Until then the design proceeds on (a), as decided below.
     - Decided on 2026-11-22 under the lead's delegation, six calls the design raised; binding until the lead overturns one:
 

@@ -8,7 +8,7 @@ SHELL := bash
 PNPM ?= pnpm
 UV ?= uv
 
-.PHONY: help test test-invariants test-scale test-one test-e2e test-repro lint lint-docs api api-check ui bench run h1-table h1-figure l3-variance h3-lint-delta nli-scores nli-determinism h3-lint-nli fixtures fault-workspace gitleaks-rules thesis engram dogfood-report verify-spec perf-budget redteam
+.PHONY: help test test-invariants test-scale test-one test-e2e test-repro lint lint-docs api api-check ui tui-screens bench run h1-table h1-figure l3-variance h3-lint-delta nli-scores nli-determinism h3-lint-nli fixtures fault-workspace gitleaks-rules thesis engram dogfood-report verify-spec perf-budget redteam
 
 help: ## list targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | sed -E 's/:.*## /\t/' | expand -t 16
@@ -43,11 +43,14 @@ else
 	node scripts/check-log.ts
 endif
 
-test-e2e: ui ## layer 6: engram doctor and a CLI smoke on SQLite and embedded Postgres, the MCP handshakes and the hook, and the inspector in Chromium on a fixture workspace; no Docker
+test-e2e: ui ## layer 6: engram doctor and a CLI smoke on SQLite and embedded Postgres, the MCP handshakes and the hook, the inspector in Chromium on a fixture workspace, and engram tui under a pseudoconsole; no Docker
 	$(PNPM) exec vitest run --config test/e2e/vitest.config.ts
 
 ui: ## build the inspector (Vite and React) into packages/ui/dist, which engram serve serves at /
 	$(PNPM) --filter ui build
+
+tui-screens: ## TUI screenshots for docs; needs `pnpm exec playwright install chromium`: docs/design/screens/<name>.png, .ansi and .html, and index.md
+	ENGRAM_OFFLINE=1 node packages/cli/scripts/tui-screens.ts
 
 test-repro: ## layer 8: rerun every row of research/results/MANIFEST.md and fail on a sha256 that differs; may fetch pinned benchmark data into .engram/upstream
 	$(UV) run python research/scripts/reproduce.py

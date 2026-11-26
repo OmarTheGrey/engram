@@ -1,0 +1,42 @@
+ engram  Item page                                                    in process  log ~/engram.db  person:dana (person)
+ 01940000-0000-7000-8000-000000000001   semantic   person:dana   active
+ Fixture memory 1: the deploy key rotates every 60 days.
+ owner person:dana  source user engram-cli  confidence 0.9  valid from 2026-10-01T00:00:00.000Z, open  grants none
+ stored files:01940000-0000-7000-8000-000000000001.md
+┌─ Provenance ─────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ This item  v2  person:dana                                                                                           │
+│ ├─ written by event 1, write ✓ allow, person:dana                                                                    │
+│ ├─ written by event 5, write ✓ allow, person:dana                                                                    │
+│ ├─ promote by event 11, promote ✗ deny, person:dana                                                                  │
+│ └─ no earlier version                                                                                                │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+┌─ Versions  1 of 2 ───────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ this item v1, event 1 (write)  to  this item v2, event 5 (write)   up down another pair                              │
+│ + Fixture memory 1: the deploy key rotates every 60 days.                                                            │
+│ - Fixture memory 1: the deploy key rotates every 90 days.                                                            │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+┌─ Events naming this item ────────────────────────────────────────────────────────────────────────────────────────────┐
+│    1  write    ✓ allow   fixture/write/person                                                                        │
+│    5  write    ✓ allow   fixture/write/person                                                                        │
+│   11  promote  ✗ deny    fixture/promote/review                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+$ engram events --owner dana --db engram.db   exit 0
+ ? help  p promote  g grants  w who  S supersede  enter event  tab pane  ; commands  esc back
+--- styles
+r0 c0-119 inverse

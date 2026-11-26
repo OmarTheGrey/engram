@@ -27,24 +27,10 @@ import {
 } from "@engram/core";
 import { keepLogChain } from "@engram/server";
 import { parse } from "./commands.ts";
+import { OPTIONS } from "./registry.ts";
 import type { Io } from "./run.ts";
 import { dbTarget, inspectLog, logRefusal, openDb, openLog, UsageError } from "./setup.ts";
 import { checkpointSigner, publicKeyText, signatureCheck } from "./signing.ts";
-
-const VERIFY_OPTIONS = {
-  db: { type: "string" },
-  key: { type: "string" },
-  checkpoint: { type: "string", multiple: true },
-  json: { type: "boolean" },
-} as const;
-
-const CHECKPOINT_OPTIONS = {
-  db: { type: "string" },
-  key: { type: "string" },
-  checkpoint: { type: "string", multiple: true },
-  out: { type: "string" },
-  json: { type: "boolean" },
-} as const;
 
 const readText = (io: Io, flag: string, path: string) => {
   try {
@@ -85,7 +71,7 @@ function report(r: ChainReport): string {
 }
 
 async function verifyCommand(args: string[], io: Io): Promise<number> {
-  const { values } = parse(args, VERIFY_OPTIONS, false);
+  const { values } = parse(args, OPTIONS["log verify"], false);
   const target = dbTarget(values.db, io);
   const state = inspectLog(target);
   if (state.state === "absent") throw new Error(`no event log at ${target.label}`);
@@ -119,7 +105,7 @@ async function verifyCommand(args: string[], io: Io): Promise<number> {
 }
 
 async function checkpointCommand(args: string[], io: Io): Promise<number> {
-  const { values } = parse(args, CHECKPOINT_OPTIONS, false);
+  const { values } = parse(args, OPTIONS["log checkpoint"], false);
   const target = dbTarget(values.db, io);
   let signer: ReturnType<typeof checkpointSigner> | undefined;
   if (values.key !== undefined) {

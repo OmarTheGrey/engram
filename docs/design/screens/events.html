@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<title>engram tui: events</title>
+<style>
+html,body{margin:0;background:#1e1e1e}
+pre{margin:0;padding:12px;display:inline-block;color:#d4d4d4;background:#1e1e1e;
+font:14px/normal 'Cascadia Mono','Cascadia Code',Consolas,'DejaVu Sans Mono','Liberation Mono',Menlo,monospace;
+font-variant-ligatures:none}
+</style></head><body>
+<pre id="frame"><span style="color:#1e1e1e;background:#d4d4d4"> engram  Events                                                         in process  log engram.db  person:dana (person) </span>
+ Filters  scope [ any                ]  op [ any                ]  decision [ any                ]  actor [ any      ...
+  Find in reasons [                                ]                                                                    
+ 11 of 11 events                                                                                                        
+                                                                                                                        
+ seq   time      op       decision  actor           scope                   policy id                         reason    
+     0 09:00:00  write    <span style="color:#00a67a">✓</span> allow   person:dana     person:dana             fixture.inspector/write/person    semanti...
+     1 09:05:00  write    <span style="color:#00a67a">✓</span> allow   person:dana     team:core               fixture.inspector/write/team      semanti...
+     2 09:10:00  write    <span style="color:#00a67a">✓</span> allow   person:dana     person:dana             fixture.inspector/write/person    semanti...
+     3 09:15:00  write    <span style="color:#00a67a">✓</span> allow   person:dana     person:dana             fixture.inspector/write/person    semanti...
+     4 09:20:00  write    <span style="color:#00a67a">✓</span> allow   person:dana     person:dana             fixture.inspector/write/person    semanti...
+     5 10:00:00  write    <span style="color:#00a67a">✓</span> allow   person:sam      team:core               fixture.inspector/write/team      semanti...
+     7 11:00:00  write    <span style="color:#e86a1a">✗</span> deny    person:eve      team:core               engram/write/membership           person:...
+     8 09:00:00  write    <span style="color:#00a67a">✓</span> allow   person:dana     person:dana             fixture.inspector/write/person    semanti...
+     9 09:05:00  write    <span style="color:#00a67a">✓</span> allow   person:dana     person:dana             fixture.inspector/write/person    semanti...
+    10 09:10:00  write    <span style="color:#00a67a">✓</span> allow   person:dana     team:core               fixture.inspector/write/team      semanti...
+<span style="color:#1e1e1e;background:#d4d4d4"> &gt;  11 09:15:00  write    </span><span style="color:#1e1e1e;background:#00a67a">✓</span><span style="color:#1e1e1e;background:#d4d4d4"> allow   person:dana     team:core               fixture.inspector/write/team      semanti</span>...
+                                                                                                                        
+ event 11  write  <span style="color:#00a67a">✓</span> allow  by person:dana  item 01940000-0000-7000-8000-000000000012                                    
+ reason  semantic item from source user passes the team write rule; provenance set by the plane: source user, actor     
+ person:dana                                                                                                            
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+$ engram events --db engram.db --policy policy.yaml --owner dana --member person:dana --member team:core   exit 0       
+ ? help  J json  enter detail  o item  e explain  / search  f follow  ; commands  esc back                              </pre>
+</body></html>

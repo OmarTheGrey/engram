@@ -1,0 +1,36 @@
+[7m engram  Item page                                                      in process  log engram.db  person:dana (person) [0m
+ 01940000-0000-7000-8000-000000000009   semantic   person:dana   active
+ Dana's onboarding notes for Eve: start with the deploy checklist.
+ owner person:dana  source user engram-cli  confidence 0.9  valid from 2026-10-23T00:00:00.000Z, open  grants none
+ stored files:01940000-0000-7000-8000-000000000009.md
+┌─ Provenance ─────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│[7m This item  v1  person:dana                                                                                        [0m...│
+│ ├─ written by event 8, write ✓ allow, person:dana                                                                    │
+│ └─ no earlier version                                                                                                │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+┌─ Versions  1 of 1 ───────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ one version; nothing to compare                                                                                      │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+┌─ Events naming this item ────────────────────────────────────────────────────────────────────────────────────────────┐
+│    8  write    [38;2;0;166;122m✓[0m allow   fixture.inspector/write/person                                                              │
+│   12  read     [38;2;0;166;122m✓[0m allow   fixture.inspector/read/person                                                               │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+$ engram events --db engram.db --policy policy.yaml --owner dana --member person:dana --member team:core   exit 0
+ ? help  p promote  g grants  w who  S supersede  enter event  tab pane  ; commands  esc back
