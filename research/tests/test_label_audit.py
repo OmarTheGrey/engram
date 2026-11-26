@@ -750,6 +750,17 @@ def test_both_audit_configs_carry_the_rule_and_the_response() -> None:
         assert config["on_stop"] == "drop", name
 
 
+def test_each_committed_draw_record_carries_its_configs_response() -> None:
+    pairs = {
+        "label-audit.json": "h1-label-audit.json",
+        "label-audit-longmemeval.json": "h2-label-audit-longmemeval.json",
+    }
+    for config_name, result_name in pairs.items():
+        config = load_config(REPO / "research/configs" / config_name)
+        record = json.loads((REPO / "research/results" / result_name).read_text(encoding="utf-8"))
+        assert record["on_stop"] == config["on_stop"], result_name
+
+
 def test_the_draw_record_holds_no_id_label_or_key(monkeypatch: pytest.MonkeyPatch) -> None:
     items = sample.longmemeval_items(planted_longmemeval(), 50, 7)
     monkeypatch.setattr(label_audit_draw, "draw", lambda config: {"longmemeval": items})
