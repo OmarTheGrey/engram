@@ -125,7 +125,9 @@ dict:
   mean over items of the seed-averaged outcome, with their item counts and
   a percentile bootstrap interval that resamples each part's items apart.
   Secondary and descriptive: no test, no Holm. Computed from every GateMem
-  session of the store, whatever the primary set.
+  session of the store, whatever the primary set. Each entry also gives
+  `capped_utility`, the utility sessions the turn limit capped, which left
+  U, the same count as the condition's rates give (card X21).
 - In each MEM-INV-Bench rate, `read_before_action`: how many of the
   condition's sessions (excluded ones too) read memory before acting, as
   `count`, `sessions` (those that record it) and `share`; null when no
@@ -651,6 +653,8 @@ def _mgs(mine: Sequence[SessionRow], config: H1Config) -> list[dict[str, Any]]:
         for kind in MGS_PARTS:
             entry[kind] = float(parts[kind].mean()) if parts[kind].size else None
             entry[f"{kind}_items"] = int(parts[kind].size)
+        # Beside U: the utility sessions the turn limit took out of it (card X21).
+        entry["capped_utility"] = _capped_utility(rows).get(("gatemem", model, condition), 0)
         u, a, f = entry["utility"], entry["access"], entry["forgetting"]
         if u is None or a is None or f is None:
             entry.update({"mgs": None, "low": None, "high": None})

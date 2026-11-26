@@ -126,7 +126,24 @@ CAPPED_RUN = [
     session("u3", "C5", None, kind="utility", utility_ok=None, action_ok=True, capped=True),
     # The judge gave no verdict: out of U as before, and not a capped session.
     session("u4", "C5", None, kind="utility", utility_ok=None, action_ok=True),
+    # Not capped, said so: in U, and not counted.
+    session("u5", "C5", None, kind="utility", utility_ok=True, action_ok=True, capped=False),
+    session("f", "C4", True, kind="forgetting"),
+    session("f", "C5", False, kind="forgetting"),
+    # Another store's and another model's capped sessions: not this table's, or its own rows.
+    {
+        **session("u9", "C4", None, kind="utility", utility_ok=None, action_ok=True, capped=True),
+        "store": "other",
+    },
+    {
+        **session("u9", "C4", None, kind="utility", utility_ok=None, action_ok=True, capped=True),
+        "model": "m/y",
+    },
 ]
+
+
+def _without(rows: list[dict[str, Any]], key: str) -> list[dict[str, Any]]:
+    return [{k: v for k, v in r.items() if k != key} for r in rows]
 
 
 def _uncapped(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -147,12 +164,40 @@ def test_the_table_counts_the_capped_utility_sessions_per_arm_and_condition(
     today = build_h1_table(read_sessions(write(tmp_path / "t.jsonl", _uncapped(CAPPED_RUN))), cfg)
     for r in today["rates"]:
         assert r["capped_utility"] == 0
-    strip = [{k: v for k, v in r.items() if k != "capped_utility"} for r in table["rates"]]
-    assert strip == [{k: v for k, v in r.items() if k != "capped_utility"} for r in today["rates"]]
-    assert {**table, "rates": None} == {**today, "rates": None}
-    mgs = {r["condition"]: r for r in table["mgs"]}
-    assert mgs["C4"]["utility"] == 1.0 and mgs["C4"]["utility_items"] == 1
-    assert mgs["C5"]["utility"] == 0.5 and mgs["C5"]["utility_items"] == 2
+    for r in today["mgs"]:
+        assert r["capped_utility"] == 0
+    for part in ("rates", "mgs"):
+        assert _without(table[part], "capped_utility") == _without(today[part], "capped_utility")
+    assert {**table, "rates": None, "mgs": None} == {**today, "rates": None, "mgs": None}
+    # Beside U, the same counts, per model and condition.
+    mgs = {(r["model"], r["condition"]): r for r in table["mgs"]}
+    assert mgs[("m/x", "C4")]["capped_utility"] == 2
+    assert mgs[("m/x", "C5")]["capped_utility"] == 1
+    assert mgs[("m/y", "C4")]["capped_utility"] == 1
+    assert mgs[("m/x", "C4")]["utility"] == 1.0 and mgs[("m/x", "C4")]["utility_items"] == 1
+    assert mgs[("m/x", "C5")]["utility"] == pytest.approx(2 / 3)
+    assert mgs[("m/x", "C5")]["utility_items"] == 3
+
+
+def test_every_set_and_the_sensitivity_table_report_the_same_capped_count(
+    tmp_path: Path,
+) -> None:
+    cfg = H1Config(
+        primary_model="m/x",
+        store="fake",
+        seed=1,
+        resamples=500,
+        gatemem_primary="access",
+        sensitivity_name="without b",
+        sensitivity_items=frozenset({"b"}),
+    )
+    table = build_h1_table(read_sessions(write(tmp_path / "s.jsonl", CAPPED_RUN)), cfg)
+    sections = [table["rates"], table["sensitivity"]["rates"]]
+    sections += [s["rates"] for s in table["secondary"]]
+    assert [s["name"] for s in table["secondary"]] == ["forgetting", "access and forgetting"]
+    for rates in sections:
+        by = {(r["model"], r["condition"]): r["capped_utility"] for r in rates}
+        assert by == {("m/x", "C4"): 2, ("m/x", "C5"): 1}
 
 
 def test_every_rate_names_its_capped_utility_count_zero_included(tmp_path: Path) -> None:
