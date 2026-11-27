@@ -74,7 +74,7 @@ Leak targets and poisoned values do appear inside the turns and the memory, beca
    - On MEM-INV-Bench an item is rejected when at least two members' phase-1 label differs from the benchmark's family, or at least two answer `no` on its keys. Two of one kind are needed: one member's label and another's `no` reject nothing. An item rejected both ways counts once.
    - `agreement.json` gives, per benchmark, `rejected` (the rule, the references and their count), `stop_share` and `stop`.
    - `stop` is true when more than `stop_share` of the benchmark's items are rejected: 6 or more of GateMem's 50, 4 or more of MEM-INV-Bench's 38. It is false once every member's key sheets are in and the count is at or below that, and null before then, unless the rejections counted so far already exceed it.
-   - When `stop` is true, the rejected items are dropped from that benchmark's analysis, listed in v1, and its runs proceed (`docs/tasks/lead-decisions.md`, item 6, answered on 2026-11-20 under the lead's delegation; before, the runs waited for an amendment). When it is false, the rejected items are kept and listed in v1 (step 5). Both configs still say `pause` until their `on_stop` is set to `drop` (below).
+   - When `stop` is true, the rejected items are dropped from that benchmark's analysis, listed in v1, and its runs proceed (`docs/tasks/lead-decisions.md`, item 6, answered on 2026-11-20 under the lead's delegation; before, the runs waited for an amendment). When it is false, the rejected items are kept and listed in v1 (step 5). Both configs read `on_stop` `drop` since card R5 (below).
    - With a config that names two members, "at least two" is both, and the report is the two-member one: one `between_members` pair with Cohen's kappa and `both_against_benchmark`.
 
 5. **Report it.** `agreement.json` holds counts and references only, no benchmark text.
@@ -99,9 +99,9 @@ The rejection rule and what a tripped stop means were the lead's to decide, so e
 
 - `reject_quorum`: how many members must reject an item. 2 is the recommended answer to item 5 (both of two, two of three); 1 is "any one" (5c) and 3 is "all three" (5b).
 - `stop_share`: the stop, more than this share of a benchmark's items rejected (0.1).
-- `on_stop`: `pause`, the pre-registration's text (the benchmark's runs wait for an amendment), or `drop`, item 6's recommended answer (the rejected items are dropped, listed in v1, and the runs proceed).
+- `on_stop`: `drop`, item 6's answer and the value both configs read since card R5 (the rejected items are dropped, listed in v1, and the runs proceed), or `pause`, the response the pre-registration named before item 6 (the benchmark's runs wait for an amendment), which the agreement script's functions still take as their default (`compare_dir`; its command line always reads the config's value).
 
-`agreement.json` gives, per benchmark, `reject_quorum` and `action`: the configured response and, when `stop` is true, what it means (with `drop`, how many items are kept). Changing an answer is one config value; nothing in the kit moves. Item 6's `drop` is not yet in the configs: both still read `pause`, and each draw record (`research/results/h1-label-audit.json`, `research/results/h2-label-audit-longmemeval.json`) records the value beside the draw, so the change regenerates the two records (their draws unchanged) and is its own PR, made before the agreement is computed (backlog).
+`agreement.json` gives, per benchmark, `reject_quorum` and `action`: the configured response and, when `stop` is true, what it means (with `drop`, how many items are kept). Changing an answer is one config value; nothing in the kit moves. Both configs read item 6's `drop` since card R5, whose PR regenerated the two draw records (`research/results/h1-label-audit.json`, `research/results/h2-label-audit-longmemeval.json`) that record the value beside the draw, their draws unchanged, before the agreement is computed.
 
 ## LongMemEval (card RV8)
 
