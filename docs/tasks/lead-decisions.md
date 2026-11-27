@@ -412,3 +412,11 @@ The verification of the gate-work cards' fix pass (finding N3) found two changes
 |---|---|---|
 | A, condition 3's stopping set (card X20, item 14) | "Amend: 404 + backstop". A 401, 402, 403 or 404 stops the run and is never a per-session exclusion, except that a 403 OpenRouter marks as a moderation flag is an exclusion for that session; and the run stops when five distinct items in a row each end in a refused answer call | a pinned endpoint that is gone answers every call with a 404, which would otherwise exclude a whole run; a moderation 403 refuses one prompt; the backstop counts items, since one item runs as consecutive sessions and an over-long item is refused in all of them |
 | B, the Models rule's endpoint choice (card R6) | "Seed first". The maker's own endpoint is used only if it honours `seed`, otherwise the cheapest endpoint that does | rule 6: every sampled call takes a seed, so an endpoint that drops it cannot serve a registered run |
+
+## The lead's answers, 2026-11-27
+
+The independent review of card R6 (finding 1) found that M1's pinned endpoint, Wafer's `wafer/us`, serves an mxfp4 build of the model, a 4-bit quantisation as OpenRouter lists it, and that the registered text did not say so. Since the property is the registered model's, the question went to the lead before the tag. The lead answered directly on 2026-11-27 (`docs/log/2026-11-27-r6-decision-lead-keeps-mxfp4.md`).
+
+| question | answer | reason |
+|---|---|---|
+| M1's endpoint under the seed-first rule (card R6, review finding 1) | Keep `wafer/us` (mxfp4, about 92 dollars at H1's token mix), as the seed-first rule picks it, and disclose it: the pre-registration's Models sentence names the mxfp4 quantisation, and the thesis reports results as served by the 4-bit build. No pin change | the rule as registered picks it; the next seeded endpoint not quantised to 4 bits costs several times more; disclosure lets a reader or a replication know which build served the results |

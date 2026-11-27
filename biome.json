@@ -12,7 +12,8 @@
       "!packages/ui/src/api",
       "!fixtures",
       "!packages/*/src/vendor",
-      "!research/results"
+      "!research/results",
+      "!research/configs/openrouter-endpoints"
     ]
   },
   "formatter": {

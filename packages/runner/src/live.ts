@@ -28,6 +28,14 @@
 //   refuses it for a model that is not on OpenRouter, and for one model
 //   pinned two ways. Every live run records the upstream that served each
 //   OpenRouter call, pinned or not.
+// - A pin's `answer_model` (card R6) names the model its answer routing was
+//   chosen for; a live run on another model is refused, so a slot config
+//   (`prereg/M1`) never sends M1's routing to the model MODEL= names.
+// - An experiment config (card R6 fix pass, review finding 10) runs live
+//   only pinned: each of its models on OpenRouter, the answer model and the
+//   judge, needs its `openrouter_provider` pin, so the registered rule's
+//   endpoint (pre-tag condition 5) holds by construction. A pipeline config,
+//   and a model off OpenRouter, run as before.
 import { existsSync, readdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { createModels } from "@earendil-works/pi-ai";
@@ -138,6 +146,8 @@ export function liveConfig<C extends LiveRunConfig>(config: C, request: LiveRunR
   if (offline(request.env ?? process.env)) {
     throw new LiveRunRefused("ENGRAM_OFFLINE=1 is set, and a live run reaches a model");
   }
+  pinnedFor(config, request.model);
+  experimentPinned({ ...config, model: request.model });
   return { ...config, model: request.model, cassettes: liveCassettes(config, request) };
 }
 
@@ -163,12 +173,43 @@ export function builtinLiveModels(): LiveModels {
 }
 
 /** The judge model a live run of `config` calls, if any: its own, or its benchmark's paper judge for an experiment. */
-function judgeModel(config: LiveRunConfig): string | undefined {
+export function judgeModel(config: LiveRunConfig): string | undefined {
   if (config.judge) return config.judge.model;
   if (config.kind !== "experiment") return undefined;
   if (config.benchmark === "gatemem") return configJudge({ kind: "experiment" })?.model;
   if (config.benchmark === "longmemeval") return longMemEvalJudge({ kind: "experiment" })?.model;
   return undefined;
+}
+
+/**
+ * Refuses `model` when the config's answer pin names another model it was
+ * chosen for (`openrouter_provider.answer_model`, card R6); absent, any model.
+ */
+function pinnedFor(config: LiveRunConfig, model: string): void {
+  const chosen = config.openrouter_provider?.answer_model;
+  if (chosen === undefined || chosen === model) return;
+  throw new LiveRunRefused(
+    `openrouter_provider.answer was chosen for ${chosen}, and this run's model is ${model}; a pin for another model is its own config change`,
+  );
+}
+
+/**
+ * Refuses a live experiment whose answer model or judge is on OpenRouter
+ * without its `openrouter_provider` pin (card R6 fix pass): an experiment
+ * runs on the endpoints the registered rule picks, never routed freely.
+ */
+function experimentPinned(config: LiveRunConfig): void {
+  if (config.kind !== "experiment") return;
+  const roles: [string, string | undefined, OpenRouterRouting | undefined][] = [
+    ["answer", config.model, config.openrouter_provider?.answer],
+    ["judge", judgeModel(config), config.openrouter_provider?.judge],
+  ];
+  for (const [role, model, routing] of roles) {
+    if (model?.split("/")[0] !== OPENROUTER || routing !== undefined) continue;
+    throw new LiveRunRefused(
+      `${config.name} is an experiment, and its ${role} model ${model} is on OpenRouter with no openrouter_provider.${role} pin; an experiment runs on the endpoint the registered rule picks (pre-tag condition 5, card R6)`,
+    );
+  }
 }
 
 /**
@@ -181,6 +222,7 @@ export function upstreamRoutes(config: LiveRunConfig): Map<string, OpenRouterRou
   const routes = new Map<string, OpenRouterRouting>();
   const pinned = config.openrouter_provider;
   if (pinned === undefined) return routes;
+  pinnedFor(config, config.model);
   const roles: [string, string | undefined, OpenRouterRouting | undefined][] = [
     ["answer", config.model, pinned.answer],
     ["judge", judgeModel(config), pinned.judge],
