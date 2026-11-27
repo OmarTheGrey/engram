@@ -1,0 +1,27 @@
+ engram  Simulate a policy                     in process  person:dana (person)
+   3 more above: pgup
+
+ [ Simulate ]
+
+ ✓ exit 0  compared
+
+ workload fixture-workload: 1 step, 0 model calls
+ baseline fixture.base v1, candidate fixture.candidate v1
+
+                           baseline  candidate
+ allow                            4          3  ██████████ ████████
+ deny                             0          1             ███
+ items returned                   3          1  ████████   ███
+ mean returned per read        1.50       0.50
+ active items at the end          4          3  ██████████ ████████
+ 6 rows the same: a shows all 11
+
+ 1 step differs
+  step 1 write person:dana 0195000...000002: allow -> deny
+ Replayed on scratch logs and stores: your log and store are not touched, and
+ no model is called.
+$ engram simulate --workload worklo...ate candidate.yaml --db engram.db   exit 0
+ ? help  enter step  a all rows  v plain  J json  ; commands  esc back
+--- styles
+r0 c0-79 inverse
+r3 c1-12 inverse

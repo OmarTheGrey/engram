@@ -305,7 +305,7 @@ Answered by the lead on 2026-11-25, every item (a) (section "The lead's answers,
     - (b) Accept it, and add an opt-in content mode as the GenAI conventions allow, off by default.
     - (c) Keep the JSONL sink only, so nothing leaves the machine, and drop OTLP until after the thesis.
 
-62. **ADR 0044, the CLI's terminal interface (card E8.15).** Answered 2026-11-25 by the lead: (a). The six delegated calls below stand. Card E8.15 is the lead's own request of 2026-11-21 for a TUI, not one of the absorb plan's thirty pull requests; it is listed here with the absorb cards' proposals because it was drafted with them. The design is `docs/design/tui.md`.
+62. **ADR 0044, the CLI's terminal interface (card E8.15).** Answered 2026-11-25 by the lead: (a). The six delegated calls below stand. On 2026-11-26 the lead decided to merge branch `cliupgrade`, where the TUI was built, into main as one pull request (`docs/log/2026-11-26-e8-15-decision-merge-to-main.md`). Card E8.15 is the lead's own request of 2026-11-21 for a TUI, not one of the absorb plan's thirty pull requests; it is listed here with the absorb cards' proposals because it was drafted with them. The design is `docs/design/tui.md`.
     - Open for the lead: accept ADR 0044 (pi-tui at the pi pin, only under `packages/cli/src/tui/`), or (b) Ink 8.0.0 with React 19.3.1, or (c) no TUI until after the thesis. Until then the design proceeds on (a), as decided below.
     - Decided on 2026-11-22 under the lead's delegation, six calls the design raised; binding until the lead overturns one:
 
@@ -363,11 +363,11 @@ On 2026-11-21 the lead delegated items 49 to 56 as well: close them with the bes
 
 ### The lead's own answers, 2026-11-21
 
-Three questions the answers card's review raised (findings ANS-2 and ANS-6 of its review, and the spend against the credit) went to the lead, who answered them himself the same day. They are the lead's answers, not answers under the delegation.
+Three questions the answers card's review raised (findings ANS-2 and ANS-6 of its review, and the spend against the credit) went to the lead, who answered them directly the same day. They are the lead's answers, not answers under the delegation.
 
 | item | answer | reason |
 |---|---|---|
-| 57, M2's reasoning (ANS-2) | the lead's answer: keep GLM 5.3 Flash and amend v1's Models rule: a model that cannot switch reasoning off runs at its provider's default effort, on a pinned endpoint; its reasoning tokens are metered, and the report states this; M2 is named as such a model; M1 and M3 run with reasoning off. Added under the delegation: its cost is estimated with the reasoning allowance; the comparison across models (H4, and H2's subsets) is therefore across configurations, each stated; and, since the ledger counts reasoning tokens inside output tokens, "metered" means counted and priced there until `reasoning_tokens` is recorded | pi-ai 1.3.0 maps GLM 5.3 Flash's reasoning off to nothing (`docs/log/2026-11-21-answers-finding-m2-reasoning-off.md`), and the lead keeps his choice of three makers |
+| 57, M2's reasoning (ANS-2) | the lead's answer: keep GLM 5.3 Flash and amend v1's Models rule: a model that cannot switch reasoning off runs at its provider's default effort, on a pinned endpoint; its reasoning tokens are metered, and the report states this; M2 is named as such a model; M1 and M3 run with reasoning off. Added under the delegation: its cost is estimated with the reasoning allowance; the comparison across models (H4, and H2's subsets) is therefore across configurations, each stated; and, since the ledger counts reasoning tokens inside output tokens, "metered" means counted and priced there until `reasoning_tokens` is recorded | pi-ai 1.3.0 maps GLM 5.3 Flash's reasoning off to nothing (`docs/log/2026-11-21-answers-finding-m2-reasoning-off.md`), and the lead keeps the choice of three makers |
 | 58, H3's fallback (ANS-6) | if card L3's pilot shows a standard deviation across seeds above 0.05 on precision or recall for a lint, the deterministic tier becomes H3's primary test and the model tier is reported as secondary; the rule is fixed before any pilot data | item 23 made the model tier primary and item 43 set the bound, but nothing said what a pilot above the bound does to the primary test |
 | 59, the spend cap | the lead's answer: keep the per-run ceilings at 1.25 times each run's high estimate, and add a programme-wide cap equal to the API credit held; a run that would cross that cap pauses, and the lead decides whether to resume. Added under the delegation: the ceilings are in ledger dollars (pi-ai's catalogue prices); the cap is in billed dollars, the ledger converted by each model's list-to-catalogue ratio, and a model with no recorded ratio refuses to run under it; the runner card for it before 1 December (a real-spend total across runs, checked before each session, the cap read from a config or the environment); and until it lands, the operator's check of OpenRouter's credit balance at least every two hours, stopping every shard below one session's cost per running shard plus 10 percent | the per-run ceilings sum to more than the credit the lead requests (`docs/log/2026-11-21-rv8-review-finding-credit-request-reasoning-off.md`) |
 
@@ -389,7 +389,7 @@ On 2026-11-25 the lead wrote "accept the adrs". That sentence is the lead's own 
 
 ### The lead's answers to the second absorb plan's questions, 2026-11-25
 
-The lead also answered, himself, four of the five questions of `docs/tasks/absorb-plan-2.md`, section 8 (merged as #112). These are the lead's own answers, not answers under the delegation. Question 2 (quote-grounding for H3, card L9) stays open, as the plan recommends: it is decided from L9's fixture result.
+The lead also answered directly four of the five questions of `docs/tasks/absorb-plan-2.md`, section 8 (merged as #112). These are the lead's own answers, not answers under the delegation. Question 2 (quote-grounding for H3, card L9) stays open, as the plan recommends: it is decided from L9's fixture result.
 
 | question | answer | reason |
 |---|---|---|
@@ -403,3 +403,20 @@ The lead also answered, himself, four of the five questions of `docs/tasks/absor
 - item 36 (a non-owner sees only the grants naming them, in core), and the read route naming lineage ids its reader cannot read: card RD1;
 - `Plane.lint`'s reach (`docs/log/2026-11-22-l6-finding-lint-reads-scope.md`): card L8;
 - an owner's acceptance of their own candidates in their own person scope (`docs/log/2026-11-22-e9-8-finding-owner-acceptance-after-tag.md`): card E9.9, with a new ADR 0049.
+
+## The lead's answers, 2026-11-26
+
+The verification of the gate-work cards' fix pass (finding N3) found two changes to registered text made under the delegation, which the standing rule promotes to the lead: pre-tag condition 3's stopping set (card X20) and the Models section's endpoint rule (card R6). The lead answered both directly on 2026-11-26, not under the delegation (`docs/log/2026-11-26-gwfix-decision-lead-answers.md`). Each card rewrites its sentence in its own pull request.
+
+| question | answer | reason |
+|---|---|---|
+| A, condition 3's stopping set (card X20, item 14) | "Amend: 404 + backstop". A 401, 402, 403 or 404 stops the run and is never a per-session exclusion, except that a 403 OpenRouter marks as a moderation flag is an exclusion for that session; and the run stops when five distinct items in a row each end in a refused answer call | a pinned endpoint that is gone answers every call with a 404, which would otherwise exclude a whole run; a moderation 403 refuses one prompt; the backstop counts items, since one item runs as consecutive sessions and an over-long item is refused in all of them |
+| B, the Models rule's endpoint choice (card R6) | "Seed first". The maker's own endpoint is used only if it honours `seed`, otherwise the cheapest endpoint that does | rule 6: every sampled call takes a seed, so an endpoint that drops it cannot serve a registered run |
+
+## The lead's answers, 2026-11-27
+
+The independent review of card R6 (finding 1) found that M1's pinned endpoint, Wafer's `wafer/us`, serves an mxfp4 build of the model, a 4-bit quantisation as OpenRouter lists it, and that the registered text did not say so. Since the property is the registered model's, the question went to the lead before the tag. The lead answered directly on 2026-11-27 (`docs/log/2026-11-27-r6-decision-lead-keeps-mxfp4.md`).
+
+| question | answer | reason |
+|---|---|---|
+| M1's endpoint under the seed-first rule (card R6, review finding 1) | Keep `wafer/us` (mxfp4, about 92 dollars at H1's token mix), as the seed-first rule picks it, and disclose it: the pre-registration's Models sentence names the mxfp4 quantisation, and the thesis reports results as served by the 4-bit build. No pin change | the rule as registered picks it; the next seeded endpoint not quantised to 4 bits costs several times more; disclosure lets a reader or a replication know which build served the results |

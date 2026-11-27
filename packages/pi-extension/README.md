@@ -15,8 +15,8 @@ The Engram extension for [pi](https://pi.dev), the reference harness (ADR [0001]
 | module | what it holds |
 |---|---|
 | `src/extension.ts` | `createEngramExtension(options)`: the tools and the handlers. `tool_call` decides a write with `Plane.checkWrite` (a deny is committed there and blocks the call; an allowed write is committed in the tool's `execute`); `context` shows the model only the memory results this extension produced, tagged with their read id and admitting rule, and withholds every other `memory_*` result; `before_agent_start` injects governed recall and sweeps retention; `session_before_compact` and `session_before_tree` keep memory out of summaries |
-| `src/tools.ts` | the tool definitions the model sees, `memory_write`, `memory_read`, `memory_explain`, `memory_simulate`, shared with the runner's ungoverned conditions and the MCP server so every path offers the same names and wording |
-| `src/tag.ts` | how a governed read is rendered for the model (the memory tag), and how other text is defused so it cannot pass as governed memory |
+| `src/tools.ts` | the tool definitions the model sees: `memory_write` and `memory_read` re-exported from [`@engram/tag`](../tag/README.md) (card E8.14), `memory_explain` and `memory_simulate` defined here; shared with the runner's ungoverned conditions and the MCP server so every path offers the same names and wording |
+| `src/tag.ts` | the `context` handler's record of the results this extension produced, the recall message, and how other messages are defused so they cannot pass as governed memory; the memory tag itself is `@engram/tag`'s |
 | `src/replay.ts` | `replaySession`, `sessionEvents`, `sessionWorkload`: read a recorded pi session back and replay it through a plane |
 | `src/bash.ts`, `src/paths.ts` | re-exports of core's checks (`packages/core/src/no-bypass/shell.ts` and `paths.ts`): the store commands blocked by default (`STORE_COMMANDS`) and the store-root check for file tools; the check is core's, since it decides |
 | `src/ids.ts` | `uuidv7` and the system clock, the defaults a session injects |
@@ -50,5 +50,6 @@ These are layer 5 tests (`docs/conventions/testing.md`): the extension inside a 
 ## What is next
 
 - No `memory_lint` tool is registered yet, and no card schedules one; the `/engram lint` prompt template uses it when present and says so when it is not.
-- Card D2 (in progress): its induced procedures are written as SKILL.md, the format pi and Claude Code load, so an admitted procedure needs no converter.
+- Card D2 writes induced procedures as SKILL.md, the format pi and Claude Code load, so an admitted procedure needs no converter; no tool here installs one yet, and card E9.6 (Procedures screens) is open.
+- From the second absorb plan ([`docs/tasks/absorb-plan-2.md`](../../docs/tasks/absorb-plan-2.md)), none merged yet: a cross-surface parity and leak suite over pi, MCP and the HTTP API (card E8.16), and approvals on every surface (card E8.8).
 - The limit that remains by design: a handler of another extension that runs after Engram's can still change what is sent (ADR [0009](../../docs/decisions/0009-retrieval-explanations.md), decision D11).

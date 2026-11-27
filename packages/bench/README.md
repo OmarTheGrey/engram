@@ -20,6 +20,7 @@ The benchmark harnesses: each pinned benchmark ported or wrapped so that its mem
 | `src/merit/` | MERIT (card B7) | the pinned harness as an external Python 3.11 process in its own environment under `.engram/`, its `MemoryBase` seam over loopback HTTP to the plane, the proxy launch and the cost summary |
 | `src/tau2/` | tau2-bench v1.0.1 (card B11) | the pinned harness in its own Python 3.12 environment, a memory-carrying agent registered with tau2's own registry under C2 and C5, the agent, user-simulator and judge calls through cassette proxies, tau2's own reward |
 | `src/faults/` | the seeded-fault set (card L2) | LongMemEval memory states with labelled faults (stale, contradictory, misplaced, unsupported) and near-misses, for H3's lint precision and recall |
+| `src/redteam/`, `src/amsb/` | the red-team harness (card X14) | a seeded, model-free attack suite against `Plane.write` and `Plane.read`: OWASP's AMSB scenarios (`fixtures/amsb`), the deepset and Lakera payload sets fetched at their pins, and benign controls, planted through the write route and adopted at read as each source kind; scored by `research/scripts/redteam.py` into `research/results/h1-redteam.json`, an engineering check of proposal P1 that enters no registered analysis |
 
 Scripts in `scripts/`:
 
@@ -37,6 +38,7 @@ make bench BENCH=longmemeval    # replays research/configs/b5-longmemeval-plane.
 make bench BENCH=merit          # fetches MERIT at its pin and installs its environment once, then replays offline
 make bench BENCH=tau2           # the same for tau2-bench
 make bench BENCH=gatemem DRY=1  # count the live GateMem run's calls and prompt size on the full set; no model called
+make redteam                    # card X14: fetches the pinned payload sets once (data only), then runs offline with no model
 ```
 
 GateMem, MEM-INV-Bench and LongMemEval experiments run through `packages/runner` (`make run CONFIG=...`), which builds on these harnesses. MERIT and tau2-bench run through this package's own launchers (`src/merit/`, `src/tau2/`); their live runs are left to cards X7 (MERIT, for H2) and X11 (tau2-bench, for H5).
@@ -51,6 +53,7 @@ Layer 7 of `docs/conventions/testing.md`: each harness on its fixture subset wit
 
 ## What is next
 
-- Card X14 (in progress): a red-team harness in `src/redteam/`, with OWASP's AMSB scenarios, pinned public payload sets and benign controls, run offline by `make redteam`; a live run waits for its arm to be registered (proposal P1 of the pre-registration).
+- A live red-team run waits for its arm to be registered (proposal P1 of the pre-registration).
 - Card B9 (MemoryAgentBench) is to be rescoped, since no hypothesis runs on it after 2026-11-20; HaluMem (card B8) stays unregistered for its licence.
 - MERIT's sessions for H2 are counted before its first live run, which card X7 makes, and H5's prerequisites for tau2-bench (the task split, the user-simulator model) are drafted for the lead before H1's data exist (the pre-registration, H5), then run by card X11.
+- From the second absorb plan ([`docs/tasks/absorb-plan-2.md`](../../docs/tasks/absorb-plan-2.md)), none merged yet: the paired fault-injection check for H3 (card X18, proposal U6) and the erasure-residue check (card X19, proposal U7).
