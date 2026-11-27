@@ -16,8 +16,8 @@ One row per results file. A results file exists only if `research/scripts/<scrip
 | research/results/h2-longmemeval-ttl.json | research/configs/h2-longmemeval-ttl.json | research/scripts/h2_longmemeval_ttl.py | 00c606e | 412941154b27162d6c55236c13ac6e609595d62c37010bb12eb842e43bde428a | none |
 | research/results/h2-longmemeval-cost.json | research/configs/h2-longmemeval-cost.json | research/scripts/h2_longmemeval_cost.py | 755c29d | 529b1450b56f154202543ad7aa045eee61e2c56cce5ed7c0169b934ec91a1cb8 | none |
 | research/results/h1-check-runs-cost.json | research/configs/h1-check-runs-cost.json | research/scripts/h1_check_runs_cost.py | 1347327 | fd5a250704aa3156632be4a83bf152e17e2f2f3bdc769ebde17890b215f4e41d | none |
-| research/results/h1-label-audit.json | research/configs/label-audit.json | research/scripts/label_audit_draw.py | 03d5a76 | 8d69b4e5a5871432ba0009bb560fd237606c743b73faadb41b16c55c1382b926 | none |
-| research/results/h2-label-audit-longmemeval.json | research/configs/label-audit-longmemeval.json | research/scripts/label_audit_draw.py | 03d5a76 | 7bd9b9befb85ad96b4960cb093d78d8c8e69b51788f0020c2f813eb3049f096a | none |
+| research/results/h1-label-audit.json | research/configs/label-audit.json | research/scripts/label_audit_draw.py | 6881e46 | 5d295d27d161e50c3f5374e7440e47e08be1c107a7b26bd2f9aca429ac36d223 | none |
+| research/results/h2-label-audit-longmemeval.json | research/configs/label-audit-longmemeval.json | research/scripts/label_audit_draw.py | 6881e46 | 509268baf31ca7c2d8088f42b9c10ea5bac285a3fd3e6e720cba894390a3722e | none |
 | research/results/h2-cost-table.json | research/configs/cost-table.json | research/scripts/cost_table.py | 03d5a76 | 074d4fb068460e78916c215bebcbfe0f2ac637fa65eb0ba670da9d6063fec8c1 | none |
 | research/results/h2-frontier-axes.json | research/configs/frontier-axes.json | research/scripts/frontier_axes.py | 03d5a76 | 5f208b78489b78a2364edf8b2dc1a5d16a4baa8a3a4be5033b5d313debc4180f | none |
 | research/results/h1-crosswalk.json | research/configs/crosswalk.json | research/scripts/crosswalk.py | a0e7113 | e51bbc8567333f320e74cdcc4e6892a32a4d422ae53295d4849833e49ed957c0 | none |
