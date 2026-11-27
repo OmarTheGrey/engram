@@ -18,7 +18,7 @@
   ],
   "sent_parameters": {
     "source": "What pi-ai 1.3.0 puts in the request body for each call the runner makes (api/openai-completions.js, buildParams), in OpenRouter's parameter names: the answer turn sends seed (samplingParams), tools when the condition gives the agent memory tools, and reasoning ({effort: none}, thinking off, for a reasoning model on OpenRouter's thinking format: M1 and GPT-5.4); the MEM-INV-Bench note call sends seed, temperature, max_tokens and reasoning; the lint call sends seed, temperature, max_tokens, response_format (a json_schema, so structured_outputs) and reasoning; GateMem's judge sends seed, temperature, max_tokens, response_format and structured_outputs; LongMemEval's judge sends seed, temperature and max_tokens. pi-ai names the token limit max_completion_tokens, read here as OpenRouter's max_tokens; that OpenRouter checks it as max_tokens under require_parameters is not checked offline, and a refusal of the first call stops the run, the safe direction. With require_parameters true OpenRouter routes only to an endpoint whose supported_parameters hold every one of these, so a pinned endpoint must list them all.",
-    "answer": ["reasoning", "seed", "tools"],
+    "answer": ["max_tokens", "reasoning", "seed", "tools"],
     "note": ["max_tokens", "reasoning", "seed", "temperature"],
     "lint": [
       "max_tokens",
