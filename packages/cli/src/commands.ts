@@ -4,33 +4,49 @@
 // answer. The Plane makes every decision; nothing here is a policy `if`.
 // Every id comes from the Io (`io.newId`), so a run with a fixed Io is
 // reproducible.
+//
+// Card E8.15a (docs/design/tui.md 6.2): each command is a PlaneCommand in
+// three parts, so the TUI can make the same call the plain command makes:
+// `prepare` (the flag checks, the actor, everything that needs no
+// workspace; it throws the same UsageError), `request` and `call` (the one
+// client call), and `print` (the text or JSON the command prints, and its
+// exit code). `runPlane` puts them together as each command always ran; the
+// exported `readCommand` and the rest behave as they did. The flags each
+// command parses are its registry entry's (./registry.ts).
 import { createHash } from "node:crypto";
 import { readFileSync, statSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { type ParseArgsConfig, parseArgs } from "node:util";
+import { parseArgs } from "node:util";
 import {
   type Actor,
   type BundleRow,
+  type Grant,
   Id,
   type ImportSource,
   importActor,
   importedWrite,
   importOrder,
   type LintFinding,
+  MemoryClass,
   type MemoryEvent,
   type MemoryItem,
   mapLineage,
   Scope,
   type SimReport,
+  Timestamp,
   type WhoCanReadAnswer,
 } from "@engram/core";
 import { type Connection, connect, result, serverOf } from "./connect.ts";
 import {
   decisionLines,
+  eventsLines,
   explanationLines,
+  grantLines,
   plural,
+  policyLines,
   preview,
   type SupersedeAnswer,
+  scopesLines,
   simulationLines,
   supersedeLines,
   whoCanReadLines,
@@ -44,62 +60,40 @@ import {
   readIdentities,
   readPassphrase,
 } from "./import/crypt.ts";
+import { OPTIONS, type OptionSpec } from "./registry.ts";
 import type { Io } from "./run.ts";
 import { buildActor, checkNumber, checkTime, loadPolicy, MEMORY_DB, UsageError } from "./setup.ts";
 
-type Options = NonNullable<ParseArgsConfig["options"]>;
+type Options = Readonly<Record<string, OptionSpec>>;
 
 /**
- * Where this process exports its decisions as spans (card E8.13, ADR 0043):
- * none unless one is named, here or by ENGRAM_OTLP_URL or ENGRAM_EXPORT_JSONL.
+ * A flag parseArgs does not know (card E8.15a, docs/design/tui.md 12.2):
+ * still a usage error with parseArgs' message, carrying the flag typed
+ * (without its dashes); `run` prints the flag it was probably meant to be as
+ * a second line.
  */
-export const EXPORT_OPTIONS = {
-  otlp: { type: "string" },
-  "export-jsonl": { type: "string" },
-} satisfies Options;
-
-export const STORE_OPTIONS = {
-  ...EXPORT_OPTIONS,
-  store: { type: "string" },
-  root: { type: "string" },
-  owner: { type: "string" },
-  "import-valid-from": { type: "string" },
-  policy: { type: "string" },
-  db: { type: "string" },
-  json: { type: "boolean" },
-} satisfies Options;
-
-export const ACTOR_OPTIONS = {
-  as: { type: "string" },
-  level: { type: "string" },
-  member: { type: "string", multiple: true },
-  at: { type: "string" },
-  // For tests and fixtures only: lets --at set the clock of an in-process
-  // call that is not a read (review fix pass of PR #59, RV5-3).
-  "test-clock": { type: "boolean" },
-} satisfies Options;
-
-/** A server to call instead of the in-process app (or ENGRAM_SERVER_URL). */
-export const CLIENT_OPTIONS = { server: { type: "string" } } satisfies Options;
-
-const WRITE_OPTIONS = {
-  content: { type: "string" },
-  file: { type: "string" },
-  id: { type: "string" },
-  scope: { type: "string" },
-  class: { type: "string" },
-  confidence: { type: "string" },
-  "valid-from": { type: "string" },
-  "valid-to": { type: "string" },
-} satisfies Options;
+export class UnknownOptionError extends UsageError {
+  readonly option: string;
+  constructor(message: string, option: string) {
+    super(message);
+    this.option = option;
+  }
+}
 
 export function parse<O extends Options>(args: string[], options: O, positionals: boolean) {
   try {
     return parseArgs({ args, options, allowPositionals: positionals, strict: true });
   } catch (e) {
-    throw new UsageError((e as Error).message);
+    const message = (e as Error).message;
+    const flag = /^Unknown option '--([^'=]+)'/.exec(message)?.[1];
+    if ((e as { code?: string }).code === "ERR_PARSE_ARGS_UNKNOWN_OPTION" && flag !== undefined)
+      throw new UnknownOptionError(message, flag);
+    throw new UsageError(message);
   }
 }
+
+/** The flag values a command parsed, typed by its options. */
+type Values<O extends Options> = ReturnType<typeof parse<O>>["values"];
 
 /**
  * The time of a call that is not a read (card RV5, finding RV-SRF-2). A
@@ -134,14 +128,15 @@ function callClock(
 
 interface WorkspaceFlags {
   /** Where the decisions go (card E8.13); read by connect, not by the workspace. */
-  otlp?: string;
-  "export-jsonl"?: string;
-  store?: string;
-  root?: string;
-  owner?: string;
-  "import-valid-from"?: string;
-  policy?: string;
-  db?: string;
+  otlp?: string | undefined;
+  "export-jsonl"?: string | undefined;
+  store?: string | undefined;
+  root?: string | undefined;
+  owner?: string | undefined;
+  "import-valid-from"?: string | undefined;
+  policy?: string | undefined;
+  db?: string | undefined;
+  server?: string | undefined;
 }
 
 /** The in-process workspace's options from a command's flags. */
@@ -158,14 +153,20 @@ const workspaceOf =
     readOnlyStore,
   });
 
+interface SessionOptions {
+  requireStore: boolean;
+  mustExist?: boolean;
+  readOnlyStore?: boolean;
+}
+
 /**
  * Connects and builds the actor, in the order the commands have always
  * reported problems: the policy and the store, then the actor, then the log.
  */
 function session(
   io: Io,
-  flags: WorkspaceFlags & { server?: string },
-  options: { requireStore: boolean; mustExist?: boolean; readOnlyStore?: boolean },
+  flags: WorkspaceFlags,
+  options: SessionOptions,
   makeActor: () => Actor,
 ): { conn: Connection; actor: Actor } {
   let actor: Actor | undefined;
@@ -182,6 +183,86 @@ function session(
   }
   return { conn, actor };
 }
+
+/** What `prepare` hands on to the call: everything it needs that needs no workspace. */
+export interface Prepared {
+  /** The Io of the call: with --test-clock, --at is its clock. */
+  io: Io;
+  /** What connect reads: --server, the workspace flags and the export flags. */
+  flags: WorkspaceFlags;
+  /** How the workspace opens; null opens no log and needs no actor (simulate, policy). */
+  session: SessionOptions | null;
+  /**
+   * The actor, built when the workspace has loaded the policy and the store,
+   * so a command reports problems in the order it always has.
+   */
+  actor: () => Actor;
+  json: boolean;
+}
+
+/** What a command prints, and the exit code it returns. */
+export interface Printed {
+  out: string;
+  code: number;
+}
+
+/** One plane command in its three parts (docs/design/tui.md 6.2). */
+export interface PlaneCommand<O extends Options, P extends Prepared, Req, Res> {
+  /** The registry's parse config for the command. */
+  options: O;
+  allowPositionals: boolean;
+  /** The flag checks and everything that needs no workspace; throws the CLI's UsageError. */
+  prepare(values: Values<O>, positionals: string[], io: Io): P;
+  /** The request the one call sends, for the actor (undefined when the command has none). */
+  request(p: P, actor: Actor | undefined): Req;
+  /** The one client call. */
+  call(conn: Connection, request: Req): Promise<Res>;
+  /** The command's output and exit code for the answer. */
+  print(p: P, actor: Actor | undefined, answer: Res, conn: Connection): Printed | Promise<Printed>;
+}
+
+const plane = <O extends Options, P extends Prepared, Req, Res>(c: PlaneCommand<O, P, Req, Res>) =>
+  c;
+
+const noActor = (): Actor => {
+  throw new Error("this command acts as no one");
+};
+
+/** Opens the workspace (or names the server) for a prepared command, and builds its actor. */
+export function open(p: Prepared): { conn: Connection; actor: Actor | undefined } {
+  if (p.session === null)
+    return {
+      conn: connect(p.io, p.flags, workspaceOf(p.flags, false), undefined),
+      actor: undefined,
+    };
+  return session(p.io, p.flags, p.session, p.actor);
+}
+
+/** Runs a plane command on its arguments, as `engram <command>` does. */
+export async function runPlane<O extends Options, P extends Prepared, Req, Res>(
+  c: PlaneCommand<O, P, Req, Res>,
+  args: string[],
+  io: Io,
+): Promise<number> {
+  const { values, positionals } = parse(args, c.options, c.allowPositionals);
+  const p = c.prepare(values, positionals, io);
+  const { conn, actor } = open(p);
+  try {
+    const answer = await c.call(conn, c.request(p, actor));
+    const printed = await c.print(p, actor, answer, conn);
+    // The TUI's other view (card E8.15c): the same answer printed in the other
+    // mode, text or --json, so its plain and JSON views are both the CLI's
+    // bytes from one call. Only a command that has --json prints both ways.
+    if (io.otherView !== undefined && Object.hasOwn(c.options, "json"))
+      io.otherView((await c.print({ ...p, json: !p.json }, actor, answer, conn)).out);
+    io.out(printed.out);
+    return printed.code;
+  } finally {
+    conn.close();
+  }
+}
+
+const must = (actor: Actor | undefined): Actor => actor ?? noActor();
 
 /**
  * Where the log is, and after a read the explain command that finds it: with
@@ -221,111 +302,143 @@ const brief = (e: MemoryEvent) => ({
   policy_id: e.policy_id,
 });
 
-export async function readCommand(args: string[], io: Io): Promise<number> {
-  const { values, positionals } = parse(
-    args,
-    { ...STORE_OPTIONS, ...ACTOR_OPTIONS, ...CLIENT_OPTIONS },
-    true,
-  );
-  // A read's --at is the time its validity windows are judged at, in process
-  // and over --server alike; the read happens at the server's clock, which
-  // is also when the store owner's sweep runs (card RV5, RV-SRF-1 and 2).
-  const validAt = checkTime("--at", values.at);
-  const { conn, actor } = session(io, values, { requireStore: true, readOnlyStore: true }, () =>
-    buildActor(values, values.owner),
-  );
-  try {
-    const text = positionals.join(" ") || undefined;
-    // One call: the server's read route sweeps and adopts the store as its
-    // owner first (retention before adoption, ADR 0025 and decision D8).
-    const answer = result(
-      await conn.client.POST("/api/v1/read", {
-        body: { actor, text, ...(validAt === undefined ? {} : { at: validAt }) },
-      }),
-    );
-    const r = answer as unknown as {
-      items: MemoryItem[];
-      explanations: { item_id: string; rank: number }[] & Parameters<typeof explanationLines>[0][];
-      filtered: number;
-      event: MemoryEvent;
-      policy: string;
-      sync: {
-        store: { name: string; root: string; scope: string };
-        retention: { expired: string[]; evicted: string[]; events: MemoryEvent[] };
-        adoption: {
-          listed: number;
-          allowed: number;
-          denied: number;
-          unchanged: number;
-          deferred: number;
-          retired: number;
-          denials: { item_id: string; reason: string; policy_id: string }[];
-          retirements: { item_id: string; reason: string }[];
-          evictions: MemoryEvent[];
-        };
-      } | null;
+const json = (value: unknown) => `${JSON.stringify(value, null, 2)}\n`;
+const text = (lines: string[]) => `${lines.join("\n")}\n`;
+
+/** What the workspace did before a read or a scope listing, as the store's owner. */
+interface StoreSync {
+  store: { name: string; root: string; scope: string };
+  retention: { expired: string[]; evicted: string[]; events: MemoryEvent[] };
+  adoption: {
+    listed: number;
+    allowed: number;
+    denied: number;
+    unchanged: number;
+    deferred: number;
+    retired: number;
+    denials: { item_id: string; reason: string; policy_id: string }[];
+    retirements: { item_id: string; reason: string }[];
+    evictions: MemoryEvent[];
+  };
+}
+
+/** The lines a read prints for its store's sweep and adoption. */
+function syncLines(sync: StoreSync): string[] {
+  const a = sync.adoption;
+  return [
+    `store ${sync.store.name} at ${sync.store.root}`,
+    `retention: ${sync.retention.expired.length} expired, ${sync.retention.evicted.length} evicted`,
+    ...sync.retention.events.map(eventLine),
+    `imported ${a.allowed + a.denied} of ${plural(a.listed, "memory", "memories")}: ` +
+      `${a.allowed} allowed, ${a.denied} denied, ${a.unchanged} already in the log${a.deferred > 0 ? `, ${a.deferred} left to the next adoption` : ""}`,
+    ...a.denials.map((d) => `  denied ${d.item_id}: ${d.reason} (${d.policy_id})`),
+    ...a.retirements.map((x) => `  retired ${x.item_id}: ${x.reason}`),
+    ...a.evictions.map(
+      (e) =>
+        `  ${e.decision === "ask" ? "asked" : "evicted"} ${e.item_id ?? "(no item)"} during adoption: ${e.reason} (${e.policy_id})`,
+    ),
+  ];
+}
+
+interface ReadAnswer {
+  items: MemoryItem[];
+  explanations: ({ item_id: string; rank: number } & Parameters<typeof explanationLines>[0])[];
+  filtered: number;
+  event: MemoryEvent;
+  policy: string;
+  sync: StoreSync | null;
+}
+
+/**
+ * `engram read [query]`, or `engram read --item <id>` (card E8.15a, over
+ * card E8.14's route): one read, the store swept and adopted as its owner
+ * first, every returned item explained.
+ */
+export const READ = plane({
+  options: OPTIONS.read,
+  allowPositionals: true,
+  prepare(values, positionals, io) {
+    // A read's --at is the time its validity windows are judged at, in process
+    // and over --server alike; the read happens at the server's clock, which
+    // is also when the store owner's sweep runs (card RV5, RV-SRF-1 and 2).
+    const validAt = checkTime("--at", values.at);
+    const item = values.item;
+    if (item !== undefined && positionals.length > 0)
+      throw new UsageError("give a query or --item <id>, not both");
+    if (item !== undefined && !Id.safeParse(item).success)
+      throw new UsageError(`--item ${item} is not an item id (a UUIDv7)`);
+    return {
+      io,
+      flags: values,
+      session: { requireStore: true, readOnlyStore: true },
+      actor: () => buildActor(values, values.owner),
+      json: values.json === true,
+      validAt,
+      item,
+      text: positionals.join(" ") || undefined,
     };
+  },
+  request: (p, actor) => ({
+    item: p.item,
+    body: {
+      actor: must(actor),
+      ...(p.item === undefined ? { text: p.text } : {}),
+      ...(p.validAt === undefined ? {} : { at: p.validAt }),
+    },
+  }),
+  // One call: the server's read route sweeps and adopts the store as its
+  // owner first (retention before adoption, ADR 0025 and decision D8).
+  call: async (conn, { item, body }) =>
+    (item === undefined
+      ? result(await conn.client.POST("/api/v1/read", { body }))
+      : result(
+          await conn.client.POST("/api/v1/read/{itemId}", {
+            params: { path: { itemId: item } },
+            body,
+          }),
+        )) as unknown as ReadAnswer,
+  print(p, actor, r, conn) {
+    const a = must(actor);
     const readId = r.event.id;
     const at = r.event.ts;
     const rows = r.items.map((item, i) => ({ item, explanation: r.explanations[i] }));
     const sync = r.sync;
-
-    if (values.json) {
+    if (p.json) {
       const counts = sync
         ? (({ denials: _d, retirements: _r, evictions: _e, ...rest }) => rest)(sync.adoption)
         : null;
-      io.out(
-        `${JSON.stringify(
-          {
-            read_id: readId,
-            at,
-            valid_at: validAt ?? null,
-            actor,
-            policy: r.policy,
-            store: sync ? { name: sync.store.name, root: sync.store.root } : null,
-            retention: sync
-              ? {
-                  expired: sync.retention.expired,
-                  evicted: sync.retention.evicted,
-                  events: sync.retention.events.map(brief),
-                }
-              : null,
-            imported: counts,
-            denials: sync?.adoption.denials ?? [],
-            retirements: sync?.adoption.retirements ?? [],
-            evictions: (sync?.adoption.evictions ?? []).map(brief),
-            returned: r.items.length,
-            filtered: r.filtered,
-            reason: r.event.reason,
-            items: rows,
-            log: logLabel(conn),
-          },
-          null,
-          2,
-        )}\n`,
-      );
-      return 0;
+      return {
+        code: 0,
+        out: json({
+          read_id: readId,
+          at,
+          valid_at: p.validAt ?? null,
+          actor: a,
+          policy: r.policy,
+          store: sync ? { name: sync.store.name, root: sync.store.root } : null,
+          retention: sync
+            ? {
+                expired: sync.retention.expired,
+                evicted: sync.retention.evicted,
+                events: sync.retention.events.map(brief),
+              }
+            : null,
+          imported: counts,
+          denials: sync?.adoption.denials ?? [],
+          retirements: sync?.adoption.retirements ?? [],
+          evictions: (sync?.adoption.evictions ?? []).map(brief),
+          returned: r.items.length,
+          filtered: r.filtered,
+          reason: r.event.reason,
+          items: rows,
+          log: logLabel(conn),
+        }),
+      };
     }
-
     const lines = [
-      `read ${readId} at ${at}${validAt === undefined ? "" : `, validity windows at ${validAt}`} as ${actor.id} (${actor.level}) under ${r.policy}`,
+      `read ${readId} at ${at}${p.validAt === undefined ? "" : `, validity windows at ${p.validAt}`} as ${a.id} (${a.level}) under ${r.policy}`,
     ];
-    if (sync) {
-      const a = sync.adoption;
-      lines.push(
-        `store ${sync.store.name} at ${sync.store.root}`,
-        `retention: ${sync.retention.expired.length} expired, ${sync.retention.evicted.length} evicted`,
-        ...sync.retention.events.map(eventLine),
-        `imported ${a.allowed + a.denied} of ${plural(a.listed, "memory", "memories")}: ` +
-          `${a.allowed} allowed, ${a.denied} denied, ${a.unchanged} already in the log${a.deferred > 0 ? `, ${a.deferred} left to the next adoption` : ""}`,
-        ...a.denials.map((d) => `  denied ${d.item_id}: ${d.reason} (${d.policy_id})`),
-        ...a.retirements.map((x) => `  retired ${x.item_id}: ${x.reason}`),
-        ...a.evictions.map(
-          (e) =>
-            `  ${e.decision === "ask" ? "asked" : "evicted"} ${e.item_id ?? "(no item)"} during adoption: ${e.reason} (${e.policy_id})`,
-        ),
-      );
-    }
+    if (sync) lines.push(...syncLines(sync));
     lines.push(
       `${plural(r.items.length, "item")} returned, ${r.filtered} filtered`,
       `  ${r.event.reason}`,
@@ -341,21 +454,14 @@ export async function readCommand(args: string[], io: Io): Promise<number> {
       );
     }
     lines.push("", logHint(conn, readId));
-    io.out(`${lines.join("\n")}\n`);
-    return 0;
-  } finally {
-    conn.close();
-  }
-}
+    return { code: 0, out: text(lines) };
+  },
+});
 
 const sha256 = (text: string) => `sha256:${createHash("sha256").update(text).digest("hex")}`;
 
-export async function writeCommand(args: string[], io: Io): Promise<number> {
-  const { values } = parse(
-    args,
-    { ...STORE_OPTIONS, ...ACTOR_OPTIONS, ...WRITE_OPTIONS, ...CLIENT_OPTIONS },
-    false,
-  );
+/** The item `engram write` assembles from its flags, and the actor it writes as. */
+function prepareWrite(values: Values<typeof OPTIONS.write>, io: Io) {
   const clock = callClock(values, io);
   const { at } = clock;
   const confidence = checkNumber("--confidence", values.confidence);
@@ -402,75 +508,68 @@ export async function writeCommand(args: string[], io: Io): Promise<number> {
     store_ref: null,
     schema_version: 1,
   };
+  return { io: clock.io, at, actor, item, json: values.json === true };
+}
 
-  const { conn } = session(clock.io, values, { requireStore: true }, () => actor);
-  try {
-    const answer = result(await conn.client.POST("/api/v1/items", { body: { actor, item } }));
-    const { item: stored, event } = answer as unknown as {
+/** `engram write`: one item through the write gate. Exit 0 on allow, 1 otherwise. */
+export const WRITE = plane({
+  options: OPTIONS.write,
+  allowPositionals: false,
+  prepare(values, _positionals, io) {
+    const w = prepareWrite(values, io);
+    return { ...w, flags: values, session: { requireStore: true }, actor: () => w.actor };
+  },
+  request: (p, actor) => ({ actor: must(actor), item: p.item }),
+  call: async (conn, body) =>
+    result(await conn.client.POST("/api/v1/items", { body })) as unknown as {
       item: MemoryItem | null;
       event: MemoryEvent;
-    };
-    if (values.json) io.out(`${JSON.stringify({ event, item: stored }, null, 2)}\n`);
-    else io.out(`${[...decisionLines(event, stored), logHint(conn)].join("\n")}\n`);
-    return event.decision === "allow" ? 0 : 1;
-  } finally {
-    conn.close();
-  }
-}
+    },
+  print: (p, _actor, { item: stored, event }, conn) => ({
+    code: event.decision === "allow" ? 0 : 1,
+    out: p.json
+      ? json({ event, item: stored })
+      : text([...decisionLines(event, stored), logHint(conn)]),
+  }),
+});
 
 /**
- * `engram promote <item-id> --to <scope> [--review]`: one promote call as a
- * user-sourced actor (ADR 0026: only a user-sourced actor can approve). Exit
- * 0 when the promotion landed, 1 on deny or ask.
+ * `engram check` (card E8.15a): the decision `engram write` would get with
+ * the same flags, from POST /items/check; nothing stored, no event. The
+ * workspace opens as write's does, its store read only. Exit 0 on allow, 1
+ * on deny or ask.
  */
-export async function promoteCommand(args: string[], io: Io): Promise<number> {
-  const { values, positionals } = parse(
-    args,
-    {
-      ...STORE_OPTIONS,
-      ...ACTOR_OPTIONS,
-      ...CLIENT_OPTIONS,
-      to: { type: "string" },
-      review: { type: "boolean" },
-    },
-    true,
-  );
-  const [itemId, ...rest] = positionals;
-  if (itemId === undefined || rest.length > 0)
-    throw new UsageError("give exactly one item id: engram promote <item-id> --to <scope>");
-  if (!Id.safeParse(itemId).success) throw new UsageError(`${itemId} is not an item id (a UUIDv7)`);
-  if (values.to === undefined) throw new UsageError("give the target scope with --to <scope>");
-  if (!Scope.safeParse(values.to).success)
-    throw new UsageError(
-      `--to ${values.to} is not a scope (person:<id>, role:<id>, team:<id> or org)`,
-    );
-  const clock = callClock(values, io);
-  const actor = buildActor(values, values.owner, "user");
-  const { conn } = session(clock.io, values, { requireStore: true }, () => actor);
-  try {
-    const answer = result(
-      await conn.client.POST("/api/v1/promote", {
-        body: { actor, item_id: itemId, to: values.to, review: values.review === true },
-      }),
-    );
-    const { decision, event, events, item } = answer as unknown as {
-      decision: MemoryEvent["decision"];
-      event: MemoryEvent;
-      events: MemoryEvent[];
-      item: MemoryItem | null;
+export const CHECK = plane({
+  options: OPTIONS.check,
+  allowPositionals: false,
+  prepare(values, _positionals, io) {
+    const w = prepareWrite(values, io);
+    return {
+      ...w,
+      flags: values,
+      session: { requireStore: true, readOnlyStore: true },
+      actor: () => w.actor,
     };
-    if (values.json) {
-      io.out(`${JSON.stringify({ decision, event, events, item }, null, 2)}\n`);
-    } else {
-      const lines = decisionLines(event, item);
-      for (const e of events.slice(1)) lines.push(eventLine(e));
-      io.out(`${[...lines, logHint(conn)].join("\n")}\n`);
-    }
-    return decision === "allow" ? 0 : 1;
-  } finally {
-    conn.close();
-  }
-}
+  },
+  request: (p, actor) => ({ actor: must(actor), item: p.item }),
+  call: async (conn, body) =>
+    result(await conn.client.POST("/api/v1/items/check", { body })) as unknown as {
+      decision: "allow" | "deny" | "ask";
+      reason: string;
+      policy_id: string;
+    },
+  print: (p, actor, answer, conn) => ({
+    code: answer.decision === "allow" ? 0 : 1,
+    out: p.json
+      ? json(answer)
+      : text([
+          `check a write to ${String(p.item.scope)} at ${p.at} by ${must(actor).id}: nothing stored, no event`,
+          `${answer.decision}: ${answer.reason}`,
+          `policy ${answer.policy_id}`,
+          logHint(conn),
+        ]),
+  }),
+});
 
 /**
  * `engram supersede <item-id> [--accept <id>]...` (card L6): one call to the
@@ -480,97 +579,277 @@ export async function promoteCommand(args: string[], io: Io): Promise<number> {
  * through the write gate, which decides it. Exit 0 when the chain resolves
  * and every accepted close was allowed, 1 otherwise.
  */
-export async function supersedeCommand(args: string[], io: Io): Promise<number> {
-  const { values, positionals } = parse(
-    args,
-    {
-      ...STORE_OPTIONS,
-      ...ACTOR_OPTIONS,
-      ...CLIENT_OPTIONS,
-      accept: { type: "string", multiple: true },
-    },
-    true,
-  );
-  const [itemId, ...rest] = positionals;
-  if (itemId === undefined || rest.length > 0)
-    throw new UsageError("give exactly one item id: engram supersede <item-id> [--accept <id>]...");
-  const accept = values.accept ?? [];
-  for (const id of [itemId, ...accept])
-    if (!Id.safeParse(id).success) throw new UsageError(`${id} is not an item id (a UUIDv7)`);
-  const clock = callClock(values, io);
-  const actor = buildActor(values, values.owner, "user");
-  const { conn } = session(clock.io, values, { requireStore: true }, () => actor);
-  try {
-    const answer = result(
-      await conn.client.POST("/api/v1/supersede", { body: { actor, item_id: itemId, accept } }),
-    );
-    const plan = answer as unknown as SupersedeAnswer;
+export const SUPERSEDE = plane({
+  options: OPTIONS.supersede,
+  allowPositionals: true,
+  prepare(values, positionals, io) {
+    const [itemId, ...rest] = positionals;
+    if (itemId === undefined || rest.length > 0)
+      throw new UsageError(
+        "give exactly one item id: engram supersede <item-id> [--accept <id>]...",
+      );
+    const accept = values.accept ?? [];
+    for (const id of [itemId, ...accept])
+      if (!Id.safeParse(id).success) throw new UsageError(`${id} is not an item id (a UUIDv7)`);
+    const clock = callClock(values, io);
+    const actor = buildActor(values, values.owner, "user");
+    return {
+      io: clock.io,
+      flags: values,
+      session: { requireStore: true },
+      actor: () => actor,
+      json: values.json === true,
+      itemId,
+      accept,
+    };
+  },
+  request: (p, actor) => ({ actor: must(actor), item_id: p.itemId, accept: p.accept }),
+  call: async (conn, body) =>
+    result(await conn.client.POST("/api/v1/supersede", { body })) as unknown as SupersedeAnswer,
+  print(p, _actor, plan, conn) {
     const allowed =
       plan.head.ok &&
       plan.stopped === null &&
       plan.applied.every((a) => a.event.decision === "allow");
-    if (values.json) {
-      io.out(`${JSON.stringify(plan, null, 2)}
-`);
-      return allowed ? 0 : 1;
-    }
-    const lines = supersedeLines(plan, accept);
-    io.out(`${[...lines, logHint(conn)].join("\n")}\n`);
-    return allowed ? 0 : 1;
-  } finally {
-    conn.close();
-  }
+    const code = allowed ? 0 : 1;
+    if (p.json) return { code, out: json(plan) };
+    return { code, out: text([...supersedeLines(plan, p.accept), logHint(conn)]) };
+  },
+});
+
+/** Exactly one item id among the positionals, else the usage message given. */
+function oneItemId(positionals: string[], usage: string): string {
+  const [itemId, ...rest] = positionals;
+  if (itemId === undefined || rest.length > 0) throw new UsageError(usage);
+  if (!Id.safeParse(itemId).success) throw new UsageError(`${itemId} is not an item id (a UUIDv7)`);
+  return itemId;
 }
 
-export async function explainCommand(args: string[], io: Io): Promise<number> {
-  const { values, positionals } = parse(
-    args,
-    {
-      db: STORE_OPTIONS.db,
-      policy: STORE_OPTIONS.policy,
-      json: STORE_OPTIONS.json,
-      owner: STORE_OPTIONS.owner,
-      as: ACTOR_OPTIONS.as,
-      level: ACTOR_OPTIONS.level,
-      member: ACTOR_OPTIONS.member,
-      ...CLIENT_OPTIONS,
-    },
-    true,
-  );
-  const [readId, ...rest] = positionals;
-  if (readId === undefined || rest.length > 0)
-    throw new UsageError("give exactly one read id: engram explain <readId>");
-  // Only the actor who made the read may explain it (decision D5). The
-  // workspace needs no store: --owner here names the actor only.
-  const actor = buildActor(values, values.owner);
-  const flags = { db: values.db, policy: values.policy, server: values.server };
-  const { conn } = session(
-    io,
-    flags,
-    { requireStore: false, mustExist: true, readOnlyStore: true },
-    () => actor,
-  );
-  try {
-    const answer = result(
-      await conn.client.POST("/api/v1/explain/{readId}", {
-        params: { path: { readId } },
-        body: { actor },
-      }),
+/**
+ * `engram promote <item-id> --to <scope> [--review]`: one promote call as a
+ * user-sourced actor (ADR 0026: only a user-sourced actor can approve). Exit
+ * 0 when the promotion landed, 1 on deny or ask.
+ */
+export const PROMOTE = plane({
+  options: OPTIONS.promote,
+  allowPositionals: true,
+  prepare(values, positionals, io) {
+    const itemId = oneItemId(
+      positionals,
+      "give exactly one item id: engram promote <item-id> --to <scope>",
     );
-    const explanations = answer.explanations as unknown as Parameters<typeof explanationLines>[0][];
-    if (values.json) {
-      io.out(`${JSON.stringify(explanations, null, 2)}\n`);
-      return 0;
-    }
-    const lines = [`read ${readId}: ${plural(explanations.length, "explanation")}`];
+    if (values.to === undefined) throw new UsageError("give the target scope with --to <scope>");
+    if (!Scope.safeParse(values.to).success)
+      throw new UsageError(
+        `--to ${values.to} is not a scope (person:<id>, role:<id>, team:<id> or org)`,
+      );
+    const clock = callClock(values, io);
+    const actor = buildActor(values, values.owner, "user");
+    return {
+      io: clock.io,
+      flags: values,
+      session: { requireStore: true },
+      actor: () => actor,
+      json: values.json === true,
+      itemId,
+      to: values.to,
+      review: values.review === true,
+    };
+  },
+  request: (p, actor) => ({ actor: must(actor), item_id: p.itemId, to: p.to, review: p.review }),
+  call: async (conn, body) =>
+    result(await conn.client.POST("/api/v1/promote", { body })) as unknown as {
+      decision: MemoryEvent["decision"];
+      event: MemoryEvent;
+      events: MemoryEvent[];
+      item: MemoryItem | null;
+    },
+  print(p, _actor, { decision, event, events, item }, conn) {
+    const code = decision === "allow" ? 0 : 1;
+    if (p.json) return { code, out: json({ decision, event, events, item }) };
+    const lines = decisionLines(event, item);
+    for (const e of events.slice(1)) lines.push(eventLine(e));
+    return { code, out: text([...lines, logHint(conn)]) };
+  },
+});
+
+const GRANT_MODES = ["read", "read_write"] as const;
+const DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * A grant as `--add` or `--remove` writes it: `<to>[,class=<class>][,mode=<mode>][,expires=<iso>]`.
+ * Only its form is checked here, as the inspector's editor checks it
+ * (grantFrom): mode defaults to read, a date is midnight UTC. Whether the
+ * grant is acceptable is the plane's decision.
+ */
+function grantOf(flag: string, spec: string): Grant {
+  const [to, ...parts] = spec.split(",");
+  const bad = (why: string) =>
+    new UsageError(
+      `${flag} ${spec}: ${why}; write <to>[,class=<class>][,mode=read|read_write][,expires=<iso>]`,
+    );
+  if (to === undefined || to.trim() === "" || to.includes("="))
+    throw bad("a grant names who it is for first, such as person:sam");
+  const grant: { to: string; class?: Grant["class"]; mode: Grant["mode"]; expires?: string } = {
+    to: to.trim(),
+    mode: "read",
+  };
+  const seen = new Set<string>();
+  for (const part of parts) {
+    const eq = part.indexOf("=");
+    const key = eq < 0 ? part : part.slice(0, eq);
+    const value = eq < 0 ? "" : part.slice(eq + 1).trim();
+    if (seen.has(key)) throw bad(`${key} is given twice`);
+    seen.add(key);
+    if (key === "class") {
+      const parsed = MemoryClass.safeParse(value);
+      if (!parsed.success) throw bad(`unknown class ${value} (${MemoryClass.options.join(", ")})`);
+      grant.class = parsed.data;
+    } else if (key === "mode") {
+      if (!(GRANT_MODES as readonly string[]).includes(value))
+        throw bad(`unknown mode ${value} (${GRANT_MODES.join(" or ")})`);
+      grant.mode = value as Grant["mode"];
+    } else if (key === "expires") {
+      const expires = DATE.test(value) ? `${value}T00:00:00Z` : value;
+      if (!Timestamp.safeParse(expires).success)
+        throw bad(`expires ${value} is not a UTC date (2026-12-01) or time (2026-12-01T00:00:00Z)`);
+      grant.expires = expires;
+    } else throw bad(`unknown field ${key}`);
+  }
+  return grant;
+}
+
+/**
+ * `engram grants <item-id> --add <grant>... --remove <grant>...` (card
+ * E8.15a, over card E9.4's route): one grant change as a user-sourced actor,
+ * which the plane allows only to the item's owner. Exit 0 on allow, 1 on deny.
+ */
+export const GRANTS = plane({
+  options: OPTIONS.grants,
+  allowPositionals: true,
+  prepare(values, positionals, io) {
+    const itemId = oneItemId(
+      positionals,
+      "give exactly one item id: engram grants <item-id> --add <grant> | --remove <grant>",
+    );
+    const add = (values.add ?? []).map((g) => grantOf("--add", g));
+    const remove = (values.remove ?? []).map((g) => grantOf("--remove", g));
+    if (add.length === 0 && remove.length === 0)
+      throw new UsageError(
+        "give a change: --add <to>[,class=<class>][,mode=<mode>][,expires=<iso>] or --remove <grant>",
+      );
+    const clock = callClock(values, io);
+    const actor = buildActor(values, values.owner, "user");
+    return {
+      io: clock.io,
+      flags: values,
+      session: { requireStore: true },
+      actor: () => actor,
+      json: values.json === true,
+      itemId,
+      add,
+      remove,
+    };
+  },
+  request: (p, actor) => ({
+    actor: must(actor),
+    item_id: p.itemId,
+    ...(p.add.length > 0 ? { add: p.add } : {}),
+    ...(p.remove.length > 0 ? { remove: p.remove } : {}),
+  }),
+  call: async (conn, body) =>
+    result(await conn.client.POST("/api/v1/grants", { body })) as unknown as {
+      decision: "allow" | "deny";
+      item: MemoryItem | null;
+      event: MemoryEvent;
+    },
+  print: (p, _actor, answer, conn) => ({
+    code: answer.decision === "allow" ? 0 : 1,
+    out: p.json
+      ? json(answer)
+      : text([
+          ...decisionLines(answer.event, answer.item),
+          ...(answer.item ? grantLines(answer.item.grants) : []),
+          logHint(conn),
+        ]),
+  }),
+});
+
+export const EXPLAIN = plane({
+  options: OPTIONS.explain,
+  allowPositionals: true,
+  prepare(values, positionals, io) {
+    const [readId, ...rest] = positionals;
+    if (readId === undefined || rest.length > 0)
+      throw new UsageError("give exactly one read id: engram explain <readId>");
+    // Only the actor who made the read may explain it (decision D5). The
+    // workspace needs no store: --owner here names the actor only.
+    const actor = buildActor(values, values.owner);
+    return {
+      io,
+      flags: { db: values.db, policy: values.policy, server: values.server },
+      session: { requireStore: false, mustExist: true, readOnlyStore: true },
+      actor: () => actor,
+      json: values.json === true,
+      readId,
+    };
+  },
+  request: (p, actor) => ({ readId: p.readId, body: { actor: must(actor) } }),
+  call: async (conn, { readId, body }) =>
+    result(
+      await conn.client.POST("/api/v1/explain/{readId}", { params: { path: { readId } }, body }),
+    ).explanations as unknown as Parameters<typeof explanationLines>[0][],
+  print(p, _actor, explanations) {
+    if (p.json) return { code: 0, out: json(explanations) };
+    const lines = [`read ${p.readId}: ${plural(explanations.length, "explanation")}`];
     for (const e of explanations)
       lines.push("", `${e.rank}. ${e.item_id}`, ...explanationLines(e).map((l) => `   ${l}`));
-    io.out(`${lines.join("\n")}\n`);
-    return 0;
-  } finally {
-    conn.close();
-  }
-}
+    return { code: 0, out: text(lines) };
+  },
+});
+
+/**
+ * `engram events [--after <seq>]` (card E8.15a): the inspector's timeline,
+ * POST /events, the events the actor may see. The log must exist, as for
+ * explain; nothing is appended. Exit 0.
+ */
+export const EVENTS = plane({
+  options: OPTIONS.events,
+  allowPositionals: false,
+  prepare(values, _positionals, io) {
+    let after: number | undefined;
+    if (values.after !== undefined) {
+      if (!/^\d+$/.test(values.after) || !Number.isSafeInteger(Number(values.after)))
+        throw new UsageError(
+          `--after ${values.after} is not an event seq (a whole number, 0 or more)`,
+        );
+      after = Number(values.after);
+    }
+    const actor = buildActor(values, values.owner);
+    return {
+      io,
+      flags: { db: values.db, policy: values.policy, server: values.server },
+      session: { requireStore: false, mustExist: true, readOnlyStore: true },
+      actor: () => actor,
+      json: values.json === true,
+      after,
+    };
+  },
+  request: (p, actor) => ({
+    actor: must(actor),
+    ...(p.after === undefined ? {} : { after: p.after }),
+  }),
+  call: async (conn, body) =>
+    result(await conn.client.POST("/api/v1/events", { body })) as unknown as {
+      events: MemoryEvent[];
+    },
+  print: (p, actor, answer, conn) => ({
+    code: 0,
+    out: p.json
+      ? json(answer)
+      : text([...eventsLines(answer.events, must(actor), p.after), logHint(conn)]),
+  }),
+});
 
 /**
  * `engram retain --scope <scope>`: one retention sweep of a scope (ADR 0025)
@@ -578,89 +857,83 @@ export async function explainCommand(args: string[], io: Io): Promise<number> {
  * retired too (the sweep retires by ttl outside one's own person scope only
  * for a user-sourced actor). Exit 0 when the sweep ran, 1 when it was refused.
  */
-export async function retainCommand(args: string[], io: Io): Promise<number> {
-  const { values } = parse(
-    args,
-    { ...STORE_OPTIONS, ...ACTOR_OPTIONS, ...CLIENT_OPTIONS, scope: { type: "string" } },
-    false,
-  );
-  if (values.scope === undefined) throw new UsageError("give the scope with --scope <scope>");
-  const { at, io: callIo } = callClock(values, io);
-  const actor = buildActor(values, values.owner, "user");
-  const { conn } = session(
-    callIo,
-    values,
-    { requireStore: false, readOnlyStore: true },
-    () => actor,
-  );
-  try {
-    const answer = result(
-      await conn.client.POST("/api/v1/retain", { body: { actor, scope: values.scope } }),
-    );
-    const report = answer as unknown as {
+export const RETAIN = plane({
+  options: OPTIONS.retain,
+  allowPositionals: false,
+  prepare(values, _positionals, io) {
+    if (values.scope === undefined) throw new UsageError("give the scope with --scope <scope>");
+    const { at, io: callIo } = callClock(values, io);
+    const actor = buildActor(values, values.owner, "user");
+    return {
+      io: callIo,
+      flags: values,
+      session: { requireStore: false, readOnlyStore: true },
+      actor: () => actor,
+      json: values.json === true,
+      at,
+      scope: values.scope,
+    };
+  },
+  request: (p, actor) => ({ actor: must(actor), scope: p.scope }),
+  call: async (conn, body) =>
+    result(await conn.client.POST("/api/v1/retain", { body })) as unknown as {
       decision: "allow" | "deny";
       events: MemoryEvent[];
       expired: string[];
       evicted: string[];
-    };
-    if (values.json) io.out(`${JSON.stringify(report, null, 2)}\n`);
-    else
-      io.out(
-        `${[
-          `retain ${values.scope} at ${at} as ${actor.id}: ${report.decision}, ${report.expired.length} expired, ${report.evicted.length} evicted`,
+    },
+  print: (p, actor, report, conn) => ({
+    code: report.decision === "allow" ? 0 : 1,
+    out: p.json
+      ? json(report)
+      : text([
+          `retain ${p.scope} at ${p.at} as ${must(actor).id}: ${report.decision}, ${report.expired.length} expired, ${report.evicted.length} evicted`,
           ...report.events.map(eventLine),
           logHint(conn),
-        ].join("\n")}\n`,
-      );
-    return report.decision === "allow" ? 0 : 1;
-  } finally {
-    conn.close();
-  }
-}
+        ]),
+  }),
+});
 
 /**
  * `engram lint --scope <scope>`: one lint call (card L1) as a member of the
  * scope: the policy's enabled deterministic lints, each finding a lint event
  * with its reason. Exit 0 when clean, 1 on any finding or when refused.
  */
-export async function lintCommand(args: string[], io: Io): Promise<number> {
-  const { values } = parse(
-    args,
-    { ...STORE_OPTIONS, ...ACTOR_OPTIONS, ...CLIENT_OPTIONS, scope: { type: "string" } },
-    false,
-  );
-  if (values.scope === undefined) throw new UsageError("give the scope with --scope <scope>");
-  const { at, io: callIo } = callClock(values, io);
-  const actor = buildActor(values, values.owner, "user");
-  const { conn } = session(
-    callIo,
-    values,
-    { requireStore: false, readOnlyStore: true },
-    () => actor,
-  );
-  try {
-    const answer = result(
-      await conn.client.POST("/api/v1/lint", { body: { actor, scope: values.scope } }),
-    );
-    const report = answer as unknown as {
+export const LINT = plane({
+  options: OPTIONS.lint,
+  allowPositionals: false,
+  prepare(values, _positionals, io) {
+    if (values.scope === undefined) throw new UsageError("give the scope with --scope <scope>");
+    const { at, io: callIo } = callClock(values, io);
+    const actor = buildActor(values, values.owner, "user");
+    return {
+      io: callIo,
+      flags: values,
+      session: { requireStore: false, readOnlyStore: true },
+      actor: () => actor,
+      json: values.json === true,
+      at,
+      scope: values.scope,
+    };
+  },
+  request: (p, actor) => ({ actor: must(actor), scope: p.scope }),
+  call: async (conn, body) =>
+    result(await conn.client.POST("/api/v1/lint", { body })) as unknown as {
       decision: "allow" | "deny";
       findings: LintFinding[];
       events: MemoryEvent[];
-    };
-    if (values.json) io.out(`${JSON.stringify(report, null, 2)}\n`);
-    else
-      io.out(
-        `${[
-          `lint ${values.scope} at ${at} as ${actor.id}: ${report.decision}, ${plural(report.findings.length, "finding")}`,
+    },
+  print: (p, actor, report, conn) => ({
+    code: report.decision === "allow" && report.findings.length === 0 ? 0 : 1,
+    out: p.json
+      ? json(report)
+      : text([
+          `lint ${p.scope} at ${p.at} as ${must(actor).id}: ${report.decision}, ${plural(report.findings.length, "finding")}`,
           ...report.events.map(eventLine),
           logHint(conn),
-        ].join("\n")}\n`,
-      );
-    return report.decision === "allow" && report.findings.length === 0 ? 0 : 1;
-  } finally {
-    conn.close();
-  }
-}
+        ]),
+  }),
+});
 
 /**
  * `engram simulate [--workload <workload.json>] [--policy <baseline>] [--candidate <policy>]`:
@@ -669,51 +942,107 @@ export async function lintCommand(args: string[], io: Io): Promise<number> {
  * with --server the server's own policy is the baseline. Prints the
  * comparison, or the report with --json; exit 0.
  */
-export async function simulateCommand(args: string[], io: Io): Promise<number> {
-  const { values } = parse(
-    args,
-    {
-      db: STORE_OPTIONS.db,
-      policy: STORE_OPTIONS.policy,
-      json: STORE_OPTIONS.json,
-      workload: { type: "string" },
-      candidate: { type: "string" },
-      ...CLIENT_OPTIONS,
-    },
-    false,
-  );
-  let workload: unknown = { id: "empty", actors: {}, steps: [] };
-  if (values.workload !== undefined) {
-    try {
-      workload = JSON.parse(readFileSync(resolve(io.cwd, values.workload), "utf8"));
-    } catch (e) {
-      throw new UsageError(`--workload ${values.workload}: ${(e as Error).message}`);
+export const SIMULATE = plane({
+  options: OPTIONS.simulate,
+  allowPositionals: false,
+  prepare(values, _positionals, io) {
+    let workload: unknown = { id: "empty", actors: {}, steps: [] };
+    if (values.workload !== undefined) {
+      try {
+        workload = JSON.parse(readFileSync(resolve(io.cwd, values.workload), "utf8"));
+      } catch (e) {
+        throw new UsageError(`--workload ${values.workload}: ${(e as Error).message}`);
+      }
     }
-  }
-  const candidate =
-    values.candidate === undefined
-      ? undefined
-      : loadPolicy(values.candidate, io.cwd, "--candidate");
-  const flags = { db: values.db, policy: values.policy, server: values.server };
-  const conn = connect(io, flags, workspaceOf(flags, false), undefined);
-  try {
-    const report = result(
-      await conn.client.POST("/api/v1/simulate", {
-        body: { workload: workload as never, ...(candidate ? { policy: candidate } : {}) },
-      }),
-    );
-    // The report is typed by core's SimReport (card E8.9); the client's copy is its JSON Schema.
-    const typed = report as unknown as SimReport;
-    io.out(
-      values.json
-        ? `${JSON.stringify(typed, null, 2)}\n`
-        : `${simulationLines(typed).join("\n")}\n`,
-    );
-    return 0;
-  } finally {
-    conn.close();
-  }
-}
+    const candidate =
+      values.candidate === undefined
+        ? undefined
+        : loadPolicy(values.candidate, io.cwd, "--candidate");
+    return {
+      io,
+      flags: { db: values.db, policy: values.policy, server: values.server },
+      session: null,
+      actor: noActor,
+      json: values.json === true,
+      workload,
+      candidate,
+    };
+  },
+  request: (p) => ({
+    workload: p.workload as never,
+    ...(p.candidate ? { policy: p.candidate } : {}),
+  }),
+  // The report is typed by core's SimReport (card E8.9); the client's copy is its JSON Schema.
+  call: async (conn, body) =>
+    result(await conn.client.POST("/api/v1/simulate", { body })) as unknown as SimReport,
+  print: (p, _actor, report) => ({
+    code: 0,
+    out: p.json ? json(report) : text(simulationLines(report)),
+  }),
+});
+
+/**
+ * `engram policy` (card E8.15a): GET /policy, the policy the workspace
+ * decides with and its label, as YAML a policy file may hold, or --json. No
+ * actor; the log is never opened. Exit 0.
+ */
+export const POLICY = plane({
+  options: OPTIONS.policy,
+  allowPositionals: false,
+  prepare: (values, _positionals, io) => ({
+    io,
+    flags: { policy: values.policy, server: values.server },
+    session: null,
+    actor: noActor,
+    json: values.json === true,
+  }),
+  request: () => undefined,
+  call: async (conn) =>
+    result(await conn.client.GET("/api/v1/policy")) as unknown as {
+      policy: Record<string, unknown>;
+      label: string;
+    },
+  print: (p, _actor, answer) => ({
+    code: 0,
+    out: p.json ? json(answer) : text(policyLines(answer.policy, answer.label)),
+  }),
+});
+
+/**
+ * `engram scopes` (card E8.15a, over card E8.14's route): the scopes the
+ * actor can see, by membership or through a live grant, POST /scopes. It is
+ * a read: one read event, and with a store the same sweep and adoption as
+ * `engram read` first. Exit 0.
+ */
+export const SCOPES = plane({
+  options: OPTIONS.scopes,
+  allowPositionals: false,
+  prepare: (values, _positionals, io) => ({
+    io,
+    flags: values,
+    session: { requireStore: false, readOnlyStore: true },
+    actor: () => buildActor(values, values.owner),
+    json: values.json === true,
+  }),
+  request: (_p, actor) => ({ actor: must(actor) }),
+  call: async (conn, body) =>
+    result(await conn.client.POST("/api/v1/scopes", { body })) as unknown as {
+      scopes: { scope: string; via: "membership" | "grant" }[];
+      event: MemoryEvent;
+      sync: StoreSync | null;
+      policy: string;
+    },
+  print: (p, actor, answer, conn) => ({
+    code: 0,
+    out: p.json
+      ? json(answer)
+      : text([
+          ...scopesLines(answer, must(actor)),
+          ...(answer.sync ? syncLines(answer.sync) : []),
+          logHint(conn),
+        ]),
+  }),
+});
 
 /**
  * `engram who-can-read <item-id>` or `engram who-can-read --scope <scope>`
@@ -723,58 +1052,94 @@ export async function simulateCommand(args: string[], io: Io): Promise<number> {
  * grant holders to the item's owner only (decision item 53). Exit 0 when
  * answered, 1 when refused.
  */
-export async function whoCanReadCommand(args: string[], io: Io): Promise<number> {
-  const { values, positionals } = parse(
-    args,
-    { ...STORE_OPTIONS, ...ACTOR_OPTIONS, ...CLIENT_OPTIONS, scope: { type: "string" } },
-    true,
-  );
-  const [itemId, ...rest] = positionals;
-  if (rest.length > 0 || (itemId === undefined) === (values.scope === undefined))
-    throw new UsageError(
-      "give exactly one item id or --scope <scope>: engram who-can-read <item-id> | --scope <scope>",
-    );
-  if (itemId !== undefined && !Id.safeParse(itemId).success)
-    throw new UsageError(`${itemId} is not an item id (a UUIDv7)`);
-  if (values.scope !== undefined && !Scope.safeParse(values.scope).success)
-    throw new UsageError(
-      `--scope ${values.scope} is not a scope (person:<id>, role:<id>, team:<id> or org)`,
-    );
-  const { io: callIo } = callClock(values, io);
-  const actor = buildActor(values, values.owner);
-  const { conn } = session(
-    callIo,
-    values,
-    { requireStore: false, readOnlyStore: true },
-    () => actor,
-  );
-  try {
-    const answer =
-      itemId !== undefined
-        ? result(
-            await conn.client.POST("/api/v1/who-can-read/item", {
-              body: { actor, item_id: itemId },
-            }),
-          )
-        : result(
-            await conn.client.POST("/api/v1/who-can-read/scope", {
-              body: { actor, scope: values.scope as string },
-            }),
-          );
-    const a = answer as unknown as WhoCanReadAnswer;
-    if (values.json) io.out(`${JSON.stringify(a, null, 2)}\n`);
-    else io.out(`${[...whoCanReadLines(a, actor), logHint(conn)].join("\n")}\n`);
-    return a.answered ? 0 : 1;
-  } finally {
-    conn.close();
-  }
-}
+export const WHO_CAN_READ = plane({
+  options: OPTIONS["who-can-read"],
+  allowPositionals: true,
+  prepare(values, positionals, io) {
+    const [itemId, ...rest] = positionals;
+    if (rest.length > 0 || (itemId === undefined) === (values.scope === undefined))
+      throw new UsageError(
+        "give exactly one item id or --scope <scope>: engram who-can-read <item-id> | --scope <scope>",
+      );
+    if (itemId !== undefined && !Id.safeParse(itemId).success)
+      throw new UsageError(`${itemId} is not an item id (a UUIDv7)`);
+    if (values.scope !== undefined && !Scope.safeParse(values.scope).success)
+      throw new UsageError(
+        `--scope ${values.scope} is not a scope (person:<id>, role:<id>, team:<id> or org)`,
+      );
+    const { io: callIo } = callClock(values, io);
+    const actor = buildActor(values, values.owner);
+    return {
+      io: callIo,
+      flags: values,
+      session: { requireStore: false, readOnlyStore: true },
+      actor: () => actor,
+      json: values.json === true,
+      itemId,
+      scope: values.scope,
+    };
+  },
+  request: (p, actor) =>
+    p.itemId !== undefined
+      ? { route: "item" as const, body: { actor: must(actor), item_id: p.itemId } }
+      : { route: "scope" as const, body: { actor: must(actor), scope: p.scope as string } },
+  call: async (conn, request) =>
+    (request.route === "item"
+      ? result(await conn.client.POST("/api/v1/who-can-read/item", { body: request.body }))
+      : result(
+          await conn.client.POST("/api/v1/who-can-read/scope", { body: request.body }),
+        )) as unknown as WhoCanReadAnswer,
+  print: (p, actor, a, conn) => ({
+    code: a.answered ? 0 : 1,
+    out: p.json ? json(a) : text([...whoCanReadLines(a, must(actor)), logHint(conn)]),
+  }),
+});
 
-const BUNDLE_OPTIONS = {
-  out: { type: "string" },
-  recipient: { type: "string", multiple: true },
-  "passphrase-file": { type: "string" },
-} satisfies Options;
+export function readCommand(args: string[], io: Io): Promise<number> {
+  return runPlane(READ, args, io);
+}
+export function writeCommand(args: string[], io: Io): Promise<number> {
+  return runPlane(WRITE, args, io);
+}
+export function checkCommand(args: string[], io: Io): Promise<number> {
+  return runPlane(CHECK, args, io);
+}
+export function promoteCommand(args: string[], io: Io): Promise<number> {
+  return runPlane(PROMOTE, args, io);
+}
+export function supersedeCommand(args: string[], io: Io): Promise<number> {
+  return runPlane(SUPERSEDE, args, io);
+}
+export function grantsCommand(args: string[], io: Io): Promise<number> {
+  return runPlane(GRANTS, args, io);
+}
+export function explainCommand(args: string[], io: Io): Promise<number> {
+  return runPlane(EXPLAIN, args, io);
+}
+export function eventsCommand(args: string[], io: Io): Promise<number> {
+  return runPlane(EVENTS, args, io);
+}
+export function retainCommand(args: string[], io: Io): Promise<number> {
+  return runPlane(RETAIN, args, io);
+}
+export function lintCommand(args: string[], io: Io): Promise<number> {
+  return runPlane(LINT, args, io);
+}
+export function simulateCommand(args: string[], io: Io): Promise<number> {
+  return runPlane(SIMULATE, args, io);
+}
+export function policyCommand(args: string[], io: Io): Promise<number> {
+  return runPlane(POLICY, args, io);
+}
+export function scopesCommand(args: string[], io: Io): Promise<number> {
+  return runPlane(SCOPES, args, io);
+}
+export function exportCommand(args: string[], io: Io): Promise<number> {
+  return runPlane(EXPORT, args, io);
+}
+export function whoCanReadCommand(args: string[], io: Io): Promise<number> {
+  return runPlane(WHO_CAN_READ, args, io);
+}
 
 /**
  * `engram export [--out <file>] [--recipient <age1...>]... [--passphrase-file <file>]`:
@@ -783,72 +1148,53 @@ const BUNDLE_OPTIONS = {
  * events. Optionally encrypted with age and armored. To stdout, or to --out
  * with a one-line summary. Exit 0.
  */
-export async function exportCommand(args: string[], io: Io): Promise<number> {
-  const { values } = parse(
-    args,
-    {
-      db: STORE_OPTIONS.db,
-      policy: STORE_OPTIONS.policy,
-      owner: STORE_OPTIONS.owner,
-      as: ACTOR_OPTIONS.as,
-      level: ACTOR_OPTIONS.level,
-      member: ACTOR_OPTIONS.member,
-      ...CLIENT_OPTIONS,
-      ...BUNDLE_OPTIONS,
-    },
-    false,
-  );
-  const keys = {
-    recipients: values.recipient ?? [],
-    passphrase:
-      values["passphrase-file"] === undefined
-        ? undefined
-        : readPassphrase(io.cwd, values["passphrase-file"]),
-  };
-  // Export writes nothing: the actor names no source (decision D4).
-  const actor = buildActor(values, values.owner);
-  const flags = { db: values.db, policy: values.policy, server: values.server };
-  const { conn } = session(
-    io,
-    flags,
-    { requireStore: false, mustExist: true, readOnlyStore: true },
-    () => actor,
-  );
-  try {
-    const answer = result(await conn.client.POST("/api/v1/export", { body: { actor } }));
-    const { rows, ...header } = answer as unknown as { rows: BundleRow[] } & Omit<
-      BundleHeader,
-      "rows"
-    >;
-    const text = await encryptBundle(bundleText(header, rows), keys);
+export const EXPORT = plane({
+  options: OPTIONS.export,
+  allowPositionals: false,
+  prepare(values, _positionals, io) {
+    const keys = {
+      recipients: values.recipient ?? [],
+      passphrase:
+        values["passphrase-file"] === undefined
+          ? undefined
+          : readPassphrase(io.cwd, values["passphrase-file"]),
+    };
+    // Export writes nothing: the actor names no source (decision D4).
+    const actor = buildActor(values, values.owner);
+    return {
+      io,
+      flags: { db: values.db, policy: values.policy, server: values.server },
+      session: { requireStore: false, mustExist: true, readOnlyStore: true },
+      actor: () => actor,
+      json: false,
+      keys,
+      out: values.out,
+    };
+  },
+  request: (_p, actor) => ({ actor: must(actor) }),
+  call: async (conn, body) =>
+    result(await conn.client.POST("/api/v1/export", { body })) as unknown as {
+      rows: BundleRow[];
+    } & Omit<BundleHeader, "rows">,
+  // The bundle is the output: to stdout, or written to --out with a summary line.
+  async print(p, actor, answer) {
+    const { rows, ...header } = answer;
+    const bundle = await encryptBundle(bundleText(header, rows), p.keys);
     const events = rows.reduce((n, r) => n + r.events.length, 0);
-    if (values.out === undefined) {
-      io.out(text);
-      return 0;
-    }
-    writeFileSync(resolve(io.cwd, values.out), text, "utf8");
+    if (p.out === undefined) return { code: 0, out: bundle };
+    writeFileSync(resolve(p.io.cwd, p.out), bundle, "utf8");
     const sealed =
-      keys.passphrase !== undefined
+      p.keys.passphrase !== undefined
         ? ", encrypted with a passphrase"
-        : keys.recipients.length > 0
-          ? `, encrypted to ${plural(keys.recipients.length, "recipient")}`
+        : p.keys.recipients.length > 0
+          ? `, encrypted to ${plural(p.keys.recipients.length, "recipient")}`
           : "";
-    io.out(
-      `exported ${plural(rows.length, "item")} with ${plural(events, "event")} as ${actor.id} under ${header.policy} to ${values.out}${sealed}\n`,
-    );
-    return 0;
-  } finally {
-    conn.close();
-  }
-}
-
-const IMPORT_OPTIONS = {
-  claude: { type: "string" },
-  scope: { type: "string" },
-  confidence: { type: "string" },
-  identity: { type: "string", multiple: true },
-  "passphrase-file": { type: "string" },
-} satisfies Options;
+    return {
+      code: 0,
+      out: `exported ${plural(rows.length, "item")} with ${plural(events, "event")} as ${must(actor).id} under ${header.policy} to ${p.out}${sealed}\n`,
+    };
+  },
+});
 
 /** One planned row of an import: where it came from, its source and the scope it goes to. */
 interface Planned {
@@ -949,11 +1295,7 @@ async function bundleRowsOf(
  * allowed, 1 when any was denied.
  */
 export async function importCommand(args: string[], io: Io): Promise<number> {
-  const { values, positionals } = parse(
-    args,
-    { ...STORE_OPTIONS, ...ACTOR_OPTIONS, ...CLIENT_OPTIONS, ...IMPORT_OPTIONS },
-    true,
-  );
+  const { values, positionals } = parse(args, OPTIONS.import, true);
   const [file, ...rest] = positionals;
   if (rest.length > 0 || (file === undefined) === (values.claude === undefined))
     throw new UsageError(

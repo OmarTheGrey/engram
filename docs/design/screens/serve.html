@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<title>engram tui: serve</title>
+<style>
+html,body{margin:0;background:#1e1e1e}
+pre{margin:0;padding:12px;display:inline-block;color:#d4d4d4;background:#1e1e1e;
+font:14px/normal 'Cascadia Mono','Cascadia Code',Consolas,'DejaVu Sans Mono','Liberation Mono',Menlo,monospace;
+font-variant-ligatures:none}
+</style></head><body>
+<pre id="frame"><span style="color:#1e1e1e;background:#d4d4d4"> engram  Serve the API and inspector                                    in process  log engram.db  person:dana (person) </span>
+   Who may call it? ( ) API keys from a key file                                                                        
+                    ( ) a token issuer: --issuer, --jwks, --subjects                                                    
+                    (o) No authentication: this machine only, anyone on it can act as anyone (--insecure-loopback)      
+   Host             (o) 127.0.0.1   ( ) ::1   ( ) localhost                                                             
+ &gt; Port             [ 7391<span style="color:#1e1e1e;background:#d4d4d4"> </span>                                    ]  default 7313                                          
+   Viewer           [ person:dana                              ]  shown by the inspector                                
+   ▸ More flags: 12, set: --root --owner --policy --db --insecure-loopback --member                                     
+                                                                                                                        
+ [ Stop ]                                                                                                               
+                                                                                                                        
+ <span style="color:#56b4e9">●</span> running                                                                                                              
+ engram serve: listening on http://127.0.0.1:7391 (log ~/demo/engram.db, fixture.inspector v1, store files at           
+ ~/demo/mem, viewer person:dana, insecure loopback: actors are self-asserted)                                           
+                                                                                                                        
+ Inspector  <span style="text-decoration:underline">http://127.0.0.1:7391/</span>   o copies it                                                                        
+ It stops when you press s or quit the TUI.                                                                             
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+$ engram serve --insecure-loopback --port 7391 --db engram.d...n:dana --member person:dana --member team:core --root mem
+ ctrl+g help  tab next  ctrl+s stop  alt+c copy  alt+p commands  esc back                                               </pre>
+</body></html>

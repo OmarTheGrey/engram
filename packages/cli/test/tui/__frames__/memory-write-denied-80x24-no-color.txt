@@ -1,0 +1,27 @@
+ engram  Write a memory  result                in process  person:dana (person)
+ ✗ deny   exit 1  deny, ask or an error
+
+ write 01940000-0000-7000-8000-000000000510 at 2026-10-25T12:00:00.000Z by
+   person:dana
+ deny: a fixture rule refuses it: the writer is not a member of team:lantern
+ policy fixture/write/team
+ log engram.db
+
+ Nothing was stored. The decision is event 10 in the log.
+
+ [ Edit and retry ]   [ Open the event ]   [ New write ]
+
+
+
+
+
+
+
+
+
+
+$ engram write --content x --scope ...er dana --db engram.db --root mem   exit 1
+ ? help  v plain  J json  enter choose  ; commands  esc back
+--- styles
+r0 c0-79 inverse
+r11 c1-18 inverse

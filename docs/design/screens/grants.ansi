@@ -1,0 +1,36 @@
+[7m engram  Grants on an item                                              in process  log engram.db  person:dana (person) [0m
+   Item     [ 01940000-0000-7000-8000-000000000009     ]  Dana's onboarding notes for Eve: start with the deploy chec...
+ You own this item: every grant is shown.
+
+ Grants
+[7m   > [ ] person:sam: semantic, read, until 2026-12-01T00:00:00Z                                                         [0m
+
+ Add a grant
+   To             [                                          ]  who it is for, such as person:sam
+     Class [ semantic ]   Mode [ read ]   space or left and right choose
+   Expires        [                                          ]  a UTC date or timestamp; empty for none
+   [ Add to the change ]   [ Apply the change ]   ctrl+s
+   ▸ Advanced: id, the test clock and this command's workspace flags
+
+ [38;2;0;166;122m✓[0m allow   exit 0  allow
+ u undo on 01940000-0000-7000-8000-000000000009 (removes it again, a new governed change)
+ update 01960000-0000-7000-8000-000000005002 at 2026-10-29T12:00:00.000Z by person:dana
+ allow: person:dana, its owner, changed the grants of 01940000-0000-7000-8000-000000000009: added grant to person:sam
+   (class semantic, mode read, expires 2026-12-01T00:00:00Z); version 1 to 2
+ policy engram/grant/change
+ item 01940000-0000-7000-8000-000000000009 semantic in person:dana, status active, stored at
+   files:01940000-0000-7000-8000-000000000009.md
+ grants:
+   person:sam: semantic, read, until 2026-12-01T00:00:00Z
+ log ~/demo/engram.db
+
+
+
+
+
+
+
+
+
+$ engram grants 01940000-0000-7000-8000-000000000009 --...na --member person:dana --member team:core --root mem   exit 0
+ ? help  ctrl+s apply  enter on a grant chooses it  u undo  tab next  ; commands  esc back

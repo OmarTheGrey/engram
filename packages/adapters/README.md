@@ -50,6 +50,6 @@ make test-one T=packages/adapters/test/conformance/conformance.test.ts
 
 ## What is next
 
-- Card E8.14 (in progress) adds a read by id and a scope list in core, and a framework kit and a Vercel AI SDK middleware as new packages, with an adapter conformance test; nothing in it changes this package's contract.
-- More stores (Zep through Graphiti, LangGraph Store, Redis Agent Memory Server) are deferred past the degree ([`docs/roadmap.md`](../../docs/roadmap.md), appendix); each would be one registry entry and must pass the same suite.
+- Card A6 of the second absorb plan ([`docs/tasks/absorb-plan-2.md`](../../docs/tasks/absorb-plan-2.md)), not merged yet: a fourth store, the MCP reference memory server's JSONL file, under the same contract and the same suite.
+- More stores (Zep through Graphiti, LangGraph Store, Redis Agent Memory Server) are deferred past the degree ([`docs/roadmap.md`](../../docs/roadmap.md), appendix); each would be one registry entry and must pass the same suite. Card E8.14's framework kit ([`packages/kit`](../kit/README.md)) is the other way in: a framework's own store interface mapped onto the plane, not a new adapter.
 - ADR 0035's request-identity check, which would compare every model request across the files, Mem0 and Letta stores, needs the files store in the runner first.

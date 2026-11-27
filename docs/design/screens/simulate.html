@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<title>engram tui: simulate</title>
+<style>
+html,body{margin:0;background:#1e1e1e}
+pre{margin:0;padding:12px;display:inline-block;color:#d4d4d4;background:#1e1e1e;
+font:14px/normal 'Cascadia Mono','Cascadia Code',Consolas,'DejaVu Sans Mono','Liberation Mono',Menlo,monospace;
+font-variant-ligatures:none}
+</style></head><body>
+<pre id="frame"><span style="color:#1e1e1e;background:#d4d4d4"> engram  Simulate a policy                                              in process  log engram.db  person:dana (person) </span>
+   Workload     [ workload.json                            ]  a recorded workload (.json)                               
+   Policy       [ policy.yaml                              ]  the baseline: a preset or a file                          
+   Candidate    [ strict                                   ]  a preset or a file; default the baseline                  
+   ▸ More flags: 2, set: --db                                                                                           
+                                                                                                                        
+ <span style="color:#1e1e1e;background:#d4d4d4">[ Simulate ]</span>                                                                                                           
+                                                                                                                        
+ <span style="color:#00a67a">✓</span> exit 0  compared                                                                                                     
+                                                                                                                        
+ workload e8-9-two-presets: 10 steps, 0 model calls                                                                     
+ baseline fixture.inspector v1, candidate preset.strict v1                                                              
+                                                                                                                        
+                           baseline  candidate                                                                          
+ allow                           10          7   differs  <span class="b" style="background:#d4d4d4">          </span> <span class="b" style="background:#d4d4d4">       </span>                                            
+ deny                             0          3   differs             <span class="b" style="background:#d4d4d4">   </span>                                                
+ ask                              0          0                                                                          
+ reads                            3          3  <span class="b" style="background:#d4d4d4">   </span>        <span class="b" style="background:#d4d4d4">   </span>                                                          
+ items returned                   5          1   differs  <span class="b" style="background:#d4d4d4">     </span>      <span class="b" style="background:#d4d4d4"> </span>                                                  
+ reads with recall                2          1   differs  <span class="b" style="background:#d4d4d4">  </span>         <span class="b" style="background:#d4d4d4"> </span>                                                  
+ mean returned per read        1.67       0.33   differs                                                                
+ evicted over budget              0          0                                                                          
+ expired by ttl                   0          1   differs             <span class="b" style="background:#d4d4d4"> </span>                                                  
+ manual eviction asks             0          0                                                                          
+ active items at the end          5          1   differs  <span class="b" style="background:#d4d4d4">     </span>      <span class="b" style="background:#d4d4d4"> </span>                                                  
+                                                                                                                        
+ 6 steps differ                                                                                                         
+  step 1 write person:dana 01950000-0000-7000-8000-000000000002: allow -&gt; deny                                          
+  step 2 write person:dana 01950000-0000-7000-8000-000000000003: allow -&gt; deny                                          
+  step 4 write person:dana 01950000-0000-7000-8000-000000000005: allow -&gt; deny                                          
+  step 6 read person:sam: returned 2 -&gt; returned 0                                                                      
+  step 8 retain person:dana: allow -&gt; allow, expired 01950000-0000-7000-8000-000000000004                               
+  step 9 read person:dana: returned 3 -&gt; returned 1                                                                     
+ Replayed on scratch logs and stores: your log and store are not touched, and no model is called.                       
+$ engram simulate --workload workload.json --candidate strict --db engram.db --policy policy.yaml   exit 0              
+ ? help  enter step  a all rows  v plain  J json  ; commands  esc back                                                  </pre>
+</body></html>

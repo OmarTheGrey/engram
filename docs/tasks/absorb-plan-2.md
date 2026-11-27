@@ -343,10 +343,15 @@ All of these stay candidates in `docs/research/absorb/long-list.md`.
 Only money and the pre-registration go to the lead; everything else in this plan was decided, with its reason, in the decision entries of 2026-11-25 (`docs/log/2026-11-25-ap2-*`).
 
 1. **Money: the programme-wide spend cap (item 59, pre-tag condition 7).** The runner card that enforces the cap in billed dollars is not on main and has no card file, five days before the tag. Either a card is written and merged before 30 November (outside this plan), or the operator's fallback in the pre-tag condition (reading OpenRouter's credit balance at least every two hours and stopping the shards below the margin) is how H1 is capped. Recommendation: the fallback for H1, the card in W10 before any later live run.
+   Answered by the lead on 2026-11-25: the recommendation (`docs/tasks/lead-decisions.md`, "The lead's answers, 2026-11-25").
 2. **Pre-registration: quote-grounding for H3 (card L9).** Register it, by amendment before H3's live run (card X10, W17), as a variant of H3's model tier, or keep it an engineering check. Recommendation: decide from L9's fixture result, read once and not tuned.
+   Open on 2026-11-25, as recommended: decided from L9's fixture result.
 3. **Pre-registration: the arms U6 and U7 (cards X18 and X19).** Register either as a descriptive arm once its engineering check is merged, or keep both as checks. Recommendation: register U7, since it is the only measured evidence for Twin's offboarding claim; keep U6 a check unless H3's primary test is undecided.
+   Answered by the lead on 2026-11-25: the recommendation (`docs/tasks/lead-decisions.md`, "The lead's answers, 2026-11-25").
 4. **Pre-registration: H5's prerequisites (item 30).** By item 9 they are fixed before H1's data exist, and no draft is on main. Cards D4 and D5 assume H5's configs as registered, with drift and the safety scan off; that assumption holds whatever the prerequisites say, but the prerequisites themselves are owed before 1 December.
+   Answered by the lead on 2026-11-25: the orchestrator drafts them as a proposed amendment pull request, and nothing is registered until the lead approves the text (`docs/tasks/lead-decisions.md`, "The lead's answers, 2026-11-25").
 5. **Pre-registration: ADR 0034's grant cap as the default after H1 (card E2.21).** Part 2 builds the one-year cap and the first-write rule behind `grants.expiry_cap`, which no registered preset sets. Should it become the default once H1 has run? Then GateMem's `OPEN_END` grants (1,633 of 2,490 fixture writes) would need an exemption or a clamp, and H2 to H4's GateMem cells would run under a policy other than H1's. Recommendation: keep it opt-in until the thesis's runs are done, and on in the twin and knowledge profiles only.
+   Answered by the lead on 2026-11-25: the recommendation (`docs/tasks/lead-decisions.md`, "The lead's answers, 2026-11-25").
 
 ## 9. Follow-ups the thirty close, and work they do not own
 
@@ -371,6 +376,21 @@ The first wave's follow-ups that rank among the thirty, with where each was reco
 | Crypto-shredded erasure, "the first thing to add after the thirty" | `docs/tasks/absorb-plan.md`, section 7 | E9.11, E9.13 |
 
 Work the gates need that no card owns, found while planning (`docs/log/2026-11-25-ap2-finding-gate-work-unowned.md`): pre-tag conditions 2 (the audit configs' `on_stop`), 3 (items 14 and 15), 5 (the OpenRouter endpoints) and 7 (the spend cap); H5's prerequisites (item 30); Gate D's request-identity check (ADR 0035, decision 1) and the Knowledge profile's dogfood (item 28); and before H3's live run, the contradiction prompt's change (item 44). Each needs its own card, written by the orchestrator, not by this plan.
+
+### Gate work cards (2026-11-25)
+
+The orchestrator wrote one card for each item of the paragraph above but H5's prerequisites, which are drafted apart (`docs/log/2026-11-25-gw-milestone-cards.md`):
+
+| Item | Card | Week |
+|---|---|---|
+| Pre-tag condition 2, the audit configs' `on_stop` | R5 | W8, by 28 November |
+| Pre-tag condition 3, item 14, a refused answer call | X20 | W8, by 30 November |
+| Pre-tag condition 3, item 15, capped utility sessions | X21 | W8, by 30 November |
+| Pre-tag condition 5, the OpenRouter endpoints | R6 | W8, by 29 November |
+| Pre-tag condition 7, the spend cap's runner check | X22 | W10, after H1's `MERGE=4`; H1 is capped by the operator's credit check (the lead's answer of 2026-11-25) |
+| Gate D, the request-identity check (ADR 0035, decision 1) | X23 | W11 |
+| Before H3's live run, the contradiction prompt (item 44) | L10 | W11 |
+| Gate D, the Knowledge profile's dogfood (item 28) | E9.17 | W13, run in W14 and W15 |
 
 ## 10. How the cards are worked
 

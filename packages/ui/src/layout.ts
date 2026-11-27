@@ -4,7 +4,7 @@
 // EPL or GPL and is not used (docs/conventions/absorption.md). Imported only
 // by the item page, so dagre is loaded only there.
 import dagre from "@dagrejs/dagre";
-import type { ProvenanceGraph } from "./provenance.ts";
+import type { ProvenanceGraph } from "@engram/view";
 
 /** Each node kind's box, in pixels, as the item page draws it. */
 export const NODE_SIZE = {
