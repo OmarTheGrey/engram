@@ -43,7 +43,7 @@ async function fixtureRows(name: string, f: FaultFixture, threshold: number) {
     policy,
     newId: () => `01950000-0000-7000-8000-${String(990_000 + ++n).padStart(12, "0")}`,
   });
-  const report = await plane.lint(f.actor, f.at, f.scope);
+  const report = await plane.lint(f.actor, f.at, f.scope, { reach: "scope-registered" });
   const flagged = report.findings.map((x) => ({
     item: x.item_id,
     of: (x.evidence[0] ?? "").replace("near-duplicate of ", ""),

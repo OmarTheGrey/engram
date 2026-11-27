@@ -42,6 +42,7 @@ function ctx(items: MemoryItem[], over: Partial<LintContext> = {}): LintContext 
     items: new Map(items.map((i) => [i.id, i])),
     retiredBy: new Map(),
     canReach: () => true,
+    dated: () => false,
     ...over,
   };
 }

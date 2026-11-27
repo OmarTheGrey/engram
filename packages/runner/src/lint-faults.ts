@@ -433,7 +433,7 @@ export async function runLintConfig(
           },
         });
         for (const { seq: _seq, ...e } of f.events) appendEvent(db, e);
-        const report = await plane.lint(f.actor, f.at, f.scope);
+        const report = await plane.lint(f.actor, f.at, f.scope, { reach: "scope-registered" });
         rows.push({
           item: `faults/${loaded.name}`,
           fixture: loaded.name,
@@ -529,10 +529,17 @@ export function countLintConfig(config: LintRunnerConfig, repo: string): LintCou
     try {
       migrate(db);
       for (const { seq: _seq, ...e } of f.events) appendEvent(db, e);
-      const units = planModelLints({ db, policy: f.policy }, f.actor, f.at, f.scope, {
-        model: config.model,
-        seed: config.seeds[0] as number,
-      });
+      const units = planModelLints(
+        { db, policy: f.policy },
+        f.actor,
+        f.at,
+        f.scope,
+        {
+          model: config.model,
+          seed: config.seeds[0] as number,
+        },
+        { reach: "scope-registered" },
+      );
       return {
         name: loaded.name,
         sha256: loaded.sha256,

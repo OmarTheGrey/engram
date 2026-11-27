@@ -222,7 +222,12 @@ function jaccard(a: ReadonlySet<string>, b: ReadonlySet<string>): number {
 export function contradictionPairs(ctx: LintContext, scope: string): [MemoryItem, MemoryItem][] {
   const held = [...ctx.items.values()]
     .filter(
-      (i) => i.scope === scope && i.status === "active" && i.class === "semantic" && heldAt(i, ctx),
+      (i) =>
+        i.scope === scope &&
+        i.status === "active" &&
+        i.class === "semantic" &&
+        heldAt(i, ctx) &&
+        ctx.canReach(i),
     )
     .sort(byId);
   const terms = new Map(held.map((i) => [i.id, lintTerms(i)]));
@@ -277,7 +282,11 @@ export function unsupportedClaimUnits(
   const claims = [...ctx.items.values()]
     .filter(
       (i) =>
-        i.scope === scope && i.status === "active" && i.class !== "procedural" && heldAt(i, ctx),
+        i.scope === scope &&
+        i.status === "active" &&
+        i.class !== "procedural" &&
+        heldAt(i, ctx) &&
+        ctx.canReach(i),
     )
     .sort(byId);
   const out: ModelLintUnit[] = [];

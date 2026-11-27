@@ -71,7 +71,7 @@ async function reports(runs: Run[], policy: Policy) {
     const { plane, db } = fresh(policy);
     for (const { seq: _seq, ...e } of run.events) appendEvent(db, e);
     for (const scope of run.scopes) {
-      const r = await plane.lint(run.actor, run.at, scope);
+      const r = await plane.lint(run.actor, run.at, scope, { reach: "scope-registered" });
       out.push({
         run: run.name,
         scope,

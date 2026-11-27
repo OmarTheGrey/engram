@@ -27,6 +27,13 @@
 // slot, one at a time, and nothing is appended until every call has returned,
 // so a failed call leaves the log as it was.
 //
+// Which items a finding may name or describe is the read filter (card L8):
+// an item Plane.read would not return the actor at `at` reads as absent
+// (lint/det.ts). The registered H3 runs were measured under the reach card L1
+// gave the lints, scope or a live grant whatever the item's status or
+// validity (readableAt), so `reach: "scope-registered"` keeps it for them and
+// for nothing else; every product surface takes the default.
+//
 // MemoryEvent has no lint_id, severity or evidence field (a schema change is
 // its own PR, AGENTS.md rule 5), so the event carries them in `reason`, and
 // its policy_id is `<policy>/lint/<lint_id>`. A finding's id is its event's id.
@@ -45,7 +52,7 @@ import {
 import { NLI_LINT_ID, type NliJudgment, nliThresholds, runNliTier } from "../lint/nli.ts";
 import type { ModelUsage } from "../model.ts";
 import type { PlaneDeps } from "../plane.ts";
-import { readableAt, readableScope } from "../policy/evaluate.ts";
+import { evaluateRead, readableAt, readableScope } from "../policy/evaluate.ts";
 import { type LintFinding, type MemoryEvent, type MemoryItem, Scope } from "../schema.ts";
 import { logHead } from "./commit.ts";
 import { inWriteQueue } from "./queue.ts";
@@ -56,6 +63,26 @@ import { inWriteQueue } from "./queue.ts";
  * forbids from reading its level (readableScope, the gate Plane.read applies).
  */
 export const LINT_MEMBERSHIP_ID = "engram/lint/membership";
+
+/**
+ * Which items Plane.lint's findings may name or describe, and its lints take
+ * as their subject (card L8):
+ *
+ * - `read-filter`, the default: what Plane.read's filter (evaluateRead)
+ *   admits for the actor at the lint time; a candidate, a retired item, one
+ *   past its ttl or outside its validity window reads as absent.
+ * - `scope-registered`: what the actor could read by scope or a live grant,
+ *   whatever its status or validity (readableAt), the reach the registered
+ *   H3 runs and their committed results were measured under. Only the
+ *   registered research call sites pass it.
+ */
+export type LintReach = "read-filter" | "scope-registered";
+
+/** How Plane.lint runs; every field optional. */
+export interface LintOptions {
+  /** Which items a finding may name or describe; `read-filter` unless given. */
+  reach?: LintReach;
+}
 
 /** What a lint of one scope did (Plane.lint). */
 export interface LintReport {
@@ -128,21 +155,54 @@ function lintContext(
   deps: Pick<PlaneDeps, "db" | "policy">,
   actor: Actor,
   at: string,
+  reach: LintReach,
 ): LintContext {
   const { db, policy } = deps;
+  const canAccess = (item: MemoryItem) => readableAt(policy, actor, item, at);
   return {
     policy,
     at,
     items: new Map<string, MemoryItem>(currentItems(db).map((i) => [i.id, i])),
     retiredBy: retirements(allEvents(db)),
-    canReach: (item: MemoryItem) => readableAt(policy, actor, item, at),
+    canReach:
+      reach === "scope-registered"
+        ? canAccess
+        : (item: MemoryItem) => evaluateRead(policy, actor, item, at).admitted,
+    dated: (item: MemoryItem) => {
+      if (item.status !== "active") return false;
+      const { check } = evaluateRead(policy, actor, item, at);
+      // An expired item is refused before access is judged; outside-validity only after it passes.
+      return check === "outside-validity" || (check === "expired" && canAccess(item));
+    },
   };
+}
+
+/**
+ * The reach `options` names: `read-filter` when `options` or its `reach` is
+ * absent (undefined). Options that are not a plain object (null, a string,
+ * an array) and a reach that is not one of the two names (null included)
+ * are refused with InvalidCallError (review L8-1).
+ */
+function lintReach(options: LintOptions | undefined, method: string): LintReach {
+  if (options === undefined) return "read-filter";
+  if (typeof options !== "object" || options === null || Array.isArray(options))
+    throw new InvalidCallError(
+      `${method}: invalid options ${JSON.stringify(options)}; expected an object such as { reach: "read-filter" }`,
+    );
+  const reach: unknown = options.reach;
+  if (reach === undefined) return "read-filter";
+  if (reach !== "read-filter" && reach !== "scope-registered")
+    throw new InvalidCallError(
+      `${method}: invalid reach ${JSON.stringify(reach)}; expected read-filter or scope-registered`,
+    );
+  return reach;
 }
 
 /**
  * The units Plane.lint's model-based lints would send over `scope` at `at`
  * as `actor` under the policy's `lints.enabled`, with `model` and `seed`
- * (card L3): what a count of a lint run's calls counts. Calls no model,
+ * (card L3), under the reach `options` names (LintReach, as Plane.lint): what
+ * a count of a lint run's calls counts. Calls no model,
  * appends nothing and does not queue; an actor who may not read the scope
  * would be refused, so it gets none.
  */
@@ -152,10 +212,17 @@ export function planModelLints(
   at: string,
   scope: string,
   setup: Omit<ModelLintSetup, "call">,
+  options?: LintOptions,
 ): ModelLintUnit[] {
   checkCall(actor, at, "lint");
+  const reach = lintReach(options, "planModelLints");
   if (!readableScope(deps.policy, actor, scope)) return [];
-  return modelLintUnits(lintContext(deps, actor, at), scope, deps.policy.lints.enabled, setup);
+  return modelLintUnits(
+    lintContext(deps, actor, at, reach),
+    scope,
+    deps.policy.lints.enabled,
+    setup,
+  );
 }
 
 /**
@@ -163,7 +230,9 @@ export function planModelLints(
  * write interleaves. An actor who may not read the scope, by membership or
  * by the read matrix, is refused with one deny event (op lint, no item,
  * `engram/lint/membership`), so a lint never shows ids, hashes or refs of
- * items Plane.read would not return (invariant 1). An invalid actor, time or scope is
+ * items Plane.read would not return (invariant 1). Inside the scope a finding
+ * names or describes only what the reach `options` names admits (LintReach;
+ * the read filter unless given). An invalid actor, time, scope or reach is
  * refused with InvalidCallError before the log is touched.
  */
 export function lint(
@@ -171,16 +240,24 @@ export function lint(
   actor: Actor,
   at: string,
   scope: string,
+  options?: LintOptions,
 ): Promise<LintReport> {
   checkCall(actor, at, "lint");
   if (!Scope.safeParse(scope).success)
     throw new InvalidCallError(
       `Plane.lint: invalid scope ${JSON.stringify(scope)}; expected person:<id>, role:<id>, team:<id> or org`,
     );
-  return inWriteQueue(deps.db, () => run(deps, actor, at, scope));
+  const reach = lintReach(options, "Plane.lint");
+  return inWriteQueue(deps.db, () => run(deps, actor, at, scope, reach));
 }
 
-async function run(deps: PlaneDeps, actor: Actor, at: string, scope: string): Promise<LintReport> {
+async function run(
+  deps: PlaneDeps,
+  actor: Actor,
+  at: string,
+  scope: string,
+  reach: LintReach,
+): Promise<LintReport> {
   const { db, newId, policy } = deps;
   const base = {
     ts: at,
@@ -206,7 +283,7 @@ async function run(deps: PlaneDeps, actor: Actor, at: string, scope: string): Pr
   // The head before the snapshot: an erasure committed after it, on any
   // handle, drops the findings that name what it erased (review of PR #50).
   const head = logHead(db);
-  const ctx = lintContext(deps, actor, at);
+  const ctx = lintContext(deps, actor, at, reach);
   const found: (DetFinding & { tier: LintFinding["tier"]; usage?: ModelUsage })[] = lintScope(
     ctx,
     scope,
