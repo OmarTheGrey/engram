@@ -65,6 +65,7 @@ import {
   scriptedLintCall,
   withNliTier,
 } from "./lint-faults.ts";
+import { OpenRouterProvider } from "./model/upstream.ts";
 
 export const FAULT_SET_BENCHMARK = "fault-set";
 
@@ -97,6 +98,13 @@ export const FaultSetLintConfig = z.strictObject({
   sha256: z.record(z.string(), z.string().regex(/^[0-9a-f]{64}$/)).optional(),
   /** Card L7: the contradiction lint's NLI tier, run before the model. */
   nli: NliRunnerConfig.optional(),
+  /**
+   * OpenRouter's upstream for the lint model (card R6; model/upstream.ts):
+   * `answer` routes the lint model, `answer_model` names the model it was
+   * chosen for. A lint calls no judge, so `judge` is refused at a live run.
+   * Unset, OpenRouter routes freely. Never part of a cache key or a count.
+   */
+  openrouter_provider: OpenRouterProvider.optional(),
 });
 export type FaultSetLintConfig = z.infer<typeof FaultSetLintConfig>;
 

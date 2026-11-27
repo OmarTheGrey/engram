@@ -3,9 +3,9 @@
 // timeline's filters and detail, and the explain view's rows and counts.
 import { describe, expect, it } from "vitest";
 import type { ExplainResponse, MemoryEvent, MemoryItem, ReadResponse } from "../src/api/index.ts";
+import { eventDetail } from "../src/detail.ts";
 import {
   buildLanes,
-  eventDetail,
   explainTarget,
   explainView,
   FILTER_CATEGORIES,
@@ -17,6 +17,7 @@ import {
   otherReaderLine,
   parseMemberships,
   parseRoute,
+  reachText,
   scopeText,
   validityText,
   viewerFrom,
@@ -207,6 +208,14 @@ describe("the timeline", () => {
     expect(detail.get("policy id")).toBe("p/write/person");
     expect(detail.get("reason")).toBe("ok");
     expect(detail.size).toBe(11);
+  });
+});
+
+describe("the explain view's reach line", () => {
+  it("says one projected item in the singular, any other count in the plural", () => {
+    expect(reachText(1)).toBe("1 projected item outside the reader's reach was not a candidate.");
+    expect(reachText(0)).toBe("0 projected items outside the reader's reach were not candidates.");
+    expect(reachText(2)).toBe("2 projected items outside the reader's reach were not candidates.");
   });
 });
 

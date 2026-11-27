@@ -1,0 +1,31 @@
+ engram  Verify the log                        in process  person:dana (person)
+   Log              [ engram.db                ]  read only; nothing is migrated
+   Public key       [                          ]
+   Held checkpoints [                          ]  enter adds
+
+ [ Verify ]
+
+ ! unsigned   exit 3  intact, but no pinned, signed checkpoint covers it
+
+   + ok    tables
+   + ok    links
+   + ok    checkpoints
+ log fixture: 2 chain entries, 1 events chained, 0 unchained, 0 erased, 0
+ manifests, 0 checkpoints
+ note: no checkpoint: nothing signs this log's head
+
+ The chain proves no event was changed or removed after it was written. A
+ signed checkpoint also proves who vouched for it.
+
+
+
+
+$ engram log verify --db engram.db   exit 3
+ ? help  ctrl+s verify  v plain  J json  ; commands  esc back
+--- styles
+r0 c0-79 inverse
+r5 c1-10 inverse
+r7 c1-1 fg #E69F00
+r9 c3-3 fg #00A67A
+r10 c3-3 fg #00A67A
+r11 c3-3 fg #00A67A

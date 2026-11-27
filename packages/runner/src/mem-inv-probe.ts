@@ -18,6 +18,7 @@
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
+import type { AssistantMessage } from "@earendil-works/pi-ai";
 import { memInvBench } from "@engram/bench";
 import {
   type Adapter,
@@ -36,6 +37,7 @@ import {
   type CacheStore,
   type CallContext,
   cached,
+  cacheKey,
   fileCache,
   type UsageRecord,
 } from "@engram/model";
@@ -64,13 +66,21 @@ import {
   USAGE_FILE,
   writeJsonl,
 } from "./journal.ts";
-import { type AnswerSource, cassettePiModel, sessionFailure } from "./model/cassette.ts";
 import {
+  type AnswerSource,
+  cassettePiModel,
+  type Exclusion,
+  sessionEnd,
+} from "./model/cassette.ts";
+import {
+  attemptUsage,
   NOTE_RETRY,
+  ProviderStopError,
   type RetryPolicy,
   realSleep,
   retrySession,
   type Sleep,
+  stoppingStatus,
   withRetry,
 } from "./model/retry.ts";
 import type { Shard } from "./shard.ts";
@@ -148,8 +158,8 @@ export interface MemInvProbeResult {
   proposal: string;
   outcome: memInvBench.Outcome;
   decisions: SessionDecision[];
-  /** `turn limit` when the session asked for a model call past the config's turn_limit (RV-EXP-5); left out of the summary. */
-  excluded?: "turn limit";
+  /** `turn limit` when the session asked for a model call past the config's turn_limit (RV-EXP-5), `answer refused` when the provider refused its answer call (card X20); left out of the summary. */
+  excluded?: Exclusion;
 }
 
 export interface MemInvProbeSpec {
@@ -365,7 +375,11 @@ async function memInvProbeOn(spec: MemInvProbeSpec, adapter: Adapter): Promise<M
   });
   try {
     await session.prompt(user);
-    const failure = sessionFailure(session.messages, cassette);
+    const { failure, excluded } = sessionEnd(
+      session.messages,
+      cassette,
+      `mem-inv-bench/${view.case_id}`,
+    );
     if (failure !== undefined) throw failure;
     const messages = session.messages;
     const toolCalls = messages.flatMap((m) =>
@@ -407,7 +421,7 @@ async function memInvProbeOn(spec: MemInvProbeSpec, adapter: Adapter): Promise<M
       proposal,
       outcome: memInvBench.scoreProposal(spec.case, proposal, ending),
       decisions,
-      ...(cassette.capped ? { excluded: "turn limit" as const } : {}),
+      ...(excluded === undefined ? {} : { excluded }),
     };
   } finally {
     session.dispose();
@@ -502,7 +516,9 @@ export const noteContext = (caseId: string): CallContext => ({
  * errors, waits of min(2^i, 20) seconds), and only the final reply is
  * recorded; when every attempt fails, a warning names the error, as
  * upstream's does, and the failure is recorded and falls back. An aborted
- * call is never recorded: the run stops (PR #25 review round 3, V-4).
+ * call is never recorded: the run stops (PR #25 review round 3, V-4); nor
+ * is a 401, 402, 404 or a 403 that is not a moderation flag, which stops the
+ * run too (card X20).
  */
 export async function withNotes(
   c: memInvBench.Case,
@@ -532,7 +548,14 @@ export async function withNotes(
     }
     const prompt = notePrompt(input);
     const answers = noteAnswersFor(config, c.case_id, options.live)();
-    const inner: ModelCall = async () => {
+    const inner: ModelCall = async (request) => {
+      // Every failed attempt was paid for: a retried one and a stopping one
+      // reach the ledger here, once each; a recorded reply reaches it through
+      // `cached` (card X20 step 4, review RV1-3 and the final review's finding 6).
+      const paid = (failed: AssistantMessage) =>
+        options.onUsage?.(
+          attemptUsage(cacheKey(noteContext(c.case_id), request), config.model, failed),
+        );
       const { reply, attempts } = await withRetry(
         () =>
           answers(
@@ -541,9 +564,20 @@ export async function withNotes(
           ),
         NOTE_RETRY,
         options.sleep ?? realSleep,
+        paid,
       );
       if (reply.stopReason === "aborted") {
         throw new Error(`the note call for ${c.case_id} was aborted; nothing was recorded`);
+      }
+      // A key, credit or endpoint problem stops the run, never recorded (card
+      // X20): falling back would write every later case's memory differently.
+      const status = reply.stopReason === "error" ? stoppingStatus(reply.errorMessage) : undefined;
+      if (status !== undefined) {
+        paid(reply);
+        throw new ProviderStopError(
+          status,
+          `the note call for ${c.case_id} failed: ${reply.errorMessage ?? "error"}`,
+        );
       }
       // A call that failed for good is upstream's `ok: False` with an empty
       // text: warned about, recorded, and the note falls back to the raw input.

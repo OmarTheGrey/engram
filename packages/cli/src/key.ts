@@ -11,18 +11,9 @@ import { resolve } from "node:path";
 import { ProvenanceKind } from "@engram/core";
 import { createKey, KeyFileError, listKeys, revokeKey } from "@engram/server";
 import { parse } from "./commands.ts";
+import { OPTIONS } from "./registry.ts";
 import type { Io } from "./run.ts";
 import { buildActor, checkTime, UsageError } from "./setup.ts";
-
-const KEY_OPTIONS = {
-  keys: { type: "string" },
-  as: { type: "string" },
-  level: { type: "string" },
-  member: { type: "string", multiple: true },
-  source: { type: "string" },
-  expires: { type: "string" },
-  json: { type: "boolean" },
-} as const;
 
 const SUBCOMMANDS = ["create", "list", "revoke"] as const;
 
@@ -37,7 +28,7 @@ function usage<T>(fn: () => T): T {
 }
 
 export async function keyCommand(args: string[], io: Io): Promise<number> {
-  const { values, positionals } = parse(args, KEY_OPTIONS, true);
+  const { values, positionals } = parse(args, OPTIONS.key, true);
   const [sub, ...rest] = positionals;
   if (sub === undefined || !(SUBCOMMANDS as readonly string[]).includes(sub))
     throw new UsageError(

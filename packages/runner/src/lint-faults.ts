@@ -63,6 +63,7 @@ import type { LiveModels } from "./answers.ts";
 import { NO_STORE } from "./config.ts";
 import { sequentialIds } from "./gatemem-probe.ts";
 import { failedAttempt, liveJudgeCall, paidFailures } from "./judge.ts";
+import { OpenRouterProvider } from "./model/upstream.ts";
 
 export const LINT_BENCHMARK = "lint-faults";
 
@@ -178,6 +179,13 @@ export const LintRunnerConfig = z.strictObject({
   cassettes: z.string(),
   /** Card L7: the contradiction lint's NLI tier, run before the model. */
   nli: NliRunnerConfig.optional(),
+  /**
+   * OpenRouter's upstream for the lint model (card R6; model/upstream.ts):
+   * `answer` routes the lint model, `answer_model` names the model it was
+   * chosen for. A lint calls no judge, so `judge` is refused at a live run.
+   * Unset, OpenRouter routes freely. Never part of a cache key or a count.
+   */
+  openrouter_provider: OpenRouterProvider.optional(),
 });
 export type LintRunnerConfig = z.infer<typeof LintRunnerConfig>;
 

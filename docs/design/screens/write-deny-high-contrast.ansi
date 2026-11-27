@@ -1,0 +1,36 @@
+[7m engram  Write a memory  result                                         in process  log engram.db  person:dana (person) [0m
+ [1;4m✗[0m [1;4mdeny[0m   exit 1  deny, ask or an error
+
+ write 01960000-0000-7000-8000-000000005002 at 2026-10-29T12:00:00.000Z by person:dana
+ deny: episodic items are forbidden in team scope; provenance set by the plane: source user, actor person:dana
+ policy fixture.inspector/write/team
+ log ~/demo/engram.db
+
+ Nothing was stored. The decision is event 12 in the log.
+
+ [7m[ Edit and retry ][0m   [ Open the event ]   [ New write ]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+$ engram write --content "Dana met the auditors this mo...na --member person:dana --member team:core --root mem   exit 1
+ ? help  v plain  J json  enter choose  ; commands  esc back
