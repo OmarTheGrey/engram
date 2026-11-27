@@ -8,7 +8,7 @@
   "seeds": [1, 2, 3],
   "cassettes": "../../.engram/runs/l3-pilot/cassettes",
   "openrouter_provider": {
-    "answer": { "order": ["wafer/us"], "allow_fallbacks": false },
+    "answer": { "order": ["wafer/us"], "allow_fallbacks": false, "require_parameters": true },
     "answer_model": "openrouter/deepseek/deepseek-v4-pro-0813"
   }
 }

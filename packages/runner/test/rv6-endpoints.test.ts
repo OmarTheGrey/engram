@@ -94,7 +94,44 @@ export function ruleTag(model: string, snap: Snapshot = snapshot): string {
   return first.tag;
 }
 
-const pinOf = (model: string) => ({ order: [ruleTag(model)], allow_fallbacks: false });
+// require_parameters (review finding 2): OpenRouter refuses a call the
+// endpoint cannot honour in full, the seed among its parameters, instead of
+// dropping the seed and answering unseeded.
+const pinOf = (model: string) => ({
+  order: [ruleTag(model)],
+  allow_fallbacks: false,
+  require_parameters: true,
+});
+
+/** The parameters `role`'s calls send, by the snapshot's reading of pi-ai. */
+const sent = (role: string): string[] => {
+  const list = snapshot.sent_parameters?.[role];
+  if (!Array.isArray(list)) throw new Error(`the snapshot lists no sent parameters for ${role}`);
+  return list;
+};
+
+/** Each pinned endpoint lists every parameter the calls of `roles` send to `model`. */
+function expectSupports(model: string, roles: string[]): void {
+  const tag = ruleTag(model);
+  const endpoint = snapshot.models[model]?.endpoints.find((e) => e.tag === tag);
+  const supported = new Set(endpoint?.supported_parameters ?? []);
+  for (const role of roles) {
+    for (const parameter of sent(role)) {
+      expect(supported.has(parameter), `${model} at ${tag}: ${role} sends ${parameter}`).toBe(true);
+    }
+  }
+}
+
+/** The role of a call the answer model makes besides its answer turns, per benchmark. */
+const ANSWER_ROLES: Record<string, string[]> = {
+  gatemem: ["answer"],
+  "mem-inv-bench": ["answer", "note"],
+  longmemeval: ["answer"],
+};
+const JUDGE_ROLE: Record<string, string> = {
+  gatemem: "gatemem_judge",
+  longmemeval: "longmemeval_judge",
+};
 
 /** Each config that will run live, parsed by its own reader so the schema accepts its pin. */
 const RUNNER_BENCHMARKS = new Set(["gatemem", "mem-inv-bench", "longmemeval"]);
@@ -254,9 +291,13 @@ describe("card R6: every live config pins its answer model and its judge", () =>
     const answerModel = model.startsWith("prereg/") ? M1 : model;
     expect(pin.answer_model).toBe(answerModel);
     expect(pin.answer).toEqual(pinOf(answerModel));
+    expectSupports(answerModel, ANSWER_ROLES[benchmark] ?? []);
     const judge = (config.judge as { model?: string } | undefined)?.model;
     if (judge === undefined) expect(pin.judge).toBeUndefined();
-    else expect(pin.judge).toEqual(pinOf(judge));
+    else {
+      expect(pin.judge).toEqual(pinOf(judge));
+      expectSupports(judge, [JUDGE_ROLE[benchmark] as string]);
+    }
   });
 });
 
@@ -271,6 +312,7 @@ describe("card R6: the lint configs", () => {
     const pin = OpenRouterProvider.parse(config.openrouter_provider);
     expect(pin.answer_model).toBe(M1);
     expect(pin.answer).toEqual(pinOf(M1));
+    expectSupports(M1, ["lint"]);
     expect(pin.judge).toBeUndefined();
   });
 });

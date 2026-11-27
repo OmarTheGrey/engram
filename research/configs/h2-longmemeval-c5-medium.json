@@ -15,8 +15,8 @@
   "spend_ceiling_usd": 103.45,
   "judge": { "model": "openrouter/openai/gpt-4o-2024-08-06", "temperature": 0, "max_tokens": 10 },
   "openrouter_provider": {
-    "answer": { "order": ["wafer/us"], "allow_fallbacks": false },
+    "answer": { "order": ["wafer/us"], "allow_fallbacks": false, "require_parameters": true },
     "answer_model": "openrouter/deepseek/deepseek-v4-pro-0813",
-    "judge": { "order": ["openai"], "allow_fallbacks": false }
+    "judge": { "order": ["openai"], "allow_fallbacks": false, "require_parameters": true }
   }
 }

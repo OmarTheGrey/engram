@@ -12,7 +12,7 @@
     "states.jsonl": "8d6822767eb1f51f436518e14a9c37817bc17becbf103085369ab48197560dbc"
   },
   "openrouter_provider": {
-    "answer": { "order": ["wafer/us"], "allow_fallbacks": false },
+    "answer": { "order": ["wafer/us"], "allow_fallbacks": false, "require_parameters": true },
     "answer_model": "openrouter/deepseek/deepseek-v4-pro-0813"
   }
 }

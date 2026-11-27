@@ -27,8 +27,8 @@
     "max_tokens": 4096
   },
   "openrouter_provider": {
-    "answer": { "order": ["wafer/us"], "allow_fallbacks": false },
+    "answer": { "order": ["wafer/us"], "allow_fallbacks": false, "require_parameters": true },
     "answer_model": "openrouter/deepseek/deepseek-v4-pro-0813",
-    "judge": { "order": ["openai"], "allow_fallbacks": false }
+    "judge": { "order": ["openai"], "allow_fallbacks": false, "require_parameters": true }
   }
 }
