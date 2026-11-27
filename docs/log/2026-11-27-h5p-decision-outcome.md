@@ -12,10 +12,10 @@ evidence:
 supersedes: none
 ---
 
-**What.** The primary outcome is the mean over the 60 evaluation tasks of the seed-averaged tau2 reward; "policy violations" are reported as none under that name, the scan count in their place.
+**What.** Proposed for the lead: the mean over the 60 evaluation tasks of the seed-averaged tau2 reward as the primary outcome, and "policy violations" reported as none under that name, the scan count in their place.
 
 **Why.** tau2 at the pin labels no violation: its reward is a database hash, a communication check and, on retail, natural-language assertions.
 
-**Result.** Secondaries: success per domain, steps per task, pass^3, procedure counts. Proposed, card H5P item 10.
+**Result.** Secondaries: success per domain, steps per task, pass^3, procedure counts. Card H5P row 10.
 
-**Consequence.** The lead approves, changes or refuses it; nothing is registered until then.
+**Consequence.** The lead's answer entry on this item supersedes this one; nothing is registered until then.

@@ -12,10 +12,10 @@ evidence:
 supersedes: none
 ---
 
-**What.** A seeded power simulation with the analysis code's own bootstrap is run before registration, as `research/results/h4-power.json` is for H4.
+**What.** Proposed for the lead: a seeded power simulation with the analysis code's own bootstrap, run by the harness card after registration and before H5's first live run, not blocking registration.
 
-**Why.** The sample is fixed by the benchmark at 60 tasks, and no power figure exists for it.
+**Why.** The first draft put it before registration, which the 1 December deadline (item 9) cannot meet, since the script is the harness card's (review finding F7). The size is fixed at 60, so no registered value depends on the result.
 
-**Result.** The size stays 60 whatever the simulation shows; a low power is H5's stated limit. Proposed, card H5P item 13.
+**Result.** Registration can happen by 1 December; a low power is H5's stated limit. Card H5P row 13.
 
-**Consequence.** The lead approves, changes or refuses it; nothing is registered until then.
+**Consequence.** The lead's answer entry on this item supersedes this one; nothing is registered until then.

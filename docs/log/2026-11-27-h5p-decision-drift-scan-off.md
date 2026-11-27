@@ -12,10 +12,10 @@ evidence:
 supersedes: none
 ---
 
-**What.** Drift and the safety scan are off in every H5 config; card D5's scan runs once after the run, model-free, and its counts are descriptive.
+**What.** Proposed for the lead: drift and the safety scan off in every H5 config, with card D5's scan run once after the run, model-free, descriptive.
 
 **Why.** H5 registers admission, not retirement, and cards D4 and D5 assume both are off.
 
-**Result.** No procedure is retired or held during H5. Proposed, card H5P item 9.
+**Result.** No procedure is retired or held during H5. Card H5P row 9.
 
-**Consequence.** The lead approves, changes or refuses it; nothing is registered until then.
+**Consequence.** The lead's answer entry on this item supersedes this one; nothing is registered until then.

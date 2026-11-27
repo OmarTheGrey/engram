@@ -18,4 +18,4 @@ supersedes: none
 
 **Result.** Counting the 99 evaluation calls alone gives 83.30 billed and 55.64 ledger dollars at the low end; the difference is about 1.29 dollars. The high end is unaffected.
 
-**Consequence.** None for the draft: the low bound errs high by at most 1.29 dollars, and `COUNT=1` replaces it.
+**Consequence.** None for the draft, which now calls it an upper count: the low bound errs high by at most 1.29 dollars, and `COUNT=1` replaces it.

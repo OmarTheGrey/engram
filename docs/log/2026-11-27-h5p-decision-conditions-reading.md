@@ -12,10 +12,10 @@ evidence:
 supersedes: none
 ---
 
-**What.** No H5 session offers `memory_write` or `memory_read`; procedures reach the agent through card D3's `procedureBlock`, at most 20 in item-id order; C2 lists the store directly, C5 reads through `Plane.read` under preset medium on store files.
+**What.** Proposed for the lead: no memory tools in any H5 session; procedures installed through card D3's `procedureBlock`, at most 20, re-sorted into item-id order; C2 listing the store directly; C5's harness making one `Plane.read` of the domain's procedures per session as the operator's actor.
 
-**Why.** H5 measures procedural memory, and card B11's episodic tools would give C2 and C5 a second memory that C1 lacks.
+**Why.** H5 measures procedural memory, and card B11's episodic tools would give C2 and C5 a second memory that C1 lacks. Registered C5 reads through the Engram extension's tools; the draft now names that departure (review finding F9).
 
-**Result.** C5 with no admitted procedure in a domain is C1 there, and the table says so. Proposed, card H5P item 8.
+**Result.** The harness card fixes the read's query and tests that it returns every admitted procedure. Card H5P row 8.
 
-**Consequence.** The lead approves, changes or refuses it; nothing is registered until then.
+**Consequence.** The lead's answer entry on this item supersedes this one; nothing is registered until then.

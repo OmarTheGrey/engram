@@ -12,10 +12,10 @@ evidence:
 supersedes: none
 ---
 
-**What.** The two domains are pooled in the primary test (60 tasks), and each domain's contrast is reported beside it, unadjusted.
+**What.** Proposed for the lead: pooling the two domains in the primary test (60 tasks), resampled as one set of tasks without stratifying by domain, each domain's contrast reported beside it, unadjusted.
 
-**Why.** Two primary tests would add a member to the Holm family, which the proposed section's rules forbid; 20 airline tasks alone are a small sample.
+**Why.** Each hypothesis has one primary test (Statistics), so two primary tests would need a Statistics amendment (review finding F8); 20 airline tasks alone are a small sample.
 
-**Result.** H5 keeps one primary p-value. Proposed, card H5P item 11.
+**Result.** The alternatives a refusal leaves are retail alone as primary or a domain-stratified resample. Card H5P row 11.
 
-**Consequence.** The lead approves, changes or refuses it; nothing is registered until then.
+**Consequence.** The lead's answer entry on this item supersedes this one; nothing is registered until then.

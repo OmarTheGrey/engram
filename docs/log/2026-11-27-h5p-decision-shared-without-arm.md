@@ -12,10 +12,10 @@ evidence:
 supersedes: none
 ---
 
-**What.** The replay's without-arm is the validation half's C1 sessions at seeds 1 to 3, run once and shared by every candidate.
+**What.** Proposed for the lead: the validation half's C1 sessions at seeds 1 to 3 as the replay's without-arm, run once and shared by every candidate.
 
 **Why.** A replay session without a candidate is a C1 session, so running it again per candidate would repeat identical cached work.
 
-**Result.** 156 sessions in place of 15 more per candidate; the registered threshold of ADR 0046 is unchanged. Proposed, card H5P item 6.
+**Result.** 156 sessions in place of 15 more per candidate; the registered threshold of ADR 0046 is unchanged. Card H5P row 6.
 
-**Consequence.** The lead approves, changes or refuses it; nothing is registered until then.
+**Consequence.** The lead's answer entry on this item supersedes this one; nothing is registered until then.

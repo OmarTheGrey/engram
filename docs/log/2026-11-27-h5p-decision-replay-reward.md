@@ -12,10 +12,10 @@ evidence:
 supersedes: none
 ---
 
-**What.** The replay scores tau2's own reward, `tau2_reward`, the same number as H5's metric.
+**What.** Proposed for the lead: scoring the replay by tau2's own reward, `tau2_reward`, the same number as H5's metric.
 
 **Why.** Today `tau2Reward` in `packages/runner/src/replay-validate.ts` reads the database check alone (`docs/log/2026-11-22-d3-finding-tau2-reward-db-only.md`), so a task with no database part always fails the replay.
 
-**Result.** The harness card changes the oracle; no code changes in this card. Proposed, card H5P item 7.
+**Result.** The harness card changes the oracle; no code changes in this card. Card H5P row 7.
 
-**Consequence.** The lead approves, changes or refuses it; nothing is registered until then.
+**Consequence.** The lead's answer entry on this item supersedes this one; nothing is registered until then.

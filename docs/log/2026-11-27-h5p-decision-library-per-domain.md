@@ -12,10 +12,10 @@ evidence:
 supersedes: none
 ---
 
-**What.** One library per domain is induced once with the config's first seed and used by all three seeds; examples go in task-id order, chunked by whole example when over M1's context.
+**What.** Proposed for the lead: one library per domain, induced once with the config's first seed and used by all three seeds, examples in task-id order, chunked by whole example when over M1's context.
 
 **Why.** As MEM-INV-Bench's agent note is written once per case and serves all three seeds (Seeds section; decision sheet item 8).
 
-**Result.** 2 to 104 induction calls; the induction's own variance is not measured, a stated limit. Proposed, card H5P item 4.
+**Result.** 2 to 52 induction calls, one per domain at least and one per induction-half task at most (15 plus 37); the induction's own variance is not measured, a stated limit. Card H5P row 4.
 
-**Consequence.** The lead approves, changes or refuses it; nothing is registered until then.
+**Consequence.** The lead's answer entry on this item supersedes this one; nothing is registered until then.

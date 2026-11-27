@@ -14,10 +14,10 @@ evidence:
 supersedes: none
 ---
 
-**What.** H5's prerequisites are drafted as one subsection of the pre-registration's section "Proposed amendments, not yet registered", with card H5P listing the lead's seventeen choices.
+**What.** H5's prerequisites are drafted as one subsection of the pre-registration's section "Proposed amendments, not yet registered", with card H5P listing the lead's twenty-two choices.
 
-**Why.** Lead-decisions item 30, option (a), and the lead's answer to question 4 of 2026-11-25: the orchestrator drafts them as a proposed amendment pull request, and nothing is registered until the lead approves the text.
+**Why.** Lead-decisions item 30, option (a), answered under the delegation on 2026-11-20, and the lead's own answer to question 4 of 2026-11-25 (row Q4): the orchestrator drafts them as a proposed amendment pull request, and nothing is registered until the lead approves the text.
 
-**Result.** The subsection adds 23 lines between "Scheduled by the absorb plan" and "Not scheduled" and removes none (`git diff origin/main -- docs/research/preregistration.md`). No registered line moved, H5's fields included. A later commit replaced two gendered pronouns for the lead with neutral wording.
+**Result.** After the review's fix pass the subsection adds 24 lines between "Scheduled by the absorb plan" and "Not scheduled" and removes none (`git diff origin/main -- docs/research/preregistration.md`). No registered line moved, H5's fields included. Two gendered pronouns for the lead were replaced with neutral wording.
 
-**Consequence.** The lead approves, changes or refuses each of the seventeen items in card H5P before 1 December (item 9); a registration then moves the text into H5's fields with a row in the Versions table.
+**Consequence.** The lead approves, changes or refuses each item of card H5P before 1 December (item 9); a registration then moves the text into H5's fields with a row in the Versions table.

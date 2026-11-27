@@ -12,10 +12,10 @@ evidence:
 supersedes: none
 ---
 
-**What.** Card X11 is rewritten, before H5's run, to build exactly the draft, with a fixture slice replayed from scripted cassettes as its acceptance.
+**What.** Proposed for the lead: rewriting card X11, before H5's run, to build exactly the draft, gpt-4.1's catalogue price and ratio included, with a fixture slice replayed from scripted cassettes as its acceptance.
 
 **Why.** Item 30 names the harness card among the prerequisites, and X11 as the roadmap writes it still names the repository tasks.
 
-**Result.** X11's rewrite is out of this card's scope. Proposed, card H5P item 17.
+**Result.** X11's rewrite is out of this card's scope. Card H5P row 17.
 
-**Consequence.** The lead approves, changes or refuses it; nothing is registered until then.
+**Consequence.** The lead's answer entry on this item supersedes this one; nothing is registered until then.

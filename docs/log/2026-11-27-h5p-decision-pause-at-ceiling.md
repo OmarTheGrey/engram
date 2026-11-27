@@ -12,10 +12,10 @@ evidence:
 supersedes: none
 ---
 
-**What.** A run that reaches its ceiling or the programme-wide cap pauses with its sessions kept, and the lead decides on `RESUME=1`.
+**What.** Proposed for the lead: pausing a run that reaches its ceiling or the programme-wide cap, its sessions kept, the lead deciding on `RESUME=1`.
 
 **Why.** A completed subset would leave the contrast on whichever tasks ran first; H1 does the same.
 
-**Result.** The ceiling is 1.25 times the high estimate in ledger dollars (item 3). Proposed, card H5P item 12.
+**Result.** The ceiling itself is the cost table's, not the draft's. Card H5P row 12.
 
-**Consequence.** The lead approves, changes or refuses it; nothing is registered until then.
+**Consequence.** The lead's answer entry on this item supersedes this one; nothing is registered until then.

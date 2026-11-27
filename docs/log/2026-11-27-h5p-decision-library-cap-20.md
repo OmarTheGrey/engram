@@ -12,10 +12,10 @@ evidence:
 supersedes: none
 ---
 
-**What.** A library keeps at most 20 procedures per domain, the first 20 in reply order, and C2 and C5 start from that same capped library.
+**What.** Proposed for the lead: a cap of 20 procedures per domain, the first 20 in reply order, with C2 and C5 starting from that same capped library.
 
 **Why.** The shared retrieval reads at most 20 items, and H5's Test requires the same induction method in both arms.
 
-**Result.** 8 to 20 candidates per domain enter the cost bounds. Proposed, card H5P item 5.
+**Result.** 8 to 20 candidates per domain enter the cost bounds. Card H5P row 5.
 
-**Consequence.** The lead approves, changes or refuses it; nothing is registered until then.
+**Consequence.** The lead's answer entry on this item supersedes this one; nothing is registered until then.
